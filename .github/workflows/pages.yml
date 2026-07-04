@@ -19,9 +19,12 @@ permissions:
   pages: write
   id-token: write
 
+# Serialize deployments: allow one at a time and let an in-progress production
+# deployment finish rather than cancelling it, which is what leaves the Pages
+# environment stuck and fails later runs with "deployment failed, try again later".
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
