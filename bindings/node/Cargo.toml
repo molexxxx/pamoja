@@ -20,7 +20,7 @@ mqtt = ["dep:pamoja-mqtt", "dep:tokio"]
 
 [dependencies]
 napi = { version = "2", default-features = false, features = ["napi4", "tokio_rt"] }
-napi-derive = "2"
+napi-derive = "3"
 pamoja-core = { path = "../../crates/pamoja-core" }
 pamoja-mqtt = { path = "../../crates/pamoja-mqtt", optional = true }
 tokio = { version = "1", default-features = false, features = ["sync"], optional = true }
