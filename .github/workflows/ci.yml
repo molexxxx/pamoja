@@ -78,6 +78,39 @@ jobs:
       - name: Crate READMEs in sync
         run: cargo run -p xtask -- docs --check
 
+  embedded:
+    name: bare-metal cross-compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # A Cortex-M4F target with no operating system: the honest test of the `no_std`
+      # claim, since the host `no_std build` job still links against the host `std`. Every
+      # crate that declares `no_std` must compile for a real microcontroller.
+      - name: Add the thumbv7em-none-eabihf target
+        run: rustup target add thumbv7em-none-eabihf
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-embedded-cargo-${{ hashFiles('**/Cargo.toml') }}
+
+      - name: Cross-compile the no_std crates for bare metal
+        run: |
+          T=thumbv7em-none-eabihf
+          # Feature-gated crates build with their std layer off; the rest are no_std by default.
+          cargo build --target $T --no-default-features \
+            -p pamoja-core -p pamoja-security -p pamoja-audit -p pamoja-mavlink
+          cargo build --target $T --no-default-features --features "robotics geo" -p pamoja-kit
+          cargo build --target $T \
+            -p pamoja-session -p pamoja-sensors -p pamoja-actuators -p pamoja-serial \
+            -p pamoja-mesh -p pamoja-modbus -p pamoja-can -p pamoja-gpio \
+            -p pamoja-lora -p pamoja-lorawan -p pamoja-routing -p pamoja-power -p pamoja-telemetry
+
   deny:
     name: license + advisory audit
     runs-on: ubuntu-latest
