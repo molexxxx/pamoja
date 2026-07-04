@@ -46,7 +46,7 @@ jobs:
           cp -r web/. dist/
           cp -r crates/pamoja-dashboard/web/. dist/dashboard/
           cargo run -p pamoja-dashboard --features mock --example snapshot -- dist/dashboard
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
       - id: deployment
