@@ -17,7 +17,7 @@ jobs:
     name: rust (fmt, clippy, test)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install components
         run: rustup component add rustfmt clippy
@@ -86,7 +86,7 @@ jobs:
     name: bare-metal cross-compile
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # A Cortex-M4F target with no operating system: the honest test of the `no_std`
       # claim, since the host `no_std build` job still links against the host `std`. Every
@@ -119,7 +119,7 @@ jobs:
     name: license + advisory audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@v2
@@ -143,7 +143,7 @@ jobs:
     container:
       image: ros:jazzy
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust and bridge dependencies
         run: |
@@ -180,7 +180,7 @@ jobs:
       matrix:
         autopilot: [ardupilot, px4]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # Each autopilot builds from a pinned source release into a self-contained image that also
       # carries the Rust toolchain, so the interop test runs against a real flight stack. The

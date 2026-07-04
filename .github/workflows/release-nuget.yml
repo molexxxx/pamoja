@@ -45,7 +45,7 @@ jobs:
             rid: osx-arm64
             lib: libpamoja_ffi.dylib
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -76,7 +76,7 @@ jobs:
       # Required to mint a short-lived NuGet key via OIDC trusted publishing.
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-dotnet@v5
         with:
