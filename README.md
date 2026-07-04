@@ -97,7 +97,7 @@ today.
 | [`pamoja-actuators`](crates/pamoja-actuators/README.md#pamoja-actuators) | field I/O | `no_std` drivers for cheap outputs: PCA9685 16-channel PWM with servo-angle helpers, plus a stepper driver. |
 | [`pamoja-zenoh`](crates/pamoja-zenoh/README.md#pamoja-zenoh) | robotics | A Zenoh transport plus a key-expression engine (validity, canonical form, wildcard matching) so fleets and robots share data over Zenoh, with or without ROS 2. |
 | [`pamoja-ros2`](crates/pamoja-ros2/README.md#pamoja-ros2) | robotics | A ROS 2 bridge - topics, services, and actions - with ROS 2 name, RIHS01 type-hash, and CDR handling plus rmw_zenoh key assembly, so a robot appears as an ordinary pamoja device; interoperates with rmw_zenoh, routerless. |
-| [`pamoja-mavlink`](crates/pamoja-mavlink/README.md#pamoja-mavlink) | drones | MAVLink v1/v2 framing with the CRC-16/MCRF4XX checksum, per-message CRC_EXTRA, and MAVLink 2 SHA-256 signing, plus a broad typed slice of the common dialect and a byte-stream link seam exercised against an in-process SITL, toward MAVSDK/PX4/ArduPilot interop. |
+| [`pamoja-mavlink`](crates/pamoja-mavlink/README.md#pamoja-mavlink) | drones | MAVLink v1/v2 framing with the CRC-16/MCRF4XX checksum, per-message CRC_EXTRA, and MAVLink 2 SHA-256 signing, a typed common dialect with MAVLink 2 extension fields, the mission, command, and offboard protocols as sans-IO state machines, and a vehicle modeled as a pamoja `Device` driven over real serial, UDP, and TCP links - verified in CI against real ArduPilot and PX4 SITL. |
 | [`pamoja-kit`](crates/pamoja-kit/README.md#pamoja-kit) | ergonomics | Plain-language helpers that name the goal over the math: smoothing/filtering (EMA, median, Kalman, complementary, debounce), calibration, units and deadband shaping, PID and on/off control with ramping, trend/surge/depletion and anomaly prediction, rolling-window stats, wheel kinematics (differential, Ackermann, skid-steer, mecanum), odometry, waypoint guidance and motion safety (e-stop, watchdog, limits), two-link arm forward/inverse kinematics, and geo (distance/bearing/geofence), IMU tilt, and dew-point helpers. |
 | [`pamoja-profile`](crates/pamoja-profile/README.md#pamoja-profile) | ergonomics | Named, ready-to-run device profiles from plain data or a JSON manifest; assembled and testable with no hardware. |
 | [`pamoja-ffi`](crates/pamoja-ffi/README.md#pamoja-ffi) | bindings | The curated C ABI over the core and MQTT, with a `cbindgen`-generated, drift-checked `pamoja.h`. |
@@ -110,7 +110,7 @@ today.
 | `pamoja-core` | Python | A generated, type-stubbed contract plus a hand-written async facade (PyO3 + maturin). |
 | `Pamoja.Core` | C# / .NET | A P/Invoke interop layer plus an async facade with `IAsyncEnumerable` streams and `IAsyncDisposable` lifecycle. |
 
-CI runs formatting, clippy, and tests for the workspace, builds the Node, Python, and .NET bindings, and fails if any generated surface (the binding contracts and the C header) drifts from the Rust source. Release workflows publish to crates.io, npm, PyPI, and NuGet on a version tag. Everything past this is on the roadmap below.
+CI runs formatting, clippy, tests, and a license and security-advisory audit of the dependency tree for the workspace, builds the Node, Python, and .NET bindings, and fails if any generated surface (the binding contracts and the C header) drifts from the Rust source. Release workflows publish to crates.io, npm, PyPI, and NuGet on a version tag. Everything past this is on the roadmap below.
 
 ## Architecture
 
@@ -141,7 +141,7 @@ Hardware and sensors. Serial (SLIP/COBS), CAN with J1939, RS485/Modbus, and on-b
 
 Resilience and power. Offline-first store-and-forward, energy-aware duty cycling for solar and battery, and a local-first dashboard a node serves over its own hotspot - multilingual, fully offline, with a hardware-free mock - all work today. The dashboard now also renders custom sensors and node stats a profile declares, and reaches any phone over the gateway's own WiFi while the radio mesh carries the data behind it - the shape of a pre-flashed field kit. Next is data-mule sync for places with no link at all.
 
-Robotics and drones. A ROS 2 bridge - topics, services, and actions - over a Zenoh transport ships today, interoperating with rmw_zenoh, routerless; the kit adds wheel kinematics, odometry, waypoint guidance, motion safety, and arm forward/inverse kinematics, and a simulated robot exercises it all with no hardware. MAVLink now ships too: v1 and v2 framing, per-message CRC_EXTRA, and MAVLink 2 message signing, exercised against an in-process SITL, toward MAVSDK, PX4, and ArduPilot. Next: modeling a vehicle as an ordinary pamoja device.
+Robotics and drones. A ROS 2 bridge - topics, services, and actions - over a Zenoh transport ships today, interoperating with rmw_zenoh, routerless; the kit adds wheel kinematics, odometry, waypoint guidance, motion safety, and arm forward/inverse kinematics, and a simulated robot exercises it all with no hardware. MAVLink ships too: a vehicle is an ordinary pamoja device you arm, command, and fly missions through, over real serial, UDP, and TCP links, with the whole path verified in CI against real ArduPilot and PX4 SITL. Next: multi-device fleet orchestration, and the vehicle model surfaced through the language bindings.
 
 Security. Memory safety by construction today, with ed25519 device identity, a tamper-evident hash-chained audit log, and a secured channel (X25519 key agreement and ChaCha20-Poly1305 with anti-replay) already shipping. Next: TLS 1.3 and DTLS, X.509 device identity, and signed OTA updates with verified rollback.
 
@@ -152,9 +152,9 @@ Reach. Bindings beyond Node: Python, C#/.NET, Lua, WebAssembly, Kotlin, Swift, a
 | Language | Package | Status |
 | --- | --- | --- |
 | Rust | `pamoja-core`, `pamoja-mqtt`, ... | available |
-| TypeScript / Node | `@pamoja/core` | in progress |
-| Python | `pamoja-core` | in progress |
-| C# / .NET | `Pamoja.Core` | in progress |
+| TypeScript / Node | `@pamoja/core` | available (core + MQTT) |
+| Python | `pamoja-core` | available (core + MQTT) |
+| C# / .NET | `Pamoja.Core` | available (core + MQTT) |
 | Lua | embeddable | planned |
 | WebAssembly | browser / npm | planned |
 | Kotlin, Swift, Go | platform-native | planned |
@@ -164,11 +164,14 @@ Reach. Bindings beyond Node: Python, C#/.NET, Lua, WebAssembly, Kotlin, Swift, a
 ```
 crates/      Rust engine and capability crates (each crate's README is its doc landing)
 bindings/    per-language bindings (Node, Python, .NET today; more to come)
+examples/    runnable end-to-end scenarios, including a cross-crate conformance test
 docs/        a generated API index linking each crate's README (cargo xtask docs)
+sitl/        ArduPilot and PX4 SITL images for the MAVLink interop job
+web/         the showcase site and the hosted dashboard demo
 assets/      brand and logo
 ```
 
-Planned as the project grows: `examples/` (runnable samples per module and language) and `sims/` (device and transport simulators for hardware-free testing).
+Device and transport simulators live in `pamoja-sim` and `pamoja-loopback`, so the examples and tests run with no hardware.
 
 ## Building
 
