@@ -2298,6 +2298,9 @@ dependencies = [
 [[package]]
 name = "pamoja-can"
 version = "0.1.12"
+dependencies = [
+ "proptest",
+]
 
 [[package]]
 name = "pamoja-coap"
@@ -2407,6 +2410,7 @@ name = "pamoja-lorawan"
 version = "0.1.12"
 dependencies = [
  "aes",
+ "proptest",
 ]
 
 [[package]]
@@ -2414,6 +2418,7 @@ name = "pamoja-mavlink"
 version = "0.1.12"
 dependencies = [
  "pamoja-core",
+ "proptest",
  "sha2",
  "tokio",
  "tokio-serial",
@@ -2422,10 +2427,16 @@ dependencies = [
 [[package]]
 name = "pamoja-mesh"
 version = "0.1.12"
+dependencies = [
+ "proptest",
+]
 
 [[package]]
 name = "pamoja-modbus"
 version = "0.1.12"
+dependencies = [
+ "proptest",
+]
 
 [[package]]
 name = "pamoja-mqtt"
@@ -2485,6 +2496,9 @@ version = "0.1.12"
 [[package]]
 name = "pamoja-serial"
 version = "0.1.12"
+dependencies = [
+ "proptest",
+]
 
 [[package]]
 name = "pamoja-session"

@@ -6,7 +6,7 @@
 
 use proptest::prelude::*;
 
-use pamoja_mavlink::frame::{Frame, Header};
+use pamoja_mavlink::{Frame, Header};
 
 proptest! {
     #[test]

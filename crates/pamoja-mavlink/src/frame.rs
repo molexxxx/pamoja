@@ -419,14 +419,15 @@ impl Frame {
     }
 }
 
-// The payload length after dropping trailing zero bytes, keeping at least one byte, as
-// MAVLink 2 requires.
+// The payload length after dropping trailing zero bytes. A non-empty payload keeps at
+// least one byte, as MAVLink 2 requires; an empty payload stays empty. The `len > 1`
+// guard supplies both, and never exceeds the payload length.
 fn truncated_len(payload: &[u8]) -> usize {
     let mut len = payload.len();
     while len > 1 && payload[len - 1] == 0 {
         len -= 1;
     }
-    len.max(1).min(payload.len().max(1))
+    len
 }
 
 #[cfg(test)]

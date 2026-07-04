@@ -6,8 +6,9 @@
 
 use proptest::prelude::*;
 
-use pamoja_serial::{cobs, slip, SlipDecoder};
-use pamoja_serial::{CobsDecoder, SerialError};
+use pamoja_serial::cobs::{self, CobsDecoder};
+use pamoja_serial::slip::{self, SlipDecoder};
+use pamoja_serial::SerialError;
 
 /// Payloads up to a kilobyte, the working size for a serial packet.
 fn payload() -> impl Strategy<Value = Vec<u8>> {
