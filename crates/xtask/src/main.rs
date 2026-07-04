@@ -18,19 +18,6 @@ mod i18n;
 /// The tasks xtask knows about, each paired with a one-line description.
 const TASKS: &[(&str, &str)] = &[
     (
-        "codegen",
-        "regenerate every language binding from the Rust core",
-    ),
-    ("build-all", "build the core plus every language binding"),
-    (
-        "test-all",
-        "run Rust tests plus the cross-language conformance suite",
-    ),
-    (
-        "package",
-        "produce wheels, Node prebuilds, and the NuGet package",
-    ),
-    (
         "release",
         "publish the workspace crates to crates.io in dependency order",
     ),
@@ -48,7 +35,7 @@ const TASKS: &[(&str, &str)] = &[
     ),
     (
         "docs",
-        "generate scoped Markdown API docs for pamoja-dashboard from its rustdoc (docs [--check])",
+        "regenerate every crate README and the API index from rustdoc (docs [--check])",
     ),
 ];
 
@@ -129,17 +116,9 @@ fn main() -> ExitCode {
         return docs::run(&args.collect::<Vec<_>>());
     }
 
-    match TASKS.iter().find(|(name, _)| *name == task) {
-        Some((name, description)) => {
-            println!("xtask {name}: not implemented yet ({description}).");
-            ExitCode::SUCCESS
-        }
-        None => {
-            eprintln!("unknown task: {task}\n");
-            help();
-            ExitCode::FAILURE
-        }
-    }
+    eprintln!("unknown task: {task}\n");
+    help();
+    ExitCode::FAILURE
 }
 
 /// Publish every crate in `RELEASE_ORDER`. A version already on crates.io is
