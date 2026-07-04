@@ -78,6 +78,19 @@ jobs:
       - name: Crate READMEs in sync
         run: cargo run -p xtask -- docs --check
 
+  deny:
+    name: license + advisory audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # Audits the shipped dependency graph against deny.toml: security advisories,
+      # license policy, duplicate-version bans, and unknown sources.
+      - name: cargo deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
   ros-bridge:
     name: ros2 + zenoh bridge
     runs-on: ubuntu-latest

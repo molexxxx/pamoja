@@ -1,3 +1,8 @@
+# Dev-dependencies (test brokers, harnesses) never reach a shipped artifact, so
+# only the graph a user actually installs is audited.
+[graph]
+exclude-dev = true
+
 [advisories]
 version = 2
 yanked = "deny"
@@ -14,6 +19,10 @@ allow = [
     "Unicode-3.0",
     "Zlib",
 ]
+
+# cbindgen generates pamoja.h at build time; it is a build tool and none of its
+# MPL-2.0 code is linked into any shipped artifact.
+exceptions = [{ allow = ["MPL-2.0"], crate = "cbindgen" }]
 
 [bans]
 multiple-versions = "warn"
