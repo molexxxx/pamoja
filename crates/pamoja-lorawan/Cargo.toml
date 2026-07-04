@@ -13,5 +13,10 @@ authors.workspace = true
 # constructions are implemented on top of it here, so this is the only dependency.
 aes = { version = "0.8", default-features = false }
 
+[dev-dependencies]
+# Property tests feed the frame decoder arbitrary bytes off the radio boundary: it must
+# never panic on hostile input, and every encoded uplink must survive a decode round trip.
+proptest = "1"
+
 [lints]
 workspace = true

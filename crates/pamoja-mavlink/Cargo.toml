@@ -51,6 +51,9 @@ tokio = { version = "1", features = [
     "net",
     "io-util",
 ] }
+# Property tests feed the frame parser arbitrary bytes off the link boundary: it must
+# never panic on hostile input, and every encoded frame must survive a parse round trip.
+proptest = "1"
 
 [lints]
 workspace = true

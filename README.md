@@ -196,6 +196,14 @@ dotnet run --project bindings/dotnet/tests/Pamoja.Core.Smoke -c Release  # smoke
 
 The local toolchain needs no extra components; formatting and clippy run in CI.
 
+## Contributing
+
+Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers how to build, test,
+and submit changes, and the conventions the code holds to (documented public items, the
+`no_std` constraint, standards-anchored tests). To report a security issue, see
+[SECURITY.md](SECURITY.md); please report vulnerabilities privately rather than in a
+public issue.
+
 ## License
 
 Released under the [MIT License](LICENSE-MIT). Free to use, with no legal or financial barrier, because cost should never be the reason a good idea does not get built.

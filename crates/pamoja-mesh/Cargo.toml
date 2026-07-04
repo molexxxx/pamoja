@@ -8,5 +8,10 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[dev-dependencies]
+# Property tests feed the frame parser arbitrary bytes off the radio boundary: it must
+# never panic on hostile input, and every built frame must survive a parse round trip.
+proptest = "1"
+
 [lints]
 workspace = true

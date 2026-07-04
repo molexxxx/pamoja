@@ -8,5 +8,10 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[dev-dependencies]
+# Property tests feed the identifier and length decoders arbitrary values: they must
+# never panic, and the J1939 identifier must survive a decode/compose round trip.
+proptest = "1"
+
 [lints]
 workspace = true

@@ -8,5 +8,10 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[dev-dependencies]
+# Property tests feed the SLIP and COBS decoders arbitrary bytes: they must never
+# panic on hostile input, and every payload must survive an encode/decode round trip.
+proptest = "1"
+
 [lints]
 workspace = true
