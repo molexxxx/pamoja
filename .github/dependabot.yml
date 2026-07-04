@@ -1,0 +1,92 @@
+version: 2
+
+# Keeps every ecosystem the project ships current, and surfaces security fixes as PRs.
+# Non-major updates are grouped per manifest so a routine bump is one reviewable PR
+# rather than many; majors come as individual PRs because they may need code changes.
+updates:
+  # The Rust workspace (engine and capability crates).
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: cargo
+    groups:
+      cargo-minor:
+        update-types:
+          - minor
+          - patch
+
+  # The Node binding crate (napi-rs), excluded from the workspace.
+  - package-ecosystem: cargo
+    directory: /bindings/node
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: cargo
+    groups:
+      node-cargo-minor:
+        update-types:
+          - minor
+          - patch
+
+  # The Python binding crate (PyO3), excluded from the workspace.
+  - package-ecosystem: cargo
+    directory: /bindings/python
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: cargo
+    groups:
+      python-cargo-minor:
+        update-types:
+          - minor
+          - patch
+
+  # The Node binding's npm dependencies and its TypeScript facade toolchain.
+  - package-ecosystem: npm
+    directory: /bindings/node
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: npm
+    groups:
+      npm-minor:
+        update-types:
+          - minor
+          - patch
+
+  # The Python binding's build and test dependencies.
+  - package-ecosystem: pip
+    directory: /bindings/python
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: pip
+
+  # The .NET binding's NuGet dependencies.
+  - package-ecosystem: nuget
+    directory: /bindings/dotnet
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: nuget
+    groups:
+      nuget-minor:
+        update-types:
+          - minor
+          - patch
+
+  # The GitHub Actions the workflows pin, so a security fix in an action is surfaced.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    groups:
+      actions-minor:
+        update-types:
+          - minor
+          - patch

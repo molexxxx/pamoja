@@ -8,6 +8,10 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+# Least privilege: the workflow only reads the repository.
+permissions:
+  contents: read
+
 jobs:
   rust:
     name: rust (fmt, clippy, test)
