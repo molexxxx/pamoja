@@ -20,4 +20,4 @@ tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
-rumqttd = "0.19"
+rumqttd = "0.20"
