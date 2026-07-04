@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/core",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Node.js bindings for the pamoja device SDK core.",
   "license": "MIT",
   "publishConfig": { "access": "public" },
