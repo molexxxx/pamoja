@@ -33,7 +33,7 @@ mqtt = ["dep:pamoja-mqtt", "dep:tokio"]
 # EncodingWarning type, which a lower abi3 floor would hide.
 pyo3 = { version = "0.28", features = ["abi3-py310"] }
 pyo3-async-runtimes = { version = "0.28", features = ["tokio-runtime"] }
-pyo3-stub-gen = "0.22"
+pyo3-stub-gen = "0.23"
 pamoja-core = { path = "../../crates/pamoja-core" }
 pamoja-mqtt = { path = "../../crates/pamoja-mqtt", optional = true }
 tokio = { version = "1", default-features = false, features = ["sync"], optional = true }
