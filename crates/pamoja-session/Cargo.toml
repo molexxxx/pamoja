@@ -19,7 +19,7 @@ hkdf = { version = "0.12", default-features = false }
 # HMAC-SHA256 for the exposed keyed-hash primitive a host uses to authenticate
 # pairing and per-command requests.
 hmac = { version = "0.12", default-features = false }
-sha2 = { version = "0.10", default-features = false }
+sha2 = { version = "0.11", default-features = false }
 
 [lints]
 workspace = true
