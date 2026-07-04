@@ -20,4 +20,7 @@ tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
-rumqttd = "0.20"
+# The embedded test broker; its default features pull the rustls TLS listener, which
+# the round-trip test does not use (it connects over plain TCP), so turn them off to
+# keep the rustls-webpki stack out of the tree entirely.
+rumqttd = { version = "0.20", default-features = false }
