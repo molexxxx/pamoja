@@ -11,7 +11,7 @@ authors.workspace = true
 [dependencies]
 # AES-128 is the one primitive LoRaWAN is built on; the CMAC and the keystream
 # constructions are implemented on top of it here, so this is the only dependency.
-aes = { version = "0.8", default-features = false }
+aes = { version = "0.9", default-features = false }
 
 [dev-dependencies]
 # Property tests feed the frame decoder arbitrary bytes off the radio boundary: it must
