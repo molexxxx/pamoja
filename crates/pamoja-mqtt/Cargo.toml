@@ -15,7 +15,7 @@ workspace = true
 pamoja-core = { workspace = true }
 # Default features pull in the rustls TLS stack, which this crate does not use;
 # plain TCP is the only transport it drives today.
-rumqttc = { version = "0.24", default-features = false }
+rumqttc = { version = "0.25", default-features = false }
 tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
 
 [dev-dependencies]
