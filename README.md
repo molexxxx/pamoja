@@ -8,7 +8,7 @@
 &nbsp;<a href="https://www.npmjs.com/org/pamoja"><img height="22" alt="npm" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/npm.svg?v=8f5ce7a7"></a>
 &nbsp;<a href="https://pypi.org/user/tonywied17/"><img height="22" alt="PyPI" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/pypi.svg?v=8ec19f4b"></a>
 &nbsp;<a href="https://www.nuget.org/profiles/tonywied17"><img height="22" alt="NuGet" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/nuget.svg?v=d64aeb0f"></a>
-&nbsp;<a href="https://github.com/molexxxx/pamoja/actions/workflows/ci.yml"><img height="22" alt="CI" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/ci.svg?v=e2e1c4f5"></a>
+&nbsp;<a href="https://github.com/molexxxx/pamoja/actions/workflows/ci.yml"><img height="22" alt="CI" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/ci.svg?v=73c55009"></a>
 &nbsp;<a href="LICENSE-MIT"><img height="22" alt="license MIT" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/license.svg?v=9ff27022"></a>
 
 <a href="https://pamoja.molex.cloud"><img height="34" alt="website" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-website.svg"></a>
