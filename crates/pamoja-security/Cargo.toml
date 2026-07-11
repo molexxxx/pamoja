@@ -15,7 +15,7 @@ authors.workspace = true
 pamoja-core = { path = "../pamoja-core", version = "0.1.13", default-features = false }
 # Signing and verifying are deterministic and need no randomness, so the crate
 # stays no_std with only the core ed25519 implementation.
-ed25519-dalek = { version = "2", default-features = false }
+ed25519-dalek = { version = "3", default-features = false }
 
 [lints]
 workspace = true
