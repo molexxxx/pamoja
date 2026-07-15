@@ -2,48 +2,15 @@ name: badges
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 */6 * * *'
   workflow_run:
     workflows: [ci]
     types: [completed]
-  push:
-    branches: [main]
-    paths:
-      - .github/scripts/generate-badges.mjs
-      - .github/workflows/badges.yml
-
-permissions:
-  contents: write
-
-concurrency:
-  group: badges
-  cancel-in-progress: false
 
 jobs:
-  generate:
+  dispatch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '20'
-
-      - name: Generate status badges
+      - name: Trigger badge refresh in molexxxx/molexxxx
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
-        run: node .github/scripts/generate-badges.mjs
-
-      - name: Commit refreshed badges
-        run: |
-          git config user.name  "molexxxx"
-          git config user.email "molex@sent.com"
-          git add .github/badges README.md
-          if git diff --staged --quiet; then
-            echo "no badge changes"
-          else
-            git commit -m "Refresh status badges [skip ci]"
-            git pull --rebase origin main
-            git push
-          fi
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: gh api repos/molexxxx/molexxxx/dispatches -f event_type=refresh-badges
