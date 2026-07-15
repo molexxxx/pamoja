@@ -6,6 +6,10 @@ exclude-dev = true
 [advisories]
 version = 2
 yanked = "deny"
+# spin 0.9.8 was yanked by its maintainer with no RUSTSEC advisory and no
+# security notice; rumqttc 0.25.1 (latest) pins flume ^0.11, which pins spin
+# ^0.9.8, so no non-yanked 0.9.x satisfies the graph until upstream moves.
+ignore = ["spin@0.9.8"]
 
 [licenses]
 version = 2
