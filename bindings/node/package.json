@@ -47,7 +47,7 @@
     "prepack": "tsc -p tsconfig.json"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^2.18.4",
+    "@napi-rs/cli": "^3.8.0",
     "@types/node": "^26.1.0",
     "typescript": "^5.4.5"
   }
