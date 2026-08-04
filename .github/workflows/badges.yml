@@ -6,6 +6,10 @@ on:
     workflows: [ci]
     types: [completed]
 
+# The dispatch is authenticated with a personal access token, so the workflow
+# itself needs nothing from the automatic GITHUB_TOKEN.
+permissions: {}
+
 jobs:
   dispatch:
     runs-on: ubuntu-latest

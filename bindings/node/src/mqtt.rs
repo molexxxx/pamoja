@@ -9,11 +9,14 @@ use std::time::Duration;
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
-use tokio::sync::Mutex;
 use pamoja_core::{Error, Transport};
 use pamoja_mqtt::{MqttConfig, MqttTransport, QualityOfService};
+use tokio::sync::Mutex;
 
 /// MQTT delivery guarantee, mirroring the protocol's quality-of-service levels.
+// The shared `Once` suffix is the protocol's own vocabulary; renaming would
+// distort the published JavaScript API, so the variant-name lint is allowed here.
+#[allow(clippy::enum_variant_names)]
 #[napi(string_enum)]
 pub enum Qos {
     /// Fire and forget; the broker does not acknowledge delivery.
@@ -99,7 +102,10 @@ impl MqttClient {
     pub async fn publish(&self, topic: String, payload: Buffer) -> napi::Result<()> {
         let inner = Arc::clone(&self.inner);
         let mut transport = inner.lock().await;
-        transport.send(&topic, payload.as_ref()).await.map_err(to_napi)
+        transport
+            .send(&topic, payload.as_ref())
+            .await
+            .map_err(to_napi)
     }
 
     /// Subscribes to a topic filter.

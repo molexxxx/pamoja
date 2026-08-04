@@ -20,7 +20,7 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - host: ubuntu-latest
             target: aarch64-unknown-linux-gnu
-            zig: true
+            cross: true
           # Cross-compiled on Apple Silicon: scarce macos-13 Intel runners sit
           # unallocated for minutes and stall the whole release.
           - host: macos-latest
@@ -42,8 +42,9 @@ jobs:
       - name: Add Rust target
         run: rustup target add ${{ matrix.target }}
 
+      # napi build --cross-compile drives cargo-zigbuild for non-Windows targets.
       - name: Setup zig for cross compilation
-        if: matrix.zig
+        if: matrix.cross
         uses: goto-bus-stop/setup-zig@v2
         with:
           version: 0.13.0
@@ -52,7 +53,7 @@ jobs:
         run: npm install
 
       - name: Build native addon
-        run: npm run build:native -- --target ${{ matrix.target }} ${{ matrix.zig && '--zig' || '' }}
+        run: npm run build:native -- --target ${{ matrix.target }} ${{ matrix.cross && '--cross-compile' || '' }}
 
       - name: Upload addon artifact
         uses: actions/upload-artifact@v7
@@ -88,11 +89,11 @@ jobs:
           path: bindings/node/artifacts
 
       - name: Move addons into platform packages
-        run: npx napi artifacts --dir artifacts
+        run: npx napi artifacts --output-dir artifacts
 
       - name: Publish platform packages and the root package
         run: |
-          npx napi prepublish -t npm --skip-gh-release
+          npx napi pre-publish -t npm
           npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
