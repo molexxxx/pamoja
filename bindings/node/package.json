@@ -21,14 +21,14 @@
     }
   },
   "napi": {
-    "name": "pamoja-core",
-    "triples": {
-      "defaults": true,
-      "additional": [
-        "aarch64-unknown-linux-gnu",
-        "aarch64-apple-darwin"
-      ]
-    }
+    "binaryName": "pamoja-core",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-pc-windows-msvc"
+    ]
   },
   "files": [
     "index.js",
@@ -47,7 +47,7 @@
     "prepack": "tsc -p tsconfig.json"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^2.18.4",
+    "@napi-rs/cli": "^3.8.0",
     "@types/node": "^26.1.0",
     "typescript": "^5.4.5"
   }
