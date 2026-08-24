@@ -1,8 +1,7 @@
 //! The AES-128 primitive and the AES-CMAC built on it, the basis of every LoRaWAN
 //! integrity check and key derivation.
 
-use aes::cipher::generic_array::GenericArray;
-use aes::cipher::{BlockEncrypt, KeyInit};
+use aes::cipher::{Array, BlockCipherEncrypt, KeyInit};
 use aes::Aes128;
 
 // An AES-128 key in use. Every LoRaWAN security operation reduces to encrypting 16-byte
@@ -15,16 +14,16 @@ impl Cipher {
     // Prepares the cipher with a key.
     pub(crate) fn new(key: &[u8; 16]) -> Self {
         Cipher {
-            inner: Aes128::new(GenericArray::from_slice(key)),
+            inner: Aes128::new(&Array::from(*key)),
         }
     }
 
     // Encrypts one 16-byte block, returning the result rather than mutating in place.
     pub(crate) fn encrypt_block(&self, block: &[u8; 16]) -> [u8; 16] {
-        let mut buf = GenericArray::clone_from_slice(block);
+        let mut buf = Array::from(*block);
         self.inner.encrypt_block(&mut buf);
         let mut out = [0u8; 16];
-        out.copy_from_slice(buf.as_slice());
+        out.copy_from_slice(&buf);
         out
     }
 
@@ -68,11 +67,11 @@ impl Cipher {
     // in tests.
     #[cfg(test)]
     pub(crate) fn decrypt_block(&self, block: &[u8; 16]) -> [u8; 16] {
-        use aes::cipher::BlockDecrypt;
-        let mut buf = GenericArray::clone_from_slice(block);
+        use aes::cipher::BlockCipherDecrypt;
+        let mut buf = Array::from(*block);
         self.inner.decrypt_block(&mut buf);
         let mut out = [0u8; 16];
-        out.copy_from_slice(buf.as_slice());
+        out.copy_from_slice(&buf);
         out
     }
 
