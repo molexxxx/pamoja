@@ -52,10 +52,10 @@ installed.
   does or records why an edit was made.
 - Standards compliance. When you implement something defined by a published standard (an
   RFC, a protocol or wire format, a datasheet, a crypto primitive), work from the current
-  authoritative specification, not from memory. Bit layouts, field orders, reserved bits,
-  and algorithm constants are where memory-driven bugs hide. Anchor tests to the spec's
-  own published reference vectors or worked examples, not just to round-trips, so an
-  incorrect-but-self-consistent implementation is caught.
+  authoritative specification. Bit layouts, field orders, reserved bits, and algorithm
+  constants are where the subtle bugs hide, and a plausible guess is worse than none.
+  Anchor tests to the spec's own published reference vectors or worked examples, not
+  just to round-trips, so an incorrect-but-self-consistent implementation is caught.
 - Parsers that read untrusted input carry property tests. The framing and codec crates
   are on the network and radio boundary, so a decoder must never panic on arbitrary
   bytes. New parsing code should come with a `proptest` that feeds it arbitrary input

@@ -220,7 +220,7 @@ One engine, many front doors. A version tag publishes every binding to its regis
 
 ## Standards and conformance
 
-Anything defined by a published standard is implemented from that standard rather than from memory, and its tests are anchored to the specification's own reference vectors. Bit layouts, reserved bits, and algorithm constants are exactly where memory-driven bugs hide, and this is how they get caught.
+Anything defined by a published standard is implemented from the authoritative specification itself, and its tests are anchored to that specification's own reference vectors. Bit layouts, field orders, reserved bits, and algorithm constants are where the subtle bugs hide, and a plausible guess is worse than none.
 
 | Area | Anchored to |
 | --- | --- |
