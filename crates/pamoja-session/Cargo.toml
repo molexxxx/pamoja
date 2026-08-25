@@ -11,15 +11,15 @@ authors.workspace = true
 [dependencies]
 # The AEAD that protects each message: ChaCha20-Poly1305 is fast in software on
 # devices without AES hardware, which is most of the cheap hardware this targets.
-chacha20poly1305 = { version = "0.10", default-features = false }
+chacha20poly1305 = { version = "0.11", default-features = false }
 # X25519 for the key agreement, and HKDF-SHA256 to turn the raw shared secret
 # into a session key bound to the session salt and both public keys.
 x25519-dalek = { version = "3", default-features = false, features = ["static_secrets"] }
-hkdf = { version = "0.12", default-features = false }
+hkdf = { version = "0.13", default-features = false }
 # HMAC-SHA256 for the exposed keyed-hash primitive a host uses to authenticate
 # pairing and per-command requests.
-hmac = { version = "0.12", default-features = false }
-sha2 = { version = "0.10", default-features = false }
+hmac = { version = "0.13", default-features = false }
+sha2 = { version = "0.11", default-features = false }
 
 [lints]
 workspace = true

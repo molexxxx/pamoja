@@ -8,6 +8,7 @@
 //! [`hmac_sha256`].
 
 use hkdf::Hkdf;
+use hmac::digest::KeyInit;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
