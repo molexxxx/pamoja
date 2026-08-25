@@ -1,6 +1,6 @@
 [package]
 name = "pamoja-python"
-version = "0.1.13"
+version = "0.1.14"
 edition = "2021"
 # PyO3 sets the real minimum supported Rust version for this binding.
 rust-version = "1.74"

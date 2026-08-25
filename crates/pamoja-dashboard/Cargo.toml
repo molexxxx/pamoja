@@ -50,12 +50,12 @@ locale-hi = []
 [dependencies]
 # Only the data types are read from these crates to build the snapshot; the
 # dashboard never drives control itself.
-pamoja-telemetry = { path = "../pamoja-telemetry", version = "0.1.13" }
-pamoja-profile = { path = "../pamoja-profile", version = "0.1.13" }
-pamoja-power = { path = "../pamoja-power", version = "0.1.13" }
+pamoja-telemetry = { path = "../pamoja-telemetry", version = "0.1.14" }
+pamoja-profile = { path = "../pamoja-profile", version = "0.1.14" }
+pamoja-power = { path = "../pamoja-power", version = "0.1.14" }
 # The command authenticator reuses pamoja-session's HKDF/HMAC primitives so control
 # actions are gated without a second crypto stack; only used by the serving layer.
-pamoja-session = { path = "../pamoja-session", version = "0.1.13", optional = true }
+pamoja-session = { path = "../pamoja-session", version = "0.1.14", optional = true }
 getrandom = { version = "0.4", optional = true }
 # Compresses the one-time asset load so the bundle is cheap over a weak hotspot link.
 flate2 = { version = "1", optional = true }
