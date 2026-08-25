@@ -29,6 +29,7 @@ You do not have to be an engineer to use it, and you do not give anything up if 
 
 **Where to start**
 
+- **Just want to install it?** Go to the [quick start](#quick-start): one command per language, and the same example in each.
 - **Try it with no hardware.** The simulators (`pamoja-sim`) stand in for real sensors, radios, and even a robot, so you can build and test with nothing plugged in.
 - **Building something?** Skip to the [crate list](#engine-and-capability-crates) and add only the pieces you need - each crate's README is its getting-started guide.
 - **On a microcontroller or in a rural clinic?** That is the design target, not an afterthought - see [Why it exists](#why-it-exists).
@@ -38,6 +39,101 @@ You do not have to be an engineer to use it, and you do not give anything up if 
 pamoja is a single, modular SDK for IoT, robotics, and drones: one memory-safe Rust engine at the core, with idiomatic bindings for the languages a device developer actually uses. You install only the capabilities you need, and the same concepts work the same way in every language.
 
 Control and communicate with physical things - sensors, robots, drones, gateways - from TypeScript, Python, C#, Lua, or Rust itself, with C-class performance and memory safety, without hand-rolling FFI.
+
+## Quick start
+
+Install the core plus only the capabilities you need. Every binding wraps the same Rust engine, so the same concepts carry across languages.
+
+```sh
+cargo add pamoja-core pamoja-mqtt   # Rust
+npm install @pamoja/core            # TypeScript / Node
+pip install pamoja-core             # Python
+dotnet add package Pamoja.Core      # C# / .NET
+```
+
+Publish a reading and read messages back:
+
+<details open>
+<summary><b>Rust</b></summary>
+
+```rust
+use pamoja_core::Transport;
+use pamoja_mqtt::{MqttConfig, MqttTransport};
+
+let mut transport = MqttTransport::new(MqttConfig::new("sensor-1", "localhost", 1883));
+transport.connect().await?;
+transport.subscribe("sensors/+/temperature").await?;
+transport.send("sensors/1/temperature", b"21.5").await?;
+
+if let Some(message) = transport.recv().await? {
+    println!("{}: {} bytes", message.topic, message.payload.len());
+}
+```
+
+</details>
+
+<details>
+<summary><b>TypeScript / Node</b></summary>
+
+```ts
+import { MqttClient } from '@pamoja/core'
+
+const client = new MqttClient({ clientId: 'sensor-1', host: 'localhost', port: 1883 })
+await client.connect()
+await client.subscribe('sensors/+/temperature')
+await client.publish('sensors/1/temperature', '21.5')
+for await (const message of client) {
+  console.log(message.topic, message.payload.toString())
+}
+```
+
+</details>
+
+<details>
+<summary><b>Python</b></summary>
+
+```python
+import asyncio
+from pamoja import MqttClient
+
+async def main():
+    async with MqttClient(client_id="sensor-1", host="localhost", port=1883) as client:
+        await client.subscribe("sensors/+/temperature")
+        await client.publish("sensors/1/temperature", "21.5")
+        async for message in client:
+            print(message.topic, message.payload.decode())
+
+asyncio.run(main())
+```
+
+</details>
+
+<details>
+<summary><b>C# / .NET</b></summary>
+
+```csharp
+using Pamoja.Core;
+
+await using var client = new MqttClient(new MqttClientOptions
+{
+    ClientId = "sensor-1",
+    Host = "localhost",
+    Port = 1883,
+});
+
+await client.ConnectAsync();
+await client.SubscribeAsync("sensors/+/temperature");
+await client.PublishAsync("sensors/1/temperature", "21.5");
+
+await foreach (var message in client)
+{
+    Console.WriteLine($"{message.Topic}: {message.Payload.Length} bytes");
+}
+```
+
+</details>
+
+No hardware needed: `pamoja-sim` and `pamoja-loopback` stand in for sensors, radios, degraded links, and even a robot, so all of the above runs with nothing plugged in.
 
 ## Why it exists
 
@@ -61,12 +157,18 @@ What that means in practice:
 - Quality of life - one consistent API in every language, with a high-level ergonomic facade plus a low-level escape hatch.
 - Easy to adopt - opt-in scoped packages, strong defaults, and simulators so you can build and test with zero hardware.
 
-## Status
+## Where things stand
 
-The engine and capability crates and the language bindings below are available
-today.
+Released and installable, not a prototype:
 
-### Engine and capability crates
+- **31 crates on crates.io**, with the Node, Python, and .NET bindings on npm, PyPI, and NuGet, all versioned in lockstep.
+- **773 tests across 78 targets**, pinned wherever a standard exists to that standard's own published vectors rather than to round-trips, so an implementation that is wrong but self-consistent still fails.
+- **Checked against the real thing in CI**, not just mocked: MAVLink against live ArduPilot and PX4 SITL, the ROS 2 bridge against ROS 2 Jazzy with rmw_zenoh, and every `no_std` crate cross-compiled for a Cortex-M4F microcontroller.
+- **Audited on every change**: rustfmt, clippy at `-D warnings`, CodeQL over five languages, and a license and security-advisory sweep of the dependency graph a consumer actually installs.
+
+Generated surfaces (the language binding contracts and the C header) are drift-checked against the Rust source, so they cannot quietly fall behind it.
+
+## Engine and capability crates
 
 | Crate | Area | What it does |
 | --- | --- | --- |
@@ -102,15 +204,34 @@ today.
 | [`pamoja-profile`](crates/pamoja-profile/README.md#pamoja-profile) | ergonomics | Named, ready-to-run device profiles from plain data or a JSON manifest; assembled and testable with no hardware. |
 | [`pamoja-ffi`](crates/pamoja-ffi/README.md#pamoja-ffi) | bindings | The curated C ABI over the core and MQTT, with a `cbindgen`-generated, drift-checked `pamoja.h`. |
 
-### Language bindings
+## Language bindings
 
-| Package | Language | What it is |
+One engine, many front doors. A version tag publishes every binding to its registry at once, so the four never drift apart.
+
+| Language | Package | Status |
 | --- | --- | --- |
-| `@pamoja/core` | TypeScript / Node | A generated contract plus a hand-written TypeScript facade (napi-rs). |
-| `pamoja-core` | Python | A generated, type-stubbed contract plus a hand-written async facade (PyO3 + maturin). |
-| `Pamoja.Core` | C# / .NET | A P/Invoke interop layer plus an async facade with `IAsyncEnumerable` streams and `IAsyncDisposable` lifecycle. |
+| Rust | `pamoja-core`, `pamoja-mqtt`, and 29 more | available - the engine itself |
+| TypeScript / Node | `@pamoja/core` | available - generated contract plus a hand-written facade (napi-rs) |
+| Python | `pamoja-core` | available - generated, type-stubbed contract plus an async facade (PyO3 + maturin) |
+| C# / .NET | `Pamoja.Core` | available - P/Invoke interop plus an async facade with `IAsyncEnumerable` streams |
+| Lua | embeddable | planned |
+| WebAssembly | browser / npm | planned |
+| Kotlin, Swift, Go | platform-native | planned |
 
-CI runs formatting, clippy, tests, and a license and security-advisory audit of the dependency tree for the workspace, builds the Node, Python, and .NET bindings, and fails if any generated surface (the binding contracts and the C header) drifts from the Rust source. Release workflows publish to crates.io, npm, PyPI, and NuGet on a version tag. Everything past this is on the roadmap below.
+## Standards and conformance
+
+Anything defined by a published standard is implemented from that standard rather than from memory, and its tests are anchored to the specification's own reference vectors. Bit layouts, reserved bits, and algorithm constants are exactly where memory-driven bugs hide, and this is how they get caught.
+
+| Area | Anchored to |
+| --- | --- |
+| Crypto | FIPS-197 (AES-128), RFC 4493 (AES-CMAC), FIPS-180 (SHA-256), RFC 2104 and RFC 4231 (HMAC-SHA256), RFC 5869 (HKDF), RFC 7748 (X25519), RFC 8439 (ChaCha20-Poly1305) |
+| Messaging | MQTT topic and wildcard rules, RFC 7252 and RFC 7641 (CoAP with observe) |
+| Radio and mesh | LoRaWAN 1.0.x MAC framing and OTAA join, LoRa time-on-air and duty cycle, CRC-16/CCITT frames |
+| Field I/O | RFC 1055 (SLIP) and COBS, CRC-16/MODBUS, CAN 2.0 and CAN-FD with SAE J1939, NXP UM10204 (I2C) |
+| Drones | MAVLink v1/v2 framing, CRC-16/MCRF4XX, per-message CRC_EXTRA, MAVLink 2 signing |
+| Robotics | ROS 2 names, RIHS01 type hashes, CDR encoding, rmw_zenoh key expressions |
+
+That rigor is also what makes dependency upgrades safe to take. When the primitives underneath change, every vector still matches or the build fails.
 
 ## Architecture
 
@@ -147,18 +268,6 @@ Security. Memory safety by construction today, with ed25519 device identity, a t
 
 Reach. Bindings beyond Node: Python, C#/.NET, Lua, WebAssembly, Kotlin, Swift, and Go. The plain-language helper layer (`pamoja-kit`) is broad today - smooth a noisy reading, hold a value with a PID, warn before a tank runs dry, steer by wheel kinematics - each naming the goal over the math with the real algorithm one layer down. And an offline-first community cookbook so the SDK reaches the people it is built for.
 
-## Languages
-
-| Language | Package | Status |
-| --- | --- | --- |
-| Rust | `pamoja-core`, `pamoja-mqtt`, ... | available |
-| TypeScript / Node | `@pamoja/core` | available (core + MQTT) |
-| Python | `pamoja-core` | available (core + MQTT) |
-| C# / .NET | `Pamoja.Core` | available (core + MQTT) |
-| Lua | embeddable | planned |
-| WebAssembly | browser / npm | planned |
-| Kotlin, Swift, Go | platform-native | planned |
-
 ## Repository layout
 
 ```
@@ -173,7 +282,7 @@ assets/      brand and logo
 
 Device and transport simulators live in `pamoja-sim` and `pamoja-loopback`, so the examples and tests run with no hardware.
 
-## Building
+## Building from source
 
 ```sh
 cargo build --workspace      # build the engine and capability crates

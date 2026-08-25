@@ -442,11 +442,11 @@ dependencies = [
 
 [[package]]
 name = "pamoja-core"
-version = "0.1.13"
+version = "0.1.14"
 
 [[package]]
 name = "pamoja-mqtt"
-version = "0.1.13"
+version = "0.1.14"
 dependencies = [
  "pamoja-core",
  "rumqttc",
@@ -455,7 +455,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-python"
-version = "0.1.13"
+version = "0.1.14"
 dependencies = [
  "pamoja-core",
  "pamoja-mqtt",
