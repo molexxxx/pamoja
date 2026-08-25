@@ -29,6 +29,7 @@ You do not have to be an engineer to use it, and you do not give anything up if 
 
 **Where to start**
 
+- **Just want to install it?** Go to the [quick start](#quick-start): one command per language, and the same example in each.
 - **Try it with no hardware.** The simulators (`pamoja-sim`) stand in for real sensors, radios, and even a robot, so you can build and test with nothing plugged in.
 - **Building something?** Skip to the [crate list](#engine-and-capability-crates) and add only the pieces you need - each crate's README is its getting-started guide.
 - **On a microcontroller or in a rural clinic?** That is the design target, not an afterthought - see [Why it exists](#why-it-exists).
