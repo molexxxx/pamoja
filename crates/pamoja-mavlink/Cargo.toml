@@ -23,7 +23,7 @@ serial = ["std", "dep:tokio-serial"]
 # SHA-256 is the one primitive MAVLink 2 signing is built on; the 48-bit signature
 # and timestamp handling are implemented on top of it here, so this is the only
 # dependency of the `no_std` core, mirroring how pamoja-session uses it.
-sha2 = { version = "0.10", default-features = false }
+sha2 = { version = "0.11", default-features = false }
 # The `std` device model maps a vehicle onto the core device traits; pulled in only
 # with `std`, so the `no_std` core stays sha2-only.
 pamoja-core = { workspace = true, optional = true }

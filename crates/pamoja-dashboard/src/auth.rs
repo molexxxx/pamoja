@@ -221,7 +221,7 @@ fn prune(sessions: &mut HashMap<String, Entry>) {
 
 fn random_bytes<const N: usize>() -> [u8; N] {
     let mut bytes = [0u8; N];
-    getrandom::getrandom(&mut bytes).expect("system RNG");
+    getrandom::fill(&mut bytes).expect("system RNG");
     bytes
 }
 

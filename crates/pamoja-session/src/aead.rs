@@ -8,8 +8,9 @@
 //! session needs, and the tests pin it to the worked example in RFC 8439 section
 //! 2.8.2 so a wrong key, nonce, or associated-data wiring is caught.
 
-use chacha20poly1305::aead::{AeadInPlace, KeyInit};
-use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce, Tag};
+use chacha20poly1305::aead::inout::InOutBuf;
+use chacha20poly1305::aead::{AeadInOut, KeyInit};
+use chacha20poly1305::ChaCha20Poly1305;
 
 use crate::SessionError;
 
@@ -17,9 +18,9 @@ use crate::SessionError;
 // and returns the 16-byte Poly1305 tag. The ciphertext replaces the plaintext in
 // `buf`; the tag travels separately so the caller controls framing.
 pub(crate) fn seal(key: &[u8; 32], nonce: &[u8; 12], aad: &[u8], buf: &mut [u8]) -> [u8; 16] {
-    let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
+    let cipher = ChaCha20Poly1305::new(key.into());
     let tag = cipher
-        .encrypt_in_place_detached(Nonce::from_slice(nonce), aad, buf)
+        .encrypt_inout_detached(nonce.into(), aad, InOutBuf::from(buf))
         .expect("ChaCha20-Poly1305 encryption is infallible for an in-memory buffer");
     let mut out = [0u8; 16];
     out.copy_from_slice(tag.as_slice());
@@ -37,15 +38,13 @@ pub(crate) fn open(
     buf: &mut [u8],
     tag: &[u8; 16],
 ) -> Result<(), SessionError> {
-    let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
-    cipher
-        .decrypt_in_place_detached(Nonce::from_slice(nonce), aad, buf, Tag::from_slice(tag))
-        .map_err(|_| {
-            for byte in buf.iter_mut() {
-                *byte = 0;
-            }
-            SessionError::Inauthentic
-        })
+    let cipher = ChaCha20Poly1305::new(key.into());
+    let opened =
+        cipher.decrypt_inout_detached(nonce.into(), aad, InOutBuf::from(&mut *buf), tag.into());
+    opened.map_err(|_| {
+        buf.fill(0);
+        SessionError::Inauthentic
+    })
 }
 
 #[cfg(test)]

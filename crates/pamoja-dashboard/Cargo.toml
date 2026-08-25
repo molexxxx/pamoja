@@ -56,7 +56,7 @@ pamoja-power = { path = "../pamoja-power", version = "0.1.13" }
 # The command authenticator reuses pamoja-session's HKDF/HMAC primitives so control
 # actions are gated without a second crypto stack; only used by the serving layer.
 pamoja-session = { path = "../pamoja-session", version = "0.1.13", optional = true }
-getrandom = { version = "0.2", optional = true }
+getrandom = { version = "0.4", optional = true }
 # Compresses the one-time asset load so the bundle is cheap over a weak hotspot link.
 flate2 = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"] }
