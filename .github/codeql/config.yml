@@ -1,0 +1,16 @@
+name: pamoja
+
+# The Rust sources under bindings/node/src are napi-rs glue. Every `#[napi]` type
+# expands to generated pointer handling that rust/access-invalid-pointer reports,
+# one alert per exported class, so the count grows with the binding rather than
+# with any risk. CodeQL cannot scope a rule exclusion to a path, and excluding the
+# rule outright would also silence it in pamoja-ffi, which exists to be the
+# project's single auditable unsafe boundary and is exactly where it earns its
+# keep. Excluding this directory instead keeps the rule where it matters.
+#
+# What the directory holds is thin declarative wrapping; the behaviour it wraps
+# lives in the core crates, which stay analyzed, and clippy at -D warnings plus
+# the smoke and conformance suites still cover the wrappers themselves. Only Rust
+# analysis is affected, because these are the only sources here.
+paths-ignore:
+  - bindings/node/src

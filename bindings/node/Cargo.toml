@@ -13,16 +13,22 @@ publish = false
 crate-type = ["cdylib"]
 
 [features]
-default = ["mqtt"]
-# The MQTT transport capability. Kept behind a feature so the binding can later
-# be split into per-capability packages without reshaping the code.
+default = ["mqtt", "security", "codec", "kit"]
+# Each capability is a feature, so the binding can later be split into
+# per-capability packages without reshaping the code.
 mqtt = ["dep:pamoja-mqtt", "dep:tokio"]
+security = ["dep:pamoja-security"]
+codec = ["dep:pamoja-codec"]
+kit = ["dep:pamoja-kit"]
 
 [dependencies]
 napi = { version = "3", default-features = false, features = ["napi4", "tokio_rt"] }
 napi-derive = "3"
 pamoja-core = { path = "../../crates/pamoja-core" }
 pamoja-mqtt = { path = "../../crates/pamoja-mqtt", optional = true }
+pamoja-security = { path = "../../crates/pamoja-security", optional = true }
+pamoja-codec = { path = "../../crates/pamoja-codec", optional = true }
+pamoja-kit = { path = "../../crates/pamoja-kit", optional = true }
 tokio = { version = "1", default-features = false, features = ["sync"], optional = true }
 
 [build-dependencies]

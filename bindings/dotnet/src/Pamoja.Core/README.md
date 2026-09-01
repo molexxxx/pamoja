@@ -35,6 +35,23 @@ await foreach (var message in client)
 Errors surface as `PamojaException`, the incoming-message stream is an
 `IAsyncEnumerable<MqttMessage>`, and the client implements `IAsyncDisposable`.
 
+Beyond the transport, the package carries device identity (`DeviceIdentity`), the
+wire codecs (`Codec`, `Quantizer`), and the helper math (`Smoother`, `Pid`,
+`Thermostat`, `Depletion`, `Geofence`, and the rest, with the stateless ones on
+`Kit`). Each handle-backed type is `IDisposable`.
+
+```csharp
+using var smoother = new Smoother(0.3f);
+float reading = smoother.Update(21.7f);
+
+using var device = new DeviceIdentity(seed);
+byte[] payload = Codec.JsonToCbor(json);
+byte[] signature = device.Sign(payload);
+```
+
+The low-level P/Invoke surface stays available at `Pamoja.Core.Interop` for
+anything the facade does not cover.
+
 ## License
 
 MIT

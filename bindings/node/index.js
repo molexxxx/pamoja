@@ -700,6 +700,28 @@ if (!nativeBinding) {
 }
 
 module.exports = nativeBinding
+module.exports.Calibration = nativeBinding.Calibration
+module.exports.Debounce = nativeBinding.Debounce
+module.exports.Depletion = nativeBinding.Depletion
+module.exports.DeviceIdentity = nativeBinding.DeviceIdentity
+module.exports.Geofence = nativeBinding.Geofence
+module.exports.Kalman = nativeBinding.Kalman
 module.exports.MqttClient = nativeBinding.MqttClient
+module.exports.Pid = nativeBinding.Pid
+module.exports.Quantizer = nativeBinding.Quantizer
+module.exports.Ramp = nativeBinding.Ramp
+module.exports.Smoother = nativeBinding.Smoother
+module.exports.Surge = nativeBinding.Surge
+module.exports.Thermostat = nativeBinding.Thermostat
+module.exports.bearingBetween = nativeBinding.bearingBetween
+module.exports.BoundaryState = nativeBinding.BoundaryState
+module.exports.cborToJsonBytes = nativeBinding.cborToJsonBytes
+module.exports.deadband = nativeBinding.deadband
+module.exports.decodeDeltaSamples = nativeBinding.decodeDeltaSamples
+module.exports.distanceBetween = nativeBinding.distanceBetween
+module.exports.encodeDeltaSamples = nativeBinding.encodeDeltaSamples
+module.exports.fingerprint = nativeBinding.fingerprint
+module.exports.jsonToCborBytes = nativeBinding.jsonToCborBytes
 module.exports.Qos = nativeBinding.Qos
+module.exports.verify = nativeBinding.verify
 module.exports.version = nativeBinding.version

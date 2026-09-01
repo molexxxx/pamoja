@@ -37,4 +37,7 @@ public enum PamojaStatus
 
     /// <summary>A native panic was caught at the boundary; the call had no effect.</summary>
     Panic = 8,
+
+    /// <summary>A security check failed, such as an invalid identity or a bad signature.</summary>
+    Auth = 9,
 }

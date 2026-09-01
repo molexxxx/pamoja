@@ -13,5 +13,15 @@ pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+// The capability modules are public so their free functions stay reachable from
+// the crate root. In a cdylib this adds no Rust-visible API, but a `#[napi]`
+// function in a private module reads as dead code to the lint pass that runs
+// over the test target.
+#[cfg(feature = "codec")]
+pub mod codec;
+#[cfg(feature = "kit")]
+pub mod kit;
 #[cfg(feature = "mqtt")]
-mod mqtt;
+pub mod mqtt;
+#[cfg(feature = "security")]
+pub mod security;

@@ -15,14 +15,20 @@ description = "Curated C ABI surface over the pamoja device SDK, for C, C++, and
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [features]
-default = ["mqtt"]
-# The MQTT transport capability. Kept behind a feature so the C ABI can later be
-# split per capability without reshaping the code.
+default = ["mqtt", "security", "codec", "kit"]
+# Each capability is a feature, so a host that needs only some of them can build a
+# smaller library without reshaping the code.
 mqtt = ["dep:pamoja-mqtt", "dep:tokio"]
+security = ["dep:pamoja-security"]
+codec = ["dep:pamoja-codec"]
+kit = ["dep:pamoja-kit"]
 
 [dependencies]
 pamoja-core.workspace = true
 pamoja-mqtt = { workspace = true, optional = true }
+pamoja-kit = { workspace = true, optional = true }
+pamoja-security = { path = "../pamoja-security", version = "0.1.14", optional = true }
+pamoja-codec = { path = "../pamoja-codec", version = "0.1.14", optional = true }
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread"], optional = true }
 
 [build-dependencies]

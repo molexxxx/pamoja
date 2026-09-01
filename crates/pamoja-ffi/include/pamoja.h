@@ -9,16 +9,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-// MQTT delivery guarantee, mirroring the protocol's quality-of-service levels.
-typedef enum {
-  // Fire and forget; the broker does not acknowledge delivery.
-  PamojaQos_AtMostOnce = 0,
-  // Delivered at least once and acknowledged.
-  PamojaQos_AtLeastOnce = 1,
-  // Delivered exactly once via a four-step handshake.
-  PamojaQos_ExactlyOnce = 2,
-} PamojaQos;
-
 // The result of a fallible pamoja call.
 //
 // A return of [`PamojaStatus::Ok`] means success; any other value indicates a
@@ -43,13 +33,98 @@ typedef enum {
   PamojaStatus_Other = 7,
   // A Rust panic was caught at the boundary; the call had no effect.
   PamojaStatus_Panic = 8,
+  // A security check failed, such as an invalid identity or a bad signature.
+  PamojaStatus_Auth = 9,
 } PamojaStatus;
+
+// Where a fix sits relative to a geofence, including the moment it crosses.
+typedef enum {
+  // The fix is inside the fence and was inside before, or is the first fix inside.
+  PamojaBoundary_Inside = 0,
+  // The fix is outside the fence and was outside before, or is the first fix outside.
+  PamojaBoundary_Outside = 1,
+  // The fix just crossed from inside to outside: the moment to raise a breach alert.
+  PamojaBoundary_Exited = 2,
+  // The fix just crossed from outside back inside.
+  PamojaBoundary_Entered = 3,
+} PamojaBoundary;
+
+// MQTT delivery guarantee, mirroring the protocol's quality-of-service levels.
+typedef enum {
+  // Fire and forget; the broker does not acknowledge delivery.
+  PamojaQos_AtMostOnce = 0,
+  // Delivered at least once and acknowledged.
+  PamojaQos_AtLeastOnce = 1,
+  // Delivered exactly once via a four-step handshake.
+  PamojaQos_ExactlyOnce = 2,
+} PamojaQos;
+
+// An opaque handle to a byte buffer owned by the caller.
+//
+// Calls that produce a variable-length result hand back one of these rather than
+// writing into a caller buffer, so the caller never has to guess a size. Read it
+// with [`pamoja_buffer_data`] and [`pamoja_buffer_len`], then release it with
+// [`pamoja_buffer_free`].
+typedef struct PamojaBuffer PamojaBuffer;
+
+// An opaque handle to a raw-to-units calibration.
+typedef struct PamojaCalibration PamojaCalibration;
+
+// An opaque handle to a boolean debouncer.
+typedef struct PamojaDebounce PamojaDebounce;
+
+// An opaque handle to a depletion estimator.
+typedef struct PamojaDepletion PamojaDepletion;
+
+// An opaque handle to a device's private signing identity.
+typedef struct PamojaDeviceIdentity PamojaDeviceIdentity;
+
+// An opaque handle to a circular geofence.
+typedef struct PamojaGeofence PamojaGeofence;
+
+// An opaque handle to a one-dimensional Kalman filter.
+typedef struct PamojaKalman PamojaKalman;
 
 // An opaque handle to an MQTT client transport.
 typedef struct PamojaMqttClient PamojaMqttClient;
 
 // An opaque handle to a message received from a subscribed topic.
 typedef struct PamojaMqttMessage PamojaMqttMessage;
+
+// An opaque handle to a PID controller.
+typedef struct PamojaPid PamojaPid;
+
+// An opaque handle to a rate limiter.
+typedef struct PamojaRamp PamojaRamp;
+
+// An opaque handle to a decoded series of float readings.
+//
+// Read it with [`pamoja_readings_data`] and [`pamoja_readings_len`], then
+// release it with [`pamoja_readings_free`].
+typedef struct PamojaReadings PamojaReadings;
+
+// An opaque handle to a decoded series of integer samples.
+//
+// Read it with [`pamoja_samples_data`] and [`pamoja_samples_len`], then release
+// it with [`pamoja_samples_free`].
+typedef struct PamojaSamples PamojaSamples;
+
+// An opaque handle to an exponential smoother.
+typedef struct PamojaSmoother PamojaSmoother;
+
+// An opaque handle to a step-change detector.
+typedef struct PamojaSurge PamojaSurge;
+
+// An opaque handle to an on/off controller with hysteresis.
+typedef struct PamojaThermostat PamojaThermostat;
+
+// A latitude and longitude in degrees.
+typedef struct {
+  // Degrees north of the equator, negative for south.
+  double latitude;
+  // Degrees east of the prime meridian, negative for west.
+  double longitude;
+} PamojaCoordinate;
 
 // Connection settings for an MQTT client.
 //
@@ -84,6 +159,41 @@ extern "C" {
 // pamoja call on this thread.
 const char *pamoja_last_error_message(void);
 
+// Returns a pointer to a buffer's bytes.
+//
+// Use [`pamoja_buffer_len`] for the length. The pointer is valid until the
+// buffer is freed.
+//
+// # Returns
+//
+// A pointer to the bytes, or null if `buffer` is null.
+//
+// # Safety
+//
+// `buffer` must be a live handle from a pamoja call that produced one, or null.
+const uint8_t *pamoja_buffer_data(const PamojaBuffer *buffer);
+
+// Returns the length in bytes of a buffer.
+//
+// # Returns
+//
+// The length, or 0 if `buffer` is null.
+//
+// # Safety
+//
+// `buffer` must be a live handle from a pamoja call that produced one, or null.
+uintptr_t pamoja_buffer_len(const PamojaBuffer *buffer);
+
+// Releases a buffer handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `buffer` must be a handle from a pamoja call that produced one and that has
+// not already been freed, or null. After this call it must not be used again.
+void pamoja_buffer_free(PamojaBuffer *buffer);
+
 // Returns the version string of the native pamoja library.
 //
 // # Returns
@@ -91,6 +201,664 @@ const char *pamoja_last_error_message(void);
 // A pointer to a static null-terminated UTF-8 string owned by the library. The
 // caller must not free it; it is valid for the lifetime of the process.
 const char *pamoja_version(void);
+
+// Converts a JSON document into its CBOR encoding.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free), or an error status whose
+// message is available from
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+//
+// # Safety
+//
+// `json` must point to at least `json_len` readable bytes, or be null when
+// `json_len` is 0, and `out_buffer` must point to a writable
+// `*mut PamojaBuffer`.
+PamojaStatus pamoja_codec_json_to_cbor(const uint8_t *json,
+                                       uintptr_t json_len,
+                                       PamojaBuffer **out_buffer);
+
+// Converts a CBOR document into its JSON encoding.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free), or an error status.
+//
+// # Safety
+//
+// `cbor` must point to at least `cbor_len` readable bytes, or be null when
+// `cbor_len` is 0, and `out_buffer` must point to a writable
+// `*mut PamojaBuffer`.
+PamojaStatus pamoja_codec_cbor_to_json(const uint8_t *cbor,
+                                       uintptr_t cbor_len,
+                                       PamojaBuffer **out_buffer);
+
+// Delta-encodes a series of integer samples into a compact buffer.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Safety
+//
+// `samples` must point to at least `count` readable `int64` values, or be null
+// when `count` is 0, and `out_buffer` must point to a writable
+// `*mut PamojaBuffer`.
+PamojaStatus pamoja_codec_encode_deltas(const int64_t *samples,
+                                        uintptr_t count,
+                                        PamojaBuffer **out_buffer);
+
+// Decodes a delta-encoded buffer back into its integer samples.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_samples` set to a new handle the
+// caller must release with [`pamoja_samples_free`], or
+// [`PamojaStatus::Codec`] if the buffer is malformed.
+//
+// # Safety
+//
+// `bytes` must point to at least `bytes_len` readable bytes, or be null when
+// `bytes_len` is 0, and `out_samples` must point to a writable
+// `*mut PamojaSamples`.
+PamojaStatus pamoja_codec_decode_deltas(const uint8_t *bytes,
+                                        uintptr_t bytes_len,
+                                        PamojaSamples **out_samples);
+
+// Quantizes and delta-encodes a batch of float readings.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free), or
+// [`PamojaStatus::InvalidArgument`] if `scale` is not positive and finite.
+//
+// # Safety
+//
+// `readings` must point to at least `count` readable `float` values, or be null
+// when `count` is 0, and `out_buffer` must point to a writable
+// `*mut PamojaBuffer`.
+PamojaStatus pamoja_codec_quantizer_encode(float scale,
+                                           const float *readings,
+                                           uintptr_t count,
+                                           PamojaBuffer **out_buffer);
+
+// Decodes a quantized batch back into float readings.
+//
+// The readings come back to within the precision `scale` selected, which must be
+// the same scale the batch was encoded with.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_readings` set to a new handle the
+// caller must release with [`pamoja_readings_free`], or
+// [`PamojaStatus::Codec`] if the buffer is malformed.
+//
+// # Safety
+//
+// `bytes` must point to at least `bytes_len` readable bytes, or be null when
+// `bytes_len` is 0, and `out_readings` must point to a writable
+// `*mut PamojaReadings`.
+PamojaStatus pamoja_codec_quantizer_decode(float scale,
+                                           const uint8_t *bytes,
+                                           uintptr_t bytes_len,
+                                           PamojaReadings **out_readings);
+
+// Returns a pointer to a decoded series of integer samples.
+//
+// Use [`pamoja_samples_len`] for the count. The pointer is valid until the
+// handle is freed.
+//
+// # Returns
+//
+// A pointer to the samples, or null if `samples` is null.
+//
+// # Safety
+//
+// `samples` must be a live handle from [`pamoja_codec_decode_deltas`], or null.
+const int64_t *pamoja_samples_data(const PamojaSamples *samples);
+
+// Returns the number of integer samples in a decoded series.
+//
+// # Returns
+//
+// The count, or 0 if `samples` is null.
+//
+// # Safety
+//
+// `samples` must be a live handle from [`pamoja_codec_decode_deltas`], or null.
+uintptr_t pamoja_samples_len(const PamojaSamples *samples);
+
+// Releases a decoded sample series.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `samples` must be a handle from [`pamoja_codec_decode_deltas`] that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_samples_free(PamojaSamples *samples);
+
+// Returns a pointer to a decoded series of float readings.
+//
+// Use [`pamoja_readings_len`] for the count. The pointer is valid until the
+// handle is freed.
+//
+// # Returns
+//
+// A pointer to the readings, or null if `readings` is null.
+//
+// # Safety
+//
+// `readings` must be a live handle from [`pamoja_codec_quantizer_decode`], or
+// null.
+const float *pamoja_readings_data(const PamojaReadings *readings);
+
+// Returns the number of float readings in a decoded series.
+//
+// # Returns
+//
+// The count, or 0 if `readings` is null.
+//
+// # Safety
+//
+// `readings` must be a live handle from [`pamoja_codec_quantizer_decode`], or
+// null.
+uintptr_t pamoja_readings_len(const PamojaReadings *readings);
+
+// Releases a decoded reading series.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `readings` must be a handle from [`pamoja_codec_quantizer_decode`] that has
+// not already been freed, or null. After this call it must not be used again.
+void pamoja_readings_free(PamojaReadings *readings);
+
+// Releases a smoother handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `smoother` must be a handle from [`pamoja_smoother_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_smoother_free(PamojaSmoother *smoother);
+
+// Releases a PID controller handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `pid` must be a handle from [`pamoja_pid_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_pid_free(PamojaPid *pid);
+
+// Releases a thermostat handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `thermostat` must be a handle from [`pamoja_thermostat_cooling`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_thermostat_free(PamojaThermostat *thermostat);
+
+// Releases a depletion estimator handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `depletion` must be a handle from [`pamoja_depletion_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_depletion_free(PamojaDepletion *depletion);
+
+// Releases a Kalman filter handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `kalman` must be a handle from [`pamoja_kalman_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_kalman_free(PamojaKalman *kalman);
+
+// Releases a debouncer handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `debounce` must be a handle from [`pamoja_debounce_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_debounce_free(PamojaDebounce *debounce);
+
+// Releases a rate limiter handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `ramp` must be a handle from [`pamoja_ramp_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_ramp_free(PamojaRamp *ramp);
+
+// Releases a surge detector handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `surge` must be a handle from [`pamoja_surge_rising`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_surge_free(PamojaSurge *surge);
+
+// Releases a calibration handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `calibration` must be a handle from [`pamoja_calibration_linear`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_calibration_free(PamojaCalibration *calibration);
+
+// Releases a geofence handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `geofence` must be a handle from [`pamoja_geofence_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_geofence_free(PamojaGeofence *geofence);
+
+// Creates an exponential smoother.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_smoother_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaSmoother *pamoja_smoother_new(float weight);
+
+// Folds a sample into a smoother and returns the smoothed value.
+//
+// # Returns
+//
+// The smoothed value, or NaN if `smoother` is null.
+//
+// # Safety
+//
+// `smoother` must be a live handle from [`pamoja_smoother_new`], or null.
+float pamoja_smoother_update(PamojaSmoother *smoother, float sample);
+
+// Reads a smoother's current value without folding in a sample.
+//
+// # Returns
+//
+// `true` if a value is available, having written it to `out_value`; `false` if
+// no sample has been seen yet or `smoother` is null.
+//
+// # Safety
+//
+// `smoother` must be a live handle from [`pamoja_smoother_new`], or null, and
+// `out_value` must point to a writable `float` or be null.
+bool pamoja_smoother_value(const PamojaSmoother *smoother, float *out_value);
+
+// Clears a smoother back to its initial state.
+//
+// # Safety
+//
+// `smoother` must be a live handle from [`pamoja_smoother_new`], or null.
+void pamoja_smoother_reset(PamojaSmoother *smoother);
+
+// Creates a PID controller with the given gains and no output limits.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_pid_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaPid *pamoja_pid_new(float kp, float ki, float kd);
+
+// Creates a PID controller whose output is clamped to `[min, max]`.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_pid_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaPid *pamoja_pid_new_with_limits(float kp, float ki, float kd, float min, float max);
+
+// Advances a PID controller by one step.
+//
+// # Returns
+//
+// The control output, or NaN if `pid` is null.
+//
+// # Safety
+//
+// `pid` must be a live handle from a PID constructor, or null.
+float pamoja_pid_update(PamojaPid *pid, float setpoint, float measurement, float dt);
+
+// Clears a PID controller's accumulated integral and last error.
+//
+// # Safety
+//
+// `pid` must be a live handle from a PID constructor, or null.
+void pamoja_pid_reset(PamojaPid *pid);
+
+// Creates a cooling thermostat, which switches on when the reading rises.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_thermostat_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaThermostat *pamoja_thermostat_cooling(float setpoint, float hysteresis);
+
+// Creates a heating thermostat, which switches on when the reading falls.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_thermostat_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaThermostat *pamoja_thermostat_heating(float setpoint, float hysteresis);
+
+// Feeds a reading to a thermostat and returns whether the load should be on.
+//
+// # Returns
+//
+// `true` while the load should run, or `false` if `thermostat` is null.
+//
+// # Safety
+//
+// `thermostat` must be a live handle from a thermostat constructor, or null.
+bool pamoja_thermostat_update(PamojaThermostat *thermostat, float reading);
+
+// Reports a thermostat's current output without feeding it a reading.
+//
+// # Returns
+//
+// `true` while the load should run, or `false` if `thermostat` is null.
+//
+// # Safety
+//
+// `thermostat` must be a live handle from a thermostat constructor, or null.
+bool pamoja_thermostat_is_on(const PamojaThermostat *thermostat);
+
+// Creates a depletion estimator that warns as a level approaches `threshold`.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_depletion_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaDepletion *pamoja_depletion_new(float threshold);
+
+// Records a level and estimates how many samples remain before the threshold.
+//
+// # Returns
+//
+// `true` if an estimate is available, having written it to `out_samples`;
+// `false` if the level is steady or rising, if no rate is known yet, or if
+// `depletion` is null.
+//
+// # Safety
+//
+// `depletion` must be a live handle from [`pamoja_depletion_new`], or null, and
+// `out_samples` must point to a writable `uint32_t` or be null.
+bool pamoja_depletion_update(PamojaDepletion *depletion, float level, uint32_t *out_samples);
+
+// Creates a one-dimensional Kalman filter.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_kalman_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaKalman *pamoja_kalman_new(float process_noise, float measurement_noise, float initial);
+
+// Folds a reading into a Kalman filter and returns the new estimate.
+//
+// # Returns
+//
+// The updated estimate, or NaN if `kalman` is null.
+//
+// # Safety
+//
+// `kalman` must be a live handle from [`pamoja_kalman_new`], or null.
+float pamoja_kalman_update(PamojaKalman *kalman, float reading);
+
+// Reads a Kalman filter's current estimate without folding in a reading.
+//
+// # Returns
+//
+// The current estimate, or NaN if `kalman` is null.
+//
+// # Safety
+//
+// `kalman` must be a live handle from [`pamoja_kalman_new`], or null.
+float pamoja_kalman_estimate(const PamojaKalman *kalman);
+
+// Creates a debouncer that requires `samples` agreeing readings to change state.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_debounce_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaDebounce *pamoja_debounce_new(uint16_t samples, bool initial);
+
+// Feeds a raw reading to a debouncer and returns the settled state.
+//
+// # Returns
+//
+// The debounced state, or `false` if `debounce` is null.
+//
+// # Safety
+//
+// `debounce` must be a live handle from [`pamoja_debounce_new`], or null.
+bool pamoja_debounce_update(PamojaDebounce *debounce, bool raw);
+
+// Reports a debouncer's settled state without feeding it a reading.
+//
+// # Returns
+//
+// The debounced state, or `false` if `debounce` is null.
+//
+// # Safety
+//
+// `debounce` must be a live handle from [`pamoja_debounce_new`], or null.
+bool pamoja_debounce_state(const PamojaDebounce *debounce);
+
+// Creates a rate limiter starting at `start` and moving at most `max_step`.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_ramp_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaRamp *pamoja_ramp_new(float start, float max_step);
+
+// Moves a ramp one step toward `target` and returns the new value.
+//
+// # Returns
+//
+// The rate-limited value, or NaN if `ramp` is null.
+//
+// # Safety
+//
+// `ramp` must be a live handle from [`pamoja_ramp_new`], or null.
+float pamoja_ramp_update(PamojaRamp *ramp, float target);
+
+// Reads a ramp's current value.
+//
+// # Returns
+//
+// The current value, or NaN if `ramp` is null.
+//
+// # Safety
+//
+// `ramp` must be a live handle from [`pamoja_ramp_new`], or null.
+float pamoja_ramp_value(const PamojaRamp *ramp);
+
+// Forces a ramp to a value without rate limiting.
+//
+// # Safety
+//
+// `ramp` must be a live handle from [`pamoja_ramp_new`], or null.
+void pamoja_ramp_set(PamojaRamp *ramp, float value);
+
+// Creates a detector for rises of at least `limit` between readings.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_surge_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaSurge *pamoja_surge_rising(float limit);
+
+// Creates a detector for falls of at least `limit` between readings.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_surge_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaSurge *pamoja_surge_falling(float limit);
+
+// Feeds a value to a surge detector.
+//
+// # Returns
+//
+// `true` if this reading completed a qualifying step, having written the size of
+// the step to `out_delta`; `false` otherwise or if `surge` is null.
+//
+// # Safety
+//
+// `surge` must be a live handle from a surge constructor, or null, and
+// `out_delta` must point to a writable `float` or be null.
+bool pamoja_surge_update(PamojaSurge *surge, float value, float *out_delta);
+
+// Creates a calibration applying `raw * scale + offset`.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_calibration_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaCalibration *pamoja_calibration_linear(float scale, float offset);
+
+// Creates a calibration fitted through two known reference points.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_calibration_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaCalibration *pamoja_calibration_two_point(float raw_low,
+                                                float value_low,
+                                                float raw_high,
+                                                float value_high);
+
+// Converts a raw reading into calibrated units.
+//
+// # Returns
+//
+// The calibrated value, or NaN if `calibration` is null.
+//
+// # Safety
+//
+// `calibration` must be a live handle from a calibration constructor, or null.
+float pamoja_calibration_apply(const PamojaCalibration *calibration, float raw);
+
+// Creates a circular geofence of `radius_m` around `center`.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_geofence_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaGeofence *pamoja_geofence_new(PamojaCoordinate center, double radius_m);
+
+// Feeds a fix to a geofence and reports where it sits, including a crossing.
+//
+// # Returns
+//
+// The boundary state for this fix, or [`PamojaBoundary::Outside`] if `geofence`
+// is null.
+//
+// # Safety
+//
+// `geofence` must be a live handle from [`pamoja_geofence_new`], or null.
+PamojaBoundary pamoja_geofence_update(PamojaGeofence *geofence, PamojaCoordinate point);
+
+// Reports whether a fix lies inside a geofence, without recording a crossing.
+//
+// # Returns
+//
+// `true` if the fix is inside, or `false` if it is outside or `geofence` is null.
+//
+// # Safety
+//
+// `geofence` must be a live handle from [`pamoja_geofence_new`], or null.
+bool pamoja_geofence_contains(const PamojaGeofence *geofence, PamojaCoordinate point);
+
+// Returns the great-circle distance between two coordinates, in metres.
+double pamoja_coordinate_distance_to(PamojaCoordinate from, PamojaCoordinate to);
+
+// Returns the initial bearing from one coordinate to another, in degrees.
+double pamoja_coordinate_bearing_to(PamojaCoordinate from, PamojaCoordinate to);
+
+// Suppresses movement within `width` of `center`, so noise does not act.
+//
+// # Returns
+//
+// `center` while `value` is inside the band, and otherwise `value` shifted
+// toward `center` by half the band width, so the output is continuous.
+float pamoja_kit_deadband(float value, float center, float width);
 
 // Creates a disconnected MQTT client from the given settings.
 //
@@ -243,6 +1011,99 @@ uintptr_t pamoja_mqtt_message_payload_len(const PamojaMqttMessage *message);
 // `message` must be a handle from [`pamoja_mqtt_client_recv`] that has not
 // already been freed, or null. After this call the handle must not be used again.
 void pamoja_mqtt_message_free(PamojaMqttMessage *message);
+
+// Creates a device identity from a provisioned 32-byte secret seed.
+//
+// # Returns
+//
+// A heap-allocated identity handle the caller owns and must release with
+// [`pamoja_device_identity_free`], or null on failure with the reason available
+// from [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+//
+// # Safety
+//
+// `seed` must point to at least `seed_len` readable bytes, and `seed_len` must
+// be [`PAMOJA_KEY_LEN`].
+PamojaDeviceIdentity *pamoja_device_identity_new(const uint8_t *seed, uintptr_t seed_len);
+
+// Writes the public key matching a device identity.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, having written [`PAMOJA_KEY_LEN`] bytes to
+// `out_public_key`.
+//
+// # Safety
+//
+// `identity` must be a live handle from [`pamoja_device_identity_new`], and
+// `out_public_key` must point to at least [`PAMOJA_KEY_LEN`] writable bytes.
+PamojaStatus pamoja_device_identity_public_key(const PamojaDeviceIdentity *identity,
+                                               uint8_t *out_public_key);
+
+// Signs a payload with a device identity.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, having written [`PAMOJA_SIGNATURE_LEN`] bytes
+// to `out_signature`.
+//
+// # Safety
+//
+// `identity` must be a live handle from [`pamoja_device_identity_new`];
+// `payload` must point to at least `payload_len` readable bytes, or be null when
+// `payload_len` is 0; and `out_signature` must point to at least
+// [`PAMOJA_SIGNATURE_LEN`] writable bytes.
+PamojaStatus pamoja_device_identity_sign(const PamojaDeviceIdentity *identity,
+                                         const uint8_t *payload,
+                                         uintptr_t payload_len,
+                                         uint8_t *out_signature);
+
+// Releases a device identity handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `identity` must be a handle from [`pamoja_device_identity_new`] that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_device_identity_free(PamojaDeviceIdentity *identity);
+
+// Writes the short hex fingerprint of a public key.
+//
+// The fingerprint is a convenient label for logs and displays, not a substitute
+// for the full key when checking trust.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, having written [`PAMOJA_FINGERPRINT_LEN`]
+// lowercase hex characters to `out_fingerprint`. No null terminator is written.
+//
+// # Safety
+//
+// `public_key` must point to at least [`PAMOJA_KEY_LEN`] readable bytes, and
+// `out_fingerprint` must point to at least [`PAMOJA_FINGERPRINT_LEN`] writable
+// bytes.
+PamojaStatus pamoja_public_identity_fingerprint(const uint8_t *public_key,
+                                                uint8_t *out_fingerprint);
+
+// Verifies that a signature covers a payload and was made by a public key.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] if the signature is authentic, or [`PamojaStatus::Auth`]
+// if it is not, which means the payload was altered or was signed by a different
+// device.
+//
+// # Safety
+//
+// `public_key` must point to at least [`PAMOJA_KEY_LEN`] readable bytes;
+// `payload` must point to at least `payload_len` readable bytes, or be null when
+// `payload_len` is 0; and `signature` must point to at least
+// [`PAMOJA_SIGNATURE_LEN`] readable bytes.
+PamojaStatus pamoja_public_identity_verify(const uint8_t *public_key,
+                                           const uint8_t *payload,
+                                           uintptr_t payload_len,
+                                           const uint8_t *signature);
 
 #ifdef __cplusplus
 }  // extern "C"

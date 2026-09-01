@@ -162,7 +162,7 @@ What that means in practice:
 Released and installable, not a prototype:
 
 - **31 crates on crates.io**, with the Node, Python, and .NET bindings on npm, PyPI, and NuGet, all versioned in lockstep.
-- **773 tests across 78 targets**, pinned wherever a standard exists to that standard's own published vectors rather than to round-trips, so an implementation that is wrong but self-consistent still fails.
+- **806 tests across 79 targets**, pinned wherever a standard exists to that standard's own published vectors rather than to round-trips, so an implementation that is wrong but self-consistent still fails.
 - **Checked against the real thing in CI**, not just mocked: MAVLink against live ArduPilot and PX4 SITL, the ROS 2 bridge against ROS 2 Jazzy with rmw_zenoh, and every `no_std` crate cross-compiled for a Cortex-M4F microcontroller.
 - **Audited on every change**: rustfmt, clippy at `-D warnings`, CodeQL over five languages, and a license and security-advisory sweep of the dependency graph a consumer actually installs.
 
@@ -218,6 +218,8 @@ One engine, many front doors. A version tag publishes every binding to its regis
 | WebAssembly | browser / npm | planned |
 | Kotlin, Swift, Go | platform-native | planned |
 
+Device identity, the wire codecs, and the helper math reach all three bindings alongside the MQTT transport, so a reading can be smoothed, signed, packed for a metered link, and published without leaving the language you started in. A single file of conformance vectors, generated from the Rust implementation, is asserted by every binding's test suite, so the four cannot quietly disagree about what the same call returns.
+
 ## Standards and conformance
 
 Anything defined by a published standard is implemented from the authoritative specification itself, and its tests are anchored to that specification's own reference vectors. Bit layouts, field orders, reserved bits, and algorithm constants are where the subtle bugs hide, and a plausible guess is worse than none.
@@ -232,6 +234,8 @@ Anything defined by a published standard is implemented from the authoritative s
 | Robotics | ROS 2 names, RIHS01 type hashes, CDR encoding, rmw_zenoh key expressions |
 
 That rigor is also what makes dependency upgrades safe to take. When the primitives underneath change, every vector still matches or the build fails.
+
+A second set of vectors, in `conformance/`, does the same job across languages rather than against a specification: generated from the Rust implementation and asserted by every binding's test suite, so a facade that drifts fails instead of quietly returning something else.
 
 ## Architecture
 
@@ -266,7 +270,7 @@ Robotics and drones. A ROS 2 bridge - topics, services, and actions - over a Zen
 
 Security. Memory safety by construction today, with ed25519 device identity, a tamper-evident hash-chained audit log, and a secured channel (X25519 key agreement and ChaCha20-Poly1305 with anti-replay) already shipping. Next: TLS 1.3 and DTLS, X.509 device identity, and signed OTA updates with verified rollback.
 
-Reach. Bindings beyond Node: Python, C#/.NET, Lua, WebAssembly, Kotlin, Swift, and Go. The plain-language helper layer (`pamoja-kit`) is broad today - smooth a noisy reading, hold a value with a PID, warn before a tank runs dry, steer by wheel kinematics - each naming the goal over the math with the real algorithm one layer down. And an offline-first community cookbook so the SDK reaches the people it is built for.
+Reach. Python and C#/.NET ship alongside Node today, each with the same capability set behind a facade written in that language's idiom and held to shared conformance vectors. Next: Lua, WebAssembly, Kotlin, Swift, and Go. The plain-language helper layer (`pamoja-kit`) is broad today - smooth a noisy reading, hold a value with a PID, warn before a tank runs dry, steer by wheel kinematics - each naming the goal over the math with the real algorithm one layer down. And an offline-first community cookbook so the SDK reaches the people it is built for.
 
 ## Repository layout
 
@@ -274,6 +278,7 @@ Reach. Bindings beyond Node: Python, C#/.NET, Lua, WebAssembly, Kotlin, Swift, a
 crates/      Rust engine and capability crates (each crate's README is its doc landing)
 bindings/    per-language bindings (Node, Python, .NET today; more to come)
 examples/    runnable end-to-end scenarios, including a cross-crate conformance test
+conformance/ the vectors every binding asserts, so the languages cannot disagree
 docs/        a generated API index linking each crate's README (cargo xtask docs)
 sitl/        ArduPilot and PX4 SITL images for the MAVLink interop job
 web/         the showcase site and the hosted dashboard demo

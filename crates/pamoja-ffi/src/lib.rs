@@ -32,8 +32,14 @@ use std::sync::OnceLock;
 
 use pamoja_core::Error;
 
+#[cfg(feature = "codec")]
+mod codec;
+#[cfg(feature = "kit")]
+mod kit;
 #[cfg(feature = "mqtt")]
 mod mqtt;
+#[cfg(feature = "security")]
+mod security;
 
 /// The result of a fallible pamoja call.
 ///
@@ -61,6 +67,8 @@ pub enum PamojaStatus {
     Other = 7,
     /// A Rust panic was caught at the boundary; the call had no effect.
     Panic = 8,
+    /// A security check failed, such as an invalid identity or a bad signature.
+    Auth = 9,
 }
 
 impl PamojaStatus {
@@ -79,6 +87,7 @@ impl PamojaStatus {
             Error::Io(_) => Self::Io,
             Error::Codec(_) => Self::Codec,
             Error::Closed => Self::Closed,
+            Error::Auth(_) => Self::Auth,
             Error::Unsupported(_) => Self::Unsupported,
             _ => Self::Other,
         }
@@ -117,6 +126,105 @@ pub extern "C" fn pamoja_last_error_message() -> *const c_char {
         Some(value) => value.as_ptr(),
         None => ptr::null(),
     })
+}
+
+/// Copies a borrowed byte buffer, treating a zero length as an empty payload.
+///
+/// # Safety
+///
+/// When `len` is non-zero, `ptr` must point to at least `len` readable bytes.
+#[cfg(any(feature = "codec", feature = "mqtt", feature = "security"))]
+pub(crate) unsafe fn read_bytes(ptr: *const u8, len: usize) -> Result<Vec<u8>, PamojaStatus> {
+    if len == 0 {
+        Ok(Vec::new())
+    } else if ptr.is_null() {
+        set_last_error("payload must not be null when its length is non-zero".to_owned());
+        Err(PamojaStatus::InvalidArgument)
+    } else {
+        Ok(std::slice::from_raw_parts(ptr, len).to_vec())
+    }
+}
+
+/// An opaque handle to a byte buffer owned by the caller.
+///
+/// Calls that produce a variable-length result hand back one of these rather than
+/// writing into a caller buffer, so the caller never has to guess a size. Read it
+/// with [`pamoja_buffer_data`] and [`pamoja_buffer_len`], then release it with
+/// [`pamoja_buffer_free`].
+#[cfg(feature = "codec")]
+pub struct PamojaBuffer {
+    bytes: Vec<u8>,
+}
+
+#[cfg(feature = "codec")]
+impl PamojaBuffer {
+    /// Wraps owned bytes in a heap-allocated handle for the caller to own.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - the buffer contents to hand across the boundary.
+    ///
+    /// # Returns
+    ///
+    /// A raw handle the caller must release with [`pamoja_buffer_free`].
+    pub(crate) fn into_raw(bytes: Vec<u8>) -> *mut Self {
+        Box::into_raw(Box::new(Self { bytes }))
+    }
+}
+
+/// Returns a pointer to a buffer's bytes.
+///
+/// Use [`pamoja_buffer_len`] for the length. The pointer is valid until the
+/// buffer is freed.
+///
+/// # Returns
+///
+/// A pointer to the bytes, or null if `buffer` is null.
+///
+/// # Safety
+///
+/// `buffer` must be a live handle from a pamoja call that produced one, or null.
+#[cfg(feature = "codec")]
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_buffer_data(buffer: *const PamojaBuffer) -> *const u8 {
+    if buffer.is_null() {
+        return ptr::null();
+    }
+    (*buffer).bytes.as_ptr()
+}
+
+/// Returns the length in bytes of a buffer.
+///
+/// # Returns
+///
+/// The length, or 0 if `buffer` is null.
+///
+/// # Safety
+///
+/// `buffer` must be a live handle from a pamoja call that produced one, or null.
+#[cfg(feature = "codec")]
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_buffer_len(buffer: *const PamojaBuffer) -> usize {
+    if buffer.is_null() {
+        return 0;
+    }
+    (*buffer).bytes.len()
+}
+
+/// Releases a buffer handle.
+///
+/// Passing null is a no-op.
+///
+/// # Safety
+///
+/// `buffer` must be a handle from a pamoja call that produced one and that has
+/// not already been freed, or null. After this call it must not be used again.
+#[cfg(feature = "codec")]
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_buffer_free(buffer: *mut PamojaBuffer) {
+    if !buffer.is_null() {
+        drop(Box::from_raw(buffer));
+    }
 }
 
 /// The version of the native pamoja library.
