@@ -3,7 +3,9 @@
   "version": "0.1.14",
   "description": "Node.js bindings for the pamoja device SDK core.",
   "license": "MIT",
-  "publishConfig": { "access": "public" },
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/molexxxx/pamoja.git"
@@ -14,6 +16,22 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./mqtt": {
+      "types": "./dist/mqtt.d.ts",
+      "default": "./dist/mqtt.js"
+    },
+    "./security": {
+      "types": "./dist/security.d.ts",
+      "default": "./dist/security.js"
+    },
+    "./codec": {
+      "types": "./dist/codec.d.ts",
+      "default": "./dist/codec.js"
+    },
+    "./kit": {
+      "types": "./dist/kit.d.ts",
+      "default": "./dist/kit.js"
     },
     "./raw": {
       "types": "./index.d.ts",
