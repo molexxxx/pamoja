@@ -46,6 +46,7 @@ the same thread.
 - `InvalidArgument` - An argument was null or otherwise invalid, for example non-UTF-8 text.
 - `Other` - A failure that does not map onto a more specific status.
 - `Panic` - A Rust panic was caught at the boundary; the call had no effect.
+- `Auth` - A security check failed, such as an invalid identity or a bad signature.
 
 ## fn `pamoja_last_error_message`
 
@@ -60,6 +61,65 @@ pamoja call on this thread.
 
 ```rust
 extern "C" fn pamoja_last_error_message() -> * const c_char
+```
+
+## struct `PamojaBuffer`
+
+An opaque handle to a byte buffer owned by the caller.
+
+Calls that produce a variable-length result hand back one of these rather than
+writing into a caller buffer, so the caller never has to guess a size. Read it
+with [`pamoja_buffer_data`] and [`pamoja_buffer_len`], then release it with
+[`pamoja_buffer_free`].
+
+## fn `pamoja_buffer_data`
+
+Returns a pointer to a buffer's bytes.
+
+Use [`pamoja_buffer_len`] for the length. The pointer is valid until the
+buffer is freed.
+
+**Returns**
+
+A pointer to the bytes, or null if `buffer` is null.
+
+**Safety**
+
+`buffer` must be a live handle from a pamoja call that produced one, or null.
+
+```rust
+unsafe extern "C" fn pamoja_buffer_data(buffer: * const PamojaBuffer) -> * const u8
+```
+
+## fn `pamoja_buffer_len`
+
+Returns the length in bytes of a buffer.
+
+**Returns**
+
+The length, or 0 if `buffer` is null.
+
+**Safety**
+
+`buffer` must be a live handle from a pamoja call that produced one, or null.
+
+```rust
+unsafe extern "C" fn pamoja_buffer_len(buffer: * const PamojaBuffer) -> usize
+```
+
+## fn `pamoja_buffer_free`
+
+Releases a buffer handle.
+
+Passing null is a no-op.
+
+**Safety**
+
+`buffer` must be a handle from a pamoja call that produced one and that has
+not already been freed, or null. After this call it must not be used again.
+
+```rust
+unsafe extern "C" fn pamoja_buffer_free(buffer: * mut PamojaBuffer)
 ```
 
 ## fn `pamoja_version`

@@ -47,3 +47,22 @@ async def main():
 
 asyncio.run(main())
 ```
+
+Beyond the transport, the same import carries device identity, the wire codecs,
+and the helper math, each in its own module (`pamoja.security`, `pamoja.codec`,
+`pamoja.kit`) and all re-exported from `pamoja`. The generated low-level contract
+stays available at `pamoja.raw`.
+
+```python
+from pamoja import DeviceIdentity, Smoother, to_cbor
+
+smoother = Smoother(0.3)
+reading = smoother.update(21.7)
+
+device = DeviceIdentity.from_seed(seed)
+payload = to_cbor({"c": reading})
+signature = device.sign(payload)
+```
+
+`pytest` runs the smoke tests and the cross-language conformance suite, which
+asserts the same vectors every other binding does.
