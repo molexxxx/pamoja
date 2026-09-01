@@ -2439,8 +2439,11 @@ name = "pamoja-ffi"
 version = "0.1.14"
 dependencies = [
  "cbindgen",
+ "pamoja-codec",
  "pamoja-core",
+ "pamoja-kit",
  "pamoja-mqtt",
+ "pamoja-security",
  "tokio",
 ]
 

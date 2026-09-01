@@ -14,6 +14,10 @@
 //! [`encode_deltas`] delta-encodes a series of integers, and [`Quantizer`] rounds
 //! `f32` readings to a fixed precision and delta-encodes them.
 //!
+//! [`json_to_cbor`] and [`cbor_to_json`] convert a whole document between the two
+//! formats without a Rust type for it, which is what a caller holding an untyped
+//! payload needs in order to reach the compact form.
+//!
 //! # Examples
 //!
 //! A little-endian codec for `u32` values:
@@ -59,6 +63,11 @@ pub use cbor::CborCodec;
 mod json;
 #[cfg(feature = "json")]
 pub use json::JsonCodec;
+
+#[cfg(all(feature = "cbor", feature = "json"))]
+mod transcode;
+#[cfg(all(feature = "cbor", feature = "json"))]
+pub use transcode::{cbor_to_json, json_to_cbor};
 
 /// Encodes and decodes values of type `T` to and from byte buffers.
 ///

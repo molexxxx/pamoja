@@ -21,7 +21,7 @@ use tokio::sync::Mutex;
 use pamoja_core::{Error, Transport};
 use pamoja_mqtt::{MqttConfig, MqttTransport, QualityOfService};
 
-use crate::{set_last_error, PamojaStatus};
+use crate::{read_bytes, set_last_error, PamojaStatus};
 
 /// The process-wide runtime that drives every blocking MQTT call.
 static RUNTIME: OnceLock<Runtime> = OnceLock::new();
@@ -456,22 +456,6 @@ unsafe fn read_str<'a>(ptr: *const c_char, name: &str) -> Option<&'a str> {
             set_last_error(format!("{name} must be valid UTF-8"));
             None
         }
-    }
-}
-
-/// Copies a borrowed byte buffer, treating a zero length as an empty payload.
-///
-/// # Safety
-///
-/// When `len` is non-zero, `ptr` must point to at least `len` readable bytes.
-unsafe fn read_bytes(ptr: *const u8, len: usize) -> Result<Vec<u8>, PamojaStatus> {
-    if len == 0 {
-        Ok(Vec::new())
-    } else if ptr.is_null() {
-        set_last_error("payload must not be null when its length is non-zero".to_owned());
-        Err(PamojaStatus::InvalidArgument)
-    } else {
-        Ok(std::slice::from_raw_parts(ptr, len).to_vec())
     }
 }
 

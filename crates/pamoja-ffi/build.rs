@@ -4,28 +4,33 @@
 //! checked into the tree and drift-checked in CI so it can never fall behind the
 //! Rust source.
 //!
-//! The header is only refreshed when this crate is the primary package of the
-//! build (a direct `cargo build`/`test`/`publish` of `pamoja-ffi`), never when it
-//! is pulled in as a dependency, and the write is best-effort so a read-only
-//! source tree (for example on docs.rs) cannot fail the build. CI is the gate that
-//! enforces a fresh, committed header.
+//! The header is only refreshed when the crate is built from its own workspace
+//! checkout, never when it is consumed as a published dependency, where the source
+//! lives in a registry cache that must not be mutated. The write is also
+//! best-effort, so a read-only source tree (for example on docs.rs) cannot fail
+//! the build. CI is the gate that enforces a fresh, committed header.
 
-use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn main() {
     println!("cargo:rerun-if-changed=src/lib.rs");
+    println!("cargo:rerun-if-changed=src/codec.rs");
+    println!("cargo:rerun-if-changed=src/kit.rs");
     println!("cargo:rerun-if-changed=src/mqtt.rs");
+    println!("cargo:rerun-if-changed=src/security.rs");
     println!("cargo:rerun-if-changed=cbindgen.toml");
 
-    // Skip entirely when built as a dependency; only the direct build owns the
-    // committed header.
-    if env::var_os("CARGO_PRIMARY_PACKAGE").is_none() {
+    let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+    // Skip entirely unless this is the workspace checkout that owns the committed
+    // header. Cargo does not pass CARGO_PRIMARY_PACKAGE to a build script, only to
+    // the rustc invocations it drives, so the workspace root is what distinguishes
+    // a source-tree build from a build of the published crate.
+    if !in_workspace_checkout(&crate_dir) {
         return;
     }
 
-    let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let config =
         cbindgen::Config::from_file(crate_dir.join("cbindgen.toml")).expect("read cbindgen.toml");
 
@@ -61,4 +66,23 @@ fn main() {
             header_path.display()
         );
     }
+}
+
+/// Reports whether `crate_dir` sits inside the pamoja workspace checkout.
+///
+/// # Arguments
+///
+/// * `crate_dir` - this crate's manifest directory.
+///
+/// # Returns
+///
+/// `true` when the grandparent directory holds the workspace manifest, which is
+/// the layout of the git checkout and never that of an extracted registry package.
+fn in_workspace_checkout(crate_dir: &Path) -> bool {
+    let Some(root) = crate_dir.parent().and_then(Path::parent) else {
+        return false;
+    };
+    fs::read_to_string(root.join("Cargo.toml"))
+        .map(|manifest| manifest.contains("[workspace]"))
+        .unwrap_or(false)
 }
