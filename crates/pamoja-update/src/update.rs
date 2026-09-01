@@ -11,6 +11,7 @@ use pamoja_security::PublicIdentity;
 use crate::error::{Refusal, Result};
 use crate::manifest::{Envelope, Manifest, ID_LEN};
 use crate::slots::{SlotRecord, SlotState, SlotStore};
+use crate::trust::Delegation;
 use crate::verify::ImageVerifier;
 
 /// What the bootloader should do with this boot.
@@ -38,14 +39,21 @@ pub struct Device {
     pub vendor_id: [u8; ID_LEN],
     /// What kind of device this is.
     pub class_id: [u8; ID_LEN],
-    /// The public key of the only author whose updates it will take.
-    pub author: PublicIdentity,
+    /// The key this device anchors its trust in.
+    ///
+    /// It is the root of every decision about who may update the device, so it is
+    /// used almost never: either to sign releases directly, or to sign a
+    /// [`Delegation`] naming a release key that does. The second arrangement is
+    /// the one to prefer, because it lets the anchor stay somewhere it is hard to
+    /// steal.
+    pub anchor: PublicIdentity,
 }
 
 /// Applies the update rules against a device's slots.
 pub struct Updater<S> {
     device: Device,
     store: S,
+    delegation: Option<Delegation>,
 }
 
 impl<S: SlotStore> Updater<S> {
@@ -60,7 +68,107 @@ impl<S: SlotStore> Updater<S> {
     ///
     /// The updater.
     pub fn new(device: Device, store: S) -> Self {
-        Self { device, store }
+        Self {
+            device,
+            store,
+            delegation: None,
+        }
+    }
+
+    /// Adopts a delegation the device already held, after a restart.
+    ///
+    /// A delegation is small and its envelope is self-authenticating, so the
+    /// simplest place to keep one is wherever the caller already keeps device
+    /// settings. Hand it back here on the way up.
+    ///
+    /// # Arguments
+    ///
+    /// * `envelope` - the stored delegation envelope.
+    /// * `now` - seconds since the Unix epoch, or `None` on a device with no clock.
+    ///
+    /// # Returns
+    ///
+    /// The updater, now accepting releases signed by the delegated key.
+    ///
+    /// # Errors
+    ///
+    /// Returns whatever [`adopt`](Self::adopt) refuses.
+    pub fn with_delegation(mut self, envelope: &[u8], now: Option<u64>) -> Result<Self> {
+        self.adopt(envelope, now)?;
+        Ok(self)
+    }
+
+    /// Takes on a delegation, moving which key may sign this device's updates.
+    ///
+    /// The caller should persist the envelope it just passed, so the device comes
+    /// back up trusting the same key.
+    ///
+    /// # Arguments
+    ///
+    /// * `envelope` - a delegation signed by the device's trust anchor.
+    /// * `now` - seconds since the Unix epoch, or `None` on a device with no clock.
+    ///
+    /// # Returns
+    ///
+    /// The delegation now in force.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Refusal::Signature`] if it was not signed by the trust anchor,
+    /// [`Refusal::Rollback`] if its epoch does not rise above the one already
+    /// held, so a retired key cannot be reinstated by replay, and
+    /// [`Refusal::Expired`] or [`Refusal::NoClock`] on the same terms as a
+    /// manifest.
+    pub fn adopt(&mut self, envelope: &[u8], now: Option<u64>) -> Result<Delegation> {
+        let delegation = Delegation::open(envelope, &self.device.anchor)?;
+
+        if let Some(held) = self.delegation {
+            if delegation.epoch <= held.epoch {
+                return Err(Refusal::Rollback);
+            }
+        }
+
+        if delegation.expires != 0 {
+            match now {
+                Some(now) if now < delegation.expires => {}
+                Some(_) => return Err(Refusal::Expired),
+                None => return Err(Refusal::NoClock),
+            }
+        }
+
+        // Refuse a delegation naming something that is not a usable key, rather
+        // than adopting it and discovering at the next release that nothing can
+        // sign for this device any more.
+        delegation.signer()?;
+
+        self.delegation = Some(delegation);
+        Ok(delegation)
+    }
+
+    /// Returns the delegation in force, if the device holds one.
+    ///
+    /// # Returns
+    ///
+    /// The delegation, or `None` when releases are signed by the anchor itself.
+    pub fn delegation(&self) -> Option<Delegation> {
+        self.delegation
+    }
+
+    /// Returns the key a manifest must be signed by right now.
+    ///
+    /// # Returns
+    ///
+    /// The delegated release key when one is in force, and the trust anchor
+    /// otherwise.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Refusal::Signature`] if a held delegation names an unusable key.
+    fn signing_key(&self) -> Result<PublicIdentity> {
+        match self.delegation {
+            Some(delegation) => delegation.signer(),
+            None => Ok(self.device.anchor),
+        }
     }
 
     /// Borrows the underlying slot store.
@@ -139,7 +247,7 @@ impl<S: SlotStore> Updater<S> {
     /// device forward, [`Refusal::SlotTooSmall`] if the image cannot fit, or
     /// [`Refusal::WrongState`] if it names the slot the device would fall back to.
     pub fn begin_at(&mut self, envelope: &[u8], now: Option<u64>) -> Result<Staging<'_, S>> {
-        let manifest = Envelope::decode(envelope)?.verify(&self.device.author)?;
+        let manifest = Envelope::decode(envelope)?.verify(&self.signing_key()?)?;
         self.check(&manifest, now)?;
         self.open(manifest)
     }
@@ -226,7 +334,7 @@ impl<S: SlotStore> Updater<S> {
     ///
     /// Returns whatever [`begin_at`](Self::begin_at) refuses.
     pub fn resume_at(&mut self, envelope: &[u8], now: Option<u64>) -> Result<Staging<'_, S>> {
-        let manifest = Envelope::decode(envelope)?.verify(&self.device.author)?;
+        let manifest = Envelope::decode(envelope)?.verify(&self.signing_key()?)?;
         self.check(&manifest, now)?;
 
         let slot = manifest.storage;

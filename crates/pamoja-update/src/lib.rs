@@ -16,6 +16,8 @@
 //!   kilobytes of memory can check a payload of megabytes.
 //! - [`SlotStore`] and [`MemoryStore`] - where images live, with an in-memory
 //!   implementation so the whole flow runs in a test with no hardware.
+//! - [`Delegation`] - the anchor's signed statement of which key may sign
+//!   releases, so that key can be rotated without visiting the devices.
 //! - [`Updater`] - the rules: verify, then stage, then try, then confirm or fall
 //!   back. A transfer cut off by a dead link resumes where it stopped rather than
 //!   starting over, which is what makes a large image installable over a slow
@@ -63,10 +65,18 @@
 //!
 //! # Known limits
 //!
-//! **The trusted key cannot be rotated.** A device trusts exactly one author for
-//! its lifetime. If that key is lost or compromised, the fleet cannot be updated
-//! again. RFC 9124's Delegation Chain element exists for this and is not
-//! implemented, so treat the author key as something to protect accordingly.
+//! **A retired key stays trusted until the device hears otherwise.** Rotation
+//! takes effect when a device adopts the new delegation, and a device that has
+//! been out of contact since a key was compromised still honours that key until
+//! it is reached. There is no way to revoke faster than you can deliver, which
+//! RFC 9124 acknowledges by leaving revocation outside the manifest format.
+//! Setting an expiry on a delegation bounds the exposure for devices that have a
+//! clock.
+//!
+//! **Delegation is one level deep.** The anchor appoints a release key, and the
+//! chain stops there. RFC 9124 allows longer chains for delegated authority
+//! between several parties; that is not implemented, and a release key cannot
+//! appoint a successor.
 //!
 //! **The sequence number is only as trustworthy as the slot records.** It is
 //! derived from what [`SlotStore`] reports, so an implementation that loses or
@@ -97,6 +107,18 @@
 //! How often progress is recorded is the caller's to choose through its chunk
 //! size: larger chunks mean fewer writes and less flash wear, but more to redo
 //! after a reset.
+//!
+//! # Who may sign
+//!
+//! A device anchors its trust in one key. That anchor can sign releases itself,
+//! which is the simple arrangement, or it can sign a [`Delegation`] naming a
+//! separate release key and then stay somewhere hard to reach.
+//!
+//! The second is worth the extra step. The key that signs releases has to be
+//! available every time you cut one, and availability is what eventually gets a
+//! key stolen; an anchor that only comes out to authorise a rotation can live in a
+//! safe. Rotating means issuing a delegation with a higher epoch, which retires
+//! the previous key rather than adding to it.
 //!
 //! # How it boots
 //!
@@ -138,7 +160,7 @@
 //! let device = Device {
 //!     vendor_id: [0xab; 16],
 //!     class_id: [0xcd; 16],
-//!     author: author.public(),
+//!     anchor: author.public(),
 //! };
 //! let mut updater = Updater::new(device, MemoryStore::new(2, 4096));
 //! updater.provision(0, 1).unwrap(); // the image it shipped with
@@ -157,6 +179,7 @@ mod cbor;
 mod error;
 mod manifest;
 mod slots;
+mod trust;
 mod update;
 mod verify;
 
@@ -166,5 +189,6 @@ pub use manifest::{
     STRUCTURE_VERSION,
 };
 pub use slots::{MemoryStore, SlotRecord, SlotState, SlotStore};
+pub use trust::{Delegation, DELEGATION_MAX};
 pub use update::{Boot, Device, Staging, Updater};
 pub use verify::{ImageVerifier, Verified};

@@ -6,8 +6,8 @@
 
 use pamoja_security::DeviceIdentity;
 use pamoja_update::{
-    Boot, Device, Envelope, Manifest, MemoryStore, PayloadFormat, Refusal, SlotState, SlotStore,
-    Updater, ENVELOPE_MAX, STRUCTURE_VERSION,
+    Boot, Delegation, Device, Envelope, Manifest, MemoryStore, PayloadFormat, Refusal, SlotState,
+    SlotStore, Updater, DELEGATION_MAX, ENVELOPE_MAX, STRUCTURE_VERSION,
 };
 use sha2::{Digest, Sha256};
 
@@ -38,7 +38,7 @@ fn manifest(image: &[u8], sequence: u64, slot: u8) -> Manifest {
 }
 
 /// Signs a manifest into an envelope buffer.
-fn release(manifest: &Manifest, by: &DeviceIdentity) -> ([u8; ENVELOPE_MAX], usize) {
+fn release_manifest(manifest: &Manifest, by: &DeviceIdentity) -> ([u8; ENVELOPE_MAX], usize) {
     let mut buf = [0u8; ENVELOPE_MAX];
     let written = manifest.sign(by, &mut buf).expect("sign");
     (buf, written)
@@ -49,7 +49,7 @@ fn device_running_version_one() -> Updater<MemoryStore> {
     let device = Device {
         vendor_id: VENDOR,
         class_id: CLASS,
-        author: author().public(),
+        anchor: author().public(),
     };
     let mut updater = Updater::new(device, MemoryStore::new(2, 4096));
     updater.provision(0, 1).expect("provision");
@@ -60,7 +60,7 @@ fn device_running_version_one() -> Updater<MemoryStore> {
 fn an_update_is_staged_tried_and_confirmed() {
     let mut updater = device_running_version_one();
     let image = b"version two";
-    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
 
     assert_eq!(updater.stage(&envelope[..len], image).expect("stage"), 1);
     assert_eq!(
@@ -84,7 +84,7 @@ fn an_update_is_staged_tried_and_confirmed() {
 fn an_image_that_never_confirms_is_reverted_on_the_next_boot() {
     let mut updater = device_running_version_one();
     let image = b"version two, which hangs";
-    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
     updater.stage(&envelope[..len], image).expect("stage");
 
     // Tried once, and then the device resets without ever confirming.
@@ -110,7 +110,7 @@ fn an_image_that_never_confirms_is_reverted_on_the_next_boot() {
 fn a_running_image_can_give_up_on_itself() {
     let mut updater = device_running_version_one();
     let image = b"version two, which knows it is unwell";
-    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
     updater.stage(&envelope[..len], image).expect("stage");
     updater.on_boot().expect("boot");
 
@@ -122,7 +122,7 @@ fn a_running_image_can_give_up_on_itself() {
 fn an_older_release_is_refused() {
     let mut updater = device_running_version_one();
     let image = b"version zero, captured and replayed";
-    let (envelope, len) = release(&manifest(image, 1, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 1, 1), &author());
 
     assert_eq!(
         updater.stage(&envelope[..len], image),
@@ -135,7 +135,7 @@ fn an_older_release_is_refused() {
 fn re_releasing_the_same_sequence_is_refused() {
     let mut updater = device_running_version_one();
     let image = b"version two";
-    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
     updater.stage(&envelope[..len], image).expect("stage");
     updater.on_boot().expect("boot");
     updater.confirm().expect("confirm");
@@ -143,7 +143,7 @@ fn re_releasing_the_same_sequence_is_refused() {
     // Even a genuinely different image cannot reuse a sequence number, because a
     // device has no way to tell which of the two it is being handed.
     let fixed = b"version two, fixed";
-    let (envelope, len) = release(&manifest(fixed, 2, 0), &author());
+    let (envelope, len) = release_manifest(&manifest(fixed, 2, 0), &author());
     assert_eq!(
         updater.stage(&envelope[..len], fixed),
         Err(Refusal::Rollback)
@@ -154,13 +154,13 @@ fn re_releasing_the_same_sequence_is_refused() {
 fn a_sequence_that_already_failed_is_still_spent() {
     let mut updater = device_running_version_one();
     let bad = b"version two, broken";
-    let (envelope, len) = release(&manifest(bad, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(bad, 2, 1), &author());
     updater.stage(&envelope[..len], bad).expect("stage");
     updater.on_boot().expect("boot");
     updater.on_boot().expect("boot"); // never confirmed, so it fails
 
     let fixed = b"version two, repaired";
-    let (envelope, len) = release(&manifest(fixed, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(fixed, 2, 1), &author());
     assert_eq!(
         updater.stage(&envelope[..len], fixed),
         Err(Refusal::Rollback),
@@ -175,7 +175,7 @@ fn an_update_for_another_vendor_or_class_is_refused() {
     let mut updater = device_running_version_one();
     let mut wrong_vendor = manifest(image, 2, 1);
     wrong_vendor.vendor_id = [0x99; 16];
-    let (envelope, len) = release(&wrong_vendor, &author());
+    let (envelope, len) = release_manifest(&wrong_vendor, &author());
     assert_eq!(
         updater.stage(&envelope[..len], image),
         Err(Refusal::WrongDevice)
@@ -183,7 +183,7 @@ fn an_update_for_another_vendor_or_class_is_refused() {
 
     let mut wrong_class = manifest(image, 2, 1);
     wrong_class.class_id = [0x99; 16];
-    let (envelope, len) = release(&wrong_class, &author());
+    let (envelope, len) = release_manifest(&wrong_class, &author());
     assert_eq!(
         updater.stage(&envelope[..len], image),
         Err(Refusal::WrongDevice),
@@ -196,7 +196,7 @@ fn a_release_from_an_untrusted_author_is_refused() {
     let mut updater = device_running_version_one();
     let image = b"version two, from a stranger";
     let impostor = DeviceIdentity::from_seed(&[2u8; 32]);
-    let (envelope, len) = release(&manifest(image, 2, 1), &impostor);
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &impostor);
 
     assert_eq!(
         updater.stage(&envelope[..len], image),
@@ -208,7 +208,7 @@ fn a_release_from_an_untrusted_author_is_refused() {
 fn an_image_that_does_not_match_its_manifest_leaves_nothing_bootable() {
     let mut updater = device_running_version_one();
     let image = b"version two";
-    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
 
     let mut altered = *image;
     altered[0] ^= 0x01;
@@ -230,7 +230,7 @@ fn an_image_that_does_not_match_its_manifest_leaves_nothing_bootable() {
 fn an_interrupted_transfer_leaves_nothing_bootable() {
     let mut updater = device_running_version_one();
     let image = b"version two, arriving slowly";
-    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
 
     {
         let mut staging = updater.begin(&envelope[..len]).expect("begin");
@@ -249,7 +249,7 @@ fn an_interrupted_transfer_leaves_nothing_bootable() {
 fn an_image_larger_than_declared_is_stopped_while_it_arrives() {
     let mut updater = device_running_version_one();
     let image = b"version two";
-    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
 
     let mut staging = updater.begin(&envelope[..len]).expect("begin");
     staging.write(image).expect("write");
@@ -261,13 +261,13 @@ fn an_image_too_large_for_the_slot_is_refused_before_any_of_it_arrives() {
     let device = Device {
         vendor_id: VENDOR,
         class_id: CLASS,
-        author: author().public(),
+        anchor: author().public(),
     };
     let mut updater = Updater::new(device, MemoryStore::new(2, 16));
     updater.provision(0, 1).expect("provision");
 
     let image = [0u8; 64];
-    let (envelope, len) = release(&manifest(&image, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(&image, 2, 1), &author());
     assert_eq!(
         updater.stage(&envelope[..len], &image),
         Err(Refusal::SlotTooSmall),
@@ -279,7 +279,7 @@ fn an_image_too_large_for_the_slot_is_refused_before_any_of_it_arrives() {
 fn an_update_may_not_overwrite_the_slot_it_would_fall_back_to() {
     let mut updater = device_running_version_one();
     let image = b"version two, aimed at the running slot";
-    let (envelope, len) = release(&manifest(image, 2, 0), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 2, 0), &author());
 
     assert_eq!(
         updater.stage(&envelope[..len], image),
@@ -292,7 +292,7 @@ fn an_update_may_not_overwrite_the_slot_it_would_fall_back_to() {
 fn a_slot_the_device_does_not_have_is_refused() {
     let mut updater = device_running_version_one();
     let image = b"version two";
-    let (envelope, len) = release(&manifest(image, 2, 7), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 2, 7), &author());
 
     assert_eq!(
         updater.stage(&envelope[..len], image),
@@ -306,7 +306,7 @@ fn confirming_when_nothing_is_pending_does_nothing() {
     assert_eq!(updater.confirm(), Err(Refusal::WrongState));
 
     let image = b"version two";
-    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
     updater.stage(&envelope[..len], image).expect("stage");
     updater.on_boot().expect("boot");
     updater.confirm().expect("confirm");
@@ -320,7 +320,7 @@ fn a_device_with_nothing_installed_has_nothing_to_boot() {
     let device = Device {
         vendor_id: VENDOR,
         class_id: CLASS,
-        author: author().public(),
+        anchor: author().public(),
     };
     let mut updater = Updater::new(device, MemoryStore::new(2, 4096));
     assert_eq!(updater.on_boot(), Err(Refusal::NothingToRevert));
@@ -338,14 +338,14 @@ fn two_updates_in_a_row_alternate_slots() {
     let mut updater = device_running_version_one();
 
     let second = b"version two";
-    let (envelope, len) = release(&manifest(second, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(second, 2, 1), &author());
     assert_eq!(updater.stage(&envelope[..len], second).expect("stage"), 1);
     updater.on_boot().expect("boot");
     updater.confirm().expect("confirm");
 
     // Slot 0 is free again, so the next release goes there.
     let third = b"version three";
-    let (envelope, len) = release(&manifest(third, 3, 0), &author());
+    let (envelope, len) = release_manifest(&manifest(third, 3, 0), &author());
     assert_eq!(updater.stage(&envelope[..len], third).expect("stage"), 0);
     assert_eq!(updater.on_boot().expect("boot"), Boot::Trying(0));
     assert_eq!(updater.confirm().expect("confirm"), 0);
@@ -361,7 +361,7 @@ fn an_expired_release_is_refused_even_though_it_is_newer() {
     let image = b"version two, superseded months ago";
     let mut expiring = manifest(image, 2, 1);
     expiring.expires = 1_000;
-    let (envelope, len) = release(&expiring, &author());
+    let (envelope, len) = release_manifest(&expiring, &author());
 
     assert_eq!(
         updater.stage_at(&envelope[..len], image, Some(2_000)),
@@ -376,7 +376,7 @@ fn a_release_inside_its_window_is_accepted() {
     let image = b"version two, still current";
     let mut expiring = manifest(image, 2, 1);
     expiring.expires = 5_000;
-    let (envelope, len) = release(&expiring, &author());
+    let (envelope, len) = release_manifest(&expiring, &author());
 
     assert_eq!(
         updater
@@ -392,7 +392,7 @@ fn a_device_with_no_clock_refuses_a_release_that_expires() {
     let image = b"version two";
     let mut expiring = manifest(image, 2, 1);
     expiring.expires = 5_000;
-    let (envelope, len) = release(&expiring, &author());
+    let (envelope, len) = release_manifest(&expiring, &author());
 
     // Accepting it would silently ignore a bound the author asked for, so the
     // refusal is the honest answer rather than the convenient one.
@@ -406,7 +406,7 @@ fn a_device_with_no_clock_refuses_a_release_that_expires() {
 fn a_release_that_never_expires_needs_no_clock() {
     let mut updater = device_running_version_one();
     let image = b"version two, no expiry set";
-    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
     assert_eq!(updater.stage(&envelope[..len], image).expect("stage"), 1);
 }
 
@@ -418,7 +418,7 @@ fn the_expiry_is_covered_by_the_signature() {
     let image = b"version two";
     let mut expiring = manifest(image, 2, 1);
     expiring.expires = 1_000;
-    let (mut envelope, len) = release(&expiring, &author());
+    let (mut envelope, len) = release_manifest(&expiring, &author());
 
     let at = envelope[..len]
         .windows(2)
@@ -436,7 +436,7 @@ fn the_expiry_is_covered_by_the_signature() {
 fn a_transfer_cut_off_by_a_dead_link_picks_up_where_it_stopped() {
     let mut updater = device_running_version_one();
     let image = b"version two, arriving over a slow radio that keeps dropping";
-    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
 
     // The link carries a third of it, then dies.
     {
@@ -467,7 +467,7 @@ fn a_transfer_cut_off_by_a_dead_link_picks_up_where_it_stopped() {
 fn a_resume_that_completes_the_wrong_bytes_still_fails_the_digest() {
     let mut updater = device_running_version_one();
     let image = b"version two, arriving over a slow radio that keeps dropping";
-    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
 
     {
         let mut staging = updater.begin(&envelope[..len]).expect("begin");
@@ -495,13 +495,13 @@ fn a_different_release_does_not_resume_a_partial_transfer() {
     let second = b"version three...a different release now";
     assert_eq!(first.len(), second.len());
 
-    let (envelope, len) = release(&manifest(first, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(first, 2, 1), &author());
     {
         let mut staging = updater.begin(&envelope[..len]).expect("begin");
         staging.write(&first[..10]).expect("write");
     }
 
-    let (envelope, len) = release(&manifest(second, 3, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(second, 3, 1), &author());
     let staging = updater.resume_at(&envelope[..len], None).expect("resume");
     assert_eq!(
         staging.progress(),
@@ -514,7 +514,7 @@ fn a_different_release_does_not_resume_a_partial_transfer() {
 fn a_partial_transfer_is_never_bootable() {
     let mut updater = device_running_version_one();
     let image = b"version two, still in flight";
-    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
 
     let mut staging = updater.begin(&envelope[..len]).expect("begin");
     staging.write(&image[..8]).expect("write");
@@ -537,11 +537,157 @@ fn a_partial_transfer_does_not_block_its_own_resume() {
     // release again to continue it would be refused as a rollback.
     let mut updater = device_running_version_one();
     let image = b"version two";
-    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
     {
         let mut staging = updater.begin(&envelope[..len]).expect("begin");
         staging.write(&image[..4]).expect("write");
     }
     assert_eq!(updater.installed_sequence().expect("sequence"), 1);
     assert!(updater.resume_at(&envelope[..len], None).is_ok());
+}
+
+/// Signs a delegation naming the release key derived from `seed`.
+fn delegate(epoch: u64, seed: u8, by: &DeviceIdentity) -> ([u8; DELEGATION_MAX], usize) {
+    let delegation = Delegation {
+        epoch,
+        release_key: DeviceIdentity::from_seed(&[seed; 32]).public().to_bytes(),
+        expires: 0,
+    };
+    let mut buf = [0u8; DELEGATION_MAX];
+    let written = delegation.sign(by, &mut buf).expect("sign");
+    (buf, written)
+}
+
+#[test]
+fn a_delegated_key_may_sign_releases_and_the_anchor_no_longer_does() {
+    let mut updater = device_running_version_one();
+    let release = DeviceIdentity::from_seed(&[7u8; 32]);
+
+    let (delegation, len) = delegate(1, 7, &author());
+    updater.adopt(&delegation[..len], None).expect("adopt");
+
+    // The delegated key now carries the authority.
+    let image = b"version two, signed by the release key";
+    let (envelope, elen) = release_manifest(&manifest(image, 2, 1), &release);
+    assert_eq!(updater.stage(&envelope[..elen], image).expect("stage"), 1);
+
+    // And the anchor, having handed the job on, is no longer the signer for
+    // releases. Keeping both live would defeat the point of moving the key.
+    let (envelope, elen) = release_manifest(&manifest(image, 3, 0), &author());
+    assert_eq!(
+        updater.stage(&envelope[..elen], image),
+        Err(Refusal::Signature)
+    );
+}
+
+#[test]
+fn rotating_to_a_new_release_key_retires_the_old_one() {
+    let mut updater = device_running_version_one();
+    let first = DeviceIdentity::from_seed(&[7u8; 32]);
+    let second = DeviceIdentity::from_seed(&[8u8; 32]);
+
+    let (delegation, len) = delegate(1, 7, &author());
+    updater.adopt(&delegation[..len], None).expect("adopt");
+    let (delegation, len) = delegate(2, 8, &author());
+    updater.adopt(&delegation[..len], None).expect("adopt");
+
+    let image = b"version two";
+    let (envelope, elen) = release_manifest(&manifest(image, 2, 1), &second);
+    assert_eq!(updater.stage(&envelope[..elen], image).expect("stage"), 1);
+
+    // A key that was compromised and rotated away from must not still work.
+    let (envelope, elen) = release_manifest(&manifest(image, 3, 0), &first);
+    assert_eq!(
+        updater.stage(&envelope[..elen], image),
+        Err(Refusal::Signature),
+        "rotating exists to take authority away, not merely to add another holder"
+    );
+}
+
+#[test]
+fn a_replayed_older_delegation_cannot_reinstate_a_retired_key() {
+    let mut updater = device_running_version_one();
+    let (old, old_len) = delegate(1, 7, &author());
+    let (new, new_len) = delegate(2, 8, &author());
+
+    updater.adopt(&old[..old_len], None).expect("adopt");
+    updater.adopt(&new[..new_len], None).expect("adopt");
+
+    assert_eq!(
+        updater.adopt(&old[..old_len], None),
+        Err(Refusal::Rollback),
+        "a retired key must not come back by replaying the statement that authorised it"
+    );
+    assert_eq!(updater.delegation().expect("delegation").epoch, 2);
+}
+
+#[test]
+fn only_the_anchor_may_delegate() {
+    let mut updater = device_running_version_one();
+    let impostor = DeviceIdentity::from_seed(&[9u8; 32]);
+    let (delegation, len) = delegate(1, 7, &impostor);
+
+    assert_eq!(
+        updater.adopt(&delegation[..len], None),
+        Err(Refusal::Signature),
+        "a release key must not be able to appoint its own successor"
+    );
+    assert!(updater.delegation().is_none());
+}
+
+#[test]
+fn a_delegated_key_cannot_delegate_onwards() {
+    // Depth is deliberately one: the anchor appoints a release key, and that is
+    // where the chain stops. A release key that could delegate would be as
+    // dangerous to lose as the anchor itself.
+    let mut updater = device_running_version_one();
+    let release = DeviceIdentity::from_seed(&[7u8; 32]);
+    let (delegation, len) = delegate(1, 7, &author());
+    updater.adopt(&delegation[..len], None).expect("adopt");
+
+    let (onward, onward_len) = delegate(2, 8, &release);
+    assert_eq!(
+        updater.adopt(&onward[..onward_len], None),
+        Err(Refusal::Signature)
+    );
+}
+
+#[test]
+fn a_device_survives_a_restart_with_its_delegation() {
+    let release = DeviceIdentity::from_seed(&[7u8; 32]);
+    let (delegation, len) = delegate(1, 7, &author());
+
+    // The caller kept the envelope and hands it back on the way up.
+    let device = Device {
+        vendor_id: VENDOR,
+        class_id: CLASS,
+        anchor: author().public(),
+    };
+    let mut updater = Updater::new(device, MemoryStore::new(2, 4096))
+        .with_delegation(&delegation[..len], None)
+        .expect("restore");
+    updater.provision(0, 1).expect("provision");
+
+    let image = b"version two";
+    let (envelope, elen) = release_manifest(&manifest(image, 2, 1), &release);
+    assert_eq!(updater.stage(&envelope[..elen], image).expect("stage"), 1);
+}
+
+#[test]
+fn an_expired_delegation_is_refused() {
+    let mut updater = device_running_version_one();
+    let delegation = Delegation {
+        epoch: 1,
+        release_key: DeviceIdentity::from_seed(&[7u8; 32]).public().to_bytes(),
+        expires: 1_000,
+    };
+    let mut buf = [0u8; DELEGATION_MAX];
+    let len = delegation.sign(&author(), &mut buf).expect("sign");
+
+    assert_eq!(
+        updater.adopt(&buf[..len], Some(2_000)),
+        Err(Refusal::Expired)
+    );
+    assert_eq!(updater.adopt(&buf[..len], None), Err(Refusal::NoClock));
+    assert!(updater.adopt(&buf[..len], Some(500)).is_ok());
 }

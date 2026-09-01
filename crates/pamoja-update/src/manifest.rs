@@ -261,15 +261,7 @@ impl Manifest {
     pub fn sign(&self, author: &DeviceIdentity, buf: &mut [u8]) -> Result<usize> {
         let mut body = [0u8; MANIFEST_MAX];
         let body_len = self.encode(&mut body)?;
-        let signature = author.sign(&body[..body_len]);
-
-        let mut writer = Writer::new(buf);
-        writer.map(2)?;
-        writer.uint(KEY_BODY)?;
-        writer.bytes(&body[..body_len])?;
-        writer.uint(KEY_SIGNATURE)?;
-        writer.bytes(&signature.to_bytes())?;
-        Ok(writer.finish())
+        seal(&body[..body_len], author, buf)
     }
 }
 
@@ -332,11 +324,34 @@ impl<'a> Envelope<'a> {
     /// Returns [`Refusal::Signature`] if the signature is not this author's over
     /// this body, or a decoding refusal if the body is not a valid manifest.
     pub fn verify(&self, author: &PublicIdentity) -> Result<Manifest> {
+        Manifest::decode(self.verified_body(author)?)
+    }
+
+    /// Checks the signature and returns the bytes it covers.
+    ///
+    /// An envelope carries whatever its author signed, which is a manifest in the
+    /// usual case and a delegation when authority is being handed on. Checking the
+    /// signature separately from reading the body lets both share one envelope
+    /// shape without either having to know about the other.
+    ///
+    /// # Arguments
+    ///
+    /// * `signer` - the public key the body must be signed by.
+    ///
+    /// # Returns
+    ///
+    /// The signed bytes, now known to be from `signer` and unaltered.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Refusal::Signature`] if the signature is not this signer's over
+    /// this body.
+    pub fn verified_body(&self, signer: &PublicIdentity) -> Result<&'a [u8]> {
         let signature = Signature::from_bytes(&self.signature);
-        author
+        signer
             .verify(self.body, &signature)
             .map_err(|_| Refusal::Signature)?;
-        Manifest::decode(self.body)
+        Ok(self.body)
     }
 
     /// Returns the signed body, which is not yet known to be authentic.
@@ -349,8 +364,34 @@ impl<'a> Envelope<'a> {
     }
 }
 
+/// Wraps a signed body and its signature into an envelope.
+///
+/// # Arguments
+///
+/// * `body` - the bytes to sign.
+/// * `signer` - the identity vouching for them.
+/// * `buf` - the destination.
+///
+/// # Returns
+///
+/// How many bytes of `buf` the envelope occupies.
+///
+/// # Errors
+///
+/// Returns [`Refusal::Malformed`] if `buf` is too small.
+pub(crate) fn seal(body: &[u8], signer: &DeviceIdentity, buf: &mut [u8]) -> Result<usize> {
+    let signature = signer.sign(body);
+    let mut writer = Writer::new(buf);
+    writer.map(2)?;
+    writer.uint(KEY_BODY)?;
+    writer.bytes(body)?;
+    writer.uint(KEY_SIGNATURE)?;
+    writer.bytes(&signature.to_bytes())?;
+    Ok(writer.finish())
+}
+
 /// Reads an expected key and refuses anything else, holding the map to its order.
-fn expect_key(reader: &mut Reader<'_>, key: u64) -> Result<()> {
+pub(crate) fn expect_key(reader: &mut Reader<'_>, key: u64) -> Result<()> {
     if reader.uint()? != key {
         return Err(Refusal::Malformed);
     }
@@ -358,7 +399,7 @@ fn expect_key(reader: &mut Reader<'_>, key: u64) -> Result<()> {
 }
 
 /// Reads an expected key and the unsigned integer that follows it.
-fn read_key(reader: &mut Reader<'_>, key: u64) -> Result<u64> {
+pub(crate) fn read_key(reader: &mut Reader<'_>, key: u64) -> Result<u64> {
     expect_key(reader, key)?;
     reader.uint()
 }
