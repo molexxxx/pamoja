@@ -1,0 +1,20 @@
+[package]
+name = "pamoja-update"
+description = "Signed firmware updates for pamoja: an RFC 9124 manifest, image verification, and A/B slots with verified rollback, so a device can be fixed in the field."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+# This crate is no_std, so it takes the core without its default `std` feature. The
+# dependency is declared directly rather than inherited, because `default-features`
+# cannot be overridden through workspace inheritance.
+pamoja-core = { path = "../pamoja-core", version = "0.1.14", default-features = false }
+pamoja-security = { path = "../pamoja-security", version = "0.1.14" }
+sha2 = { version = "0.11", default-features = false }
+
+[lints]
+workspace = true
