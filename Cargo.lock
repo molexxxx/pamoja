@@ -2430,8 +2430,10 @@ dependencies = [
  "pamoja-sim",
  "pamoja-sync",
  "pamoja-telemetry",
+ "pamoja-update",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "tokio",
 ]
 
@@ -2610,6 +2612,15 @@ dependencies = [
 [[package]]
 name = "pamoja-telemetry"
 version = "0.1.14"
+
+[[package]]
+name = "pamoja-update"
+version = "0.1.14"
+dependencies = [
+ "pamoja-core",
+ "pamoja-security",
+ "sha2 0.11.0",
+]
 
 [[package]]
 name = "pamoja-zenoh"

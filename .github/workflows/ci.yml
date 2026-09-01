@@ -50,7 +50,7 @@ jobs:
       # `no_std` (only `core` and `alloc`) and never silently regains a `std`
       # dependency that would break the microcontroller target.
       - name: no_std build
-        run: cargo build --no-default-features -p pamoja-core -p pamoja-codec -p pamoja-security -p pamoja-audit -p pamoja-zenoh -p pamoja-ros2 -p pamoja-mavlink
+        run: cargo build --no-default-features -p pamoja-core -p pamoja-codec -p pamoja-security -p pamoja-audit -p pamoja-update -p pamoja-zenoh -p pamoja-ros2 -p pamoja-mavlink
 
       # The robotics helpers are opt-in but must also stay `no_std`, so build them
       # explicitly with their feature on (and `geo`, which the waypoint guidance needs).
@@ -117,7 +117,7 @@ jobs:
           T=thumbv7em-none-eabihf
           # Feature-gated crates build with their std layer off; the rest are no_std by default.
           cargo build --target $T --no-default-features \
-            -p pamoja-core -p pamoja-security -p pamoja-audit -p pamoja-mavlink
+            -p pamoja-core -p pamoja-security -p pamoja-audit -p pamoja-update -p pamoja-mavlink
           cargo build --target $T --no-default-features --features "robotics geo" -p pamoja-kit
           cargo build --target $T \
             -p pamoja-session -p pamoja-sensors -p pamoja-actuators -p pamoja-serial \

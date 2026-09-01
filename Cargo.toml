@@ -14,6 +14,7 @@ members = [
     "crates/pamoja-profile",
     "crates/pamoja-sim",
     "crates/pamoja-security",
+    "crates/pamoja-update",
     "crates/pamoja-session",
     "crates/pamoja-sensors",
     "crates/pamoja-actuators",

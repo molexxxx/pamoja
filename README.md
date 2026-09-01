@@ -162,7 +162,7 @@ What that means in practice:
 Released and installable, not a prototype:
 
 - **31 crates on crates.io**, with the Node, Python, and .NET bindings on npm, PyPI, and NuGet, all versioned in lockstep.
-- **806 tests across 79 targets**, pinned wherever a standard exists to that standard's own published vectors rather than to round-trips, so an implementation that is wrong but self-consistent still fails.
+- **884 tests across 82 targets**, pinned wherever a standard exists to that standard's own published vectors rather than to round-trips, so an implementation that is wrong but self-consistent still fails.
 - **Checked against the real thing in CI**, not just mocked: MAVLink against live ArduPilot and PX4 SITL, the ROS 2 bridge against ROS 2 Jazzy with rmw_zenoh, and every `no_std` crate cross-compiled for a Cortex-M4F microcontroller.
 - **Audited on every change**: rustfmt, clippy at `-D warnings`, CodeQL over five languages, and a license and security-advisory sweep of the dependency graph a consumer actually installs.
 
@@ -185,6 +185,7 @@ Generated surfaces (the language binding contracts and the C header) are drift-c
 | [`pamoja-power`](crates/pamoja-power/README.md#pamoja-power) | energy | Duty cycling plus an energy-aware governor that stretches work as the battery drains and eases off while charging. |
 | [`pamoja-security`](crates/pamoja-security/README.md#pamoja-security) | trust | ed25519 device identity: sign a device's telemetry and verify it, so a gateway can prove a reading is authentic. |
 | [`pamoja-audit`](crates/pamoja-audit/README.md#pamoja-audit) | trust | A `no_std` tamper-evident, SHA-256 hash-chained log; altering, reordering, or dropping any record breaks verification. |
+| [`pamoja-update`](crates/pamoja-update/README.md#pamoja-update) | trust | Signed firmware updates: an RFC 9124 manifest, streaming image verification, and A/B slots that fall back on their own when an image does not come up; a transfer cut off by a dead link resumes where it stopped, and the key that signs releases can be rotated without visiting the devices. |
 | [`pamoja-session`](crates/pamoja-session/README.md#pamoja-session) | trust | A secured channel - X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window - so two nodes get confidentiality and integrity over a hostile link without a TLS stack. |
 | [`pamoja-telemetry`](crates/pamoja-telemetry/README.md#pamoja-telemetry) | observe | Allocation-free observability that ships only what is worth the bytes as link cost rises, while counting everything. |
 | [`pamoja-lora`](crates/pamoja-lora/README.md#pamoja-lora) | radio | The exact LoRa time-on-air of a payload and the duty-cycle off-time it forces, so a node stays in regulation and budget. |
@@ -268,7 +269,7 @@ Resilience and power. Offline-first store-and-forward, energy-aware duty cycling
 
 Robotics and drones. A ROS 2 bridge - topics, services, and actions - over a Zenoh transport ships today, interoperating with rmw_zenoh, routerless; the kit adds wheel kinematics, odometry, waypoint guidance, motion safety, and arm forward/inverse kinematics, and a simulated robot exercises it all with no hardware. MAVLink ships too: a vehicle is an ordinary pamoja device you arm, command, and fly missions through, over real serial, UDP, and TCP links, with the whole path verified in CI against real ArduPilot and PX4 SITL. Next: multi-device fleet orchestration, and the vehicle model surfaced through the language bindings.
 
-Security. Memory safety by construction today, with ed25519 device identity, a tamper-evident hash-chained audit log, and a secured channel (X25519 key agreement and ChaCha20-Poly1305 with anti-replay) already shipping. Next: TLS 1.3 and DTLS, X.509 device identity, and signed OTA updates with verified rollback.
+Security. Memory safety by construction today, with ed25519 device identity, a tamper-evident hash-chained audit log, and a secured channel (X25519 key agreement and ChaCha20-Poly1305 with anti-replay) already shipping. Signed firmware updates ship too: a device checks a release against the manifest its author signed, stages it beside the running image, and falls back on its own if the new one never reports healthy. Because the signature reaches the image through the manifest's digest, an update is safe to carry over a link nobody trusts - a radio mesh, a passing phone, a USB stick. Next: TLS 1.3 and DTLS, X.509 device identity, then attestation and delta updates.
 
 Reach. Python and C#/.NET ship alongside Node today, each with the same capability set behind a facade written in that language's idiom and held to shared conformance vectors. Next: Lua, WebAssembly, Kotlin, Swift, and Go. The plain-language helper layer (`pamoja-kit`) is broad today - smooth a noisy reading, hold a value with a PID, warn before a tank runs dry, steer by wheel kinematics - each naming the goal over the math with the real algorithm one layer down. And an offline-first community cookbook so the SDK reaches the people it is built for.
 

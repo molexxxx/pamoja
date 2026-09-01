@@ -72,13 +72,19 @@ pamoja-power = { path = "../crates/pamoja-power" }
 pamoja-profile = { path = "../crates/pamoja-profile" }
 pamoja-sim = { path = "../crates/pamoja-sim" }
 pamoja-security = { path = "../crates/pamoja-security" }
+pamoja-update = { path = "../crates/pamoja-update" }
 pamoja-audit = { path = "../crates/pamoja-audit" }
 pamoja-telemetry = { path = "../crates/pamoja-telemetry" }
 pamoja-lora = { path = "../crates/pamoja-lora" }
 pamoja-mavlink = { path = "../crates/pamoja-mavlink" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = { version = "0.11", default-features = false }
 tokio = { version = "1", features = ["rt", "macros"] }
+
+[[example]]
+name = "signed_update"
+path = "signed_update.rs"
 
 [[example]]
 name = "conformance_vectors"
