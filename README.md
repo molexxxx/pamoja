@@ -162,7 +162,7 @@ What that means in practice:
 Released and installable, not a prototype:
 
 - **31 crates on crates.io**, with the Node, Python, and .NET bindings on npm, PyPI, and NuGet, all versioned in lockstep.
-- **865 tests across 82 targets**, pinned wherever a standard exists to that standard's own published vectors rather than to round-trips, so an implementation that is wrong but self-consistent still fails.
+- **870 tests across 82 targets**, pinned wherever a standard exists to that standard's own published vectors rather than to round-trips, so an implementation that is wrong but self-consistent still fails.
 - **Checked against the real thing in CI**, not just mocked: MAVLink against live ArduPilot and PX4 SITL, the ROS 2 bridge against ROS 2 Jazzy with rmw_zenoh, and every `no_std` crate cross-compiled for a Cortex-M4F microcontroller.
 - **Audited on every change**: rustfmt, clippy at `-D warnings`, CodeQL over five languages, and a license and security-advisory sweep of the dependency graph a consumer actually installs.
 
@@ -185,7 +185,7 @@ Generated surfaces (the language binding contracts and the C header) are drift-c
 | [`pamoja-power`](crates/pamoja-power/README.md#pamoja-power) | energy | Duty cycling plus an energy-aware governor that stretches work as the battery drains and eases off while charging. |
 | [`pamoja-security`](crates/pamoja-security/README.md#pamoja-security) | trust | ed25519 device identity: sign a device's telemetry and verify it, so a gateway can prove a reading is authentic. |
 | [`pamoja-audit`](crates/pamoja-audit/README.md#pamoja-audit) | trust | A `no_std` tamper-evident, SHA-256 hash-chained log; altering, reordering, or dropping any record breaks verification. |
-| [`pamoja-update`](crates/pamoja-update/README.md#pamoja-update) | trust | Signed firmware updates: an RFC 9124 manifest, streaming image verification, and A/B slots that fall back on their own when an image does not come up. |
+| [`pamoja-update`](crates/pamoja-update/README.md#pamoja-update) | trust | Signed firmware updates: an RFC 9124 manifest, streaming image verification, and A/B slots that fall back on their own when an image does not come up; a transfer cut off by a dead link resumes where it stopped. |
 | [`pamoja-session`](crates/pamoja-session/README.md#pamoja-session) | trust | A secured channel - X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window - so two nodes get confidentiality and integrity over a hostile link without a TLS stack. |
 | [`pamoja-telemetry`](crates/pamoja-telemetry/README.md#pamoja-telemetry) | observe | Allocation-free observability that ships only what is worth the bytes as link cost rises, while counting everything. |
 | [`pamoja-lora`](crates/pamoja-lora/README.md#pamoja-lora) | radio | The exact LoRa time-on-air of a payload and the duty-cycle off-time it forces, so a node stays in regulation and budget. |

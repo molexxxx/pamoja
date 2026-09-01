@@ -17,7 +17,9 @@
 //! - [`SlotStore`] and [`MemoryStore`] - where images live, with an in-memory
 //!   implementation so the whole flow runs in a test with no hardware.
 //! - [`Updater`] - the rules: verify, then stage, then try, then confirm or fall
-//!   back.
+//!   back. A transfer cut off by a dead link resumes where it stopped rather than
+//!   starting over, which is what makes a large image installable over a slow
+//!   radio at all.
 //!
 //! # Why this is safe over an untrusted link
 //!
@@ -78,6 +80,23 @@
 //! Also absent: attestation and secure boot, delta updates, encrypted payloads,
 //! multi-payload dependency manifests, and the optional RFC 9124 elements for
 //! multi-component devices, payload URIs, and execute-in-place metadata.
+//!
+//! # Resuming an interrupted transfer
+//!
+//! A slow radio can spend half an hour on one image, so a link that drops near the
+//! end must not mean starting again. Progress is recorded as it is made, and
+//! [`Updater::resume_at`] continues from there when the slot already holds part of
+//! exactly the same image. Anything else starts over, because two images spliced
+//! together are neither.
+//!
+//! Resuming does not make the earlier bytes trusted. A hash cannot be carried
+//! across a reset, so it is rebuilt by reading back what the slot holds, and the
+//! whole image is still settled by the digest check at the end. A resumed transfer
+//! that completes with the wrong bytes fails exactly as a fresh one would.
+//!
+//! How often progress is recorded is the caller's to choose through its chunk
+//! size: larger chunks mean fewer writes and less flash wear, but more to redo
+//! after a reset.
 //!
 //! # How it boots
 //!

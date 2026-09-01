@@ -20,6 +20,10 @@ pub enum SlotState {
     /// Nothing here, or nothing worth keeping.
     #[default]
     Empty,
+    /// Holds part of an image that is still arriving. Never bootable: the bytes
+    /// are unverified until the whole image is in, and the state exists so a
+    /// transfer cut off by a dead link can pick up where it stopped.
+    Receiving,
     /// Holds a verified image that has not been booted yet.
     Staged,
     /// Was booted but has not yet reported itself healthy.
@@ -41,6 +45,11 @@ pub struct SlotRecord {
     pub size: u32,
     /// The image's digest.
     pub digest: [u8; DIGEST_LEN],
+    /// How many bytes of the image have been stored so far.
+    ///
+    /// Equal to `size` once the image is complete. While it is smaller, this is
+    /// where a resumed transfer starts again.
+    pub written: u32,
 }
 
 /// Somewhere to keep images, and the device's belief about each one.
@@ -286,6 +295,7 @@ mod tests {
                     sequence: 4,
                     size: 4,
                     digest: [7; DIGEST_LEN],
+                    written: 4,
                 },
             )
             .expect("record");

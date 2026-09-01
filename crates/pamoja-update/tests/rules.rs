@@ -217,11 +217,11 @@ fn an_image_that_does_not_match_its_manifest_leaves_nothing_bootable() {
         Err(Refusal::Digest)
     );
 
-    // The slot took bytes but was never marked usable, so a device that lost power
-    // here still boots the image it confirmed.
+    // The slot took bytes and keeps them for a retry, but was never marked
+    // bootable, so a device that lost power here still runs the image it confirmed.
     assert_eq!(
         updater.store().record(1).expect("record").state,
-        SlotState::Empty
+        SlotState::Receiving
     );
     assert_eq!(updater.on_boot().expect("boot"), Boot::Confirmed(0));
 }
@@ -240,7 +240,7 @@ fn an_interrupted_transfer_leaves_nothing_bootable() {
 
     assert_eq!(
         updater.store().record(1).expect("record").state,
-        SlotState::Empty
+        SlotState::Receiving
     );
     assert_eq!(updater.on_boot().expect("boot"), Boot::Confirmed(0));
 }
@@ -430,4 +430,118 @@ fn the_expiry_is_covered_by_the_signature() {
         updater.stage_at(&envelope[..len], image, Some(2_000)),
         Err(Refusal::Signature)
     );
+}
+
+#[test]
+fn a_transfer_cut_off_by_a_dead_link_picks_up_where_it_stopped() {
+    let mut updater = device_running_version_one();
+    let image = b"version two, arriving over a slow radio that keeps dropping";
+    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+
+    // The link carries a third of it, then dies.
+    {
+        let mut staging = updater.begin(&envelope[..len]).expect("begin");
+        staging.write(&image[..20]).expect("write");
+        assert_eq!(staging.progress(), (20, image.len() as u32));
+    }
+
+    // The device reboots and is offered the same release again. It should not ask
+    // for the part it already has.
+    {
+        let mut staging = updater.resume_at(&envelope[..len], None).expect("resume");
+        assert_eq!(
+            staging.progress(),
+            (20, image.len() as u32),
+            "a resumed transfer must not start from zero"
+        );
+        staging.write(&image[20..]).expect("write");
+        assert_eq!(staging.finish().expect("finish"), 1);
+    }
+
+    // And the resumed image is the real one, whole.
+    assert_eq!(updater.on_boot().expect("boot"), Boot::Trying(1));
+    assert_eq!(updater.confirm().expect("confirm"), 1);
+}
+
+#[test]
+fn a_resume_that_completes_the_wrong_bytes_still_fails_the_digest() {
+    let mut updater = device_running_version_one();
+    let image = b"version two, arriving over a slow radio that keeps dropping";
+    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+
+    {
+        let mut staging = updater.begin(&envelope[..len]).expect("begin");
+        staging.write(&image[..20]).expect("write");
+    }
+
+    // Resuming does not make the earlier bytes trusted; the whole image is still
+    // judged by the digest at the end.
+    let mut staging = updater.resume_at(&envelope[..len], None).expect("resume");
+    let mut rest = image[20..].to_vec();
+    rest[0] ^= 0x01;
+    staging.write(&rest).expect("write");
+    assert_eq!(staging.finish(), Err(Refusal::Digest));
+
+    assert_eq!(updater.on_boot().expect("boot"), Boot::Confirmed(0));
+}
+
+#[test]
+fn a_different_release_does_not_resume_a_partial_transfer() {
+    let mut updater = device_running_version_one();
+
+    // The two images are deliberately the same length, so only their digests tell
+    // them apart. A length check alone would let one be spliced onto the other.
+    let first = b"version two.....never finished arriving";
+    let second = b"version three...a different release now";
+    assert_eq!(first.len(), second.len());
+
+    let (envelope, len) = release(&manifest(first, 2, 1), &author());
+    {
+        let mut staging = updater.begin(&envelope[..len]).expect("begin");
+        staging.write(&first[..10]).expect("write");
+    }
+
+    let (envelope, len) = release(&manifest(second, 3, 1), &author());
+    let staging = updater.resume_at(&envelope[..len], None).expect("resume");
+    assert_eq!(
+        staging.progress(),
+        (0, second.len() as u32),
+        "two images must never be spliced together"
+    );
+}
+
+#[test]
+fn a_partial_transfer_is_never_bootable() {
+    let mut updater = device_running_version_one();
+    let image = b"version two, still in flight";
+    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+
+    let mut staging = updater.begin(&envelope[..len]).expect("begin");
+    staging.write(&image[..8]).expect("write");
+    drop(staging);
+
+    assert_eq!(
+        updater.store().record(1).expect("record").state,
+        SlotState::Receiving
+    );
+    assert_eq!(
+        updater.on_boot().expect("boot"),
+        Boot::Confirmed(0),
+        "a half-arrived image must never be selected to run"
+    );
+}
+
+#[test]
+fn a_partial_transfer_does_not_block_its_own_resume() {
+    // The in-flight sequence must not count as installed, or offering the same
+    // release again to continue it would be refused as a rollback.
+    let mut updater = device_running_version_one();
+    let image = b"version two";
+    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+    {
+        let mut staging = updater.begin(&envelope[..len]).expect("begin");
+        staging.write(&image[..4]).expect("write");
+    }
+    assert_eq!(updater.installed_sequence().expect("sequence"), 1);
+    assert!(updater.resume_at(&envelope[..len], None).is_ok());
 }

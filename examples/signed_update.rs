@@ -62,14 +62,36 @@ fn main() {
     recorded += 1;
     println!("  v2 came up and reported healthy, so it is now the fallback\n");
 
-    // An update that does not come up.
-    println!("release: version 3");
+    // The link drops partway through, which on a slow radio is the normal case.
+    println!("release: version 3, over a link that keeps dropping");
     let broken = b"firmware v3: hangs before it can report in";
-    let slot = ship(&mut updater, &author, broken, 3, 0).expect("version 3 should install");
+    let manifest = describe(broken, 3, 0);
+    let mut envelope = [0u8; ENVELOPE_MAX];
+    let written = manifest.sign(&author, &mut envelope).expect("sign");
+    {
+        let mut staging = updater.begin(&envelope[..written]).expect("begin");
+        staging.write(&broken[..12]).expect("write");
+        let (had, total) = staging.progress();
+        println!("  link dropped after {had} of {total} bytes");
+    }
+    {
+        let mut staging = updater
+            .resume_at(&envelope[..written], None)
+            .expect("resume");
+        let (had, total) = staging.progress();
+        println!("  reconnected; resuming at {had} of {total} rather than starting over");
+        staging.write(&broken[12..]).expect("write");
+        staging.finish().expect("finish");
+    }
     log.append(b"staged v3");
     recorded += 1;
-    println!("  staged into slot {slot}");
+    println!(
+        "  staged into slot 0
+"
+    );
 
+    // An update that does not come up.
+    println!("trying version 3");
     match updater.on_boot().expect("boot") {
         Boot::Trying(slot) => println!("  booting slot {slot} on trial"),
         other => panic!("expected a trial boot, got {other:?}"),

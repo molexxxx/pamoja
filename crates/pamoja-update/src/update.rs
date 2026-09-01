@@ -90,7 +90,7 @@ impl<S: SlotStore> Updater<S> {
         let mut highest = 0;
         for slot in 0..self.store.slot_count() {
             let record = self.store.record(slot)?;
-            if record.state != SlotState::Empty {
+            if !matches!(record.state, SlotState::Empty | SlotState::Receiving) {
                 highest = highest.max(record.sequence);
             }
         }
@@ -140,7 +140,12 @@ impl<S: SlotStore> Updater<S> {
     /// [`Refusal::WrongState`] if it names the slot the device would fall back to.
     pub fn begin_at(&mut self, envelope: &[u8], now: Option<u64>) -> Result<Staging<'_, S>> {
         let manifest = Envelope::decode(envelope)?.verify(&self.device.author)?;
+        self.check(&manifest, now)?;
+        self.open(manifest)
+    }
 
+    /// Runs every check that can be made before a byte of image arrives.
+    fn check(&self, manifest: &Manifest, now: Option<u64>) -> Result<()> {
         if manifest.vendor_id != self.device.vendor_id || manifest.class_id != self.device.class_id
         {
             return Err(Refusal::WrongDevice);
@@ -172,13 +177,91 @@ impl<S: SlotStore> Updater<S> {
             return Err(Refusal::WrongState);
         }
 
+        Ok(())
+    }
+
+    /// Clears the target slot and opens it for a transfer starting at zero.
+    fn open(&mut self, manifest: Manifest) -> Result<Staging<'_, S>> {
+        let slot = manifest.storage;
         self.store.erase(slot)?;
+        // Recording the target before any bytes arrive is what makes the transfer
+        // resumable: after a reset the device can tell what it was receiving.
+        self.store.set_record(
+            slot,
+            SlotRecord {
+                state: SlotState::Receiving,
+                sequence: manifest.sequence,
+                size: manifest.size,
+                digest: manifest.digest,
+                written: 0,
+            },
+        )?;
         Ok(Staging {
             store: &mut self.store,
             slot,
             verifier: ImageVerifier::new(&manifest),
             manifest,
             offset: 0,
+        })
+    }
+
+    /// Opens a slot for an image, continuing a transfer that was cut off.
+    ///
+    /// A slow radio can spend half an hour on a single image, so a link that drops
+    /// near the end must not mean starting again. If the slot already holds part of
+    /// exactly this image, the transfer picks up where it stopped; anything else
+    /// starts over, because mixing two images produces neither.
+    ///
+    /// # Arguments
+    ///
+    /// * `envelope` - the signed manifest offered to this device.
+    /// * `now` - seconds since the Unix epoch, or `None` on a device with no clock.
+    ///
+    /// # Returns
+    ///
+    /// A [`Staging`] positioned after whatever already arrived, which
+    /// [`progress`](Staging::progress) reports.
+    ///
+    /// # Errors
+    ///
+    /// Returns whatever [`begin_at`](Self::begin_at) refuses.
+    pub fn resume_at(&mut self, envelope: &[u8], now: Option<u64>) -> Result<Staging<'_, S>> {
+        let manifest = Envelope::decode(envelope)?.verify(&self.device.author)?;
+        self.check(&manifest, now)?;
+
+        let slot = manifest.storage;
+        let record = self.store.record(slot)?;
+        let resumable = record.state == SlotState::Receiving
+            && record.digest == manifest.digest
+            && record.size == manifest.size
+            && record.written < manifest.size;
+
+        if !resumable {
+            return self.open(manifest);
+        }
+
+        // The hash cannot be carried across a reset, so it is rebuilt by reading
+        // back what the slot already holds. Those bytes are still unproven; the
+        // digest check at the end settles them, exactly as for a fresh transfer.
+        let mut verifier = ImageVerifier::new(&manifest);
+        let mut buf = [0u8; 256];
+        let mut at = 0u32;
+        while at < record.written {
+            let want = buf.len().min((record.written - at) as usize);
+            let read = self.store.read(slot, at, &mut buf[..want])?;
+            if read == 0 {
+                return Err(Refusal::Malformed);
+            }
+            verifier.update(&buf[..read])?;
+            at += read as u32;
+        }
+
+        Ok(Staging {
+            store: &mut self.store,
+            slot,
+            verifier,
+            manifest,
+            offset: record.written,
         })
     }
 
@@ -378,7 +461,22 @@ impl<S: SlotStore> Staging<'_, S> {
         self.verifier.update(chunk)?;
         self.store.write(self.slot, self.offset, chunk)?;
         self.offset += chunk.len() as u32;
-        Ok(())
+
+        // Progress is recorded as it is made, so a reset costs at most the chunk in
+        // flight. How much that costs is the caller's to choose: a larger chunk
+        // means fewer record writes and so less flash wear, but more to redo.
+        let mut record = self.store.record(self.slot)?;
+        record.written = self.offset;
+        self.store.set_record(self.slot, record)
+    }
+
+    /// Reports how much of the image has arrived.
+    ///
+    /// # Returns
+    ///
+    /// The bytes stored so far and the total the manifest declares.
+    pub fn progress(&self) -> (u32, u32) {
+        (self.offset, self.manifest.size)
     }
 
     /// Finishes the image and marks the slot bootable if it matched.
@@ -400,6 +498,7 @@ impl<S: SlotStore> Staging<'_, S> {
                 sequence: self.manifest.sequence,
                 size: verified.size(),
                 digest: verified.digest(),
+                written: verified.size(),
             },
         )?;
         Ok(self.slot)
