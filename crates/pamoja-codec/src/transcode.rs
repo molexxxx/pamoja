@@ -6,6 +6,12 @@
 //! and what they need from this crate is the compact form to put on a metered
 //! link. These two functions are that operation, transcoding a whole document
 //! between the two formats without a Rust type for it.
+//!
+//! Object keys come back in sorted order rather than the order they were written
+//! in, because the intermediate value holds them in a sorted map. That makes the
+//! output canonical, which is what a signed or deduplicated payload wants, but it
+//! means a round trip is faithful to the document's content and not to its
+//! original byte layout.
 
 use pamoja_core::{Error, Result};
 
@@ -77,6 +83,17 @@ pub fn cbor_to_json(cbor: &[u8]) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn object_keys_come_back_sorted() {
+        // The intermediate value holds keys in a sorted map, so the output is
+        // canonical rather than a replay of the input's byte order.
+        let cbor = json_to_cbor(br#"{"c":21.5,"a":1}"#).expect("to cbor");
+        assert_eq!(
+            cbor_to_json(&cbor).expect("to json"),
+            br#"{"a":1,"c":21.5}"#
+        );
+    }
 
     #[test]
     fn round_trips_a_document() {
