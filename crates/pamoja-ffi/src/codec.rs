@@ -101,9 +101,10 @@ pub unsafe extern "C" fn pamoja_codec_encode_deltas(
     count: usize,
     out_buffer: *mut *mut PamojaBuffer,
 ) -> PamojaStatus {
-    if let Err(status) = clear_out(out_buffer, "out_buffer") {
-        return status;
-    }
+    let out_buffer = match out_slot(out_buffer, "out_buffer") {
+        Ok(slot) => slot,
+        Err(status) => return status,
+    };
     let samples = match read_slice(samples, count, "samples") {
         Ok(samples) => samples,
         Err(status) => return status,
@@ -136,9 +137,10 @@ pub unsafe extern "C" fn pamoja_codec_decode_deltas(
     bytes_len: usize,
     out_samples: *mut *mut PamojaSamples,
 ) -> PamojaStatus {
-    if let Err(status) = clear_out(out_samples, "out_samples") {
-        return status;
-    }
+    let out_samples = match out_slot(out_samples, "out_samples") {
+        Ok(slot) => slot,
+        Err(status) => return status,
+    };
     let bytes = match read_bytes(bytes, bytes_len) {
         Ok(bytes) => bytes,
         Err(status) => return status,
@@ -174,9 +176,10 @@ pub unsafe extern "C" fn pamoja_codec_quantizer_encode(
     count: usize,
     out_buffer: *mut *mut PamojaBuffer,
 ) -> PamojaStatus {
-    if let Err(status) = clear_out(out_buffer, "out_buffer") {
-        return status;
-    }
+    let out_buffer = match out_slot(out_buffer, "out_buffer") {
+        Ok(slot) => slot,
+        Err(status) => return status,
+    };
     if let Err(status) = check_scale(scale) {
         return status;
     }
@@ -216,9 +219,10 @@ pub unsafe extern "C" fn pamoja_codec_quantizer_decode(
     bytes_len: usize,
     out_readings: *mut *mut PamojaReadings,
 ) -> PamojaStatus {
-    if let Err(status) = clear_out(out_readings, "out_readings") {
-        return status;
-    }
+    let out_readings = match out_slot(out_readings, "out_readings") {
+        Ok(slot) => slot,
+        Err(status) => return status,
+    };
     if let Err(status) = check_scale(scale) {
         return status;
     }
@@ -355,9 +359,10 @@ unsafe fn transcode(
     out_buffer: *mut *mut PamojaBuffer,
     convert: fn(&[u8]) -> CoreResult<Vec<u8>>,
 ) -> PamojaStatus {
-    if let Err(status) = clear_out(out_buffer, "out_buffer") {
-        return status;
-    }
+    let out_buffer = match out_slot(out_buffer, "out_buffer") {
+        Ok(slot) => slot,
+        Err(status) => return status,
+    };
     let input = match read_bytes(input, input_len) {
         Ok(input) => input,
         Err(status) => return status,
@@ -372,21 +377,24 @@ unsafe fn transcode(
     }
 }
 
-/// Rejects a null out-pointer, and otherwise clears it before the call proceeds.
+/// Rejects a null out-pointer and borrows the slot it names, cleared.
 ///
 /// Clearing first means a caller that ignores the status never reads a stale
-/// handle out of its own variable.
+/// handle out of its own variable. Returning a reference rather than writing
+/// through the raw pointer later keeps the null check and the write together, so
+/// the write site carries no raw dereference of its own.
 ///
 /// # Safety
 ///
-/// `out` must be null or point to a writable `*mut T`.
-unsafe fn clear_out<T>(out: *mut *mut T, name: &str) -> Result<(), PamojaStatus> {
+/// `out` must be null or point to a writable `*mut T` that outlives the call.
+unsafe fn out_slot<'a, T>(out: *mut *mut T, name: &str) -> Result<&'a mut *mut T, PamojaStatus> {
     if out.is_null() {
         set_last_error(format!("{name} must not be null"));
         return Err(PamojaStatus::InvalidArgument);
     }
-    *out = ptr::null_mut();
-    Ok(())
+    let slot = &mut *out;
+    *slot = ptr::null_mut();
+    Ok(slot)
 }
 
 /// Copies a borrowed array of `count` values, treating a zero count as empty.
