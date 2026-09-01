@@ -4,10 +4,152 @@
 import builtins
 import typing
 __all__ = [
+    "Calibration",
+    "Debounce",
+    "Depletion",
+    "DeviceIdentity",
+    "Geofence",
+    "Kalman",
     "MqttClient",
     "MqttMessage",
+    "Pid",
+    "Quantizer",
+    "Ramp",
+    "Smoother",
+    "Surge",
+    "Thermostat",
+    "bearing_between",
+    "cbor_to_json_bytes",
+    "deadband",
+    "decode_delta_samples",
+    "distance_between",
+    "encode_delta_samples",
+    "fingerprint",
+    "json_to_cbor_bytes",
+    "verify",
     "version",
 ]
+
+@typing.final
+class Calibration:
+    r"""
+    Turns a raw sensor count into the units the reading is actually in.
+    """
+    @staticmethod
+    def linear(scale: builtins.float, offset: builtins.float) -> Calibration:
+        r"""
+        Creates a calibration applying `raw * scale + offset`.
+        """
+    @staticmethod
+    def two_point(raw_low: builtins.float, value_low: builtins.float, raw_high: builtins.float, value_high: builtins.float) -> Calibration:
+        r"""
+        Creates a calibration fitted through two known reference points.
+        """
+    def apply(self, raw: builtins.float) -> builtins.float:
+        r"""
+        Converts a raw reading into calibrated units.
+        """
+
+@typing.final
+class Debounce:
+    r"""
+    Stops a flickering input from acting until it has settled.
+    """
+    @property
+    def state(self) -> builtins.bool:
+        r"""
+        The settled state.
+        """
+    def __new__(cls, samples: builtins.int, initial: builtins.bool) -> Debounce:
+        r"""
+        Creates a debouncer needing `samples` agreeing readings to change state.
+        """
+    def update(self, raw: builtins.bool) -> builtins.bool:
+        r"""
+        Feeds a raw reading in and returns the settled state.
+        """
+
+@typing.final
+class Depletion:
+    r"""
+    Warns before a falling level runs out, by projecting its rate of fall.
+    """
+    def __new__(cls, threshold: builtins.float) -> Depletion:
+        r"""
+        Creates an estimator that counts down to `threshold`.
+        """
+    def update(self, level: builtins.float) -> typing.Optional[builtins.int]:
+        r"""
+        Records a level and returns the samples left before the threshold.
+        
+        Returns `None` while the level is steady or rising, and on the first
+        reading, when no rate of fall is known yet.
+        """
+
+@typing.final
+class DeviceIdentity:
+    r"""
+    A device's private signing identity.
+    """
+    @property
+    def public_key(self) -> bytes:
+        r"""
+        The public key matching this identity, which is safe to share.
+        """
+    @property
+    def fingerprint(self) -> builtins.str:
+        r"""
+        The short hex fingerprint of this identity, for logs and displays.
+        """
+    def __new__(cls, seed: typing.Sequence[builtins.int]) -> DeviceIdentity:
+        r"""
+        Creates an identity from a provisioned 32-byte secret seed.
+        """
+    def sign(self, payload: typing.Sequence[builtins.int]) -> bytes:
+        r"""
+        Signs a payload, returning the 64-byte detached signature.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class Geofence:
+    r"""
+    Keeps a tracked point inside an area, and notices when it leaves.
+    """
+    def __new__(cls, latitude: builtins.float, longitude: builtins.float, radius_m: builtins.float) -> Geofence:
+        r"""
+        Creates a circular fence of `radius_m` metres around a centre fix.
+        """
+    def update(self, latitude: builtins.float, longitude: builtins.float) -> builtins.str:
+        r"""
+        Feeds a fix in and names where it sits, including a single crossing.
+        
+        Returns one of `"Inside"`, `"Outside"`, `"Exited"`, or `"Entered"`.
+        """
+    def contains(self, latitude: builtins.float, longitude: builtins.float) -> builtins.bool:
+        r"""
+        Reports whether a fix lies inside, without recording a crossing.
+        """
+
+@typing.final
+class Kalman:
+    r"""
+    Estimates a true value from noisy readings, trusting the model and the sensor
+    in proportion to how noisy each is.
+    """
+    @property
+    def estimate(self) -> builtins.float:
+        r"""
+        The current estimate.
+        """
+    def __new__(cls, process_noise: builtins.float, measurement_noise: builtins.float, initial: builtins.float) -> Kalman:
+        r"""
+        Creates a filter from the process and measurement noise, and a first guess.
+        """
+    def update(self, reading: builtins.float) -> builtins.float:
+        r"""
+        Folds a reading in and returns the new estimate.
+        """
 
 @typing.final
 class MqttClient:
@@ -60,6 +202,184 @@ class MqttMessage:
         The raw payload bytes.
         """
     def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class Pid:
+    r"""
+    Holds a value at a setpoint by trading off present, past, and predicted error.
+    """
+    def __new__(cls, kp: builtins.float, ki: builtins.float, kd: builtins.float, *, min: typing.Optional[builtins.float] = None, max: typing.Optional[builtins.float] = None) -> Pid:
+        r"""
+        Creates a controller with the given gains, optionally clamping its output.
+        """
+    def update(self, setpoint: builtins.float, measurement: builtins.float, dt: builtins.float) -> builtins.float:
+        r"""
+        Advances the controller by one step and returns the control output.
+        """
+    def reset(self) -> None:
+        r"""
+        Clears the accumulated integral and last error.
+        """
+
+@typing.final
+class Quantizer:
+    r"""
+    Packs float readings to a fixed precision for a metered link.
+    """
+    def __new__(cls, scale: builtins.float) -> Quantizer:
+        r"""
+        Creates a quantizer whose `scale` sets the precision kept.
+        
+        A scale of `100` keeps two decimal places. It must be positive and finite,
+        and decoding must use the same scale the batch was encoded with.
+        """
+    def encode(self, readings: typing.Sequence[builtins.float]) -> bytes:
+        r"""
+        Quantizes and delta-encodes a batch of readings.
+        """
+    def decode(self, bytes: typing.Sequence[builtins.int]) -> builtins.list[builtins.float]:
+        r"""
+        Decodes a batch back into readings, to within the quantizer's precision.
+        """
+
+@typing.final
+class Ramp:
+    r"""
+    Limits how fast a value may change, so a load is never slammed.
+    """
+    @property
+    def value(self) -> builtins.float:
+        r"""
+        The current value.
+        """
+    def __new__(cls, start: builtins.float, max_step: builtins.float) -> Ramp:
+        r"""
+        Creates a limiter starting at `start` and moving at most `max_step` a step.
+        """
+    def update(self, target: builtins.float) -> builtins.float:
+        r"""
+        Moves one step toward `target` and returns the new value.
+        """
+    def set(self, value: builtins.float) -> None:
+        r"""
+        Forces the value without rate limiting.
+        """
+
+@typing.final
+class Smoother:
+    r"""
+    Smooths a noisy reading by weighting each new sample against the running value.
+    """
+    @property
+    def value(self) -> typing.Optional[builtins.float]:
+        r"""
+        The current value, or `None` before the first sample.
+        """
+    def __new__(cls, weight: builtins.float) -> Smoother:
+        r"""
+        Creates a smoother whose `weight` sets how much each new sample counts.
+        """
+    def update(self, sample: builtins.float) -> builtins.float:
+        r"""
+        Folds a sample in and returns the smoothed value.
+        """
+    def reset(self) -> None:
+        r"""
+        Clears the smoother back to its initial state.
+        """
+
+@typing.final
+class Surge:
+    r"""
+    Notices a step change between successive readings, such as a burst pipe.
+    """
+    @staticmethod
+    def rising(limit: builtins.float) -> Surge:
+        r"""
+        Creates a detector for rises of at least `limit` between readings.
+        """
+    @staticmethod
+    def falling(limit: builtins.float) -> Surge:
+        r"""
+        Creates a detector for falls of at least `limit` between readings.
+        """
+    def update(self, value: builtins.float) -> typing.Optional[builtins.float]:
+        r"""
+        Feeds a value in and returns the size of a qualifying step, or `None`.
+        """
+
+@typing.final
+class Thermostat:
+    r"""
+    Switches a load on and off around a setpoint, with hysteresis to stop chatter.
+    """
+    @property
+    def is_on(self) -> builtins.bool:
+        r"""
+        Whether the load should currently be on.
+        """
+    @staticmethod
+    def cooling(setpoint: builtins.float, hysteresis: builtins.float) -> Thermostat:
+        r"""
+        Creates a cooling thermostat, which switches on when the reading rises.
+        """
+    @staticmethod
+    def heating(setpoint: builtins.float, hysteresis: builtins.float) -> Thermostat:
+        r"""
+        Creates a heating thermostat, which switches on when the reading falls.
+        """
+    def update(self, reading: builtins.float) -> builtins.bool:
+        r"""
+        Feeds a reading in and returns whether the load should be on.
+        """
+
+def bearing_between(from_latitude: builtins.float, from_longitude: builtins.float, to_latitude: builtins.float, to_longitude: builtins.float) -> builtins.float:
+    r"""
+    Returns the initial bearing from one coordinate to another, in degrees.
+    """
+
+def cbor_to_json_bytes(cbor: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Converts a CBOR document back into its JSON encoding.
+    """
+
+def deadband(value: builtins.float, center: builtins.float, width: builtins.float) -> builtins.float:
+    r"""
+    Suppresses movement within `width` of `center`, so noise does not act.
+    """
+
+def decode_delta_samples(bytes: typing.Sequence[builtins.int]) -> builtins.list[builtins.int]:
+    r"""
+    Decodes a delta-encoded buffer back into its integer samples.
+    """
+
+def distance_between(from_latitude: builtins.float, from_longitude: builtins.float, to_latitude: builtins.float, to_longitude: builtins.float) -> builtins.float:
+    r"""
+    Returns the great-circle distance between two coordinates, in metres.
+    """
+
+def encode_delta_samples(samples: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Delta-encodes a series of integer samples into a compact buffer.
+    """
+
+def fingerprint(public_key: typing.Sequence[builtins.int]) -> builtins.str:
+    r"""
+    Returns the short hex fingerprint of a public key.
+    """
+
+def json_to_cbor_bytes(json: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Converts a JSON document into its CBOR encoding, which is typically smaller.
+    """
+
+def verify(public_key: typing.Sequence[builtins.int], payload: typing.Sequence[builtins.int], signature: typing.Sequence[builtins.int]) -> builtins.bool:
+    r"""
+    Verifies that a signature covers a payload and was made by a public key.
+    
+    Returns `False` when the payload was altered or was signed by a different
+    device, and raises only when an argument is the wrong length.
+    """
 
 def version() -> builtins.str:
     r"""
