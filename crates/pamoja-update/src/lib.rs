@@ -42,12 +42,49 @@
 //! the same [`Manifest`] without any of the rules around it moving. This is the same kind of considered deviation as the hand-written
 //! MAVLink dialect, and it is recorded here rather than left to be discovered.
 //!
-//! # What this crate does not do
+//! # What it defends against
 //!
-//! It does not fetch, and it does not write to flash. It has no transport and no
-//! driver: the image arrives however the caller arranges, and [`SlotStore`] is the
-//! seam to real storage. Attestation, delta updates, encrypted payloads, and
-//! multi-payload dependency manifests are not implemented.
+//! RFC 9124 enumerates the threats a firmware update mechanism has to answer.
+//! Each one this crate answers is answered by a rule with a test naming it:
+//!
+//! | Threat | Answered by |
+//! | --- | --- |
+//! | `THREAT.IMG.NON_AUTH`, unauthorised firmware | the author's signature, checked before the manifest is parsed |
+//! | `THREAT.IMG.EXPIRED`, a replayed older release | a sequence number that must beat every slot, failed ones included |
+//! | `THREAT.IMG.EXPIRED.OFFLINE`, a stale release aimed at a device that has been out of contact | [`Manifest::expires`], which bounds how long a release stays usable |
+//! | `THREAT.IMG.INCOMPATIBLE`, firmware for another device | authenticated vendor and class identifiers |
+//! | `THREAT.IMG.FORMAT`, a misread payload type | the payload format sits inside the signed body |
+//!
+//! Two it does not answer. `THREAT.IMG.DISCLOSURE`, an attacker reading the
+//! firmware to hunt for flaws, wants payload encryption. `THREAT.UPD.WRONG_PRECURSOR`
+//! only arises for differential updates, which this crate does not do.
+//!
+//! # Known limits
+//!
+//! **The trusted key cannot be rotated.** A device trusts exactly one author for
+//! its lifetime. If that key is lost or compromised, the fleet cannot be updated
+//! again. RFC 9124's Delegation Chain element exists for this and is not
+//! implemented, so treat the author key as something to protect accordingly.
+//!
+//! **The sequence number is only as trustworthy as the slot records.** It is
+//! derived from what [`SlotStore`] reports, so an implementation that loses or
+//! exposes those records weakens rollback protection. Hardware that can keep a
+//! monotonic counter should be used where it exists.
+//!
+//! **It does not fetch, and it does not write to flash.** There is no transport
+//! and no driver: the image arrives however the caller arranges, and
+//! [`SlotStore`] is the seam to real storage.
+//!
+//! Also absent: attestation and secure boot, delta updates, encrypted payloads,
+//! multi-payload dependency manifests, and the optional RFC 9124 elements for
+//! multi-component devices, payload URIs, and execute-in-place metadata.
+//!
+//! # How it boots
+//!
+//! An image is run from whichever slot holds it, and slots are never swapped.
+//! That is the model MCUboot calls direct-XIP, chosen because a swap can be
+//! interrupted halfway and then has to be recovered; here there is nothing to
+//! recover, because nothing moves.
 //!
 //! # Examples
 //!
@@ -73,6 +110,7 @@
 //!     storage: 1,
 //!     digest: Sha256::digest(image).into(),
 //!     size: image.len() as u32,
+//!     expires: 0,
 //! };
 //! let mut envelope = [0u8; ENVELOPE_MAX];
 //! let written = manifest.sign(&author, &mut envelope).unwrap();

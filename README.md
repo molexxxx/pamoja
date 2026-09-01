@@ -162,7 +162,7 @@ What that means in practice:
 Released and installable, not a prototype:
 
 - **31 crates on crates.io**, with the Node, Python, and .NET bindings on npm, PyPI, and NuGet, all versioned in lockstep.
-- **860 tests across 82 targets**, pinned wherever a standard exists to that standard's own published vectors rather than to round-trips, so an implementation that is wrong but self-consistent still fails.
+- **865 tests across 82 targets**, pinned wherever a standard exists to that standard's own published vectors rather than to round-trips, so an implementation that is wrong but self-consistent still fails.
 - **Checked against the real thing in CI**, not just mocked: MAVLink against live ArduPilot and PX4 SITL, the ROS 2 bridge against ROS 2 Jazzy with rmw_zenoh, and every `no_std` crate cross-compiled for a Cortex-M4F microcontroller.
 - **Audited on every change**: rustfmt, clippy at `-D warnings`, CodeQL over five languages, and a license and security-advisory sweep of the dependency graph a consumer actually installs.
 

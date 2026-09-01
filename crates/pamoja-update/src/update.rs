@@ -110,17 +110,51 @@ impl<S: SlotStore> Updater<S> {
     ///
     /// # Errors
     ///
+    /// Returns whatever [`begin_at`](Self::begin_at) refuses. A manifest that
+    /// carries an expiry is refused, because a device with no clock cannot honour
+    /// one; call [`begin_at`](Self::begin_at) with the time if it has one.
+    pub fn begin(&mut self, envelope: &[u8]) -> Result<Staging<'_, S>> {
+        self.begin_at(envelope, None)
+    }
+
+    /// Checks a manifest against the current time and opens the slot it names.
+    ///
+    /// # Arguments
+    ///
+    /// * `envelope` - the signed manifest offered to this device.
+    /// * `now` - seconds since the Unix epoch, or `None` on a device with no
+    ///   clock.
+    ///
+    /// # Returns
+    ///
+    /// A [`Staging`] ready to take the image, once every check that can be made
+    /// without the image has passed.
+    ///
+    /// # Errors
+    ///
     /// Returns [`Refusal::Signature`] if the envelope is not from the trusted
     /// author, [`Refusal::WrongDevice`] if it is for a different vendor or class,
-    /// [`Refusal::Rollback`] if it would not move the device forward,
-    /// [`Refusal::SlotTooSmall`] if the image cannot fit, or
+    /// [`Refusal::Expired`] if its expiry has passed, [`Refusal::NoClock`] if it
+    /// expires and `now` is `None`, [`Refusal::Rollback`] if it would not move the
+    /// device forward, [`Refusal::SlotTooSmall`] if the image cannot fit, or
     /// [`Refusal::WrongState`] if it names the slot the device would fall back to.
-    pub fn begin(&mut self, envelope: &[u8]) -> Result<Staging<'_, S>> {
+    pub fn begin_at(&mut self, envelope: &[u8], now: Option<u64>) -> Result<Staging<'_, S>> {
         let manifest = Envelope::decode(envelope)?.verify(&self.device.author)?;
 
         if manifest.vendor_id != self.device.vendor_id || manifest.class_id != self.device.class_id
         {
             return Err(Refusal::WrongDevice);
+        }
+
+        // A sequence number cannot protect a device that has been offline a long
+        // time: an attacker can offer it a release genuinely newer than the one it
+        // runs, but old enough to have a known flaw. An expiry bounds that window.
+        if manifest.expires != 0 {
+            match now {
+                Some(now) if now < manifest.expires => {}
+                Some(_) => return Err(Refusal::Expired),
+                None => return Err(Refusal::NoClock),
+            }
         }
 
         if manifest.sequence <= self.installed_sequence()? {
@@ -163,7 +197,27 @@ impl<S: SlotStore> Updater<S> {
     ///
     /// Returns whatever [`begin`](Self::begin) or [`Staging::finish`] refuses.
     pub fn stage(&mut self, envelope: &[u8], image: &[u8]) -> Result<u8> {
-        let mut staging = self.begin(envelope)?;
+        self.stage_at(envelope, image, None)
+    }
+
+    /// Checks a manifest against the current time and stages an image held whole.
+    ///
+    /// # Arguments
+    ///
+    /// * `envelope` - the signed manifest.
+    /// * `image` - the whole image.
+    /// * `now` - seconds since the Unix epoch, or `None` on a device with no clock.
+    ///
+    /// # Returns
+    ///
+    /// The slot the image was staged into.
+    ///
+    /// # Errors
+    ///
+    /// Returns whatever [`begin_at`](Self::begin_at) or [`Staging::finish`]
+    /// refuses.
+    pub fn stage_at(&mut self, envelope: &[u8], image: &[u8], now: Option<u64>) -> Result<u8> {
+        let mut staging = self.begin_at(envelope, now)?;
         staging.write(image)?;
         staging.finish()
     }

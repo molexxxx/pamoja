@@ -33,6 +33,7 @@ fn manifest(image: &[u8], sequence: u64, slot: u8) -> Manifest {
         storage: slot,
         digest: Sha256::digest(image).into(),
         size: image.len() as u32,
+        expires: 0,
     }
 }
 
@@ -349,4 +350,84 @@ fn two_updates_in_a_row_alternate_slots() {
     assert_eq!(updater.on_boot().expect("boot"), Boot::Trying(0));
     assert_eq!(updater.confirm().expect("confirm"), 0);
     assert_eq!(updater.installed_sequence().expect("sequence"), 3);
+}
+
+#[test]
+fn an_expired_release_is_refused_even_though_it_is_newer() {
+    // The threat RFC 9124 calls THREAT.IMG.EXPIRED.OFFLINE: a device that has been
+    // out of contact is handed a release genuinely newer than the one it runs, but
+    // old enough to have a known flaw. Its sequence number alone looks fine.
+    let mut updater = device_running_version_one();
+    let image = b"version two, superseded months ago";
+    let mut expiring = manifest(image, 2, 1);
+    expiring.expires = 1_000;
+    let (envelope, len) = release(&expiring, &author());
+
+    assert_eq!(
+        updater.stage_at(&envelope[..len], image, Some(2_000)),
+        Err(Refusal::Expired),
+        "an expiry bounds how long a stale release stays usable"
+    );
+}
+
+#[test]
+fn a_release_inside_its_window_is_accepted() {
+    let mut updater = device_running_version_one();
+    let image = b"version two, still current";
+    let mut expiring = manifest(image, 2, 1);
+    expiring.expires = 5_000;
+    let (envelope, len) = release(&expiring, &author());
+
+    assert_eq!(
+        updater
+            .stage_at(&envelope[..len], image, Some(1_000))
+            .expect("stage"),
+        1
+    );
+}
+
+#[test]
+fn a_device_with_no_clock_refuses_a_release_that_expires() {
+    let mut updater = device_running_version_one();
+    let image = b"version two";
+    let mut expiring = manifest(image, 2, 1);
+    expiring.expires = 5_000;
+    let (envelope, len) = release(&expiring, &author());
+
+    // Accepting it would silently ignore a bound the author asked for, so the
+    // refusal is the honest answer rather than the convenient one.
+    assert_eq!(
+        updater.stage(&envelope[..len], image),
+        Err(Refusal::NoClock)
+    );
+}
+
+#[test]
+fn a_release_that_never_expires_needs_no_clock() {
+    let mut updater = device_running_version_one();
+    let image = b"version two, no expiry set";
+    let (envelope, len) = release(&manifest(image, 2, 1), &author());
+    assert_eq!(updater.stage(&envelope[..len], image).expect("stage"), 1);
+}
+
+#[test]
+fn the_expiry_is_covered_by_the_signature() {
+    // If the expiry were outside the signed body, an attacker could extend it and
+    // keep a stale release alive, which would make the field decorative.
+    let mut updater = device_running_version_one();
+    let image = b"version two";
+    let mut expiring = manifest(image, 2, 1);
+    expiring.expires = 1_000;
+    let (mut envelope, len) = release(&expiring, &author());
+
+    let at = envelope[..len]
+        .windows(2)
+        .position(|pair| pair == [0x09, 0x19])
+        .expect("the expiry key and its two-byte argument");
+    envelope[at + 2] ^= 0xff;
+
+    assert_eq!(
+        updater.stage_at(&envelope[..len], image, Some(2_000)),
+        Err(Refusal::Signature)
+    );
 }

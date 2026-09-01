@@ -27,6 +27,11 @@ pub enum Refusal {
     /// The sequence number is not greater than the one already installed, so this
     /// is a replay or a downgrade.
     Rollback,
+    /// The manifest's expiry has passed, so this release is no longer offered.
+    Expired,
+    /// The manifest expires, but this device cannot tell the time, so it has no
+    /// way to honour that.
+    NoClock,
     /// The image does not fit the slot it is bound for.
     SlotTooSmall,
     /// The named slot does not exist on this device.
@@ -52,6 +57,8 @@ impl Refusal {
             Self::Size => "the image is not the size the manifest declares",
             Self::WrongDevice => "the manifest is for a different vendor or device class",
             Self::Rollback => "the sequence number would roll the device back",
+            Self::Expired => "the manifest has expired",
+            Self::NoClock => "the manifest expires and this device has no clock",
             Self::SlotTooSmall => "the image does not fit the target slot",
             Self::NoSuchSlot => "no such slot on this device",
             Self::WrongState => "the slot is not in a state that allows this",
@@ -66,9 +73,11 @@ impl From<Refusal> for Error {
         match value {
             // A failed authenticity check is a security outcome, not a parse fault,
             // so it is reported as one.
-            Refusal::Signature | Refusal::Digest | Refusal::WrongDevice | Refusal::Rollback => {
-                Error::Auth(message)
-            }
+            Refusal::Signature
+            | Refusal::Digest
+            | Refusal::WrongDevice
+            | Refusal::Rollback
+            | Refusal::Expired => Error::Auth(message),
             Refusal::Malformed | Refusal::UnsupportedVersion => Error::Codec(message),
             _ => Error::Io(message),
         }

@@ -59,6 +59,7 @@ impl Verified {
 ///     storage: 0,
 ///     digest: Sha256::digest(image).into(),
 ///     size: image.len() as u32,
+///     expires: 0,
 /// };
 ///
 /// let mut verifier = ImageVerifier::new(&manifest);
@@ -164,6 +165,7 @@ mod tests {
             storage: 0,
             digest: Sha256::digest(image).into(),
             size: image.len() as u32,
+            expires: 0,
         }
     }
 

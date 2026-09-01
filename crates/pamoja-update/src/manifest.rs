@@ -42,6 +42,7 @@ const KEY_FORMAT: u64 = 5;
 const KEY_STORAGE: u64 = 6;
 const KEY_DIGEST: u64 = 7;
 const KEY_SIZE: u64 = 8;
+const KEY_EXPIRES: u64 = 9;
 
 /// Envelope keys.
 const KEY_BODY: u64 = 1;
@@ -95,6 +96,7 @@ impl PayloadFormat {
 ///     storage: 0,
 ///     digest: [0x11; 32],
 ///     size: 4096,
+///     expires: 0,
 /// };
 ///
 /// let mut buf = [0u8; ENVELOPE_MAX];
@@ -123,6 +125,15 @@ pub struct Manifest {
     pub digest: [u8; DIGEST_LEN],
     /// The payload's length in bytes, known before a single byte is accepted.
     pub size: u32,
+    /// When this release stops being offered, in seconds since the Unix epoch, or
+    /// `0` to never expire.
+    ///
+    /// A sequence number alone cannot protect a device that has been offline for a
+    /// long time: an attacker can hand it a release that is genuinely newer than
+    /// the one it runs, but old enough to have a known flaw, and the device has no
+    /// way to know a better one exists. An expiry bounds how long such a release
+    /// stays usable. Setting one requires the device to have a clock.
+    pub expires: u64,
 }
 
 impl Manifest {
@@ -141,7 +152,7 @@ impl Manifest {
     /// Returns [`Refusal::Malformed`] if `buf` is too small.
     pub fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let mut writer = Writer::new(buf);
-        writer.map(8)?;
+        writer.map(9)?;
 
         writer.uint(KEY_STRUCTURE_VERSION)?;
         writer.uint(u64::from(self.structure_version))?;
@@ -159,6 +170,8 @@ impl Manifest {
         writer.bytes(&self.digest)?;
         writer.uint(KEY_SIZE)?;
         writer.uint(u64::from(self.size))?;
+        writer.uint(KEY_EXPIRES)?;
+        writer.uint(self.expires)?;
 
         Ok(writer.finish())
     }
@@ -180,7 +193,7 @@ impl Manifest {
     /// announces a structure version or payload format this build cannot apply.
     pub fn decode(bytes: &[u8]) -> Result<Self> {
         let mut reader = Reader::new(bytes);
-        if reader.map()? != 8 {
+        if reader.map()? != 9 {
             return Err(Refusal::Malformed);
         }
 
@@ -210,6 +223,8 @@ impl Manifest {
         let size = read_key(&mut reader, KEY_SIZE)?;
         let size = u32::try_from(size).map_err(|_| Refusal::Malformed)?;
 
+        let expires = read_key(&mut reader, KEY_EXPIRES)?;
+
         // Trailing bytes would mean the signed body carries something this parser
         // never looked at, so they are refused rather than ignored.
         if reader.position() != bytes.len() {
@@ -225,6 +240,7 @@ impl Manifest {
             storage,
             digest,
             size,
+            expires,
         })
     }
 
@@ -367,6 +383,7 @@ mod tests {
             storage: 1,
             digest: [0x5a; DIGEST_LEN],
             size: 65_536,
+            expires: 0,
         }
     }
 

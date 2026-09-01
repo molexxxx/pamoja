@@ -106,6 +106,18 @@ fn main() {
         stage(&mut updater, &author, &manifest, &tampered),
     );
 
+    // The case a sequence number cannot catch on its own: this release really is
+    // newer than what the device runs, so only an expiry gives it grounds to say no.
+    let stale = b"firmware v4: newer than v2, but superseded long ago";
+    let mut expiring = describe(stale, 4, 0);
+    expiring.expires = 1_600_000_000;
+    let mut envelope = [0u8; ENVELOPE_MAX];
+    let written = expiring.sign(&author, &mut envelope).expect("sign");
+    report(
+        "a stale release aimed at a device that was offline",
+        updater.stage_at(&envelope[..written], stale, Some(1_700_000_000)),
+    );
+
     println!("\naudit log: {} entries, chained and signed", recorded);
 }
 
@@ -120,6 +132,7 @@ fn describe(image: &[u8], sequence: u64, slot: u8) -> Manifest {
         storage: slot,
         digest: Sha256::digest(image).into(),
         size: image.len() as u32,
+        expires: 0,
     }
 }
 
