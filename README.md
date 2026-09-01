@@ -235,6 +235,8 @@ Anything defined by a published standard is implemented from the authoritative s
 
 That rigor is also what makes dependency upgrades safe to take. When the primitives underneath change, every vector still matches or the build fails.
 
+A second set of vectors, in `conformance/`, does the same job across languages rather than against a specification: generated from the Rust implementation and asserted by every binding's test suite, so a facade that drifts fails instead of quietly returning something else.
+
 ## Architecture
 
 Every domain capability is a separate crate behind a trait defined in the core. The core knows about `Transport`, `Device`, `Sensor`, `Actuator`, `Store`, and the event bus; it knows nothing about MQTT or CAN specifically. Concrete crates implement those traits and are pulled in only when needed, so nobody pays for what they do not use, and on a microcontroller you compile in two crates and nothing else.
@@ -276,6 +278,7 @@ Reach. Python and C#/.NET ship alongside Node today, each with the same capabili
 crates/      Rust engine and capability crates (each crate's README is its doc landing)
 bindings/    per-language bindings (Node, Python, .NET today; more to come)
 examples/    runnable end-to-end scenarios, including a cross-crate conformance test
+conformance/ the vectors every binding asserts, so the languages cannot disagree
 docs/        a generated API index linking each crate's README (cargo xtask docs)
 sitl/        ArduPilot and PX4 SITL images for the MAVLink interop job
 web/         the showcase site and the hosted dashboard demo
