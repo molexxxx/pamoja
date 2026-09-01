@@ -19,6 +19,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The cross-language conformance vectors, copied next to the executable so
+         this runner reads the same committed file as the other bindings. -->
+    <None Include="$(RepoRoot)conformance/vectors.json">
+      <Link>vectors.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="$(PamojaNativePath)" Condition="Exists('$(PamojaNativePath)')">
       <Link>$(PamojaNativeName)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

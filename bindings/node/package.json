@@ -61,7 +61,7 @@
     "build:native": "napi build --platform --release",
     "build:debug": "napi build --platform && tsc -p tsconfig.json",
     "build:facade": "tsc -p tsconfig.json",
-    "test": "node test.js",
+    "test": "node test.js && node conformance.js",
     "prepack": "tsc -p tsconfig.json"
   },
   "devDependencies": {

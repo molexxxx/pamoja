@@ -1,6 +1,7 @@
 // Smoke test: confirms the facade loads, the native core is reachable, and each
 // capability behaves through it (no broker or hardware required).
 using System.Text;
+using System.Text.Json;
 
 using Pamoja.Core;
 
@@ -39,6 +40,8 @@ Codecs();
 Helpers();
 
 Console.WriteLine("ok");
+
+Conformance();
 
 // Signing a payload and checking it, the way a gateway verifies a reading.
 static void Identity()
@@ -156,3 +159,179 @@ static void Fail(string message)
     Console.Error.WriteLine($"assertion failed: {message}");
     Environment.Exit(1);
 }
+
+// The .NET side of the cross-language conformance suite: the same vectors every
+// other binding runs, so a facade that drifts here fails rather than quietly
+// disagreeing with Rust, Node, and Python.
+static void Conformance()
+{
+    using JsonDocument document = JsonDocument.Parse(
+        File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "vectors.json")));
+    JsonElement vectors = document.RootElement;
+
+    // The vectors carry f32 values widened to f64, so they compare exactly; the
+    // tolerance covers the accumulation order of the iterative helpers.
+    double tolerance = vectors.GetProperty("tolerance").GetDouble();
+
+    ConformIdentity(vectors.GetProperty("identity"));
+    ConformCodec(vectors.GetProperty("codec"));
+    ConformHelpers(vectors, tolerance);
+    ConformGeofence(vectors.GetProperty("geofence"));
+
+    Console.WriteLine("conformance ok");
+}
+
+static void ConformIdentity(JsonElement vector)
+{
+    byte[] seed = Convert.FromHexString(vector.GetProperty("seed").GetString()!);
+    byte[] publicKey = Convert.FromHexString(vector.GetProperty("publicKey").GetString()!);
+    byte[] signature = Convert.FromHexString(vector.GetProperty("signature").GetString()!);
+    string payload = vector.GetProperty("payload").GetString()!;
+
+    using var device = new DeviceIdentity(seed);
+    Assert(device.PublicKey.SequenceEqual(publicKey), "public key matches");
+    Assert(device.Fingerprint == vector.GetProperty("fingerprint").GetString(), "fingerprint matches");
+    Assert(
+        device.Sign(payload).SequenceEqual(signature),
+        "the signature is deterministic for this seed and payload");
+
+    Assert(DeviceIdentity.Verify(publicKey, payload, signature), "the signature verifies");
+    Assert(
+        !DeviceIdentity.Verify(publicKey, vector.GetProperty("tamperedPayload").GetString()!, signature),
+        "a tampered payload does not verify");
+}
+
+static void ConformCodec(JsonElement vector)
+{
+    byte[] cbor = Convert.FromHexString(vector.GetProperty("cbor").GetString()!);
+    byte[] json = Encoding.UTF8.GetBytes(vector.GetProperty("json").GetString()!);
+
+    Assert(Codec.JsonToCbor(json).SequenceEqual(cbor), "JSON encodes to CBOR");
+    Assert(Codec.CborToJson(cbor).SequenceEqual(json), "CBOR decodes to the document");
+    Assert(
+        Codec.JsonToCbor(Encoding.UTF8.GetBytes(vector.GetProperty("unsortedJson").GetString()!))
+            .SequenceEqual(cbor),
+        "keys are sorted on the way through, so the encoding is canonical");
+
+    JsonElement deltas = vector.GetProperty("deltas");
+    long[] samples = deltas.GetProperty("samples").EnumerateArray()
+        .Select(entry => entry.GetInt64()).ToArray();
+    byte[] packedSamples = Convert.FromHexString(deltas.GetProperty("packed").GetString()!);
+    Assert(Codec.PackSamples(samples).SequenceEqual(packedSamples), "samples pack");
+    Assert(Codec.UnpackSamples(packedSamples).SequenceEqual(samples), "samples unpack");
+
+    JsonElement q = vector.GetProperty("quantizer");
+    float[] readings = q.GetProperty("readings").EnumerateArray()
+        .Select(entry => entry.GetSingle()).ToArray();
+    byte[] packedReadings = Convert.FromHexString(q.GetProperty("packed").GetString()!);
+    var quantizer = new Quantizer(q.GetProperty("scale").GetSingle());
+    Assert(quantizer.Encode(readings).SequenceEqual(packedReadings), "readings pack");
+
+    double readingTolerance = q.GetProperty("tolerance").GetDouble();
+    float[] decoded = quantizer.Decode(packedReadings);
+    for (int i = 0; i < readings.Length; i++)
+    {
+        Assert(
+            Math.Abs(decoded[i] - readings[i]) <= readingTolerance,
+            "reading decodes to precision");
+    }
+}
+
+static void ConformHelpers(JsonElement vectors, double tolerance)
+{
+    JsonElement vector = vectors.GetProperty("smoother");
+    using var smoother = new Smoother(vector.GetProperty("weight").GetSingle());
+    Walk(vector, "samples", "outputs", (sample, want) =>
+        Close(smoother.Update(sample), want, tolerance, "smoother output"));
+
+    vector = vectors.GetProperty("pid");
+    using var controller = new Pid(
+        vector.GetProperty("kp").GetSingle(),
+        vector.GetProperty("ki").GetSingle(),
+        vector.GetProperty("kd").GetSingle());
+    float setpoint = vector.GetProperty("setpoint").GetSingle();
+    float dt = vector.GetProperty("dt").GetSingle();
+    Walk(vector, "measurements", "outputs", (measurement, want) =>
+        Close(controller.Update(setpoint, measurement, dt), want, tolerance, "pid output"));
+
+    vector = vectors.GetProperty("thermostat");
+    using var thermostat = Thermostat.Cooling(
+        vector.GetProperty("setpoint").GetSingle(),
+        vector.GetProperty("hysteresis").GetSingle());
+    float[] readings = Floats(vector, "readings");
+    bool[] states = vector.GetProperty("outputs").EnumerateArray()
+        .Select(entry => entry.GetBoolean()).ToArray();
+    for (int i = 0; i < readings.Length; i++)
+    {
+        Assert(thermostat.Update(readings[i]) == states[i], "thermostat output");
+    }
+
+    vector = vectors.GetProperty("depletion");
+    using var depletion = new Depletion(vector.GetProperty("threshold").GetSingle());
+    float[] levels = Floats(vector, "levels");
+    JsonElement[] expected = vector.GetProperty("outputs").EnumerateArray().ToArray();
+    for (int i = 0; i < levels.Length; i++)
+    {
+        uint? got = depletion.Update(levels[i]);
+        uint? want = expected[i].ValueKind == JsonValueKind.Null
+            ? null
+            : expected[i].GetUInt32();
+        Assert(got == want, "depletion output");
+    }
+
+    vector = vectors.GetProperty("calibration");
+    using var calibration = Calibration.TwoPoint(
+        vector.GetProperty("rawLow").GetSingle(),
+        vector.GetProperty("valueLow").GetSingle(),
+        vector.GetProperty("rawHigh").GetSingle(),
+        vector.GetProperty("valueHigh").GetSingle());
+    Walk(vector, "inputs", "outputs", (raw, want) =>
+        Close(calibration.Apply(raw), want, tolerance, "calibration output"));
+
+    vector = vectors.GetProperty("deadband");
+    float center = vector.GetProperty("center").GetSingle();
+    float width = vector.GetProperty("width").GetSingle();
+    Walk(vector, "inputs", "outputs", (value, want) =>
+        Close(Kit.Deadband(value, center, width), want, tolerance, "deadband output"));
+}
+
+static void ConformGeofence(JsonElement vector)
+{
+    JsonElement centre = vector.GetProperty("center");
+    using var fence = new Geofence(
+        new Coordinate(
+            centre.GetProperty("latitude").GetDouble(),
+            centre.GetProperty("longitude").GetDouble()),
+        vector.GetProperty("radiusM").GetDouble());
+
+    JsonElement[] fixes = vector.GetProperty("fixes").EnumerateArray().ToArray();
+    string[] boundaries = vector.GetProperty("boundaries").EnumerateArray()
+        .Select(entry => entry.GetString()!).ToArray();
+
+    for (int i = 0; i < fixes.Length; i++)
+    {
+        Boundary got = fence.Update(new Coordinate(
+            fixes[i].GetProperty("latitude").GetDouble(),
+            fixes[i].GetProperty("longitude").GetDouble()));
+        Assert(got.ToString() == boundaries[i], "boundary state");
+    }
+}
+
+// Reads a float array from a vector.
+static float[] Floats(JsonElement vector, string name) =>
+    vector.GetProperty(name).EnumerateArray().Select(entry => entry.GetSingle()).ToArray();
+
+// Walks an input and expected-output pair from a vector.
+static void Walk(JsonElement vector, string inputs, string outputs, Action<float, float> check)
+{
+    float[] given = Floats(vector, inputs);
+    float[] want = Floats(vector, outputs);
+    for (int i = 0; i < given.Length; i++)
+    {
+        check(given[i], want[i]);
+    }
+}
+
+// Asserts two numbers agree within the vectors' tolerance.
+static void Close(float got, float want, double tolerance, string message) =>
+    Assert(Math.Abs(got - want) <= tolerance, $"{message}: expected {want}, got {got}");

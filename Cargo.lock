@@ -2431,6 +2431,7 @@ dependencies = [
  "pamoja-sync",
  "pamoja-telemetry",
  "serde",
+ "serde_json",
  "tokio",
 ]
 
