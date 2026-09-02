@@ -65,6 +65,13 @@ edited, `pamoja.session` opens a confidential, replay-protected channel with one
 peer, `pamoja.update` signs releases and stages them into slots with verified
 rollback, `pamoja.power` says how often a falling battery can afford to work, and
 `pamoja.telemetry` thins the event stream out as the link gets expensive.
+The transport modules cover reaching the network when no single link always
+works. :mod:`pamoja.coap` speaks CoAP over UDP for links where MQTT costs more
+than the budget, :mod:`pamoja.ladder` tries links cheapest-first and buffers into
+a :mod:`pamoja.sync` store when none answer, and :mod:`pamoja.bus` carries events
+between the parts of one gateway. For testing any of it with nothing plugged in,
+:mod:`pamoja.loopback` is a broker in the same process and :mod:`pamoja.sim`
+gives a sensor, an actuator, and a robot that need no hardware.
 The generated low-level contract stays available at `pamoja.raw`.
 
 ```python

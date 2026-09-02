@@ -30,14 +30,22 @@ while all behavior stays in the Rust core.
 | `@pamoja/core/update` | signed releases, staged into slots, with verified rollback |
 | `@pamoja/core/power` | duty cycling, and the interval a falling battery calls for |
 | `@pamoja/core/telemetry` | leveled events that thin out as the link gets expensive |
+| `@pamoja/core/coap` | CoAP over UDP, for links where MQTT costs more than the budget |
+| `@pamoja/core/loopback` | an in-process broker, so a message flow is testable with no broker |
+| `@pamoja/core/sync` | the buffer a node writes into while it has nowhere to send |
+| `@pamoja/core/ladder` | trying links cheapest-first, and buffering when none answer |
+| `@pamoja/core/transport` | building and composing the rungs a ladder tries |
+| `@pamoja/core/bus` | one publisher and many subscribers inside a single process |
+| `@pamoja/core/sim` | a sensor, an actuator, and a robot that need no hardware |
 
 `@pamoja/core` re-exports them all, and the generated low-level contract stays
 available at `@pamoja/core/raw` for anything the facade does not surface. The
 hardware, radio, and operational capabilities arrive as namespaces (`serial`,
 `modbus`, `can`, `gpio`, `sensors`, `actuators`, `lora`, `lorawan`, `mesh`,
-`routing`, `audit`, `session`, `update`, `power`, `telemetry`), because their
-names are ordinary words that only read unambiguously with the capability in
-front of them.
+`routing`, `audit`, `session`, `update`, `power`, `telemetry`, `coap`,
+`loopback`, `sync`, `ladder`, `transport`, `bus`, `sim`), because their names
+are ordinary words that only read unambiguously with the capability in front of
+them.
 
 ```js
 const { DeviceIdentity, Smoother, toCbor } = require("@pamoja/core");

@@ -60,6 +60,14 @@ verified rollback, `PowerPlan` says how often a falling battery can afford to
 work, and `Reporter` thins the event stream out as the link gets expensive. Each
 handle-backed type is `IDisposable`.
 
+For reaching the network when no single link always works, `CoapClient` speaks
+CoAP over UDP where MQTT costs more than the budget, `Ladder` tries links
+cheapest-first and buffers into a `Store` when none answer, and `EventBus`
+carries events between the parts of one gateway. `Transport` is what a rung is
+built and composed from. For testing any of it with nothing plugged in,
+`LoopbackBroker` is a broker in the same process, and `SimulatedSensor`,
+`Replay`, `RecordingActuator`, and `SimulatedRobot` need no hardware.
+
 ```csharp
 using var smoother = new Smoother(0.3f);
 float reading = smoother.Update(21.7f);
