@@ -685,6 +685,8 @@ dependencies = [
  "pamoja-modbus",
  "pamoja-mqtt",
  "pamoja-power",
+ "pamoja-profile",
+ "pamoja-ros2",
  "pamoja-routing",
  "pamoja-security",
  "pamoja-sensors",
@@ -694,12 +696,32 @@ dependencies = [
  "pamoja-sync",
  "pamoja-telemetry",
  "pamoja-update",
+ "pamoja-zenoh",
  "tokio",
 ]
 
 [[package]]
 name = "pamoja-power"
 version = "0.1.14"
+
+[[package]]
+name = "pamoja-profile"
+version = "0.1.14"
+dependencies = [
+ "pamoja-codec",
+ "pamoja-core",
+ "pamoja-kit",
+ "pamoja-power",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "pamoja-ros2"
+version = "0.1.14"
+dependencies = [
+ "pamoja-zenoh",
+]
 
 [[package]]
 name = "pamoja-routing"
@@ -759,6 +781,10 @@ dependencies = [
  "pamoja-security",
  "sha2",
 ]
+
+[[package]]
+name = "pamoja-zenoh"
+version = "0.1.14"
 
 [[package]]
 name = "pin-project-lite"

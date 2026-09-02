@@ -49,6 +49,10 @@ pub mod modbus;
 pub mod mqtt;
 #[cfg(feature = "power")]
 pub mod power;
+#[cfg(feature = "profile")]
+pub mod profile;
+#[cfg(feature = "ros2")]
+pub mod ros2;
 #[cfg(feature = "routing")]
 pub mod routing;
 #[cfg(feature = "security")]
@@ -69,3 +73,5 @@ pub mod telemetry;
 pub mod transport;
 #[cfg(feature = "update")]
 pub mod update;
+#[cfg(feature = "zenoh")]
+pub mod zenoh;

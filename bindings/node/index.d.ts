@@ -85,6 +85,48 @@ export declare class Calibration {
   apply(raw: number): number
 }
 
+/**
+ * A CDR decoder, which reads primitives back in the order they were written.
+ *
+ * Reading past the end returns `null` rather than throwing, because a short
+ * buffer is a wire condition rather than a programming error.
+ */
+export declare class CdrReader {
+  /**
+   * Creates a decoder over encoded bytes.
+   *
+   * Throws if the bytes carry no valid CDR encapsulation header.
+   */
+  constructor(data: Buffer)
+  /** Reads the next 32-bit signed integer, or `null` once exhausted. */
+  readI32(): number | null
+  /** Reads the next 32-bit unsigned integer, or `null` once exhausted. */
+  readU32(): number | null
+  /** Reads the next 32-bit float, or `null` once exhausted. */
+  readF32(): number | null
+  /** Reads the next 64-bit float, or `null` once exhausted. */
+  readF64(): number | null
+}
+
+/**
+ * A CDR encoder, which writes primitives with the alignment the wire format
+ * requires.
+ */
+export declare class CdrWriter {
+  /** Creates an encoder with the encapsulation header already written. */
+  constructor()
+  /** Appends a 32-bit signed integer. */
+  writeI32(value: number): void
+  /** Appends a 32-bit unsigned integer. */
+  writeU32(value: number): void
+  /** Appends a 32-bit float. */
+  writeF32(value: number): void
+  /** Appends a 64-bit float. */
+  writeF64(value: number): void
+  /** The bytes written so far. */
+  get bytes(): Buffer
+}
+
 /** A CoAP endpoint. */
 export declare class CoapClient {
   /** Creates a disconnected endpoint from the given settings. */
@@ -116,6 +158,44 @@ export declare class CobsDecoder {
   get discarded(): number
   /** Discards any partly assembled frame. */
   reset(): void
+}
+
+/**
+ * The decision logic a profile assembles.
+ *
+ * A controller carries state between readings, because a level estimate and a
+ * rate of change both need the previous sample, so evaluate readings through
+ * one controller in the order they were taken.
+ */
+export declare class Controller {
+  /**
+   * Holds a reading near a setpoint by switching an output on and off.
+   *
+   * @param setpoint - the target reading.
+   * @param hysteresis - half the deadband width, which stops the output
+   *   chattering at the threshold.
+   * @param cooling - whether the output cools rather than heats.
+   * @param safe_band - how far the reading may stray before an alert.
+   */
+  static setpoint(setpoint: number, hysteresis: number, cooling: boolean, safeBand: number): Controller
+  /**
+   * Warns before a falling level reaches empty.
+   *
+   * @param empty - the level treated as empty.
+   * @param warn_within - warn once empty is this many samples away.
+   */
+  static level(empty: number, warnWithin: number): Controller
+  /**
+   * Warns when a reading changes faster than a limit.
+   *
+   * @param rising - watch a rapid rise rather than a rapid fall.
+   * @param limit - the largest safe change per sample.
+   */
+  static surge(rising: boolean, limit: number): Controller
+  /** Reports readings without judging them. */
+  static monitor(): Controller
+  /** Decides what one reading calls for. */
+  evaluate(reading: number): Reaction
 }
 
 /** Stops a flickering input from acting until it has settled. */
@@ -435,6 +515,36 @@ export declare class PowerPlan {
   intervalForUs(mode: PowerMode): number
   /** Returns the work interval at a state of charge, in microseconds. */
   intervalUs(soc: number): number
+}
+
+/** A named, ready-to-run node assembled from pamoja capabilities. */
+export declare class Profile {
+  /** A cold-chain fridge monitor, which holds 5 C and flags an excursion. */
+  static vaccineFridgeMonitor(): Profile
+  /** An irrigation node, which opens a valve as soil moisture falls. */
+  static irrigationNode(): Profile
+  /** A well-level monitor, which warns before a tank runs dry. */
+  static wellLevel(): Profile
+  /** A flood sensor, which warns when a level rises too fast. */
+  static floodSensor(): Profile
+  /**
+   * Loads a profile from its JSON manifest.
+   *
+   * Throws if the manifest is malformed.
+   */
+  static fromJson(manifest: string): Profile
+  /** Serializes this profile to its JSON manifest. */
+  toJson(): string
+  /** The profile's stable, human-readable name. */
+  get name(): string
+  /** The topic each reading is published to. */
+  get topic(): string
+  /** The control policy applied to each reading. */
+  get control(): ControlPolicy
+  /** The sampling schedule kept as the battery drains. */
+  get power(): PowerScheduleSpec
+  /** Builds the decision logic this profile describes. */
+  controller(): Controller
 }
 
 /** Packs float readings to a fixed precision for a metered link. */
@@ -923,6 +1033,28 @@ export declare function ads1115ToNanovolts(pga: number, raw: number): number
 /** Converts a raw ADS1115 conversion result to volts. */
 export declare function ads1115ToVolts(pga: number, raw: number): number
 
+/** Which threshold a reading crossed. */
+export declare const enum AlertKind {
+  /** A controlled reading drifted outside its safe band. */
+  OutOfRange = 'OutOfRange',
+  /** A falling level will reach empty within a few more samples. */
+  RunningOut = 'RunningOut',
+  /** A reading is changing faster than its safe rate. */
+  ChangingFast = 'ChangingFast'
+}
+
+/** An alert a reading raised. Only the field belonging to `kind` is set. */
+export interface AlertReport {
+  /** Which threshold the reading crossed. */
+  kind: AlertKind
+  /** The offending reading, for an out-of-range alert. */
+  reading?: number
+  /** The estimated samples until empty, for a running-out alert. */
+  samples?: number
+  /** The change since the previous sample, for a changing-fast alert. */
+  rate?: number
+}
+
 /** Returns the initial bearing from one coordinate to another, in degrees. */
 export declare function bearingBetween(from: Coord, to: Coord): number
 
@@ -1034,6 +1166,40 @@ export declare function cobsEncode(payload: Buffer): Buffer
 /** Returns the largest COBS frame a payload of this length can produce. */
 export declare function cobsMaxEncodedLen(payloadLen: number): number
 
+/** Which control policy a profile applies to each reading. */
+export declare const enum ControlKind {
+  /** Hold a reading near a setpoint by switching an output on and off. */
+  Setpoint = 'Setpoint',
+  /** Watch a falling level and warn before it reaches empty. */
+  Level = 'Level',
+  /** Warn when a reading changes faster than a limit. */
+  Surge = 'Surge',
+  /** Report readings only, with no output and no alerts. */
+  Monitor = 'Monitor'
+}
+
+/** A profile's control policy. Only the fields belonging to `kind` are set. */
+export interface ControlPolicy {
+  /** Which policy this describes. */
+  kind: ControlKind
+  /** The target reading, for a setpoint policy. */
+  setpoint?: number
+  /** Half the deadband width, for a setpoint policy. */
+  hysteresis?: number
+  /** Whether the output cools rather than heats, for a setpoint policy. */
+  cooling?: boolean
+  /** How far the reading may stray before an alert, for a setpoint policy. */
+  safeBand?: number
+  /** The level treated as empty, for a level policy. */
+  empty?: number
+  /** How many samples ahead to warn, for a level policy. */
+  warnWithin?: number
+  /** Whether a rise rather than a fall is watched, for a surge policy. */
+  rising?: boolean
+  /** The largest safe change per sample, for a surge policy. */
+  limit?: number
+}
+
 /** A latitude and longitude in degrees. */
 export interface Coord {
   /** Degrees north of the equator, negative for south. */
@@ -1128,6 +1294,16 @@ export declare function encodeDeltaSamples(samples: Array<number>): Buffer
 
 /** Encodes the body of a manifest, which is the part a signature covers. */
 export declare function encodeManifest(manifest: Manifest): Buffer
+
+/** The ROS 2 subsystem a name belongs to, which fixes its DDS prefix. */
+export declare const enum EntityKindName {
+  /** A topic, which takes the `rt` prefix. */
+  Topic = 'Topic',
+  /** The request side of a service, which takes the `rq` prefix. */
+  ServiceRequest = 'ServiceRequest',
+  /** The reply side of a service, which takes the `rr` prefix. */
+  ServiceResponse = 'ServiceResponse'
+}
 
 /**
  * Copies out the signed body of an envelope, without checking the signature.
@@ -1257,6 +1433,30 @@ export interface J1939Message {
 
 /** Converts a JSON document into its CBOR encoding, which is typically smaller. */
 export declare function jsonToCborBytes(json: Buffer): Buffer
+
+/**
+ * Rewrites a key expression into its canonical form, or `null` if it is
+ * malformed.
+ *
+ * Two expressions that select the same data have one canonical form, so
+ * canonizing before comparing or routing avoids treating `a/**\/**\/b` and
+ * `a/**\/b` as different.
+ */
+export declare function keyexprCanonize(key: string): string | null
+
+/** Reports whether a key expression is already in its canonical form. */
+export declare function keyexprIsCanon(key: string): boolean
+
+/** Reports whether a key expression is well formed. */
+export declare function keyexprIsValid(key: string): boolean
+
+/**
+ * Reports whether a pattern selects a key.
+ *
+ * @param pattern - the expression that may carry wildcards.
+ * @param key - the concrete key to test against it.
+ */
+export declare function keyexprMatches(pattern: string, key: string): boolean
 
 /** How urgent an event is. */
 export declare const enum Level {
@@ -1739,6 +1939,20 @@ export declare const enum PowerMode {
   Critical = 'Critical'
 }
 
+/** How often a node samples as its battery drains, in whole seconds. */
+export interface PowerScheduleSpec {
+  /** Seconds between samples at a healthy charge. */
+  activeSecs: number
+  /** Seconds between samples while conserving. */
+  saverSecs: number
+  /** Seconds between samples when critically low. */
+  criticalSecs: number
+  /** Enter the saver cadence below this state of charge. */
+  saverBelow: number
+  /** Enter the critical cadence below this state of charge. */
+  criticalBelow: number
+}
+
 /** How much of an image has arrived. */
 export interface Progress {
   /** The bytes stored so far. */
@@ -1776,6 +1990,17 @@ export declare const enum Qos {
   ExactlyOnce = 'ExactlyOnce'
 }
 
+/** What a controller decided about one reading. */
+export interface Reaction {
+  /**
+   * The setting the output should take, or `null` when the profile observes
+   * rather than controls.
+   */
+  actuator?: boolean
+  /** The alert the reading raised, or `null` if it crossed nothing. */
+  alert?: AlertReport
+}
+
 /** Whether a CoAP request is acknowledged and retried. */
 export declare const enum Reliability {
   /** Fire and forget: the request is sent once and not acknowledged. */
@@ -1796,6 +2021,79 @@ export declare const enum Role {
   Initiator = 'Initiator',
   /** The device that answers. */
   Responder = 'Responder'
+}
+
+/**
+ * Returns the DDS topic a fully qualified name maps onto, or `null` if the
+ * name is not fully qualified.
+ */
+export declare function ros2DdsTopic(fqn: string, kind: EntityKindName): string | null
+
+/**
+ * Returns the DDS type name an interface type maps onto, or `null` if the type
+ * is not a valid `package/namespace/Type`.
+ */
+export declare function ros2DdsTypeName(rosType: string): string | null
+
+/**
+ * Builds the Zenoh key an `rmw_zenoh` peer publishes an entity on, or `null`
+ * if the name, type, or hash is not usable.
+ *
+ * @param domainId - the ROS 2 domain.
+ * @param fqn - the fully qualified entity name.
+ * @param rosType - the interface type as `package/namespace/Type`.
+ * @param typeHash - the message type hash as its `RIHS01_` string.
+ */
+export declare function ros2EntityKey(domainId: number, fqn: string, rosType: string, typeHash: string): string | null
+
+/** Returns the DDS topic prefix a subsystem uses. */
+export declare function ros2EntityKindPrefix(kind: EntityKindName): string
+
+/** Reports whether a name is fully qualified, so it resolves with no namespace. */
+export declare function ros2IsFullyQualified(name: string): boolean
+
+/** Reports whether a string is a valid ROS 2 topic or service name. */
+export declare function ros2IsValidName(name: string): boolean
+
+/** Percent-mangles a name the way a DDS partition requires. */
+export declare function ros2PercentMangle(name: string): string
+
+/**
+ * A body velocity command, matching `geometry_msgs/msg/Twist`.
+ *
+ * This is what a ROS 2 robot is driven by on `cmd_vel`, so it is the shape a
+ * chassis or navigation helper publishes into a ROS graph.
+ */
+export interface Ros2Twist {
+  /** The linear velocity in metres per second. */
+  linear: Ros2Vector3
+  /** The angular velocity in radians per second. */
+  angular: Ros2Vector3
+}
+
+/**
+ * Decodes a twist from its CDR representation, or `null` if the bytes are not
+ * a well-formed twist.
+ */
+export declare function ros2TwistFromCdr(data: Buffer): Ros2Twist | null
+
+/** Encodes a twist into its CDR representation. */
+export declare function ros2TwistToCdr(twist: Ros2Twist): Buffer
+
+/**
+ * Returns the 32-byte digest a RIHS01 hash string carries, or `null` if the
+ * string is malformed.
+ */
+export declare function ros2TypeHashDigest(text: string): Buffer | null
+
+/** A three-dimensional vector, matching `geometry_msgs/msg/Vector3`. */
+export interface Ros2Vector3 {
+  /** The x component. */
+  x: number
+  /** The y component. */
+  y: number
+  /** The z component. */
+  z: number
 }
 
 /** A learned way to reach one node. */
