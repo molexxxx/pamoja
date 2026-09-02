@@ -90,10 +90,7 @@ pub unsafe extern "C" fn pamoja_pca9685_channel_register(
         return PamojaStatus::InvalidArgument;
     }
     if channel >= pca9685::CHANNELS {
-        set_last_error(format!(
-            "channel must be below {}",
-            pca9685::CHANNELS
-        ));
+        set_last_error(format!("channel must be below {}", pca9685::CHANNELS));
         return PamojaStatus::InvalidArgument;
     }
     *out_register = pca9685::channel_register(channel);
@@ -360,7 +357,8 @@ mod tests {
     #[test]
     fn the_update_rate_round_trips_through_its_prescale() {
         let prescale = pamoja_pca9685_prescale_for_frequency(50, PAMOJA_PCA9685_INTERNAL_OSC_HZ);
-        let frequency = pamoja_pca9685_frequency_for_prescale(prescale, PAMOJA_PCA9685_INTERNAL_OSC_HZ);
+        let frequency =
+            pamoja_pca9685_frequency_for_prescale(prescale, PAMOJA_PCA9685_INTERNAL_OSC_HZ);
         assert!((frequency - 50.0).abs() < 1.0, "got {frequency} Hz");
     }
 

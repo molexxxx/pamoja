@@ -1013,7 +1013,10 @@ pub unsafe extern "C" fn pamoja_window_mean(
     window: *const PamojaWindow,
     out_value: *mut f32,
 ) -> bool {
-    maybe(window.as_ref().and_then(|window| window.inner.mean()), out_value)
+    maybe(
+        window.as_ref().and_then(|window| window.inner.mean()),
+        out_value,
+    )
 }
 
 /// Reads the smallest reading in a window.
@@ -1031,7 +1034,10 @@ pub unsafe extern "C" fn pamoja_window_min(
     window: *const PamojaWindow,
     out_value: *mut f32,
 ) -> bool {
-    maybe(window.as_ref().and_then(|window| window.inner.min()), out_value)
+    maybe(
+        window.as_ref().and_then(|window| window.inner.min()),
+        out_value,
+    )
 }
 
 /// Reads the largest reading in a window.
@@ -1049,7 +1055,10 @@ pub unsafe extern "C" fn pamoja_window_max(
     window: *const PamojaWindow,
     out_value: *mut f32,
 ) -> bool {
-    maybe(window.as_ref().and_then(|window| window.inner.max()), out_value)
+    maybe(
+        window.as_ref().and_then(|window| window.inner.max()),
+        out_value,
+    )
 }
 
 /// Reads the spread between a window's smallest and largest readings.
@@ -1067,7 +1076,10 @@ pub unsafe extern "C" fn pamoja_window_range(
     window: *const PamojaWindow,
     out_value: *mut f32,
 ) -> bool {
-    maybe(window.as_ref().and_then(|window| window.inner.range()), out_value)
+    maybe(
+        window.as_ref().and_then(|window| window.inner.range()),
+        out_value,
+    )
 }
 
 /// Reads the variance of a window's readings.
@@ -1159,7 +1171,10 @@ pub unsafe extern "C" fn pamoja_median_value(
     median: *const PamojaMedian,
     out_value: *mut f32,
 ) -> bool {
-    maybe(median.as_ref().and_then(|median| median.inner.median()), out_value)
+    maybe(
+        median.as_ref().and_then(|median| median.inner.median()),
+        out_value,
+    )
 }
 
 /// Releases a median filter handle.
@@ -1223,7 +1238,10 @@ pub unsafe extern "C" fn pamoja_trend_slope(
     trend: *const PamojaTrend,
     out_value: *mut f32,
 ) -> bool {
-    maybe(trend.as_ref().and_then(|trend| trend.inner.slope()), out_value)
+    maybe(
+        trend.as_ref().and_then(|trend| trend.inner.slope()),
+        out_value,
+    )
 }
 
 /// Releases a trend estimator handle.
@@ -1494,7 +1512,10 @@ mod tests {
         unsafe {
             let trend = pamoja_trend_new();
             let mut slope = 0.0f32;
-            assert!(!pamoja_trend_slope(trend, &mut slope), "one point is no line");
+            assert!(
+                !pamoja_trend_slope(trend, &mut slope),
+                "one point is no line"
+            );
 
             for reading in [1.0f32, 2.0, 3.0, 4.0] {
                 pamoja_trend_push(trend, reading);

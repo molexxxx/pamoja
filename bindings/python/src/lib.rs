@@ -10,6 +10,8 @@
 use pyo3::prelude::*;
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
 
+#[cfg(feature = "actuators")]
+mod actuators;
 #[cfg(feature = "can")]
 mod can;
 #[cfg(feature = "codec")]
@@ -24,6 +26,8 @@ mod modbus;
 mod mqtt;
 #[cfg(feature = "security")]
 mod security;
+#[cfg(feature = "sensors")]
+mod sensors;
 #[cfg(feature = "serial")]
 mod serial;
 
@@ -80,6 +84,11 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(kit::distance_between, m)?)?;
         m.add_function(wrap_pyfunction!(kit::bearing_between, m)?)?;
         m.add_function(wrap_pyfunction!(kit::deadband, m)?)?;
+        m.add_class::<kit::Window>()?;
+        m.add_class::<kit::Median>()?;
+        m.add_class::<kit::Trend>()?;
+        m.add_class::<kit::Anomaly>()?;
+        m.add_function(wrap_pyfunction!(kit::window_capacity, m)?)?;
     }
     #[cfg(feature = "serial")]
     {
@@ -136,6 +145,59 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(gpio::pin_edge_triggered_by, m)?)?;
         m.add_function(wrap_pyfunction!(gpio::pin_polarity_level, m)?)?;
         m.add_function(wrap_pyfunction!(gpio::pin_polarity_is_asserted, m)?)?;
+    }
+    #[cfg(feature = "sensors")]
+    {
+        m.add_class::<sensors::Bme280Calibration>()?;
+        m.add_class::<sensors::Bme280Measurement>()?;
+        m.add_class::<sensors::Ds18b20Reading>()?;
+        m.add_class::<sensors::Ads1115Config>()?;
+        m.add_function(wrap_pyfunction!(sensors::ds18b20_parse_scratchpad, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ds18b20_crc8, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ds18b20_micro_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ds18b20_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ds18b20_config_byte, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ds18b20_resolution_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ds18b20_step_micro_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ds18b20_max_conversion_micros, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_calibration, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::ina219_minimum_current_lsb_microamps,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_shunt_microvolts, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_bus_millivolts, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_conversion_ready, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_math_overflow, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_current_microamps, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_power_microwatts, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ads1115_config_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ads1115_config_from_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ads1115_full_scale_microvolts, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ads1115_samples_per_second, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ads1115_to_nanovolts, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ads1115_to_volts, m)?)?;
+    }
+    #[cfg(feature = "actuators")]
+    {
+        m.add_class::<actuators::Stepper>()?;
+        m.add_function(wrap_pyfunction!(actuators::pca9685_limits, m)?)?;
+        m.add_function(wrap_pyfunction!(actuators::pca9685_channel_register, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            actuators::pca9685_prescale_for_frequency,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            actuators::pca9685_frequency_for_prescale,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(actuators::pwm_from_counts, m)?)?;
+        m.add_function(wrap_pyfunction!(actuators::pwm_duty, m)?)?;
+        m.add_function(wrap_pyfunction!(actuators::pwm_servo, m)?)?;
+        m.add_function(wrap_pyfunction!(actuators::pwm_full_on, m)?)?;
+        m.add_function(wrap_pyfunction!(actuators::pwm_full_off, m)?)?;
+        m.add_function(wrap_pyfunction!(actuators::stepper_step_count, m)?)?;
+        m.add_function(wrap_pyfunction!(actuators::stepper_steps_for_degrees, m)?)?;
     }
     Ok(())
 }

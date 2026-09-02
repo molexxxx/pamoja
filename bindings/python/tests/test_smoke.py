@@ -222,3 +222,68 @@ def test_on_board_bus_addressing_and_pin_logic():
     assert gpio.pin.is_asserted(gpio.Polarity.ACTIVE_LOW, gpio.Level.LOW)
     assert gpio.pin.triggers(gpio.Edge.RISING, gpio.Level.LOW, gpio.Level.HIGH)
     assert not gpio.pin.triggers(gpio.Edge.RISING, gpio.Level.HIGH, gpio.Level.LOW)
+
+
+def test_a_sensor_reading_decodes_and_checks_itself():
+    from pamoja import sensors
+
+    scratchpad = bytearray([0x91, 0x01, 0x4B, 0x46, 0x7F, 0xFF, 0x0C, 0x10, 0x00])
+    scratchpad[8] = sensors.ds18b20.crc8(bytes(scratchpad[:8]))
+    reading = sensors.ds18b20.parse_scratchpad(bytes(scratchpad))
+    assert reading.micro_celsius == 25_062_500
+    assert reading.resolution_bits == 12
+
+    scratchpad[0] ^= 0xFF
+    with pytest.raises(PamojaError):
+        sensors.ds18b20.parse_scratchpad(bytes(scratchpad))
+
+    assert sensors.ina219.calibration(1_000, 2) == 0x5000
+    assert sensors.ina219.power_microwatts(100, 1_000) == 2_000_000
+
+    reset = sensors.ads1115.config_from_bits(0x8583)
+    assert sensors.ads1115.config_bits(reset) == 0x8583
+    assert sensors.ads1115.full_scale_microvolts(1) == 4_096_000
+
+
+def test_an_actuator_command_encodes_to_its_registers():
+    from pamoja import actuators
+
+    assert actuators.pwm.full_off()[3] == 0x10
+    assert actuators.pca9685.channel_register(0) == 0x06
+    with pytest.raises(ValueError):
+        actuators.pca9685.channel_register(16)
+
+    motor = actuators.Stepper(actuators.Drive.HALF_STEP)
+    first = motor.coils
+    for _ in range(actuators.Drive.HALF_STEP.step_count):
+        motor.step(actuators.Direction.FORWARD)
+    assert motor.coils == first
+    assert motor.steps == 8
+    assert actuators.steps_for_degrees(90.0, 200) == 50
+
+
+def test_the_windowed_helpers_summarise_recent_readings():
+    from pamoja import WINDOW_CAPACITY, Anomaly, Median, Trend, Window
+
+    window = Window()
+    for value in (10.0, 20.0, 30.0):
+        window.push(value)
+    assert len(window) == 3
+    assert window.capacity == WINDOW_CAPACITY
+    assert window.mean() == pytest.approx(20.0)
+    assert window.range() == pytest.approx(20.0)
+
+    median = Median()
+    for value in (20.0, 21.0, 20.5):
+        median.update(value)
+    assert median.update(900.0) < 30.0
+
+    trend = Trend()
+    for value in (1.0, 2.0, 3.0, 4.0):
+        trend.push(value)
+    assert trend.slope == pytest.approx(1.0, abs=1e-4)
+
+    anomaly = Anomaly(3.0)
+    for _ in range(8):
+        anomaly.check(20.0)
+    assert anomaly.check(900.0)

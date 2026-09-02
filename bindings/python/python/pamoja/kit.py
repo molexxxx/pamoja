@@ -15,13 +15,23 @@ from __future__ import annotations
 import enum
 from typing import NamedTuple
 
+from ._core import Anomaly, Median, Trend, Window
+from ._core import window_capacity as _window_capacity
 from ._core import Calibration, Debounce, Depletion, Kalman, Pid, Ramp, Smoother, Surge, Thermostat
 from ._core import Geofence as _NativeGeofence
 from ._core import bearing_between as _bearing_between
 from ._core import deadband
 from ._core import distance_between as _distance_between
 
+#: How many readings a windowed helper keeps.
+WINDOW_CAPACITY = _window_capacity()
+
 __all__ = [
+    "Window",
+    "WINDOW_CAPACITY",
+    "Trend",
+    "Median",
+    "Anomaly",
     "Boundary",
     "Calibration",
     "Coordinate",

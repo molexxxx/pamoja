@@ -49,6 +49,14 @@
       "types": "./dist/gpio.d.ts",
       "default": "./dist/gpio.js"
     },
+    "./sensors": {
+      "types": "./dist/sensors.d.ts",
+      "default": "./dist/sensors.js"
+    },
+    "./actuators": {
+      "types": "./dist/actuators.d.ts",
+      "default": "./dist/actuators.js"
+    },
     "./raw": {
       "types": "./index.d.ts",
       "default": "./index.js"

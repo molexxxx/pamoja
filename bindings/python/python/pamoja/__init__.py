@@ -9,7 +9,8 @@ work happens in the Rust core.
 Each capability also has its own module (:mod:`pamoja.mqtt`,
 :mod:`pamoja.security`, :mod:`pamoja.codec`, :mod:`pamoja.kit`,
 :mod:`pamoja.serial`, :mod:`pamoja.modbus`, :mod:`pamoja.can`,
-:mod:`pamoja.gpio`) for callers who want only one, and the generated low-level
+:mod:`pamoja.gpio`, :mod:`pamoja.sensors`, :mod:`pamoja.actuators`) for
+callers who want only one, and the generated low-level
 contract remains available at :mod:`pamoja.raw`.
 
 The field-I/O capabilities are re-exported as modules rather than flattened:
@@ -18,10 +19,12 @@ their operations are named for their protocol (``frame``, ``raw``,
 it.
 """
 
-from . import can, gpio, modbus, serial
+from . import actuators, can, gpio, modbus, sensors, serial
 from ._core import PamojaError, version
 from .codec import Quantizer, from_cbor, pack_samples, to_cbor, unpack_samples
 from .kit import (
+    WINDOW_CAPACITY,
+    Anomaly,
     Boundary,
     Calibration,
     Coordinate,
@@ -29,11 +32,14 @@ from .kit import (
     Depletion,
     Geofence,
     Kalman,
+    Median,
     Pid,
     Ramp,
     Smoother,
     Surge,
     Thermostat,
+    Trend,
+    Window,
     bearing_between,
     deadband,
     distance_between,
@@ -42,6 +48,7 @@ from .mqtt import MqttClient, MqttMessage, Qos
 from .security import DeviceIdentity, Payload, fingerprint, verify
 
 __all__ = [
+    "Anomaly",
     "Boundary",
     "Calibration",
     "Coordinate",
@@ -50,6 +57,7 @@ __all__ = [
     "DeviceIdentity",
     "Geofence",
     "Kalman",
+    "Median",
     "MqttClient",
     "MqttMessage",
     "PamojaError",
@@ -61,6 +69,10 @@ __all__ = [
     "Smoother",
     "Surge",
     "Thermostat",
+    "Trend",
+    "WINDOW_CAPACITY",
+    "Window",
+    "actuators",
     "bearing_between",
     "can",
     "deadband",
@@ -70,6 +82,7 @@ __all__ = [
     "gpio",
     "modbus",
     "pack_samples",
+    "sensors",
     "serial",
     "to_cbor",
     "unpack_samples",

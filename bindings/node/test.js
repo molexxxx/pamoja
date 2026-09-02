@@ -25,6 +25,13 @@ const {
   gpio,
   modbus,
   serial,
+  actuators,
+  sensors,
+  Window,
+  Median,
+  Trend,
+  Anomaly,
+  WINDOW_CAPACITY,
 } = require("./dist/index.js");
 
 async function main() {
@@ -63,6 +70,7 @@ async function main() {
   codecs();
   helpers();
   fieldIo();
+  sensingAndActuation();
 
   console.log("ok");
 }
@@ -212,6 +220,71 @@ function fieldIo() {
     gpio.PinLevel.Low,
     "an active-low relay is energised by a low level",
   );
+}
+
+// The parts wired to a board: a thermometer that checks its own bytes, a servo
+// pulse, a stepper walking its coils, and the stats over a rolling window.
+function sensingAndActuation() {
+  const scratchpad = Buffer.from([0x91, 0x01, 0x4b, 0x46, 0x7f, 0xff, 0x0c, 0x10, 0x00]);
+  scratchpad[8] = sensors.ds18b20.crc8(scratchpad.subarray(0, 8));
+  const reading = sensors.ds18b20.parseScratchpad(scratchpad);
+  assert.strictEqual(reading.microCelsius, 25062500, "the thermometer decodes its register");
+  assert.strictEqual(reading.resolutionBits, 12, "and reports its resolution");
+
+  const corrupt = Buffer.from(scratchpad);
+  corrupt[0] ^= 0xff;
+  assert.throws(
+    () => sensors.ds18b20.parseScratchpad(corrupt),
+    "a scratchpad failing its CRC should throw",
+  );
+
+  assert.strictEqual(sensors.ina219.calibration(1000, 2), 0x5000, "the datasheet example");
+  assert.strictEqual(
+    sensors.ina219.powerMicrowatts(100, 1000),
+    2000000,
+    "the power LSB is twenty times the current LSB",
+  );
+
+  const reset = sensors.ads1115.configFromBits(0x8583);
+  assert.strictEqual(sensors.ads1115.configBits(reset), 0x8583, "the config round-trips");
+  assert.strictEqual(
+    sensors.ads1115.fullScaleMicrovolts(1),
+    4096000,
+    "gain code 1 is plus or minus 4.096 V",
+  );
+
+  assert.strictEqual(
+    actuators.pwm.fullOff()[3],
+    0x10,
+    "fully off is its own encoding, not a zero duty",
+  );
+  assert.strictEqual(actuators.pca9685.channelRegister(0), 0x06, "the first channel block");
+
+  const motor = new actuators.Stepper(actuators.StepDrive.HalfStep);
+  const first = motor.coils;
+  for (let step = 0; step < actuators.stepCount(actuators.StepDrive.HalfStep); step += 1) {
+    motor.step(actuators.StepDirection.Forward);
+  }
+  assert.strictEqual(motor.coils, first, "one electrical cycle returns to its first pattern");
+  assert.strictEqual(motor.steps, 8, "and the position counts every step");
+
+  const window = new Window();
+  [10, 20, 30].forEach((value) => window.push(value));
+  assert.strictEqual(window.len, 3, "the window fills");
+  assert.strictEqual(window.capacity, WINDOW_CAPACITY, "up to its documented capacity");
+  assert.ok(Math.abs(window.mean() - 20) < 1e-5, "and averages its readings");
+
+  const median = new Median();
+  [20, 21, 20.5].forEach((value) => median.update(value));
+  assert.ok(median.update(900) < 30, "a median does not follow a single spike");
+
+  const trend = new Trend();
+  [1, 2, 3, 4].forEach((value) => trend.push(value));
+  assert.ok(Math.abs(trend.slope() - 1) < 1e-4, "a rising signal has a positive slope");
+
+  const anomaly = new Anomaly(3);
+  for (let i = 0; i < 8; i += 1) anomaly.check(20);
+  assert.ok(anomaly.check(900), "a reading far outside the window is flagged");
 }
 
 main().catch((err) => {

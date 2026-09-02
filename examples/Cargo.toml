@@ -80,6 +80,8 @@ pamoja-serial = { path = "../crates/pamoja-serial" }
 pamoja-modbus = { path = "../crates/pamoja-modbus" }
 pamoja-can = { path = "../crates/pamoja-can" }
 pamoja-gpio = { path = "../crates/pamoja-gpio" }
+pamoja-sensors = { path = "../crates/pamoja-sensors" }
+pamoja-actuators = { path = "../crates/pamoja-actuators" }
 pamoja-mavlink = { path = "../crates/pamoja-mavlink" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

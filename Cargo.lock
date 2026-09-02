@@ -2416,6 +2416,7 @@ dependencies = [
 name = "pamoja-examples"
 version = "0.1.14"
 dependencies = [
+ "pamoja-actuators",
  "pamoja-audit",
  "pamoja-can",
  "pamoja-codec",
@@ -2430,6 +2431,7 @@ dependencies = [
  "pamoja-profile",
  "pamoja-ros2",
  "pamoja-security",
+ "pamoja-sensors",
  "pamoja-serial",
  "pamoja-sim",
  "pamoja-sync",

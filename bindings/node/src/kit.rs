@@ -7,10 +7,11 @@
 
 use napi_derive::napi;
 use pamoja_kit::{
-    deadband as core_deadband, Boundary, Calibration as CoreCalibration, Coordinate,
-    Debounce as CoreDebounce, Depletion as CoreDepletion, Geofence as CoreGeofence,
-    Kalman as CoreKalman, Pid as CorePid, Ramp as CoreRamp, Smoother as CoreSmoother,
-    Surge as CoreSurge, Thermostat as CoreThermostat,
+    deadband as core_deadband, Anomaly as CoreAnomaly, Boundary, Calibration as CoreCalibration,
+    Coordinate, Debounce as CoreDebounce, Depletion as CoreDepletion, Geofence as CoreGeofence,
+    Kalman as CoreKalman, Median as CoreMedian, Pid as CorePid, Ramp as CoreRamp,
+    Smoother as CoreSmoother, Surge as CoreSurge, Thermostat as CoreThermostat, Trend as CoreTrend,
+    Window as CoreWindow,
 };
 
 /// A latitude and longitude in degrees.
@@ -401,4 +402,172 @@ pub fn bearing_between(from: Coord, to: Coord) -> f64 {
 #[napi]
 pub fn deadband(value: f64, center: f64, width: f64) -> f64 {
     f64::from(core_deadband(value as f32, center as f32, width as f32))
+}
+
+/// The number of readings a windowed helper keeps.
+///
+/// The Rust helpers are generic over their capacity, which has no JavaScript
+/// equivalent, so these are built at one documented size. The crate's own
+/// examples use three to eight readings, so this is headroom rather than a limit.
+#[napi]
+pub const WINDOW_CAPACITY: u32 = 32;
+
+/// The capacity every windowed helper here is built at.
+const CAPACITY: usize = 32;
+
+/// A rolling window of the most recent readings, with the stats over them.
+#[napi]
+pub struct Window {
+    inner: CoreWindow<CAPACITY>,
+}
+
+#[napi]
+impl Window {
+    /// Creates an empty window.
+    #[napi(constructor)]
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self {
+            inner: CoreWindow::new(),
+        }
+    }
+
+    /// Adds a reading, dropping the oldest once the window is full.
+    #[napi]
+    pub fn push(&mut self, reading: f64) {
+        self.inner.push(reading as f32);
+    }
+
+    /// How many readings the window holds.
+    #[napi(getter)]
+    pub fn len(&self) -> u32 {
+        self.inner.len() as u32
+    }
+
+    /// Whether the window is still waiting for its first reading.
+    #[napi(getter)]
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    /// How many readings the window holds before it starts dropping.
+    #[napi(getter)]
+    pub fn capacity(&self) -> u32 {
+        self.inner.capacity() as u32
+    }
+
+    /// The mean of the readings, or `null` while the window is empty.
+    #[napi]
+    pub fn mean(&self) -> Option<f64> {
+        self.inner.mean().map(f64::from)
+    }
+
+    /// The smallest reading, or `null` while the window is empty.
+    #[napi]
+    pub fn min(&self) -> Option<f64> {
+        self.inner.min().map(f64::from)
+    }
+
+    /// The largest reading, or `null` while the window is empty.
+    #[napi]
+    pub fn max(&self) -> Option<f64> {
+        self.inner.max().map(f64::from)
+    }
+
+    /// The spread between the smallest and largest readings.
+    #[napi]
+    pub fn range(&self) -> Option<f64> {
+        self.inner.range().map(f64::from)
+    }
+
+    /// The variance of the readings, or `null` without enough of them.
+    #[napi]
+    pub fn variance(&self) -> Option<f64> {
+        self.inner.variance().map(f64::from)
+    }
+}
+
+/// Rejects a single wild reading, where an average would let it pull the answer.
+#[napi]
+pub struct Median {
+    inner: CoreMedian<CAPACITY>,
+}
+
+#[napi]
+impl Median {
+    /// Creates an empty median filter.
+    #[napi(constructor)]
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self {
+            inner: CoreMedian::new(),
+        }
+    }
+
+    /// Folds a reading in and returns the median of the window.
+    #[napi]
+    pub fn update(&mut self, reading: f64) -> f64 {
+        f64::from(self.inner.update(reading as f32))
+    }
+
+    /// The current median, or `null` before the first reading.
+    #[napi]
+    pub fn value(&self) -> Option<f64> {
+        self.inner.median().map(f64::from)
+    }
+}
+
+/// Fits a line through recent readings, so a slow drift is visible before it matters.
+#[napi]
+pub struct Trend {
+    inner: CoreTrend<CAPACITY>,
+}
+
+#[napi]
+impl Trend {
+    /// Creates an empty trend estimator.
+    #[napi(constructor)]
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self {
+            inner: CoreTrend::new(),
+        }
+    }
+
+    /// Adds a reading.
+    #[napi]
+    pub fn push(&mut self, reading: f64) {
+        self.inner.push(reading as f32);
+    }
+
+    /// The fitted slope in units per reading, or `null` without enough readings.
+    ///
+    /// A positive slope is a rising signal.
+    #[napi]
+    pub fn slope(&self) -> Option<f64> {
+        self.inner.slope().map(f64::from)
+    }
+}
+
+/// Flags a reading that stands out from the ones around it.
+#[napi]
+pub struct Anomaly {
+    inner: CoreAnomaly<CAPACITY>,
+}
+
+#[napi]
+impl Anomaly {
+    /// Creates a detector that flags a reading `sigmas` deviations from the mean.
+    #[napi(constructor)]
+    pub fn new(sigmas: f64) -> Self {
+        Self {
+            inner: CoreAnomaly::new(sigmas as f32),
+        }
+    }
+
+    /// Folds a reading in and reports whether it stands out.
+    #[napi]
+    pub fn check(&mut self, reading: f64) -> bool {
+        self.inner.check(reading as f32)
+    }
 }

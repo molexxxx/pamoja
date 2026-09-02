@@ -132,7 +132,8 @@ pub unsafe extern "C" fn pamoja_bme280_calibration_new(
         Err(status) => return status,
     };
 
-    let Ok(temp_press) = <[u8; PAMOJA_BME280_CALIBRATION_TEMP_PRESS_LEN]>::try_from(&temp_press[..])
+    let Ok(temp_press) =
+        <[u8; PAMOJA_BME280_CALIBRATION_TEMP_PRESS_LEN]>::try_from(&temp_press[..])
     else {
         return wrong_length("temperature and pressure calibration", 26);
     };
@@ -200,9 +201,7 @@ pub unsafe extern "C" fn pamoja_bme280_compensate(
 /// `calibration` must be a handle from [`pamoja_bme280_calibration_new`] that has
 /// not already been freed, or null. After this call it must not be used again.
 #[no_mangle]
-pub unsafe extern "C" fn pamoja_bme280_calibration_free(
-    calibration: *mut PamojaBme280Calibration,
-) {
+pub unsafe extern "C" fn pamoja_bme280_calibration_free(calibration: *mut PamojaBme280Calibration) {
     if !calibration.is_null() {
         drop(Box::from_raw(calibration));
     }
@@ -741,7 +740,10 @@ mod tests {
             let mut byte = 0u8;
             // Safety: the out-pointer is writable.
             unsafe {
-                assert_eq!(pamoja_ds18b20_config_byte(bits, &mut byte), PamojaStatus::Ok);
+                assert_eq!(
+                    pamoja_ds18b20_config_byte(bits, &mut byte),
+                    PamojaStatus::Ok
+                );
             }
             assert_eq!(pamoja_ds18b20_resolution_bits(byte), bits);
         }
@@ -758,7 +760,10 @@ mod tests {
             458,
             "15 A over a 15-bit register, rounded up to the next whole microamp"
         );
-        assert_eq!(pamoja_ina219_current_microamps(1_000, CURRENT_LSB), 1_000_000);
+        assert_eq!(
+            pamoja_ina219_current_microamps(1_000, CURRENT_LSB),
+            1_000_000
+        );
         // The power LSB is fixed at twenty times the current LSB.
         assert_eq!(pamoja_ina219_power_microwatts(100, CURRENT_LSB), 2_000_000);
         assert!(pamoja_ina219_conversion_ready(0x0002));

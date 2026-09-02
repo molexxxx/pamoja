@@ -40,7 +40,10 @@ wire codecs (`Codec`, `Quantizer`), the helper math (`Smoother`, `Pid`,
 `Thermostat`, `Depletion`, `Geofence`, and the rest, with the stateless ones on
 `Kit`), and the field I/O a gateway needs: serial packet framing (`Serial`,
 `SlipDecoder`, `CobsDecoder`), Modbus RTU (`Modbus`, `ModbusFrame`), CAN and
-J1939 (`Can`), and on-board bus addressing (`I2c`, `Spi`, `Pin`). Each
+J1939 (`Can`), and on-board bus addressing (`I2c`, `Spi`, `Pin`). The sensor and
+actuator drivers are there too: `Bme280Calibration`, `Ds18b20`, `Ina219`, and
+`Ads1115` decode register bytes into readings, while `Pwm`, `Pca9685`, and
+`Stepper` encode a desired output into the bytes a driver applies. Each
 handle-backed type is `IDisposable`.
 
 ```csharp

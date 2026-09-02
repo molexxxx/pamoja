@@ -13,6 +13,7 @@
  */
 
 export {
+  Anomaly,
   bearingBetween,
   Calibration,
   type Coord,
@@ -22,11 +23,15 @@ export {
   distanceBetween,
   Geofence,
   Kalman,
+  Median,
   Pid,
   Ramp,
   Smoother,
   Surge,
   Thermostat,
+  Trend,
+  Window,
+  WINDOW_CAPACITY,
 } from '../index'
 
 /**
