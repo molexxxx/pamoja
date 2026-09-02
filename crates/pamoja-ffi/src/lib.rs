@@ -40,14 +40,22 @@ use pamoja_core::Error;
 pub mod actuators;
 #[cfg(feature = "audit")]
 pub mod audit;
+#[cfg(feature = "bus")]
+pub mod bus;
 #[cfg(feature = "can")]
 pub mod can;
+#[cfg(feature = "coap")]
+pub mod coap;
 #[cfg(feature = "codec")]
 pub mod codec;
 #[cfg(feature = "gpio")]
 pub mod gpio;
 #[cfg(feature = "kit")]
 pub mod kit;
+#[cfg(feature = "ladder")]
+pub mod ladder;
+#[cfg(feature = "loopback")]
+pub mod loopback;
 #[cfg(feature = "lora")]
 pub mod lora;
 #[cfg(feature = "lorawan")]
@@ -70,8 +78,14 @@ pub mod sensors;
 pub mod serial;
 #[cfg(feature = "session")]
 pub mod session;
+#[cfg(feature = "sim")]
+pub mod sim;
+#[cfg(feature = "sync")]
+pub mod sync;
 #[cfg(feature = "telemetry")]
 pub mod telemetry;
+#[cfg(feature = "runtime")]
+pub mod transport;
 #[cfg(feature = "update")]
 pub mod update;
 
@@ -175,6 +189,7 @@ pub extern "C" fn pamoja_last_error_message() -> *const c_char {
     feature = "mesh",
     feature = "modbus",
     feature = "mqtt",
+    feature = "runtime",
     feature = "security",
     feature = "sensors",
     feature = "serial",
@@ -200,10 +215,12 @@ pub(crate) unsafe fn read_bytes(ptr: *const u8, len: usize) -> Result<Vec<u8>, P
 /// [`pamoja_buffer_free`].
 #[cfg(any(
     feature = "audit",
+    feature = "bus",
     feature = "codec",
     feature = "lorawan",
     feature = "modbus",
     feature = "serial",
+    feature = "sync",
     feature = "update"
 ))]
 pub struct PamojaBuffer {
@@ -212,10 +229,12 @@ pub struct PamojaBuffer {
 
 #[cfg(any(
     feature = "audit",
+    feature = "bus",
     feature = "codec",
     feature = "lorawan",
     feature = "modbus",
     feature = "serial",
+    feature = "sync",
     feature = "update"
 ))]
 impl PamojaBuffer {
@@ -247,10 +266,12 @@ impl PamojaBuffer {
 /// `buffer` must be a live handle from a pamoja call that produced one, or null.
 #[cfg(any(
     feature = "audit",
+    feature = "bus",
     feature = "codec",
     feature = "lorawan",
     feature = "modbus",
     feature = "serial",
+    feature = "sync",
     feature = "update"
 ))]
 #[no_mangle]
@@ -272,10 +293,12 @@ pub unsafe extern "C" fn pamoja_buffer_data(buffer: *const PamojaBuffer) -> *con
 /// `buffer` must be a live handle from a pamoja call that produced one, or null.
 #[cfg(any(
     feature = "audit",
+    feature = "bus",
     feature = "codec",
     feature = "lorawan",
     feature = "modbus",
     feature = "serial",
+    feature = "sync",
     feature = "update"
 ))]
 #[no_mangle]
@@ -296,10 +319,12 @@ pub unsafe extern "C" fn pamoja_buffer_len(buffer: *const PamojaBuffer) -> usize
 /// not already been freed, or null. After this call it must not be used again.
 #[cfg(any(
     feature = "audit",
+    feature = "bus",
     feature = "codec",
     feature = "lorawan",
     feature = "modbus",
     feature = "serial",
+    feature = "sync",
     feature = "update"
 ))]
 #[no_mangle]
@@ -307,6 +332,53 @@ pub unsafe extern "C" fn pamoja_buffer_free(buffer: *mut PamojaBuffer) {
     if !buffer.is_null() {
         drop(Box::from_raw(buffer));
     }
+}
+
+/// Borrows a C string argument as `&str`, recording an error on null or non-UTF-8.
+///
+/// # Safety
+///
+/// `ptr` must be a valid null-terminated string for the duration of the call, or
+/// null.
+#[cfg(any(
+    feature = "coap",
+    feature = "ladder",
+    feature = "mqtt",
+    feature = "runtime",
+    feature = "sync"
+))]
+pub(crate) unsafe fn read_str<'a>(ptr: *const c_char, name: &str) -> Option<&'a str> {
+    if ptr.is_null() {
+        set_last_error(format!("{name} must not be null"));
+        return None;
+    }
+    match std::ffi::CStr::from_ptr(ptr).to_str() {
+        Ok(value) => Some(value),
+        Err(_) => {
+            set_last_error(format!("{name} must be valid UTF-8"));
+            None
+        }
+    }
+}
+
+/// The process-wide runtime that drives every blocking async call.
+#[cfg(feature = "runtime")]
+static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+
+/// Returns the shared Tokio runtime, building it on first use.
+///
+/// A multi-threaded runtime is required because several transports spawn a
+/// background event loop that has to keep running after a `block_on` returns.
+/// Every async capability shares this one executor, so a process that uses two
+/// of them does not carry two runtimes.
+#[cfg(feature = "runtime")]
+pub(crate) fn runtime() -> &'static tokio::runtime::Runtime {
+    RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("build the pamoja tokio runtime")
+    })
 }
 
 /// The version of the native pamoja library.

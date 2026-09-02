@@ -168,6 +168,14 @@ typedef enum {
   PamojaStepDirection_Backward = 1,
 } PamojaStepDirection;
 
+// Whether a CoAP request is acknowledged and retried.
+typedef enum {
+  // Fire and forget: the request is sent once and not acknowledged.
+  PamojaCoapReliability_NonConfirmable = 0,
+  // The request is acknowledged, and retransmitted until an ACK arrives.
+  PamojaCoapReliability_Confirmable = 1,
+} PamojaCoapReliability;
+
 // Which direction an I2C transfer runs, as the read/write bit encodes it.
 typedef enum {
   // The controller writes to the device. Read/write bit `0`.
@@ -213,6 +221,14 @@ typedef enum {
   // The fix just crossed from outside back inside.
   PamojaBoundary_Entered = 3,
 } PamojaBoundary;
+
+// What became of a message handed to a ladder.
+typedef enum {
+  // A rung took the message and it is on its way.
+  PamojaDelivery_Sent = 0,
+  // No rung would take it, so it is in the buffer awaiting a flush.
+  PamojaDelivery_Buffered = 1,
+} PamojaDelivery;
 
 // The direction a frame travelled, which its MIC and encryption both fold in.
 typedef enum {
@@ -387,6 +403,9 @@ typedef struct PamojaCalibration PamojaCalibration;
 // [`pamoja_can_frame_free`].
 typedef struct PamojaCanFrame PamojaCanFrame;
 
+// An opaque handle to a CoAP endpoint.
+typedef struct PamojaCoapClient PamojaCoapClient;
+
 // An opaque handle to a streaming COBS decoder.
 typedef struct PamojaCobsDecoder PamojaCobsDecoder;
 
@@ -398,6 +417,13 @@ typedef struct PamojaDepletion PamojaDepletion;
 
 // An opaque handle to a device's private signing identity.
 typedef struct PamojaDeviceIdentity PamojaDeviceIdentity;
+
+// An opaque handle to one endpoint on an event bus.
+//
+// A handle both publishes and receives. Each subscriber needs its own, taken
+// with [`pamoja_event_bus_subscribe`], because a handle only sees events
+// published after it existed.
+typedef struct PamojaEventBus PamojaEventBus;
 
 // An opaque handle to the frames one call to a streaming decoder completed.
 //
@@ -417,6 +443,23 @@ typedef struct PamojaImageVerifier PamojaImageVerifier;
 
 // An opaque handle to a one-dimensional Kalman filter.
 typedef struct PamojaKalman PamojaKalman;
+
+// An opaque handle to a ladder and the buffer behind it.
+//
+// The Rust builder takes the ladder by value to add a rung, which would move
+// the handle out from under a caller holding a pointer to it. Holding the
+// ladder in an option lets it be taken and put back so the handle address stays
+// good for the life of the ladder.
+typedef struct PamojaLadder PamojaLadder;
+
+// An opaque handle to an in-process broker.
+//
+// Every transport built from one broker shares its traffic, so a message one
+// publishes reaches the others that subscribed to the topic.
+typedef struct PamojaLoopbackBroker PamojaLoopbackBroker;
+
+// An opaque handle to one in-process link to a broker.
+typedef struct PamojaLoopbackTransport PamojaLoopbackTransport;
 
 // An opaque handle to the root credentials of a device.
 //
@@ -458,6 +501,12 @@ typedef struct PamojaMedian PamojaMedian;
 // [`pamoja_mesh_frame_free`].
 typedef struct PamojaMeshFrame PamojaMeshFrame;
 
+// An opaque handle to one message that arrived on a subscribed topic.
+//
+// CoAP and the loopback broker both hand back a topic and a payload, so one
+// handle serves them rather than a near-identical type per transport.
+typedef struct PamojaMessage PamojaMessage;
+
 // An opaque handle to a parsed Modbus RTU frame with a verified CRC.
 //
 // Read it with the `pamoja_modbus_frame_*` calls, then release it with
@@ -482,11 +531,17 @@ typedef struct PamojaRamp PamojaRamp;
 // release it with [`pamoja_readings_free`].
 typedef struct PamojaReadings PamojaReadings;
 
+// An opaque handle to an actuator that records what it was told to do.
+typedef struct PamojaRecordingActuator PamojaRecordingActuator;
+
 // An opaque handle to the 16-bit registers a device returned.
 //
 // Read it with [`pamoja_registers_data`] and [`pamoja_registers_len`], then
 // release it with [`pamoja_registers_free`].
 typedef struct PamojaRegisters PamojaRegisters;
+
+// An opaque handle to a sensor that replays a recorded series.
+typedef struct PamojaReplay PamojaReplay;
 
 // An opaque handle to one reporter and its counters.
 //
@@ -519,6 +574,12 @@ typedef struct PamojaSeenCache PamojaSeenCache;
 // [`pamoja_session_free`].
 typedef struct PamojaSession PamojaSession;
 
+// An opaque handle to a robot that moves only in arithmetic.
+typedef struct PamojaSimRobot PamojaSimRobot;
+
+// An opaque handle to a sensor that invents plausible readings.
+typedef struct PamojaSimSensor PamojaSimSensor;
+
 // An opaque handle to a streaming SLIP decoder.
 typedef struct PamojaSlipDecoder PamojaSlipDecoder;
 
@@ -530,11 +591,20 @@ typedef struct PamojaSmoother PamojaSmoother;
 // Release it with [`pamoja_stepper_free`].
 typedef struct PamojaStepper PamojaStepper;
 
+// An opaque handle to a store-and-forward buffer.
+typedef struct PamojaStore PamojaStore;
+
 // An opaque handle to a step-change detector.
 typedef struct PamojaSurge PamojaSurge;
 
 // An opaque handle to an on/off controller with hysteresis.
 typedef struct PamojaThermostat PamojaThermostat;
+
+// An opaque handle to one transport, ready to drive or to compose.
+//
+// Release it with [`pamoja_transport_free`] unless it has been consumed by a
+// call that takes ownership, such as adding it to a ladder.
+typedef struct PamojaTransport PamojaTransport;
 
 // An opaque handle to a trend estimator.
 typedef struct PamojaTrend PamojaTrend;
@@ -582,6 +652,24 @@ typedef struct {
   // `1` for an addressed (PDU1) message, `0` for a broadcast (PDU2) one.
   uint8_t addressed;
 } PamojaJ1939Id;
+
+// The settings a CoAP endpoint is built from.
+typedef struct {
+  // The peer hostname or IP address, as null-terminated UTF-8.
+  const char *host;
+  // The peer UDP port, conventionally 5683 for plaintext CoAP.
+  uint16_t port;
+  // The local address to bind, or null for the default.
+  const char *bind;
+  // Whether requests are acknowledged and retried.
+  PamojaCoapReliability reliability;
+  // How long to wait for an acknowledgement, in milliseconds, or 0 for the
+  // default.
+  uint32_t ack_timeout_ms;
+  // How many times to retransmit an unacknowledged request, or 0 for the
+  // default.
+  uint32_t max_retransmits;
+} PamojaCoapConfig;
 
 // A validated I2C device address.
 //
@@ -810,6 +898,26 @@ typedef struct {
   // The tag over the ciphertext and its associated data.
   uint8_t tag[PAMOJA_SESSION_TAG_LEN];
 } PamojaSealed;
+
+// Where a robot is and which way it faces.
+typedef struct {
+  // Position along the world x axis, in metres.
+  float x;
+  // Position along the world y axis, in metres.
+  float y;
+  // Heading from the world x axis, in radians, positive counter-clockwise.
+  float theta;
+} PamojaPose;
+
+// How fast a robot is asked to move.
+typedef struct {
+  // Forward speed along the x axis.
+  float vx;
+  // Leftward speed along the y axis; zero for drives that cannot strafe.
+  float vy;
+  // Yaw rate about the z axis, positive counter-clockwise.
+  float omega;
+} PamojaTwist;
 
 // A count of everything a reporter has seen, cheap enough to ship anywhere.
 //
@@ -1358,6 +1466,89 @@ PamojaStatus pamoja_audit_verify_chain(const uint8_t *public_key,
                                        const PamojaAuditEntry *const *entries,
                                        uintptr_t count);
 
+// Creates an event bus.
+//
+// # Arguments
+//
+// * `capacity` - how many events a slow subscriber may fall behind before it
+//   starts missing them.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_event_bus_free`].
+PamojaEventBus *pamoja_event_bus_new(uintptr_t capacity);
+
+// Takes another endpoint on the same bus.
+//
+// The new endpoint sees events published from now on, not those already sent,
+// so subscribe before publishing anything the subscriber needs to see.
+//
+// # Arguments
+//
+// * `bus` - an existing endpoint on the bus to join.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_event_bus_free`], or null if
+// `bus` is null.
+//
+// # Safety
+//
+// `bus` must be a live handle from [`pamoja_event_bus_new`] or this function,
+// or null.
+PamojaEventBus *pamoja_event_bus_subscribe(const PamojaEventBus *bus);
+
+// Publishes an event to every subscriber.
+//
+// # Arguments
+//
+// * `bus` - the endpoint to publish from.
+// * `payload` - the event bytes.
+// * `payload_len` - the length of `payload`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once every subscriber has been handed the event, or
+// [`PamojaStatus::Closed`] if the bus has shut down.
+//
+// # Safety
+//
+// `bus` must be a live handle, and `payload` must point to at least
+// `payload_len` readable bytes or be null when that length is 0.
+PamojaStatus pamoja_event_bus_publish(const PamojaEventBus *bus,
+                                      const uint8_t *payload,
+                                      uintptr_t payload_len);
+
+// Waits for the next event on this endpoint.
+//
+// # Arguments
+//
+// * `bus` - the endpoint to receive on.
+// * `out_event` - receives a buffer handle, or null when the bus has closed.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success. A null `out_event` with an `Ok` status means
+// the bus closed rather than that anything failed.
+//
+// # Safety
+//
+// `bus` must be a live handle and `out_event` must be writable.
+PamojaStatus pamoja_event_bus_next(PamojaEventBus *bus, PamojaBuffer **out_event);
+
+// Releases an event bus endpoint.
+//
+// Other endpoints on the same bus keep working.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `bus` must be a handle from [`pamoja_event_bus_new`] or
+// [`pamoja_event_bus_subscribe`] that has not already been freed, or null.
+// After this call it must not be used again.
+void pamoja_event_bus_free(PamojaEventBus *bus);
+
 // Builds a classic CAN 2.0 frame.
 //
 // # Returns
@@ -1557,6 +1748,156 @@ uint32_t pamoja_can_j1939_compose(uint8_t priority,
                                   uint32_t pgn,
                                   uint8_t source,
                                   uint8_t destination);
+
+// Creates a disconnected CoAP endpoint from the given settings.
+//
+// # Arguments
+//
+// * `config` - the endpoint settings.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_coap_client_free`], or null on
+// failure with the reason available from
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+//
+// # Safety
+//
+// `config` must point to a valid [`PamojaCoapConfig`] whose strings are valid
+// null-terminated UTF-8 for the duration of the call.
+PamojaCoapClient *pamoja_coap_client_new(const PamojaCoapConfig *config);
+
+// Binds the local socket so the endpoint can carry traffic.
+//
+// # Arguments
+//
+// * `client` - the endpoint.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once bound.
+//
+// # Safety
+//
+// `client` must be a live handle from [`pamoja_coap_client_new`].
+PamojaStatus pamoja_coap_client_connect(PamojaCoapClient *client);
+
+// Sends a payload to a resource path.
+//
+// # Arguments
+//
+// * `client` - the endpoint.
+// * `topic` - the resource path, as null-terminated UTF-8.
+// * `payload` - the bytes to send.
+// * `payload_len` - the length of `payload`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once the request has gone out.
+//
+// # Safety
+//
+// `client` must be a live handle, `topic` a valid null-terminated UTF-8
+// string, and `payload` must point to at least `payload_len` readable bytes or
+// be null when that length is 0.
+PamojaStatus pamoja_coap_client_send(PamojaCoapClient *client,
+                                     const char *topic,
+                                     const uint8_t *payload,
+                                     uintptr_t payload_len);
+
+// Observes a resource path, so messages published to it arrive at
+// [`pamoja_coap_client_recv`].
+//
+// # Arguments
+//
+// * `client` - the endpoint.
+// * `topic` - the resource path, as null-terminated UTF-8.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once observing.
+//
+// # Safety
+//
+// `client` must be a live handle and `topic` a valid null-terminated UTF-8
+// string.
+PamojaStatus pamoja_coap_client_subscribe(PamojaCoapClient *client, const char *topic);
+
+// Waits for the next message on an observed path.
+//
+// # Arguments
+//
+// * `client` - the endpoint.
+// * `out_message` - receives a message handle, or null when the endpoint is
+//   closed.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success. A null `out_message` with an `Ok` status
+// means the endpoint closed rather than that anything failed.
+//
+// # Safety
+//
+// `client` must be a live handle and `out_message` must be writable.
+PamojaStatus pamoja_coap_client_recv(PamojaCoapClient *client, PamojaMessage **out_message);
+
+// Reports whether the endpoint is bound.
+//
+// # Arguments
+//
+// * `client` - the endpoint.
+//
+// # Returns
+//
+// `true` when bound, or `false` if `client` is null.
+//
+// # Safety
+//
+// `client` must be a live handle from [`pamoja_coap_client_new`], or null.
+bool pamoja_coap_client_is_connected(PamojaCoapClient *client);
+
+// Releases the socket the endpoint holds.
+//
+// # Arguments
+//
+// * `client` - the endpoint.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once closed.
+//
+// # Safety
+//
+// `client` must be a live handle from [`pamoja_coap_client_new`].
+PamojaStatus pamoja_coap_client_disconnect(PamojaCoapClient *client);
+
+// Releases a CoAP endpoint handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `client` must be a handle from [`pamoja_coap_client_new`] that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_coap_client_free(PamojaCoapClient *client);
+
+// Creates a CoAP transport for composing into a ladder or a wrapper.
+//
+// # Arguments
+//
+// * `config` - the endpoint settings.
+//
+// # Returns
+//
+// A handle the caller must release with
+// [`pamoja_transport_free`](crate::transport::pamoja_transport_free) or hand to
+// a call that consumes it, or null on failure.
+//
+// # Safety
+//
+// `config` must point to a valid [`PamojaCoapConfig`] whose strings are valid
+// null-terminated UTF-8 for the duration of the call.
+PamojaTransport *pamoja_transport_coap(const PamojaCoapConfig *config);
 
 // Converts a JSON document into its CBOR encoding.
 //
@@ -2578,6 +2919,297 @@ bool pamoja_anomaly_check(PamojaAnomaly *anomaly, float reading);
 // `anomaly` must be a handle from [`pamoja_anomaly_new`] that has not already
 // been freed, or null. After this call it must not be used again.
 void pamoja_anomaly_free(PamojaAnomaly *anomaly);
+
+// Creates a ladder with no rungs, buffering into a store.
+//
+// # Arguments
+//
+// * `store` - the buffer to hold messages no rung would take, consumed by this
+//   call.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_ladder_free`], or null if
+// `store` is null.
+//
+// # Safety
+//
+// `store` must be a live handle from [`crate::sync`] that has not been freed or
+// consumed. After this call it must not be used again, whatever the result.
+PamojaLadder *pamoja_ladder_new(PamojaStore *store);
+
+// Adds a rung, which is tried after the rungs already added.
+//
+// Add the cheapest, most-preferred link first and the costliest fallback last,
+// because a send takes the first rung that accepts it.
+//
+// # Arguments
+//
+// * `ladder` - the ladder to add to.
+// * `transport` - the transport to add, consumed by this call.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once the rung is added.
+//
+// # Safety
+//
+// `ladder` must be a live handle, and `transport` a live transport handle that
+// has not been freed or consumed. After this call the transport must not be
+// used again, whatever the result.
+PamojaStatus pamoja_ladder_rung(PamojaLadder *ladder, PamojaTransport *transport);
+
+// Connects every rung, so a send can be tried against each in turn.
+//
+// A rung that will not connect is left in the ladder: it may come back, and a
+// send simply falls through it until it does.
+//
+// # Arguments
+//
+// * `ladder` - the ladder.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once the rungs have been tried.
+//
+// # Safety
+//
+// `ladder` must be a live handle from [`pamoja_ladder_new`].
+PamojaStatus pamoja_ladder_connect(PamojaLadder *ladder);
+
+// Sends a payload, falling through the rungs and buffering if none take it.
+//
+// # Arguments
+//
+// * `ladder` - the ladder.
+// * `topic` - the destination topic, as null-terminated UTF-8.
+// * `payload` - the bytes to send.
+// * `payload_len` - the length of `payload`.
+// * `out_delivery` - receives whether the message went out or was buffered.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `out_delivery` saying which happened.
+// Buffering is a success, not a failure: it is what the ladder exists to do.
+//
+// # Safety
+//
+// `ladder` must be a live handle, `topic` a valid null-terminated UTF-8 string,
+// `payload` must point to at least `payload_len` readable bytes or be null when
+// that length is 0, and `out_delivery` must be writable or null.
+PamojaStatus pamoja_ladder_send(PamojaLadder *ladder,
+                                const char *topic,
+                                const uint8_t *payload,
+                                uintptr_t payload_len,
+                                PamojaDelivery *out_delivery);
+
+// Replays the buffer over the rungs, oldest message first.
+//
+// # Arguments
+//
+// * `ladder` - the ladder.
+// * `out_sent` - receives how many buffered messages went out, or may be null.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `ladder` must be a live handle and `out_sent` writable or null.
+PamojaStatus pamoja_ladder_flush(PamojaLadder *ladder, uintptr_t *out_sent);
+
+// Reports how many messages are waiting in the buffer.
+//
+// # Arguments
+//
+// * `ladder` - the ladder.
+// * `out_count` - receives the count.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `ladder` must be a live handle and `out_count` must be writable.
+PamojaStatus pamoja_ladder_buffered(PamojaLadder *ladder, uintptr_t *out_count);
+
+// Releases a ladder handle, and the rungs and buffer it owns.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `ladder` must be a handle from [`pamoja_ladder_new`] that has not already
+// been freed, or null. After this call it must not be used again.
+void pamoja_ladder_free(PamojaLadder *ladder);
+
+// Creates an in-process broker with no traffic.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_loopback_broker_free`].
+PamojaLoopbackBroker *pamoja_loopback_broker_new(void);
+
+// Releases a broker handle.
+//
+// Transports already built from the broker keep working, because each holds
+// its own share of it.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `broker` must be a handle from [`pamoja_loopback_broker_new`] that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_loopback_broker_free(PamojaLoopbackBroker *broker);
+
+// Creates a link to a broker.
+//
+// # Arguments
+//
+// * `broker` - the broker to join. It is shared, not consumed, so the same
+//   broker can back as many links as the caller needs.
+//
+// # Returns
+//
+// A handle the caller must release with
+// [`pamoja_loopback_transport_free`], or null if `broker` is null.
+//
+// # Safety
+//
+// `broker` must be a live handle from [`pamoja_loopback_broker_new`], or null.
+PamojaLoopbackTransport *pamoja_loopback_transport_new(const PamojaLoopbackBroker *broker);
+
+// Marks a link connected so it will carry traffic.
+//
+// # Arguments
+//
+// * `transport` - the link.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once connected.
+//
+// # Safety
+//
+// `transport` must be a live handle from [`pamoja_loopback_transport_new`].
+PamojaStatus pamoja_loopback_transport_connect(PamojaLoopbackTransport *transport);
+
+// Publishes a payload to a topic on the broker.
+//
+// # Arguments
+//
+// * `transport` - the link.
+// * `topic` - the destination topic, as null-terminated UTF-8.
+// * `payload` - the bytes to publish.
+// * `payload_len` - the length of `payload`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once every subscriber has been handed the message.
+//
+// # Safety
+//
+// `transport` must be a live handle, `topic` a valid null-terminated UTF-8
+// string, and `payload` must point to at least `payload_len` readable bytes or
+// be null when that length is 0.
+PamojaStatus pamoja_loopback_transport_send(PamojaLoopbackTransport *transport,
+                                            const char *topic,
+                                            const uint8_t *payload,
+                                            uintptr_t payload_len);
+
+// Subscribes a link to a topic.
+//
+// # Arguments
+//
+// * `transport` - the link.
+// * `topic` - the topic to subscribe to, as null-terminated UTF-8.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once subscribed.
+//
+// # Safety
+//
+// `transport` must be a live handle and `topic` a valid null-terminated UTF-8
+// string.
+PamojaStatus pamoja_loopback_transport_subscribe(PamojaLoopbackTransport *transport,
+                                                 const char *topic);
+
+// Waits for the next message on a subscribed topic.
+//
+// # Arguments
+//
+// * `transport` - the link.
+// * `out_message` - receives a message handle, or null when the link is closed.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success. A null `out_message` with an `Ok` status
+// means the link closed rather than that anything failed.
+//
+// # Safety
+//
+// `transport` must be a live handle and `out_message` must be writable.
+PamojaStatus pamoja_loopback_transport_recv(PamojaLoopbackTransport *transport,
+                                            PamojaMessage **out_message);
+
+// Reports whether a link is connected.
+//
+// # Arguments
+//
+// * `transport` - the link.
+//
+// # Returns
+//
+// `true` when connected, or `false` if `transport` is null.
+//
+// # Safety
+//
+// `transport` must be a live handle from [`pamoja_loopback_transport_new`], or
+// null.
+bool pamoja_loopback_transport_is_connected(PamojaLoopbackTransport *transport);
+
+// Marks a link disconnected, so sends over it fail.
+//
+// # Arguments
+//
+// * `transport` - the link.
+//
+// # Safety
+//
+// `transport` must be a live handle from [`pamoja_loopback_transport_new`], or
+// null.
+void pamoja_loopback_transport_disconnect(PamojaLoopbackTransport *transport);
+
+// Releases a link handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `transport` must be a handle from [`pamoja_loopback_transport_new`] that has
+// not already been freed, or null. After this call it must not be used again.
+void pamoja_loopback_transport_free(PamojaLoopbackTransport *transport);
+
+// Creates a loopback transport for composing into a ladder or a wrapper.
+//
+// # Arguments
+//
+// * `broker` - the broker to join, shared rather than consumed.
+//
+// # Returns
+//
+// A handle the caller must release with
+// [`pamoja_transport_free`](crate::transport::pamoja_transport_free) or hand to
+// a call that consumes it, or null if `broker` is null.
+//
+// # Safety
+//
+// `broker` must be a live handle from [`pamoja_loopback_broker_new`], or null.
+PamojaTransport *pamoja_transport_loopback(const PamojaLoopbackBroker *broker);
 
 // Returns the settings for a spreading factor and bandwidth, with LoRa defaults.
 //
@@ -5184,6 +5816,359 @@ PamojaStatus pamoja_session_hkdf_sha256(const uint8_t *salt,
                                         uint8_t *out,
                                         uintptr_t out_len);
 
+// Creates a sensor that reads around a baseline.
+//
+// # Arguments
+//
+// * `baseline` - the value it reads before drift and noise.
+// * `drift_per_read` - how much the baseline moves each read, or 0 for none.
+// * `noise` - the amplitude of the wobble around it, or 0 for none.
+// * `seed` - the seed for that wobble, so a run repeats.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_sim_sensor_free`].
+PamojaSimSensor *pamoja_sim_sensor_new(float baseline,
+                                       float drift_per_read,
+                                       float noise,
+                                       uint32_t seed);
+
+// Takes the next reading.
+//
+// # Arguments
+//
+// * `sensor` - the sensor.
+// * `out_reading` - receives the reading.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `sensor` must be a live handle from [`pamoja_sim_sensor_new`] and
+// `out_reading` must be writable.
+PamojaStatus pamoja_sim_sensor_read(PamojaSimSensor *sensor, float *out_reading);
+
+// Releases a simulated sensor handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `sensor` must be a handle from [`pamoja_sim_sensor_new`] that has not already
+// been freed, or null. After this call it must not be used again.
+void pamoja_sim_sensor_free(PamojaSimSensor *sensor);
+
+// Creates a sensor that reads back a recorded series.
+//
+// This is how a caller replays a real capture, so a test asks what the code
+// does with readings that actually happened rather than ones it invented.
+//
+// # Arguments
+//
+// * `readings` - the series to read back.
+// * `count` - how many readings `readings` holds.
+// * `repeating` - `true` to start again at the beginning once exhausted,
+//   `false` to keep returning the last one.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_replay_free`].
+//
+// # Safety
+//
+// `readings` must point to at least `count` readable floats, or be null when
+// `count` is 0.
+PamojaReplay *pamoja_replay_new(const float *readings, uintptr_t count, bool repeating);
+
+// Takes the next reading from a replay.
+//
+// # Arguments
+//
+// * `replay` - the replay.
+// * `out_reading` - receives the reading.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `replay` must be a live handle from [`pamoja_replay_new`] and `out_reading`
+// must be writable.
+PamojaStatus pamoja_replay_read(PamojaReplay *replay, float *out_reading);
+
+// Releases a replay handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `replay` must be a handle from [`pamoja_replay_new`] that has not already
+// been freed, or null. After this call it must not be used again.
+void pamoja_replay_free(PamojaReplay *replay);
+
+// Creates an actuator that records every command instead of acting on one.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_recording_actuator_free`].
+PamojaRecordingActuator *pamoja_recording_actuator_new(void);
+
+// Applies a command, which the actuator records rather than acts on.
+//
+// # Arguments
+//
+// * `actuator` - the actuator.
+// * `command` - the value commanded.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `actuator` must be a live handle from [`pamoja_recording_actuator_new`].
+PamojaStatus pamoja_recording_actuator_apply(PamojaRecordingActuator *actuator, float command);
+
+// Reports how many commands an actuator has been given.
+//
+// # Arguments
+//
+// * `actuator` - the actuator.
+//
+// # Returns
+//
+// The number of commands, or 0 if `actuator` is null.
+//
+// # Safety
+//
+// `actuator` must be a live handle from [`pamoja_recording_actuator_new`], or
+// null.
+uintptr_t pamoja_recording_actuator_len(const PamojaRecordingActuator *actuator);
+
+// Copies out the commands an actuator recorded, oldest first.
+//
+// # Arguments
+//
+// * `actuator` - the actuator.
+// * `out_commands` - receives up to `capacity` commands.
+// * `capacity` - how many floats `out_commands` can hold.
+//
+// # Returns
+//
+// How many commands were written, which is the smaller of `capacity` and the
+// count from [`pamoja_recording_actuator_len`].
+//
+// # Safety
+//
+// `actuator` must be a live handle, and `out_commands` must point to at least
+// `capacity` writable floats or be null when `capacity` is 0.
+uintptr_t pamoja_recording_actuator_commands(const PamojaRecordingActuator *actuator,
+                                             float *out_commands,
+                                             uintptr_t capacity);
+
+// Releases a recording actuator handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `actuator` must be a handle from [`pamoja_recording_actuator_new`] that has
+// not already been freed, or null. After this call it must not be used again.
+void pamoja_recording_actuator_free(PamojaRecordingActuator *actuator);
+
+// Creates a robot that moves only in arithmetic.
+//
+// # Arguments
+//
+// * `start` - the pose it begins at.
+// * `dt` - the seconds each command advances it; its magnitude is used.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_sim_robot_free`].
+PamojaSimRobot *pamoja_sim_robot_new(PamojaPose start, float dt);
+
+// Drives the robot for one time step.
+//
+// # Arguments
+//
+// * `robot` - the robot.
+// * `command` - the speeds to hold for one step.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `robot` must be a live handle from [`pamoja_sim_robot_new`].
+PamojaStatus pamoja_sim_robot_apply(PamojaSimRobot *robot, PamojaTwist command);
+
+// Reads where the robot has got to.
+//
+// # Arguments
+//
+// * `robot` - the robot.
+//
+// # Returns
+//
+// The pose reached so far, or an all-zero pose if `robot` is null.
+//
+// # Safety
+//
+// `robot` must be a live handle from [`pamoja_sim_robot_new`], or null.
+PamojaPose pamoja_sim_robot_pose(const PamojaSimRobot *robot);
+
+// Releases a simulated robot handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `robot` must be a handle from [`pamoja_sim_robot_new`] that has not already
+// been freed, or null. After this call it must not be used again.
+void pamoja_sim_robot_free(PamojaSimRobot *robot);
+
+// Creates a buffer held in memory.
+//
+// # Arguments
+//
+// * `capacity` - the most records to hold, or 0 for no bound. A full store
+//   refuses the next append rather than dropping anything, so a record is
+//   never lost without the caller being told.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_store_free`] or hand to a call
+// that consumes it.
+PamojaStore *pamoja_store_memory(uintptr_t capacity);
+
+// Opens a buffer backed by a directory, so it survives a restart.
+//
+// # Arguments
+//
+// * `dir` - the directory to hold records in, as null-terminated UTF-8. It is
+//   created if it does not exist.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_store_free`] or hand to a call
+// that consumes it, or null if the directory cannot be opened.
+//
+// # Safety
+//
+// `dir` must be a valid null-terminated UTF-8 string for the duration of the
+// call.
+PamojaStore *pamoja_store_file(const char *dir);
+
+// Adds a record to the end of a buffer.
+//
+// # Arguments
+//
+// * `store` - the buffer.
+// * `record` - the bytes to hold.
+// * `record_len` - the length of `record`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once the record is held.
+//
+// # Safety
+//
+// `store` must be a live handle, and `record` must point to at least
+// `record_len` readable bytes or be null when that length is 0.
+PamojaStatus pamoja_store_append(PamojaStore *store, const uint8_t *record, uintptr_t record_len);
+
+// Reads the oldest record without removing it.
+//
+// # Arguments
+//
+// * `store` - the buffer.
+// * `out_record` - receives a buffer handle, or null when the store is empty.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success. A null `out_record` with an `Ok` status
+// means the buffer is empty.
+//
+// # Safety
+//
+// `store` must be a live handle and `out_record` must be writable.
+PamojaStatus pamoja_store_peek(PamojaStore *store, PamojaBuffer **out_record);
+
+// Removes and returns the oldest record.
+//
+// # Arguments
+//
+// * `store` - the buffer.
+// * `out_record` - receives a buffer handle, or null when the store is empty.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success. A null `out_record` with an `Ok` status
+// means the buffer is empty.
+//
+// # Safety
+//
+// `store` must be a live handle and `out_record` must be writable.
+PamojaStatus pamoja_store_pop(PamojaStore *store, PamojaBuffer **out_record);
+
+// Reports how many records a buffer holds.
+//
+// # Arguments
+//
+// * `store` - the buffer.
+// * `out_len` - receives the count.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `store` must be a live handle and `out_len` must be writable.
+PamojaStatus pamoja_store_len(PamojaStore *store, uintptr_t *out_len);
+
+// Sends every held record over a transport, oldest first.
+//
+// A record is removed only once the transport has taken it, so a link that
+// fails part-way leaves the rest of the queue intact for the next attempt.
+//
+// # Arguments
+//
+// * `store` - the buffer to drain.
+// * `transport` - the transport to send over, borrowed rather than consumed.
+// * `topic` - the topic to send to, as null-terminated UTF-8.
+// * `out_sent` - receives how many records went out, or may be null.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] if the whole buffer drained, or a transport error with
+// `out_sent` holding how many got through before it stopped.
+//
+// # Safety
+//
+// `store` and `transport` must be live handles, `topic` a valid
+// null-terminated UTF-8 string, and `out_sent` writable or null.
+PamojaStatus pamoja_store_drain_to(PamojaStore *store,
+                                   PamojaTransport *transport,
+                                   const char *topic,
+                                   uintptr_t *out_sent);
+
+// Releases a store handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `store` must be a handle from a call that produced one and that has not
+// already been freed or consumed, or null. After this call it must not be used
+// again.
+void pamoja_store_free(PamojaStore *store);
+
 // Returns the level a link cost calls for.
 //
 // # Arguments
@@ -5351,6 +6336,188 @@ PamojaTelemetrySnapshot pamoja_reporter_snapshot(const PamojaReporter *reporter)
 // `reporter` must be a handle from [`pamoja_reporter_new`] that has not already
 // been freed, or null. After this call it must not be used again.
 void pamoja_reporter_free(PamojaReporter *reporter);
+
+// Returns the topic a message arrived on.
+//
+// # Arguments
+//
+// * `message` - the message.
+//
+// # Returns
+//
+// A null-terminated UTF-8 string owned by the message and valid until it is
+// freed, or null if `message` is null.
+//
+// # Safety
+//
+// `message` must be a live handle from a call that produced one, or null.
+const char *pamoja_message_topic(const PamojaMessage *message);
+
+// Returns a pointer to a message payload.
+//
+// # Arguments
+//
+// * `message` - the message.
+//
+// # Returns
+//
+// A pointer to the bytes, valid until the message is freed, or null if
+// `message` is null.
+//
+// # Safety
+//
+// `message` must be a live handle from a call that produced one, or null.
+const uint8_t *pamoja_message_payload(const PamojaMessage *message);
+
+// Returns the length in bytes of a message payload.
+//
+// # Arguments
+//
+// * `message` - the message.
+//
+// # Returns
+//
+// The length, or 0 if `message` is null.
+//
+// # Safety
+//
+// `message` must be a live handle from a call that produced one, or null.
+uintptr_t pamoja_message_payload_len(const PamojaMessage *message);
+
+// Releases a message handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `message` must be a handle from a call that produced one and that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_message_free(PamojaMessage *message);
+
+// Creates an MQTT transport from broker settings.
+//
+// # Arguments
+//
+// * `config` - the broker settings, read the same way a client reads them.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_transport_free`] or hand to a
+// call that consumes it, or null on failure.
+//
+// # Safety
+//
+// `config` must point to a valid config whose strings are valid
+// null-terminated UTF-8 for the duration of the call.
+PamojaTransport *pamoja_transport_mqtt(const PamojaMqttConfig *config);
+
+// Wraps a transport so a set number of its next sends fail.
+//
+// This is how a caller checks that a ladder falls through to its next rung, or
+// that a buffer fills, without unplugging anything.
+//
+// # Arguments
+//
+// * `transport` - the transport to wrap, consumed by this call.
+// * `failures` - how many upcoming sends to fail.
+//
+// # Returns
+//
+// A new handle owning the wrapped transport, or null if `transport` is null.
+//
+// # Safety
+//
+// `transport` must be a live handle that has not been freed or consumed. After
+// this call it must not be used again, whatever the result.
+PamojaTransport *pamoja_transport_faulty(PamojaTransport *transport, uintptr_t failures);
+
+// Wraps a transport in a link that loses packets and goes down.
+//
+// # Arguments
+//
+// * `transport` - the transport to wrap, consumed by this call.
+// * `drop_every` - lose one send in every this many, or 0 to lose none.
+// * `up` - how many sends the link stays up for, or 0 to never go down.
+// * `down` - how many sends it then stays down for.
+//
+// # Returns
+//
+// A new handle owning the wrapped transport, or null if `transport` is null.
+//
+// # Safety
+//
+// `transport` must be a live handle that has not been freed or consumed. After
+// this call it must not be used again, whatever the result.
+PamojaTransport *pamoja_transport_degraded(PamojaTransport *transport,
+                                           uint32_t drop_every,
+                                           uint32_t up,
+                                           uint32_t down);
+
+// Connects a transport.
+//
+// # Arguments
+//
+// * `transport` - the transport to connect.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once connected.
+//
+// # Safety
+//
+// `transport` must be a live handle that has not been freed or consumed.
+PamojaStatus pamoja_transport_connect(PamojaTransport *transport);
+
+// Sends a payload to a topic over a transport.
+//
+// # Arguments
+//
+// * `transport` - the transport to send over.
+// * `topic` - the destination topic, as null-terminated UTF-8.
+// * `payload` - the bytes to send.
+// * `payload_len` - the length of `payload`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once the transport has taken the payload.
+//
+// # Safety
+//
+// `transport` must be a live handle, `topic` a valid null-terminated UTF-8
+// string, and `payload` must point to at least `payload_len` readable bytes or
+// be null when that length is 0.
+PamojaStatus pamoja_transport_send(PamojaTransport *transport,
+                                   const char *topic,
+                                   const uint8_t *payload,
+                                   uintptr_t payload_len);
+
+// Subscribes a transport to a topic.
+//
+// # Arguments
+//
+// * `transport` - the transport to subscribe.
+// * `topic` - the topic to subscribe to, as null-terminated UTF-8.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once subscribed.
+//
+// # Safety
+//
+// `transport` must be a live handle and `topic` a valid null-terminated UTF-8
+// string.
+PamojaStatus pamoja_transport_subscribe(PamojaTransport *transport, const char *topic);
+
+// Releases a transport handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `transport` must be a handle that has not already been freed or consumed by
+// a call that takes ownership, or null. After this call it must not be used
+// again.
+void pamoja_transport_free(PamojaTransport *transport);
 
 // Encodes the body of a manifest, which is the part a signature covers.
 //
