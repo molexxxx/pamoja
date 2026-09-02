@@ -1515,7 +1515,7 @@ export interface LoraLink {
  * Returns the settings for a spreading factor and bandwidth, with LoRa defaults.
  *
  * The defaults are coding rate 4/5, an eight-symbol preamble, an explicit header,
- * and CRC on, which is a typical uplink. The spreading factor is clamped to 7-12.
+ * and CRC on, which is a typical uplink. The spreading factor is clamped to 5-12.
  */
 export declare function loraLinkDefault(spreadingFactor: number, bandwidthHz: number): LoraLink
 

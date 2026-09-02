@@ -1879,7 +1879,7 @@ static void ConformLora(JsonElement vector)
         Assert(
             new LoraLink(clamp.GetProperty("asked").GetByte(), 125_000).SpreadingFactor
                 == clamp.GetProperty("used").GetByte(),
-            "a spreading factor outside 7 to 12 is clamped");
+            "a spreading factor outside 5 to 12 is clamped");
     }
 
     // Rust saturates the off time when transmitting is forbidden; the facade

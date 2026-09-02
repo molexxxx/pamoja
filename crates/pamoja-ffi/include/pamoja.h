@@ -3404,7 +3404,7 @@ PamojaTransport *pamoja_transport_loopback(const PamojaLoopbackBroker *broker);
 //
 // # Arguments
 //
-// * `spreading_factor` - the spreading factor, clamped to 7-12.
+// * `spreading_factor` - the spreading factor, clamped to 5-12.
 // * `bandwidth_hz` - the channel bandwidth in hertz.
 //
 // # Returns

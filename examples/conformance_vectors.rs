@@ -948,7 +948,8 @@ fn lora() -> Value {
 
     json!({
         "links": described,
-        // A spreading factor outside 7 to 12 is clamped rather than refused.
+        // A spreading factor outside 5 to 12 is clamped rather than refused. The
+        // floor is 5 because RP002-1.0.5 defines SF6 and SF5 data rates.
         "clamped": [
             { "asked": 2, "used": LinkSettings::new(2, 125_000).spreading_factor() },
             { "asked": 15, "used": LinkSettings::new(15, 125_000).spreading_factor() },

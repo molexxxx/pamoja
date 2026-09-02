@@ -61,7 +61,7 @@ impl LoraLink {
         crc: bool,
     ) -> Self {
         LoraLink {
-            spreading_factor: spreading_factor.clamp(7, 12),
+            spreading_factor: spreading_factor.clamp(5, 12),
             bandwidth_hz,
             coding_rate_denominator: coding_rate_denominator.clamp(5, 8),
             preamble_symbols,

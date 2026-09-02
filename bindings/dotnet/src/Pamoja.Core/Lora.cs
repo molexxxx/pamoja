@@ -15,7 +15,7 @@ public sealed class LoraLink
 
     /// <summary>Creates link settings with the LoRa defaults filled in.</summary>
     /// <param name="spreadingFactor">
-    /// The spreading factor, clamped to 7 (fastest) to 12 (longest range).
+    /// The spreading factor, clamped to 5 (fastest) to 12 (longest range).
     /// </param>
     /// <param name="bandwidthHz">The channel bandwidth in hertz, such as 125000.</param>
     public LoraLink(byte spreadingFactor, uint bandwidthHz)

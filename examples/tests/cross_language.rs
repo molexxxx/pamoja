@@ -908,7 +908,7 @@ fn lora_vectors_match() {
         assert_eq!(
             LinkSettings::new(asked, 125_000).spreading_factor(),
             clamp["used"].as_u64().expect("a factor") as u8,
-            "a spreading factor outside 7 to 12 is clamped"
+            "a spreading factor outside 5 to 12 is clamped"
         );
     }
 

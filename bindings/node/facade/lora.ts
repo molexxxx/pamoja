@@ -27,7 +27,7 @@ export { type LoraLink }
  * and CRC on, which is a typical uplink. Adjust the returned object to change any
  * of them.
  *
- * @param spreadingFactor - The spreading factor, clamped to 7 (fastest) to 12
+ * @param spreadingFactor - The spreading factor, clamped to 5 (fastest) to 12
  *   (longest range).
  * @param bandwidthHz - The channel bandwidth in hertz, such as 125000.
  * @returns The link settings.
