@@ -10,16 +10,19 @@
 use std::fs;
 use std::path::PathBuf;
 
+use pamoja_actuators::{pca9685, stepper};
 use pamoja_can::{dlc_to_len, len_to_dlc, CanId, Frame, J1939Id};
 use pamoja_codec::{encode_deltas, json_to_cbor, Quantizer};
 use pamoja_gpio::i2c::{Address, Direction};
 use pamoja_gpio::pin::{Edge, Level, Polarity};
 use pamoja_gpio::spi::Mode;
 use pamoja_kit::{
-    deadband, Boundary, Calibration, Coordinate, Depletion, Geofence, Pid, Smoother, Thermostat,
+    deadband, Anomaly, Boundary, Calibration, Coordinate, Depletion, Geofence, Median, Pid,
+    Smoother, Thermostat, Trend, Window,
 };
 use pamoja_modbus::{crc16, Adu, Pdu, Response};
 use pamoja_security::DeviceIdentity;
+use pamoja_sensors::{ads1115, bme280, ds18b20, ina219};
 use pamoja_serial::{cobs, slip};
 use serde_json::{json, Value};
 
@@ -50,6 +53,9 @@ fn main() {
         "modbus": modbus(),
         "can": can(),
         "gpio": gpio(),
+        "sensors": sensors(),
+        "actuators": actuators(),
+        "windows": windows(),
     });
 
     let path = repo_root().join("conformance").join("vectors.json");
@@ -526,6 +532,254 @@ fn polarity_name(polarity: Polarity) -> &'static str {
         Polarity::ActiveHigh => "ActiveHigh",
         Polarity::ActiveLow => "ActiveLow",
     }
+}
+
+/// The sensor decoders, over register bytes taken from the parts' own datasheets.
+fn sensors() -> Value {
+    // The compensation coefficients from the Bosch BME280 datasheet's worked
+    // example, laid out in the register order a burst read returns them in.
+    let mut temp_press = [0u8; 26];
+    temp_press[0..2].copy_from_slice(&27_504u16.to_le_bytes());
+    temp_press[2..4].copy_from_slice(&26_435i16.to_le_bytes());
+    temp_press[4..6].copy_from_slice(&(-1_000i16).to_le_bytes());
+    temp_press[6..8].copy_from_slice(&36_477u16.to_le_bytes());
+    temp_press[8..10].copy_from_slice(&(-10_685i16).to_le_bytes());
+    temp_press[10..12].copy_from_slice(&3_024i16.to_le_bytes());
+    temp_press[12..14].copy_from_slice(&2_855i16.to_le_bytes());
+    temp_press[14..16].copy_from_slice(&140i16.to_le_bytes());
+    temp_press[16..18].copy_from_slice(&(-7i16).to_le_bytes());
+    temp_press[18..20].copy_from_slice(&15_500i16.to_le_bytes());
+    temp_press[20..22].copy_from_slice(&(-14_600i16).to_le_bytes());
+    temp_press[22..24].copy_from_slice(&6_000i16.to_le_bytes());
+    temp_press[25] = 75;
+    let humidity = [0x64u8, 0x01, 0x00, 0x14, 0x2D, 0x03, 0x1E];
+
+    // The data registers, carrying the datasheet's raw temperature and pressure.
+    let measurement = [0x65, 0x5A, 0xC0, 0x7E, 0xED, 0x00, 0x7F, 0xFF];
+    let calibration = bme280::Calibration::from_registers(&temp_press, &humidity);
+    let reading = calibration.compensate(&bme280::RawMeasurement::from_registers(&measurement));
+
+    // A DS18B20 reporting 25.0625 C at 12-bit resolution, CRC included.
+    let mut scratchpad = [0x91u8, 0x01, 0x4B, 0x46, 0x7F, 0xFF, 0x0C, 0x10, 0x00];
+    scratchpad[8] = ds18b20::crc8(&scratchpad[..8]);
+    let mut corrupt = scratchpad;
+    corrupt[0] ^= 0xFF;
+    let decoded = ds18b20::Scratchpad::parse(&scratchpad).expect("parse the scratchpad");
+
+    let resolutions: Vec<Value> = [9u8, 10, 11, 12]
+        .iter()
+        .map(|&bits| {
+            let resolution = match bits {
+                9 => ds18b20::Resolution::Bits9,
+                10 => ds18b20::Resolution::Bits10,
+                11 => ds18b20::Resolution::Bits11,
+                _ => ds18b20::Resolution::Bits12,
+            };
+            json!({
+                "bits": bits,
+                "configByte": resolution.config_byte(),
+                "stepMicroCelsius": resolution.step_micro_celsius(),
+                "maxConversionMicros": resolution.max_conversion_micros(),
+            })
+        })
+        .collect();
+
+    // The INA219 datasheet's design example: 15 A across a 2 milliohm shunt.
+    const CURRENT_LSB: u32 = 1_000;
+
+    let gains: Vec<Value> = (0u8..8)
+        .map(|code| {
+            json!({
+                "pga": code,
+                "fullScaleMicrovolts": ads1115::Pga::from_code(code).full_scale_microvolts(),
+                "nanovoltsAtFullScale": ads1115::to_nanovolts(ads1115::Pga::from_code(code), 32_767),
+            })
+        })
+        .collect();
+    let rates: Vec<Value> = (0u8..8)
+        .map(|code| {
+            json!({
+                "dataRate": code,
+                "samplesPerSecond": ads1115::DataRate::from_code(code).samples_per_second(),
+            })
+        })
+        .collect();
+    let reset = ads1115::Config::from_bits(ads1115::CONFIG_RESET);
+
+    json!({
+        "bme280": {
+            "calibrationTempPress": hex(&temp_press),
+            "calibrationHumidity": hex(&humidity),
+            "measurement": hex(&measurement),
+            "celsius": reading.celsius(),
+            "pascals": reading.pascals(),
+            "hectopascals": reading.hectopascals(),
+            "relativeHumidityPercent": reading.relative_humidity_percent(),
+        },
+        "ds18b20": {
+            "scratchpad": hex(&scratchpad),
+            "corruptScratchpad": hex(&corrupt),
+            "rawTemperature": decoded.raw_temperature(),
+            "microCelsius": decoded.temperature_micro_celsius(),
+            "celsius": decoded.temperature_celsius(),
+            "alarmHigh": decoded.alarm_high(),
+            "alarmLow": decoded.alarm_low(),
+            "resolutionBits": decoded.resolution().bits(),
+            "resolutions": resolutions,
+            "invalidResolution": 8,
+            "crcData": hex(&scratchpad[..8]),
+            "crc": ds18b20::crc8(&scratchpad[..8]),
+        },
+        "ina219": {
+            "currentLsbMicroamps": CURRENT_LSB,
+            "shuntMilliohms": 2,
+            "calibration": ina219::calibration(CURRENT_LSB, 2),
+            "maxExpectedMicroamps": 15_000_000u32,
+            "minimumCurrentLsbMicroamps": ina219::minimum_current_lsb_microamps(15_000_000),
+            "rawShunt": 1_000,
+            "shuntMicrovolts": ina219::shunt_microvolts(1_000),
+            "rawBus": 0x1F40u16,
+            "busMillivolts": ina219::bus_millivolts(0x1F40),
+            "conversionReady": ina219::conversion_ready(0x0002),
+            "mathOverflow": ina219::math_overflow(0x0001),
+            "rawCurrent": 1_000,
+            "currentMicroamps": ina219::current_microamps(1_000, CURRENT_LSB),
+            "rawPower": 100u16,
+            "powerMicrowatts": ina219::power_microwatts(100, CURRENT_LSB),
+        },
+        "ads1115": {
+            "configReset": ads1115::CONFIG_RESET,
+            "resetConfig": {
+                "startConversion": reset.start_conversion,
+                "mux": reset.mux.code(),
+                "pga": reset.pga.code(),
+                "singleShot": matches!(reset.mode, ads1115::Mode::SingleShot),
+                "dataRate": reset.data_rate.code(),
+                "windowComparator": matches!(reset.comparator_mode, ads1115::ComparatorMode::Window),
+                "comparatorActiveHigh": matches!(
+                    reset.comparator_polarity,
+                    ads1115::ComparatorPolarity::ActiveHigh
+                ),
+                "comparatorLatching": matches!(
+                    reset.comparator_latch,
+                    ads1115::ComparatorLatch::Latching
+                ),
+                "comparatorQueue": reset.comparator_queue.code(),
+            },
+            "gains": gains,
+            "rates": rates,
+        },
+    })
+}
+
+/// The actuator encoders, and the coil patterns a stepper walks.
+fn actuators() -> Value {
+    let cycle: Vec<u8> = {
+        let mut sequencer = stepper::Sequencer::new(stepper::Drive::HalfStep);
+        let mut patterns = vec![sequencer.coils()];
+        for _ in 0..stepper::Drive::HalfStep.step_count() {
+            patterns.push(sequencer.step(stepper::Direction::Forward));
+        }
+        patterns
+    };
+
+    json!({
+        "pca9685": {
+            "internalOscHz": pca9685::INTERNAL_OSC_HZ,
+            "channels": pca9685::CHANNELS,
+            "counts": pca9685::COUNTS,
+            "channelRegisters": (0..pca9685::CHANNELS)
+                .map(|channel| json!({
+                    "channel": channel,
+                    "register": pca9685::channel_register(channel),
+                }))
+                .collect::<Vec<Value>>(),
+            "invalidChannel": pca9685::CHANNELS,
+            "updateRateHz": 50,
+            "prescale": pca9685::prescale_for_frequency(50, pca9685::INTERNAL_OSC_HZ),
+            "frequencyForPrescale": pca9685::frequency_for_prescale(
+                pca9685::prescale_for_frequency(50, pca9685::INTERNAL_OSC_HZ),
+                pca9685::INTERNAL_OSC_HZ,
+            ),
+        },
+        "pwm": {
+            "duty": { "off": 2048, "bytes": hex(&pca9685::Pwm::duty(2048).bytes()) },
+            "servoCentre": {
+                "pulseMicros": 1_500,
+                "updateRateHz": 50,
+                "bytes": hex(&pca9685::Pwm::servo(1_500, 50).bytes()),
+            },
+            "fullOn": hex(&pca9685::Pwm::full_on().bytes()),
+            "fullOff": hex(&pca9685::Pwm::full_off().bytes()),
+        },
+        "stepper": {
+            "drive": "HalfStep",
+            "stepCount": stepper::Drive::HalfStep.step_count(),
+            "forwardCycle": cycle,
+            "waveStepCount": stepper::Drive::Wave.step_count(),
+            "fullStepCount": stepper::Drive::FullStep.step_count(),
+            "degrees": 90.0,
+            "stepsPerRevolution": 200,
+            "stepsForDegrees": stepper::steps_for_degrees(90.0, 200),
+        },
+    })
+}
+
+/// The windowed helpers, at the fixed capacity every binding builds them with.
+fn windows() -> Value {
+    let readings: Vec<f32> = vec![10.0, 20.0, 30.0, 20.0, 900.0, 20.0];
+
+    let mut window: Window<32> = Window::new();
+    let mut window_states: Vec<Value> = Vec::new();
+    for &reading in &readings {
+        window.push(reading);
+        window_states.push(json!({
+            "len": window.len(),
+            "mean": window.mean(),
+            "min": window.min(),
+            "max": window.max(),
+            "range": window.range(),
+        }));
+    }
+
+    let mut median: Median<32> = Median::new();
+    let medians: Vec<f32> = readings
+        .iter()
+        .map(|&reading| median.update(reading))
+        .collect();
+
+    let rising: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
+    let mut trend: Trend<32> = Trend::new();
+    let slopes: Vec<Value> = rising
+        .iter()
+        .map(|&reading| {
+            trend.push(reading);
+            match trend.slope() {
+                Some(slope) => json!(slope),
+                None => Value::Null,
+            }
+        })
+        .collect();
+
+    let steady: Vec<f32> = vec![20.0, 20.1, 19.9, 20.0, 20.2, 19.8, 20.1, 20.0];
+    let mut anomaly: Anomaly<32> = Anomaly::new(3.0);
+    let flags: Vec<bool> = steady
+        .iter()
+        .chain(core::iter::once(&900.0))
+        .map(|&reading| anomaly.check(reading))
+        .collect();
+
+    json!({
+        "capacity": 32,
+        "window": { "readings": readings, "states": window_states },
+        "median": { "readings": readings, "outputs": medians },
+        "trend": { "readings": rising, "slopes": slopes },
+        "anomaly": {
+            "sigmas": 3.0,
+            "readings": steady.iter().chain(core::iter::once(&900.0)).collect::<Vec<&f32>>(),
+            "flags": flags,
+        },
+    })
 }
 
 /// Names a boundary state, matching the spelling every binding exposes.

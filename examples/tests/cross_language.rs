@@ -8,17 +8,20 @@
 use std::fs;
 use std::path::PathBuf;
 
+use pamoja_actuators::{pca9685, stepper};
 use pamoja_can::{dlc_to_len, len_to_dlc, CanId, Frame, J1939Id};
 use pamoja_codec::{cbor_to_json, decode_deltas, encode_deltas, json_to_cbor, Quantizer};
 use pamoja_gpio::i2c::{Address, Direction};
 use pamoja_gpio::pin::{Edge, Level, Polarity};
 use pamoja_gpio::spi::Mode;
 use pamoja_kit::{
-    deadband, Boundary, Calibration, Coordinate, Depletion, Geofence, Pid, Smoother, Thermostat,
+    deadband, Anomaly, Boundary, Calibration, Coordinate, Depletion, Geofence, Median, Pid,
+    Smoother, Thermostat, Trend, Window,
 };
 use pamoja_modbus::Pdu;
 use pamoja_modbus::{crc16, Adu};
 use pamoja_security::{DeviceIdentity, PublicIdentity, Signature};
+use pamoja_sensors::{ads1115, bme280, ds18b20, ina219};
 use pamoja_serial::{cobs, slip};
 use serde_json::Value;
 
@@ -41,6 +44,15 @@ fn unhex(value: &Value) -> Vec<u8> {
         .step_by(2)
         .map(|index| u8::from_str_radix(&text[index..index + 2], 16).expect("hex byte"))
         .collect()
+}
+
+/// Renders bytes as the lowercase hex the vectors carry.
+fn hex(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push_str(&format!("{byte:02x}"));
+    }
+    out
 }
 
 /// Reads an array of numbers as `f32`, the width the helpers compute in.
@@ -557,5 +569,274 @@ fn level_name(level: Level) -> &'static str {
     match level {
         Level::Low => "Low",
         Level::High => "High",
+    }
+}
+
+#[test]
+fn sensor_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["sensors"];
+
+    let bme = &case["bme280"];
+    let temp_press: [u8; 26] = unhex(&bme["calibrationTempPress"])
+        .try_into()
+        .expect("26 calibration bytes");
+    let humidity: [u8; 7] = unhex(&bme["calibrationHumidity"])
+        .try_into()
+        .expect("7 calibration bytes");
+    let measurement: [u8; 8] = unhex(&bme["measurement"])
+        .try_into()
+        .expect("8 measurement bytes");
+    let reading = bme280::Calibration::from_registers(&temp_press, &humidity)
+        .compensate(&bme280::RawMeasurement::from_registers(&measurement));
+    assert!((reading.celsius() - float(&bme["celsius"])).abs() < 1e-3);
+    assert_eq!(
+        u64::from(reading.pascals()),
+        bme["pascals"].as_u64().expect("a pressure")
+    );
+    assert!(
+        (reading.relative_humidity_percent() - float(&bme["relativeHumidityPercent"])).abs() < 1e-3
+    );
+
+    let ds = &case["ds18b20"];
+    let scratchpad: [u8; 9] = unhex(&ds["scratchpad"]).try_into().expect("9 bytes");
+    let decoded = ds18b20::Scratchpad::parse(&scratchpad).expect("parse the scratchpad");
+    assert_eq!(
+        i64::from(decoded.raw_temperature()),
+        ds["rawTemperature"].as_i64().expect("a register")
+    );
+    assert_eq!(
+        i64::from(decoded.temperature_micro_celsius()),
+        ds["microCelsius"].as_i64().expect("a temperature")
+    );
+    assert_eq!(
+        u64::from(decoded.resolution().bits()),
+        ds["resolutionBits"].as_u64().expect("a resolution")
+    );
+    assert_eq!(
+        u64::from(ds18b20::crc8(&unhex(&ds["crcData"]))),
+        ds["crc"].as_u64().expect("a checksum")
+    );
+
+    let corrupt: [u8; 9] = unhex(&ds["corruptScratchpad"]).try_into().expect("9 bytes");
+    assert!(
+        ds18b20::Scratchpad::parse(&corrupt).is_err(),
+        "a read corrupted on the bus must not be trusted"
+    );
+
+    for entry in ds["resolutions"].as_array().expect("an array") {
+        let bits = entry["bits"].as_u64().expect("a resolution") as u8;
+        let resolution = match bits {
+            9 => ds18b20::Resolution::Bits9,
+            10 => ds18b20::Resolution::Bits10,
+            11 => ds18b20::Resolution::Bits11,
+            _ => ds18b20::Resolution::Bits12,
+        };
+        assert_eq!(
+            u64::from(resolution.config_byte()),
+            entry["configByte"].as_u64().expect("a config byte")
+        );
+        assert_eq!(
+            u64::from(resolution.step_micro_celsius()),
+            entry["stepMicroCelsius"].as_u64().expect("a step")
+        );
+        assert_eq!(
+            ds18b20::Resolution::from_config_byte(resolution.config_byte()).bits(),
+            bits,
+            "the resolution round-trips through its config byte"
+        );
+    }
+
+    let ina = &case["ina219"];
+    let lsb = ina["currentLsbMicroamps"].as_u64().expect("a resolution") as u32;
+    assert_eq!(
+        u64::from(ina219::calibration(
+            lsb,
+            ina["shuntMilliohms"].as_u64().expect("a shunt") as u32
+        )),
+        ina["calibration"].as_u64().expect("a calibration")
+    );
+    assert_eq!(
+        u64::from(ina219::minimum_current_lsb_microamps(
+            ina["maxExpectedMicroamps"].as_u64().expect("a current") as u32
+        )),
+        ina["minimumCurrentLsbMicroamps"]
+            .as_u64()
+            .expect("a resolution")
+    );
+    assert_eq!(
+        i64::from(ina219::current_microamps(
+            ina["rawCurrent"].as_i64().expect("a register") as i16,
+            lsb
+        )),
+        ina["currentMicroamps"].as_i64().expect("a current")
+    );
+    assert_eq!(
+        u64::from(ina219::power_microwatts(
+            ina["rawPower"].as_u64().expect("a register") as u16,
+            lsb
+        )),
+        ina["powerMicrowatts"].as_u64().expect("a power")
+    );
+
+    let ads = &case["ads1115"];
+    let reset = ads1115::Config::from_bits(ads["configReset"].as_u64().expect("a register") as u16);
+    let want = &ads["resetConfig"];
+    assert_eq!(
+        u64::from(reset.pga.code()),
+        want["pga"].as_u64().expect("a gain")
+    );
+    assert_eq!(
+        u64::from(reset.data_rate.code()),
+        want["dataRate"].as_u64().expect("a rate")
+    );
+    assert_eq!(
+        u64::from(reset.bits()),
+        ads["configReset"].as_u64().expect("a register"),
+        "the configuration round-trips through its register"
+    );
+
+    for entry in ads["gains"].as_array().expect("an array") {
+        let pga = ads1115::Pga::from_code(entry["pga"].as_u64().expect("a gain") as u8);
+        assert_eq!(
+            u64::from(pga.full_scale_microvolts()),
+            entry["fullScaleMicrovolts"].as_u64().expect("a full scale")
+        );
+        assert_eq!(
+            ads1115::to_nanovolts(pga, 32_767),
+            entry["nanovoltsAtFullScale"].as_i64().expect("a voltage")
+        );
+    }
+    for entry in ads["rates"].as_array().expect("an array") {
+        let rate = ads1115::DataRate::from_code(entry["dataRate"].as_u64().expect("a rate") as u8);
+        assert_eq!(
+            u64::from(rate.samples_per_second()),
+            entry["samplesPerSecond"].as_u64().expect("a rate")
+        );
+    }
+}
+
+#[test]
+fn actuator_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["actuators"];
+
+    let pca = &case["pca9685"];
+    for entry in pca["channelRegisters"].as_array().expect("an array") {
+        assert_eq!(
+            u64::from(pca9685::channel_register(
+                entry["channel"].as_u64().expect("a channel") as u8
+            )),
+            entry["register"].as_u64().expect("a register")
+        );
+    }
+    let prescale = pca9685::prescale_for_frequency(
+        pca["updateRateHz"].as_u64().expect("a rate") as u32,
+        pca["internalOscHz"].as_u64().expect("an oscillator") as u32,
+    );
+    assert_eq!(
+        u64::from(prescale),
+        pca["prescale"].as_u64().expect("a prescale")
+    );
+
+    let pwm = &case["pwm"];
+    assert_eq!(
+        hex(&pca9685::Pwm::duty(pwm["duty"]["off"].as_u64().expect("a count") as u16).bytes()),
+        pwm["duty"]["bytes"].as_str().expect("the bytes")
+    );
+    let servo = &pwm["servoCentre"];
+    assert_eq!(
+        hex(&pca9685::Pwm::servo(
+            servo["pulseMicros"].as_u64().expect("a pulse") as u32,
+            servo["updateRateHz"].as_u64().expect("a rate") as u32,
+        )
+        .bytes()),
+        servo["bytes"].as_str().expect("the bytes")
+    );
+    assert_eq!(
+        hex(&pca9685::Pwm::full_on().bytes()),
+        pwm["fullOn"].as_str().expect("the bytes")
+    );
+    assert_eq!(
+        hex(&pca9685::Pwm::full_off().bytes()),
+        pwm["fullOff"].as_str().expect("the bytes"),
+        "fully off is its own encoding, not a zero duty"
+    );
+
+    let motor = &case["stepper"];
+    let mut sequencer = stepper::Sequencer::new(stepper::Drive::HalfStep);
+    let mut cycle = vec![u64::from(sequencer.coils())];
+    for _ in 0..stepper::Drive::HalfStep.step_count() {
+        cycle.push(u64::from(sequencer.step(stepper::Direction::Forward)));
+    }
+    let want: Vec<u64> = motor["forwardCycle"]
+        .as_array()
+        .expect("an array")
+        .iter()
+        .map(|entry| entry.as_u64().expect("a coil pattern"))
+        .collect();
+    assert_eq!(
+        cycle, want,
+        "one electrical cycle returns to its first pattern"
+    );
+    assert_eq!(
+        i64::from(stepper::steps_for_degrees(
+            float(&motor["degrees"]),
+            motor["stepsPerRevolution"].as_u64().expect("a motor") as u32
+        )),
+        motor["stepsForDegrees"].as_i64().expect("a step count")
+    );
+}
+
+#[test]
+fn windowed_helper_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["windows"];
+    let tolerance = float(&vectors["tolerance"]);
+
+    let readings = floats(&case["window"]["readings"]);
+    let mut window: Window<32> = Window::new();
+    for (reading, want) in readings
+        .iter()
+        .zip(case["window"]["states"].as_array().expect("an array"))
+    {
+        window.push(*reading);
+        assert_eq!(window.len() as u64, want["len"].as_u64().expect("a count"));
+        assert!((window.mean().expect("a mean") - float(&want["mean"])).abs() <= tolerance);
+        assert!((window.min().expect("a minimum") - float(&want["min"])).abs() <= tolerance);
+        assert!((window.max().expect("a maximum") - float(&want["max"])).abs() <= tolerance);
+    }
+
+    let mut median: Median<32> = Median::new();
+    for (reading, want) in floats(&case["median"]["readings"])
+        .iter()
+        .zip(floats(&case["median"]["outputs"]).iter())
+    {
+        assert!((median.update(*reading) - want).abs() <= tolerance);
+    }
+
+    let mut trend: Trend<32> = Trend::new();
+    for (reading, want) in floats(&case["trend"]["readings"])
+        .iter()
+        .zip(case["trend"]["slopes"].as_array().expect("an array"))
+    {
+        trend.push(*reading);
+        match (trend.slope(), want.as_f64()) {
+            (Some(slope), Some(expected)) => assert!((slope - expected as f32).abs() <= 1e-4),
+            (None, None) => {}
+            (got, expected) => panic!("slope disagreed: {got:?} against {expected:?}"),
+        }
+    }
+
+    let mut anomaly: Anomaly<32> = Anomaly::new(float(&case["anomaly"]["sigmas"]));
+    for (reading, want) in floats(&case["anomaly"]["readings"])
+        .iter()
+        .zip(case["anomaly"]["flags"].as_array().expect("an array"))
+    {
+        assert_eq!(
+            anomaly.check(*reading),
+            want.as_bool().expect("a flag"),
+            "the detector flags the reading that stands out"
+        );
     }
 }

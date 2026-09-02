@@ -27,18 +27,14 @@ no connectivity. It costs nothing and works offline.
 
 You do not have to be an engineer to use it, and you do not give anything up if you are one.
 
+For developers, that means a single modular SDK for IoT, robotics, and drones: one memory-safe Rust engine at the core, with idiomatic bindings for TypeScript, Python, C#, and Rust itself. Control and communicate with physical things from the language you already work in, with C-class performance and memory safety, without hand-rolling FFI. You install only the capabilities you need, and the same concepts work the same way everywhere.
+
 **Where to start**
 
 - **Just want to install it?** Go to the [quick start](#quick-start): one command per language, and the same example in each.
 - **Try it with no hardware.** The simulators (`pamoja-sim`) stand in for real sensors, radios, and even a robot, so you can build and test with nothing plugged in.
 - **Building something?** Skip to the [crate list](#engine-and-capability-crates) and add only the pieces you need - each crate's README is its getting-started guide.
 - **On a microcontroller or in a rural clinic?** That is the design target, not an afterthought - see [Why it exists](#why-it-exists).
-
-## What is pamoja
-
-pamoja is a single, modular SDK for IoT, robotics, and drones: one memory-safe Rust engine at the core, with idiomatic bindings for the languages a device developer actually uses. You install only the capabilities you need, and the same concepts work the same way in every language.
-
-Control and communicate with physical things - sensors, robots, drones, gateways - from TypeScript, Python, C#, Lua, or Rust itself, with C-class performance and memory safety, without hand-rolling FFI.
 
 ## Quick start
 
@@ -219,7 +215,7 @@ One engine, many front doors. A version tag publishes every binding to its regis
 | WebAssembly | browser / npm | planned |
 | Kotlin, Swift, Go | platform-native | planned |
 
-Device identity, the wire codecs, the helper math, and the field I/O a gateway actually has - serial packet framing, Modbus RTU, CAN and J1939, and on-board I2C/SPI/GPIO - reach all three bindings alongside the MQTT transport. A reading can be pulled off an RS485 sensor, smoothed, signed, packed for a metered link, and published without leaving the language you started in. A single file of conformance vectors, generated from the Rust implementation, is asserted by every binding's test suite, so the four cannot quietly disagree about what the same call returns.
+Device identity, the wire codecs, the helper math, and the hardware a gateway actually talks to - serial packet framing, Modbus RTU, CAN and J1939, on-board I2C/SPI/GPIO, and the sensor and actuator drivers themselves - reach all three bindings alongside the MQTT transport. A reading can be pulled off an RS485 sensor or a BME280, smoothed, signed, packed for a metered link, and published, and a servo or stepper driven in reply, without leaving the language you started in. A single file of conformance vectors, generated from the Rust implementation, is asserted by every binding's test suite, so the four cannot quietly disagree about what the same call returns.
 
 ## Standards and conformance
 

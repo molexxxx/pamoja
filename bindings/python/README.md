@@ -49,9 +49,10 @@ asyncio.run(main())
 ```
 
 Beyond the transport, the same import carries device identity, the wire codecs,
-the helper math, and the field I/O a gateway needs, each in its own module
+the helper math, and the hardware a gateway talks to, each in its own module
 (`pamoja.security`, `pamoja.codec`, `pamoja.kit`, `pamoja.serial`,
-`pamoja.modbus`, `pamoja.can`, `pamoja.gpio`) and all reachable from `pamoja`.
+`pamoja.modbus`, `pamoja.can`, `pamoja.gpio`, `pamoja.sensors`,
+`pamoja.actuators`) and all reachable from `pamoja`.
 The generated low-level contract stays available at `pamoja.raw`.
 
 ```python

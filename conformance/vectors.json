@@ -1,4 +1,114 @@
 {
+  "actuators": {
+    "pca9685": {
+      "channelRegisters": [
+        {
+          "channel": 0,
+          "register": 6
+        },
+        {
+          "channel": 1,
+          "register": 10
+        },
+        {
+          "channel": 2,
+          "register": 14
+        },
+        {
+          "channel": 3,
+          "register": 18
+        },
+        {
+          "channel": 4,
+          "register": 22
+        },
+        {
+          "channel": 5,
+          "register": 26
+        },
+        {
+          "channel": 6,
+          "register": 30
+        },
+        {
+          "channel": 7,
+          "register": 34
+        },
+        {
+          "channel": 8,
+          "register": 38
+        },
+        {
+          "channel": 9,
+          "register": 42
+        },
+        {
+          "channel": 10,
+          "register": 46
+        },
+        {
+          "channel": 11,
+          "register": 50
+        },
+        {
+          "channel": 12,
+          "register": 54
+        },
+        {
+          "channel": 13,
+          "register": 58
+        },
+        {
+          "channel": 14,
+          "register": 62
+        },
+        {
+          "channel": 15,
+          "register": 66
+        }
+      ],
+      "channels": 16,
+      "counts": 4096,
+      "frequencyForPrescale": 50.02881622314453,
+      "internalOscHz": 25000000,
+      "invalidChannel": 16,
+      "prescale": 121,
+      "updateRateHz": 50
+    },
+    "pwm": {
+      "duty": {
+        "bytes": "00000008",
+        "off": 2048
+      },
+      "fullOff": "00000010",
+      "fullOn": "00100000",
+      "servoCentre": {
+        "bytes": "00003301",
+        "pulseMicros": 1500,
+        "updateRateHz": 50
+      }
+    },
+    "stepper": {
+      "degrees": 90.0,
+      "drive": "HalfStep",
+      "forwardCycle": [
+        8,
+        12,
+        4,
+        6,
+        2,
+        3,
+        1,
+        9,
+        8
+      ],
+      "fullStepCount": 4,
+      "stepCount": 8,
+      "stepsForDegrees": 50,
+      "stepsPerRevolution": 200,
+      "waveStepCount": 4
+    }
+  },
   "calibration": {
     "inputs": [
       0.0,
@@ -560,6 +670,163 @@
     ],
     "setpoint": 10.0
   },
+  "sensors": {
+    "ads1115": {
+      "configReset": 34179,
+      "gains": [
+        {
+          "fullScaleMicrovolts": 6144000,
+          "nanovoltsAtFullScale": 6143812500,
+          "pga": 0
+        },
+        {
+          "fullScaleMicrovolts": 4096000,
+          "nanovoltsAtFullScale": 4095875000,
+          "pga": 1
+        },
+        {
+          "fullScaleMicrovolts": 2048000,
+          "nanovoltsAtFullScale": 2047937500,
+          "pga": 2
+        },
+        {
+          "fullScaleMicrovolts": 1024000,
+          "nanovoltsAtFullScale": 1023968750,
+          "pga": 3
+        },
+        {
+          "fullScaleMicrovolts": 512000,
+          "nanovoltsAtFullScale": 511984375,
+          "pga": 4
+        },
+        {
+          "fullScaleMicrovolts": 256000,
+          "nanovoltsAtFullScale": 255992187,
+          "pga": 5
+        },
+        {
+          "fullScaleMicrovolts": 256000,
+          "nanovoltsAtFullScale": 255992187,
+          "pga": 6
+        },
+        {
+          "fullScaleMicrovolts": 256000,
+          "nanovoltsAtFullScale": 255992187,
+          "pga": 7
+        }
+      ],
+      "rates": [
+        {
+          "dataRate": 0,
+          "samplesPerSecond": 8
+        },
+        {
+          "dataRate": 1,
+          "samplesPerSecond": 16
+        },
+        {
+          "dataRate": 2,
+          "samplesPerSecond": 32
+        },
+        {
+          "dataRate": 3,
+          "samplesPerSecond": 64
+        },
+        {
+          "dataRate": 4,
+          "samplesPerSecond": 128
+        },
+        {
+          "dataRate": 5,
+          "samplesPerSecond": 250
+        },
+        {
+          "dataRate": 6,
+          "samplesPerSecond": 475
+        },
+        {
+          "dataRate": 7,
+          "samplesPerSecond": 860
+        }
+      ],
+      "resetConfig": {
+        "comparatorActiveHigh": false,
+        "comparatorLatching": false,
+        "comparatorQueue": 3,
+        "dataRate": 4,
+        "mux": 0,
+        "pga": 2,
+        "singleShot": true,
+        "startConversion": true,
+        "windowComparator": false
+      }
+    },
+    "bme280": {
+      "calibrationHumidity": "640100142d031e",
+      "calibrationTempPress": "706b436718fc7d8e43d6d00b270b8c00f9ff8c3cf8c67017004b",
+      "celsius": 25.079999923706055,
+      "hectopascals": 1006.5327758789062,
+      "measurement": "655ac07eed007fff",
+      "pascals": 100653,
+      "relativeHumidityPercent": 62.2236328125
+    },
+    "ds18b20": {
+      "alarmHigh": 75,
+      "alarmLow": 70,
+      "celsius": 25.0625,
+      "corruptScratchpad": "6e014b467fff0c1070",
+      "crc": 112,
+      "crcData": "91014b467fff0c10",
+      "invalidResolution": 8,
+      "microCelsius": 25062500,
+      "rawTemperature": 401,
+      "resolutionBits": 12,
+      "resolutions": [
+        {
+          "bits": 9,
+          "configByte": 31,
+          "maxConversionMicros": 93750,
+          "stepMicroCelsius": 500000
+        },
+        {
+          "bits": 10,
+          "configByte": 63,
+          "maxConversionMicros": 187500,
+          "stepMicroCelsius": 250000
+        },
+        {
+          "bits": 11,
+          "configByte": 95,
+          "maxConversionMicros": 375000,
+          "stepMicroCelsius": 125000
+        },
+        {
+          "bits": 12,
+          "configByte": 127,
+          "maxConversionMicros": 750000,
+          "stepMicroCelsius": 62500
+        }
+      ],
+      "scratchpad": "91014b467fff0c1070"
+    },
+    "ina219": {
+      "busMillivolts": 4000,
+      "calibration": 20480,
+      "conversionReady": true,
+      "currentLsbMicroamps": 1000,
+      "currentMicroamps": 1000000,
+      "mathOverflow": true,
+      "maxExpectedMicroamps": 15000000,
+      "minimumCurrentLsbMicroamps": 458,
+      "powerMicrowatts": 2000000,
+      "rawBus": 8000,
+      "rawCurrent": 1000,
+      "rawPower": 100,
+      "rawShunt": 1000,
+      "shuntMicrovolts": 10000,
+      "shuntMilliohms": 2
+    }
+  },
   "serial": {
     "cobsFrame": "03c0db022a00",
     "cobsMaxEncodedLen": 6,
@@ -622,5 +889,119 @@
     ],
     "setpoint": 8.0
   },
-  "tolerance": 1e-6
+  "tolerance": 1e-6,
+  "windows": {
+    "anomaly": {
+      "flags": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "readings": [
+        20.0,
+        20.100000381469727,
+        19.899999618530273,
+        20.0,
+        20.200000762939453,
+        19.799999237060547,
+        20.100000381469727,
+        20.0,
+        900.0
+      ],
+      "sigmas": 3.0
+    },
+    "capacity": 32,
+    "median": {
+      "outputs": [
+        10.0,
+        15.0,
+        20.0,
+        20.0,
+        20.0,
+        20.0
+      ],
+      "readings": [
+        10.0,
+        20.0,
+        30.0,
+        20.0,
+        900.0,
+        20.0
+      ]
+    },
+    "trend": {
+      "readings": [
+        1.0,
+        2.0,
+        3.0,
+        4.0
+      ],
+      "slopes": [
+        null,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "window": {
+      "readings": [
+        10.0,
+        20.0,
+        30.0,
+        20.0,
+        900.0,
+        20.0
+      ],
+      "states": [
+        {
+          "len": 1,
+          "max": 10.0,
+          "mean": 10.0,
+          "min": 10.0,
+          "range": 0.0
+        },
+        {
+          "len": 2,
+          "max": 20.0,
+          "mean": 15.0,
+          "min": 10.0,
+          "range": 10.0
+        },
+        {
+          "len": 3,
+          "max": 30.0,
+          "mean": 20.0,
+          "min": 10.0,
+          "range": 20.0
+        },
+        {
+          "len": 4,
+          "max": 30.0,
+          "mean": 20.0,
+          "min": 10.0,
+          "range": 20.0
+        },
+        {
+          "len": 5,
+          "max": 900.0,
+          "mean": 196.0,
+          "min": 10.0,
+          "range": 890.0
+        },
+        {
+          "len": 6,
+          "max": 900.0,
+          "mean": 166.6666717529297,
+          "min": 10.0,
+          "range": 890.0
+        }
+      ]
+    }
+  }
 }

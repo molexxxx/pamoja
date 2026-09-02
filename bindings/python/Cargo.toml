@@ -22,7 +22,18 @@ name = "stub_gen"
 path = "src/stub_gen.rs"
 
 [features]
-default = ["mqtt", "security", "codec", "kit", "serial", "modbus", "can", "gpio"]
+default = [
+    "mqtt",
+    "security",
+    "codec",
+    "kit",
+    "serial",
+    "modbus",
+    "can",
+    "gpio",
+    "sensors",
+    "actuators",
+]
 # Each capability is a feature, so the binding can later be split into
 # per-capability packages without reshaping the code.
 mqtt = ["dep:pamoja-mqtt", "dep:tokio"]
@@ -33,6 +44,8 @@ serial = ["dep:pamoja-serial"]
 modbus = ["dep:pamoja-modbus"]
 can = ["dep:pamoja-can"]
 gpio = ["dep:pamoja-gpio"]
+sensors = ["dep:pamoja-sensors"]
+actuators = ["dep:pamoja-actuators"]
 
 [dependencies]
 # pyo3 0.29 carries the fix for RUSTSEC advisories in the list/tuple iterators;
@@ -51,4 +64,6 @@ pamoja-serial = { path = "../../crates/pamoja-serial", optional = true }
 pamoja-modbus = { path = "../../crates/pamoja-modbus", optional = true }
 pamoja-can = { path = "../../crates/pamoja-can", optional = true }
 pamoja-gpio = { path = "../../crates/pamoja-gpio", optional = true }
+pamoja-sensors = { path = "../../crates/pamoja-sensors", optional = true }
+pamoja-actuators = { path = "../../crates/pamoja-actuators", optional = true }
 tokio = { version = "1", default-features = false, features = ["sync"], optional = true }

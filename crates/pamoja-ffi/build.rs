@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 
 fn main() {
     println!("cargo:rerun-if-changed=src/lib.rs");
+    println!("cargo:rerun-if-changed=src/actuators.rs");
     println!("cargo:rerun-if-changed=src/can.rs");
     println!("cargo:rerun-if-changed=src/codec.rs");
     println!("cargo:rerun-if-changed=src/gpio.rs");
@@ -22,6 +23,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src/modbus.rs");
     println!("cargo:rerun-if-changed=src/mqtt.rs");
     println!("cargo:rerun-if-changed=src/security.rs");
+    println!("cargo:rerun-if-changed=src/sensors.rs");
     println!("cargo:rerun-if-changed=src/serial.rs");
     println!("cargo:rerun-if-changed=cbindgen.toml");
 

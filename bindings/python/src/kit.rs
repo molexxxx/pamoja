@@ -9,10 +9,11 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 
 use pamoja_kit::{
-    deadband as core_deadband, Boundary, Calibration as CoreCalibration, Coordinate,
-    Debounce as CoreDebounce, Depletion as CoreDepletion, Geofence as CoreGeofence,
-    Kalman as CoreKalman, Pid as CorePid, Ramp as CoreRamp, Smoother as CoreSmoother,
-    Surge as CoreSurge, Thermostat as CoreThermostat,
+    deadband as core_deadband, Anomaly as CoreAnomaly, Boundary, Calibration as CoreCalibration,
+    Coordinate, Debounce as CoreDebounce, Depletion as CoreDepletion, Geofence as CoreGeofence,
+    Kalman as CoreKalman, Median as CoreMedian, Pid as CorePid, Ramp as CoreRamp,
+    Smoother as CoreSmoother, Surge as CoreSurge, Thermostat as CoreThermostat, Trend as CoreTrend,
+    Window as CoreWindow,
 };
 
 /// Names the boundary state a geofence reports, as a plain string.
@@ -379,4 +380,158 @@ pub fn bearing_between(
 #[pyfunction]
 pub fn deadband(value: f32, center: f32, width: f32) -> f32 {
     core_deadband(value, center, width)
+}
+
+/// The capacity every windowed helper here is built at.
+const CAPACITY: usize = 32;
+
+/// The number of readings a windowed helper keeps.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn window_capacity() -> usize {
+    CAPACITY
+}
+
+/// A rolling window of the most recent readings, with the stats over them.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct Window {
+    inner: CoreWindow<CAPACITY>,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl Window {
+    /// Creates an empty window.
+    #[new]
+    fn new() -> Self {
+        Self {
+            inner: CoreWindow::new(),
+        }
+    }
+
+    /// Adds a reading, dropping the oldest once the window is full.
+    fn push(&mut self, reading: f32) {
+        self.inner.push(reading);
+    }
+
+    /// How many readings the window holds.
+    fn __len__(&self) -> usize {
+        self.inner.len()
+    }
+
+    /// How many readings the window holds before it starts dropping.
+    #[getter]
+    fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
+
+    /// The mean of the readings, or ``None`` while the window is empty.
+    fn mean(&self) -> Option<f32> {
+        self.inner.mean()
+    }
+
+    /// The smallest reading, or ``None`` while the window is empty.
+    fn min(&self) -> Option<f32> {
+        self.inner.min()
+    }
+
+    /// The largest reading, or ``None`` while the window is empty.
+    fn max(&self) -> Option<f32> {
+        self.inner.max()
+    }
+
+    /// The spread between the smallest and largest readings.
+    fn range(&self) -> Option<f32> {
+        self.inner.range()
+    }
+
+    /// The variance of the readings, or ``None`` without enough of them.
+    fn variance(&self) -> Option<f32> {
+        self.inner.variance()
+    }
+}
+
+/// Rejects a single wild reading, where an average would let it pull the answer.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct Median {
+    inner: CoreMedian<CAPACITY>,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl Median {
+    /// Creates an empty median filter.
+    #[new]
+    fn new() -> Self {
+        Self {
+            inner: CoreMedian::new(),
+        }
+    }
+
+    /// Folds a reading in and returns the median of the window.
+    fn update(&mut self, reading: f32) -> f32 {
+        self.inner.update(reading)
+    }
+
+    /// The current median, or ``None`` before the first reading.
+    #[getter]
+    fn value(&self) -> Option<f32> {
+        self.inner.median()
+    }
+}
+
+/// Fits a line through recent readings, so a slow drift shows before it matters.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct Trend {
+    inner: CoreTrend<CAPACITY>,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl Trend {
+    /// Creates an empty trend estimator.
+    #[new]
+    fn new() -> Self {
+        Self {
+            inner: CoreTrend::new(),
+        }
+    }
+
+    /// Adds a reading.
+    fn push(&mut self, reading: f32) {
+        self.inner.push(reading);
+    }
+
+    /// The fitted slope in units per reading, or ``None`` without enough readings.
+    #[getter]
+    fn slope(&self) -> Option<f32> {
+        self.inner.slope()
+    }
+}
+
+/// Flags a reading that stands out from the ones around it.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct Anomaly {
+    inner: CoreAnomaly<CAPACITY>,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl Anomaly {
+    /// Creates a detector that flags a reading `sigmas` deviations from the mean.
+    #[new]
+    fn new(sigmas: f32) -> Self {
+        Self {
+            inner: CoreAnomaly::new(sigmas),
+        }
+    }
+
+    /// Folds a reading in and reports whether it stands out.
+    fn check(&mut self, reading: f32) -> bool {
+        self.inner.check(reading)
+    }
 }

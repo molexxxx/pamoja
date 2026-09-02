@@ -4,15 +4,21 @@
 import builtins
 import typing
 __all__ = [
+    "Ads1115Config",
+    "Anomaly",
+    "Bme280Calibration",
+    "Bme280Measurement",
     "Calibration",
     "CanFrame",
     "CobsDecoder",
     "Debounce",
     "Depletion",
     "DeviceIdentity",
+    "Ds18b20Reading",
     "Geofence",
     "J1939Message",
     "Kalman",
+    "Median",
     "ModbusFrame",
     "MqttClient",
     "MqttMessage",
@@ -22,8 +28,17 @@ __all__ = [
     "SlipDecoder",
     "Smoother",
     "SpiClock",
+    "Stepper",
     "Surge",
     "Thermostat",
+    "Trend",
+    "Window",
+    "ads1115_config_bits",
+    "ads1115_config_from_bits",
+    "ads1115_full_scale_microvolts",
+    "ads1115_samples_per_second",
+    "ads1115_to_nanovolts",
+    "ads1115_to_volts",
     "bearing_between",
     "can_dlc_to_len",
     "can_fd_frame",
@@ -37,12 +52,28 @@ __all__ = [
     "deadband",
     "decode_delta_samples",
     "distance_between",
+    "ds18b20_celsius",
+    "ds18b20_config_byte",
+    "ds18b20_crc8",
+    "ds18b20_max_conversion_micros",
+    "ds18b20_micro_celsius",
+    "ds18b20_parse_scratchpad",
+    "ds18b20_resolution_bits",
+    "ds18b20_step_micro_celsius",
     "encode_delta_samples",
     "fingerprint",
     "i2c_address_frame",
     "i2c_address_frame_len",
     "i2c_address_is_general_call",
     "i2c_address_is_reserved",
+    "ina219_bus_millivolts",
+    "ina219_calibration",
+    "ina219_conversion_ready",
+    "ina219_current_microamps",
+    "ina219_math_overflow",
+    "ina219_minimum_current_lsb_microamps",
+    "ina219_power_microwatts",
+    "ina219_shunt_microvolts",
     "j1939_compose",
     "j1939_decode",
     "json_to_cbor_bytes",
@@ -57,19 +88,189 @@ __all__ = [
     "modbus_write_multiple_registers",
     "modbus_write_single_coil",
     "modbus_write_single_register",
+    "pca9685_channel_register",
+    "pca9685_frequency_for_prescale",
+    "pca9685_limits",
+    "pca9685_prescale_for_frequency",
     "pin_edge_triggered_by",
     "pin_level_from_bool",
     "pin_level_inverted",
     "pin_polarity_is_asserted",
     "pin_polarity_level",
+    "pwm_duty",
+    "pwm_from_counts",
+    "pwm_full_off",
+    "pwm_full_on",
+    "pwm_servo",
     "slip_decode",
     "slip_encode",
     "slip_max_encoded_len",
     "spi_mode_clock",
     "spi_mode_from_clock",
+    "stepper_step_count",
+    "stepper_steps_for_degrees",
     "verify",
     "version",
+    "window_capacity",
 ]
+
+@typing.final
+class Ads1115Config:
+    r"""
+    An ADS1115 configuration register, field by field.
+    """
+    @property
+    def start_conversion(self) -> builtins.bool:
+        r"""
+        Whether writing this starts a single conversion.
+        """
+    @start_conversion.setter
+    def start_conversion(self, value: builtins.bool) -> None:
+        r"""
+        Whether writing this starts a single conversion.
+        """
+    @property
+    def mux(self) -> builtins.int:
+        r"""
+        The input multiplexer code, `0..=7`.
+        """
+    @mux.setter
+    def mux(self, value: builtins.int) -> None:
+        r"""
+        The input multiplexer code, `0..=7`.
+        """
+    @property
+    def pga(self) -> builtins.int:
+        r"""
+        The gain code, `0..=7`, which sets the full-scale range.
+        """
+    @pga.setter
+    def pga(self, value: builtins.int) -> None:
+        r"""
+        The gain code, `0..=7`, which sets the full-scale range.
+        """
+    @property
+    def single_shot(self) -> builtins.bool:
+        r"""
+        Whether to convert once per request and power down, rather than continuously.
+        """
+    @single_shot.setter
+    def single_shot(self, value: builtins.bool) -> None:
+        r"""
+        Whether to convert once per request and power down, rather than continuously.
+        """
+    @property
+    def data_rate(self) -> builtins.int:
+        r"""
+        The data rate code, `0..=7`.
+        """
+    @data_rate.setter
+    def data_rate(self, value: builtins.int) -> None:
+        r"""
+        The data rate code, `0..=7`.
+        """
+    @property
+    def window_comparator(self) -> builtins.bool:
+        r"""
+        Whether to use the window comparator rather than the traditional one.
+        """
+    @window_comparator.setter
+    def window_comparator(self, value: builtins.bool) -> None:
+        r"""
+        Whether to use the window comparator rather than the traditional one.
+        """
+    @property
+    def comparator_active_high(self) -> builtins.bool:
+        r"""
+        Whether the ALERT/RDY pin is active high.
+        """
+    @comparator_active_high.setter
+    def comparator_active_high(self, value: builtins.bool) -> None:
+        r"""
+        Whether the ALERT/RDY pin is active high.
+        """
+    @property
+    def comparator_latching(self) -> builtins.bool:
+        r"""
+        Whether the comparator latches until the conversion is read.
+        """
+    @comparator_latching.setter
+    def comparator_latching(self, value: builtins.bool) -> None:
+        r"""
+        Whether the comparator latches until the conversion is read.
+        """
+    @property
+    def comparator_queue(self) -> builtins.int:
+        r"""
+        The comparator queue code, `0..=3`, where `3` disables the comparator.
+        """
+    @comparator_queue.setter
+    def comparator_queue(self, value: builtins.int) -> None:
+        r"""
+        The comparator queue code, `0..=3`, where `3` disables the comparator.
+        """
+    def __new__(cls, start_conversion: builtins.bool = True, mux: builtins.int = 0, pga: builtins.int = 2, single_shot: builtins.bool = True, data_rate: builtins.int = 4, window_comparator: builtins.bool = False, comparator_active_high: builtins.bool = False, comparator_latching: builtins.bool = False, comparator_queue: builtins.int = 3) -> Ads1115Config:
+        r"""
+        Builds a configuration, defaulting every field to the part's reset state.
+        """
+    def __eq__(self, other: Ads1115Config) -> builtins.bool:
+        r"""
+        Reports whether two configurations select the same settings.
+        """
+
+@typing.final
+class Anomaly:
+    r"""
+    Flags a reading that stands out from the ones around it.
+    """
+    def __new__(cls, sigmas: builtins.float) -> Anomaly:
+        r"""
+        Creates a detector that flags a reading `sigmas` deviations from the mean.
+        """
+    def check(self, reading: builtins.float) -> builtins.bool:
+        r"""
+        Folds a reading in and reports whether it stands out.
+        """
+
+@typing.final
+class Bme280Calibration:
+    r"""
+    A BME280's factory calibration, read once and reused for every measurement.
+    """
+    def __new__(cls, temp_press: typing.Sequence[builtins.int], humidity: typing.Sequence[builtins.int]) -> Bme280Calibration:
+        r"""
+        Builds a calibration from the bytes read out of the device's registers.
+        """
+    def compensate(self, measurement: typing.Sequence[builtins.int]) -> Bme280Measurement:
+        r"""
+        Turns an eight-byte burst read into a compensated reading.
+        """
+
+@typing.final
+class Bme280Measurement:
+    r"""
+    A compensated BME280 reading.
+    """
+    @property
+    def celsius(self) -> builtins.float:
+        r"""
+        The temperature in degrees Celsius.
+        """
+    @property
+    def pascals(self) -> builtins.int:
+        r"""
+        The pressure in pascals.
+        """
+    @property
+    def hectopascals(self) -> builtins.float:
+        r"""
+        The pressure in hectopascals, the unit a barometer is usually quoted in.
+        """
+    @property
+    def relative_humidity_percent(self) -> builtins.float:
+        r"""
+        The relative humidity as a percentage.
+        """
 
 @typing.final
 class Calibration:
@@ -217,6 +418,42 @@ class DeviceIdentity:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class Ds18b20Reading:
+    r"""
+    A decoded DS18B20 scratchpad.
+    """
+    @property
+    def raw_temperature(self) -> builtins.int:
+        r"""
+        The raw temperature register, 1/16 degree Celsius per count.
+        """
+    @property
+    def micro_celsius(self) -> builtins.int:
+        r"""
+        The temperature in micro-degrees Celsius, exact in integer arithmetic.
+        """
+    @property
+    def celsius(self) -> builtins.float:
+        r"""
+        The temperature in degrees Celsius.
+        """
+    @property
+    def alarm_high(self) -> builtins.int:
+        r"""
+        The high alarm threshold in whole degrees Celsius.
+        """
+    @property
+    def alarm_low(self) -> builtins.int:
+        r"""
+        The low alarm threshold in whole degrees Celsius.
+        """
+    @property
+    def resolution_bits(self) -> builtins.int:
+        r"""
+        The configured resolution, as a number of bits: 9, 10, 11, or 12.
+        """
+
+@typing.final
 class Geofence:
     r"""
     Keeps a tracked point inside an area, and notices when it leaves.
@@ -291,6 +528,25 @@ class Kalman:
     def update(self, reading: builtins.float) -> builtins.float:
         r"""
         Folds a reading in and returns the new estimate.
+        """
+
+@typing.final
+class Median:
+    r"""
+    Rejects a single wild reading, where an average would let it pull the answer.
+    """
+    @property
+    def value(self) -> typing.Optional[builtins.float]:
+        r"""
+        The current median, or ``None`` before the first reading.
+        """
+    def __new__(cls) -> Median:
+        r"""
+        Creates an empty median filter.
+        """
+    def update(self, reading: builtins.float) -> builtins.float:
+        r"""
+        Folds a reading in and returns the median of the window.
         """
 
 @typing.final
@@ -511,6 +767,32 @@ class SpiClock:
         """
 
 @typing.final
+class Stepper:
+    r"""
+    A stepper motor's place in its drive sequence, and how far it has turned.
+    """
+    @property
+    def coils(self) -> builtins.int:
+        r"""
+        The coil pattern currently held, without advancing.
+        """
+    @property
+    def steps(self) -> builtins.int:
+        r"""
+        How many steps have been taken, signed by direction.
+        """
+    def __new__(cls, drive: builtins.str) -> Stepper:
+        r"""
+        Creates a stepper at the start of a drive pattern, with its position at zero.
+        """
+    def step(self, direction: builtins.str) -> builtins.int:
+        r"""
+        Advances one step and returns the four-bit coil pattern to apply.
+        
+        The most significant of the four bits is the first coil.
+        """
+
+@typing.final
 class Surge:
     r"""
     Notices a step change between successive readings, such as a burst pipe.
@@ -554,6 +836,98 @@ class Thermostat:
         r"""
         Feeds a reading in and returns whether the load should be on.
         """
+
+@typing.final
+class Trend:
+    r"""
+    Fits a line through recent readings, so a slow drift shows before it matters.
+    """
+    @property
+    def slope(self) -> typing.Optional[builtins.float]:
+        r"""
+        The fitted slope in units per reading, or ``None`` without enough readings.
+        """
+    def __new__(cls) -> Trend:
+        r"""
+        Creates an empty trend estimator.
+        """
+    def push(self, reading: builtins.float) -> None:
+        r"""
+        Adds a reading.
+        """
+
+@typing.final
+class Window:
+    r"""
+    A rolling window of the most recent readings, with the stats over them.
+    """
+    @property
+    def capacity(self) -> builtins.int:
+        r"""
+        How many readings the window holds before it starts dropping.
+        """
+    def __new__(cls) -> Window:
+        r"""
+        Creates an empty window.
+        """
+    def push(self, reading: builtins.float) -> None:
+        r"""
+        Adds a reading, dropping the oldest once the window is full.
+        """
+    def __len__(self) -> builtins.int:
+        r"""
+        How many readings the window holds.
+        """
+    def mean(self) -> typing.Optional[builtins.float]:
+        r"""
+        The mean of the readings, or ``None`` while the window is empty.
+        """
+    def min(self) -> typing.Optional[builtins.float]:
+        r"""
+        The smallest reading, or ``None`` while the window is empty.
+        """
+    def max(self) -> typing.Optional[builtins.float]:
+        r"""
+        The largest reading, or ``None`` while the window is empty.
+        """
+    def range(self) -> typing.Optional[builtins.float]:
+        r"""
+        The spread between the smallest and largest readings.
+        """
+    def variance(self) -> typing.Optional[builtins.float]:
+        r"""
+        The variance of the readings, or ``None`` without enough of them.
+        """
+
+def ads1115_config_bits(config: Ads1115Config) -> builtins.int:
+    r"""
+    Assembles the 16-bit ADS1115 configuration register value.
+    """
+
+def ads1115_config_from_bits(bits: builtins.int) -> Ads1115Config:
+    r"""
+    Parses a 16-bit ADS1115 configuration register value.
+    """
+
+def ads1115_full_scale_microvolts(pga: builtins.int) -> builtins.int:
+    r"""
+    Returns the full-scale range an ADS1115 gain code selects, in microvolts.
+    """
+
+def ads1115_samples_per_second(data_rate: builtins.int) -> builtins.int:
+    r"""
+    Returns the sample rate an ADS1115 data-rate code selects.
+    """
+
+def ads1115_to_nanovolts(pga: builtins.int, raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw ADS1115 conversion result to nanovolts.
+    """
+
+def ads1115_to_volts(pga: builtins.int, raw: builtins.int) -> builtins.float:
+    r"""
+    Converts a raw ADS1115 conversion result to volts.
+    """
 
 def bearing_between(from_latitude: builtins.float, from_longitude: builtins.float, to_latitude: builtins.float, to_longitude: builtins.float) -> builtins.float:
     r"""
@@ -620,6 +994,46 @@ def distance_between(from_latitude: builtins.float, from_longitude: builtins.flo
     Returns the great-circle distance between two coordinates, in metres.
     """
 
+def ds18b20_celsius(raw: builtins.int) -> builtins.float:
+    r"""
+    Converts a raw DS18B20 temperature register to degrees Celsius.
+    """
+
+def ds18b20_config_byte(bits: builtins.int) -> builtins.int:
+    r"""
+    Returns the configuration byte that selects a DS18B20 resolution.
+    """
+
+def ds18b20_crc8(data: typing.Sequence[builtins.int]) -> builtins.int:
+    r"""
+    Computes the Maxim CRC-8 a 1-Wire device checks its own bytes with.
+    """
+
+def ds18b20_max_conversion_micros(bits: builtins.int) -> builtins.int:
+    r"""
+    Returns how long a DS18B20 conversion may take at a resolution, in microseconds.
+    """
+
+def ds18b20_micro_celsius(raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw DS18B20 temperature register to micro-degrees Celsius.
+    """
+
+def ds18b20_parse_scratchpad(data: typing.Sequence[builtins.int]) -> Ds18b20Reading:
+    r"""
+    Parses and CRC-checks a nine-byte DS18B20 scratchpad.
+    """
+
+def ds18b20_resolution_bits(config_byte: builtins.int) -> builtins.int:
+    r"""
+    Returns the resolution a DS18B20 configuration byte selects, in bits.
+    """
+
+def ds18b20_step_micro_celsius(bits: builtins.int) -> builtins.int:
+    r"""
+    Returns the temperature step a DS18B20 resolution resolves, in micro-degrees.
+    """
+
 def encode_delta_samples(samples: typing.Sequence[builtins.int]) -> bytes:
     r"""
     Delta-encodes a series of integer samples into a compact buffer.
@@ -648,6 +1062,46 @@ def i2c_address_is_general_call(address: builtins.int, ten_bit: builtins.bool) -
 def i2c_address_is_reserved(address: builtins.int, ten_bit: builtins.bool) -> builtins.bool:
     r"""
     Reports whether a 7-bit address falls in a range the I2C specification reserves.
+    """
+
+def ina219_bus_millivolts(raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw INA219 bus-voltage register to millivolts.
+    """
+
+def ina219_calibration(current_lsb_microamps: builtins.int, shunt_milliohms: builtins.int) -> builtins.int:
+    r"""
+    Computes the INA219 calibration register for a shunt and current resolution.
+    """
+
+def ina219_conversion_ready(raw: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether an INA219 bus-voltage register says a conversion is ready.
+    """
+
+def ina219_current_microamps(raw: builtins.int, current_lsb_microamps: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw INA219 current register to microamps.
+    """
+
+def ina219_math_overflow(raw: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether an INA219 bus-voltage register flags a math overflow.
+    """
+
+def ina219_minimum_current_lsb_microamps(max_expected_microamps: builtins.int) -> builtins.int:
+    r"""
+    Returns the smallest current resolution that still covers an expected maximum.
+    """
+
+def ina219_power_microwatts(raw: builtins.int, current_lsb_microamps: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw INA219 power register to microwatts.
+    """
+
+def ina219_shunt_microvolts(raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw INA219 shunt-voltage register to microvolts.
     """
 
 def j1939_compose(priority: builtins.int, pgn: builtins.int, source: builtins.int, destination: builtins.int) -> builtins.int:
@@ -727,6 +1181,29 @@ def modbus_write_single_register(address: builtins.int, register: builtins.int, 
     Builds a write-single-register request frame (function `0x06`).
     """
 
+def pca9685_channel_register(channel: builtins.int) -> builtins.int:
+    r"""
+    Returns the first of a PCA9685 channel's four consecutive registers.
+    """
+
+def pca9685_frequency_for_prescale(prescale: builtins.int, osc_hz: builtins.int) -> builtins.float:
+    r"""
+    Returns the update rate a PCA9685 prescale value produces, in hertz.
+    """
+
+def pca9685_limits() -> tuple[builtins.int, builtins.int, builtins.int]:
+    r"""
+    Returns the PCA9685 constants a caller sizes its arithmetic against.
+    
+    The tuple is the internal oscillator frequency in hertz, the channel count,
+    and the counts per period.
+    """
+
+def pca9685_prescale_for_frequency(update_rate_hz: builtins.int, osc_hz: builtins.int) -> builtins.int:
+    r"""
+    Returns the prescale value that sets a PCA9685 update rate.
+    """
+
 def pin_edge_triggered_by(edge: builtins.str, from: builtins.str, to: builtins.str) -> builtins.bool:
     r"""
     Reports whether a change from one level to another fires an interrupt trigger.
@@ -750,6 +1227,31 @@ def pin_polarity_is_asserted(polarity: builtins.str, level: builtins.str) -> bui
 def pin_polarity_level(polarity: builtins.str, asserted: builtins.bool) -> builtins.str:
     r"""
     Returns the physical level that represents a logical state under a polarity.
+    """
+
+def pwm_duty(off: builtins.int) -> bytes:
+    r"""
+    Builds a channel's register bytes with no phase delay: on at 0, off at `off`.
+    """
+
+def pwm_from_counts(on: builtins.int, off: builtins.int) -> bytes:
+    r"""
+    Builds a channel's four register bytes from explicit on and off counts.
+    """
+
+def pwm_full_off() -> bytes:
+    r"""
+    The register bytes that hold a channel continuously low, the power-on state.
+    """
+
+def pwm_full_on() -> bytes:
+    r"""
+    The register bytes that hold a channel continuously high.
+    """
+
+def pwm_servo(pulse_micros: builtins.int, update_rate_hz: builtins.int) -> bytes:
+    r"""
+    Builds the register bytes that drive a hobby servo to a given pulse width.
     """
 
 def slip_decode(frame: typing.Sequence[builtins.int]) -> bytes:
@@ -777,6 +1279,16 @@ def spi_mode_from_clock(cpol: builtins.bool, cpha: builtins.bool) -> builtins.in
     Returns the SPI mode number a `(CPOL, CPHA)` pair names.
     """
 
+def stepper_step_count(drive: builtins.str) -> builtins.int:
+    r"""
+    Returns how many steps make up one electrical cycle of a drive pattern.
+    """
+
+def stepper_steps_for_degrees(degrees: builtins.float, steps_per_revolution: builtins.int) -> builtins.int:
+    r"""
+    Returns how many steps a rotation of `degrees` takes on a given motor.
+    """
+
 def verify(public_key: typing.Sequence[builtins.int], payload: typing.Sequence[builtins.int], signature: typing.Sequence[builtins.int]) -> builtins.bool:
     r"""
     Verifies that a signature covers a payload and was made by a public key.
@@ -788,5 +1300,10 @@ def verify(public_key: typing.Sequence[builtins.int], payload: typing.Sequence[b
 def version() -> builtins.str:
     r"""
     Returns the version of the native pamoja module.
+    """
+
+def window_capacity() -> builtins.int:
+    r"""
+    The number of readings a windowed helper keeps.
     """
 

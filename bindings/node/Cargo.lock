@@ -409,6 +409,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
 
 [[package]]
+name = "pamoja-actuators"
+version = "0.1.14"
+
+[[package]]
 name = "pamoja-can"
 version = "0.1.14"
 
@@ -457,6 +461,7 @@ dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
+ "pamoja-actuators",
  "pamoja-can",
  "pamoja-codec",
  "pamoja-core",
@@ -465,6 +470,7 @@ dependencies = [
  "pamoja-modbus",
  "pamoja-mqtt",
  "pamoja-security",
+ "pamoja-sensors",
  "pamoja-serial",
  "tokio",
 ]
@@ -476,6 +482,10 @@ dependencies = [
  "ed25519-dalek",
  "pamoja-core",
 ]
+
+[[package]]
+name = "pamoja-sensors"
+version = "0.1.14"
 
 [[package]]
 name = "pamoja-serial"

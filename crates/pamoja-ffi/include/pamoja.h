@@ -9,8 +9,22 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+
+
+
+
+
+
 // The largest I2C address frame, in bytes: the two a 10-bit address needs.
 #define PAMOJA_I2C_FRAME_MAX 2
+
+// The number of readings a windowed helper keeps.
+//
+// The Rust helpers are generic over their capacity, which cannot cross a C ABI,
+// so the ones here are built at one documented size. The crate's own examples
+// use three to eight readings, so this is headroom rather than a constraint; a
+// caller who needs another size has the Rust crate.
+#define PAMOJA_WINDOW_CAPACITY 32
 
 // The length in bytes of an identity seed and of a public key.
 #define PAMOJA_KEY_LEN 32
@@ -20,6 +34,18 @@
 
 // The length in characters of a hex fingerprint.
 #define PAMOJA_FINGERPRINT_LEN 16
+
+// The number of calibration bytes a BME280 reports for temperature and pressure.
+#define PAMOJA_BME280_CALIBRATION_TEMP_PRESS_LEN 26
+
+// The number of calibration bytes a BME280 reports for humidity.
+#define PAMOJA_BME280_CALIBRATION_HUMIDITY_LEN 7
+
+// The number of measurement bytes a BME280 burst read returns.
+#define PAMOJA_BME280_MEASUREMENT_LEN 8
+
+// The number of bytes in a DS18B20 scratchpad, the ninth being its CRC.
+#define PAMOJA_DS18B20_SCRATCHPAD_LEN 9
 
 // The largest payload, in bytes, that a streaming decoder will reassemble.
 //
@@ -57,6 +83,24 @@ typedef enum {
   // A security check failed, such as an invalid identity or a bad signature.
   PamojaStatus_Auth = 9,
 } PamojaStatus;
+
+// A stepper drive pattern, trading torque, smoothness, and resolution.
+typedef enum {
+  // One coil energised at a time: four steps, least torque and least power.
+  PamojaStepDrive_Wave = 0,
+  // Two adjacent coils at a time: four steps, most torque.
+  PamojaStepDrive_FullStep = 1,
+  // Alternating one and two coils: eight steps, double resolution.
+  PamojaStepDrive_HalfStep = 2,
+} PamojaStepDrive;
+
+// Which way to step a motor.
+typedef enum {
+  // Advance the sequence, turning the shaft one way.
+  PamojaStepDirection_Forward = 0,
+  // Reverse the sequence, turning the shaft the other way.
+  PamojaStepDirection_Backward = 1,
+} PamojaStepDirection;
 
 // Which direction an I2C transfer runs, as the read/write bit encodes it.
 typedef enum {
@@ -114,6 +158,16 @@ typedef enum {
   PamojaQos_ExactlyOnce = 2,
 } PamojaQos;
 
+// An opaque handle to an anomaly detector.
+typedef struct PamojaAnomaly PamojaAnomaly;
+
+// An opaque handle to a BME280's factory calibration.
+//
+// Read the calibration registers once at start-up, build one of these, and reuse
+// it for every measurement. Release it with
+// [`pamoja_bme280_calibration_free`].
+typedef struct PamojaBme280Calibration PamojaBme280Calibration;
+
 // An opaque handle to a byte buffer owned by the caller.
 //
 // Calls that produce a variable-length result hand back one of these rather than
@@ -154,6 +208,9 @@ typedef struct PamojaGeofence PamojaGeofence;
 
 // An opaque handle to a one-dimensional Kalman filter.
 typedef struct PamojaKalman PamojaKalman;
+
+// An opaque handle to a median filter.
+typedef struct PamojaMedian PamojaMedian;
 
 // An opaque handle to a parsed Modbus RTU frame with a verified CRC.
 //
@@ -197,11 +254,37 @@ typedef struct PamojaSlipDecoder PamojaSlipDecoder;
 // An opaque handle to an exponential smoother.
 typedef struct PamojaSmoother PamojaSmoother;
 
+// An opaque handle to a position in a stepper drive sequence.
+//
+// Release it with [`pamoja_stepper_free`].
+typedef struct PamojaStepper PamojaStepper;
+
 // An opaque handle to a step-change detector.
 typedef struct PamojaSurge PamojaSurge;
 
 // An opaque handle to an on/off controller with hysteresis.
 typedef struct PamojaThermostat PamojaThermostat;
+
+// An opaque handle to a trend estimator.
+typedef struct PamojaTrend PamojaTrend;
+
+// An opaque handle to a rolling window of readings.
+typedef struct PamojaWindow PamojaWindow;
+
+// A PCA9685 channel's four register bytes.
+//
+// The order matches the channel's four consecutive registers, so the whole
+// struct can be written in one bus transaction.
+typedef struct {
+  // The low byte of the count at which the output goes high.
+  uint8_t on_low;
+  // The high byte of that count; bit 4 is the full-on flag.
+  uint8_t on_high;
+  // The low byte of the count at which the output goes low.
+  uint8_t off_low;
+  // The high byte of that count; bit 4 is the full-off flag.
+  uint8_t off_high;
+} PamojaPwm;
 
 // The fields J1939 packs into an extended CAN identifier.
 //
@@ -262,6 +345,58 @@ typedef struct {
   PamojaQos qos;
 } PamojaMqttConfig;
 
+// A compensated BME280 reading.
+typedef struct {
+  // The temperature in degrees Celsius.
+  float celsius;
+  // The pressure in pascals.
+  uint32_t pascals;
+  // The pressure in hectopascals, the unit a barometer is usually quoted in.
+  float hectopascals;
+  // The relative humidity as a percentage.
+  float relative_humidity_percent;
+} PamojaBme280Measurement;
+
+// A decoded DS18B20 scratchpad.
+typedef struct {
+  // The raw temperature register, 1/16 degree Celsius per count.
+  int16_t raw_temperature;
+  // The temperature in micro-degrees Celsius, exact in integer arithmetic.
+  int32_t micro_celsius;
+  // The high alarm threshold in whole degrees Celsius.
+  int8_t alarm_high;
+  // The low alarm threshold in whole degrees Celsius.
+  int8_t alarm_low;
+  // The configured resolution, as a number of bits: 9, 10, 11, or 12.
+  uint8_t resolution_bits;
+} PamojaDs18b20Reading;
+
+// An ADS1115 configuration register, field by field.
+//
+// The multi-way settings carry the code the datasheet prints; the single-bit
+// settings are named for the state that bit selects, so there is no code to look
+// up for a flag.
+typedef struct {
+  // `1` starts a single conversion when written.
+  uint8_t start_conversion;
+  // The input multiplexer code, `0..=7`.
+  uint8_t mux;
+  // The gain code, `0..=7`, which sets the full-scale range.
+  uint8_t pga;
+  // `1` converts once per request and powers down, `0` converts continuously.
+  uint8_t single_shot;
+  // The data rate code, `0..=7`.
+  uint8_t data_rate;
+  // `1` selects the window comparator, `0` the traditional one.
+  uint8_t window_comparator;
+  // `1` makes the ALERT/RDY pin active high.
+  uint8_t comparator_active_high;
+  // `1` latches the comparator until the conversion is read.
+  uint8_t comparator_latching;
+  // The comparator queue code, `0..=3`, where `3` disables the comparator.
+  uint8_t comparator_queue;
+} PamojaAds1115Config;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -318,6 +453,134 @@ void pamoja_buffer_free(PamojaBuffer *buffer);
 // A pointer to a static null-terminated UTF-8 string owned by the library. The
 // caller must not free it; it is valid for the lifetime of the process.
 const char *pamoja_version(void);
+
+// Returns the first of a PCA9685 channel's four consecutive registers.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_register` set, or
+// [`PamojaStatus::InvalidArgument`] if `channel` is 16 or above.
+//
+// # Safety
+//
+// `out_register` must point to a writable `uint8_t`.
+PamojaStatus pamoja_pca9685_channel_register(uint8_t channel, uint8_t *out_register);
+
+// Returns the prescale value that sets a PCA9685 update rate.
+//
+// # Returns
+//
+// The prescale register value, clamped to what the part accepts.
+uint8_t pamoja_pca9685_prescale_for_frequency(uint32_t update_rate_hz, uint32_t osc_hz);
+
+// Returns the update rate a PCA9685 prescale value produces.
+//
+// # Returns
+//
+// The frequency in hertz.
+float pamoja_pca9685_frequency_for_prescale(uint8_t prescale, uint32_t osc_hz);
+
+// Builds a PWM setting from explicit on and off counts.
+//
+// # Returns
+//
+// The four register bytes; counts are masked to 12 bits.
+PamojaPwm pamoja_pwm_from_counts(uint16_t on, uint16_t off);
+
+// Builds a PWM setting with no phase delay: on at count 0, off at `off`.
+//
+// # Returns
+//
+// The four register bytes.
+PamojaPwm pamoja_pwm_duty(uint16_t off);
+
+// Builds the setting that drives a hobby servo to a given pulse width.
+//
+// Typical travel is about 1000 to 2000 microseconds at a 50 Hz update rate.
+//
+// # Returns
+//
+// The four register bytes for that pulse width.
+PamojaPwm pamoja_pwm_servo(uint32_t pulse_micros, uint32_t update_rate_hz);
+
+// The setting that holds a channel continuously high.
+//
+// # Returns
+//
+// The four register bytes.
+PamojaPwm pamoja_pwm_full_on(void);
+
+// The setting that holds a channel continuously low, the power-on state.
+//
+// # Returns
+//
+// The four register bytes.
+PamojaPwm pamoja_pwm_full_off(void);
+
+// Creates a stepper at the start of a drive pattern, with its position at zero.
+//
+// # Returns
+//
+// A new stepper the caller must release with [`pamoja_stepper_free`].
+PamojaStepper *pamoja_stepper_new(PamojaStepDrive drive);
+
+// Advances a stepper one step and returns the coil pattern to apply.
+//
+// # Returns
+//
+// The four-bit coil pattern, or 0 if `stepper` is null. The most significant of
+// the four bits is the first coil.
+//
+// # Safety
+//
+// `stepper` must be a live handle from [`pamoja_stepper_new`], or null.
+uint8_t pamoja_stepper_step(PamojaStepper *stepper, PamojaStepDirection direction);
+
+// Returns the coil pattern a stepper currently holds, without advancing it.
+//
+// # Returns
+//
+// The four-bit coil pattern, or 0 if `stepper` is null.
+//
+// # Safety
+//
+// `stepper` must be a live handle from [`pamoja_stepper_new`], or null.
+uint8_t pamoja_stepper_coils(const PamojaStepper *stepper);
+
+// Returns how many steps a stepper has taken, signed by direction.
+//
+// # Returns
+//
+// The net step count, or 0 if `stepper` is null.
+//
+// # Safety
+//
+// `stepper` must be a live handle from [`pamoja_stepper_new`], or null.
+int32_t pamoja_stepper_steps(const PamojaStepper *stepper);
+
+// Returns how many steps make up one electrical cycle of a drive pattern.
+//
+// # Returns
+//
+// `4` for wave and full-step, `8` for half-step.
+uintptr_t pamoja_stepper_step_count(PamojaStepDrive drive);
+
+// Releases a stepper handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `stepper` must be a handle from [`pamoja_stepper_new`] that has not already
+// been freed, or null. After this call it must not be used again.
+void pamoja_stepper_free(PamojaStepper *stepper);
+
+// Returns how many steps a rotation of `degrees` takes on a given motor.
+//
+// # Returns
+//
+// The step count, negative for a negative angle.
+int32_t pamoja_stepper_steps_for_degrees(float degrees, uint32_t steps_per_revolution);
 
 // Builds a classic CAN 2.0 frame.
 //
@@ -1303,6 +1566,243 @@ double pamoja_coordinate_bearing_to(PamojaCoordinate from, PamojaCoordinate to);
 // toward `center` by half the band width, so the output is continuous.
 float pamoja_kit_deadband(float value, float center, float width);
 
+// Creates an empty rolling window of [`PAMOJA_WINDOW_CAPACITY`] readings.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_window_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaWindow *pamoja_window_new(void);
+
+// Adds a reading, dropping the oldest once the window is full.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `window` must be a live handle from [`pamoja_window_new`], or null.
+void pamoja_window_push(PamojaWindow *window, float reading);
+
+// Returns how many readings a window holds.
+//
+// # Returns
+//
+// The count, or 0 if `window` is null.
+//
+// # Safety
+//
+// `window` must be a live handle from [`pamoja_window_new`], or null.
+uintptr_t pamoja_window_len(const PamojaWindow *window);
+
+// Returns how many readings a window holds before it starts dropping.
+//
+// # Returns
+//
+// The capacity, or 0 if `window` is null.
+//
+// # Safety
+//
+// `window` must be a live handle from [`pamoja_window_new`], or null.
+uintptr_t pamoja_window_capacity(const PamojaWindow *window);
+
+// Reads the mean of a window's readings.
+//
+// # Returns
+//
+// `true` when the window holds a reading, with the mean written to `out_value`.
+//
+// # Safety
+//
+// `window` must be a live handle or null, and `out_value` must point to a
+// writable `float`.
+bool pamoja_window_mean(const PamojaWindow *window, float *out_value);
+
+// Reads the smallest reading in a window.
+//
+// # Returns
+//
+// `true` when the window holds a reading, with the value written to `out_value`.
+//
+// # Safety
+//
+// `window` must be a live handle or null, and `out_value` must point to a
+// writable `float`.
+bool pamoja_window_min(const PamojaWindow *window, float *out_value);
+
+// Reads the largest reading in a window.
+//
+// # Returns
+//
+// `true` when the window holds a reading, with the value written to `out_value`.
+//
+// # Safety
+//
+// `window` must be a live handle or null, and `out_value` must point to a
+// writable `float`.
+bool pamoja_window_max(const PamojaWindow *window, float *out_value);
+
+// Reads the spread between a window's smallest and largest readings.
+//
+// # Returns
+//
+// `true` when the window holds a reading, with the range written to `out_value`.
+//
+// # Safety
+//
+// `window` must be a live handle or null, and `out_value` must point to a
+// writable `float`.
+bool pamoja_window_range(const PamojaWindow *window, float *out_value);
+
+// Reads the variance of a window's readings.
+//
+// # Returns
+//
+// `true` when the window holds enough readings to have a variance, with it
+// written to `out_value`.
+//
+// # Safety
+//
+// `window` must be a live handle or null, and `out_value` must point to a
+// writable `float`.
+bool pamoja_window_variance(const PamojaWindow *window, float *out_value);
+
+// Releases a rolling window handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `window` must be a handle from [`pamoja_window_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_window_free(PamojaWindow *window);
+
+// Creates an empty median filter over [`PAMOJA_WINDOW_CAPACITY`] readings.
+//
+// A median filter is what rejects a single wild reading, where an average would
+// let it pull the answer.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_median_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaMedian *pamoja_median_new(void);
+
+// Folds a reading in and returns the median of the window.
+//
+// # Returns
+//
+// The median, or NaN if `median` is null.
+//
+// # Safety
+//
+// `median` must be a live handle from [`pamoja_median_new`], or null.
+float pamoja_median_update(PamojaMedian *median, float reading);
+
+// Reads the current median without folding in a reading.
+//
+// # Returns
+//
+// `true` when the filter holds a reading, with the median written to
+// `out_value`.
+//
+// # Safety
+//
+// `median` must be a live handle or null, and `out_value` must point to a
+// writable `float`.
+bool pamoja_median_value(const PamojaMedian *median, float *out_value);
+
+// Releases a median filter handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `median` must be a handle from [`pamoja_median_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_median_free(PamojaMedian *median);
+
+// Creates an empty trend estimator over [`PAMOJA_WINDOW_CAPACITY`] readings.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_trend_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaTrend *pamoja_trend_new(void);
+
+// Adds a reading to a trend estimator.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `trend` must be a live handle from [`pamoja_trend_new`], or null.
+void pamoja_trend_push(PamojaTrend *trend, float reading);
+
+// Reads the slope a trend estimator has fitted, in units per reading.
+//
+// # Returns
+//
+// `true` when there are enough readings to fit a line, with the slope written to
+// `out_value`. A positive slope is a rising signal.
+//
+// # Safety
+//
+// `trend` must be a live handle or null, and `out_value` must point to a
+// writable `float`.
+bool pamoja_trend_slope(const PamojaTrend *trend, float *out_value);
+
+// Releases a trend estimator handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `trend` must be a handle from [`pamoja_trend_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_trend_free(PamojaTrend *trend);
+
+// Creates an anomaly detector that flags a reading `sigmas` deviations out.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_anomaly_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaAnomaly *pamoja_anomaly_new(float sigmas);
+
+// Folds a reading in and reports whether it stands out from the window.
+//
+// # Returns
+//
+// `true` when the reading is further from the mean than the configured number
+// of deviations, or `false` if `anomaly` is null or the window is still filling.
+//
+// # Safety
+//
+// `anomaly` must be a live handle from [`pamoja_anomaly_new`], or null.
+bool pamoja_anomaly_check(PamojaAnomaly *anomaly, float reading);
+
+// Releases an anomaly detector handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `anomaly` must be a handle from [`pamoja_anomaly_new`] that has not already
+// been freed, or null. After this call it must not be used again.
+void pamoja_anomaly_free(PamojaAnomaly *anomaly);
+
 // Computes the CRC-16/MODBUS that every RTU frame ends with.
 //
 // # Returns
@@ -1872,6 +2372,244 @@ PamojaStatus pamoja_public_identity_verify(const uint8_t *public_key,
                                            const uint8_t *payload,
                                            uintptr_t payload_len,
                                            const uint8_t *signature);
+
+// Builds a BME280 calibration from the bytes read out of its registers.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_calibration` set to a new handle
+// the caller must release with [`pamoja_bme280_calibration_free`], or
+// [`PamojaStatus::InvalidArgument`] if either buffer is the wrong length.
+//
+// # Safety
+//
+// `temp_press` must point to at least `temp_press_len` readable bytes and
+// `humidity` to at least `humidity_len`, and `out_calibration` must point to a
+// writable `*mut PamojaBme280Calibration`.
+PamojaStatus pamoja_bme280_calibration_new(const uint8_t *temp_press,
+                                           uintptr_t temp_press_len,
+                                           const uint8_t *humidity,
+                                           uintptr_t humidity_len,
+                                           PamojaBme280Calibration **out_calibration);
+
+// Turns a BME280 burst read into a compensated reading.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_measurement` filled in, or
+// [`PamojaStatus::InvalidArgument`] if the calibration is null or the
+// measurement is not eight bytes.
+//
+// # Safety
+//
+// `calibration` must be a live handle from [`pamoja_bme280_calibration_new`],
+// `measurement` must point to at least `measurement_len` readable bytes, and
+// `out_measurement` must point to a writable `PamojaBme280Measurement`.
+PamojaStatus pamoja_bme280_compensate(const PamojaBme280Calibration *calibration,
+                                      const uint8_t *measurement,
+                                      uintptr_t measurement_len,
+                                      PamojaBme280Measurement *out_measurement);
+
+// Releases a BME280 calibration handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `calibration` must be a handle from [`pamoja_bme280_calibration_new`] that has
+// not already been freed, or null. After this call it must not be used again.
+void pamoja_bme280_calibration_free(PamojaBme280Calibration *calibration);
+
+// Parses and CRC-checks a nine-byte DS18B20 scratchpad.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_reading` filled in, or
+// [`PamojaStatus::Codec`] if the CRC does not match, which means the read was
+// corrupted on the bus and should be repeated.
+//
+// # Safety
+//
+// `bytes` must point to at least `bytes_len` readable bytes, and `out_reading`
+// must point to a writable `PamojaDs18b20Reading`.
+PamojaStatus pamoja_ds18b20_parse_scratchpad(const uint8_t *bytes,
+                                             uintptr_t bytes_len,
+                                             PamojaDs18b20Reading *out_reading);
+
+// Computes the Maxim CRC-8 a 1-Wire device checks its own bytes with.
+//
+// # Returns
+//
+// The checksum over `data`.
+//
+// # Safety
+//
+// `data` must point to at least `data_len` readable bytes, or be null when
+// `data_len` is 0.
+uint8_t pamoja_ds18b20_crc8(const uint8_t *data, uintptr_t data_len);
+
+// Converts a raw DS18B20 temperature register to micro-degrees Celsius.
+//
+// # Returns
+//
+// The temperature, exact in integer arithmetic.
+int32_t pamoja_ds18b20_micro_celsius(int16_t raw);
+
+// Converts a raw DS18B20 temperature register to degrees Celsius.
+//
+// # Returns
+//
+// The temperature.
+float pamoja_ds18b20_celsius(int16_t raw);
+
+// Returns the configuration byte that selects a DS18B20 resolution.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_byte` set, or
+// [`PamojaStatus::InvalidArgument`] if `bits` is not 9, 10, 11, or 12.
+//
+// # Safety
+//
+// `out_byte` must point to a writable `uint8_t`.
+PamojaStatus pamoja_ds18b20_config_byte(uint8_t bits, uint8_t *out_byte);
+
+// Returns the resolution a DS18B20 configuration byte selects.
+//
+// # Returns
+//
+// The number of bits: 9, 10, 11, or 12. Every byte names a resolution, so this
+// never fails.
+uint8_t pamoja_ds18b20_resolution_bits(uint8_t config_byte);
+
+// Returns the temperature step a DS18B20 resolution resolves.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_micro_celsius` set, or
+// [`PamojaStatus::InvalidArgument`] if `bits` is not 9, 10, 11, or 12.
+//
+// # Safety
+//
+// `out_micro_celsius` must point to a writable `uint32_t`.
+PamojaStatus pamoja_ds18b20_step_micro_celsius(uint8_t bits, uint32_t *out_micro_celsius);
+
+// Returns how long a DS18B20 conversion may take at a resolution.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_micros` set to the datasheet's
+// worst case, or [`PamojaStatus::InvalidArgument`] if `bits` is not 9, 10, 11,
+// or 12.
+//
+// # Safety
+//
+// `out_micros` must point to a writable `uint32_t`.
+PamojaStatus pamoja_ds18b20_max_conversion_micros(uint8_t bits, uint32_t *out_micros);
+
+// Computes the INA219 calibration register for a shunt and current resolution.
+//
+// # Returns
+//
+// The register value to write.
+uint16_t pamoja_ina219_calibration(uint32_t current_lsb_microamps, uint32_t shunt_milliohms);
+
+// Returns the smallest current resolution that still covers an expected maximum.
+//
+// # Returns
+//
+// The current LSB in microamps.
+uint32_t pamoja_ina219_minimum_current_lsb_microamps(uint32_t max_expected_microamps);
+
+// Converts a raw INA219 shunt-voltage register to microvolts.
+//
+// # Returns
+//
+// The shunt voltage.
+int32_t pamoja_ina219_shunt_microvolts(int16_t raw);
+
+// Converts a raw INA219 bus-voltage register to millivolts.
+//
+// # Returns
+//
+// The bus voltage.
+uint32_t pamoja_ina219_bus_millivolts(uint16_t raw);
+
+// Reports whether an INA219 bus-voltage register says a conversion is ready.
+//
+// # Returns
+//
+// `true` when the conversion-ready flag is set.
+bool pamoja_ina219_conversion_ready(uint16_t raw);
+
+// Reports whether an INA219 bus-voltage register flags a math overflow.
+//
+// # Returns
+//
+// `true` when the current or power reading is meaningless and the calibration
+// needs revisiting.
+bool pamoja_ina219_math_overflow(uint16_t raw);
+
+// Converts a raw INA219 current register to microamps.
+//
+// # Returns
+//
+// The current, at the resolution the calibration selected.
+int32_t pamoja_ina219_current_microamps(int16_t raw, uint32_t current_lsb_microamps);
+
+// Converts a raw INA219 power register to microwatts.
+//
+// # Returns
+//
+// The power, at the resolution the calibration selected.
+uint32_t pamoja_ina219_power_microwatts(uint16_t raw, uint32_t current_lsb_microamps);
+
+// Assembles the 16-bit ADS1115 configuration register value.
+//
+// # Returns
+//
+// The register value to write, most significant bit first.
+uint16_t pamoja_ads1115_config_bits(PamojaAds1115Config config);
+
+// Parses a 16-bit ADS1115 configuration register value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], with `*out_config` filled in. Every register value
+// decodes, so this fails only on a null pointer.
+//
+// # Safety
+//
+// `out_config` must point to a writable `PamojaAds1115Config`.
+PamojaStatus pamoja_ads1115_config_from_bits(uint16_t bits, PamojaAds1115Config *out_config);
+
+// Returns the full-scale range an ADS1115 gain code selects.
+//
+// # Returns
+//
+// The full scale in microvolts.
+uint32_t pamoja_ads1115_full_scale_microvolts(uint8_t pga);
+
+// Returns the sample rate an ADS1115 data-rate code selects.
+//
+// # Returns
+//
+// The rate in samples per second.
+uint16_t pamoja_ads1115_samples_per_second(uint8_t data_rate);
+
+// Converts a raw ADS1115 conversion result to nanovolts.
+//
+// # Returns
+//
+// The measured voltage, exact in integer arithmetic at every gain setting.
+int64_t pamoja_ads1115_to_nanovolts(uint8_t pga, int16_t raw);
+
+// Converts a raw ADS1115 conversion result to volts.
+//
+// # Returns
+//
+// The measured voltage.
+float pamoja_ads1115_to_volts(uint8_t pga, int16_t raw);
 
 // Frames a payload as a SLIP packet (RFC 1055).
 //

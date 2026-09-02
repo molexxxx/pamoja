@@ -24,6 +24,13 @@ const {
   gpio,
   modbus,
   serial: serialFraming,
+  actuators,
+  sensors,
+  Window,
+  Median,
+  Trend,
+  Anomaly,
+  WINDOW_CAPACITY,
 } = require("./dist/index.js");
 
 const VECTORS = JSON.parse(
@@ -359,6 +366,218 @@ function gpioVectors() {
   });
 }
 
+function sensorVectors() {
+  const vector = VECTORS.sensors;
+
+  const bme = vector.bme280;
+  const calibration = sensors.bme280.calibration(
+    unhex(bme.calibrationTempPress),
+    unhex(bme.calibrationHumidity),
+  );
+  const reading = calibration.compensate(unhex(bme.measurement));
+  close(reading.celsius, bme.celsius, "BME280 temperature", 1e-3);
+  assert.strictEqual(reading.pascals, bme.pascals, "BME280 pressure");
+  close(reading.hectopascals, bme.hectopascals, "BME280 pressure in hPa", 1e-2);
+  close(
+    reading.relativeHumidityPercent,
+    bme.relativeHumidityPercent,
+    "BME280 humidity",
+    1e-3,
+  );
+
+  const ds = vector.ds18b20;
+  const decoded = sensors.ds18b20.parseScratchpad(unhex(ds.scratchpad));
+  assert.strictEqual(decoded.rawTemperature, ds.rawTemperature, "DS18B20 register");
+  assert.strictEqual(decoded.microCelsius, ds.microCelsius, "DS18B20 temperature");
+  assert.strictEqual(decoded.resolutionBits, ds.resolutionBits, "DS18B20 resolution");
+  assert.strictEqual(decoded.alarmHigh, ds.alarmHigh, "DS18B20 high alarm");
+  assert.strictEqual(sensors.ds18b20.crc8(unhex(ds.crcData)), ds.crc, "DS18B20 CRC");
+  assert.throws(
+    () => sensors.ds18b20.parseScratchpad(unhex(ds.corruptScratchpad)),
+    "a read corrupted on the bus must not be trusted",
+  );
+  assert.throws(
+    () => sensors.ds18b20.configByte(ds.invalidResolution),
+    "a resolution the part does not offer is refused",
+  );
+
+  ds.resolutions.forEach((entry) => {
+    assert.strictEqual(sensors.ds18b20.configByte(entry.bits), entry.configByte, "config byte");
+    assert.strictEqual(
+      sensors.ds18b20.stepMicroCelsius(entry.bits),
+      entry.stepMicroCelsius,
+      "resolution step",
+    );
+    assert.strictEqual(
+      sensors.ds18b20.maxConversionMicros(entry.bits),
+      entry.maxConversionMicros,
+      "conversion time",
+    );
+    assert.strictEqual(
+      sensors.ds18b20.resolutionBits(entry.configByte),
+      entry.bits,
+      "the resolution round-trips through its config byte",
+    );
+  });
+
+  const ina = vector.ina219;
+  assert.strictEqual(
+    sensors.ina219.calibration(ina.currentLsbMicroamps, ina.shuntMilliohms),
+    ina.calibration,
+    "INA219 calibration",
+  );
+  assert.strictEqual(
+    sensors.ina219.minimumCurrentLsbMicroamps(ina.maxExpectedMicroamps),
+    ina.minimumCurrentLsbMicroamps,
+    "INA219 minimum resolution",
+  );
+  assert.strictEqual(
+    sensors.ina219.shuntMicrovolts(ina.rawShunt),
+    ina.shuntMicrovolts,
+    "INA219 shunt voltage",
+  );
+  assert.strictEqual(
+    sensors.ina219.busMillivolts(ina.rawBus),
+    ina.busMillivolts,
+    "INA219 bus voltage",
+  );
+  assert.strictEqual(
+    sensors.ina219.currentMicroamps(ina.rawCurrent, ina.currentLsbMicroamps),
+    ina.currentMicroamps,
+    "INA219 current",
+  );
+  assert.strictEqual(
+    sensors.ina219.powerMicrowatts(ina.rawPower, ina.currentLsbMicroamps),
+    ina.powerMicrowatts,
+    "INA219 power",
+  );
+
+  const ads = vector.ads1115;
+  const reset = sensors.ads1115.configFromBits(ads.configReset);
+  Object.entries(ads.resetConfig).forEach(([field, want]) => {
+    assert.strictEqual(reset[field], want, `ADS1115 reset ${field}`);
+  });
+  assert.strictEqual(
+    sensors.ads1115.configBits(reset),
+    ads.configReset,
+    "the configuration round-trips through its register",
+  );
+  ads.gains.forEach((entry) => {
+    assert.strictEqual(
+      sensors.ads1115.fullScaleMicrovolts(entry.pga),
+      entry.fullScaleMicrovolts,
+      "ADS1115 full scale",
+    );
+    assert.strictEqual(
+      sensors.ads1115.toNanovolts(entry.pga, 32767),
+      entry.nanovoltsAtFullScale,
+      "ADS1115 conversion",
+    );
+  });
+  ads.rates.forEach((entry) => {
+    assert.strictEqual(
+      sensors.ads1115.samplesPerSecond(entry.dataRate),
+      entry.samplesPerSecond,
+      "ADS1115 sample rate",
+    );
+  });
+}
+
+function actuatorVectors() {
+  const vector = VECTORS.actuators;
+
+  const pca = vector.pca9685;
+  assert.strictEqual(actuators.pca9685.internalOscHz, pca.internalOscHz, "oscillator");
+  assert.strictEqual(actuators.pca9685.channels, pca.channels, "channel count");
+  assert.strictEqual(actuators.pca9685.counts, pca.counts, "counts per period");
+  pca.channelRegisters.forEach((entry) => {
+    assert.strictEqual(
+      actuators.pca9685.channelRegister(entry.channel),
+      entry.register,
+      "channel register",
+    );
+  });
+  assert.throws(
+    () => actuators.pca9685.channelRegister(pca.invalidChannel),
+    "a channel beyond the part is refused",
+  );
+  assert.strictEqual(
+    actuators.pca9685.prescaleForFrequency(pca.updateRateHz, pca.internalOscHz),
+    pca.prescale,
+    "prescale",
+  );
+
+  const pwm = vector.pwm;
+  assert.deepStrictEqual(actuators.pwm.duty(pwm.duty.off), unhex(pwm.duty.bytes), "duty bytes");
+  assert.deepStrictEqual(
+    actuators.pwm.servo(pwm.servoCentre.pulseMicros, pwm.servoCentre.updateRateHz),
+    unhex(pwm.servoCentre.bytes),
+    "servo bytes",
+  );
+  assert.deepStrictEqual(actuators.pwm.fullOn(), unhex(pwm.fullOn), "full-on bytes");
+  assert.deepStrictEqual(actuators.pwm.fullOff(), unhex(pwm.fullOff), "full-off bytes");
+
+  const motor = vector.stepper;
+  const stepper = new actuators.Stepper(actuators.StepDrive.HalfStep);
+  const cycle = [stepper.coils];
+  for (let step = 0; step < motor.stepCount; step += 1) {
+    cycle.push(stepper.step(actuators.StepDirection.Forward));
+  }
+  assert.deepStrictEqual(cycle, motor.forwardCycle, "the forward cycle");
+  assert.strictEqual(stepper.steps, motor.stepCount, "the position counts every step");
+  assert.strictEqual(
+    actuators.stepCount(actuators.StepDrive.HalfStep),
+    motor.stepCount,
+    "one cycle of half-step drive",
+  );
+  assert.strictEqual(
+    actuators.stepsForDegrees(motor.degrees, motor.stepsPerRevolution),
+    motor.stepsForDegrees,
+    "a quarter turn is a quarter of the revolution",
+  );
+}
+
+function windowedVectors() {
+  const vector = VECTORS.windows;
+  assert.strictEqual(WINDOW_CAPACITY, vector.capacity, "the documented capacity");
+
+  const window = new Window();
+  vector.window.readings.forEach((reading, index) => {
+    window.push(reading);
+    const want = vector.window.states[index];
+    assert.strictEqual(window.len, want.len, "window length");
+    close(window.mean(), want.mean, "window mean");
+    close(window.min(), want.min, "window minimum");
+    close(window.max(), want.max, "window maximum");
+    close(window.range(), want.range, "window range");
+  });
+
+  const median = new Median();
+  vector.median.readings.forEach((reading, index) => {
+    close(median.update(reading), vector.median.outputs[index], "median");
+  });
+
+  const trend = new Trend();
+  vector.trend.readings.forEach((reading, index) => {
+    trend.push(reading);
+    const want = vector.trend.slopes[index];
+    if (want === null) {
+      assert.strictEqual(trend.slope(), null, "no slope without enough readings");
+    } else {
+      close(trend.slope(), want, "trend slope", 1e-4);
+    }
+  });
+
+  const anomaly = new Anomaly(vector.anomaly.sigmas);
+  vector.anomaly.readings.forEach((reading, index) => {
+    assert.strictEqual(
+      anomaly.check(reading),
+      vector.anomaly.flags[index],
+      "the detector flags the reading that stands out",
+    );
+  });
+}
+
 identity();
 codec();
 helpers();
@@ -367,5 +586,8 @@ serial();
 modbusVectors();
 canVectors();
 gpioVectors();
+sensorVectors();
+actuatorVectors();
+windowedVectors();
 
 console.log("conformance ok");

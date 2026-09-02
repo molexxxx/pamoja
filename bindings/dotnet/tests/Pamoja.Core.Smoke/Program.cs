@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 
 using Pamoja.Core;
+using Pamoja.Core.Interop;
 
 string version = PamojaCore.Version;
 Console.WriteLine($"pamoja version: {version}");
@@ -39,6 +40,7 @@ Identity();
 Codecs();
 Helpers();
 FieldIo();
+SensingAndActuation();
 
 Console.WriteLine("ok");
 
@@ -202,6 +204,80 @@ static void FieldIo()
         "an active-low relay is energised by a low level");
 }
 
+// The parts wired to a board: a compensated environment reading, a thermometer
+// that checks its own bytes, a servo pulse, and the stats over a rolling window.
+static void SensingAndActuation()
+{
+    byte[] scratchpad = [0x91, 0x01, 0x4B, 0x46, 0x7F, 0xFF, 0x0C, 0x10, 0x00];
+    scratchpad[8] = Ds18b20.Crc8(scratchpad.AsSpan(0, 8));
+    Ds18b20Reading reading = Ds18b20.ParseScratchpad(scratchpad);
+    Assert(reading.MicroCelsius == 25_062_500, "the thermometer decodes its register");
+    Assert(reading.ResolutionBits == 12, "and reports its resolution");
+
+    try
+    {
+        scratchpad[0] ^= 0xFF;
+        Ds18b20.ParseScratchpad(scratchpad);
+        Fail("a scratchpad failing its CRC should throw");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    Assert(Ina219.Calibration(1_000, 2) == 0x5000, "the datasheet design example");
+    Assert(Ina219.PowerMicrowatts(100, 1_000) == 2_000_000, "the power LSB is twenty times");
+
+    Ads1115Config reset = Ads1115.ConfigFromBits(Ads1115.ConfigReset);
+    Assert(Ads1115.ConfigBits(reset) == Ads1115.ConfigReset, "the config round-trips");
+    Assert(Ads1115.FullScaleMicrovolts(1) == 4_096_000, "gain code 1 is plus or minus 4.096 V");
+
+    Assert(Pwm.FullOff()[3] == 0x10, "fully off is its own encoding, not a zero duty");
+    Assert(Pca9685.ChannelRegister(0) == 0x06, "the first channel's register block");
+
+    using var motor = new Stepper(StepDrive.HalfStep);
+    byte first = motor.Coils;
+    for (int step = 0; step < Stepper.StepCount(StepDrive.HalfStep); step++)
+    {
+        motor.Step(StepDirection.Forward);
+    }
+
+    Assert(motor.Coils == first, "one electrical cycle returns to its first pattern");
+    Assert(motor.Steps == 8, "and the position counts every step");
+
+    using var window = new Window();
+    foreach (float value in new[] { 10f, 20f, 30f })
+    {
+        window.Push(value);
+    }
+
+    Assert(window.Count == 3 && window.Capacity == 32, "the window fills to its capacity");
+    Assert(Math.Abs((window.Mean() ?? 0f) - 20f) < 1e-5f, "and averages its readings");
+
+    using var median = new Median();
+    foreach (float value in new[] { 20f, 21f, 20.5f })
+    {
+        median.Update(value);
+    }
+
+    Assert(median.Update(900f) < 30f, "a median does not follow a single spike");
+
+    using var trend = new Trend();
+    foreach (float value in new[] { 1f, 2f, 3f, 4f })
+    {
+        trend.Push(value);
+    }
+
+    Assert(Math.Abs((trend.Slope ?? 0f) - 1f) < 1e-4f, "a rising signal has a positive slope");
+
+    using var anomaly = new Anomaly(3f);
+    for (int i = 0; i < 8; i++)
+    {
+        anomaly.Check(20f);
+    }
+
+    Assert(anomaly.Check(900f), "a reading far outside the window is flagged");
+}
+
 static void Assert(bool condition, string message)
 {
     if (!condition)
@@ -237,6 +313,9 @@ static void Conformance()
     ConformModbus(vectors.GetProperty("modbus"));
     ConformCan(vectors.GetProperty("can"));
     ConformGpio(vectors.GetProperty("gpio"));
+    ConformSensors(vectors.GetProperty("sensors"));
+    ConformActuators(vectors.GetProperty("actuators"));
+    ConformWindows(vectors.GetProperty("windows"), tolerance);
 
     Console.WriteLine("conformance ok");
 }
@@ -708,5 +787,295 @@ static void ConformGpio(JsonElement vector)
         Assert(
             Pin.IsAsserted(polarity, level) == entry.GetProperty("isAsserted").GetBoolean(),
             "and maps it back");
+    }
+}
+
+static void ConformSensors(JsonElement vector)
+{
+    JsonElement bme = vector.GetProperty("bme280");
+    using var calibration = new Bme280Calibration(
+        Convert.FromHexString(bme.GetProperty("calibrationTempPress").GetString()!),
+        Convert.FromHexString(bme.GetProperty("calibrationHumidity").GetString()!));
+    Bme280Measurement reading = calibration.Compensate(
+        Convert.FromHexString(bme.GetProperty("measurement").GetString()!));
+
+    Assert(
+        Math.Abs(reading.Celsius - bme.GetProperty("celsius").GetSingle()) < 1e-3f,
+        "BME280 temperature matches");
+    Assert(reading.Pascals == bme.GetProperty("pascals").GetUInt32(), "BME280 pressure matches");
+    Assert(
+        Math.Abs(reading.RelativeHumidityPercent
+            - bme.GetProperty("relativeHumidityPercent").GetSingle()) < 1e-3f,
+        "BME280 humidity matches");
+
+    JsonElement ds = vector.GetProperty("ds18b20");
+    Ds18b20Reading decoded = Ds18b20.ParseScratchpad(
+        Convert.FromHexString(ds.GetProperty("scratchpad").GetString()!));
+    Assert(
+        decoded.RawTemperature == ds.GetProperty("rawTemperature").GetInt16(),
+        "DS18B20 register matches");
+    Assert(
+        decoded.MicroCelsius == ds.GetProperty("microCelsius").GetInt32(),
+        "DS18B20 temperature matches");
+    Assert(
+        decoded.ResolutionBits == ds.GetProperty("resolutionBits").GetByte(),
+        "DS18B20 resolution matches");
+    Assert(
+        Ds18b20.Crc8(Convert.FromHexString(ds.GetProperty("crcData").GetString()!))
+            == ds.GetProperty("crc").GetByte(),
+        "DS18B20 checksum matches");
+
+    try
+    {
+        Ds18b20.ParseScratchpad(
+            Convert.FromHexString(ds.GetProperty("corruptScratchpad").GetString()!));
+        Fail("a read corrupted on the bus should throw");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    try
+    {
+        Ds18b20.ConfigByte(ds.GetProperty("invalidResolution").GetByte());
+        Fail("a resolution the part does not offer should throw");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    foreach (JsonElement entry in ds.GetProperty("resolutions").EnumerateArray())
+    {
+        byte bits = entry.GetProperty("bits").GetByte();
+        byte configByte = entry.GetProperty("configByte").GetByte();
+        Assert(Ds18b20.ConfigByte(bits) == configByte, "config byte matches");
+        Assert(
+            Ds18b20.StepMicroCelsius(bits) == entry.GetProperty("stepMicroCelsius").GetUInt32(),
+            "resolution step matches");
+        Assert(
+            Ds18b20.MaxConversionMicros(bits)
+                == entry.GetProperty("maxConversionMicros").GetUInt32(),
+            "conversion time matches");
+        Assert(Ds18b20.ResolutionBits(configByte) == bits, "the resolution round-trips");
+    }
+
+    JsonElement ina = vector.GetProperty("ina219");
+    uint lsb = ina.GetProperty("currentLsbMicroamps").GetUInt32();
+    Assert(
+        Ina219.Calibration(lsb, ina.GetProperty("shuntMilliohms").GetUInt32())
+            == ina.GetProperty("calibration").GetUInt16(),
+        "INA219 calibration matches");
+    Assert(
+        Ina219.MinimumCurrentLsbMicroamps(ina.GetProperty("maxExpectedMicroamps").GetUInt32())
+            == ina.GetProperty("minimumCurrentLsbMicroamps").GetUInt32(),
+        "INA219 minimum resolution matches");
+    Assert(
+        Ina219.ShuntMicrovolts(ina.GetProperty("rawShunt").GetInt16())
+            == ina.GetProperty("shuntMicrovolts").GetInt32(),
+        "INA219 shunt voltage matches");
+    Assert(
+        Ina219.BusMillivolts(ina.GetProperty("rawBus").GetUInt16())
+            == ina.GetProperty("busMillivolts").GetUInt32(),
+        "INA219 bus voltage matches");
+    Assert(
+        Ina219.CurrentMicroamps(ina.GetProperty("rawCurrent").GetInt16(), lsb)
+            == ina.GetProperty("currentMicroamps").GetInt32(),
+        "INA219 current matches");
+    Assert(
+        Ina219.PowerMicrowatts(ina.GetProperty("rawPower").GetUInt16(), lsb)
+            == ina.GetProperty("powerMicrowatts").GetUInt32(),
+        "INA219 power matches");
+
+    JsonElement ads = vector.GetProperty("ads1115");
+    ushort configReset = ads.GetProperty("configReset").GetUInt16();
+    Ads1115Config reset = Ads1115.ConfigFromBits(configReset);
+    JsonElement want = ads.GetProperty("resetConfig");
+    Assert(
+        reset.StartConversion == want.GetProperty("startConversion").GetBoolean(),
+        "ADS1115 start bit matches");
+    Assert(reset.Mux == want.GetProperty("mux").GetByte(), "ADS1115 mux matches");
+    Assert(reset.Pga == want.GetProperty("pga").GetByte(), "ADS1115 gain matches");
+    Assert(
+        reset.SingleShot == want.GetProperty("singleShot").GetBoolean(),
+        "ADS1115 mode matches");
+    Assert(
+        reset.DataRate == want.GetProperty("dataRate").GetByte(),
+        "ADS1115 data rate matches");
+    Assert(
+        reset.ComparatorQueue == want.GetProperty("comparatorQueue").GetByte(),
+        "ADS1115 comparator queue matches");
+    Assert(Ads1115.ConfigBits(reset) == configReset, "the configuration round-trips");
+
+    foreach (JsonElement entry in ads.GetProperty("gains").EnumerateArray())
+    {
+        byte pga = entry.GetProperty("pga").GetByte();
+        Assert(
+            Ads1115.FullScaleMicrovolts(pga)
+                == entry.GetProperty("fullScaleMicrovolts").GetUInt32(),
+            "ADS1115 full scale matches");
+        Assert(
+            Ads1115.ToNanovolts(pga, 32_767)
+                == entry.GetProperty("nanovoltsAtFullScale").GetInt64(),
+            "ADS1115 conversion matches");
+    }
+
+    foreach (JsonElement entry in ads.GetProperty("rates").EnumerateArray())
+    {
+        Assert(
+            Ads1115.SamplesPerSecond(entry.GetProperty("dataRate").GetByte())
+                == entry.GetProperty("samplesPerSecond").GetUInt16(),
+            "ADS1115 sample rate matches");
+    }
+}
+
+static void ConformActuators(JsonElement vector)
+{
+    JsonElement pca = vector.GetProperty("pca9685");
+    Assert(
+        Pca9685.InternalOscHz == pca.GetProperty("internalOscHz").GetUInt32(),
+        "the oscillator matches");
+    Assert(Pca9685.Channels == pca.GetProperty("channels").GetByte(), "the channel count matches");
+    Assert(Pca9685.Counts == pca.GetProperty("counts").GetUInt16(), "the counts match");
+
+    foreach (JsonElement entry in pca.GetProperty("channelRegisters").EnumerateArray())
+    {
+        Assert(
+            Pca9685.ChannelRegister(entry.GetProperty("channel").GetByte())
+                == entry.GetProperty("register").GetByte(),
+            "channel register matches");
+    }
+
+    try
+    {
+        Pca9685.ChannelRegister(pca.GetProperty("invalidChannel").GetByte());
+        Fail("a channel beyond the part should throw");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    Assert(
+        Pca9685.PrescaleForFrequency(
+            pca.GetProperty("updateRateHz").GetUInt32(),
+            pca.GetProperty("internalOscHz").GetUInt32())
+            == pca.GetProperty("prescale").GetByte(),
+        "the prescale matches");
+
+    JsonElement pwm = vector.GetProperty("pwm");
+    Assert(
+        Pwm.Duty(pwm.GetProperty("duty").GetProperty("off").GetUInt16()).SequenceEqual(
+            Convert.FromHexString(pwm.GetProperty("duty").GetProperty("bytes").GetString()!)),
+        "duty bytes match");
+    JsonElement servo = pwm.GetProperty("servoCentre");
+    Assert(
+        Pwm.Servo(
+            servo.GetProperty("pulseMicros").GetUInt32(),
+            servo.GetProperty("updateRateHz").GetUInt32())
+            .SequenceEqual(Convert.FromHexString(servo.GetProperty("bytes").GetString()!)),
+        "servo bytes match");
+    Assert(
+        Pwm.FullOn().SequenceEqual(
+            Convert.FromHexString(pwm.GetProperty("fullOn").GetString()!)),
+        "full-on bytes match");
+    Assert(
+        Pwm.FullOff().SequenceEqual(
+            Convert.FromHexString(pwm.GetProperty("fullOff").GetString()!)),
+        "full-off bytes match");
+
+    JsonElement motor = vector.GetProperty("stepper");
+    int stepCount = motor.GetProperty("stepCount").GetInt32();
+    using var stepper = new Stepper(StepDrive.HalfStep);
+    List<byte> cycle = [stepper.Coils];
+    for (int step = 0; step < stepCount; step++)
+    {
+        cycle.Add(stepper.Step(StepDirection.Forward));
+    }
+
+    byte[] wantCycle = motor.GetProperty("forwardCycle").EnumerateArray()
+        .Select(entry => entry.GetByte()).ToArray();
+    Assert(cycle.SequenceEqual(wantCycle), "the forward cycle matches");
+    Assert(stepper.Steps == stepCount, "the position counts every step");
+    Assert(Stepper.StepCount(StepDrive.HalfStep) == stepCount, "one half-step cycle matches");
+    Assert(
+        Stepper.StepsForDegrees(
+            motor.GetProperty("degrees").GetSingle(),
+            motor.GetProperty("stepsPerRevolution").GetUInt32())
+            == motor.GetProperty("stepsForDegrees").GetInt32(),
+        "a quarter turn is a quarter of the revolution");
+}
+
+static void ConformWindows(JsonElement vector, double tolerance)
+{
+    Assert(
+        NativeMethods.WindowCapacity == vector.GetProperty("capacity").GetInt32(),
+        "the documented capacity matches");
+
+    JsonElement windowVector = vector.GetProperty("window");
+    float[] readings = windowVector.GetProperty("readings").EnumerateArray()
+        .Select(entry => entry.GetSingle()).ToArray();
+    JsonElement[] states = windowVector.GetProperty("states").EnumerateArray().ToArray();
+    using var window = new Window();
+    for (int index = 0; index < readings.Length; index++)
+    {
+        window.Push(readings[index]);
+        JsonElement want = states[index];
+        Assert(window.Count == want.GetProperty("len").GetInt32(), "window length matches");
+        Assert(
+            Math.Abs((window.Mean() ?? 0f) - want.GetProperty("mean").GetSingle()) <= tolerance,
+            "window mean matches");
+        Assert(
+            Math.Abs((window.Min() ?? 0f) - want.GetProperty("min").GetSingle()) <= tolerance,
+            "window minimum matches");
+        Assert(
+            Math.Abs((window.Max() ?? 0f) - want.GetProperty("max").GetSingle()) <= tolerance,
+            "window maximum matches");
+    }
+
+    JsonElement medianVector = vector.GetProperty("median");
+    float[] medianOutputs = medianVector.GetProperty("outputs").EnumerateArray()
+        .Select(entry => entry.GetSingle()).ToArray();
+    using var median = new Median();
+    int position = 0;
+    foreach (JsonElement entry in medianVector.GetProperty("readings").EnumerateArray())
+    {
+        Assert(
+            Math.Abs(median.Update(entry.GetSingle()) - medianOutputs[position]) <= tolerance,
+            "median matches");
+        position++;
+    }
+
+    JsonElement trendVector = vector.GetProperty("trend");
+    JsonElement[] slopes = trendVector.GetProperty("slopes").EnumerateArray().ToArray();
+    using var trend = new Trend();
+    position = 0;
+    foreach (JsonElement entry in trendVector.GetProperty("readings").EnumerateArray())
+    {
+        trend.Push(entry.GetSingle());
+        JsonElement want = slopes[position];
+        if (want.ValueKind == JsonValueKind.Null)
+        {
+            Assert(trend.Slope is null, "no slope without enough readings");
+        }
+        else
+        {
+            Assert(
+                Math.Abs((trend.Slope ?? 0f) - want.GetSingle()) <= 1e-4f,
+                "trend slope matches");
+        }
+
+        position++;
+    }
+
+    JsonElement anomalyVector = vector.GetProperty("anomaly");
+    bool[] flags = anomalyVector.GetProperty("flags").EnumerateArray()
+        .Select(entry => entry.GetBoolean()).ToArray();
+    using var anomaly = new Anomaly(anomalyVector.GetProperty("sigmas").GetSingle());
+    position = 0;
+    foreach (JsonElement entry in anomalyVector.GetProperty("readings").EnumerateArray())
+    {
+        Assert(
+            anomaly.Check(entry.GetSingle()) == flags[position],
+            "the detector flags the reading that stands out");
+        position++;
     }
 }

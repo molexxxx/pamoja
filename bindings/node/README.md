@@ -19,11 +19,14 @@ while all behavior stays in the Rust core.
 | `@pamoja/core/modbus` | Modbus RTU requests and replies for RS485 field devices |
 | `@pamoja/core/can` | CAN 2.0 and CAN-FD frames, and the J1939 identifier above them |
 | `@pamoja/core/gpio` | I2C addressing, the SPI clock modes, and active-low pin logic |
+| `@pamoja/core/sensors` | BME280, DS18B20, INA219, and ADS1115 register decoding |
+| `@pamoja/core/actuators` | PCA9685 PWM and servo commands, and stepper coil sequencing |
 
 `@pamoja/core` re-exports them all, and the generated low-level contract stays
 available at `@pamoja/core/raw` for anything the facade does not surface. The
-field-I/O capabilities arrive as namespaces (`serial`, `modbus`, `can`, `gpio`),
-because their operations are named for their protocol rather than for the SDK.
+hardware capabilities arrive as namespaces (`serial`, `modbus`, `can`, `gpio`,
+`sensors`, `actuators`), because their operations are named for their protocol or
+part rather than for the SDK.
 
 ```js
 const { DeviceIdentity, Smoother, toCbor } = require("@pamoja/core");

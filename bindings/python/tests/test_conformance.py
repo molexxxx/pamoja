@@ -27,7 +27,20 @@ from pamoja import (
     unpack_samples,
     verify,
 )
-from pamoja import PamojaError, can, gpio, modbus, serial
+from pamoja import (
+    WINDOW_CAPACITY,
+    Anomaly,
+    Median,
+    PamojaError,
+    Trend,
+    Window,
+    actuators,
+    can,
+    gpio,
+    modbus,
+    sensors,
+    serial,
+)
 
 VECTORS = json.loads(
     (pathlib.Path(__file__).resolve().parents[3] / "conformance" / "vectors.json").read_text(
@@ -302,3 +315,147 @@ def test_gpio_vectors_match():
         level = gpio.pin.level_for(polarity, entry["asserted"])
         assert level.value == entry["level"]
         assert gpio.pin.is_asserted(polarity, level) == entry["isAsserted"]
+
+
+def test_sensor_vectors_match():
+    vector = VECTORS["sensors"]
+
+    bme = vector["bme280"]
+    calibration = sensors.bme280.calibration(
+        unhex(bme["calibrationTempPress"]), unhex(bme["calibrationHumidity"])
+    )
+    reading = calibration.compensate(unhex(bme["measurement"]))
+    assert reading.celsius == pytest.approx(bme["celsius"], abs=1e-3)
+    assert reading.pascals == bme["pascals"]
+    assert reading.hectopascals == pytest.approx(bme["hectopascals"], abs=1e-2)
+    assert reading.relative_humidity_percent == pytest.approx(
+        bme["relativeHumidityPercent"], abs=1e-3
+    )
+
+    ds = vector["ds18b20"]
+    decoded = sensors.ds18b20.parse_scratchpad(unhex(ds["scratchpad"]))
+    assert decoded.raw_temperature == ds["rawTemperature"]
+    assert decoded.micro_celsius == ds["microCelsius"]
+    assert decoded.resolution_bits == ds["resolutionBits"]
+    assert decoded.alarm_high == ds["alarmHigh"]
+    assert sensors.ds18b20.crc8(unhex(ds["crcData"])) == ds["crc"]
+
+    with pytest.raises(PamojaError):
+        sensors.ds18b20.parse_scratchpad(unhex(ds["corruptScratchpad"]))
+    with pytest.raises(ValueError):
+        sensors.ds18b20.config_byte(ds["invalidResolution"])
+
+    for entry in ds["resolutions"]:
+        assert sensors.ds18b20.config_byte(entry["bits"]) == entry["configByte"]
+        assert sensors.ds18b20.step_micro_celsius(entry["bits"]) == entry["stepMicroCelsius"]
+        assert (
+            sensors.ds18b20.max_conversion_micros(entry["bits"])
+            == entry["maxConversionMicros"]
+        )
+        assert sensors.ds18b20.resolution_bits(entry["configByte"]) == entry["bits"]
+
+    ina = vector["ina219"]
+    lsb = ina["currentLsbMicroamps"]
+    assert sensors.ina219.calibration(lsb, ina["shuntMilliohms"]) == ina["calibration"]
+    assert (
+        sensors.ina219.minimum_current_lsb_microamps(ina["maxExpectedMicroamps"])
+        == ina["minimumCurrentLsbMicroamps"]
+    )
+    assert sensors.ina219.shunt_microvolts(ina["rawShunt"]) == ina["shuntMicrovolts"]
+    assert sensors.ina219.bus_millivolts(ina["rawBus"]) == ina["busMillivolts"]
+    assert sensors.ina219.current_microamps(ina["rawCurrent"], lsb) == ina["currentMicroamps"]
+    assert sensors.ina219.power_microwatts(ina["rawPower"], lsb) == ina["powerMicrowatts"]
+
+    ads = vector["ads1115"]
+    reset = sensors.ads1115.config_from_bits(ads["configReset"])
+    want = ads["resetConfig"]
+    assert reset.start_conversion == want["startConversion"]
+    assert reset.mux == want["mux"]
+    assert reset.pga == want["pga"]
+    assert reset.single_shot == want["singleShot"]
+    assert reset.data_rate == want["dataRate"]
+    assert reset.window_comparator == want["windowComparator"]
+    assert reset.comparator_active_high == want["comparatorActiveHigh"]
+    assert reset.comparator_latching == want["comparatorLatching"]
+    assert reset.comparator_queue == want["comparatorQueue"]
+    assert sensors.ads1115.config_bits(reset) == ads["configReset"]
+
+    for entry in ads["gains"]:
+        assert (
+            sensors.ads1115.full_scale_microvolts(entry["pga"])
+            == entry["fullScaleMicrovolts"]
+        )
+        assert sensors.ads1115.to_nanovolts(entry["pga"], 32767) == entry["nanovoltsAtFullScale"]
+    for entry in ads["rates"]:
+        assert (
+            sensors.ads1115.samples_per_second(entry["dataRate"])
+            == entry["samplesPerSecond"]
+        )
+
+
+def test_actuator_vectors_match():
+    vector = VECTORS["actuators"]
+
+    pca = vector["pca9685"]
+    assert actuators.pca9685.INTERNAL_OSC_HZ == pca["internalOscHz"]
+    assert actuators.pca9685.CHANNELS == pca["channels"]
+    assert actuators.pca9685.COUNTS == pca["counts"]
+    for entry in pca["channelRegisters"]:
+        assert actuators.pca9685.channel_register(entry["channel"]) == entry["register"]
+    with pytest.raises(ValueError):
+        actuators.pca9685.channel_register(pca["invalidChannel"])
+    assert (
+        actuators.pca9685.prescale_for_frequency(pca["updateRateHz"], pca["internalOscHz"])
+        == pca["prescale"]
+    )
+
+    pwm = vector["pwm"]
+    assert actuators.pwm.duty(pwm["duty"]["off"]) == unhex(pwm["duty"]["bytes"])
+    assert actuators.pwm.servo(
+        pwm["servoCentre"]["pulseMicros"], pwm["servoCentre"]["updateRateHz"]
+    ) == unhex(pwm["servoCentre"]["bytes"])
+    assert actuators.pwm.full_on() == unhex(pwm["fullOn"])
+    assert actuators.pwm.full_off() == unhex(pwm["fullOff"])
+
+    motor = vector["stepper"]
+    stepper = actuators.Stepper(actuators.Drive.HALF_STEP)
+    cycle = [stepper.coils]
+    for _ in range(motor["stepCount"]):
+        cycle.append(stepper.step(actuators.Direction.FORWARD))
+    assert cycle == motor["forwardCycle"]
+    assert stepper.steps == motor["stepCount"]
+    assert actuators.Drive.HALF_STEP.step_count == motor["stepCount"]
+    assert (
+        actuators.steps_for_degrees(motor["degrees"], motor["stepsPerRevolution"])
+        == motor["stepsForDegrees"]
+    )
+
+
+def test_windowed_helper_vectors_match():
+    vector = VECTORS["windows"]
+    assert WINDOW_CAPACITY == vector["capacity"]
+
+    window = Window()
+    for reading, want in zip(vector["window"]["readings"], vector["window"]["states"]):
+        window.push(reading)
+        assert len(window) == want["len"]
+        assert window.mean() == pytest.approx(want["mean"], abs=TOLERANCE)
+        assert window.min() == pytest.approx(want["min"], abs=TOLERANCE)
+        assert window.max() == pytest.approx(want["max"], abs=TOLERANCE)
+        assert window.range() == pytest.approx(want["range"], abs=TOLERANCE)
+
+    median = Median()
+    for reading, want in zip(vector["median"]["readings"], vector["median"]["outputs"]):
+        assert median.update(reading) == pytest.approx(want, abs=TOLERANCE)
+
+    trend = Trend()
+    for reading, want in zip(vector["trend"]["readings"], vector["trend"]["slopes"]):
+        trend.push(reading)
+        if want is None:
+            assert trend.slope is None
+        else:
+            assert trend.slope == pytest.approx(want, abs=1e-4)
+
+    anomaly = Anomaly(vector["anomaly"]["sigmas"])
+    for reading, want in zip(vector["anomaly"]["readings"], vector["anomaly"]["flags"]):
+        assert anomaly.check(reading) == want
