@@ -392,6 +392,148 @@ export declare class LoopbackTransport {
   disconnect(): Promise<void>
 }
 
+/** A regional channel plan, published or private. */
+export declare class LoraChannelPlan {
+  /** Returns the published plan for a region. */
+  static forRegion(region: LoraRegion): LoraChannelPlan
+  /** Returns the scalar facts of the plan. */
+  info(): LoraPlanInfo
+  /** Returns the specification's name for the band. */
+  get name(): string
+  /**
+   * Returns the data rate a number selects, or null if the number is past the
+   * end of the plan's table.
+   *
+   * A number the region reserves is a data rate of kind `Reserved`, which is
+   * different from a number the plan never defines.
+   */
+  dataRate(direction: LoraDirection, dataRate: number): LoraDataRate | null
+  /**
+   * Returns the radio settings an uplink data rate selects, ready to hand to
+   * `loraAirtimeUs`, or null if the number is reserved or not carried by LoRa.
+   */
+  linkSettings(dataRate: number): LoraLink | null
+  /**
+   * Returns what a data rate may carry in one frame, or null where the plan
+   * publishes no limit for it.
+   */
+  maxPayload(table: LoraPayloadTable, dataRate: number): LoraMaxPayload | null
+  /**
+   * Returns the share of time a transmitter may hold a frequency, in parts per
+   * thousand, or null if the frequency falls in no sub-band this plan
+   * describes.
+   *
+   * This reports the limit; it does not impose it. Pair it with
+   * `loraMinOffTimeUs` to turn the limit into the silence a frame costs.
+   */
+  dutyCyclePermille(frequencyHz: number): number | null
+  /**
+   * Returns the power ceiling that applies at a frequency, in dBm EIRP,
+   * falling back to the plan's default where no sub-band says otherwise.
+   */
+  maxEirpDbm(frequencyHz: number): number
+  /**
+   * Returns the radiated power a transmit-power index selects, in dBm, or null
+   * if the index is past the highest the plan defines.
+   */
+  txPowerDbm(index: number, maxEirpDbm: number): number | null
+  /**
+   * Returns the downlink data rate the first receive window listens at, or
+   * null if the uplink data rate or offset is outside what the plan defines.
+   */
+  rx1DataRate(uplinkDataRate: number, offset: number, dwellLimited?: boolean | undefined | null): number | null
+  /** Returns where the second receive window listens. */
+  rx2(): LoraRx2
+  /**
+   * Returns the next lower data rate to fall back to during adaptive back-off,
+   * or null at the slowest rate the plan has.
+   *
+   * A device that has lost the network steps down this chain, trading airtime
+   * for range until it is heard again.
+   */
+  nextBackoffDataRate(dataRate: number): number | null
+  /**
+   * Returns the centre frequency of one of the plan's default channels, or
+   * null past the last one the plan starts a device with.
+   */
+  channelFrequencyHz(channel: number): number | null
+  /** Returns one of the plan's channel blocks, or null past the end. */
+  channelBlock(which: LoraChannelSet, index: number): LoraChannelBlock | null
+  /** Returns one of the plan's sub-bands, or null past the end. */
+  subBand(index: number): LoraSubBand | null
+}
+
+/**
+ * A channel plan under construction.
+ *
+ * Tables are indexed by position, so entries are pushed in data-rate order and a
+ * number the plan does not use is pushed as a `Reserved` data rate. What a region
+ * would share between directions is filled in by `build`.
+ */
+export declare class LoraPlanBuilder {
+  /**
+   * Starts an empty plan.
+   *
+   * The plan begins with no data rates, channels, or sub-bands, a two-decibel
+   * power ladder, and no dwell-time limit.
+   */
+  constructor(name: string)
+  /**
+   * Appends the next data rate in a direction.
+   *
+   * A plan that never appends a downlink rate uses its uplink table in both
+   * directions, which is what every region but the 900 MHz plans does.
+   */
+  dataRate(direction: LoraDirection, rate: LoraDataRate): void
+  /**
+   * Appends the next entry of one payload table.
+   *
+   * Pass no payload for a data rate that carries nothing. A downlink table
+   * left empty mirrors the matching uplink one.
+   */
+  maxPayload(table: LoraPayloadTable, payload?: LoraMaxPayload | undefined | null): void
+  /** Adds a run of evenly spaced channels. */
+  channelBlock(which: LoraChannelSet, block: LoraChannelBlock): void
+  /**
+   * Adds a sub-band and the transmit limits inside it.
+   *
+   * A deployment on licensed spectrum gives its sub-band a duty cycle of
+   * `1000`, which reports as unrestricted.
+   */
+  subBand(band: LoraSubBand): void
+  /**
+   * Appends the RX1 downlink data rates for the next uplink data rate.
+   *
+   * Every row must be as wide as the plan's highest RX1 offset allows.
+   */
+  rx1Row(offsets: Array<number>, dwellLimited?: boolean | undefined | null): void
+  /**
+   * Appends the next entry of the adaptive back-off chain.
+   *
+   * Pass no data rate at the slowest, which has nothing below it. A chain left
+   * empty steps down one data rate at a time.
+   */
+  backoff(lower?: number | undefined | null): void
+  /** Sets the transmit-power ladder. */
+  power(defaultMaxEirpDbm: number, stepDb: number, maxIndex: number): void
+  /**
+   * Sets the receive windows.
+   *
+   * `maxRx1Offset` fixes how wide every RX1 row must be.
+   */
+  rx(rx2FrequencyHz: number, rx2DataRate: number, maxRx1Offset: number): void
+  /** Sets the Class B beacon and whether the plan limits dwell time. */
+  beacon(beacon: LoraBeacon, hasDwellTimeLimit?: boolean | undefined | null): void
+  /**
+   * Finishes the plan.
+   *
+   * Throws if the plan would answer a question wrongly, for example because an
+   * RX1 row is narrower than the plan's offsets allow, or because the second
+   * receive window listens at a data rate the plan does not define.
+   */
+  build(): LoraChannelPlan
+}
+
 /** The root credentials over-the-air activation is built on. */
 export declare class LorawanDevice {
   /** Creates a device from its two 8-byte EUIs and its 16-byte application key. */
@@ -1495,6 +1637,71 @@ export declare function linkCostThreshold(cost: LinkCost): Level
  */
 export declare function loraAirtimeUs(link: LoraLink, payloadLen: number): number
 
+/** The Class B beacon settings of a plan. */
+export interface LoraBeacon {
+  /** The frequency the beacon is broadcast on, in hertz. */
+  frequencyHz: number
+  /** The default ping-slot frequency, in hertz. */
+  pingSlotFrequencyHz: number
+  /** The data rate the beacon is broadcast at. */
+  dataRate: number
+}
+
+/** A run of evenly spaced channels. */
+export interface LoraChannelBlock {
+  /** The first channel's centre frequency in hertz. */
+  startHz: number
+  /** The spacing between channels in hertz. */
+  stepHz: number
+  /** How many channels the block holds. */
+  count: number
+  /** The slowest data rate the block allows. */
+  minDataRate: number
+  /** The fastest data rate the block allows. */
+  maxDataRate: number
+}
+
+/** Which channels of a plan to read. */
+export declare const enum LoraChannelSet {
+  /** The channels a device must use to send a join request. */
+  Join = 'Join',
+  /** The channels a device starts with before a network adds any. */
+  Default = 'Default'
+}
+
+/**
+ * One data rate: what a number on the wire means for the radio.
+ *
+ * Only the fields belonging to `kind` are set.
+ */
+export interface LoraDataRate {
+  /** How this rate is carried. */
+  kind: LoraModulation
+  /** The payload bitrate in bits per second. */
+  bitrateBps: number
+  /** The channel bandwidth in hertz, for a LoRa or LR-FHSS rate. */
+  bandwidthHz?: number
+  /** The spreading factor, for a LoRa rate. */
+  spreadingFactor?: number
+  /** The coding-rate numerator, for an LR-FHSS rate. */
+  codingRateNumerator?: number
+  /** The coding-rate denominator, for an LR-FHSS rate. */
+  codingRateDenominator?: number
+}
+
+/**
+ * Which direction a data-rate table describes.
+ *
+ * Most regions number their data rates the same way in both directions and carry
+ * one table; the 900 MHz plans do not.
+ */
+export declare const enum LoraDirection {
+  /** From the device to the network. */
+  Uplink = 'Uplink',
+  /** From the network to the device. */
+  Downlink = 'Downlink'
+}
+
 /** The radio settings of a LoRa link. */
 export interface LoraLink {
   /** The spreading factor, 7 (fastest) to 12 (longest range). */
@@ -1519,6 +1726,14 @@ export interface LoraLink {
  */
 export declare function loraLinkDefault(spreadingFactor: number, bandwidthHz: number): LoraLink
 
+/** What one data rate may carry in a single frame. */
+export interface LoraMaxPayload {
+  /** The largest MAC payload, frame options included, in bytes. */
+  macPayload: number
+  /** The largest application payload, in bytes. */
+  application: number
+}
+
 /**
  * Returns the minimum silence after a transmission to honor a duty-cycle limit.
  *
@@ -1527,6 +1742,116 @@ export declare function loraLinkDefault(spreadingFactor: number, bandwidthHz: nu
  * caller could ever wait out.
  */
 export declare function loraMinOffTimeUs(link: LoraLink, payloadLen: number, dutyCyclePermille: number): number | null
+
+/** How a data rate is carried on the air. */
+export declare const enum LoraModulation {
+  /** LoRa modulation, described by a spreading factor and bandwidth. */
+  Lora = 'Lora',
+  /** Frequency-shift keying, described by its bitrate alone. */
+  Fsk = 'Fsk',
+  /** Long-range frequency-hopping spread spectrum. */
+  LrFhss = 'LrFhss',
+  /** A data-rate number the region reserves, which carries nothing. */
+  Reserved = 'Reserved'
+}
+
+/** Which of a plan's payload tables to read. */
+export declare const enum LoraPayloadTable {
+  /** Uplink, for a device that may sit behind a repeater. */
+  UplinkRepeater = 'UplinkRepeater',
+  /** Uplink, for a device that will not. */
+  UplinkDirect = 'UplinkDirect',
+  /** Downlink, for a device that may sit behind a repeater. */
+  DownlinkRepeater = 'DownlinkRepeater',
+  /** Downlink, for a device that will not. */
+  DownlinkDirect = 'DownlinkDirect',
+  /** The limits that apply under a dwell-time limit. */
+  DwellLimited = 'DwellLimited'
+}
+
+/** The scalar facts of a plan, read in one call. */
+export interface LoraPlanInfo {
+  /** The specification's name for the band, such as `EU863-870`. */
+  name: string
+  /** How many uplink data-rate numbers the plan defines, reserved included. */
+  uplinkDataRateCount: number
+  /** How many downlink data-rate numbers the plan defines. */
+  downlinkDataRateCount: number
+  /** How many channels the plan starts a device with. */
+  defaultChannelCount: number
+  /** How many join channel blocks the plan defines. */
+  joinChannelBlockCount: number
+  /** How many default channel blocks the plan defines. */
+  defaultChannelBlockCount: number
+  /** How many sub-bands the plan defines. */
+  subBandCount: number
+  /** The Class B beacon settings. */
+  beacon: LoraBeacon
+  /** Where the second receive window listens. */
+  rx2: LoraRx2
+  /** The power ceiling assumed when no sub-band says otherwise, in dBm. */
+  defaultMaxEirpDbm: number
+  /** The step between transmit-power settings, in dB. */
+  txPowerStepDb: number
+  /** The highest transmit-power index the plan defines. */
+  maxTxPowerIndex: number
+  /** The highest RX1 data-rate offset the plan allows. */
+  maxRx1DataRateOffset: number
+  /** Whether the plan limits how long one transmission may hold a channel. */
+  hasDwellTimeLimit: boolean
+  /** Whether the plan publishes a payload table for a dwell-limited device. */
+  hasDwellLimitedPayloads: boolean
+  /**
+   * Whether the plan publishes a second RX1 mapping for a dwell-limited
+   * downlink.
+   */
+  hasDwellLimitedRx1: boolean
+}
+
+/** A band with a published channel plan. */
+export declare const enum LoraRegion {
+  /** Europe, 863-870 MHz. */
+  Eu868 = 'Eu868',
+  /** North America, 902-928 MHz. */
+  Us915 = 'Us915',
+  /** Europe, 433 MHz. */
+  Eu433 = 'Eu433',
+  /** Australia, 915-928 MHz. */
+  Au915 = 'Au915',
+  /** China, 470-510 MHz. */
+  Cn470 = 'Cn470',
+  /** Asia, 923 MHz. */
+  As923 = 'As923',
+  /** South Korea, 920-923 MHz. */
+  Kr920 = 'Kr920',
+  /** India, 865-867 MHz. */
+  In865 = 'In865',
+  /** Russia, 864-870 MHz. */
+  Ru864 = 'Ru864'
+}
+
+/** Where the second receive window listens. */
+export interface LoraRx2 {
+  /** The fixed frequency, in hertz. */
+  frequencyHz: number
+  /** The data rate. */
+  dataRate: number
+}
+
+/** A slice of a band with its own transmit limits. */
+export interface LoraSubBand {
+  /** The first frequency in the sub-band, in hertz. */
+  startHz: number
+  /** The last frequency in the sub-band, in hertz. */
+  endHz: number
+  /**
+   * The share of time a transmitter may hold the channel, in parts per
+   * thousand, so `10` is one percent and `1000` is unrestricted.
+   */
+  dutyCyclePermille: number
+  /** The power ceiling in dBm EIRP. */
+  maxEirpDbm: number
+}
 
 /** Returns the duration of one symbol on a link, in microseconds. */
 export declare function loraSymbolTimeUs(link: LoraLink): number

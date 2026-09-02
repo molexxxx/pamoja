@@ -105,6 +105,80 @@ impl Region {
         self.plan().name
     }
 
+    /// Returns the short code this region is configured by.
+    ///
+    /// A deployment is set up as `EU868` or `US915`; the band name the
+    /// specification uses, such as `EU863-870`, is what [`name`](Self::name)
+    /// reports. Both identify the same plan.
+    ///
+    /// # Returns
+    ///
+    /// The short code, such as `"EU868"`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "eu868")] {
+    /// use pamoja_lora::region::Region;
+    ///
+    /// assert_eq!(Region::Eu868.code(), "EU868");
+    /// assert_eq!(Region::Eu868.name(), "EU863-870");
+    /// # }
+    /// ```
+    pub const fn code(self) -> &'static str {
+        match self {
+            #[cfg(feature = "eu868")]
+            Region::Eu868 => "EU868",
+            #[cfg(feature = "us915")]
+            Region::Us915 => "US915",
+            #[cfg(feature = "eu433")]
+            Region::Eu433 => "EU433",
+            #[cfg(feature = "au915")]
+            Region::Au915 => "AU915",
+            #[cfg(feature = "cn470")]
+            Region::Cn470 => "CN470",
+            #[cfg(feature = "as923")]
+            Region::As923 => "AS923",
+            #[cfg(feature = "kr920")]
+            Region::Kr920 => "KR920",
+            #[cfg(feature = "in865")]
+            Region::In865 => "IN865",
+            #[cfg(feature = "ru864")]
+            Region::Ru864 => "RU864",
+        }
+    }
+
+    /// Returns the region a short code names.
+    ///
+    /// The comparison ignores case, and the specification's band name is
+    /// accepted as well, so a plan read back from a device's configuration
+    /// resolves whichever form it was written in.
+    ///
+    /// # Arguments
+    ///
+    /// * `code` - the short code or band name, such as `"EU868"`.
+    ///
+    /// # Returns
+    ///
+    /// The region, or `None` if no region in this build goes by that name.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "us915")] {
+    /// use pamoja_lora::region::Region;
+    ///
+    /// assert_eq!(Region::from_code("us915"), Some(Region::Us915));
+    /// assert_eq!(Region::from_code("US902-928"), Some(Region::Us915));
+    /// assert_eq!(Region::from_code("Atlantis"), None);
+    /// # }
+    /// ```
+    pub fn from_code(code: &str) -> Option<Self> {
+        Self::all().iter().copied().find(|region| {
+            code.eq_ignore_ascii_case(region.code()) || code.eq_ignore_ascii_case(region.name())
+        })
+    }
+
     /// Returns every region this build carries.
     ///
     /// A build that selects only its own region gets a one-element slice, which

@@ -579,6 +579,9 @@ typedef struct PamojaLoopbackTransport PamojaLoopbackTransport;
 
 // A regional channel plan, published or private.
 //
+// The handle always owns its tables, so a published region and one assembled
+// here are the same type and answer the same queries.
+//
 // A handle the caller must release with [`pamoja_lora_plan_free`].
 typedef struct PamojaLoraPlan PamojaLoraPlan;
 
@@ -4094,7 +4097,7 @@ void pamoja_lora_plan_builder_free(PamojaLoraPlanBuilder *builder);
 //
 // Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, the
 // direction is not one of the constants, or the modulation kind is not one this
-// ABI defines.
+// ABI defines, and [`PamojaStatus::Closed`] if the builder was already built.
 //
 // # Safety
 //
@@ -4125,7 +4128,8 @@ PamojaStatus pamoja_lora_plan_builder_push_data_rate(PamojaLoraPlanBuilder *buil
 // # Errors
 //
 // Returns [`PamojaStatus::InvalidArgument`] if `builder` is null or `table` is
-// not one of the constants.
+// not one of the constants, and [`PamojaStatus::Closed`] if the builder was
+// already built.
 //
 // # Safety
 //
@@ -4151,7 +4155,8 @@ PamojaStatus pamoja_lora_plan_builder_push_max_payload(PamojaLoraPlanBuilder *bu
 // # Errors
 //
 // Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or `which`
-// is not one of the constants.
+// is not one of the constants, and [`PamojaStatus::Closed`] if the builder was
+// already built.
 //
 // # Safety
 //
@@ -4177,7 +4182,8 @@ PamojaStatus pamoja_lora_plan_builder_push_channel_block(PamojaLoraPlanBuilder *
 //
 // # Errors
 //
-// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, and
+// [`PamojaStatus::Closed`] if the builder was already built.
 //
 // # Safety
 //
@@ -4205,7 +4211,8 @@ PamojaStatus pamoja_lora_plan_builder_push_sub_band(PamojaLoraPlanBuilder *build
 //
 // # Errors
 //
-// Returns [`PamojaStatus::InvalidArgument`] if `builder` or `offsets` is null.
+// Returns [`PamojaStatus::InvalidArgument`] if `builder` or `offsets` is null,
+// and [`PamojaStatus::Closed`] if the builder was already built.
 //
 // # Safety
 //
@@ -4233,7 +4240,8 @@ PamojaStatus pamoja_lora_plan_builder_push_rx1_row(PamojaLoraPlanBuilder *builde
 //
 // # Errors
 //
-// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null.
+// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null, and
+// [`PamojaStatus::Closed`] if the builder was already built.
 //
 // # Safety
 //
@@ -4258,7 +4266,8 @@ PamojaStatus pamoja_lora_plan_builder_push_backoff(PamojaLoraPlanBuilder *builde
 //
 // # Errors
 //
-// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null.
+// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null, and
+// [`PamojaStatus::Closed`] if the builder was already built.
 //
 // # Safety
 //
@@ -4284,7 +4293,8 @@ PamojaStatus pamoja_lora_plan_builder_set_power(PamojaLoraPlanBuilder *builder,
 //
 // # Errors
 //
-// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null.
+// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null, and
+// [`PamojaStatus::Closed`] if the builder was already built.
 //
 // # Safety
 //
@@ -4309,7 +4319,8 @@ PamojaStatus pamoja_lora_plan_builder_set_rx(PamojaLoraPlanBuilder *builder,
 //
 // # Errors
 //
-// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, and
+// [`PamojaStatus::Closed`] if the builder was already built.
 //
 // # Safety
 //
@@ -4342,10 +4353,10 @@ PamojaStatus pamoja_lora_plan_builder_set_beacon(PamojaLoraPlanBuilder *builder,
 //
 // # Errors
 //
-// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, the plan
-// has no data rates, a payload table's length disagrees with the data-rate
-// table it indexes, an RX1 row is not as wide as the plan's highest offset
-// allows, or there is not one RX1 row per uplink data rate.
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the
+// plan is inconsistent, with the reason available from
+// [`pamoja_last_error`](crate::pamoja_last_error), and
+// [`PamojaStatus::Closed`] if the builder was already built.
 //
 // # Safety
 //

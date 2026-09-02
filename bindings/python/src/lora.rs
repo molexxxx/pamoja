@@ -36,6 +36,28 @@ pub struct LoraLink {
     crc: bool,
 }
 
+impl LoraLink {
+    /// Wraps the settings a channel plan reports, with the LoRa defaults.
+    ///
+    /// # Arguments
+    ///
+    /// * `settings` - the spreading factor and bandwidth a data rate selects.
+    ///
+    /// # Returns
+    ///
+    /// The link settings, at coding rate 4/5 with an eight-symbol preamble.
+    pub(crate) fn from_settings(settings: LinkSettings) -> Self {
+        Self {
+            spreading_factor: settings.spreading_factor(),
+            bandwidth_hz: settings.bandwidth_hz(),
+            coding_rate_denominator: 5,
+            preamble_symbols: 8,
+            explicit_header: true,
+            crc: true,
+        }
+    }
+}
+
 #[gen_stub_pymethods]
 #[pymethods]
 impl LoraLink {

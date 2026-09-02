@@ -66,11 +66,15 @@
 
 use crate::LinkSettings;
 
+#[cfg(feature = "alloc")]
+mod owned;
 mod plans;
 
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "alloc")]
+pub use owned::{ChannelPlanBuilder, OwnedChannelPlan, PayloadTable, PlanError};
 pub use plans::Region;
 
 /// How a data rate puts bits on the air.

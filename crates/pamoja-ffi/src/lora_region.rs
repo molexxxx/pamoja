@@ -19,7 +19,8 @@
 //! build carrying all of them.
 
 use pamoja_lora::region::{
-    Beacon, ChannelBlock, ChannelPlan, DataRate, MaxPayload, Modulation, SubBand,
+    Beacon, ChannelBlock, ChannelPlan, ChannelPlanBuilder, DataRate, MaxPayload, Modulation,
+    OwnedChannelPlan, PayloadTable, SubBand,
 };
 // A build that carries no region still offers the builder, and then names no
 // published plan at all.
@@ -205,92 +206,29 @@ pub struct PamojaLoraPlanInfo {
 
 /// A regional channel plan, published or private.
 ///
+/// The handle always owns its tables, so a published region and one assembled
+/// here are the same type and answer the same queries.
+///
 /// A handle the caller must release with [`pamoja_lora_plan_free`].
 pub struct PamojaLoraPlan {
-    kind: PlanKind,
-}
-
-enum PlanKind {
-    Published(&'static ChannelPlan<'static>),
-    Owned(Box<OwnedPlan>),
-}
-
-/// A plan whose tables are owned here, because they were built at runtime rather
-/// than published as constants.
-struct OwnedPlan {
-    name: String,
-    uplink_data_rates: Vec<Option<DataRate>>,
-    downlink_data_rates: Vec<Option<DataRate>>,
-    max_payload_repeater: Vec<Option<MaxPayload>>,
-    max_payload_direct: Vec<Option<MaxPayload>>,
-    downlink_max_payload_repeater: Vec<Option<MaxPayload>>,
-    downlink_max_payload_direct: Vec<Option<MaxPayload>>,
-    max_payload_dwell_limited: Option<Vec<Option<MaxPayload>>>,
-    join_channels: Vec<ChannelBlock>,
-    default_channels: Vec<ChannelBlock>,
-    sub_bands: Vec<SubBand>,
-    default_max_eirp_dbm: i8,
-    tx_power_step_db: u8,
-    max_tx_power_index: u8,
-    rx1_rows: Vec<Vec<u8>>,
-    rx1_rows_dwell_limited: Option<Vec<Vec<u8>>>,
-    max_rx1_data_rate_offset: u8,
-    rx2_frequency_hz: u32,
-    rx2_data_rate: u8,
-    data_rate_backoff: Vec<Option<u8>>,
-    beacon: Beacon,
-    has_dwell_time_limit: bool,
-}
-
-impl OwnedPlan {
-    /// Lends the owned tables to a borrowed plan for the duration of one query.
-    ///
-    /// The row pointers a plan needs are assembled on the stack here, so nothing
-    /// outlives the call and the storage stays owned by this handle.
-    ///
-    /// # Arguments
-    ///
-    /// * `f` - the query to run against the assembled plan.
-    ///
-    /// # Returns
-    ///
-    /// Whatever the query returned.
-    fn with<R>(&self, f: impl FnOnce(&ChannelPlan<'_>) -> R) -> R {
-        let rx1: Vec<&[u8]> = self.rx1_rows.iter().map(Vec::as_slice).collect();
-        let dwell_rx1: Option<Vec<&[u8]>> = self
-            .rx1_rows_dwell_limited
-            .as_ref()
-            .map(|rows| rows.iter().map(Vec::as_slice).collect());
-        let plan = ChannelPlan {
-            name: &self.name,
-            uplink_data_rates: &self.uplink_data_rates,
-            downlink_data_rates: &self.downlink_data_rates,
-            max_payload_repeater: &self.max_payload_repeater,
-            max_payload_direct: &self.max_payload_direct,
-            downlink_max_payload_repeater: &self.downlink_max_payload_repeater,
-            downlink_max_payload_direct: &self.downlink_max_payload_direct,
-            max_payload_dwell_limited: self.max_payload_dwell_limited.as_deref(),
-            join_channels: &self.join_channels,
-            default_channels: &self.default_channels,
-            sub_bands: &self.sub_bands,
-            default_max_eirp_dbm: self.default_max_eirp_dbm,
-            tx_power_step_db: self.tx_power_step_db,
-            max_tx_power_index: self.max_tx_power_index,
-            rx1_data_rate_offsets: &rx1,
-            rx1_data_rate_offsets_dwell_limited: dwell_rx1.as_deref(),
-            max_rx1_data_rate_offset: self.max_rx1_data_rate_offset,
-            rx2_frequency_hz: self.rx2_frequency_hz,
-            rx2_data_rate: self.rx2_data_rate,
-            data_rate_backoff: &self.data_rate_backoff,
-            beacon: self.beacon,
-            has_dwell_time_limit: self.has_dwell_time_limit,
-        };
-        f(&plan)
-    }
+    plan: OwnedChannelPlan,
 }
 
 impl PamojaLoraPlan {
-    /// Runs a query against the plan, whichever kind it is.
+    /// Moves a plan onto the heap and hands the caller its handle.
+    ///
+    /// # Arguments
+    ///
+    /// * `plan` - the plan to wrap.
+    ///
+    /// # Returns
+    ///
+    /// A handle the caller must release with [`pamoja_lora_plan_free`].
+    fn into_handle(plan: OwnedChannelPlan) -> *mut Self {
+        Box::into_raw(Box::new(Self { plan }))
+    }
+
+    /// Runs a query against the plan.
     ///
     /// # Arguments
     ///
@@ -300,23 +238,7 @@ impl PamojaLoraPlan {
     ///
     /// Whatever the query returned.
     fn with<R>(&self, f: impl FnOnce(&ChannelPlan<'_>) -> R) -> R {
-        match &self.kind {
-            PlanKind::Published(plan) => f(plan),
-            PlanKind::Owned(owned) => owned.with(f),
-        }
-    }
-
-    /// Moves a plan onto the heap and hands the caller its handle.
-    ///
-    /// # Arguments
-    ///
-    /// * `kind` - the published or owned plan to wrap.
-    ///
-    /// # Returns
-    ///
-    /// A handle the caller must release with [`pamoja_lora_plan_free`].
-    fn into_handle(kind: PlanKind) -> *mut Self {
-        Box::into_raw(Box::new(Self { kind }))
+        self.plan.with_plan(f)
     }
 }
 
@@ -504,7 +426,7 @@ pub unsafe extern "C" fn pamoja_lora_plan_for_region(
 
     match published(region) {
         Ok(plan) => {
-            *slot = PamojaLoraPlan::into_handle(PlanKind::Published(plan));
+            *slot = PamojaLoraPlan::into_handle(OwnedChannelPlan::from_plan(plan));
             PamojaStatus::Ok
         }
         Err(status) => status,
@@ -1202,7 +1124,56 @@ pub unsafe extern "C" fn pamoja_lora_plan_sub_band(
 /// A handle the caller must release with [`pamoja_lora_plan_builder_free`], or
 /// hand to [`pamoja_lora_plan_builder_build`], which consumes it.
 pub struct PamojaLoraPlanBuilder {
-    plan: OwnedPlan,
+    builder: Option<ChannelPlanBuilder>,
+}
+
+/// Applies one step to a builder held behind a handle.
+///
+/// The Rust builder consumes itself at each step, so the handle lends it out and
+/// takes it back.
+///
+/// # Arguments
+///
+/// * `builder` - the handle to update.
+/// * `step` - the step to apply.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::Closed`] if the builder was already built.
+fn update(
+    builder: &mut PamojaLoraPlanBuilder,
+    step: impl FnOnce(ChannelPlanBuilder) -> ChannelPlanBuilder,
+) -> PamojaStatus {
+    let Some(inner) = builder.builder.take() else {
+        set_last_error("this builder has already been built".to_owned());
+        return PamojaStatus::Closed;
+    };
+    builder.builder = Some(step(inner));
+    PamojaStatus::Ok
+}
+
+/// Maps a payload-table code onto the table it names.
+///
+/// # Arguments
+///
+/// * `table` - one of the `PAMOJA_LORA_PAYLOAD_TABLE_*` constants.
+///
+/// # Returns
+///
+/// The table, or `None` if the code names none.
+fn payload_table(table: u32) -> Option<PayloadTable> {
+    match table {
+        PAMOJA_LORA_PAYLOAD_TABLE_UPLINK_REPEATER => Some(PayloadTable::UplinkRepeater),
+        PAMOJA_LORA_PAYLOAD_TABLE_UPLINK_DIRECT => Some(PayloadTable::UplinkDirect),
+        PAMOJA_LORA_PAYLOAD_TABLE_DOWNLINK_REPEATER => Some(PayloadTable::DownlinkRepeater),
+        PAMOJA_LORA_PAYLOAD_TABLE_DOWNLINK_DIRECT => Some(PayloadTable::DownlinkDirect),
+        PAMOJA_LORA_PAYLOAD_TABLE_DWELL_LIMITED => Some(PayloadTable::DwellLimited),
+        _ => None,
+    }
 }
 
 /// Creates an empty plan builder.
@@ -1245,34 +1216,7 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_new(
     };
 
     *slot = Box::into_raw(Box::new(PamojaLoraPlanBuilder {
-        plan: OwnedPlan {
-            name: name.to_owned(),
-            uplink_data_rates: Vec::new(),
-            downlink_data_rates: Vec::new(),
-            max_payload_repeater: Vec::new(),
-            max_payload_direct: Vec::new(),
-            downlink_max_payload_repeater: Vec::new(),
-            downlink_max_payload_direct: Vec::new(),
-            max_payload_dwell_limited: None,
-            join_channels: Vec::new(),
-            default_channels: Vec::new(),
-            sub_bands: Vec::new(),
-            default_max_eirp_dbm: 16,
-            tx_power_step_db: 2,
-            max_tx_power_index: 7,
-            rx1_rows: Vec::new(),
-            rx1_rows_dwell_limited: None,
-            max_rx1_data_rate_offset: 0,
-            rx2_frequency_hz: 0,
-            rx2_data_rate: 0,
-            data_rate_backoff: Vec::new(),
-            beacon: Beacon {
-                data_rate: 0,
-                frequency_hz: 0,
-                ping_slot_frequency_hz: 0,
-            },
-            has_dwell_time_limit: false,
-        },
+        builder: Some(ChannelPlanBuilder::new(name)),
     }));
     PamojaStatus::Ok
 }
@@ -1317,7 +1261,7 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_free(builder: *mut PamojaLoraP
 ///
 /// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, the
 /// direction is not one of the constants, or the modulation kind is not one this
-/// ABI defines.
+/// ABI defines, and [`PamojaStatus::Closed`] if the builder was already built.
 ///
 /// # Safety
 ///
@@ -1338,14 +1282,13 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_push_data_rate(
         Err(status) => return status,
     };
     match direction {
-        PAMOJA_LORA_DIRECTION_UPLINK => builder.plan.uplink_data_rates.push(rate),
-        PAMOJA_LORA_DIRECTION_DOWNLINK => builder.plan.downlink_data_rates.push(rate),
+        PAMOJA_LORA_DIRECTION_UPLINK => update(builder, |b| b.uplink_data_rate(rate)),
+        PAMOJA_LORA_DIRECTION_DOWNLINK => update(builder, |b| b.downlink_data_rate(rate)),
         other => {
             set_last_error(format!("{other} is not a direction"));
-            return PamojaStatus::InvalidArgument;
+            PamojaStatus::InvalidArgument
         }
     }
-    PamojaStatus::Ok
 }
 
 /// Appends a payload limit to the end of one of the plan's tables.
@@ -1369,7 +1312,8 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_push_data_rate(
 /// # Errors
 ///
 /// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null or `table` is
-/// not one of the constants.
+/// not one of the constants, and [`PamojaStatus::Closed`] if the builder was
+/// already built.
 ///
 /// # Safety
 ///
@@ -1386,27 +1330,12 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_push_max_payload(
         set_last_error("builder must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     };
+    let Some(table) = payload_table(table) else {
+        set_last_error(format!("{table} is not a payload table"));
+        return PamojaStatus::InvalidArgument;
+    };
     let entry = (present != 0).then(|| MaxPayload::new(mac_payload, application));
-    match table {
-        PAMOJA_LORA_PAYLOAD_TABLE_UPLINK_REPEATER => builder.plan.max_payload_repeater.push(entry),
-        PAMOJA_LORA_PAYLOAD_TABLE_UPLINK_DIRECT => builder.plan.max_payload_direct.push(entry),
-        PAMOJA_LORA_PAYLOAD_TABLE_DOWNLINK_REPEATER => {
-            builder.plan.downlink_max_payload_repeater.push(entry)
-        }
-        PAMOJA_LORA_PAYLOAD_TABLE_DOWNLINK_DIRECT => {
-            builder.plan.downlink_max_payload_direct.push(entry)
-        }
-        PAMOJA_LORA_PAYLOAD_TABLE_DWELL_LIMITED => builder
-            .plan
-            .max_payload_dwell_limited
-            .get_or_insert_with(Vec::new)
-            .push(entry),
-        other => {
-            set_last_error(format!("{other} is not a payload table"));
-            return PamojaStatus::InvalidArgument;
-        }
-    }
-    PamojaStatus::Ok
+    update(builder, |b| b.max_payload(table, entry))
 }
 
 /// Appends a run of evenly spaced channels to the plan.
@@ -1424,7 +1353,8 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_push_max_payload(
 /// # Errors
 ///
 /// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or `which`
-/// is not one of the constants.
+/// is not one of the constants, and [`PamojaStatus::Closed`] if the builder was
+/// already built.
 ///
 /// # Safety
 ///
@@ -1448,14 +1378,13 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_push_channel_block(
         block.max_data_rate,
     );
     match which {
-        PAMOJA_LORA_CHANNELS_JOIN => builder.plan.join_channels.push(entry),
-        PAMOJA_LORA_CHANNELS_DEFAULT => builder.plan.default_channels.push(entry),
+        PAMOJA_LORA_CHANNELS_JOIN => update(builder, |b| b.join_channel(entry)),
+        PAMOJA_LORA_CHANNELS_DEFAULT => update(builder, |b| b.default_channel(entry)),
         other => {
             set_last_error(format!("{other} is not a channel set"));
-            return PamojaStatus::InvalidArgument;
+            PamojaStatus::InvalidArgument
         }
     }
-    PamojaStatus::Ok
 }
 
 /// Appends a sub-band and its transmit limits to the plan.
@@ -1474,7 +1403,8 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_push_channel_block(
 ///
 /// # Errors
 ///
-/// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+/// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, and
+/// [`PamojaStatus::Closed`] if the builder was already built.
 ///
 /// # Safety
 ///
@@ -1489,13 +1419,13 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_push_sub_band(
         set_last_error("builder and band must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     };
-    builder.plan.sub_bands.push(SubBand::new(
+    let entry = SubBand::new(
         band.start_hz,
         band.end_hz,
         band.duty_cycle_permille,
         band.max_eirp_dbm,
-    ));
-    PamojaStatus::Ok
+    );
+    update(builder, |b| b.sub_band(entry))
 }
 
 /// Appends one uplink data rate's row of RX1 downlink data rates.
@@ -1517,7 +1447,8 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_push_sub_band(
 ///
 /// # Errors
 ///
-/// Returns [`PamojaStatus::InvalidArgument`] if `builder` or `offsets` is null.
+/// Returns [`PamojaStatus::InvalidArgument`] if `builder` or `offsets` is null,
+/// and [`PamojaStatus::Closed`] if the builder was already built.
 ///
 /// # Safety
 ///
@@ -1539,15 +1470,10 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_push_rx1_row(
         Err(status) => return status,
     };
     if dwell_limited == 0 {
-        builder.plan.rx1_rows.push(row);
+        update(builder, |b| b.rx1_row(&row))
     } else {
-        builder
-            .plan
-            .rx1_rows_dwell_limited
-            .get_or_insert_with(Vec::new)
-            .push(row);
+        update(builder, |b| b.rx1_row_dwell_limited(&row))
     }
-    PamojaStatus::Ok
 }
 
 /// Appends the next entry in the adaptive back-off chain.
@@ -1567,7 +1493,8 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_push_rx1_row(
 ///
 /// # Errors
 ///
-/// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null.
+/// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null, and
+/// [`PamojaStatus::Closed`] if the builder was already built.
 ///
 /// # Safety
 ///
@@ -1582,11 +1509,8 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_push_backoff(
         set_last_error("builder must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     };
-    builder
-        .plan
-        .data_rate_backoff
-        .push((has_lower != 0).then_some(data_rate));
-    PamojaStatus::Ok
+    let lower = (has_lower != 0).then_some(data_rate);
+    update(builder, |b| b.backoff(lower))
 }
 
 /// Sets the plan's transmit-power ladder.
@@ -1605,7 +1529,8 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_push_backoff(
 ///
 /// # Errors
 ///
-/// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null.
+/// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null, and
+/// [`PamojaStatus::Closed`] if the builder was already built.
 ///
 /// # Safety
 ///
@@ -1621,10 +1546,9 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_set_power(
         set_last_error("builder must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     };
-    builder.plan.default_max_eirp_dbm = default_max_eirp_dbm;
-    builder.plan.tx_power_step_db = tx_power_step_db;
-    builder.plan.max_tx_power_index = max_tx_power_index;
-    PamojaStatus::Ok
+    update(builder, |b| {
+        b.power(default_max_eirp_dbm, tx_power_step_db, max_tx_power_index)
+    })
 }
 
 /// Sets the plan's receive windows.
@@ -1643,7 +1567,8 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_set_power(
 ///
 /// # Errors
 ///
-/// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null.
+/// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null, and
+/// [`PamojaStatus::Closed`] if the builder was already built.
 ///
 /// # Safety
 ///
@@ -1659,10 +1584,9 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_set_rx(
         set_last_error("builder must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     };
-    builder.plan.rx2_frequency_hz = rx2_frequency_hz;
-    builder.plan.rx2_data_rate = rx2_data_rate;
-    builder.plan.max_rx1_data_rate_offset = max_rx1_data_rate_offset;
-    PamojaStatus::Ok
+    update(builder, |b| {
+        b.rx(rx2_frequency_hz, rx2_data_rate, max_rx1_data_rate_offset)
+    })
 }
 
 /// Sets the plan's Class B beacon and whether it limits dwell time.
@@ -1680,7 +1604,8 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_set_rx(
 ///
 /// # Errors
 ///
-/// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+/// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, and
+/// [`PamojaStatus::Closed`] if the builder was already built.
 ///
 /// # Safety
 ///
@@ -1696,13 +1621,14 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_set_beacon(
         set_last_error("builder and beacon must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     };
-    builder.plan.beacon = Beacon {
+    let entry = Beacon {
         data_rate: beacon.data_rate,
         frequency_hz: beacon.frequency_hz,
         ping_slot_frequency_hz: beacon.ping_slot_frequency_hz,
     };
-    builder.plan.has_dwell_time_limit = has_dwell_time_limit != 0;
-    PamojaStatus::Ok
+    update(builder, |b| {
+        b.beacon(entry).dwell_time_limit(has_dwell_time_limit != 0)
+    })
 }
 
 /// Finishes a plan and hands back a handle the query functions accept.
@@ -1728,10 +1654,10 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_set_beacon(
 ///
 /// # Errors
 ///
-/// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, the plan
-/// has no data rates, a payload table's length disagrees with the data-rate
-/// table it indexes, an RX1 row is not as wide as the plan's highest offset
-/// allows, or there is not one RX1 row per uplink data rate.
+/// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the
+/// plan is inconsistent, with the reason available from
+/// [`pamoja_last_error`](crate::pamoja_last_error), and
+/// [`PamojaStatus::Closed`] if the builder was already built.
 ///
 /// # Safety
 ///
@@ -1750,134 +1676,21 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_build(
     let slot = &mut *out_plan;
     *slot = std::ptr::null_mut();
 
-    let mut plan = Box::from_raw(builder).plan;
+    let Some(inner) = Box::from_raw(builder).builder else {
+        set_last_error("this builder has already been built".to_owned());
+        return PamojaStatus::Closed;
+    };
 
-    if plan.downlink_data_rates.is_empty() {
-        plan.downlink_data_rates = plan.uplink_data_rates.clone();
-    }
-    if plan.downlink_max_payload_repeater.is_empty() {
-        plan.downlink_max_payload_repeater = plan.max_payload_repeater.clone();
-    }
-    if plan.downlink_max_payload_direct.is_empty() {
-        plan.downlink_max_payload_direct = plan.max_payload_direct.clone();
-    }
-    if plan.data_rate_backoff.is_empty() {
-        plan.data_rate_backoff = (0..plan.uplink_data_rates.len())
-            .map(|index| index.checked_sub(1).map(|lower| lower as u8))
-            .collect();
-    }
-
-    if let Err(message) = check(&plan) {
-        set_last_error(message);
-        return PamojaStatus::InvalidArgument;
-    }
-
-    *slot = PamojaLoraPlan::into_handle(PlanKind::Owned(Box::new(plan)));
-    PamojaStatus::Ok
-}
-
-/// Checks that a built plan can answer every question asked of it.
-///
-/// # Arguments
-///
-/// * `plan` - the assembled plan.
-///
-/// # Returns
-///
-/// `Ok(())` if the plan is consistent.
-///
-/// # Errors
-///
-/// Returns the reason the plan would answer a question wrongly.
-fn check(plan: &OwnedPlan) -> Result<(), String> {
-    let rates = plan.uplink_data_rates.len();
-    if rates == 0 {
-        return Err("a plan needs at least one data rate".to_owned());
-    }
-
-    let width = usize::from(plan.max_rx1_data_rate_offset) + 1;
-    if plan.rx1_rows.len() != rates {
-        return Err(format!(
-            "a plan needs one RX1 row per uplink data rate: {rates} data rates, {} rows",
-            plan.rx1_rows.len()
-        ));
-    }
-    for (index, row) in plan.rx1_rows.iter().enumerate() {
-        if row.len() != width {
-            return Err(format!(
-                "RX1 row {index} has {} entries, but offsets up to {} means {width}",
-                row.len(),
-                plan.max_rx1_data_rate_offset
-            ));
+    match inner.build() {
+        Ok(plan) => {
+            *slot = PamojaLoraPlan::into_handle(plan);
+            PamojaStatus::Ok
+        }
+        Err(error) => {
+            set_last_error(error.to_string());
+            PamojaStatus::InvalidArgument
         }
     }
-    if let Some(rows) = &plan.rx1_rows_dwell_limited {
-        if rows.len() != rates {
-            return Err(format!(
-                "a plan needs one dwell-limited RX1 row per uplink data rate: {rates} data rates, {} rows",
-                rows.len()
-            ));
-        }
-        for (index, row) in rows.iter().enumerate() {
-            if row.len() != width {
-                return Err(format!(
-                    "dwell-limited RX1 row {index} has {} entries, but offsets up to {} means {width}",
-                    row.len(),
-                    plan.max_rx1_data_rate_offset
-                ));
-            }
-        }
-    }
-
-    if plan.data_rate_backoff.len() != rates {
-        return Err(format!(
-            "the back-off chain needs one entry per uplink data rate: {rates} data rates, {} entries",
-            plan.data_rate_backoff.len()
-        ));
-    }
-
-    for (name, table) in [
-        ("the uplink repeater", &plan.max_payload_repeater),
-        ("the uplink direct", &plan.max_payload_direct),
-    ] {
-        if !table.is_empty() && table.len() != rates {
-            return Err(format!(
-                "{name} payload table has {} entries for {rates} data rates",
-                table.len()
-            ));
-        }
-    }
-
-    let downlink_rates = plan.downlink_data_rates.len();
-    for (name, table) in [
-        ("the downlink repeater", &plan.downlink_max_payload_repeater),
-        ("the downlink direct", &plan.downlink_max_payload_direct),
-    ] {
-        if !table.is_empty() && table.len() != downlink_rates {
-            return Err(format!(
-                "{name} payload table has {} entries for {downlink_rates} downlink data rates",
-                table.len()
-            ));
-        }
-    }
-
-    if let Some(table) = &plan.max_payload_dwell_limited {
-        if table.len() != rates {
-            return Err(format!(
-                "the dwell-limited payload table has {} entries for {rates} data rates",
-                table.len()
-            ));
-        }
-    }
-
-    if usize::from(plan.rx2_data_rate) >= downlink_rates {
-        return Err(format!(
-            "RX2 listens at data rate {}, which this plan does not define",
-            plan.rx2_data_rate
-        ));
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]

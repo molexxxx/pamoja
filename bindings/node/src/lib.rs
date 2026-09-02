@@ -39,6 +39,8 @@ pub mod ladder;
 pub mod loopback;
 #[cfg(feature = "lora")]
 pub mod lora;
+#[cfg(feature = "lora")]
+pub mod lora_region;
 #[cfg(feature = "lorawan")]
 pub mod lorawan;
 #[cfg(feature = "mesh")]

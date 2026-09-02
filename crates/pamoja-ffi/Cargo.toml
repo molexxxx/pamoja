@@ -68,7 +68,7 @@ can = ["dep:pamoja-can"]
 gpio = ["dep:pamoja-gpio"]
 sensors = ["dep:pamoja-sensors"]
 actuators = ["dep:pamoja-actuators"]
-lora = ["dep:pamoja-lora"]
+lora = ["dep:pamoja-lora", "pamoja-lora/alloc"]
 # The channel plans, mirroring how pamoja-lora selects them. A slim build takes
 # only the bands its devices operate in, as `lora,eu868` would; the default set
 # carries them all.

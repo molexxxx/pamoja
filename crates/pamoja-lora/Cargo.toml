@@ -13,6 +13,12 @@ workspace = true
 
 [features]
 default = ["regions"]
+# `alloc` adds a channel plan that owns its tables, for a host that assembles one
+# at runtime rather than using a published region. The crate stays dependency-free
+# and no_std either way; nothing else here allocates.
+alloc = []
+# `std` only adds the `std::error::Error` impl on the plan builder's error.
+std = ["alloc"]
 # Every published channel plan. A bare-metal build selects only its own region,
 # because a device operates in one and flash is the scarcest thing it has.
 regions = ["eu868", "us915", "eu433", "au915", "cn470", "as923", "kr920", "in865", "ru864"]

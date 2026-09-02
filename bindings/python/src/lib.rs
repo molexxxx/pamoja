@@ -32,6 +32,8 @@ mod ladder;
 mod loopback;
 #[cfg(feature = "lora")]
 mod lora;
+#[cfg(feature = "lora")]
+mod lora_region;
 #[cfg(feature = "lorawan")]
 mod lorawan;
 #[cfg(feature = "mesh")]
@@ -240,6 +242,14 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(feature = "lora")]
     {
         m.add_class::<lora::LoraLink>()?;
+        m.add_class::<lora_region::ChannelPlan>()?;
+        m.add_class::<lora_region::ChannelPlanBuilder>()?;
+        m.add_class::<lora_region::LoraDataRate>()?;
+        m.add_class::<lora_region::LoraMaxPayload>()?;
+        m.add_class::<lora_region::LoraChannelBlock>()?;
+        m.add_class::<lora_region::LoraSubBand>()?;
+        m.add_class::<lora_region::LoraBeacon>()?;
+        m.add_class::<lora_region::LoraPlanInfo>()?;
     }
     #[cfg(feature = "mesh")]
     {
