@@ -116,47 +116,7 @@ impl<const N: usize> Router<N> {
     /// `true` if the table changed (a route was added, redirected, or recosted), `false`
     /// if the observation taught it nothing new.
     pub fn observe(&mut self, origin: u32, via: u32, cost: u16) -> bool {
-        if origin == self.me {
-            return false;
-        }
-        if let Some(index) = self.index_of(origin) {
-            let route = self.routes[index]
-                .as_mut()
-                .expect("index_of points at a route");
-            if cost < route.cost || via == route.next_hop {
-                let changed = route.next_hop != via || route.cost != cost;
-                route.next_hop = via;
-                route.cost = cost;
-                return changed;
-            }
-            return false;
-        }
-
-        let new = Route {
-            dst: origin,
-            next_hop: via,
-            cost,
-        };
-        if let Some(empty) = self.routes.iter().position(Option::is_none) {
-            self.routes[empty] = Some(new);
-            return true;
-        }
-
-        // The table is full; replace the costliest route if this one is cheaper. A
-        // capacity of zero leaves nothing to replace, so the observation is dropped.
-        if let Some((worst, worst_cost)) = self
-            .routes
-            .iter()
-            .enumerate()
-            .filter_map(|(i, slot)| slot.as_ref().map(|route| (i, route.cost)))
-            .max_by_key(|&(_, cost)| cost)
-        {
-            if cost < worst_cost {
-                self.routes[worst] = Some(new);
-                return true;
-            }
-        }
-        false
+        observe_into(&mut self.routes, self.me, origin, via, cost)
     }
 
     /// Returns the next hop to reach a destination, if a route is known.
@@ -195,8 +155,7 @@ impl<const N: usize> Router<N> {
     ///
     /// The [`Route`], or [`None`] if no route is known.
     pub fn route(&self, dst: u32) -> Option<Route> {
-        self.index_of(dst)
-            .map(|index| self.routes[index].expect("index_of points at a route"))
+        route_in(&self.routes, dst)
     }
 
     /// Decides what to do with a packet bound for a destination.
@@ -210,13 +169,7 @@ impl<const N: usize> Router<N> {
     /// [`Forward::Deliver`] if the packet is for this node, [`Forward::Relay`] with the
     /// next hop if a route is known, or [`Forward::Flood`] otherwise.
     pub fn forward(&self, dst: u32) -> Forward {
-        if dst == self.me {
-            return Forward::Deliver;
-        }
-        match self.next_hop(dst) {
-            Some(next_hop) => Forward::Relay(next_hop),
-            None => Forward::Flood,
-        }
+        forward_in(&self.routes, self.me, dst)
     }
 
     /// Forgets the route to a destination, if one is held.
@@ -225,9 +178,7 @@ impl<const N: usize> Router<N> {
     ///
     /// * `dst` - the destination whose route to drop.
     pub fn forget(&mut self, dst: u32) {
-        if let Some(index) = self.index_of(dst) {
-            self.routes[index] = None;
-        }
+        forget_in(&mut self.routes, dst)
     }
 
     /// Returns how many routes the table currently holds.
@@ -247,12 +198,242 @@ impl<const N: usize> Router<N> {
     pub fn is_empty(&self) -> bool {
         self.routes.iter().all(Option::is_none)
     }
+}
 
-    // The slot index of the route to `dst`, if one is held.
-    fn index_of(&self, dst: u32) -> Option<usize> {
-        self.routes
-            .iter()
-            .position(|slot| slot.as_ref().is_some_and(|route| route.dst == dst))
+// Learns a route into a slot slice. Split out so the fixed-size and runtime-sized tables
+// share one implementation rather than two that can drift.
+fn observe_into(routes: &mut [Option<Route>], me: u32, origin: u32, via: u32, cost: u16) -> bool {
+    if origin == me {
+        return false;
+    }
+    if let Some(index) = index_of_in(routes, origin) {
+        let route = routes[index]
+            .as_mut()
+            .expect("index_of_in points at a route");
+        if cost < route.cost || via == route.next_hop {
+            let changed = route.next_hop != via || route.cost != cost;
+            route.next_hop = via;
+            route.cost = cost;
+            return changed;
+        }
+        return false;
+    }
+
+    let new = Route {
+        dst: origin,
+        next_hop: via,
+        cost,
+    };
+    if let Some(empty) = routes.iter().position(Option::is_none) {
+        routes[empty] = Some(new);
+        return true;
+    }
+
+    // The table is full; replace the costliest route if this one is cheaper. A capacity of
+    // zero leaves nothing to replace, so the observation is dropped.
+    if let Some((worst, worst_cost)) = routes
+        .iter()
+        .enumerate()
+        .filter_map(|(i, slot)| slot.as_ref().map(|route| (i, route.cost)))
+        .max_by_key(|&(_, cost)| cost)
+    {
+        if cost < worst_cost {
+            routes[worst] = Some(new);
+            return true;
+        }
+    }
+    false
+}
+
+// The slot index of the route to `dst`, if one is held.
+fn index_of_in(routes: &[Option<Route>], dst: u32) -> Option<usize> {
+    routes
+        .iter()
+        .position(|slot| slot.as_ref().is_some_and(|route| route.dst == dst))
+}
+
+// The route to `dst`, if one is held.
+fn route_in(routes: &[Option<Route>], dst: u32) -> Option<Route> {
+    index_of_in(routes, dst).map(|index| routes[index].expect("index_of_in points at a route"))
+}
+
+// Decides what to do with a packet bound for `dst`.
+fn forward_in(routes: &[Option<Route>], me: u32, dst: u32) -> Forward {
+    if dst == me {
+        return Forward::Deliver;
+    }
+    match route_in(routes, dst) {
+        Some(route) => Forward::Relay(route.next_hop),
+        None => Forward::Flood,
+    }
+}
+
+// Drops the route to `dst`, if one is held.
+fn forget_in(routes: &mut [Option<Route>], dst: u32) {
+    if let Some(index) = index_of_in(routes, dst) {
+        routes[index] = None;
+    }
+}
+
+/// A routing table whose size is chosen when it is built, rather than at compile time.
+///
+/// [`Router`] fixes its capacity in the type, which suits a microcontroller that knows its
+/// own limits. A gateway, or any caller reaching this through a language binding, does not
+/// know the size until it runs, and a const generic cannot cross a foreign function
+/// boundary at all. This is the same table with its slots on the heap, so both share one
+/// implementation and answer identically.
+///
+/// Requires the `alloc` feature.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_routing::{DynamicRouter, Forward};
+///
+/// // A gateway sizes its table for the mesh it is actually serving.
+/// let mut router = DynamicRouter::new(0x01, 512);
+/// router.observe(0x09, 0x05, 2);
+/// assert_eq!(router.forward(0x09), Forward::Relay(0x05));
+/// assert_eq!(router.capacity(), 512);
+/// ```
+#[cfg(any(feature = "alloc", test))]
+#[derive(Clone, Debug)]
+pub struct DynamicRouter {
+    me: u32,
+    routes: alloc::vec::Vec<Option<Route>>,
+}
+
+#[cfg(any(feature = "alloc", test))]
+impl DynamicRouter {
+    /// Creates an empty router holding up to `capacity` routes.
+    ///
+    /// # Arguments
+    ///
+    /// * `me` - this node's address.
+    /// * `capacity` - how many routes to make room for. A capacity of zero is allowed and
+    ///   makes every unknown destination flood, which is the behaviour with no table.
+    ///
+    /// # Returns
+    ///
+    /// A router holding no routes.
+    pub fn new(me: u32, capacity: usize) -> Self {
+        DynamicRouter {
+            me,
+            routes: alloc::vec![None; capacity],
+        }
+    }
+
+    /// Returns this node's address.
+    ///
+    /// # Returns
+    ///
+    /// The address the router was created with.
+    pub fn address(&self) -> u32 {
+        self.me
+    }
+
+    /// Returns how many routes this table can hold.
+    ///
+    /// # Returns
+    ///
+    /// The capacity it was created with.
+    pub fn capacity(&self) -> usize {
+        self.routes.len()
+    }
+
+    /// Learns the way to a node from a packet heard from it.
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - the node the packet came from, the destination this route reaches.
+    /// * `via` - the neighbour the packet arrived through, the next hop for this route.
+    /// * `cost` - the cost the packet reports for reaching `origin` through `via`.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the table changed, `false` if the observation taught it nothing new.
+    pub fn observe(&mut self, origin: u32, via: u32, cost: u16) -> bool {
+        observe_into(&mut self.routes, self.me, origin, via, cost)
+    }
+
+    /// Returns the next hop to reach a destination, if a route is known.
+    ///
+    /// # Arguments
+    ///
+    /// * `dst` - the destination to reach.
+    ///
+    /// # Returns
+    ///
+    /// The next-hop address, or [`None`] if no route is known.
+    pub fn next_hop(&self, dst: u32) -> Option<u32> {
+        route_in(&self.routes, dst).map(|route| route.next_hop)
+    }
+
+    /// Returns the cost of the known route to a destination, if any.
+    ///
+    /// # Arguments
+    ///
+    /// * `dst` - the destination to reach.
+    ///
+    /// # Returns
+    ///
+    /// The route cost, or [`None`] if no route is known.
+    pub fn cost(&self, dst: u32) -> Option<u16> {
+        route_in(&self.routes, dst).map(|route| route.cost)
+    }
+
+    /// Returns the known route to a destination, if any.
+    ///
+    /// # Arguments
+    ///
+    /// * `dst` - the destination to reach.
+    ///
+    /// # Returns
+    ///
+    /// The [`Route`], or [`None`] if no route is known.
+    pub fn route(&self, dst: u32) -> Option<Route> {
+        route_in(&self.routes, dst)
+    }
+
+    /// Decides what to do with a packet bound for a destination.
+    ///
+    /// # Arguments
+    ///
+    /// * `dst` - the packet's destination.
+    ///
+    /// # Returns
+    ///
+    /// [`Forward::Deliver`] if the packet is for this node, [`Forward::Relay`] with the
+    /// next hop if a route is known, or [`Forward::Flood`] otherwise.
+    pub fn forward(&self, dst: u32) -> Forward {
+        forward_in(&self.routes, self.me, dst)
+    }
+
+    /// Forgets the route to a destination, if one is held.
+    ///
+    /// # Arguments
+    ///
+    /// * `dst` - the destination whose route to drop.
+    pub fn forget(&mut self, dst: u32) {
+        forget_in(&mut self.routes, dst)
+    }
+
+    /// Returns how many routes the table currently holds.
+    ///
+    /// # Returns
+    ///
+    /// The number of routes.
+    pub fn len(&self) -> usize {
+        self.routes.iter().filter(|slot| slot.is_some()).count()
+    }
+
+    /// Reports whether the table holds no routes.
+    ///
+    /// # Returns
+    ///
+    /// `true` if no routes are held.
+    pub fn is_empty(&self) -> bool {
+        self.routes.iter().all(Option::is_none)
     }
 }
 
@@ -362,5 +543,51 @@ mod tests {
         assert_eq!(router.next_hop(9), None);
         assert_eq!(router.forward(9), Forward::Flood);
         assert!(router.is_empty());
+    }
+
+    #[test]
+    fn a_runtime_sized_table_decides_the_same_way() {
+        let mut fixed: Router<8> = Router::new(1);
+        let mut dynamic = DynamicRouter::new(1, 8);
+        for (origin, via, cost) in [(9u32, 5u32, 4u16), (9, 7, 1), (10, 5, 3), (1, 2, 1)] {
+            assert_eq!(
+                fixed.observe(origin, via, cost),
+                dynamic.observe(origin, via, cost),
+                "the two tables learn identically"
+            );
+        }
+        for dst in [1u32, 9, 10, 42] {
+            assert_eq!(fixed.forward(dst), dynamic.forward(dst));
+            assert_eq!(fixed.route(dst), dynamic.route(dst));
+        }
+        assert_eq!(fixed.len(), dynamic.len());
+
+        fixed.forget(9);
+        dynamic.forget(9);
+        assert_eq!(fixed.forward(9), dynamic.forward(9));
+        assert_eq!(fixed.len(), dynamic.len());
+    }
+
+    #[test]
+    fn a_runtime_sized_table_fills_to_the_size_it_was_given() {
+        let mut router = DynamicRouter::new(1, 3);
+        assert_eq!(router.capacity(), 3);
+        assert!(router.is_empty());
+        for node in 0..10u32 {
+            router.observe(node + 0x100, 0x05, 4);
+        }
+        assert_eq!(router.len(), 3, "it holds no more than it was sized for");
+    }
+
+    #[test]
+    fn a_table_with_no_room_floods_everything() {
+        let mut router = DynamicRouter::new(1, 0);
+        assert!(!router.observe(9, 5, 2), "there is nowhere to put a route");
+        assert_eq!(router.forward(9), Forward::Flood);
+        assert_eq!(
+            router.forward(1),
+            Forward::Deliver,
+            "a local packet still arrives"
+        );
     }
 }

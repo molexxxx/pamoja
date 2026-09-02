@@ -22,7 +22,7 @@ while all behavior stays in the Rust core.
 | `@pamoja/core/sensors` | BME280, DS18B20, INA219, and ADS1115 register decoding |
 | `@pamoja/core/actuators` | PCA9685 PWM and servo commands, and stepper coil sequencing |
 | `@pamoja/core/lora` | time on air, and the silence a regional duty-cycle limit forces |
-| `@pamoja/core/lorawan` | secured LoRaWAN frames, and over-the-air activation |
+| `@pamoja/core/lorawan` | secured LoRaWAN frames, both halves of activation, header routing |
 | `@pamoja/core/mesh` | addressed mesh packets, relaying, and duplicate suppression |
 | `@pamoja/core/routing` | learning the way to a node, and when to fall back to flooding |
 

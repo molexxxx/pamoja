@@ -227,7 +227,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<routing::Router>()?;
         m.add_class::<routing::Route>()?;
         m.add_class::<routing::ForwardDecision>()?;
-        m.add_function(wrap_pyfunction!(routing::routing_table_capacity, m)?)?;
+        m.add_function(wrap_pyfunction!(routing::routing_default_capacity, m)?)?;
     }
     #[cfg(feature = "lorawan")]
     {
@@ -235,6 +235,11 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<lorawan::LorawanDevice>()?;
         m.add_class::<lorawan::LorawanJoinAccept>()?;
         m.add_class::<lorawan::LorawanRxData>()?;
+        m.add_class::<lorawan::LorawanHeader>()?;
+        m.add_class::<lorawan::LorawanJoinRequest>()?;
+        m.add_class::<lorawan::LorawanGrant>()?;
+        m.add_function(wrap_pyfunction!(lorawan::lorawan_parse_header, m)?)?;
+        m.add_function(wrap_pyfunction!(lorawan::lorawan_parse_join_request, m)?)?;
     }
     Ok(())
 }

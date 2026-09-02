@@ -402,3 +402,217 @@ public sealed class LorawanJoinAccept : IDisposable
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();
 }
+
+/// <summary>What kind of message a frame is, read from its header.</summary>
+public enum LorawanMessageType
+{
+    /// <summary>A device asking to join a network.</summary>
+    JoinRequest = 0,
+
+    /// <summary>A network admitting a device.</summary>
+    JoinAccept = 1,
+
+    /// <summary>Data from a device that does not need acknowledging.</summary>
+    UnconfirmedUp = 2,
+
+    /// <summary>Data from a device that asks to be acknowledged.</summary>
+    ConfirmedUp = 3,
+
+    /// <summary>Data to a device that does not need acknowledging.</summary>
+    UnconfirmedDown = 4,
+
+    /// <summary>Data to a device that asks to be acknowledged.</summary>
+    ConfirmedDown = 5,
+}
+
+/// <summary>What a frame says about itself before any key is involved.</summary>
+/// <remarks>
+/// Nothing here is authenticated, since checking the MIC needs the session key.
+/// Treat it as a routing hint until <see cref="LorawanSession.Decode"/> has
+/// verified the frame.
+/// </remarks>
+/// <param name="MessageType">What kind of message the frame is.</param>
+/// <param name="IsData">Whether this is a data frame rather than a join frame.</param>
+/// <param name="DevAddr">The device address, or <c>null</c> for a join frame.</param>
+/// <param name="Fcnt">The low 16 bits of the counter, or <c>null</c> for a join frame.</param>
+/// <param name="Fport">The port, or <c>null</c> when the frame carries only options.</param>
+/// <param name="Confirmed">Whether the frame asks to be acknowledged.</param>
+/// <param name="Adr">Whether the frame takes part in adaptive data rate.</param>
+/// <param name="Ack">Whether the frame acknowledges the last confirmed one.</param>
+/// <param name="FPending">Whether the network has more downlink data waiting.</param>
+/// <param name="FoptsLength">How many bytes of frame options the header carries.</param>
+/// <param name="PayloadLength">The length of the still-encrypted payload.</param>
+public readonly record struct LorawanHeader(
+    LorawanMessageType MessageType,
+    bool IsData,
+    uint? DevAddr,
+    ushort? Fcnt,
+    byte? Fport,
+    bool Confirmed,
+    bool Adr,
+    bool Ack,
+    bool FPending,
+    int FoptsLength,
+    int PayloadLength);
+
+/// <summary>A join-request a device broadcast, with its integrity already verified.</summary>
+/// <param name="DevEui">The device identifier, most-significant byte first.</param>
+/// <param name="AppEui">The application identifier, most-significant byte first.</param>
+/// <param name="DevNonce">The nonce, which a network must not accept twice.</param>
+public sealed record LorawanJoinRequest(byte[] DevEui, byte[] AppEui, ushort DevNonce);
+
+/// <summary>
+/// The network side of LoRaWAN: reading a frame to route it, and admitting a
+/// device that asked to join.
+/// </summary>
+/// <remarks>
+/// A deployment that runs its own network rather than joining someone else's needs
+/// both halves of the join exchange. This is the half a network server holds.
+/// </remarks>
+public static class Lorawan
+{
+    /// <summary>Reads a frame far enough to route it, without any key.</summary>
+    /// <param name="bytes">The raw frame as it came off the radio.</param>
+    /// <returns>What the header says the frame is.</returns>
+    /// <exception cref="PamojaException">
+    /// The frame is truncated or carries a message type this build does not read.
+    /// </exception>
+    public static LorawanHeader ParseHeader(ReadOnlySpan<byte> bytes)
+    {
+        PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_header_parse(
+            bytes, (nuint)bytes.Length, out PamojaLorawanHeader header));
+        return new LorawanHeader(
+            (LorawanMessageType)header.MessageType,
+            header.IsData != 0,
+            header.IsData != 0 ? header.DevAddr : null,
+            header.IsData != 0 ? header.Fcnt : null,
+            header.HasFport != 0 ? header.Fport : null,
+            header.Confirmed != 0,
+            header.Adr != 0,
+            header.Ack != 0,
+            header.FPending != 0,
+            header.FoptsLen,
+            checked((int)header.PayloadLen));
+    }
+
+    /// <summary>Verifies a join-request and reads the identifiers out of it.</summary>
+    /// <param name="bytes">The raw join-request as it came off the radio.</param>
+    /// <param name="appKey">The 16-byte application root key the device shares.</param>
+    /// <returns>The verified request.</returns>
+    /// <exception cref="PamojaException">
+    /// The MIC does not verify, which means the request was not sent by a holder of
+    /// the key, or the frame is not a join-request.
+    /// </exception>
+    public static LorawanJoinRequest ParseJoinRequest(
+        ReadOnlySpan<byte> bytes,
+        ReadOnlySpan<byte> appKey)
+    {
+        PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_join_request_parse(
+            bytes, (nuint)bytes.Length, appKey, (nuint)appKey.Length, out IntPtr request));
+        try
+        {
+            byte[] devEui = new byte[NativeMethods.LorawanEuiLen];
+            byte[] appEui = new byte[NativeMethods.LorawanEuiLen];
+            NativeMethods.pamoja_lorawan_join_request_dev_eui(request, devEui);
+            NativeMethods.pamoja_lorawan_join_request_app_eui(request, appEui);
+            return new LorawanJoinRequest(
+                devEui,
+                appEui,
+                NativeMethods.pamoja_lorawan_join_request_dev_nonce(request));
+        }
+        finally
+        {
+            NativeMethods.pamoja_lorawan_join_request_free(request);
+        }
+    }
+}
+
+/// <summary>What a network grants a device that joined.</summary>
+/// <remarks>
+/// Build one, then <see cref="Accept"/> it into the frame to transmit and take the
+/// matching <see cref="Session"/> to secure traffic with. Both sides derive the
+/// same keys from the same nonces, so neither ever sends one.
+/// </remarks>
+public sealed class LorawanGrant
+{
+    private readonly PamojaLorawanGrant _grant;
+    private readonly byte[] _cflist;
+
+    /// <summary>Creates a grant of an address and the settings to answer on.</summary>
+    /// <param name="appNonce">
+    /// A nonce this network must not reuse for the device, since the session keys
+    /// are derived from it; low 24 bits only.
+    /// </param>
+    /// <param name="netId">The network identifier; low 24 bits only.</param>
+    /// <param name="devAddr">The address to assign the device.</param>
+    /// <param name="dlSettings">The downlink settings byte.</param>
+    /// <param name="rxDelay">The delay before the first receive window, in seconds.</param>
+    /// <param name="cflist">The optional 16-byte channel list.</param>
+    public LorawanGrant(
+        uint appNonce,
+        uint netId,
+        uint devAddr,
+        byte dlSettings = 0,
+        byte rxDelay = 0,
+        byte[]? cflist = null)
+    {
+        _grant = new PamojaLorawanGrant
+        {
+            AppNonce = appNonce,
+            NetId = netId,
+            DevAddr = devAddr,
+            DlSettings = dlSettings,
+            RxDelay = rxDelay,
+        };
+        _cflist = cflist ?? [];
+    }
+
+    /// <summary>The address this grant assigns.</summary>
+    public uint DevAddr => _grant.DevAddr;
+
+    /// <summary>The network identifier this grant carries.</summary>
+    public uint NetId => _grant.NetId;
+
+    /// <summary>Builds the signed join-accept to transmit.</summary>
+    /// <param name="appKey">The 16-byte application root key the device shares.</param>
+    /// <param name="devNonce">The nonce the matching join-request carried.</param>
+    /// <returns>The join-accept, encrypted and with its MIC in place.</returns>
+    /// <exception cref="PamojaException">
+    /// The key or the channel list is the wrong length.
+    /// </exception>
+    public byte[] Accept(ReadOnlySpan<byte> appKey, ushort devNonce)
+    {
+        PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_grant_accept(
+            _grant,
+            _cflist,
+            (nuint)_cflist.Length,
+            appKey,
+            (nuint)appKey.Length,
+            devNonce,
+            out IntPtr frame));
+        return Codec.TakeBytes(frame);
+    }
+
+    /// <summary>Derives the session this grant activates.</summary>
+    /// <param name="appKey">The 16-byte application root key the device shares.</param>
+    /// <param name="devNonce">The nonce the matching join-request carried.</param>
+    /// <returns>
+    /// The session to secure this device's traffic with, which is the same one the
+    /// device computes without either side sending a key.
+    /// </returns>
+    /// <exception cref="PamojaException">
+    /// The key or the channel list is the wrong length.
+    /// </exception>
+    public LorawanSession Session(ReadOnlySpan<byte> appKey, ushort devNonce)
+    {
+        PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_grant_session(
+            _grant,
+            _cflist,
+            (nuint)_cflist.Length,
+            appKey,
+            (nuint)appKey.Length,
+            devNonce,
+            out IntPtr session));
+        return new LorawanSession(session);
+    }
+}

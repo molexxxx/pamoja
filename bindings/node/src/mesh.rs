@@ -6,15 +6,12 @@
 //!
 //! A frame is a small value rather than a resource, so it crosses as a plain
 //! object carrying both its fields and the bytes to transmit. The duplicate cache
-//! holds state across calls, so it is a class, fixed at
-//! [`MESH_SEEN_CAPACITY`] packets because its Rust size is a const generic.
+//! holds state across calls, so it is a class, sized when it is built because the
+//! Rust crate fixes its size with a const generic that cannot reach JavaScript.
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
-use pamoja_mesh::{crc16, Frame, MeshError, SeenCache};
-
-/// The number of recently seen packets a duplicate cache remembers.
-pub const SEEN_CAPACITY: usize = 64;
+use pamoja_mesh::{crc16, DynamicSeenCache, Frame, MeshError};
 
 /// The largest payload a single mesh frame can carry, in bytes.
 #[napi]
@@ -32,9 +29,9 @@ pub const MESH_BROADCAST: u32 = pamoja_mesh::BROADCAST;
 #[napi]
 pub const MESH_DEFAULT_HOP_LIMIT: u8 = Frame::DEFAULT_HOP_LIMIT;
 
-/// The number of recently seen packets a duplicate cache remembers.
+/// A reasonable duplicate-cache size for a caller with no reason to choose one.
 #[napi]
-pub const MESH_SEEN_CAPACITY: u32 = SEEN_CAPACITY as u32;
+pub const MESH_SEEN_DEFAULT_CAPACITY: u32 = 64;
 
 /// A mesh packet: its addressing, its payload, and the bytes to transmit.
 #[napi(object)]
@@ -113,17 +110,20 @@ pub fn mesh_crc16(data: Buffer) -> u16 {
 /// A memory of recently seen packets, so a node relays each one only once.
 #[napi]
 pub struct SeenPackets {
-    inner: SeenCache<SEEN_CAPACITY>,
+    inner: DynamicSeenCache,
 }
 
 #[napi]
 impl SeenPackets {
-    /// Creates an empty cache of [`MESH_SEEN_CAPACITY`] packets.
+    /// Creates an empty cache.
+    ///
+    /// `capacity` is how many recently seen packets to remember, defaulting to
+    /// [`MESH_SEEN_DEFAULT_CAPACITY`]. A capacity of zero remembers nothing, so
+    /// every copy of a packet is relayed.
     #[napi(constructor)]
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+    pub fn new(capacity: Option<u32>) -> Self {
         Self {
-            inner: SeenCache::new(),
+            inner: DynamicSeenCache::new(capacity.unwrap_or(MESH_SEEN_DEFAULT_CAPACITY) as usize),
         }
     }
 
@@ -145,7 +145,7 @@ impl SeenPackets {
     /// How many packets this cache remembers.
     #[napi(getter)]
     pub fn capacity(&self) -> u32 {
-        MESH_SEEN_CAPACITY
+        self.inner.capacity() as u32
     }
 }
 

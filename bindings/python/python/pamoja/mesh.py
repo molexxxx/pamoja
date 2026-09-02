@@ -21,7 +21,7 @@ __all__ = [
     "DEFAULT_HOP_LIMIT",
     "MAX_FRAME",
     "MAX_PAYLOAD",
-    "SEEN_CAPACITY",
+    "SEEN_DEFAULT_CAPACITY",
     "MeshFrame",
     "SeenPackets",
     "broadcast",
@@ -41,8 +41,8 @@ MAX_PAYLOAD = _MAX_PAYLOAD
 BROADCAST = _BROADCAST
 #: The hop limit a frame starts with unless one is given.
 DEFAULT_HOP_LIMIT = _HOP_LIMIT
-#: The number of recently seen packets a duplicate cache remembers.
-SEEN_CAPACITY = _SEEN
+#: A duplicate-cache size for a caller with no reason to choose one.
+SEEN_DEFAULT_CAPACITY = _SEEN
 
 
 def frame(

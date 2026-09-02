@@ -62,8 +62,8 @@ pamoja-sensors = { path = "../pamoja-sensors", version = "0.1.14", optional = tr
 pamoja-actuators = { path = "../pamoja-actuators", version = "0.1.14", optional = true }
 pamoja-lora = { path = "../pamoja-lora", version = "0.1.14", optional = true }
 pamoja-lorawan = { path = "../pamoja-lorawan", version = "0.1.14", optional = true }
-pamoja-mesh = { path = "../pamoja-mesh", version = "0.1.14", optional = true }
-pamoja-routing = { path = "../pamoja-routing", version = "0.1.14", optional = true }
+pamoja-mesh = { path = "../pamoja-mesh", version = "0.1.14", features = ["alloc"], optional = true }
+pamoja-routing = { path = "../pamoja-routing", version = "0.1.14", features = ["alloc"], optional = true }
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread"], optional = true }
 
 [build-dependencies]

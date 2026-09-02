@@ -62,10 +62,9 @@ impl Cipher {
         self.encrypt_block(&x)
     }
 
-    // Decrypts one 16-byte block. A network encrypts a join-accept with AES decryption so
-    // a device recovers it with AES encryption; this is only needed to forge a join-accept
-    // in tests.
-    #[cfg(test)]
+    // Decrypts one 16-byte block. The spec has a network encrypt a join-accept with AES
+    // decryption so a device recovers it with AES encryption, which is why the device half
+    // never needs this and the network half does.
     pub(crate) fn decrypt_block(&self, block: &[u8; 16]) -> [u8; 16] {
         use aes::cipher::BlockCipherDecrypt;
         let mut buf = Array::from(*block);

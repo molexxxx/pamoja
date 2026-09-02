@@ -12,10 +12,10 @@ from __future__ import annotations
 import enum
 
 from ._core import ForwardDecision, Route, Router
-from ._core import routing_table_capacity as _table_capacity
+from ._core import routing_default_capacity as _default_capacity
 
 __all__ = [
-    "TABLE_CAPACITY",
+    "DEFAULT_CAPACITY",
     "ForwardAction",
     "ForwardDecision",
     "Route",
@@ -23,8 +23,8 @@ __all__ = [
     "router",
 ]
 
-#: The number of routes a routing table holds.
-TABLE_CAPACITY = _table_capacity()
+#: A routing table size for a caller with no reason to choose one.
+DEFAULT_CAPACITY = _default_capacity()
 
 
 class ForwardAction(str, enum.Enum):
@@ -38,11 +38,13 @@ class ForwardAction(str, enum.Enum):
     FLOOD = "Flood"
 
 
-def router(address: int) -> Router:
+def router(address: int, capacity: int = DEFAULT_CAPACITY) -> Router:
     """Create an empty routing table for a node.
 
     :param address: The address of this node, which is what a routing decision
         recognises as a local delivery.
+    :param capacity: How many routes to make room for. A capacity of zero floods
+        every unknown destination, which is the behaviour with no table at all.
     :returns: The routing table, ready to learn from the traffic the node hears.
     """
-    return Router(address)
+    return Router(address, capacity)

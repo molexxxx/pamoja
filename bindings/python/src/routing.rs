@@ -4,18 +4,18 @@
 //! node from the traffic it already hears, and the per-packet decision of whether
 //! to deliver, relay, or fall back to flooding.
 //!
-//! A router holds state across calls, so it is a class, fixed at
-//! [`TABLE_CAPACITY`] routes because its Rust size is a const generic. A routing
-//! decision crosses as a name and an optional next hop, so a caller reads it
-//! without unpacking a tagged union.
+//! A router holds state across calls, so it is a class, sized when it is built
+//! because the Rust crate fixes its size with a const generic that cannot reach
+//! Python. A routing decision crosses as a name and an optional next hop, so a
+//! caller reads it without unpacking a tagged union.
 
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 
-use pamoja_routing::{Forward, Router as CoreRouter};
+use pamoja_routing::{DynamicRouter, Forward};
 
-/// The number of routes a routing table holds.
-const TABLE_CAPACITY: usize = 64;
+/// A reasonable routing table size for a caller with no reason to choose one.
+const DEFAULT_CAPACITY: usize = 64;
 
 /// A learned way to reach one node.
 #[gen_stub_pyclass]
@@ -48,17 +48,21 @@ pub struct ForwardDecision {
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct Router {
-    inner: CoreRouter<TABLE_CAPACITY>,
+    inner: DynamicRouter,
 }
 
 #[gen_stub_pymethods]
 #[pymethods]
 impl Router {
     /// Creates an empty routing table for a node at `address`.
+    ///
+    /// `capacity` is how many routes to make room for. A capacity of zero floods
+    /// every unknown destination, which is the behaviour with no table at all.
     #[new]
-    fn new(address: u32) -> Self {
+    #[pyo3(signature = (address, capacity = DEFAULT_CAPACITY))]
+    fn new(address: u32, capacity: usize) -> Self {
         Router {
-            inner: CoreRouter::new(address),
+            inner: DynamicRouter::new(address, capacity),
         }
     }
 
@@ -124,13 +128,13 @@ impl Router {
     /// How many routes the table can hold.
     #[getter]
     fn capacity(&self) -> usize {
-        TABLE_CAPACITY
+        self.inner.capacity()
     }
 }
 
-/// Returns how many routes a routing table holds.
+/// Returns a routing table size for a caller with no reason to choose one.
 #[gen_stub_pyfunction]
 #[pyfunction]
-pub fn routing_table_capacity() -> usize {
-    TABLE_CAPACITY
+pub fn routing_default_capacity() -> usize {
+    DEFAULT_CAPACITY
 }

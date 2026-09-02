@@ -21,10 +21,10 @@ use pamoja_kit::{
     Smoother, Thermostat, Trend, Window,
 };
 use pamoja_lora::LinkSettings;
-use pamoja_lorawan::{Device, Downlink, Session, Uplink};
-use pamoja_mesh::{crc16 as mesh_crc16, Frame as MeshFrame, SeenCache};
+use pamoja_lorawan::{Device, Downlink, FrameHeader, JoinGrant, JoinRequest, Session, Uplink};
+use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
 use pamoja_modbus::{crc16, Adu, Pdu, Response};
-use pamoja_routing::{Forward, Router};
+use pamoja_routing::{DynamicRouter, Forward};
 use pamoja_security::DeviceIdentity;
 use pamoja_sensors::{ads1115, bme280, ds18b20, ina219};
 use pamoja_serial::{cobs, slip};
@@ -64,6 +64,9 @@ fn main() {
         "mesh": mesh(),
         "routing": routing(),
         "lorawan": lorawan(),
+
+        "header": header(),
+        "network": network(),
     });
 
     let path = repo_root().join("conformance").join("vectors.json");
@@ -912,7 +915,7 @@ fn mesh() -> Value {
 
     // The cache answers "new" once and "duplicate" every time after.
     let keys = [(0x42u32, 1u16), (0x42, 1), (0x42, 2), (0x43, 1), (0x42, 1)];
-    let mut seen: SeenCache<64> = SeenCache::new();
+    let mut seen = DynamicSeenCache::new(64);
     let answers: Vec<bool> = keys.iter().map(|&key| seen.record(key)).collect();
 
     json!({
@@ -956,12 +959,18 @@ fn mesh() -> Value {
             "keys": keys.iter().map(|&(src, id)| json!([src, id])).collect::<Vec<Value>>(),
             "new": answers,
         },
+        // A cache sized by the caller evicts at that size rather than a fixed one.
+        "sizedSeen": {
+            "capacity": 2,
+            "keys": [[1, 1], [1, 2], [1, 3]],
+            "evicted": [1, 1],
+        },
     })
 }
 
 /// Cost-aware routing: what a node learns, and what it then does with a packet.
 fn routing() -> Value {
-    let mut router: Router<64> = Router::new(0x01);
+    let mut router = DynamicRouter::new(0x01, 64);
 
     let observations = [
         (0x09u32, 0x05u32, 2u16),
@@ -1008,11 +1017,26 @@ fn routing() -> Value {
             "decision": decision(&router, 0x09),
             "learned": router.len(),
         },
+        // A table sized by the caller holds exactly what it was asked for.
+        "sized": {
+            "capacity": 3,
+            "offered": 10,
+            "learned": sized_table(3, 10),
+        },
     })
 }
 
+/// Fills a table of `capacity` with `offered` destinations and reports what it kept.
+fn sized_table(capacity: usize, offered: u32) -> usize {
+    let mut router = DynamicRouter::new(0x01, capacity);
+    for node in 0..offered {
+        router.observe(node + 0x100, 0x05, 4);
+    }
+    router.len()
+}
+
 /// Names one routing decision, in the spelling every binding exposes.
-fn decision(router: &Router<64>, dst: u32) -> Value {
+fn decision(router: &DynamicRouter, dst: u32) -> Value {
     match router.forward(dst) {
         Forward::Deliver => json!({ "dst": dst, "action": "Deliver", "nextHop": Value::Null }),
         Forward::Relay(next_hop) => json!({ "dst": dst, "action": "Relay", "nextHop": next_hop }),
@@ -1089,6 +1113,152 @@ fn lorawan() -> Value {
             "request": hex(device.join_request(dev_nonce).as_bytes()),
             // A join accept the network never signed: every binding must refuse it.
             "forgedAccept": hex(&[0x20u8; 17]),
+        },
+    })
+}
+
+/// What a frame says about itself before any key is involved.
+fn header() -> Value {
+    let session = Session::new(0x2601_1BDA, [0x2B; 16], [0x99; 16]);
+    let uplink = session
+        .encode_uplink(&Uplink::new(42, 1, b"temp=4.8").confirmed().with_adr())
+        .expect("encode the uplink");
+    let fopts = [0x03u8, 0x50, 0x00];
+    let downlink = session
+        .encode_downlink(
+            &Downlink::new(7, 2, b"ack")
+                .with_fpending()
+                .with_fopts(&fopts),
+        )
+        .expect("encode the downlink");
+    let device = Device::new([0x11; 8], [0x22; 8], [0xAB; 16]);
+    let request = device.join_request(0x1234);
+    let accept = JoinGrant::new(0x0003_0201, 0x0006_0504, 0x2601_1BDA).accept(&[0xAB; 16], 0x1234);
+
+    json!({
+        "frames": [
+            described(uplink.as_bytes()),
+            described(downlink.as_bytes()),
+            described(request.as_bytes()),
+            described(accept.as_bytes()),
+        ],
+        // A frame carrying a message type this crate does not read must be refused.
+        "unsupported": hex(&[0xC0u8; 16]),
+        "truncated": hex(&[0x40u8, 0x01, 0x02]),
+    })
+}
+
+/// Reads one frame header into the shape every binding reports.
+fn described(bytes: &[u8]) -> Value {
+    let header = FrameHeader::parse(bytes).expect("the frame parses");
+    json!({
+        "frame": hex(bytes),
+        "messageType": match header.message_type() {
+            pamoja_lorawan::MessageType::JoinRequest => "JoinRequest",
+            pamoja_lorawan::MessageType::JoinAccept => "JoinAccept",
+            pamoja_lorawan::MessageType::UnconfirmedUp => "UnconfirmedUp",
+            pamoja_lorawan::MessageType::ConfirmedUp => "ConfirmedUp",
+            pamoja_lorawan::MessageType::UnconfirmedDown => "UnconfirmedDown",
+            pamoja_lorawan::MessageType::ConfirmedDown => "ConfirmedDown",
+        },
+        "isData": header.message_type().is_data(),
+        "devAddr": header.dev_addr(),
+        "fcnt": header.fcnt(),
+        "fport": header.fport(),
+        "confirmed": header.confirmed(),
+        "adr": header.adr(),
+        "ack": header.ack(),
+        "fpending": header.fpending(),
+        "foptsLen": header.fopts_len(),
+        "payloadLen": header.payload_len(),
+    })
+}
+
+/// The network side of activation, including a join captured from a real network.
+fn network() -> Value {
+    const APP_KEY: [u8; 16] = [0xAB; 16];
+    const DEV_EUI: [u8; 8] = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77];
+    const APP_EUI: [u8; 8] = [0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF];
+    const DEV_NONCE: u16 = 0x1234;
+
+    let device = Device::new(DEV_EUI, APP_EUI, APP_KEY);
+    let request = device.join_request(DEV_NONCE);
+    let verified = JoinRequest::parse(request.as_bytes(), &APP_KEY).expect("the request verifies");
+
+    let grant = JoinGrant::new(0x0003_0201, 0x0006_0504, 0x2601_1BDA)
+        .with_dl_settings(0x00)
+        .with_rx_delay(0x01);
+    let accept = grant.accept(&APP_KEY, DEV_NONCE);
+
+    // Neither side sends a key, so the proof they agree is that one reads what the
+    // other wrote. Every binding replays this exchange and checks the same frame.
+    let probe = grant
+        .session(&APP_KEY, DEV_NONCE)
+        .encode_uplink(&Uplink::new(1, 1, b"joined"))
+        .expect("encode with the derived session");
+
+    // A real EU868 join-accept, with the plaintext fields and the session keys an
+    // independent implementation derived from it. Pinning a third party's numbers is
+    // what stops all four bindings from agreeing on an answer that is wrong together.
+    // Published at https://github.com/anthonykirby/lora-packet/issues/10
+    const PUBLISHED_KEY: [u8; 16] = [
+        0xB6, 0xB5, 0x3F, 0x4A, 0x16, 0x8A, 0x7A, 0x88, 0xBD, 0xF7, 0xEA, 0x13, 0x5C, 0xE9, 0xCF,
+        0xCA,
+    ];
+    const PUBLISHED_NONCE: u16 = 0xCC85;
+    let published = JoinGrant::new(0x00E5_063A, 0x0000_0013, 0x2601_2E43)
+        .with_dl_settings(0x03)
+        .with_rx_delay(0x01)
+        .with_cflist([
+            0x18, 0x4F, 0x84, 0xE8, 0x56, 0x84, 0xB8, 0x5E, 0x84, 0x88, 0x66, 0x84, 0x58, 0x6E,
+            0x84, 0x00,
+        ]);
+    let published_probe = published
+        .session(&PUBLISHED_KEY, PUBLISHED_NONCE)
+        .encode_uplink(&Uplink::new(1, 1, b"real"))
+        .expect("encode with the derived session");
+
+    json!({
+        "appKey": hex(&APP_KEY),
+        "devNonce": DEV_NONCE,
+        "joinRequest": {
+            "frame": hex(request.as_bytes()),
+            "devEui": hex(&verified.dev_eui()),
+            "appEui": hex(&verified.app_eui()),
+            "devNonce": verified.dev_nonce(),
+        },
+        // A request signed with a different root key must not be trusted.
+        "forgedRequest": hex(Device::new(DEV_EUI, APP_EUI, [0x00; 16])
+            .join_request(DEV_NONCE)
+            .as_bytes()),
+        "grant": {
+            "appNonce": 0x0003_0201,
+            "netId": 0x0006_0504,
+            "devAddr": 0x2601_1BDA,
+            "dlSettings": 0x00,
+            "rxDelay": 0x01,
+            "accept": hex(accept.as_bytes()),
+            "probe": { "fcnt": 1, "fport": 1, "payload": hex(b"joined"), "frame": hex(probe.as_bytes()) },
+        },
+        "published": {
+            "source": "https://github.com/anthonykirby/lora-packet/issues/10",
+            "appKey": hex(&PUBLISHED_KEY),
+            "devNonce": PUBLISHED_NONCE,
+            "appNonce": 0x00E5_063A,
+            "netId": 0x0000_0013,
+            "devAddr": 0x2601_2E43,
+            "dlSettings": 0x03,
+            "rxDelay": 0x01,
+            "cflist": "184f84e85684b85e84886684586e8400",
+            "accept": "204dd85ae608b87fc4889970b7d2042c9e72959b0057aed6094b16003df12de145",
+            "nwkSKey": "2c96f7028184bb0be8aa49275290d4fc",
+            "appSKey": "f3a5c8f0232a38c144029c165865802c",
+            "probe": {
+                "fcnt": 1,
+                "fport": 1,
+                "payload": hex(b"real"),
+                "frame": hex(published_probe.as_bytes()),
+            },
         },
     })
 }

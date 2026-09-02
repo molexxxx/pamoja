@@ -13,7 +13,8 @@
 use std::ptr;
 
 use pamoja_lorawan::{
-    Device, Direction, Downlink, JoinAccept, LorawanError, PhyPayload, RxData, Session, Uplink,
+    Device, Direction, Downlink, FrameHeader, JoinAccept, JoinGrant, JoinRequest, LorawanError,
+    MessageType, PhyPayload, RxData, Session, Uplink,
 };
 
 use crate::{read_bytes, set_last_error, PamojaBuffer, PamojaStatus};
@@ -1001,6 +1002,434 @@ fn failed(error: LorawanError) -> PamojaStatus {
     }
 }
 
+/// What kind of message a frame is, read from its header.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PamojaLorawanMessageType {
+    /// A device asking to join a network.
+    JoinRequest = 0,
+    /// A network admitting a device.
+    JoinAccept = 1,
+    /// Data from a device that does not need acknowledging.
+    UnconfirmedUp = 2,
+    /// Data from a device that asks to be acknowledged.
+    ConfirmedUp = 3,
+    /// Data to a device that does not need acknowledging.
+    UnconfirmedDown = 4,
+    /// Data to a device that asks to be acknowledged.
+    ConfirmedDown = 5,
+}
+
+/// What a frame says about itself before any key is involved.
+///
+/// Every field is a scalar, so this crosses the boundary by value. `is_data` is
+/// `1` when `dev_addr` and `fcnt` are meaningful, which is every message type
+/// except the two join frames, and `has_fport` is `1` when `fport` is.
+///
+/// Nothing here is authenticated, since checking the MIC needs the session key.
+/// Treat it as a routing hint until [`pamoja_lorawan_session_decode`] has verified
+/// the frame.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PamojaLorawanHeader {
+    /// The length of the still-encrypted payload, in bytes.
+    pub payload_len: usize,
+    /// The device address, meaningful only when `is_data` is `1`.
+    pub dev_addr: u32,
+    /// The low 16 bits of the frame counter, meaningful only when `is_data` is `1`.
+    pub fcnt: u16,
+    /// What kind of message the frame is.
+    pub message_type: PamojaLorawanMessageType,
+    /// The port the frame was sent on, meaningful only when `has_fport` is `1`.
+    pub fport: u8,
+    /// `1` for a data frame, `0` for one of the two join frames.
+    pub is_data: u8,
+    /// `1` when the frame carries a port rather than only frame options.
+    pub has_fport: u8,
+    /// `1` when the frame asks to be acknowledged.
+    pub confirmed: u8,
+    /// `1` when the frame takes part in adaptive data rate.
+    pub adr: u8,
+    /// `1` when the frame acknowledges the last confirmed one.
+    pub ack: u8,
+    /// `1` when the network has more downlink data waiting.
+    pub fpending: u8,
+    /// How many bytes of frame options the header carries, from 0 to 15.
+    pub fopts_len: u8,
+}
+
+/// What a network grants a device that joined.
+///
+/// Every field is a scalar, so this crosses the boundary by value. The optional
+/// channel list is passed alongside it, since it is bytes rather than a scalar.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PamojaLorawanGrant {
+    /// A nonce this network must not reuse for the device; low 24 bits only.
+    pub app_nonce: u32,
+    /// The network identifier; low 24 bits only.
+    pub net_id: u32,
+    /// The address to assign the device.
+    pub dev_addr: u32,
+    /// The downlink settings byte.
+    pub dl_settings: u8,
+    /// The delay before the first receive window, in seconds.
+    pub rx_delay: u8,
+}
+
+/// An opaque handle to a verified join-request.
+///
+/// Read it with the `pamoja_lorawan_join_request_*` calls, then release it with
+/// [`pamoja_lorawan_join_request_free`].
+pub struct PamojaLorawanJoinRequest {
+    request: JoinRequest,
+}
+
+/// Reads a frame far enough to route it, without any key.
+///
+/// A receiver holding many sessions uses this to find which one a frame belongs
+/// to: the device address travels in the clear, so it can be read before the
+/// session that would verify the frame is even known.
+///
+/// # Arguments
+///
+/// * `bytes` - the raw frame as it came off the radio.
+/// * `bytes_len` - its length.
+/// * `out_header` - receives the header fields.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success, with `*out_header` filled in, or
+/// [`PamojaStatus::Codec`] if the frame is truncated, carries a message type this
+/// build does not read, or declares more frame options than it holds.
+///
+/// # Safety
+///
+/// `bytes` must point to at least `bytes_len` readable bytes when that length is
+/// non-zero, and `out_header` must point to a writable [`PamojaLorawanHeader`].
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_header_parse(
+    bytes: *const u8,
+    bytes_len: usize,
+    out_header: *mut PamojaLorawanHeader,
+) -> PamojaStatus {
+    if out_header.is_null() {
+        set_last_error("out_header must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let bytes = match read_bytes(bytes, bytes_len) {
+        Ok(bytes) => bytes,
+        Err(status) => return status,
+    };
+    let header = match FrameHeader::parse(&bytes) {
+        Ok(header) => header,
+        Err(error) => return failed(error),
+    };
+
+    *out_header = PamojaLorawanHeader {
+        payload_len: header.payload_len(),
+        dev_addr: header.dev_addr().unwrap_or(0),
+        fcnt: header.fcnt().unwrap_or(0),
+        message_type: match header.message_type() {
+            MessageType::JoinRequest => PamojaLorawanMessageType::JoinRequest,
+            MessageType::JoinAccept => PamojaLorawanMessageType::JoinAccept,
+            MessageType::UnconfirmedUp => PamojaLorawanMessageType::UnconfirmedUp,
+            MessageType::ConfirmedUp => PamojaLorawanMessageType::ConfirmedUp,
+            MessageType::UnconfirmedDown => PamojaLorawanMessageType::UnconfirmedDown,
+            MessageType::ConfirmedDown => PamojaLorawanMessageType::ConfirmedDown,
+        },
+        fport: header.fport().unwrap_or(0),
+        is_data: u8::from(header.message_type().is_data()),
+        has_fport: u8::from(header.fport().is_some()),
+        confirmed: u8::from(header.confirmed()),
+        adr: u8::from(header.adr()),
+        ack: u8::from(header.ack()),
+        fpending: u8::from(header.fpending()),
+        fopts_len: header.fopts_len() as u8,
+    };
+    PamojaStatus::Ok
+}
+
+/// Verifies a join-request and reads the identifiers out of it.
+///
+/// # Arguments
+///
+/// * `bytes` - the raw join-request as it came off the radio.
+/// * `bytes_len` - its length.
+/// * `app_key` - the 16-byte application root key the device shares.
+/// * `app_key_len` - its length, which must be [`PAMOJA_LORAWAN_KEY_LEN`].
+/// * `out_request` - receives the verified request.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success, with `*out_request` set to a handle the caller
+/// must release with [`pamoja_lorawan_join_request_free`], [`PamojaStatus::Auth`]
+/// if the MIC does not verify, or [`PamojaStatus::Codec`] if the frame is not a
+/// well-formed join-request.
+///
+/// # Safety
+///
+/// `bytes` and `app_key` must each point to at least their stated lengths in
+/// readable bytes, and `out_request` must point to a writable
+/// `*mut PamojaLorawanJoinRequest`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_join_request_parse(
+    bytes: *const u8,
+    bytes_len: usize,
+    app_key: *const u8,
+    app_key_len: usize,
+    out_request: *mut *mut PamojaLorawanJoinRequest,
+) -> PamojaStatus {
+    if out_request.is_null() {
+        set_last_error("out_request must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let slot = &mut *out_request;
+    *slot = ptr::null_mut();
+
+    let bytes = match read_bytes(bytes, bytes_len) {
+        Ok(bytes) => bytes,
+        Err(status) => return status,
+    };
+    let app_key = match key(app_key, app_key_len, "the application key") {
+        Ok(key) => key,
+        Err(status) => return status,
+    };
+    match JoinRequest::parse(&bytes, &app_key) {
+        Ok(request) => {
+            *slot = Box::into_raw(Box::new(PamojaLorawanJoinRequest { request }));
+            PamojaStatus::Ok
+        }
+        Err(error) => failed(error),
+    }
+}
+
+/// Copies the device identifier out of a verified join-request.
+///
+/// # Arguments
+///
+/// * `request` - the verified request.
+/// * `out_dev_eui` - receives [`PAMOJA_LORAWAN_EUI_LEN`] bytes, most-significant
+///   byte first.
+///
+/// # Returns
+///
+/// `true` when the identifier was written, or `false` if either pointer is null.
+///
+/// # Safety
+///
+/// `request` must be a live handle from [`pamoja_lorawan_join_request_parse`], or
+/// null, and `out_dev_eui` must point to at least
+/// [`PAMOJA_LORAWAN_EUI_LEN`] writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_join_request_dev_eui(
+    request: *const PamojaLorawanJoinRequest,
+    out_dev_eui: *mut u8,
+) -> bool {
+    if request.is_null() || out_dev_eui.is_null() {
+        return false;
+    }
+    let eui = (*request).request.dev_eui();
+    ptr::copy_nonoverlapping(eui.as_ptr(), out_dev_eui, PAMOJA_LORAWAN_EUI_LEN);
+    true
+}
+
+/// Copies the application identifier out of a verified join-request.
+///
+/// # Arguments
+///
+/// * `request` - the verified request.
+/// * `out_app_eui` - receives [`PAMOJA_LORAWAN_EUI_LEN`] bytes, most-significant
+///   byte first.
+///
+/// # Returns
+///
+/// `true` when the identifier was written, or `false` if either pointer is null.
+///
+/// # Safety
+///
+/// `request` must be a live handle from [`pamoja_lorawan_join_request_parse`], or
+/// null, and `out_app_eui` must point to at least
+/// [`PAMOJA_LORAWAN_EUI_LEN`] writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_join_request_app_eui(
+    request: *const PamojaLorawanJoinRequest,
+    out_app_eui: *mut u8,
+) -> bool {
+    if request.is_null() || out_app_eui.is_null() {
+        return false;
+    }
+    let eui = (*request).request.app_eui();
+    ptr::copy_nonoverlapping(eui.as_ptr(), out_app_eui, PAMOJA_LORAWAN_EUI_LEN);
+    true
+}
+
+/// Returns the nonce a verified join-request carried.
+///
+/// A network must remember the nonces a device has used and refuse a repeat, since
+/// replaying one would re-derive the same session keys.
+///
+/// # Returns
+///
+/// The DevNonce, or 0 if `request` is null.
+///
+/// # Safety
+///
+/// `request` must be a live handle from [`pamoja_lorawan_join_request_parse`], or
+/// null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_join_request_dev_nonce(
+    request: *const PamojaLorawanJoinRequest,
+) -> u16 {
+    if request.is_null() {
+        return 0;
+    }
+    (*request).request.dev_nonce()
+}
+
+/// Releases a verified join-request handle.
+///
+/// Passing null is a no-op.
+///
+/// # Safety
+///
+/// `request` must be a handle from [`pamoja_lorawan_join_request_parse`] that has
+/// not already been freed, or null. After this call it must not be used again.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_join_request_free(request: *mut PamojaLorawanJoinRequest) {
+    if !request.is_null() {
+        drop(Box::from_raw(request));
+    }
+}
+
+/// Builds the signed join-accept a network sends to admit a device.
+///
+/// # Arguments
+///
+/// * `grant` - the address and settings to grant.
+/// * `cflist` - the optional 16-byte channel list, or null for none.
+/// * `cflist_len` - its length, either 0 or 16.
+/// * `app_key` - the 16-byte application root key the device shares.
+/// * `app_key_len` - its length, which must be [`PAMOJA_LORAWAN_KEY_LEN`].
+/// * `dev_nonce` - the nonce the matching join-request carried.
+/// * `out_frame` - receives the encoded join-accept.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success, with `*out_frame` set to a buffer the caller
+/// must release with [`pamoja_buffer_free`](crate::pamoja_buffer_free), or
+/// [`PamojaStatus::InvalidArgument`] if the key or the channel list is the wrong
+/// length.
+///
+/// # Safety
+///
+/// `cflist` and `app_key` must each point to at least their stated lengths in
+/// readable bytes, and `out_frame` must point to a writable `*mut PamojaBuffer`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_grant_accept(
+    grant: PamojaLorawanGrant,
+    cflist: *const u8,
+    cflist_len: usize,
+    app_key: *const u8,
+    app_key_len: usize,
+    dev_nonce: u16,
+    out_frame: *mut *mut PamojaBuffer,
+) -> PamojaStatus {
+    if out_frame.is_null() {
+        set_last_error("out_frame must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let slot = &mut *out_frame;
+    *slot = ptr::null_mut();
+
+    let (grant, app_key) = match granted(grant, cflist, cflist_len, app_key, app_key_len) {
+        Ok(pair) => pair,
+        Err(status) => return status,
+    };
+    *slot = PamojaBuffer::into_raw(grant.accept(&app_key, dev_nonce).as_bytes().to_vec());
+    PamojaStatus::Ok
+}
+
+/// Derives the session a grant activates, the same one the device computes.
+///
+/// # Arguments
+///
+/// * `grant` - the address and settings granted.
+/// * `cflist` - the optional 16-byte channel list, or null for none.
+/// * `cflist_len` - its length, either 0 or 16.
+/// * `app_key` - the 16-byte application root key the device shares.
+/// * `app_key_len` - its length, which must be [`PAMOJA_LORAWAN_KEY_LEN`].
+/// * `dev_nonce` - the nonce the matching join-request carried.
+/// * `out_session` - receives the session.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success, with `*out_session` set to a handle the caller
+/// must release with [`pamoja_lorawan_session_free`], or
+/// [`PamojaStatus::InvalidArgument`] if the key or the channel list is the wrong
+/// length.
+///
+/// # Safety
+///
+/// `cflist` and `app_key` must each point to at least their stated lengths in
+/// readable bytes, and `out_session` must point to a writable
+/// `*mut PamojaLorawanSession`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_grant_session(
+    grant: PamojaLorawanGrant,
+    cflist: *const u8,
+    cflist_len: usize,
+    app_key: *const u8,
+    app_key_len: usize,
+    dev_nonce: u16,
+    out_session: *mut *mut PamojaLorawanSession,
+) -> PamojaStatus {
+    if out_session.is_null() {
+        set_last_error("out_session must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let slot = &mut *out_session;
+    *slot = ptr::null_mut();
+
+    let (grant, app_key) = match granted(grant, cflist, cflist_len, app_key, app_key_len) {
+        Ok(pair) => pair,
+        Err(status) => return status,
+    };
+    *slot = Box::into_raw(Box::new(PamojaLorawanSession {
+        session: grant.session(&app_key, dev_nonce),
+    }));
+    PamojaStatus::Ok
+}
+
+/// Rebuilds a Rust grant and the key it is used with from what crossed the ABI.
+///
+/// # Safety
+///
+/// `cflist` and `app_key` must each point to at least their stated lengths in
+/// readable bytes when those lengths are non-zero.
+unsafe fn granted(
+    grant: PamojaLorawanGrant,
+    cflist: *const u8,
+    cflist_len: usize,
+    app_key: *const u8,
+    app_key_len: usize,
+) -> Result<(JoinGrant, [u8; 16]), PamojaStatus> {
+    let app_key = key(app_key, app_key_len, "the application key")?;
+    let mut built = JoinGrant::new(grant.app_nonce, grant.net_id, grant.dev_addr)
+        .with_dl_settings(grant.dl_settings)
+        .with_rx_delay(grant.rx_delay);
+
+    let cflist = read_bytes(cflist, cflist_len)?;
+    if !cflist.is_empty() {
+        let Ok(cflist) = <[u8; 16]>::try_from(&cflist[..]) else {
+            set_last_error("the channel list must be exactly 16 bytes".to_owned());
+            return Err(PamojaStatus::InvalidArgument);
+        };
+        built = built.with_cflist(cflist);
+    }
+    Ok((built, app_key))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1321,6 +1750,265 @@ mod tests {
             pamoja_lorawan_rx_free(ptr::null_mut());
             pamoja_lorawan_device_free(ptr::null_mut());
             pamoja_lorawan_join_accept_free(ptr::null_mut());
+        }
+    }
+
+    #[test]
+    fn a_header_routes_a_frame_before_any_key_is_known() {
+        // Safety: every pointer below is valid and every handle is released.
+        unsafe {
+            let session = session();
+            let payload = b"temp=4.8";
+            let mut frame = ptr::null_mut();
+            let flags = PamojaLorawanFlags {
+                confirmed: 1,
+                adr: 1,
+                ..quiet()
+            };
+            assert_eq!(
+                pamoja_lorawan_session_encode_uplink(
+                    session,
+                    42,
+                    1,
+                    payload.as_ptr(),
+                    payload.len(),
+                    ptr::null(),
+                    0,
+                    flags,
+                    &mut frame
+                ),
+                PamojaStatus::Ok
+            );
+            let on_air =
+                std::slice::from_raw_parts(pamoja_buffer_data(frame), pamoja_buffer_len(frame))
+                    .to_vec();
+            pamoja_buffer_free(frame);
+
+            let mut header = std::mem::zeroed::<PamojaLorawanHeader>();
+            assert_eq!(
+                pamoja_lorawan_header_parse(on_air.as_ptr(), on_air.len(), &mut header),
+                PamojaStatus::Ok
+            );
+            assert_eq!(header.message_type, PamojaLorawanMessageType::ConfirmedUp);
+            assert_eq!(header.is_data, 1);
+            assert_eq!(header.dev_addr, 0x2601_1BDA);
+            assert_eq!(header.fcnt, 42);
+            assert_eq!(header.has_fport, 1);
+            assert_eq!(header.fport, 1);
+            assert_eq!(header.confirmed, 1);
+            assert_eq!(header.adr, 1);
+            assert_eq!(header.payload_len, payload.len());
+            pamoja_lorawan_session_free(session);
+        }
+    }
+
+    #[test]
+    fn a_network_completes_an_activation_across_the_boundary() {
+        let dev_eui = [0x00u8, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77];
+        let app_eui = [0x88u8, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF];
+        let app_key = [0xABu8; 16];
+        let grant = PamojaLorawanGrant {
+            app_nonce: 0x0003_0201,
+            net_id: 0x0006_0504,
+            dev_addr: 0x2601_1BDA,
+            dl_settings: 0x00,
+            rx_delay: 0x01,
+        };
+        // Safety: every pointer below is valid and every handle is released.
+        unsafe {
+            let mut device = ptr::null_mut();
+            assert_eq!(
+                pamoja_lorawan_device_new(
+                    dev_eui.as_ptr(),
+                    dev_eui.len(),
+                    app_eui.as_ptr(),
+                    app_eui.len(),
+                    app_key.as_ptr(),
+                    app_key.len(),
+                    &mut device
+                ),
+                PamojaStatus::Ok
+            );
+
+            // The device asks, and this network reads the request back.
+            let mut request_frame = ptr::null_mut();
+            assert_eq!(
+                pamoja_lorawan_device_join_request(device, 0x1234, &mut request_frame),
+                PamojaStatus::Ok
+            );
+            let on_air = std::slice::from_raw_parts(
+                pamoja_buffer_data(request_frame),
+                pamoja_buffer_len(request_frame),
+            )
+            .to_vec();
+            pamoja_buffer_free(request_frame);
+
+            let mut request = ptr::null_mut();
+            assert_eq!(
+                pamoja_lorawan_join_request_parse(
+                    on_air.as_ptr(),
+                    on_air.len(),
+                    app_key.as_ptr(),
+                    app_key.len(),
+                    &mut request
+                ),
+                PamojaStatus::Ok
+            );
+            let mut read_eui = [0u8; 8];
+            assert!(pamoja_lorawan_join_request_dev_eui(
+                request,
+                read_eui.as_mut_ptr()
+            ));
+            assert_eq!(read_eui, dev_eui);
+            assert!(pamoja_lorawan_join_request_app_eui(
+                request,
+                read_eui.as_mut_ptr()
+            ));
+            assert_eq!(read_eui, app_eui);
+            let dev_nonce = pamoja_lorawan_join_request_dev_nonce(request);
+            assert_eq!(dev_nonce, 0x1234);
+            pamoja_lorawan_join_request_free(request);
+
+            // This network answers, and the device activates on the reply.
+            let mut reply = ptr::null_mut();
+            assert_eq!(
+                pamoja_lorawan_grant_accept(
+                    grant,
+                    ptr::null(),
+                    0,
+                    app_key.as_ptr(),
+                    app_key.len(),
+                    dev_nonce,
+                    &mut reply
+                ),
+                PamojaStatus::Ok
+            );
+            let accept_bytes =
+                std::slice::from_raw_parts(pamoja_buffer_data(reply), pamoja_buffer_len(reply))
+                    .to_vec();
+            pamoja_buffer_free(reply);
+
+            let mut accept = ptr::null_mut();
+            assert_eq!(
+                pamoja_lorawan_device_accept_join(
+                    device,
+                    accept_bytes.as_ptr(),
+                    accept_bytes.len(),
+                    dev_nonce,
+                    &mut accept
+                ),
+                PamojaStatus::Ok
+            );
+            assert_eq!(pamoja_lorawan_join_accept_dev_addr(accept), grant.dev_addr);
+            assert_eq!(pamoja_lorawan_join_accept_net_id(accept), grant.net_id);
+            assert_eq!(pamoja_lorawan_join_accept_rx_delay(accept), grant.rx_delay);
+
+            // Both sides now hold a session, and each can read what the other secures.
+            let mut device_session = ptr::null_mut();
+            assert_eq!(
+                pamoja_lorawan_join_accept_session(accept, &mut device_session),
+                PamojaStatus::Ok
+            );
+            let mut network_session = ptr::null_mut();
+            assert_eq!(
+                pamoja_lorawan_grant_session(
+                    grant,
+                    ptr::null(),
+                    0,
+                    app_key.as_ptr(),
+                    app_key.len(),
+                    dev_nonce,
+                    &mut network_session
+                ),
+                PamojaStatus::Ok
+            );
+
+            let payload = b"joined";
+            let mut uplink = ptr::null_mut();
+            assert_eq!(
+                pamoja_lorawan_session_encode_uplink(
+                    device_session,
+                    1,
+                    1,
+                    payload.as_ptr(),
+                    payload.len(),
+                    ptr::null(),
+                    0,
+                    quiet(),
+                    &mut uplink
+                ),
+                PamojaStatus::Ok
+            );
+            let uplink_bytes =
+                std::slice::from_raw_parts(pamoja_buffer_data(uplink), pamoja_buffer_len(uplink))
+                    .to_vec();
+            pamoja_buffer_free(uplink);
+
+            let mut rx = ptr::null_mut();
+            assert_eq!(
+                pamoja_lorawan_session_decode(
+                    network_session,
+                    uplink_bytes.as_ptr(),
+                    uplink_bytes.len(),
+                    1,
+                    &mut rx
+                ),
+                PamojaStatus::Ok,
+                "the network reads what the device it just admitted sent"
+            );
+            let recovered = std::slice::from_raw_parts(
+                pamoja_lorawan_rx_payload(rx),
+                pamoja_lorawan_rx_payload_len(rx),
+            );
+            assert_eq!(recovered, payload);
+
+            pamoja_lorawan_rx_free(rx);
+            pamoja_lorawan_session_free(network_session);
+            pamoja_lorawan_session_free(device_session);
+            pamoja_lorawan_join_accept_free(accept);
+            pamoja_lorawan_device_free(device);
+        }
+    }
+
+    #[test]
+    fn a_request_signed_with_another_key_is_refused_at_the_boundary() {
+        let app_key = [0xABu8; 16];
+        let other = [0x00u8; 16];
+        // Safety: every pointer below is valid and every handle is released.
+        unsafe {
+            let mut device = ptr::null_mut();
+            assert_eq!(
+                pamoja_lorawan_device_new(
+                    [0x11u8; 8].as_ptr(),
+                    8,
+                    [0x22u8; 8].as_ptr(),
+                    8,
+                    other.as_ptr(),
+                    other.len(),
+                    &mut device
+                ),
+                PamojaStatus::Ok
+            );
+            let mut frame = ptr::null_mut();
+            pamoja_lorawan_device_join_request(device, 1, &mut frame);
+            let on_air =
+                std::slice::from_raw_parts(pamoja_buffer_data(frame), pamoja_buffer_len(frame))
+                    .to_vec();
+            pamoja_buffer_free(frame);
+            pamoja_lorawan_device_free(device);
+
+            let mut request = ptr::null_mut();
+            assert_eq!(
+                pamoja_lorawan_join_request_parse(
+                    on_air.as_ptr(),
+                    on_air.len(),
+                    app_key.as_ptr(),
+                    app_key.len(),
+                    &mut request
+                ),
+                PamojaStatus::Auth
+            );
+            assert!(request.is_null());
         }
     }
 }

@@ -14,7 +14,7 @@ import {
   MESH_DEFAULT_HOP_LIMIT,
   MESH_MAX_FRAME,
   MESH_MAX_PAYLOAD,
-  MESH_SEEN_CAPACITY,
+  MESH_SEEN_DEFAULT_CAPACITY,
   type MeshFrame,
   SeenPackets,
   meshBroadcastFrame,
@@ -38,8 +38,8 @@ export const MAX_PAYLOAD = MESH_MAX_PAYLOAD
 /** The largest frame, in bytes, including its header and checksum. */
 export const MAX_FRAME = MESH_MAX_FRAME
 
-/** The number of recently seen packets a duplicate cache remembers. */
-export const SEEN_CAPACITY = MESH_SEEN_CAPACITY
+/** A duplicate-cache size for a caller with no reason to choose one. */
+export const SEEN_DEFAULT_CAPACITY = MESH_SEEN_DEFAULT_CAPACITY
 
 /**
  * Builds a frame addressed to one node.

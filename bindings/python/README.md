@@ -55,8 +55,9 @@ the helper math, and the hardware a gateway talks to, each in its own module
 `pamoja.actuators`) and all reachable from `pamoja`. The radio modules
 (`pamoja.lora`, `pamoja.lorawan`, `pamoja.mesh`, `pamoja.routing`) carry the
 reach half: what a transmission costs in airtime, the secured LoRaWAN frame that
-goes on the air, and the mesh packets and routing that carry a message across
-nodes when no infrastructure will.
+goes on the air, both halves of the join exchange so a deployment can run its own
+network server, and the mesh packets and routing that carry a message across nodes
+when no infrastructure will.
 The generated low-level contract stays available at `pamoja.raw`.
 
 ```python

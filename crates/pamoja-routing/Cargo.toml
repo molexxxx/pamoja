@@ -8,5 +8,11 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[features]
+default = []
+# A runtime-sized routing table, for a gateway or a language binding that cannot fix its
+# capacity at compile time. Off by default so a bare-metal build stays allocation-free.
+alloc = []
+
 [lints]
 workspace = true

@@ -321,6 +321,8 @@ static void Conformance()
     ConformMesh(vectors.GetProperty("mesh"));
     ConformRouting(vectors.GetProperty("routing"));
     ConformLorawan(vectors.GetProperty("lorawan"));
+    ConformHeader(vectors.GetProperty("header"));
+    ConformNetwork(vectors.GetProperty("network"));
 
     Console.WriteLine("conformance ok");
 }
@@ -1314,7 +1316,7 @@ static void ConformMesh(JsonElement vector)
             == crc.GetProperty("value").GetUInt16(),
         "the frame checksum");
 
-    using var seen = new SeenPackets();
+    using var seen = new SeenPackets(vector.GetProperty("seenCapacity").GetInt32());
     Assert(
         seen.Capacity == vector.GetProperty("seenCapacity").GetInt32(),
         "the cache size");
@@ -1329,6 +1331,21 @@ static void ConformMesh(JsonElement vector)
             "each packet is new exactly once");
         position++;
     }
+
+    JsonElement sized = vector.GetProperty("sizedSeen");
+    using var small = new SeenPackets(sized.GetProperty("capacity").GetInt32());
+    Assert(
+        small.Capacity == sized.GetProperty("capacity").GetInt32(),
+        "the size it was given");
+    foreach (JsonElement key in sized.GetProperty("keys").EnumerateArray())
+    {
+        small.Record(key[0].GetUInt32(), key[1].GetUInt16());
+    }
+
+    JsonElement evicted = sized.GetProperty("evicted");
+    Assert(
+        !small.Contains(evicted[0].GetUInt32(), evicted[1].GetUInt16()),
+        "a cache sized by the caller evicts at that size");
 }
 
 static void AssertDecision(Router router, JsonElement want)
@@ -1350,7 +1367,9 @@ static void AssertDecision(Router router, JsonElement want)
 
 static void ConformRouting(JsonElement vector)
 {
-    using var router = new Router(vector.GetProperty("address").GetUInt32());
+    using var router = new Router(
+        vector.GetProperty("address").GetUInt32(),
+        vector.GetProperty("capacity").GetInt32());
     Assert(router.Capacity == vector.GetProperty("capacity").GetInt32(), "the table size");
 
     foreach (JsonElement observation in vector.GetProperty("observations").EnumerateArray())
@@ -1383,6 +1402,20 @@ static void ConformRouting(JsonElement vector)
     Assert(
         router.Count == forgotten.GetProperty("learned").GetInt32(),
         "forgetting drops exactly one route");
+
+    JsonElement sized = vector.GetProperty("sized");
+    using var small = new Router(0x01, sized.GetProperty("capacity").GetInt32());
+    Assert(
+        small.Capacity == sized.GetProperty("capacity").GetInt32(),
+        "the size it was given");
+    for (uint node = 0; node < sized.GetProperty("offered").GetUInt32(); node++)
+    {
+        small.Observe(node + 0x100, 0x05, 4);
+    }
+
+    Assert(
+        small.Count == sized.GetProperty("learned").GetInt32(),
+        "a table sized by the caller holds exactly what it was asked for");
 }
 
 static void ConformLorawan(JsonElement vector)
@@ -1480,4 +1513,143 @@ static void ConformLorawan(JsonElement vector)
     catch (PamojaException)
     {
     }
+}
+
+static void ConformHeader(JsonElement vector)
+{
+    foreach (JsonElement want in vector.GetProperty("frames").EnumerateArray())
+    {
+        LorawanHeader header = Lorawan.ParseHeader(
+            Convert.FromHexString(want.GetProperty("frame").GetString()!));
+
+        Assert(
+            header.MessageType.ToString() == want.GetProperty("messageType").GetString(),
+            "the message type");
+        Assert(header.IsData == want.GetProperty("isData").GetBoolean(), "data or join");
+        AssertOptional(header.DevAddr, want.GetProperty("devAddr"), "the address a receiver routes by");
+        AssertOptional(header.Fcnt, want.GetProperty("fcnt"), "the counter");
+        AssertOptional(header.Fport, want.GetProperty("fport"), "the port");
+        Assert(header.Confirmed == want.GetProperty("confirmed").GetBoolean(), "the confirmed bit");
+        Assert(header.Adr == want.GetProperty("adr").GetBoolean(), "the ADR bit");
+        Assert(header.Ack == want.GetProperty("ack").GetBoolean(), "the ACK bit");
+        Assert(header.FPending == want.GetProperty("fpending").GetBoolean(), "the pending bit");
+        Assert(
+            header.FoptsLength == want.GetProperty("foptsLen").GetInt32(),
+            "the options length");
+        Assert(
+            header.PayloadLength == want.GetProperty("payloadLen").GetInt32(),
+            "the payload length");
+    }
+
+    foreach (string name in new[] { "unsupported", "truncated" })
+    {
+        try
+        {
+            Lorawan.ParseHeader(Convert.FromHexString(vector.GetProperty(name).GetString()!));
+            Fail($"a {name} frame must be refused");
+        }
+        catch (PamojaException)
+        {
+        }
+    }
+}
+
+static void AssertOptional<T>(T? got, JsonElement want, string message)
+    where T : struct
+{
+    if (want.ValueKind == JsonValueKind.Null)
+    {
+        Assert(got is null, message);
+    }
+    else
+    {
+        Assert(got is not null && got.Value.ToString() == want.ToString(), message);
+    }
+}
+
+static void AssertGrant(JsonElement vector, byte[] appKey, ushort devNonce)
+{
+    byte[]? cflist = vector.TryGetProperty("cflist", out JsonElement list)
+        ? Convert.FromHexString(list.GetString()!)
+        : null;
+    var grant = new LorawanGrant(
+        vector.GetProperty("appNonce").GetUInt32(),
+        vector.GetProperty("netId").GetUInt32(),
+        vector.GetProperty("devAddr").GetUInt32(),
+        vector.GetProperty("dlSettings").GetByte(),
+        vector.GetProperty("rxDelay").GetByte(),
+        cflist);
+
+    Assert(
+        Convert.ToHexString(grant.Accept(appKey, devNonce)).ToLowerInvariant()
+            == vector.GetProperty("accept").GetString(),
+        "the signed join-accept matches byte for byte");
+
+    // Neither side sent a key, so the proof they agree is that one reads what the
+    // other wrote.
+    JsonElement probe = vector.GetProperty("probe");
+    using LorawanSession session = grant.Session(appKey, devNonce);
+    Assert(
+        Convert.ToHexString(session.EncodeUplink(
+            probe.GetProperty("fcnt").GetUInt32(),
+            probe.GetProperty("fport").GetByte(),
+            Convert.FromHexString(probe.GetProperty("payload").GetString()!)))
+            .ToLowerInvariant() == probe.GetProperty("frame").GetString(),
+        "the session this network derived is the one the device holds");
+}
+
+static void ConformNetwork(JsonElement vector)
+{
+    byte[] appKey = Convert.FromHexString(vector.GetProperty("appKey").GetString()!);
+
+    JsonElement want = vector.GetProperty("joinRequest");
+    LorawanJoinRequest request = Lorawan.ParseJoinRequest(
+        Convert.FromHexString(want.GetProperty("frame").GetString()!), appKey);
+    Assert(
+        Convert.ToHexString(request.DevEui).ToLowerInvariant()
+            == want.GetProperty("devEui").GetString(),
+        "the device identifier");
+    Assert(
+        Convert.ToHexString(request.AppEui).ToLowerInvariant()
+            == want.GetProperty("appEui").GetString(),
+        "the application identifier");
+    Assert(
+        request.DevNonce == want.GetProperty("devNonce").GetUInt16(),
+        "the nonce a network must not accept twice");
+
+    try
+    {
+        Lorawan.ParseJoinRequest(
+            Convert.FromHexString(vector.GetProperty("forgedRequest").GetString()!), appKey);
+        Fail("a request signed with another root key must not be trusted");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    AssertGrant(vector.GetProperty("grant"), appKey, vector.GetProperty("devNonce").GetUInt16());
+
+    // The captured join: a third party's numbers, so agreement here is not just
+    // this implementation agreeing with itself.
+    JsonElement published = vector.GetProperty("published");
+    byte[] publishedKey = Convert.FromHexString(published.GetProperty("appKey").GetString()!);
+    ushort publishedNonce = published.GetProperty("devNonce").GetUInt16();
+    AssertGrant(published, publishedKey, publishedNonce);
+
+    using var device = new LorawanDevice(new byte[8], new byte[8], publishedKey);
+    using LorawanJoinAccept accepted = device.AcceptJoin(
+        Convert.FromHexString(published.GetProperty("accept").GetString()!), publishedNonce);
+    Assert(
+        accepted.DevAddr == published.GetProperty("devAddr").GetUInt32(),
+        "the captured accept activates");
+
+    JsonElement probe = published.GetProperty("probe");
+    using LorawanSession activated = accepted.Session();
+    Assert(
+        Convert.ToHexString(activated.EncodeUplink(
+            probe.GetProperty("fcnt").GetUInt32(),
+            probe.GetProperty("fport").GetByte(),
+            Convert.FromHexString(probe.GetProperty("payload").GetString()!)))
+            .ToLowerInvariant() == probe.GetProperty("frame").GetString(),
+        "the session the device derived matches the published keys");
 }

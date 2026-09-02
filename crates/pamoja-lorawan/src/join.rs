@@ -6,7 +6,7 @@ use crate::frame::{PhyPayload, MTYPE_JOIN_ACCEPT, MTYPE_JOIN_REQUEST, MTYPE_MASK
 use crate::session::Session;
 
 // A join-request is a fixed 23 bytes: MHDR, AppEUI, DevEUI, DevNonce, and MIC.
-const JOIN_REQUEST_LEN: usize = 1 + 8 + 8 + 2 + 4;
+pub(crate) const JOIN_REQUEST_LEN: usize = 1 + 8 + 8 + 2 + 4;
 
 /// An end device's root credentials for over-the-air activation.
 ///
@@ -197,14 +197,14 @@ impl JoinAccept {
 
 // Copies `src` into `dst` reversed, turning a most-significant-byte-first identifier into
 // the little-endian order the air interface uses.
-fn copy_reversed(dst: &mut [u8], src: &[u8]) {
+pub(crate) fn copy_reversed(dst: &mut [u8], src: &[u8]) {
     for (d, s) in dst.iter_mut().zip(src.iter().rev()) {
         *d = *s;
     }
 }
 
 // Derives a session key by encrypting the spec's key-derivation block with the root key.
-fn derive_key(
+pub(crate) fn derive_key(
     cipher: &Cipher,
     kind: u8,
     app_nonce: &[u8],

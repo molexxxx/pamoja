@@ -227,25 +227,29 @@ public sealed class MeshFrame
 /// <summary>A memory of recently seen packets, so a node relays each one only once.</summary>
 /// <remarks>
 /// Without one, a flood multiplies without bound. The core cache is generic over
-/// its size, which cannot cross the C ABI, so this is built at one documented
-/// size: <see cref="Capacity"/>.
+/// its size, which cannot cross the C ABI, so this one is sized when it is built.
 /// </remarks>
 public sealed class SeenPackets : IDisposable
 {
     private readonly NativeHandle _handle;
 
     /// <summary>Creates an empty cache.</summary>
+    /// <param name="capacity">
+    /// How many recently seen packets to remember. A capacity of 0 remembers
+    /// nothing, so every copy of a packet is relayed.
+    /// </param>
     /// <exception cref="PamojaException">The native cache could not be created.</exception>
-    public SeenPackets()
+    public SeenPackets(int capacity = NativeMethods.MeshSeenDefaultCapacity)
     {
         _handle = NativeHandle.Create(
-            NativeMethods.pamoja_mesh_seen_new(),
+            NativeMethods.pamoja_mesh_seen_new((nuint)capacity),
             NativeMethods.pamoja_mesh_seen_free,
             "duplicate cache");
     }
 
     /// <summary>How many packets this cache remembers.</summary>
-    public int Capacity => checked((int)NativeMethods.pamoja_mesh_seen_capacity());
+    public int Capacity =>
+        checked((int)_handle.Use(NativeMethods.pamoja_mesh_seen_capacity));
 
     /// <summary>Reports whether a packet is remembered, without recording it.</summary>
     /// <param name="src">The address the packet came from.</param>

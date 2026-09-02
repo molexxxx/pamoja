@@ -12,8 +12,8 @@
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_lorawan::{
-    Device as CoreDevice, Direction, Downlink, JoinAccept as CoreJoinAccept, LorawanError, RxData,
-    Session as CoreSession, Uplink,
+    Device as CoreDevice, Direction, Downlink, FrameHeader, JoinAccept as CoreJoinAccept,
+    JoinGrant, JoinRequest, LorawanError, MessageType, RxData, Session as CoreSession, Uplink,
 };
 
 /// The largest application payload, in bytes, a single frame can carry.
@@ -306,4 +306,163 @@ fn eui(bytes: &Buffer, what: &str) -> napi::Result<[u8; 8]> {
 /// Turns a LoRaWAN error into the JavaScript error a caller sees.
 fn to_napi(error: LorawanError) -> napi::Error {
     napi::Error::from_reason(error.to_string())
+}
+
+/// What kind of message a frame is, read from its header.
+#[napi(string_enum)]
+pub enum LorawanMessageType {
+    /// A device asking to join a network.
+    JoinRequest,
+    /// A network admitting a device.
+    JoinAccept,
+    /// Data from a device that does not need acknowledging.
+    UnconfirmedUp,
+    /// Data from a device that asks to be acknowledged.
+    ConfirmedUp,
+    /// Data to a device that does not need acknowledging.
+    UnconfirmedDown,
+    /// Data to a device that asks to be acknowledged.
+    ConfirmedDown,
+}
+
+/// What a frame says about itself before any key is involved.
+///
+/// Nothing here is authenticated, since checking the MIC needs the session key.
+/// Treat it as a routing hint until `decode` has verified the frame.
+#[napi(object)]
+pub struct LorawanHeader {
+    /// What kind of message the frame is.
+    pub message_type: LorawanMessageType,
+    /// Whether this is a data frame rather than part of a join exchange.
+    pub is_data: bool,
+    /// The device address, or `null` for a join frame.
+    pub dev_addr: Option<u32>,
+    /// The low 16 bits of the frame counter, or `null` for a join frame.
+    pub fcnt: Option<u16>,
+    /// The port, or `null` for a join frame or one carrying only options.
+    pub fport: Option<u8>,
+    /// Whether the frame asks to be acknowledged.
+    pub confirmed: bool,
+    /// Whether the frame takes part in adaptive data rate.
+    pub adr: bool,
+    /// Whether the frame acknowledges the last confirmed one.
+    pub ack: bool,
+    /// Whether the network has more downlink data waiting.
+    pub fpending: bool,
+    /// How many bytes of frame options the header carries.
+    pub fopts_len: u32,
+    /// The length of the still-encrypted payload.
+    pub payload_len: u32,
+}
+
+/// A join-request a device broadcast, with its integrity already verified.
+#[napi(object)]
+pub struct LorawanJoinRequest {
+    /// The device identifier, most-significant byte first.
+    pub dev_eui: Buffer,
+    /// The application identifier, most-significant byte first.
+    pub app_eui: Buffer,
+    /// The nonce the request carried, which a network must not accept twice.
+    pub dev_nonce: u16,
+}
+
+/// What a network grants a device that joined.
+#[napi(object)]
+pub struct LorawanGrant {
+    /// A nonce this network must not reuse for the device; low 24 bits only.
+    pub app_nonce: u32,
+    /// The network identifier; low 24 bits only.
+    pub net_id: u32,
+    /// The address to assign the device.
+    pub dev_addr: u32,
+    /// The downlink settings byte, defaulting to 0.
+    pub dl_settings: Option<u8>,
+    /// The delay before the first receive window in seconds, defaulting to 0.
+    pub rx_delay: Option<u8>,
+    /// The optional 16-byte channel list.
+    pub cflist: Option<Buffer>,
+}
+
+/// Reads a frame far enough to route it, without any key.
+///
+/// A receiver holding many sessions uses this to find which one a frame belongs
+/// to: the device address travels in the clear.
+#[napi]
+pub fn lorawan_parse_header(bytes: Buffer) -> napi::Result<LorawanHeader> {
+    let header = FrameHeader::parse(bytes.as_ref()).map_err(to_napi)?;
+    Ok(LorawanHeader {
+        message_type: match header.message_type() {
+            MessageType::JoinRequest => LorawanMessageType::JoinRequest,
+            MessageType::JoinAccept => LorawanMessageType::JoinAccept,
+            MessageType::UnconfirmedUp => LorawanMessageType::UnconfirmedUp,
+            MessageType::ConfirmedUp => LorawanMessageType::ConfirmedUp,
+            MessageType::UnconfirmedDown => LorawanMessageType::UnconfirmedDown,
+            MessageType::ConfirmedDown => LorawanMessageType::ConfirmedDown,
+        },
+        is_data: header.message_type().is_data(),
+        dev_addr: header.dev_addr(),
+        fcnt: header.fcnt(),
+        fport: header.fport(),
+        confirmed: header.confirmed(),
+        adr: header.adr(),
+        ack: header.ack(),
+        fpending: header.fpending(),
+        fopts_len: header.fopts_len() as u32,
+        payload_len: header.payload_len() as u32,
+    })
+}
+
+/// Verifies a join-request and reads the identifiers out of it.
+#[napi]
+pub fn lorawan_parse_join_request(
+    bytes: Buffer,
+    app_key: Buffer,
+) -> napi::Result<LorawanJoinRequest> {
+    let request = JoinRequest::parse(bytes.as_ref(), &key(&app_key, "appKey")?).map_err(to_napi)?;
+    Ok(LorawanJoinRequest {
+        dev_eui: request.dev_eui().to_vec().into(),
+        app_eui: request.app_eui().to_vec().into(),
+        dev_nonce: request.dev_nonce(),
+    })
+}
+
+/// Builds the signed join-accept a network sends to admit a device.
+#[napi]
+pub fn lorawan_grant_accept(
+    grant: LorawanGrant,
+    app_key: Buffer,
+    dev_nonce: u16,
+) -> napi::Result<Buffer> {
+    let app_key = key(&app_key, "appKey")?;
+    Ok(granted(grant)?
+        .accept(&app_key, dev_nonce)
+        .as_bytes()
+        .to_vec()
+        .into())
+}
+
+/// Derives the session a grant activates, the same one the device computes.
+#[napi]
+pub fn lorawan_grant_session(
+    grant: LorawanGrant,
+    app_key: Buffer,
+    dev_nonce: u16,
+) -> napi::Result<LorawanSession> {
+    let app_key = key(&app_key, "appKey")?;
+    Ok(LorawanSession {
+        inner: granted(grant)?.session(&app_key, dev_nonce),
+    })
+}
+
+/// Rebuilds the Rust grant from the object JavaScript supplied.
+fn granted(grant: LorawanGrant) -> napi::Result<JoinGrant> {
+    let mut built = JoinGrant::new(grant.app_nonce, grant.net_id, grant.dev_addr)
+        .with_dl_settings(grant.dl_settings.unwrap_or(0))
+        .with_rx_delay(grant.rx_delay.unwrap_or(0));
+    if let Some(cflist) = grant.cflist {
+        let cflist = <[u8; 16]>::try_from(cflist.as_ref())
+            .map_err(|_| napi::Error::from_reason("cflist must be exactly 16 bytes".to_owned()))?;
+        built = built.with_cflist(cflist);
+    }
+    Ok(built)
 }

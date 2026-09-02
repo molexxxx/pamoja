@@ -47,8 +47,10 @@ actuator drivers are there too: `Bme280Calibration`, `Ds18b20`, `Ina219`, and
 
 For reach, `LoraLink` answers what a transmission costs in airtime and what
 silence a duty-cycle limit then forces, `LorawanSession` and `LorawanDevice`
-build and verify the secured frames a long-range node puts on the air, and `Mesh`
-and `Router` carry a message across nodes when no infrastructure will. Each
+build and verify the secured frames a long-range node puts on the air, while
+`Lorawan` and `LorawanGrant` are the network server half, admitting a device and
+reading a frame far enough to route it before any key is known. `Mesh` and
+`Router` carry a message across nodes when no infrastructure will. Each
 handle-backed type is `IDisposable`.
 
 ```csharp

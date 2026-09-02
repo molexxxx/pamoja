@@ -4,18 +4,16 @@
 //! node from the traffic it already hears, and the per-packet decision of whether
 //! to deliver, relay, or fall back to flooding.
 //!
-//! A router holds state across calls, so it is a class, fixed at
-//! [`ROUTING_TABLE_CAPACITY`] routes because its Rust size is a const generic.
+//! A router holds state across calls, so it is a class. Its table is sized when it
+//! is built, since the Rust crate fixes its size with a const generic that cannot
+//! reach JavaScript.
 
 use napi_derive::napi;
-use pamoja_routing::{Forward, Router as CoreRouter};
+use pamoja_routing::{DynamicRouter, Forward};
 
-/// The number of routes a routing table holds.
-pub const TABLE_CAPACITY: usize = 64;
-
-/// The number of routes a routing table holds.
+/// A reasonable routing table size for a caller with no reason to choose one.
 #[napi]
-pub const ROUTING_TABLE_CAPACITY: u32 = TABLE_CAPACITY as u32;
+pub const ROUTING_DEFAULT_CAPACITY: u32 = 64;
 
 /// What to do with a packet bound for a given node.
 #[napi(string_enum)]
@@ -51,16 +49,23 @@ pub struct Route {
 /// One node routing table, learned from the traffic the node hears.
 #[napi]
 pub struct Router {
-    inner: CoreRouter<TABLE_CAPACITY>,
+    inner: DynamicRouter,
 }
 
 #[napi]
 impl Router {
     /// Creates an empty routing table for a node at `address`.
+    ///
+    /// `capacity` is how many routes to make room for, defaulting to
+    /// [`ROUTING_DEFAULT_CAPACITY`]. A capacity of zero floods every unknown
+    /// destination, which is the behaviour with no table at all.
     #[napi(constructor)]
-    pub fn new(address: u32) -> Self {
+    pub fn new(address: u32, capacity: Option<u32>) -> Self {
         Self {
-            inner: CoreRouter::new(address),
+            inner: DynamicRouter::new(
+                address,
+                capacity.unwrap_or(ROUTING_DEFAULT_CAPACITY) as usize,
+            ),
         }
     }
 
@@ -141,6 +146,6 @@ impl Router {
     /// How many routes the table can hold.
     #[napi(getter)]
     pub fn capacity(&self) -> u32 {
-        ROUTING_TABLE_CAPACITY
+        self.inner.capacity() as u32
     }
 }

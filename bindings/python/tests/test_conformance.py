@@ -516,7 +516,7 @@ def test_mesh_vectors_match():
     assert mesh.MAX_FRAME == vector["maxFrame"]
     assert mesh.MAX_PAYLOAD == vector["maxPayload"]
     assert mesh.BROADCAST == vector["broadcastAddress"]
-    assert mesh.SEEN_CAPACITY == vector["seenCapacity"]
+    assert mesh.SEEN_DEFAULT_CAPACITY == vector["seenCapacity"]
 
     unicast = vector["unicast"]
     built = mesh.frame(
@@ -549,9 +549,16 @@ def test_mesh_vectors_match():
     assert mesh.crc16(unhex(crc["check"])) == crc["checkValue"]
     assert mesh.crc16(unhex(crc["data"])) == crc["value"]
 
-    seen = mesh.SeenPackets()
+    seen = mesh.SeenPackets(vector["seenCapacity"])
     for (src, packet_id), expected in zip(vector["seen"]["keys"], vector["seen"]["new"]):
         assert seen.record(src, packet_id) == expected
+
+    sized = vector["sizedSeen"]
+    small = mesh.SeenPackets(sized["capacity"])
+    assert small.capacity == sized["capacity"]
+    for src, packet_id in sized["keys"]:
+        small.record(src, packet_id)
+    assert not small.contains(*sized["evicted"])
 
 
 def _assert_decision(router, want: dict) -> None:
@@ -563,10 +570,10 @@ def _assert_decision(router, want: dict) -> None:
 
 def test_routing_vectors_match():
     vector = VECTORS["routing"]
-    router = routing.router(vector["address"])
+    router = routing.router(vector["address"], vector["capacity"])
 
     assert router.capacity == vector["capacity"]
-    assert routing.TABLE_CAPACITY == vector["capacity"]
+    assert routing.DEFAULT_CAPACITY == vector["capacity"]
 
     for observation in vector["observations"]:
         assert (
@@ -586,6 +593,13 @@ def test_routing_vectors_match():
     router.forget(vector["afterForgetting"]["dst"])
     _assert_decision(router, vector["afterForgetting"]["decision"])
     assert len(router) == vector["afterForgetting"]["learned"]
+
+    sized = vector["sized"]
+    small = routing.router(0x01, sized["capacity"])
+    assert small.capacity == sized["capacity"]
+    for node in range(sized["offered"]):
+        small.observe(node + 0x100, 0x05, 4)
+    assert len(small) == sized["learned"]
 
 
 def test_lorawan_vectors_match():
@@ -641,3 +655,84 @@ def test_lorawan_vectors_match():
     assert device.join_request(join["devNonce"]).hex() == join["request"]
     with pytest.raises(PamojaError):
         device.accept_join(unhex(join["forgedAccept"]), join["devNonce"])
+
+
+def _assert_grant(vector: dict, app_key: bytes, dev_nonce: int) -> None:
+    """Check a grant builds its accept and derives the session both sides share."""
+    cflist = vector.get("cflist")
+    granted = lorawan.grant(
+        vector["appNonce"],
+        vector["netId"],
+        vector["devAddr"],
+        vector["dlSettings"],
+        vector["rxDelay"],
+        None if cflist is None else unhex(cflist),
+    )
+    assert granted.accept(app_key, dev_nonce).hex() == vector["accept"]
+
+    # Neither side sent a key, so the proof they agree is that one reads what the
+    # other wrote.
+    probe = vector["probe"]
+    session = granted.session(app_key, dev_nonce)
+    assert (
+        session.encode_uplink(
+            probe["fcnt"], probe["fport"], unhex(probe["payload"])
+        ).hex()
+        == probe["frame"]
+    )
+
+
+def test_header_vectors_match():
+    vector = VECTORS["header"]
+
+    for want in vector["frames"]:
+        header = lorawan.parse_header(unhex(want["frame"]))
+        assert header.message_type == want["messageType"]
+        assert header.is_data == want["isData"]
+        assert header.dev_addr == want["devAddr"]
+        assert header.fcnt == want["fcnt"]
+        assert header.fport == want["fport"]
+        assert header.confirmed == want["confirmed"]
+        assert header.adr == want["adr"]
+        assert header.ack == want["ack"]
+        assert header.fpending == want["fpending"]
+        assert header.fopts_len == want["foptsLen"]
+        assert header.payload_len == want["payloadLen"]
+
+    with pytest.raises(PamojaError):
+        lorawan.parse_header(unhex(vector["unsupported"]))
+    with pytest.raises(PamojaError):
+        lorawan.parse_header(unhex(vector["truncated"]))
+
+
+def test_network_vectors_match():
+    vector = VECTORS["network"]
+    app_key = unhex(vector["appKey"])
+
+    request = lorawan.parse_join_request(unhex(vector["joinRequest"]["frame"]), app_key)
+    assert request.dev_eui.hex() == vector["joinRequest"]["devEui"]
+    assert request.app_eui.hex() == vector["joinRequest"]["appEui"]
+    assert request.dev_nonce == vector["joinRequest"]["devNonce"]
+
+    with pytest.raises(PamojaError):
+        lorawan.parse_join_request(unhex(vector["forgedRequest"]), app_key)
+
+    _assert_grant(vector["grant"], app_key, vector["devNonce"])
+
+    # The captured join: a third party's numbers, so agreement here is not just
+    # this implementation agreeing with itself.
+    published = vector["published"]
+    published_key = unhex(published["appKey"])
+    _assert_grant(published, published_key, published["devNonce"])
+
+    device = lorawan.device(bytes(8), bytes(8), published_key)
+    accepted = device.accept_join(unhex(published["accept"]), published["devNonce"])
+    assert accepted.dev_addr == published["devAddr"]
+
+    probe = published["probe"]
+    assert (
+        accepted.session()
+        .encode_uplink(probe["fcnt"], probe["fport"], unhex(probe["payload"]))
+        .hex()
+        == probe["frame"]
+    )

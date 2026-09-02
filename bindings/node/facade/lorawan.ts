@@ -16,9 +16,14 @@ import {
   LORAWAN_MAX_FRAME,
   LORAWAN_MAX_PAYLOAD,
   LorawanDevice,
+  type LorawanGrant,
   LorawanJoinAccept,
   type LorawanOptions,
   LorawanSession,
+  lorawanGrantAccept,
+  lorawanGrantSession,
+  lorawanParseHeader,
+  lorawanParseJoinRequest,
 } from '../index'
 
 export { type LorawanOptions as Options }
@@ -267,4 +272,166 @@ export function device(
   appKey: Uint8Array,
 ): Device {
   return new Device(devEui, appEui, appKey)
+}
+
+/** What kind of message a frame is, read from its header. */
+export const MessageType = {
+  /** A device asking to join a network. */
+  JoinRequest: 'JoinRequest',
+  /** A network admitting a device. */
+  JoinAccept: 'JoinAccept',
+  /** Data from a device that does not need acknowledging. */
+  UnconfirmedUp: 'UnconfirmedUp',
+  /** Data from a device that asks to be acknowledged. */
+  ConfirmedUp: 'ConfirmedUp',
+  /** Data to a device that does not need acknowledging. */
+  UnconfirmedDown: 'UnconfirmedDown',
+  /** Data to a device that asks to be acknowledged. */
+  ConfirmedDown: 'ConfirmedDown',
+} as const
+
+/** One of the {@link MessageType} values. */
+export type MessageType = (typeof MessageType)[keyof typeof MessageType]
+
+/** What a frame says about itself before any key is involved. */
+export interface Header {
+  /** What kind of message the frame is. */
+  messageType: MessageType
+  /** Whether this is a data frame rather than part of a join exchange. */
+  isData: boolean
+  /** The device address, or `null` for a join frame. */
+  devAddr: number | null
+  /** The low 16 bits of the frame counter, or `null` for a join frame. */
+  fcnt: number | null
+  /** The port, or `null` for a join frame or one carrying only options. */
+  fport: number | null
+  /** Whether the frame asks to be acknowledged. */
+  confirmed: boolean
+  /** Whether the frame takes part in adaptive data rate. */
+  adr: boolean
+  /** Whether the frame acknowledges the last confirmed one. */
+  ack: boolean
+  /** Whether the network has more downlink data waiting. */
+  fpending: boolean
+  /** How many bytes of frame options the header carries. */
+  foptsLen: number
+  /** The length of the still-encrypted payload. */
+  payloadLen: number
+}
+
+/**
+ * Reads a frame far enough to route it, without any key.
+ *
+ * A receiver holding many sessions uses this to find which one a frame belongs
+ * to: the device address travels in the clear, so it can be read before the
+ * session that would verify the frame is even known.
+ *
+ * Nothing this reports is authenticated. Treat it as a routing hint until
+ * {@link Session.decode} has verified the frame.
+ *
+ * @param bytes - The raw frame as it came off the radio.
+ * @returns What the header says the frame is.
+ * @throws If the frame is truncated or carries a message type this build does not
+ *   read.
+ */
+export function parseHeader(bytes: Uint8Array): Header {
+  const header = lorawanParseHeader(Buffer.from(bytes))
+  return {
+    ...header,
+    devAddr: header.devAddr ?? null,
+    fcnt: header.fcnt ?? null,
+    fport: header.fport ?? null,
+  }
+}
+
+/** A join-request a device broadcast, with its integrity already verified. */
+export interface JoinRequest {
+  /** The device identifier, most-significant byte first. */
+  devEui: Buffer
+  /** The application identifier, most-significant byte first. */
+  appEui: Buffer
+  /** The nonce the request carried, which a network must not accept twice. */
+  devNonce: number
+}
+
+/** What a network grants a device that joined. */
+export interface Grant {
+  /** A nonce this network must not reuse for the device; low 24 bits only. */
+  appNonce: number
+  /** The network identifier; low 24 bits only. */
+  netId: number
+  /** The address to assign the device. */
+  devAddr: number
+  /** The downlink settings byte, defaulting to 0. */
+  dlSettings?: number
+  /** The delay before the first receive window in seconds, defaulting to 0. */
+  rxDelay?: number
+  /** The optional 16-byte channel list. */
+  cflist?: Uint8Array
+}
+
+/**
+ * Verifies a join-request and reads the identifiers out of it.
+ *
+ * This is the network side of activation: it proves the request came from a
+ * holder of the application key before reporting who sent it.
+ *
+ * @param bytes - The raw join-request as it came off the radio.
+ * @param appKey - The 16-byte application root key the device shares.
+ * @returns The verified request.
+ * @throws If the MIC does not verify or the frame is not a join-request.
+ */
+export function parseJoinRequest(bytes: Uint8Array, appKey: Uint8Array): JoinRequest {
+  return lorawanParseJoinRequest(Buffer.from(bytes), Buffer.from(appKey))
+}
+
+/**
+ * Builds the signed join-accept a network sends to admit a device.
+ *
+ * @param grant - The address and settings to grant.
+ * @param appKey - The 16-byte application root key the device shares.
+ * @param devNonce - The nonce the matching join-request carried.
+ * @returns The join-accept to transmit.
+ * @throws If the key or the channel list is the wrong length.
+ */
+export function grantAccept(
+  grant: Grant,
+  appKey: Uint8Array,
+  devNonce: number,
+): Buffer {
+  return lorawanGrantAccept(nativeGrant(grant), Buffer.from(appKey), devNonce)
+}
+
+/**
+ * Derives the session a grant activates, the same one the device computes.
+ *
+ * Neither side sends a key: both derive it from the nonces the join exchange
+ * carried, so the network can read what the device it just admitted sends.
+ *
+ * @param grant - The address and settings granted.
+ * @param appKey - The 16-byte application root key the device shares.
+ * @param devNonce - The nonce the matching join-request carried.
+ * @returns The session to secure this device's traffic with.
+ * @throws If the key or the channel list is the wrong length.
+ */
+export function grantSession(
+  grant: Grant,
+  appKey: Uint8Array,
+  devNonce: number,
+): Session {
+  return new Session(
+    lorawanGrantSession(nativeGrant(grant), Buffer.from(appKey), devNonce),
+  )
+}
+
+/** Renders a grant in the shape the generated binding takes. */
+function nativeGrant(grant: Grant): LorawanGrant {
+  return {
+    appNonce: grant.appNonce,
+    netId: grant.netId,
+    devAddr: grant.devAddr,
+    dlSettings: grant.dlSettings,
+    rxDelay: grant.rxDelay,
+    cflist: grant.cflist === undefined ? undefined : Buffer.from(grant.cflist),
+  }
 }

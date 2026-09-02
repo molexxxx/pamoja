@@ -14,11 +14,11 @@ namespace Pamoja.Core.Interop;
 /// </remarks>
 public static partial class NativeMethods
 {
-    /// <summary>The number of recently seen packets a duplicate cache remembers.</summary>
-    public const int MeshSeenCapacity = 64;
+    /// <summary>A duplicate-cache size for a caller with no reason to choose one.</summary>
+    public const int MeshSeenDefaultCapacity = 64;
 
-    /// <summary>The number of routes a routing table holds.</summary>
-    public const int RoutingTableCapacity = 64;
+    /// <summary>A routing table size for a caller with no reason to choose one.</summary>
+    public const int RoutingDefaultCapacity = 64;
 
     /// <summary>The largest payload a single mesh frame can carry, in bytes.</summary>
     public const int MeshPayloadMax = 236;
@@ -146,9 +146,9 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial ushort pamoja_mesh_crc16(ReadOnlySpan<byte> data, nuint dataLen);
 
-    /// <summary>Creates an empty duplicate cache.</summary>
+    /// <summary>Creates an empty duplicate cache of the size given.</summary>
     [LibraryImport(Library)]
-    public static partial IntPtr pamoja_mesh_seen_new();
+    public static partial IntPtr pamoja_mesh_seen_new(nuint capacity);
 
     /// <summary>Reports whether a packet is remembered, without recording it.</summary>
     [LibraryImport(Library)]
@@ -162,15 +162,15 @@ public static partial class NativeMethods
 
     /// <summary>Returns how many packets a duplicate cache remembers.</summary>
     [LibraryImport(Library)]
-    public static partial nuint pamoja_mesh_seen_capacity();
+    public static partial nuint pamoja_mesh_seen_capacity(IntPtr cache);
 
     /// <summary>Releases a duplicate cache handle. Passing null is a no-op.</summary>
     [LibraryImport(Library)]
     public static partial void pamoja_mesh_seen_free(IntPtr cache);
 
-    /// <summary>Creates an empty routing table for a node.</summary>
+    /// <summary>Creates an empty routing table of the size given.</summary>
     [LibraryImport(Library)]
-    public static partial IntPtr pamoja_router_new(uint address);
+    public static partial IntPtr pamoja_router_new(uint address, nuint capacity);
 
     /// <summary>Returns the address a router answers for.</summary>
     [LibraryImport(Library)]
@@ -213,7 +213,7 @@ public static partial class NativeMethods
 
     /// <summary>Returns how many routes a table can hold.</summary>
     [LibraryImport(Library)]
-    public static partial nuint pamoja_router_capacity();
+    public static partial nuint pamoja_router_capacity(IntPtr router);
 
     /// <summary>Releases a routing table handle. Passing null is a no-op.</summary>
     [LibraryImport(Library)]
@@ -385,4 +385,64 @@ public static partial class NativeMethods
     /// <summary>Releases an accepted join handle. Passing null is a no-op.</summary>
     [LibraryImport(Library)]
     public static partial void pamoja_lorawan_join_accept_free(IntPtr accept);
+
+    /// <summary>Reads a frame far enough to route it, without any key.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lorawan_header_parse(
+        ReadOnlySpan<byte> bytes,
+        nuint bytesLen,
+        out PamojaLorawanHeader outHeader);
+
+    /// <summary>Verifies a join-request and reads the identifiers out of it.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lorawan_join_request_parse(
+        ReadOnlySpan<byte> bytes,
+        nuint bytesLen,
+        ReadOnlySpan<byte> appKey,
+        nuint appKeyLen,
+        out IntPtr outRequest);
+
+    /// <summary>Copies the device identifier out of a verified join-request.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_lorawan_join_request_dev_eui(
+        IntPtr request,
+        Span<byte> outDevEui);
+
+    /// <summary>Copies the application identifier out of a verified join-request.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_lorawan_join_request_app_eui(
+        IntPtr request,
+        Span<byte> outAppEui);
+
+    /// <summary>Returns the nonce a verified join-request carried.</summary>
+    [LibraryImport(Library)]
+    public static partial ushort pamoja_lorawan_join_request_dev_nonce(IntPtr request);
+
+    /// <summary>Releases a verified join-request handle. Passing null is a no-op.</summary>
+    [LibraryImport(Library)]
+    public static partial void pamoja_lorawan_join_request_free(IntPtr request);
+
+    /// <summary>Builds the signed join-accept a network sends to admit a device.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lorawan_grant_accept(
+        PamojaLorawanGrant grant,
+        ReadOnlySpan<byte> cflist,
+        nuint cflistLen,
+        ReadOnlySpan<byte> appKey,
+        nuint appKeyLen,
+        ushort devNonce,
+        out IntPtr outFrame);
+
+    /// <summary>Derives the session a grant activates.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lorawan_grant_session(
+        PamojaLorawanGrant grant,
+        ReadOnlySpan<byte> cflist,
+        nuint cflistLen,
+        ReadOnlySpan<byte> appKey,
+        nuint appKeyLen,
+        ushort devNonce,
+        out IntPtr outSession);
 }

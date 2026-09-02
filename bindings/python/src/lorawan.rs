@@ -11,11 +11,11 @@
 
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 
 use pamoja_lorawan::{
-    Device as CoreDevice, Direction, Downlink, JoinAccept as CoreJoinAccept, LorawanError, RxData,
-    Session as CoreSession, Uplink,
+    Device as CoreDevice, Direction, Downlink, FrameHeader, JoinAccept as CoreJoinAccept,
+    JoinGrant, JoinRequest, LorawanError, MessageType, RxData, Session as CoreSession, Uplink,
 };
 
 use crate::PamojaError;
@@ -308,4 +308,188 @@ fn eui(bytes: &[u8], what: &str) -> PyResult<[u8; 8]> {
 /// Turns a LoRaWAN error into the Python exception a caller sees.
 fn to_py(error: LorawanError) -> PyErr {
     PamojaError::new_err(error.to_string())
+}
+
+/// What a frame says about itself before any key is involved.
+///
+/// Nothing here is authenticated, since checking the MIC needs the session key.
+/// Treat it as a routing hint until `decode` has verified the frame.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct LorawanHeader {
+    /// What kind of message the frame is.
+    #[pyo3(get)]
+    message_type: String,
+    /// Whether this is a data frame rather than part of a join exchange.
+    #[pyo3(get)]
+    is_data: bool,
+    /// The device address, or `None` for a join frame.
+    #[pyo3(get)]
+    dev_addr: Option<u32>,
+    /// The low 16 bits of the frame counter, or `None` for a join frame.
+    #[pyo3(get)]
+    fcnt: Option<u16>,
+    /// The port, or `None` for a join frame or one carrying only options.
+    #[pyo3(get)]
+    fport: Option<u8>,
+    /// Whether the frame asks to be acknowledged.
+    #[pyo3(get)]
+    confirmed: bool,
+    /// Whether the frame takes part in adaptive data rate.
+    #[pyo3(get)]
+    adr: bool,
+    /// Whether the frame acknowledges the last confirmed one.
+    #[pyo3(get)]
+    ack: bool,
+    /// Whether the network has more downlink data waiting.
+    #[pyo3(get)]
+    fpending: bool,
+    /// How many bytes of frame options the header carries.
+    #[pyo3(get)]
+    fopts_len: usize,
+    /// The length of the still-encrypted payload.
+    #[pyo3(get)]
+    payload_len: usize,
+}
+
+/// A join-request a device broadcast, with its integrity already verified.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct LorawanJoinRequest {
+    /// The nonce the request carried, which a network must not accept twice.
+    #[pyo3(get)]
+    dev_nonce: u16,
+    dev_eui: Vec<u8>,
+    app_eui: Vec<u8>,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl LorawanJoinRequest {
+    /// The device identifier, most-significant byte first.
+    #[getter]
+    fn dev_eui<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.dev_eui)
+    }
+
+    /// The application identifier, most-significant byte first.
+    #[getter]
+    fn app_eui<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.app_eui)
+    }
+}
+
+/// What a network grants a device that joined.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct LorawanGrant {
+    inner: JoinGrant,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl LorawanGrant {
+    /// Creates a grant of an address and the settings to answer on.
+    ///
+    /// `app_nonce` and `net_id` carry their low 24 bits only.
+    #[new]
+    #[pyo3(signature = (app_nonce, net_id, dev_addr, dl_settings = 0, rx_delay = 0, cflist = None))]
+    fn new(
+        app_nonce: u32,
+        net_id: u32,
+        dev_addr: u32,
+        dl_settings: u8,
+        rx_delay: u8,
+        cflist: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        let mut inner = JoinGrant::new(app_nonce, net_id, dev_addr)
+            .with_dl_settings(dl_settings)
+            .with_rx_delay(rx_delay);
+        if let Some(cflist) = cflist {
+            let cflist = <[u8; 16]>::try_from(&cflist[..])
+                .map_err(|_| PamojaError::new_err("cflist must be exactly 16 bytes".to_owned()))?;
+            inner = inner.with_cflist(cflist);
+        }
+        Ok(LorawanGrant { inner })
+    }
+
+    /// The address this grant assigns.
+    #[getter]
+    fn dev_addr(&self) -> u32 {
+        self.inner.dev_addr()
+    }
+
+    /// The network identifier this grant carries.
+    #[getter]
+    fn net_id(&self) -> u32 {
+        self.inner.net_id()
+    }
+
+    /// Builds the signed join-accept to transmit.
+    fn accept<'py>(
+        &self,
+        py: Python<'py>,
+        app_key: Vec<u8>,
+        dev_nonce: u16,
+    ) -> PyResult<Bound<'py, PyBytes>> {
+        Ok(PyBytes::new(
+            py,
+            self.inner
+                .accept(&key(&app_key, "app_key")?, dev_nonce)
+                .as_bytes(),
+        ))
+    }
+
+    /// Derives the session this grant activates, the same one the device computes.
+    fn session(&self, app_key: Vec<u8>, dev_nonce: u16) -> PyResult<LorawanSession> {
+        Ok(LorawanSession {
+            inner: self.inner.session(&key(&app_key, "app_key")?, dev_nonce),
+        })
+    }
+}
+
+/// Reads a frame far enough to route it, without any key.
+///
+/// A receiver holding many sessions uses this to find which one a frame belongs
+/// to: the device address travels in the clear.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn lorawan_parse_header(bytes: Vec<u8>) -> PyResult<LorawanHeader> {
+    let header = FrameHeader::parse(&bytes).map_err(to_py)?;
+    Ok(LorawanHeader {
+        message_type: match header.message_type() {
+            MessageType::JoinRequest => "JoinRequest",
+            MessageType::JoinAccept => "JoinAccept",
+            MessageType::UnconfirmedUp => "UnconfirmedUp",
+            MessageType::ConfirmedUp => "ConfirmedUp",
+            MessageType::UnconfirmedDown => "UnconfirmedDown",
+            MessageType::ConfirmedDown => "ConfirmedDown",
+        }
+        .to_owned(),
+        is_data: header.message_type().is_data(),
+        dev_addr: header.dev_addr(),
+        fcnt: header.fcnt(),
+        fport: header.fport(),
+        confirmed: header.confirmed(),
+        adr: header.adr(),
+        ack: header.ack(),
+        fpending: header.fpending(),
+        fopts_len: header.fopts_len(),
+        payload_len: header.payload_len(),
+    })
+}
+
+/// Verifies a join-request and reads the identifiers out of it.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn lorawan_parse_join_request(
+    bytes: Vec<u8>,
+    app_key: Vec<u8>,
+) -> PyResult<LorawanJoinRequest> {
+    let request = JoinRequest::parse(&bytes, &key(&app_key, "app_key")?).map_err(to_py)?;
+    Ok(LorawanJoinRequest {
+        dev_nonce: request.dev_nonce(),
+        dev_eui: request.dev_eui().to_vec(),
+        app_eui: request.app_eui().to_vec(),
+    })
 }

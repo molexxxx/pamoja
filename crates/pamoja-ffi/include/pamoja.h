@@ -59,11 +59,11 @@
 // The destination address that means every node.
 #define PAMOJA_MESH_BROADCAST 4294967295
 
-// The number of recently seen packets a duplicate cache remembers.
-#define PAMOJA_MESH_SEEN_CAPACITY 64
+// A reasonable duplicate-cache size for a caller with no reason to choose one.
+#define PAMOJA_MESH_SEEN_DEFAULT_CAPACITY 64
 
-// The number of routes a routing table holds.
-#define PAMOJA_ROUTING_TABLE_CAPACITY 64
+// A reasonable routing table size for a caller with no reason to choose one.
+#define PAMOJA_ROUTING_DEFAULT_CAPACITY 64
 
 // The length in bytes of an identity seed and of a public key.
 #define PAMOJA_KEY_LEN 32
@@ -195,6 +195,22 @@ typedef enum {
   PamojaLorawanDirection_Downlink = 1,
 } PamojaLorawanDirection;
 
+// What kind of message a frame is, read from its header.
+typedef enum {
+  // A device asking to join a network.
+  PamojaLorawanMessageType_JoinRequest = 0,
+  // A network admitting a device.
+  PamojaLorawanMessageType_JoinAccept = 1,
+  // Data from a device that does not need acknowledging.
+  PamojaLorawanMessageType_UnconfirmedUp = 2,
+  // Data from a device that asks to be acknowledged.
+  PamojaLorawanMessageType_ConfirmedUp = 3,
+  // Data to a device that does not need acknowledging.
+  PamojaLorawanMessageType_UnconfirmedDown = 4,
+  // Data to a device that asks to be acknowledged.
+  PamojaLorawanMessageType_ConfirmedDown = 5,
+} PamojaLorawanMessageType;
+
 // MQTT delivery guarantee, mirroring the protocol's quality-of-service levels.
 typedef enum {
   // Fire and forget; the broker does not acknowledge delivery.
@@ -278,6 +294,12 @@ typedef struct PamojaLorawanDevice PamojaLorawanDevice;
 // [`pamoja_lorawan_join_accept_session`]. Release it with
 // [`pamoja_lorawan_join_accept_free`].
 typedef struct PamojaLorawanJoinAccept PamojaLorawanJoinAccept;
+
+// An opaque handle to a verified join-request.
+//
+// Read it with the `pamoja_lorawan_join_request_*` calls, then release it with
+// [`pamoja_lorawan_join_request_free`].
+typedef struct PamojaLorawanJoinRequest PamojaLorawanJoinRequest;
 
 // An opaque handle to a decoded data frame.
 //
@@ -462,6 +484,59 @@ typedef struct {
   // Tell the device more downlink data is waiting.
   uint8_t fpending;
 } PamojaLorawanFlags;
+
+// What a frame says about itself before any key is involved.
+//
+// Every field is a scalar, so this crosses the boundary by value. `is_data` is
+// `1` when `dev_addr` and `fcnt` are meaningful, which is every message type
+// except the two join frames, and `has_fport` is `1` when `fport` is.
+//
+// Nothing here is authenticated, since checking the MIC needs the session key.
+// Treat it as a routing hint until [`pamoja_lorawan_session_decode`] has verified
+// the frame.
+typedef struct {
+  // The length of the still-encrypted payload, in bytes.
+  uintptr_t payload_len;
+  // The device address, meaningful only when `is_data` is `1`.
+  uint32_t dev_addr;
+  // The low 16 bits of the frame counter, meaningful only when `is_data` is `1`.
+  uint16_t fcnt;
+  // What kind of message the frame is.
+  PamojaLorawanMessageType message_type;
+  // The port the frame was sent on, meaningful only when `has_fport` is `1`.
+  uint8_t fport;
+  // `1` for a data frame, `0` for one of the two join frames.
+  uint8_t is_data;
+  // `1` when the frame carries a port rather than only frame options.
+  uint8_t has_fport;
+  // `1` when the frame asks to be acknowledged.
+  uint8_t confirmed;
+  // `1` when the frame takes part in adaptive data rate.
+  uint8_t adr;
+  // `1` when the frame acknowledges the last confirmed one.
+  uint8_t ack;
+  // `1` when the network has more downlink data waiting.
+  uint8_t fpending;
+  // How many bytes of frame options the header carries, from 0 to 15.
+  uint8_t fopts_len;
+} PamojaLorawanHeader;
+
+// What a network grants a device that joined.
+//
+// Every field is a scalar, so this crosses the boundary by value. The optional
+// channel list is passed alongside it, since it is bytes rather than a scalar.
+typedef struct {
+  // A nonce this network must not reuse for the device; low 24 bits only.
+  uint32_t app_nonce;
+  // The network identifier; low 24 bits only.
+  uint32_t net_id;
+  // The address to assign the device.
+  uint32_t dev_addr;
+  // The downlink settings byte.
+  uint8_t dl_settings;
+  // The delay before the first receive window, in seconds.
+  uint8_t rx_delay;
+} PamojaLorawanGrant;
 
 // Connection settings for an MQTT client.
 //
@@ -2485,6 +2560,188 @@ PamojaStatus pamoja_lorawan_join_accept_session(const PamojaLorawanJoinAccept *a
 // not already been freed, or null. After this call it must not be used again.
 void pamoja_lorawan_join_accept_free(PamojaLorawanJoinAccept *accept);
 
+// Reads a frame far enough to route it, without any key.
+//
+// A receiver holding many sessions uses this to find which one a frame belongs
+// to: the device address travels in the clear, so it can be read before the
+// session that would verify the frame is even known.
+//
+// # Arguments
+//
+// * `bytes` - the raw frame as it came off the radio.
+// * `bytes_len` - its length.
+// * `out_header` - receives the header fields.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_header` filled in, or
+// [`PamojaStatus::Codec`] if the frame is truncated, carries a message type this
+// build does not read, or declares more frame options than it holds.
+//
+// # Safety
+//
+// `bytes` must point to at least `bytes_len` readable bytes when that length is
+// non-zero, and `out_header` must point to a writable [`PamojaLorawanHeader`].
+PamojaStatus pamoja_lorawan_header_parse(const uint8_t *bytes,
+                                         uintptr_t bytes_len,
+                                         PamojaLorawanHeader *out_header);
+
+// Verifies a join-request and reads the identifiers out of it.
+//
+// # Arguments
+//
+// * `bytes` - the raw join-request as it came off the radio.
+// * `bytes_len` - its length.
+// * `app_key` - the 16-byte application root key the device shares.
+// * `app_key_len` - its length, which must be [`PAMOJA_LORAWAN_KEY_LEN`].
+// * `out_request` - receives the verified request.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_request` set to a handle the caller
+// must release with [`pamoja_lorawan_join_request_free`], [`PamojaStatus::Auth`]
+// if the MIC does not verify, or [`PamojaStatus::Codec`] if the frame is not a
+// well-formed join-request.
+//
+// # Safety
+//
+// `bytes` and `app_key` must each point to at least their stated lengths in
+// readable bytes, and `out_request` must point to a writable
+// `*mut PamojaLorawanJoinRequest`.
+PamojaStatus pamoja_lorawan_join_request_parse(const uint8_t *bytes,
+                                               uintptr_t bytes_len,
+                                               const uint8_t *app_key,
+                                               uintptr_t app_key_len,
+                                               PamojaLorawanJoinRequest **out_request);
+
+// Copies the device identifier out of a verified join-request.
+//
+// # Arguments
+//
+// * `request` - the verified request.
+// * `out_dev_eui` - receives [`PAMOJA_LORAWAN_EUI_LEN`] bytes, most-significant
+//   byte first.
+//
+// # Returns
+//
+// `true` when the identifier was written, or `false` if either pointer is null.
+//
+// # Safety
+//
+// `request` must be a live handle from [`pamoja_lorawan_join_request_parse`], or
+// null, and `out_dev_eui` must point to at least
+// [`PAMOJA_LORAWAN_EUI_LEN`] writable bytes.
+bool pamoja_lorawan_join_request_dev_eui(const PamojaLorawanJoinRequest *request,
+                                         uint8_t *out_dev_eui);
+
+// Copies the application identifier out of a verified join-request.
+//
+// # Arguments
+//
+// * `request` - the verified request.
+// * `out_app_eui` - receives [`PAMOJA_LORAWAN_EUI_LEN`] bytes, most-significant
+//   byte first.
+//
+// # Returns
+//
+// `true` when the identifier was written, or `false` if either pointer is null.
+//
+// # Safety
+//
+// `request` must be a live handle from [`pamoja_lorawan_join_request_parse`], or
+// null, and `out_app_eui` must point to at least
+// [`PAMOJA_LORAWAN_EUI_LEN`] writable bytes.
+bool pamoja_lorawan_join_request_app_eui(const PamojaLorawanJoinRequest *request,
+                                         uint8_t *out_app_eui);
+
+// Returns the nonce a verified join-request carried.
+//
+// A network must remember the nonces a device has used and refuse a repeat, since
+// replaying one would re-derive the same session keys.
+//
+// # Returns
+//
+// The DevNonce, or 0 if `request` is null.
+//
+// # Safety
+//
+// `request` must be a live handle from [`pamoja_lorawan_join_request_parse`], or
+// null.
+uint16_t pamoja_lorawan_join_request_dev_nonce(const PamojaLorawanJoinRequest *request);
+
+// Releases a verified join-request handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `request` must be a handle from [`pamoja_lorawan_join_request_parse`] that has
+// not already been freed, or null. After this call it must not be used again.
+void pamoja_lorawan_join_request_free(PamojaLorawanJoinRequest *request);
+
+// Builds the signed join-accept a network sends to admit a device.
+//
+// # Arguments
+//
+// * `grant` - the address and settings to grant.
+// * `cflist` - the optional 16-byte channel list, or null for none.
+// * `cflist_len` - its length, either 0 or 16.
+// * `app_key` - the 16-byte application root key the device shares.
+// * `app_key_len` - its length, which must be [`PAMOJA_LORAWAN_KEY_LEN`].
+// * `dev_nonce` - the nonce the matching join-request carried.
+// * `out_frame` - receives the encoded join-accept.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_frame` set to a buffer the caller
+// must release with [`pamoja_buffer_free`](crate::pamoja_buffer_free), or
+// [`PamojaStatus::InvalidArgument`] if the key or the channel list is the wrong
+// length.
+//
+// # Safety
+//
+// `cflist` and `app_key` must each point to at least their stated lengths in
+// readable bytes, and `out_frame` must point to a writable `*mut PamojaBuffer`.
+PamojaStatus pamoja_lorawan_grant_accept(PamojaLorawanGrant grant,
+                                         const uint8_t *cflist,
+                                         uintptr_t cflist_len,
+                                         const uint8_t *app_key,
+                                         uintptr_t app_key_len,
+                                         uint16_t dev_nonce,
+                                         PamojaBuffer **out_frame);
+
+// Derives the session a grant activates, the same one the device computes.
+//
+// # Arguments
+//
+// * `grant` - the address and settings granted.
+// * `cflist` - the optional 16-byte channel list, or null for none.
+// * `cflist_len` - its length, either 0 or 16.
+// * `app_key` - the 16-byte application root key the device shares.
+// * `app_key_len` - its length, which must be [`PAMOJA_LORAWAN_KEY_LEN`].
+// * `dev_nonce` - the nonce the matching join-request carried.
+// * `out_session` - receives the session.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_session` set to a handle the caller
+// must release with [`pamoja_lorawan_session_free`], or
+// [`PamojaStatus::InvalidArgument`] if the key or the channel list is the wrong
+// length.
+//
+// # Safety
+//
+// `cflist` and `app_key` must each point to at least their stated lengths in
+// readable bytes, and `out_session` must point to a writable
+// `*mut PamojaLorawanSession`.
+PamojaStatus pamoja_lorawan_grant_session(PamojaLorawanGrant grant,
+                                          const uint8_t *cflist,
+                                          uintptr_t cflist_len,
+                                          const uint8_t *app_key,
+                                          uintptr_t app_key_len,
+                                          uint16_t dev_nonce,
+                                          PamojaLorawanSession **out_session);
+
 // Builds a mesh frame addressed to one node.
 //
 // # Arguments
@@ -2736,12 +2993,18 @@ void pamoja_mesh_frame_free(PamojaMeshFrame *frame);
 // non-zero.
 uint16_t pamoja_mesh_crc16(const uint8_t *data, uintptr_t data_len);
 
-// Creates an empty duplicate cache of [`PAMOJA_MESH_SEEN_CAPACITY`] packets.
+// Creates an empty duplicate cache.
+//
+// # Arguments
+//
+// * `capacity` - how many recently seen packets to remember; pass
+//   [`PAMOJA_MESH_SEEN_DEFAULT_CAPACITY`] when there is no reason to choose. A
+//   capacity of zero remembers nothing, so every copy of a packet is relayed.
 //
 // # Returns
 //
 // A handle the caller must release with [`pamoja_mesh_seen_free`].
-PamojaSeenCache *pamoja_mesh_seen_new(void);
+PamojaSeenCache *pamoja_mesh_seen_new(uintptr_t capacity);
 
 // Reports whether a packet is currently remembered, without recording it.
 //
@@ -2782,8 +3045,12 @@ bool pamoja_mesh_seen_record(PamojaSeenCache *cache, uint32_t src, uint16_t id);
 //
 // # Returns
 //
-// [`PAMOJA_MESH_SEEN_CAPACITY`].
-uintptr_t pamoja_mesh_seen_capacity(void);
+// The capacity it was created with, or 0 if `cache` is null.
+//
+// # Safety
+//
+// `cache` must be a live handle from [`pamoja_mesh_seen_new`], or null.
+uintptr_t pamoja_mesh_seen_capacity(const PamojaSeenCache *cache);
 
 // Releases a duplicate cache handle.
 //
@@ -3278,11 +3545,14 @@ void pamoja_mqtt_message_free(PamojaMqttMessage *message);
 //
 // * `address` - the address of this node, which is what
 //   [`pamoja_router_forward`] recognises as a local delivery.
+// * `capacity` - how many routes to make room for; pass
+//   [`PAMOJA_ROUTING_DEFAULT_CAPACITY`] when there is no reason to choose. A
+//   capacity of zero is allowed and makes every unknown destination flood.
 //
 // # Returns
 //
 // A handle the caller must release with [`pamoja_router_free`].
-PamojaRouter *pamoja_router_new(uint32_t address);
+PamojaRouter *pamoja_router_new(uint32_t address, uintptr_t capacity);
 
 // Returns the address a router answers for.
 //
@@ -3425,8 +3695,12 @@ uintptr_t pamoja_router_len(const PamojaRouter *router);
 //
 // # Returns
 //
-// [`PAMOJA_ROUTING_TABLE_CAPACITY`].
-uintptr_t pamoja_router_capacity(void);
+// The capacity it was created with, or 0 if `router` is null.
+//
+// # Safety
+//
+// `router` must be a live handle from [`pamoja_router_new`], or null.
+uintptr_t pamoja_router_capacity(const PamojaRouter *router);
 
 // Releases a routing table handle.
 //

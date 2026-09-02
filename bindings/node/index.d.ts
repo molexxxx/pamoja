@@ -231,8 +231,14 @@ export declare class Ramp {
 
 /** One node routing table, learned from the traffic the node hears. */
 export declare class Router {
-  /** Creates an empty routing table for a node at `address`. */
-  constructor(address: number)
+  /**
+   * Creates an empty routing table for a node at `address`.
+   *
+   * `capacity` is how many routes to make room for, defaulting to
+   * [`ROUTING_DEFAULT_CAPACITY`]. A capacity of zero floods every unknown
+   * destination, which is the behaviour with no table at all.
+   */
+  constructor(address: number, capacity?: number | undefined | null)
   /** The address this router answers for. */
   get address(): number
   /**
@@ -262,8 +268,14 @@ export declare class Router {
 
 /** A memory of recently seen packets, so a node relays each one only once. */
 export declare class SeenPackets {
-  /** Creates an empty cache of [`MESH_SEEN_CAPACITY`] packets. */
-  constructor()
+  /**
+   * Creates an empty cache.
+   *
+   * `capacity` is how many recently seen packets to remember, defaulting to
+   * [`MESH_SEEN_DEFAULT_CAPACITY`]. A capacity of zero remembers nothing, so
+   * every copy of a packet is relayed.
+   */
+  constructor(capacity?: number | undefined | null)
   /** Reports whether a packet is currently remembered, without recording it. */
   contains(src: number, id: number): boolean
   /**
@@ -718,6 +730,85 @@ export declare const enum LorawanDirection {
   Downlink = 'Downlink'
 }
 
+/** What a network grants a device that joined. */
+export interface LorawanGrant {
+  /** A nonce this network must not reuse for the device; low 24 bits only. */
+  appNonce: number
+  /** The network identifier; low 24 bits only. */
+  netId: number
+  /** The address to assign the device. */
+  devAddr: number
+  /** The downlink settings byte, defaulting to 0. */
+  dlSettings?: number
+  /** The delay before the first receive window in seconds, defaulting to 0. */
+  rxDelay?: number
+  /** The optional 16-byte channel list. */
+  cflist?: Buffer
+}
+
+/** Builds the signed join-accept a network sends to admit a device. */
+export declare function lorawanGrantAccept(grant: LorawanGrant, appKey: Buffer, devNonce: number): Buffer
+
+/** Derives the session a grant activates, the same one the device computes. */
+export declare function lorawanGrantSession(grant: LorawanGrant, appKey: Buffer, devNonce: number): LorawanSession
+
+/**
+ * What a frame says about itself before any key is involved.
+ *
+ * Nothing here is authenticated, since checking the MIC needs the session key.
+ * Treat it as a routing hint until `decode` has verified the frame.
+ */
+export interface LorawanHeader {
+  /** What kind of message the frame is. */
+  messageType: LorawanMessageType
+  /** Whether this is a data frame rather than part of a join exchange. */
+  isData: boolean
+  /** The device address, or `null` for a join frame. */
+  devAddr?: number
+  /** The low 16 bits of the frame counter, or `null` for a join frame. */
+  fcnt?: number
+  /** The port, or `null` for a join frame or one carrying only options. */
+  fport?: number
+  /** Whether the frame asks to be acknowledged. */
+  confirmed: boolean
+  /** Whether the frame takes part in adaptive data rate. */
+  adr: boolean
+  /** Whether the frame acknowledges the last confirmed one. */
+  ack: boolean
+  /** Whether the network has more downlink data waiting. */
+  fpending: boolean
+  /** How many bytes of frame options the header carries. */
+  foptsLen: number
+  /** The length of the still-encrypted payload. */
+  payloadLen: number
+}
+
+/** A join-request a device broadcast, with its integrity already verified. */
+export interface LorawanJoinRequest {
+  /** The device identifier, most-significant byte first. */
+  devEui: Buffer
+  /** The application identifier, most-significant byte first. */
+  appEui: Buffer
+  /** The nonce the request carried, which a network must not accept twice. */
+  devNonce: number
+}
+
+/** What kind of message a frame is, read from its header. */
+export declare const enum LorawanMessageType {
+  /** A device asking to join a network. */
+  JoinRequest = 'JoinRequest',
+  /** A network admitting a device. */
+  JoinAccept = 'JoinAccept',
+  /** Data from a device that does not need acknowledging. */
+  UnconfirmedUp = 'UnconfirmedUp',
+  /** Data from a device that asks to be acknowledged. */
+  ConfirmedUp = 'ConfirmedUp',
+  /** Data to a device that does not need acknowledging. */
+  UnconfirmedDown = 'UnconfirmedDown',
+  /** Data to a device that asks to be acknowledged. */
+  ConfirmedDown = 'ConfirmedDown'
+}
+
 /**
  * The header flags and frame options a sender sets on a data frame.
  *
@@ -736,6 +827,17 @@ export interface LorawanOptions {
   /** MAC commands to carry in the header, at most 15 bytes. */
   fopts?: Buffer
 }
+
+/**
+ * Reads a frame far enough to route it, without any key.
+ *
+ * A receiver holding many sessions uses this to find which one a frame belongs
+ * to: the device address travels in the clear.
+ */
+export declare function lorawanParseHeader(bytes: Buffer): LorawanHeader
+
+/** Verifies a join-request and reads the identifiers out of it. */
+export declare function lorawanParseJoinRequest(bytes: Buffer, appKey: Buffer): LorawanJoinRequest
 
 /** A decoded data frame, with its payload decrypted. */
 export interface LorawanRxData {
@@ -773,8 +875,8 @@ export const MESH_MAX_FRAME: number
 /** The largest payload a single mesh frame can carry, in bytes. */
 export const MESH_MAX_PAYLOAD: number
 
-/** The number of recently seen packets a duplicate cache remembers. */
-export const MESH_SEEN_CAPACITY: number
+/** A reasonable duplicate-cache size for a caller with no reason to choose one. */
+export const MESH_SEEN_DEFAULT_CAPACITY: number
 
 /**
  * Builds a mesh frame addressed to every node.
@@ -1010,8 +1112,8 @@ export interface Route {
   cost: number
 }
 
-/** The number of routes a routing table holds. */
-export const ROUTING_TABLE_CAPACITY: number
+/** A reasonable routing table size for a caller with no reason to choose one. */
+export const ROUTING_DEFAULT_CAPACITY: number
 
 /** Reads the payload back out of a SLIP frame. */
 export declare function slipDecode(frame: Buffer): Buffer

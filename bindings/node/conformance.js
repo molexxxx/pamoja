@@ -663,7 +663,7 @@ function meshVectors() {
   assert.strictEqual(mesh.MAX_FRAME, vector.maxFrame, "the frame ceiling");
   assert.strictEqual(mesh.MAX_PAYLOAD, vector.maxPayload, "the payload ceiling");
   assert.strictEqual(mesh.BROADCAST, vector.broadcastAddress, "the broadcast address");
-  assert.strictEqual(mesh.SEEN_CAPACITY, vector.seenCapacity, "the cache size");
+  assert.strictEqual(mesh.SEEN_DEFAULT_CAPACITY, vector.seenCapacity, "the cache size");
 
   const unicast = mesh.frame(
     vector.unicast.src,
@@ -715,7 +715,7 @@ function meshVectors() {
   );
   assert.strictEqual(mesh.crc16(unhex(vector.crc.data)), vector.crc.value);
 
-  const seen = new mesh.SeenPackets();
+  const seen = new mesh.SeenPackets(vector.seenCapacity);
   vector.seen.keys.forEach(([src, id], index) => {
     assert.strictEqual(
       seen.record(src, id),
@@ -723,11 +723,21 @@ function meshVectors() {
       "each packet is new exactly once",
     );
   });
+
+  const small = new mesh.SeenPackets(vector.sizedSeen.capacity);
+  assert.strictEqual(small.capacity, vector.sizedSeen.capacity, "the size it was given");
+  for (const [src, id] of vector.sizedSeen.keys) {
+    small.record(src, id);
+  }
+  assert.ok(
+    !small.contains(...vector.sizedSeen.evicted),
+    "a cache sized by the caller evicts at that size",
+  );
 }
 
 function routingVectors() {
   const vector = VECTORS.routing;
-  const router = routing.router(vector.address);
+  const router = routing.router(vector.address, vector.capacity);
 
   assert.strictEqual(router.capacity, vector.capacity, "the table size");
 
@@ -752,6 +762,17 @@ function routingVectors() {
   router.forget(vector.afterForgetting.dst);
   assertDecision(router, vector.afterForgetting.decision);
   assert.strictEqual(router.size, vector.afterForgetting.learned);
+
+  const small = routing.router(0x01, vector.sized.capacity);
+  assert.strictEqual(small.capacity, vector.sized.capacity, "the size it was given");
+  for (let node = 0; node < vector.sized.offered; node += 1) {
+    small.observe(node + 0x100, 0x05, 4);
+  }
+  assert.strictEqual(
+    small.size,
+    vector.sized.learned,
+    "a table sized by the caller holds exactly what it was asked for",
+  );
 }
 
 /** Checks one routing decision against the vector that describes it. */
@@ -840,6 +861,101 @@ windowedVectors();
 loraVectors();
 meshVectors();
 routingVectors();
+
+function headerVectors() {
+  const vector = VECTORS.header;
+
+  for (const want of vector.frames) {
+    const header = lorawan.parseHeader(unhex(want.frame));
+    assert.strictEqual(header.messageType, want.messageType, "the message type");
+    assert.strictEqual(header.isData, want.isData, "whether it is a data frame");
+    assert.strictEqual(header.devAddr, want.devAddr ?? null, "the address a receiver routes by");
+    assert.strictEqual(header.fcnt, want.fcnt ?? null, "the counter");
+    assert.strictEqual(header.fport, want.fport ?? null, "the port");
+    assert.strictEqual(header.confirmed, want.confirmed, "the confirmed bit");
+    assert.strictEqual(header.adr, want.adr, "the ADR bit");
+    assert.strictEqual(header.ack, want.ack, "the ACK bit");
+    assert.strictEqual(header.fpending, want.fpending, "the pending bit");
+    assert.strictEqual(header.foptsLen, want.foptsLen, "the options length");
+    assert.strictEqual(header.payloadLen, want.payloadLen, "the payload length");
+  }
+
+  assert.throws(
+    () => lorawan.parseHeader(unhex(vector.unsupported)),
+    "a message type this build does not read must be refused",
+  );
+  assert.throws(
+    () => lorawan.parseHeader(unhex(vector.truncated)),
+    "a frame too short to hold a header must be refused",
+  );
+}
+
+/** Checks a grant builds its accept and derives the session both sides share. */
+function assertGrant(vector, appKey, devNonce) {
+  const grant = {
+    appNonce: vector.appNonce,
+    netId: vector.netId,
+    devAddr: vector.devAddr,
+    dlSettings: vector.dlSettings,
+    rxDelay: vector.rxDelay,
+    cflist: vector.cflist === undefined ? undefined : unhex(vector.cflist),
+  };
+  assert.strictEqual(
+    lorawan.grantAccept(grant, appKey, devNonce).toString("hex"),
+    vector.accept,
+    "the signed join-accept matches byte for byte",
+  );
+
+  // Neither side sent a key, so the proof they agree is that one reads what the
+  // other wrote.
+  const session = lorawan.grantSession(grant, appKey, devNonce);
+  const probe = vector.probe;
+  assert.strictEqual(
+    session.encodeUplink(probe.fcnt, probe.fport, unhex(probe.payload)).toString("hex"),
+    probe.frame,
+    "the session this network derived is the one the device holds",
+  );
+}
+
+function networkVectors() {
+  const vector = VECTORS.network;
+  const appKey = unhex(vector.appKey);
+
+  const request = lorawan.parseJoinRequest(unhex(vector.joinRequest.frame), appKey);
+  assert.strictEqual(request.devEui.toString("hex"), vector.joinRequest.devEui);
+  assert.strictEqual(request.appEui.toString("hex"), vector.joinRequest.appEui);
+  assert.strictEqual(request.devNonce, vector.joinRequest.devNonce);
+
+  assert.throws(
+    () => lorawan.parseJoinRequest(unhex(vector.forgedRequest), appKey),
+    "a request signed with another root key must not be trusted",
+  );
+
+  assertGrant(vector.grant, appKey, vector.devNonce);
+
+  // The captured join: a third party's numbers, so agreement here is not just this
+  // implementation agreeing with itself.
+  const published = vector.published;
+  const publishedKey = unhex(published.appKey);
+  assertGrant(published, publishedKey, published.devNonce);
+
+  const device = lorawan.device(Buffer.alloc(8), Buffer.alloc(8), publishedKey);
+  const accepted = device.acceptJoin(unhex(published.accept), published.devNonce);
+  assert.strictEqual(accepted.devAddr, published.devAddr, "the captured accept activates");
+
+  const probe = published.probe;
+  assert.strictEqual(
+    accepted
+      .session()
+      .encodeUplink(probe.fcnt, probe.fport, unhex(probe.payload))
+      .toString("hex"),
+    probe.frame,
+    "the session the device derived matches the published keys",
+  );
+}
+
 lorawanVectors();
+headerVectors();
+networkVectors();
 
 console.log("conformance ok");

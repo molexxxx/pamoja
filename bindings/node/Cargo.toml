@@ -62,8 +62,8 @@ pamoja-sensors = { path = "../../crates/pamoja-sensors", optional = true }
 pamoja-actuators = { path = "../../crates/pamoja-actuators", optional = true }
 pamoja-lora = { path = "../../crates/pamoja-lora", optional = true }
 pamoja-lorawan = { path = "../../crates/pamoja-lorawan", optional = true }
-pamoja-mesh = { path = "../../crates/pamoja-mesh", optional = true }
-pamoja-routing = { path = "../../crates/pamoja-routing", optional = true }
+pamoja-mesh = { path = "../../crates/pamoja-mesh", features = ["alloc"], optional = true }
+pamoja-routing = { path = "../../crates/pamoja-routing", features = ["alloc"], optional = true }
 tokio = { version = "1", default-features = false, features = ["sync"], optional = true }
 
 [build-dependencies]

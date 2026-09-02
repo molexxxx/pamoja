@@ -5,13 +5,14 @@
 //! and the duplicate suppressor that stops a flood from circulating forever.
 //!
 //! A frame carries a payload, so it crosses as an opaque handle like every other
-//! payload-bearing type here. The duplicate cache is sized by a const generic in
-//! the Rust crate, which cannot cross a C ABI, so it is fixed here at
-//! [`PAMOJA_MESH_SEEN_CAPACITY`] packets.
+//! payload-bearing type here. The duplicate cache is sized when it is built rather
+//! than by the const generic the Rust crate uses, since a const generic cannot
+//! cross a C ABI at all; [`PAMOJA_MESH_SEEN_DEFAULT_CAPACITY`] is what a caller
+//! with no reason to choose should pass.
 
 use std::ptr;
 
-use pamoja_mesh::{crc16, Frame, MeshError, SeenCache};
+use pamoja_mesh::{crc16, DynamicSeenCache, Frame, MeshError};
 
 use crate::{read_bytes, set_last_error, PamojaStatus};
 
@@ -36,8 +37,8 @@ pub const PAMOJA_MESH_DEFAULT_HOP_LIMIT: u8 = 3;
 /// The destination address that means every node.
 pub const PAMOJA_MESH_BROADCAST: u32 = 0xFFFF_FFFF;
 
-/// The number of recently seen packets a duplicate cache remembers.
-pub const PAMOJA_MESH_SEEN_CAPACITY: usize = 64;
+/// A reasonable duplicate-cache size for a caller with no reason to choose one.
+pub const PAMOJA_MESH_SEEN_DEFAULT_CAPACITY: usize = 64;
 
 /// An opaque handle to a mesh frame.
 ///
@@ -53,7 +54,7 @@ pub struct PamojaMeshFrame {
 /// a node relays each packet once however many copies reach it. Release it with
 /// [`pamoja_mesh_seen_free`].
 pub struct PamojaSeenCache {
-    seen: SeenCache<PAMOJA_MESH_SEEN_CAPACITY>,
+    seen: DynamicSeenCache,
 }
 
 /// Builds a mesh frame addressed to one node.
@@ -429,15 +430,21 @@ pub unsafe extern "C" fn pamoja_mesh_crc16(data: *const u8, data_len: usize) -> 
     }
 }
 
-/// Creates an empty duplicate cache of [`PAMOJA_MESH_SEEN_CAPACITY`] packets.
+/// Creates an empty duplicate cache.
+///
+/// # Arguments
+///
+/// * `capacity` - how many recently seen packets to remember; pass
+///   [`PAMOJA_MESH_SEEN_DEFAULT_CAPACITY`] when there is no reason to choose. A
+///   capacity of zero remembers nothing, so every copy of a packet is relayed.
 ///
 /// # Returns
 ///
 /// A handle the caller must release with [`pamoja_mesh_seen_free`].
 #[no_mangle]
-pub extern "C" fn pamoja_mesh_seen_new() -> *mut PamojaSeenCache {
+pub extern "C" fn pamoja_mesh_seen_new(capacity: usize) -> *mut PamojaSeenCache {
     Box::into_raw(Box::new(PamojaSeenCache {
-        seen: SeenCache::new(),
+        seen: DynamicSeenCache::new(capacity),
     }))
 }
 
@@ -497,10 +504,17 @@ pub unsafe extern "C" fn pamoja_mesh_seen_record(
 ///
 /// # Returns
 ///
-/// [`PAMOJA_MESH_SEEN_CAPACITY`].
+/// The capacity it was created with, or 0 if `cache` is null.
+///
+/// # Safety
+///
+/// `cache` must be a live handle from [`pamoja_mesh_seen_new`], or null.
 #[no_mangle]
-pub extern "C" fn pamoja_mesh_seen_capacity() -> usize {
-    PAMOJA_MESH_SEEN_CAPACITY
+pub unsafe extern "C" fn pamoja_mesh_seen_capacity(cache: *const PamojaSeenCache) -> usize {
+    if cache.is_null() {
+        return 0;
+    }
+    (*cache).seen.capacity()
 }
 
 /// Releases a duplicate cache handle.
@@ -679,7 +693,7 @@ mod tests {
 
     #[test]
     fn the_cache_recognises_a_packet_it_has_already_seen() {
-        let cache = pamoja_mesh_seen_new();
+        let cache = pamoja_mesh_seen_new(PAMOJA_MESH_SEEN_DEFAULT_CAPACITY);
         // Safety: the cache handle was just created.
         unsafe {
             assert!(!pamoja_mesh_seen_contains(cache, 0x42, 1));
@@ -687,9 +701,21 @@ mod tests {
             assert!(pamoja_mesh_seen_contains(cache, 0x42, 1));
             assert!(!pamoja_mesh_seen_record(cache, 0x42, 1));
             assert!(pamoja_mesh_seen_record(cache, 0x42, 2));
+            assert_eq!(
+                pamoja_mesh_seen_capacity(cache),
+                PAMOJA_MESH_SEEN_DEFAULT_CAPACITY
+            );
             pamoja_mesh_seen_free(cache);
+
+            // A cache sized by the caller evicts at the size it was given.
+            let small = pamoja_mesh_seen_new(2);
+            assert_eq!(pamoja_mesh_seen_capacity(small), 2);
+            assert!(pamoja_mesh_seen_record(small, 1, 1));
+            assert!(pamoja_mesh_seen_record(small, 1, 2));
+            assert!(pamoja_mesh_seen_record(small, 1, 3));
+            assert!(!pamoja_mesh_seen_contains(small, 1, 1));
+            pamoja_mesh_seen_free(small);
         }
-        assert_eq!(pamoja_mesh_seen_capacity(), PAMOJA_MESH_SEEN_CAPACITY);
     }
 
     #[test]

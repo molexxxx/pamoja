@@ -34,8 +34,8 @@ public readonly record struct Route(uint Dst, uint NextHop, ushort Cost);
 /// Flooding always works but costs every node airtime and power on every packet.
 /// A node that remembers the way can forward to one neighbour instead, and falls
 /// back to flooding rather than failing whenever it does not know the way. The
-/// core table is generic over its size, which cannot cross the C ABI, so this is
-/// built at one documented size: <see cref="Capacity"/>.
+/// core table is generic over its size, which cannot cross the C ABI, so this one
+/// is sized when it is built.
 /// </remarks>
 public sealed class Router : IDisposable
 {
@@ -46,11 +46,15 @@ public sealed class Router : IDisposable
     /// The address of this node, which is what a routing decision recognises as a
     /// local delivery.
     /// </param>
+    /// <param name="capacity">
+    /// How many routes to make room for. A capacity of 0 floods every unknown
+    /// destination, which is the behaviour with no table at all.
+    /// </param>
     /// <exception cref="PamojaException">The native table could not be created.</exception>
-    public Router(uint address)
+    public Router(uint address, int capacity = NativeMethods.RoutingDefaultCapacity)
     {
         _handle = NativeHandle.Create(
-            NativeMethods.pamoja_router_new(address),
+            NativeMethods.pamoja_router_new(address, (nuint)capacity),
             NativeMethods.pamoja_router_free,
             "router");
     }
@@ -62,7 +66,8 @@ public sealed class Router : IDisposable
     public int Count => checked((int)_handle.Use(NativeMethods.pamoja_router_len));
 
     /// <summary>How many routes the table can hold.</summary>
-    public int Capacity => checked((int)NativeMethods.pamoja_router_capacity());
+    public int Capacity =>
+        checked((int)_handle.Use(NativeMethods.pamoja_router_capacity));
 
     /// <summary>Learns a route from a packet that arrived.</summary>
     /// <param name="origin">The node the packet came from.</param>

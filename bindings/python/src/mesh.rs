@@ -6,19 +6,19 @@
 //!
 //! A frame is a small value rather than a resource, so it crosses as a read-only
 //! object carrying both its fields and the bytes to transmit. The duplicate cache
-//! holds state across calls, so it is a class, fixed at [`SEEN_CAPACITY`] packets
-//! because its Rust size is a const generic.
+//! holds state across calls, so it is a class, sized when it is built because the
+//! Rust crate fixes its size with a const generic that cannot reach Python.
 
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 
-use pamoja_mesh::{crc16, Frame, MeshError, SeenCache};
+use pamoja_mesh::{crc16, DynamicSeenCache, Frame, MeshError};
 
 use crate::PamojaError;
 
-/// The number of recently seen packets a duplicate cache remembers.
-const SEEN_CAPACITY: usize = 64;
+/// A reasonable duplicate-cache size for a caller with no reason to choose one.
+const SEEN_DEFAULT_CAPACITY: usize = 64;
 
 /// A mesh packet: its addressing, its payload, and the bytes to transmit.
 #[gen_stub_pyclass]
@@ -66,17 +66,20 @@ impl MeshFrame {
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct SeenPackets {
-    inner: SeenCache<SEEN_CAPACITY>,
+    inner: DynamicSeenCache,
 }
 
 #[gen_stub_pymethods]
 #[pymethods]
 impl SeenPackets {
-    /// Creates an empty cache of `mesh_seen_capacity()` packets.
+    /// Creates an empty cache remembering up to `capacity` packets.
+    ///
+    /// A capacity of zero remembers nothing, so every copy of a packet is relayed.
     #[new]
-    fn new() -> Self {
+    #[pyo3(signature = (capacity = SEEN_DEFAULT_CAPACITY))]
+    fn new(capacity: usize) -> Self {
         SeenPackets {
-            inner: SeenCache::new(),
+            inner: DynamicSeenCache::new(capacity),
         }
     }
 
@@ -96,7 +99,7 @@ impl SeenPackets {
     /// How many packets this cache remembers.
     #[getter]
     fn capacity(&self) -> usize {
-        SEEN_CAPACITY
+        self.inner.capacity()
     }
 }
 
@@ -165,7 +168,7 @@ pub fn mesh_limits() -> (usize, usize, u32, u8, usize) {
         Frame::MAX_PAYLOAD,
         pamoja_mesh::BROADCAST,
         Frame::DEFAULT_HOP_LIMIT,
-        SEEN_CAPACITY,
+        SEEN_DEFAULT_CAPACITY,
     )
 }
 

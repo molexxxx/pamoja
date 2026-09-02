@@ -21,7 +21,10 @@ __all__ = [
     "Kalman",
     "LoraLink",
     "LorawanDevice",
+    "LorawanGrant",
+    "LorawanHeader",
     "LorawanJoinAccept",
+    "LorawanJoinRequest",
     "LorawanRxData",
     "LorawanSession",
     "Median",
@@ -87,6 +90,8 @@ __all__ = [
     "j1939_compose",
     "j1939_decode",
     "json_to_cbor_bytes",
+    "lorawan_parse_header",
+    "lorawan_parse_join_request",
     "mesh_broadcast_frame",
     "mesh_crc16",
     "mesh_frame",
@@ -118,7 +123,7 @@ __all__ = [
     "pwm_full_off",
     "pwm_full_on",
     "pwm_servo",
-    "routing_table_capacity",
+    "routing_default_capacity",
     "slip_decode",
     "slip_encode",
     "slip_max_encoded_len",
@@ -648,6 +653,100 @@ class LorawanDevice:
         """
 
 @typing.final
+class LorawanGrant:
+    r"""
+    What a network grants a device that joined.
+    """
+    @property
+    def dev_addr(self) -> builtins.int:
+        r"""
+        The address this grant assigns.
+        """
+    @property
+    def net_id(self) -> builtins.int:
+        r"""
+        The network identifier this grant carries.
+        """
+    def __new__(cls, app_nonce: builtins.int, net_id: builtins.int, dev_addr: builtins.int, dl_settings: builtins.int = 0, rx_delay: builtins.int = 0, cflist: typing.Optional[typing.Sequence[builtins.int]] = None) -> LorawanGrant:
+        r"""
+        Creates a grant of an address and the settings to answer on.
+        
+        `app_nonce` and `net_id` carry their low 24 bits only.
+        """
+    def accept(self, app_key: typing.Sequence[builtins.int], dev_nonce: builtins.int) -> bytes:
+        r"""
+        Builds the signed join-accept to transmit.
+        """
+    def session(self, app_key: typing.Sequence[builtins.int], dev_nonce: builtins.int) -> LorawanSession:
+        r"""
+        Derives the session this grant activates, the same one the device computes.
+        """
+
+@typing.final
+class LorawanHeader:
+    r"""
+    What a frame says about itself before any key is involved.
+    
+    Nothing here is authenticated, since checking the MIC needs the session key.
+    Treat it as a routing hint until `decode` has verified the frame.
+    """
+    @property
+    def message_type(self) -> builtins.str:
+        r"""
+        What kind of message the frame is.
+        """
+    @property
+    def is_data(self) -> builtins.bool:
+        r"""
+        Whether this is a data frame rather than part of a join exchange.
+        """
+    @property
+    def dev_addr(self) -> typing.Optional[builtins.int]:
+        r"""
+        The device address, or `None` for a join frame.
+        """
+    @property
+    def fcnt(self) -> typing.Optional[builtins.int]:
+        r"""
+        The low 16 bits of the frame counter, or `None` for a join frame.
+        """
+    @property
+    def fport(self) -> typing.Optional[builtins.int]:
+        r"""
+        The port, or `None` for a join frame or one carrying only options.
+        """
+    @property
+    def confirmed(self) -> builtins.bool:
+        r"""
+        Whether the frame asks to be acknowledged.
+        """
+    @property
+    def adr(self) -> builtins.bool:
+        r"""
+        Whether the frame takes part in adaptive data rate.
+        """
+    @property
+    def ack(self) -> builtins.bool:
+        r"""
+        Whether the frame acknowledges the last confirmed one.
+        """
+    @property
+    def fpending(self) -> builtins.bool:
+        r"""
+        Whether the network has more downlink data waiting.
+        """
+    @property
+    def fopts_len(self) -> builtins.int:
+        r"""
+        How many bytes of frame options the header carries.
+        """
+    @property
+    def payload_len(self) -> builtins.int:
+        r"""
+        The length of the still-encrypted payload.
+        """
+
+@typing.final
 class LorawanJoinAccept:
     r"""
     An accepted join: the network settings, and the session it grants.
@@ -676,6 +775,27 @@ class LorawanJoinAccept:
     def session(self) -> LorawanSession:
         r"""
         The activated session this join grants, with its keys already derived.
+        """
+
+@typing.final
+class LorawanJoinRequest:
+    r"""
+    A join-request a device broadcast, with its integrity already verified.
+    """
+    @property
+    def dev_nonce(self) -> builtins.int:
+        r"""
+        The nonce the request carried, which a network must not accept twice.
+        """
+    @property
+    def dev_eui(self) -> bytes:
+        r"""
+        The device identifier, most-significant byte first.
+        """
+    @property
+    def app_eui(self) -> bytes:
+        r"""
+        The application identifier, most-significant byte first.
         """
 
 @typing.final
@@ -1018,9 +1138,12 @@ class Router:
         r"""
         How many routes the table can hold.
         """
-    def __new__(cls, address: builtins.int) -> Router:
+    def __new__(cls, address: builtins.int, capacity: builtins.int = 64) -> Router:
         r"""
         Creates an empty routing table for a node at `address`.
+        
+        `capacity` is how many routes to make room for. A capacity of zero floods
+        every unknown destination, which is the behaviour with no table at all.
         """
     def observe(self, origin: builtins.int, via: builtins.int, cost: builtins.int) -> builtins.bool:
         r"""
@@ -1062,9 +1185,11 @@ class SeenPackets:
         r"""
         How many packets this cache remembers.
         """
-    def __new__(cls) -> SeenPackets:
+    def __new__(cls, capacity: builtins.int = 64) -> SeenPackets:
         r"""
-        Creates an empty cache of `mesh_seen_capacity()` packets.
+        Creates an empty cache remembering up to `capacity` packets.
+        
+        A capacity of zero remembers nothing, so every copy of a packet is relayed.
         """
     def contains(self, src: builtins.int, id: builtins.int) -> builtins.bool:
         r"""
@@ -1502,6 +1627,19 @@ def json_to_cbor_bytes(json: typing.Sequence[builtins.int]) -> bytes:
     Converts a JSON document into its CBOR encoding, which is typically smaller.
     """
 
+def lorawan_parse_header(bytes: typing.Sequence[builtins.int]) -> LorawanHeader:
+    r"""
+    Reads a frame far enough to route it, without any key.
+    
+    A receiver holding many sessions uses this to find which one a frame belongs
+    to: the device address travels in the clear.
+    """
+
+def lorawan_parse_join_request(bytes: typing.Sequence[builtins.int], app_key: typing.Sequence[builtins.int]) -> LorawanJoinRequest:
+    r"""
+    Verifies a join-request and reads the identifiers out of it.
+    """
+
 def mesh_broadcast_frame(src: builtins.int, id: builtins.int, payload: typing.Sequence[builtins.int], hop_limit: typing.Optional[builtins.int] = None) -> MeshFrame:
     r"""
     Builds a mesh frame addressed to every node.
@@ -1665,9 +1803,9 @@ def pwm_servo(pulse_micros: builtins.int, update_rate_hz: builtins.int) -> bytes
     Builds the register bytes that drive a hobby servo to a given pulse width.
     """
 
-def routing_table_capacity() -> builtins.int:
+def routing_default_capacity() -> builtins.int:
     r"""
-    Returns how many routes a routing table holds.
+    Returns a routing table size for a caller with no reason to choose one.
     """
 
 def slip_decode(frame: typing.Sequence[builtins.int]) -> bytes:

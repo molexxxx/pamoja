@@ -6,20 +6,22 @@
 //! fall back to flooding.
 //!
 //! A router holds state across calls, so it crosses as an opaque handle. Its table
-//! is sized by a const generic in the Rust crate, which cannot cross a C ABI, so
-//! it is fixed here at [`PAMOJA_ROUTING_TABLE_CAPACITY`] routes.
+//! is sized when it is built rather than by the const generic the Rust crate uses,
+//! since a const generic cannot cross a C ABI at all;
+//! [`PAMOJA_ROUTING_DEFAULT_CAPACITY`] is what a caller with no reason to choose
+//! should pass.
 
-use pamoja_routing::{Forward, Router};
+use pamoja_routing::{DynamicRouter, Forward};
 
-/// The number of routes a routing table holds.
-pub const PAMOJA_ROUTING_TABLE_CAPACITY: usize = 64;
+/// A reasonable routing table size for a caller with no reason to choose one.
+pub const PAMOJA_ROUTING_DEFAULT_CAPACITY: usize = 64;
 
 /// An opaque handle to one node routing table.
 ///
 /// Create it with [`pamoja_router_new`], teach it with
 /// [`pamoja_router_observe`], and release it with [`pamoja_router_free`].
 pub struct PamojaRouter {
-    router: Router<PAMOJA_ROUTING_TABLE_CAPACITY>,
+    router: DynamicRouter,
 }
 
 /// A learned way to reach one node.
@@ -54,14 +56,17 @@ pub enum PamojaForward {
 ///
 /// * `address` - the address of this node, which is what
 ///   [`pamoja_router_forward`] recognises as a local delivery.
+/// * `capacity` - how many routes to make room for; pass
+///   [`PAMOJA_ROUTING_DEFAULT_CAPACITY`] when there is no reason to choose. A
+///   capacity of zero is allowed and makes every unknown destination flood.
 ///
 /// # Returns
 ///
 /// A handle the caller must release with [`pamoja_router_free`].
 #[no_mangle]
-pub extern "C" fn pamoja_router_new(address: u32) -> *mut PamojaRouter {
+pub extern "C" fn pamoja_router_new(address: u32, capacity: usize) -> *mut PamojaRouter {
     Box::into_raw(Box::new(PamojaRouter {
-        router: Router::new(address),
+        router: DynamicRouter::new(address, capacity),
     }))
 }
 
@@ -307,10 +312,17 @@ pub unsafe extern "C" fn pamoja_router_len(router: *const PamojaRouter) -> usize
 ///
 /// # Returns
 ///
-/// [`PAMOJA_ROUTING_TABLE_CAPACITY`].
+/// The capacity it was created with, or 0 if `router` is null.
+///
+/// # Safety
+///
+/// `router` must be a live handle from [`pamoja_router_new`], or null.
 #[no_mangle]
-pub extern "C" fn pamoja_router_capacity() -> usize {
-    PAMOJA_ROUTING_TABLE_CAPACITY
+pub unsafe extern "C" fn pamoja_router_capacity(router: *const PamojaRouter) -> usize {
+    if router.is_null() {
+        return 0;
+    }
+    (*router).router.capacity()
 }
 
 /// Releases a routing table handle.
@@ -336,7 +348,7 @@ mod tests {
 
     #[test]
     fn a_cheaper_neighbour_replaces_the_route() {
-        let router = pamoja_router_new(0x01);
+        let router = pamoja_router_new(0x01, PAMOJA_ROUTING_DEFAULT_CAPACITY);
         // Safety: the handle was just created and the out-pointers are valid.
         unsafe {
             assert_eq!(pamoja_router_address(router), 0x01);
@@ -371,7 +383,7 @@ mod tests {
 
     #[test]
     fn a_packet_for_this_node_is_delivered_and_an_unknown_one_floods() {
-        let router = pamoja_router_new(0x01);
+        let router = pamoja_router_new(0x01, PAMOJA_ROUTING_DEFAULT_CAPACITY);
         // Safety: the handle was just created and the out-pointer is valid.
         unsafe {
             let mut next_hop = 0xFFFF_FFFFu32;
@@ -390,7 +402,7 @@ mod tests {
 
     #[test]
     fn a_forgotten_route_floods_again() {
-        let router = pamoja_router_new(0x01);
+        let router = pamoja_router_new(0x01, PAMOJA_ROUTING_DEFAULT_CAPACITY);
         // Safety: the handle was just created and the out-pointers are valid.
         unsafe {
             pamoja_router_observe(router, 0x09, 0x05, 2);
@@ -411,15 +423,32 @@ mod tests {
     }
 
     #[test]
+    fn a_table_sized_by_the_caller_holds_what_it_was_asked_for() {
+        // Safety: the handle is created and released here.
+        unsafe {
+            let router = pamoja_router_new(0x01, 3);
+            assert_eq!(pamoja_router_capacity(router), 3);
+            for node in 0..10u32 {
+                pamoja_router_observe(router, node + 0x100, 0x05, 4);
+            }
+            assert_eq!(pamoja_router_len(router), 3);
+            pamoja_router_free(router);
+        }
+    }
+
+    #[test]
     fn the_table_fills_to_its_capacity() {
-        let router = pamoja_router_new(0x01);
+        let router = pamoja_router_new(0x01, PAMOJA_ROUTING_DEFAULT_CAPACITY);
         // Safety: the handle was just created.
         unsafe {
-            for node in 0..PAMOJA_ROUTING_TABLE_CAPACITY + 8 {
+            for node in 0..PAMOJA_ROUTING_DEFAULT_CAPACITY + 8 {
                 pamoja_router_observe(router, node as u32 + 0x100, 0x05, 4);
             }
-            assert_eq!(pamoja_router_len(router), PAMOJA_ROUTING_TABLE_CAPACITY);
-            assert_eq!(pamoja_router_capacity(), PAMOJA_ROUTING_TABLE_CAPACITY);
+            assert_eq!(pamoja_router_len(router), PAMOJA_ROUTING_DEFAULT_CAPACITY);
+            assert_eq!(
+                pamoja_router_capacity(router),
+                PAMOJA_ROUTING_DEFAULT_CAPACITY
+            );
             pamoja_router_free(router);
         }
     }

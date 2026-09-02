@@ -13,10 +13,10 @@
  * @packageDocumentation
  */
 
-import { ROUTING_TABLE_CAPACITY, Router as NativeRouter } from '../index'
+import { ROUTING_DEFAULT_CAPACITY, Router as NativeRouter } from '../index'
 
-/** The number of routes a routing table holds. */
-export const TABLE_CAPACITY = ROUTING_TABLE_CAPACITY
+/** A routing table size for a caller with no reason to choose one. */
+export const DEFAULT_CAPACITY = ROUTING_DEFAULT_CAPACITY
 
 /**
  * What to do with a packet bound for a given node.
@@ -58,7 +58,7 @@ export interface Route {
  * One node routing table, learned from the traffic the node hears.
  *
  * The core table is generic over its size, which cannot cross the native
- * boundary, so this is built at one documented size: {@link TABLE_CAPACITY}.
+ * boundary, so this one is sized when it is built.
  */
 export class Router {
   readonly #inner: NativeRouter
@@ -68,9 +68,11 @@ export class Router {
    *
    * @param address - The address of this node, which is what a routing decision
    *   recognises as a local delivery.
+   * @param capacity - How many routes to make room for, defaulting to
+   *   {@link DEFAULT_CAPACITY}. A capacity of 0 floods every unknown destination.
    */
-  constructor(address: number) {
-    this.#inner = new NativeRouter(address)
+  constructor(address: number, capacity?: number) {
+    this.#inner = new NativeRouter(address, capacity)
   }
 
   /** The address this router answers for. */
@@ -164,8 +166,10 @@ export class Router {
  *
  * @param address - The address of this node, which is what a routing decision
  *   recognises as a local delivery.
+ * @param capacity - How many routes to make room for, defaulting to
+ *   {@link DEFAULT_CAPACITY}.
  * @returns The routing table, ready to learn from the traffic the node hears.
  */
-export function router(address: number): Router {
-  return new Router(address)
+export function router(address: number, capacity?: number): Router {
+  return new Router(address, capacity)
 }

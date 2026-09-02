@@ -19,11 +19,14 @@ use pamoja_kit::{
     Smoother, Thermostat, Trend, Window,
 };
 use pamoja_lora::LinkSettings;
-use pamoja_lorawan::{Device, Direction as LorawanDirection, Downlink, Session, Uplink};
-use pamoja_mesh::{crc16 as mesh_crc16, Frame as MeshFrame, SeenCache};
+use pamoja_lorawan::{
+    Device, Direction as LorawanDirection, Downlink, FrameHeader, JoinGrant, JoinRequest,
+    MessageType, Session, Uplink,
+};
+use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
 use pamoja_modbus::Pdu;
 use pamoja_modbus::{crc16, Adu};
-use pamoja_routing::{Forward, Router};
+use pamoja_routing::{DynamicRouter, Forward};
 use pamoja_security::{DeviceIdentity, PublicIdentity, Signature};
 use pamoja_sensors::{ads1115, bme280, ds18b20, ina219};
 use pamoja_serial::{cobs, slip};
@@ -1009,7 +1012,7 @@ fn mesh_vectors_match() {
     );
 
     let seen_case = &case["seen"];
-    let mut seen: SeenCache<64> = SeenCache::new();
+    let mut seen = DynamicSeenCache::new(case["seenCapacity"].as_u64().expect("a size") as usize);
     let answers: Vec<bool> = seen_case["keys"]
         .as_array()
         .expect("an array")
@@ -1029,6 +1032,24 @@ fn mesh_vectors_match() {
         .map(|entry| entry.as_bool().expect("a flag"))
         .collect();
     assert_eq!(answers, want, "each packet is new exactly once");
+
+    let sized = &case["sizedSeen"];
+    let mut small = DynamicSeenCache::new(sized["capacity"].as_u64().expect("a capacity") as usize);
+    for key in sized["keys"].as_array().expect("an array") {
+        let key = key.as_array().expect("a pair");
+        small.record((
+            key[0].as_u64().expect("an address") as u32,
+            key[1].as_u64().expect("an id") as u16,
+        ));
+    }
+    let evicted = sized["evicted"].as_array().expect("a pair");
+    assert!(
+        !small.contains((
+            evicted[0].as_u64().expect("an address") as u32,
+            evicted[1].as_u64().expect("an id") as u16,
+        )),
+        "a cache sized by the caller evicts at that size"
+    );
 }
 
 #[test]
@@ -1036,7 +1057,10 @@ fn routing_vectors_match() {
     let vectors = vectors();
     let case = &vectors["routing"];
 
-    let mut router: Router<64> = Router::new(case["address"].as_u64().expect("an address") as u32);
+    let mut router = DynamicRouter::new(
+        case["address"].as_u64().expect("an address") as u32,
+        case["capacity"].as_u64().expect("a capacity") as usize,
+    );
 
     for observation in case["observations"].as_array().expect("an array") {
         let changed = router.observe(
@@ -1082,10 +1106,23 @@ fn routing_vectors_match() {
         router.len(),
         forgotten["learned"].as_u64().expect("a count") as usize
     );
+
+    let sized = &case["sized"];
+    let capacity = sized["capacity"].as_u64().expect("a capacity") as usize;
+    let mut small = DynamicRouter::new(0x01, capacity);
+    for node in 0..sized["offered"].as_u64().expect("a count") as u32 {
+        small.observe(node + 0x100, 0x05, 4);
+    }
+    assert_eq!(small.capacity(), capacity);
+    assert_eq!(
+        small.len(),
+        sized["learned"].as_u64().expect("a count") as usize,
+        "a table sized by the caller holds exactly what it was asked for"
+    );
 }
 
 /// Checks one routing decision against the vector that describes it.
-fn assert_decision(router: &Router<64>, want: &Value) {
+fn assert_decision(router: &DynamicRouter, want: &Value) {
     let dst = want["dst"].as_u64().expect("an address") as u32;
     let action = want["action"].as_str().expect("an action");
     match router.forward(dst) {
@@ -1194,5 +1231,160 @@ fn lorawan_vectors_match() {
             .accept_join(&unhex(&join["forgedAccept"]), dev_nonce)
             .is_err(),
         "a join the network never signed must not activate a session"
+    );
+}
+
+#[test]
+fn header_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["header"];
+
+    for want in case["frames"].as_array().expect("an array") {
+        let bytes = unhex(&want["frame"]);
+        let header = FrameHeader::parse(&bytes).expect("the frame parses");
+
+        let name = match header.message_type() {
+            MessageType::JoinRequest => "JoinRequest",
+            MessageType::JoinAccept => "JoinAccept",
+            MessageType::UnconfirmedUp => "UnconfirmedUp",
+            MessageType::ConfirmedUp => "ConfirmedUp",
+            MessageType::UnconfirmedDown => "UnconfirmedDown",
+            MessageType::ConfirmedDown => "ConfirmedDown",
+        };
+        assert_eq!(name, want["messageType"].as_str().expect("a name"));
+        assert_eq!(
+            header.message_type().is_data(),
+            want["isData"].as_bool().expect("a flag")
+        );
+        assert_eq!(
+            header.dev_addr().map(u64::from),
+            want["devAddr"].as_u64(),
+            "the address a receiver routes by"
+        );
+        assert_eq!(header.fcnt().map(u64::from), want["fcnt"].as_u64());
+        assert_eq!(header.fport().map(u64::from), want["fport"].as_u64());
+        assert_eq!(
+            header.confirmed(),
+            want["confirmed"].as_bool().expect("a flag")
+        );
+        assert_eq!(header.adr(), want["adr"].as_bool().expect("a flag"));
+        assert_eq!(header.ack(), want["ack"].as_bool().expect("a flag"));
+        assert_eq!(
+            header.fpending(),
+            want["fpending"].as_bool().expect("a flag")
+        );
+        assert_eq!(
+            header.fopts_len() as u64,
+            want["foptsLen"].as_u64().expect("a length")
+        );
+        assert_eq!(
+            header.payload_len() as u64,
+            want["payloadLen"].as_u64().expect("a length")
+        );
+    }
+
+    assert!(
+        FrameHeader::parse(&unhex(&case["unsupported"])).is_err(),
+        "a message type this crate does not read must be refused"
+    );
+    assert!(
+        FrameHeader::parse(&unhex(&case["truncated"])).is_err(),
+        "a frame too short to hold a header must be refused"
+    );
+}
+
+#[test]
+fn network_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["network"];
+    let app_key: [u8; 16] = unhex(&case["appKey"]).try_into().expect("a 16-byte key");
+    let dev_nonce = case["devNonce"].as_u64().expect("a nonce") as u16;
+
+    let want = &case["joinRequest"];
+    let request =
+        JoinRequest::parse(&unhex(&want["frame"]), &app_key).expect("the request verifies");
+    assert_eq!(hex(&request.dev_eui()), want["devEui"].as_str().unwrap());
+    assert_eq!(hex(&request.app_eui()), want["appEui"].as_str().unwrap());
+    assert_eq!(
+        u64::from(request.dev_nonce()),
+        want["devNonce"].as_u64().expect("a nonce")
+    );
+
+    assert!(
+        JoinRequest::parse(&unhex(&case["forgedRequest"]), &app_key).is_err(),
+        "a request signed with another root key must not be trusted"
+    );
+
+    assert_grant(&case["grant"], &app_key, dev_nonce);
+
+    // The captured join: a third party's numbers, so agreement here is not just
+    // this implementation agreeing with itself.
+    let published = &case["published"];
+    let published_key: [u8; 16] = unhex(&published["appKey"]).try_into().expect("a key");
+    let published_nonce = published["devNonce"].as_u64().expect("a nonce") as u16;
+    assert_grant(published, &published_key, published_nonce);
+
+    // The device side reaches the same session from the captured bytes.
+    let accepted = Device::new([0; 8], [0; 8], published_key)
+        .accept_join(&unhex(&published["accept"]), published_nonce)
+        .expect("the captured accept verifies");
+    assert_eq!(
+        u64::from(accepted.dev_addr()),
+        published["devAddr"].as_u64().expect("an address")
+    );
+    let probe = &published["probe"];
+    assert_eq!(
+        hex(accepted
+            .session()
+            .encode_uplink(&Uplink::new(
+                probe["fcnt"].as_u64().expect("a counter") as u32,
+                probe["fport"].as_u64().expect("a port") as u8,
+                &unhex(&probe["payload"]),
+            ))
+            .expect("encode with the activated session")
+            .as_bytes()),
+        probe["frame"].as_str().expect("a frame"),
+        "the session the device derived matches the published keys"
+    );
+}
+
+/// Checks that a grant builds its accept and derives the session both sides share.
+fn assert_grant(case: &Value, app_key: &[u8; 16], dev_nonce: u16) {
+    let mut grant = JoinGrant::new(
+        case["appNonce"].as_u64().expect("a nonce") as u32,
+        case["netId"].as_u64().expect("a network") as u32,
+        case["devAddr"].as_u64().expect("an address") as u32,
+    )
+    .with_dl_settings(case["dlSettings"].as_u64().expect("settings") as u8)
+    .with_rx_delay(case["rxDelay"].as_u64().expect("a delay") as u8);
+    if let Some(cflist) = case.get("cflist").and_then(Value::as_str) {
+        grant = grant.with_cflist(
+            unhex(&Value::String(cflist.to_owned()))
+                .try_into()
+                .expect("a 16-byte channel list"),
+        );
+    }
+
+    assert_eq!(
+        hex(grant.accept(app_key, dev_nonce).as_bytes()),
+        case["accept"].as_str().expect("an accept"),
+        "the signed join-accept matches byte for byte"
+    );
+
+    // Neither side sent a key, so the proof they agree is that one reads what the
+    // other wrote.
+    let probe = &case["probe"];
+    assert_eq!(
+        hex(grant
+            .session(app_key, dev_nonce)
+            .encode_uplink(&Uplink::new(
+                probe["fcnt"].as_u64().expect("a counter") as u32,
+                probe["fport"].as_u64().expect("a port") as u8,
+                &unhex(&probe["payload"]),
+            ))
+            .expect("encode with the derived session")
+            .as_bytes()),
+        probe["frame"].as_str().expect("a frame"),
+        "the session this network derived is the one the device holds"
     );
 }
