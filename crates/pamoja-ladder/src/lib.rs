@@ -63,16 +63,20 @@ pub enum Delivery {
 /// The core [`Transport`] trait uses `async fn`, which is not dyn-compatible; this
 /// wrapper boxes the returned futures so transports of different concrete types can
 /// live together in one ordered list.
-trait DynTransport {
+///
+/// The boxed futures are `Send` so a ladder can be driven from a multi-threaded
+/// runtime, which is where one usually lives: a gateway ticks it from a task
+/// rather than blocking a thread on it.
+trait DynTransport: Send {
     /// Connects the underlying transport.
-    fn connect(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + '_>>;
+    fn connect(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
 
     /// Sends a payload to a topic over the underlying transport.
     fn send<'a>(
         &'a mut self,
         topic: &'a str,
         payload: &'a [u8],
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a>>;
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
 }
 
 /// Newtype that carries one concrete transport behind the object-safe
@@ -81,8 +85,8 @@ trait DynTransport {
 /// transports themselves so their own `connect`/`send` stay unambiguous.
 struct Erased<T>(T);
 
-impl<T: Transport> DynTransport for Erased<T> {
-    fn connect(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + '_>> {
+impl<T: Transport + Send> DynTransport for Erased<T> {
+    fn connect(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
         Box::pin(Transport::connect(&mut self.0))
     }
 
@@ -90,7 +94,7 @@ impl<T: Transport> DynTransport for Erased<T> {
         &'a mut self,
         topic: &'a str,
         payload: &'a [u8],
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
         Box::pin(Transport::send(&mut self.0, topic, payload))
     }
 }
@@ -133,7 +137,7 @@ impl<S: Store> TransportLadder<S> {
     /// # Returns
     ///
     /// The ladder, for chaining.
-    pub fn rung(mut self, transport: impl Transport + 'static) -> Self {
+    pub fn rung(mut self, transport: impl Transport + Send + 'static) -> Self {
         self.rungs.push(Box::new(Erased(transport)));
         self
     }
@@ -216,6 +220,11 @@ impl<S: Store> TransportLadder<S> {
 
     /// Returns how many messages are currently buffered.
     ///
+    /// Takes the ladder mutably, like the rest of its surface. Reading through a
+    /// shared borrow would hold one across the await, which would in turn oblige
+    /// every rung to be `Sync` rather than only `Send`, and that is a heavier
+    /// requirement than a transport should have to meet.
+    ///
     /// # Returns
     ///
     /// The number of records waiting for a [`flush`](Self::flush).
@@ -224,7 +233,7 @@ impl<S: Store> TransportLadder<S> {
     ///
     /// Returns [`Error::Io`](pamoja_core::Error::Io) if the store length cannot be
     /// read.
-    pub async fn buffered(&self) -> Result<usize> {
+    pub async fn buffered(&mut self) -> Result<usize> {
         self.buffer.len().await
     }
 
@@ -276,6 +285,22 @@ mod tests {
 
     use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
     use pamoja_sync::MemoryStore;
+
+    /// Accepts anything that can move between threads.
+    fn assert_send<T: Send>(_value: T) {}
+
+    #[test]
+    fn a_ladder_can_be_driven_from_a_spawned_task() {
+        // A gateway ticks its ladder from a task on a threaded runtime, so the
+        // futures have to be Send. This does not run them; it fails to compile
+        // if a rung ever stops promising it.
+        let mut ladder = TransportLadder::new(MemoryStore::new())
+            .rung(LoopbackTransport::new(LoopbackBroker::new()));
+        assert_send(ladder.connect());
+        assert_send(ladder.send("sensors/1", b"21.5"));
+        assert_send(ladder.flush());
+        assert_send(ladder.buffered());
+    }
 
     /// Subscribes a gateway to everything on a broker so the test can observe it.
     async fn gateway(broker: &LoopbackBroker) -> LoopbackTransport {

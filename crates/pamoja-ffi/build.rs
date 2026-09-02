@@ -17,10 +17,14 @@ fn main() {
     println!("cargo:rerun-if-changed=src/lib.rs");
     println!("cargo:rerun-if-changed=src/actuators.rs");
     println!("cargo:rerun-if-changed=src/audit.rs");
+    println!("cargo:rerun-if-changed=src/bus.rs");
     println!("cargo:rerun-if-changed=src/can.rs");
+    println!("cargo:rerun-if-changed=src/coap.rs");
     println!("cargo:rerun-if-changed=src/codec.rs");
     println!("cargo:rerun-if-changed=src/gpio.rs");
     println!("cargo:rerun-if-changed=src/kit.rs");
+    println!("cargo:rerun-if-changed=src/ladder.rs");
+    println!("cargo:rerun-if-changed=src/loopback.rs");
     println!("cargo:rerun-if-changed=src/lora.rs");
     println!("cargo:rerun-if-changed=src/lorawan.rs");
     println!("cargo:rerun-if-changed=src/mesh.rs");
@@ -30,9 +34,12 @@ fn main() {
     println!("cargo:rerun-if-changed=src/routing.rs");
     println!("cargo:rerun-if-changed=src/security.rs");
     println!("cargo:rerun-if-changed=src/session.rs");
+    println!("cargo:rerun-if-changed=src/sim.rs");
     println!("cargo:rerun-if-changed=src/sensors.rs");
     println!("cargo:rerun-if-changed=src/serial.rs");
+    println!("cargo:rerun-if-changed=src/sync.rs");
     println!("cargo:rerun-if-changed=src/telemetry.rs");
+    println!("cargo:rerun-if-changed=src/transport.rs");
     println!("cargo:rerun-if-changed=src/update.rs");
     println!("cargo:rerun-if-changed=cbindgen.toml");
 

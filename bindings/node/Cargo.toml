@@ -33,10 +33,24 @@ default = [
     "update",
     "power",
     "telemetry",
+    "coap",
+    "loopback",
+    "sync",
+    "ladder",
+    "bus",
+    "sim",
 ]
 # Each capability is a feature, so the binding can later be split into
 # per-capability packages without reshaping the code.
 mqtt = ["dep:pamoja-mqtt", "dep:tokio"]
+coap = ["dep:pamoja-coap", "dep:tokio"]
+loopback = ["dep:pamoja-loopback", "dep:tokio"]
+sync = ["dep:pamoja-sync"]
+# A ladder buffers into a store, so it carries the sync stores with it.
+ladder = ["dep:pamoja-ladder", "sync"]
+bus = ["dep:pamoja-bus", "dep:tokio"]
+# The simulated robot moves in the kit pose and twist types.
+sim = ["dep:pamoja-sim", "kit"]
 security = ["dep:pamoja-security"]
 codec = ["dep:pamoja-codec"]
 kit = ["dep:pamoja-kit"]
@@ -79,6 +93,12 @@ pamoja-session = { path = "../../crates/pamoja-session", optional = true }
 pamoja-update = { path = "../../crates/pamoja-update", optional = true }
 pamoja-power = { path = "../../crates/pamoja-power", optional = true }
 pamoja-telemetry = { path = "../../crates/pamoja-telemetry", optional = true }
+pamoja-coap = { path = "../../crates/pamoja-coap", optional = true }
+pamoja-loopback = { path = "../../crates/pamoja-loopback", optional = true }
+pamoja-sync = { path = "../../crates/pamoja-sync", optional = true }
+pamoja-ladder = { path = "../../crates/pamoja-ladder", optional = true }
+pamoja-bus = { path = "../../crates/pamoja-bus", optional = true }
+pamoja-sim = { path = "../../crates/pamoja-sim", optional = true }
 tokio = { version = "1", default-features = false, features = ["sync"], optional = true }
 
 [build-dependencies]

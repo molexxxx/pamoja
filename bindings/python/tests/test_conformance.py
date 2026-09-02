@@ -907,3 +907,80 @@ def test_telemetry_vectors_match():
     snapshot = reporter.snapshot()
     for key in ("trace", "debug", "info", "warn", "error", "emitted", "dropped"):
         assert getattr(snapshot, key) == vector["snapshot"][key]
+
+
+def test_ladder_vectors_match():
+    import asyncio
+
+    from pamoja import ladder, loopback, sync, transport
+
+    vector = VECTORS["ladder"]
+
+    async def run():
+        broker = loopback.LoopbackBroker()
+        listener = broker.link()
+        await listener.connect()
+        await listener.subscribe(vector["topic"])
+
+        offline = ladder.Ladder(sync.Store.memory())
+        for at, payload in enumerate(vector["payloads"]):
+            assert (
+                await offline.send(vector["topic"], payload.encode())
+                == vector["withNoRung"]["deliveries"][at]
+            )
+        assert await offline.buffered() == vector["withNoRung"]["buffered"]
+
+        await offline.rung(broker.rung())
+        await offline.connect()
+        assert await offline.flush() == vector["afterTheLinkReturns"]["flushed"]
+        assert await offline.buffered() == vector["afterTheLinkReturns"]["buffered"]
+
+        rungs = ladder.Ladder(sync.Store.memory())
+        await rungs.rung(
+            transport.Transport.faulty(
+                broker.rung(), vector["fallthrough"]["failuresOnFirstRung"]
+            )
+        )
+        await rungs.rung(broker.rung())
+        await rungs.connect()
+        assert (
+            await rungs.send(vector["topic"], vector["fallthrough"]["payload"].encode())
+            == vector["fallthrough"]["delivery"]
+        )
+
+    asyncio.run(run())
+
+
+def test_simulation_vectors_match():
+    import asyncio
+
+    from pamoja import sim
+
+    vector = VECTORS["simulation"]
+
+    async def run():
+        want = vector["sensor"]
+        sensor = sim.SimulatedSensor(
+            want["baseline"],
+            drift_per_read=want["driftPerRead"],
+            noise=want["noise"],
+            seed=want["seed"],
+        )
+        for reading in want["readings"]:
+            assert await sensor.read() == pytest.approx(reading, abs=TOLERANCE)
+
+        want = vector["replay"]
+        replay = sim.Replay(want["capture"], repeating=want["repeating"])
+        for reading in want["readings"]:
+            assert await replay.read() == pytest.approx(reading, abs=TOLERANCE)
+
+        want = vector["robot"]
+        robot = sim.SimulatedRobot(want["dt"])
+        for pose in want["poses"]:
+            await robot.apply(vx=want["vx"], omega=want["omega"])
+            reached = await robot.pose()
+            assert reached.x == pytest.approx(pose["x"], abs=TOLERANCE)
+            assert reached.y == pytest.approx(pose["y"], abs=TOLERANCE)
+            assert reached.theta == pytest.approx(pose["theta"], abs=TOLERANCE)
+
+    asyncio.run(run())

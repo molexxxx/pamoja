@@ -455,3 +455,165 @@ def test_a_costly_link_drops_detail_but_keeps_the_count():
     assert counts.dropped == 1
     assert counts.emitted == 1
     assert telemetry.link_cost_threshold(telemetry.LinkCost.OFFLINE) == telemetry.Level.ERROR
+
+
+def test_a_message_published_in_process_reaches_a_subscriber():
+    from pamoja import loopback
+
+    async def run():
+        broker = loopback.LoopbackBroker()
+        publisher = broker.link()
+        subscriber = broker.link()
+
+        await publisher.connect()
+        await subscriber.connect()
+        assert await subscriber.is_connected() is True
+
+        await subscriber.subscribe("sensors/1")
+        await publisher.send("sensors/1", b"21.5")
+
+        message = await subscriber.recv()
+        assert message.topic == "sensors/1"
+        assert message.payload == b"21.5"
+
+    asyncio.run(run())
+
+
+def test_a_buffer_holds_records_until_a_link_returns():
+    from pamoja import sync
+
+    async def run():
+        store = sync.Store.memory()
+        await store.append(b"one")
+        await store.append(b"two")
+
+        assert await store.len() == 2
+        assert await store.peek() == b"one", "peek leaves the record in place"
+        assert await store.pop() == b"one"
+        assert await store.pop() == b"two"
+        assert await store.pop() is None
+
+        bounded = sync.Store.memory(1)
+        await bounded.append(b"one")
+        with pytest.raises(PamojaError):
+            await bounded.append(b"two")
+        assert await bounded.len() == 1, "a full store keeps what it already had"
+
+    asyncio.run(run())
+
+
+def test_a_ladder_falls_through_a_failing_rung_and_buffers_when_none_work():
+    from pamoja import ladder, loopback, sync, transport
+
+    async def run():
+        broker = loopback.LoopbackBroker()
+        listener = broker.link()
+        await listener.connect()
+        await listener.subscribe("sensors/1")
+
+        # Nothing to send over yet, so it buffers rather than losing the reading.
+        rungless = ladder.Ladder(sync.Store.memory())
+        assert await rungless.send("sensors/1", b"21.5") == ladder.Delivery.BUFFERED
+        assert await rungless.buffered() == 1
+
+        # The first rung refuses its next send; the second is the same broker.
+        rungs = ladder.Ladder(sync.Store.memory())
+        await rungs.rung(transport.Transport.faulty(broker.rung(), 1))
+        await rungs.rung(broker.rung())
+        await rungs.connect()
+
+        assert await rungs.send("sensors/1", b"21.5") == ladder.Delivery.SENT
+        message = await listener.recv()
+        assert message.payload == b"21.5", "the second rung carried what the first refused"
+
+    asyncio.run(run())
+
+
+def test_a_flush_replays_what_was_buffered():
+    from pamoja import ladder, loopback, sync
+
+    async def run():
+        broker = loopback.LoopbackBroker()
+        listener = broker.link()
+        await listener.connect()
+        await listener.subscribe("sensors/1")
+
+        offline = ladder.Ladder(sync.Store.memory())
+        await offline.send("sensors/1", b"one")
+        await offline.send("sensors/1", b"two")
+
+        # The link comes back.
+        await offline.rung(broker.rung())
+        await offline.connect()
+
+        assert await offline.flush() == 2
+        assert await offline.buffered() == 0
+
+    asyncio.run(run())
+
+
+def test_a_spent_transport_cannot_be_added_twice():
+    from pamoja import ladder, loopback, sync, transport
+
+    async def run():
+        broker = loopback.LoopbackBroker()
+        rung = broker.rung()
+        assert rung.is_available is True
+
+        rungs = ladder.Ladder(sync.Store.memory())
+        await rungs.rung(rung)
+        assert rung.is_available is False
+
+        with pytest.raises(PamojaError):
+            await rungs.rung(rung)
+
+        # A wrapper consumes it the same way.
+        wrapped = transport.Transport.faulty(broker.rung(), 1)
+        assert wrapped.is_available is True
+
+    asyncio.run(run())
+
+
+def test_every_subscriber_sees_a_published_event():
+    from pamoja import bus
+
+    async def run():
+        hub = bus.EventBus(8)
+        first = await hub.subscribe()
+        second = await hub.subscribe()
+
+        await hub.publish(b"battery.low")
+
+        assert await first.next_event() == b"battery.low"
+        assert await second.next_event() == b"battery.low"
+
+    asyncio.run(run())
+
+
+def test_simulated_devices_run_without_hardware():
+    from pamoja import sim
+
+    async def run():
+        # The same seed gives the same run, so a test can assert on it.
+        first = sim.SimulatedSensor(20.0, drift_per_read=0.5, noise=1.0, seed=42)
+        second = sim.SimulatedSensor(20.0, drift_per_read=0.5, noise=1.0, seed=42)
+        for _ in range(5):
+            assert await first.read() == await second.read()
+
+        replay = sim.Replay([21.0, 21.5, 22.0], repeating=True)
+        for _ in range(2):
+            for want in (21.0, 21.5, 22.0):
+                assert await replay.read() == pytest.approx(want)
+
+        actuator = sim.RecordingActuator()
+        for command in (0.0, 0.5, 1.0):
+            await actuator.apply(command)
+        assert await actuator.commands() == pytest.approx([0.0, 0.5, 1.0])
+
+        robot = sim.SimulatedRobot(1.0)
+        await robot.apply(vx=1.0)
+        pose = await robot.pose()
+        assert pose.x == pytest.approx(1.0, abs=1e-5), "one second at one metre a second"
+        assert pose.y == pytest.approx(0.0, abs=1e-5)
+
+    asyncio.run(run())

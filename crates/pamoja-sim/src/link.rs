@@ -122,7 +122,7 @@ impl<T> DegradedLink<T> {
     }
 }
 
-impl<T: Transport> Transport for DegradedLink<T> {
+impl<T: Transport + Send> Transport for DegradedLink<T> {
     async fn connect(&mut self) -> Result<()> {
         self.inner.connect().await
     }

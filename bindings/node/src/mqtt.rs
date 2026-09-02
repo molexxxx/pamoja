@@ -74,18 +74,8 @@ impl MqttClient {
     /// Creates a disconnected client from the given options.
     #[napi(constructor)]
     pub fn new(options: MqttClientOptions) -> Self {
-        let mut config = MqttConfig::new(options.client_id, options.host, options.port);
-        if let Some(secs) = options.keep_alive_secs {
-            config = config.keep_alive(Duration::from_secs(u64::from(secs)));
-        }
-        if let Some(capacity) = options.capacity {
-            config = config.capacity(capacity as usize);
-        }
-        if let Some(qos) = options.qos {
-            config = config.qos(qos.into());
-        }
         Self {
-            inner: Arc::new(Mutex::new(MqttTransport::new(config))),
+            inner: Arc::new(Mutex::new(MqttTransport::new(settings(options)))),
         }
     }
 
@@ -149,4 +139,22 @@ impl MqttClient {
 /// Maps a core error onto a napi error so it surfaces as a rejected promise.
 fn to_napi(err: Error) -> napi::Error {
     napi::Error::from_reason(err.to_string())
+}
+
+/// Reads the broker settings an options object describes.
+///
+/// Shared with the composable transport, so a client and a ladder rung read the
+/// same fields the same way.
+pub(crate) fn settings(options: MqttClientOptions) -> MqttConfig {
+    let mut config = MqttConfig::new(options.client_id, options.host, options.port);
+    if let Some(secs) = options.keep_alive_secs {
+        config = config.keep_alive(Duration::from_secs(u64::from(secs)));
+    }
+    if let Some(capacity) = options.capacity {
+        config = config.capacity(capacity as usize);
+    }
+    if let Some(qos) = options.qos {
+        config = config.qos(qos.into());
+    }
+    config
 }

@@ -24,6 +24,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "autocfg"
+version = "1.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
+
+[[package]]
 name = "bitflags"
 version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -116,6 +122,32 @@ name = "cmov"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
+
+[[package]]
+name = "coap-lite"
+version = "0.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87d56a0c1bcd331e7758fd3dd95ed7dd87d118a3b7dc57d60332e17bc97c3f91"
+dependencies = [
+ "coap-message 0.2.3",
+ "coap-message 0.3.7",
+ "lru_time_cache",
+]
+
+[[package]]
+name = "coap-message"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7cc888e15f6be910b58fda4f056f673f58fb9348ea45da014283a14e6d2b58ec"
+
+[[package]]
+name = "coap-message"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5716ce4b1742dcb19c3a0afa4837a7052b4a7f13a2bd71cd28a05e90877377d4"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "convert_case"
@@ -431,6 +463,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "953f07c43838f8e6f9758cab68bf5bed85465e7587ebe0b823f1bcd81978ad3a"
 
 [[package]]
+name = "lru_time_cache"
+version = "0.11.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9106e1d747ffd48e6be5bb2d97fa706ed25b144fbee4d5c02eae110cd8d6badd"
+
+[[package]]
 name = "memchr"
 version = "2.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -513,6 +551,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
 
 [[package]]
+name = "num-traits"
+version = "0.2.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
 name = "pamoja-actuators"
 version = "0.1.14"
 
@@ -526,8 +573,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pamoja-bus"
+version = "0.1.14"
+dependencies = [
+ "pamoja-core",
+ "tokio",
+]
+
+[[package]]
 name = "pamoja-can"
 version = "0.1.14"
+
+[[package]]
+name = "pamoja-coap"
+version = "0.1.14"
+dependencies = [
+ "coap-lite",
+ "pamoja-core",
+ "tokio",
+]
 
 [[package]]
 name = "pamoja-codec"
@@ -552,6 +616,21 @@ name = "pamoja-kit"
 version = "0.1.14"
 dependencies = [
  "libm",
+]
+
+[[package]]
+name = "pamoja-ladder"
+version = "0.1.14"
+dependencies = [
+ "pamoja-core",
+]
+
+[[package]]
+name = "pamoja-loopback"
+version = "0.1.14"
+dependencies = [
+ "pamoja-core",
+ "tokio",
 ]
 
 [[package]]
@@ -591,11 +670,15 @@ dependencies = [
  "napi-derive",
  "pamoja-actuators",
  "pamoja-audit",
+ "pamoja-bus",
  "pamoja-can",
+ "pamoja-coap",
  "pamoja-codec",
  "pamoja-core",
  "pamoja-gpio",
  "pamoja-kit",
+ "pamoja-ladder",
+ "pamoja-loopback",
  "pamoja-lora",
  "pamoja-lorawan",
  "pamoja-mesh",
@@ -607,6 +690,8 @@ dependencies = [
  "pamoja-sensors",
  "pamoja-serial",
  "pamoja-session",
+ "pamoja-sim",
+ "pamoja-sync",
  "pamoja-telemetry",
  "pamoja-update",
  "tokio",
@@ -645,6 +730,21 @@ dependencies = [
  "hmac",
  "sha2",
  "x25519-dalek",
+]
+
+[[package]]
+name = "pamoja-sim"
+version = "0.1.14"
+dependencies = [
+ "pamoja-core",
+ "pamoja-kit",
+]
+
+[[package]]
+name = "pamoja-sync"
+version = "0.1.14"
+dependencies = [
+ "pamoja-core",
 ]
 
 [[package]]

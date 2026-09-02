@@ -8,36 +8,19 @@
 //! mutex, mirroring the Node and Python bindings so behavior matches across
 //! languages.
 
-use std::ffi::{c_char, CStr, CString};
+use std::ffi::{c_char, CString};
 use std::future::Future;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::ptr;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
 
 use pamoja_core::{Error, Transport};
 use pamoja_mqtt::{MqttConfig, MqttTransport, QualityOfService};
 
-use crate::{read_bytes, set_last_error, PamojaStatus};
-
-/// The process-wide runtime that drives every blocking MQTT call.
-static RUNTIME: OnceLock<Runtime> = OnceLock::new();
-
-/// Returns the shared Tokio runtime, building it on first use.
-///
-/// A multi-threaded runtime is required so the background event loop spawned by
-/// [`MqttTransport`] keeps running after a `block_on` call returns.
-fn runtime() -> &'static Runtime {
-    RUNTIME.get_or_init(|| {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .expect("build the pamoja tokio runtime")
-    })
-}
+use crate::{read_bytes, read_str, runtime, set_last_error, PamojaStatus};
 
 /// MQTT delivery guarantee, mirroring the protocol's quality-of-service levels.
 // The shared `Once` suffix is the protocol's own vocabulary; renaming would
@@ -115,13 +98,34 @@ pub unsafe extern "C" fn pamoja_mqtt_client_new(
         set_last_error("config must not be null".to_owned());
         return ptr::null_mut();
     }
+    let Some(settings) = mqtt_settings(config) else {
+        return ptr::null_mut();
+    };
+
+    let client = PamojaMqttClient {
+        inner: Arc::new(Mutex::new(MqttTransport::new(settings))),
+    };
+    Box::into_raw(Box::new(client))
+}
+
+/// Reads the broker settings a config describes.
+///
+/// Shared with the composable transport handle, so a client and a ladder rung
+/// read the same fields the same way.
+///
+/// # Safety
+///
+/// `config` must point to a valid [`PamojaMqttConfig`] whose `client_id` and
+/// `host` are valid null-terminated UTF-8 strings for the duration of the call,
+/// or be null.
+pub(crate) unsafe fn mqtt_settings(config: *const PamojaMqttConfig) -> Option<MqttConfig> {
+    if config.is_null() {
+        set_last_error("config must not be null".to_owned());
+        return None;
+    }
     let config = &*config;
-    let Some(client_id) = read_str(config.client_id, "client_id") else {
-        return ptr::null_mut();
-    };
-    let Some(host) = read_str(config.host, "host") else {
-        return ptr::null_mut();
-    };
+    let client_id = read_str(config.client_id, "client_id")?;
+    let host = read_str(config.host, "host")?;
 
     let mut settings = MqttConfig::new(client_id, host, config.port);
     if config.keep_alive_secs != 0 {
@@ -130,12 +134,7 @@ pub unsafe extern "C" fn pamoja_mqtt_client_new(
     if config.capacity != 0 {
         settings = settings.capacity(config.capacity as usize);
     }
-    settings = settings.qos(config.qos.into());
-
-    let client = PamojaMqttClient {
-        inner: Arc::new(Mutex::new(MqttTransport::new(settings))),
-    };
-    Box::into_raw(Box::new(client))
+    Some(settings.qos(config.qos.into()))
 }
 
 /// Connects to the broker and starts the background event loop.
@@ -436,26 +435,6 @@ unsafe fn client_handle<'a>(client: *mut PamojaMqttClient) -> Option<&'a PamojaM
         None
     } else {
         Some(&*client)
-    }
-}
-
-/// Borrows a C string argument as `&str`, recording an error on null or non-UTF-8.
-///
-/// # Safety
-///
-/// `ptr` must be a valid null-terminated string for the duration of the call, or
-/// null.
-unsafe fn read_str<'a>(ptr: *const c_char, name: &str) -> Option<&'a str> {
-    if ptr.is_null() {
-        set_last_error(format!("{name} must not be null"));
-        return None;
-    }
-    match CStr::from_ptr(ptr).to_str() {
-        Ok(value) => Some(value),
-        Err(_) => {
-            set_last_error(format!("{name} must be valid UTF-8"));
-            None
-        }
     }
 }
 

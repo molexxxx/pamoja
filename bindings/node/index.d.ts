@@ -85,6 +85,27 @@ export declare class Calibration {
   apply(raw: number): number
 }
 
+/** A CoAP endpoint. */
+export declare class CoapClient {
+  /** Creates a disconnected endpoint from the given settings. */
+  constructor(options: CoapClientOptions)
+  /** Binds the local socket so the endpoint can carry traffic. */
+  connect(): Promise<void>
+  /** Sends a payload to a resource path. */
+  send(topic: string, payload: Buffer): Promise<void>
+  /** Observes a resource path, so messages published to it reach `recv`. */
+  subscribe(topic: string): Promise<void>
+  /**
+   * Waits for the next message on an observed path, or `null` once the
+   * endpoint is closed.
+   */
+  recv(): Promise<TransportMessage | null>
+  /** Whether the local socket is bound. */
+  isConnected(): Promise<boolean>
+  /** Releases the socket the endpoint holds. */
+  disconnect(): Promise<void>
+}
+
 /** Reassembles whole COBS frames from the chunks a serial port delivers. */
 export declare class CobsDecoder {
   /** Creates an empty decoder, ready for the first chunk. */
@@ -151,6 +172,34 @@ export declare class DutyCycle {
   get fraction(): number
 }
 
+/**
+ * One endpoint on an event bus.
+ *
+ * An endpoint both publishes and receives. Each subscriber needs its own, taken
+ * with `subscribe`, because an endpoint only sees events published after it
+ * existed.
+ */
+export declare class EventBus {
+  /**
+   * Creates an event bus.
+   *
+   * @param capacity - how many events a slow subscriber may fall behind
+   *   before it starts missing them.
+   */
+  constructor(capacity: number)
+  /**
+   * Takes another endpoint on the same bus.
+   *
+   * The new endpoint sees events published from now on, not those already
+   * sent, so subscribe before publishing anything it needs to see.
+   */
+  subscribe(): Promise<EventBus>
+  /** Publishes an event to every subscriber. */
+  publish(event: Buffer): Promise<void>
+  /** Waits for the next event on this endpoint, or `null` once the bus closes. */
+  next(): Promise<Buffer | null>
+}
+
 /** Keeps a tracked point inside an area, and notices when it leaves. */
 export declare class Geofence {
   /** Creates a circular fence of `radiusM` metres around `center`. */
@@ -186,6 +235,81 @@ export declare class Kalman {
   update(reading: number): number
   /** Returns the current estimate without folding in a reading. */
   estimate(): number
+}
+
+/** An ordered set of transports backed by an offline buffer. */
+export declare class Ladder {
+  /**
+   * Creates a ladder with no rungs, buffering into a store.
+   *
+   * The store is consumed: the ladder owns it from here on.
+   */
+  constructor(store: Store)
+  /**
+   * Adds a rung, which is tried after the rungs already added.
+   *
+   * Add the cheapest, most-preferred link first and the costliest fallback
+   * last, because a send takes the first rung that accepts it. The transport
+   * is consumed.
+   */
+  rung(transport: Transport): Promise<void>
+  /**
+   * Connects every rung, so a send can be tried against each in turn.
+   *
+   * A rung that will not connect is left in the ladder: it may come back, and
+   * a send simply falls through it until it does.
+   */
+  connect(): Promise<void>
+  /**
+   * Sends a payload, falling through the rungs and buffering if none take it.
+   *
+   * Buffering is a success, not a failure: it is what the ladder exists to do.
+   */
+  send(topic: string, payload: Buffer): Promise<Delivery>
+  /**
+   * Replays the buffer over the rungs, oldest message first, and reports how
+   * many went out.
+   */
+  flush(): Promise<number>
+  /** How many messages are waiting in the buffer. */
+  buffered(): Promise<number>
+}
+
+/**
+ * An in-process broker.
+ *
+ * Every transport built from one broker shares its traffic, so a message one
+ * publishes reaches the others that subscribed to the topic.
+ */
+export declare class LoopbackBroker {
+  /** Creates a broker with no traffic. */
+  constructor()
+  /** Creates a link to this broker, for driving directly. */
+  link(): LoopbackTransport
+  /**
+   * Creates a link to this broker as a transport, for composing into a
+   * ladder or a wrapper.
+   */
+  rung(): Transport
+}
+
+/** One in-process link to a broker. */
+export declare class LoopbackTransport {
+  /** Marks this link connected so it will carry traffic. */
+  connect(): Promise<void>
+  /** Publishes a payload to a topic on the broker. */
+  send(topic: string, payload: Buffer): Promise<void>
+  /** Subscribes this link to a topic. */
+  subscribe(topic: string): Promise<void>
+  /**
+   * Waits for the next message on a subscribed topic, or `null` once the link
+   * is closed.
+   */
+  recv(): Promise<TransportMessage | null>
+  /** Whether this link is connected. */
+  isConnected(): Promise<boolean>
+  /** Marks this link disconnected, so sends over it fail. */
+  disconnect(): Promise<void>
 }
 
 /** The root credentials over-the-air activation is built on. */
@@ -340,6 +464,37 @@ export declare class Ramp {
   set(value: number): void
 }
 
+/** An actuator that records every command instead of acting on one. */
+export declare class RecordingActuatorHandle {
+  /** Creates an actuator with nothing recorded yet. */
+  constructor()
+  /** Applies a command, which is recorded rather than acted on. */
+  apply(command: number): Promise<void>
+  /** The commands recorded so far, oldest first. */
+  commands(): Promise<Array<number>>
+  /** How many commands have been recorded. */
+  length(): Promise<number>
+}
+
+/**
+ * A sensor that reads back a recorded series.
+ *
+ * This is how a caller replays a real capture, so a test asks what the code
+ * does with readings that actually happened rather than ones it invented.
+ */
+export declare class Replay {
+  /**
+   * Creates a replay over a recorded series.
+   *
+   * @param readings - the series to read back.
+   * @param repeating - start again at the beginning once exhausted, rather
+   *   than holding the last reading.
+   */
+  constructor(readings: Array<number>, repeating?: boolean | undefined | null)
+  /** Takes the next reading. */
+  read(): Promise<number>
+}
+
 /**
  * Records telemetry events, ships the ones worth their bytes, and counts them
  * all.
@@ -461,6 +616,36 @@ export declare class Session {
   open(sealed: SealedMessage, aad?: Buffer | undefined | null): Buffer
 }
 
+/** A robot that moves only in arithmetic. */
+export declare class SimulatedRobot {
+  /**
+   * Creates a robot at a starting pose.
+   *
+   * @param dt - the seconds each command advances it.
+   * @param start - where it begins, defaulting to the origin.
+   */
+  constructor(dt: number, start?: Pose | undefined | null)
+  /** Drives the robot for one time step. */
+  apply(command: Twist): Promise<void>
+  /** Where the robot has got to. */
+  pose(): Promise<Pose>
+}
+
+/** A sensor that invents plausible readings. */
+export declare class SimulatedSensor {
+  /**
+   * Creates a sensor that reads around a baseline.
+   *
+   * @param baseline - the value it reads before drift and noise.
+   * @param driftPerRead - how much the baseline moves each read.
+   * @param noise - the amplitude of the wobble around it.
+   * @param seed - the seed for that wobble, so a run repeats.
+   */
+  constructor(baseline: number, driftPerRead?: number | undefined | null, noise?: number | undefined | null, seed?: number | undefined | null)
+  /** Takes the next reading. */
+  read(): Promise<number>
+}
+
 /** Reassembles whole SLIP frames from the chunks a serial port delivers. */
 export declare class SlipDecoder {
   /** Creates an empty decoder, ready for the first chunk. */
@@ -501,6 +686,40 @@ export declare class Stepper {
   get steps(): number
 }
 
+/**
+ * A store-and-forward buffer.
+ *
+ * Handing a store to a ladder consumes it, because the ladder owns it from then
+ * on. A consumed store is emptied rather than left aliasing what now belongs to
+ * the ladder, so using one twice throws.
+ */
+export declare class Store {
+  /**
+   * Creates a buffer held in memory.
+   *
+   * @param capacity - the most records to hold, or omitted for no bound. A
+   *   full store refuses the next append rather than dropping anything, so a
+   *   record is never lost without the caller being told.
+   */
+  static memory(capacity?: number | undefined | null): Store
+  /**
+   * Opens a buffer backed by a directory, so it survives a restart.
+   *
+   * @param dir - the directory to hold records in; it is created if missing.
+   */
+  static file(dir: string): Store
+  /** Adds a record to the end of the buffer. */
+  append(record: Buffer): Promise<void>
+  /** Reads the oldest record without removing it, or `null` when empty. */
+  peek(): Promise<Buffer | null>
+  /** Removes and returns the oldest record, or `null` when empty. */
+  pop(): Promise<Buffer | null>
+  /** Whether this store is still holdable, or has been given to a ladder. */
+  get isAvailable(): boolean
+  /** How many records the buffer holds. */
+  len(): Promise<number>
+}
+
 /** Notices a step change between successive readings, such as a burst pipe. */
 export declare class Surge {
   /** Creates a detector for rises of at least `limit` between readings. */
@@ -521,6 +740,40 @@ export declare class Thermostat {
   update(reading: number): boolean
   /** Reports the current output without feeding in a reading. */
   isOn(): boolean
+}
+
+/**
+ * One transport, ready to compose into a ladder or a wrapper.
+ *
+ * Build one with the static factories, then hand it to whatever should own it.
+ * A transport handed on is spent: calling anything on it afterwards throws.
+ */
+export declare class Transport {
+  /** Creates an MQTT transport from broker settings. */
+  static mqtt(options: MqttClientOptions): Transport
+  /** Creates a CoAP transport from endpoint settings. */
+  static coap(options: CoapClientOptions): Transport
+  /**
+   * Wraps a transport so its next `failures` sends fail.
+   *
+   * This is how a caller checks that a ladder falls through to its next rung,
+   * or that a buffer fills, without unplugging anything. The wrapped
+   * transport is consumed.
+   */
+  static faulty(inner: Transport, failures: number): Transport
+  /**
+   * Wraps a transport in a link that loses packets and goes down.
+   *
+   * The wrapped transport is consumed.
+   *
+   * @param inner - the transport to degrade.
+   * @param dropEvery - lose one send in every this many, or 0 to lose none.
+   * @param up - how many sends the link stays up for, or 0 to never go down.
+   * @param down - how many sends it then stays down for.
+   */
+  static degraded(inner: Transport, dropEvery: number, up: number, down: number): Transport
+  /** Whether this transport is still holdable, or has been handed on. */
+  get isAvailable(): boolean
 }
 
 /** Fits a line through recent readings, so a slow drift is visible before it matters. */
@@ -756,6 +1009,22 @@ export declare function canRemoteFrame(id: number, extended: boolean, len: numbe
 /** Converts a CBOR document back into its JSON encoding. */
 export declare function cborToJsonBytes(cbor: Buffer): Buffer
 
+/** The settings a CoAP endpoint is built from. */
+export interface CoapClientOptions {
+  /** The peer hostname or IP address. */
+  host: string
+  /** The peer UDP port, conventionally 5683 for plaintext CoAP. */
+  port: number
+  /** The local address to bind. Defaults to an ephemeral port when omitted. */
+  bind?: string
+  /** Whether requests are acknowledged and retried. Defaults to confirmable. */
+  reliability?: Reliability
+  /** How long to wait for an acknowledgement, in milliseconds. */
+  ackTimeoutMs?: number
+  /** How many times to retransmit an unacknowledged request. */
+  maxRetransmits?: number
+}
+
 /** Reads the payload back out of a COBS frame. */
 export declare function cobsDecode(frame: Buffer): Buffer
 
@@ -801,6 +1070,14 @@ export interface Delegation {
    * epoch, or `0` to never expire.
    */
   expires: number
+}
+
+/** What became of a message handed to a ladder. */
+export declare const enum Delivery {
+  /** A rung took the message and it is on its way. */
+  Sent = 'Sent',
+  /** No rung would take it, so it is in the buffer awaiting a flush. */
+  Buffered = 'Buffered'
 }
 
 /** Returns the great-circle distance between two coordinates, in metres. */
@@ -1442,6 +1719,16 @@ export declare function pinPolarityIsAsserted(polarity: PinPolarity, level: PinL
 /** Returns the physical level that represents a logical state under a polarity. */
 export declare function pinPolarityLevel(polarity: PinPolarity, asserted: boolean): PinLevel
 
+/** Where a robot is and which way it faces. */
+export interface Pose {
+  /** Position along the world x axis, in metres. */
+  x: number
+  /** Position along the world y axis, in metres. */
+  y: number
+  /** Heading from the world x axis, in radians, positive counter-clockwise. */
+  theta: number
+}
+
 /** What a node should be doing at the current state of charge. */
 export declare const enum PowerMode {
   /** Full duty, because the charge is healthy. */
@@ -1487,6 +1774,14 @@ export declare const enum Qos {
   AtLeastOnce = 'AtLeastOnce',
   /** Delivered exactly once via a four-step handshake. */
   ExactlyOnce = 'ExactlyOnce'
+}
+
+/** Whether a CoAP request is acknowledged and retried. */
+export declare const enum Reliability {
+  /** Fire and forget: the request is sent once and not acknowledged. */
+  NonConfirmable = 'NonConfirmable',
+  /** The request is acknowledged, and retransmitted until an ACK arrives. */
+  Confirmable = 'Confirmable'
 }
 
 /**
@@ -1629,6 +1924,24 @@ export declare function stepperStepCount(drive: StepDrive): number
 
 /** Returns how many steps a rotation of `degrees` takes on a given motor. */
 export declare function stepperStepsForDegrees(degrees: number, stepsPerRevolution: number): number
+
+/** A message that arrived on a subscribed topic. */
+export interface TransportMessage {
+  /** The topic it was published to. */
+  topic: string
+  /** The raw payload bytes. */
+  payload: Buffer
+}
+
+/** How fast a robot is asked to move. */
+export interface Twist {
+  /** Forward speed along the x axis. */
+  vx: number
+  /** Leftward speed along the y axis; zero for drives that cannot strafe. */
+  vy: number
+  /** Yaw rate about the z axis, positive counter-clockwise. */
+  omega: number
+}
 
 /** The payload format meaning the payload is the image itself, byte for byte. */
 export const UPDATE_FORMAT_RAW: number

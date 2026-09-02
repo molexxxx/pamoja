@@ -66,16 +66,7 @@ impl MqttClient {
         capacity: Option<u32>,
         qos: Option<String>,
     ) -> PyResult<Self> {
-        let mut config = MqttConfig::new(client_id, host, port);
-        if let Some(secs) = keep_alive_secs {
-            config = config.keep_alive(Duration::from_secs(u64::from(secs)));
-        }
-        if let Some(capacity) = capacity {
-            config = config.capacity(capacity as usize);
-        }
-        if let Some(qos) = qos {
-            config = config.qos(parse_qos(&qos)?);
-        }
+        let config = settings(client_id, host, port, keep_alive_secs, capacity, qos)?;
         Ok(Self {
             inner: Arc::new(Mutex::new(MqttTransport::new(config))),
         })
@@ -161,4 +152,29 @@ fn parse_qos(value: &str) -> PyResult<QualityOfService> {
 /// Maps a core error onto a `PamojaError` so it surfaces as a Python exception.
 fn to_pyerr(err: Error) -> PyErr {
     PamojaError::new_err(err.to_string())
+}
+
+/// Builds the broker settings from the keyword arguments a caller passed.
+///
+/// Shared with the composable transport, so a client and a ladder rung read the
+/// same fields the same way.
+pub(crate) fn settings(
+    client_id: String,
+    host: String,
+    port: u16,
+    keep_alive_secs: Option<u32>,
+    capacity: Option<u32>,
+    qos: Option<String>,
+) -> PyResult<MqttConfig> {
+    let mut config = MqttConfig::new(client_id, host, port);
+    if let Some(secs) = keep_alive_secs {
+        config = config.keep_alive(Duration::from_secs(u64::from(secs)));
+    }
+    if let Some(capacity) = capacity {
+        config = config.capacity(capacity as usize);
+    }
+    if let Some(qos) = qos {
+        config = config.qos(parse_qos(&qos)?);
+    }
+    Ok(config)
 }

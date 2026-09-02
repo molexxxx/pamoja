@@ -95,7 +95,7 @@ Adds a rung, lowest-cost first.
 The ladder, for chaining.
 
 ```rust
-fn rung(mut self, transport: impl Transport + 'static) -> Self
+fn rung(mut self, transport: impl Transport + Send + 'static) -> Self
 ```
 
 ### `TransportLadder <S>::connect`
@@ -171,6 +171,11 @@ async fn flush(&mut self) -> Result <usize>
 
 Returns how many messages are currently buffered.
 
+Takes the ladder mutably, like the rest of its surface. Reading through a
+shared borrow would hold one across the await, which would in turn oblige
+every rung to be `Sync` rather than only `Send`, and that is a heavier
+requirement than a transport should have to meet.
+
 **Returns**
 
 The number of records waiting for a [`flush`](Self::flush).
@@ -181,7 +186,7 @@ Returns [`Error::Io`](pamoja_core::Error::Io) if the store length cannot be
 read.
 
 ```rust
-async fn buffered(&self) -> Result <usize>
+async fn buffered(&mut self) -> Result <usize>
 ```
 
 ## License

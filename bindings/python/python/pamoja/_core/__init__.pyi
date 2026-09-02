@@ -15,6 +15,7 @@ __all__ = [
     "BootDecision",
     "Calibration",
     "CanFrame",
+    "CoapClient",
     "CobsDecoder",
     "Debounce",
     "Delegation",
@@ -22,11 +23,15 @@ __all__ = [
     "DeviceIdentity",
     "Ds18b20Reading",
     "DutyCycle",
+    "EventBus",
     "ForwardDecision",
     "Geofence",
     "ImageVerifier",
     "J1939Message",
     "Kalman",
+    "Ladder",
+    "LoopbackBroker",
+    "LoopbackTransport",
     "LoraLink",
     "LorawanDevice",
     "LorawanGrant",
@@ -38,26 +43,34 @@ __all__ = [
     "Manifest",
     "Median",
     "MeshFrame",
+    "Message",
     "ModbusFrame",
     "MqttClient",
     "MqttMessage",
     "Pid",
+    "Pose",
     "PowerPlan",
     "Progress",
+    "PyTransport",
     "Quantizer",
     "Ramp",
+    "RecordingActuatorHandle",
+    "Replay",
     "Reporter",
     "Route",
     "Router",
     "SealedMessage",
     "SeenPackets",
     "Session",
+    "SimulatedRobot",
+    "SimulatedSensor",
     "SlipDecoder",
     "SlotRecord",
     "Smoother",
     "Snapshot",
     "SpiClock",
     "Stepper",
+    "Store",
     "Surge",
     "Thermostat",
     "Trend",
@@ -503,6 +516,40 @@ class CanFrame:
         """
 
 @typing.final
+class CoapClient:
+    r"""
+    A CoAP endpoint.
+    """
+    def __new__(cls, *, host: builtins.str, port: builtins.int, bind: typing.Optional[builtins.str] = None, reliability: typing.Optional[builtins.str] = None, ack_timeout_ms: typing.Optional[builtins.int] = None, max_retransmits: typing.Optional[builtins.int] = None) -> CoapClient:
+        r"""
+        Creates a disconnected endpoint from the given settings.
+        """
+    def connect(self) -> typing.Any:
+        r"""
+        Binds the local socket so the endpoint can carry traffic.
+        """
+    def send(self, topic: builtins.str, payload: typing.Sequence[builtins.int]) -> typing.Any:
+        r"""
+        Sends a payload to a resource path.
+        """
+    def subscribe(self, topic: builtins.str) -> typing.Any:
+        r"""
+        Observes a resource path, so messages published to it reach `recv`.
+        """
+    def recv(self) -> typing.Any:
+        r"""
+        Waits for the next message on an observed path, or `None` once closed.
+        """
+    def is_connected(self) -> typing.Any:
+        r"""
+        Whether the local socket is bound.
+        """
+    def disconnect(self) -> typing.Any:
+        r"""
+        Releases the socket the endpoint holds.
+        """
+
+@typing.final
 class CobsDecoder:
     r"""
     Reassembles whole COBS frames from the chunks a serial port delivers.
@@ -686,6 +733,38 @@ class DutyCycle:
         """
 
 @typing.final
+class EventBus:
+    r"""
+    One endpoint on an event bus.
+    
+    An endpoint both publishes and receives. Each subscriber needs its own, taken
+    with `subscribe`, because an endpoint only sees events published after it
+    existed.
+    """
+    def __new__(cls, capacity: builtins.int = 64) -> EventBus:
+        r"""
+        Creates an event bus.
+        
+        `capacity` is how many events a slow subscriber may fall behind before it
+        starts missing them.
+        """
+    def subscribe(self) -> typing.Any:
+        r"""
+        Takes another endpoint on the same bus.
+        
+        The new endpoint sees events published from now on, not those already
+        sent, so subscribe before publishing anything it needs to see.
+        """
+    def publish(self, event: typing.Sequence[builtins.int]) -> typing.Any:
+        r"""
+        Publishes an event to every subscriber.
+        """
+    def next_event(self) -> typing.Any:
+        r"""
+        Waits for the next event on this endpoint, or `None` once the bus closes.
+        """
+
+@typing.final
 class ForwardDecision:
     r"""
     A routing decision, and the neighbour it names when there is one.
@@ -796,6 +875,101 @@ class Kalman:
     def update(self, reading: builtins.float) -> builtins.float:
         r"""
         Folds a reading in and returns the new estimate.
+        """
+
+@typing.final
+class Ladder:
+    r"""
+    An ordered set of transports backed by an offline buffer.
+    """
+    def __new__(cls, store: Store) -> Ladder:
+        r"""
+        Creates a ladder with no rungs, buffering into a store.
+        
+        The store is consumed: the ladder owns it from here on.
+        """
+    def rung(self, transport: PyTransport) -> typing.Any:
+        r"""
+        Adds a rung, which is tried after the rungs already added.
+        
+        Add the cheapest, most-preferred link first and the costliest fallback
+        last, because a send takes the first rung that accepts it. The transport
+        is consumed.
+        """
+    def connect(self) -> typing.Any:
+        r"""
+        Connects every rung, so a send can be tried against each in turn.
+        
+        A rung that will not connect is left in the ladder: it may come back, and
+        a send simply falls through it until it does.
+        """
+    def send(self, topic: builtins.str, payload: typing.Sequence[builtins.int]) -> typing.Any:
+        r"""
+        Sends a payload, falling through the rungs and buffering if none take it.
+        
+        Returns `"Sent"` or `"Buffered"`. Buffering is a success, not a failure:
+        it is what the ladder exists to do.
+        """
+    def flush(self) -> typing.Any:
+        r"""
+        Replays the buffer over the rungs, oldest message first, and reports how
+        many went out.
+        """
+    def buffered(self) -> typing.Any:
+        r"""
+        How many messages are waiting in the buffer.
+        """
+
+@typing.final
+class LoopbackBroker:
+    r"""
+    An in-process broker.
+    
+    Every transport built from one broker shares its traffic, so a message one
+    publishes reaches the others that subscribed to the topic.
+    """
+    def __new__(cls) -> LoopbackBroker:
+        r"""
+        Creates a broker with no traffic.
+        """
+    def link(self) -> LoopbackTransport:
+        r"""
+        Creates a link to this broker, for driving directly.
+        """
+    def rung(self) -> PyTransport:
+        r"""
+        Creates a link to this broker as a transport, for composing into a ladder
+        or a wrapper.
+        """
+
+@typing.final
+class LoopbackTransport:
+    r"""
+    One in-process link to a broker.
+    """
+    def connect(self) -> typing.Any:
+        r"""
+        Marks this link connected so it will carry traffic.
+        """
+    def send(self, topic: builtins.str, payload: typing.Sequence[builtins.int]) -> typing.Any:
+        r"""
+        Publishes a payload to a topic on the broker.
+        """
+    def subscribe(self, topic: builtins.str) -> typing.Any:
+        r"""
+        Subscribes this link to a topic.
+        """
+    def recv(self) -> typing.Any:
+        r"""
+        Waits for the next message on a subscribed topic, or `None` once closed.
+        """
+    def is_connected(self) -> typing.Any:
+        r"""
+        Whether this link is connected.
+        """
+    def disconnect(self) -> typing.Any:
+        r"""
+        Marks this link disconnected, so sends over it fail.
         """
 
 @typing.final
@@ -1239,6 +1413,26 @@ class MeshFrame:
         """
 
 @typing.final
+class Message:
+    r"""
+    A message that arrived on a subscribed topic.
+    
+    CoAP and the loopback broker both hand back a topic and a payload, so one
+    class serves them rather than a near-identical type per transport.
+    """
+    @property
+    def topic(self) -> builtins.str:
+        r"""
+        The topic it was published to.
+        """
+    @property
+    def payload(self) -> builtins.list[builtins.int]:
+        r"""
+        The raw payload bytes.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class ModbusFrame:
     r"""
     A received Modbus RTU frame whose CRC has been verified.
@@ -1346,6 +1540,28 @@ class Pid:
         """
 
 @typing.final
+class Pose:
+    r"""
+    Where a robot is and which way it faces.
+    """
+    @property
+    def x(self) -> builtins.float:
+        r"""
+        Position along the world x axis, in metres.
+        """
+    @property
+    def y(self) -> builtins.float:
+        r"""
+        Position along the world y axis, in metres.
+        """
+    @property
+    def theta(self) -> builtins.float:
+        r"""
+        Heading from the world x axis, in radians, positive counter-clockwise.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class PowerPlan:
     r"""
     The work intervals a node uses in each mode, and where the modes change.
@@ -1403,6 +1619,46 @@ class Progress:
         """
 
 @typing.final
+class PyTransport:
+    r"""
+    One transport, ready to compose into a ladder or a wrapper.
+    
+    Build one with the module constructors, then hand it to whatever should own
+    it. A transport handed on is spent: using it afterwards raises.
+    """
+    @property
+    def is_available(self) -> builtins.bool:
+        r"""
+        Whether this transport is still holdable, or has been handed on.
+        """
+    @staticmethod
+    def mqtt(*, client_id: builtins.str, host: builtins.str, port: builtins.int, keep_alive_secs: typing.Optional[builtins.int] = None, capacity: typing.Optional[builtins.int] = None, qos: typing.Optional[builtins.str] = None) -> PyTransport:
+        r"""
+        Creates an MQTT transport from broker settings.
+        """
+    @staticmethod
+    def coap(*, host: builtins.str, port: builtins.int, bind: typing.Optional[builtins.str] = None, reliability: typing.Optional[builtins.str] = None, ack_timeout_ms: typing.Optional[builtins.int] = None, max_retransmits: typing.Optional[builtins.int] = None) -> PyTransport:
+        r"""
+        Creates a CoAP transport from endpoint settings.
+        """
+    @staticmethod
+    def faulty(inner: PyTransport, failures: builtins.int) -> PyTransport:
+        r"""
+        Wraps a transport so its next `failures` sends fail.
+        
+        This is how a caller checks that a ladder falls through to its next rung,
+        or that a buffer fills, without unplugging anything. The wrapped
+        transport is consumed.
+        """
+    @staticmethod
+    def degraded(inner: PyTransport, drop_every: builtins.int = 0, up: builtins.int = 0, down: builtins.int = 0) -> PyTransport:
+        r"""
+        Wraps a transport in a link that loses packets and goes down.
+        
+        The wrapped transport is consumed.
+        """
+
+@typing.final
 class Quantizer:
     r"""
     Packs float readings to a fixed precision for a metered link.
@@ -1444,6 +1700,41 @@ class Ramp:
     def set(self, value: builtins.float) -> None:
         r"""
         Forces the value without rate limiting.
+        """
+
+@typing.final
+class RecordingActuatorHandle:
+    r"""
+    An actuator that records every command instead of acting on one.
+    """
+    def __new__(cls) -> RecordingActuatorHandle:
+        r"""
+        Creates an actuator with nothing recorded yet.
+        """
+    def apply(self, command: builtins.float) -> typing.Any:
+        r"""
+        Applies a command, which is recorded rather than acted on.
+        """
+    def commands(self) -> typing.Any:
+        r"""
+        The commands recorded so far, oldest first.
+        """
+
+@typing.final
+class Replay:
+    r"""
+    A sensor that reads back a recorded series.
+    
+    This is how a caller replays a real capture, so a test asks what the code
+    does with readings that actually happened rather than ones it invented.
+    """
+    def __new__(cls, readings: typing.Sequence[builtins.float], *, repeating: builtins.bool = False) -> Replay:
+        r"""
+        Creates a replay over a recorded series.
+        """
+    def read(self) -> typing.Any:
+        r"""
+        Takes the next reading.
         """
 
 @typing.final
@@ -1659,6 +1950,38 @@ class Session:
         """
 
 @typing.final
+class SimulatedRobot:
+    r"""
+    A robot that moves only in arithmetic.
+    """
+    def __new__(cls, dt: builtins.float, *, x: builtins.float = 0.0, y: builtins.float = 0.0, theta: builtins.float = 0.0) -> SimulatedRobot:
+        r"""
+        Creates a robot at a starting pose.
+        """
+    def apply(self, *, vx: builtins.float = 0.0, vy: builtins.float = 0.0, omega: builtins.float = 0.0) -> typing.Any:
+        r"""
+        Drives the robot for one time step.
+        """
+    def pose(self) -> typing.Any:
+        r"""
+        Where the robot has got to.
+        """
+
+@typing.final
+class SimulatedSensor:
+    r"""
+    A sensor that invents plausible readings.
+    """
+    def __new__(cls, baseline: builtins.float, *, drift_per_read: typing.Optional[builtins.float] = None, noise: typing.Optional[builtins.float] = None, seed: typing.Optional[builtins.int] = None) -> SimulatedSensor:
+        r"""
+        Creates a sensor that reads around a baseline.
+        """
+    def read(self) -> typing.Any:
+        r"""
+        Takes the next reading.
+        """
+
+@typing.final
 class SlipDecoder:
     r"""
     Reassembles whole SLIP frames from the chunks a serial port delivers.
@@ -1821,6 +2144,50 @@ class Stepper:
         Advances one step and returns the four-bit coil pattern to apply.
         
         The most significant of the four bits is the first coil.
+        """
+
+@typing.final
+class Store:
+    r"""
+    A store-and-forward buffer.
+    
+    Handing a store to a ladder consumes it, because the ladder owns it from then
+    on. A consumed store is emptied rather than left aliasing what now belongs to
+    the ladder, so using one twice raises.
+    """
+    @property
+    def is_available(self) -> builtins.bool:
+        r"""
+        Whether this store is still holdable, or has been given to a ladder.
+        """
+    @staticmethod
+    def memory(capacity: builtins.int = 0) -> Store:
+        r"""
+        Creates a buffer held in memory.
+        
+        A full store refuses the next append rather than dropping anything, so a
+        record is never lost without the caller being told.
+        """
+    @staticmethod
+    def file(dir: builtins.str) -> Store:
+        r"""
+        Opens a buffer backed by a directory, so it survives a restart.
+        """
+    def append(self, record: typing.Sequence[builtins.int]) -> typing.Any:
+        r"""
+        Adds a record to the end of the buffer.
+        """
+    def peek(self) -> typing.Any:
+        r"""
+        Reads the oldest record without removing it, or `None` when empty.
+        """
+    def pop(self) -> typing.Any:
+        r"""
+        Removes and returns the oldest record, or `None` when empty.
+        """
+    def len(self) -> typing.Any:
+        r"""
+        How many records the buffer holds.
         """
 
 @typing.final
