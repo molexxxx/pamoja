@@ -30,6 +30,13 @@ crate builds and verifies exactly that, with no radio and no allocation:
 - [`Device`] - the root credentials for over-the-air activation: it builds the
   join-request a device broadcasts and turns the network's join-accept into a ready
   [`Session`], deriving the session keys the spec prescribes.
+- [`JoinRequest`] and [`JoinGrant`] - the other half of that exchange, so a deployment
+  can run its own network instead of joining someone else's: verify the request a
+  device sent, then grant it an address and sign the reply. Both sides derive the same
+  session keys from the same nonces, with no key ever on the air.
+- [`FrameHeader`] - what a frame says about itself before any key is involved: its
+  message type, the device address, and the counter. A receiver holding many sessions
+  reads this first to find the one a frame belongs to, then decodes.
 
 The cryptography is the LoRaWAN construction over AES-128: an AES-CMAC MIC and an
 AES keystream for the payload, with the device address and frame counter folded into
