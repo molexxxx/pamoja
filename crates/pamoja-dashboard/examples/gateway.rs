@@ -9,6 +9,7 @@
 //!
 //! Run: `cargo run -p pamoja-dashboard --example gateway`
 
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
@@ -18,6 +19,34 @@ use pamoja_dashboard::{
     Sensor, Server, State, StateSource, Status, Trend, Viz,
 };
 use pamoja_profile::{Alert, Profile};
+
+/// The variable a service manager provisions the pairing secret through.
+const SECRET_VAR: &str = "PAMOJA_PAIRING_SECRET";
+
+/// Returns the pairing secret to serve with, or `None` to leave control locked.
+///
+/// A pairing code unlocks control of the whole fleet. Showing a generated one is
+/// right at a terminal, where an operator reads it once, and wrong under a
+/// service manager, where stdout is captured into a log that keeps it for anyone
+/// who can read logs. So a gateway that cannot show a code safely serves the
+/// dashboard read-only instead, which is what a server with no pairing secret
+/// already does.
+fn pairing_secret() -> Option<String> {
+    match std::env::var(SECRET_VAR) {
+        Ok(provisioned) if !provisioned.is_empty() => return Some(provisioned),
+        _ => {}
+    }
+
+    let secret = Auth::generate_secret();
+    if std::io::stdout().is_terminal() {
+        println!("gateway: pairing code (unlock control with this): {secret}");
+        return Some(secret);
+    }
+
+    eprintln!("gateway: no terminal to show a pairing code on, so control stays locked.");
+    eprintln!("gateway: set {SECRET_VAR} to run under a service manager with control enabled.");
+    None
+}
 
 // The profile this gateway runs: an irrigation controller, plus a dashboard presentation that
 // teaches the page two elements it would not draw by default - a turbidity gauge and a
@@ -211,14 +240,14 @@ fn main() -> std::process::ExitCode {
         }
     });
 
-    let secret = Auth::generate_secret();
-    println!("gateway: pairing code (unlock control with this): {secret}");
+    let mut server =
+        Server::new(fleet, Assets::Embedded).with_catalog(Catalog::from_profiles(&[&prof]));
+    if let Some(secret) = pairing_secret() {
+        server = server.with_pairing_secret(secret);
+    }
+
     println!("gateway: serving on http://{addr}");
-    match Server::new(fleet, Assets::Embedded)
-        .with_pairing_secret(secret)
-        .with_catalog(Catalog::from_profiles(&[&prof]))
-        .run(&addr)
-    {
+    match server.run(&addr) {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(err) => {
             eprintln!("gateway: could not serve on {addr}: {err}");
