@@ -44,6 +44,7 @@ SensingAndActuation();
 RadioAndReach();
 TrustAndOperation();
 await AsyncTransports();
+ProfilesAndRobotics();
 
 Console.WriteLine("ok");
 
@@ -578,6 +579,91 @@ static void SensingAndActuation()
     }
 
     Assert(anomaly.Check(900f), "a reading far outside the window is flagged");
+}
+
+
+// A profile deciding what a reading calls for, and the naming and encoding rules
+// a robot's graph is addressed by.
+static void ProfilesAndRobotics()
+{
+    const string ChatterHash =
+        "RIHS01_df668c740482bbd48fb39d76a70dfd4bd59db1288021743503259e948f6b1a18";
+
+    using var fridge = Profile.VaccineFridgeMonitor();
+    Assert(fridge.Name == "vaccine-fridge-monitor", "a preset carries its name");
+    Assert(fridge.Control.Kind == ControlKind.Setpoint, "and its control policy");
+    Assert(fridge.Control.Cooling == true, "a fridge cools rather than heats");
+
+    using (Controller control = fridge.Controller())
+    {
+        Reaction warm = control.Evaluate(9.0f);
+        Assert(warm.Actuator == true, "a warm fridge runs the cooler");
+        Assert(warm.Alert?.Kind == AlertKind.OutOfRange, "and 9 C is a spoilage excursion");
+        Assert(Math.Abs((warm.Alert?.Reading ?? 0f) - 9.0f) < 1e-6f, "the alert carries the reading");
+    }
+
+    using (Controller observer = Controller.Monitor())
+    {
+        Reaction seen = observer.Evaluate(21.5f);
+        Assert(seen.Actuator is null, "a monitor drives no output");
+        Assert(seen.Alert is null, "and judges nothing");
+    }
+
+    using var reloaded = Profile.FromJson(fridge.ToJson());
+    Assert(reloaded.Topic == fridge.Topic, "a manifest round-trips");
+    Assert(
+        reloaded.PowerPlan.ActiveUs == fridge.Power.ActiveSecs * 1_000_000,
+        "and its schedule assembles into a governor");
+
+    Assert(Ros2.IsValidName("/robot1/camera_left/image_raw"), "a legal ROS 2 name is accepted");
+    Assert(!Ros2.IsValidName("/2foo"), "a token may not start with a digit");
+    Assert(Ros2.IsFullyQualified("/chatter"), "a leading slash is fully qualified");
+    Assert(
+        Ros2.DdsTopic("/robot1/cmd_vel", EntityKind.Topic) == "rt/robot1/cmd_vel",
+        "a topic takes the rt prefix");
+    Assert(Ros2.PrefixFor(EntityKind.ServiceRequest) == "rq", "a request takes rq");
+    Assert(
+        Ros2.DdsTypeName("std_msgs/msg/String") == "std_msgs::msg::dds_::String_",
+        "an interface type maps onto its DDS name");
+    Assert(Ros2.TypeHashDigest(ChatterHash)?.Length == 32, "a RIHS01 hash carries 32 bytes");
+    Assert(Ros2.TypeHashDigest("not a hash") is null, "and a malformed one carries none");
+    Assert(
+        Ros2.EntityKey(0, "/chatter", "std_msgs/msg/String", ChatterHash)
+            == $"0/chatter/std_msgs::msg::dds_::String_/{ChatterHash}",
+        "an entity key matches the published example");
+
+    var command = new Ros2Twist(new Vector3(1.5, 0.0, 0.0), new Vector3(0.0, 0.0, -0.25));
+    Ros2Twist? decoded = Ros2.TwistFromCdr(Ros2.TwistToCdr(command));
+    Assert(decoded == command, "a twist survives a CDR round trip");
+    Assert(Ros2.TwistFromCdr(Array.Empty<byte>()) is null, "and empty bytes decode to nothing");
+
+    byte[] encoded;
+    using (var writer = new CdrWriter())
+    {
+        writer.WriteUInt32(7);
+        writer.WriteDouble(2.5);
+        writer.WriteInt32(-3);
+        encoded = writer.ToBytes();
+    }
+
+    using (var reader = new CdrReader(encoded))
+    {
+        Assert(reader.ReadUInt32() == 7u, "the first word reads back");
+        Assert(reader.ReadDouble() == 2.5, "an eight-byte field keeps its alignment");
+        Assert(reader.ReadInt32() == -3, "and the field after it is not skewed");
+        Assert(reader.ReadUInt32() is null, "reading past the end yields nothing");
+    }
+
+    Assert(KeyExpression.IsValid("fleet/*/battery"), "a wildcard expression is valid");
+    Assert(
+        KeyExpression.Matches("fleet/*/battery", "fleet/n7/battery"),
+        "and selects a node beneath it");
+    Assert(
+        !KeyExpression.Matches("fleet/*/battery", "fleet/n7/rack/battery"),
+        "but one wildcard spans one segment");
+    Assert(
+        KeyExpression.Canonize("fleet/**/**/battery") == "fleet/**/battery",
+        "a redundant double wildcard canonizes away");
 }
 
 static void Assert(bool condition, string message)
