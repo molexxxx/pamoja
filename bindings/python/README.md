@@ -49,9 +49,10 @@ asyncio.run(main())
 ```
 
 Beyond the transport, the same import carries device identity, the wire codecs,
-and the helper math, each in its own module (`pamoja.security`, `pamoja.codec`,
-`pamoja.kit`) and all re-exported from `pamoja`. The generated low-level contract
-stays available at `pamoja.raw`.
+the helper math, and the field I/O a gateway needs, each in its own module
+(`pamoja.security`, `pamoja.codec`, `pamoja.kit`, `pamoja.serial`,
+`pamoja.modbus`, `pamoja.can`, `pamoja.gpio`) and all reachable from `pamoja`.
+The generated low-level contract stays available at `pamoja.raw`.
 
 ```python
 from pamoja import DeviceIdentity, Smoother, to_cbor
@@ -62,6 +63,20 @@ reading = smoother.update(21.7)
 device = DeviceIdentity.from_seed(seed)
 payload = to_cbor({"c": reading})
 signature = device.sign(payload)
+```
+
+Talking to the wires themselves looks the same way:
+
+```python
+from pamoja import modbus, serial
+
+# Ask an RS485 energy meter for three holding registers.
+port.write(modbus.read_holding_registers(0x11, 0x006B, 3))
+
+# Reassemble whole packets from the chunks the port delivers.
+decoder = serial.SlipDecoder()
+for frame in decoder.feed(port.read(256)):
+    handle(frame)
 ```
 
 `pytest` runs the smoke tests and the cross-language conformance suite, which

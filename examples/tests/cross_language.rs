@@ -8,11 +8,18 @@
 use std::fs;
 use std::path::PathBuf;
 
+use pamoja_can::{dlc_to_len, len_to_dlc, CanId, Frame, J1939Id};
 use pamoja_codec::{cbor_to_json, decode_deltas, encode_deltas, json_to_cbor, Quantizer};
+use pamoja_gpio::i2c::{Address, Direction};
+use pamoja_gpio::pin::{Edge, Level, Polarity};
+use pamoja_gpio::spi::Mode;
 use pamoja_kit::{
     deadband, Boundary, Calibration, Coordinate, Depletion, Geofence, Pid, Smoother, Thermostat,
 };
+use pamoja_modbus::Pdu;
+use pamoja_modbus::{crc16, Adu};
 use pamoja_security::{DeviceIdentity, PublicIdentity, Signature};
+use pamoja_serial::{cobs, slip};
 use serde_json::Value;
 
 /// Loads the committed vectors.
@@ -220,5 +227,335 @@ fn geofence_vectors_match() {
             Boundary::Entered => "Entered",
         };
         assert_eq!(got, want.as_str().expect("a boundary name"));
+    }
+}
+
+#[test]
+fn serial_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["serial"];
+    let payload = unhex(&case["payload"]);
+    let mut framed = [0u8; 64];
+    let mut restored = [0u8; 64];
+
+    let written = slip::encode(&payload, &mut framed).expect("frame the payload");
+    assert_eq!(framed[..written].to_vec(), unhex(&case["slipFrame"]));
+    let read = slip::decode(&framed[..written], &mut restored).expect("read the frame");
+    assert_eq!(restored[..read].to_vec(), payload);
+
+    let written = cobs::encode(&payload, &mut framed).expect("frame the payload");
+    assert_eq!(framed[..written].to_vec(), unhex(&case["cobsFrame"]));
+    let read = cobs::decode(&framed[..written], &mut restored).expect("read the frame");
+    assert_eq!(restored[..read].to_vec(), payload);
+
+    assert_eq!(
+        slip::max_encoded_len(payload.len()),
+        case["slipMaxEncodedLen"].as_u64().expect("a length") as usize
+    );
+    assert_eq!(
+        cobs::max_encoded_len(payload.len()),
+        case["cobsMaxEncodedLen"].as_u64().expect("a length") as usize
+    );
+
+    assert!(
+        slip::decode(&unhex(&case["corruptSlipFrame"]), &mut restored).is_err(),
+        "a frame with a bad escape must be refused"
+    );
+
+    let stream = &case["slipStream"];
+    let mut decoder: slip::SlipDecoder<64> = slip::SlipDecoder::new();
+    let mut frames: Vec<Vec<u8>> = Vec::new();
+    let mut discarded = 0u64;
+    for &byte in &unhex(&stream["bytes"]) {
+        match decoder.push(byte) {
+            Ok(Some(frame)) => frames.push(frame.to_vec()),
+            Ok(None) => {}
+            Err(_) => discarded += 1,
+        }
+    }
+    let want: Vec<Vec<u8>> = stream["frames"]
+        .as_array()
+        .expect("an array")
+        .iter()
+        .map(unhex)
+        .collect();
+    assert_eq!(frames, want, "the good frames survive the corrupt one");
+    assert_eq!(discarded, stream["discarded"].as_u64().expect("a count"));
+}
+
+#[test]
+fn modbus_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["modbus"];
+
+    let read = &case["readHoldingRegisters"];
+    assert_eq!(
+        Pdu::read_holding_registers(
+            read["start"].as_u64().expect("an address") as u16,
+            read["count"].as_u64().expect("a count") as u16,
+        )
+        .to_adu(read["address"].as_u64().expect("an address") as u8)
+        .as_bytes()
+        .to_vec(),
+        unhex(&read["frame"])
+    );
+
+    let crc = &case["crc"];
+    assert_eq!(
+        u64::from(crc16(&unhex(&crc["data"]))),
+        crc["value"].as_u64().expect("a checksum")
+    );
+
+    let reply = &case["reply"];
+    let parsed = Adu::parse(&unhex(&reply["frame"])).expect("parse the reply");
+    assert_eq!(
+        u64::from(parsed.address()),
+        reply["address"].as_u64().expect("an address")
+    );
+    let registers: Vec<u64> = parsed
+        .response()
+        .registers()
+        .expect("read the registers")
+        .map(u64::from)
+        .collect();
+    let want: Vec<u64> = reply["registers"]
+        .as_array()
+        .expect("an array")
+        .iter()
+        .map(|entry| entry.as_u64().expect("a register"))
+        .collect();
+    assert_eq!(registers, want);
+
+    // Registers above 0x7FFF, which catch a binding that reads them as signed.
+    let high = &case["highRegisterReply"];
+    let parsed = Adu::parse(&unhex(&high["frame"])).expect("parse the reply");
+    let registers: Vec<u64> = parsed
+        .response()
+        .registers()
+        .expect("read the registers")
+        .map(u64::from)
+        .collect();
+    let want: Vec<u64> = high["registers"]
+        .as_array()
+        .expect("an array")
+        .iter()
+        .map(|entry| entry.as_u64().expect("a register"))
+        .collect();
+    assert_eq!(registers, want);
+
+    let bits = &case["bitReply"];
+    let parsed = Adu::parse(&unhex(&bits["frame"])).expect("parse the reply");
+    let coils: Vec<bool> = parsed
+        .response()
+        .coils(bits["count"].as_u64().expect("a count") as u16)
+        .expect("read the coils")
+        .collect();
+    let want: Vec<bool> = bits["coils"]
+        .as_array()
+        .expect("an array")
+        .iter()
+        .map(|entry| entry.as_bool().expect("a coil"))
+        .collect();
+    assert_eq!(coils, want);
+
+    let refused = &case["exceptionReply"];
+    let parsed = Adu::parse(&unhex(&refused["frame"])).expect("parse the reply");
+    assert_eq!(
+        parsed.exception().map(|code| u64::from(code.code())),
+        refused["exception"].as_u64()
+    );
+
+    assert!(
+        Adu::parse(&unhex(&case["corruptFrame"])).is_err(),
+        "a frame mangled on the wire must not reach the application"
+    );
+}
+
+#[test]
+fn can_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["can"];
+
+    let classic = &case["classic"];
+    let frame = Frame::new(
+        CanId::standard(classic["id"].as_u64().expect("an identifier") as u16),
+        &unhex(&classic["data"]),
+    )
+    .expect("build the frame");
+    assert_eq!(
+        u64::from(frame.dlc()),
+        classic["dlc"].as_u64().expect("a length code")
+    );
+
+    let fd = &case["fd"];
+    let frame = Frame::fd(
+        CanId::extended(fd["id"].as_u64().expect("an identifier") as u32),
+        &unhex(&fd["data"]),
+    )
+    .expect("build the frame");
+    assert_eq!(
+        u64::from(frame.dlc()),
+        fd["dlc"].as_u64().expect("a length code")
+    );
+
+    let remote = &case["remote"];
+    let frame = Frame::remote(
+        CanId::standard(remote["id"].as_u64().expect("an identifier") as u16),
+        remote["requested"].as_u64().expect("a length") as usize,
+    );
+    assert_eq!(frame.data().len(), 0, "a remote frame carries no bytes");
+
+    assert!(
+        Frame::new(CanId::standard(0x100), &[0u8; 9]).is_err(),
+        "a classic frame carries at most eight bytes"
+    );
+    assert!(
+        Frame::fd(CanId::standard(0x100), &[0u8; 13]).is_err(),
+        "13 bytes is not a length CAN-FD can carry"
+    );
+
+    for entry in case["lengths"].as_array().expect("an array") {
+        assert_eq!(
+            u64::from(len_to_dlc(entry["len"].as_u64().expect("a length") as usize)),
+            entry["dlc"].as_u64().expect("a length code")
+        );
+    }
+    for entry in case["codes"].as_array().expect("an array") {
+        assert_eq!(
+            dlc_to_len(entry["dlc"].as_u64().expect("a length code") as u8) as u64,
+            entry["len"].as_u64().expect("a length")
+        );
+    }
+
+    for entry in case["j1939"].as_array().expect("an array") {
+        let raw = entry["id"].as_u64().expect("an identifier") as u32;
+        let message = J1939Id::from_id(CanId::extended(raw)).expect("decode the identifier");
+        assert_eq!(
+            u64::from(message.pgn()),
+            entry["pgn"].as_u64().expect("a parameter group")
+        );
+        assert_eq!(
+            u64::from(message.priority()),
+            entry["priority"].as_u64().expect("a priority")
+        );
+        assert_eq!(
+            u64::from(message.source()),
+            entry["source"].as_u64().expect("a source")
+        );
+        assert_eq!(
+            message.destination().map(u64::from),
+            entry["destination"].as_u64()
+        );
+        assert_eq!(
+            message.is_broadcast(),
+            entry["broadcast"].as_bool().expect("a flag")
+        );
+        assert_eq!(message.to_id().raw(), raw, "the identifier round-trips");
+    }
+
+    let standard = case["standardIsNotJ1939"].as_u64().expect("an identifier") as u16;
+    assert!(
+        J1939Id::from_id(CanId::standard(standard)).is_none(),
+        "J1939 never rides an 11-bit identifier"
+    );
+}
+
+#[test]
+fn gpio_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["gpio"];
+
+    for entry in case["i2c"].as_array().expect("an array") {
+        let value = entry["address"].as_u64().expect("an address") as u16;
+        let address = if entry["tenBit"].as_bool().expect("a flag") {
+            Address::ten_bit(value).expect("validate the address")
+        } else {
+            Address::seven_bit(value as u8).expect("validate the address")
+        };
+        let mut frame = [0u8; 2];
+        let written = address
+            .write_frame(Direction::Write, &mut frame)
+            .expect("frame the address");
+        assert_eq!(frame[..written].to_vec(), unhex(&entry["writeFrame"]));
+        let written = address
+            .write_frame(Direction::Read, &mut frame)
+            .expect("frame the address");
+        assert_eq!(frame[..written].to_vec(), unhex(&entry["readFrame"]));
+        assert_eq!(
+            address.frame_len() as u64,
+            entry["frameLen"].as_u64().expect("a length")
+        );
+        assert_eq!(
+            address.is_reserved(),
+            entry["reserved"].as_bool().expect("a flag")
+        );
+        assert_eq!(
+            address.is_general_call(),
+            entry["generalCall"].as_bool().expect("a flag")
+        );
+    }
+
+    assert!(
+        Address::seven_bit(case["outOfRangeSevenBit"].as_u64().expect("an address") as u8).is_err()
+    );
+    assert!(
+        Address::ten_bit(case["outOfRangeTenBit"].as_u64().expect("an address") as u16).is_err()
+    );
+
+    for entry in case["spi"].as_array().expect("an array") {
+        let number = entry["mode"].as_u64().expect("a mode") as u8;
+        let mode = Mode::from_number(number).expect("a valid mode");
+        let (cpol, cpha) = mode.cpol_cpha();
+        assert_eq!(cpol, entry["cpol"].as_bool().expect("a flag"));
+        assert_eq!(cpha, entry["cpha"].as_bool().expect("a flag"));
+        assert_eq!(Mode::from_cpol_cpha(cpol, cpha).number(), number);
+    }
+    assert!(
+        Mode::from_number(case["invalidSpiMode"].as_u64().expect("a mode") as u8).is_none(),
+        "there are only four SPI modes"
+    );
+
+    for entry in case["edges"].as_array().expect("an array") {
+        let edge = match entry["edge"].as_str().expect("an edge") {
+            "Rising" => Edge::Rising,
+            "Falling" => Edge::Falling,
+            _ => Edge::Both,
+        };
+        assert_eq!(
+            edge.triggered_by(level(&entry["from"]), level(&entry["to"])),
+            entry["triggered"].as_bool().expect("a flag")
+        );
+    }
+
+    for entry in case["polarities"].as_array().expect("an array") {
+        let polarity = match entry["polarity"].as_str().expect("a polarity") {
+            "ActiveHigh" => Polarity::ActiveHigh,
+            _ => Polarity::ActiveLow,
+        };
+        let asserted = entry["asserted"].as_bool().expect("a flag");
+        assert_eq!(
+            level_name(polarity.level(asserted)),
+            entry["level"].as_str().expect("a level")
+        );
+        assert_eq!(
+            polarity.is_asserted(polarity.level(asserted)),
+            entry["isAsserted"].as_bool().expect("a flag")
+        );
+    }
+}
+
+/// Reads a level back from the name the vectors use.
+fn level(value: &Value) -> Level {
+    match value.as_str().expect("a level") {
+        "Low" => Level::Low,
+        _ => Level::High,
+    }
+}
+
+/// Names a level the way the vectors spell it.
+fn level_name(level: Level) -> &'static str {
+    match level {
+        Level::Low => "Low",
+        Level::High => "High",
     }
 }

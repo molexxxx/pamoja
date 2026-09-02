@@ -15,13 +15,17 @@ description = "Curated C ABI surface over the pamoja device SDK, for C, C++, and
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [features]
-default = ["mqtt", "security", "codec", "kit"]
+default = ["mqtt", "security", "codec", "kit", "serial", "modbus", "can", "gpio"]
 # Each capability is a feature, so a host that needs only some of them can build a
 # smaller library without reshaping the code.
 mqtt = ["dep:pamoja-mqtt", "dep:tokio"]
 security = ["dep:pamoja-security"]
 codec = ["dep:pamoja-codec"]
 kit = ["dep:pamoja-kit"]
+serial = ["dep:pamoja-serial"]
+modbus = ["dep:pamoja-modbus"]
+can = ["dep:pamoja-can"]
+gpio = ["dep:pamoja-gpio"]
 
 [dependencies]
 pamoja-core.workspace = true
@@ -29,6 +33,10 @@ pamoja-mqtt = { workspace = true, optional = true }
 pamoja-kit = { workspace = true, optional = true }
 pamoja-security = { path = "../pamoja-security", version = "0.1.14", optional = true }
 pamoja-codec = { path = "../pamoja-codec", version = "0.1.14", optional = true }
+pamoja-serial = { path = "../pamoja-serial", version = "0.1.14", optional = true }
+pamoja-modbus = { path = "../pamoja-modbus", version = "0.1.14", optional = true }
+pamoja-can = { path = "../pamoja-can", version = "0.1.14", optional = true }
+pamoja-gpio = { path = "../pamoja-gpio", version = "0.1.14", optional = true }
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread"], optional = true }
 
 [build-dependencies]

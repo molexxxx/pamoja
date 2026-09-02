@@ -9,6 +9,27 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+// The largest I2C address frame, in bytes: the two a 10-bit address needs.
+#define PAMOJA_I2C_FRAME_MAX 2
+
+// The length in bytes of an identity seed and of a public key.
+#define PAMOJA_KEY_LEN 32
+
+// The length in bytes of a signature.
+#define PAMOJA_SIGNATURE_LEN 64
+
+// The length in characters of a hex fingerprint.
+#define PAMOJA_FINGERPRINT_LEN 16
+
+// The largest payload, in bytes, that a streaming decoder will reassemble.
+//
+// The Rust decoders are generic over their capacity, which cannot cross a C
+// ABI, so the decoders here are built at one documented size. It covers the
+// 1500-byte maximum a serial link conventionally carries, with room to spare;
+// a frame longer than this is discarded rather than truncated. A caller who
+// needs a different bound has the Rust crate.
+#define PAMOJA_SERIAL_FRAME_MAX 2048
+
 // The result of a fallible pamoja call.
 //
 // A return of [`PamojaStatus::Ok`] means success; any other value indicates a
@@ -36,6 +57,40 @@ typedef enum {
   // A security check failed, such as an invalid identity or a bad signature.
   PamojaStatus_Auth = 9,
 } PamojaStatus;
+
+// Which direction an I2C transfer runs, as the read/write bit encodes it.
+typedef enum {
+  // The controller writes to the device. Read/write bit `0`.
+  PamojaI2cDirection_Write = 0,
+  // The controller reads from the device. Read/write bit `1`.
+  PamojaI2cDirection_Read = 1,
+} PamojaI2cDirection;
+
+// The physical voltage level on a pin.
+typedef enum {
+  // A low level, near ground.
+  PamojaPinLevel_Low = 0,
+  // A high level, near the supply voltage.
+  PamojaPinLevel_High = 1,
+} PamojaPinLevel;
+
+// The signal transition that triggers a pin interrupt.
+typedef enum {
+  // A low-to-high transition.
+  PamojaPinEdge_Rising = 0,
+  // A high-to-low transition.
+  PamojaPinEdge_Falling = 1,
+  // Either transition.
+  PamojaPinEdge_Both = 2,
+} PamojaPinEdge;
+
+// Whether a signal is asserted by a high or a low physical level.
+typedef enum {
+  // A high level means asserted.
+  PamojaPinPolarity_ActiveHigh = 0,
+  // A low level means asserted, the wiring of most buttons and relay boards.
+  PamojaPinPolarity_ActiveLow = 1,
+} PamojaPinPolarity;
 
 // Where a fix sits relative to a geofence, including the moment it crosses.
 typedef enum {
@@ -70,6 +125,15 @@ typedef struct PamojaBuffer PamojaBuffer;
 // An opaque handle to a raw-to-units calibration.
 typedef struct PamojaCalibration PamojaCalibration;
 
+// An opaque handle to a CAN frame.
+//
+// Read it with the `pamoja_can_frame_*` calls, then release it with
+// [`pamoja_can_frame_free`].
+typedef struct PamojaCanFrame PamojaCanFrame;
+
+// An opaque handle to a streaming COBS decoder.
+typedef struct PamojaCobsDecoder PamojaCobsDecoder;
+
 // An opaque handle to a boolean debouncer.
 typedef struct PamojaDebounce PamojaDebounce;
 
@@ -79,11 +143,23 @@ typedef struct PamojaDepletion PamojaDepletion;
 // An opaque handle to a device's private signing identity.
 typedef struct PamojaDeviceIdentity PamojaDeviceIdentity;
 
+// An opaque handle to the frames one call to a streaming decoder completed.
+//
+// Read it with [`pamoja_frames_count`], [`pamoja_frames_data`], and
+// [`pamoja_frames_len`], then release it with [`pamoja_frames_free`].
+typedef struct PamojaFrames PamojaFrames;
+
 // An opaque handle to a circular geofence.
 typedef struct PamojaGeofence PamojaGeofence;
 
 // An opaque handle to a one-dimensional Kalman filter.
 typedef struct PamojaKalman PamojaKalman;
+
+// An opaque handle to a parsed Modbus RTU frame with a verified CRC.
+//
+// Read it with the `pamoja_modbus_frame_*` calls, then release it with
+// [`pamoja_modbus_frame_free`].
+typedef struct PamojaModbusFrame PamojaModbusFrame;
 
 // An opaque handle to an MQTT client transport.
 typedef struct PamojaMqttClient PamojaMqttClient;
@@ -103,11 +179,20 @@ typedef struct PamojaRamp PamojaRamp;
 // release it with [`pamoja_readings_free`].
 typedef struct PamojaReadings PamojaReadings;
 
+// An opaque handle to the 16-bit registers a device returned.
+//
+// Read it with [`pamoja_registers_data`] and [`pamoja_registers_len`], then
+// release it with [`pamoja_registers_free`].
+typedef struct PamojaRegisters PamojaRegisters;
+
 // An opaque handle to a decoded series of integer samples.
 //
 // Read it with [`pamoja_samples_data`] and [`pamoja_samples_len`], then release
 // it with [`pamoja_samples_free`].
 typedef struct PamojaSamples PamojaSamples;
+
+// An opaque handle to a streaming SLIP decoder.
+typedef struct PamojaSlipDecoder PamojaSlipDecoder;
 
 // An opaque handle to an exponential smoother.
 typedef struct PamojaSmoother PamojaSmoother;
@@ -117,6 +202,38 @@ typedef struct PamojaSurge PamojaSurge;
 
 // An opaque handle to an on/off controller with hysteresis.
 typedef struct PamojaThermostat PamojaThermostat;
+
+// The fields J1939 packs into an extended CAN identifier.
+//
+// Every field is a scalar, so this crosses the boundary by value. `addressed` is
+// `1` for a PDU1 message, where `destination` names the node the message is for,
+// and `0` for a PDU2 broadcast, where `destination` carries no meaning.
+typedef struct {
+  // The parameter group number, which names what the message carries.
+  uint32_t pgn;
+  // The message priority, 0 (highest) to 7.
+  uint8_t priority;
+  // The source address: the node that sent the message.
+  uint8_t source;
+  // The PDU format byte of the parameter group.
+  uint8_t pdu_format;
+  // The destination address, meaningful only when `addressed` is `1`.
+  uint8_t destination;
+  // `1` for an addressed (PDU1) message, `0` for a broadcast (PDU2) one.
+  uint8_t addressed;
+} PamojaJ1939Id;
+
+// A validated I2C device address.
+//
+// Build one with [`pamoja_i2c_address_seven_bit`] or
+// [`pamoja_i2c_address_ten_bit`], which reject a value outside the width's
+// range. Both fields are scalars, so this crosses the boundary by value.
+typedef struct {
+  // The address itself, without the read/write bit.
+  uint16_t value;
+  // `1` for a 10-bit address, `0` for a 7-bit one.
+  uint8_t ten_bit;
+} PamojaI2cAddress;
 
 // A latitude and longitude in degrees.
 typedef struct {
@@ -201,6 +318,206 @@ void pamoja_buffer_free(PamojaBuffer *buffer);
 // A pointer to a static null-terminated UTF-8 string owned by the library. The
 // caller must not free it; it is valid for the lifetime of the process.
 const char *pamoja_version(void);
+
+// Builds a classic CAN 2.0 frame.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_frame` set to a new handle the
+// caller must release with [`pamoja_can_frame_free`], or
+// [`PamojaStatus::InvalidArgument`] if the data is longer than the eight bytes a
+// classic frame carries.
+//
+// # Safety
+//
+// `data` must point to at least `data_len` readable bytes, or be null when
+// `data_len` is 0, and `out_frame` must point to a writable
+// `*mut PamojaCanFrame`.
+PamojaStatus pamoja_can_frame_new(uint32_t id,
+                                  bool extended,
+                                  const uint8_t *data,
+                                  uintptr_t data_len,
+                                  PamojaCanFrame **out_frame);
+
+// Builds a CAN-FD frame.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_frame` set to a new handle the
+// caller must release with [`pamoja_can_frame_free`], or
+// [`PamojaStatus::InvalidArgument`] if the data is longer than 64 bytes or is
+// not one of the discrete lengths CAN-FD can carry.
+//
+// # Safety
+//
+// `data` must point to at least `data_len` readable bytes, or be null when
+// `data_len` is 0, and `out_frame` must point to a writable
+// `*mut PamojaCanFrame`.
+PamojaStatus pamoja_can_frame_fd(uint32_t id,
+                                 bool extended,
+                                 const uint8_t *data,
+                                 uintptr_t data_len,
+                                 PamojaCanFrame **out_frame);
+
+// Builds a remote transmission request, which asks another node to send.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_frame` set to a new handle the
+// caller must release with [`pamoja_can_frame_free`].
+//
+// # Safety
+//
+// `out_frame` must point to a writable `*mut PamojaCanFrame`.
+PamojaStatus pamoja_can_frame_remote(uint32_t id,
+                                     bool extended,
+                                     uintptr_t len,
+                                     PamojaCanFrame **out_frame);
+
+// Returns a frame's identifier, already masked to 11 or 29 bits.
+//
+// # Returns
+//
+// The identifier, or 0 if `frame` is null.
+//
+// # Safety
+//
+// `frame` must be a live handle from one of the frame constructors, or null.
+uint32_t pamoja_can_frame_id(const PamojaCanFrame *frame);
+
+// Reports whether a frame carries a 29-bit extended identifier.
+//
+// # Returns
+//
+// `true` for an extended identifier, `false` for a standard one or a null frame.
+//
+// # Safety
+//
+// `frame` must be a live handle from one of the frame constructors, or null.
+bool pamoja_can_frame_is_extended(const PamojaCanFrame *frame);
+
+// Reports whether a frame is CAN-FD rather than classic CAN 2.0.
+//
+// # Returns
+//
+// `true` for a CAN-FD frame, `false` otherwise or for a null frame.
+//
+// # Safety
+//
+// `frame` must be a live handle from one of the frame constructors, or null.
+bool pamoja_can_frame_is_fd(const PamojaCanFrame *frame);
+
+// Reports whether a frame is a remote transmission request.
+//
+// # Returns
+//
+// `true` for a remote frame, `false` otherwise or for a null frame.
+//
+// # Safety
+//
+// `frame` must be a live handle from one of the frame constructors, or null.
+bool pamoja_can_frame_is_remote(const PamojaCanFrame *frame);
+
+// Returns how many payload bytes a frame carries.
+//
+// A remote frame reports the length it requests while carrying no data.
+//
+// # Returns
+//
+// The length, or 0 if `frame` is null.
+//
+// # Safety
+//
+// `frame` must be a live handle from one of the frame constructors, or null.
+uintptr_t pamoja_can_frame_len(const PamojaCanFrame *frame);
+
+// Returns a frame's data length code, the length as it appears on the wire.
+//
+// # Returns
+//
+// The code, or 0 if `frame` is null.
+//
+// # Safety
+//
+// `frame` must be a live handle from one of the frame constructors, or null.
+uint8_t pamoja_can_frame_dlc(const PamojaCanFrame *frame);
+
+// Returns a pointer to a frame's payload bytes.
+//
+// Use [`pamoja_can_frame_data_len`] for the length, not
+// [`pamoja_can_frame_len`]: a remote frame reports the length it requests while
+// carrying no payload at all.
+//
+// # Returns
+//
+// A pointer to the payload, or null if `frame` is null or carries no bytes.
+//
+// # Safety
+//
+// `frame` must be a live handle from one of the frame constructors, or null.
+const uint8_t *pamoja_can_frame_data(const PamojaCanFrame *frame);
+
+// Returns how many bytes [`pamoja_can_frame_data`] points to.
+//
+// This is the frame's length for an ordinary frame and 0 for a remote one,
+// which requests a length without carrying the bytes.
+//
+// # Returns
+//
+// The payload length, or 0 if `frame` is null.
+//
+// # Safety
+//
+// `frame` must be a live handle from one of the frame constructors, or null.
+uintptr_t pamoja_can_frame_data_len(const PamojaCanFrame *frame);
+
+// Releases a frame handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `frame` must be a handle from one of the frame constructors that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_can_frame_free(PamojaCanFrame *frame);
+
+// Returns the data length code that encodes a payload length.
+//
+// # Returns
+//
+// The code for `len`, rounding up to the next length CAN-FD can carry.
+uint8_t pamoja_can_len_to_dlc(uintptr_t len);
+
+// Returns the payload length a data length code encodes.
+//
+// # Returns
+//
+// The length in bytes.
+uintptr_t pamoja_can_dlc_to_len(uint8_t dlc);
+
+// Decodes the J1939 fields out of an extended CAN identifier.
+//
+// # Returns
+//
+// `true` when `extended` is set, with `*out_message` filled in; `false` for a
+// standard 11-bit identifier, which J1939 does not use, leaving `*out_message`
+// untouched.
+//
+// # Safety
+//
+// `out_message` must point to a writable `PamojaJ1939Id`.
+bool pamoja_can_j1939_decode(uint32_t id, bool extended, PamojaJ1939Id *out_message);
+
+// Composes the extended CAN identifier a set of J1939 fields describes.
+//
+// # Returns
+//
+// The 29-bit identifier. `destination` is used only for an addressed (PDU1)
+// parameter group and ignored for a broadcast (PDU2) one.
+uint32_t pamoja_can_j1939_compose(uint8_t priority,
+                                  uint32_t pgn,
+                                  uint8_t source,
+                                  uint8_t destination);
 
 // Converts a JSON document into its CBOR encoding.
 //
@@ -383,6 +700,132 @@ uintptr_t pamoja_readings_len(const PamojaReadings *readings);
 // `readings` must be a handle from [`pamoja_codec_quantizer_decode`] that has
 // not already been freed, or null. After this call it must not be used again.
 void pamoja_readings_free(PamojaReadings *readings);
+
+// Validates a 7-bit I2C address.
+//
+// The whole `0x00..=0x7F` range is accepted, reserved addresses included, since
+// those are still legal on the wire. Test for them with
+// [`pamoja_i2c_address_is_reserved`].
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_address` set, or
+// [`PamojaStatus::InvalidArgument`] if `address` is above `0x7F`.
+//
+// # Safety
+//
+// `out_address` must point to a writable `PamojaI2cAddress`.
+PamojaStatus pamoja_i2c_address_seven_bit(uint8_t address, PamojaI2cAddress *out_address);
+
+// Validates a 10-bit I2C address.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_address` set, or
+// [`PamojaStatus::InvalidArgument`] if `address` is above `0x3FF`.
+//
+// # Safety
+//
+// `out_address` must point to a writable `PamojaI2cAddress`.
+PamojaStatus pamoja_i2c_address_ten_bit(uint16_t address, PamojaI2cAddress *out_address);
+
+// Returns how many bytes an address frame occupies.
+//
+// # Returns
+//
+// `1` for a 7-bit address, `2` for a 10-bit one.
+uintptr_t pamoja_i2c_address_frame_len(PamojaI2cAddress address);
+
+// Writes the address bytes a controller puts on the bus for a transfer.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_len` set to how many bytes of
+// `out_frame` were written, or [`PamojaStatus::InvalidArgument`] if the address
+// is not one this SDK produced or `out_frame_cap` is smaller than
+// [`pamoja_i2c_address_frame_len`].
+//
+// # Safety
+//
+// `out_frame` must point to at least `out_frame_cap` writable bytes, and
+// `out_len` must point to a writable `size_t`.
+PamojaStatus pamoja_i2c_address_frame(PamojaI2cAddress address,
+                                      PamojaI2cDirection direction,
+                                      uint8_t *out_frame,
+                                      uintptr_t out_frame_cap,
+                                      uintptr_t *out_len);
+
+// Reports whether a 7-bit address falls in a range the I2C specification reserves.
+//
+// # Returns
+//
+// `true` for a 7-bit address in `0x00..=0x07` or `0x78..=0x7F`, which leaves
+// `0x08..=0x77` for ordinary devices. A 10-bit address is never reserved in this
+// sense.
+bool pamoja_i2c_address_is_reserved(PamojaI2cAddress address);
+
+// Reports whether an address is the general call address `0x00`.
+//
+// # Returns
+//
+// `true` for the broadcast every device on the bus listens to.
+bool pamoja_i2c_address_is_general_call(PamojaI2cAddress address);
+
+// Returns the `(CPOL, CPHA)` pair an SPI mode number names.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_cpol` set to whether the clock
+// idles high and `*out_cpha` to whether data is sampled on the trailing edge, or
+// [`PamojaStatus::InvalidArgument`] if `mode` is above 3.
+//
+// # Safety
+//
+// `out_cpol` and `out_cpha` must each point to a writable `bool`.
+PamojaStatus pamoja_spi_mode_cpol_cpha(uint8_t mode, bool *out_cpol, bool *out_cpha);
+
+// Returns the SPI mode number a `(CPOL, CPHA)` pair names.
+//
+// # Returns
+//
+// The mode number `0..=3`. Every pair names a mode, so this never fails.
+uint8_t pamoja_spi_mode_from_cpol_cpha(bool cpol, bool cpha);
+
+// Returns the level a boolean names.
+//
+// # Returns
+//
+// [`PamojaPinLevel::High`] for `true`, [`PamojaPinLevel::Low`] for `false`.
+PamojaPinLevel pamoja_pin_level_from_bool(bool high);
+
+// Returns the opposite level.
+//
+// # Returns
+//
+// The inverted level.
+PamojaPinLevel pamoja_pin_level_inverted(PamojaPinLevel level);
+
+// Reports whether a change from one level to another fires an interrupt trigger.
+//
+// # Returns
+//
+// `true` if the transition matches `edge`; `false` for the other direction or
+// for no change at all.
+bool pamoja_pin_edge_triggered_by(PamojaPinEdge edge, PamojaPinLevel from, PamojaPinLevel to);
+
+// Returns the physical level that represents a logical state under a polarity.
+//
+// # Returns
+//
+// The level to drive, which for active-low wiring is the inverse of `asserted`.
+PamojaPinLevel pamoja_pin_polarity_level(PamojaPinPolarity polarity, bool asserted);
+
+// Reports whether a physical level means the signal is asserted.
+//
+// # Returns
+//
+// `true` if `level` asserts the signal under `polarity`.
+bool pamoja_pin_polarity_is_asserted(PamojaPinPolarity polarity, PamojaPinLevel level);
 
 // Releases a smoother handle.
 //
@@ -860,6 +1303,331 @@ double pamoja_coordinate_bearing_to(PamojaCoordinate from, PamojaCoordinate to);
 // toward `center` by half the band width, so the output is continuous.
 float pamoja_kit_deadband(float value, float center, float width);
 
+// Computes the CRC-16/MODBUS that every RTU frame ends with.
+//
+// # Returns
+//
+// The checksum over `bytes`, or the checksum of an empty input when `bytes` is
+// null and `bytes_len` is 0.
+//
+// # Safety
+//
+// `bytes` must point to at least `bytes_len` readable bytes, or be null when
+// `bytes_len` is 0.
+uint16_t pamoja_modbus_crc16(const uint8_t *bytes, uintptr_t bytes_len);
+
+// Builds a read-coils request frame (function `0x01`).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding the frame, which the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Safety
+//
+// `out_buffer` must point to a writable `*mut PamojaBuffer`.
+PamojaStatus pamoja_modbus_read_coils(uint8_t address,
+                                      uint16_t start,
+                                      uint16_t count,
+                                      PamojaBuffer **out_buffer);
+
+// Builds a read-discrete-inputs request frame (function `0x02`).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding the frame.
+//
+// # Safety
+//
+// `out_buffer` must point to a writable `*mut PamojaBuffer`.
+PamojaStatus pamoja_modbus_read_discrete_inputs(uint8_t address,
+                                                uint16_t start,
+                                                uint16_t count,
+                                                PamojaBuffer **out_buffer);
+
+// Builds a read-holding-registers request frame (function `0x03`).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding the frame.
+//
+// # Safety
+//
+// `out_buffer` must point to a writable `*mut PamojaBuffer`.
+PamojaStatus pamoja_modbus_read_holding_registers(uint8_t address,
+                                                  uint16_t start,
+                                                  uint16_t count,
+                                                  PamojaBuffer **out_buffer);
+
+// Builds a read-input-registers request frame (function `0x04`).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding the frame.
+//
+// # Safety
+//
+// `out_buffer` must point to a writable `*mut PamojaBuffer`.
+PamojaStatus pamoja_modbus_read_input_registers(uint8_t address,
+                                                uint16_t start,
+                                                uint16_t count,
+                                                PamojaBuffer **out_buffer);
+
+// Builds a write-single-coil request frame (function `0x05`).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding the frame.
+//
+// # Safety
+//
+// `out_buffer` must point to a writable `*mut PamojaBuffer`.
+PamojaStatus pamoja_modbus_write_single_coil(uint8_t address,
+                                             uint16_t coil,
+                                             bool on,
+                                             PamojaBuffer **out_buffer);
+
+// Builds a write-single-register request frame (function `0x06`).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding the frame.
+//
+// # Safety
+//
+// `out_buffer` must point to a writable `*mut PamojaBuffer`.
+PamojaStatus pamoja_modbus_write_single_register(uint8_t address,
+                                                 uint16_t register_,
+                                                 uint16_t value,
+                                                 PamojaBuffer **out_buffer);
+
+// Builds a write-multiple-registers request frame (function `0x10`).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding the frame, or [`PamojaStatus::InvalidArgument`] if `count` is zero or
+// beyond what one request may carry.
+//
+// # Safety
+//
+// `values` must point to at least `count` readable `uint16` values, or be null
+// when `count` is 0, and `out_buffer` must point to a writable
+// `*mut PamojaBuffer`.
+PamojaStatus pamoja_modbus_write_multiple_registers(uint8_t address,
+                                                    uint16_t start,
+                                                    const uint16_t *values,
+                                                    uintptr_t count,
+                                                    PamojaBuffer **out_buffer);
+
+// Builds a write-multiple-coils request frame (function `0x0F`).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding the frame, or [`PamojaStatus::InvalidArgument`] if `count` is zero or
+// beyond what one request may carry.
+//
+// # Safety
+//
+// `values` must point to at least `count` readable bytes, one per coil and
+// non-zero for on, or be null when `count` is 0, and `out_buffer` must point to
+// a writable `*mut PamojaBuffer`.
+PamojaStatus pamoja_modbus_write_multiple_coils(uint8_t address,
+                                                uint16_t start,
+                                                const uint8_t *values,
+                                                uintptr_t count,
+                                                PamojaBuffer **out_buffer);
+
+// Builds a request frame from a raw function code and data.
+//
+// This is the escape hatch for the function codes the SDK does not name.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding the frame, or [`PamojaStatus::InvalidArgument`] if the data is longer
+// than a PDU may be.
+//
+// # Safety
+//
+// `data` must point to at least `data_len` readable bytes, or be null when
+// `data_len` is 0, and `out_buffer` must point to a writable
+// `*mut PamojaBuffer`.
+PamojaStatus pamoja_modbus_raw(uint8_t address,
+                               uint8_t function,
+                               const uint8_t *data,
+                               uintptr_t data_len,
+                               PamojaBuffer **out_buffer);
+
+// Parses a received RTU frame, verifying its CRC.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_frame` set to a new handle the
+// caller must release with [`pamoja_modbus_frame_free`], or
+// [`PamojaStatus::Codec`] if the frame is truncated, oversized, or its CRC does
+// not match its contents.
+//
+// # Safety
+//
+// `bytes` must point to at least `bytes_len` readable bytes, or be null when
+// `bytes_len` is 0, and `out_frame` must point to a writable
+// `*mut PamojaModbusFrame`.
+PamojaStatus pamoja_modbus_frame_parse(const uint8_t *bytes,
+                                       uintptr_t bytes_len,
+                                       PamojaModbusFrame **out_frame);
+
+// Returns the unit address a frame is addressed to or came from.
+//
+// # Returns
+//
+// The address, or 0 if `frame` is null.
+//
+// # Safety
+//
+// `frame` must be a live handle from [`pamoja_modbus_frame_parse`], or null.
+uint8_t pamoja_modbus_frame_address(const PamojaModbusFrame *frame);
+
+// Returns a frame's function code.
+//
+// An exception response carries the request's function code with its high bit
+// set, so this returns that byte as it appeared on the wire.
+//
+// # Returns
+//
+// The function code, or 0 if `frame` is null.
+//
+// # Safety
+//
+// `frame` must be a live handle from [`pamoja_modbus_frame_parse`], or null.
+uint8_t pamoja_modbus_frame_function(const PamojaModbusFrame *frame);
+
+// Returns the exception code a device reported.
+//
+// # Returns
+//
+// The exception code, or 0 when the frame is not an exception response, is not
+// one this SDK names, or `frame` is null. Zero is not a defined exception code,
+// so it is unambiguous.
+//
+// # Safety
+//
+// `frame` must be a live handle from [`pamoja_modbus_frame_parse`], or null.
+uint8_t pamoja_modbus_frame_exception(const PamojaModbusFrame *frame);
+
+// Returns a pointer to a frame's PDU: the function code and its data, without
+// the address or the CRC.
+//
+// Use [`pamoja_modbus_frame_pdu_len`] for the length. The pointer is valid until
+// the handle is freed.
+//
+// # Returns
+//
+// A pointer to the PDU, or null if `frame` is null.
+//
+// # Safety
+//
+// `frame` must be a live handle from [`pamoja_modbus_frame_parse`], or null.
+const uint8_t *pamoja_modbus_frame_pdu(const PamojaModbusFrame *frame);
+
+// Returns the length in bytes of a frame's PDU.
+//
+// # Returns
+//
+// The length, or 0 if `frame` is null.
+//
+// # Safety
+//
+// `frame` must be a live handle from [`pamoja_modbus_frame_parse`], or null.
+uintptr_t pamoja_modbus_frame_pdu_len(const PamojaModbusFrame *frame);
+
+// Reads the 16-bit registers out of a read-registers response.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_registers` set to a new handle the
+// caller must release with [`pamoja_registers_free`], or
+// [`PamojaStatus::Codec`] if the response is not a well-formed read-registers
+// reply.
+//
+// # Safety
+//
+// `frame` must be a live handle from [`pamoja_modbus_frame_parse`] or null, and
+// `out_registers` must point to a writable `*mut PamojaRegisters`.
+PamojaStatus pamoja_modbus_frame_registers(const PamojaModbusFrame *frame,
+                                           PamojaRegisters **out_registers);
+
+// Reads the coils or discrete inputs out of a read-bits response.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding one byte per coil, `1` for on and `0` for off, which the caller must
+// release with [`pamoja_buffer_free`](crate::pamoja_buffer_free), or
+// [`PamojaStatus::Codec`] if the response does not carry `count` bits.
+//
+// # Safety
+//
+// `frame` must be a live handle from [`pamoja_modbus_frame_parse`] or null, and
+// `out_buffer` must point to a writable `*mut PamojaBuffer`.
+PamojaStatus pamoja_modbus_frame_coils(const PamojaModbusFrame *frame,
+                                       uint16_t count,
+                                       PamojaBuffer **out_buffer);
+
+// Releases a parsed frame handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `frame` must be a handle from [`pamoja_modbus_frame_parse`] that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_modbus_frame_free(PamojaModbusFrame *frame);
+
+// Returns a pointer to the registers a device returned.
+//
+// Use [`pamoja_registers_len`] for the count. The pointer is valid until the
+// handle is freed.
+//
+// # Returns
+//
+// A pointer to the registers, or null if `registers` is null.
+//
+// # Safety
+//
+// `registers` must be a live handle from [`pamoja_modbus_frame_registers`], or
+// null.
+const uint16_t *pamoja_registers_data(const PamojaRegisters *registers);
+
+// Returns how many registers a device returned.
+//
+// # Returns
+//
+// The count, or 0 if `registers` is null.
+//
+// # Safety
+//
+// `registers` must be a live handle from [`pamoja_modbus_frame_registers`], or
+// null.
+uintptr_t pamoja_registers_len(const PamojaRegisters *registers);
+
+// Releases a register series.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `registers` must be a handle from [`pamoja_modbus_frame_registers`] that has
+// not already been freed, or null. After this call it must not be used again.
+void pamoja_registers_free(PamojaRegisters *registers);
+
 // Creates a disconnected MQTT client from the given settings.
 //
 // # Returns
@@ -1104,6 +1872,248 @@ PamojaStatus pamoja_public_identity_verify(const uint8_t *public_key,
                                            const uint8_t *payload,
                                            uintptr_t payload_len,
                                            const uint8_t *signature);
+
+// Frames a payload as a SLIP packet (RFC 1055).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Safety
+//
+// `payload` must point to at least `payload_len` readable bytes, or be null when
+// `payload_len` is 0, and `out_buffer` must point to a writable
+// `*mut PamojaBuffer`.
+PamojaStatus pamoja_serial_slip_encode(const uint8_t *payload,
+                                       uintptr_t payload_len,
+                                       PamojaBuffer **out_buffer);
+
+// Reads the payload back out of a SLIP frame.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free), or
+// [`PamojaStatus::Codec`] if the frame is corrupt.
+//
+// # Safety
+//
+// `frame` must point to at least `frame_len` readable bytes, or be null when
+// `frame_len` is 0, and `out_buffer` must point to a writable
+// `*mut PamojaBuffer`.
+PamojaStatus pamoja_serial_slip_decode(const uint8_t *frame,
+                                       uintptr_t frame_len,
+                                       PamojaBuffer **out_buffer);
+
+// Frames a payload as a COBS packet, terminated by its zero delimiter.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Safety
+//
+// `payload` must point to at least `payload_len` readable bytes, or be null when
+// `payload_len` is 0, and `out_buffer` must point to a writable
+// `*mut PamojaBuffer`.
+PamojaStatus pamoja_serial_cobs_encode(const uint8_t *payload,
+                                       uintptr_t payload_len,
+                                       PamojaBuffer **out_buffer);
+
+// Reads the payload back out of a COBS frame.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free), or
+// [`PamojaStatus::Codec`] if the frame is corrupt.
+//
+// # Safety
+//
+// `frame` must point to at least `frame_len` readable bytes, or be null when
+// `frame_len` is 0, and `out_buffer` must point to a writable
+// `*mut PamojaBuffer`.
+PamojaStatus pamoja_serial_cobs_decode(const uint8_t *frame,
+                                       uintptr_t frame_len,
+                                       PamojaBuffer **out_buffer);
+
+// Returns the largest SLIP frame a payload of `payload_len` bytes can produce.
+//
+// # Returns
+//
+// The worst-case encoded length, which is every byte escaped plus the delimiter.
+uintptr_t pamoja_serial_slip_max_encoded_len(uintptr_t payload_len);
+
+// Returns the largest COBS frame a payload of `payload_len` bytes can produce.
+//
+// # Returns
+//
+// The worst-case encoded length, one overhead byte per 254 plus the delimiter.
+uintptr_t pamoja_serial_cobs_max_encoded_len(uintptr_t payload_len);
+
+// Creates a streaming SLIP decoder.
+//
+// # Returns
+//
+// A new decoder the caller must release with [`pamoja_slip_decoder_free`].
+PamojaSlipDecoder *pamoja_slip_decoder_new(void);
+
+// Feeds a chunk of the byte stream to a SLIP decoder.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_frames` set to a new handle
+// holding every frame this chunk completed, in order, which the caller must
+// release with [`pamoja_frames_free`]. A chunk that completes no frame yields
+// an empty handle rather than an error.
+//
+// # Safety
+//
+// `decoder` must be a live handle from [`pamoja_slip_decoder_new`], `bytes` must
+// point to at least `bytes_len` readable bytes or be null when `bytes_len` is 0,
+// and `out_frames` must point to a writable `*mut PamojaFrames`.
+PamojaStatus pamoja_slip_decoder_feed(PamojaSlipDecoder *decoder,
+                                      const uint8_t *bytes,
+                                      uintptr_t bytes_len,
+                                      PamojaFrames **out_frames);
+
+// Returns how many corrupt frames a SLIP decoder has discarded.
+//
+// # Returns
+//
+// The running count, or 0 if `decoder` is null.
+//
+// # Safety
+//
+// `decoder` must be a live handle from [`pamoja_slip_decoder_new`], or null.
+uint64_t pamoja_slip_decoder_discarded(const PamojaSlipDecoder *decoder);
+
+// Discards any partly assembled frame, returning a SLIP decoder to its initial state.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `decoder` must be a live handle from [`pamoja_slip_decoder_new`], or null.
+void pamoja_slip_decoder_reset(PamojaSlipDecoder *decoder);
+
+// Releases a SLIP decoder handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `decoder` must be a handle from [`pamoja_slip_decoder_new`] that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_slip_decoder_free(PamojaSlipDecoder *decoder);
+
+// Creates a streaming COBS decoder.
+//
+// # Returns
+//
+// A new decoder the caller must release with [`pamoja_cobs_decoder_free`].
+PamojaCobsDecoder *pamoja_cobs_decoder_new(void);
+
+// Feeds a chunk of the byte stream to a COBS decoder.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_frames` set to a new handle
+// holding every frame this chunk completed, in order, which the caller must
+// release with [`pamoja_frames_free`].
+//
+// # Safety
+//
+// `decoder` must be a live handle from [`pamoja_cobs_decoder_new`], `bytes` must
+// point to at least `bytes_len` readable bytes or be null when `bytes_len` is 0,
+// and `out_frames` must point to a writable `*mut PamojaFrames`.
+PamojaStatus pamoja_cobs_decoder_feed(PamojaCobsDecoder *decoder,
+                                      const uint8_t *bytes,
+                                      uintptr_t bytes_len,
+                                      PamojaFrames **out_frames);
+
+// Returns how many corrupt frames a COBS decoder has discarded.
+//
+// # Returns
+//
+// The running count, or 0 if `decoder` is null.
+//
+// # Safety
+//
+// `decoder` must be a live handle from [`pamoja_cobs_decoder_new`], or null.
+uint64_t pamoja_cobs_decoder_discarded(const PamojaCobsDecoder *decoder);
+
+// Discards any partly assembled frame, returning a COBS decoder to its initial state.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `decoder` must be a live handle from [`pamoja_cobs_decoder_new`], or null.
+void pamoja_cobs_decoder_reset(PamojaCobsDecoder *decoder);
+
+// Releases a COBS decoder handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `decoder` must be a handle from [`pamoja_cobs_decoder_new`] that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_cobs_decoder_free(PamojaCobsDecoder *decoder);
+
+// Returns how many frames a decoder call produced.
+//
+// # Returns
+//
+// The count, or 0 if `frames` is null.
+//
+// # Safety
+//
+// `frames` must be a live handle from a decoder `feed` call, or null.
+uintptr_t pamoja_frames_count(const PamojaFrames *frames);
+
+// Returns a pointer to one frame's payload bytes.
+//
+// Use [`pamoja_frames_len`] for its length. The pointer is valid until the
+// handle is freed.
+//
+// # Returns
+//
+// A pointer to the payload, or null if `frames` is null or `index` is out of
+// range.
+//
+// # Safety
+//
+// `frames` must be a live handle from a decoder `feed` call, or null.
+const uint8_t *pamoja_frames_data(const PamojaFrames *frames, uintptr_t index);
+
+// Returns the length in bytes of one frame's payload.
+//
+// # Returns
+//
+// The length, or 0 if `frames` is null or `index` is out of range.
+//
+// # Safety
+//
+// `frames` must be a live handle from a decoder `feed` call, or null.
+uintptr_t pamoja_frames_len(const PamojaFrames *frames, uintptr_t index);
+
+// Releases a decoded frame set.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `frames` must be a handle from a decoder `feed` call that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_frames_free(PamojaFrames *frames);
 
 #ifdef __cplusplus
 }  // extern "C"

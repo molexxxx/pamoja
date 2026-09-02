@@ -10,11 +10,17 @@
 use std::fs;
 use std::path::PathBuf;
 
+use pamoja_can::{dlc_to_len, len_to_dlc, CanId, Frame, J1939Id};
 use pamoja_codec::{encode_deltas, json_to_cbor, Quantizer};
+use pamoja_gpio::i2c::{Address, Direction};
+use pamoja_gpio::pin::{Edge, Level, Polarity};
+use pamoja_gpio::spi::Mode;
 use pamoja_kit::{
     deadband, Boundary, Calibration, Coordinate, Depletion, Geofence, Pid, Smoother, Thermostat,
 };
+use pamoja_modbus::{crc16, Adu, Pdu, Response};
 use pamoja_security::DeviceIdentity;
+use pamoja_serial::{cobs, slip};
 use serde_json::{json, Value};
 
 /// The seed every identity vector is derived from.
@@ -40,6 +46,10 @@ fn main() {
         "calibration": calibration(),
         "deadband": deadband_vectors(),
         "geofence": geofence(),
+        "serial": serial(),
+        "modbus": modbus(),
+        "can": can(),
+        "gpio": gpio(),
     });
 
     let path = repo_root().join("conformance").join("vectors.json");
@@ -197,6 +207,325 @@ fn geofence() -> Value {
             .collect::<Vec<Value>>(),
         "boundaries": boundaries,
     })
+}
+
+/// Both serial framings over a payload full of bytes each one has to escape, plus
+/// a stream carrying a corrupt frame between two good ones.
+fn serial() -> Value {
+    // Every byte here is special to one framing or the other: the SLIP delimiter
+    // and escape, and the zero COBS removes.
+    let payload = [0xC0u8, 0xDB, 0x00, 0x2A];
+    let mut framed = [0u8; 64];
+
+    let slip_len = slip::encode(&payload, &mut framed).expect("frame the payload");
+    let slip_frame = framed[..slip_len].to_vec();
+    let cobs_len = cobs::encode(&payload, &mut framed).expect("frame the payload");
+    let cobs_frame = framed[..cobs_len].to_vec();
+
+    // A good frame, an escape truncated by the delimiter, then a good frame. The
+    // corrupt one must be dropped without taking its neighbours with it.
+    let stream = [b'o', b'k', 0xC0, 0xDB, 0xC0, b'g', b'o', 0xC0];
+    let mut decoder: slip::SlipDecoder<64> = slip::SlipDecoder::new();
+    let mut frames: Vec<String> = Vec::new();
+    let mut discarded = 0u32;
+    for &byte in &stream {
+        match decoder.push(byte) {
+            Ok(Some(frame)) => frames.push(hex(frame)),
+            Ok(None) => {}
+            Err(_) => discarded += 1,
+        }
+    }
+
+    let cobs_stream = [0x03u8, 0x11, 0x22, 0x02, 0x33, 0x00];
+    let mut cobs_decoder: cobs::CobsDecoder<64> = cobs::CobsDecoder::new();
+    let mut cobs_frames: Vec<String> = Vec::new();
+    for &byte in &cobs_stream {
+        if let Ok(Some(frame)) = cobs_decoder.push(byte) {
+            cobs_frames.push(hex(frame));
+        }
+    }
+
+    json!({
+        "payload": hex(&payload),
+        "slipFrame": hex(&slip_frame),
+        "cobsFrame": hex(&cobs_frame),
+        "slipMaxEncodedLen": slip::max_encoded_len(payload.len()),
+        "cobsMaxEncodedLen": cobs::max_encoded_len(payload.len()),
+        "corruptSlipFrame": hex(&[0xDB, 0x01, 0xC0]),
+        "slipStream": {
+            "bytes": hex(&stream),
+            "chunk": 3,
+            "frames": frames,
+            "discarded": discarded,
+        },
+        "cobsStream": {
+            "bytes": hex(&cobs_stream),
+            "chunk": 4,
+            "frames": cobs_frames,
+        },
+    })
+}
+
+/// Modbus request frames, the replies they draw, and a frame corrupted on the wire.
+fn modbus() -> Value {
+    let read = Pdu::read_holding_registers(0x006B, 3).to_adu(0x11);
+
+    // The reply the specification's own worked example gives for that request.
+    let reply = Adu::from_pdu(0x11, &[0x03, 0x06, 0x02, 0x2B, 0x00, 0x00, 0x00, 0x64])
+        .expect("assemble the reply");
+    let registers: Vec<u16> = Response::new(reply.pdu())
+        .registers()
+        .expect("read the registers")
+        .collect();
+
+    // A read-coils reply carrying four bits packed least-significant first.
+    let bit_reply = Adu::from_pdu(0x11, &[0x01, 0x01, 0b0000_1101]).expect("assemble the reply");
+    let coils: Vec<bool> = Response::new(bit_reply.pdu())
+        .coils(4)
+        .expect("read the coils")
+        .collect();
+
+    // Registers above 0x7FFF, which catch a binding that reads them as signed.
+    let high =
+        Adu::from_pdu(0x11, &[0x03, 0x04, 0xFF, 0xFF, 0x80, 0x00]).expect("assemble the reply");
+    let high_registers: Vec<u16> = Response::new(high.pdu())
+        .registers()
+        .expect("read the registers")
+        .collect();
+
+    let refused = Adu::from_pdu(0x11, &[0x83, 0x02]).expect("assemble the reply");
+
+    let mut corrupt = read.as_bytes().to_vec();
+    corrupt[2] ^= 0xFF;
+    let checked = &read.as_bytes()[..read.as_bytes().len() - 2];
+
+    json!({
+        "readHoldingRegisters": {
+            "address": 0x11, "start": 0x006B, "count": 3,
+            "frame": hex(read.as_bytes()),
+        },
+        "readCoils": {
+            "address": 0x11, "start": 0x0013, "count": 37,
+            "frame": hex(Pdu::read_coils(0x0013, 37).to_adu(0x11).as_bytes()),
+        },
+        "writeSingleRegister": {
+            "address": 0x11, "register": 0x0001, "value": 0x0003,
+            "frame": hex(Pdu::write_single_register(0x0001, 0x0003).to_adu(0x11).as_bytes()),
+        },
+        "writeMultipleRegisters": {
+            "address": 0x11, "start": 0x0001, "values": [0x000A, 0x0102],
+            "frame": hex(
+                Pdu::write_multiple_registers(0x0001, &[0x000A, 0x0102])
+                    .expect("build the request")
+                    .to_adu(0x11)
+                    .as_bytes(),
+            ),
+        },
+        "writeMultipleCoils": {
+            "address": 0x11, "start": 0x0013, "values": [true, false, true, true, false],
+            "frame": hex(
+                Pdu::write_multiple_coils(0x0013, &[true, false, true, true, false])
+                    .expect("build the request")
+                    .to_adu(0x11)
+                    .as_bytes(),
+            ),
+        },
+        "reply": {
+            "frame": hex(reply.as_bytes()),
+            "address": reply.address(),
+            "functionCode": reply.function_code(),
+            "pdu": hex(reply.pdu()),
+            "registers": registers,
+        },
+        "highRegisterReply": {
+            "frame": hex(high.as_bytes()),
+            "registers": high_registers,
+        },
+        "bitReply": {
+            "frame": hex(bit_reply.as_bytes()),
+            "count": 4,
+            "coils": coils,
+        },
+        "exceptionReply": {
+            "frame": hex(refused.as_bytes()),
+            "functionCode": refused.function_code(),
+            "exception": refused.exception().map(pamoja_modbus::Exception::code),
+        },
+        "corruptFrame": hex(&corrupt),
+        "crc": { "data": hex(checked), "value": crc16(checked) },
+    })
+}
+
+/// CAN frames of each kind, the CAN-FD length table, and J1939 identifiers.
+fn can() -> Value {
+    let classic = Frame::new(CanId::standard(0x20A), &[0x01, 0xF4]).expect("build the frame");
+    let fd = Frame::fd(CanId::extended(0x1234_5678), &[0xAB; 32]).expect("build the frame");
+    let remote = Frame::remote(CanId::standard(0x20A), 4);
+
+    let lengths: Vec<Value> = [0usize, 1, 8, 12, 16, 20, 24, 32, 48, 64]
+        .iter()
+        .map(|&len| json!({ "len": len, "dlc": len_to_dlc(len) }))
+        .collect();
+    let codes: Vec<Value> = (0u8..16)
+        .map(|dlc| json!({ "dlc": dlc, "len": dlc_to_len(dlc) }))
+        .collect();
+
+    json!({
+        "classic": {
+            "id": 0x20A, "extended": false, "data": hex(classic.data()),
+            "dlc": classic.dlc(), "len": classic.len(),
+        },
+        "fd": {
+            "id": 0x1234_5678u32, "extended": true, "data": hex(fd.data()),
+            "dlc": fd.dlc(), "len": fd.len(),
+        },
+        "remote": {
+            "id": 0x20A, "extended": false, "requested": 4,
+            "dlc": remote.dlc(), "len": remote.len(), "dataLen": remote.data().len(),
+        },
+        "tooLongForClassic": 9,
+        "invalidFdLength": 13,
+        "lengths": lengths,
+        "codes": codes,
+        "j1939": [
+            // Electronic engine controller 1, a PDU2 broadcast every genset sends.
+            j1939(0x0CF0_0400),
+            // A request PGN, which is PDU1 and so names a destination.
+            j1939(J1939Id::from_parts(6, 0x0EA00, 0x21, 0x0A).to_id().raw()),
+        ],
+        "standardIsNotJ1939": 0x123,
+    })
+}
+
+/// One J1939 identifier decoded into the fields every binding reports.
+fn j1939(raw: u32) -> Value {
+    let message = J1939Id::from_id(CanId::extended(raw)).expect("decode the identifier");
+    json!({
+        "id": raw,
+        "pgn": message.pgn(),
+        "priority": message.priority(),
+        "source": message.source(),
+        "pduFormat": message.pdu_format(),
+        "destination": message.destination(),
+        "broadcast": message.is_broadcast(),
+    })
+}
+
+/// I2C address frames, the SPI mode table, and the pin logic around them.
+fn gpio() -> Value {
+    let addresses: Vec<Value> = [
+        (0x76u16, false),
+        (0x68, false),
+        (0x00, false),
+        (0x07, false),
+        (0x08, false),
+        (0x77, false),
+        (0x78, false),
+        (0x2A5, true),
+    ]
+    .iter()
+    .map(|&(value, ten_bit)| {
+        let address = if ten_bit {
+            Address::ten_bit(value).expect("validate the address")
+        } else {
+            Address::seven_bit(value as u8).expect("validate the address")
+        };
+        let mut write = [0u8; 2];
+        let mut read = [0u8; 2];
+        let written = address
+            .write_frame(Direction::Write, &mut write)
+            .expect("frame the address");
+        let readable = address
+            .write_frame(Direction::Read, &mut read)
+            .expect("frame the address");
+        json!({
+            "address": value,
+            "tenBit": ten_bit,
+            "writeFrame": hex(&write[..written]),
+            "readFrame": hex(&read[..readable]),
+            "frameLen": address.frame_len(),
+            "reserved": address.is_reserved(),
+            "generalCall": address.is_general_call(),
+        })
+    })
+    .collect();
+
+    let modes: Vec<Value> = [Mode::Mode0, Mode::Mode1, Mode::Mode2, Mode::Mode3]
+        .iter()
+        .map(|&mode| {
+            let (cpol, cpha) = mode.cpol_cpha();
+            json!({ "mode": mode.number(), "cpol": cpol, "cpha": cpha })
+        })
+        .collect();
+
+    let transitions = [
+        (Level::Low, Level::High),
+        (Level::High, Level::Low),
+        (Level::High, Level::High),
+    ];
+    let edges: Vec<Value> = [Edge::Rising, Edge::Falling, Edge::Both]
+        .iter()
+        .flat_map(|&edge| {
+            transitions.iter().map(move |&(from, to)| {
+                json!({
+                    "edge": edge_name(edge),
+                    "from": level_name(from),
+                    "to": level_name(to),
+                    "triggered": edge.triggered_by(from, to),
+                })
+            })
+        })
+        .collect();
+
+    let polarities: Vec<Value> = [Polarity::ActiveHigh, Polarity::ActiveLow]
+        .iter()
+        .flat_map(|&polarity| {
+            [true, false].iter().map(move |&asserted| {
+                let level = polarity.level(asserted);
+                json!({
+                    "polarity": polarity_name(polarity),
+                    "asserted": asserted,
+                    "level": level_name(level),
+                    "isAsserted": polarity.is_asserted(level),
+                })
+            })
+        })
+        .collect();
+
+    json!({
+        "i2c": addresses,
+        "outOfRangeSevenBit": 0x80,
+        "outOfRangeTenBit": 0x400,
+        "spi": modes,
+        "invalidSpiMode": 4,
+        "edges": edges,
+        "polarities": polarities,
+    })
+}
+
+/// Names a level, matching the spelling every binding exposes.
+fn level_name(level: Level) -> &'static str {
+    match level {
+        Level::Low => "Low",
+        Level::High => "High",
+    }
+}
+
+/// Names an interrupt edge, matching the spelling every binding exposes.
+fn edge_name(edge: Edge) -> &'static str {
+    match edge {
+        Edge::Rising => "Rising",
+        Edge::Falling => "Falling",
+        Edge::Both => "Both",
+    }
+}
+
+/// Names a polarity, matching the spelling every binding exposes.
+fn polarity_name(polarity: Polarity) -> &'static str {
+    match polarity {
+        Polarity::ActiveHigh => "ActiveHigh",
+        Polarity::ActiveLow => "ActiveLow",
+    }
 }
 
 /// Names a boundary state, matching the spelling every binding exposes.

@@ -17,6 +17,161 @@
     "valueHigh": 100.0,
     "valueLow": 0.0
   },
+  "can": {
+    "classic": {
+      "data": "01f4",
+      "dlc": 2,
+      "extended": false,
+      "id": 522,
+      "len": 2
+    },
+    "codes": [
+      {
+        "dlc": 0,
+        "len": 0
+      },
+      {
+        "dlc": 1,
+        "len": 1
+      },
+      {
+        "dlc": 2,
+        "len": 2
+      },
+      {
+        "dlc": 3,
+        "len": 3
+      },
+      {
+        "dlc": 4,
+        "len": 4
+      },
+      {
+        "dlc": 5,
+        "len": 5
+      },
+      {
+        "dlc": 6,
+        "len": 6
+      },
+      {
+        "dlc": 7,
+        "len": 7
+      },
+      {
+        "dlc": 8,
+        "len": 8
+      },
+      {
+        "dlc": 9,
+        "len": 12
+      },
+      {
+        "dlc": 10,
+        "len": 16
+      },
+      {
+        "dlc": 11,
+        "len": 20
+      },
+      {
+        "dlc": 12,
+        "len": 24
+      },
+      {
+        "dlc": 13,
+        "len": 32
+      },
+      {
+        "dlc": 14,
+        "len": 48
+      },
+      {
+        "dlc": 15,
+        "len": 64
+      }
+    ],
+    "fd": {
+      "data": "abababababababababababababababababababababababababababababababab",
+      "dlc": 13,
+      "extended": true,
+      "id": 305419896,
+      "len": 32
+    },
+    "invalidFdLength": 13,
+    "j1939": [
+      {
+        "broadcast": true,
+        "destination": null,
+        "id": 217056256,
+        "pduFormat": 240,
+        "pgn": 61444,
+        "priority": 3,
+        "source": 0
+      },
+      {
+        "broadcast": false,
+        "destination": 10,
+        "id": 417991201,
+        "pduFormat": 234,
+        "pgn": 59904,
+        "priority": 6,
+        "source": 33
+      }
+    ],
+    "lengths": [
+      {
+        "dlc": 0,
+        "len": 0
+      },
+      {
+        "dlc": 1,
+        "len": 1
+      },
+      {
+        "dlc": 8,
+        "len": 8
+      },
+      {
+        "dlc": 9,
+        "len": 12
+      },
+      {
+        "dlc": 10,
+        "len": 16
+      },
+      {
+        "dlc": 11,
+        "len": 20
+      },
+      {
+        "dlc": 12,
+        "len": 24
+      },
+      {
+        "dlc": 13,
+        "len": 32
+      },
+      {
+        "dlc": 14,
+        "len": 48
+      },
+      {
+        "dlc": 15,
+        "len": 64
+      }
+    ],
+    "remote": {
+      "dataLen": 0,
+      "dlc": 4,
+      "extended": false,
+      "id": 522,
+      "len": 4,
+      "requested": 4
+    },
+    "standardIsNotJ1939": 291,
+    "tooLongForClassic": 9
+  },
   "codec": {
     "cbor": "a3676261747465727918586163f94d606269646770726f62652d31",
     "deltas": {
@@ -111,6 +266,189 @@
     ],
     "radiusM": 50.0
   },
+  "gpio": {
+    "edges": [
+      {
+        "edge": "Rising",
+        "from": "Low",
+        "to": "High",
+        "triggered": true
+      },
+      {
+        "edge": "Rising",
+        "from": "High",
+        "to": "Low",
+        "triggered": false
+      },
+      {
+        "edge": "Rising",
+        "from": "High",
+        "to": "High",
+        "triggered": false
+      },
+      {
+        "edge": "Falling",
+        "from": "Low",
+        "to": "High",
+        "triggered": false
+      },
+      {
+        "edge": "Falling",
+        "from": "High",
+        "to": "Low",
+        "triggered": true
+      },
+      {
+        "edge": "Falling",
+        "from": "High",
+        "to": "High",
+        "triggered": false
+      },
+      {
+        "edge": "Both",
+        "from": "Low",
+        "to": "High",
+        "triggered": true
+      },
+      {
+        "edge": "Both",
+        "from": "High",
+        "to": "Low",
+        "triggered": true
+      },
+      {
+        "edge": "Both",
+        "from": "High",
+        "to": "High",
+        "triggered": false
+      }
+    ],
+    "i2c": [
+      {
+        "address": 118,
+        "frameLen": 1,
+        "generalCall": false,
+        "readFrame": "ed",
+        "reserved": false,
+        "tenBit": false,
+        "writeFrame": "ec"
+      },
+      {
+        "address": 104,
+        "frameLen": 1,
+        "generalCall": false,
+        "readFrame": "d1",
+        "reserved": false,
+        "tenBit": false,
+        "writeFrame": "d0"
+      },
+      {
+        "address": 0,
+        "frameLen": 1,
+        "generalCall": true,
+        "readFrame": "01",
+        "reserved": true,
+        "tenBit": false,
+        "writeFrame": "00"
+      },
+      {
+        "address": 7,
+        "frameLen": 1,
+        "generalCall": false,
+        "readFrame": "0f",
+        "reserved": true,
+        "tenBit": false,
+        "writeFrame": "0e"
+      },
+      {
+        "address": 8,
+        "frameLen": 1,
+        "generalCall": false,
+        "readFrame": "11",
+        "reserved": false,
+        "tenBit": false,
+        "writeFrame": "10"
+      },
+      {
+        "address": 119,
+        "frameLen": 1,
+        "generalCall": false,
+        "readFrame": "ef",
+        "reserved": false,
+        "tenBit": false,
+        "writeFrame": "ee"
+      },
+      {
+        "address": 120,
+        "frameLen": 1,
+        "generalCall": false,
+        "readFrame": "f1",
+        "reserved": true,
+        "tenBit": false,
+        "writeFrame": "f0"
+      },
+      {
+        "address": 677,
+        "frameLen": 2,
+        "generalCall": false,
+        "readFrame": "f5a5",
+        "reserved": false,
+        "tenBit": true,
+        "writeFrame": "f4a5"
+      }
+    ],
+    "invalidSpiMode": 4,
+    "outOfRangeSevenBit": 128,
+    "outOfRangeTenBit": 1024,
+    "polarities": [
+      {
+        "asserted": true,
+        "isAsserted": true,
+        "level": "High",
+        "polarity": "ActiveHigh"
+      },
+      {
+        "asserted": false,
+        "isAsserted": false,
+        "level": "Low",
+        "polarity": "ActiveHigh"
+      },
+      {
+        "asserted": true,
+        "isAsserted": true,
+        "level": "Low",
+        "polarity": "ActiveLow"
+      },
+      {
+        "asserted": false,
+        "isAsserted": false,
+        "level": "High",
+        "polarity": "ActiveLow"
+      }
+    ],
+    "spi": [
+      {
+        "cpha": false,
+        "cpol": false,
+        "mode": 0
+      },
+      {
+        "cpha": true,
+        "cpol": false,
+        "mode": 1
+      },
+      {
+        "cpha": false,
+        "cpol": true,
+        "mode": 2
+      },
+      {
+        "cpha": true,
+        "cpol": true,
+        "mode": 3
+      }
+    ]
+  },
   "identity": {
     "fingerprint": "ea4a6c63e29c520a",
     "payload": "21.5",
@@ -118,6 +456,85 @@
     "seed": "0707070707070707070707070707070707070707070707070707070707070707",
     "signature": "d78757ff91d869d7eed8cc5253ddacf3aa6664c38f922aa38e96f6caffe506f753ae73033a6c522b14125530a587ded0a852b2ae3ee3c94e0ed95a6bf71e170c",
     "tamperedPayload": "21.6"
+  },
+  "modbus": {
+    "bitReply": {
+      "coils": [
+        true,
+        false,
+        true,
+        true
+      ],
+      "count": 4,
+      "frame": "1101010d948d"
+    },
+    "corruptFrame": "1103ff6b00037687",
+    "crc": {
+      "data": "1103006b0003",
+      "value": 34678
+    },
+    "exceptionReply": {
+      "exception": 2,
+      "frame": "118302c134",
+      "functionCode": 131
+    },
+    "highRegisterReply": {
+      "frame": "110304ffff80008a16",
+      "registers": [
+        65535,
+        32768
+      ]
+    },
+    "readCoils": {
+      "address": 17,
+      "count": 37,
+      "frame": "1101001300250e84",
+      "start": 19
+    },
+    "readHoldingRegisters": {
+      "address": 17,
+      "count": 3,
+      "frame": "1103006b00037687",
+      "start": 107
+    },
+    "reply": {
+      "address": 17,
+      "frame": "110306022b00000064c8ba",
+      "functionCode": 3,
+      "pdu": "0306022b00000064",
+      "registers": [
+        555,
+        0,
+        100
+      ]
+    },
+    "writeMultipleCoils": {
+      "address": 17,
+      "frame": "110f00130005010d2a5c",
+      "start": 19,
+      "values": [
+        true,
+        false,
+        true,
+        true,
+        false
+      ]
+    },
+    "writeMultipleRegisters": {
+      "address": 17,
+      "frame": "11100001000204000a0102c6f0",
+      "start": 1,
+      "values": [
+        10,
+        258
+      ]
+    },
+    "writeSingleRegister": {
+      "address": 17,
+      "frame": "1106000100039a9b",
+      "register": 1,
+      "value": 3
+    }
   },
   "note": "Generated by `cargo run -p pamoja-examples --example conformance_vectors`. Do not edit by hand.",
   "pid": {
@@ -142,6 +559,30 @@
       0.004999995231628418
     ],
     "setpoint": 10.0
+  },
+  "serial": {
+    "cobsFrame": "03c0db022a00",
+    "cobsMaxEncodedLen": 6,
+    "cobsStream": {
+      "bytes": "031122023300",
+      "chunk": 4,
+      "frames": [
+        "11220033"
+      ]
+    },
+    "corruptSlipFrame": "db01c0",
+    "payload": "c0db002a",
+    "slipFrame": "dbdcdbdd002ac0",
+    "slipMaxEncodedLen": 9,
+    "slipStream": {
+      "bytes": "6f6bc0dbc0676fc0",
+      "chunk": 3,
+      "discarded": 1,
+      "frames": [
+        "6f6b",
+        "676f"
+      ]
+    }
   },
   "smoother": {
     "outputs": [

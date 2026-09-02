@@ -33,6 +33,22 @@
       "types": "./dist/kit.d.ts",
       "default": "./dist/kit.js"
     },
+    "./serial": {
+      "types": "./dist/serial.d.ts",
+      "default": "./dist/serial.js"
+    },
+    "./modbus": {
+      "types": "./dist/modbus.d.ts",
+      "default": "./dist/modbus.js"
+    },
+    "./can": {
+      "types": "./dist/can.d.ts",
+      "default": "./dist/can.js"
+    },
+    "./gpio": {
+      "types": "./dist/gpio.d.ts",
+      "default": "./dist/gpio.js"
+    },
     "./raw": {
       "types": "./index.d.ts",
       "default": "./index.js"

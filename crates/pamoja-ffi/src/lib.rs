@@ -32,14 +32,26 @@ use std::sync::OnceLock;
 
 use pamoja_core::Error;
 
+// The capability modules are public so every item the C ABI exports, including
+// the buffer-size constants a caller sizes an array from, stays reachable from
+// the crate root. A constant referenced only from the generated header reads as
+// dead code otherwise.
+#[cfg(feature = "can")]
+pub mod can;
 #[cfg(feature = "codec")]
-mod codec;
+pub mod codec;
+#[cfg(feature = "gpio")]
+pub mod gpio;
 #[cfg(feature = "kit")]
-mod kit;
+pub mod kit;
+#[cfg(feature = "modbus")]
+pub mod modbus;
 #[cfg(feature = "mqtt")]
-mod mqtt;
+pub mod mqtt;
 #[cfg(feature = "security")]
-mod security;
+pub mod security;
+#[cfg(feature = "serial")]
+pub mod serial;
 
 /// The result of a fallible pamoja call.
 ///
@@ -133,7 +145,14 @@ pub extern "C" fn pamoja_last_error_message() -> *const c_char {
 /// # Safety
 ///
 /// When `len` is non-zero, `ptr` must point to at least `len` readable bytes.
-#[cfg(any(feature = "codec", feature = "mqtt", feature = "security"))]
+#[cfg(any(
+    feature = "can",
+    feature = "codec",
+    feature = "modbus",
+    feature = "mqtt",
+    feature = "security",
+    feature = "serial"
+))]
 pub(crate) unsafe fn read_bytes(ptr: *const u8, len: usize) -> Result<Vec<u8>, PamojaStatus> {
     if len == 0 {
         Ok(Vec::new())
@@ -151,12 +170,12 @@ pub(crate) unsafe fn read_bytes(ptr: *const u8, len: usize) -> Result<Vec<u8>, P
 /// writing into a caller buffer, so the caller never has to guess a size. Read it
 /// with [`pamoja_buffer_data`] and [`pamoja_buffer_len`], then release it with
 /// [`pamoja_buffer_free`].
-#[cfg(feature = "codec")]
+#[cfg(any(feature = "codec", feature = "modbus", feature = "serial"))]
 pub struct PamojaBuffer {
     bytes: Vec<u8>,
 }
 
-#[cfg(feature = "codec")]
+#[cfg(any(feature = "codec", feature = "modbus", feature = "serial"))]
 impl PamojaBuffer {
     /// Wraps owned bytes in a heap-allocated handle for the caller to own.
     ///
@@ -184,7 +203,7 @@ impl PamojaBuffer {
 /// # Safety
 ///
 /// `buffer` must be a live handle from a pamoja call that produced one, or null.
-#[cfg(feature = "codec")]
+#[cfg(any(feature = "codec", feature = "modbus", feature = "serial"))]
 #[no_mangle]
 pub unsafe extern "C" fn pamoja_buffer_data(buffer: *const PamojaBuffer) -> *const u8 {
     if buffer.is_null() {
@@ -202,7 +221,7 @@ pub unsafe extern "C" fn pamoja_buffer_data(buffer: *const PamojaBuffer) -> *con
 /// # Safety
 ///
 /// `buffer` must be a live handle from a pamoja call that produced one, or null.
-#[cfg(feature = "codec")]
+#[cfg(any(feature = "codec", feature = "modbus", feature = "serial"))]
 #[no_mangle]
 pub unsafe extern "C" fn pamoja_buffer_len(buffer: *const PamojaBuffer) -> usize {
     if buffer.is_null() {
@@ -219,7 +238,7 @@ pub unsafe extern "C" fn pamoja_buffer_len(buffer: *const PamojaBuffer) -> usize
 ///
 /// `buffer` must be a handle from a pamoja call that produced one and that has
 /// not already been freed, or null. After this call it must not be used again.
-#[cfg(feature = "codec")]
+#[cfg(any(feature = "codec", feature = "modbus", feature = "serial"))]
 #[no_mangle]
 pub unsafe extern "C" fn pamoja_buffer_free(buffer: *mut PamojaBuffer) {
     if !buffer.is_null() {

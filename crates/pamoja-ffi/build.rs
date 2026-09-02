@@ -15,10 +15,14 @@ use std::path::{Path, PathBuf};
 
 fn main() {
     println!("cargo:rerun-if-changed=src/lib.rs");
+    println!("cargo:rerun-if-changed=src/can.rs");
     println!("cargo:rerun-if-changed=src/codec.rs");
+    println!("cargo:rerun-if-changed=src/gpio.rs");
     println!("cargo:rerun-if-changed=src/kit.rs");
+    println!("cargo:rerun-if-changed=src/modbus.rs");
     println!("cargo:rerun-if-changed=src/mqtt.rs");
     println!("cargo:rerun-if-changed=src/security.rs");
+    println!("cargo:rerun-if-changed=src/serial.rs");
     println!("cargo:rerun-if-changed=cbindgen.toml");
 
     let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

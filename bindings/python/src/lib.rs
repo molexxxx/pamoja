@@ -10,14 +10,22 @@
 use pyo3::prelude::*;
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
 
+#[cfg(feature = "can")]
+mod can;
 #[cfg(feature = "codec")]
 mod codec;
+#[cfg(feature = "gpio")]
+mod gpio;
 #[cfg(feature = "kit")]
 mod kit;
+#[cfg(feature = "modbus")]
+mod modbus;
 #[cfg(feature = "mqtt")]
 mod mqtt;
 #[cfg(feature = "security")]
 mod security;
+#[cfg(feature = "serial")]
+mod serial;
 
 pyo3::create_exception!(
     pamoja,
@@ -72,6 +80,62 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(kit::distance_between, m)?)?;
         m.add_function(wrap_pyfunction!(kit::bearing_between, m)?)?;
         m.add_function(wrap_pyfunction!(kit::deadband, m)?)?;
+    }
+    #[cfg(feature = "serial")]
+    {
+        m.add_class::<serial::SlipDecoder>()?;
+        m.add_class::<serial::CobsDecoder>()?;
+        m.add_function(wrap_pyfunction!(serial::slip_encode, m)?)?;
+        m.add_function(wrap_pyfunction!(serial::slip_decode, m)?)?;
+        m.add_function(wrap_pyfunction!(serial::cobs_encode, m)?)?;
+        m.add_function(wrap_pyfunction!(serial::cobs_decode, m)?)?;
+        m.add_function(wrap_pyfunction!(serial::slip_max_encoded_len, m)?)?;
+        m.add_function(wrap_pyfunction!(serial::cobs_max_encoded_len, m)?)?;
+    }
+    #[cfg(feature = "modbus")]
+    {
+        m.add_class::<modbus::ModbusFrame>()?;
+        m.add_function(wrap_pyfunction!(modbus::modbus_crc16, m)?)?;
+        m.add_function(wrap_pyfunction!(modbus::modbus_read_coils, m)?)?;
+        m.add_function(wrap_pyfunction!(modbus::modbus_read_discrete_inputs, m)?)?;
+        m.add_function(wrap_pyfunction!(modbus::modbus_read_holding_registers, m)?)?;
+        m.add_function(wrap_pyfunction!(modbus::modbus_read_input_registers, m)?)?;
+        m.add_function(wrap_pyfunction!(modbus::modbus_write_single_coil, m)?)?;
+        m.add_function(wrap_pyfunction!(modbus::modbus_write_single_register, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            modbus::modbus_write_multiple_registers,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(modbus::modbus_write_multiple_coils, m)?)?;
+        m.add_function(wrap_pyfunction!(modbus::modbus_raw, m)?)?;
+        m.add_function(wrap_pyfunction!(modbus::modbus_parse_frame, m)?)?;
+    }
+    #[cfg(feature = "can")]
+    {
+        m.add_class::<can::CanFrame>()?;
+        m.add_class::<can::J1939Message>()?;
+        m.add_function(wrap_pyfunction!(can::can_frame, m)?)?;
+        m.add_function(wrap_pyfunction!(can::can_fd_frame, m)?)?;
+        m.add_function(wrap_pyfunction!(can::can_remote_frame, m)?)?;
+        m.add_function(wrap_pyfunction!(can::can_len_to_dlc, m)?)?;
+        m.add_function(wrap_pyfunction!(can::can_dlc_to_len, m)?)?;
+        m.add_function(wrap_pyfunction!(can::j1939_decode, m)?)?;
+        m.add_function(wrap_pyfunction!(can::j1939_compose, m)?)?;
+    }
+    #[cfg(feature = "gpio")]
+    {
+        m.add_class::<gpio::SpiClock>()?;
+        m.add_function(wrap_pyfunction!(gpio::i2c_address_frame, m)?)?;
+        m.add_function(wrap_pyfunction!(gpio::i2c_address_frame_len, m)?)?;
+        m.add_function(wrap_pyfunction!(gpio::i2c_address_is_reserved, m)?)?;
+        m.add_function(wrap_pyfunction!(gpio::i2c_address_is_general_call, m)?)?;
+        m.add_function(wrap_pyfunction!(gpio::spi_mode_clock, m)?)?;
+        m.add_function(wrap_pyfunction!(gpio::spi_mode_from_clock, m)?)?;
+        m.add_function(wrap_pyfunction!(gpio::pin_level_inverted, m)?)?;
+        m.add_function(wrap_pyfunction!(gpio::pin_level_from_bool, m)?)?;
+        m.add_function(wrap_pyfunction!(gpio::pin_edge_triggered_by, m)?)?;
+        m.add_function(wrap_pyfunction!(gpio::pin_polarity_level, m)?)?;
+        m.add_function(wrap_pyfunction!(gpio::pin_polarity_is_asserted, m)?)?;
     }
     Ok(())
 }

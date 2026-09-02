@@ -7,8 +7,9 @@
  * happens in the native core reached through the generated contract.
  *
  * Each capability also has its own entry point (`@pamoja/core/mqtt`,
- * `/security`, `/codec`, `/kit`) for callers who want only one, and the
- * generated low-level surface remains available at `@pamoja/core/raw`.
+ * `/security`, `/codec`, `/kit`, `/serial`, `/modbus`, `/can`, `/gpio`) for
+ * callers who want only one, and the generated low-level surface remains
+ * available at `@pamoja/core/raw`.
  *
  * @packageDocumentation
  */
@@ -38,3 +39,14 @@ export {
   Surge,
   Thermostat,
 } from './kit'
+
+// The field-I/O capabilities are namespaced rather than flattened: their
+// operations are named for their protocol ("frame", "raw", "parseFrame"), which
+// only reads unambiguously with the protocol in front of it.
+export * as can from './can'
+
+export * as gpio from './gpio'
+
+export * as modbus from './modbus'
+
+export * as serial from './serial'

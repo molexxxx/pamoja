@@ -17,11 +17,19 @@ pub fn version() -> String {
 // the crate root. In a cdylib this adds no Rust-visible API, but a `#[napi]`
 // function in a private module reads as dead code to the lint pass that runs
 // over the test target.
+#[cfg(feature = "can")]
+pub mod can;
 #[cfg(feature = "codec")]
 pub mod codec;
+#[cfg(feature = "gpio")]
+pub mod gpio;
 #[cfg(feature = "kit")]
 pub mod kit;
+#[cfg(feature = "modbus")]
+pub mod modbus;
 #[cfg(feature = "mqtt")]
 pub mod mqtt;
 #[cfg(feature = "security")]
 pub mod security;
+#[cfg(feature = "serial")]
+pub mod serial;
