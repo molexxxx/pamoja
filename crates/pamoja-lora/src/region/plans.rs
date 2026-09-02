@@ -4,7 +4,31 @@
 //! device only ever operates in one region and a microcontroller should not
 //! carry the other nine in flash.
 
-use super::{Beacon, ChannelBlock, ChannelPlan, DataRate, MaxPayload, SubBand};
+use super::ChannelPlan;
+// The table types follow the regions: a build that selects one band, or none,
+// must not be told it imported types no plan in it uses.
+#[cfg(any(
+    feature = "eu868",
+    feature = "us915",
+    feature = "eu433",
+    feature = "au915",
+    feature = "cn470",
+    feature = "as923",
+    feature = "kr920",
+    feature = "in865",
+    feature = "ru864"
+))]
+use super::{Beacon, ChannelBlock, DataRate, MaxPayload};
+// Only the bands whose regulators cap airtime describe sub-bands; the 900 MHz
+// plans and IN865 leave the table empty.
+#[cfg(any(
+    feature = "eu868",
+    feature = "eu433",
+    feature = "as923",
+    feature = "kr920",
+    feature = "ru864"
+))]
+use super::SubBand;
 
 /// A named regional channel plan.
 ///
@@ -49,7 +73,7 @@ impl Region {
     /// # Returns
     ///
     /// The plan, whose tables come straight from RP002-1.0.5.
-    pub const fn plan(self) -> &'static ChannelPlan {
+    pub const fn plan(self) -> &'static ChannelPlan<'static> {
         match self {
             #[cfg(feature = "eu868")]
             Region::Eu868 => &EU868,
@@ -79,6 +103,80 @@ impl Region {
     /// The band name, such as `"EU863-870"`.
     pub const fn name(self) -> &'static str {
         self.plan().name
+    }
+
+    /// Returns the short code this region is configured by.
+    ///
+    /// A deployment is set up as `EU868` or `US915`; the band name the
+    /// specification uses, such as `EU863-870`, is what [`name`](Self::name)
+    /// reports. Both identify the same plan.
+    ///
+    /// # Returns
+    ///
+    /// The short code, such as `"EU868"`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "eu868")] {
+    /// use pamoja_lora::region::Region;
+    ///
+    /// assert_eq!(Region::Eu868.code(), "EU868");
+    /// assert_eq!(Region::Eu868.name(), "EU863-870");
+    /// # }
+    /// ```
+    pub const fn code(self) -> &'static str {
+        match self {
+            #[cfg(feature = "eu868")]
+            Region::Eu868 => "EU868",
+            #[cfg(feature = "us915")]
+            Region::Us915 => "US915",
+            #[cfg(feature = "eu433")]
+            Region::Eu433 => "EU433",
+            #[cfg(feature = "au915")]
+            Region::Au915 => "AU915",
+            #[cfg(feature = "cn470")]
+            Region::Cn470 => "CN470",
+            #[cfg(feature = "as923")]
+            Region::As923 => "AS923",
+            #[cfg(feature = "kr920")]
+            Region::Kr920 => "KR920",
+            #[cfg(feature = "in865")]
+            Region::In865 => "IN865",
+            #[cfg(feature = "ru864")]
+            Region::Ru864 => "RU864",
+        }
+    }
+
+    /// Returns the region a short code names.
+    ///
+    /// The comparison ignores case, and the specification's band name is
+    /// accepted as well, so a plan read back from a device's configuration
+    /// resolves whichever form it was written in.
+    ///
+    /// # Arguments
+    ///
+    /// * `code` - the short code or band name, such as `"EU868"`.
+    ///
+    /// # Returns
+    ///
+    /// The region, or `None` if no region in this build goes by that name.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "us915")] {
+    /// use pamoja_lora::region::Region;
+    ///
+    /// assert_eq!(Region::from_code("us915"), Some(Region::Us915));
+    /// assert_eq!(Region::from_code("US902-928"), Some(Region::Us915));
+    /// assert_eq!(Region::from_code("Atlantis"), None);
+    /// # }
+    /// ```
+    pub fn from_code(code: &str) -> Option<Self> {
+        Self::all().iter().copied().find(|region| {
+            code.eq_ignore_ascii_case(region.code()) || code.eq_ignore_ascii_case(region.name())
+        })
     }
 
     /// Returns every region this build carries.
@@ -227,7 +325,7 @@ static EU868_SUB_BANDS: [SubBand; 2] = [
 
 /// The EU863-870 channel plan, RP002-1.0.5 section 3.4.
 #[cfg(feature = "eu868")]
-pub static EU868: ChannelPlan = ChannelPlan {
+pub static EU868: ChannelPlan<'static> = ChannelPlan {
     name: "EU863-870",
     uplink_data_rates: &EU868_DATA_RATES,
     downlink_data_rates: &EU868_DATA_RATES,
@@ -408,7 +506,7 @@ static US915_JOIN_CHANNELS: [ChannelBlock; 2] = [
 /// plan publishes no sub-band duty limit and
 /// [`duty_cycle_permille`](ChannelPlan::duty_cycle_permille) reports `None`.
 #[cfg(feature = "us915")]
-pub static US915: ChannelPlan = ChannelPlan {
+pub static US915: ChannelPlan<'static> = ChannelPlan {
     name: "US902-928",
     uplink_data_rates: &US915_UPLINK_DATA_RATES,
     downlink_data_rates: &US915_DOWNLINK_DATA_RATES,
@@ -547,7 +645,7 @@ static EU433_SUB_BANDS: [SubBand; 1] = [SubBand::new(433_050_000, 434_790_000, 1
 
 /// The EU433 channel plan, RP002-1.0.5 section 3.7.
 #[cfg(feature = "eu433")]
-pub static EU433: ChannelPlan = ChannelPlan {
+pub static EU433: ChannelPlan<'static> = ChannelPlan {
     name: "EU433",
     uplink_data_rates: &EU433_DATA_RATES,
     downlink_data_rates: &EU433_DATA_RATES,
@@ -751,7 +849,7 @@ static AU915_CHANNELS: [ChannelBlock; 2] = [
 /// the dwell-limited payload table is the one that matters until the network
 /// says otherwise.
 #[cfg(feature = "au915")]
-pub static AU915: ChannelPlan = ChannelPlan {
+pub static AU915: ChannelPlan<'static> = ChannelPlan {
     name: "AU915-928",
     uplink_data_rates: &AU915_UPLINK_DATA_RATES,
     downlink_data_rates: &AU915_DOWNLINK_DATA_RATES,
@@ -877,7 +975,7 @@ static CN470_JOIN_CHANNELS: [ChannelBlock; 2] = [
 /// Transmissions in this band are limited to one second on one channel at a
 /// time, with listen-before-talk rather than a duty cycle.
 #[cfg(feature = "cn470")]
-pub static CN470: ChannelPlan = ChannelPlan {
+pub static CN470: ChannelPlan<'static> = ChannelPlan {
     name: "CN470-510",
     uplink_data_rates: &CN470_DATA_RATES,
     downlink_data_rates: &CN470_DATA_RATES,
@@ -1041,7 +1139,7 @@ static AS923_SUB_BANDS: [SubBand; 1] = [SubBand::new(923_000_000, 923_500_000, 1
 /// Japan reaches this band through ARIB STD-T108, which imposes a listen-before-
 /// talk obligation this plan does not model.
 #[cfg(feature = "as923")]
-pub static AS923: ChannelPlan = ChannelPlan {
+pub static AS923: ChannelPlan<'static> = ChannelPlan {
     name: "AS923",
     uplink_data_rates: &AS923_DATA_RATES,
     downlink_data_rates: &AS923_DATA_RATES,
@@ -1183,7 +1281,7 @@ static KR920_SUB_BANDS: [SubBand; 2] = [
 
 /// The KR920-923 channel plan, RP002-1.0.5 section 3.11.
 #[cfg(feature = "kr920")]
-pub static KR920: ChannelPlan = ChannelPlan {
+pub static KR920: ChannelPlan<'static> = ChannelPlan {
     name: "KR920-923",
     uplink_data_rates: &KR920_DATA_RATES,
     downlink_data_rates: &KR920_DATA_RATES,
@@ -1326,7 +1424,7 @@ static IN865_CHANNELS: [ChannelBlock; 3] = [
 /// The published ceiling is 29.2 dBm EIRP, reported here as the whole decibel
 /// below it so a caller reading this as a limit is never over the real one.
 #[cfg(feature = "in865")]
-pub static IN865: ChannelPlan = ChannelPlan {
+pub static IN865: ChannelPlan<'static> = ChannelPlan {
     name: "IN865",
     uplink_data_rates: &IN865_DATA_RATES,
     downlink_data_rates: &IN865_DATA_RATES,
@@ -1462,7 +1560,7 @@ static RU864_SUB_BANDS: [SubBand; 1] = [SubBand::new(868_700_000, 869_200_000, 1
 
 /// The RU864-870 channel plan, RP002-1.0.5 section 3.13.
 #[cfg(feature = "ru864")]
-pub static RU864: ChannelPlan = ChannelPlan {
+pub static RU864: ChannelPlan<'static> = ChannelPlan {
     name: "RU864-870",
     uplink_data_rates: &RU864_DATA_RATES,
     downlink_data_rates: &RU864_DATA_RATES,

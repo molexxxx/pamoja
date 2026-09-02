@@ -903,6 +903,1008 @@
       }
     ]
   },
+  "loraRegions": {
+    "custom": {
+      "backoffFromFastest": 0,
+      "backoffFromSlowest": null,
+      "beacon": {
+        "dataRate": 0,
+        "frequencyHz": 0,
+        "pingSlotFrequencyHz": 0
+      },
+      "channelFrequencies": [
+        915000000,
+        915500000,
+        916000000,
+        916500000
+      ],
+      "defaultChannelBlockCount": 1,
+      "defaultChannelCount": 4,
+      "defaultMaxEirpDbm": 30,
+      "downlinkDataRateCount": 2,
+      "dutyCyclePermilleAtProbe": 1000,
+      "dwellLimitedAtSlowest": null,
+      "fastestUplink": {
+        "bandwidthHz": 125000,
+        "bitrateBps": 5470,
+        "codingRateDenominator": null,
+        "codingRateNumerator": null,
+        "kind": "lora",
+        "spreadingFactor": 7
+      },
+      "hasDwellLimitedPayloads": false,
+      "hasDwellLimitedRx1": false,
+      "hasDwellTimeLimit": false,
+      "joinChannelBlockCount": 0,
+      "maxEirpDbmAtProbe": 30,
+      "maxRx1DataRateOffset": 0,
+      "maxTxPowerIndex": 7,
+      "name": "private-915",
+      "payloadAtFastest": {
+        "direct": {
+          "application": 222,
+          "macPayload": 230
+        },
+        "repeater": {
+          "application": 222,
+          "macPayload": 230
+        }
+      },
+      "payloadAtSlowest": {
+        "direct": {
+          "application": 51,
+          "macPayload": 59
+        },
+        "repeater": {
+          "application": 51,
+          "macPayload": 59
+        }
+      },
+      "probeFrequencyHz": 915000000,
+      "rx1RowForSlowest": [
+        0
+      ],
+      "rx2": {
+        "dataRate": 0,
+        "frequencyHz": 915000000
+      },
+      "slowestDownlink": {
+        "bandwidthHz": 125000,
+        "bitrateBps": 250,
+        "codingRateDenominator": null,
+        "codingRateNumerator": null,
+        "kind": "lora",
+        "spreadingFactor": 12
+      },
+      "slowestUplink": {
+        "bandwidthHz": 125000,
+        "bitrateBps": 250,
+        "codingRateDenominator": null,
+        "codingRateNumerator": null,
+        "kind": "lora",
+        "spreadingFactor": 12
+      },
+      "subBandCount": 1,
+      "subBands": [
+        {
+          "dutyCyclePermille": 1000,
+          "endHz": 917000000,
+          "maxEirpDbm": 30,
+          "startHz": 915000000
+        }
+      ],
+      "txPowerAtProbe": {
+        "index0": 30,
+        "index3": 24
+      },
+      "txPowerStepDb": 2,
+      "uplinkDataRateCount": 2
+    },
+    "published": [
+      {
+        "backoffFromFastest": 12,
+        "backoffFromSlowest": null,
+        "beacon": {
+          "dataRate": 3,
+          "frequencyHz": 869525000,
+          "pingSlotFrequencyHz": 869525000
+        },
+        "channelFrequencies": [
+          868100000,
+          868300000,
+          868500000
+        ],
+        "code": "EU868",
+        "defaultChannelBlockCount": 1,
+        "defaultChannelCount": 3,
+        "defaultMaxEirpDbm": 16,
+        "downlinkDataRateCount": 14,
+        "dutyCyclePermilleAtProbe": 10,
+        "dwellLimitedAtSlowest": null,
+        "fastestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 15625,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 5
+        },
+        "hasDwellLimitedPayloads": false,
+        "hasDwellLimitedRx1": false,
+        "hasDwellTimeLimit": false,
+        "joinChannelBlockCount": 1,
+        "maxEirpDbmAtProbe": 16,
+        "maxRx1DataRateOffset": 5,
+        "maxTxPowerIndex": 7,
+        "name": "EU863-870",
+        "payloadAtFastest": {
+          "direct": {
+            "application": 242,
+            "macPayload": 250
+          },
+          "repeater": {
+            "application": 222,
+            "macPayload": 230
+          }
+        },
+        "payloadAtSlowest": {
+          "direct": {
+            "application": 51,
+            "macPayload": 59
+          },
+          "repeater": {
+            "application": 51,
+            "macPayload": 59
+          }
+        },
+        "probeFrequencyHz": 868100000,
+        "rx1RowForSlowest": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "rx2": {
+          "dataRate": 0,
+          "frequencyHz": 869525000
+        },
+        "slowestDownlink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "slowestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "subBandCount": 2,
+        "subBands": [
+          {
+            "dutyCyclePermille": 10,
+            "endHz": 868600000,
+            "maxEirpDbm": 16,
+            "startHz": 868000000
+          },
+          {
+            "dutyCyclePermille": 100,
+            "endHz": 869650000,
+            "maxEirpDbm": 27,
+            "startHz": 869400000
+          }
+        ],
+        "txPowerAtProbe": {
+          "index0": 16,
+          "index3": 10
+        },
+        "txPowerStepDb": 2,
+        "uplinkDataRateCount": 14
+      },
+      {
+        "backoffFromFastest": 7,
+        "backoffFromSlowest": null,
+        "beacon": {
+          "dataRate": 8,
+          "frequencyHz": 923300000,
+          "pingSlotFrequencyHz": 923300000
+        },
+        "channelFrequencies": [
+          902300000,
+          902500000,
+          902700000,
+          902900000,
+          903100000,
+          903300000,
+          903500000,
+          903700000
+        ],
+        "code": "US915",
+        "defaultChannelBlockCount": 2,
+        "defaultChannelCount": 72,
+        "defaultMaxEirpDbm": 30,
+        "downlinkDataRateCount": 15,
+        "dutyCyclePermilleAtProbe": null,
+        "dwellLimitedAtSlowest": null,
+        "fastestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 15625,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 5
+        },
+        "hasDwellLimitedPayloads": false,
+        "hasDwellLimitedRx1": false,
+        "hasDwellTimeLimit": true,
+        "joinChannelBlockCount": 2,
+        "maxEirpDbmAtProbe": 30,
+        "maxRx1DataRateOffset": 3,
+        "maxTxPowerIndex": 14,
+        "name": "US902-928",
+        "payloadAtFastest": {
+          "direct": {
+            "application": 242,
+            "macPayload": 250
+          },
+          "repeater": {
+            "application": 222,
+            "macPayload": 230
+          }
+        },
+        "payloadAtSlowest": {
+          "direct": {
+            "application": 11,
+            "macPayload": 19
+          },
+          "repeater": {
+            "application": 11,
+            "macPayload": 19
+          }
+        },
+        "probeFrequencyHz": 902300000,
+        "rx1RowForSlowest": [
+          10,
+          9,
+          8,
+          8
+        ],
+        "rx2": {
+          "dataRate": 8,
+          "frequencyHz": 923300000
+        },
+        "slowestDownlink": {
+          "bandwidthHz": 500000,
+          "bitrateBps": 62500,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 5
+        },
+        "slowestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 980,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 10
+        },
+        "subBandCount": 0,
+        "subBands": [],
+        "txPowerAtProbe": {
+          "index0": 30,
+          "index3": 24
+        },
+        "txPowerStepDb": 2,
+        "uplinkDataRateCount": 9
+      },
+      {
+        "backoffFromFastest": 12,
+        "backoffFromSlowest": null,
+        "beacon": {
+          "dataRate": 3,
+          "frequencyHz": 434665000,
+          "pingSlotFrequencyHz": 434665000
+        },
+        "channelFrequencies": [
+          433175000,
+          433375000,
+          433575000
+        ],
+        "code": "EU433",
+        "defaultChannelBlockCount": 1,
+        "defaultChannelCount": 3,
+        "defaultMaxEirpDbm": 12,
+        "downlinkDataRateCount": 14,
+        "dutyCyclePermilleAtProbe": 100,
+        "dwellLimitedAtSlowest": null,
+        "fastestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 15625,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 5
+        },
+        "hasDwellLimitedPayloads": false,
+        "hasDwellLimitedRx1": false,
+        "hasDwellTimeLimit": false,
+        "joinChannelBlockCount": 1,
+        "maxEirpDbmAtProbe": 12,
+        "maxRx1DataRateOffset": 5,
+        "maxTxPowerIndex": 5,
+        "name": "EU433",
+        "payloadAtFastest": {
+          "direct": {
+            "application": 242,
+            "macPayload": 250
+          },
+          "repeater": {
+            "application": 222,
+            "macPayload": 230
+          }
+        },
+        "payloadAtSlowest": {
+          "direct": {
+            "application": 51,
+            "macPayload": 59
+          },
+          "repeater": {
+            "application": 51,
+            "macPayload": 59
+          }
+        },
+        "probeFrequencyHz": 433175000,
+        "rx1RowForSlowest": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "rx2": {
+          "dataRate": 0,
+          "frequencyHz": 434665000
+        },
+        "slowestDownlink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "slowestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "subBandCount": 1,
+        "subBands": [
+          {
+            "dutyCyclePermille": 100,
+            "endHz": 434790000,
+            "maxEirpDbm": 12,
+            "startHz": 433050000
+          }
+        ],
+        "txPowerAtProbe": {
+          "index0": 12,
+          "index3": 6
+        },
+        "txPowerStepDb": 2,
+        "uplinkDataRateCount": 14
+      },
+      {
+        "backoffFromFastest": 9,
+        "backoffFromSlowest": null,
+        "beacon": {
+          "dataRate": 8,
+          "frequencyHz": 923300000,
+          "pingSlotFrequencyHz": 923300000
+        },
+        "channelFrequencies": [
+          915200000,
+          915400000,
+          915600000,
+          915800000,
+          916000000,
+          916200000,
+          916400000,
+          916600000
+        ],
+        "code": "AU915",
+        "defaultChannelBlockCount": 2,
+        "defaultChannelCount": 72,
+        "defaultMaxEirpDbm": 30,
+        "downlinkDataRateCount": 15,
+        "dutyCyclePermilleAtProbe": null,
+        "dwellLimitedAtSlowest": null,
+        "fastestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 15625,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 5
+        },
+        "hasDwellLimitedPayloads": true,
+        "hasDwellLimitedRx1": false,
+        "hasDwellTimeLimit": true,
+        "joinChannelBlockCount": 2,
+        "maxEirpDbmAtProbe": 30,
+        "maxRx1DataRateOffset": 5,
+        "maxTxPowerIndex": 14,
+        "name": "AU915-928",
+        "payloadAtFastest": {
+          "direct": {
+            "application": 242,
+            "macPayload": 250
+          },
+          "repeater": {
+            "application": 222,
+            "macPayload": 230
+          }
+        },
+        "payloadAtSlowest": {
+          "direct": {
+            "application": 51,
+            "macPayload": 59
+          },
+          "repeater": {
+            "application": 51,
+            "macPayload": 59
+          }
+        },
+        "probeFrequencyHz": 915200000,
+        "rx1RowForSlowest": [
+          8,
+          8,
+          8,
+          8,
+          8,
+          8
+        ],
+        "rx2": {
+          "dataRate": 8,
+          "frequencyHz": 923300000
+        },
+        "slowestDownlink": {
+          "bandwidthHz": 500000,
+          "bitrateBps": 62500,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 5
+        },
+        "slowestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "subBandCount": 0,
+        "subBands": [],
+        "txPowerAtProbe": {
+          "index0": 30,
+          "index3": 24
+        },
+        "txPowerStepDb": 2,
+        "uplinkDataRateCount": 11
+      },
+      {
+        "backoffFromFastest": 6,
+        "backoffFromSlowest": null,
+        "beacon": {
+          "dataRate": 2,
+          "frequencyHz": 486900000,
+          "pingSlotFrequencyHz": 486900000
+        },
+        "channelFrequencies": [
+          470300000,
+          470500000,
+          470700000,
+          470900000,
+          471100000,
+          471300000,
+          471500000,
+          471700000
+        ],
+        "code": "CN470",
+        "defaultChannelBlockCount": 2,
+        "defaultChannelCount": 64,
+        "defaultMaxEirpDbm": 19,
+        "downlinkDataRateCount": 8,
+        "dutyCyclePermilleAtProbe": null,
+        "dwellLimitedAtSlowest": null,
+        "fastestUplink": {
+          "bandwidthHz": null,
+          "bitrateBps": 50000,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "fsk",
+          "spreadingFactor": null
+        },
+        "hasDwellLimitedPayloads": false,
+        "hasDwellLimitedRx1": false,
+        "hasDwellTimeLimit": false,
+        "joinChannelBlockCount": 2,
+        "maxEirpDbmAtProbe": 19,
+        "maxRx1DataRateOffset": 5,
+        "maxTxPowerIndex": 7,
+        "name": "CN470-510",
+        "payloadAtFastest": {
+          "direct": {
+            "application": 242,
+            "macPayload": 250
+          },
+          "repeater": {
+            "application": 222,
+            "macPayload": 230
+          }
+        },
+        "payloadAtSlowest": {
+          "direct": null,
+          "repeater": null
+        },
+        "probeFrequencyHz": 470300000,
+        "rx1RowForSlowest": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "rx2": {
+          "dataRate": 1,
+          "frequencyHz": 486900000
+        },
+        "slowestDownlink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "slowestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "subBandCount": 0,
+        "subBands": [],
+        "txPowerAtProbe": {
+          "index0": 19,
+          "index3": 13
+        },
+        "txPowerStepDb": 2,
+        "uplinkDataRateCount": 8
+      },
+      {
+        "backoffFromFastest": 12,
+        "backoffFromSlowest": null,
+        "beacon": {
+          "dataRate": 3,
+          "frequencyHz": 923400000,
+          "pingSlotFrequencyHz": 923400000
+        },
+        "channelFrequencies": [
+          923200000,
+          923400000
+        ],
+        "code": "AS923",
+        "defaultChannelBlockCount": 1,
+        "defaultChannelCount": 2,
+        "defaultMaxEirpDbm": 16,
+        "downlinkDataRateCount": 14,
+        "dutyCyclePermilleAtProbe": 10,
+        "dwellLimitedAtSlowest": null,
+        "fastestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 15625,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 5
+        },
+        "hasDwellLimitedPayloads": false,
+        "hasDwellLimitedRx1": true,
+        "hasDwellTimeLimit": true,
+        "joinChannelBlockCount": 1,
+        "maxEirpDbmAtProbe": 16,
+        "maxRx1DataRateOffset": 7,
+        "maxTxPowerIndex": 7,
+        "name": "AS923",
+        "payloadAtFastest": {
+          "direct": {
+            "application": 242,
+            "macPayload": 250
+          },
+          "repeater": {
+            "application": 222,
+            "macPayload": 230
+          }
+        },
+        "payloadAtSlowest": {
+          "direct": {
+            "application": 51,
+            "macPayload": 59
+          },
+          "repeater": {
+            "application": 51,
+            "macPayload": 59
+          }
+        },
+        "probeFrequencyHz": 923200000,
+        "rx1RowForSlowest": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          2
+        ],
+        "rx2": {
+          "dataRate": 2,
+          "frequencyHz": 923200000
+        },
+        "slowestDownlink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "slowestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "subBandCount": 1,
+        "subBands": [
+          {
+            "dutyCyclePermille": 10,
+            "endHz": 923500000,
+            "maxEirpDbm": 16,
+            "startHz": 923000000
+          }
+        ],
+        "txPowerAtProbe": {
+          "index0": 16,
+          "index3": 10
+        },
+        "txPowerStepDb": 2,
+        "uplinkDataRateCount": 14
+      },
+      {
+        "backoffFromFastest": 12,
+        "backoffFromSlowest": null,
+        "beacon": {
+          "dataRate": 3,
+          "frequencyHz": 923100000,
+          "pingSlotFrequencyHz": 923100000
+        },
+        "channelFrequencies": [
+          922100000,
+          922300000,
+          922500000
+        ],
+        "code": "KR920",
+        "defaultChannelBlockCount": 1,
+        "defaultChannelCount": 3,
+        "defaultMaxEirpDbm": 14,
+        "downlinkDataRateCount": 14,
+        "dutyCyclePermilleAtProbe": 1000,
+        "dwellLimitedAtSlowest": null,
+        "fastestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 15625,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 5
+        },
+        "hasDwellLimitedPayloads": false,
+        "hasDwellLimitedRx1": false,
+        "hasDwellTimeLimit": false,
+        "joinChannelBlockCount": 1,
+        "maxEirpDbmAtProbe": 14,
+        "maxRx1DataRateOffset": 5,
+        "maxTxPowerIndex": 7,
+        "name": "KR920-923",
+        "payloadAtFastest": {
+          "direct": {
+            "application": 242,
+            "macPayload": 250
+          },
+          "repeater": {
+            "application": 222,
+            "macPayload": 230
+          }
+        },
+        "payloadAtSlowest": {
+          "direct": {
+            "application": 51,
+            "macPayload": 59
+          },
+          "repeater": {
+            "application": 51,
+            "macPayload": 59
+          }
+        },
+        "probeFrequencyHz": 922100000,
+        "rx1RowForSlowest": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "rx2": {
+          "dataRate": 0,
+          "frequencyHz": 921900000
+        },
+        "slowestDownlink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "slowestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "subBandCount": 2,
+        "subBands": [
+          {
+            "dutyCyclePermille": 1000,
+            "endHz": 921900000,
+            "maxEirpDbm": 10,
+            "startHz": 920900000
+          },
+          {
+            "dutyCyclePermille": 1000,
+            "endHz": 923300000,
+            "maxEirpDbm": 14,
+            "startHz": 922100000
+          }
+        ],
+        "txPowerAtProbe": {
+          "index0": 14,
+          "index3": 8
+        },
+        "txPowerStepDb": 2,
+        "uplinkDataRateCount": 14
+      },
+      {
+        "backoffFromFastest": 12,
+        "backoffFromSlowest": null,
+        "beacon": {
+          "dataRate": 4,
+          "frequencyHz": 866550000,
+          "pingSlotFrequencyHz": 866550000
+        },
+        "channelFrequencies": [
+          865062500,
+          865402500,
+          865985000
+        ],
+        "code": "IN865",
+        "defaultChannelBlockCount": 3,
+        "defaultChannelCount": 3,
+        "defaultMaxEirpDbm": 29,
+        "downlinkDataRateCount": 14,
+        "dutyCyclePermilleAtProbe": null,
+        "dwellLimitedAtSlowest": null,
+        "fastestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 15625,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 5
+        },
+        "hasDwellLimitedPayloads": false,
+        "hasDwellLimitedRx1": false,
+        "hasDwellTimeLimit": false,
+        "joinChannelBlockCount": 3,
+        "maxEirpDbmAtProbe": 29,
+        "maxRx1DataRateOffset": 7,
+        "maxTxPowerIndex": 10,
+        "name": "IN865",
+        "payloadAtFastest": {
+          "direct": {
+            "application": 242,
+            "macPayload": 250
+          },
+          "repeater": {
+            "application": 222,
+            "macPayload": 230
+          }
+        },
+        "payloadAtSlowest": {
+          "direct": {
+            "application": 51,
+            "macPayload": 59
+          },
+          "repeater": {
+            "application": 51,
+            "macPayload": 59
+          }
+        },
+        "probeFrequencyHz": 865062500,
+        "rx1RowForSlowest": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          2
+        ],
+        "rx2": {
+          "dataRate": 2,
+          "frequencyHz": 866550000
+        },
+        "slowestDownlink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "slowestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "subBandCount": 0,
+        "subBands": [],
+        "txPowerAtProbe": {
+          "index0": 29,
+          "index3": 23
+        },
+        "txPowerStepDb": 2,
+        "uplinkDataRateCount": 14
+      },
+      {
+        "backoffFromFastest": 12,
+        "backoffFromSlowest": null,
+        "beacon": {
+          "dataRate": 3,
+          "frequencyHz": 869100000,
+          "pingSlotFrequencyHz": 868900000
+        },
+        "channelFrequencies": [
+          868900000,
+          869100000
+        ],
+        "code": "RU864",
+        "defaultChannelBlockCount": 1,
+        "defaultChannelCount": 2,
+        "defaultMaxEirpDbm": 16,
+        "downlinkDataRateCount": 14,
+        "dutyCyclePermilleAtProbe": 10,
+        "dwellLimitedAtSlowest": null,
+        "fastestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 15625,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 5
+        },
+        "hasDwellLimitedPayloads": false,
+        "hasDwellLimitedRx1": false,
+        "hasDwellTimeLimit": false,
+        "joinChannelBlockCount": 1,
+        "maxEirpDbmAtProbe": 16,
+        "maxRx1DataRateOffset": 5,
+        "maxTxPowerIndex": 7,
+        "name": "RU864-870",
+        "payloadAtFastest": {
+          "direct": {
+            "application": 242,
+            "macPayload": 250
+          },
+          "repeater": {
+            "application": 222,
+            "macPayload": 230
+          }
+        },
+        "payloadAtSlowest": {
+          "direct": {
+            "application": 51,
+            "macPayload": 59
+          },
+          "repeater": {
+            "application": 51,
+            "macPayload": 59
+          }
+        },
+        "probeFrequencyHz": 868900000,
+        "rx1RowForSlowest": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "rx2": {
+          "dataRate": 0,
+          "frequencyHz": 869100000
+        },
+        "slowestDownlink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "slowestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "subBandCount": 1,
+        "subBands": [
+          {
+            "dutyCyclePermille": 10,
+            "endHz": 869200000,
+            "maxEirpDbm": 16,
+            "startHz": 868700000
+          }
+        ],
+        "txPowerAtProbe": {
+          "index0": 16,
+          "index3": 10
+        },
+        "txPowerStepDb": 2,
+        "uplinkDataRateCount": 14
+      }
+    ]
+  },
   "lorawan": {
     "appSKey": "99999999999999999999999999999999",
     "devAddr": 637606874,

@@ -706,3 +706,106 @@ def test_zenoh_key_expressions_address_a_fleet_subtree():
     assert not zenoh.matches("fleet/*/battery", "fleet/n7/rack/battery")
     assert zenoh.canonize("fleet/**/**/battery") == "fleet/**/battery"
     assert not zenoh.is_canon("fleet/**/**/battery")
+
+
+def test_a_published_region_reports_what_its_band_allows():
+    from pamoja import lora
+
+    plan = lora.plan_for("EU868")
+    assert plan.name == "EU863-870"
+    assert plan.link_settings(0).spreading_factor == 12
+    assert plan.duty_cycle_permille(868_100_000) == 10, "the 868.1 MHz sub-band is 1%"
+    assert plan.max_eirp_dbm(868_100_000) == 16
+    assert plan.max_payload(5).application == 242
+    assert plan.rx1_data_rate(5, 0) == 5, "RX1 at offset 0 mirrors the uplink rate"
+    assert plan.rx2() == (869_525_000, 0)
+    assert plan.next_backoff_data_rate(0) is None, "DR0 has nothing slower"
+
+    # Every code the plan lists resolves, in either form and any case.
+    for code in lora.ChannelPlan.regions():
+        assert lora.plan_for(code.lower()).name
+    assert lora.plan_for("EU863-870").name == "EU863-870"
+
+    with pytest.raises(ValueError, match="not a published region"):
+        lora.plan_for("Atlantis")
+
+
+def test_a_reserved_data_rate_is_told_from_one_the_plan_lacks():
+    from pamoja import lora
+
+    # EU868 defines all fourteen of its numbers, DR9 among them.
+    eu868 = lora.plan_for("EU868")
+    assert eu868.data_rate(9).kind == "lr_fhss"
+    assert eu868.data_rate(9).coding_rate_numerator == 2
+    assert eu868.data_rate(200) is None, "a number past the table is absent"
+
+    # US915 numbers its downlink rates from DR8, so DR2 is a reserved slot.
+    us915 = lora.plan_for("US915")
+    assert us915.data_rate(2, "downlink").kind == "reserved"
+    assert us915.data_rate(8, "downlink").kind == "lora"
+    assert us915.duty_cycle_permille(903_000_000) is None, (
+        "the FCC caps dwell time rather than duty cycle, so US915 has no sub-band"
+    )
+    assert lora.plan_for("AU915").info().has_dwell_time_limit
+
+
+def test_the_message_budget_a_band_leaves():
+    from pamoja import lora
+
+    plan = lora.plan_for("EU868")
+    assert lora.messages_per_hour_at(plan, 5, 20, 868_100_000) > 0
+    assert lora.messages_per_hour_at(plan, 5, 20, 700_000_000) is None, (
+        "a frequency outside the band has no duty cycle to budget against"
+    )
+
+
+def test_a_private_plan_answers_what_a_published_one_does():
+    from pamoja import lora
+
+    # A deployment on licensed spectrum, which may hold the channel continuously.
+    builder = lora.ChannelPlanBuilder("private-915")
+    builder.data_rate(lora.LoraDataRate.lora(12, 125_000, 250))
+    builder.data_rate(lora.LoraDataRate.lora(7, 125_000, 5_470))
+    builder.max_payload(lora.LoraMaxPayload(59, 51))
+    builder.max_payload(lora.LoraMaxPayload(230, 222))
+    builder.channel_block(lora.LoraChannelBlock(915_000_000, 500_000, 4, 0, 1))
+    builder.sub_band(lora.LoraSubBand(915_000_000, 917_000_000, 1000, 30))
+    builder.rx(915_000_000)
+    builder.rx1_row([0])
+    builder.rx1_row([1])
+    plan = builder.build()
+
+    assert plan.name == "private-915"
+    assert plan.channel_frequency_hz(3) == 916_500_000
+    assert plan.duty_cycle_permille(915_500_000) == 1000, "licensed spectrum is unrestricted"
+    assert plan.max_eirp_dbm(915_500_000) == 30
+    assert plan.max_payload(1, "downlink_direct").application == 222, (
+        "an empty downlink table mirrors the uplink one"
+    )
+    assert plan.next_backoff_data_rate(1) == 0, "an unset chain steps down one rate"
+    assert len(plan.sub_bands()) == 1
+    assert plan.channel_blocks()[0].count == 4
+
+    # A builder is spent once built.
+    with pytest.raises(ValueError, match="already been built"):
+        builder.build()
+
+
+def test_an_inconsistent_plan_is_refused_where_it_is_built():
+    from pamoja import lora
+
+    # Offsets up to 5 mean every RX1 row needs six entries; this one has one.
+    builder = lora.ChannelPlanBuilder("too-narrow")
+    builder.data_rate(lora.LoraDataRate.lora(12, 125_000, 250))
+    builder.rx(915_000_000, 0, 5)
+    builder.rx1_row([0])
+    with pytest.raises(ValueError, match="RX1 row"):
+        builder.build()
+
+    # Listening at a data rate the plan never defines could not work either.
+    builder = lora.ChannelPlanBuilder("bad-rx2")
+    builder.data_rate(lora.LoraDataRate.lora(12, 125_000, 250))
+    builder.rx(915_000_000, 3, 0)
+    builder.rx1_row([0])
+    with pytest.raises(ValueError, match="RX2 listens"):
+        builder.build()

@@ -27,7 +27,12 @@ public sealed class LoraLink
     /// <param name="link">The settings as the C ABI describes them.</param>
     private LoraLink(PamojaLoraLink link) => _link = link;
 
-    /// <summary>The spreading factor, 7 (fastest) to 12 (longest range).</summary>
+    /// <summary>Wraps the settings a channel plan reported for a data rate.</summary>
+    /// <param name="link">The settings as the C ABI describes them.</param>
+    /// <returns>The link settings.</returns>
+    internal static LoraLink FromNative(PamojaLoraLink link) => new(link);
+
+    /// <summary>The spreading factor, 5 (fastest) to 12 (longest range).</summary>
     public byte SpreadingFactor => _link.SpreadingFactor;
 
     /// <summary>The channel bandwidth in hertz.</summary>

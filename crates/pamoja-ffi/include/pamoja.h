@@ -32,6 +32,72 @@
 // caller who needs another size has the Rust crate.
 #define PAMOJA_WINDOW_CAPACITY 32
 
+// The EU863-870 band.
+#define PAMOJA_LORA_REGION_EU868 1
+
+// The US902-928 band.
+#define PAMOJA_LORA_REGION_US915 2
+
+// The EU433 band.
+#define PAMOJA_LORA_REGION_EU433 3
+
+// The AU915-928 band.
+#define PAMOJA_LORA_REGION_AU915 4
+
+// The CN470-510 band.
+#define PAMOJA_LORA_REGION_CN470 5
+
+// The AS923 band.
+#define PAMOJA_LORA_REGION_AS923 6
+
+// The KR920-923 band.
+#define PAMOJA_LORA_REGION_KR920 7
+
+// The IN865-867 band.
+#define PAMOJA_LORA_REGION_IN865 8
+
+// The RU864-870 band.
+#define PAMOJA_LORA_REGION_RU864 9
+
+// A data rate carried by LoRa modulation.
+#define PAMOJA_LORA_MODULATION_LORA 0
+
+// A data rate carried by FSK modulation.
+#define PAMOJA_LORA_MODULATION_FSK 1
+
+// A data rate carried by long-range frequency-hopping spread spectrum.
+#define PAMOJA_LORA_MODULATION_LR_FHSS 2
+
+// A data-rate number the region reserves, which carries nothing.
+#define PAMOJA_LORA_MODULATION_RESERVED 3
+
+// The uplink payload limits for a device that may sit behind a repeater.
+#define PAMOJA_LORA_PAYLOAD_TABLE_UPLINK_REPEATER 0
+
+// The uplink payload limits for a device that will not sit behind a repeater.
+#define PAMOJA_LORA_PAYLOAD_TABLE_UPLINK_DIRECT 1
+
+// The downlink payload limits for a device that may sit behind a repeater.
+#define PAMOJA_LORA_PAYLOAD_TABLE_DOWNLINK_REPEATER 2
+
+// The downlink payload limits for a device that will not sit behind a repeater.
+#define PAMOJA_LORA_PAYLOAD_TABLE_DOWNLINK_DIRECT 3
+
+// The payload limits that apply under a dwell-time limit.
+#define PAMOJA_LORA_PAYLOAD_TABLE_DWELL_LIMITED 4
+
+// The channels a device must use to send a join request.
+#define PAMOJA_LORA_CHANNELS_JOIN 0
+
+// The channels a device starts with before a network adds any.
+#define PAMOJA_LORA_CHANNELS_DEFAULT 1
+
+// The uplink direction, for a table that differs between the two.
+#define PAMOJA_LORA_DIRECTION_UPLINK 0
+
+// The downlink direction, for a table that differs between the two.
+#define PAMOJA_LORA_DIRECTION_DOWNLINK 1
+
 // The largest LoRaWAN frame, in bytes, this build accepts.
 #define PAMOJA_LORAWAN_FRAME_MAX 256
 
@@ -511,6 +577,20 @@ typedef struct PamojaLoopbackBroker PamojaLoopbackBroker;
 // An opaque handle to one in-process link to a broker.
 typedef struct PamojaLoopbackTransport PamojaLoopbackTransport;
 
+// A regional channel plan, published or private.
+//
+// The handle always owns its tables, so a published region and one assembled
+// here are the same type and answer the same queries.
+//
+// A handle the caller must release with [`pamoja_lora_plan_free`].
+typedef struct PamojaLoraPlan PamojaLoraPlan;
+
+// A channel plan under construction.
+//
+// A handle the caller must release with [`pamoja_lora_plan_builder_free`], or
+// hand to [`pamoja_lora_plan_builder_build`], which consumes it.
+typedef struct PamojaLoraPlanBuilder PamojaLoraPlanBuilder;
+
 // An opaque handle to the root credentials of a device.
 //
 // Holds the EUIs and the application key that over-the-air activation is built
@@ -756,14 +836,14 @@ typedef struct {
 //
 // Build one with [`pamoja_lora_link_default`] and adjust the fields that differ
 // from the defaults. Values outside the ranges LoRa defines are clamped when the
-// link is used: the spreading factor to 7-12 and the coding-rate denominator to
+// link is used: the spreading factor to 5-12 and the coding-rate denominator to
 // 5-8.
 typedef struct {
   // The channel bandwidth in hertz, such as `125000`.
   uint32_t bandwidth_hz;
   // The preamble length in symbols; the LoRa default is 8.
   uint16_t preamble_symbols;
-  // The spreading factor, 7 (fastest) to 12 (longest range).
+  // The spreading factor, 5 (fastest) to 12 (longest range).
   uint8_t spreading_factor;
   // The coding-rate denominator, 5 to 8, for 4/5 to 4/8.
   uint8_t coding_rate_denominator;
@@ -772,6 +852,109 @@ typedef struct {
   // `1` to append the frame CRC, `0` to leave it off.
   uint8_t crc;
 } PamojaLoraLink;
+
+// The Class B beacon settings of a plan.
+typedef struct {
+  // The frequency the beacon is broadcast on, in hertz.
+  uint32_t frequency_hz;
+  // The default ping-slot frequency, in hertz.
+  uint32_t ping_slot_frequency_hz;
+  // The data rate the beacon is broadcast at.
+  uint8_t data_rate;
+} PamojaLoraBeacon;
+
+// The scalar facts of a plan, gathered so a caller reads them in one call.
+typedef struct {
+  // The fixed frequency the second receive window listens on, in hertz.
+  uint32_t rx2_frequency_hz;
+  // How many uplink data-rate numbers the plan defines, reserved included.
+  uint16_t uplink_data_rate_count;
+  // How many downlink data-rate numbers the plan defines.
+  uint16_t downlink_data_rate_count;
+  // How many channels the plan starts a device with.
+  uint16_t default_channel_count;
+  // How many join channels the plan defines.
+  uint16_t join_channel_block_count;
+  // How many default channel blocks the plan defines.
+  uint16_t default_channel_block_count;
+  // How many sub-bands the plan defines.
+  uint16_t sub_band_count;
+  // The Class B beacon settings.
+  PamojaLoraBeacon beacon;
+  // The data rate the second receive window listens at.
+  uint8_t rx2_data_rate;
+  // The power ceiling assumed when no sub-band says otherwise, in dBm.
+  int8_t default_max_eirp_dbm;
+  // The step between transmit-power settings, in dB.
+  uint8_t tx_power_step_db;
+  // The highest transmit-power index the plan defines.
+  uint8_t max_tx_power_index;
+  // The highest RX1 data-rate offset the plan allows.
+  uint8_t max_rx1_data_rate_offset;
+  // `1` if the plan limits how long one transmission may hold a channel.
+  uint8_t has_dwell_time_limit;
+  // `1` if the plan publishes a payload table for a dwell-limited device.
+  uint8_t has_dwell_limited_payloads;
+  // `1` if the plan publishes a second RX1 mapping for a dwell-limited
+  // downlink.
+  uint8_t has_dwell_limited_rx1;
+} PamojaLoraPlanInfo;
+
+// One data rate: how a number on the wire maps onto radio settings.
+//
+// `kind` selects which fields carry meaning. A LoRa rate uses
+// `spreading_factor` and `bandwidth_hz`; an LR-FHSS rate uses the coding-rate
+// pair and `bandwidth_hz`; an FSK rate uses `bitrate_bps` alone. A reserved
+// number leaves every field zero.
+typedef struct {
+  // The payload bitrate in bits per second.
+  uint32_t bitrate_bps;
+  // The channel bandwidth in hertz, or zero for FSK.
+  uint32_t bandwidth_hz;
+  // One of the `PAMOJA_LORA_MODULATION_*` constants.
+  uint8_t kind;
+  // The spreading factor, for a LoRa rate.
+  uint8_t spreading_factor;
+  // The coding-rate numerator, for an LR-FHSS rate.
+  uint8_t coding_rate_numerator;
+  // The coding-rate denominator, for an LR-FHSS rate.
+  uint8_t coding_rate_denominator;
+} PamojaLoraDataRate;
+
+// What one data rate may carry in a single frame.
+typedef struct {
+  // The largest MAC payload, frame options included, in bytes.
+  uint16_t mac_payload;
+  // The largest application payload, in bytes.
+  uint16_t application;
+} PamojaLoraMaxPayload;
+
+// A run of evenly spaced channels.
+typedef struct {
+  // The first channel's centre frequency in hertz.
+  uint32_t start_hz;
+  // The spacing between channels in hertz.
+  uint32_t step_hz;
+  // How many channels the block holds.
+  uint16_t count;
+  // The slowest data rate the block allows.
+  uint8_t min_data_rate;
+  // The fastest data rate the block allows.
+  uint8_t max_data_rate;
+} PamojaLoraChannelBlock;
+
+// A slice of a band with its own transmit limits.
+typedef struct {
+  // The first frequency in the sub-band, in hertz.
+  uint32_t start_hz;
+  // The last frequency in the sub-band, in hertz.
+  uint32_t end_hz;
+  // The share of time a transmitter may hold the channel, in parts per
+  // thousand, so `10` is one percent and `1000` is unrestricted.
+  uint32_t duty_cycle_permille;
+  // The power ceiling in dBm EIRP.
+  int8_t max_eirp_dbm;
+} PamojaLoraSubBand;
 
 // The header flags a sender sets on a data frame.
 //
@@ -3454,6 +3637,734 @@ uint64_t pamoja_lora_airtime_us(PamojaLoraLink link, uintptr_t payload_len);
 uint64_t pamoja_lora_min_off_time_us(PamojaLoraLink link,
                                      uintptr_t payload_len,
                                      uint32_t duty_cycle_permille);
+
+// Returns the published channel plan for a region.
+//
+// # Arguments
+//
+// * `region` - one of the `PAMOJA_LORA_REGION_*` constants.
+// * `out_plan` - set to the plan handle on success, and to null otherwise.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `out_plan` is null or `region` is
+// not a region code, and [`PamojaStatus::Unsupported`] if the region is real but
+// was not compiled into this build.
+//
+// # Safety
+//
+// `out_plan` must point at writable storage for one pointer.
+PamojaStatus pamoja_lora_plan_for_region(uint32_t region, PamojaLoraPlan **out_plan);
+
+// Reports whether a region is compiled into this build.
+//
+// A slim build carries only the regions its device operates in, so a host that
+// offers a choice asks this before offering one.
+//
+// # Arguments
+//
+// * `region` - one of the `PAMOJA_LORA_REGION_*` constants.
+//
+// # Returns
+//
+// `1` if the region is available, `0` if it is a known region left out of this
+// build or is not a region code at all.
+uint8_t pamoja_lora_region_is_available(uint32_t region);
+
+// Releases a channel plan.
+//
+// # Arguments
+//
+// * `plan` - the handle to release; null is ignored.
+//
+// # Safety
+//
+// `plan` must have come from [`pamoja_lora_plan_for_region`] or
+// [`pamoja_lora_plan_builder_build`] and must not be used afterwards.
+void pamoja_lora_plan_free(PamojaLoraPlan *plan);
+
+// Returns the plan's name, such as `EU863-870`.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+//
+// # Returns
+//
+// A string the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if `plan` is null.
+//
+// # Safety
+//
+// `plan` must be a live plan handle, or null.
+PamojaString *pamoja_lora_plan_name(const PamojaLoraPlan *plan);
+
+// Reads the scalar facts of a plan in one call.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `out_info` - set to the plan's scalars on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_info` must point at writable
+// storage for one [`PamojaLoraPlanInfo`].
+PamojaStatus pamoja_lora_plan_info(const PamojaLoraPlan *plan, PamojaLoraPlanInfo *out_info);
+
+// Returns the data rate a number selects.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `direction` - [`PAMOJA_LORA_DIRECTION_UPLINK`] or
+//   [`PAMOJA_LORA_DIRECTION_DOWNLINK`], which differ in the 900 MHz plans.
+// * `data_rate` - the data-rate number.
+// * `out_rate` - set to the data rate on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success. A reserved number succeeds and reports
+// [`PAMOJA_LORA_MODULATION_RESERVED`].
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, the
+// direction is not one of the two constants, or the number is past the end of
+// the plan's table.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_rate` must point at writable
+// storage for one [`PamojaLoraDataRate`].
+PamojaStatus pamoja_lora_plan_data_rate(const PamojaLoraPlan *plan,
+                                        uint32_t direction,
+                                        uint8_t data_rate,
+                                        PamojaLoraDataRate *out_rate);
+
+// Returns the radio settings an uplink data rate selects.
+//
+// This is what turns a data-rate number into something a radio can be told: the
+// spreading factor and bandwidth to transmit at, ready for
+// [`pamoja_lora_airtime_us`](crate::pamoja_lora_airtime_us).
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `data_rate` - the uplink data-rate number.
+// * `out_link` - set to the radio settings on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, and
+// [`PamojaStatus::Unsupported`] if the number is reserved or names a rate that
+// is not LoRa, which has no spreading factor to report.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_link` must point at writable
+// storage for one [`PamojaLoraLink`].
+PamojaStatus pamoja_lora_plan_link_settings(const PamojaLoraPlan *plan,
+                                            uint8_t data_rate,
+                                            PamojaLoraLink *out_link);
+
+// Returns what a data rate may carry in one frame.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `table` - one of the `PAMOJA_LORA_PAYLOAD_TABLE_*` constants.
+// * `data_rate` - the data-rate number.
+// * `out_payload` - set to the limits on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, the table
+// is not one of the constants, or the plan publishes no limit for that number.
+// Returns [`PamojaStatus::Unsupported`] if the dwell-limited table was asked for
+// and this plan has no dwell-time limit.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_payload` must point at writable
+// storage for one [`PamojaLoraMaxPayload`].
+PamojaStatus pamoja_lora_plan_max_payload(const PamojaLoraPlan *plan,
+                                          uint32_t table,
+                                          uint8_t data_rate,
+                                          PamojaLoraMaxPayload *out_payload);
+
+// Returns the share of time a transmitter may hold a frequency.
+//
+// This reports the limit; it does not impose it. Pair it with
+// [`pamoja_lora_min_off_time_us`](crate::pamoja_lora_min_off_time_us) to turn the
+// limit into the silence a given frame costs.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `frequency_hz` - the frequency in hertz.
+// * `out_permille` - set to the limit in parts per thousand on success, where
+//   `1000` means the sub-band is unrestricted.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, and
+// [`PamojaStatus::Unsupported`] if the frequency falls in no sub-band this plan
+// describes.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_permille` must point at writable
+// storage for one `uint32_t`.
+PamojaStatus pamoja_lora_plan_duty_cycle_permille(const PamojaLoraPlan *plan,
+                                                  uint32_t frequency_hz,
+                                                  uint32_t *out_permille);
+
+// Returns the power ceiling that applies at a frequency, in dBm EIRP.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `frequency_hz` - the frequency in hertz.
+// * `out_dbm` - set to the ceiling on success, falling back to the plan's default
+//   where no sub-band says otherwise.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_dbm` must point at writable storage
+// for one `int8_t`.
+PamojaStatus pamoja_lora_plan_max_eirp_dbm(const PamojaLoraPlan *plan,
+                                           uint32_t frequency_hz,
+                                           int8_t *out_dbm);
+
+// Returns the radiated power a transmit-power index selects, in dBm.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `index` - the transmit-power index, where zero is the ceiling.
+// * `max_eirp_dbm` - the ceiling the index steps down from, usually from
+//   [`pamoja_lora_plan_max_eirp_dbm`].
+// * `out_dbm` - set to the radiated power on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the
+// index is past the highest the plan defines.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_dbm` must point at writable storage
+// for one `int8_t`.
+PamojaStatus pamoja_lora_plan_tx_power_dbm(const PamojaLoraPlan *plan,
+                                           uint8_t index,
+                                           int8_t max_eirp_dbm,
+                                           int8_t *out_dbm);
+
+// Returns the downlink data rate the first receive window listens at.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `uplink_data_rate` - the data rate the uplink was sent at.
+// * `offset` - the RX1 data-rate offset the network assigned.
+// * `dwell_limited` - `1` to use the mapping for a dwell-limited downlink, `0`
+//   for the ordinary one.
+// * `out_data_rate` - set to the downlink data rate on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, or the
+// uplink data rate or offset is outside what the plan defines. Returns
+// [`PamojaStatus::Unsupported`] if a dwell-limited mapping was asked for and this
+// plan publishes none.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_data_rate` must point at writable
+// storage for one `uint8_t`.
+PamojaStatus pamoja_lora_plan_rx1_data_rate(const PamojaLoraPlan *plan,
+                                            uint8_t uplink_data_rate,
+                                            uint8_t offset,
+                                            uint8_t dwell_limited,
+                                            uint8_t *out_data_rate);
+
+// Returns the next lower data rate to fall back to during adaptive back-off.
+//
+// A device that has lost the network steps down this chain, trading airtime for
+// range until it is heard again.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `data_rate` - the data rate currently in use.
+// * `out_data_rate` - set to the next lower data rate on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the
+// number is outside the plan's table, and [`PamojaStatus::Unsupported`] if there
+// is nothing lower to fall back to.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_data_rate` must point at writable
+// storage for one `uint8_t`.
+PamojaStatus pamoja_lora_plan_next_backoff_data_rate(const PamojaLoraPlan *plan,
+                                                     uint8_t data_rate,
+                                                     uint8_t *out_data_rate);
+
+// Returns the centre frequency of one of the plan's default channels.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `channel` - the channel number, counting across the default blocks in order.
+// * `out_frequency_hz` - set to the centre frequency on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the
+// channel is past the last one the plan starts a device with.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_frequency_hz` must point at
+// writable storage for one `uint32_t`.
+PamojaStatus pamoja_lora_plan_channel_frequency_hz(const PamojaLoraPlan *plan,
+                                                   uint16_t channel,
+                                                   uint32_t *out_frequency_hz);
+
+// Returns one of the plan's channel blocks.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `which` - [`PAMOJA_LORA_CHANNELS_JOIN`] or [`PAMOJA_LORA_CHANNELS_DEFAULT`].
+// * `index` - the block's position, below the count
+//   [`pamoja_lora_plan_info`] reports.
+// * `out_block` - set to the block on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, `which`
+// is not one of the constants, or the index is past the end.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_block` must point at writable
+// storage for one [`PamojaLoraChannelBlock`].
+PamojaStatus pamoja_lora_plan_channel_block(const PamojaLoraPlan *plan,
+                                            uint32_t which,
+                                            uint16_t index,
+                                            PamojaLoraChannelBlock *out_block);
+
+// Returns one of the plan's sub-bands.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `index` - the sub-band's position, below the count
+//   [`pamoja_lora_plan_info`] reports.
+// * `out_band` - set to the sub-band on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the
+// index is past the end.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_band` must point at writable
+// storage for one [`PamojaLoraSubBand`].
+PamojaStatus pamoja_lora_plan_sub_band(const PamojaLoraPlan *plan,
+                                       uint16_t index,
+                                       PamojaLoraSubBand *out_band);
+
+// Creates an empty plan builder.
+//
+// The builder starts with no data rates, channels, or sub-bands, and with a
+// permissive power ceiling; push the tables the deployment uses, then build.
+//
+// # Arguments
+//
+// * `name` - a null-terminated name for the plan, such as the band it covers.
+// * `out_builder` - set to the builder handle on success, and to null otherwise.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or `name`
+// is not valid UTF-8.
+//
+// # Safety
+//
+// `name` must be a valid null-terminated string and `out_builder` must point at
+// writable storage for one pointer.
+PamojaStatus pamoja_lora_plan_builder_new(const char *name, PamojaLoraPlanBuilder **out_builder);
+
+// Releases a plan builder that will not be built.
+//
+// # Arguments
+//
+// * `builder` - the handle to release; null is ignored.
+//
+// # Safety
+//
+// `builder` must have come from [`pamoja_lora_plan_builder_new`], must not have
+// been passed to [`pamoja_lora_plan_builder_build`], and must not be used
+// afterwards.
+void pamoja_lora_plan_builder_free(PamojaLoraPlanBuilder *builder);
+
+// Appends a data rate to the end of a direction's table.
+//
+// Data rates are numbered by their position, so push them in order and use a
+// [`PAMOJA_LORA_MODULATION_RESERVED`] entry for a number the plan does not use.
+// A plan that leaves its downlink table empty reuses its uplink table, which is
+// what most regions do.
+//
+// # Arguments
+//
+// * `builder` - the builder to extend.
+// * `direction` - [`PAMOJA_LORA_DIRECTION_UPLINK`] or
+//   [`PAMOJA_LORA_DIRECTION_DOWNLINK`].
+// * `rate` - the data rate to append.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, the
+// direction is not one of the constants, or the modulation kind is not one this
+// ABI defines, and [`PamojaStatus::Closed`] if the builder was already built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle and `rate` must point at one readable
+// [`PamojaLoraDataRate`].
+PamojaStatus pamoja_lora_plan_builder_push_data_rate(PamojaLoraPlanBuilder *builder,
+                                                     uint32_t direction,
+                                                     const PamojaLoraDataRate *rate);
+
+// Appends a payload limit to the end of one of the plan's tables.
+//
+// Limits are numbered by their position, matching the data rates. A plan that
+// leaves a downlink table empty reuses the matching uplink one.
+//
+// # Arguments
+//
+// * `builder` - the builder to extend.
+// * `table` - one of the `PAMOJA_LORA_PAYLOAD_TABLE_*` constants.
+// * `present` - `0` to append a reserved entry, for a data rate the plan does
+//   not define; the two lengths are then ignored.
+// * `mac_payload` - the largest MAC payload in bytes.
+// * `application` - the largest application payload in bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null or `table` is
+// not one of the constants, and [`PamojaStatus::Closed`] if the builder was
+// already built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle.
+PamojaStatus pamoja_lora_plan_builder_push_max_payload(PamojaLoraPlanBuilder *builder,
+                                                       uint32_t table,
+                                                       uint8_t present,
+                                                       uint16_t mac_payload,
+                                                       uint16_t application);
+
+// Appends a run of evenly spaced channels to the plan.
+//
+// # Arguments
+//
+// * `builder` - the builder to extend.
+// * `which` - [`PAMOJA_LORA_CHANNELS_JOIN`] or [`PAMOJA_LORA_CHANNELS_DEFAULT`].
+// * `block` - the channel block to append.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or `which`
+// is not one of the constants, and [`PamojaStatus::Closed`] if the builder was
+// already built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle and `block` must point at one readable
+// [`PamojaLoraChannelBlock`].
+PamojaStatus pamoja_lora_plan_builder_push_channel_block(PamojaLoraPlanBuilder *builder,
+                                                         uint32_t which,
+                                                         const PamojaLoraChannelBlock *block);
+
+// Appends a sub-band and its transmit limits to the plan.
+//
+// A deployment on licensed spectrum gives its sub-band a duty cycle of `1000`,
+// which reports as unrestricted.
+//
+// # Arguments
+//
+// * `builder` - the builder to extend.
+// * `band` - the sub-band to append.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, and
+// [`PamojaStatus::Closed`] if the builder was already built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle and `band` must point at one readable
+// [`PamojaLoraSubBand`].
+PamojaStatus pamoja_lora_plan_builder_push_sub_band(PamojaLoraPlanBuilder *builder,
+                                                    const PamojaLoraSubBand *band);
+
+// Appends one uplink data rate's row of RX1 downlink data rates.
+//
+// Rows are numbered by their position, matching the uplink data rates, and every
+// row must be as wide as the plan's highest RX1 offset allows.
+//
+// # Arguments
+//
+// * `builder` - the builder to extend.
+// * `dwell_limited` - `1` to append to the mapping used under a dwell-time
+//   limit, `0` for the ordinary one.
+// * `offsets` - the downlink data rate for each offset, in order.
+// * `offsets_len` - how many offsets `offsets` holds.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `builder` or `offsets` is null,
+// and [`PamojaStatus::Closed`] if the builder was already built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle and `offsets` must point at
+// `offsets_len` readable bytes.
+PamojaStatus pamoja_lora_plan_builder_push_rx1_row(PamojaLoraPlanBuilder *builder,
+                                                   uint8_t dwell_limited,
+                                                   const uint8_t *offsets,
+                                                   uintptr_t offsets_len);
+
+// Appends the next entry in the adaptive back-off chain.
+//
+// Entries are numbered by their position, matching the uplink data rates.
+//
+// # Arguments
+//
+// * `builder` - the builder to extend.
+// * `has_lower` - `0` if this data rate is the slowest, with nothing below it;
+//   `data_rate` is then ignored.
+// * `data_rate` - the data rate to fall back to.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null, and
+// [`PamojaStatus::Closed`] if the builder was already built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle.
+PamojaStatus pamoja_lora_plan_builder_push_backoff(PamojaLoraPlanBuilder *builder,
+                                                   uint8_t has_lower,
+                                                   uint8_t data_rate);
+
+// Sets the plan's transmit-power ladder.
+//
+// # Arguments
+//
+// * `builder` - the builder to set.
+// * `default_max_eirp_dbm` - the ceiling assumed where no sub-band says
+//   otherwise.
+// * `tx_power_step_db` - the step between transmit-power settings, in dB.
+// * `max_tx_power_index` - the highest transmit-power index the plan defines.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null, and
+// [`PamojaStatus::Closed`] if the builder was already built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle.
+PamojaStatus pamoja_lora_plan_builder_set_power(PamojaLoraPlanBuilder *builder,
+                                                int8_t default_max_eirp_dbm,
+                                                uint8_t tx_power_step_db,
+                                                uint8_t max_tx_power_index);
+
+// Sets the plan's receive windows.
+//
+// # Arguments
+//
+// * `builder` - the builder to set.
+// * `rx2_frequency_hz` - the fixed frequency the second window listens on.
+// * `rx2_data_rate` - the data rate the second window listens at.
+// * `max_rx1_data_rate_offset` - the highest RX1 offset the plan allows, which
+//   fixes how wide every RX1 row must be.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null, and
+// [`PamojaStatus::Closed`] if the builder was already built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle.
+PamojaStatus pamoja_lora_plan_builder_set_rx(PamojaLoraPlanBuilder *builder,
+                                             uint32_t rx2_frequency_hz,
+                                             uint8_t rx2_data_rate,
+                                             uint8_t max_rx1_data_rate_offset);
+
+// Sets the plan's Class B beacon and whether it limits dwell time.
+//
+// # Arguments
+//
+// * `builder` - the builder to set.
+// * `beacon` - the beacon settings.
+// * `has_dwell_time_limit` - `1` if the plan caps how long one transmission may
+//   hold a channel.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, and
+// [`PamojaStatus::Closed`] if the builder was already built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle and `beacon` must point at one
+// readable [`PamojaLoraBeacon`].
+PamojaStatus pamoja_lora_plan_builder_set_beacon(PamojaLoraPlanBuilder *builder,
+                                                 const PamojaLoraBeacon *beacon,
+                                                 uint8_t has_dwell_time_limit);
+
+// Finishes a plan and hands back a handle the query functions accept.
+//
+// The builder is consumed whether the plan is accepted or rejected, so the
+// caller must not free or reuse it afterwards.
+//
+// Tables left empty are filled in where a region would share them: an empty
+// downlink data-rate table reuses the uplink one, an empty downlink payload
+// table reuses the matching uplink one, and an empty back-off chain steps down
+// one data rate at a time. What cannot be guessed is checked instead, so a plan
+// that would answer a question wrongly is refused here rather than at the
+// question.
+//
+// # Arguments
+//
+// * `builder` - the builder to finish, which this call consumes.
+// * `out_plan` - set to the plan handle on success, and to null otherwise.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the
+// plan is inconsistent, with the reason available from
+// [`pamoja_last_error`](crate::pamoja_last_error), and
+// [`PamojaStatus::Closed`] if the builder was already built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle from
+// [`pamoja_lora_plan_builder_new`], and `out_plan` must point at writable
+// storage for one pointer.
+PamojaStatus pamoja_lora_plan_builder_build(PamojaLoraPlanBuilder *builder,
+                                            PamojaLoraPlan **out_plan);
 
 // Creates a session from a device address and its two session keys.
 //

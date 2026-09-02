@@ -38,6 +38,9 @@
 //! assert_eq!(link.min_off_time_us(20, 10), airtime * 99);
 //! ```
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
 mod link;
 
 pub mod region;

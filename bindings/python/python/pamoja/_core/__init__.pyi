@@ -18,6 +18,8 @@ __all__ = [
     "CanFrame",
     "CdrReader",
     "CdrWriter",
+    "ChannelPlan",
+    "ChannelPlanBuilder",
     "CoapClient",
     "CobsDecoder",
     "ControlPolicy",
@@ -37,7 +39,13 @@ __all__ = [
     "Ladder",
     "LoopbackBroker",
     "LoopbackTransport",
+    "LoraBeacon",
+    "LoraChannelBlock",
+    "LoraDataRate",
     "LoraLink",
+    "LoraMaxPayload",
+    "LoraPlanInfo",
+    "LoraSubBand",
     "LorawanDevice",
     "LorawanGrant",
     "LorawanHeader",
@@ -630,6 +638,183 @@ class CdrWriter:
         """
 
 @typing.final
+class ChannelPlan:
+    r"""
+    A regional channel plan, published or private.
+    """
+    @property
+    def name(self) -> builtins.str:
+        r"""
+        The specification's name for the band.
+        """
+    @staticmethod
+    def for_region(region: builtins.str) -> ChannelPlan:
+        r"""
+        Returns the published plan for a region.
+        
+        Raises `ValueError` if no published region goes by that name.
+        """
+    @staticmethod
+    def regions() -> builtins.list[builtins.str]:
+        r"""
+        Returns the short code of every published region, as `for_region` takes.
+        
+        These are the codes a deployment is configured with. The band name the
+        specification uses, such as `EU863-870`, is the plan's `name`.
+        """
+    def info(self) -> LoraPlanInfo:
+        r"""
+        Returns the scalar facts of the plan.
+        """
+    def data_rate(self, data_rate: builtins.int, direction: builtins.str = 'uplink') -> typing.Optional[LoraDataRate]:
+        r"""
+        Returns the data rate a number selects, or `None` past the end of the
+        plan's table.
+        
+        A number the region reserves is a data rate of kind `reserved`, which is
+        different from a number the plan never defines.
+        """
+    def link_settings(self, data_rate: builtins.int) -> typing.Optional[LoraLink]:
+        r"""
+        Returns the radio settings an uplink data rate selects, ready to hand to
+        `airtime_us`, or `None` if the number is reserved or not carried by LoRa.
+        """
+    def max_payload(self, data_rate: builtins.int, table: builtins.str = 'uplink_direct') -> typing.Optional[LoraMaxPayload]:
+        r"""
+        Returns what a data rate may carry in one frame, or `None` where the plan
+        publishes no limit for it.
+        """
+    def duty_cycle_permille(self, frequency_hz: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        Returns the share of time a transmitter may hold a frequency, in parts per
+        thousand, or `None` if the frequency falls in no sub-band this plan
+        describes.
+        
+        This reports the limit; it does not impose it. Pair it with
+        `min_off_time_us` to turn the limit into the silence a frame costs.
+        """
+    def max_eirp_dbm(self, frequency_hz: builtins.int) -> builtins.int:
+        r"""
+        Returns the power ceiling that applies at a frequency, in dBm EIRP,
+        falling back to the plan's default where no sub-band says otherwise.
+        """
+    def tx_power_dbm(self, index: builtins.int, max_eirp_dbm: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        Returns the radiated power a transmit-power index selects, in dBm, or
+        `None` if the index is past the highest the plan defines.
+        """
+    def rx1_data_rate(self, uplink_data_rate: builtins.int, offset: builtins.int, dwell_limited: builtins.bool = False) -> typing.Optional[builtins.int]:
+        r"""
+        Returns the downlink data rate the first receive window listens at, or
+        `None` if the uplink data rate or offset is outside what the plan defines.
+        """
+    def rx2(self) -> tuple[builtins.int, builtins.int]:
+        r"""
+        Returns where the second receive window listens, as a frequency in hertz
+        and a data rate.
+        """
+    def next_backoff_data_rate(self, data_rate: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        Returns the next lower data rate to fall back to during adaptive back-off,
+        or `None` at the slowest rate the plan has.
+        
+        A device that has lost the network steps down this chain, trading airtime
+        for range until it is heard again.
+        """
+    def channel_frequency_hz(self, channel: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        Returns the centre frequency of one of the plan's default channels, or
+        `None` past the last one the plan starts a device with.
+        """
+    def channel_blocks(self, which: builtins.str = 'default') -> builtins.list[LoraChannelBlock]:
+        r"""
+        Returns the plan's channel blocks, either the join set or the default set.
+        """
+    def sub_bands(self) -> builtins.list[LoraSubBand]:
+        r"""
+        Returns the plan's sub-bands and the transmit limits inside each.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class ChannelPlanBuilder:
+    r"""
+    A channel plan under construction.
+    
+    Tables are indexed by position, so entries are added in data-rate order and a
+    number the plan does not use is added as a reserved data rate. What a region
+    would share between directions is filled in by `build`.
+    """
+    def __new__(cls, name: builtins.str) -> ChannelPlanBuilder:
+        r"""
+        Starts an empty plan.
+        
+        The plan begins with no data rates, channels, or sub-bands, a two-decibel
+        power ladder, and no dwell-time limit.
+        """
+    def data_rate(self, rate: LoraDataRate, direction: builtins.str = 'uplink') -> None:
+        r"""
+        Adds the next data rate in a direction.
+        
+        A plan that never adds a downlink rate uses its uplink table in both
+        directions, which is what every region but the 900 MHz plans does.
+        """
+    def max_payload(self, payload: typing.Optional[LoraMaxPayload] = None, table: builtins.str = 'uplink_direct') -> None:
+        r"""
+        Adds the next entry of one payload table.
+        
+        Pass no payload for a data rate that carries nothing. A downlink table
+        left empty mirrors the matching uplink one.
+        """
+    def channel_block(self, block: LoraChannelBlock, which: builtins.str = 'default') -> None:
+        r"""
+        Adds a run of evenly spaced channels.
+        """
+    def sub_band(self, band: LoraSubBand) -> None:
+        r"""
+        Adds a sub-band and the transmit limits inside it.
+        
+        A deployment on licensed spectrum gives its sub-band a duty cycle of
+        `1000`, which reports as unrestricted.
+        """
+    def rx1_row(self, offsets: typing.Sequence[builtins.int], dwell_limited: builtins.bool = False) -> None:
+        r"""
+        Adds the RX1 downlink data rates for the next uplink data rate.
+        
+        Every row must be as wide as the plan's highest RX1 offset allows.
+        """
+    def backoff(self, lower: typing.Optional[builtins.int] = None) -> None:
+        r"""
+        Adds the next entry of the adaptive back-off chain.
+        
+        Pass no data rate at the slowest, which has nothing below it. A chain left
+        empty steps down one data rate at a time.
+        """
+    def power(self, default_max_eirp_dbm: builtins.int, step_db: builtins.int = 2, max_index: builtins.int = 7) -> None:
+        r"""
+        Sets the transmit-power ladder.
+        """
+    def rx(self, rx2_frequency_hz: builtins.int, rx2_data_rate: builtins.int = 0, max_rx1_offset: builtins.int = 0) -> None:
+        r"""
+        Sets the receive windows.
+        
+        `max_rx1_offset` fixes how wide every RX1 row must be.
+        """
+    def beacon(self, beacon: LoraBeacon, has_dwell_time_limit: builtins.bool = False) -> None:
+        r"""
+        Sets the Class B beacon and whether the plan limits dwell time.
+        """
+    def build(self) -> ChannelPlan:
+        r"""
+        Finishes the plan.
+        
+        Raises `ValueError` if the plan would answer a question wrongly, for
+        example because an RX1 row is narrower than the plan's offsets allow, or
+        because the second receive window listens at a data rate the plan does not
+        define.
+        """
+
+@typing.final
 class CoapClient:
     r"""
     A CoAP endpoint.
@@ -1174,6 +1359,121 @@ class LoopbackTransport:
         """
 
 @typing.final
+class LoraBeacon:
+    r"""
+    The Class B beacon settings of a plan.
+    """
+    @property
+    def frequency_hz(self) -> builtins.int:
+        r"""
+        The frequency the beacon is broadcast on, in hertz.
+        """
+    @property
+    def ping_slot_frequency_hz(self) -> builtins.int:
+        r"""
+        The default ping-slot frequency, in hertz.
+        """
+    @property
+    def data_rate(self) -> builtins.int:
+        r"""
+        The data rate the beacon is broadcast at.
+        """
+    def __new__(cls, frequency_hz: builtins.int, ping_slot_frequency_hz: builtins.int, data_rate: builtins.int) -> LoraBeacon: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LoraChannelBlock:
+    r"""
+    A run of evenly spaced channels.
+    """
+    @property
+    def start_hz(self) -> builtins.int:
+        r"""
+        The first channel's centre frequency in hertz.
+        """
+    @property
+    def step_hz(self) -> builtins.int:
+        r"""
+        The spacing between channels in hertz.
+        """
+    @property
+    def count(self) -> builtins.int:
+        r"""
+        How many channels the block holds.
+        """
+    @property
+    def min_data_rate(self) -> builtins.int:
+        r"""
+        The slowest data rate the block allows.
+        """
+    @property
+    def max_data_rate(self) -> builtins.int:
+        r"""
+        The fastest data rate the block allows.
+        """
+    def __new__(cls, start_hz: builtins.int, step_hz: builtins.int, count: builtins.int, min_data_rate: builtins.int, max_data_rate: builtins.int) -> LoraChannelBlock: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LoraDataRate:
+    r"""
+    One data rate: what a number on the wire means for the radio.
+    
+    Only the attributes belonging to `kind` are set; the rest are `None`.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        How this rate is carried: `lora`, `fsk`, `lr_fhss`, or `reserved`.
+        """
+    @property
+    def bitrate_bps(self) -> builtins.int:
+        r"""
+        The payload bitrate in bits per second.
+        """
+    @property
+    def bandwidth_hz(self) -> typing.Optional[builtins.int]:
+        r"""
+        The channel bandwidth in hertz, for a LoRa or LR-FHSS rate.
+        """
+    @property
+    def spreading_factor(self) -> typing.Optional[builtins.int]:
+        r"""
+        The spreading factor, for a LoRa rate.
+        """
+    @property
+    def coding_rate_numerator(self) -> typing.Optional[builtins.int]:
+        r"""
+        The coding-rate numerator, for an LR-FHSS rate.
+        """
+    @property
+    def coding_rate_denominator(self) -> typing.Optional[builtins.int]:
+        r"""
+        The coding-rate denominator, for an LR-FHSS rate.
+        """
+    @staticmethod
+    def lora(spreading_factor: builtins.int, bandwidth_hz: builtins.int, bitrate_bps: builtins.int) -> LoraDataRate:
+        r"""
+        Describes a rate carried by LoRa modulation.
+        """
+    @staticmethod
+    def fsk(bitrate_bps: builtins.int) -> LoraDataRate:
+        r"""
+        Describes a rate carried by frequency-shift keying.
+        """
+    @staticmethod
+    def lr_fhss(coding_rate_numerator: builtins.int, coding_rate_denominator: builtins.int, bandwidth_hz: builtins.int, bitrate_bps: builtins.int) -> LoraDataRate:
+        r"""
+        Describes a rate carried by long-range frequency-hopping spread spectrum.
+        """
+    @staticmethod
+    def reserved() -> LoraDataRate:
+        r"""
+        Describes a data-rate number the region reserves, which carries nothing.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class LoraLink:
     r"""
     The radio settings of a LoRa link.
@@ -1181,7 +1481,7 @@ class LoraLink:
     @property
     def spreading_factor(self) -> builtins.int:
         r"""
-        The spreading factor, 7 (fastest) to 12 (longest range).
+        The spreading factor, 5 (fastest) to 12 (longest range).
         """
     @property
     def bandwidth_hz(self) -> builtins.int:
@@ -1233,6 +1533,146 @@ class LoraLink:
         The limit is in parts per thousand, so `10` is 1%. A limit of `0` forbids
         transmitting at all, which comes back as `None`.
         """
+
+@typing.final
+class LoraMaxPayload:
+    r"""
+    What one data rate may carry in a single frame.
+    """
+    @property
+    def mac_payload(self) -> builtins.int:
+        r"""
+        The largest MAC payload, frame options included, in bytes.
+        """
+    @property
+    def application(self) -> builtins.int:
+        r"""
+        The largest application payload, in bytes.
+        """
+    def __new__(cls, mac_payload: builtins.int, application: builtins.int) -> LoraMaxPayload: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LoraPlanInfo:
+    r"""
+    The scalar facts of a plan, read in one call.
+    """
+    @property
+    def name(self) -> builtins.str:
+        r"""
+        The specification's name for the band, such as `EU863-870`.
+        """
+    @property
+    def uplink_data_rate_count(self) -> builtins.int:
+        r"""
+        How many uplink data-rate numbers the plan defines, reserved included.
+        """
+    @property
+    def downlink_data_rate_count(self) -> builtins.int:
+        r"""
+        How many downlink data-rate numbers the plan defines.
+        """
+    @property
+    def default_channel_count(self) -> builtins.int:
+        r"""
+        How many channels the plan starts a device with.
+        """
+    @property
+    def join_channel_block_count(self) -> builtins.int:
+        r"""
+        How many join channel blocks the plan defines.
+        """
+    @property
+    def default_channel_block_count(self) -> builtins.int:
+        r"""
+        How many default channel blocks the plan defines.
+        """
+    @property
+    def sub_band_count(self) -> builtins.int:
+        r"""
+        How many sub-bands the plan defines.
+        """
+    @property
+    def beacon(self) -> LoraBeacon:
+        r"""
+        The Class B beacon settings.
+        """
+    @property
+    def rx2_frequency_hz(self) -> builtins.int:
+        r"""
+        The frequency the second receive window listens on, in hertz.
+        """
+    @property
+    def rx2_data_rate(self) -> builtins.int:
+        r"""
+        The data rate the second receive window listens at.
+        """
+    @property
+    def default_max_eirp_dbm(self) -> builtins.int:
+        r"""
+        The power ceiling assumed when no sub-band says otherwise, in dBm.
+        """
+    @property
+    def tx_power_step_db(self) -> builtins.int:
+        r"""
+        The step between transmit-power settings, in dB.
+        """
+    @property
+    def max_tx_power_index(self) -> builtins.int:
+        r"""
+        The highest transmit-power index the plan defines.
+        """
+    @property
+    def max_rx1_data_rate_offset(self) -> builtins.int:
+        r"""
+        The highest RX1 data-rate offset the plan allows.
+        """
+    @property
+    def has_dwell_time_limit(self) -> builtins.bool:
+        r"""
+        Whether the plan limits how long one transmission may hold a channel.
+        """
+    @property
+    def has_dwell_limited_payloads(self) -> builtins.bool:
+        r"""
+        Whether the plan publishes a payload table for a dwell-limited device.
+        """
+    @property
+    def has_dwell_limited_rx1(self) -> builtins.bool:
+        r"""
+        Whether the plan publishes a second RX1 mapping for a dwell-limited
+        downlink.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LoraSubBand:
+    r"""
+    A slice of a band with its own transmit limits.
+    """
+    @property
+    def start_hz(self) -> builtins.int:
+        r"""
+        The first frequency in the sub-band, in hertz.
+        """
+    @property
+    def end_hz(self) -> builtins.int:
+        r"""
+        The last frequency in the sub-band, in hertz.
+        """
+    @property
+    def duty_cycle_permille(self) -> builtins.int:
+        r"""
+        The share of time a transmitter may hold the channel, in parts per
+        thousand, so `10` is one percent and `1000` is unrestricted.
+        """
+    @property
+    def max_eirp_dbm(self) -> builtins.int:
+        r"""
+        The power ceiling in dBm EIRP.
+        """
+    def __new__(cls, start_hz: builtins.int, end_hz: builtins.int, duty_cycle_permille: builtins.int, max_eirp_dbm: builtins.int) -> LoraSubBand: ...
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class LorawanDevice:

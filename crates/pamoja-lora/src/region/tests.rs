@@ -477,6 +477,70 @@ fn a_custom_plan_answers_every_question_a_named_one_does() {
     );
 }
 
+#[test]
+fn a_plan_may_borrow_tables_that_are_not_static() {
+    // A plan assembled at runtime, from storage owned by the caller rather than
+    // baked into the binary. This is what a host that reads a plan from a file or
+    // builds one across a language boundary does.
+    let rates = vec![
+        Some(DataRate::lora(10, 125_000, 980)),
+        Some(DataRate::fsk(50_000)),
+    ];
+    let payloads = vec![
+        Some(MaxPayload::new(59, 51)),
+        Some(MaxPayload::new(230, 222)),
+    ];
+    let channels = vec![ChannelBlock::new(869_400_000, 200_000, 2, 0, 1)];
+    let bands = vec![SubBand::new(869_400_000, 869_650_000, 100, 27)];
+    let rx1_rows = [vec![0u8], vec![1u8]];
+    let rx1: Vec<&[u8]> = rx1_rows.iter().map(Vec::as_slice).collect();
+    let backoff = vec![None, Some(0)];
+    let name = String::from("relief-869");
+
+    let plan = ChannelPlan {
+        name: &name,
+        uplink_data_rates: &rates,
+        downlink_data_rates: &rates,
+        max_payload_repeater: &payloads,
+        max_payload_direct: &payloads,
+        downlink_max_payload_repeater: &payloads,
+        downlink_max_payload_direct: &payloads,
+        max_payload_dwell_limited: None,
+        join_channels: &channels,
+        default_channels: &channels,
+        sub_bands: &bands,
+        default_max_eirp_dbm: 27,
+        tx_power_step_db: 2,
+        max_tx_power_index: 7,
+        rx1_data_rate_offsets: &rx1,
+        rx1_data_rate_offsets_dwell_limited: None,
+        max_rx1_data_rate_offset: 0,
+        rx2_frequency_hz: 869_525_000,
+        rx2_data_rate: 0,
+        data_rate_backoff: &backoff,
+        beacon: Beacon {
+            data_rate: 0,
+            frequency_hz: 869_525_000,
+            ping_slot_frequency_hz: 869_525_000,
+        },
+        has_dwell_time_limit: false,
+    };
+
+    assert_eq!(plan.name, "relief-869");
+    assert_eq!(plan.channel_frequency_hz(1), Some(869_600_000));
+    assert_eq!(plan.duty_cycle_permille(869_500_000), Some(100));
+    assert_eq!(plan.max_eirp_dbm(869_500_000), 27);
+    assert_eq!(
+        plan.link_settings(0)
+            .expect("DR0 is LoRa")
+            .spreading_factor(),
+        10
+    );
+    // A data rate carried by FSK has no LoRa settings to report.
+    assert!(plan.link_settings(1).is_none());
+    assert_eq!(plan.rx2(), (869_525_000, 0));
+}
+
 #[cfg(feature = "au915")]
 mod au915 {
     use super::*;

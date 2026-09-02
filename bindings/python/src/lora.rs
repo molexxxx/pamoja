@@ -16,7 +16,7 @@ use pamoja_lora::LinkSettings;
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct LoraLink {
-    /// The spreading factor, 7 (fastest) to 12 (longest range).
+    /// The spreading factor, 5 (fastest) to 12 (longest range).
     #[pyo3(get)]
     spreading_factor: u8,
     /// The channel bandwidth in hertz, such as `125_000`.
@@ -34,6 +34,28 @@ pub struct LoraLink {
     /// Whether the frame carries a CRC.
     #[pyo3(get)]
     crc: bool,
+}
+
+impl LoraLink {
+    /// Wraps the settings a channel plan reports, with the LoRa defaults.
+    ///
+    /// # Arguments
+    ///
+    /// * `settings` - the spreading factor and bandwidth a data rate selects.
+    ///
+    /// # Returns
+    ///
+    /// The link settings, at coding rate 4/5 with an eight-symbol preamble.
+    pub(crate) fn from_settings(settings: LinkSettings) -> Self {
+        Self {
+            spreading_factor: settings.spreading_factor(),
+            bandwidth_hz: settings.bandwidth_hz(),
+            coding_rate_denominator: 5,
+            preamble_symbols: 8,
+            explicit_header: true,
+            crc: true,
+        }
+    }
 }
 
 #[gen_stub_pymethods]

@@ -118,7 +118,7 @@ impl LinkSettings {
     ///
     /// # Returns
     ///
-    /// The spreading factor, from 7 to 12.
+    /// The spreading factor, from 5 to 12.
     pub fn spreading_factor(&self) -> u8 {
         self.spreading_factor
     }

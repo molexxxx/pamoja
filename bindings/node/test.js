@@ -327,6 +327,144 @@ function radioAndReach() {
   );
   assert.ok(lora.messagesPerHour(link, 20, 10) > 0, "and a 1% budget still allows some");
 
+  // A published region turns a data-rate number into radio settings and reports
+  // what the band allows, without ever refusing a transmission.
+  const eu868 = lora.planFor(lora.LoraRegion.Eu868);
+  const us915 = lora.planFor(lora.LoraRegion.Us915);
+  const us915Downlink = us915.dataRate(lora.LoraDirection.Downlink, 2);
+  assert.strictEqual(eu868.name, "EU863-870", "the plan names its band");
+  assert.strictEqual(
+    eu868.linkSettings(0).spreadingFactor,
+    12,
+    "EU868 DR0 is the slowest LoRa rate",
+  );
+  assert.strictEqual(
+    eu868.dutyCyclePermille(868_100_000),
+    10,
+    "the 868.1 MHz sub-band is limited to 1%",
+  );
+  assert.strictEqual(eu868.maxEirpDbm(868_100_000), 16, "and to 16 dBm");
+  assert.strictEqual(
+    eu868.maxPayload(lora.LoraPayloadTable.UplinkDirect, 5).application,
+    242,
+    "DR5 carries the largest EU868 application payload",
+  );
+  assert.strictEqual(eu868.rx1DataRate(5, 0), 5, "RX1 at offset 0 mirrors the uplink rate");
+  assert.strictEqual(eu868.rx2().frequencyHz, 869_525_000, "RX2 listens on 869.525 MHz");
+  assert.strictEqual(eu868.nextBackoffDataRate(0), null, "DR0 has nothing slower to fall back to");
+
+  // EU868 defines every number it has, including the LR-FHSS rates.
+  const fhss = eu868.dataRate(lora.LoraDirection.Uplink, 9);
+  assert.strictEqual(fhss.kind, lora.LoraModulation.LrFhss, "EU868 DR9 is LR-FHSS");
+  assert.strictEqual(fhss.codingRateNumerator, 2, "at coding rate 2/3");
+  assert.strictEqual(fhss.codingRateDenominator, 3);
+  assert.strictEqual(
+    eu868.dataRate(lora.LoraDirection.Uplink, 200),
+    null,
+    "a number past the end of the table is absent",
+  );
+
+  // A number the region reserves is reported as reserved, which is different
+  // from one it never defines: US915 numbers its downlink rates from DR8.
+  assert.strictEqual(
+    us915Downlink.kind,
+    lora.LoraModulation.Reserved,
+    "US915 reserves downlink DR2",
+  );
+  assert.strictEqual(
+    us915.dataRate(lora.LoraDirection.Downlink, 8).kind,
+    lora.LoraModulation.Lora,
+    "and starts its downlink rates at DR8",
+  );
+
+  // The regions differ in exactly the way that makes this worth having.
+  assert.strictEqual(
+    us915.dutyCyclePermille(903_000_000),
+    null,
+    "the FCC caps dwell time rather than duty cycle, so US915 describes no sub-band",
+  );
+  assert.notStrictEqual(
+    us915.info().downlinkDataRateCount,
+    us915.info().uplinkDataRateCount,
+    "US915 numbers its downlink data rates differently from its uplink ones",
+  );
+  assert.strictEqual(
+    lora.planFor(lora.LoraRegion.Au915).info().hasDwellTimeLimit,
+    true,
+    "AU915 does limit dwell time",
+  );
+
+  // The budget question a deployment actually asks.
+  assert.ok(
+    lora.messagesPerHourAt(eu868, 5, 20, 868_100_000) > 0,
+    "a fast EU868 rate leaves room for many messages an hour",
+  );
+
+  // A private plan on licensed spectrum answers everything a published one does.
+  const priv = new lora.LoraPlanBuilder("private-915");
+  priv.dataRate(lora.LoraDirection.Uplink, {
+    kind: lora.LoraModulation.Lora,
+    bitrateBps: 250,
+    bandwidthHz: 125_000,
+    spreadingFactor: 12,
+  });
+  priv.dataRate(lora.LoraDirection.Uplink, {
+    kind: lora.LoraModulation.Lora,
+    bitrateBps: 5_470,
+    bandwidthHz: 125_000,
+    spreadingFactor: 7,
+  });
+  priv.channelBlock(lora.LoraChannelSet.Default, {
+    startHz: 915_000_000,
+    stepHz: 500_000,
+    count: 4,
+    minDataRate: 0,
+    maxDataRate: 1,
+  });
+  priv.subBand({
+    startHz: 915_000_000,
+    endHz: 917_000_000,
+    dutyCyclePermille: 1000,
+    maxEirpDbm: 30,
+  });
+  priv.rx(915_000_000, 0, 0);
+  priv.rx1Row([0]);
+  priv.rx1Row([1]);
+  const licensed = priv.build();
+  assert.strictEqual(licensed.name, "private-915");
+  assert.strictEqual(licensed.channelFrequencyHz(3), 916_500_000, "four channels, 500 kHz apart");
+  assert.strictEqual(
+    licensed.dutyCyclePermille(915_500_000),
+    1000,
+    "licensed spectrum is reported as unrestricted, not refused",
+  );
+  assert.strictEqual(
+    licensed.maxEirpDbm(915_500_000),
+    30,
+    "and carries the power its licence allows",
+  );
+  assert.strictEqual(
+    licensed.nextBackoffDataRate(1),
+    0,
+    "an unset back-off chain steps down one rate at a time",
+  );
+
+  // A plan that would answer a question wrongly is refused where it is built.
+  const broken = new lora.LoraPlanBuilder("too-narrow");
+  broken.dataRate(lora.LoraDirection.Uplink, {
+    kind: lora.LoraModulation.Lora,
+    bitrateBps: 250,
+    bandwidthHz: 125_000,
+    spreadingFactor: 12,
+  });
+  broken.rx(915_000_000, 0, 5);
+  broken.rx1Row([0]);
+  assert.throws(
+    () => broken.build(),
+    /RX1 row/,
+    "offsets up to 5 need six entries in every row",
+  );
+
   const reading = mesh.broadcast(0x1234_5678, 1, Buffer.from("level=high"));
   const received = mesh.parse(reading.bytes);
   assert.ok(received.broadcast, "a broadcast is addressed to every node");

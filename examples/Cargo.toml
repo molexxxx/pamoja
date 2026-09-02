@@ -77,7 +77,7 @@ pamoja-update = { path = "../crates/pamoja-update" }
 pamoja-audit = { path = "../crates/pamoja-audit" }
 pamoja-telemetry = { path = "../crates/pamoja-telemetry" }
 pamoja-session = { path = "../crates/pamoja-session" }
-pamoja-lora = { path = "../crates/pamoja-lora" }
+pamoja-lora = { path = "../crates/pamoja-lora", features = ["alloc"] }
 pamoja-lorawan = { path = "../crates/pamoja-lorawan" }
 pamoja-mesh = { path = "../crates/pamoja-mesh", features = ["alloc"] }
 pamoja-routing = { path = "../crates/pamoja-routing", features = ["alloc"] }

@@ -606,6 +606,208 @@ gpioVectors();
 sensorVectors();
 actuatorVectors();
 
+// Regional channel plans: every binding must report the same facts about each
+// band, and must assemble a private plan that answers the same questions.
+function loraRegionVectors() {
+  const vectors = VECTORS.loraRegions;
+  const dataRateOf = (rate) => {
+    if (rate == null) {
+      return null;
+    }
+    return {
+      kind:
+        rate.kind === lora.LoraModulation.Lora
+          ? "lora"
+          : rate.kind === lora.LoraModulation.Fsk
+            ? "fsk"
+            : rate.kind === lora.LoraModulation.LrFhss
+              ? "lr_fhss"
+              : "reserved",
+      bitrateBps: rate.bitrateBps,
+      bandwidthHz: rate.bandwidthHz ?? null,
+      spreadingFactor: rate.spreadingFactor ?? null,
+      codingRateNumerator: rate.codingRateNumerator ?? null,
+      codingRateDenominator: rate.codingRateDenominator ?? null,
+    };
+  };
+
+  const payloadOf = (payload) =>
+    payload == null
+      ? null
+      : { macPayload: payload.macPayload, application: payload.application };
+
+  const checkPlan = (plan, want) => {
+    const where = want.name;
+    const info = plan.info();
+    assert.strictEqual(plan.name, want.name, `the name of ${where}`);
+    assert.strictEqual(
+      info.uplinkDataRateCount,
+      want.uplinkDataRateCount,
+      `uplink rates of ${where}`,
+    );
+    assert.strictEqual(
+      info.downlinkDataRateCount,
+      want.downlinkDataRateCount,
+      `downlink rates of ${where}`,
+    );
+    assert.strictEqual(
+      info.defaultChannelCount,
+      want.defaultChannelCount,
+      `default channels of ${where}`,
+    );
+    assert.strictEqual(
+      info.maxRx1DataRateOffset,
+      want.maxRx1DataRateOffset,
+      `RX1 offsets of ${where}`,
+    );
+    assert.strictEqual(
+      info.hasDwellTimeLimit,
+      want.hasDwellTimeLimit,
+      `dwell limit of ${where}`,
+    );
+    assert.strictEqual(
+      plan.rx2().frequencyHz,
+      want.rx2.frequencyHz,
+      `RX2 frequency of ${where}`,
+    );
+    assert.strictEqual(plan.rx2().dataRate, want.rx2.dataRate, `RX2 data rate of ${where}`);
+
+    const fastest = want.uplinkDataRateCount - 1;
+    assert.deepStrictEqual(
+      dataRateOf(plan.dataRate(lora.LoraDirection.Uplink, 0)),
+      want.slowestUplink,
+      `the slowest uplink rate of ${where}`,
+    );
+    assert.deepStrictEqual(
+      dataRateOf(plan.dataRate(lora.LoraDirection.Uplink, fastest)),
+      want.fastestUplink,
+      `the fastest uplink rate of ${where}`,
+    );
+    assert.deepStrictEqual(
+      dataRateOf(plan.dataRate(lora.LoraDirection.Downlink, 0)),
+      want.slowestDownlink,
+      `the slowest downlink rate of ${where}`,
+    );
+
+    assert.deepStrictEqual(
+      payloadOf(plan.maxPayload(lora.LoraPayloadTable.UplinkRepeater, 0)),
+      want.payloadAtSlowest.repeater,
+      `the repeater payload at the slowest rate of ${where}`,
+    );
+    assert.deepStrictEqual(
+      payloadOf(plan.maxPayload(lora.LoraPayloadTable.UplinkDirect, 0)),
+      want.payloadAtSlowest.direct,
+      `the direct payload at the slowest rate of ${where}`,
+    );
+    assert.deepStrictEqual(
+      payloadOf(plan.maxPayload(lora.LoraPayloadTable.DwellLimited, 0)),
+      want.dwellLimitedAtSlowest,
+      `the dwell-limited payload of ${where}`,
+    );
+
+    assert.strictEqual(
+      plan.dutyCyclePermille(want.probeFrequencyHz) ?? null,
+      want.dutyCyclePermilleAtProbe,
+      `the duty cycle of ${where}`,
+    );
+    assert.strictEqual(
+      plan.maxEirpDbm(want.probeFrequencyHz),
+      want.maxEirpDbmAtProbe,
+      `the EIRP ceiling of ${where}`,
+    );
+
+    want.rx1RowForSlowest.forEach((entry, offset) => {
+      assert.strictEqual(
+        plan.rx1DataRate(0, offset) ?? null,
+        entry,
+        `RX1 offset ${offset} of ${where}`,
+      );
+    });
+
+    assert.strictEqual(
+      plan.nextBackoffDataRate(fastest) ?? null,
+      want.backoffFromFastest,
+      `back-off from the fastest rate of ${where}`,
+    );
+    assert.strictEqual(
+      plan.nextBackoffDataRate(0) ?? null,
+      want.backoffFromSlowest,
+      `back-off from the slowest rate of ${where}`,
+    );
+
+    want.channelFrequencies.forEach((frequency, channel) => {
+      assert.strictEqual(
+        plan.channelFrequencyHz(channel) ?? null,
+        frequency,
+        `channel ${channel} of ${where}`,
+      );
+    });
+
+    assert.strictEqual(info.subBandCount, want.subBands.length, `sub-bands of ${where}`);
+    want.subBands.forEach((band, index) => {
+      const got = plan.subBand(index);
+      assert.strictEqual(got.startHz, band.startHz);
+      assert.strictEqual(got.endHz, band.endHz);
+      assert.strictEqual(got.dutyCyclePermille, band.dutyCyclePermille);
+      assert.strictEqual(got.maxEirpDbm, band.maxEirpDbm);
+    });
+  };
+
+  const codes = {
+    EU868: lora.LoraRegion.Eu868,
+    US915: lora.LoraRegion.Us915,
+    EU433: lora.LoraRegion.Eu433,
+    AU915: lora.LoraRegion.Au915,
+    CN470: lora.LoraRegion.Cn470,
+    AS923: lora.LoraRegion.As923,
+    KR920: lora.LoraRegion.Kr920,
+    IN865: lora.LoraRegion.In865,
+    RU864: lora.LoraRegion.Ru864,
+  };
+  for (const want of vectors.published) {
+    checkPlan(lora.planFor(codes[want.code]), want);
+  }
+
+  const builder = new lora.LoraPlanBuilder("private-915");
+  builder.dataRate(lora.LoraDirection.Uplink, {
+    kind: lora.LoraModulation.Lora,
+    bitrateBps: 250,
+    bandwidthHz: 125_000,
+    spreadingFactor: 12,
+  });
+  builder.dataRate(lora.LoraDirection.Uplink, {
+    kind: lora.LoraModulation.Lora,
+    bitrateBps: 5_470,
+    bandwidthHz: 125_000,
+    spreadingFactor: 7,
+  });
+  for (const table of [
+    lora.LoraPayloadTable.UplinkRepeater,
+    lora.LoraPayloadTable.UplinkDirect,
+  ]) {
+    builder.maxPayload(table, { macPayload: 59, application: 51 });
+    builder.maxPayload(table, { macPayload: 230, application: 222 });
+  }
+  builder.channelBlock(lora.LoraChannelSet.Default, {
+    startHz: 915_000_000,
+    stepHz: 500_000,
+    count: 4,
+    minDataRate: 0,
+    maxDataRate: 1,
+  });
+  builder.subBand({
+    startHz: 915_000_000,
+    endHz: 917_000_000,
+    dutyCyclePermille: 1000,
+    maxEirpDbm: 30,
+  });
+  builder.power(30, 2, 7);
+  builder.rx(915_000_000, 0, 0);
+  builder.rx1Row([0]);
+  builder.rx1Row([1]);
+  checkPlan(builder.build(), vectors.custom);
+}
+
 function loraVectors() {
   const vector = VECTORS.lora;
 
@@ -872,6 +1074,7 @@ function lorawanVectors() {
 
 windowedVectors();
 loraVectors();
+loraRegionVectors();
 meshVectors();
 routingVectors();
 

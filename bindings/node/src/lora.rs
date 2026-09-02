@@ -14,7 +14,7 @@ use pamoja_lora::LinkSettings;
 /// The radio settings of a LoRa link.
 #[napi(object)]
 pub struct LoraLink {
-    /// The spreading factor, 7 (fastest) to 12 (longest range).
+    /// The spreading factor, 5 (fastest) to 12 (longest range).
     pub spreading_factor: u8,
     /// The channel bandwidth in hertz, such as `125000`.
     pub bandwidth_hz: u32,

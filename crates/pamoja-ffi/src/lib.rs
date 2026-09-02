@@ -58,6 +58,8 @@ pub mod ladder;
 pub mod loopback;
 #[cfg(feature = "lora")]
 pub mod lora;
+#[cfg(feature = "lora")]
+pub mod lora_region;
 #[cfg(feature = "lorawan")]
 pub mod lorawan;
 #[cfg(feature = "mesh")]
@@ -191,6 +193,7 @@ pub extern "C" fn pamoja_last_error_message() -> *const c_char {
     feature = "audit",
     feature = "can",
     feature = "codec",
+    feature = "lora",
     feature = "lorawan",
     feature = "mesh",
     feature = "modbus",
@@ -352,12 +355,22 @@ pub unsafe extern "C" fn pamoja_buffer_free(buffer: *mut PamojaBuffer) {
 /// a handle: a canonical key expression, a DDS topic name, a profile serialized
 /// to JSON. Those return this, and the caller releases it with
 /// [`pamoja_string_free`].
-#[cfg(any(feature = "profile", feature = "ros2", feature = "zenoh"))]
+#[cfg(any(
+    feature = "lora",
+    feature = "profile",
+    feature = "ros2",
+    feature = "zenoh"
+))]
 pub struct PamojaString {
     text: CString,
 }
 
-#[cfg(any(feature = "profile", feature = "ros2", feature = "zenoh"))]
+#[cfg(any(
+    feature = "lora",
+    feature = "profile",
+    feature = "ros2",
+    feature = "zenoh"
+))]
 impl PamojaString {
     /// Wraps an owned string in a heap-allocated handle for the caller to own.
     ///
@@ -392,7 +405,12 @@ impl PamojaString {
 ///
 /// `string` must be a live handle from a call that produced one, or null. After
 /// [`pamoja_string_free`] it must not be used again.
-#[cfg(any(feature = "profile", feature = "ros2", feature = "zenoh"))]
+#[cfg(any(
+    feature = "lora",
+    feature = "profile",
+    feature = "ros2",
+    feature = "zenoh"
+))]
 #[no_mangle]
 pub unsafe extern "C" fn pamoja_string_data(string: *const PamojaString) -> *const c_char {
     if string.is_null() {
@@ -410,7 +428,12 @@ pub unsafe extern "C" fn pamoja_string_data(string: *const PamojaString) -> *con
 /// # Safety
 ///
 /// `string` must be a live handle from a call that produced one, or null.
-#[cfg(any(feature = "profile", feature = "ros2", feature = "zenoh"))]
+#[cfg(any(
+    feature = "lora",
+    feature = "profile",
+    feature = "ros2",
+    feature = "zenoh"
+))]
 #[no_mangle]
 pub unsafe extern "C" fn pamoja_string_len(string: *const PamojaString) -> usize {
     if string.is_null() {
@@ -427,7 +450,12 @@ pub unsafe extern "C" fn pamoja_string_len(string: *const PamojaString) -> usize
 ///
 /// `string` must be a handle from a call that produced one and that has not
 /// already been freed, or null. After this call it must not be used again.
-#[cfg(any(feature = "profile", feature = "ros2", feature = "zenoh"))]
+#[cfg(any(
+    feature = "lora",
+    feature = "profile",
+    feature = "ros2",
+    feature = "zenoh"
+))]
 #[no_mangle]
 pub unsafe extern "C" fn pamoja_string_free(string: *mut PamojaString) {
     if !string.is_null() {
@@ -444,6 +472,7 @@ pub unsafe extern "C" fn pamoja_string_free(string: *mut PamojaString) {
 #[cfg(any(
     feature = "coap",
     feature = "ladder",
+    feature = "lora",
     feature = "mqtt",
     feature = "profile",
     feature = "ros2",

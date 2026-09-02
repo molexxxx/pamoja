@@ -106,7 +106,7 @@ pamoja-can = { path = "../../crates/pamoja-can", optional = true }
 pamoja-gpio = { path = "../../crates/pamoja-gpio", optional = true }
 pamoja-sensors = { path = "../../crates/pamoja-sensors", optional = true }
 pamoja-actuators = { path = "../../crates/pamoja-actuators", optional = true }
-pamoja-lora = { path = "../../crates/pamoja-lora", optional = true }
+pamoja-lora = { path = "../../crates/pamoja-lora", features = ["alloc"], optional = true }
 pamoja-lorawan = { path = "../../crates/pamoja-lorawan", optional = true }
 pamoja-mesh = { path = "../../crates/pamoja-mesh", features = ["alloc"], optional = true }
 pamoja-routing = { path = "../../crates/pamoja-routing", features = ["alloc"], optional = true }
