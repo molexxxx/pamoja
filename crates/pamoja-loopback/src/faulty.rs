@@ -59,7 +59,7 @@ impl<T> Faulty<T> {
     }
 }
 
-impl<T: Transport> Transport for Faulty<T> {
+impl<T: Transport + Send> Transport for Faulty<T> {
     async fn connect(&mut self) -> Result<()> {
         self.inner.connect().await
     }

@@ -53,17 +53,28 @@ impl CoreStore for StoreKind {
 }
 
 /// A store-and-forward buffer.
+///
+/// Handing a store to a ladder consumes it, because the ladder owns it from then
+/// on. A consumed store is emptied rather than left aliasing what now belongs to
+/// the ladder, so using one twice throws.
 #[napi]
 pub struct Store {
     inner: Option<StoreKind>,
 }
 
 impl Store {
+    /// Takes the buffer, leaving this handle spent.
+    pub(crate) fn take(&mut self) -> napi::Result<StoreKind> {
+        self.inner
+            .take()
+            .ok_or_else(|| napi::Error::from_reason("this store was already given to a ladder"))
+    }
+
     /// Borrows the buffer this store holds.
     fn borrow(&mut self) -> napi::Result<&mut StoreKind> {
         self.inner
             .as_mut()
-            .ok_or_else(|| napi::Error::from_reason("this store is no longer usable"))
+            .ok_or_else(|| napi::Error::from_reason("this store was already given to a ladder"))
     }
 }
 
@@ -125,6 +136,12 @@ impl Store {
             .await
             .map(|record| record.map(Buffer::from))
             .map_err(|error| napi::Error::from_reason(error.to_string()))
+    }
+
+    /// Whether this store is still holdable, or has been given to a ladder.
+    #[napi(getter)]
+    pub fn is_available(&self) -> bool {
+        self.inner.is_some()
     }
 
     /// How many records the buffer holds.

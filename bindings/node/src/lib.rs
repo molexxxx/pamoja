@@ -33,6 +33,8 @@ pub mod codec;
 pub mod gpio;
 #[cfg(feature = "kit")]
 pub mod kit;
+#[cfg(feature = "ladder")]
+pub mod ladder;
 #[cfg(feature = "loopback")]
 pub mod loopback;
 #[cfg(feature = "lora")]

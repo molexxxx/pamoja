@@ -619,6 +619,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "pamoja-ladder"
+version = "0.1.14"
+dependencies = [
+ "pamoja-core",
+]
+
+[[package]]
 name = "pamoja-loopback"
 version = "0.1.14"
 dependencies = [
@@ -670,6 +677,7 @@ dependencies = [
  "pamoja-core",
  "pamoja-gpio",
  "pamoja-kit",
+ "pamoja-ladder",
  "pamoja-loopback",
  "pamoja-lora",
  "pamoja-lorawan",

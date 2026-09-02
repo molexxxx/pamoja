@@ -10,16 +10,92 @@
 //! now belongs to a ladder, so using one twice throws instead of quietly sharing
 //! a link.
 
+use std::future::Future;
+use std::pin::Pin;
+
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_core::{Result, Transport as CoreTransport};
 
+/// Object-safe erasure of a transport, so a wrapper can hold any of them.
+///
+/// The core trait returns `impl Future`, which is not dyn-compatible; this one
+/// boxes the future so a wrapping kind can hold a transport without naming its
+/// concrete type. That is what keeps the union below from naming itself: a
+/// nested transport is reached through this trait, whose futures are already a
+/// type the compiler can name.
+trait DynTransport: Send {
+    /// Connects the erased transport.
+    fn connect(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
+
+    /// Sends a payload over the erased transport.
+    fn send<'a>(
+        &'a mut self,
+        topic: &'a str,
+        payload: &'a [u8],
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
+
+    /// Subscribes the erased transport to a topic.
+    fn subscribe<'a>(
+        &'a mut self,
+        topic: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
+}
+
+/// Newtype carrying one concrete transport behind [`DynTransport`].
+struct Erased<T>(T);
+
+impl<T: CoreTransport + Send> DynTransport for Erased<T> {
+    fn connect(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
+        Box::pin(CoreTransport::connect(&mut self.0))
+    }
+
+    fn send<'a>(
+        &'a mut self,
+        topic: &'a str,
+        payload: &'a [u8],
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(CoreTransport::send(&mut self.0, topic, payload))
+    }
+
+    fn subscribe<'a>(
+        &'a mut self,
+        topic: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(CoreTransport::subscribe(&mut self.0, topic))
+    }
+}
+
+/// A transport of any kind, ready to be nested inside a wrapper.
+pub(crate) struct AnyTransport(Box<dyn DynTransport>);
+
+impl AnyTransport {
+    /// Erases one transport so a wrapper can hold it.
+    fn new(transport: Kind) -> Self {
+        Self(Box::new(Erased(transport)))
+    }
+}
+
+impl CoreTransport for AnyTransport {
+    async fn connect(&mut self) -> Result<()> {
+        self.0.connect().await
+    }
+
+    async fn send(&mut self, topic: &str, payload: &[u8]) -> Result<()> {
+        self.0.send(topic, payload).await
+    }
+
+    async fn subscribe(&mut self, topic: &str) -> Result<()> {
+        self.0.subscribe(topic).await
+    }
+}
+
 /// One transport, whichever kind it was built as.
 ///
-/// The wrapping kinds box their inner transport, so a faulty link can wrap a
-/// degraded one and the composition nests to any depth. Their futures name this
-/// enum in turn, so the dispatch below boxes those arms to keep the recursion a
-/// finite size.
+/// A wrapping kind holds its inner transport erased rather than as this enum, so
+/// a faulty link can wrap a degraded one to any depth without the enum naming
+/// itself. Naming itself would make the hidden type of each method depend on
+/// knowing that same type, which is a cycle rather than recursion.
 pub(crate) enum Kind {
     /// An MQTT broker connection.
     #[cfg(feature = "mqtt")]
@@ -32,10 +108,10 @@ pub(crate) enum Kind {
     Loopback(pamoja_loopback::LoopbackTransport),
     /// Another transport with a set number of sends made to fail.
     #[cfg(feature = "loopback")]
-    Faulty(Box<pamoja_loopback::Faulty<Kind>>),
+    Faulty(pamoja_loopback::Faulty<AnyTransport>),
     /// Another transport carrying loss and outages.
     #[cfg(feature = "sim")]
-    Degraded(Box<pamoja_sim::DegradedLink<Kind>>),
+    Degraded(pamoja_sim::DegradedLink<AnyTransport>),
 }
 
 impl CoreTransport for Kind {
@@ -48,9 +124,9 @@ impl CoreTransport for Kind {
             #[cfg(feature = "loopback")]
             Kind::Loopback(inner) => inner.connect().await,
             #[cfg(feature = "loopback")]
-            Kind::Faulty(inner) => Box::pin(inner.connect()).await,
+            Kind::Faulty(inner) => inner.connect().await,
             #[cfg(feature = "sim")]
-            Kind::Degraded(inner) => Box::pin(inner.connect()).await,
+            Kind::Degraded(inner) => inner.connect().await,
         }
     }
 
@@ -63,9 +139,9 @@ impl CoreTransport for Kind {
             #[cfg(feature = "loopback")]
             Kind::Loopback(inner) => inner.send(topic, payload).await,
             #[cfg(feature = "loopback")]
-            Kind::Faulty(inner) => Box::pin(inner.send(topic, payload)).await,
+            Kind::Faulty(inner) => inner.send(topic, payload).await,
             #[cfg(feature = "sim")]
-            Kind::Degraded(inner) => Box::pin(inner.send(topic, payload)).await,
+            Kind::Degraded(inner) => inner.send(topic, payload).await,
         }
     }
 
@@ -78,12 +154,13 @@ impl CoreTransport for Kind {
             #[cfg(feature = "loopback")]
             Kind::Loopback(inner) => inner.subscribe(topic).await,
             #[cfg(feature = "loopback")]
-            Kind::Faulty(inner) => Box::pin(inner.subscribe(topic)).await,
+            Kind::Faulty(inner) => inner.subscribe(topic).await,
             #[cfg(feature = "sim")]
-            Kind::Degraded(inner) => Box::pin(inner.subscribe(topic)).await,
+            Kind::Degraded(inner) => inner.subscribe(topic).await,
         }
     }
 }
+
 
 /// A message that arrived on a subscribed topic.
 #[napi(object)]
@@ -147,8 +224,9 @@ impl Transport {
     #[cfg(feature = "loopback")]
     #[napi(factory)]
     pub fn faulty(inner: &mut Transport, failures: u32) -> napi::Result<Self> {
-        Ok(Self::wrap(Kind::Faulty(Box::new(
-            pamoja_loopback::Faulty::new(inner.take()?, failures as usize),
+        Ok(Self::wrap(Kind::Faulty(pamoja_loopback::Faulty::new(
+            AnyTransport::new(inner.take()?),
+            failures as usize,
         ))))
     }
 
@@ -168,14 +246,14 @@ impl Transport {
         up: u32,
         down: u32,
     ) -> napi::Result<Self> {
-        let mut link = pamoja_sim::DegradedLink::new(inner.take()?);
+        let mut link = pamoja_sim::DegradedLink::new(AnyTransport::new(inner.take()?));
         if drop_every != 0 {
             link = link.drop_every(drop_every);
         }
         if up != 0 {
             link = link.intermittent(up, down);
         }
-        Ok(Self::wrap(Kind::Degraded(Box::new(link))))
+        Ok(Self::wrap(Kind::Degraded(link)))
     }
 
     /// Whether this transport is still holdable, or has been handed on.
