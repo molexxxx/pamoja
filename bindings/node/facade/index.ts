@@ -9,8 +9,9 @@
  * Each capability also has its own entry point (`@pamoja/core/mqtt`,
  * `/security`, `/codec`, `/kit`, `/serial`, `/modbus`, `/can`, `/gpio`,
  * `/sensors`, `/actuators`, `/lora`, `/lorawan`, `/mesh`, `/routing`,
- * `/audit`, `/session`, `/update`, `/power`, `/telemetry`) for callers who
- * want only one, and the generated low-level surface remains available at
+ * `/audit`, `/session`, `/update`, `/power`, `/telemetry`, `/coap`,
+ * `/loopback`, `/sync`, `/ladder`, `/bus`, `/sim`, `/transport`) for callers
+ * who want only one, and the generated low-level surface remains available at
  * `@pamoja/core/raw`.
  *
  * @packageDocumentation
@@ -54,9 +55,17 @@ export * as actuators from './actuators'
 
 export * as audit from './audit'
 
+export * as bus from './bus'
+
 export * as can from './can'
 
+export * as coap from './coap'
+
 export * as gpio from './gpio'
+
+export * as ladder from './ladder'
+
+export * as loopback from './loopback'
 
 export * as lora from './lora'
 
@@ -72,10 +81,16 @@ export * as routing from './routing'
 
 export * as sensors from './sensors'
 
-export * as session from './session'
-
 export * as serial from './serial'
 
+export * as session from './session'
+
+export * as sim from './sim'
+
+export * as sync from './sync'
+
 export * as telemetry from './telemetry'
+
+export * as transport from './transport'
 
 export * as update from './update'

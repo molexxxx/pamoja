@@ -22,17 +22,24 @@ const {
   deadband,
   distanceBetween,
   audit,
+  bus,
   can,
+  coap,
   gpio,
   lora,
   lorawan,
   mesh,
   modbus,
+  ladder,
+  loopback,
   power,
   routing,
   serial,
   session,
+  sim,
+  sync,
   telemetry,
+  transport,
   update,
   actuators,
   sensors,
@@ -82,6 +89,7 @@ async function main() {
   sensingAndActuation();
   radioAndReach();
   trustAndOperation();
+  await asyncTransports();
 
   console.log("ok");
 }
@@ -542,6 +550,112 @@ function trustAndOperation() {
     telemetry.linkCostThreshold(telemetry.LinkCost.Offline),
     telemetry.Level.Error,
     "and an offline link ships only failures",
+  );
+}
+
+
+// Reaching the network when no single link always works, and testing all of it
+// with nothing plugged in.
+async function asyncTransports() {
+  // An in-process broker: publish on one link, receive on another.
+  const broker = new loopback.LoopbackBroker();
+  const publisher = broker.link();
+  const subscriber = broker.link();
+  await publisher.connect();
+  await subscriber.connect();
+  assert.ok(await subscriber.isConnected(), "a connected link reports it");
+
+  await subscriber.subscribe("sensors/1");
+  await publisher.send("sensors/1", Buffer.from("21.5"));
+
+  const received = await subscriber.recv();
+  assert.strictEqual(received.topic, "sensors/1", "the topic survives");
+  assert.strictEqual(received.payload.toString(), "21.5", "and so does the reading");
+
+  // A buffer holds what cannot be sent yet.
+  const store = sync.Store.memory();
+  await store.append(Buffer.from("one"));
+  await store.append(Buffer.from("two"));
+  assert.strictEqual(await store.len(), 2);
+  assert.strictEqual((await store.peek()).toString(), "one", "peek leaves it in place");
+  assert.strictEqual((await store.pop()).toString(), "one");
+  assert.strictEqual((await store.pop()).toString(), "two");
+  assert.strictEqual(await store.pop(), null, "an empty store yields nothing");
+
+  const bounded = sync.Store.memory(1);
+  await bounded.append(Buffer.from("one"));
+  await assert.rejects(
+    () => bounded.append(Buffer.from("two")),
+    "a full store tells the caller rather than dropping something",
+  );
+
+  // With no rung, a ladder buffers rather than losing the reading.
+  const offline = new ladder.Ladder(sync.Store.memory());
+  assert.strictEqual(
+    await offline.send("sensors/1", Buffer.from("21.5")),
+    ladder.Delivery.Buffered,
+    "buffering is a success, not a failure",
+  );
+  assert.strictEqual(await offline.buffered(), 1);
+
+  // The link comes back, and the buffer drains over it.
+  await offline.rung(broker.rung());
+  await offline.connect();
+  assert.strictEqual(await offline.flush(), 1, "the buffered reading went out");
+  assert.strictEqual(await offline.buffered(), 0);
+
+  // A rung that refuses falls through to the next.
+  const rungs = new ladder.Ladder(sync.Store.memory());
+  await rungs.rung(transport.Transport.faulty(broker.rung(), 1));
+  await rungs.rung(broker.rung());
+  await rungs.connect();
+  assert.strictEqual(
+    await rungs.send("sensors/1", Buffer.from("4.8C")),
+    ladder.Delivery.Sent,
+    "the second rung carried what the first refused",
+  );
+
+  // A transport handed to a ladder is spent.
+  const spent = broker.rung();
+  assert.ok(spent.isAvailable, "a fresh transport is holdable");
+  await rungs.rung(spent);
+  assert.ok(!spent.isAvailable, "and is not once it has been added");
+  assert.throws(() => rungs.rung(spent), /already added/, "adding it twice is refused");
+
+  // One publisher, many subscribers, in one process.
+  const hub = new bus.EventBus(8);
+  const first = hub.subscribe();
+  const second = hub.subscribe();
+  await hub.publish(Buffer.from("battery.low"));
+  assert.strictEqual((await first.next()).toString(), "battery.low");
+  assert.strictEqual((await second.next()).toString(), "battery.low");
+
+  // Devices that need no hardware.
+  const seeded = new sim.SimulatedSensor(20.0, 0.5, 1.0, 42);
+  const twin = new sim.SimulatedSensor(20.0, 0.5, 1.0, 42);
+  for (let at = 0; at < 5; at += 1) {
+    assert.strictEqual(await seeded.read(), await twin.read(), "a seed makes a run repeat");
+  }
+
+  const replay = new sim.Replay([21.0, 21.5, 22.0], true);
+  for (let round = 0; round < 2; round += 1) {
+    for (const want of [21.0, 21.5, 22.0]) {
+      assert.ok(Math.abs((await replay.read()) - want) < 1e-6, "a capture reads back");
+    }
+  }
+
+  const actuator = new sim.RecordingActuator();
+  for (const command of [0.0, 0.5, 1.0]) {
+    await actuator.apply(command);
+  }
+  assert.strictEqual(actuator.length, 3, "every command was recorded");
+  assert.deepStrictEqual(actuator.commands, [0.0, 0.5, 1.0]);
+
+  const robot = new sim.SimulatedRobot(1.0);
+  await robot.apply({ vx: 1.0, vy: 0.0, omega: 0.0 });
+  assert.ok(
+    Math.abs(robot.pose.x - 1.0) < 1e-5,
+    "one second at one metre a second puts it a metre ahead",
   );
 }
 

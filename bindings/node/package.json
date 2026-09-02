@@ -93,6 +93,34 @@
       "types": "./dist/telemetry.d.ts",
       "default": "./dist/telemetry.js"
     },
+    "./coap": {
+      "types": "./dist/coap.d.ts",
+      "default": "./dist/coap.js"
+    },
+    "./loopback": {
+      "types": "./dist/loopback.d.ts",
+      "default": "./dist/loopback.js"
+    },
+    "./sync": {
+      "types": "./dist/sync.d.ts",
+      "default": "./dist/sync.js"
+    },
+    "./ladder": {
+      "types": "./dist/ladder.d.ts",
+      "default": "./dist/ladder.js"
+    },
+    "./bus": {
+      "types": "./dist/bus.d.ts",
+      "default": "./dist/bus.js"
+    },
+    "./sim": {
+      "types": "./dist/sim.d.ts",
+      "default": "./dist/sim.js"
+    },
+    "./transport": {
+      "types": "./dist/transport.d.ts",
+      "default": "./dist/transport.js"
+    },
     "./raw": {
       "types": "./index.d.ts",
       "default": "./index.js"
