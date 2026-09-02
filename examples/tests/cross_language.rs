@@ -18,8 +18,12 @@ use pamoja_kit::{
     deadband, Anomaly, Boundary, Calibration, Coordinate, Depletion, Geofence, Median, Pid,
     Smoother, Thermostat, Trend, Window,
 };
+use pamoja_lora::LinkSettings;
+use pamoja_lorawan::{Device, Direction as LorawanDirection, Downlink, Session, Uplink};
+use pamoja_mesh::{crc16 as mesh_crc16, Frame as MeshFrame, SeenCache};
 use pamoja_modbus::Pdu;
 use pamoja_modbus::{crc16, Adu};
+use pamoja_routing::{Forward, Router};
 use pamoja_security::{DeviceIdentity, PublicIdentity, Signature};
 use pamoja_sensors::{ads1115, bme280, ds18b20, ina219};
 use pamoja_serial::{cobs, slip};
@@ -839,4 +843,356 @@ fn windowed_helper_vectors_match() {
             "the detector flags the reading that stands out"
         );
     }
+}
+
+#[test]
+fn lora_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["lora"];
+
+    for described in case["links"].as_array().expect("an array") {
+        let link = link_of(described);
+        assert_eq!(
+            link.symbol_time_us(),
+            described["symbolTimeUs"].as_u64().expect("a symbol time"),
+            "symbol time for {}",
+            described["name"]
+        );
+
+        for airtime in described["airtimes"].as_array().expect("an array") {
+            let payload_len = airtime["payloadLen"].as_u64().expect("a length") as usize;
+            assert_eq!(
+                link.airtime_us(payload_len),
+                airtime["airtimeUs"].as_u64().expect("an airtime"),
+                "airtime of {payload_len} bytes on {}",
+                described["name"]
+            );
+        }
+
+        for budget in described["budgets"].as_array().expect("an array") {
+            let payload_len = budget["payloadLen"].as_u64().expect("a length") as usize;
+            let permille = budget["permille"].as_u64().expect("a limit") as u32;
+            assert_eq!(
+                link.min_off_time_us(payload_len, permille),
+                budget["offTimeUs"].as_u64().expect("an off time"),
+                "off time at {permille} permille on {}",
+                described["name"]
+            );
+        }
+    }
+
+    for clamp in case["clamped"].as_array().expect("an array") {
+        let asked = clamp["asked"].as_u64().expect("a factor") as u8;
+        assert_eq!(
+            LinkSettings::new(asked, 125_000).spreading_factor(),
+            clamp["used"].as_u64().expect("a factor") as u8,
+            "a spreading factor outside 7 to 12 is clamped"
+        );
+    }
+
+    // Rust reports a forbidden duty cycle as a saturated off time; the bindings
+    // each surface it as their own "never" value.
+    let forbidden = &case["forbidden"];
+    let link = link_of(named(
+        case,
+        forbidden["link"].as_str().expect("a link name"),
+    ));
+    assert_eq!(
+        link.min_off_time_us(
+            forbidden["payloadLen"].as_u64().expect("a length") as usize,
+            forbidden["permille"].as_u64().expect("a limit") as u32,
+        ),
+        u64::MAX,
+        "a zero duty cycle forbids transmitting"
+    );
+}
+
+/// Rebuilds the link a vector describes.
+fn link_of(described: &Value) -> LinkSettings {
+    let mut link = LinkSettings::new(
+        described["spreadingFactor"].as_u64().expect("a factor") as u8,
+        described["bandwidthHz"].as_u64().expect("a bandwidth") as u32,
+    )
+    .with_coding_rate(described["codingRateDenominator"].as_u64().expect("a rate") as u8)
+    .with_preamble(described["preambleSymbols"].as_u64().expect("a preamble") as u16);
+    if !described["explicitHeader"].as_bool().expect("a flag") {
+        link = link.implicit_header();
+    }
+    if !described["crc"].as_bool().expect("a flag") {
+        link = link.without_crc();
+    }
+    link
+}
+
+/// Finds the named link among the vectors.
+fn named<'a>(case: &'a Value, name: &str) -> &'a Value {
+    case["links"]
+        .as_array()
+        .expect("an array")
+        .iter()
+        .find(|link| link["name"] == name)
+        .unwrap_or_else(|| panic!("no link named {name}"))
+}
+
+#[test]
+fn mesh_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["mesh"];
+
+    assert_eq!(
+        MeshFrame::MAX_LEN,
+        case["maxFrame"].as_u64().expect("a length") as usize
+    );
+    assert_eq!(
+        MeshFrame::MAX_PAYLOAD,
+        case["maxPayload"].as_u64().expect("a length") as usize
+    );
+    assert_eq!(
+        pamoja_mesh::BROADCAST,
+        case["broadcastAddress"].as_u64().expect("an address") as u32
+    );
+
+    let unicast = &case["unicast"];
+    let built = MeshFrame::new(
+        unicast["src"].as_u64().expect("an address") as u32,
+        unicast["dst"].as_u64().expect("an address") as u32,
+        unicast["id"].as_u64().expect("an id") as u16,
+        &unhex(&unicast["payload"]),
+    )
+    .expect("build the frame")
+    .with_hop_limit(unicast["hopLimit"].as_u64().expect("a hop limit") as u8);
+    assert_eq!(built.as_bytes().to_vec(), unhex(&unicast["bytes"]));
+
+    let broadcast = &case["broadcast"];
+    let built = MeshFrame::broadcast(
+        broadcast["src"].as_u64().expect("an address") as u32,
+        broadcast["id"].as_u64().expect("an id") as u16,
+        &unhex(&broadcast["payload"]),
+    )
+    .expect("build the frame");
+    assert_eq!(built.as_bytes().to_vec(), unhex(&broadcast["bytes"]));
+    assert!(built.is_broadcast());
+
+    let parsed = MeshFrame::parse(&unhex(&broadcast["bytes"])).expect("parse the frame");
+    assert_eq!(parsed.payload().to_vec(), unhex(&broadcast["payload"]));
+
+    let relayed = parsed.relayed().expect("a fresh frame has hops to spend");
+    assert_eq!(
+        relayed.as_bytes().to_vec(),
+        unhex(&case["relayed"]["bytes"])
+    );
+    assert_eq!(
+        u64::from(relayed.hop_limit()),
+        case["relayed"]["hopLimit"].as_u64().expect("a hop limit")
+    );
+
+    let exhausted = MeshFrame::parse(&unhex(&case["exhausted"])).expect("parse the frame");
+    assert!(
+        exhausted.relayed().is_none(),
+        "a frame with no hops left must not be relayed"
+    );
+
+    assert!(
+        MeshFrame::parse(&unhex(&case["corrupt"])).is_err(),
+        "a frame the air mangled must be refused"
+    );
+
+    let crc = &case["crc"];
+    assert_eq!(
+        u64::from(mesh_crc16(&unhex(&crc["check"]))),
+        crc["checkValue"].as_u64().expect("a checksum"),
+        "the published CRC-16/CCITT-FALSE check value"
+    );
+    assert_eq!(
+        u64::from(mesh_crc16(&unhex(&crc["data"]))),
+        crc["value"].as_u64().expect("a checksum")
+    );
+
+    let seen_case = &case["seen"];
+    let mut seen: SeenCache<64> = SeenCache::new();
+    let answers: Vec<bool> = seen_case["keys"]
+        .as_array()
+        .expect("an array")
+        .iter()
+        .map(|key| {
+            let key = key.as_array().expect("a pair");
+            seen.record((
+                key[0].as_u64().expect("an address") as u32,
+                key[1].as_u64().expect("an id") as u16,
+            ))
+        })
+        .collect();
+    let want: Vec<bool> = seen_case["new"]
+        .as_array()
+        .expect("an array")
+        .iter()
+        .map(|entry| entry.as_bool().expect("a flag"))
+        .collect();
+    assert_eq!(answers, want, "each packet is new exactly once");
+}
+
+#[test]
+fn routing_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["routing"];
+
+    let mut router: Router<64> = Router::new(case["address"].as_u64().expect("an address") as u32);
+
+    for observation in case["observations"].as_array().expect("an array") {
+        let changed = router.observe(
+            observation["origin"].as_u64().expect("an address") as u32,
+            observation["via"].as_u64().expect("an address") as u32,
+            observation["cost"].as_u64().expect("a cost") as u16,
+        );
+        assert_eq!(
+            changed,
+            observation["changed"].as_bool().expect("a flag"),
+            "observing {} via {} changes the table",
+            observation["origin"],
+            observation["via"]
+        );
+    }
+
+    assert_eq!(
+        router.len(),
+        case["learned"].as_u64().expect("a count") as usize
+    );
+
+    let route = &case["route"];
+    let learned = router
+        .route(route["dst"].as_u64().expect("an address") as u32)
+        .expect("the route was learned");
+    assert_eq!(
+        u64::from(learned.next_hop()),
+        route["nextHop"].as_u64().expect("an address")
+    );
+    assert_eq!(
+        u64::from(learned.cost()),
+        route["cost"].as_u64().expect("a cost")
+    );
+
+    for want in case["decisions"].as_array().expect("an array") {
+        assert_decision(&router, want);
+    }
+
+    let forgotten = &case["afterForgetting"];
+    router.forget(forgotten["dst"].as_u64().expect("an address") as u32);
+    assert_decision(&router, &forgotten["decision"]);
+    assert_eq!(
+        router.len(),
+        forgotten["learned"].as_u64().expect("a count") as usize
+    );
+}
+
+/// Checks one routing decision against the vector that describes it.
+fn assert_decision(router: &Router<64>, want: &Value) {
+    let dst = want["dst"].as_u64().expect("an address") as u32;
+    let action = want["action"].as_str().expect("an action");
+    match router.forward(dst) {
+        Forward::Deliver => assert_eq!(action, "Deliver", "packet for {dst:#x}"),
+        Forward::Relay(next_hop) => {
+            assert_eq!(action, "Relay", "packet for {dst:#x}");
+            assert_eq!(
+                u64::from(next_hop),
+                want["nextHop"].as_u64().expect("an address")
+            );
+        }
+        Forward::Flood => assert_eq!(action, "Flood", "packet for {dst:#x}"),
+    }
+}
+
+#[test]
+fn lorawan_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["lorawan"];
+
+    let session = Session::new(
+        case["devAddr"].as_u64().expect("an address") as u32,
+        unhex(&case["nwkSKey"]).try_into().expect("a 16-byte key"),
+        unhex(&case["appSKey"]).try_into().expect("a 16-byte key"),
+    );
+
+    let uplink_case = &case["uplink"];
+    let payload = unhex(&uplink_case["payload"]);
+    let uplink = session
+        .encode_uplink(
+            &Uplink::new(
+                uplink_case["fcnt"].as_u64().expect("a counter") as u32,
+                uplink_case["fport"].as_u64().expect("a port") as u8,
+                &payload,
+            )
+            .confirmed()
+            .with_adr(),
+        )
+        .expect("encode the uplink");
+    assert_eq!(uplink.as_bytes().to_vec(), unhex(&uplink_case["frame"]));
+
+    let fcnt = uplink_case["fcnt"].as_u64().expect("a counter") as u32;
+    let rx = session
+        .decode(uplink.as_bytes(), fcnt)
+        .expect("the frame verifies");
+    assert_eq!(rx.direction(), LorawanDirection::Uplink);
+    assert!(rx.confirmed());
+    assert!(rx.adr());
+    assert!(!rx.ack());
+    assert_eq!(rx.payload().to_vec(), payload);
+
+    let downlink_case = &case["downlink"];
+    let payload = unhex(&downlink_case["payload"]);
+    let fopts = unhex(&downlink_case["fopts"]);
+    let downlink = session
+        .encode_downlink(
+            &Downlink::new(
+                downlink_case["fcnt"].as_u64().expect("a counter") as u32,
+                downlink_case["fport"].as_u64().expect("a port") as u8,
+                &payload,
+            )
+            .with_ack()
+            .with_fpending()
+            .with_fopts(&fopts),
+        )
+        .expect("encode the downlink");
+    assert_eq!(downlink.as_bytes().to_vec(), unhex(&downlink_case["frame"]));
+
+    let rx = session
+        .decode(
+            downlink.as_bytes(),
+            downlink_case["fcnt"].as_u64().expect("a counter") as u32,
+        )
+        .expect("the frame verifies");
+    assert_eq!(rx.direction(), LorawanDirection::Downlink);
+    assert!(rx.fpending());
+    assert_eq!(rx.fopts().to_vec(), fopts);
+
+    assert!(
+        session.decode(&unhex(&case["forgedUplink"]), fcnt).is_err(),
+        "a frame altered after signing must not verify"
+    );
+    assert!(
+        session
+            .decode(
+                uplink.as_bytes(),
+                case["wrongCounter"].as_u64().expect("a counter") as u32
+            )
+            .is_err(),
+        "a frame out of its place in the counter stream must not verify"
+    );
+
+    let join = &case["join"];
+    let device = Device::new(
+        unhex(&join["devEui"]).try_into().expect("an 8-byte EUI"),
+        unhex(&join["appEui"]).try_into().expect("an 8-byte EUI"),
+        unhex(&join["appKey"]).try_into().expect("a 16-byte key"),
+    );
+    let dev_nonce = join["devNonce"].as_u64().expect("a nonce") as u16;
+    assert_eq!(
+        device.join_request(dev_nonce).as_bytes().to_vec(),
+        unhex(&join["request"])
+    );
+    assert!(
+        device
+            .accept_join(&unhex(&join["forgedAccept"]), dev_nonce)
+            .is_err(),
+        "a join the network never signed must not activate a session"
+    );
 }

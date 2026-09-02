@@ -52,7 +52,11 @@ Beyond the transport, the same import carries device identity, the wire codecs,
 the helper math, and the hardware a gateway talks to, each in its own module
 (`pamoja.security`, `pamoja.codec`, `pamoja.kit`, `pamoja.serial`,
 `pamoja.modbus`, `pamoja.can`, `pamoja.gpio`, `pamoja.sensors`,
-`pamoja.actuators`) and all reachable from `pamoja`.
+`pamoja.actuators`) and all reachable from `pamoja`. The radio modules
+(`pamoja.lora`, `pamoja.lorawan`, `pamoja.mesh`, `pamoja.routing`) carry the
+reach half: what a transmission costs in airtime, the secured LoRaWAN frame that
+goes on the air, and the mesh packets and routing that carry a message across
+nodes when no infrastructure will.
 The generated low-level contract stays available at `pamoja.raw`.
 
 ```python

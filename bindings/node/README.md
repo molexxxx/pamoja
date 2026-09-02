@@ -21,12 +21,16 @@ while all behavior stays in the Rust core.
 | `@pamoja/core/gpio` | I2C addressing, the SPI clock modes, and active-low pin logic |
 | `@pamoja/core/sensors` | BME280, DS18B20, INA219, and ADS1115 register decoding |
 | `@pamoja/core/actuators` | PCA9685 PWM and servo commands, and stepper coil sequencing |
+| `@pamoja/core/lora` | time on air, and the silence a regional duty-cycle limit forces |
+| `@pamoja/core/lorawan` | secured LoRaWAN frames, and over-the-air activation |
+| `@pamoja/core/mesh` | addressed mesh packets, relaying, and duplicate suppression |
+| `@pamoja/core/routing` | learning the way to a node, and when to fall back to flooding |
 
 `@pamoja/core` re-exports them all, and the generated low-level contract stays
 available at `@pamoja/core/raw` for anything the facade does not surface. The
-hardware capabilities arrive as namespaces (`serial`, `modbus`, `can`, `gpio`,
-`sensors`, `actuators`), because their operations are named for their protocol or
-part rather than for the SDK.
+hardware and radio capabilities arrive as namespaces (`serial`, `modbus`, `can`,
+`gpio`, `sensors`, `actuators`, `lora`, `lorawan`, `mesh`, `routing`), because
+their operations are named for their protocol or part rather than for the SDK.
 
 ```js
 const { DeviceIdentity, Smoother, toCbor } = require("@pamoja/core");

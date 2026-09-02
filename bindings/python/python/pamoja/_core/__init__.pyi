@@ -15,16 +15,26 @@ __all__ = [
     "Depletion",
     "DeviceIdentity",
     "Ds18b20Reading",
+    "ForwardDecision",
     "Geofence",
     "J1939Message",
     "Kalman",
+    "LoraLink",
+    "LorawanDevice",
+    "LorawanJoinAccept",
+    "LorawanRxData",
+    "LorawanSession",
     "Median",
+    "MeshFrame",
     "ModbusFrame",
     "MqttClient",
     "MqttMessage",
     "Pid",
     "Quantizer",
     "Ramp",
+    "Route",
+    "Router",
+    "SeenPackets",
     "SlipDecoder",
     "Smoother",
     "SpiClock",
@@ -77,6 +87,12 @@ __all__ = [
     "j1939_compose",
     "j1939_decode",
     "json_to_cbor_bytes",
+    "mesh_broadcast_frame",
+    "mesh_crc16",
+    "mesh_frame",
+    "mesh_limits",
+    "mesh_parse_frame",
+    "mesh_relayed",
     "modbus_crc16",
     "modbus_parse_frame",
     "modbus_raw",
@@ -102,6 +118,7 @@ __all__ = [
     "pwm_full_off",
     "pwm_full_on",
     "pwm_servo",
+    "routing_table_capacity",
     "slip_decode",
     "slip_encode",
     "slip_max_encoded_len",
@@ -454,6 +471,22 @@ class Ds18b20Reading:
         """
 
 @typing.final
+class ForwardDecision:
+    r"""
+    A routing decision, and the neighbour it names when there is one.
+    """
+    @property
+    def action(self) -> builtins.str:
+        r"""
+        What to do with the packet: `Deliver`, `Relay`, or `Flood`.
+        """
+    @property
+    def next_hop(self) -> typing.Optional[builtins.int]:
+        r"""
+        The neighbour to unicast to, or `None` unless the action is `Relay`.
+        """
+
+@typing.final
 class Geofence:
     r"""
     Keeps a tracked point inside an area, and notices when it leaves.
@@ -531,6 +564,209 @@ class Kalman:
         """
 
 @typing.final
+class LoraLink:
+    r"""
+    The radio settings of a LoRa link.
+    """
+    @property
+    def spreading_factor(self) -> builtins.int:
+        r"""
+        The spreading factor, 7 (fastest) to 12 (longest range).
+        """
+    @property
+    def bandwidth_hz(self) -> builtins.int:
+        r"""
+        The channel bandwidth in hertz, such as `125_000`.
+        """
+    @property
+    def coding_rate_denominator(self) -> builtins.int:
+        r"""
+        The coding-rate denominator, 5 to 8, for 4/5 to 4/8.
+        """
+    @property
+    def preamble_symbols(self) -> builtins.int:
+        r"""
+        The preamble length in symbols; the LoRa default is 8.
+        """
+    @property
+    def explicit_header(self) -> builtins.bool:
+        r"""
+        Whether the frame carries an explicit header.
+        """
+    @property
+    def crc(self) -> builtins.bool:
+        r"""
+        Whether the frame carries a CRC.
+        """
+    def __new__(cls, spreading_factor: builtins.int, bandwidth_hz: builtins.int, coding_rate_denominator: builtins.int = 5, preamble_symbols: builtins.int = 8, explicit_header: builtins.bool = True, crc: builtins.bool = True) -> LoraLink:
+        r"""
+        Creates link settings, clamping every value to its LoRa range.
+        
+        The defaults are coding rate 4/5, an eight-symbol preamble, an explicit
+        header, and CRC on, which is a typical uplink.
+        """
+    def symbol_time_us(self) -> builtins.int:
+        r"""
+        The duration of one symbol on this link, in microseconds.
+        """
+    def airtime_us(self, payload_len: builtins.int) -> builtins.int:
+        r"""
+        The time on air of a payload, in microseconds.
+        
+        This is the channel occupancy a transmission costs, which sets both the
+        duty-cycle budget and most of the energy the transmission spends.
+        """
+    def min_off_time_us(self, payload_len: builtins.int, duty_cycle_permille: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        The minimum silence after a transmission to honor a duty-cycle limit.
+        
+        The limit is in parts per thousand, so `10` is 1%. A limit of `0` forbids
+        transmitting at all, which comes back as `None`.
+        """
+
+@typing.final
+class LorawanDevice:
+    r"""
+    The root credentials over-the-air activation is built on.
+    """
+    def __new__(cls, dev_eui: typing.Sequence[builtins.int], app_eui: typing.Sequence[builtins.int], app_key: typing.Sequence[builtins.int]) -> LorawanDevice:
+        r"""
+        Creates a device from its two 8-byte EUIs and its 16-byte application key.
+        """
+    def join_request(self, dev_nonce: builtins.int) -> bytes:
+        r"""
+        Builds the join request this device broadcasts to activate.
+        
+        `dev_nonce` must never repeat for a device, since the network rejects a
+        replayed one.
+        """
+    def accept_join(self, bytes: typing.Sequence[builtins.int], dev_nonce: builtins.int) -> LorawanJoinAccept:
+        r"""
+        Turns the join accept a network sent into the settings it grants.
+        
+        `dev_nonce` is the nonce the matching join request carried.
+        """
+
+@typing.final
+class LorawanJoinAccept:
+    r"""
+    An accepted join: the network settings, and the session it grants.
+    """
+    @property
+    def dev_addr(self) -> builtins.int:
+        r"""
+        The device address the network assigned.
+        """
+    @property
+    def net_id(self) -> builtins.int:
+        r"""
+        The identifier of the network that accepted the join.
+        """
+    @property
+    def dl_settings(self) -> builtins.int:
+        r"""
+        The downlink settings byte, carrying the second receive window data rate
+        and the first window offset.
+        """
+    @property
+    def rx_delay(self) -> builtins.int:
+        r"""
+        The delay before the first receive window, in seconds.
+        """
+    def session(self) -> LorawanSession:
+        r"""
+        The activated session this join grants, with its keys already derived.
+        """
+
+@typing.final
+class LorawanRxData:
+    r"""
+    A decoded data frame, with its payload decrypted.
+    """
+    @property
+    def direction(self) -> builtins.str:
+        r"""
+        The direction the frame travelled: `Uplink` or `Downlink`.
+        """
+    @property
+    def dev_addr(self) -> builtins.int:
+        r"""
+        The device address the frame carries.
+        """
+    @property
+    def fcnt(self) -> builtins.int:
+        r"""
+        The low 16 bits of the frame counter.
+        """
+    @property
+    def confirmed(self) -> builtins.bool:
+        r"""
+        Whether the frame asks to be acknowledged.
+        """
+    @property
+    def adr(self) -> builtins.bool:
+        r"""
+        Whether the frame takes part in adaptive data rate.
+        """
+    @property
+    def ack(self) -> builtins.bool:
+        r"""
+        Whether the frame acknowledges the last confirmed one.
+        """
+    @property
+    def fpending(self) -> builtins.bool:
+        r"""
+        Whether the network has more downlink data waiting.
+        """
+    @property
+    def fport(self) -> typing.Optional[builtins.int]:
+        r"""
+        The port the frame was sent on, or `None` when it carries only options.
+        """
+    @property
+    def fopts(self) -> bytes:
+        r"""
+        The MAC commands the header carried.
+        """
+    @property
+    def payload(self) -> bytes:
+        r"""
+        The decrypted application payload.
+        """
+
+@typing.final
+class LorawanSession:
+    r"""
+    An activated LoRaWAN session: a device address and its two session keys.
+    """
+    @property
+    def dev_addr(self) -> builtins.int:
+        r"""
+        The device address this session is bound to.
+        """
+    def __new__(cls, dev_addr: builtins.int, nwk_skey: typing.Sequence[builtins.int], app_skey: typing.Sequence[builtins.int]) -> LorawanSession:
+        r"""
+        Creates a session from a device address and its two 16-byte session keys.
+        
+        `nwk_skey` authenticates frames and `app_skey` encrypts payloads.
+        """
+    def encode_uplink(self, fcnt: builtins.int, fport: builtins.int, payload: typing.Sequence[builtins.int], confirmed: builtins.bool = False, adr: builtins.bool = False, ack: builtins.bool = False, fopts: typing.Optional[typing.Sequence[builtins.int]] = None) -> bytes:
+        r"""
+        Encodes an uplink, encrypting the payload and appending the MIC.
+        """
+    def encode_downlink(self, fcnt: builtins.int, fport: builtins.int, payload: typing.Sequence[builtins.int], confirmed: builtins.bool = False, adr: builtins.bool = False, ack: builtins.bool = False, fpending: builtins.bool = False, fopts: typing.Optional[typing.Sequence[builtins.int]] = None) -> bytes:
+        r"""
+        Encodes a downlink, encrypting the payload and appending the MIC.
+        """
+    def decode(self, bytes: typing.Sequence[builtins.int], fcnt: builtins.int) -> LorawanRxData:
+        r"""
+        Verifies a received frame, then decrypts it.
+        
+        `fcnt` is the full 32-bit counter expected for this frame; its low 16 bits
+        must match the counter the frame carries.
+        """
+
+@typing.final
 class Median:
     r"""
     Rejects a single wild reading, where an average would let it pull the answer.
@@ -547,6 +783,52 @@ class Median:
     def update(self, reading: builtins.float) -> builtins.float:
         r"""
         Folds a reading in and returns the median of the window.
+        """
+
+@typing.final
+class MeshFrame:
+    r"""
+    A mesh packet: its addressing, its payload, and the bytes to transmit.
+    """
+    @property
+    def version(self) -> builtins.int:
+        r"""
+        The protocol version the frame declares.
+        """
+    @property
+    def src(self) -> builtins.int:
+        r"""
+        The address of the node the frame came from.
+        """
+    @property
+    def dst(self) -> builtins.int:
+        r"""
+        The address the frame is addressed to.
+        """
+    @property
+    def id(self) -> builtins.int:
+        r"""
+        The sequence number identifying this packet from this source.
+        """
+    @property
+    def hop_limit(self) -> builtins.int:
+        r"""
+        How many further relays the frame may take.
+        """
+    @property
+    def broadcast(self) -> builtins.bool:
+        r"""
+        Whether the frame is addressed to every node.
+        """
+    @property
+    def payload(self) -> bytes:
+        r"""
+        The payload the frame carries.
+        """
+    @property
+    def bytes(self) -> bytes:
+        r"""
+        The whole frame as it goes on the air.
         """
 
 @typing.final
@@ -698,6 +980,102 @@ class Ramp:
     def set(self, value: builtins.float) -> None:
         r"""
         Forces the value without rate limiting.
+        """
+
+@typing.final
+class Route:
+    r"""
+    A learned way to reach one node.
+    """
+    @property
+    def dst(self) -> builtins.int:
+        r"""
+        The node this route reaches.
+        """
+    @property
+    def next_hop(self) -> builtins.int:
+        r"""
+        The neighbour to send a packet to on the way there.
+        """
+    @property
+    def cost(self) -> builtins.int:
+        r"""
+        What the route costs, usually in hops.
+        """
+
+@typing.final
+class Router:
+    r"""
+    One node routing table, learned from the traffic the node hears.
+    """
+    @property
+    def address(self) -> builtins.int:
+        r"""
+        The address this router answers for.
+        """
+    @property
+    def capacity(self) -> builtins.int:
+        r"""
+        How many routes the table can hold.
+        """
+    def __new__(cls, address: builtins.int) -> Router:
+        r"""
+        Creates an empty routing table for a node at `address`.
+        """
+    def observe(self, origin: builtins.int, via: builtins.int, cost: builtins.int) -> builtins.bool:
+        r"""
+        Learns a route from a packet that arrived, reporting whether it changed
+        the table.
+        """
+    def next_hop(self, dst: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        The neighbour to send a packet to on the way to `dst`, or `None`.
+        """
+    def cost(self, dst: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        What the known route to `dst` costs, or `None` when none is known.
+        """
+    def route(self, dst: builtins.int) -> typing.Optional[Route]:
+        r"""
+        The whole route to `dst`, or `None` when none is known.
+        """
+    def forward(self, dst: builtins.int) -> ForwardDecision:
+        r"""
+        Decides what to do with a packet bound for `dst`.
+        """
+    def forget(self, dst: builtins.int) -> None:
+        r"""
+        Forgets the route to `dst`, for example after it stops answering.
+        """
+    def __len__(self) -> builtins.int:
+        r"""
+        How many routes the table currently holds.
+        """
+
+@typing.final
+class SeenPackets:
+    r"""
+    A memory of recently seen packets, so a node relays each one only once.
+    """
+    @property
+    def capacity(self) -> builtins.int:
+        r"""
+        How many packets this cache remembers.
+        """
+    def __new__(cls) -> SeenPackets:
+        r"""
+        Creates an empty cache of `mesh_seen_capacity()` packets.
+        """
+    def contains(self, src: builtins.int, id: builtins.int) -> builtins.bool:
+        r"""
+        Reports whether a packet is currently remembered, without recording it.
+        """
+    def record(self, src: builtins.int, id: builtins.int) -> builtins.bool:
+        r"""
+        Records a packet and reports whether it was new.
+        
+        A true answer is when a node should act on the packet and relay it; a
+        false one means another copy already arrived by a different path.
         """
 
 @typing.final
@@ -1124,6 +1502,39 @@ def json_to_cbor_bytes(json: typing.Sequence[builtins.int]) -> bytes:
     Converts a JSON document into its CBOR encoding, which is typically smaller.
     """
 
+def mesh_broadcast_frame(src: builtins.int, id: builtins.int, payload: typing.Sequence[builtins.int], hop_limit: typing.Optional[builtins.int] = None) -> MeshFrame:
+    r"""
+    Builds a mesh frame addressed to every node.
+    """
+
+def mesh_crc16(data: typing.Sequence[builtins.int]) -> builtins.int:
+    r"""
+    Computes the CRC-16 a mesh frame carries.
+    """
+
+def mesh_frame(src: builtins.int, dst: builtins.int, id: builtins.int, payload: typing.Sequence[builtins.int], hop_limit: typing.Optional[builtins.int] = None) -> MeshFrame:
+    r"""
+    Builds a mesh frame addressed to one node.
+    """
+
+def mesh_limits() -> tuple[builtins.int, builtins.int, builtins.int, builtins.int, builtins.int]:
+    r"""
+    Returns the frame, payload, and cache sizes a mesh node works within.
+    
+    The order is the maximum frame length, the maximum payload, the broadcast
+    address, the default hop limit, and the duplicate-cache capacity.
+    """
+
+def mesh_parse_frame(bytes: typing.Sequence[builtins.int]) -> MeshFrame:
+    r"""
+    Parses a frame received off a radio, rejecting anything the air mangled.
+    """
+
+def mesh_relayed(bytes: typing.Sequence[builtins.int]) -> typing.Optional[MeshFrame]:
+    r"""
+    Returns the same frame with one hop spent, or `None` once its hops run out.
+    """
+
 def modbus_crc16(data: typing.Sequence[builtins.int]) -> builtins.int:
     r"""
     Computes the CRC-16/MODBUS that every RTU frame ends with.
@@ -1252,6 +1663,11 @@ def pwm_full_on() -> bytes:
 def pwm_servo(pulse_micros: builtins.int, update_rate_hz: builtins.int) -> bytes:
     r"""
     Builds the register bytes that drive a hobby servo to a given pulse width.
+    """
+
+def routing_table_capacity() -> builtins.int:
+    r"""
+    Returns how many routes a routing table holds.
     """
 
 def slip_decode(frame: typing.Sequence[builtins.int]) -> bytes:

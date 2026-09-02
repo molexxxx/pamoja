@@ -100,6 +100,65 @@ export declare class Kalman {
   estimate(): number
 }
 
+/** The root credentials over-the-air activation is built on. */
+export declare class LorawanDevice {
+  /** Creates a device from its two 8-byte EUIs and its 16-byte application key. */
+  constructor(devEui: Buffer, appEui: Buffer, appKey: Buffer)
+  /**
+   * Builds the join request this device broadcasts to activate.
+   *
+   * `devNonce` must never repeat for a device, since the network rejects a
+   * replayed one.
+   */
+  joinRequest(devNonce: number): Buffer
+  /**
+   * Turns the join accept a network sent into the settings it grants.
+   *
+   * `devNonce` is the nonce the matching join request carried.
+   */
+  acceptJoin(bytes: Buffer, devNonce: number): LorawanJoinAccept
+}
+
+/** An accepted join: the network settings, and the session it grants. */
+export declare class LorawanJoinAccept {
+  /** The device address the network assigned. */
+  get devAddr(): number
+  /** The identifier of the network that accepted the join. */
+  get netId(): number
+  /**
+   * The downlink settings byte, carrying the second receive window data rate
+   * and the first window offset.
+   */
+  get dlSettings(): number
+  /** The delay before the first receive window, in seconds. */
+  get rxDelay(): number
+  /** The activated session this join grants, with its keys already derived. */
+  session(): LorawanSession
+}
+
+/** An activated LoRaWAN session: a device address and its two session keys. */
+export declare class LorawanSession {
+  /**
+   * Creates a session from a device address and its two 16-byte session keys.
+   *
+   * `nwkSKey` authenticates frames and `appSKey` encrypts payloads.
+   */
+  constructor(devAddr: number, nwkSkey: Buffer, appSkey: Buffer)
+  /** The device address this session is bound to. */
+  get devAddr(): number
+  /** Encodes an uplink, encrypting the payload and appending the MIC. */
+  encodeUplink(fcnt: number, fport: number, payload: Buffer, options?: LorawanOptions | undefined | null): Buffer
+  /** Encodes a downlink, encrypting the payload and appending the MIC. */
+  encodeDownlink(fcnt: number, fport: number, payload: Buffer, options?: LorawanOptions | undefined | null): Buffer
+  /**
+   * Verifies a received frame, then decrypts it.
+   *
+   * `fcnt` is the full 32-bit counter expected for this frame; its low 16 bits
+   * must match the counter the frame carries.
+   */
+  decode(bytes: Buffer, fcnt: number): LorawanRxData
+}
+
 /** Rejects a single wild reading, where an average would let it pull the answer. */
 export declare class Median {
   /** Creates an empty median filter. */
@@ -168,6 +227,54 @@ export declare class Ramp {
   value(): number
   /** Forces the value without rate limiting. */
   set(value: number): void
+}
+
+/** One node routing table, learned from the traffic the node hears. */
+export declare class Router {
+  /** Creates an empty routing table for a node at `address`. */
+  constructor(address: number)
+  /** The address this router answers for. */
+  get address(): number
+  /**
+   * Learns a route from a packet that arrived.
+   *
+   * When a packet from `origin` comes in through neighbour `via` at `cost`,
+   * that neighbour is the way back. Returns whether the table changed.
+   */
+  observe(origin: number, via: number, cost: number): boolean
+  /** Returns the neighbour to send a packet to on the way to `dst`, or `null`. */
+  nextHop(dst: number): number | null
+  /** Returns what the known route to `dst` costs, or `null` when none is known. */
+  cost(dst: number): number | null
+  /** Returns the whole route to `dst`, or `null` when none is known. */
+  route(dst: number): Route | null
+  /** Decides what to do with a packet bound for `dst`. */
+  forward(dst: number): ForwardDecision
+  /** Forgets the route to `dst`, for example after it stops answering. */
+  forget(dst: number): void
+  /** How many routes the table currently holds. */
+  get len(): number
+  /** Whether the table has learned nothing yet. */
+  get isEmpty(): boolean
+  /** How many routes the table can hold. */
+  get capacity(): number
+}
+
+/** A memory of recently seen packets, so a node relays each one only once. */
+export declare class SeenPackets {
+  /** Creates an empty cache of [`MESH_SEEN_CAPACITY`] packets. */
+  constructor()
+  /** Reports whether a packet is currently remembered, without recording it. */
+  contains(src: number, id: number): boolean
+  /**
+   * Records a packet and reports whether it was new.
+   *
+   * A `true` answer is when a node should act on the packet and relay it; a
+   * `false` one means another copy already arrived by a different path.
+   */
+  record(src: number, id: number): boolean
+  /** How many packets this cache remembers. */
+  get capacity(): number
 }
 
 /** Reassembles whole SLIP frames from the chunks a serial port delivers. */
@@ -445,6 +552,24 @@ export declare function encodeDeltaSamples(samples: Array<number>): Buffer
 /** Returns the short hex fingerprint of a public key. */
 export declare function fingerprint(publicKey: Buffer): string
 
+/** What to do with a packet bound for a given node. */
+export declare const enum ForwardAction {
+  /** The packet is for this node; hand it to the application. */
+  Deliver = 'Deliver',
+  /** A route is known; unicast the packet to the next hop reported alongside. */
+  Relay = 'Relay',
+  /** No route is known; fall back to flooding the packet. */
+  Flood = 'Flood'
+}
+
+/** A routing decision, and the neighbour it names when there is one. */
+export interface ForwardDecision {
+  /** What to do with the packet. */
+  action: ForwardAction
+  /** The neighbour to unicast to, or `null` unless the action is `Relay`. */
+  nextHop?: number
+}
+
 /**
  * Returns the address bytes a controller puts on the bus for a transfer.
  *
@@ -534,6 +659,170 @@ export interface J1939Message {
 
 /** Converts a JSON document into its CBOR encoding, which is typically smaller. */
 export declare function jsonToCborBytes(json: Buffer): Buffer
+
+/**
+ * Returns the time on air of a payload, in microseconds.
+ *
+ * This is the channel occupancy a transmission costs, which sets both the
+ * duty-cycle budget and most of the energy the transmission spends.
+ */
+export declare function loraAirtimeUs(link: LoraLink, payloadLen: number): number
+
+/** The radio settings of a LoRa link. */
+export interface LoraLink {
+  /** The spreading factor, 7 (fastest) to 12 (longest range). */
+  spreadingFactor: number
+  /** The channel bandwidth in hertz, such as `125000`. */
+  bandwidthHz: number
+  /** The coding-rate denominator, 5 to 8, for 4/5 to 4/8. */
+  codingRateDenominator: number
+  /** The preamble length in symbols; the LoRa default is 8. */
+  preambleSymbols: number
+  /** Whether the frame carries an explicit header. */
+  explicitHeader: boolean
+  /** Whether the frame carries a CRC. */
+  crc: boolean
+}
+
+/**
+ * Returns the settings for a spreading factor and bandwidth, with LoRa defaults.
+ *
+ * The defaults are coding rate 4/5, an eight-symbol preamble, an explicit header,
+ * and CRC on, which is a typical uplink. The spreading factor is clamped to 7-12.
+ */
+export declare function loraLinkDefault(spreadingFactor: number, bandwidthHz: number): LoraLink
+
+/**
+ * Returns the minimum silence after a transmission to honor a duty-cycle limit.
+ *
+ * The limit is in parts per thousand, so `10` is 1%. A limit of `0` forbids
+ * transmitting at all, which comes back as `null` rather than as a silence no
+ * caller could ever wait out.
+ */
+export declare function loraMinOffTimeUs(link: LoraLink, payloadLen: number, dutyCyclePermille: number): number | null
+
+/** Returns the duration of one symbol on a link, in microseconds. */
+export declare function loraSymbolTimeUs(link: LoraLink): number
+
+/** The largest LoRaWAN frame, in bytes, this build accepts. */
+export const LORAWAN_MAX_FRAME: number
+
+/** The largest application payload, in bytes, a single frame can carry. */
+export const LORAWAN_MAX_PAYLOAD: number
+
+/** The direction a frame travelled, which its MIC and encryption both fold in. */
+export declare const enum LorawanDirection {
+  /** From an end device up to the network. */
+  Uplink = 'Uplink',
+  /** From the network down to an end device. */
+  Downlink = 'Downlink'
+}
+
+/**
+ * The header flags and frame options a sender sets on a data frame.
+ *
+ * Every field is optional and defaults off. `fpending` applies to a downlink
+ * only and is ignored on an uplink.
+ */
+export interface LorawanOptions {
+  /** Ask the far end to acknowledge this frame. */
+  confirmed?: boolean
+  /** Mark the frame as taking part in adaptive data rate. */
+  adr?: boolean
+  /** Acknowledge the last confirmed frame from the far end. */
+  ack?: boolean
+  /** Tell the device more downlink data is waiting. */
+  fpending?: boolean
+  /** MAC commands to carry in the header, at most 15 bytes. */
+  fopts?: Buffer
+}
+
+/** A decoded data frame, with its payload decrypted. */
+export interface LorawanRxData {
+  /** The direction the frame travelled. */
+  direction: LorawanDirection
+  /** The device address the frame carries. */
+  devAddr: number
+  /** The low 16 bits of the frame counter. */
+  fcnt: number
+  /** Whether the frame asks to be acknowledged. */
+  confirmed: boolean
+  /** Whether the frame takes part in adaptive data rate. */
+  adr: boolean
+  /** Whether the frame acknowledges the last confirmed one. */
+  ack: boolean
+  /** Whether the network has more downlink data waiting. */
+  fpending: boolean
+  /** The port the frame was sent on, or `null` when it carries only options. */
+  fport?: number
+  /** The MAC commands the header carried. */
+  fopts: Buffer
+  /** The decrypted application payload. */
+  payload: Buffer
+}
+
+/** The destination address that means every node. */
+export const MESH_BROADCAST: number
+
+/** The hop limit a frame starts with unless one is given. */
+export const MESH_DEFAULT_HOP_LIMIT: number
+
+/** The largest mesh frame, in bytes, including its header and checksum. */
+export const MESH_MAX_FRAME: number
+
+/** The largest payload a single mesh frame can carry, in bytes. */
+export const MESH_MAX_PAYLOAD: number
+
+/** The number of recently seen packets a duplicate cache remembers. */
+export const MESH_SEEN_CAPACITY: number
+
+/**
+ * Builds a mesh frame addressed to every node.
+ *
+ * `hopLimit` defaults to [`MESH_DEFAULT_HOP_LIMIT`] when omitted.
+ */
+export declare function meshBroadcastFrame(src: number, id: number, payload: Buffer, hopLimit?: number | undefined | null): MeshFrame
+
+/** Computes the CRC-16 a mesh frame carries. */
+export declare function meshCrc16(data: Buffer): number
+
+/**
+ * Builds a mesh frame addressed to one node.
+ *
+ * `hopLimit` defaults to [`MESH_DEFAULT_HOP_LIMIT`] when omitted.
+ */
+export declare function meshFrame(src: number, dst: number, id: number, payload: Buffer, hopLimit?: number | undefined | null): MeshFrame
+
+/** A mesh packet: its addressing, its payload, and the bytes to transmit. */
+export interface MeshFrame {
+  /** The protocol version the frame declares. */
+  version: number
+  /** The address of the node the frame came from. */
+  src: number
+  /** The address the frame is addressed to. */
+  dst: number
+  /** The sequence number identifying this packet from this source. */
+  id: number
+  /** How many further relays the frame may take. */
+  hopLimit: number
+  /** Whether the frame is addressed to every node. */
+  broadcast: boolean
+  /** The payload the frame carries. */
+  payload: Buffer
+  /** The whole frame as it goes on the air. */
+  bytes: Buffer
+}
+
+/** Parses a frame received off a radio, rejecting anything the air mangled. */
+export declare function meshParseFrame(bytes: Buffer): MeshFrame
+
+/**
+ * Returns the same frame with one hop spent, ready to forward.
+ *
+ * Returns `null` once the hop limit has run out, which is what stops a flood from
+ * circulating forever.
+ */
+export declare function meshRelayed(bytes: Buffer): MeshFrame | null
 
 /** Reads `count` coils or discrete inputs out of a read-bits response PDU. */
 export declare function modbusCoils(pdu: Buffer, count: number): Array<boolean>
@@ -710,6 +999,19 @@ export declare const enum Qos {
   /** Delivered exactly once via a four-step handshake. */
   ExactlyOnce = 'ExactlyOnce'
 }
+
+/** A learned way to reach one node. */
+export interface Route {
+  /** The node this route reaches. */
+  dst: number
+  /** The neighbour to send a packet to on the way there. */
+  nextHop: number
+  /** What the route costs, usually in hops. */
+  cost: number
+}
+
+/** The number of routes a routing table holds. */
+export const ROUTING_TABLE_CAPACITY: number
 
 /** Reads the payload back out of a SLIP frame. */
 export declare function slipDecode(frame: Buffer): Buffer

@@ -37,7 +37,11 @@ from pamoja import (
     actuators,
     can,
     gpio,
+    lora,
+    lorawan,
+    mesh,
     modbus,
+    routing,
     sensors,
     serial,
 )
@@ -459,3 +463,181 @@ def test_windowed_helper_vectors_match():
     anomaly = Anomaly(vector["anomaly"]["sigmas"])
     for reading, want in zip(vector["anomaly"]["readings"], vector["anomaly"]["flags"]):
         assert anomaly.check(reading) == want
+
+
+def _link_of(described: dict) -> lora.LoraLink:
+    """Rebuild the link a vector describes."""
+    return lora.link(
+        described["spreadingFactor"],
+        described["bandwidthHz"],
+        described["codingRateDenominator"],
+        described["preambleSymbols"],
+        described["explicitHeader"],
+        described["crc"],
+    )
+
+
+def test_lora_vectors_match():
+    vector = VECTORS["lora"]
+
+    for described in vector["links"]:
+        link = _link_of(described)
+        assert link.symbol_time_us() == described["symbolTimeUs"], described["name"]
+
+        for airtime in described["airtimes"]:
+            assert link.airtime_us(airtime["payloadLen"]) == airtime["airtimeUs"], (
+                f"airtime of {airtime['payloadLen']} bytes on {described['name']}"
+            )
+
+        for budget in described["budgets"]:
+            assert (
+                link.min_off_time_us(budget["payloadLen"], budget["permille"])
+                == budget["offTimeUs"]
+            ), f"off time at {budget['permille']} permille on {described['name']}"
+
+    for clamp in vector["clamped"]:
+        assert lora.link(clamp["asked"], 125_000).spreading_factor == clamp["used"]
+
+    # Rust saturates the off time when transmitting is forbidden; the facade
+    # reports None instead, so a caller cannot mistake it for a real wait.
+    forbidden = vector["forbidden"]
+    link = _link_of(
+        next(entry for entry in vector["links"] if entry["name"] == forbidden["link"])
+    )
+    assert (
+        link.min_off_time_us(forbidden["payloadLen"], forbidden["permille"]) is None
+    )
+    assert lora.messages_per_hour(link, forbidden["payloadLen"], forbidden["permille"]) == 0
+
+
+def test_mesh_vectors_match():
+    vector = VECTORS["mesh"]
+
+    assert mesh.MAX_FRAME == vector["maxFrame"]
+    assert mesh.MAX_PAYLOAD == vector["maxPayload"]
+    assert mesh.BROADCAST == vector["broadcastAddress"]
+    assert mesh.SEEN_CAPACITY == vector["seenCapacity"]
+
+    unicast = vector["unicast"]
+    built = mesh.frame(
+        unicast["src"],
+        unicast["dst"],
+        unicast["id"],
+        unhex(unicast["payload"]),
+        unicast["hopLimit"],
+    )
+    assert built.bytes.hex() == unicast["bytes"]
+
+    broadcast = vector["broadcast"]
+    built = mesh.broadcast(broadcast["src"], broadcast["id"], unhex(broadcast["payload"]))
+    assert built.bytes.hex() == broadcast["bytes"]
+
+    parsed = mesh.parse(unhex(broadcast["bytes"]))
+    assert parsed.broadcast
+    assert parsed.payload.hex() == broadcast["payload"]
+
+    relayed = mesh.relayed(unhex(broadcast["bytes"]))
+    assert relayed.bytes.hex() == vector["relayed"]["bytes"]
+    assert relayed.hop_limit == vector["relayed"]["hopLimit"]
+
+    assert mesh.relayed(unhex(vector["exhausted"])) is None
+
+    with pytest.raises(PamojaError):
+        mesh.parse(unhex(vector["corrupt"]))
+
+    crc = vector["crc"]
+    assert mesh.crc16(unhex(crc["check"])) == crc["checkValue"]
+    assert mesh.crc16(unhex(crc["data"])) == crc["value"]
+
+    seen = mesh.SeenPackets()
+    for (src, packet_id), expected in zip(vector["seen"]["keys"], vector["seen"]["new"]):
+        assert seen.record(src, packet_id) == expected
+
+
+def _assert_decision(router, want: dict) -> None:
+    """Check one routing decision against the vector that describes it."""
+    decision = router.forward(want["dst"])
+    assert decision.action == want["action"], f"packet for {want['dst']}"
+    assert decision.next_hop == want["nextHop"], f"next hop for {want['dst']}"
+
+
+def test_routing_vectors_match():
+    vector = VECTORS["routing"]
+    router = routing.router(vector["address"])
+
+    assert router.capacity == vector["capacity"]
+    assert routing.TABLE_CAPACITY == vector["capacity"]
+
+    for observation in vector["observations"]:
+        assert (
+            router.observe(observation["origin"], observation["via"], observation["cost"])
+            == observation["changed"]
+        ), f"observing {observation['origin']} via {observation['via']}"
+
+    assert len(router) == vector["learned"]
+
+    route = router.route(vector["route"]["dst"])
+    assert route.next_hop == vector["route"]["nextHop"]
+    assert route.cost == vector["route"]["cost"]
+
+    for want in vector["decisions"]:
+        _assert_decision(router, want)
+
+    router.forget(vector["afterForgetting"]["dst"])
+    _assert_decision(router, vector["afterForgetting"]["decision"])
+    assert len(router) == vector["afterForgetting"]["learned"]
+
+
+def test_lorawan_vectors_match():
+    vector = VECTORS["lorawan"]
+    session = lorawan.session(
+        vector["devAddr"], unhex(vector["nwkSKey"]), unhex(vector["appSKey"])
+    )
+    assert session.dev_addr == vector["devAddr"]
+
+    up = vector["uplink"]
+    uplink = session.encode_uplink(
+        up["fcnt"],
+        up["fport"],
+        unhex(up["payload"]),
+        confirmed=up["confirmed"],
+        adr=up["adr"],
+        ack=up["ack"],
+    )
+    assert uplink.hex() == up["frame"]
+
+    rx = session.decode(uplink, up["fcnt"])
+    assert rx.direction == lorawan.Direction.UPLINK
+    assert rx.confirmed == up["confirmed"]
+    assert rx.adr == up["adr"]
+    assert rx.ack == up["ack"]
+    assert rx.payload.hex() == up["payload"]
+
+    down = vector["downlink"]
+    downlink = session.encode_downlink(
+        down["fcnt"],
+        down["fport"],
+        unhex(down["payload"]),
+        ack=down["ack"],
+        fpending=down["fpending"],
+        fopts=unhex(down["fopts"]),
+    )
+    assert downlink.hex() == down["frame"]
+
+    received = session.decode(downlink, down["fcnt"])
+    assert received.direction == lorawan.Direction.DOWNLINK
+    assert received.fpending == down["fpending"]
+    assert received.fopts.hex() == down["fopts"]
+
+    with pytest.raises(PamojaError):
+        session.decode(unhex(vector["forgedUplink"]), up["fcnt"])
+    with pytest.raises(PamojaError):
+        session.decode(uplink, vector["wrongCounter"])
+
+    join = vector["join"]
+    device = lorawan.device(
+        unhex(join["devEui"]), unhex(join["appEui"]), unhex(join["appKey"])
+    )
+    assert device.join_request(join["devNonce"]).hex() == join["request"]
+    with pytest.raises(PamojaError):
+        device.accept_join(unhex(join["forgedAccept"]), join["devNonce"])

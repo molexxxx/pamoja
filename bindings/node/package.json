@@ -57,6 +57,22 @@
       "types": "./dist/actuators.d.ts",
       "default": "./dist/actuators.js"
     },
+    "./lora": {
+      "types": "./dist/lora.d.ts",
+      "default": "./dist/lora.js"
+    },
+    "./lorawan": {
+      "types": "./dist/lorawan.d.ts",
+      "default": "./dist/lorawan.js"
+    },
+    "./mesh": {
+      "types": "./dist/mesh.d.ts",
+      "default": "./dist/mesh.js"
+    },
+    "./routing": {
+      "types": "./dist/routing.d.ts",
+      "default": "./dist/routing.js"
+    },
     "./raw": {
       "types": "./index.d.ts",
       "default": "./index.js"
