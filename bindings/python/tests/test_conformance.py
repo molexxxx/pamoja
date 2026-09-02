@@ -203,6 +203,10 @@ def test_modbus_vectors_match():
     assert reply.pdu == unhex(vector["reply"]["pdu"])
     assert reply.registers() == vector["reply"]["registers"]
 
+    # Registers above 0x7FFF, which catch a binding that reads them as signed.
+    high = modbus.parse_frame(unhex(vector["highRegisterReply"]["frame"]))
+    assert high.registers() == vector["highRegisterReply"]["registers"]
+
     bit_reply = modbus.parse_frame(unhex(vector["bitReply"]["frame"]))
     assert bit_reply.coils(vector["bitReply"]["count"]) == vector["bitReply"]["coils"]
 

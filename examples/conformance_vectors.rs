@@ -285,6 +285,14 @@ fn modbus() -> Value {
         .expect("read the coils")
         .collect();
 
+    // Registers above 0x7FFF, which catch a binding that reads them as signed.
+    let high =
+        Adu::from_pdu(0x11, &[0x03, 0x04, 0xFF, 0xFF, 0x80, 0x00]).expect("assemble the reply");
+    let high_registers: Vec<u16> = Response::new(high.pdu())
+        .registers()
+        .expect("read the registers")
+        .collect();
+
     let refused = Adu::from_pdu(0x11, &[0x83, 0x02]).expect("assemble the reply");
 
     let mut corrupt = read.as_bytes().to_vec();
@@ -328,6 +336,10 @@ fn modbus() -> Value {
             "functionCode": reply.function_code(),
             "pdu": hex(reply.pdu()),
             "registers": registers,
+        },
+        "highRegisterReply": {
+            "frame": hex(high.as_bytes()),
+            "registers": high_registers,
         },
         "bitReply": {
             "frame": hex(bit_reply.as_bytes()),

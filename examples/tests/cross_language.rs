@@ -326,6 +326,23 @@ fn modbus_vectors_match() {
         .collect();
     assert_eq!(registers, want);
 
+    // Registers above 0x7FFF, which catch a binding that reads them as signed.
+    let high = &case["highRegisterReply"];
+    let parsed = Adu::parse(&unhex(&high["frame"])).expect("parse the reply");
+    let registers: Vec<u64> = parsed
+        .response()
+        .registers()
+        .expect("read the registers")
+        .map(u64::from)
+        .collect();
+    let want: Vec<u64> = high["registers"]
+        .as_array()
+        .expect("an array")
+        .iter()
+        .map(|entry| entry.as_u64().expect("a register"))
+        .collect();
+    assert_eq!(registers, want);
+
     let bits = &case["bitReply"];
     let parsed = Adu::parse(&unhex(&bits["frame"])).expect("parse the reply");
     let coils: Vec<bool> = parsed

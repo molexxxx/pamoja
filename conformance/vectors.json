@@ -478,6 +478,13 @@
       "frame": "118302c134",
       "functionCode": 131
     },
+    "highRegisterReply": {
+      "frame": "110304ffff80008a16",
+      "registers": [
+        65535,
+        32768
+      ]
+    },
     "readCoils": {
       "address": 17,
       "count": 37,

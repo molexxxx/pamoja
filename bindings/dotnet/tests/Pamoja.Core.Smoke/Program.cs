@@ -504,6 +504,16 @@ static void ConformModbus(JsonElement vector)
                 .Select(entry => entry.GetUInt16())),
         "reply registers match");
 
+    // Registers above 0x7FFF, which catch a binding that reads them as signed.
+    JsonElement highVector = vector.GetProperty("highRegisterReply");
+    using ModbusFrame high =
+        Modbus.ParseFrame(Convert.FromHexString(highVector.GetProperty("frame").GetString()!));
+    Assert(
+        high.Registers().SequenceEqual(
+            highVector.GetProperty("registers").EnumerateArray()
+                .Select(entry => entry.GetUInt16())),
+        "registers above 0x7FFF read back unsigned");
+
     JsonElement bitVector = vector.GetProperty("bitReply");
     using ModbusFrame bitReply =
         Modbus.ParseFrame(Convert.FromHexString(bitVector.GetProperty("frame").GetString()!));

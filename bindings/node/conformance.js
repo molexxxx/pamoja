@@ -229,6 +229,14 @@ function modbusVectors() {
   assert.deepStrictEqual(reply.pdu, unhex(vector.reply.pdu), "reply PDU");
   assert.deepStrictEqual(reply.registers(), vector.reply.registers, "reply registers");
 
+  // Registers above 0x7FFF, which catch a binding that reads them as signed.
+  const high = modbus.parseFrame(unhex(vector.highRegisterReply.frame));
+  assert.deepStrictEqual(
+    high.registers(),
+    vector.highRegisterReply.registers,
+    "registers above 0x7FFF read back unsigned",
+  );
+
   const bitReply = modbus.parseFrame(unhex(vector.bitReply.frame));
   assert.deepStrictEqual(
     bitReply.coils(vector.bitReply.count),
