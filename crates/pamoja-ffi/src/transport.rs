@@ -437,7 +437,7 @@ pub unsafe extern "C" fn pamoja_transport_send(
         Ok(payload) => payload,
         Err(status) => return status,
     };
-    status(crate::runtime().block_on(transport.kind.send(&topic, &payload)))
+    status(crate::runtime().block_on(transport.kind.send(topic, &payload)))
 }
 
 /// Subscribes a transport to a topic.
@@ -466,7 +466,7 @@ pub unsafe extern "C" fn pamoja_transport_subscribe(
     let Some(topic) = crate::read_str(topic, "topic") else {
         return PamojaStatus::InvalidArgument;
     };
-    status(crate::runtime().block_on(transport.kind.subscribe(&topic)))
+    status(crate::runtime().block_on(transport.kind.subscribe(topic)))
 }
 
 /// Releases a transport handle.
