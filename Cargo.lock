@@ -2417,16 +2417,20 @@ name = "pamoja-examples"
 version = "0.1.14"
 dependencies = [
  "pamoja-audit",
+ "pamoja-can",
  "pamoja-codec",
  "pamoja-core",
+ "pamoja-gpio",
  "pamoja-kit",
  "pamoja-loopback",
  "pamoja-lora",
  "pamoja-mavlink",
+ "pamoja-modbus",
  "pamoja-power",
  "pamoja-profile",
  "pamoja-ros2",
  "pamoja-security",
+ "pamoja-serial",
  "pamoja-sim",
  "pamoja-sync",
  "pamoja-telemetry",
@@ -2442,11 +2446,15 @@ name = "pamoja-ffi"
 version = "0.1.14"
 dependencies = [
  "cbindgen",
+ "pamoja-can",
  "pamoja-codec",
  "pamoja-core",
+ "pamoja-gpio",
  "pamoja-kit",
+ "pamoja-modbus",
  "pamoja-mqtt",
  "pamoja-security",
+ "pamoja-serial",
  "tokio",
 ]
 

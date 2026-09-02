@@ -409,6 +409,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
 
 [[package]]
+name = "pamoja-can"
+version = "0.1.14"
+
+[[package]]
 name = "pamoja-codec"
 version = "0.1.14"
 dependencies = [
@@ -423,11 +427,19 @@ name = "pamoja-core"
 version = "0.1.14"
 
 [[package]]
+name = "pamoja-gpio"
+version = "0.1.14"
+
+[[package]]
 name = "pamoja-kit"
 version = "0.1.14"
 dependencies = [
  "libm",
 ]
+
+[[package]]
+name = "pamoja-modbus"
+version = "0.1.14"
 
 [[package]]
 name = "pamoja-mqtt"
@@ -445,11 +457,15 @@ dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
+ "pamoja-can",
  "pamoja-codec",
  "pamoja-core",
+ "pamoja-gpio",
  "pamoja-kit",
+ "pamoja-modbus",
  "pamoja-mqtt",
  "pamoja-security",
+ "pamoja-serial",
  "tokio",
 ]
 
@@ -460,6 +476,10 @@ dependencies = [
  "ed25519-dalek",
  "pamoja-core",
 ]
+
+[[package]]
+name = "pamoja-serial"
+version = "0.1.14"
 
 [[package]]
 name = "pin-project-lite"

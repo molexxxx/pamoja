@@ -13,13 +13,17 @@ publish = false
 crate-type = ["cdylib"]
 
 [features]
-default = ["mqtt", "security", "codec", "kit"]
+default = ["mqtt", "security", "codec", "kit", "serial", "modbus", "can", "gpio"]
 # Each capability is a feature, so the binding can later be split into
 # per-capability packages without reshaping the code.
 mqtt = ["dep:pamoja-mqtt", "dep:tokio"]
 security = ["dep:pamoja-security"]
 codec = ["dep:pamoja-codec"]
 kit = ["dep:pamoja-kit"]
+serial = ["dep:pamoja-serial"]
+modbus = ["dep:pamoja-modbus"]
+can = ["dep:pamoja-can"]
+gpio = ["dep:pamoja-gpio"]
 
 [dependencies]
 napi = { version = "3", default-features = false, features = ["napi4", "tokio_rt"] }
@@ -29,6 +33,10 @@ pamoja-mqtt = { path = "../../crates/pamoja-mqtt", optional = true }
 pamoja-security = { path = "../../crates/pamoja-security", optional = true }
 pamoja-codec = { path = "../../crates/pamoja-codec", optional = true }
 pamoja-kit = { path = "../../crates/pamoja-kit", optional = true }
+pamoja-serial = { path = "../../crates/pamoja-serial", optional = true }
+pamoja-modbus = { path = "../../crates/pamoja-modbus", optional = true }
+pamoja-can = { path = "../../crates/pamoja-can", optional = true }
+pamoja-gpio = { path = "../../crates/pamoja-gpio", optional = true }
 tokio = { version = "1", default-features = false, features = ["sync"], optional = true }
 
 [build-dependencies]

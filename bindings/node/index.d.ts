@@ -10,6 +10,18 @@ export declare class Calibration {
   apply(raw: number): number
 }
 
+/** Reassembles whole COBS frames from the chunks a serial port delivers. */
+export declare class CobsDecoder {
+  /** Creates an empty decoder, ready for the first chunk. */
+  constructor()
+  /** Feeds a chunk of the stream and returns every frame it completed. */
+  feed(chunk: Buffer): Array<Buffer>
+  /** Returns how many corrupt frames this decoder has discarded. */
+  get discarded(): number
+  /** Discards any partly assembled frame. */
+  reset(): void
+}
+
 /** Stops a flickering input from acting until it has settled. */
 export declare class Debounce {
   /** Creates a debouncer needing `samples` agreeing readings to change state. */
@@ -128,6 +140,18 @@ export declare class Ramp {
   set(value: number): void
 }
 
+/** Reassembles whole SLIP frames from the chunks a serial port delivers. */
+export declare class SlipDecoder {
+  /** Creates an empty decoder, ready for the first chunk. */
+  constructor()
+  /** Feeds a chunk of the stream and returns every frame it completed. */
+  feed(chunk: Buffer): Array<Buffer>
+  /** Returns how many corrupt frames this decoder has discarded. */
+  get discarded(): number
+  /** Discards any partly assembled frame. */
+  reset(): void
+}
+
 /** Smooths a noisy reading by weighting each new sample against the running value. */
 export declare class Smoother {
   /** Creates a smoother whose `weight` sets how much each new sample counts. */
@@ -177,8 +201,50 @@ export declare const enum BoundaryState {
   Entered = 'Entered'
 }
 
+/** Returns the payload length a data length code encodes. */
+export declare function canDlcToLen(dlc: number): number
+
+/** Builds a CAN-FD frame, which carries up to 64 bytes at the discrete CAN-FD lengths. */
+export declare function canFdFrame(id: number, extended: boolean, data: Buffer): CanFrame
+
+/** Builds a classic CAN 2.0 frame, which carries up to eight bytes. */
+export declare function canFrame(id: number, extended: boolean, data: Buffer): CanFrame
+
+/** A CAN frame: an identifier, its flags, and its payload. */
+export interface CanFrame {
+  /** The arbitration identifier, already masked to 11 or 29 bits. */
+  id: number
+  /** Whether the identifier is a 29-bit extended one. */
+  extended: boolean
+  /** Whether this is a CAN-FD frame rather than classic CAN 2.0. */
+  fd: boolean
+  /** Whether this is a remote transmission request, which carries no payload. */
+  remote: boolean
+  /** The data length: the payload length, or the length a remote frame requests. */
+  len: number
+  /** The data length code as it appears on the wire. */
+  dlc: number
+  /** The payload, empty for a remote frame. */
+  data: Buffer
+}
+
+/** Returns the data length code that encodes a payload length. */
+export declare function canLenToDlc(len: number): number
+
+/** Builds a remote transmission request, which asks another node to send. */
+export declare function canRemoteFrame(id: number, extended: boolean, len: number): CanFrame
+
 /** Converts a CBOR document back into its JSON encoding. */
 export declare function cborToJsonBytes(cbor: Buffer): Buffer
+
+/** Reads the payload back out of a COBS frame. */
+export declare function cobsDecode(frame: Buffer): Buffer
+
+/** Frames a payload as a COBS packet, terminated by its zero delimiter. */
+export declare function cobsEncode(payload: Buffer): Buffer
+
+/** Returns the largest COBS frame a payload of this length can produce. */
+export declare function cobsMaxEncodedLen(payloadLen: number): number
 
 /** A latitude and longitude in degrees. */
 export interface Coord {
@@ -203,8 +269,135 @@ export declare function encodeDeltaSamples(samples: Array<number>): Buffer
 /** Returns the short hex fingerprint of a public key. */
 export declare function fingerprint(publicKey: Buffer): string
 
+/**
+ * Returns the address bytes a controller puts on the bus for a transfer.
+ *
+ * A 7-bit address frames as the single byte `(address << 1) | r/w`; a 10-bit one
+ * frames as two, the reserved `11110` prefix carrying the top two bits and the
+ * read/write bit, then the low eight.
+ */
+export declare function i2cAddressFrame(address: number, tenBit: boolean, read: boolean): Buffer
+
+/**
+ * Returns how many bytes an address frame occupies: one for a 7-bit address, two
+ * for a 10-bit one.
+ */
+export declare function i2cAddressFrameLen(address: number, tenBit: boolean): number
+
+/**
+ * Reports whether an address is the general call address `0x00`, the broadcast
+ * every device on the bus listens to.
+ */
+export declare function i2cAddressIsGeneralCall(address: number, tenBit: boolean): boolean
+
+/**
+ * Reports whether a 7-bit address falls in a range the I2C specification reserves.
+ *
+ * UM10204 reserves `0x00..=0x07` and `0x78..=0x7F`, leaving `0x08..=0x77` for
+ * ordinary devices. A 10-bit address is never reserved in this sense.
+ */
+export declare function i2cAddressIsReserved(address: number, tenBit: boolean): boolean
+
+/**
+ * Composes the extended CAN identifier a set of J1939 fields describes.
+ *
+ * The destination is used only for an addressed (PDU1) parameter group and
+ * ignored for a broadcast (PDU2) one.
+ */
+export declare function j1939Compose(priority: number, pgn: number, source: number, destination: number): number
+
+/**
+ * Decodes the J1939 fields out of an extended CAN identifier.
+ *
+ * Returns `null` for a standard 11-bit identifier, which J1939 does not use.
+ */
+export declare function j1939Decode(id: number, extended: boolean): J1939Message | null
+
+/** The fields J1939 packs into an extended CAN identifier. */
+export interface J1939Message {
+  /** The parameter group number, which names what the message carries. */
+  pgn: number
+  /** The message priority, 0 (highest) to 7. */
+  priority: number
+  /** The source address: the node that sent the message. */
+  source: number
+  /** The PDU format byte of the parameter group. */
+  pduFormat: number
+  /**
+   * The destination address for an addressed (PDU1) message, or `null` for a
+   * broadcast (PDU2) one.
+   */
+  destination?: number
+  /** Whether the message is a broadcast. */
+  broadcast: boolean
+}
+
 /** Converts a JSON document into its CBOR encoding, which is typically smaller. */
 export declare function jsonToCborBytes(json: Buffer): Buffer
+
+/** Reads `count` coils or discrete inputs out of a read-bits response PDU. */
+export declare function modbusCoils(pdu: Buffer, count: number): Array<boolean>
+
+/** Computes the CRC-16/MODBUS that every RTU frame ends with. */
+export declare function modbusCrc16(bytes: Buffer): number
+
+/** A received Modbus RTU frame whose CRC has been verified. */
+export interface ModbusFrame {
+  /** The unit (slave) address the frame is addressed to or came from. */
+  address: number
+  /**
+   * The function code. An exception response carries the request's code with
+   * its high bit set, as it appeared on the wire.
+   */
+  functionCode: number
+  /**
+   * The exception code a device reported, or `null` when the frame is not an
+   * exception response.
+   */
+  exception?: number
+  /**
+   * The protocol data unit: the function code and its data, without the
+   * address or the CRC.
+   */
+  pdu: Buffer
+}
+
+/** Parses a received RTU frame, verifying its CRC. */
+export declare function modbusParseFrame(bytes: Buffer): ModbusFrame
+
+/**
+ * Builds a request frame from a raw function code and data.
+ *
+ * This is the escape hatch for the function codes the SDK does not name.
+ */
+export declare function modbusRaw(address: number, functionCode: number, data: Buffer): Buffer
+
+/** Builds a read-coils request frame (function `0x01`). */
+export declare function modbusReadCoils(address: number, start: number, count: number): Buffer
+
+/** Builds a read-discrete-inputs request frame (function `0x02`). */
+export declare function modbusReadDiscreteInputs(address: number, start: number, count: number): Buffer
+
+/** Builds a read-holding-registers request frame (function `0x03`). */
+export declare function modbusReadHoldingRegisters(address: number, start: number, count: number): Buffer
+
+/** Builds a read-input-registers request frame (function `0x04`). */
+export declare function modbusReadInputRegisters(address: number, start: number, count: number): Buffer
+
+/** Reads the 16-bit registers out of a read-registers response PDU. */
+export declare function modbusRegisters(pdu: Buffer): Array<number>
+
+/** Builds a write-multiple-coils request frame (function `0x0F`). */
+export declare function modbusWriteMultipleCoils(address: number, start: number, values: Array<boolean>): Buffer
+
+/** Builds a write-multiple-registers request frame (function `0x10`). */
+export declare function modbusWriteMultipleRegisters(address: number, start: number, values: Array<number>): Buffer
+
+/** Builds a write-single-coil request frame (function `0x05`). */
+export declare function modbusWriteSingleCoil(address: number, coil: number, on: boolean): Buffer
+
+/** Builds a write-single-register request frame (function `0x06`). */
+export declare function modbusWriteSingleRegister(address: number, register: number, value: number): Buffer
 
 /** Connection settings for an [`MqttClient`]. */
 export interface MqttClientOptions {
@@ -230,6 +423,47 @@ export interface MqttMessage {
   payload: Buffer
 }
 
+/** The signal transition that triggers a pin interrupt. */
+export declare const enum PinEdge {
+  /** A low-to-high transition. */
+  Rising = 'Rising',
+  /** A high-to-low transition. */
+  Falling = 'Falling',
+  /** Either transition. */
+  Both = 'Both'
+}
+
+/** Reports whether a change from one level to another fires an interrupt trigger. */
+export declare function pinEdgeTriggeredBy(edge: PinEdge, from: PinLevel, to: PinLevel): boolean
+
+/** The physical voltage level on a pin. */
+export declare const enum PinLevel {
+  /** A low level, near ground. */
+  Low = 'Low',
+  /** A high level, near the supply voltage. */
+  High = 'High'
+}
+
+/** Returns the level a boolean names. */
+export declare function pinLevelFromBool(high: boolean): PinLevel
+
+/** Returns the opposite level. */
+export declare function pinLevelInverted(level: PinLevel): PinLevel
+
+/** Whether a signal is asserted by a high or a low physical level. */
+export declare const enum PinPolarity {
+  /** A high level means asserted. */
+  ActiveHigh = 'ActiveHigh',
+  /** A low level means asserted, the wiring of most buttons and relay boards. */
+  ActiveLow = 'ActiveLow'
+}
+
+/** Reports whether a physical level means the signal is asserted. */
+export declare function pinPolarityIsAsserted(polarity: PinPolarity, level: PinLevel): boolean
+
+/** Returns the physical level that represents a logical state under a polarity. */
+export declare function pinPolarityLevel(polarity: PinPolarity, asserted: boolean): PinLevel
+
 /** MQTT delivery guarantee, mirroring the protocol's quality-of-service levels. */
 export declare const enum Qos {
   /** Fire and forget; the broker does not acknowledge delivery. */
@@ -239,6 +473,29 @@ export declare const enum Qos {
   /** Delivered exactly once via a four-step handshake. */
   ExactlyOnce = 'ExactlyOnce'
 }
+
+/** Reads the payload back out of a SLIP frame. */
+export declare function slipDecode(frame: Buffer): Buffer
+
+/** Frames a payload as a SLIP packet (RFC 1055). */
+export declare function slipEncode(payload: Buffer): Buffer
+
+/** Returns the largest SLIP frame a payload of this length can produce. */
+export declare function slipMaxEncodedLen(payloadLen: number): number
+
+/** The clock polarity and phase pair an SPI mode number names. */
+export interface SpiClock {
+  /** Whether the clock idles high (CPOL = 1), which is modes 2 and 3. */
+  cpol: boolean
+  /** Whether data is sampled on the trailing edge (CPHA = 1), which is modes 1 and 3. */
+  cpha: boolean
+}
+
+/** Returns the `(CPOL, CPHA)` pair an SPI mode number names. */
+export declare function spiModeClock(mode: number): SpiClock
+
+/** Returns the SPI mode number a `(CPOL, CPHA)` pair names. */
+export declare function spiModeFromClock(cpol: boolean, cpha: boolean): number
 
 /**
  * Verifies that a signature covers a payload and was made by a public key.

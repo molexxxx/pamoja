@@ -203,7 +203,7 @@ Generated surfaces (the language binding contracts and the C header) are drift-c
 | [`pamoja-mavlink`](crates/pamoja-mavlink/README.md#pamoja-mavlink) | drones | MAVLink v1/v2 framing with the CRC-16/MCRF4XX checksum, per-message CRC_EXTRA, and MAVLink 2 SHA-256 signing, a typed common dialect with MAVLink 2 extension fields, the mission, command, and offboard protocols as sans-IO state machines, and a vehicle modeled as a pamoja `Device` driven over real serial, UDP, and TCP links - verified in CI against real ArduPilot and PX4 SITL. |
 | [`pamoja-kit`](crates/pamoja-kit/README.md#pamoja-kit) | ergonomics | Plain-language helpers that name the goal over the math: smoothing/filtering (EMA, median, Kalman, complementary, debounce), calibration, units and deadband shaping, PID and on/off control with ramping, trend/surge/depletion and anomaly prediction, rolling-window stats, wheel kinematics (differential, Ackermann, skid-steer, mecanum), odometry, waypoint guidance and motion safety (e-stop, watchdog, limits), two-link arm forward/inverse kinematics, and geo (distance/bearing/geofence), IMU tilt, and dew-point helpers. |
 | [`pamoja-profile`](crates/pamoja-profile/README.md#pamoja-profile) | ergonomics | Named, ready-to-run device profiles from plain data or a JSON manifest; assembled and testable with no hardware. |
-| [`pamoja-ffi`](crates/pamoja-ffi/README.md#pamoja-ffi) | bindings | The curated C ABI over the core and MQTT, with a `cbindgen`-generated, drift-checked `pamoja.h`. |
+| [`pamoja-ffi`](crates/pamoja-ffi/README.md#pamoja-ffi) | bindings | The curated C ABI over the core, MQTT, identity, the codecs, the helper math, and the field I/O, with a `cbindgen`-generated, drift-checked `pamoja.h`. |
 
 ## Language bindings
 
@@ -219,7 +219,7 @@ One engine, many front doors. A version tag publishes every binding to its regis
 | WebAssembly | browser / npm | planned |
 | Kotlin, Swift, Go | platform-native | planned |
 
-Device identity, the wire codecs, and the helper math reach all three bindings alongside the MQTT transport, so a reading can be smoothed, signed, packed for a metered link, and published without leaving the language you started in. A single file of conformance vectors, generated from the Rust implementation, is asserted by every binding's test suite, so the four cannot quietly disagree about what the same call returns.
+Device identity, the wire codecs, the helper math, and the field I/O a gateway actually has - serial packet framing, Modbus RTU, CAN and J1939, and on-board I2C/SPI/GPIO - reach all three bindings alongside the MQTT transport. A reading can be pulled off an RS485 sensor, smoothed, signed, packed for a metered link, and published without leaving the language you started in. A single file of conformance vectors, generated from the Rust implementation, is asserted by every binding's test suite, so the four cannot quietly disagree about what the same call returns.
 
 ## Standards and conformance
 

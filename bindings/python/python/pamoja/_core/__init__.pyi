@@ -5,27 +5,68 @@ import builtins
 import typing
 __all__ = [
     "Calibration",
+    "CanFrame",
+    "CobsDecoder",
     "Debounce",
     "Depletion",
     "DeviceIdentity",
     "Geofence",
+    "J1939Message",
     "Kalman",
+    "ModbusFrame",
     "MqttClient",
     "MqttMessage",
     "Pid",
     "Quantizer",
     "Ramp",
+    "SlipDecoder",
     "Smoother",
+    "SpiClock",
     "Surge",
     "Thermostat",
     "bearing_between",
+    "can_dlc_to_len",
+    "can_fd_frame",
+    "can_frame",
+    "can_len_to_dlc",
+    "can_remote_frame",
     "cbor_to_json_bytes",
+    "cobs_decode",
+    "cobs_encode",
+    "cobs_max_encoded_len",
     "deadband",
     "decode_delta_samples",
     "distance_between",
     "encode_delta_samples",
     "fingerprint",
+    "i2c_address_frame",
+    "i2c_address_frame_len",
+    "i2c_address_is_general_call",
+    "i2c_address_is_reserved",
+    "j1939_compose",
+    "j1939_decode",
     "json_to_cbor_bytes",
+    "modbus_crc16",
+    "modbus_parse_frame",
+    "modbus_raw",
+    "modbus_read_coils",
+    "modbus_read_discrete_inputs",
+    "modbus_read_holding_registers",
+    "modbus_read_input_registers",
+    "modbus_write_multiple_coils",
+    "modbus_write_multiple_registers",
+    "modbus_write_single_coil",
+    "modbus_write_single_register",
+    "pin_edge_triggered_by",
+    "pin_level_from_bool",
+    "pin_level_inverted",
+    "pin_polarity_is_asserted",
+    "pin_polarity_level",
+    "slip_decode",
+    "slip_encode",
+    "slip_max_encoded_len",
+    "spi_mode_clock",
+    "spi_mode_from_clock",
     "verify",
     "version",
 ]
@@ -48,6 +89,70 @@ class Calibration:
     def apply(self, raw: builtins.float) -> builtins.float:
         r"""
         Converts a raw reading into calibrated units.
+        """
+
+@typing.final
+class CanFrame:
+    r"""
+    A CAN frame: an identifier, its flags, and its payload.
+    """
+    @property
+    def id(self) -> builtins.int:
+        r"""
+        The arbitration identifier, already masked to 11 or 29 bits.
+        """
+    @property
+    def extended(self) -> builtins.bool:
+        r"""
+        Whether the identifier is a 29-bit extended one.
+        """
+    @property
+    def fd(self) -> builtins.bool:
+        r"""
+        Whether this is a CAN-FD frame rather than classic CAN 2.0.
+        """
+    @property
+    def remote(self) -> builtins.bool:
+        r"""
+        Whether this is a remote transmission request, which carries no payload.
+        """
+    @property
+    def len(self) -> builtins.int:
+        r"""
+        The data length: the payload length, or the length a remote frame requests.
+        """
+    @property
+    def dlc(self) -> builtins.int:
+        r"""
+        The data length code as it appears on the wire.
+        """
+    @property
+    def data(self) -> bytes:
+        r"""
+        The payload, empty for a remote frame.
+        """
+
+@typing.final
+class CobsDecoder:
+    r"""
+    Reassembles whole COBS frames from the chunks a serial port delivers.
+    """
+    @property
+    def discarded(self) -> builtins.int:
+        r"""
+        How many corrupt frames this decoder has discarded.
+        """
+    def __new__(cls) -> CobsDecoder:
+        r"""
+        Creates an empty decoder, ready for the first chunk.
+        """
+    def feed(self, chunk: typing.Sequence[builtins.int]) -> builtins.list[bytes]:
+        r"""
+        Feeds a chunk of the stream and returns every frame it completed.
+        """
+    def reset(self) -> None:
+        r"""
+        Discards any partly assembled frame.
         """
 
 @typing.final
@@ -132,6 +237,43 @@ class Geofence:
         """
 
 @typing.final
+class J1939Message:
+    r"""
+    The fields J1939 packs into an extended CAN identifier.
+    """
+    @property
+    def pgn(self) -> builtins.int:
+        r"""
+        The parameter group number, which names what the message carries.
+        """
+    @property
+    def priority(self) -> builtins.int:
+        r"""
+        The message priority, 0 (highest) to 7.
+        """
+    @property
+    def source(self) -> builtins.int:
+        r"""
+        The source address: the node that sent the message.
+        """
+    @property
+    def pdu_format(self) -> builtins.int:
+        r"""
+        The PDU format byte of the parameter group.
+        """
+    @property
+    def destination(self) -> typing.Optional[builtins.int]:
+        r"""
+        The destination address for an addressed (PDU1) message, or `None` for a
+        broadcast (PDU2) one.
+        """
+    @property
+    def broadcast(self) -> builtins.bool:
+        r"""
+        Whether the message is a broadcast.
+        """
+
+@typing.final
 class Kalman:
     r"""
     Estimates a true value from noisy readings, trusting the model and the sensor
@@ -149,6 +291,43 @@ class Kalman:
     def update(self, reading: builtins.float) -> builtins.float:
         r"""
         Folds a reading in and returns the new estimate.
+        """
+
+@typing.final
+class ModbusFrame:
+    r"""
+    A received Modbus RTU frame whose CRC has been verified.
+    """
+    @property
+    def address(self) -> builtins.int:
+        r"""
+        The unit (slave) address the frame is addressed to or came from.
+        """
+    @property
+    def function_code(self) -> builtins.int:
+        r"""
+        The function code. An exception response carries the request's code with
+        its high bit set, as it appeared on the wire.
+        """
+    @property
+    def exception(self) -> typing.Optional[builtins.int]:
+        r"""
+        The exception code a device reported, or `None` when the frame is not an
+        exception response.
+        """
+    @property
+    def pdu(self) -> bytes:
+        r"""
+        The protocol data unit: the function code and its data, without the
+        address or the CRC.
+        """
+    def registers(self) -> builtins.list[builtins.int]:
+        r"""
+        Reads the 16-bit registers out of a read-registers reply.
+        """
+    def coils(self, count: builtins.int) -> builtins.list[builtins.bool]:
+        r"""
+        Reads `count` coils or discrete inputs out of a read-bits reply.
         """
 
 @typing.final
@@ -266,6 +445,29 @@ class Ramp:
         """
 
 @typing.final
+class SlipDecoder:
+    r"""
+    Reassembles whole SLIP frames from the chunks a serial port delivers.
+    """
+    @property
+    def discarded(self) -> builtins.int:
+        r"""
+        How many corrupt frames this decoder has discarded.
+        """
+    def __new__(cls) -> SlipDecoder:
+        r"""
+        Creates an empty decoder, ready for the first chunk.
+        """
+    def feed(self, chunk: typing.Sequence[builtins.int]) -> builtins.list[bytes]:
+        r"""
+        Feeds a chunk of the stream and returns every frame it completed.
+        """
+    def reset(self) -> None:
+        r"""
+        Discards any partly assembled frame.
+        """
+
+@typing.final
 class Smoother:
     r"""
     Smooths a noisy reading by weighting each new sample against the running value.
@@ -286,6 +488,26 @@ class Smoother:
     def reset(self) -> None:
         r"""
         Clears the smoother back to its initial state.
+        """
+
+@typing.final
+class SpiClock:
+    r"""
+    The clock polarity and phase pair an SPI mode number names.
+    """
+    @property
+    def cpol(self) -> builtins.bool:
+        r"""
+        Whether the clock idles high (CPOL = 1), which is modes 2 and 3.
+        """
+    @property
+    def cpha(self) -> builtins.bool:
+        r"""
+        Whether data is sampled on the trailing edge (CPHA = 1), which is modes 1 and 3.
+        """
+    def __repr__(self) -> builtins.str:
+        r"""
+        Renders the pair the way a datasheet quotes it.
         """
 
 @typing.final
@@ -338,9 +560,49 @@ def bearing_between(from_latitude: builtins.float, from_longitude: builtins.floa
     Returns the initial bearing from one coordinate to another, in degrees.
     """
 
+def can_dlc_to_len(dlc: builtins.int) -> builtins.int:
+    r"""
+    Returns the payload length a data length code encodes.
+    """
+
+def can_fd_frame(id: builtins.int, extended: builtins.bool, data: typing.Sequence[builtins.int]) -> CanFrame:
+    r"""
+    Builds a CAN-FD frame, which carries up to 64 bytes at the discrete CAN-FD lengths.
+    """
+
+def can_frame(id: builtins.int, extended: builtins.bool, data: typing.Sequence[builtins.int]) -> CanFrame:
+    r"""
+    Builds a classic CAN 2.0 frame, which carries up to eight bytes.
+    """
+
+def can_len_to_dlc(len: builtins.int) -> builtins.int:
+    r"""
+    Returns the data length code that encodes a payload length.
+    """
+
+def can_remote_frame(id: builtins.int, extended: builtins.bool, len: builtins.int) -> CanFrame:
+    r"""
+    Builds a remote transmission request, which asks another node to send.
+    """
+
 def cbor_to_json_bytes(cbor: typing.Sequence[builtins.int]) -> bytes:
     r"""
     Converts a CBOR document back into its JSON encoding.
+    """
+
+def cobs_decode(frame: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Reads the payload back out of a COBS frame.
+    """
+
+def cobs_encode(payload: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Frames a payload as a COBS packet, terminated by its zero delimiter.
+    """
+
+def cobs_max_encoded_len(payload_len: builtins.int) -> builtins.int:
+    r"""
+    Returns the largest COBS frame a payload of this length can produce.
     """
 
 def deadband(value: builtins.float, center: builtins.float, width: builtins.float) -> builtins.float:
@@ -368,9 +630,151 @@ def fingerprint(public_key: typing.Sequence[builtins.int]) -> builtins.str:
     Returns the short hex fingerprint of a public key.
     """
 
+def i2c_address_frame(address: builtins.int, ten_bit: builtins.bool, read: builtins.bool) -> bytes:
+    r"""
+    Returns the address bytes a controller puts on the bus for a transfer.
+    """
+
+def i2c_address_frame_len(address: builtins.int, ten_bit: builtins.bool) -> builtins.int:
+    r"""
+    Returns how many bytes an address frame occupies.
+    """
+
+def i2c_address_is_general_call(address: builtins.int, ten_bit: builtins.bool) -> builtins.bool:
+    r"""
+    Reports whether an address is the general call address `0x00`.
+    """
+
+def i2c_address_is_reserved(address: builtins.int, ten_bit: builtins.bool) -> builtins.bool:
+    r"""
+    Reports whether a 7-bit address falls in a range the I2C specification reserves.
+    """
+
+def j1939_compose(priority: builtins.int, pgn: builtins.int, source: builtins.int, destination: builtins.int) -> builtins.int:
+    r"""
+    Composes the extended CAN identifier a set of J1939 fields describes.
+    
+    The destination is used only for an addressed (PDU1) parameter group and
+    ignored for a broadcast (PDU2) one.
+    """
+
+def j1939_decode(id: builtins.int, extended: builtins.bool) -> typing.Optional[J1939Message]:
+    r"""
+    Decodes the J1939 fields out of an extended CAN identifier.
+    
+    Returns `None` for a standard 11-bit identifier, which J1939 does not use.
+    """
+
 def json_to_cbor_bytes(json: typing.Sequence[builtins.int]) -> bytes:
     r"""
     Converts a JSON document into its CBOR encoding, which is typically smaller.
+    """
+
+def modbus_crc16(data: typing.Sequence[builtins.int]) -> builtins.int:
+    r"""
+    Computes the CRC-16/MODBUS that every RTU frame ends with.
+    """
+
+def modbus_parse_frame(data: typing.Sequence[builtins.int]) -> ModbusFrame:
+    r"""
+    Parses a received RTU frame, verifying its CRC.
+    """
+
+def modbus_raw(address: builtins.int, function_code: builtins.int, data: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Builds a request frame from a raw function code and data.
+    
+    This is the escape hatch for the function codes the SDK does not name.
+    """
+
+def modbus_read_coils(address: builtins.int, start: builtins.int, count: builtins.int) -> bytes:
+    r"""
+    Builds a read-coils request frame (function `0x01`).
+    """
+
+def modbus_read_discrete_inputs(address: builtins.int, start: builtins.int, count: builtins.int) -> bytes:
+    r"""
+    Builds a read-discrete-inputs request frame (function `0x02`).
+    """
+
+def modbus_read_holding_registers(address: builtins.int, start: builtins.int, count: builtins.int) -> bytes:
+    r"""
+    Builds a read-holding-registers request frame (function `0x03`).
+    """
+
+def modbus_read_input_registers(address: builtins.int, start: builtins.int, count: builtins.int) -> bytes:
+    r"""
+    Builds a read-input-registers request frame (function `0x04`).
+    """
+
+def modbus_write_multiple_coils(address: builtins.int, start: builtins.int, values: typing.Sequence[builtins.bool]) -> bytes:
+    r"""
+    Builds a write-multiple-coils request frame (function `0x0F`).
+    """
+
+def modbus_write_multiple_registers(address: builtins.int, start: builtins.int, values: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Builds a write-multiple-registers request frame (function `0x10`).
+    """
+
+def modbus_write_single_coil(address: builtins.int, coil: builtins.int, on: builtins.bool) -> bytes:
+    r"""
+    Builds a write-single-coil request frame (function `0x05`).
+    """
+
+def modbus_write_single_register(address: builtins.int, register: builtins.int, value: builtins.int) -> bytes:
+    r"""
+    Builds a write-single-register request frame (function `0x06`).
+    """
+
+def pin_edge_triggered_by(edge: builtins.str, from: builtins.str, to: builtins.str) -> builtins.bool:
+    r"""
+    Reports whether a change from one level to another fires an interrupt trigger.
+    """
+
+def pin_level_from_bool(high: builtins.bool) -> builtins.str:
+    r"""
+    Returns the level a boolean names, as `"Low"` or `"High"`.
+    """
+
+def pin_level_inverted(level: builtins.str) -> builtins.str:
+    r"""
+    Returns the opposite level, as `"Low"` or `"High"`.
+    """
+
+def pin_polarity_is_asserted(polarity: builtins.str, level: builtins.str) -> builtins.bool:
+    r"""
+    Reports whether a physical level means the signal is asserted.
+    """
+
+def pin_polarity_level(polarity: builtins.str, asserted: builtins.bool) -> builtins.str:
+    r"""
+    Returns the physical level that represents a logical state under a polarity.
+    """
+
+def slip_decode(frame: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Reads the payload back out of a SLIP frame.
+    """
+
+def slip_encode(payload: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Frames a payload as a SLIP packet (RFC 1055).
+    """
+
+def slip_max_encoded_len(payload_len: builtins.int) -> builtins.int:
+    r"""
+    Returns the largest SLIP frame a payload of this length can produce.
+    """
+
+def spi_mode_clock(mode: builtins.int) -> SpiClock:
+    r"""
+    Returns the `(CPOL, CPHA)` pair an SPI mode number names.
+    """
+
+def spi_mode_from_clock(cpol: builtins.bool, cpha: builtins.bool) -> builtins.int:
+    r"""
+    Returns the SPI mode number a `(CPOL, CPHA)` pair names.
     """
 
 def verify(public_key: typing.Sequence[builtins.int], payload: typing.Sequence[builtins.int], signature: typing.Sequence[builtins.int]) -> builtins.bool:

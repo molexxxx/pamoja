@@ -3,6 +3,8 @@ MQTT transport surfaces errors as exceptions (no broker required)."""
 
 import asyncio
 
+import pytest
+
 import pamoja
 from pamoja import MqttClient, PamojaError, Qos, version
 
@@ -150,3 +152,73 @@ def test_a_geofence_reports_the_single_crossing_fix():
     assert pen.update(away) is Boundary.OUTSIDE
     assert pen.contains(away) is False
     assert distance_between(centre, away) > 50.0
+
+
+def test_serial_framing_round_trips_and_survives_a_corrupt_frame():
+    from pamoja import serial
+
+    payload = bytes([0xC0, 0xDB, 0x00, 0x2A])
+    assert serial.slip.decode(serial.slip.encode(payload)) == payload
+    assert serial.cobs.decode(serial.cobs.encode(payload)) == payload
+
+    decoder = serial.SlipDecoder()
+    frames = decoder.feed(bytes([0x6F, 0x6B, 0xC0, 0xDB, 0xC0, 0x67, 0x6F, 0xC0]))
+    assert frames == [b"ok", b"go"]
+    assert decoder.discarded == 1
+
+
+def test_a_modbus_request_and_the_reply_it_draws():
+    from pamoja import modbus
+
+    assert modbus.read_holding_registers(0x11, 0x006B, 3) == bytes(
+        [0x11, 0x03, 0x00, 0x6B, 0x00, 0x03, 0x76, 0x87]
+    )
+
+    body = bytes([0x11, 0x03, 0x06, 0x02, 0x2B, 0x00, 0x00, 0x00, 0x64])
+    reply = modbus.parse_frame(body + modbus.crc16(body).to_bytes(2, "little"))
+    assert reply.exception is None
+    assert reply.registers() == [0x022B, 0x0000, 0x0064]
+
+    corrupt = bytearray(body + modbus.crc16(body).to_bytes(2, "little"))
+    corrupt[2] ^= 0xFF
+    with pytest.raises(PamojaError):
+        modbus.parse_frame(bytes(corrupt))
+
+
+def test_can_frames_and_the_j1939_identifier():
+    from pamoja import can
+
+    frame = can.frame(0x20A, bytes([0x01, 0xF4]))
+    assert frame.dlc == 2
+    assert frame.data == bytes([0x01, 0xF4])
+
+    remote = can.remote_frame(0x20A, 4)
+    assert remote.len == 4
+    assert remote.data == b""
+
+    with pytest.raises(PamojaError):
+        can.frame(0x100, bytes(9))
+
+    assert can.decode_j1939(0x0CF00400).pgn == 61444
+    assert can.decode_j1939(0x123, False) is None
+
+
+def test_on_board_bus_addressing_and_pin_logic():
+    from pamoja import gpio
+
+    assert gpio.i2c.address_frame(0x76) == bytes([0xEC])
+    assert gpio.i2c.address_frame(0x76, read=True) == bytes([0xED])
+    assert gpio.i2c.is_reserved(0x00) and gpio.i2c.is_general_call(0x00)
+    assert not gpio.i2c.is_reserved(0x76)
+
+    with pytest.raises(PamojaError):
+        gpio.i2c.address_frame(0x80)
+
+    clock = gpio.spi.clock_for(3)
+    assert clock.cpol and clock.cpha
+    assert gpio.spi.mode_for(True, False) == 2
+
+    assert gpio.pin.level_for(gpio.Polarity.ACTIVE_LOW, True) is gpio.Level.LOW
+    assert gpio.pin.is_asserted(gpio.Polarity.ACTIVE_LOW, gpio.Level.LOW)
+    assert gpio.pin.triggers(gpio.Edge.RISING, gpio.Level.LOW, gpio.Level.HIGH)
+    assert not gpio.pin.triggers(gpio.Edge.RISING, gpio.Level.HIGH, gpio.Level.LOW)

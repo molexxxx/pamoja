@@ -15,9 +15,15 @@ while all behavior stays in the Rust core.
 | `@pamoja/core/security` | device identity: sign a reading, verify one, label a key |
 | `@pamoja/core/codec` | JSON to CBOR and back, and packing samples for a metered link |
 | `@pamoja/core/kit` | the helper math: smoothing, PID, thermostat, depletion, geofencing |
+| `@pamoja/core/serial` | SLIP and COBS packet framing, with streaming decoders for a UART |
+| `@pamoja/core/modbus` | Modbus RTU requests and replies for RS485 field devices |
+| `@pamoja/core/can` | CAN 2.0 and CAN-FD frames, and the J1939 identifier above them |
+| `@pamoja/core/gpio` | I2C addressing, the SPI clock modes, and active-low pin logic |
 
-`@pamoja/core` re-exports all four, and the generated low-level contract stays
-available at `@pamoja/core/raw` for anything the facade does not surface.
+`@pamoja/core` re-exports them all, and the generated low-level contract stays
+available at `@pamoja/core/raw` for anything the facade does not surface. The
+field-I/O capabilities arrive as namespaces (`serial`, `modbus`, `can`, `gpio`),
+because their operations are named for their protocol rather than for the SDK.
 
 ```js
 const { DeviceIdentity, Smoother, toCbor } = require("@pamoja/core");
@@ -28,6 +34,21 @@ const reading = smoother.update(21.7);
 const device = DeviceIdentity.fromSeed(seed);
 const payload = toCbor({ c: reading });
 const signature = device.sign(payload);
+```
+
+Talking to the wires a gateway actually has looks the same way:
+
+```js
+const { modbus, serial } = require("@pamoja/core");
+
+// Ask an RS485 energy meter for three holding registers.
+port.write(modbus.readHoldingRegisters(0x11, 0x006b, 3));
+
+// Reassemble whole packets from the chunks the port delivers.
+const decoder = new serial.SlipDecoder();
+port.on("data", (chunk) => {
+  for (const frame of decoder.feed(chunk)) handle(frame);
+});
 ```
 
 ## Build

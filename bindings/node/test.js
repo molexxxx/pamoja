@@ -21,6 +21,10 @@ const {
   Boundary,
   deadband,
   distanceBetween,
+  can,
+  gpio,
+  modbus,
+  serial,
 } = require("./dist/index.js");
 
 async function main() {
@@ -58,6 +62,7 @@ async function main() {
   identity();
   codecs();
   helpers();
+  fieldIo();
 
   console.log("ok");
 }
@@ -141,6 +146,72 @@ function helpers() {
   assert.strictEqual(pen.update(away), Boundary.Exited, "the crossing fix reports once");
   assert.strictEqual(pen.update(away), Boundary.Outside, "later fixes stay outside");
   assert.ok(distanceBetween(centre, away) > 50, "the fix is beyond the radius");
+}
+
+// The wires a gateway actually has: framed serial packets, an RS485 request and
+// the reply it draws, a CAN frame, and the address a chip answers on.
+function fieldIo() {
+  const payload = Buffer.from([0xc0, 0xdb, 0x00, 0x2a]);
+  assert.deepStrictEqual(
+    serial.slip.decode(serial.slip.encode(payload)),
+    payload,
+    "a SLIP frame round-trips",
+  );
+  assert.deepStrictEqual(
+    serial.cobs.decode(serial.cobs.encode(payload)),
+    payload,
+    "a COBS frame round-trips",
+  );
+
+  const decoder = new serial.SlipDecoder();
+  const frames = decoder.feed(Buffer.from([0x6f, 0x6b, 0xc0, 0xdb, 0xc0, 0x67, 0x6f, 0xc0]));
+  assert.strictEqual(frames.length, 2, "the frames either side of a corrupt one survive");
+  assert.strictEqual(decoder.discarded, 1, "the corrupt frame is counted");
+
+  assert.deepStrictEqual(
+    modbus.readHoldingRegisters(0x11, 0x006b, 3),
+    Buffer.from([0x11, 0x03, 0x00, 0x6b, 0x00, 0x03, 0x76, 0x87]),
+    "the request carries the address, the PDU, and the CRC",
+  );
+
+  const body = Buffer.from([0x11, 0x03, 0x06, 0x02, 0x2b, 0x00, 0x00, 0x00, 0x64]);
+  const checksum = Buffer.alloc(2);
+  checksum.writeUInt16LE(modbus.crc16(body));
+  const reply = modbus.parseFrame(Buffer.concat([body, checksum]));
+  assert.strictEqual(reply.exception, null, "a served request reports no exception");
+  assert.deepStrictEqual(reply.registers(), [0x022b, 0x0000, 0x0064], "registers read back");
+  const corrupt = Buffer.concat([body, checksum]);
+  corrupt[2] ^= 0xff;
+  assert.throws(
+    () => modbus.parseFrame(corrupt),
+    "a frame mangled on the wire should throw",
+  );
+
+  const frame = can.frame(0x20a, Buffer.from([0x01, 0xf4]));
+  assert.strictEqual(frame.dlc, 2, "a classic frame carries its payload");
+  const remote = can.remoteFrame(0x20a, 4);
+  assert.strictEqual(remote.len, 4, "a remote frame asks for a length");
+  assert.strictEqual(remote.data.length, 0, "without carrying the bytes");
+
+  assert.strictEqual(can.decodeJ1939(0x0cf00400).pgn, 61444, "the engine broadcast decodes");
+  assert.strictEqual(can.decodeJ1939(0x123, false), null, "J1939 needs an extended identifier");
+
+  assert.deepStrictEqual(
+    gpio.i2c.addressFrame(0x76),
+    Buffer.from([0xec]),
+    "a write frame shifts in the r/w bit",
+  );
+  assert.ok(gpio.i2c.isReserved(0x00) && gpio.i2c.isGeneralCall(0x00), "the general call is reserved");
+  assert.deepStrictEqual(
+    gpio.spi.clockFor(3),
+    { cpol: true, cpha: true },
+    "mode 3 idles high and samples late",
+  );
+  assert.strictEqual(
+    gpio.pin.levelFor(gpio.PinPolarity.ActiveLow, true),
+    gpio.PinLevel.Low,
+    "an active-low relay is energised by a low level",
+  );
 }
 
 main().catch((err) => {

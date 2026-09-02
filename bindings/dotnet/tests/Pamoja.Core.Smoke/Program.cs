@@ -38,6 +38,7 @@ Assert(!await client.IsConnectedAsync(), "a failed connect should leave the clie
 Identity();
 Codecs();
 Helpers();
+FieldIo();
 
 Console.WriteLine("ok");
 
@@ -146,6 +147,61 @@ static void Helpers()
     Assert(Kit.DistanceBetween(centre, away) > 50.0, "the fix is beyond the radius");
 }
 
+// The wires a gateway actually has: framed serial packets, an RS485 request and
+// the reply it draws, a CAN frame, and the address a chip answers on.
+static void FieldIo()
+{
+    byte[] payload = [0xC0, 0xDB, 0x00, 0x2A];
+    Assert(
+        Serial.SlipDecode(Serial.SlipEncode(payload)).SequenceEqual(payload),
+        "a SLIP frame round-trips");
+    Assert(
+        Serial.CobsDecode(Serial.CobsEncode(payload)).SequenceEqual(payload),
+        "a COBS frame round-trips");
+
+    using var decoder = new SlipDecoder();
+    byte[][] frames = decoder.Feed([(byte)'o', (byte)'k', 0xC0, 0xDB, 0xC0, (byte)'g', (byte)'o', 0xC0]);
+    Assert(frames.Length == 2, "the frames either side of a corrupt one survive");
+    Assert(decoder.Discarded == 1, "the corrupt frame is counted");
+
+    byte[] request = Modbus.ReadHoldingRegisters(0x11, 0x006B, 3);
+    Assert(
+        request.SequenceEqual(new byte[] { 0x11, 0x03, 0x00, 0x6B, 0x00, 0x03, 0x76, 0x87 }),
+        "the request carries the address, the PDU, and the CRC");
+
+    byte[] replyBody = [0x11, 0x03, 0x06, 0x02, 0x2B, 0x00, 0x00, 0x00, 0x64];
+    byte[] replyFrame = [.. replyBody, .. BitConverter.GetBytes(Modbus.Crc16(replyBody))];
+    using ModbusFrame reply = Modbus.ParseFrame(replyFrame);
+    Assert(reply.Exception is null, "a served request reports no exception");
+    Assert(reply.Registers().SequenceEqual<ushort>([0x022B, 0x0000, 0x0064]), "registers read back");
+
+    try
+    {
+        replyFrame[2] ^= 0xFF;
+        Modbus.ParseFrame(replyFrame);
+        Fail("a frame mangled on the wire should throw");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    CanFrame frame = Can.Frame(0x20A, [0x01, 0xF4]);
+    Assert(frame.Dlc == 2 && frame.Data.Length == 2, "a classic frame carries its payload");
+    CanFrame remote = Can.RemoteFrame(0x20A, 4);
+    Assert(remote.Length == 4 && remote.Data.Length == 0, "a remote frame asks without carrying");
+
+    J1939Message? engine = Can.DecodeJ1939(0x0CF00400);
+    Assert(engine is not null && engine.Pgn == 61444, "the engine broadcast decodes");
+    Assert(Can.DecodeJ1939(0x123, extended: false) is null, "J1939 needs an extended identifier");
+
+    Assert(I2c.AddressFrame(0x76).SequenceEqual(new byte[] { 0xEC }), "a write frame shifts in r/w");
+    Assert(I2c.IsReserved(0x00) && I2c.IsGeneralCall(0x00), "the general call is reserved");
+    Assert(Spi.ClockFor(3) is { Cpol: true, Cpha: true }, "mode 3 idles high and samples late");
+    Assert(
+        Pin.LevelFor(PinPolarity.ActiveLow, asserted: true) == PinLevel.Low,
+        "an active-low relay is energised by a low level");
+}
+
 static void Assert(bool condition, string message)
 {
     if (!condition)
@@ -177,6 +233,10 @@ static void Conformance()
     ConformCodec(vectors.GetProperty("codec"));
     ConformHelpers(vectors, tolerance);
     ConformGeofence(vectors.GetProperty("geofence"));
+    ConformSerial(vectors.GetProperty("serial"));
+    ConformModbus(vectors.GetProperty("modbus"));
+    ConformCan(vectors.GetProperty("can"));
+    ConformGpio(vectors.GetProperty("gpio"));
 
     Console.WriteLine("conformance ok");
 }
@@ -335,3 +395,308 @@ static void Walk(JsonElement vector, string inputs, string outputs, Action<float
 // Asserts two numbers agree within the vectors' tolerance.
 static void Close(float got, float want, double tolerance, string message) =>
     Assert(Math.Abs(got - want) <= tolerance, $"{message}: expected {want}, got {got}");
+
+static void ConformSerial(JsonElement vector)
+{
+    byte[] payload = Convert.FromHexString(vector.GetProperty("payload").GetString()!);
+    byte[] slipFrame = Convert.FromHexString(vector.GetProperty("slipFrame").GetString()!);
+    byte[] cobsFrame = Convert.FromHexString(vector.GetProperty("cobsFrame").GetString()!);
+
+    Assert(Serial.SlipEncode(payload).SequenceEqual(slipFrame), "SLIP frame matches");
+    Assert(Serial.SlipDecode(slipFrame).SequenceEqual(payload), "SLIP payload matches");
+    Assert(Serial.CobsEncode(payload).SequenceEqual(cobsFrame), "COBS frame matches");
+    Assert(Serial.CobsDecode(cobsFrame).SequenceEqual(payload), "COBS payload matches");
+
+    Assert(
+        Serial.SlipMaxEncodedLen(payload.Length) == vector.GetProperty("slipMaxEncodedLen").GetInt32(),
+        "SLIP worst case matches");
+    Assert(
+        Serial.CobsMaxEncodedLen(payload.Length) == vector.GetProperty("cobsMaxEncodedLen").GetInt32(),
+        "COBS worst case matches");
+
+    try
+    {
+        Serial.SlipDecode(Convert.FromHexString(vector.GetProperty("corruptSlipFrame").GetString()!));
+        Fail("a frame with a bad escape should throw");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    JsonElement stream = vector.GetProperty("slipStream");
+    byte[] bytes = Convert.FromHexString(stream.GetProperty("bytes").GetString()!);
+    int chunk = stream.GetProperty("chunk").GetInt32();
+    using var decoder = new SlipDecoder();
+    List<byte[]> frames = [];
+    for (int at = 0; at < bytes.Length; at += chunk)
+    {
+        frames.AddRange(decoder.Feed(bytes.AsSpan(at, Math.Min(chunk, bytes.Length - at))));
+    }
+
+    string[] want = stream.GetProperty("frames").EnumerateArray()
+        .Select(entry => entry.GetString()!).ToArray();
+    Assert(frames.Count == want.Length, "the good frames survive the corrupt one");
+    for (int index = 0; index < want.Length; index++)
+    {
+        Assert(Convert.ToHexString(frames[index]).ToLowerInvariant() == want[index], "frame matches");
+    }
+
+    Assert(
+        decoder.Discarded == stream.GetProperty("discarded").GetUInt64(),
+        "the discarded count matches");
+}
+
+static void ConformModbus(JsonElement vector)
+{
+    JsonElement read = vector.GetProperty("readHoldingRegisters");
+    Assert(
+        Modbus.ReadHoldingRegisters(
+            read.GetProperty("address").GetByte(),
+            read.GetProperty("start").GetUInt16(),
+            read.GetProperty("count").GetUInt16())
+            .SequenceEqual(Convert.FromHexString(read.GetProperty("frame").GetString()!)),
+        "read-holding-registers frame matches");
+
+    JsonElement single = vector.GetProperty("writeSingleRegister");
+    Assert(
+        Modbus.WriteSingleRegister(
+            single.GetProperty("address").GetByte(),
+            single.GetProperty("register").GetUInt16(),
+            single.GetProperty("value").GetUInt16())
+            .SequenceEqual(Convert.FromHexString(single.GetProperty("frame").GetString()!)),
+        "write-single-register frame matches");
+
+    JsonElement many = vector.GetProperty("writeMultipleRegisters");
+    ushort[] values = many.GetProperty("values").EnumerateArray()
+        .Select(entry => entry.GetUInt16()).ToArray();
+    Assert(
+        Modbus.WriteMultipleRegisters(
+            many.GetProperty("address").GetByte(), many.GetProperty("start").GetUInt16(), values)
+            .SequenceEqual(Convert.FromHexString(many.GetProperty("frame").GetString()!)),
+        "write-multiple-registers frame matches");
+
+    JsonElement bits = vector.GetProperty("writeMultipleCoils");
+    bool[] states = bits.GetProperty("values").EnumerateArray()
+        .Select(entry => entry.GetBoolean()).ToArray();
+    Assert(
+        Modbus.WriteMultipleCoils(
+            bits.GetProperty("address").GetByte(), bits.GetProperty("start").GetUInt16(), states)
+            .SequenceEqual(Convert.FromHexString(bits.GetProperty("frame").GetString()!)),
+        "write-multiple-coils frame matches");
+
+    JsonElement crc = vector.GetProperty("crc");
+    Assert(
+        Modbus.Crc16(Convert.FromHexString(crc.GetProperty("data").GetString()!))
+            == crc.GetProperty("value").GetUInt16(),
+        "the checksum matches");
+
+    JsonElement replyVector = vector.GetProperty("reply");
+    using ModbusFrame reply =
+        Modbus.ParseFrame(Convert.FromHexString(replyVector.GetProperty("frame").GetString()!));
+    Assert(reply.Address == replyVector.GetProperty("address").GetByte(), "reply address matches");
+    Assert(
+        reply.FunctionCode == replyVector.GetProperty("functionCode").GetByte(),
+        "reply function matches");
+    Assert(reply.Exception is null, "a served request reports no exception");
+    Assert(
+        reply.Registers().SequenceEqual(
+            replyVector.GetProperty("registers").EnumerateArray()
+                .Select(entry => entry.GetUInt16())),
+        "reply registers match");
+
+    JsonElement bitVector = vector.GetProperty("bitReply");
+    using ModbusFrame bitReply =
+        Modbus.ParseFrame(Convert.FromHexString(bitVector.GetProperty("frame").GetString()!));
+    Assert(
+        bitReply.Coils(bitVector.GetProperty("count").GetUInt16()).SequenceEqual(
+            bitVector.GetProperty("coils").EnumerateArray().Select(entry => entry.GetBoolean())),
+        "reply coils match");
+
+    JsonElement refusedVector = vector.GetProperty("exceptionReply");
+    using ModbusFrame refused =
+        Modbus.ParseFrame(Convert.FromHexString(refusedVector.GetProperty("frame").GetString()!));
+    Assert(
+        refused.Exception == refusedVector.GetProperty("exception").GetByte(),
+        "the exception code matches");
+
+    try
+    {
+        Modbus.ParseFrame(Convert.FromHexString(vector.GetProperty("corruptFrame").GetString()!));
+        Fail("a frame mangled on the wire should throw");
+    }
+    catch (PamojaException)
+    {
+    }
+}
+
+static void ConformCan(JsonElement vector)
+{
+    JsonElement classicVector = vector.GetProperty("classic");
+    CanFrame classic = Can.Frame(
+        classicVector.GetProperty("id").GetUInt32(),
+        Convert.FromHexString(classicVector.GetProperty("data").GetString()!),
+        classicVector.GetProperty("extended").GetBoolean());
+    Assert(classic.Dlc == classicVector.GetProperty("dlc").GetByte(), "classic DLC matches");
+
+    JsonElement fdVector = vector.GetProperty("fd");
+    CanFrame fd = Can.FdFrame(
+        fdVector.GetProperty("id").GetUInt32(),
+        Convert.FromHexString(fdVector.GetProperty("data").GetString()!),
+        fdVector.GetProperty("extended").GetBoolean());
+    Assert(fd.Dlc == fdVector.GetProperty("dlc").GetByte(), "CAN-FD DLC matches");
+    Assert(fd.Fd && fd.Extended, "the frame keeps its flags");
+
+    JsonElement remoteVector = vector.GetProperty("remote");
+    CanFrame remote = Can.RemoteFrame(
+        remoteVector.GetProperty("id").GetUInt32(),
+        remoteVector.GetProperty("requested").GetInt32(),
+        remoteVector.GetProperty("extended").GetBoolean());
+    Assert(remote.Length == remoteVector.GetProperty("len").GetInt32(), "remote length matches");
+    Assert(
+        remote.Data.Length == remoteVector.GetProperty("dataLen").GetInt32(),
+        "a remote frame carries no bytes");
+
+    try
+    {
+        Can.Frame(0x100, new byte[vector.GetProperty("tooLongForClassic").GetInt32()]);
+        Fail("a classic frame carries at most eight bytes");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    try
+    {
+        Can.FdFrame(0x100, new byte[vector.GetProperty("invalidFdLength").GetInt32()]);
+        Fail("13 bytes is not a length CAN-FD can carry");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("lengths").EnumerateArray())
+    {
+        Assert(
+            Can.LenToDlc(entry.GetProperty("len").GetInt32()) == entry.GetProperty("dlc").GetByte(),
+            "the length encodes to its code");
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("codes").EnumerateArray())
+    {
+        Assert(
+            Can.DlcToLen(entry.GetProperty("dlc").GetByte()) == entry.GetProperty("len").GetInt32(),
+            "the code decodes to its length");
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("j1939").EnumerateArray())
+    {
+        uint id = entry.GetProperty("id").GetUInt32();
+        J1939Message? message = Can.DecodeJ1939(id);
+        Assert(message is not null, "the identifier decodes");
+        Assert(message!.Pgn == entry.GetProperty("pgn").GetUInt32(), "parameter group matches");
+        Assert(message.Priority == entry.GetProperty("priority").GetByte(), "priority matches");
+        Assert(message.Source == entry.GetProperty("source").GetByte(), "source matches");
+
+        JsonElement destination = entry.GetProperty("destination");
+        byte? want = destination.ValueKind == JsonValueKind.Null ? null : destination.GetByte();
+        Assert(message.Destination == want, "destination matches");
+        Assert(
+            message.Broadcast == entry.GetProperty("broadcast").GetBoolean(),
+            "broadcast flag matches");
+        Assert(
+            Can.ComposeJ1939(message.Priority, message.Pgn, message.Source, want ?? 0) == id,
+            "the identifier round-trips");
+    }
+
+    Assert(
+        Can.DecodeJ1939(vector.GetProperty("standardIsNotJ1939").GetUInt32(), extended: false)
+            is null,
+        "J1939 never rides an 11-bit identifier");
+}
+
+static void ConformGpio(JsonElement vector)
+{
+    foreach (JsonElement entry in vector.GetProperty("i2c").EnumerateArray())
+    {
+        ushort address = entry.GetProperty("address").GetUInt16();
+        bool tenBit = entry.GetProperty("tenBit").GetBoolean();
+
+        Assert(
+            I2c.AddressFrame(address, read: false, tenBit: tenBit).SequenceEqual(
+                Convert.FromHexString(entry.GetProperty("writeFrame").GetString()!)),
+            "write frame matches");
+        Assert(
+            I2c.AddressFrame(address, read: true, tenBit: tenBit).SequenceEqual(
+                Convert.FromHexString(entry.GetProperty("readFrame").GetString()!)),
+            "read frame matches");
+        Assert(
+            I2c.FrameLen(address, tenBit) == entry.GetProperty("frameLen").GetInt32(),
+            "frame length matches");
+        Assert(
+            I2c.IsReserved(address, tenBit) == entry.GetProperty("reserved").GetBoolean(),
+            "reserved matches");
+        Assert(
+            I2c.IsGeneralCall(address, tenBit) == entry.GetProperty("generalCall").GetBoolean(),
+            "general call matches");
+    }
+
+    try
+    {
+        I2c.AddressFrame(vector.GetProperty("outOfRangeSevenBit").GetUInt16());
+        Fail("a 7-bit address above 0x7F should throw");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    try
+    {
+        I2c.AddressFrame(vector.GetProperty("outOfRangeTenBit").GetUInt16(), tenBit: true);
+        Fail("a 10-bit address above 0x3FF should throw");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("spi").EnumerateArray())
+    {
+        byte mode = entry.GetProperty("mode").GetByte();
+        bool cpol = entry.GetProperty("cpol").GetBoolean();
+        bool cpha = entry.GetProperty("cpha").GetBoolean();
+        SpiClock clock = Spi.ClockFor(mode);
+        Assert(clock.Cpol == cpol && clock.Cpha == cpha, "the mode names its clock");
+        Assert(Spi.ModeFor(cpol, cpha) == mode, "the clock names its mode");
+    }
+
+    try
+    {
+        Spi.ClockFor(vector.GetProperty("invalidSpiMode").GetByte());
+        Fail("there are only four SPI modes");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("edges").EnumerateArray())
+    {
+        PinEdge edge = Enum.Parse<PinEdge>(entry.GetProperty("edge").GetString()!);
+        PinLevel from = Enum.Parse<PinLevel>(entry.GetProperty("from").GetString()!);
+        PinLevel to = Enum.Parse<PinLevel>(entry.GetProperty("to").GetString()!);
+        Assert(
+            Pin.Triggers(edge, from, to) == entry.GetProperty("triggered").GetBoolean(),
+            "the trigger fires on its own transition");
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("polarities").EnumerateArray())
+    {
+        PinPolarity polarity = Enum.Parse<PinPolarity>(entry.GetProperty("polarity").GetString()!);
+        bool asserted = entry.GetProperty("asserted").GetBoolean();
+        PinLevel level = Pin.LevelFor(polarity, asserted);
+        Assert(
+            level == Enum.Parse<PinLevel>(entry.GetProperty("level").GetString()!),
+            "the polarity maps the state onto a level");
+        Assert(
+            Pin.IsAsserted(polarity, level) == entry.GetProperty("isAsserted").GetBoolean(),
+            "and maps it back");
+    }
+}

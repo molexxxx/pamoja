@@ -7,11 +7,18 @@ and plain Python values instead of buffers - without adding behavior; all real
 work happens in the Rust core.
 
 Each capability also has its own module (:mod:`pamoja.mqtt`,
-:mod:`pamoja.security`, :mod:`pamoja.codec`, :mod:`pamoja.kit`) for callers who
-want only one, and the generated low-level contract remains available at
-:mod:`pamoja.raw`.
+:mod:`pamoja.security`, :mod:`pamoja.codec`, :mod:`pamoja.kit`,
+:mod:`pamoja.serial`, :mod:`pamoja.modbus`, :mod:`pamoja.can`,
+:mod:`pamoja.gpio`) for callers who want only one, and the generated low-level
+contract remains available at :mod:`pamoja.raw`.
+
+The field-I/O capabilities are re-exported as modules rather than flattened:
+their operations are named for their protocol (``frame``, ``raw``,
+``parse_frame``), which only reads unambiguously with the protocol in front of
+it.
 """
 
+from . import can, gpio, modbus, serial
 from ._core import PamojaError, version
 from .codec import Quantizer, from_cbor, pack_samples, to_cbor, unpack_samples
 from .kit import (
@@ -55,11 +62,15 @@ __all__ = [
     "Surge",
     "Thermostat",
     "bearing_between",
+    "can",
     "deadband",
     "distance_between",
     "fingerprint",
     "from_cbor",
+    "gpio",
+    "modbus",
     "pack_samples",
+    "serial",
     "to_cbor",
     "unpack_samples",
     "verify",
