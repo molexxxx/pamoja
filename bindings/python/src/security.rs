@@ -22,7 +22,7 @@ const SIGNATURE_LEN: usize = 64;
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct DeviceIdentity {
-    inner: CoreIdentity,
+    pub(crate) inner: CoreIdentity,
 }
 
 #[gen_stub_pymethods]

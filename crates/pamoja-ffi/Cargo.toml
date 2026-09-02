@@ -30,6 +30,11 @@ default = [
     "lorawan",
     "mesh",
     "routing",
+    "audit",
+    "session",
+    "update",
+    "power",
+    "telemetry",
 ]
 # Each capability is a feature, so a host that needs only some of them can build a
 # smaller library without reshaping the code.
@@ -47,6 +52,11 @@ lora = ["dep:pamoja-lora"]
 lorawan = ["dep:pamoja-lorawan"]
 mesh = ["dep:pamoja-mesh"]
 routing = ["dep:pamoja-routing"]
+audit = ["dep:pamoja-audit", "security"]
+session = ["dep:pamoja-session"]
+update = ["dep:pamoja-update", "security"]
+power = ["dep:pamoja-power"]
+telemetry = ["dep:pamoja-telemetry"]
 
 [dependencies]
 pamoja-core.workspace = true
@@ -64,7 +74,17 @@ pamoja-lora = { path = "../pamoja-lora", version = "0.1.14", optional = true }
 pamoja-lorawan = { path = "../pamoja-lorawan", version = "0.1.14", optional = true }
 pamoja-mesh = { path = "../pamoja-mesh", version = "0.1.14", features = ["alloc"], optional = true }
 pamoja-routing = { path = "../pamoja-routing", version = "0.1.14", features = ["alloc"], optional = true }
+pamoja-audit = { path = "../pamoja-audit", version = "0.1.14", optional = true }
+pamoja-session = { path = "../pamoja-session", version = "0.1.14", optional = true }
+pamoja-update = { path = "../pamoja-update", version = "0.1.14", optional = true }
+pamoja-power = { path = "../pamoja-power", version = "0.1.14", optional = true }
+pamoja-telemetry = { path = "../pamoja-telemetry", version = "0.1.14", optional = true }
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread"], optional = true }
+
+[dev-dependencies]
+# The update tests describe a release by its digest, which is what a manifest
+# carries, so they need the same hash the crate uses.
+sha2 = { version = "0.11", default-features = false }
 
 [build-dependencies]
 cbindgen = { version = "0.29", default-features = false }

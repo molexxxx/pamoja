@@ -287,3 +287,171 @@ def test_the_windowed_helpers_summarise_recent_readings():
     for _ in range(8):
         anomaly.check(20.0)
     assert anomaly.check(900.0)
+
+
+def test_a_signed_chain_records_what_a_node_did():
+    from pamoja import DeviceIdentity, audit
+
+    keeper = DeviceIdentity(bytes([0x21]) * 32)
+    log = audit.AuditLog(keeper)
+    opened = log.append(b"valve=open")
+    shut = log.append(b"valve=shut")
+
+    assert opened.index == 0
+    assert shut.previous == opened.digest
+    assert opened.payload == b"valve=open"
+    assert audit.verify_chain(keeper.public_key, [opened, shut])
+
+    edited = bytearray(shut.to_bytes())
+    edited[-1] ^= 0xFF
+    tampered = audit.AuditEntry.from_bytes(bytes(edited))
+    assert not audit.verify_chain(keeper.public_key, [opened, tampered])
+
+    resumed = audit.AuditLog.resume(keeper, shut)
+    assert resumed.append(b"valve=open").index == 2
+
+
+def test_two_devices_talk_in_confidence_and_refuse_a_replay():
+    from pamoja import PamojaError, session
+
+    node = session.AgreementKey(bytes([0x01]) * 32)
+    gateway = session.AgreementKey(bytes([0x02]) * 32)
+    salt = bytes([0x09]) * 16
+
+    uplink = session.Session(node, gateway.public_key, salt, session.Role.INITIATOR)
+    downlink = session.Session(gateway, node.public_key, salt, session.Role.RESPONDER)
+
+    sealed = uplink.seal(b"4.8C", b"pump-3")
+    assert sealed.ciphertext != b"4.8C"
+    assert downlink.open(sealed, b"pump-3") == b"4.8C"
+
+    with pytest.raises(PamojaError):
+        downlink.open(sealed, b"pump-3")
+
+    altered = uplink.seal(b"4.9C", b"pump-3")
+    broken = bytearray(altered.ciphertext)
+    broken[0] ^= 0xFF
+    with pytest.raises(PamojaError):
+        downlink.open(
+            session.SealedMessage(altered.counter, altered.tag, bytes(broken)),
+            b"pump-3",
+        )
+
+
+def test_a_release_stages_in_pieces_and_confirms_once_it_runs():
+    import hashlib
+
+    from pamoja import DeviceIdentity, PamojaError, update
+
+    vendor = bytes([0x0A]) * 16
+    device_class = bytes([0x0B]) * 16
+    publisher = DeviceIdentity(bytes([0x31]) * 32)
+    image = bytes([0xA5]) * 600
+    manifest = update.Manifest(
+        sequence=2,
+        vendor_id=vendor,
+        class_id=device_class,
+        storage=1,
+        digest=hashlib.sha256(image).digest(),
+        size=len(image),
+    )
+    envelope = update.sign_manifest(manifest, publisher)
+    assert update.verify_envelope(envelope, publisher.public_key).digest == manifest.digest
+
+    fleet = update.Updater(vendor, device_class, publisher.public_key, 2, 4096)
+    fleet.provision(0, 1)
+    assert fleet.begin(envelope) == 1
+    for at in range(0, len(image), 128):
+        fleet.write(image[at : at + 128])
+    assert fleet.progress().written == len(image)
+    assert fleet.finish() == 1
+
+    boot = fleet.on_boot()
+    assert boot.action == update.BootAction.TRYING
+    assert fleet.confirm() == 1
+    assert fleet.slot_record(1).state == update.SlotState.CONFIRMED
+
+    impostor = DeviceIdentity(bytes([0x32]) * 32)
+    forged = update.sign_manifest(
+        update.Manifest(
+            sequence=3,
+            vendor_id=vendor,
+            class_id=device_class,
+            storage=0,
+            digest=hashlib.sha256(image).digest(),
+            size=len(image),
+        ),
+        impostor,
+    )
+    with pytest.raises(PamojaError):
+        fleet.stage(forged, image)
+
+
+def test_a_delegated_key_may_sign_releases():
+    import hashlib
+
+    from pamoja import DeviceIdentity, update
+
+    vendor = bytes([0x0C]) * 16
+    device_class = bytes([0x0D]) * 16
+    anchor = DeviceIdentity(bytes([0x41]) * 32)
+    releases = DeviceIdentity(bytes([0x42]) * 32)
+
+    statement = update.sign_delegation(
+        update.Delegation(epoch=1, release_key=releases.public_key), anchor
+    )
+    assert update.open_delegation(statement, anchor.public_key).release_key == releases.public_key
+
+    fleet = update.Updater(vendor, device_class, anchor.public_key, 2, 4096)
+    fleet.provision(0, 1)
+    fleet.adopt(statement)
+    assert fleet.delegation is not None
+
+    image = bytes([7]) * 64
+    envelope = update.sign_manifest(
+        update.Manifest(
+            sequence=2,
+            vendor_id=vendor,
+            class_id=device_class,
+            storage=1,
+            digest=hashlib.sha256(image).digest(),
+            size=len(image),
+        ),
+        releases,
+    )
+    assert fleet.stage(envelope, image) == 1
+
+
+def test_a_falling_charge_stretches_the_work_interval():
+    from pamoja import power
+
+    plan = power.power_plan(60_000_000, 300_000_000, 3_600_000_000)
+    assert plan.mode(0.9) == power.PowerMode.ACTIVE
+    assert plan.mode(0.3) == power.PowerMode.SAVER
+    assert plan.mode(0.1) == power.PowerMode.CRITICAL
+    assert plan.mode_while_charging(0.1, True) == power.PowerMode.SAVER
+    assert plan.interval_us(0.1) == 3_600_000_000
+
+    duty = power.DutyCycle.from_fraction(1_000_000, 0.25)
+    assert duty.active_us == 250_000
+    assert duty.period_us == 1_000_000
+
+
+def test_a_costly_link_drops_detail_but_keeps_the_count():
+    from pamoja import telemetry
+
+    reporter = telemetry.Reporter(telemetry.Level.TRACE)
+    reporter.adapt_to(telemetry.LinkCost.EXPENSIVE)
+
+    assert reporter.record(telemetry.Event(telemetry.Level.INFO, "loop.tick")) is None
+    warned = reporter.record(
+        telemetry.Event(telemetry.Level.WARN, "battery.low", 0.18)
+    )
+    assert warned is not None
+    assert warned.code == "battery.low"
+    assert warned.value == pytest.approx(0.18)
+
+    counts = reporter.snapshot()
+    assert counts.dropped == 1
+    assert counts.emitted == 1
+    assert telemetry.link_cost_threshold(telemetry.LinkCost.OFFLINE) == telemetry.Level.ERROR

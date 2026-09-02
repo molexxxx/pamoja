@@ -37,6 +37,11 @@ default = [
     "lorawan",
     "mesh",
     "routing",
+    "audit",
+    "session",
+    "update",
+    "power",
+    "telemetry",
 ]
 # Each capability is a feature, so the binding can later be split into
 # per-capability packages without reshaping the code.
@@ -54,6 +59,11 @@ lora = ["dep:pamoja-lora"]
 lorawan = ["dep:pamoja-lorawan"]
 mesh = ["dep:pamoja-mesh"]
 routing = ["dep:pamoja-routing"]
+audit = ["dep:pamoja-audit", "security"]
+session = ["dep:pamoja-session"]
+update = ["dep:pamoja-update", "security"]
+power = ["dep:pamoja-power"]
+telemetry = ["dep:pamoja-telemetry"]
 
 [dependencies]
 # pyo3 0.29 carries the fix for RUSTSEC advisories in the list/tuple iterators;
@@ -78,4 +88,9 @@ pamoja-lora = { path = "../../crates/pamoja-lora", optional = true }
 pamoja-lorawan = { path = "../../crates/pamoja-lorawan", optional = true }
 pamoja-mesh = { path = "../../crates/pamoja-mesh", features = ["alloc"], optional = true }
 pamoja-routing = { path = "../../crates/pamoja-routing", features = ["alloc"], optional = true }
+pamoja-audit = { path = "../../crates/pamoja-audit", optional = true }
+pamoja-session = { path = "../../crates/pamoja-session", optional = true }
+pamoja-update = { path = "../../crates/pamoja-update", optional = true }
+pamoja-power = { path = "../../crates/pamoja-power", optional = true }
+pamoja-telemetry = { path = "../../crates/pamoja-telemetry", optional = true }
 tokio = { version = "1", default-features = false, features = ["sync"], optional = true }

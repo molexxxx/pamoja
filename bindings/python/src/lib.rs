@@ -12,6 +12,8 @@ use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
 
 #[cfg(feature = "actuators")]
 mod actuators;
+#[cfg(feature = "audit")]
+mod audit;
 #[cfg(feature = "can")]
 mod can;
 #[cfg(feature = "codec")]
@@ -30,6 +32,8 @@ mod mesh;
 mod modbus;
 #[cfg(feature = "mqtt")]
 mod mqtt;
+#[cfg(feature = "power")]
+mod power;
 #[cfg(feature = "routing")]
 mod routing;
 #[cfg(feature = "security")]
@@ -38,6 +42,12 @@ mod security;
 mod sensors;
 #[cfg(feature = "serial")]
 mod serial;
+#[cfg(feature = "session")]
+mod session;
+#[cfg(feature = "telemetry")]
+mod telemetry;
+#[cfg(feature = "update")]
+mod update;
 
 pyo3::create_exception!(
     pamoja,
@@ -228,6 +238,51 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<routing::Route>()?;
         m.add_class::<routing::ForwardDecision>()?;
         m.add_function(wrap_pyfunction!(routing::routing_default_capacity, m)?)?;
+    }
+    #[cfg(feature = "audit")]
+    {
+        m.add_class::<audit::AuditEntry>()?;
+        m.add_class::<audit::AuditLog>()?;
+        m.add_class::<audit::AuditVerifier>()?;
+        m.add_function(wrap_pyfunction!(audit::verify_audit_chain, m)?)?;
+    }
+    #[cfg(feature = "session")]
+    {
+        m.add_class::<session::AgreementKey>()?;
+        m.add_class::<session::Session>()?;
+        m.add_class::<session::SealedMessage>()?;
+        m.add_function(wrap_pyfunction!(session::hmac_sha256_digest, m)?)?;
+        m.add_function(wrap_pyfunction!(session::hkdf_sha256_expand, m)?)?;
+    }
+    #[cfg(feature = "update")]
+    {
+        m.add_class::<update::Manifest>()?;
+        m.add_class::<update::Delegation>()?;
+        m.add_class::<update::SlotRecord>()?;
+        m.add_class::<update::BootDecision>()?;
+        m.add_class::<update::Progress>()?;
+        m.add_class::<update::ImageVerifier>()?;
+        m.add_class::<update::Updater>()?;
+        m.add_function(wrap_pyfunction!(update::encode_manifest, m)?)?;
+        m.add_function(wrap_pyfunction!(update::decode_manifest, m)?)?;
+        m.add_function(wrap_pyfunction!(update::sign_manifest, m)?)?;
+        m.add_function(wrap_pyfunction!(update::verify_envelope, m)?)?;
+        m.add_function(wrap_pyfunction!(update::envelope_body, m)?)?;
+        m.add_function(wrap_pyfunction!(update::sign_delegation, m)?)?;
+        m.add_function(wrap_pyfunction!(update::open_delegation, m)?)?;
+        m.add_function(wrap_pyfunction!(update::update_structure_version, m)?)?;
+        m.add_function(wrap_pyfunction!(update::update_format_raw, m)?)?;
+    }
+    #[cfg(feature = "power")]
+    {
+        m.add_class::<power::DutyCycle>()?;
+        m.add_class::<power::PowerPlan>()?;
+    }
+    #[cfg(feature = "telemetry")]
+    {
+        m.add_class::<telemetry::Reporter>()?;
+        m.add_class::<telemetry::Snapshot>()?;
+        m.add_function(wrap_pyfunction!(telemetry::link_cost_threshold, m)?)?;
     }
     #[cfg(feature = "lorawan")]
     {

@@ -11,6 +11,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use pamoja_actuators::{pca9685, stepper};
+use pamoja_audit::{AuditLog, Entry};
 use pamoja_can::{dlc_to_len, len_to_dlc, CanId, Frame, J1939Id};
 use pamoja_codec::{encode_deltas, json_to_cbor, Quantizer};
 use pamoja_gpio::i2c::{Address, Direction};
@@ -24,10 +25,17 @@ use pamoja_lora::LinkSettings;
 use pamoja_lorawan::{Device, Downlink, FrameHeader, JoinGrant, JoinRequest, Session, Uplink};
 use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
 use pamoja_modbus::{crc16, Adu, Pdu, Response};
+use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
 use pamoja_routing::{DynamicRouter, Forward};
 use pamoja_security::DeviceIdentity;
 use pamoja_sensors::{ads1115, bme280, ds18b20, ina219};
 use pamoja_serial::{cobs, slip};
+use pamoja_session::{AgreementKey, Role, Session as SecuredSession};
+use pamoja_telemetry::{Event, Level as TelemetryLevel, LinkCost, Reporter};
+use pamoja_update::{
+    Boot, Delegation, Device as UpdateDevice, Manifest, MemoryStore, PayloadFormat, SlotState,
+    SlotStore, Updater,
+};
 use serde_json::{json, Value};
 
 /// The seed every identity vector is derived from.
@@ -38,6 +46,24 @@ const PAYLOAD: &str = "21.5";
 
 /// The document the codec vectors transcode.
 const DOCUMENT: &str = r#"{"battery":88,"c":21.5,"id":"probe-1"}"#;
+
+/// The seed the audit chain is signed with.
+const AUDIT_SEED: [u8; 32] = [0x21; 32];
+
+/// The seeds and salt the secured-session vectors agree a key from.
+const SESSION_NODE_SEED: [u8; 32] = [0x01; 32];
+const SESSION_GATEWAY_SEED: [u8; 32] = [0x02; 32];
+const SESSION_SALT: [u8; 16] = [0x09; 16];
+
+/// The keys the update vectors sign and delegate with.
+const PUBLISHER_SEED: [u8; 32] = [0x31; 32];
+const IMPOSTOR_SEED: [u8; 32] = [0x32; 32];
+const ANCHOR_SEED: [u8; 32] = [0x41; 32];
+const RELEASE_SEED: [u8; 32] = [0x42; 32];
+
+/// Who the update vectors are built for.
+const VENDOR_ID: [u8; 16] = [0x0a; 16];
+const CLASS_ID: [u8; 16] = [0x0b; 16];
 
 fn main() {
     let vectors = json!({
@@ -67,6 +93,11 @@ fn main() {
 
         "header": header(),
         "network": network(),
+        "audit": audit(),
+        "session": session(),
+        "update": update(),
+        "power": power(),
+        "telemetry": telemetry(),
     });
 
     let path = repo_root().join("conformance").join("vectors.json");
@@ -1288,4 +1319,342 @@ fn repo_root() -> PathBuf {
         .parent()
         .expect("the examples crate sits under the repository root")
         .to_path_buf()
+}
+
+/// A signed, hash-chained log: the records, and what breaks the chain.
+fn audit() -> Value {
+    let keeper = DeviceIdentity::from_seed(&AUDIT_SEED);
+    let public = keeper.public();
+    let payloads = ["valve=open", "valve=shut", "valve=open"];
+
+    let mut log = AuditLog::new(keeper.clone());
+    let entries: Vec<Entry> = payloads
+        .iter()
+        .map(|payload| log.append(payload.as_bytes()))
+        .collect();
+
+    // The last record with its final byte flipped: the chain must not accept it.
+    let mut tampered = entries[2].to_bytes();
+    let last = tampered.len() - 1;
+    tampered[last] ^= 0xff;
+
+    // A log resumed after a restart writes the same next record as one that never
+    // stopped, which is what makes a reboot leave no gap.
+    let mut resumed = AuditLog::resume(keeper, &entries[2]);
+    let after_reboot = resumed.append(b"valve=shut");
+
+    json!({
+        "seed": hex(&AUDIT_SEED),
+        "publicKey": hex(&public.to_bytes()),
+        "entries": entries
+            .iter()
+            .zip(payloads)
+            .map(|(entry, payload)| json!({
+                "payload": payload,
+                "index": entry.index(),
+                "previous": hex(&entry.previous()),
+                "digest": hex(&entry.digest()),
+                "signature": hex(&entry.signature().to_bytes()),
+                "bytes": hex(&entry.to_bytes()),
+            }))
+            .collect::<Vec<_>>(),
+        "tampered": hex(&tampered),
+        "resumed": {
+            "payload": "valve=shut",
+            "index": after_reboot.index(),
+            "bytes": hex(&after_reboot.to_bytes()),
+        },
+    })
+}
+
+/// A secured channel: the agreed keys, the sealed messages, and the refusals.
+fn session() -> Value {
+    let node = AgreementKey::from_seed(&SESSION_NODE_SEED);
+    let gateway = AgreementKey::from_seed(&SESSION_GATEWAY_SEED);
+    let aad = b"pump-3";
+
+    let mut uplink =
+        SecuredSession::establish(&node, &gateway.public(), &SESSION_SALT, Role::Initiator);
+
+    // Two messages in a row, so the counter advancing is part of the contract.
+    let mut first = *b"4.8C";
+    let first_header = uplink.seal(&mut first, aad);
+    let mut second = *b"4.9C";
+    let second_header = uplink.seal(&mut second, aad);
+
+    let mut derived = [0u8; 40];
+    pamoja_session::hkdf_sha256(b"salt", b"secret", b"pairing", &mut derived);
+
+    json!({
+        "nodeSeed": hex(&SESSION_NODE_SEED),
+        "gatewaySeed": hex(&SESSION_GATEWAY_SEED),
+        "nodePublicKey": hex(&node.public().to_bytes()),
+        "gatewayPublicKey": hex(&gateway.public().to_bytes()),
+        "salt": hex(&SESSION_SALT),
+        "aad": "pump-3",
+        "wrongAad": "pump-4",
+        "messages": [
+            {
+                "plaintext": "4.8C",
+                "counter": first_header.counter,
+                "tag": hex(&first_header.tag),
+                "ciphertext": hex(&first),
+            },
+            {
+                "plaintext": "4.9C",
+                "counter": second_header.counter,
+                "tag": hex(&second_header.tag),
+                "ciphertext": hex(&second),
+            },
+        ],
+        "hmac": {
+            "key": "key",
+            "message": "message",
+            "digest": hex(&pamoja_session::hmac_sha256(b"key", b"message")),
+        },
+        "hkdf": {
+            "salt": "salt",
+            "ikm": "secret",
+            "info": "pairing",
+            "length": 40,
+            "output": hex(&derived),
+        },
+    })
+}
+
+/// A signed release: the manifest bytes, the envelope, and the slot lifecycle.
+fn update() -> Value {
+    let publisher = DeviceIdentity::from_seed(&PUBLISHER_SEED);
+    let impostor = DeviceIdentity::from_seed(&IMPOSTOR_SEED);
+    let anchor = DeviceIdentity::from_seed(&ANCHOR_SEED);
+    let releases = DeviceIdentity::from_seed(&RELEASE_SEED);
+
+    let image = vec![0xa5u8; 600];
+    let manifest = Manifest {
+        structure_version: pamoja_update::STRUCTURE_VERSION,
+        sequence: 2,
+        vendor_id: VENDOR_ID,
+        class_id: CLASS_ID,
+        format: PayloadFormat::Raw,
+        storage: 1,
+        digest: image_digest(&image),
+        size: image.len() as u32,
+        expires: 0,
+    };
+
+    let mut body = [0u8; pamoja_update::MANIFEST_MAX];
+    let body_len = manifest.encode(&mut body).expect("encode the manifest");
+    let mut envelope = [0u8; pamoja_update::ENVELOPE_MAX];
+    let envelope_len = manifest
+        .sign(&publisher, &mut envelope)
+        .expect("sign the manifest");
+    let mut forged = [0u8; pamoja_update::ENVELOPE_MAX];
+    let forged_len = manifest
+        .sign(&impostor, &mut forged)
+        .expect("sign with the wrong key");
+
+    let delegation = Delegation {
+        epoch: 1,
+        release_key: releases.public().to_bytes(),
+        expires: 0,
+    };
+    let mut statement = [0u8; pamoja_update::DELEGATION_MAX];
+    let statement_len = delegation
+        .sign(&anchor, &mut statement)
+        .expect("sign the delegation");
+
+    // The whole lifecycle a device runs: stage, boot on trial, confirm.
+    let device = UpdateDevice {
+        vendor_id: VENDOR_ID,
+        class_id: CLASS_ID,
+        anchor: publisher.public(),
+    };
+    let mut updater = Updater::new(device, MemoryStore::new(2, 4096));
+    updater
+        .provision(0, 1)
+        .expect("provision the running image");
+    let staged = updater
+        .stage(&envelope[..envelope_len], &image)
+        .expect("stage the release");
+    let boot = updater.on_boot().expect("decide what to run");
+    let confirmed = updater.confirm().expect("confirm the release");
+    let record = updater.store().record(1).expect("read the slot");
+
+    json!({
+        "vendorId": hex(&VENDOR_ID),
+        "classId": hex(&CLASS_ID),
+        "publisherSeed": hex(&PUBLISHER_SEED),
+        "publisherPublicKey": hex(&publisher.public().to_bytes()),
+        "impostorSeed": hex(&IMPOSTOR_SEED),
+        "anchorSeed": hex(&ANCHOR_SEED),
+        "anchorPublicKey": hex(&anchor.public().to_bytes()),
+        "releaseSeed": hex(&RELEASE_SEED),
+        "releasePublicKey": hex(&releases.public().to_bytes()),
+        "manifest": {
+            "structureVersion": manifest.structure_version,
+            "sequence": manifest.sequence,
+            "storage": manifest.storage,
+            "digest": hex(&manifest.digest),
+            "size": manifest.size,
+            "expires": manifest.expires,
+            "format": manifest.format as u8,
+        },
+        "imageByte": 0xa5,
+        "imageLen": image.len(),
+        "body": hex(&body[..body_len]),
+        "envelope": hex(&envelope[..envelope_len]),
+        "forgedEnvelope": hex(&forged[..forged_len]),
+        "delegation": {
+            "epoch": delegation.epoch,
+            "releaseKey": hex(&delegation.release_key),
+            "expires": delegation.expires,
+            "envelope": hex(&statement[..statement_len]),
+        },
+        "lifecycle": {
+            "chunk": 128,
+            "staged": staged,
+            "boot": boot_name(boot),
+            "bootSlot": boot_slot(boot),
+            "confirmed": confirmed,
+            "state": slot_state_name(record.state),
+            "written": record.written,
+        },
+    })
+}
+
+/// The SHA-256 of an image, which is what a manifest promises.
+fn image_digest(image: &[u8]) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(image).into()
+}
+
+/// Names a boot decision for the bindings that read it back.
+fn boot_name(boot: Boot) -> &'static str {
+    match boot {
+        Boot::Confirmed(_) => "Confirmed",
+        Boot::Trying(_) => "Trying",
+        Boot::Reverted { .. } => "Reverted",
+    }
+}
+
+/// The slot a boot decision is about.
+fn boot_slot(boot: Boot) -> u8 {
+    match boot {
+        Boot::Confirmed(slot) | Boot::Trying(slot) => slot,
+        Boot::Reverted { failed, .. } => failed,
+    }
+}
+
+/// Names a slot state for the bindings that read it back.
+fn slot_state_name(state: SlotState) -> &'static str {
+    match state {
+        SlotState::Empty => "Empty",
+        SlotState::Receiving => "Receiving",
+        SlotState::Staged => "Staged",
+        SlotState::Pending => "Pending",
+        SlotState::Confirmed => "Confirmed",
+        SlotState::Failed => "Failed",
+    }
+}
+
+/// How a work interval stretches as a battery falls, and what a duty cycle costs.
+fn power() -> Value {
+    let plan = PowerPlan::new(
+        core::time::Duration::from_micros(60_000_000),
+        core::time::Duration::from_micros(300_000_000),
+        core::time::Duration::from_micros(3_600_000_000),
+    );
+    let charges = [1.0f32, 0.6, 0.5, 0.49, 0.2, 0.19, 0.0];
+    let duty = DutyCycle::from_fraction(core::time::Duration::from_micros(1_000_000), 0.25);
+
+    json!({
+        "plan": {
+            "activeUs": 60_000_000u64,
+            "saverUs": 300_000_000u64,
+            "criticalUs": 3_600_000_000u64,
+            "saverBelow": plan.saver_below(),
+            "criticalBelow": plan.critical_below(),
+        },
+        "charges": charges,
+        "modes": charges
+            .iter()
+            .map(|&soc| power_mode_name(plan.mode(soc)))
+            .collect::<Vec<_>>(),
+        "charging": charges
+            .iter()
+            .map(|&soc| power_mode_name(plan.mode_while_charging(soc, true)))
+            .collect::<Vec<_>>(),
+        "intervalsUs": charges
+            .iter()
+            .map(|&soc| plan.interval(soc).as_micros() as u64)
+            .collect::<Vec<_>>(),
+        "duty": {
+            "periodUs": 1_000_000u64,
+            "fraction": 0.25,
+            "activeUs": duty.active().as_micros() as u64,
+            "sleepUs": duty.sleep().as_micros() as u64,
+        },
+    })
+}
+
+/// Names a power mode for the bindings that read it back.
+fn power_mode_name(mode: PowerMode) -> &'static str {
+    match mode {
+        PowerMode::Active => "Active",
+        PowerMode::Saver => "Saver",
+        PowerMode::Critical => "Critical",
+    }
+}
+
+/// What a reporter ships and what it drops once the link gets expensive.
+fn telemetry() -> Value {
+    let levels = [
+        TelemetryLevel::Trace,
+        TelemetryLevel::Debug,
+        TelemetryLevel::Info,
+        TelemetryLevel::Warn,
+        TelemetryLevel::Error,
+        TelemetryLevel::Info,
+        TelemetryLevel::Warn,
+    ];
+    let mut reporter = Reporter::new(TelemetryLevel::Trace);
+    reporter.adapt_to(LinkCost::Expensive);
+    let shipped: Vec<bool> = levels
+        .iter()
+        .map(|&level| reporter.record(Event::new(level, "vector")).is_some())
+        .collect();
+    let snapshot = reporter.snapshot();
+
+    json!({
+        "costs": ["Free", "Metered", "Expensive", "Offline"],
+        "thresholds": [
+            telemetry_level_name(LinkCost::Free.threshold()),
+            telemetry_level_name(LinkCost::Metered.threshold()),
+            telemetry_level_name(LinkCost::Expensive.threshold()),
+            telemetry_level_name(LinkCost::Offline.threshold()),
+        ],
+        "adaptedTo": "Expensive",
+        "levels": levels.iter().map(|&level| telemetry_level_name(level)).collect::<Vec<_>>(),
+        "shipped": shipped,
+        "snapshot": {
+            "trace": snapshot.by_level[TelemetryLevel::Trace as usize],
+            "debug": snapshot.by_level[TelemetryLevel::Debug as usize],
+            "info": snapshot.by_level[TelemetryLevel::Info as usize],
+            "warn": snapshot.by_level[TelemetryLevel::Warn as usize],
+            "error": snapshot.by_level[TelemetryLevel::Error as usize],
+            "emitted": snapshot.emitted,
+            "dropped": snapshot.dropped,
+        },
+    })
+}
+
+/// Names a telemetry level for the bindings that read it back.
+fn telemetry_level_name(level: TelemetryLevel) -> &'static str {
+    match level {
+        TelemetryLevel::Trace => "Trace",
+        TelemetryLevel::Debug => "Debug",
+        TelemetryLevel::Info => "Info",
+        TelemetryLevel::Warn => "Warn",
+        TelemetryLevel::Error => "Error",
+    }
 }

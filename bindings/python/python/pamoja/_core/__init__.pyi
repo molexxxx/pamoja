@@ -5,18 +5,26 @@ import builtins
 import typing
 __all__ = [
     "Ads1115Config",
+    "AgreementKey",
     "Anomaly",
+    "AuditEntry",
+    "AuditLog",
+    "AuditVerifier",
     "Bme280Calibration",
     "Bme280Measurement",
+    "BootDecision",
     "Calibration",
     "CanFrame",
     "CobsDecoder",
     "Debounce",
+    "Delegation",
     "Depletion",
     "DeviceIdentity",
     "Ds18b20Reading",
+    "DutyCycle",
     "ForwardDecision",
     "Geofence",
+    "ImageVerifier",
     "J1939Message",
     "Kalman",
     "LoraLink",
@@ -27,24 +35,33 @@ __all__ = [
     "LorawanJoinRequest",
     "LorawanRxData",
     "LorawanSession",
+    "Manifest",
     "Median",
     "MeshFrame",
     "ModbusFrame",
     "MqttClient",
     "MqttMessage",
     "Pid",
+    "PowerPlan",
+    "Progress",
     "Quantizer",
     "Ramp",
+    "Reporter",
     "Route",
     "Router",
+    "SealedMessage",
     "SeenPackets",
+    "Session",
     "SlipDecoder",
+    "SlotRecord",
     "Smoother",
+    "Snapshot",
     "SpiClock",
     "Stepper",
     "Surge",
     "Thermostat",
     "Trend",
+    "Updater",
     "Window",
     "ads1115_config_bits",
     "ads1115_config_from_bits",
@@ -64,6 +81,7 @@ __all__ = [
     "cobs_max_encoded_len",
     "deadband",
     "decode_delta_samples",
+    "decode_manifest",
     "distance_between",
     "ds18b20_celsius",
     "ds18b20_config_byte",
@@ -74,7 +92,11 @@ __all__ = [
     "ds18b20_resolution_bits",
     "ds18b20_step_micro_celsius",
     "encode_delta_samples",
+    "encode_manifest",
+    "envelope_body",
     "fingerprint",
+    "hkdf_sha256_expand",
+    "hmac_sha256_digest",
     "i2c_address_frame",
     "i2c_address_frame_len",
     "i2c_address_is_general_call",
@@ -90,6 +112,7 @@ __all__ = [
     "j1939_compose",
     "j1939_decode",
     "json_to_cbor_bytes",
+    "link_cost_threshold",
     "lorawan_parse_header",
     "lorawan_parse_join_request",
     "mesh_broadcast_frame",
@@ -109,6 +132,7 @@ __all__ = [
     "modbus_write_multiple_registers",
     "modbus_write_single_coil",
     "modbus_write_single_register",
+    "open_delegation",
     "pca9685_channel_register",
     "pca9685_frequency_for_prescale",
     "pca9685_limits",
@@ -124,6 +148,8 @@ __all__ = [
     "pwm_full_on",
     "pwm_servo",
     "routing_default_capacity",
+    "sign_delegation",
+    "sign_manifest",
     "slip_decode",
     "slip_encode",
     "slip_max_encoded_len",
@@ -131,7 +157,11 @@ __all__ = [
     "spi_mode_from_clock",
     "stepper_step_count",
     "stepper_steps_for_degrees",
+    "update_format_raw",
+    "update_structure_version",
     "verify",
+    "verify_audit_chain",
+    "verify_envelope",
     "version",
     "window_capacity",
 ]
@@ -241,6 +271,21 @@ class Ads1115Config:
         """
 
 @typing.final
+class AgreementKey:
+    r"""
+    A key-agreement secret, and the public key to hand to a peer.
+    """
+    @property
+    def public_key(self) -> builtins.list[builtins.int]:
+        r"""
+        The public key to hand to a peer.
+        """
+    def __new__(cls, seed: typing.Sequence[builtins.int]) -> AgreementKey:
+        r"""
+        Creates a key-agreement secret from a provisioned 32-byte seed.
+        """
+
+@typing.final
 class Anomaly:
     r"""
     Flags a reading that stands out from the ones around it.
@@ -252,6 +297,86 @@ class Anomaly:
     def check(self, reading: builtins.float) -> builtins.bool:
         r"""
         Folds a reading in and reports whether it stands out.
+        """
+
+@typing.final
+class AuditEntry:
+    r"""
+    One signed record, chained onto the one before it.
+    """
+    @property
+    def index(self) -> builtins.int:
+        r"""
+        The position of this entry in its chain.
+        """
+    @property
+    def previous(self) -> builtins.list[builtins.int]:
+        r"""
+        The hash of the entry before this one, all zeroes for the first.
+        """
+    @property
+    def digest(self) -> builtins.list[builtins.int]:
+        r"""
+        The hash of this entry, which the next one chains onto.
+        """
+    @property
+    def payload(self) -> builtins.list[builtins.int]:
+        r"""
+        The record this entry carries.
+        """
+    @property
+    def signature(self) -> builtins.list[builtins.int]:
+        r"""
+        The signature over this entry.
+        """
+    @staticmethod
+    def from_bytes(data: typing.Sequence[builtins.int]) -> AuditEntry:
+        r"""
+        Reads an entry back from the bytes it was written as.
+        """
+    def to_bytes(self) -> builtins.list[builtins.int]:
+        r"""
+        Encodes this entry for storage or transmission.
+        """
+
+@typing.final
+class AuditLog:
+    r"""
+    A log that signs what it is given and chains it onto what came before.
+    """
+    def __new__(cls, identity: DeviceIdentity) -> AuditLog:
+        r"""
+        Creates a log that signs with a device identity, starting empty.
+        """
+    @staticmethod
+    def resume(identity: DeviceIdentity, last: AuditEntry) -> AuditLog:
+        r"""
+        Creates a log that carries on from the last entry an earlier one wrote.
+        
+        This is what a device does after a restart: the chain continues at the
+        next index and hashes onto the entry it left off at, so a reboot leaves
+        no gap for a record to be removed through.
+        """
+    def append(self, payload: typing.Sequence[builtins.int]) -> AuditEntry:
+        r"""
+        Appends a payload, signing it and chaining it onto the last entry.
+        """
+
+@typing.final
+class AuditVerifier:
+    r"""
+    Checks a chain one entry at a time, in the order the entries were written.
+    """
+    def __new__(cls, public_key: typing.Sequence[builtins.int]) -> AuditVerifier:
+        r"""
+        Creates a verifier for a chain signed by a 32-byte public key.
+        """
+    def check(self, entry: AuditEntry) -> builtins.bool:
+        r"""
+        Checks the next entry, returning whether it belongs where it was offered.
+        
+        Feeding entries out of order, skipping one, or repeating one is refused
+        just as an altered payload is.
         """
 
 @typing.final
@@ -292,6 +417,28 @@ class Bme280Measurement:
     def relative_humidity_percent(self) -> builtins.float:
         r"""
         The relative humidity as a percentage.
+        """
+
+@typing.final
+class BootDecision:
+    r"""
+    The decision a device made at boot, already recorded before it was returned.
+    """
+    @property
+    def action(self) -> builtins.str:
+        r"""
+        What the bootloader should do: `Confirmed`, `Trying`, or `Reverted`.
+        """
+    @property
+    def slot(self) -> builtins.int:
+        r"""
+        The image the decision is about, which for `Reverted` is the one that
+        failed.
+        """
+    @property
+    def fallback(self) -> builtins.int:
+        r"""
+        The slot to run. It is the same as `slot` for anything but `Reverted`.
         """
 
 @typing.final
@@ -398,6 +545,33 @@ class Debounce:
         """
 
 @typing.final
+class Delegation:
+    r"""
+    A statement, signed by the anchor, that a second key may sign releases.
+    """
+    @property
+    def epoch(self) -> builtins.int:
+        r"""
+        Rises with every rotation, so a retired key cannot be reinstated by
+        replaying the statement that once authorised it.
+        """
+    @property
+    def release_key(self) -> builtins.list[builtins.int]:
+        r"""
+        The public key that may sign manifests while this delegation stands.
+        """
+    @property
+    def expires(self) -> builtins.int:
+        r"""
+        When the delegation stops being honoured, in seconds since the Unix
+        epoch, or `0` to never expire.
+        """
+    def __new__(cls, epoch: builtins.int, release_key: typing.Sequence[builtins.int], expires: builtins.int = 0) -> Delegation:
+        r"""
+        Names a release key the anchor stands behind.
+        """
+
+@typing.final
 class Depletion:
     r"""
     Warns before a falling level runs out, by projecting its rate of fall.
@@ -476,6 +650,42 @@ class Ds18b20Reading:
         """
 
 @typing.final
+class DutyCycle:
+    r"""
+    The split between the time a node works and the time it sleeps.
+    """
+    @property
+    def active_us(self) -> builtins.int:
+        r"""
+        How long the node stays awake each period, in microseconds.
+        """
+    @property
+    def sleep_us(self) -> builtins.int:
+        r"""
+        How long it sleeps each period, in microseconds.
+        """
+    @property
+    def period_us(self) -> builtins.int:
+        r"""
+        The whole period, awake plus asleep, in microseconds.
+        """
+    @property
+    def fraction(self) -> builtins.float:
+        r"""
+        The share of the period spent awake, from 0 through 1.
+        """
+    def __new__(cls, active_us: builtins.int, sleep_us: builtins.int) -> DutyCycle:
+        r"""
+        Creates a duty cycle from the time awake and the time asleep, in
+        microseconds.
+        """
+    @staticmethod
+    def from_fraction(period_us: builtins.int, fraction: builtins.float) -> DutyCycle:
+        r"""
+        Creates a duty cycle that spends `fraction` of `period_us` awake.
+        """
+
+@typing.final
 class ForwardDecision:
     r"""
     A routing decision, and the neighbour it names when there is one.
@@ -509,6 +719,26 @@ class Geofence:
     def contains(self, latitude: builtins.float, longitude: builtins.float) -> builtins.bool:
         r"""
         Reports whether a fix lies inside, without recording a crossing.
+        """
+
+@typing.final
+class ImageVerifier:
+    r"""
+    Hashes an image as it arrives and settles it against its manifest.
+    """
+    def __new__(cls, manifest: Manifest) -> ImageVerifier:
+        r"""
+        Creates a verifier for the image a manifest describes.
+        """
+    def update(self, chunk: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Takes the next piece of the image, in order.
+        """
+    def finish(self) -> builtins.list[builtins.int]:
+        r"""
+        Settles the image, returning its digest, and spends this verifier.
+        
+        Raises if the image is not the one the manifest described.
         """
 
 @typing.final
@@ -887,6 +1117,63 @@ class LorawanSession:
         """
 
 @typing.final
+class Manifest:
+    r"""
+    What a release says about itself, and what a device checks it against.
+    """
+    @property
+    def structure_version(self) -> builtins.int:
+        r"""
+        Which iteration of the manifest format this is.
+        """
+    @property
+    def sequence(self) -> builtins.int:
+        r"""
+        Rises with every release, which is what stops an older image being
+        replayed at a device.
+        """
+    @property
+    def vendor_id(self) -> builtins.list[builtins.int]:
+        r"""
+        Who built the image, as 16 bytes.
+        """
+    @property
+    def class_id(self) -> builtins.list[builtins.int]:
+        r"""
+        Which kind of device it is for, as 16 bytes.
+        """
+    @property
+    def format(self) -> builtins.int:
+        r"""
+        How the payload is encoded, currently only the raw format.
+        """
+    @property
+    def storage(self) -> builtins.int:
+        r"""
+        Which slot the payload belongs in.
+        """
+    @property
+    def digest(self) -> builtins.list[builtins.int]:
+        r"""
+        The SHA-256 of the payload, which every other guarantee rests on.
+        """
+    @property
+    def size(self) -> builtins.int:
+        r"""
+        The payload length in bytes, known before a single byte is accepted.
+        """
+    @property
+    def expires(self) -> builtins.int:
+        r"""
+        When this release stops being offered, in seconds since the Unix epoch,
+        or `0` to never expire.
+        """
+    def __new__(cls, sequence: builtins.int, vendor_id: typing.Sequence[builtins.int], class_id: typing.Sequence[builtins.int], storage: builtins.int, digest: typing.Sequence[builtins.int], size: builtins.int, expires: builtins.int = 0, format: builtins.int = 1, structure_version: builtins.int = 1) -> Manifest:
+        r"""
+        Describes a release.
+        """
+
+@typing.final
 class Median:
     r"""
     Rejects a single wild reading, where an average would let it pull the answer.
@@ -1059,6 +1346,63 @@ class Pid:
         """
 
 @typing.final
+class PowerPlan:
+    r"""
+    The work intervals a node uses in each mode, and where the modes change.
+    """
+    @property
+    def saver_below(self) -> builtins.float:
+        r"""
+        The charge below which the plan enters saver mode.
+        """
+    @property
+    def critical_below(self) -> builtins.float:
+        r"""
+        The charge below which the plan enters critical mode.
+        """
+    def __new__(cls, active_us: builtins.int, saver_us: builtins.int, critical_us: builtins.int) -> PowerPlan:
+        r"""
+        Creates a plan from its three work intervals in microseconds, entering
+        saver mode below 50% charge and critical below 20%.
+        """
+    def with_thresholds(self, saver_below: builtins.float, critical_below: builtins.float) -> PowerPlan:
+        r"""
+        Returns a copy of this plan with the state-of-charge thresholds moved.
+        """
+    def mode(self, soc: builtins.float) -> builtins.str:
+        r"""
+        Returns the mode this plan calls for at a state of charge, by name.
+        """
+    def mode_while_charging(self, soc: builtins.float, charging: builtins.bool) -> builtins.str:
+        r"""
+        Returns the mode, eased one step toward full duty while charging.
+        """
+    def interval_for_us(self, mode: builtins.str) -> builtins.int:
+        r"""
+        Returns the work interval for a named mode, in microseconds.
+        """
+    def interval_us(self, soc: builtins.float) -> builtins.int:
+        r"""
+        Returns the work interval at a state of charge, in microseconds.
+        """
+
+@typing.final
+class Progress:
+    r"""
+    How much of an image has arrived.
+    """
+    @property
+    def written(self) -> builtins.int:
+        r"""
+        The bytes stored so far.
+        """
+    @property
+    def total(self) -> builtins.int:
+        r"""
+        The total the manifest declares.
+        """
+
+@typing.final
 class Quantizer:
     r"""
     Packs float readings to a fixed precision for a metered link.
@@ -1100,6 +1444,61 @@ class Ramp:
     def set(self, value: builtins.float) -> None:
         r"""
         Forces the value without rate limiting.
+        """
+
+@typing.final
+class Reporter:
+    r"""
+    Records telemetry events, ships the ones worth their bytes, and counts them
+    all.
+    """
+    @property
+    def threshold(self) -> builtins.str:
+        r"""
+        The level this reporter is currently shipping from.
+        """
+    @threshold.setter
+    def threshold(self, value: builtins.str) -> None:
+        r"""
+        Moves the level this reporter ships from.
+        """
+    @property
+    def total(self) -> builtins.int:
+        r"""
+        How many events have been seen across every level.
+        """
+    @property
+    def emitted(self) -> builtins.int:
+        r"""
+        How many events passed the threshold and were shipped.
+        """
+    @property
+    def dropped(self) -> builtins.int:
+        r"""
+        How many events the threshold dropped.
+        """
+    def __new__(cls, threshold: builtins.str) -> Reporter:
+        r"""
+        Creates a reporter that ships events at or above the named level.
+        """
+    def adapt_to(self, cost: builtins.str) -> None:
+        r"""
+        Moves the threshold to match what the link now costs.
+        """
+    def record(self, level: builtins.str) -> builtins.bool:
+        r"""
+        Records an event at a level and reports whether it should be shipped.
+        
+        The event is counted either way, so the aggregate picture survives even
+        when the link is too costly to carry the detail.
+        """
+    def count(self, level: builtins.str) -> builtins.int:
+        r"""
+        Returns how many events have been seen at a level, shipped or not.
+        """
+    def snapshot(self) -> Snapshot:
+        r"""
+        Takes a snapshot of the counters to ship in place of the event stream.
         """
 
 @typing.final
@@ -1176,6 +1575,31 @@ class Router:
         """
 
 @typing.final
+class SealedMessage:
+    r"""
+    A message that has been sealed, with the header that travels beside it.
+    """
+    @property
+    def counter(self) -> builtins.int:
+        r"""
+        The counter naming this message within the session.
+        """
+    @property
+    def tag(self) -> builtins.list[builtins.int]:
+        r"""
+        The tag over the ciphertext and its associated data.
+        """
+    @property
+    def ciphertext(self) -> builtins.list[builtins.int]:
+        r"""
+        The encrypted message.
+        """
+    def __new__(cls, counter: builtins.int, tag: typing.Sequence[builtins.int], ciphertext: typing.Sequence[builtins.int]) -> SealedMessage:
+        r"""
+        Rebuilds a sealed message from the parts that arrived over the wire.
+        """
+
+@typing.final
 class SeenPackets:
     r"""
     A memory of recently seen packets, so a node relays each one only once.
@@ -1204,6 +1628,37 @@ class SeenPackets:
         """
 
 @typing.final
+class Session:
+    r"""
+    A confidential, tamper-evident, replay-protected channel with one peer.
+    """
+    def __new__(cls, local: AgreementKey, peer_public_key: typing.Sequence[builtins.int], salt: typing.Sequence[builtins.int], role: builtins.str) -> Session:
+        r"""
+        Establishes a session with a peer.
+        
+        Both devices call this with the same salt and opposite roles, and arrive
+        at the same key without either sending it. The salt is a fresh
+        per-session value exchanged in the clear; reusing one with the same pair
+        of keys reuses the session key, so it must change each session.
+        """
+    def seal(self, plaintext: typing.Sequence[builtins.int], aad: typing.Sequence[builtins.int] = b'') -> SealedMessage:
+        r"""
+        Seals a message for the peer.
+        
+        The associated data is authenticated but not encrypted, so it stays
+        readable on the wire yet cannot be altered: a device identifier or a
+        routing header belongs there.
+        """
+    def open(self, sealed: SealedMessage, aad: typing.Sequence[builtins.int] = b'') -> builtins.list[builtins.int]:
+        r"""
+        Opens a message from the peer, returning the plaintext.
+        
+        Raises if the counter repeats or is older than the replay window still
+        tracks, and if the tag does not authenticate. Nothing readable is ever
+        returned from a message that failed either check.
+        """
+
+@typing.final
 class SlipDecoder:
     r"""
     Reassembles whole SLIP frames from the chunks a serial port delivers.
@@ -1227,6 +1682,38 @@ class SlipDecoder:
         """
 
 @typing.final
+class SlotRecord:
+    r"""
+    The record a device keeps about one slot, durable across a reboot.
+    """
+    @property
+    def state(self) -> builtins.str:
+        r"""
+        The state of the slot, by name.
+        """
+    @property
+    def sequence(self) -> builtins.int:
+        r"""
+        The sequence number of the image in the slot.
+        """
+    @property
+    def size(self) -> builtins.int:
+        r"""
+        The length of the image in bytes.
+        """
+    @property
+    def digest(self) -> builtins.list[builtins.int]:
+        r"""
+        The digest of the image.
+        """
+    @property
+    def written(self) -> builtins.int:
+        r"""
+        How many bytes have been stored, which is where a resumed transfer picks
+        up.
+        """
+
+@typing.final
 class Smoother:
     r"""
     Smooths a noisy reading by weighting each new sample against the running value.
@@ -1247,6 +1734,47 @@ class Smoother:
     def reset(self) -> None:
         r"""
         Clears the smoother back to its initial state.
+        """
+
+@typing.final
+class Snapshot:
+    r"""
+    A count of everything a reporter has seen, cheap enough to ship anywhere.
+    """
+    @property
+    def trace(self) -> builtins.int:
+        r"""
+        How many events were seen at trace level.
+        """
+    @property
+    def debug(self) -> builtins.int:
+        r"""
+        How many events were seen at debug level.
+        """
+    @property
+    def info(self) -> builtins.int:
+        r"""
+        How many events were seen at info level.
+        """
+    @property
+    def warn(self) -> builtins.int:
+        r"""
+        How many events were seen at warn level.
+        """
+    @property
+    def error(self) -> builtins.int:
+        r"""
+        How many events were seen at error level.
+        """
+    @property
+    def emitted(self) -> builtins.int:
+        r"""
+        How many events passed the filter and were shipped.
+        """
+    @property
+    def dropped(self) -> builtins.int:
+        r"""
+        How many events the filter dropped.
         """
 
 @typing.final
@@ -1357,6 +1885,93 @@ class Trend:
     def push(self, reading: builtins.float) -> None:
         r"""
         Adds a reading.
+        """
+
+@typing.final
+class Updater:
+    r"""
+    A device slots, and the rules applied to what is offered for them.
+    """
+    @property
+    def slot_count(self) -> builtins.int:
+        r"""
+        How many slots this device has.
+        """
+    @property
+    def installed_sequence(self) -> builtins.int:
+        r"""
+        The highest sequence number the device already holds.
+        """
+    @property
+    def delegation(self) -> typing.Optional[Delegation]:
+        r"""
+        The delegation this updater currently honours, or `None` when releases
+        must be signed by the anchor itself.
+        """
+    def __new__(cls, vendor_id: typing.Sequence[builtins.int], class_id: typing.Sequence[builtins.int], anchor_public_key: typing.Sequence[builtins.int], slot_count: builtins.int, slot_capacity: builtins.int) -> Updater:
+        r"""
+        Creates an updater for a device with `slot_count` slots of
+        `slot_capacity` bytes each, trusting `anchor_public_key` as the root of
+        every decision about who may update it.
+        """
+    def slot_record(self, slot: builtins.int) -> SlotRecord:
+        r"""
+        Reads what the device believes about one slot.
+        """
+    def provision(self, slot: builtins.int, sequence: builtins.int) -> None:
+        r"""
+        Records that a slot already holds a confirmed image at a sequence number.
+        
+        This is how a device that shipped with firmware says what it is running,
+        so the rollback rule has something to compare against.
+        """
+    def adopt(self, envelope: typing.Sequence[builtins.int], now: typing.Optional[builtins.int] = None) -> Delegation:
+        r"""
+        Adopts a delegation, so releases signed by the key it names are accepted.
+        """
+    def stage(self, envelope: typing.Sequence[builtins.int], image: typing.Sequence[builtins.int], now: typing.Optional[builtins.int] = None) -> builtins.int:
+        r"""
+        Checks a manifest and stages an image that is already held whole,
+        returning the slot it went into.
+        """
+    def begin(self, envelope: typing.Sequence[builtins.int], now: typing.Optional[builtins.int] = None) -> builtins.int:
+        r"""
+        Checks a manifest and opens the slot it names for a transfer in pieces.
+        
+        Every check that can be made without the image runs here, so a release
+        that is not for this device, would roll it back, or does not fit is
+        refused before a byte of it is accepted. The envelope is remembered until
+        `finish`, and each call after this one reopens the transfer from what the
+        slot records, which is the same path a device takes after a reset.
+        """
+    def write(self, chunk: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Takes the next piece of an image opened with `begin`.
+        """
+    def progress(self) -> Progress:
+        r"""
+        Reports how much of an opened image has arrived.
+        """
+    def finish(self) -> builtins.int:
+        r"""
+        Finishes an opened image and marks the slot bootable if it matched,
+        returning the slot now holding it.
+        """
+    def on_boot(self) -> BootDecision:
+        r"""
+        Decides what to run, and records that decision before returning it.
+        
+        Call this once per boot, before jumping to an image. A staged image
+        becomes pending here, so a device that resets before confirming reverts
+        on the next call rather than trying a broken image forever.
+        """
+    def confirm(self) -> builtins.int:
+        r"""
+        Confirms the pending image, so it will be run from now on.
+        """
+    def revert(self) -> builtins.int:
+        r"""
+        Fails the pending image and goes back to the confirmed one.
         """
 
 @typing.final
@@ -1492,6 +2107,14 @@ def decode_delta_samples(bytes: typing.Sequence[builtins.int]) -> builtins.list[
     Decodes a delta-encoded buffer back into its integer samples.
     """
 
+def decode_manifest(data: typing.Sequence[builtins.int]) -> Manifest:
+    r"""
+    Reads a manifest body back from its bytes.
+    
+    This reads what a manifest claims; it proves nothing about who wrote it. Use
+    `verify_envelope` to read one whose signature has been checked.
+    """
+
 def distance_between(from_latitude: builtins.float, from_longitude: builtins.float, to_latitude: builtins.float, to_longitude: builtins.float) -> builtins.float:
     r"""
     Returns the great-circle distance between two coordinates, in metres.
@@ -1542,9 +2165,34 @@ def encode_delta_samples(samples: typing.Sequence[builtins.int]) -> bytes:
     Delta-encodes a series of integer samples into a compact buffer.
     """
 
+def encode_manifest(manifest: Manifest) -> builtins.list[builtins.int]:
+    r"""
+    Encodes the body of a manifest, which is the part a signature covers.
+    """
+
+def envelope_body(data: typing.Sequence[builtins.int]) -> builtins.list[builtins.int]:
+    r"""
+    Copies out the signed body of an envelope, without checking the signature.
+    
+    This is what a gateway relays onward unchanged.
+    """
+
 def fingerprint(public_key: typing.Sequence[builtins.int]) -> builtins.str:
     r"""
     Returns the short hex fingerprint of a public key.
+    """
+
+def hkdf_sha256_expand(salt: typing.Sequence[builtins.int], ikm: typing.Sequence[builtins.int], info: typing.Sequence[builtins.int], length: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Expands input keying material into `length` bytes bound to `info`.
+    """
+
+def hmac_sha256_digest(key: typing.Sequence[builtins.int], message: typing.Sequence[builtins.int]) -> builtins.list[builtins.int]:
+    r"""
+    Computes a keyed hash over a message.
+    
+    This is the primitive a host uses to authenticate a pairing exchange or a
+    single command, where a whole session would be more than the job needs.
     """
 
 def i2c_address_frame(address: builtins.int, ten_bit: builtins.bool, read: builtins.bool) -> bytes:
@@ -1625,6 +2273,11 @@ def j1939_decode(id: builtins.int, extended: builtins.bool) -> typing.Optional[J
 def json_to_cbor_bytes(json: typing.Sequence[builtins.int]) -> bytes:
     r"""
     Converts a JSON document into its CBOR encoding, which is typically smaller.
+    """
+
+def link_cost_threshold(cost: builtins.str) -> builtins.str:
+    r"""
+    Returns the level a named link cost calls for.
     """
 
 def lorawan_parse_header(bytes: typing.Sequence[builtins.int]) -> LorawanHeader:
@@ -1730,6 +2383,11 @@ def modbus_write_single_register(address: builtins.int, register: builtins.int, 
     Builds a write-single-register request frame (function `0x06`).
     """
 
+def open_delegation(data: typing.Sequence[builtins.int], anchor_public_key: typing.Sequence[builtins.int]) -> Delegation:
+    r"""
+    Opens a signed delegation against the anchor that should have signed it.
+    """
+
 def pca9685_channel_register(channel: builtins.int) -> builtins.int:
     r"""
     Returns the first of a PCA9685 channel's four consecutive registers.
@@ -1808,6 +2466,16 @@ def routing_default_capacity() -> builtins.int:
     Returns a routing table size for a caller with no reason to choose one.
     """
 
+def sign_delegation(delegation: Delegation, anchor: DeviceIdentity) -> builtins.list[builtins.int]:
+    r"""
+    Signs a delegation, naming a release key the anchor stands behind.
+    """
+
+def sign_manifest(manifest: Manifest, author: DeviceIdentity) -> builtins.list[builtins.int]:
+    r"""
+    Signs a manifest into the envelope that is offered to a device.
+    """
+
 def slip_decode(frame: typing.Sequence[builtins.int]) -> bytes:
     r"""
     Reads the payload back out of a SLIP frame.
@@ -1843,12 +2511,37 @@ def stepper_steps_for_degrees(degrees: builtins.float, steps_per_revolution: bui
     Returns how many steps a rotation of `degrees` takes on a given motor.
     """
 
+def update_format_raw() -> builtins.int:
+    r"""
+    The payload format meaning the payload is the image itself, byte for byte.
+    """
+
+def update_structure_version() -> builtins.int:
+    r"""
+    The manifest structure version this build writes.
+    """
+
 def verify(public_key: typing.Sequence[builtins.int], payload: typing.Sequence[builtins.int], signature: typing.Sequence[builtins.int]) -> builtins.bool:
     r"""
     Verifies that a signature covers a payload and was made by a public key.
     
     Returns `False` when the payload was altered or was signed by a different
     device, and raises only when an argument is the wrong length.
+    """
+
+def verify_audit_chain(public_key: typing.Sequence[builtins.int], entries: typing.Sequence[AuditEntry]) -> builtins.bool:
+    r"""
+    Checks a whole chain that has already arrived.
+    
+    Returns `False` if any entry fails to follow the one before it or carries a
+    signature that does not hold.
+    """
+
+def verify_envelope(data: typing.Sequence[builtins.int], public_key: typing.Sequence[builtins.int]) -> Manifest:
+    r"""
+    Verifies an envelope against a key and reads the manifest inside it.
+    
+    Raises when the signature is not from that key.
     """
 
 def version() -> builtins.str:

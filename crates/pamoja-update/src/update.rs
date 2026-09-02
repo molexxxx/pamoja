@@ -318,7 +318,9 @@ impl<S: SlotStore> Updater<S> {
     /// A slow radio can spend half an hour on a single image, so a link that drops
     /// near the end must not mean starting again. If the slot already holds part of
     /// exactly this image, the transfer picks up where it stopped; anything else
-    /// starts over, because mixing two images produces neither.
+    /// starts over, because mixing two images produces neither. An image whose last
+    /// byte arrived but which was never settled counts as picking up where it
+    /// stopped, so a reset in that gap costs nothing.
     ///
     /// # Arguments
     ///
@@ -342,7 +344,7 @@ impl<S: SlotStore> Updater<S> {
         let resumable = record.state == SlotState::Receiving
             && record.digest == manifest.digest
             && record.size == manifest.size
-            && record.written < manifest.size;
+            && record.written <= manifest.size;
 
         if !resumable {
             return self.open(manifest);

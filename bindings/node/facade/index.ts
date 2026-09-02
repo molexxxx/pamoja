@@ -8,9 +8,10 @@
  *
  * Each capability also has its own entry point (`@pamoja/core/mqtt`,
  * `/security`, `/codec`, `/kit`, `/serial`, `/modbus`, `/can`, `/gpio`,
- * `/sensors`, `/actuators`, `/lora`, `/lorawan`, `/mesh`, `/routing`) for
- * callers who want only one, and the generated low-level surface remains
- * available at `@pamoja/core/raw`.
+ * `/sensors`, `/actuators`, `/lora`, `/lorawan`, `/mesh`, `/routing`,
+ * `/audit`, `/session`, `/update`, `/power`, `/telemetry`) for callers who
+ * want only one, and the generated low-level surface remains available at
+ * `@pamoja/core/raw`.
  *
  * @packageDocumentation
  */
@@ -46,10 +47,12 @@ export {
   WINDOW_CAPACITY,
 } from './kit'
 
-// The field-I/O capabilities are namespaced rather than flattened: their
-// operations are named for their protocol ("frame", "raw", "parseFrame"), which
-// only reads unambiguously with the protocol in front of it.
+// The field-I/O, radio, and operational capabilities are namespaced rather than
+// flattened: their names are ordinary words ("frame", "Session", "Level",
+// "Manifest") that only read unambiguously with the capability in front of them.
 export * as actuators from './actuators'
+
+export * as audit from './audit'
 
 export * as can from './can'
 
@@ -63,8 +66,16 @@ export * as mesh from './mesh'
 
 export * as modbus from './modbus'
 
+export * as power from './power'
+
 export * as routing from './routing'
 
 export * as sensors from './sensors'
 
+export * as session from './session'
+
 export * as serial from './serial'
+
+export * as telemetry from './telemetry'
+
+export * as update from './update'

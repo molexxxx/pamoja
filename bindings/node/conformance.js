@@ -20,14 +20,19 @@ const {
   Calibration,
   Geofence,
   deadband,
+  audit,
   can,
   gpio,
   lora,
   lorawan,
   mesh,
   modbus,
+  power,
   routing,
   serial: serialFraming,
+  session,
+  telemetry,
+  update,
   actuators,
   sensors,
   Window,
@@ -954,8 +959,279 @@ function networkVectors() {
   );
 }
 
+
+// A signed, chained log: the records, and what breaks the chain.
+function auditVectors() {
+  const vector = VECTORS.audit;
+  const keeper = new DeviceIdentity(unhex(vector.seed));
+  assert.strictEqual(
+    keeper.publicKey().toString("hex"),
+    vector.publicKey,
+    "the key a chain is checked against",
+  );
+
+  const log = new audit.AuditLog(keeper);
+  const entries = [];
+  for (const want of vector.entries) {
+    const entry = log.append(Buffer.from(want.payload));
+    assert.strictEqual(Number(entry.index), want.index, "the index");
+    assert.strictEqual(
+      Buffer.from(entry.previous).toString("hex"),
+      want.previous,
+      "each record carries the hash of the one before it",
+    );
+    assert.strictEqual(Buffer.from(entry.digest).toString("hex"), want.digest, "the digest");
+    assert.strictEqual(
+      Buffer.from(entry.signature).toString("hex"),
+      want.signature,
+      "the signature",
+    );
+    assert.strictEqual(
+      entry.toBytes().toString("hex"),
+      want.bytes,
+      "a record encodes the same in every language",
+    );
+    entries.push(entry);
+  }
+
+  assert.ok(
+    audit.verifyChain(keeper.publicKey(), entries),
+    "an untouched chain verifies",
+  );
+  assert.ok(
+    !audit.verifyChain(keeper.publicKey(), [
+      entries[0],
+      entries[1],
+      audit.AuditEntry.fromBytes(unhex(vector.tampered)),
+    ]),
+    "and an altered record breaks it",
+  );
+
+  const resumed = audit.AuditLog.resume(keeper, entries[2]);
+  const afterReboot = resumed.append(Buffer.from(vector.resumed.payload));
+  assert.strictEqual(Number(afterReboot.index), vector.resumed.index, "a reboot leaves no gap");
+  assert.strictEqual(afterReboot.toBytes().toString("hex"), vector.resumed.bytes);
+}
+
+// A secured channel: the agreed keys, the sealed bytes, and the refusals.
+function sessionVectors() {
+  const vector = VECTORS.session;
+  const node = new session.AgreementKey(unhex(vector.nodeSeed));
+  const gateway = new session.AgreementKey(unhex(vector.gatewaySeed));
+
+  assert.strictEqual(node.publicKey().toString("hex"), vector.nodePublicKey, "the node key");
+  assert.strictEqual(
+    gateway.publicKey().toString("hex"),
+    vector.gatewayPublicKey,
+    "the gateway key",
+  );
+
+  const salt = unhex(vector.salt);
+  const aad = Buffer.from(vector.aad);
+  const uplink = new session.Session(node, gateway.publicKey(), salt, session.Role.Initiator);
+  const downlink = new session.Session(gateway, node.publicKey(), salt, session.Role.Responder);
+
+  for (const want of vector.messages) {
+    const message = uplink.seal(Buffer.from(want.plaintext), aad);
+    assert.strictEqual(message.counter, want.counter, "the counter");
+    assert.strictEqual(message.tag.toString("hex"), want.tag, "the tag");
+    assert.strictEqual(
+      message.ciphertext.toString("hex"),
+      want.ciphertext,
+      "the same key and counter produce the same bytes everywhere",
+    );
+    assert.strictEqual(
+      downlink.open(message, aad).toString(),
+      want.plaintext,
+      "the peer recovers the reading",
+    );
+  }
+
+  const first = vector.messages[0];
+  const replayed = {
+    counter: first.counter,
+    tag: unhex(first.tag),
+    ciphertext: unhex(first.ciphertext),
+  };
+  assert.throws(
+    () => downlink.open(replayed, aad),
+    /repeat|replay/i,
+    "a repeated counter is refused",
+  );
+
+  const fresh = new session.Session(gateway, node.publicKey(), salt, session.Role.Responder);
+  assert.throws(
+    () => fresh.open(replayed, Buffer.from(vector.wrongAad)),
+    /authenticat/i,
+    "and associated data that does not match fails authentication",
+  );
+
+  assert.strictEqual(
+    session
+      .hmacSha256(Buffer.from(vector.hmac.key), Buffer.from(vector.hmac.message))
+      .toString("hex"),
+    vector.hmac.digest,
+    "the keyed hash",
+  );
+  assert.strictEqual(
+    session
+      .hkdfSha256(
+        Buffer.from(vector.hkdf.salt),
+        Buffer.from(vector.hkdf.ikm),
+        Buffer.from(vector.hkdf.info),
+        vector.hkdf.length,
+      )
+      .toString("hex"),
+    vector.hkdf.output,
+    "the expansion",
+  );
+}
+
+// A signed release: the manifest bytes, the envelope, and the slot lifecycle.
+function updateVectors() {
+  const vector = VECTORS.update;
+  const publisher = new DeviceIdentity(unhex(vector.publisherSeed));
+  assert.strictEqual(
+    publisher.publicKey().toString("hex"),
+    vector.publisherPublicKey,
+    "the key a device trusts",
+  );
+
+  const manifest = {
+    structureVersion: vector.manifest.structureVersion,
+    sequence: vector.manifest.sequence,
+    vendorId: unhex(vector.vendorId),
+    classId: unhex(vector.classId),
+    format: vector.manifest.format,
+    storage: vector.manifest.storage,
+    digest: unhex(vector.manifest.digest),
+    size: vector.manifest.size,
+    expires: vector.manifest.expires,
+  };
+  const image = Buffer.alloc(vector.imageLen, vector.imageByte);
+
+  assert.strictEqual(
+    update.encodeManifest(manifest).toString("hex"),
+    vector.body,
+    "a manifest encodes the same in every language",
+  );
+
+  const envelope = update.signManifest(manifest, publisher);
+  assert.strictEqual(envelope.toString("hex"), vector.envelope, "the signed envelope");
+  assert.strictEqual(
+    update.verifyEnvelope(envelope, publisher.publicKey()).digest.toString("hex"),
+    vector.manifest.digest,
+    "which verifies against the key that signed it",
+  );
+  assert.throws(
+    () => update.verifyEnvelope(unhex(vector.forgedEnvelope), publisher.publicKey()),
+    /signature/i,
+    "a release signed by another key is refused",
+  );
+
+  const anchor = new DeviceIdentity(unhex(vector.anchorSeed));
+  assert.strictEqual(
+    update
+      .signDelegation(
+        {
+          epoch: vector.delegation.epoch,
+          releaseKey: unhex(vector.delegation.releaseKey),
+          expires: vector.delegation.expires,
+        },
+        anchor,
+      )
+      .toString("hex"),
+    vector.delegation.envelope,
+    "the signed delegation",
+  );
+
+  const life = vector.lifecycle;
+  const fleet = new update.Updater(
+    unhex(vector.vendorId),
+    unhex(vector.classId),
+    publisher.publicKey(),
+    2,
+    4096,
+  );
+  fleet.provision(0, 1);
+  assert.strictEqual(fleet.begin(envelope), life.staged, "the release names the same slot");
+  for (let at = 0; at < image.length; at += life.chunk) {
+    fleet.write(image.subarray(at, at + life.chunk));
+  }
+
+  assert.strictEqual(fleet.finish(), life.staged, "and the image matched what was promised");
+
+  const boot = fleet.onBoot();
+  assert.strictEqual(boot.action, life.boot, "the boot decision");
+  assert.strictEqual(boot.slot, life.bootSlot, "the slot it is about");
+  assert.strictEqual(fleet.confirm(), life.confirmed, "the confirmed slot");
+
+  const record = fleet.slotRecord(life.confirmed);
+  assert.strictEqual(record.state, life.state, "the slot state");
+  assert.strictEqual(record.written, life.written, "the bytes written");
+}
+
+// How a work interval stretches as a battery falls.
+function powerVectors() {
+  const vector = VECTORS.power;
+  const plan = new power.PowerPlan(
+    vector.plan.activeUs,
+    vector.plan.saverUs,
+    vector.plan.criticalUs,
+  );
+  close(plan.saverBelow, vector.plan.saverBelow, "the saver threshold");
+  close(plan.criticalBelow, vector.plan.criticalBelow, "the critical threshold");
+
+  vector.charges.forEach((soc, at) => {
+    assert.strictEqual(plan.mode(soc), vector.modes[at], `the mode at ${soc}`);
+    assert.strictEqual(
+      plan.modeWhileCharging(soc, true),
+      vector.charging[at],
+      `the mode while charging at ${soc}`,
+    );
+    assert.strictEqual(plan.intervalUs(soc), vector.intervalsUs[at], `the interval at ${soc}`);
+  });
+
+  const duty = power.DutyCycle.fromFraction(vector.duty.periodUs, vector.duty.fraction);
+  assert.strictEqual(duty.activeUs, vector.duty.activeUs, "the time awake");
+  assert.strictEqual(duty.sleepUs, vector.duty.sleepUs, "the time asleep");
+}
+
+// What a reporter ships and what it drops once the link gets expensive.
+function telemetryVectors() {
+  const vector = VECTORS.telemetry;
+  vector.costs.forEach((cost, at) => {
+    assert.strictEqual(
+      telemetry.linkCostThreshold(cost),
+      vector.thresholds[at],
+      `the bar ${cost} sets`,
+    );
+  });
+
+  const reporter = new telemetry.Reporter(telemetry.Level.Trace);
+  reporter.adaptTo(vector.adaptedTo);
+  vector.levels.forEach((level, at) => {
+    const shipped = reporter.record({ level, code: "vector" });
+    assert.strictEqual(
+      shipped !== null,
+      vector.shipped[at],
+      `whether event ${at} is worth its bytes`,
+    );
+  });
+
+  const snapshot = reporter.snapshot();
+  for (const key of ["trace", "debug", "info", "warn", "error", "emitted", "dropped"]) {
+    assert.strictEqual(snapshot[key], vector.snapshot[key], `the ${key} count`);
+  }
+}
+
 lorawanVectors();
 headerVectors();
 networkVectors();
+auditVectors();
+sessionVectors();
+updateVectors();
+powerVectors();
+telemetryVectors();
 
 console.log("conformance ok");

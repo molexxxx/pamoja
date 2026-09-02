@@ -66,6 +66,19 @@ class DeviceIdentity:
         """
         return cls(seed)
 
+    @staticmethod
+    def native(identity: "DeviceIdentity") -> _NativeDeviceIdentity:
+        """Hand the generated identity to another capability facade.
+
+        The audit and update capabilities sign with an identity this class
+        holds, and the generated bindings take the generated type. This is how
+        the two meet without a caller ever seeing it.
+
+        :param identity: The identity to unwrap.
+        :returns: The generated identity inside it.
+        """
+        return identity._native
+
     @property
     def public_key(self) -> bytes:
         """The 32-byte public key matching this identity, safe to share."""

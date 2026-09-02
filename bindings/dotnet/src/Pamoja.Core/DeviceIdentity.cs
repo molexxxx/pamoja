@@ -49,6 +49,17 @@ public sealed class DeviceIdentity : IDisposable
             "device identity");
     }
 
+    /// <summary>Runs a native call that needs this identity handle.</summary>
+    /// <remarks>
+    /// The audit and update capabilities sign with an identity this class holds,
+    /// and the native calls take its handle. This is how the two meet without a
+    /// caller ever seeing it.
+    /// </remarks>
+    /// <typeparam name="TResult">What the native call returns.</typeparam>
+    /// <param name="call">The native call to make.</param>
+    /// <returns>Whatever the native call returned.</returns>
+    internal TResult Use<TResult>(Func<IntPtr, TResult> call) => _handle.Use(call);
+
     /// <summary>Gets the public key matching this identity, which is safe to share.</summary>
     /// <exception cref="PamojaException">The native call failed.</exception>
     public byte[] PublicKey

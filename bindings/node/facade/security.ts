@@ -64,6 +64,19 @@ export class DeviceIdentity {
   }
 
   /**
+   * Hands the generated identity to another capability facade.
+   *
+   * The audit and update capabilities sign with an identity this class holds,
+   * and the generated bindings take the generated type. This is how the two
+   * meet without a caller ever seeing it.
+   *
+   * @internal
+   */
+  static native(identity: DeviceIdentity): NativeDeviceIdentity {
+    return identity.#native
+  }
+
+  /**
    * Returns the public key matching this identity, which is safe to share.
    *
    * @returns The 32-byte public key.
