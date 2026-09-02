@@ -305,6 +305,9 @@ impl PyTransport {
     /// Whether this transport is still holdable, or has been handed on.
     #[getter]
     fn is_available(&self) -> bool {
-        self.inner.lock().map(|held| held.is_some()).unwrap_or(false)
+        self.inner
+            .lock()
+            .map(|held| held.is_some())
+            .unwrap_or(false)
     }
 }

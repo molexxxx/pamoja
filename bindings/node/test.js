@@ -620,12 +620,16 @@ async function asyncTransports() {
   assert.ok(spent.isAvailable, "a fresh transport is holdable");
   await rungs.rung(spent);
   assert.ok(!spent.isAvailable, "and is not once it has been added");
-  assert.throws(() => rungs.rung(spent), /already added/, "adding it twice is refused");
+  await assert.rejects(
+    () => rungs.rung(spent),
+    /already added/,
+    "adding it twice is refused",
+  );
 
   // One publisher, many subscribers, in one process.
   const hub = new bus.EventBus(8);
-  const first = hub.subscribe();
-  const second = hub.subscribe();
+  const first = await hub.subscribe();
+  const second = await hub.subscribe();
   await hub.publish(Buffer.from("battery.low"));
   assert.strictEqual((await first.next()).toString(), "battery.low");
   assert.strictEqual((await second.next()).toString(), "battery.low");
@@ -648,13 +652,13 @@ async function asyncTransports() {
   for (const command of [0.0, 0.5, 1.0]) {
     await actuator.apply(command);
   }
-  assert.strictEqual(actuator.length, 3, "every command was recorded");
-  assert.deepStrictEqual(actuator.commands, [0.0, 0.5, 1.0]);
+  assert.strictEqual(await actuator.length(), 3, "every command was recorded");
+  assert.deepStrictEqual(await actuator.commands(), [0.0, 0.5, 1.0]);
 
   const robot = new sim.SimulatedRobot(1.0);
   await robot.apply({ vx: 1.0, vy: 0.0, omega: 0.0 });
   assert.ok(
-    Math.abs(robot.pose.x - 1.0) < 1e-5,
+    Math.abs((await robot.pose()).x - 1.0) < 1e-5,
     "one second at one metre a second puts it a metre ahead",
   );
 }

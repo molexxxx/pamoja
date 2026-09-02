@@ -56,10 +56,10 @@ mod session;
 mod sim;
 #[cfg(feature = "sync")]
 mod sync;
-#[cfg(feature = "mqtt")]
-mod transport;
 #[cfg(feature = "telemetry")]
 mod telemetry;
+#[cfg(feature = "mqtt")]
+mod transport;
 #[cfg(feature = "update")]
 mod update;
 

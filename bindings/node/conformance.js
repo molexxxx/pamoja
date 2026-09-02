@@ -1300,7 +1300,7 @@ async function simulationVectors() {
   const robot = new sim.SimulatedRobot(vector.robot.dt);
   for (const want of vector.robot.poses) {
     await robot.apply({ vx: vector.robot.vx, vy: 0, omega: vector.robot.omega });
-    const pose = robot.pose;
+    const pose = await robot.pose();
     close(pose.x, want.x, "the x it reached");
     close(pose.y, want.y, "the y it reached");
     close(pose.theta, want.theta, "the heading it holds");

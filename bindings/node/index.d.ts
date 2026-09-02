@@ -193,7 +193,7 @@ export declare class EventBus {
    * The new endpoint sees events published from now on, not those already
    * sent, so subscribe before publishing anything it needs to see.
    */
-  subscribe(): EventBus
+  subscribe(): Promise<EventBus>
   /** Publishes an event to every subscriber. */
   publish(event: Buffer): Promise<void>
   /** Waits for the next event on this endpoint, or `null` once the bus closes. */
@@ -252,7 +252,7 @@ export declare class Ladder {
    * last, because a send takes the first rung that accepts it. The transport
    * is consumed.
    */
-  rung(transport: Transport): void
+  rung(transport: Transport): Promise<void>
   /**
    * Connects every rung, so a send can be tried against each in turn.
    *
@@ -471,9 +471,9 @@ export declare class RecordingActuatorHandle {
   /** Applies a command, which is recorded rather than acted on. */
   apply(command: number): Promise<void>
   /** The commands recorded so far, oldest first. */
-  get commands(): Array<number>
+  commands(): Promise<Array<number>>
   /** How many commands have been recorded. */
-  get length(): number
+  length(): Promise<number>
 }
 
 /**
@@ -628,7 +628,7 @@ export declare class SimulatedRobot {
   /** Drives the robot for one time step. */
   apply(command: Twist): Promise<void>
   /** Where the robot has got to. */
-  get pose(): Pose
+  pose(): Promise<Pose>
 }
 
 /** A sensor that invents plausible readings. */

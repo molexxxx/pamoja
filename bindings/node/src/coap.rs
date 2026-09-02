@@ -63,10 +63,7 @@ impl CoapClient {
     pub async fn connect(&self) -> napi::Result<()> {
         let inner = Arc::clone(&self.inner);
         let mut transport = inner.lock().await;
-        transport
-            .connect()
-            .await
-            .map_err(to_napi)
+        transport.connect().await.map_err(to_napi)
     }
 
     /// Sends a payload to a resource path.
@@ -75,10 +72,7 @@ impl CoapClient {
         let inner = Arc::clone(&self.inner);
         let payload = payload.to_vec();
         let mut transport = inner.lock().await;
-        transport
-            .send(&topic, &payload)
-            .await
-            .map_err(to_napi)
+        transport.send(&topic, &payload).await.map_err(to_napi)
     }
 
     /// Observes a resource path, so messages published to it reach `recv`.
@@ -86,10 +80,7 @@ impl CoapClient {
     pub async fn subscribe(&self, topic: String) -> napi::Result<()> {
         let inner = Arc::clone(&self.inner);
         let mut transport = inner.lock().await;
-        transport
-            .subscribe(&topic)
-            .await
-            .map_err(to_napi)
+        transport.subscribe(&topic).await.map_err(to_napi)
     }
 
     /// Waits for the next message on an observed path, or `null` once the
@@ -118,10 +109,7 @@ impl CoapClient {
     pub async fn disconnect(&self) -> napi::Result<()> {
         let inner = Arc::clone(&self.inner);
         let mut transport = inner.lock().await;
-        transport
-            .disconnect()
-            .await
-            .map_err(to_napi)
+        transport.disconnect().await.map_err(to_napi)
     }
 }
 

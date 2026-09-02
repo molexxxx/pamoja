@@ -132,9 +132,9 @@ impl Store {
             MemoryStore::with_capacity(capacity)
         };
         Self {
-            inner: SyncMutex::new(Some(SharedStore(Arc::new(Mutex::new(
-                StoreKind::Memory(store),
-            ))))),
+            inner: SyncMutex::new(Some(SharedStore(Arc::new(Mutex::new(StoreKind::Memory(
+                store,
+            )))))),
         }
     }
 
@@ -143,9 +143,9 @@ impl Store {
     fn file(dir: String) -> PyResult<Self> {
         FileStore::open(dir)
             .map(|store| Self {
-                inner: SyncMutex::new(Some(SharedStore(Arc::new(Mutex::new(
-                    StoreKind::File(store),
-                ))))),
+                inner: SyncMutex::new(Some(SharedStore(Arc::new(Mutex::new(StoreKind::File(
+                    store,
+                )))))),
             })
             .map_err(to_pyerr)
     }
@@ -187,7 +187,10 @@ impl Store {
     /// Whether this store is still holdable, or has been given to a ladder.
     #[getter]
     fn is_available(&self) -> bool {
-        self.inner.lock().map(|held| held.is_some()).unwrap_or(false)
+        self.inner
+            .lock()
+            .map(|held| held.is_some())
+            .unwrap_or(false)
     }
 }
 

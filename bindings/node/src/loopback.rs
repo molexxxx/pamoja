@@ -70,10 +70,7 @@ impl LoopbackTransport {
     pub async fn connect(&self) -> napi::Result<()> {
         let inner = Arc::clone(&self.inner);
         let mut transport = inner.lock().await;
-        transport
-            .connect()
-            .await
-            .map_err(to_napi)
+        transport.connect().await.map_err(to_napi)
     }
 
     /// Publishes a payload to a topic on the broker.
@@ -82,10 +79,7 @@ impl LoopbackTransport {
         let inner = Arc::clone(&self.inner);
         let payload = payload.to_vec();
         let mut transport = inner.lock().await;
-        transport
-            .send(&topic, &payload)
-            .await
-            .map_err(to_napi)
+        transport.send(&topic, &payload).await.map_err(to_napi)
     }
 
     /// Subscribes this link to a topic.
@@ -93,10 +87,7 @@ impl LoopbackTransport {
     pub async fn subscribe(&self, topic: String) -> napi::Result<()> {
         let inner = Arc::clone(&self.inner);
         let mut transport = inner.lock().await;
-        transport
-            .subscribe(&topic)
-            .await
-            .map_err(to_napi)
+        transport.subscribe(&topic).await.map_err(to_napi)
     }
 
     /// Waits for the next message on a subscribed topic, or `null` once the link

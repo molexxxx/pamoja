@@ -9,10 +9,13 @@
 //! The degraded link lives with the transports, as `Transport.degraded`, because
 //! it wraps a transport rather than standing alone.
 
+use std::sync::Arc;
+
 use napi_derive::napi;
 use pamoja_core::{Actuator as CoreActuator, Sensor as CoreSensor};
 use pamoja_kit::{Pose as CorePose, Twist as CoreTwist};
-use pamoja_sim::{Replay as CoreReplay, RecordingActuator, SimRobot as CoreRobot, SimSensor};
+use pamoja_sim::{RecordingActuator, Replay as CoreReplay, SimRobot as CoreRobot, SimSensor};
+use tokio::sync::Mutex;
 
 /// Where a robot is and which way it faces.
 #[napi(object)]
@@ -39,7 +42,7 @@ pub struct Twist {
 /// A sensor that invents plausible readings.
 #[napi]
 pub struct SimulatedSensor {
-    inner: SimSensor,
+    inner: Arc<Mutex<SimSensor>>,
 }
 
 #[napi]
@@ -67,17 +70,21 @@ impl SimulatedSensor {
         if let Some(seed) = seed {
             sensor = sensor.with_seed(seed);
         }
-        Self { inner: sensor }
+        Self {
+            inner: Arc::new(Mutex::new(sensor)),
+        }
     }
 
     /// Takes the next reading.
     #[napi]
-    pub async unsafe fn read(&mut self) -> napi::Result<f64> {
+    pub async fn read(&self) -> napi::Result<f64> {
         self.inner
+            .lock()
+            .await
             .read()
             .await
             .map(f64::from)
-            .map_err(|error| napi::Error::from_reason(error.to_string()))
+            .map_err(to_napi)
     }
 }
 
@@ -87,7 +94,7 @@ impl SimulatedSensor {
 /// does with readings that actually happened rather than ones it invented.
 #[napi]
 pub struct Replay {
-    inner: CoreReplay,
+    inner: Arc<Mutex<CoreReplay>>,
 }
 
 #[napi]
@@ -101,29 +108,31 @@ impl Replay {
     pub fn new(readings: Vec<f64>, repeating: Option<bool>) -> Self {
         let values: Vec<f32> = readings.into_iter().map(|value| value as f32).collect();
         Self {
-            inner: if repeating.unwrap_or(false) {
+            inner: Arc::new(Mutex::new(if repeating.unwrap_or(false) {
                 CoreReplay::repeating(values)
             } else {
                 CoreReplay::new(values)
-            },
+            })),
         }
     }
 
     /// Takes the next reading.
     #[napi]
-    pub async unsafe fn read(&mut self) -> napi::Result<f64> {
+    pub async fn read(&self) -> napi::Result<f64> {
         self.inner
+            .lock()
+            .await
             .read()
             .await
             .map(f64::from)
-            .map_err(|error| napi::Error::from_reason(error.to_string()))
+            .map_err(to_napi)
     }
 }
 
 /// An actuator that records every command instead of acting on one.
 #[napi]
 pub struct RecordingActuatorHandle {
-    inner: RecordingActuator<f32>,
+    inner: Arc<Mutex<RecordingActuator<f32>>>,
 }
 
 #[napi]
@@ -132,29 +141,38 @@ impl RecordingActuatorHandle {
     #[napi(constructor)]
     pub fn new() -> Self {
         Self {
-            inner: RecordingActuator::new(),
+            inner: Arc::new(Mutex::new(RecordingActuator::new())),
         }
     }
 
     /// Applies a command, which is recorded rather than acted on.
     #[napi]
-    pub async unsafe fn apply(&mut self, command: f64) -> napi::Result<()> {
+    pub async fn apply(&self, command: f64) -> napi::Result<()> {
         self.inner
+            .lock()
+            .await
             .apply(command as f32)
             .await
-            .map_err(|error| napi::Error::from_reason(error.to_string()))
+            .map_err(to_napi)
     }
 
     /// The commands recorded so far, oldest first.
-    #[napi(getter)]
-    pub fn commands(&self) -> Vec<f64> {
-        self.inner.log().commands().into_iter().map(f64::from).collect()
+    #[napi]
+    pub async fn commands(&self) -> Vec<f64> {
+        self.inner
+            .lock()
+            .await
+            .log()
+            .commands()
+            .into_iter()
+            .map(f64::from)
+            .collect()
     }
 
     /// How many commands have been recorded.
-    #[napi(getter)]
-    pub fn length(&self) -> u32 {
-        self.inner.log().len() as u32
+    #[napi]
+    pub async fn length(&self) -> u32 {
+        self.inner.lock().await.log().len() as u32
     }
 }
 
@@ -167,7 +185,7 @@ impl Default for RecordingActuatorHandle {
 /// A robot that moves only in arithmetic.
 #[napi]
 pub struct SimulatedRobot {
-    inner: CoreRobot,
+    inner: Arc<Mutex<CoreRobot>>,
 }
 
 #[napi]
@@ -184,35 +202,33 @@ impl SimulatedRobot {
             theta: 0.0,
         });
         Self {
-            inner: CoreRobot::starting_at(
+            inner: Arc::new(Mutex::new(CoreRobot::starting_at(
                 CorePose::new(pose.x as f32, pose.y as f32, pose.theta as f32),
                 dt as f32,
-            ),
+            ))),
         }
     }
 
     /// Drives the robot for one time step.
     #[napi]
-    pub async unsafe fn apply(&mut self, command: Twist) -> napi::Result<()> {
-        let twist = CoreTwist::new(
-            command.vx as f32,
-            command.vy as f32,
-            command.omega as f32,
-        );
-        self.inner
-            .apply(twist)
-            .await
-            .map_err(|error| napi::Error::from_reason(error.to_string()))
+    pub async fn apply(&self, command: Twist) -> napi::Result<()> {
+        let twist = CoreTwist::new(command.vx as f32, command.vy as f32, command.omega as f32);
+        self.inner.lock().await.apply(twist).await.map_err(to_napi)
     }
 
     /// Where the robot has got to.
-    #[napi(getter)]
-    pub fn pose(&self) -> Pose {
-        let pose = self.inner.pose();
+    #[napi]
+    pub async fn pose(&self) -> Pose {
+        let pose = self.inner.lock().await.pose();
         Pose {
             x: f64::from(pose.x),
             y: f64::from(pose.y),
             theta: f64::from(pose.theta),
         }
     }
+}
+
+/// Maps a core error onto the one JavaScript sees.
+fn to_napi(error: pamoja_core::Error) -> napi::Error {
+    napi::Error::from_reason(error.to_string())
 }

@@ -161,7 +161,6 @@ impl CoreTransport for Kind {
     }
 }
 
-
 /// A message that arrived on a subscribed topic.
 #[napi(object)]
 pub struct TransportMessage {
@@ -177,22 +176,28 @@ pub struct TransportMessage {
 /// A transport handed on is spent: calling anything on it afterwards throws.
 #[napi]
 pub struct Transport {
-    inner: Option<Kind>,
+    inner: std::sync::Mutex<Option<Kind>>,
 }
 
 impl Transport {
     /// Wraps a transport kind in the class JavaScript holds.
     pub(crate) fn wrap(kind: Kind) -> Self {
-        Self { inner: Some(kind) }
+        Self {
+            inner: std::sync::Mutex::new(Some(kind)),
+        }
     }
 
     /// Takes the transport, leaving this handle spent.
-    pub(crate) fn take(&mut self) -> napi::Result<Kind> {
-        self.inner.take().ok_or_else(|| {
-            napi::Error::from_reason(
-                "this transport was already added to a ladder or a wrapper",
-            )
-        })
+    pub(crate) fn take(&self) -> napi::Result<Kind> {
+        self.inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("this transport is poisoned"))?
+            .take()
+            .ok_or_else(|| {
+                napi::Error::from_reason(
+                    "this transport was already added to a ladder or a wrapper",
+                )
+            })
     }
 }
 
@@ -223,7 +228,7 @@ impl Transport {
     /// transport is consumed.
     #[cfg(feature = "loopback")]
     #[napi(factory)]
-    pub fn faulty(inner: &mut Transport, failures: u32) -> napi::Result<Self> {
+    pub fn faulty(inner: &Transport, failures: u32) -> napi::Result<Self> {
         Ok(Self::wrap(Kind::Faulty(pamoja_loopback::Faulty::new(
             AnyTransport::new(inner.take()?),
             failures as usize,
@@ -240,12 +245,7 @@ impl Transport {
     /// @param down - how many sends it then stays down for.
     #[cfg(feature = "sim")]
     #[napi(factory)]
-    pub fn degraded(
-        inner: &mut Transport,
-        drop_every: u32,
-        up: u32,
-        down: u32,
-    ) -> napi::Result<Self> {
+    pub fn degraded(inner: &Transport, drop_every: u32, up: u32, down: u32) -> napi::Result<Self> {
         let mut link = pamoja_sim::DegradedLink::new(AnyTransport::new(inner.take()?));
         if drop_every != 0 {
             link = link.drop_every(drop_every);
@@ -259,6 +259,6 @@ impl Transport {
     /// Whether this transport is still holdable, or has been handed on.
     #[napi(getter)]
     pub fn is_available(&self) -> bool {
-        self.inner.is_some()
+        self.inner.lock().is_ok_and(|slot| slot.is_some())
     }
 }

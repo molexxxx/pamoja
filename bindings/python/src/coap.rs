@@ -38,7 +38,14 @@ impl CoapClient {
         ack_timeout_ms: Option<u32>,
         max_retransmits: Option<u32>,
     ) -> PyResult<Self> {
-        let config = settings(host, port, bind, reliability, ack_timeout_ms, max_retransmits)?;
+        let config = settings(
+            host,
+            port,
+            bind,
+            reliability,
+            ack_timeout_ms,
+            max_retransmits,
+        )?;
         Ok(Self {
             inner: Arc::new(Mutex::new(CoapTransport::new(config))),
         })

@@ -46,11 +46,7 @@ impl Ladder {
     /// Add the cheapest, most-preferred link first and the costliest fallback
     /// last, because a send takes the first rung that accepts it. The transport
     /// is consumed.
-    fn rung<'py>(
-        &self,
-        py: Python<'py>,
-        transport: &PyTransport,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    fn rung<'py>(&self, py: Python<'py>, transport: &PyTransport) -> PyResult<Bound<'py, PyAny>> {
         let transport = transport.take()?;
         let inner = Arc::clone(&self.inner);
         pyo3_async_runtimes::tokio::future_into_py(py, async move {

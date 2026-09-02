@@ -9,10 +9,13 @@
 //! so this one carries bytes. That is the shape the binding already exchanges,
 //! and a caller who wants structure encodes it with `toCbor` on the way in.
 
+use std::sync::Arc;
+
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_bus::BroadcastBus;
 use pamoja_core::EventBus as CoreEventBus;
+use tokio::sync::Mutex;
 
 /// One endpoint on an event bus.
 ///
@@ -21,7 +24,7 @@ use pamoja_core::EventBus as CoreEventBus;
 /// existed.
 #[napi]
 pub struct EventBus {
-    inner: BroadcastBus<Vec<u8>>,
+    inner: Arc<Mutex<BroadcastBus<Vec<u8>>>>,
 }
 
 #[napi]
@@ -33,7 +36,7 @@ impl EventBus {
     #[napi(constructor)]
     pub fn new(capacity: u32) -> Self {
         Self {
-            inner: BroadcastBus::new(capacity as usize),
+            inner: Arc::new(Mutex::new(BroadcastBus::new(capacity as usize))),
         }
     }
 
@@ -42,9 +45,10 @@ impl EventBus {
     /// The new endpoint sees events published from now on, not those already
     /// sent, so subscribe before publishing anything it needs to see.
     #[napi]
-    pub fn subscribe(&self) -> EventBus {
+    pub async fn subscribe(&self) -> EventBus {
+        let taken = self.inner.lock().await.subscribe();
         Self {
-            inner: self.inner.subscribe(),
+            inner: Arc::new(Mutex::new(taken)),
         }
     }
 
@@ -52,18 +56,27 @@ impl EventBus {
     #[napi]
     pub async fn publish(&self, event: Buffer) -> napi::Result<()> {
         self.inner
+            .lock()
+            .await
             .publish(event.to_vec())
             .await
-            .map_err(|error| napi::Error::from_reason(error.to_string()))
+            .map_err(to_napi)
     }
 
     /// Waits for the next event on this endpoint, or `null` once the bus closes.
     #[napi]
-    pub async unsafe fn next(&mut self) -> napi::Result<Option<Buffer>> {
+    pub async fn next(&self) -> napi::Result<Option<Buffer>> {
         self.inner
+            .lock()
+            .await
             .next_event()
             .await
             .map(|event| event.map(Buffer::from))
-            .map_err(|error| napi::Error::from_reason(error.to_string()))
+            .map_err(to_napi)
     }
+}
+
+/// Maps a core error onto the one JavaScript sees.
+fn to_napi(error: pamoja_core::Error) -> napi::Error {
+    napi::Error::from_reason(error.to_string())
 }
