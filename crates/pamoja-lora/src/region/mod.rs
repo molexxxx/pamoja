@@ -402,6 +402,9 @@ pub struct ChannelPlan {
     /// The downlink data rate for each uplink data rate and RX1 offset, as
     /// `[uplink data rate][offset]`.
     pub rx1_data_rate_offsets: &'static [&'static [u8]],
+    /// The same mapping under a downlink dwell-time limit, where the region
+    /// publishes a second table for it.
+    pub rx1_data_rate_offsets_dwell_limited: Option<&'static [&'static [u8]]>,
     /// The highest RX1 data-rate offset the region allows.
     pub max_rx1_data_rate_offset: u8,
     /// The fixed frequency the second receive window listens on, in hertz.
@@ -590,6 +593,27 @@ impl ChannelPlan {
             return None;
         }
         self.rx1_data_rate_offsets
+            .get(usize::from(uplink_data_rate))?
+            .get(usize::from(offset))
+            .copied()
+    }
+
+    /// Returns the first receive window's data rate under a dwell-time limit.
+    ///
+    /// # Arguments
+    ///
+    /// * `uplink_data_rate` - the data rate the uplink was sent at.
+    /// * `offset` - the `RX1DROffset` in force.
+    ///
+    /// # Returns
+    ///
+    /// `Some(data_rate)`, or `None` if the region publishes no dwell-limited
+    /// mapping or either argument is outside what it defines.
+    pub fn rx1_data_rate_dwell_limited(&self, uplink_data_rate: u8, offset: u8) -> Option<u8> {
+        if offset > self.max_rx1_data_rate_offset {
+            return None;
+        }
+        self.rx1_data_rate_offsets_dwell_limited?
             .get(usize::from(uplink_data_rate))?
             .get(usize::from(offset))
             .copied()

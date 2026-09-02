@@ -445,6 +445,7 @@ fn a_custom_plan_answers_every_question_a_named_one_does() {
         tx_power_step_db: 2,
         max_tx_power_index: 7,
         rx1_data_rate_offsets: &RX1,
+        rx1_data_rate_offsets_dwell_limited: None,
         max_rx1_data_rate_offset: 0,
         rx2_frequency_hz: 915_000_000,
         rx2_data_rate: 0,
@@ -474,4 +475,246 @@ fn a_custom_plan_answers_every_question_a_named_one_does() {
         plan.max_payload(1, false).expect("DR1"),
         MaxPayload::new(230, 222)
     );
+}
+
+#[cfg(feature = "au915")]
+mod au915 {
+    use super::*;
+
+    /// RP002-1.0.5 Tables 39, 44 and 46.
+    #[test]
+    fn the_dwell_limit_shrinks_what_the_slow_data_rates_carry() {
+        let plan = Region::Au915.plan();
+        assert!(plan.has_dwell_time_limit);
+
+        // With no dwell limit the two slowest rates carry a small frame.
+        assert_eq!(
+            plan.max_payload(0, true).expect("DR0"),
+            MaxPayload::new(59, 51)
+        );
+        // Inside 400 ms they carry nothing at all.
+        assert_eq!(
+            plan.max_payload_dwell_limited(0),
+            None,
+            "DR0 under a dwell limit"
+        );
+        assert_eq!(
+            plan.max_payload_dwell_limited(1),
+            None,
+            "DR1 under a dwell limit"
+        );
+        assert_eq!(
+            plan.max_payload_dwell_limited(2)
+                .expect("DR2 under a dwell limit"),
+            MaxPayload::new(19, 11)
+        );
+
+        assert_eq!(
+            plan.uplink_data_rate(8),
+            None,
+            "uplink DR8 is reserved here"
+        );
+        assert_eq!(
+            plan.rx1_data_rate(0, 0),
+            Some(8),
+            "RX1 starts at downlink DR8"
+        );
+        assert_eq!(plan.rx2(), (923_300_000, 8));
+        assert_eq!(plan.channel_frequency_hz(0), Some(915_200_000));
+        assert_eq!(plan.channel_frequency_hz(64), Some(915_900_000));
+        assert_eq!(plan.default_channel_count(), 72);
+    }
+}
+
+#[cfg(feature = "cn470")]
+mod cn470 {
+    use super::*;
+
+    /// RP002-1.0.5 Tables 50, 54 and 56.
+    #[test]
+    fn the_slowest_data_rate_carries_nothing_in_this_band() {
+        let plan = Region::Cn470.plan();
+        assert_eq!(
+            plan.max_payload(0, true),
+            None,
+            "one second on air leaves no room for a frame at SF12"
+        );
+        assert_eq!(
+            plan.max_payload(1, true).expect("DR1"),
+            MaxPayload::new(31, 23)
+        );
+        assert_eq!(
+            plan.uplink_data_rate(6).expect("DR6").modulation,
+            Modulation::LoRa {
+                spreading_factor: 7,
+                bandwidth_hz: 500_000
+            }
+        );
+        assert_eq!(
+            plan.rx1_data_rate(1, 5),
+            Some(1),
+            "the DR1 row never falls to DR0"
+        );
+        assert_eq!(
+            plan.rx2(),
+            (486_900_000, 1),
+            "RX2 runs at DR1 here, not DR0"
+        );
+        assert_eq!(plan.default_max_eirp_dbm, 19);
+    }
+}
+
+#[cfg(feature = "as923")]
+mod as923 {
+    use super::*;
+
+    /// RP002-1.0.5 Tables 74 and 75, the two RX1 mappings.
+    #[test]
+    fn a_downlink_dwell_limit_selects_a_different_rx1_mapping() {
+        let plan = Region::As923.plan();
+        assert_eq!(
+            plan.rx1_data_rate(0, 0),
+            Some(0),
+            "no dwell limit reaches DR0"
+        );
+        assert_eq!(
+            plan.rx1_data_rate_dwell_limited(0, 0),
+            Some(2),
+            "under a dwell limit the floor rises to DR2"
+        );
+        assert_eq!(
+            plan.rx1_data_rate(5, 7),
+            Some(7),
+            "the offsets run to 7 here"
+        );
+        assert_eq!(plan.rx1_data_rate_dwell_limited(5, 2), Some(3));
+        assert_eq!(plan.rx2(), (923_200_000, 2));
+        assert_eq!(plan.channel_frequency_hz(0), Some(923_200_000));
+        assert_eq!(plan.channel_frequency_hz(1), Some(923_400_000));
+        assert_eq!(plan.duty_cycle_permille(923_200_000), Some(10), "1%");
+    }
+}
+
+#[cfg(feature = "kr920")]
+mod kr920 {
+    use super::*;
+
+    /// RP002-1.0.5 Tables 77, 80 and 87.
+    #[test]
+    fn the_power_ceiling_steps_across_the_band() {
+        let plan = Region::Kr920.plan();
+        assert_eq!(
+            plan.max_eirp_dbm(921_500_000),
+            10,
+            "the lower sub-band allows 10 dBm"
+        );
+        assert_eq!(
+            plan.max_eirp_dbm(922_500_000),
+            14,
+            "and the upper one 14 dBm"
+        );
+        assert_eq!(
+            plan.uplink_data_rate(6),
+            None,
+            "DR6 through DR11 are reserved"
+        );
+        assert_eq!(
+            plan.uplink_data_rate(13).expect("DR13").modulation,
+            Modulation::LoRa {
+                spreading_factor: 5,
+                bandwidth_hz: 125_000
+            }
+        );
+        assert_eq!(plan.rx2(), (921_900_000, 0));
+        assert_eq!(plan.channel_frequency_hz(0), Some(922_100_000));
+    }
+}
+
+#[cfg(feature = "in865")]
+mod in865 {
+    use super::*;
+
+    /// RP002-1.0.5 Tables 89, 91 and 98.
+    #[test]
+    fn the_channels_are_not_evenly_spaced_and_the_offsets_run_to_seven() {
+        let plan = Region::In865.plan();
+        assert_eq!(plan.channel_frequency_hz(0), Some(865_062_500));
+        assert_eq!(plan.channel_frequency_hz(1), Some(865_402_500));
+        assert_eq!(plan.channel_frequency_hz(2), Some(865_985_000));
+        assert_eq!(plan.default_channel_count(), 3);
+
+        assert_eq!(
+            plan.rx1_data_rate(0, 7),
+            Some(2),
+            "offset 7 is allowed here"
+        );
+        assert_eq!(plan.rx1_data_rate(0, 8), None);
+        assert_eq!(plan.uplink_data_rate(6), None, "DR6 is reserved");
+        assert_eq!(
+            plan.uplink_data_rate(7).expect("DR7").modulation,
+            Modulation::Fsk {
+                bitrate_bps: 50_000
+            }
+        );
+        assert_eq!(plan.rx2(), (866_550_000, 2));
+        assert_eq!(plan.beacon.data_rate, 4, "India beacons at DR4");
+    }
+}
+
+#[cfg(feature = "ru864")]
+mod ru864 {
+    use super::*;
+
+    /// RP002-1.0.5 Tables 100, 102 and 109.
+    #[test]
+    fn the_two_default_channels_and_split_beacon_match_the_specification() {
+        let plan = Region::Ru864.plan();
+        assert_eq!(plan.channel_frequency_hz(0), Some(868_900_000));
+        assert_eq!(plan.channel_frequency_hz(1), Some(869_100_000));
+        assert_eq!(plan.default_channel_count(), 2);
+        assert_eq!(plan.rx2(), (869_100_000, 0));
+        assert_eq!(
+            plan.beacon.frequency_hz, 869_100_000,
+            "the beacon and the ping slot sit on different frequencies here"
+        );
+        assert_eq!(plan.beacon.ping_slot_frequency_hz, 868_900_000);
+        assert_eq!(plan.duty_cycle_permille(869_100_000), Some(10), "1%");
+    }
+}
+
+/// Every compiled-in region answers the questions a caller asks of any of them.
+#[test]
+fn every_region_is_self_consistent() {
+    for region in Region::all() {
+        let plan = region.plan();
+        assert!(!plan.name.is_empty(), "{region:?} has a band name");
+        assert!(
+            plan.default_channel_count() > 0,
+            "{region:?} defines channels"
+        );
+        assert!(
+            plan.uplink_data_rate(0).is_some() || plan.name == "CN470-510",
+            "{region:?} defines DR0"
+        );
+        assert!(
+            plan.rx1_data_rate_offsets.len() <= plan.uplink_data_rates.len(),
+            "{region:?} has an RX1 row for no more than its uplink data rates"
+        );
+        for (index, row) in plan.rx1_data_rate_offsets.iter().enumerate() {
+            assert_eq!(
+                row.len(),
+                usize::from(plan.max_rx1_data_rate_offset) + 1,
+                "{region:?} DR{index} has one entry per allowed RX1 offset"
+            );
+        }
+        assert!(
+            plan.downlink_data_rate(plan.rx2_data_rate).is_some(),
+            "{region:?} RX2 names a data rate it defines"
+        );
+        assert_eq!(
+            plan.data_rate_backoff.len(),
+            plan.uplink_data_rates.len(),
+            "{region:?} has a back-off entry per uplink data rate"
+        );
+    }
 }
