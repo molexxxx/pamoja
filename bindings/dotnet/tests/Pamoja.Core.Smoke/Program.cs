@@ -666,6 +666,256 @@ static void ProfilesAndRobotics()
         "a redundant double wildcard canonizes away");
 }
 
+
+static void ConformProfile(JsonElement vector, double tolerance)
+{
+    JsonElement coldChain = vector.GetProperty("coldChain");
+    using var fridge = Profile.VaccineFridgeMonitor();
+    Assert(fridge.Name == coldChain.GetProperty("name").GetString(), "the preset name");
+    Assert(fridge.Topic == coldChain.GetProperty("topic").GetString(), "the publish topic");
+    AssertControl(fridge.Control, coldChain.GetProperty("control"), tolerance);
+
+    JsonElement power = coldChain.GetProperty("power");
+    Assert(
+        fridge.Power.ActiveSecs == power.GetProperty("activeSecs").GetUInt64(),
+        "the active cadence");
+    Close(fridge.Power.SaverBelow, (float)power.GetProperty("saverBelow").GetDouble(), tolerance,
+        "the saver threshold");
+
+    using (Controller control = fridge.Controller())
+    {
+        AssertReactions(control, coldChain.GetProperty("reactions"), tolerance);
+    }
+
+    JsonElement draining = vector.GetProperty("draining");
+    using var well = Profile.WellLevel();
+    Assert(well.Name == draining.GetProperty("name").GetString(), "the preset name");
+    AssertControl(well.Control, draining.GetProperty("control"), tolerance);
+
+    using (Controller level = well.Controller())
+    {
+        AssertReactions(level, draining.GetProperty("reactions"), tolerance);
+    }
+
+    using (Controller observer = Controller.Monitor())
+    {
+        JsonElement observed = vector.GetProperty("observed");
+        Reaction seen = observer.Evaluate((float)observed.GetProperty("reading").GetDouble());
+        Assert(seen.Actuator is null, "a monitoring profile drives no output");
+        Assert(seen.Alert is null, "and raises nothing");
+        Assert(
+            observed.GetProperty("alert").GetProperty("kind").GetString() == "None",
+            "which is what the vectors record");
+    }
+}
+
+static void AssertReactions(Controller control, JsonElement reactions, double tolerance)
+{
+    foreach (JsonElement want in reactions.EnumerateArray())
+    {
+        double reading = want.GetProperty("reading").GetDouble();
+        Reaction reaction = control.Evaluate((float)reading);
+
+        JsonElement actuator = want.GetProperty("actuator");
+        bool? expected = actuator.ValueKind == JsonValueKind.Null
+            ? null
+            : actuator.GetBoolean();
+        Assert(reaction.Actuator == expected, $"the output setting at {reading}");
+
+        JsonElement alert = want.GetProperty("alert");
+        string kind = alert.GetProperty("kind").GetString()!;
+        if (kind == "None")
+        {
+            Assert(reaction.Alert is null, $"no alert at {reading}");
+            continue;
+        }
+
+        Assert(reaction.Alert is not null, $"an alert at {reading}");
+        Assert(
+            reaction.Alert!.Value.Kind.ToString() == kind,
+            $"the alert raised at {reading}");
+        switch (kind)
+        {
+            case "OutOfRange":
+                Close(
+                    reaction.Alert.Value.Reading ?? 0f,
+                    (float)alert.GetProperty("reading").GetDouble(),
+                    tolerance,
+                    "the offending reading");
+                break;
+            case "RunningOut":
+                Assert(
+                    reaction.Alert.Value.Samples == alert.GetProperty("samples").GetUInt32(),
+                    "the samples until empty");
+                break;
+            case "ChangingFast":
+                Close(
+                    reaction.Alert.Value.Rate ?? 0f,
+                    (float)alert.GetProperty("rate").GetDouble(),
+                    tolerance,
+                    "the rate of change");
+                break;
+        }
+    }
+}
+
+static void AssertControl(ControlPolicy policy, JsonElement want, double tolerance)
+{
+    string kind = want.GetProperty("kind").GetString()!;
+    Assert(policy.Kind.ToString() == kind, "the policy kind");
+    switch (kind)
+    {
+        case "Setpoint":
+            Close(policy.Setpoint ?? 0f, (float)want.GetProperty("setpoint").GetDouble(), tolerance,
+                "the setpoint");
+            Close(policy.Hysteresis ?? 0f, (float)want.GetProperty("hysteresis").GetDouble(), tolerance,
+                "the hysteresis");
+            Assert(policy.Cooling == want.GetProperty("cooling").GetBoolean(), "the direction");
+            Close(policy.SafeBand ?? 0f, (float)want.GetProperty("safeBand").GetDouble(), tolerance,
+                "the safe band");
+            break;
+        case "Level":
+            Close(policy.Empty ?? 0f, (float)want.GetProperty("empty").GetDouble(), tolerance,
+                "the empty level");
+            Assert(
+                policy.WarnWithin == want.GetProperty("warnWithin").GetUInt32(),
+                "the warning horizon");
+            break;
+        case "Surge":
+            Assert(policy.Rising == want.GetProperty("rising").GetBoolean(), "the direction");
+            Close(policy.Limit ?? 0f, (float)want.GetProperty("limit").GetDouble(), tolerance,
+                "the limit");
+            break;
+    }
+}
+
+static void ConformRos2(JsonElement vector, double tolerance)
+{
+    foreach (JsonElement want in vector.GetProperty("names").EnumerateArray())
+    {
+        string name = want.GetProperty("name").GetString()!;
+        Assert(
+            Ros2.IsValidName(name) == want.GetProperty("valid").GetBoolean(),
+            $"whether {name} obeys the ROS 2 rules");
+        Assert(
+            Ros2.IsFullyQualified(name) == want.GetProperty("fullyQualified").GetBoolean(),
+            $"whether {name} is fully qualified");
+    }
+
+    foreach (JsonElement want in vector.GetProperty("ddsTopics").EnumerateArray())
+    {
+        string fqn = want.GetProperty("fqn").GetString()!;
+        EntityKind kind = Enum.Parse<EntityKind>(want.GetProperty("kind").GetString()!);
+        Assert(
+            Ros2.DdsTopic(fqn, kind) == want.GetProperty("topic").GetString(),
+            $"the DDS topic for {fqn}");
+    }
+
+    foreach (JsonProperty prefix in vector.GetProperty("prefixes").EnumerateObject())
+    {
+        EntityKind kind = Enum.Parse<EntityKind>(prefix.Name);
+        Assert(Ros2.PrefixFor(kind) == prefix.Value.GetString(), $"the {prefix.Name} prefix");
+    }
+
+    JsonElement mangled = vector.GetProperty("mangled");
+    Assert(
+        Ros2.PercentMangle(mangled.GetProperty("name").GetString()!)
+            == mangled.GetProperty("mangled").GetString(),
+        "the mangled name");
+
+    foreach (JsonElement want in vector.GetProperty("typeNames").EnumerateArray())
+    {
+        string rosType = want.GetProperty("rosType").GetString()!;
+        Assert(
+            Ros2.DdsTypeName(rosType) == want.GetProperty("ddsType").GetString(),
+            $"the DDS type name for {rosType}");
+    }
+
+    JsonElement typeHash = vector.GetProperty("typeHash");
+    string text = typeHash.GetProperty("text").GetString()!;
+    Assert(
+        Convert.ToHexString(Ros2.TypeHashDigest(text)!).ToLowerInvariant()
+            == typeHash.GetProperty("digest").GetString(),
+        "the digest a RIHS01 string carries");
+
+    JsonElement key = vector.GetProperty("entityKey");
+    Assert(
+        Ros2.EntityKey(
+            key.GetProperty("domainId").GetUInt32(),
+            key.GetProperty("fqn").GetString()!,
+            key.GetProperty("rosType").GetString()!,
+            text) == key.GetProperty("key").GetString(),
+        "the Zenoh key an rmw_zenoh peer publishes on");
+
+    JsonElement twist = vector.GetProperty("twist");
+    double[] linear = Doubles(twist.GetProperty("linear"));
+    double[] angular = Doubles(twist.GetProperty("angular"));
+    var command = new Ros2Twist(
+        new Vector3(linear[0], linear[1], linear[2]),
+        new Vector3(angular[0], angular[1], angular[2]));
+
+    byte[] encoded = Ros2.TwistToCdr(command);
+    Assert(
+        Convert.ToHexString(encoded).ToLowerInvariant() == twist.GetProperty("cdr").GetString(),
+        "a twist encodes to the same CDR everywhere");
+    Assert(Ros2.TwistFromCdr(encoded) == command, "and decodes back unchanged");
+
+    JsonElement mixed = vector.GetProperty("mixedWidths");
+    using var reader = new CdrReader(
+        Convert.FromHexString(mixed.GetProperty("cdr").GetString()!));
+    Assert(reader.ReadUInt32() == mixed.GetProperty("word").GetUInt32(), "the first word");
+    Close(
+        (float)(reader.ReadDouble() ?? 0),
+        (float)mixed.GetProperty("double").GetDouble(),
+        tolerance,
+        "an eight-byte field keeps its alignment");
+    Assert(
+        reader.ReadInt32() == mixed.GetProperty("signed").GetInt32(),
+        "and the field after it is not skewed");
+}
+
+static double[] Doubles(JsonElement array)
+{
+    var values = new List<double>();
+    foreach (JsonElement entry in array.EnumerateArray())
+    {
+        values.Add(entry.GetDouble());
+    }
+
+    return values.ToArray();
+}
+
+static void ConformZenoh(JsonElement vector)
+{
+    foreach (JsonElement want in vector.GetProperty("expressions").EnumerateArray())
+    {
+        string key = want.GetProperty("key").GetString()!;
+        Assert(
+            KeyExpression.IsValid(key) == want.GetProperty("valid").GetBoolean(),
+            $"whether {key} is well formed");
+        Assert(
+            KeyExpression.IsCanon(key) == want.GetProperty("canon").GetBoolean(),
+            $"whether {key} is already canonical");
+    }
+
+    foreach (JsonElement want in vector.GetProperty("canonized").EnumerateArray())
+    {
+        string key = want.GetProperty("key").GetString()!;
+        Assert(
+            KeyExpression.Canonize(key) == want.GetProperty("canonical").GetString(),
+            $"the canonical form of {key}");
+    }
+
+    foreach (JsonElement want in vector.GetProperty("matches").EnumerateArray())
+    {
+        string pattern = want.GetProperty("pattern").GetString()!;
+        string key = want.GetProperty("key").GetString()!;
+        Assert(
+            KeyExpression.Matches(pattern, key) == want.GetProperty("matches").GetBoolean(),
+            $"whether {pattern} selects {key}");
+    }
+}
+
 static void Assert(bool condition, string message)
 {
     if (!condition)
@@ -717,6 +967,9 @@ static void Conformance()
     ConformTelemetry(vectors.GetProperty("telemetry"));
     ConformLadder(vectors.GetProperty("ladder")).GetAwaiter().GetResult();
     ConformSimulation(vectors.GetProperty("simulation")).GetAwaiter().GetResult();
+    ConformProfile(vectors.GetProperty("profile"), tolerance);
+    ConformRos2(vectors.GetProperty("ros2"), tolerance);
+    ConformZenoh(vectors.GetProperty("zenoh"));
 
     Console.WriteLine("conformance ok");
 }

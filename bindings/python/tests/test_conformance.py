@@ -43,12 +43,15 @@ from pamoja import (
     mesh,
     modbus,
     power,
+    profile,
+    ros2,
     routing,
     sensors,
     serial,
     session,
     telemetry,
     update,
+    zenoh,
 )
 
 VECTORS = json.loads(
@@ -984,3 +987,135 @@ def test_simulation_vectors_match():
             assert reached.theta == pytest.approx(pose["theta"], abs=TOLERANCE)
 
     asyncio.run(run())
+
+
+def _assert_control(policy, want: dict) -> None:
+    """Checks a control policy against the flattened form the vectors carry."""
+    assert policy.kind == want["kind"]
+    if want["kind"] == "Setpoint":
+        assert policy.setpoint == pytest.approx(want["setpoint"], abs=TOLERANCE)
+        assert policy.hysteresis == pytest.approx(want["hysteresis"], abs=TOLERANCE)
+        assert policy.cooling == want["cooling"]
+        assert policy.safe_band == pytest.approx(want["safeBand"], abs=TOLERANCE)
+    elif want["kind"] == "Level":
+        assert policy.empty == pytest.approx(want["empty"], abs=TOLERANCE)
+        assert policy.warn_within == want["warnWithin"]
+    elif want["kind"] == "Surge":
+        assert policy.rising == want["rising"]
+        assert policy.limit == pytest.approx(want["limit"], abs=TOLERANCE)
+
+
+def _assert_reactions(control, reactions: list[dict]) -> None:
+    """Walks a controller through a recorded run and checks every decision."""
+    for want in reactions:
+        reaction = control.evaluate(want["reading"])
+        assert reaction.actuator == want["actuator"], (
+            f"the output setting at {want['reading']}"
+        )
+
+        kind = want["alert"]["kind"]
+        if kind == "None":
+            assert reaction.alert is None
+            continue
+
+        assert reaction.alert is not None
+        assert reaction.alert.kind == kind, f"the alert raised at {want['reading']}"
+        if kind == "OutOfRange":
+            assert reaction.alert.reading == pytest.approx(
+                want["alert"]["reading"], abs=TOLERANCE
+            )
+        elif kind == "RunningOut":
+            assert reaction.alert.samples == want["alert"]["samples"]
+        elif kind == "ChangingFast":
+            assert reaction.alert.rate == pytest.approx(
+                want["alert"]["rate"], abs=TOLERANCE
+            )
+
+
+def test_profile_vectors_match():
+    vector = VECTORS["profile"]
+
+    cold_chain = vector["coldChain"]
+    fridge = profile.Profile.vaccine_fridge_monitor()
+    assert fridge.name == cold_chain["name"]
+    assert fridge.topic == cold_chain["topic"]
+    _assert_control(fridge.control, cold_chain["control"])
+    assert fridge.power.active_secs == cold_chain["power"]["activeSecs"]
+    assert fridge.power.saver_below == pytest.approx(
+        cold_chain["power"]["saverBelow"], abs=TOLERANCE
+    )
+    _assert_reactions(fridge.controller(), cold_chain["reactions"])
+
+    draining = vector["draining"]
+    well = profile.Profile.well_level()
+    assert well.name == draining["name"]
+    _assert_control(well.control, draining["control"])
+    _assert_reactions(well.controller(), draining["reactions"])
+
+    observed = profile.Controller.monitor().evaluate(vector["observed"]["reading"])
+    assert observed.actuator is None, "a monitoring profile drives no output"
+    assert observed.alert is None
+    assert vector["observed"]["alert"]["kind"] == "None"
+
+
+def test_ros2_vectors_match():
+    vector = VECTORS["ros2"]
+
+    for want in vector["names"]:
+        assert ros2.is_valid_name(want["name"]) == want["valid"]
+        assert ros2.is_fully_qualified(want["name"]) == want["fullyQualified"]
+
+    for want in vector["ddsTopics"]:
+        assert ros2.dds_topic(want["fqn"], want["kind"]) == want["topic"]
+
+    for kind, prefix in vector["prefixes"].items():
+        assert ros2.prefix_for(kind) == prefix
+
+    assert ros2.percent_mangle(vector["mangled"]["name"]) == vector["mangled"]["mangled"]
+
+    for want in vector["typeNames"]:
+        assert ros2.dds_type_name(want["rosType"]) == want["ddsType"]
+
+    digest = ros2.type_hash_digest(vector["typeHash"]["text"])
+    assert bytes(digest).hex() == vector["typeHash"]["digest"]
+
+    key = vector["entityKey"]
+    assert (
+        ros2.entity_key(
+            key["domainId"], key["fqn"], key["rosType"], vector["typeHash"]["text"]
+        )
+        == key["key"]
+    )
+
+    twist = vector["twist"]
+    encoded = ros2.twist_to_cdr(tuple(twist["linear"]), tuple(twist["angular"]))
+    assert bytes(encoded).hex() == twist["cdr"], (
+        "a twist encodes to the same CDR everywhere"
+    )
+    linear, angular = ros2.twist_from_cdr(encoded)
+    assert linear == pytest.approx(tuple(twist["linear"]), abs=TOLERANCE)
+    assert angular == pytest.approx(tuple(twist["angular"]), abs=TOLERANCE)
+
+    mixed = vector["mixedWidths"]
+    reader = ros2.CdrReader(bytes.fromhex(mixed["cdr"]))
+    assert reader.read_u32() == mixed["word"]
+    assert reader.read_f64() == pytest.approx(mixed["double"], abs=TOLERANCE), (
+        "an eight-byte field keeps its alignment"
+    )
+    assert reader.read_i32() == mixed["signed"], (
+        "and the field after it is not skewed"
+    )
+
+
+def test_zenoh_vectors_match():
+    vector = VECTORS["zenoh"]
+
+    for want in vector["expressions"]:
+        assert zenoh.is_valid(want["key"]) == want["valid"]
+        assert zenoh.is_canon(want["key"]) == want["canon"]
+
+    for want in vector["canonized"]:
+        assert zenoh.canonize(want["key"]) == want["canonical"]
+
+    for want in vector["matches"]:
+        assert zenoh.matches(want["pattern"], want["key"]) == want["matches"]

@@ -29,6 +29,11 @@ use pamoja_lorawan::{Device, Downlink, FrameHeader, JoinGrant, JoinRequest, Sess
 use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
 use pamoja_modbus::{crc16, Adu, Pdu, Response};
 use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
+use pamoja_profile::{Alert, ControlSpec, Controller, PowerSchedule, Profile, Reaction};
+use pamoja_ros2::key::entity_key;
+use pamoja_ros2::msg::{CdrWriter, Twist as Ros2Twist, Vector3};
+use pamoja_ros2::name::{percent_mangle, EntityKind};
+use pamoja_ros2::typehash::TypeHash;
 use pamoja_routing::{DynamicRouter, Forward};
 use pamoja_security::DeviceIdentity;
 use pamoja_sensors::{ads1115, bme280, ds18b20, ina219};
@@ -41,6 +46,7 @@ use pamoja_update::{
     Boot, Delegation, Device as UpdateDevice, Manifest, MemoryStore, PayloadFormat, SlotState,
     SlotStore, Updater,
 };
+use pamoja_zenoh::keyexpr;
 use serde_json::{json, Value};
 
 /// The seed every identity vector is derived from.
@@ -122,6 +128,9 @@ fn main() {
         "telemetry": telemetry(),
         "ladder": ladder(),
         "simulation": simulation(),
+        "profile": profile(),
+        "ros2": ros2(),
+        "zenoh": zenoh(),
     });
 
     let path = repo_root().join("conformance").join("vectors.json");
@@ -1810,5 +1819,200 @@ fn simulation() -> Value {
                 "poses": poses,
             },
         })
+    })
+}
+
+/// The RIHS01 hash of `std_msgs/msg/String`, as the ROS 2 documentation prints it.
+const CHATTER_HASH: &str =
+    "RIHS01_df668c740482bbd48fb39d76a70dfd4bd59db1288021743503259e948f6b1a18";
+
+/// The readings a fridge controller is walked through, in order.
+const FRIDGE_READINGS: [f32; 5] = [9.0, 6.0, 5.0, 4.0, 1.0];
+
+/// The readings a well-level controller is walked through, in order.
+const WELL_READINGS: [f32; 4] = [80.0, 60.0, 40.0, 20.0];
+
+/// What a profile decides, so every binding reaches the same conclusion.
+fn profile() -> Value {
+    let fridge = Profile::vaccine_fridge_monitor();
+    let mut control = fridge.controller();
+    let cold_chain: Vec<Value> = FRIDGE_READINGS
+        .iter()
+        .map(|reading| reaction_value(*reading, control.evaluate(*reading)))
+        .collect();
+
+    let well = Profile::well_level();
+    let mut level = well.controller();
+    let draining: Vec<Value> = WELL_READINGS
+        .iter()
+        .map(|reading| reaction_value(*reading, level.evaluate(*reading)))
+        .collect();
+
+    let mut observer = Controller::monitor();
+    let observed = reaction_value(21.5, observer.evaluate(21.5));
+
+    json!({
+        "coldChain": {
+            "name": fridge.name,
+            "topic": fridge.topic,
+            "control": control_value(fridge.control),
+            "power": schedule_value(fridge.power),
+            "reactions": cold_chain,
+        },
+        "draining": {
+            "name": well.name,
+            "control": control_value(well.control),
+            "reactions": draining,
+        },
+        "observed": observed,
+    })
+}
+
+/// Flattens a control policy the way each binding exposes it.
+fn control_value(spec: ControlSpec) -> Value {
+    match spec {
+        ControlSpec::Setpoint {
+            setpoint,
+            hysteresis,
+            cooling,
+            safe_band,
+        } => json!({
+            "kind": "Setpoint",
+            "setpoint": setpoint,
+            "hysteresis": hysteresis,
+            "cooling": cooling,
+            "safeBand": safe_band,
+        }),
+        ControlSpec::Level { empty, warn_within } => json!({
+            "kind": "Level",
+            "empty": empty,
+            "warnWithin": warn_within,
+        }),
+        ControlSpec::Surge { rising, limit } => json!({
+            "kind": "Surge",
+            "rising": rising,
+            "limit": limit,
+        }),
+        ControlSpec::Monitor => json!({ "kind": "Monitor" }),
+    }
+}
+
+/// Flattens a sampling schedule the way each binding exposes it.
+fn schedule_value(schedule: PowerSchedule) -> Value {
+    json!({
+        "activeSecs": schedule.active_secs,
+        "saverSecs": schedule.saver_secs,
+        "criticalSecs": schedule.critical_secs,
+        "saverBelow": schedule.saver_below,
+        "criticalBelow": schedule.critical_below,
+    })
+}
+
+/// Flattens one decision, tagged with the reading that produced it.
+fn reaction_value(reading: f32, reaction: Reaction) -> Value {
+    let alert = match reaction.alert {
+        None => json!({ "kind": "None" }),
+        Some(Alert::OutOfRange { reading }) => json!({
+            "kind": "OutOfRange",
+            "reading": reading,
+        }),
+        Some(Alert::RunningOut { samples }) => json!({
+            "kind": "RunningOut",
+            "samples": samples,
+        }),
+        Some(Alert::ChangingFast { rate }) => json!({
+            "kind": "ChangingFast",
+            "rate": rate,
+        }),
+    };
+    json!({
+        "reading": reading,
+        "actuator": reaction.actuator,
+        "alert": alert,
+    })
+}
+
+/// The ROS 2 naming and encoding answers every binding must agree on.
+fn ros2() -> Value {
+    let hash = TypeHash::parse(CHATTER_HASH).expect("the documented chatter hash");
+    let twist = Ros2Twist {
+        linear: Vector3::new(1.5, 0.0, 0.0),
+        angular: Vector3::new(0.0, 0.0, -0.25),
+    };
+
+    let mut writer = CdrWriter::new();
+    writer.write_u32(7);
+    writer.write_f64(2.5);
+    writer.write_i32(-3);
+
+    json!({
+        "names": [
+            { "name": "/robot1/camera_left/image_raw", "valid": true, "fullyQualified": true },
+            { "name": "~/setpoint", "valid": true, "fullyQualified": false },
+            { "name": "/2foo", "valid": false, "fullyQualified": false },
+            { "name": "/foo/", "valid": false, "fullyQualified": false },
+        ],
+        "ddsTopics": [
+            { "fqn": "/robot1/cmd_vel", "kind": "Topic", "topic": "rt/robot1/cmd_vel" },
+            { "fqn": "/add_two_ints", "kind": "ServiceRequest", "topic": "rq/add_two_ints" },
+            { "fqn": "/add_two_ints", "kind": "ServiceResponse", "topic": "rr/add_two_ints" },
+        ],
+        "prefixes": {
+            "Topic": EntityKind::Topic.prefix(),
+            "ServiceRequest": EntityKind::ServiceRequest.prefix(),
+            "ServiceResponse": EntityKind::ServiceResponse.prefix(),
+        },
+        "mangled": {
+            "name": "/robot1/cmd_vel",
+            "mangled": percent_mangle("/robot1/cmd_vel"),
+        },
+        "typeNames": [
+            { "rosType": "std_msgs/msg/String", "ddsType": "std_msgs::msg::dds_::String_" },
+            { "rosType": "geometry_msgs/msg/Twist", "ddsType": "geometry_msgs::msg::dds_::Twist_" },
+        ],
+        "typeHash": {
+            "text": CHATTER_HASH,
+            "digest": hex(&hash.digest()),
+        },
+        "entityKey": {
+            "domainId": 0,
+            "fqn": "/chatter",
+            "rosType": "std_msgs/msg/String",
+            "key": entity_key(0, "/chatter", "std_msgs/msg/String", &hash)
+                .expect("the documented entity key"),
+        },
+        "twist": {
+            "linear": [twist.linear.x, twist.linear.y, twist.linear.z],
+            "angular": [twist.angular.x, twist.angular.y, twist.angular.z],
+            "cdr": hex(&twist.to_cdr()),
+        },
+        "mixedWidths": {
+            "word": 7,
+            "double": 2.5,
+            "signed": -3,
+            "cdr": hex(&writer.into_bytes()),
+        },
+    })
+}
+
+/// The key-expression answers every binding must agree on.
+fn zenoh() -> Value {
+    json!({
+        "expressions": [
+            { "key": "fleet/*/battery", "valid": true, "canon": true },
+            { "key": "fleet/**/battery", "valid": true, "canon": true },
+            { "key": "fleet/**/**/battery", "valid": true, "canon": false },
+            { "key": "fleet//battery", "valid": false, "canon": false },
+        ],
+        "canonized": [
+            { "key": "fleet/**/**/battery", "canonical": keyexpr::canonize("fleet/**/**/battery") },
+            { "key": "fleet/*/battery", "canonical": keyexpr::canonize("fleet/*/battery") },
+        ],
+        "matches": [
+            { "pattern": "fleet/*/battery", "key": "fleet/n7/battery", "matches": true },
+            { "pattern": "fleet/*/battery", "key": "fleet/n7/rack/battery", "matches": false },
+            { "pattern": "fleet/**/battery", "key": "fleet/n7/rack/battery", "matches": true },
+            { "pattern": "fleet/**", "key": "fleet/n7/battery", "matches": true },
+        ],
     })
 }

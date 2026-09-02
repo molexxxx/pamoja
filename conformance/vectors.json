@@ -1225,6 +1225,202 @@
       "saverUs": 300000000
     }
   },
+  "profile": {
+    "coldChain": {
+      "control": {
+        "cooling": true,
+        "hysteresis": 0.5,
+        "kind": "Setpoint",
+        "safeBand": 3.0,
+        "setpoint": 5.0
+      },
+      "name": "vaccine-fridge-monitor",
+      "power": {
+        "activeSecs": 60,
+        "criticalBelow": 0.20000000298023224,
+        "criticalSecs": 900,
+        "saverBelow": 0.5,
+        "saverSecs": 300
+      },
+      "reactions": [
+        {
+          "actuator": true,
+          "alert": {
+            "kind": "OutOfRange",
+            "reading": 9.0
+          },
+          "reading": 9.0
+        },
+        {
+          "actuator": true,
+          "alert": {
+            "kind": "None"
+          },
+          "reading": 6.0
+        },
+        {
+          "actuator": true,
+          "alert": {
+            "kind": "None"
+          },
+          "reading": 5.0
+        },
+        {
+          "actuator": false,
+          "alert": {
+            "kind": "None"
+          },
+          "reading": 4.0
+        },
+        {
+          "actuator": false,
+          "alert": {
+            "kind": "OutOfRange",
+            "reading": 1.0
+          },
+          "reading": 1.0
+        }
+      ],
+      "topic": "cold-chain/fridge/temperature"
+    },
+    "draining": {
+      "control": {
+        "empty": 0.5,
+        "kind": "Level",
+        "warnWithin": 6
+      },
+      "name": "well-level",
+      "reactions": [
+        {
+          "actuator": null,
+          "alert": {
+            "kind": "None"
+          },
+          "reading": 80.0
+        },
+        {
+          "actuator": null,
+          "alert": {
+            "kind": "RunningOut",
+            "samples": 3
+          },
+          "reading": 60.0
+        },
+        {
+          "actuator": null,
+          "alert": {
+            "kind": "RunningOut",
+            "samples": 2
+          },
+          "reading": 40.0
+        },
+        {
+          "actuator": null,
+          "alert": {
+            "kind": "RunningOut",
+            "samples": 1
+          },
+          "reading": 20.0
+        }
+      ]
+    },
+    "observed": {
+      "actuator": null,
+      "alert": {
+        "kind": "None"
+      },
+      "reading": 21.5
+    }
+  },
+  "ros2": {
+    "ddsTopics": [
+      {
+        "fqn": "/robot1/cmd_vel",
+        "kind": "Topic",
+        "topic": "rt/robot1/cmd_vel"
+      },
+      {
+        "fqn": "/add_two_ints",
+        "kind": "ServiceRequest",
+        "topic": "rq/add_two_ints"
+      },
+      {
+        "fqn": "/add_two_ints",
+        "kind": "ServiceResponse",
+        "topic": "rr/add_two_ints"
+      }
+    ],
+    "entityKey": {
+      "domainId": 0,
+      "fqn": "/chatter",
+      "key": "0/chatter/std_msgs::msg::dds_::String_/RIHS01_df668c740482bbd48fb39d76a70dfd4bd59db1288021743503259e948f6b1a18",
+      "rosType": "std_msgs/msg/String"
+    },
+    "mangled": {
+      "mangled": "%robot1%cmd_vel",
+      "name": "/robot1/cmd_vel"
+    },
+    "mixedWidths": {
+      "cdr": "0001000007000000000000000000000000000440fdffffff",
+      "double": 2.5,
+      "signed": -3,
+      "word": 7
+    },
+    "names": [
+      {
+        "fullyQualified": true,
+        "name": "/robot1/camera_left/image_raw",
+        "valid": true
+      },
+      {
+        "fullyQualified": false,
+        "name": "~/setpoint",
+        "valid": true
+      },
+      {
+        "fullyQualified": false,
+        "name": "/2foo",
+        "valid": false
+      },
+      {
+        "fullyQualified": false,
+        "name": "/foo/",
+        "valid": false
+      }
+    ],
+    "prefixes": {
+      "ServiceRequest": "rq",
+      "ServiceResponse": "rr",
+      "Topic": "rt"
+    },
+    "twist": {
+      "angular": [
+        0.0,
+        0.0,
+        -0.25
+      ],
+      "cdr": "00010000000000000000f83f0000000000000000000000000000000000000000000000000000000000000000000000000000d0bf",
+      "linear": [
+        1.5,
+        0.0,
+        0.0
+      ]
+    },
+    "typeHash": {
+      "digest": "df668c740482bbd48fb39d76a70dfd4bd59db1288021743503259e948f6b1a18",
+      "text": "RIHS01_df668c740482bbd48fb39d76a70dfd4bd59db1288021743503259e948f6b1a18"
+    },
+    "typeNames": [
+      {
+        "ddsType": "std_msgs::msg::dds_::String_",
+        "rosType": "std_msgs/msg/String"
+      },
+      {
+        "ddsType": "geometry_msgs::msg::dds_::Twist_",
+        "rosType": "geometry_msgs/msg/Twist"
+      }
+    ]
+  },
   "routing": {
     "address": 1,
     "afterForgetting": {
@@ -1801,5 +1997,61 @@
         }
       ]
     }
+  },
+  "zenoh": {
+    "canonized": [
+      {
+        "canonical": "fleet/**/battery",
+        "key": "fleet/**/**/battery"
+      },
+      {
+        "canonical": "fleet/*/battery",
+        "key": "fleet/*/battery"
+      }
+    ],
+    "expressions": [
+      {
+        "canon": true,
+        "key": "fleet/*/battery",
+        "valid": true
+      },
+      {
+        "canon": true,
+        "key": "fleet/**/battery",
+        "valid": true
+      },
+      {
+        "canon": false,
+        "key": "fleet/**/**/battery",
+        "valid": true
+      },
+      {
+        "canon": false,
+        "key": "fleet//battery",
+        "valid": false
+      }
+    ],
+    "matches": [
+      {
+        "key": "fleet/n7/battery",
+        "matches": true,
+        "pattern": "fleet/*/battery"
+      },
+      {
+        "key": "fleet/n7/rack/battery",
+        "matches": false,
+        "pattern": "fleet/*/battery"
+      },
+      {
+        "key": "fleet/n7/rack/battery",
+        "matches": true,
+        "pattern": "fleet/**/battery"
+      },
+      {
+        "key": "fleet/n7/battery",
+        "matches": true,
+        "pattern": "fleet/**"
+      }
+    ]
   }
 }

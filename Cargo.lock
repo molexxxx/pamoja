@@ -2442,6 +2442,7 @@ dependencies = [
  "pamoja-sync",
  "pamoja-telemetry",
  "pamoja-update",
+ "pamoja-zenoh",
  "serde",
  "serde_json",
  "sha2 0.11.0",
