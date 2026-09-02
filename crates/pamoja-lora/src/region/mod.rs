@@ -34,9 +34,11 @@
 //! # A named region is a convenience, not the only way in
 //!
 //! [`Region`] is a shortcut to a [`ChannelPlan`], which is an ordinary struct of
-//! `'static` tables. A private deployment holding licensed spectrum, or bespoke
-//! emergency work, builds its own plan from parts and everything here still
-//! applies to it.
+//! borrowed tables. A private deployment holding licensed spectrum, or bespoke
+//! emergency work, builds its own plan from parts it owns and everything here
+//! still applies to it. The tables are borrowed rather than owned so the crate
+//! allocates nothing: the published plans point at constants, and a plan built
+//! at runtime points at whatever storage its caller chose.
 //!
 //! # Examples
 //!
@@ -360,39 +362,39 @@ pub struct Beacon {
 ///
 /// The named [`Region`] values are constants of this type. A deployment on
 /// licensed spectrum, or one doing something the published regions do not
-/// describe, builds its own from `'static` tables and every method here still
+/// describe, builds its own from tables it owns, and every method here still
 /// applies.
 #[derive(Clone, Copy, Debug)]
-pub struct ChannelPlan {
+pub struct ChannelPlan<'a> {
     /// The specification's name for the band, such as `"EU863-870"`.
-    pub name: &'static str,
+    pub name: &'a str,
     /// The uplink data rates, indexed by data-rate number; `None` where the
     /// number is reserved.
-    pub uplink_data_rates: &'static [Option<DataRate>],
+    pub uplink_data_rates: &'a [Option<DataRate>],
     /// The downlink data rates, indexed by data-rate number.
     ///
     /// Most regions use one table in both directions, and carry the same slice
     /// here. The 900 MHz plans do not, which is why this is separate.
-    pub downlink_data_rates: &'static [Option<DataRate>],
+    pub downlink_data_rates: &'a [Option<DataRate>],
     /// The uplink payload limits when the device may be behind a repeater.
-    pub max_payload_repeater: &'static [Option<MaxPayload>],
+    pub max_payload_repeater: &'a [Option<MaxPayload>],
     /// The uplink payload limits when it will not be.
-    pub max_payload_direct: &'static [Option<MaxPayload>],
+    pub max_payload_direct: &'a [Option<MaxPayload>],
     /// The downlink payload limits when the device may be behind a repeater.
     ///
     /// Most regions number their downlink data rates the same way as their
     /// uplink ones and carry the same slice here. The 900 MHz plans do not.
-    pub downlink_max_payload_repeater: &'static [Option<MaxPayload>],
+    pub downlink_max_payload_repeater: &'a [Option<MaxPayload>],
     /// The downlink payload limits when it will not be.
-    pub downlink_max_payload_direct: &'static [Option<MaxPayload>],
+    pub downlink_max_payload_direct: &'a [Option<MaxPayload>],
     /// The payload limits under a dwell-time limit, where the region has one.
-    pub max_payload_dwell_limited: Option<&'static [Option<MaxPayload>]>,
+    pub max_payload_dwell_limited: Option<&'a [Option<MaxPayload>]>,
     /// The channels a device must use to send a join request.
-    pub join_channels: &'static [ChannelBlock],
+    pub join_channels: &'a [ChannelBlock],
     /// The channels a device starts with before a network adds any.
-    pub default_channels: &'static [ChannelBlock],
+    pub default_channels: &'a [ChannelBlock],
     /// The sub-bands and their transmit limits.
-    pub sub_bands: &'static [SubBand],
+    pub sub_bands: &'a [SubBand],
     /// The power ceiling assumed when no sub-band says otherwise, in dBm.
     pub default_max_eirp_dbm: i8,
     /// The step between transmit-power settings, in dB.
@@ -401,10 +403,10 @@ pub struct ChannelPlan {
     pub max_tx_power_index: u8,
     /// The downlink data rate for each uplink data rate and RX1 offset, as
     /// `[uplink data rate][offset]`.
-    pub rx1_data_rate_offsets: &'static [&'static [u8]],
+    pub rx1_data_rate_offsets: &'a [&'a [u8]],
     /// The same mapping under a downlink dwell-time limit, where the region
     /// publishes a second table for it.
-    pub rx1_data_rate_offsets_dwell_limited: Option<&'static [&'static [u8]]>,
+    pub rx1_data_rate_offsets_dwell_limited: Option<&'a [&'a [u8]]>,
     /// The highest RX1 data-rate offset the region allows.
     pub max_rx1_data_rate_offset: u8,
     /// The fixed frequency the second receive window listens on, in hertz.
@@ -413,14 +415,14 @@ pub struct ChannelPlan {
     pub rx2_data_rate: u8,
     /// The next lower uplink data rate during adaptive back-off, indexed by the
     /// current data rate; `None` where there is nothing lower.
-    pub data_rate_backoff: &'static [Option<u8>],
+    pub data_rate_backoff: &'a [Option<u8>],
     /// The Class B beacon settings.
     pub beacon: Beacon,
     /// Whether the region limits how long one transmission may occupy a channel.
     pub has_dwell_time_limit: bool,
 }
 
-impl ChannelPlan {
+impl ChannelPlan<'_> {
     /// Returns the uplink data rate a number selects.
     ///
     /// # Arguments

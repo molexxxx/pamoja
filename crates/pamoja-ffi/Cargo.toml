@@ -27,6 +27,7 @@ default = [
     "sensors",
     "actuators",
     "lora",
+    "regions",
     "lorawan",
     "mesh",
     "routing",
@@ -68,6 +69,19 @@ gpio = ["dep:pamoja-gpio"]
 sensors = ["dep:pamoja-sensors"]
 actuators = ["dep:pamoja-actuators"]
 lora = ["dep:pamoja-lora"]
+# The channel plans, mirroring how pamoja-lora selects them. A slim build takes
+# only the bands its devices operate in, as `lora,eu868` would; the default set
+# carries them all.
+regions = ["eu868", "us915", "eu433", "au915", "cn470", "as923", "kr920", "in865", "ru864"]
+eu868 = ["pamoja-lora?/eu868"]
+us915 = ["pamoja-lora?/us915"]
+eu433 = ["pamoja-lora?/eu433"]
+au915 = ["pamoja-lora?/au915"]
+cn470 = ["pamoja-lora?/cn470"]
+as923 = ["pamoja-lora?/as923"]
+kr920 = ["pamoja-lora?/kr920"]
+in865 = ["pamoja-lora?/in865"]
+ru864 = ["pamoja-lora?/ru864"]
 lorawan = ["dep:pamoja-lorawan"]
 mesh = ["dep:pamoja-mesh"]
 routing = ["dep:pamoja-routing"]
@@ -94,7 +108,10 @@ pamoja-can = { path = "../pamoja-can", version = "0.1.14", optional = true }
 pamoja-gpio = { path = "../pamoja-gpio", version = "0.1.14", optional = true }
 pamoja-sensors = { path = "../pamoja-sensors", version = "0.1.14", optional = true }
 pamoja-actuators = { path = "../pamoja-actuators", version = "0.1.14", optional = true }
-pamoja-lora = { path = "../pamoja-lora", version = "0.1.14", optional = true }
+# Regions are selected through this crate's own features, so the default set is
+# turned off here; leaving it on would carry every channel plan into a build
+# that asked for one.
+pamoja-lora = { path = "../pamoja-lora", version = "0.1.14", default-features = false, optional = true }
 pamoja-lorawan = { path = "../pamoja-lorawan", version = "0.1.14", optional = true }
 pamoja-mesh = { path = "../pamoja-mesh", version = "0.1.14", features = ["alloc"], optional = true }
 pamoja-routing = { path = "../pamoja-routing", version = "0.1.14", features = ["alloc"], optional = true }
