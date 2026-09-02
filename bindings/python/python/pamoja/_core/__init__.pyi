@@ -6,6 +6,7 @@ import typing
 __all__ = [
     "Ads1115Config",
     "AgreementKey",
+    "AlertReport",
     "Anomaly",
     "AuditEntry",
     "AuditLog",
@@ -15,8 +16,12 @@ __all__ = [
     "BootDecision",
     "Calibration",
     "CanFrame",
+    "CdrReader",
+    "CdrWriter",
     "CoapClient",
     "CobsDecoder",
+    "ControlPolicy",
+    "Controller",
     "Debounce",
     "Delegation",
     "Depletion",
@@ -50,10 +55,13 @@ __all__ = [
     "Pid",
     "Pose",
     "PowerPlan",
+    "PowerScheduleSpec",
+    "Profile",
     "Progress",
     "PyTransport",
     "Quantizer",
     "Ramp",
+    "Reaction",
     "RecordingActuatorHandle",
     "Replay",
     "Reporter",
@@ -125,6 +133,10 @@ __all__ = [
     "j1939_compose",
     "j1939_decode",
     "json_to_cbor_bytes",
+    "keyexpr_canonize",
+    "keyexpr_is_canon",
+    "keyexpr_is_valid",
+    "keyexpr_matches",
     "link_cost_threshold",
     "lorawan_parse_header",
     "lorawan_parse_join_request",
@@ -160,6 +172,16 @@ __all__ = [
     "pwm_full_off",
     "pwm_full_on",
     "pwm_servo",
+    "ros2_dds_topic",
+    "ros2_dds_type_name",
+    "ros2_entity_key",
+    "ros2_entity_kind_prefix",
+    "ros2_is_fully_qualified",
+    "ros2_is_valid_name",
+    "ros2_percent_mangle",
+    "ros2_twist_from_cdr",
+    "ros2_twist_to_cdr",
+    "ros2_type_hash_digest",
     "routing_default_capacity",
     "sign_delegation",
     "sign_manifest",
@@ -296,6 +318,35 @@ class AgreementKey:
     def __new__(cls, seed: typing.Sequence[builtins.int]) -> AgreementKey:
         r"""
         Creates a key-agreement secret from a provisioned 32-byte seed.
+        """
+
+@typing.final
+class AlertReport:
+    r"""
+    An alert a reading raised.
+    
+    Only the attribute belonging to `kind` is set; the rest are `None`.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        Which threshold the reading crossed: `OutOfRange`, `RunningOut`, or
+        `ChangingFast`.
+        """
+    @property
+    def reading(self) -> typing.Optional[builtins.float]:
+        r"""
+        The offending reading, for an out-of-range alert.
+        """
+    @property
+    def samples(self) -> typing.Optional[builtins.int]:
+        r"""
+        The estimated samples until empty, for a running-out alert.
+        """
+    @property
+    def rate(self) -> typing.Optional[builtins.float]:
+        r"""
+        The change since the previous sample, for a changing-fast alert.
         """
 
 @typing.final
@@ -516,6 +567,69 @@ class CanFrame:
         """
 
 @typing.final
+class CdrReader:
+    r"""
+    A CDR decoder, which reads primitives back in the order they were written.
+    
+    Reading past the end returns `None` rather than raising, because a short
+    buffer is a wire condition rather than a programming error.
+    """
+    def __new__(cls, data: typing.Sequence[builtins.int]) -> CdrReader:
+        r"""
+        Creates a decoder over encoded bytes.
+        
+        Raises `ValueError` if the bytes carry no valid CDR encapsulation header.
+        """
+    def read_i32(self) -> typing.Optional[builtins.int]:
+        r"""
+        Reads the next 32-bit signed integer, or `None` once exhausted.
+        """
+    def read_u32(self) -> typing.Optional[builtins.int]:
+        r"""
+        Reads the next 32-bit unsigned integer, or `None` once exhausted.
+        """
+    def read_f32(self) -> typing.Optional[builtins.float]:
+        r"""
+        Reads the next 32-bit float, or `None` once exhausted.
+        """
+    def read_f64(self) -> typing.Optional[builtins.float]:
+        r"""
+        Reads the next 64-bit float, or `None` once exhausted.
+        """
+
+@typing.final
+class CdrWriter:
+    r"""
+    A CDR encoder, which writes primitives with the alignment the wire format
+    requires.
+    """
+    @property
+    def bytes(self) -> builtins.list[builtins.int]:
+        r"""
+        The bytes written so far.
+        """
+    def __new__(cls) -> CdrWriter:
+        r"""
+        Creates an encoder with the encapsulation header already written.
+        """
+    def write_i32(self, value: builtins.int) -> None:
+        r"""
+        Appends a 32-bit signed integer.
+        """
+    def write_u32(self, value: builtins.int) -> None:
+        r"""
+        Appends a 32-bit unsigned integer.
+        """
+    def write_f32(self, value: builtins.float) -> None:
+        r"""
+        Appends a 32-bit float.
+        """
+    def write_f64(self, value: builtins.float) -> None:
+        r"""
+        Appends a 64-bit float.
+        """
+
+@typing.final
 class CoapClient:
     r"""
     A CoAP endpoint.
@@ -570,6 +684,93 @@ class CobsDecoder:
     def reset(self) -> None:
         r"""
         Discards any partly assembled frame.
+        """
+
+@typing.final
+class ControlPolicy:
+    r"""
+    A profile's control policy.
+    
+    Only the attributes belonging to `kind` are set; the rest are `None`.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        Which policy this describes: `Setpoint`, `Level`, `Surge`, or `Monitor`.
+        """
+    @property
+    def setpoint(self) -> typing.Optional[builtins.float]:
+        r"""
+        The target reading, for a setpoint policy.
+        """
+    @property
+    def hysteresis(self) -> typing.Optional[builtins.float]:
+        r"""
+        Half the deadband width, for a setpoint policy.
+        """
+    @property
+    def cooling(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the output cools rather than heats, for a setpoint policy.
+        """
+    @property
+    def safe_band(self) -> typing.Optional[builtins.float]:
+        r"""
+        How far the reading may stray before an alert, for a setpoint policy.
+        """
+    @property
+    def empty(self) -> typing.Optional[builtins.float]:
+        r"""
+        The level treated as empty, for a level policy.
+        """
+    @property
+    def warn_within(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many samples ahead to warn, for a level policy.
+        """
+    @property
+    def rising(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether a rise rather than a fall is watched, for a surge policy.
+        """
+    @property
+    def limit(self) -> typing.Optional[builtins.float]:
+        r"""
+        The largest safe change per sample, for a surge policy.
+        """
+
+@typing.final
+class Controller:
+    r"""
+    The decision logic a profile assembles.
+    
+    A controller carries state between readings, because a level estimate and a
+    rate of change both need the previous sample, so evaluate readings through
+    one controller in the order they were taken.
+    """
+    @staticmethod
+    def setpoint(setpoint: builtins.float, hysteresis: builtins.float, cooling: builtins.bool, safe_band: builtins.float) -> Controller:
+        r"""
+        Holds a reading near a setpoint by switching an output on and off.
+        """
+    @staticmethod
+    def level(empty: builtins.float, warn_within: builtins.int) -> Controller:
+        r"""
+        Warns before a falling level reaches empty.
+        """
+    @staticmethod
+    def surge(rising: builtins.bool, limit: builtins.float) -> Controller:
+        r"""
+        Warns when a reading changes faster than a limit.
+        """
+    @staticmethod
+    def monitor() -> Controller:
+        r"""
+        Reports readings without judging them.
+        """
+    def evaluate(self, reading: builtins.float) -> Reaction:
+        r"""
+        Decides what one reading calls for.
         """
 
 @typing.final
@@ -1603,6 +1804,98 @@ class PowerPlan:
         """
 
 @typing.final
+class PowerScheduleSpec:
+    r"""
+    How often a node samples as its battery drains, in whole seconds.
+    """
+    @property
+    def active_secs(self) -> builtins.int:
+        r"""
+        Seconds between samples at a healthy charge.
+        """
+    @property
+    def saver_secs(self) -> builtins.int:
+        r"""
+        Seconds between samples while conserving.
+        """
+    @property
+    def critical_secs(self) -> builtins.int:
+        r"""
+        Seconds between samples when critically low.
+        """
+    @property
+    def saver_below(self) -> builtins.float:
+        r"""
+        Enter the saver cadence below this state of charge.
+        """
+    @property
+    def critical_below(self) -> builtins.float:
+        r"""
+        Enter the critical cadence below this state of charge.
+        """
+
+@typing.final
+class Profile:
+    r"""
+    A named, ready-to-run node assembled from pamoja capabilities.
+    """
+    @property
+    def name(self) -> builtins.str:
+        r"""
+        The profile's stable, human-readable name.
+        """
+    @property
+    def topic(self) -> builtins.str:
+        r"""
+        The topic each reading is published to.
+        """
+    @property
+    def control(self) -> ControlPolicy:
+        r"""
+        The control policy applied to each reading.
+        """
+    @property
+    def power(self) -> PowerScheduleSpec:
+        r"""
+        The sampling schedule kept as the battery drains.
+        """
+    @staticmethod
+    def vaccine_fridge_monitor() -> Profile:
+        r"""
+        A cold-chain fridge monitor, which holds 5 C and flags an excursion.
+        """
+    @staticmethod
+    def irrigation_node() -> Profile:
+        r"""
+        An irrigation node, which opens a valve as soil moisture falls.
+        """
+    @staticmethod
+    def well_level() -> Profile:
+        r"""
+        A well-level monitor, which warns before a tank runs dry.
+        """
+    @staticmethod
+    def flood_sensor() -> Profile:
+        r"""
+        A flood sensor, which warns when a level rises too fast.
+        """
+    @staticmethod
+    def from_json(manifest: builtins.str) -> Profile:
+        r"""
+        Loads a profile from its JSON manifest.
+        
+        Raises `ValueError` if the manifest is malformed.
+        """
+    def to_json(self) -> builtins.str:
+        r"""
+        Serializes this profile to its JSON manifest.
+        """
+    def controller(self) -> Controller:
+        r"""
+        Builds the decision logic this profile describes.
+        """
+
+@typing.final
 class Progress:
     r"""
     How much of an image has arrived.
@@ -1700,6 +1993,23 @@ class Ramp:
     def set(self, value: builtins.float) -> None:
         r"""
         Forces the value without rate limiting.
+        """
+
+@typing.final
+class Reaction:
+    r"""
+    What a controller decided about one reading.
+    """
+    @property
+    def actuator(self) -> typing.Optional[builtins.bool]:
+        r"""
+        The setting the output should take, or `None` when the profile observes
+        rather than controls.
+        """
+    @property
+    def alert(self) -> typing.Optional[AlertReport]:
+        r"""
+        The alert the reading raised, or `None` if it crossed nothing.
         """
 
 @typing.final
@@ -2642,6 +2952,27 @@ def json_to_cbor_bytes(json: typing.Sequence[builtins.int]) -> bytes:
     Converts a JSON document into its CBOR encoding, which is typically smaller.
     """
 
+def keyexpr_canonize(key: builtins.str) -> typing.Optional[builtins.str]:
+    r"""
+    Rewrites a key expression into its canonical form, or `None` if it is
+    malformed.
+    """
+
+def keyexpr_is_canon(key: builtins.str) -> builtins.bool:
+    r"""
+    Reports whether a key expression is already in its canonical form.
+    """
+
+def keyexpr_is_valid(key: builtins.str) -> builtins.bool:
+    r"""
+    Reports whether a key expression is well formed.
+    """
+
+def keyexpr_matches(pattern: builtins.str, key: builtins.str) -> builtins.bool:
+    r"""
+    Reports whether a pattern selects a key.
+    """
+
 def link_cost_threshold(cost: builtins.str) -> builtins.str:
     r"""
     Returns the level a named link cost calls for.
@@ -2826,6 +3157,65 @@ def pwm_full_on() -> bytes:
 def pwm_servo(pulse_micros: builtins.int, update_rate_hz: builtins.int) -> bytes:
     r"""
     Builds the register bytes that drive a hobby servo to a given pulse width.
+    """
+
+def ros2_dds_topic(fqn: builtins.str, kind: builtins.str) -> typing.Optional[builtins.str]:
+    r"""
+    Returns the DDS topic a fully qualified name maps onto, or `None` if the
+    name is not fully qualified.
+    """
+
+def ros2_dds_type_name(ros_type: builtins.str) -> typing.Optional[builtins.str]:
+    r"""
+    Returns the DDS type name an interface type maps onto, or `None` if the type
+    is not a valid `package/namespace/Type`.
+    """
+
+def ros2_entity_key(domain_id: builtins.int, fqn: builtins.str, ros_type: builtins.str, type_hash: builtins.str) -> typing.Optional[builtins.str]:
+    r"""
+    Builds the Zenoh key an `rmw_zenoh` peer publishes an entity on, or `None`
+    if the name, type, or hash is not usable.
+    """
+
+def ros2_entity_kind_prefix(kind: builtins.str) -> builtins.str:
+    r"""
+    Returns the DDS topic prefix a subsystem uses.
+    """
+
+def ros2_is_fully_qualified(name: builtins.str) -> builtins.bool:
+    r"""
+    Reports whether a name is fully qualified, so it resolves with no namespace.
+    """
+
+def ros2_is_valid_name(name: builtins.str) -> builtins.bool:
+    r"""
+    Reports whether a string is a valid ROS 2 topic or service name.
+    """
+
+def ros2_percent_mangle(name: builtins.str) -> builtins.str:
+    r"""
+    Percent-mangles a name the way a DDS partition requires.
+    """
+
+def ros2_twist_from_cdr(data: typing.Sequence[builtins.int]) -> typing.Optional[tuple[tuple[builtins.float, builtins.float, builtins.float], tuple[builtins.float, builtins.float, builtins.float]]]:
+    r"""
+    Decodes a twist from its CDR representation, or `None` if the bytes are not
+    a well-formed twist.
+    
+    Returns the linear and angular velocities as two `(x, y, z)` triples.
+    """
+
+def ros2_twist_to_cdr(linear: tuple[builtins.float, builtins.float, builtins.float], angular: tuple[builtins.float, builtins.float, builtins.float]) -> builtins.list[builtins.int]:
+    r"""
+    Encodes a twist into its CDR representation.
+    
+    The linear and angular velocities each cross as an `(x, y, z)` triple.
+    """
+
+def ros2_type_hash_digest(text: builtins.str) -> typing.Optional[builtins.list[builtins.int]]:
+    r"""
+    Returns the 32-byte digest a RIHS01 hash string carries, or `None` if the
+    string is malformed.
     """
 
 def routing_default_capacity() -> builtins.int:

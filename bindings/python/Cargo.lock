@@ -826,6 +826,18 @@ name = "pamoja-power"
 version = "0.1.14"
 
 [[package]]
+name = "pamoja-profile"
+version = "0.1.14"
+dependencies = [
+ "pamoja-codec",
+ "pamoja-core",
+ "pamoja-kit",
+ "pamoja-power",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "pamoja-python"
 version = "0.1.14"
 dependencies = [
@@ -846,6 +858,8 @@ dependencies = [
  "pamoja-modbus",
  "pamoja-mqtt",
  "pamoja-power",
+ "pamoja-profile",
+ "pamoja-ros2",
  "pamoja-routing",
  "pamoja-security",
  "pamoja-sensors",
@@ -855,10 +869,18 @@ dependencies = [
  "pamoja-sync",
  "pamoja-telemetry",
  "pamoja-update",
+ "pamoja-zenoh",
  "pyo3",
  "pyo3-async-runtimes",
  "pyo3-stub-gen",
  "tokio",
+]
+
+[[package]]
+name = "pamoja-ros2"
+version = "0.1.14"
+dependencies = [
+ "pamoja-zenoh",
 ]
 
 [[package]]
@@ -919,6 +941,10 @@ dependencies = [
  "pamoja-security",
  "sha2",
 ]
+
+[[package]]
+name = "pamoja-zenoh"
+version = "0.1.14"
 
 [[package]]
 name = "phf"

@@ -48,6 +48,9 @@ default = [
     "ladder",
     "bus",
     "sim",
+    "profile",
+    "ros2",
+    "zenoh",
 ]
 # Each capability is a feature, so the binding can later be split into
 # per-capability packages without reshaping the code.
@@ -73,6 +76,11 @@ ladder = ["dep:pamoja-ladder", "sync"]
 bus = ["dep:pamoja-bus"]
 # The simulated robot moves in the kit pose and twist types.
 sim = ["dep:pamoja-sim", "kit"]
+# A profile assembles a control policy over the kit helpers and a power schedule.
+profile = ["dep:pamoja-profile", "kit", "power"]
+# Only the naming and encoding rules cross; the live bridges stay Rust-only.
+ros2 = ["dep:pamoja-ros2"]
+zenoh = ["dep:pamoja-zenoh"]
 audit = ["dep:pamoja-audit", "security"]
 session = ["dep:pamoja-session"]
 update = ["dep:pamoja-update", "security"]
@@ -113,4 +121,7 @@ pamoja-sync = { path = "../../crates/pamoja-sync", optional = true }
 pamoja-ladder = { path = "../../crates/pamoja-ladder", optional = true }
 pamoja-bus = { path = "../../crates/pamoja-bus", optional = true }
 pamoja-sim = { path = "../../crates/pamoja-sim", optional = true }
+pamoja-profile = { path = "../../crates/pamoja-profile", optional = true }
+pamoja-ros2 = { path = "../../crates/pamoja-ros2", optional = true }
+pamoja-zenoh = { path = "../../crates/pamoja-zenoh", optional = true }
 tokio = { version = "1", default-features = false, features = ["sync"], optional = true }

@@ -617,3 +617,92 @@ def test_simulated_devices_run_without_hardware():
         assert pose.y == pytest.approx(0.0, abs=1e-5)
 
     asyncio.run(run())
+
+
+CHATTER_HASH = "RIHS01_df668c740482bbd48fb39d76a70dfd4bd59db1288021743503259e948f6b1a18"
+
+
+def test_a_profile_decides_what_a_reading_calls_for():
+    from pamoja import profile
+
+    fridge = profile.Profile.vaccine_fridge_monitor()
+    assert fridge.name == "vaccine-fridge-monitor"
+    assert fridge.control.kind == profile.ControlKind.SETPOINT
+
+    warm = fridge.controller().evaluate(9.0)
+    assert warm.actuator is True, "a warm fridge runs the cooler"
+    assert warm.alert.kind == profile.AlertKind.OUT_OF_RANGE
+    assert warm.alert.reading == pytest.approx(9.0)
+
+    observed = profile.Controller.monitor().evaluate(21.5)
+    assert observed.actuator is None, "a monitor drives no output"
+    assert observed.alert is None
+
+
+def test_a_profile_manifest_round_trips():
+    from pamoja import profile
+
+    original = profile.Profile.well_level()
+    reloaded = profile.Profile.from_json(original.to_json())
+    assert reloaded.topic == original.topic
+    assert reloaded.control.kind == original.control.kind
+    assert reloaded.power.active_secs == original.power.active_secs
+
+    with pytest.raises(ValueError):
+        profile.Profile.from_json("{")
+
+
+def test_ros2_names_map_onto_the_dds_wire():
+    from pamoja import ros2
+
+    assert ros2.is_valid_name("/robot1/camera_left/image_raw")
+    assert not ros2.is_valid_name("/2foo"), "a token may not start with a digit"
+    assert ros2.is_fully_qualified("/chatter")
+
+    assert ros2.dds_topic("/robot1/cmd_vel", ros2.EntityKind.TOPIC) == "rt/robot1/cmd_vel"
+    assert ros2.prefix_for(ros2.EntityKind.SERVICE_REQUEST) == "rq"
+    assert ros2.dds_type_name("std_msgs/msg/String") == "std_msgs::msg::dds_::String_"
+
+    assert len(ros2.type_hash_digest(CHATTER_HASH)) == 32
+    assert ros2.type_hash_digest("not a hash") is None
+    assert ros2.entity_key(0, "/chatter", "std_msgs/msg/String", CHATTER_HASH) == (
+        f"0/chatter/std_msgs::msg::dds_::String_/{CHATTER_HASH}"
+    )
+
+
+def test_a_twist_survives_a_cdr_round_trip():
+    from pamoja import ros2
+
+    encoded = ros2.twist_to_cdr((1.5, 0.0, 0.0), (0.0, 0.0, -0.25))
+    linear, angular = ros2.twist_from_cdr(encoded)
+    assert linear == pytest.approx((1.5, 0.0, 0.0))
+    assert angular == pytest.approx((0.0, 0.0, -0.25))
+    assert ros2.twist_from_cdr(b"") is None
+
+
+def test_cdr_mixed_width_fields_keep_their_alignment():
+    from pamoja import ros2
+
+    writer = ros2.CdrWriter()
+    writer.write_u32(7)
+    writer.write_f64(2.5)
+    writer.write_i32(-3)
+
+    reader = ros2.CdrReader(writer.bytes)
+    assert reader.read_u32() == 7
+    assert reader.read_f64() == pytest.approx(2.5)
+    assert reader.read_i32() == -3, "the field after an eight-byte one is not skewed"
+    assert reader.read_u32() is None, "reading past the end yields None"
+
+    with pytest.raises(ValueError):
+        ros2.CdrReader(b"")
+
+
+def test_zenoh_key_expressions_address_a_fleet_subtree():
+    from pamoja import zenoh
+
+    assert zenoh.is_valid("fleet/*/battery")
+    assert zenoh.matches("fleet/*/battery", "fleet/n7/battery")
+    assert not zenoh.matches("fleet/*/battery", "fleet/n7/rack/battery")
+    assert zenoh.canonize("fleet/**/**/battery") == "fleet/**/battery"
+    assert not zenoh.is_canon("fleet/**/**/battery")

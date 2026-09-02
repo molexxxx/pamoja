@@ -36,6 +36,8 @@ from . import (
     mesh,
     modbus,
     power,
+    profile,
+    ros2,
     routing,
     sensors,
     serial,
@@ -45,6 +47,7 @@ from . import (
     telemetry,
     transport,
     update,
+    zenoh,
 )
 from ._core import PamojaError, version
 from .codec import Quantizer, from_cbor, pack_samples, to_cbor, unpack_samples
@@ -117,6 +120,8 @@ __all__ = [
     "modbus",
     "pack_samples",
     "power",
+    "profile",
+    "ros2",
     "routing",
     "sensors",
     "serial",
@@ -130,4 +135,5 @@ __all__ = [
     "update",
     "verify",
     "version",
+    "zenoh",
 ]

@@ -42,6 +42,10 @@ mod modbus;
 mod mqtt;
 #[cfg(feature = "power")]
 mod power;
+#[cfg(feature = "profile")]
+mod profile;
+#[cfg(feature = "ros2")]
+mod ros2;
 #[cfg(feature = "routing")]
 mod routing;
 #[cfg(feature = "security")]
@@ -62,6 +66,8 @@ mod telemetry;
 mod transport;
 #[cfg(feature = "update")]
 mod update;
+#[cfg(feature = "zenoh")]
+mod zenoh;
 
 pyo3::create_exception!(
     pamoja,
@@ -343,6 +349,37 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<lorawan::LorawanGrant>()?;
         m.add_function(wrap_pyfunction!(lorawan::lorawan_parse_header, m)?)?;
         m.add_function(wrap_pyfunction!(lorawan::lorawan_parse_join_request, m)?)?;
+    }
+    #[cfg(feature = "profile")]
+    {
+        m.add_class::<profile::Profile>()?;
+        m.add_class::<profile::Controller>()?;
+        m.add_class::<profile::ControlPolicy>()?;
+        m.add_class::<profile::PowerScheduleSpec>()?;
+        m.add_class::<profile::AlertReport>()?;
+        m.add_class::<profile::Reaction>()?;
+    }
+    #[cfg(feature = "ros2")]
+    {
+        m.add_class::<ros2::CdrWriter>()?;
+        m.add_class::<ros2::CdrReader>()?;
+        m.add_function(wrap_pyfunction!(ros2::ros2_is_valid_name, m)?)?;
+        m.add_function(wrap_pyfunction!(ros2::ros2_is_fully_qualified, m)?)?;
+        m.add_function(wrap_pyfunction!(ros2::ros2_entity_kind_prefix, m)?)?;
+        m.add_function(wrap_pyfunction!(ros2::ros2_dds_topic, m)?)?;
+        m.add_function(wrap_pyfunction!(ros2::ros2_percent_mangle, m)?)?;
+        m.add_function(wrap_pyfunction!(ros2::ros2_dds_type_name, m)?)?;
+        m.add_function(wrap_pyfunction!(ros2::ros2_type_hash_digest, m)?)?;
+        m.add_function(wrap_pyfunction!(ros2::ros2_entity_key, m)?)?;
+        m.add_function(wrap_pyfunction!(ros2::ros2_twist_to_cdr, m)?)?;
+        m.add_function(wrap_pyfunction!(ros2::ros2_twist_from_cdr, m)?)?;
+    }
+    #[cfg(feature = "zenoh")]
+    {
+        m.add_function(wrap_pyfunction!(zenoh::keyexpr_is_valid, m)?)?;
+        m.add_function(wrap_pyfunction!(zenoh::keyexpr_is_canon, m)?)?;
+        m.add_function(wrap_pyfunction!(zenoh::keyexpr_canonize, m)?)?;
+        m.add_function(wrap_pyfunction!(zenoh::keyexpr_matches, m)?)?;
     }
     Ok(())
 }
