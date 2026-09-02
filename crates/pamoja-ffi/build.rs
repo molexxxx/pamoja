@@ -31,6 +31,8 @@ fn main() {
     println!("cargo:rerun-if-changed=src/modbus.rs");
     println!("cargo:rerun-if-changed=src/mqtt.rs");
     println!("cargo:rerun-if-changed=src/power.rs");
+    println!("cargo:rerun-if-changed=src/profile.rs");
+    println!("cargo:rerun-if-changed=src/ros2.rs");
     println!("cargo:rerun-if-changed=src/routing.rs");
     println!("cargo:rerun-if-changed=src/security.rs");
     println!("cargo:rerun-if-changed=src/session.rs");
@@ -41,6 +43,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src/telemetry.rs");
     println!("cargo:rerun-if-changed=src/transport.rs");
     println!("cargo:rerun-if-changed=src/update.rs");
+    println!("cargo:rerun-if-changed=src/zenoh.rs");
     println!("cargo:rerun-if-changed=cbindgen.toml");
 
     let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

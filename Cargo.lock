@@ -2470,6 +2470,8 @@ dependencies = [
  "pamoja-modbus",
  "pamoja-mqtt",
  "pamoja-power",
+ "pamoja-profile",
+ "pamoja-ros2",
  "pamoja-routing",
  "pamoja-security",
  "pamoja-sensors",
@@ -2479,6 +2481,7 @@ dependencies = [
  "pamoja-sync",
  "pamoja-telemetry",
  "pamoja-update",
+ "pamoja-zenoh",
  "sha2 0.11.0",
  "tokio",
 ]

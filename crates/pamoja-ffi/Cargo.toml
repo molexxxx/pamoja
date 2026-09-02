@@ -41,6 +41,9 @@ default = [
     "ladder",
     "bus",
     "sim",
+    "profile",
+    "ros2",
+    "zenoh",
 ]
 # Each capability is a feature, so a host that needs only some of them can build a
 # smaller library without reshaping the code.
@@ -73,6 +76,11 @@ session = ["dep:pamoja-session"]
 update = ["dep:pamoja-update", "security"]
 power = ["dep:pamoja-power"]
 telemetry = ["dep:pamoja-telemetry"]
+# A profile assembles a control policy over the kit helpers and a power schedule.
+profile = ["dep:pamoja-profile", "kit", "power"]
+# Only the naming and encoding rules cross; the live bridges stay Rust-only.
+ros2 = ["dep:pamoja-ros2"]
+zenoh = ["dep:pamoja-zenoh"]
 
 [dependencies]
 pamoja-core.workspace = true
@@ -101,6 +109,9 @@ pamoja-sync = { path = "../pamoja-sync", version = "0.1.14", optional = true }
 pamoja-ladder = { path = "../pamoja-ladder", version = "0.1.14", optional = true }
 pamoja-bus = { path = "../pamoja-bus", version = "0.1.14", optional = true }
 pamoja-sim = { path = "../pamoja-sim", version = "0.1.14", optional = true }
+pamoja-profile = { path = "../pamoja-profile", version = "0.1.14", optional = true }
+pamoja-ros2 = { path = "../pamoja-ros2", version = "0.1.14", optional = true }
+pamoja-zenoh = { path = "../pamoja-zenoh", version = "0.1.14", optional = true }
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread"], optional = true }
 
 [dev-dependencies]
