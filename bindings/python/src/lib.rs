@@ -14,14 +14,22 @@ use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
 mod actuators;
 #[cfg(feature = "audit")]
 mod audit;
+#[cfg(feature = "bus")]
+mod bus;
 #[cfg(feature = "can")]
 mod can;
+#[cfg(feature = "coap")]
+mod coap;
 #[cfg(feature = "codec")]
 mod codec;
 #[cfg(feature = "gpio")]
 mod gpio;
 #[cfg(feature = "kit")]
 mod kit;
+#[cfg(feature = "ladder")]
+mod ladder;
+#[cfg(feature = "loopback")]
+mod loopback;
 #[cfg(feature = "lora")]
 mod lora;
 #[cfg(feature = "lorawan")]
@@ -44,6 +52,12 @@ mod sensors;
 mod serial;
 #[cfg(feature = "session")]
 mod session;
+#[cfg(feature = "sim")]
+mod sim;
+#[cfg(feature = "sync")]
+mod sync;
+#[cfg(feature = "mqtt")]
+mod transport;
 #[cfg(feature = "telemetry")]
 mod telemetry;
 #[cfg(feature = "update")]
@@ -277,6 +291,40 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     {
         m.add_class::<power::DutyCycle>()?;
         m.add_class::<power::PowerPlan>()?;
+    }
+    #[cfg(feature = "coap")]
+    {
+        m.add_class::<coap::CoapClient>()?;
+    }
+    #[cfg(feature = "loopback")]
+    {
+        m.add_class::<loopback::LoopbackBroker>()?;
+        m.add_class::<loopback::LoopbackTransport>()?;
+    }
+    #[cfg(feature = "sync")]
+    {
+        m.add_class::<sync::Store>()?;
+    }
+    #[cfg(feature = "ladder")]
+    {
+        m.add_class::<ladder::Ladder>()?;
+    }
+    #[cfg(feature = "bus")]
+    {
+        m.add_class::<bus::EventBus>()?;
+    }
+    #[cfg(feature = "sim")]
+    {
+        m.add_class::<sim::SimulatedSensor>()?;
+        m.add_class::<sim::Replay>()?;
+        m.add_class::<sim::RecordingActuatorHandle>()?;
+        m.add_class::<sim::SimulatedRobot>()?;
+        m.add_class::<sim::Pose>()?;
+    }
+    #[cfg(feature = "mqtt")]
+    {
+        m.add_class::<transport::PyTransport>()?;
+        m.add_class::<transport::Message>()?;
     }
     #[cfg(feature = "telemetry")]
     {
