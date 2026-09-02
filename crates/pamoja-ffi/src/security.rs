@@ -29,7 +29,7 @@ pub const PAMOJA_FINGERPRINT_LEN: usize = 16;
 
 /// An opaque handle to a device's private signing identity.
 pub struct PamojaDeviceIdentity {
-    inner: DeviceIdentity,
+    pub(crate) inner: DeviceIdentity,
 }
 
 /// Creates a device identity from a provisioned 32-byte secret seed.
@@ -243,7 +243,7 @@ pub unsafe extern "C" fn pamoja_public_identity_verify(
 /// # Safety
 ///
 /// `identity` must be a live handle from [`pamoja_device_identity_new`], or null.
-unsafe fn identity_handle<'a>(
+pub(crate) unsafe fn identity_handle<'a>(
     identity: *const PamojaDeviceIdentity,
 ) -> Option<&'a PamojaDeviceIdentity> {
     if identity.is_null() {
@@ -259,7 +259,7 @@ unsafe fn identity_handle<'a>(
 ///
 /// `public_key` must point to at least [`PAMOJA_KEY_LEN`] readable bytes, or be
 /// null.
-unsafe fn read_public(public_key: *const u8) -> Result<PublicIdentity, PamojaStatus> {
+pub(crate) unsafe fn read_public(public_key: *const u8) -> Result<PublicIdentity, PamojaStatus> {
     let bytes = read_bytes(public_key, PAMOJA_KEY_LEN)?;
     let Ok(bytes) = <[u8; PAMOJA_KEY_LEN]>::try_from(bytes.as_slice()) else {
         set_last_error(format!("public key must be exactly {PAMOJA_KEY_LEN} bytes"));

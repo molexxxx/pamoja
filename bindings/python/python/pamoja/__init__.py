@@ -11,26 +11,33 @@ Each capability also has its own module (:mod:`pamoja.mqtt`,
 :mod:`pamoja.serial`, :mod:`pamoja.modbus`, :mod:`pamoja.can`,
 :mod:`pamoja.gpio`, :mod:`pamoja.sensors`, :mod:`pamoja.actuators`,
 :mod:`pamoja.lora`, :mod:`pamoja.lorawan`, :mod:`pamoja.mesh`,
-:mod:`pamoja.routing`) for callers who want only one, and the generated low-level
-contract remains available at :mod:`pamoja.raw`.
+:mod:`pamoja.routing`, :mod:`pamoja.audit`, :mod:`pamoja.session`,
+:mod:`pamoja.update`, :mod:`pamoja.power`, :mod:`pamoja.telemetry`) for callers
+who want only one, and the generated low-level contract remains available at
+:mod:`pamoja.raw`.
 
-The field-I/O capabilities are re-exported as modules rather than flattened:
-their operations are named for their protocol (``frame``, ``raw``,
-``parse_frame``), which only reads unambiguously with the protocol in front of
-it.
+The field-I/O, radio, and operational capabilities are re-exported as modules
+rather than flattened: their names are ordinary words (``frame``, ``Session``,
+``Level``, ``Manifest``) that only read unambiguously with the capability in
+front of them.
 """
 
 from . import (
     actuators,
+    audit,
     can,
     gpio,
     lora,
     lorawan,
     mesh,
     modbus,
+    power,
     routing,
     sensors,
     serial,
+    session,
+    telemetry,
+    update,
 )
 from ._core import PamojaError, version
 from .codec import Quantizer, from_cbor, pack_samples, to_cbor, unpack_samples
@@ -85,6 +92,7 @@ __all__ = [
     "WINDOW_CAPACITY",
     "Window",
     "actuators",
+    "audit",
     "bearing_between",
     "can",
     "deadband",
@@ -97,11 +105,15 @@ __all__ = [
     "mesh",
     "modbus",
     "pack_samples",
+    "power",
     "routing",
     "sensors",
     "serial",
+    "session",
+    "telemetry",
     "to_cbor",
     "unpack_samples",
+    "update",
     "verify",
     "version",
 ]

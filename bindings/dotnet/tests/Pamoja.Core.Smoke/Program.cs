@@ -42,10 +42,182 @@ Helpers();
 FieldIo();
 SensingAndActuation();
 RadioAndReach();
+TrustAndOperation();
 
 Console.WriteLine("ok");
 
 Conformance();
+
+
+// Proving what a node did, saying it in confidence, fixing it in the field, and
+// deciding how often it can afford to do any of that.
+static void TrustAndOperation()
+{
+    // A signed, chained log: what a node did, in an order nobody can quietly edit.
+    using var keeper = new DeviceIdentity(Repeat(0x21, 32));
+    using var log = new AuditLog(keeper);
+    using AuditEntry opened = log.Append("valve=open"u8);
+    using AuditEntry shut = log.Append("valve=shut"u8);
+
+    Assert(opened.Index == 0, "the first record sits at index zero");
+    Assert(
+        shut.Previous.AsSpan().SequenceEqual(opened.Digest),
+        "each record carries the hash of the one before it");
+    Assert(
+        Audit.VerifyChain(keeper.PublicKey, [opened, shut]),
+        "an untouched chain verifies");
+
+    byte[] edited = shut.ToBytes();
+    edited[^1] ^= 0xFF;
+    using AuditEntry tampered = AuditEntry.FromBytes(edited);
+    Assert(
+        !Audit.VerifyChain(keeper.PublicKey, [opened, tampered]),
+        "and an altered record breaks it");
+
+    using AuditLog resumed = AuditLog.Resume(keeper, shut);
+    using AuditEntry afterReboot = resumed.Append("valve=open"u8);
+    Assert(afterReboot.Index == 2, "a reboot leaves no gap");
+
+    // Two devices that know each other's public keys, talking in confidence.
+    using var node = new AgreementKey(Repeat(0x01, 32));
+    using var gateway = new AgreementKey(Repeat(0x02, 32));
+    byte[] salt = Repeat(0x09, 16);
+    using var uplink = new Session(node, gateway.PublicKey, salt, SessionRole.Initiator);
+    using var downlink = new Session(gateway, node.PublicKey, salt, SessionRole.Responder);
+
+    SealedMessage message = uplink.Seal("4.8C"u8, "pump-3"u8);
+    Assert(
+        !message.Ciphertext.AsSpan().SequenceEqual("4.8C"u8),
+        "the reading does not travel in the clear");
+    Assert(
+        downlink.Open(message, "pump-3"u8).AsSpan().SequenceEqual("4.8C"u8),
+        "the peer recovers it");
+
+    try
+    {
+        downlink.Open(message, "pump-3"u8);
+        Fail("a repeated counter must be refused");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    SealedMessage second = uplink.Seal("4.9C"u8, "pump-3"u8);
+    byte[] broken = (byte[])second.Ciphertext.Clone();
+    broken[0] ^= 0xFF;
+    try
+    {
+        downlink.Open(new SealedMessage(second.Counter, second.Tag, broken), "pump-3"u8);
+        Fail("an altered message must be refused");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    // Fixing a device in the field: a signed release, staged in pieces, tried,
+    // and confirmed only once it has run.
+    byte[] vendor = Repeat(0x0A, 16);
+    byte[] deviceClass = Repeat(0x0B, 16);
+    using var publisher = new DeviceIdentity(Repeat(0x31, 32));
+    byte[] image = Repeat(0xA5, 600);
+    var manifest = new Manifest(
+        Sequence: 2,
+        VendorId: vendor,
+        ClassId: deviceClass,
+        Storage: 1,
+        Digest: System.Security.Cryptography.SHA256.HashData(image),
+        Size: (uint)image.Length);
+    byte[] envelope = Update.SignManifest(manifest, publisher);
+    Assert(
+        Update.VerifyEnvelope(envelope, publisher.PublicKey).Digest
+            .AsSpan().SequenceEqual(manifest.Digest),
+        "the release verifies against the key that signed it");
+
+    using var fleet = new Updater(vendor, deviceClass, publisher.PublicKey, 2, 4096);
+    fleet.Provision(0, 1);
+    Assert(fleet.Begin(envelope) == 1, "the release names the spare slot");
+    for (int at = 0; at < image.Length; at += 128)
+    {
+        fleet.Write(image.AsSpan(at, Math.Min(128, image.Length - at)));
+    }
+
+    Assert(fleet.CurrentProgress().Written == image.Length, "every byte arrived");
+    Assert(fleet.Finish() == 1, "and the image matched what was promised");
+
+    Assert(fleet.OnBoot().Action == BootAction.Trying, "a new image is on trial");
+    Assert(fleet.Confirm() == 1, "and confirms once it has run");
+    Assert(
+        fleet.Record(1).State == SlotState.Confirmed,
+        "so the slot holds the release from now on");
+
+    using var impostor = new DeviceIdentity(Repeat(0x32, 32));
+    try
+    {
+        fleet.Stage(Update.SignManifest(manifest with { Sequence = 3 }, impostor), image);
+        Fail("a release signed by anyone else must be refused");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    // A delegated key signs day to day, so the anchor can stay offline.
+    using var anchor = new DeviceIdentity(Repeat(0x41, 32));
+    using var releases = new DeviceIdentity(Repeat(0x42, 32));
+    byte[] statement = Update.SignDelegation(
+        new Delegation(Epoch: 1, ReleaseKey: releases.PublicKey), anchor);
+    Assert(
+        Update.OpenDelegation(statement, anchor.PublicKey).ReleaseKey
+            .AsSpan().SequenceEqual(releases.PublicKey),
+        "the delegation names the release key");
+
+    using var delegated = new Updater(vendor, deviceClass, anchor.PublicKey, 2, 4096);
+    delegated.Provision(0, 1);
+    delegated.Adopt(statement);
+    Assert(delegated.CurrentDelegation is not null, "the device now honours it");
+    Assert(
+        delegated.Stage(Update.SignManifest(manifest, releases), image) == 1,
+        "so a release the anchor never touched is accepted");
+
+    // How often a node on a battery can afford to do any of the above.
+    PowerPlan plan = PowerPlan.Create(60_000_000, 300_000_000, 3_600_000_000);
+    Assert(plan.Mode(0.9f) == PowerMode.Active, "a healthy charge works normally");
+    Assert(plan.Mode(0.1f) == PowerMode.Critical, "a flat one barely works at all");
+    Assert(
+        plan.ModeWhileCharging(0.1f, true) == PowerMode.Saver,
+        "and sunlight eases it back one step");
+    Assert(plan.IntervalUs(0.1f) == 3_600_000_000, "which is an hour between readings");
+
+    DutyCycle duty = DutyCycle.FromFraction(1_000_000, 0.25f);
+    Assert(duty.ActiveUs == 250_000, "a quarter of the period is spent awake");
+
+    // What it says about itself on the way back, and what it drops when the link
+    // costs too much to say it.
+    using var reporter = new Reporter(TelemetryLevel.Trace);
+    reporter.AdaptTo(LinkCost.Expensive);
+    Assert(
+        reporter.Record(new TelemetryEvent(TelemetryLevel.Info, "loop.tick")) is null,
+        "routine detail is dropped on a costly link");
+
+    TelemetryEvent? warned =
+        reporter.Record(new TelemetryEvent(TelemetryLevel.Warn, "battery.low", 0.18f));
+    Assert(warned?.Code == "battery.low", "but a warning still ships");
+    Assert(warned?.Value == 0.18f, "with the measurement that triggered it");
+
+    TelemetrySnapshot counts = reporter.Snapshot();
+    Assert(counts.Dropped == 1, "the dropped event was still counted");
+    Assert(counts.Emitted == 1, "alongside the one that shipped");
+    Assert(
+        Reporter.ThresholdFor(LinkCost.Offline) == TelemetryLevel.Error,
+        "and an offline link ships only failures");
+}
+
+// Builds a buffer of one repeated byte, which is how the fixtures name keys.
+static byte[] Repeat(byte value, int length)
+{
+    byte[] bytes = new byte[length];
+    Array.Fill(bytes, value);
+    return bytes;
+}
 
 // Signing a payload and checking it, the way a gateway verifies a reading.
 static void Identity()
@@ -323,6 +495,11 @@ static void Conformance()
     ConformLorawan(vectors.GetProperty("lorawan"));
     ConformHeader(vectors.GetProperty("header"));
     ConformNetwork(vectors.GetProperty("network"));
+    ConformAudit(vectors.GetProperty("audit"));
+    ConformSession(vectors.GetProperty("session"));
+    ConformUpdate(vectors.GetProperty("update"));
+    ConformPower(vectors.GetProperty("power"));
+    ConformTelemetry(vectors.GetProperty("telemetry"));
 
     Console.WriteLine("conformance ok");
 }
@@ -1652,4 +1829,323 @@ static void ConformNetwork(JsonElement vector)
             Convert.FromHexString(probe.GetProperty("payload").GetString()!)))
             .ToLowerInvariant() == probe.GetProperty("frame").GetString(),
         "the session the device derived matches the published keys");
+}
+
+static void ConformAudit(JsonElement vector)
+{
+    using var keeper = new DeviceIdentity(
+        Convert.FromHexString(vector.GetProperty("seed").GetString()!));
+    Assert(
+        Convert.ToHexString(keeper.PublicKey).ToLowerInvariant()
+            == vector.GetProperty("publicKey").GetString(),
+        "the key a chain is checked against");
+
+    using var log = new AuditLog(keeper);
+    List<AuditEntry> entries = [];
+    foreach (JsonElement want in vector.GetProperty("entries").EnumerateArray())
+    {
+        AuditEntry entry = log.Append(
+            System.Text.Encoding.UTF8.GetBytes(want.GetProperty("payload").GetString()!));
+        Assert(entry.Index == want.GetProperty("index").GetUInt64(), "the index");
+        Assert(
+            Convert.ToHexString(entry.Previous).ToLowerInvariant()
+                == want.GetProperty("previous").GetString(),
+            "each record carries the hash of the one before it");
+        Assert(
+            Convert.ToHexString(entry.Digest).ToLowerInvariant()
+                == want.GetProperty("digest").GetString(),
+            "the digest");
+        Assert(
+            Convert.ToHexString(entry.Signature).ToLowerInvariant()
+                == want.GetProperty("signature").GetString(),
+            "the signature");
+        Assert(
+            Convert.ToHexString(entry.ToBytes()).ToLowerInvariant()
+                == want.GetProperty("bytes").GetString(),
+            "a record encodes the same in every language");
+        entries.Add(entry);
+    }
+
+    Assert(Audit.VerifyChain(keeper.PublicKey, entries), "an untouched chain verifies");
+
+    using AuditEntry tampered = AuditEntry.FromBytes(
+        Convert.FromHexString(vector.GetProperty("tampered").GetString()!));
+    Assert(
+        !Audit.VerifyChain(keeper.PublicKey, [entries[0], entries[1], tampered]),
+        "and an altered record breaks it");
+
+    JsonElement resumedWant = vector.GetProperty("resumed");
+    using AuditLog resumed = AuditLog.Resume(keeper, entries[2]);
+    using AuditEntry afterReboot = resumed.Append(
+        System.Text.Encoding.UTF8.GetBytes(resumedWant.GetProperty("payload").GetString()!));
+    Assert(
+        afterReboot.Index == resumedWant.GetProperty("index").GetUInt64(),
+        "a reboot leaves no gap");
+    Assert(
+        Convert.ToHexString(afterReboot.ToBytes()).ToLowerInvariant()
+            == resumedWant.GetProperty("bytes").GetString(),
+        "and the resumed record encodes the same");
+
+    foreach (AuditEntry entry in entries)
+    {
+        entry.Dispose();
+    }
+}
+
+static void ConformSession(JsonElement vector)
+{
+    using var node = new AgreementKey(
+        Convert.FromHexString(vector.GetProperty("nodeSeed").GetString()!));
+    using var gateway = new AgreementKey(
+        Convert.FromHexString(vector.GetProperty("gatewaySeed").GetString()!));
+
+    Assert(
+        Convert.ToHexString(node.PublicKey).ToLowerInvariant()
+            == vector.GetProperty("nodePublicKey").GetString(),
+        "the node key");
+    Assert(
+        Convert.ToHexString(gateway.PublicKey).ToLowerInvariant()
+            == vector.GetProperty("gatewayPublicKey").GetString(),
+        "the gateway key");
+
+    byte[] salt = Convert.FromHexString(vector.GetProperty("salt").GetString()!);
+    byte[] aad = System.Text.Encoding.UTF8.GetBytes(vector.GetProperty("aad").GetString()!);
+    using var uplink = new Session(node, gateway.PublicKey, salt, SessionRole.Initiator);
+    using var downlink = new Session(gateway, node.PublicKey, salt, SessionRole.Responder);
+
+    foreach (JsonElement want in vector.GetProperty("messages").EnumerateArray())
+    {
+        string plaintext = want.GetProperty("plaintext").GetString()!;
+        SealedMessage message =
+            uplink.Seal(System.Text.Encoding.UTF8.GetBytes(plaintext), aad);
+
+        Assert(message.Counter == want.GetProperty("counter").GetUInt64(), "the counter");
+        Assert(
+            Convert.ToHexString(message.Tag).ToLowerInvariant()
+                == want.GetProperty("tag").GetString(),
+            "the tag");
+        Assert(
+            Convert.ToHexString(message.Ciphertext).ToLowerInvariant()
+                == want.GetProperty("ciphertext").GetString(),
+            "the same key and counter produce the same bytes everywhere");
+        Assert(
+            System.Text.Encoding.UTF8.GetString(downlink.Open(message, aad)) == plaintext,
+            "the peer recovers the reading");
+    }
+
+    JsonElement first = vector.GetProperty("messages")[0];
+    var replayed = new SealedMessage(
+        first.GetProperty("counter").GetUInt64(),
+        Convert.FromHexString(first.GetProperty("tag").GetString()!),
+        Convert.FromHexString(first.GetProperty("ciphertext").GetString()!));
+
+    try
+    {
+        downlink.Open(replayed, aad);
+        Fail("a repeated counter must be refused");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    using var fresh = new Session(gateway, node.PublicKey, salt, SessionRole.Responder);
+    try
+    {
+        fresh.Open(
+            replayed,
+            System.Text.Encoding.UTF8.GetBytes(vector.GetProperty("wrongAad").GetString()!));
+        Fail("associated data that does not match must fail authentication");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    JsonElement hmac = vector.GetProperty("hmac");
+    Assert(
+        Convert.ToHexString(Session.HmacSha256(
+            System.Text.Encoding.UTF8.GetBytes(hmac.GetProperty("key").GetString()!),
+            System.Text.Encoding.UTF8.GetBytes(hmac.GetProperty("message").GetString()!)))
+            .ToLowerInvariant() == hmac.GetProperty("digest").GetString(),
+        "the keyed hash");
+
+    JsonElement hkdf = vector.GetProperty("hkdf");
+    Assert(
+        Convert.ToHexString(Session.HkdfSha256(
+            System.Text.Encoding.UTF8.GetBytes(hkdf.GetProperty("salt").GetString()!),
+            System.Text.Encoding.UTF8.GetBytes(hkdf.GetProperty("ikm").GetString()!),
+            System.Text.Encoding.UTF8.GetBytes(hkdf.GetProperty("info").GetString()!),
+            hkdf.GetProperty("length").GetInt32()))
+            .ToLowerInvariant() == hkdf.GetProperty("output").GetString(),
+        "the expansion");
+}
+
+static void ConformUpdate(JsonElement vector)
+{
+    using var publisher = new DeviceIdentity(
+        Convert.FromHexString(vector.GetProperty("publisherSeed").GetString()!));
+    Assert(
+        Convert.ToHexString(publisher.PublicKey).ToLowerInvariant()
+            == vector.GetProperty("publisherPublicKey").GetString(),
+        "the key a device trusts");
+
+    JsonElement want = vector.GetProperty("manifest");
+    byte[] vendor = Convert.FromHexString(vector.GetProperty("vendorId").GetString()!);
+    byte[] deviceClass = Convert.FromHexString(vector.GetProperty("classId").GetString()!);
+    var manifest = new Manifest(
+        Sequence: want.GetProperty("sequence").GetUInt64(),
+        VendorId: vendor,
+        ClassId: deviceClass,
+        Storage: want.GetProperty("storage").GetByte(),
+        Digest: Convert.FromHexString(want.GetProperty("digest").GetString()!),
+        Size: want.GetProperty("size").GetUInt32(),
+        Expires: want.GetProperty("expires").GetUInt64(),
+        Format: want.GetProperty("format").GetByte(),
+        StructureVersion: want.GetProperty("structureVersion").GetByte());
+
+    byte[] image = new byte[vector.GetProperty("imageLen").GetInt32()];
+    Array.Fill(image, vector.GetProperty("imageByte").GetByte());
+
+    Assert(
+        Convert.ToHexString(Update.EncodeManifest(manifest)).ToLowerInvariant()
+            == vector.GetProperty("body").GetString(),
+        "a manifest encodes the same in every language");
+
+    byte[] envelope = Update.SignManifest(manifest, publisher);
+    Assert(
+        Convert.ToHexString(envelope).ToLowerInvariant()
+            == vector.GetProperty("envelope").GetString(),
+        "the signed envelope");
+    Assert(
+        Convert.ToHexString(Update.VerifyEnvelope(envelope, publisher.PublicKey).Digest)
+            .ToLowerInvariant() == want.GetProperty("digest").GetString(),
+        "which verifies against the key that signed it");
+
+    try
+    {
+        Update.VerifyEnvelope(
+            Convert.FromHexString(vector.GetProperty("forgedEnvelope").GetString()!),
+            publisher.PublicKey);
+        Fail("a release signed by another key must be refused");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    JsonElement delegationWant = vector.GetProperty("delegation");
+    using var anchor = new DeviceIdentity(
+        Convert.FromHexString(vector.GetProperty("anchorSeed").GetString()!));
+    Assert(
+        Convert.ToHexString(Update.SignDelegation(
+            new Delegation(
+                delegationWant.GetProperty("epoch").GetUInt64(),
+                Convert.FromHexString(delegationWant.GetProperty("releaseKey").GetString()!),
+                delegationWant.GetProperty("expires").GetUInt64()),
+            anchor)).ToLowerInvariant() == delegationWant.GetProperty("envelope").GetString(),
+        "the signed delegation");
+
+    JsonElement life = vector.GetProperty("lifecycle");
+    using var fleet = new Updater(vendor, deviceClass, publisher.PublicKey, 2, 4096);
+    fleet.Provision(0, 1);
+    Assert(
+        fleet.Begin(envelope) == life.GetProperty("staged").GetByte(),
+        "the release names the same slot");
+
+    int chunk = life.GetProperty("chunk").GetInt32();
+    for (int at = 0; at < image.Length; at += chunk)
+    {
+        fleet.Write(image.AsSpan(at, Math.Min(chunk, image.Length - at)));
+    }
+
+    Assert(
+        fleet.Finish() == life.GetProperty("staged").GetByte(),
+        "and the image matched what was promised");
+
+    BootDecision boot = fleet.OnBoot();
+    Assert(boot.Action.ToString() == life.GetProperty("boot").GetString(), "the boot decision");
+    Assert(boot.Slot == life.GetProperty("bootSlot").GetByte(), "the slot it is about");
+    Assert(
+        fleet.Confirm() == life.GetProperty("confirmed").GetByte(),
+        "the confirmed slot");
+
+    SlotRecord record = fleet.Record(life.GetProperty("confirmed").GetByte());
+    Assert(record.State.ToString() == life.GetProperty("state").GetString(), "the slot state");
+    Assert(record.Written == life.GetProperty("written").GetUInt32(), "the bytes written");
+}
+
+static void ConformPower(JsonElement vector)
+{
+    JsonElement want = vector.GetProperty("plan");
+    PowerPlan plan = PowerPlan.Create(
+        want.GetProperty("activeUs").GetUInt64(),
+        want.GetProperty("saverUs").GetUInt64(),
+        want.GetProperty("criticalUs").GetUInt64());
+
+    Close(plan.SaverBelow, want.GetProperty("saverBelow").GetSingle(), 1e-6, "the saver bar");
+    Close(
+        plan.CriticalBelow,
+        want.GetProperty("criticalBelow").GetSingle(),
+        1e-6,
+        "the critical bar");
+
+    JsonElement charges = vector.GetProperty("charges");
+    JsonElement modes = vector.GetProperty("modes");
+    JsonElement charging = vector.GetProperty("charging");
+    JsonElement intervals = vector.GetProperty("intervalsUs");
+    for (int at = 0; at < charges.GetArrayLength(); at++)
+    {
+        float soc = charges[at].GetSingle();
+        Assert(plan.Mode(soc).ToString() == modes[at].GetString(), $"the mode at {soc}");
+        Assert(
+            plan.ModeWhileCharging(soc, true).ToString() == charging[at].GetString(),
+            $"the mode while charging at {soc}");
+        Assert(
+            plan.IntervalUs(soc) == intervals[at].GetUInt64(),
+            $"the interval at {soc}");
+    }
+
+    JsonElement dutyWant = vector.GetProperty("duty");
+    DutyCycle duty = DutyCycle.FromFraction(
+        dutyWant.GetProperty("periodUs").GetUInt64(),
+        dutyWant.GetProperty("fraction").GetSingle());
+    Assert(duty.ActiveUs == dutyWant.GetProperty("activeUs").GetUInt64(), "the time awake");
+    Assert(duty.SleepUs == dutyWant.GetProperty("sleepUs").GetUInt64(), "the time asleep");
+}
+
+static void ConformTelemetry(JsonElement vector)
+{
+    JsonElement costs = vector.GetProperty("costs");
+    JsonElement thresholds = vector.GetProperty("thresholds");
+    for (int at = 0; at < costs.GetArrayLength(); at++)
+    {
+        LinkCost cost = Enum.Parse<LinkCost>(costs[at].GetString()!);
+        Assert(
+            Reporter.ThresholdFor(cost).ToString() == thresholds[at].GetString(),
+            $"the bar {cost} sets");
+    }
+
+    using var reporter = new Reporter(TelemetryLevel.Trace);
+    reporter.AdaptTo(Enum.Parse<LinkCost>(vector.GetProperty("adaptedTo").GetString()!));
+
+    JsonElement levels = vector.GetProperty("levels");
+    JsonElement shipped = vector.GetProperty("shipped");
+    for (int at = 0; at < levels.GetArrayLength(); at++)
+    {
+        TelemetryLevel level = Enum.Parse<TelemetryLevel>(levels[at].GetString()!);
+        TelemetryEvent? outcome = reporter.Record(new TelemetryEvent(level, "vector"));
+        Assert(
+            (outcome is not null) == shipped[at].GetBoolean(),
+            $"whether event {at} is worth its bytes");
+    }
+
+    JsonElement want = vector.GetProperty("snapshot");
+    TelemetrySnapshot snapshot = reporter.Snapshot();
+    Assert(snapshot.Trace == want.GetProperty("trace").GetUInt32(), "the trace count");
+    Assert(snapshot.Debug == want.GetProperty("debug").GetUInt32(), "the debug count");
+    Assert(snapshot.Info == want.GetProperty("info").GetUInt32(), "the info count");
+    Assert(snapshot.Warn == want.GetProperty("warn").GetUInt32(), "the warn count");
+    Assert(snapshot.Error == want.GetProperty("error").GetUInt32(), "the error count");
+    Assert(snapshot.Emitted == want.GetProperty("emitted").GetUInt32(), "the shipped count");
+    Assert(
+        snapshot.Dropped == want.GetProperty("dropped").GetUInt32(),
+        "what was dropped is still counted");
 }

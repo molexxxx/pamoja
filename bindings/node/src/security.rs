@@ -17,7 +17,7 @@ const SIGNATURE_LEN: usize = 64;
 /// A device's private signing identity.
 #[napi]
 pub struct DeviceIdentity {
-    inner: CoreIdentity,
+    pub(crate) inner: CoreIdentity,
 }
 
 #[napi]

@@ -21,14 +21,19 @@ const {
   Boundary,
   deadband,
   distanceBetween,
+  audit,
   can,
   gpio,
   lora,
   lorawan,
   mesh,
   modbus,
+  power,
   routing,
   serial,
+  session,
+  telemetry,
+  update,
   actuators,
   sensors,
   Window,
@@ -76,6 +81,7 @@ async function main() {
   fieldIo();
   sensingAndActuation();
   radioAndReach();
+  trustAndOperation();
 
   console.log("ok");
 }
@@ -367,6 +373,175 @@ function radioAndReach() {
     () => node.acceptJoin(Buffer.alloc(17, 0x20), 0x0102),
     /MIC/,
     "a join accept the network never signed does not activate a session",
+  );
+}
+
+
+// Proving what a node did, saying it in confidence, fixing it in the field, and
+// deciding how often it can afford to do any of that.
+function trustAndOperation() {
+  // A signed, chained log: what a node did, in an order nobody can quietly edit.
+  const keeper = new DeviceIdentity(Buffer.alloc(32, 0x21));
+  const log = new audit.AuditLog(keeper);
+  const opened = log.append(Buffer.from("valve=open"));
+  const shut = log.append(Buffer.from("valve=shut"));
+
+  assert.strictEqual(Number(opened.index), 0, "the first record sits at index zero");
+  assert.deepStrictEqual(
+    Buffer.from(shut.previous),
+    Buffer.from(opened.digest),
+    "each record carries the hash of the one before it",
+  );
+  assert.ok(
+    audit.verifyChain(keeper.publicKey(), [opened, shut]),
+    "an untouched chain verifies",
+  );
+
+  const edited = Buffer.from(shut.toBytes());
+  edited[edited.length - 1] ^= 0xff;
+  assert.ok(
+    !audit.verifyChain(keeper.publicKey(), [
+      opened,
+      audit.AuditEntry.fromBytes(edited),
+    ]),
+    "and an altered record breaks it",
+  );
+
+  // A resumed log continues the chain rather than starting a second one.
+  const resumed = audit.AuditLog.resume(keeper, shut);
+  const afterReboot = resumed.append(Buffer.from("valve=open"));
+  assert.strictEqual(Number(afterReboot.index), 2, "a reboot leaves no gap");
+
+  // Two devices that know each other's public keys, talking in confidence.
+  const node = new session.AgreementKey(Buffer.alloc(32, 0x01));
+  const gateway = new session.AgreementKey(Buffer.alloc(32, 0x02));
+  const salt = Buffer.alloc(16, 0x09);
+  const uplink = new session.Session(node, gateway.publicKey(), salt, session.Role.Initiator);
+  const downlink = new session.Session(gateway, node.publicKey(), salt, session.Role.Responder);
+
+  const label = Buffer.from("pump-3");
+  const sealed = uplink.seal(Buffer.from("4.8C"), label);
+  assert.notStrictEqual(
+    sealed.ciphertext.toString(),
+    "4.8C",
+    "the reading does not travel in the clear",
+  );
+  assert.strictEqual(
+    downlink.open(sealed, label).toString(),
+    "4.8C",
+    "the peer recovers it",
+  );
+  assert.throws(
+    () => downlink.open(sealed, label),
+    /repeat|replay/i,
+    "and refuses the same message twice",
+  );
+
+  const tampered = { ...uplink.seal(Buffer.from("4.9C"), label) };
+  tampered.ciphertext = Buffer.from(tampered.ciphertext);
+  tampered.ciphertext[0] ^= 0xff;
+  assert.throws(
+    () => downlink.open(tampered, label),
+    /authenticat/i,
+    "an altered message is refused",
+  );
+
+  // Fixing a device in the field: a signed release, staged in pieces, tried, and
+  // confirmed only once it has run.
+  const vendor = Buffer.alloc(16, 0x0a);
+  const deviceClass = Buffer.alloc(16, 0x0b);
+  const publisher = new DeviceIdentity(Buffer.alloc(32, 0x31));
+  const image = Buffer.alloc(600, 0xa5);
+  const manifest = {
+    structureVersion: update.STRUCTURE_VERSION,
+    sequence: 2,
+    vendorId: vendor,
+    classId: deviceClass,
+    format: update.FORMAT_RAW,
+    storage: 1,
+    digest: require("node:crypto").createHash("sha256").update(image).digest(),
+    size: image.length,
+    expires: 0,
+  };
+  const envelope = update.signManifest(manifest, publisher);
+  assert.deepStrictEqual(
+    update.verifyEnvelope(envelope, publisher.publicKey()).digest,
+    manifest.digest,
+    "the release verifies against the key that signed it",
+  );
+
+  const fleet = new update.Updater(vendor, deviceClass, publisher.publicKey(), 2, 4096);
+  fleet.provision(0, 1);
+  assert.strictEqual(fleet.begin(envelope), 1, "the release names the spare slot");
+  for (let at = 0; at < image.length; at += 128) {
+    fleet.write(image.subarray(at, at + 128));
+  }
+  assert.strictEqual(
+    fleet.progress().written,
+    image.length,
+    "every byte arrived",
+  );
+  assert.strictEqual(fleet.finish(), 1, "and the image matched what was promised");
+
+  const boot = fleet.onBoot();
+  assert.strictEqual(boot.action, update.BootAction.Trying, "a new image is on trial");
+  assert.strictEqual(fleet.confirm(), 1, "and confirms once it has run");
+  assert.strictEqual(
+    fleet.slotRecord(1).state,
+    update.SlotState.Confirmed,
+    "so the slot holds the release from now on",
+  );
+
+  const impostor = new DeviceIdentity(Buffer.alloc(32, 0x32));
+  assert.throws(
+    () => fleet.stage(update.signManifest({ ...manifest, sequence: 3 }, impostor), image),
+    /signature/i,
+    "a release signed by anyone else is refused",
+  );
+  assert.throws(
+    () => fleet.stage(update.signManifest({ ...manifest, sequence: 1 }, publisher), image),
+    /roll/i,
+    "and one that would roll the device back is refused",
+  );
+
+  // How often a node on a battery can afford to do any of the above.
+  const plan = new power.PowerPlan(60_000_000, 300_000_000, 3_600_000_000);
+  assert.strictEqual(plan.mode(0.9), power.PowerMode.Active, "a healthy charge works normally");
+  assert.strictEqual(plan.mode(0.1), power.PowerMode.Critical, "a flat one barely works at all");
+  assert.strictEqual(
+    plan.modeWhileCharging(0.1, true),
+    power.PowerMode.Saver,
+    "and sunlight eases it back one step",
+  );
+  assert.strictEqual(plan.intervalUs(0.1), 3_600_000_000, "which is an hour between readings");
+
+  const duty = power.DutyCycle.fromFraction(1_000_000, 0.25);
+  assert.strictEqual(duty.activeUs, 250_000, "a quarter of the period is spent awake");
+
+  // What it says about itself on the way back, and what it drops when the link
+  // costs too much to say it.
+  const reporter = new telemetry.Reporter(telemetry.Level.Trace);
+  reporter.adaptTo(telemetry.LinkCost.Expensive);
+  assert.strictEqual(
+    reporter.record({ level: telemetry.Level.Info, code: "loop.tick" }),
+    null,
+    "routine detail is dropped on a costly link",
+  );
+  const warned = reporter.record({
+    level: telemetry.Level.Warn,
+    code: "battery.low",
+    value: 0.18,
+  });
+  assert.strictEqual(warned?.code, "battery.low", "but a warning still ships");
+  assert.strictEqual(warned?.value, 0.18, "with the measurement that triggered it");
+
+  const counts = reporter.snapshot();
+  assert.strictEqual(counts.dropped, 1, "the dropped event was still counted");
+  assert.strictEqual(counts.emitted, 1, "alongside the one that shipped");
+  assert.strictEqual(
+    telemetry.linkCostThreshold(telemetry.LinkCost.Offline),
+    telemetry.Level.Error,
+    "and an offline link ships only failures",
   );
 }
 

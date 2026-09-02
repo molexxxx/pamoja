@@ -73,6 +73,26 @@
       "types": "./dist/routing.d.ts",
       "default": "./dist/routing.js"
     },
+    "./audit": {
+      "types": "./dist/audit.d.ts",
+      "default": "./dist/audit.js"
+    },
+    "./session": {
+      "types": "./dist/session.d.ts",
+      "default": "./dist/session.js"
+    },
+    "./update": {
+      "types": "./dist/update.d.ts",
+      "default": "./dist/update.js"
+    },
+    "./power": {
+      "types": "./dist/power.d.ts",
+      "default": "./dist/power.js"
+    },
+    "./telemetry": {
+      "types": "./dist/telemetry.d.ts",
+      "default": "./dist/telemetry.js"
+    },
     "./raw": {
       "types": "./index.d.ts",
       "default": "./index.js"

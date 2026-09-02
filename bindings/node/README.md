@@ -25,12 +25,19 @@ while all behavior stays in the Rust core.
 | `@pamoja/core/lorawan` | secured LoRaWAN frames, both halves of activation, header routing |
 | `@pamoja/core/mesh` | addressed mesh packets, relaying, and duplicate suppression |
 | `@pamoja/core/routing` | learning the way to a node, and when to fall back to flooding |
+| `@pamoja/core/audit` | signed, hash-chained records that cannot be quietly edited |
+| `@pamoja/core/session` | a confidential, replay-protected channel with one peer |
+| `@pamoja/core/update` | signed releases, staged into slots, with verified rollback |
+| `@pamoja/core/power` | duty cycling, and the interval a falling battery calls for |
+| `@pamoja/core/telemetry` | leveled events that thin out as the link gets expensive |
 
 `@pamoja/core` re-exports them all, and the generated low-level contract stays
 available at `@pamoja/core/raw` for anything the facade does not surface. The
-hardware and radio capabilities arrive as namespaces (`serial`, `modbus`, `can`,
-`gpio`, `sensors`, `actuators`, `lora`, `lorawan`, `mesh`, `routing`), because
-their operations are named for their protocol or part rather than for the SDK.
+hardware, radio, and operational capabilities arrive as namespaces (`serial`,
+`modbus`, `can`, `gpio`, `sensors`, `actuators`, `lora`, `lorawan`, `mesh`,
+`routing`, `audit`, `session`, `update`, `power`, `telemetry`), because their
+names are ordinary words that only read unambiguously with the capability in
+front of them.
 
 ```js
 const { DeviceIdentity, Smoother, toCbor } = require("@pamoja/core");

@@ -9,6 +9,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use pamoja_actuators::{pca9685, stepper};
+use pamoja_audit::{verify_chain, AuditLog, Entry};
 use pamoja_can::{dlc_to_len, len_to_dlc, CanId, Frame, J1939Id};
 use pamoja_codec::{cbor_to_json, decode_deltas, encode_deltas, json_to_cbor, Quantizer};
 use pamoja_gpio::i2c::{Address, Direction};
@@ -26,10 +27,17 @@ use pamoja_lorawan::{
 use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
 use pamoja_modbus::Pdu;
 use pamoja_modbus::{crc16, Adu};
+use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
 use pamoja_routing::{DynamicRouter, Forward};
 use pamoja_security::{DeviceIdentity, PublicIdentity, Signature};
 use pamoja_sensors::{ads1115, bme280, ds18b20, ina219};
 use pamoja_serial::{cobs, slip};
+use pamoja_session::{AgreementKey, Role, Sealed, Session as SecuredSession, SessionError};
+use pamoja_telemetry::{Event, Level as TelemetryLevel, LinkCost, Reporter};
+use pamoja_update::{
+    Boot, Delegation, Device as UpdateDevice, Envelope, Manifest, MemoryStore, Refusal, SlotState,
+    SlotStore, Updater,
+};
 use serde_json::Value;
 
 /// Loads the committed vectors.
@@ -1387,4 +1395,496 @@ fn assert_grant(case: &Value, app_key: &[u8; 16], dev_nonce: u16) {
         probe["frame"].as_str().expect("a frame"),
         "the session this network derived is the one the device holds"
     );
+}
+
+#[test]
+fn audit_vectors_match() {
+    let vectors = vectors();
+    let vector = &vectors["audit"];
+    let seed = <[u8; 32]>::try_from(unhex(&vector["seed"]).as_slice()).expect("the seed");
+    let keeper = DeviceIdentity::from_seed(&seed);
+    assert_eq!(
+        hex(&keeper.public().to_bytes()),
+        vector["publicKey"].as_str().expect("the public key"),
+        "the key a chain is checked against"
+    );
+
+    let mut log = AuditLog::new(keeper.clone());
+    let mut entries = Vec::new();
+    for want in vector["entries"].as_array().expect("the entries") {
+        let payload = want["payload"].as_str().expect("the payload");
+        let entry = log.append(payload.as_bytes());
+
+        assert_eq!(entry.index(), want["index"].as_u64().expect("the index"));
+        assert_eq!(
+            hex(&entry.previous()),
+            want["previous"].as_str().expect("the previous hash"),
+            "each record carries the hash of the one before it"
+        );
+        assert_eq!(
+            hex(&entry.digest()),
+            want["digest"].as_str().expect("the digest")
+        );
+        assert_eq!(
+            hex(&entry.signature().to_bytes()),
+            want["signature"].as_str().expect("the signature")
+        );
+        assert_eq!(
+            hex(&entry.to_bytes()),
+            want["bytes"].as_str().expect("the encoded entry"),
+            "a record encodes the same in every language"
+        );
+        entries.push(entry);
+    }
+
+    assert!(
+        verify_chain(&keeper.public(), &entries).is_ok(),
+        "an untouched chain verifies"
+    );
+
+    let tampered = Entry::from_bytes(&unhex(&vector["tampered"])).expect("a well-formed entry");
+    let broken = vec![entries[0].clone(), entries[1].clone(), tampered];
+    assert!(
+        verify_chain(&keeper.public(), &broken).is_err(),
+        "and an altered record breaks it"
+    );
+
+    let resumed_want = &vector["resumed"];
+    let mut resumed = AuditLog::resume(keeper, &entries[2]);
+    let after_reboot = resumed.append(
+        resumed_want["payload"]
+            .as_str()
+            .expect("the payload")
+            .as_bytes(),
+    );
+    assert_eq!(
+        after_reboot.index(),
+        resumed_want["index"].as_u64().expect("the index"),
+        "a reboot leaves no gap in the chain"
+    );
+    assert_eq!(
+        hex(&after_reboot.to_bytes()),
+        resumed_want["bytes"].as_str().expect("the encoded entry")
+    );
+}
+
+#[test]
+fn session_vectors_match() {
+    let vectors = vectors();
+    let vector = &vectors["session"];
+
+    let node_seed =
+        <[u8; 32]>::try_from(unhex(&vector["nodeSeed"]).as_slice()).expect("the node seed");
+    let gateway_seed =
+        <[u8; 32]>::try_from(unhex(&vector["gatewaySeed"]).as_slice()).expect("the gateway seed");
+    let node = AgreementKey::from_seed(&node_seed);
+    let gateway = AgreementKey::from_seed(&gateway_seed);
+
+    assert_eq!(
+        hex(&node.public().to_bytes()),
+        vector["nodePublicKey"].as_str().expect("the node key")
+    );
+    assert_eq!(
+        hex(&gateway.public().to_bytes()),
+        vector["gatewayPublicKey"]
+            .as_str()
+            .expect("the gateway key")
+    );
+
+    let salt = unhex(&vector["salt"]);
+    let aad = vector["aad"]
+        .as_str()
+        .expect("the associated data")
+        .as_bytes();
+    let mut uplink = SecuredSession::establish(&node, &gateway.public(), &salt, Role::Initiator);
+    let mut downlink = SecuredSession::establish(&gateway, &node.public(), &salt, Role::Responder);
+
+    for want in vector["messages"].as_array().expect("the messages") {
+        let plaintext = want["plaintext"].as_str().expect("the plaintext");
+        let mut message = plaintext.as_bytes().to_vec();
+        let header = uplink.seal(&mut message, aad);
+
+        assert_eq!(
+            header.counter,
+            want["counter"].as_u64().expect("the counter")
+        );
+        assert_eq!(hex(&header.tag), want["tag"].as_str().expect("the tag"));
+        assert_eq!(
+            hex(&message),
+            want["ciphertext"].as_str().expect("the ciphertext"),
+            "the same key and counter produce the same bytes everywhere"
+        );
+
+        downlink
+            .open(&header, &mut message, aad)
+            .expect("the peer opens it");
+        assert_eq!(message, plaintext.as_bytes(), "and recovers the reading");
+    }
+
+    // The first message again: the peer has already seen that counter.
+    let first = &vector["messages"][0];
+    let mut replayed = unhex(&first["ciphertext"]);
+    let header = Sealed {
+        counter: first["counter"].as_u64().expect("the counter"),
+        tag: <[u8; 16]>::try_from(unhex(&first["tag"]).as_slice()).expect("the tag"),
+    };
+    assert_eq!(
+        downlink.open(&header, &mut replayed, aad),
+        Err(SessionError::Replayed),
+        "a repeated counter is refused"
+    );
+
+    // A fresh peer, so the replay window is not what refuses it this time.
+    let mut fresh = SecuredSession::establish(&gateway, &node.public(), &salt, Role::Responder);
+    let wrong = vector["wrongAad"]
+        .as_str()
+        .expect("the wrong aad")
+        .as_bytes();
+    let mut message = unhex(&first["ciphertext"]);
+    assert_eq!(
+        fresh.open(&header, &mut message, wrong),
+        Err(SessionError::Inauthentic),
+        "and associated data that does not match fails authentication"
+    );
+
+    let hmac = &vector["hmac"];
+    assert_eq!(
+        hex(&pamoja_session::hmac_sha256(
+            hmac["key"].as_str().expect("the key").as_bytes(),
+            hmac["message"].as_str().expect("the message").as_bytes(),
+        )),
+        hmac["digest"].as_str().expect("the digest")
+    );
+
+    let hkdf = &vector["hkdf"];
+    let mut derived = vec![0u8; hkdf["length"].as_u64().expect("the length") as usize];
+    pamoja_session::hkdf_sha256(
+        hkdf["salt"].as_str().expect("the salt").as_bytes(),
+        hkdf["ikm"].as_str().expect("the ikm").as_bytes(),
+        hkdf["info"].as_str().expect("the info").as_bytes(),
+        &mut derived,
+    );
+    assert_eq!(hex(&derived), hkdf["output"].as_str().expect("the output"));
+}
+
+#[test]
+fn update_vectors_match() {
+    let vectors = vectors();
+    let vector = &vectors["update"];
+
+    let publisher = DeviceIdentity::from_seed(
+        &<[u8; 32]>::try_from(unhex(&vector["publisherSeed"]).as_slice()).expect("the seed"),
+    );
+    assert_eq!(
+        hex(&publisher.public().to_bytes()),
+        vector["publisherPublicKey"].as_str().expect("the key")
+    );
+
+    let want = &vector["manifest"];
+    let image = vec![
+        vector["imageByte"].as_u64().expect("the image byte") as u8;
+        vector["imageLen"].as_u64().expect("the image length") as usize
+    ];
+    let vendor = <[u8; 16]>::try_from(unhex(&vector["vendorId"]).as_slice()).expect("the vendor");
+    let class = <[u8; 16]>::try_from(unhex(&vector["classId"]).as_slice()).expect("the class");
+    let manifest = Manifest {
+        structure_version: want["structureVersion"].as_u64().expect("the version") as u8,
+        sequence: want["sequence"].as_u64().expect("the sequence"),
+        vendor_id: vendor,
+        class_id: class,
+        format: pamoja_update::PayloadFormat::Raw,
+        storage: want["storage"].as_u64().expect("the slot") as u8,
+        digest: <[u8; 32]>::try_from(unhex(&want["digest"]).as_slice()).expect("the digest"),
+        size: want["size"].as_u64().expect("the size") as u32,
+        expires: want["expires"].as_u64().expect("the expiry"),
+    };
+
+    let mut body = [0u8; pamoja_update::MANIFEST_MAX];
+    let body_len = manifest.encode(&mut body).expect("encode the manifest");
+    assert_eq!(
+        hex(&body[..body_len]),
+        vector["body"].as_str().expect("the encoded body"),
+        "a manifest encodes the same in every language"
+    );
+
+    let mut envelope = [0u8; pamoja_update::ENVELOPE_MAX];
+    let envelope_len = manifest
+        .sign(&publisher, &mut envelope)
+        .expect("sign the manifest");
+    assert_eq!(
+        hex(&envelope[..envelope_len]),
+        vector["envelope"].as_str().expect("the envelope")
+    );
+
+    let verified = Envelope::decode(&envelope[..envelope_len])
+        .expect("a well-formed envelope")
+        .verify(&publisher.public())
+        .expect("the signature holds");
+    assert_eq!(verified.digest, manifest.digest);
+
+    let forged = unhex(&vector["forgedEnvelope"]);
+    assert_eq!(
+        Envelope::decode(&forged)
+            .expect("a well-formed envelope")
+            .verify(&publisher.public())
+            .err(),
+        Some(Refusal::Signature),
+        "a release signed by another key is refused"
+    );
+
+    let delegation_want = &vector["delegation"];
+    let anchor = DeviceIdentity::from_seed(
+        &<[u8; 32]>::try_from(unhex(&vector["anchorSeed"]).as_slice()).expect("the seed"),
+    );
+    let delegation = Delegation {
+        epoch: delegation_want["epoch"].as_u64().expect("the epoch"),
+        release_key: <[u8; 32]>::try_from(unhex(&delegation_want["releaseKey"]).as_slice())
+            .expect("the release key"),
+        expires: delegation_want["expires"].as_u64().expect("the expiry"),
+    };
+    let mut statement = [0u8; pamoja_update::DELEGATION_MAX];
+    let statement_len = delegation
+        .sign(&anchor, &mut statement)
+        .expect("sign the delegation");
+    assert_eq!(
+        hex(&statement[..statement_len]),
+        delegation_want["envelope"].as_str().expect("the envelope")
+    );
+
+    let lifecycle = &vector["lifecycle"];
+    let device = UpdateDevice {
+        vendor_id: vendor,
+        class_id: class,
+        anchor: publisher.public(),
+    };
+    let mut updater = Updater::new(device, MemoryStore::new(2, 4096));
+    updater
+        .provision(0, 1)
+        .expect("provision the running image");
+
+    let chunk = lifecycle["chunk"].as_u64().expect("the chunk size") as usize;
+    let opened = updater
+        .begin(&envelope[..envelope_len])
+        .expect("open the transfer")
+        .manifest()
+        .storage;
+    assert_eq!(
+        u64::from(opened),
+        lifecycle["staged"].as_u64().expect("the slot"),
+        "the release names the same slot everywhere"
+    );
+    for piece in image.chunks(chunk) {
+        let mut staging = updater
+            .resume_at(&envelope[..envelope_len], None)
+            .expect("resume the transfer");
+        staging.write(piece).expect("take the piece");
+    }
+    let staged = updater
+        .resume_at(&envelope[..envelope_len], None)
+        .expect("resume the transfer")
+        .finish()
+        .expect("settle the image");
+    assert_eq!(
+        u64::from(staged),
+        lifecycle["staged"].as_u64().expect("the slot")
+    );
+
+    let boot = updater.on_boot().expect("decide what to run");
+    assert_eq!(
+        match boot {
+            Boot::Confirmed(_) => "Confirmed",
+            Boot::Trying(_) => "Trying",
+            Boot::Reverted { .. } => "Reverted",
+        },
+        lifecycle["boot"].as_str().expect("the boot decision")
+    );
+    assert_eq!(
+        u64::from(match boot {
+            Boot::Confirmed(slot) | Boot::Trying(slot) => slot,
+            Boot::Reverted { failed, .. } => failed,
+        }),
+        lifecycle["bootSlot"].as_u64().expect("the boot slot")
+    );
+
+    let confirmed = updater.confirm().expect("confirm the release");
+    assert_eq!(
+        u64::from(confirmed),
+        lifecycle["confirmed"].as_u64().expect("the confirmed slot")
+    );
+
+    let record = updater.store().record(confirmed).expect("read the slot");
+    assert_eq!(
+        match record.state {
+            SlotState::Empty => "Empty",
+            SlotState::Receiving => "Receiving",
+            SlotState::Staged => "Staged",
+            SlotState::Pending => "Pending",
+            SlotState::Confirmed => "Confirmed",
+            SlotState::Failed => "Failed",
+        },
+        lifecycle["state"].as_str().expect("the slot state")
+    );
+    assert_eq!(
+        u64::from(record.written),
+        lifecycle["written"].as_u64().expect("the bytes written")
+    );
+}
+
+#[test]
+fn power_vectors_match() {
+    let vectors = vectors();
+    let vector = &vectors["power"];
+    let want = &vector["plan"];
+
+    let plan = PowerPlan::new(
+        core::time::Duration::from_micros(want["activeUs"].as_u64().expect("the interval")),
+        core::time::Duration::from_micros(want["saverUs"].as_u64().expect("the interval")),
+        core::time::Duration::from_micros(want["criticalUs"].as_u64().expect("the interval")),
+    );
+    assert_eq!(plan.saver_below(), float(&want["saverBelow"]));
+    assert_eq!(plan.critical_below(), float(&want["criticalBelow"]));
+
+    let charges = floats(&vector["charges"]);
+    let modes = vector["modes"].as_array().expect("the modes");
+    let charging = vector["charging"].as_array().expect("the charging modes");
+    let intervals = vector["intervalsUs"].as_array().expect("the intervals");
+
+    for (at, &soc) in charges.iter().enumerate() {
+        assert_eq!(
+            power_mode_name(plan.mode(soc)),
+            modes[at].as_str().expect("the mode"),
+            "the mode at {soc}"
+        );
+        assert_eq!(
+            power_mode_name(plan.mode_while_charging(soc, true)),
+            charging[at].as_str().expect("the mode"),
+            "the mode while charging at {soc}"
+        );
+        assert_eq!(
+            plan.interval(soc).as_micros() as u64,
+            intervals[at].as_u64().expect("the interval"),
+            "the interval at {soc}"
+        );
+    }
+
+    let duty_want = &vector["duty"];
+    let duty = DutyCycle::from_fraction(
+        core::time::Duration::from_micros(duty_want["periodUs"].as_u64().expect("the period")),
+        float(&duty_want["fraction"]),
+    );
+    assert_eq!(
+        duty.active().as_micros() as u64,
+        duty_want["activeUs"].as_u64().expect("the awake time")
+    );
+    assert_eq!(
+        duty.sleep().as_micros() as u64,
+        duty_want["sleepUs"].as_u64().expect("the sleep time")
+    );
+}
+
+/// Names a power mode the way the vectors record it.
+fn power_mode_name(mode: PowerMode) -> &'static str {
+    match mode {
+        PowerMode::Active => "Active",
+        PowerMode::Saver => "Saver",
+        PowerMode::Critical => "Critical",
+    }
+}
+
+#[test]
+fn telemetry_vectors_match() {
+    let vectors = vectors();
+    let vector = &vectors["telemetry"];
+
+    let costs = vector["costs"].as_array().expect("the link costs");
+    let thresholds = vector["thresholds"].as_array().expect("the thresholds");
+    for (at, cost) in costs.iter().enumerate() {
+        assert_eq!(
+            telemetry_level_name(link_cost(cost.as_str().expect("the cost")).threshold()),
+            thresholds[at].as_str().expect("the threshold"),
+            "the bar each link cost sets"
+        );
+    }
+
+    let mut reporter = Reporter::new(TelemetryLevel::Trace);
+    reporter.adapt_to(link_cost(
+        vector["adaptedTo"].as_str().expect("the link cost"),
+    ));
+
+    let levels = vector["levels"].as_array().expect("the levels");
+    let shipped = vector["shipped"].as_array().expect("the outcomes");
+    for (at, level) in levels.iter().enumerate() {
+        let level = telemetry_level(level.as_str().expect("the level"));
+        assert_eq!(
+            reporter.record(Event::new(level, "vector")).is_some(),
+            shipped[at].as_bool().expect("the outcome"),
+            "whether event {at} is worth its bytes"
+        );
+    }
+
+    let want = &vector["snapshot"];
+    let snapshot = reporter.snapshot();
+    assert_eq!(
+        u64::from(snapshot.by_level[TelemetryLevel::Trace as usize]),
+        want["trace"].as_u64().expect("the count")
+    );
+    assert_eq!(
+        u64::from(snapshot.by_level[TelemetryLevel::Debug as usize]),
+        want["debug"].as_u64().expect("the count")
+    );
+    assert_eq!(
+        u64::from(snapshot.by_level[TelemetryLevel::Info as usize]),
+        want["info"].as_u64().expect("the count")
+    );
+    assert_eq!(
+        u64::from(snapshot.by_level[TelemetryLevel::Warn as usize]),
+        want["warn"].as_u64().expect("the count")
+    );
+    assert_eq!(
+        u64::from(snapshot.by_level[TelemetryLevel::Error as usize]),
+        want["error"].as_u64().expect("the count")
+    );
+    assert_eq!(
+        u64::from(snapshot.emitted),
+        want["emitted"].as_u64().expect("the shipped count")
+    );
+    assert_eq!(
+        u64::from(snapshot.dropped),
+        want["dropped"].as_u64().expect("the dropped count"),
+        "what was dropped is still counted"
+    );
+}
+
+/// Reads a link cost back from the name the vectors record.
+fn link_cost(name: &str) -> LinkCost {
+    match name {
+        "Free" => LinkCost::Free,
+        "Metered" => LinkCost::Metered,
+        "Expensive" => LinkCost::Expensive,
+        "Offline" => LinkCost::Offline,
+        other => panic!("unknown link cost {other}"),
+    }
+}
+
+/// Reads a telemetry level back from the name the vectors record.
+fn telemetry_level(name: &str) -> TelemetryLevel {
+    match name {
+        "Trace" => TelemetryLevel::Trace,
+        "Debug" => TelemetryLevel::Debug,
+        "Info" => TelemetryLevel::Info,
+        "Warn" => TelemetryLevel::Warn,
+        "Error" => TelemetryLevel::Error,
+        other => panic!("unknown level {other}"),
+    }
+}
+
+/// Names a telemetry level the way the vectors record it.
+fn telemetry_level_name(level: TelemetryLevel) -> &'static str {
+    match level {
+        TelemetryLevel::Trace => "Trace",
+        TelemetryLevel::Debug => "Debug",
+        TelemetryLevel::Info => "Info",
+        TelemetryLevel::Warn => "Warn",
+        TelemetryLevel::Error => "Error",
+    }
 }

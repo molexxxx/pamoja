@@ -35,15 +35,20 @@ from pamoja import (
     Trend,
     Window,
     actuators,
+    audit,
     can,
     gpio,
     lora,
     lorawan,
     mesh,
     modbus,
+    power,
     routing,
     sensors,
     serial,
+    session,
+    telemetry,
+    update,
 )
 
 VECTORS = json.loads(
@@ -736,3 +741,169 @@ def test_network_vectors_match():
         .hex()
         == probe["frame"]
     )
+
+
+def test_audit_vectors_match():
+    vector = VECTORS["audit"]
+    keeper = DeviceIdentity.from_seed(unhex(vector["seed"]))
+    assert keeper.public_key == unhex(vector["publicKey"])
+
+    log = audit.AuditLog(keeper)
+    entries = []
+    for want in vector["entries"]:
+        entry = log.append(want["payload"].encode())
+        assert entry.index == want["index"]
+        assert entry.previous == unhex(want["previous"])
+        assert entry.digest == unhex(want["digest"])
+        assert entry.signature == unhex(want["signature"])
+        assert entry.to_bytes() == unhex(want["bytes"])
+        entries.append(entry)
+
+    assert audit.verify_chain(keeper.public_key, entries)
+    assert not audit.verify_chain(
+        keeper.public_key,
+        [entries[0], entries[1], audit.AuditEntry.from_bytes(unhex(vector["tampered"]))],
+    )
+
+    resumed = audit.AuditLog.resume(keeper, entries[2])
+    after_reboot = resumed.append(vector["resumed"]["payload"].encode())
+    assert after_reboot.index == vector["resumed"]["index"]
+    assert after_reboot.to_bytes() == unhex(vector["resumed"]["bytes"])
+
+
+def test_session_vectors_match():
+    vector = VECTORS["session"]
+    node = session.AgreementKey(unhex(vector["nodeSeed"]))
+    gateway = session.AgreementKey(unhex(vector["gatewaySeed"]))
+
+    assert node.public_key == unhex(vector["nodePublicKey"])
+    assert gateway.public_key == unhex(vector["gatewayPublicKey"])
+
+    salt = unhex(vector["salt"])
+    aad = vector["aad"].encode()
+    uplink = session.Session(node, gateway.public_key, salt, session.Role.INITIATOR)
+    downlink = session.Session(gateway, node.public_key, salt, session.Role.RESPONDER)
+
+    for want in vector["messages"]:
+        message = uplink.seal(want["plaintext"].encode(), aad)
+        assert message.counter == want["counter"]
+        assert message.tag == unhex(want["tag"])
+        assert message.ciphertext == unhex(want["ciphertext"])
+        assert downlink.open(message, aad) == want["plaintext"].encode()
+
+    first = vector["messages"][0]
+    replayed = session.SealedMessage(
+        first["counter"], unhex(first["tag"]), unhex(first["ciphertext"])
+    )
+    with pytest.raises(PamojaError):
+        downlink.open(replayed, aad)
+
+    fresh = session.Session(gateway, node.public_key, salt, session.Role.RESPONDER)
+    with pytest.raises(PamojaError):
+        fresh.open(replayed, vector["wrongAad"].encode())
+
+    assert session.hmac_sha256(
+        vector["hmac"]["key"].encode(), vector["hmac"]["message"].encode()
+    ) == unhex(vector["hmac"]["digest"])
+    assert session.hkdf_sha256(
+        vector["hkdf"]["salt"].encode(),
+        vector["hkdf"]["ikm"].encode(),
+        vector["hkdf"]["info"].encode(),
+        vector["hkdf"]["length"],
+    ) == unhex(vector["hkdf"]["output"])
+
+
+def test_update_vectors_match():
+    vector = VECTORS["update"]
+    publisher = DeviceIdentity.from_seed(unhex(vector["publisherSeed"]))
+    assert publisher.public_key == unhex(vector["publisherPublicKey"])
+
+    manifest = update.Manifest(
+        sequence=vector["manifest"]["sequence"],
+        vendor_id=unhex(vector["vendorId"]),
+        class_id=unhex(vector["classId"]),
+        storage=vector["manifest"]["storage"],
+        digest=unhex(vector["manifest"]["digest"]),
+        size=vector["manifest"]["size"],
+        expires=vector["manifest"]["expires"],
+        format=vector["manifest"]["format"],
+        structure_version=vector["manifest"]["structureVersion"],
+    )
+    image = bytes([vector["imageByte"]]) * vector["imageLen"]
+
+    assert update.encode_manifest(manifest) == unhex(vector["body"])
+
+    envelope = update.sign_manifest(manifest, publisher)
+    assert envelope == unhex(vector["envelope"])
+    assert update.verify_envelope(envelope, publisher.public_key).digest == unhex(
+        vector["manifest"]["digest"]
+    )
+    with pytest.raises(PamojaError):
+        update.verify_envelope(unhex(vector["forgedEnvelope"]), publisher.public_key)
+
+    anchor = DeviceIdentity.from_seed(unhex(vector["anchorSeed"]))
+    statement = update.sign_delegation(
+        update.Delegation(
+            epoch=vector["delegation"]["epoch"],
+            release_key=unhex(vector["delegation"]["releaseKey"]),
+            expires=vector["delegation"]["expires"],
+        ),
+        anchor,
+    )
+    assert statement == unhex(vector["delegation"]["envelope"])
+
+    life = vector["lifecycle"]
+    fleet = update.Updater(
+        unhex(vector["vendorId"]), unhex(vector["classId"]), publisher.public_key, 2, 4096
+    )
+    fleet.provision(0, 1)
+    assert fleet.begin(envelope) == life["staged"]
+    for at in range(0, len(image), life["chunk"]):
+        fleet.write(image[at : at + life["chunk"]])
+    assert fleet.finish() == life["staged"]
+
+    boot = fleet.on_boot()
+    assert boot.action == life["boot"]
+    assert boot.slot == life["bootSlot"]
+    assert fleet.confirm() == life["confirmed"]
+
+    record = fleet.slot_record(life["confirmed"])
+    assert record.state == life["state"]
+    assert record.written == life["written"]
+
+
+def test_power_vectors_match():
+    vector = VECTORS["power"]
+    plan = power.power_plan(
+        vector["plan"]["activeUs"], vector["plan"]["saverUs"], vector["plan"]["criticalUs"]
+    )
+
+    assert plan.saver_below == pytest.approx(vector["plan"]["saverBelow"], abs=TOLERANCE)
+    assert plan.critical_below == pytest.approx(vector["plan"]["criticalBelow"], abs=TOLERANCE)
+
+    for at, soc in enumerate(vector["charges"]):
+        assert plan.mode(soc) == vector["modes"][at]
+        assert plan.mode_while_charging(soc, True) == vector["charging"][at]
+        assert plan.interval_us(soc) == vector["intervalsUs"][at]
+
+    duty = power.DutyCycle.from_fraction(
+        vector["duty"]["periodUs"], vector["duty"]["fraction"]
+    )
+    assert duty.active_us == vector["duty"]["activeUs"]
+    assert duty.sleep_us == vector["duty"]["sleepUs"]
+
+
+def test_telemetry_vectors_match():
+    vector = VECTORS["telemetry"]
+    for at, cost in enumerate(vector["costs"]):
+        assert telemetry.link_cost_threshold(telemetry.LinkCost(cost)) == vector["thresholds"][at]
+
+    reporter = telemetry.Reporter(telemetry.Level.TRACE)
+    reporter.adapt_to(telemetry.LinkCost(vector["adaptedTo"]))
+    for at, level in enumerate(vector["levels"]):
+        shipped = reporter.record(telemetry.Event(telemetry.Level(level), "vector"))
+        assert (shipped is not None) == vector["shipped"][at]
+
+    snapshot = reporter.snapshot()
+    for key in ("trace", "debug", "info", "warn", "error", "emitted", "dropped"):
+        assert getattr(snapshot, key) == vector["snapshot"][key]

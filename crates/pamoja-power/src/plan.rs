@@ -91,6 +91,24 @@ impl PowerPlan {
         self
     }
 
+    /// Returns the charge below which the plan enters [`PowerMode::Saver`].
+    ///
+    /// # Returns
+    ///
+    /// The saver threshold as a state of charge in `[0.0, 1.0]`.
+    pub fn saver_below(&self) -> f32 {
+        self.saver_below
+    }
+
+    /// Returns the charge below which the plan enters [`PowerMode::Critical`].
+    ///
+    /// # Returns
+    ///
+    /// The critical threshold as a state of charge in `[0.0, 1.0]`.
+    pub fn critical_below(&self) -> f32 {
+        self.critical_below
+    }
+
     /// Returns the mode for the given state of charge.
     ///
     /// # Arguments

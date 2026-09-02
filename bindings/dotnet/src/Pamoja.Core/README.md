@@ -50,7 +50,14 @@ silence a duty-cycle limit then forces, `LorawanSession` and `LorawanDevice`
 build and verify the secured frames a long-range node puts on the air, while
 `Lorawan` and `LorawanGrant` are the network server half, admitting a device and
 reading a frame far enough to route it before any key is known. `Mesh` and
-`Router` carry a message across nodes when no infrastructure will. Each
+`Router` carry a message across nodes when no infrastructure will.
+
+For what a deployment needs after the first reading arrives, `AuditLog` and
+`AuditVerifier` keep signed, hash-chained records that cannot be quietly edited,
+`AgreementKey` and `Session` open a confidential, replay-protected channel with
+one peer, `Update` and `Updater` sign releases and stage them into slots with
+verified rollback, `PowerPlan` says how often a falling battery can afford to
+work, and `Reporter` thins the event stream out as the link gets expensive. Each
 handle-backed type is `IDisposable`.
 
 ```csharp

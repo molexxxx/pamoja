@@ -15,6 +15,12 @@
 
 
 
+// The length in bytes of an entry hash.
+#define PAMOJA_AUDIT_DIGEST_LEN 32
+
+// The length in bytes of an entry signature.
+#define PAMOJA_AUDIT_SIGNATURE_LEN 64
+
 // The largest I2C address frame, in bytes: the two a 10-bit address needs.
 #define PAMOJA_I2C_FRAME_MAX 2
 
@@ -94,6 +100,27 @@
 // a frame longer than this is discarded rather than truncated. A caller who
 // needs a different bound has the Rust crate.
 #define PAMOJA_SERIAL_FRAME_MAX 2048
+
+// The length in bytes of an agreement seed, a public key, and a digest.
+#define PAMOJA_SESSION_KEY_LEN 32
+
+// The length in bytes of the tag that authenticates a sealed message.
+#define PAMOJA_SESSION_TAG_LEN 16
+
+// The number of severity levels, which is the width of a snapshot.
+#define PAMOJA_TELEMETRY_LEVEL_COUNT 5
+
+// The length in bytes of a vendor or device-class identifier.
+#define PAMOJA_UPDATE_ID_LEN ID_LEN
+
+// The length in bytes of an image digest.
+#define PAMOJA_UPDATE_DIGEST_LEN DIGEST_LEN
+
+// The manifest structure version this build writes.
+#define PAMOJA_UPDATE_STRUCTURE_VERSION STRUCTURE_VERSION
+
+// The payload format meaning the payload is the image itself, byte for byte.
+#define PAMOJA_UPDATE_FORMAT_RAW 1
 
 // The result of a fallible pamoja call.
 //
@@ -221,6 +248,16 @@ typedef enum {
   PamojaQos_ExactlyOnce = 2,
 } PamojaQos;
 
+// What a node should be doing at the current state of charge.
+typedef enum {
+  // Full duty, because the charge is healthy.
+  PamojaPowerMode_Active = 0,
+  // Reduced duty, to conserve charge.
+  PamojaPowerMode_Saver = 1,
+  // Minimum duty, to stay alive as long as possible.
+  PamojaPowerMode_Critical = 2,
+} PamojaPowerMode;
+
 // What to do with a packet bound for a given node.
 typedef enum {
   // The packet is for this node; hand it to the application.
@@ -231,8 +268,100 @@ typedef enum {
   PamojaForward_Flood = 2,
 } PamojaForward;
 
+// Which side of a session a device is on.
+//
+// The two devices must choose opposite roles. The role decides the order the
+// public keys are mixed in and which direction each side tags its messages with,
+// so a session where both sides claim the same role will not open anything.
+typedef enum {
+  // The device that opens the session.
+  PamojaSessionRole_Initiator = 0,
+  // The device that answers.
+  PamojaSessionRole_Responder = 1,
+} PamojaSessionRole;
+
+// How urgent an event is.
+//
+// A reporter ships an event whose level is at or above its threshold and drops
+// anything below it, so the order of these values is what the filter compares.
+typedef enum {
+  // Fine-grained detail, useful only when chasing a specific problem.
+  PamojaTelemetryLevel_Trace = 0,
+  // Diagnostic detail for development.
+  PamojaTelemetryLevel_Debug = 1,
+  // A normal, noteworthy event.
+  PamojaTelemetryLevel_Info = 2,
+  // Something unexpected that the node recovered from.
+  PamojaTelemetryLevel_Warn = 3,
+  // A failure that needs attention.
+  PamojaTelemetryLevel_Error = 4,
+} PamojaTelemetryLevel;
+
+// What the link back to the network currently costs.
+typedef enum {
+  // Bytes are effectively free, such as on wired power and ethernet.
+  PamojaLinkCost_Free = 0,
+  // Bytes are paid for, such as on a cellular plan.
+  PamojaLinkCost_Metered = 1,
+  // Bytes are scarce, such as on a satellite or long-range radio link.
+  PamojaLinkCost_Expensive = 2,
+  // Nothing can be shipped at all.
+  PamojaLinkCost_Offline = 3,
+} PamojaLinkCost;
+
+// What a device believes about one slot.
+typedef enum {
+  // Nothing has been written here.
+  PamojaSlotState_Empty = 0,
+  // An image is arriving, and `written` says how much of it has.
+  PamojaSlotState_Receiving = 1,
+  // A complete image that matched its manifest, not yet tried.
+  PamojaSlotState_Staged = 2,
+  // Being tried for the first time; it reverts unless it confirms.
+  PamojaSlotState_Pending = 3,
+  // Tried and confirmed working.
+  PamojaSlotState_Confirmed = 4,
+  // Tried and did not confirm, so it will not be tried again.
+  PamojaSlotState_Failed = 5,
+} PamojaSlotState;
+
+// What a bootloader should do with what it found.
+typedef enum {
+  // Nothing new to try; run the confirmed image.
+  PamojaBootAction_Confirmed = 0,
+  // A staged image is being tried for the first time.
+  PamojaBootAction_Trying = 1,
+  // A pending image never confirmed, so it was failed.
+  PamojaBootAction_Reverted = 2,
+} PamojaBootAction;
+
+// An opaque handle to a key-agreement secret.
+//
+// Create it with [`pamoja_agreement_key_from_seed`] and release it with
+// [`pamoja_agreement_key_free`].
+typedef struct PamojaAgreementKey PamojaAgreementKey;
+
 // An opaque handle to an anomaly detector.
 typedef struct PamojaAnomaly PamojaAnomaly;
+
+// An opaque handle to one signed, chained record.
+//
+// Obtain one from [`pamoja_audit_log_append`] or [`pamoja_audit_entry_from_bytes`],
+// and release it with [`pamoja_audit_entry_free`].
+typedef struct PamojaAuditEntry PamojaAuditEntry;
+
+// An opaque handle to a log that signs and chains what it is given.
+//
+// Create it with [`pamoja_audit_log_new`], or with
+// [`pamoja_audit_log_resume`] to carry on from a log that already has entries,
+// and release it with [`pamoja_audit_log_free`].
+typedef struct PamojaAuditLog PamojaAuditLog;
+
+// An opaque handle that checks a chain one entry at a time as it arrives.
+//
+// Create it with [`pamoja_audit_verifier_new`] and release it with
+// [`pamoja_audit_verifier_free`].
+typedef struct PamojaAuditVerifier PamojaAuditVerifier;
 
 // An opaque handle to a BME280's factory calibration.
 //
@@ -278,6 +407,13 @@ typedef struct PamojaFrames PamojaFrames;
 
 // An opaque handle to a circular geofence.
 typedef struct PamojaGeofence PamojaGeofence;
+
+// An opaque handle that hashes an image as it arrives.
+//
+// Create it with [`pamoja_image_verifier_new`], feed it with
+// [`pamoja_image_verifier_update`], and settle it with
+// [`pamoja_image_verifier_finish`], which consumes the handle.
+typedef struct PamojaImageVerifier PamojaImageVerifier;
 
 // An opaque handle to a one-dimensional Kalman filter.
 typedef struct PamojaKalman PamojaKalman;
@@ -352,6 +488,12 @@ typedef struct PamojaReadings PamojaReadings;
 // release it with [`pamoja_registers_free`].
 typedef struct PamojaRegisters PamojaRegisters;
 
+// An opaque handle to one reporter and its counters.
+//
+// Create it with [`pamoja_reporter_new`], feed it with
+// [`pamoja_reporter_record`], and release it with [`pamoja_reporter_free`].
+typedef struct PamojaReporter PamojaReporter;
+
 // An opaque handle to one node routing table.
 //
 // Create it with [`pamoja_router_new`], teach it with
@@ -370,6 +512,12 @@ typedef struct PamojaSamples PamojaSamples;
 // a node relays each packet once however many copies reach it. Release it with
 // [`pamoja_mesh_seen_free`].
 typedef struct PamojaSeenCache PamojaSeenCache;
+
+// An opaque handle to a live session with one peer.
+//
+// Create it with [`pamoja_session_establish`] and release it with
+// [`pamoja_session_free`].
+typedef struct PamojaSession PamojaSession;
 
 // An opaque handle to a streaming SLIP decoder.
 typedef struct PamojaSlipDecoder PamojaSlipDecoder;
@@ -390,6 +538,12 @@ typedef struct PamojaThermostat PamojaThermostat;
 
 // An opaque handle to a trend estimator.
 typedef struct PamojaTrend PamojaTrend;
+
+// An opaque handle to a device slots and the rules applied to them.
+//
+// Create it with [`pamoja_updater_new`] and release it with
+// [`pamoja_updater_free`].
+typedef struct PamojaUpdater PamojaUpdater;
 
 // An opaque handle to a rolling window of readings.
 typedef struct PamojaWindow PamojaWindow;
@@ -557,6 +711,31 @@ typedef struct {
   PamojaQos qos;
 } PamojaMqttConfig;
 
+// The split between the time a node works and the time it sleeps.
+typedef struct {
+  // How long the node stays awake each period, in microseconds.
+  uint64_t active_us;
+  // How long it sleeps each period, in microseconds.
+  uint64_t sleep_us;
+} PamojaDutyCycle;
+
+// The work intervals a node uses in each mode, and where the modes change.
+//
+// Build one with [`pamoja_power_plan_new`], which applies the default
+// thresholds, then move them with [`pamoja_power_plan_with_thresholds`].
+typedef struct {
+  // The interval between work at a healthy charge, in microseconds.
+  uint64_t active_us;
+  // The interval used to conserve charge, in microseconds.
+  uint64_t saver_us;
+  // The interval used at a critically low charge, in microseconds.
+  uint64_t critical_us;
+  // Enter [`PamojaPowerMode::Saver`] below this state of charge.
+  float saver_below;
+  // Enter [`PamojaPowerMode::Critical`] below this state of charge.
+  float critical_below;
+} PamojaPowerPlan;
+
 // A learned way to reach one node.
 //
 // Every field is a scalar, so this crosses the boundary by value.
@@ -620,6 +799,106 @@ typedef struct {
   // The comparator queue code, `0..=3`, where `3` disables the comparator.
   uint8_t comparator_queue;
 } PamojaAds1115Config;
+
+// The header that travels beside a sealed message.
+//
+// The peer needs the counter to rebuild the nonce and to reject a replay, and
+// the tag to tell whether the message arrived as it was sent.
+typedef struct {
+  // The counter naming this message within the session.
+  uint64_t counter;
+  // The tag over the ciphertext and its associated data.
+  uint8_t tag[PAMOJA_SESSION_TAG_LEN];
+} PamojaSealed;
+
+// A count of everything a reporter has seen, cheap enough to ship anywhere.
+//
+// This is what a node sends in place of the event stream when the link cannot
+// carry the detail: the shape of what happened survives even though the
+// individual events did not.
+typedef struct {
+  // How many events were seen at each level, indexed by
+  // [`PamojaTelemetryLevel`].
+  uint32_t by_level[PAMOJA_TELEMETRY_LEVEL_COUNT];
+  // How many events passed the filter and were shipped.
+  uint32_t emitted;
+  // How many events the filter dropped.
+  uint32_t dropped;
+} PamojaTelemetrySnapshot;
+
+// What a release says about itself, and what a device checks it against.
+typedef struct {
+  // Which iteration of the manifest format this is.
+  uint8_t structure_version;
+  // Rises with every release, which is what stops an older image being
+  // replayed at a device.
+  uint64_t sequence;
+  // Who built the image.
+  uint8_t vendor_id[PAMOJA_UPDATE_ID_LEN];
+  // Which kind of device it is for.
+  uint8_t class_id[PAMOJA_UPDATE_ID_LEN];
+  // How the payload is encoded, currently only
+  // [`PAMOJA_UPDATE_FORMAT_RAW`].
+  uint8_t format;
+  // Which slot the payload belongs in.
+  uint8_t storage;
+  // The SHA-256 of the payload, which every other guarantee rests on.
+  uint8_t digest[PAMOJA_UPDATE_DIGEST_LEN];
+  // The payload length in bytes, known before a single byte is accepted.
+  uint32_t size;
+  // When this release stops being offered, in seconds since the Unix epoch,
+  // or `0` to never expire.
+  uint64_t expires;
+} PamojaManifest;
+
+// A statement, signed by the anchor, that a second key may sign releases.
+typedef struct {
+  // Rises with every rotation, so a retired key cannot be reinstated by
+  // replaying the statement that once authorised it.
+  uint64_t epoch;
+  // The public key that may sign manifests while this delegation stands.
+  uint8_t release_key[PAMOJA_KEY_LEN];
+  // When the delegation stops being honoured, in seconds since the Unix
+  // epoch, or `0` to never expire.
+  uint64_t expires;
+} PamojaDelegation;
+
+// Who a device is, and whose signature it trusts.
+typedef struct {
+  // Who built this firmware.
+  uint8_t vendor_id[PAMOJA_UPDATE_ID_LEN];
+  // What kind of device this is.
+  uint8_t class_id[PAMOJA_UPDATE_ID_LEN];
+  // The [`PAMOJA_KEY_LEN`]-byte key this device anchors its trust in.
+  uint8_t anchor[PAMOJA_KEY_LEN];
+} PamojaDevice;
+
+// The record a device keeps about one slot, durable across a reboot.
+typedef struct {
+  // The state of the slot.
+  PamojaSlotState state;
+  // The sequence number of the image in the slot.
+  uint64_t sequence;
+  // The length of the image in bytes.
+  uint32_t size;
+  // The digest of the image.
+  uint8_t digest[PAMOJA_UPDATE_DIGEST_LEN];
+  // How many bytes have been stored, which is where a resumed transfer picks
+  // up.
+  uint32_t written;
+} PamojaSlotRecord;
+
+// The decision a device made at boot, already recorded before it was returned.
+typedef struct {
+  // What the bootloader should do.
+  PamojaBootAction action;
+  // The image the decision is about, which for
+  // [`PamojaBootAction::Reverted`] is the one that failed.
+  uint8_t slot;
+  // The slot to run. It is the same as `slot` for anything but
+  // [`PamojaBootAction::Reverted`].
+  uint8_t fallback;
+} PamojaBoot;
 
 #ifdef __cplusplus
 extern "C" {
@@ -805,6 +1084,279 @@ void pamoja_stepper_free(PamojaStepper *stepper);
 //
 // The step count, negative for a negative angle.
 int32_t pamoja_stepper_steps_for_degrees(float degrees, uint32_t steps_per_revolution);
+
+// Creates a log that signs with a device identity and starts from nothing.
+//
+// # Arguments
+//
+// * `identity` - the identity whose signature each entry will carry.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_audit_log_free`], or null on
+// failure with the reason available from
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+//
+// # Safety
+//
+// `identity` must be a live handle from
+// [`pamoja_device_identity_new`](crate::security::pamoja_device_identity_new),
+// or null.
+PamojaAuditLog *pamoja_audit_log_new(const PamojaDeviceIdentity *identity);
+
+// Creates a log that carries on from the last entry an earlier one wrote.
+//
+// This is what a device does after a restart: the chain continues at the next
+// index and hashes onto the entry it left off at, so a reboot leaves no gap for
+// a record to be removed through.
+//
+// # Arguments
+//
+// * `identity` - the identity whose signature each entry will carry.
+// * `last` - the final entry of the existing log.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_audit_log_free`], or null on
+// failure.
+//
+// # Safety
+//
+// `identity` must be a live identity handle, and `last` a live handle from a
+// call that produced one, or either may be null.
+PamojaAuditLog *pamoja_audit_log_resume(const PamojaDeviceIdentity *identity,
+                                        const PamojaAuditEntry *last);
+
+// Appends a payload to a log, signing it and chaining it onto the last entry.
+//
+// # Arguments
+//
+// * `log` - the log to append to.
+// * `payload` - the record to store.
+// * `payload_len` - the length of `payload` in bytes.
+//
+// # Returns
+//
+// A handle to the new entry, which the caller must release with
+// [`pamoja_audit_entry_free`], or null on failure.
+//
+// # Safety
+//
+// `log` must be a live handle from [`pamoja_audit_log_new`] or
+// [`pamoja_audit_log_resume`], and `payload` must point to at least
+// `payload_len` readable bytes, or be null when `payload_len` is 0.
+PamojaAuditEntry *pamoja_audit_log_append(PamojaAuditLog *log,
+                                          const uint8_t *payload,
+                                          uintptr_t payload_len);
+
+// Releases a log handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `log` must be a handle from a call that produced one and that has not already
+// been freed, or null. After this call it must not be used again.
+void pamoja_audit_log_free(PamojaAuditLog *log);
+
+// Reads an entry back from the bytes it was written as.
+//
+// # Arguments
+//
+// * `bytes` - the encoded entry.
+// * `len` - the length of `bytes`.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_audit_entry_free`], or null if
+// the bytes are not a well-formed entry.
+//
+// # Safety
+//
+// `bytes` must point to at least `len` readable bytes, or be null when `len` is
+// 0.
+PamojaAuditEntry *pamoja_audit_entry_from_bytes(const uint8_t *bytes, uintptr_t len);
+
+// Encodes an entry for storage or transmission.
+//
+// # Arguments
+//
+// * `entry` - the entry to encode.
+//
+// # Returns
+//
+// A buffer the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free), or null if `entry` is null.
+//
+// # Safety
+//
+// `entry` must be a live handle from a call that produced one, or null.
+PamojaBuffer *pamoja_audit_entry_to_bytes(const PamojaAuditEntry *entry);
+
+// Returns the position of an entry in its chain.
+//
+// # Arguments
+//
+// * `entry` - the entry.
+//
+// # Returns
+//
+// The zero-based index, or 0 if `entry` is null.
+//
+// # Safety
+//
+// `entry` must be a live handle from a call that produced one, or null.
+uint64_t pamoja_audit_entry_index(const PamojaAuditEntry *entry);
+
+// Copies out the hash of the entry before this one.
+//
+// The first entry of a chain carries all zeroes here, since nothing precedes it.
+//
+// # Arguments
+//
+// * `entry` - the entry.
+// * `out_previous` - receives [`PAMOJA_AUDIT_DIGEST_LEN`] bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `entry` must be a live handle, and `out_previous` must point to at least
+// [`PAMOJA_AUDIT_DIGEST_LEN`] writable bytes.
+PamojaStatus pamoja_audit_entry_previous(const PamojaAuditEntry *entry, uint8_t *out_previous);
+
+// Copies out the hash of this entry, which the next one chains onto.
+//
+// # Arguments
+//
+// * `entry` - the entry.
+// * `out_digest` - receives [`PAMOJA_AUDIT_DIGEST_LEN`] bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `entry` must be a live handle, and `out_digest` must point to at least
+// [`PAMOJA_AUDIT_DIGEST_LEN`] writable bytes.
+PamojaStatus pamoja_audit_entry_digest(const PamojaAuditEntry *entry, uint8_t *out_digest);
+
+// Copies out the signature over an entry.
+//
+// # Arguments
+//
+// * `entry` - the entry.
+// * `out_signature` - receives [`PAMOJA_AUDIT_SIGNATURE_LEN`] bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `entry` must be a live handle, and `out_signature` must point to at least
+// [`PAMOJA_AUDIT_SIGNATURE_LEN`] writable bytes.
+PamojaStatus pamoja_audit_entry_signature(const PamojaAuditEntry *entry, uint8_t *out_signature);
+
+// Copies out the record an entry carries.
+//
+// # Arguments
+//
+// * `entry` - the entry.
+//
+// # Returns
+//
+// A buffer the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free), or null if `entry` is null.
+//
+// # Safety
+//
+// `entry` must be a live handle from a call that produced one, or null.
+PamojaBuffer *pamoja_audit_entry_payload(const PamojaAuditEntry *entry);
+
+// Releases an entry handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `entry` must be a handle from a call that produced one and that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_audit_entry_free(PamojaAuditEntry *entry);
+
+// Creates a verifier that checks a chain signed by one public key.
+//
+// # Arguments
+//
+// * `public_key` - the [`PAMOJA_KEY_LEN`]-byte key the entries were signed with.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_audit_verifier_free`], or null
+// if the key is not a valid public key.
+//
+// # Safety
+//
+// `public_key` must point to at least [`PAMOJA_KEY_LEN`] readable bytes.
+PamojaAuditVerifier *pamoja_audit_verifier_new(const uint8_t *public_key);
+
+// Checks the next entry of a chain, in the order the entries were written.
+//
+// A verifier only accepts an entry that follows the one before it, so feeding
+// entries out of order, skipping one, or repeating one is refused just as an
+// altered payload is.
+//
+// # Arguments
+//
+// * `verifier` - the verifier.
+// * `entry` - the next entry to check.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] if the entry belongs where it was offered, or
+// [`PamojaStatus::Auth`] if the chain, the index, or the signature does not hold.
+//
+// # Safety
+//
+// `verifier` must be a live handle from [`pamoja_audit_verifier_new`], and
+// `entry` a live entry handle, or either may be null.
+PamojaStatus pamoja_audit_verifier_check(PamojaAuditVerifier *verifier,
+                                         const PamojaAuditEntry *entry);
+
+// Releases a verifier handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `verifier` must be a handle from [`pamoja_audit_verifier_new`] that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_audit_verifier_free(PamojaAuditVerifier *verifier);
+
+// Checks a whole chain that has already arrived.
+//
+// # Arguments
+//
+// * `public_key` - the [`PAMOJA_KEY_LEN`]-byte key the entries were signed with.
+// * `entries` - an array of entry handles, in the order they were written.
+// * `count` - how many handles `entries` holds.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] if every entry follows the one before it and carries a
+// signature that holds, or [`PamojaStatus::Auth`] if any does not.
+//
+// # Safety
+//
+// `public_key` must point to at least [`PAMOJA_KEY_LEN`] readable bytes, and
+// `entries` must point to at least `count` live entry handles, none of them
+// null, or be null when `count` is 0.
+PamojaStatus pamoja_audit_verify_chain(const uint8_t *public_key,
+                                       const PamojaAuditEntry *const *entries,
+                                       uintptr_t count);
 
 // Builds a classic CAN 2.0 frame.
 //
@@ -3539,6 +4091,137 @@ uintptr_t pamoja_mqtt_message_payload_len(const PamojaMqttMessage *message);
 // already been freed, or null. After this call the handle must not be used again.
 void pamoja_mqtt_message_free(PamojaMqttMessage *message);
 
+// Creates a duty cycle from the time awake and the time asleep.
+//
+// # Arguments
+//
+// * `active_us` - how long the node works each period, in microseconds.
+// * `sleep_us` - how long it sleeps each period, in microseconds.
+//
+// # Returns
+//
+// The duty cycle.
+PamojaDutyCycle pamoja_duty_cycle_new(uint64_t active_us, uint64_t sleep_us);
+
+// Creates a duty cycle that spends a fraction of each period awake.
+//
+// # Arguments
+//
+// * `period_us` - the whole period, in microseconds.
+// * `fraction` - the share of the period spent awake, clamped to 0.0 through 1.0.
+//
+// # Returns
+//
+// The duty cycle.
+PamojaDutyCycle pamoja_duty_cycle_from_fraction(uint64_t period_us, float fraction);
+
+// Returns the whole period of a duty cycle, awake plus asleep.
+//
+// # Arguments
+//
+// * `duty` - the duty cycle.
+//
+// # Returns
+//
+// The period in microseconds.
+uint64_t pamoja_duty_cycle_period_us(PamojaDutyCycle duty);
+
+// Returns the share of a period a duty cycle spends awake.
+//
+// # Arguments
+//
+// * `duty` - the duty cycle.
+//
+// # Returns
+//
+// The fraction from 0.0 through 1.0, or `0.0` if the period is zero.
+float pamoja_duty_cycle_fraction(PamojaDutyCycle duty);
+
+// Creates a power plan from its three work intervals, with default thresholds.
+//
+// The defaults enter [`PamojaPowerMode::Saver`] below 50% charge and
+// [`PamojaPowerMode::Critical`] below 20%.
+//
+// # Arguments
+//
+// * `active_us` - the interval at a healthy charge, in microseconds.
+// * `saver_us` - the longer interval used to conserve, in microseconds.
+// * `critical_us` - the longest interval, in microseconds.
+//
+// # Returns
+//
+// The power plan.
+PamojaPowerPlan pamoja_power_plan_new(uint64_t active_us, uint64_t saver_us, uint64_t critical_us);
+
+// Returns a plan with the state-of-charge thresholds moved.
+//
+// # Arguments
+//
+// * `plan` - the plan to adjust.
+// * `saver_below` - enter [`PamojaPowerMode::Saver`] below this charge.
+// * `critical_below` - enter [`PamojaPowerMode::Critical`] below this charge.
+//
+// # Returns
+//
+// The adjusted plan.
+PamojaPowerPlan pamoja_power_plan_with_thresholds(PamojaPowerPlan plan,
+                                                  float saver_below,
+                                                  float critical_below);
+
+// Returns the mode a plan calls for at a state of charge.
+//
+// # Arguments
+//
+// * `plan` - the power plan.
+// * `soc` - the battery state of charge, from 0.0 through 1.0.
+//
+// # Returns
+//
+// The mode the node should run in.
+PamojaPowerMode pamoja_power_plan_mode(PamojaPowerPlan plan, float soc);
+
+// Returns the mode a plan calls for, easing off one step while charging.
+//
+// A node taking charge is heading the right way, so it moves one step toward
+// full duty rather than holding at what the charge alone would call for.
+//
+// # Arguments
+//
+// * `plan` - the power plan.
+// * `soc` - the battery state of charge, from 0.0 through 1.0.
+// * `charging` - `1` if the node is charging, `0` if it is not.
+//
+// # Returns
+//
+// The mode the node should run in.
+PamojaPowerMode pamoja_power_plan_mode_while_charging(PamojaPowerPlan plan,
+                                                      float soc,
+                                                      uint8_t charging);
+
+// Returns the work interval a plan uses in a mode.
+//
+// # Arguments
+//
+// * `plan` - the power plan.
+// * `mode` - the mode to look up.
+//
+// # Returns
+//
+// The interval in microseconds.
+uint64_t pamoja_power_plan_interval_for_us(PamojaPowerPlan plan, PamojaPowerMode mode);
+
+// Returns the work interval a plan calls for at a state of charge.
+//
+// # Arguments
+//
+// * `plan` - the power plan.
+// * `soc` - the battery state of charge, from 0.0 through 1.0.
+//
+// # Returns
+//
+// The interval in microseconds.
+uint64_t pamoja_power_plan_interval_us(PamojaPowerPlan plan, float soc);
+
 // Creates an empty routing table for a node.
 //
 // # Arguments
@@ -4284,6 +4967,928 @@ uintptr_t pamoja_frames_len(const PamojaFrames *frames, uintptr_t index);
 // `frames` must be a handle from a decoder `feed` call that has not already been
 // freed, or null. After this call it must not be used again.
 void pamoja_frames_free(PamojaFrames *frames);
+
+// Creates a key-agreement secret from a provisioned 32-byte seed.
+//
+// # Arguments
+//
+// * `seed` - the [`PAMOJA_SESSION_KEY_LEN`] secret bytes.
+// * `seed_len` - the length of `seed`, which must be
+//   [`PAMOJA_SESSION_KEY_LEN`].
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_agreement_key_free`], or null
+// on failure with the reason available from
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+//
+// # Safety
+//
+// `seed` must point to at least `seed_len` readable bytes.
+PamojaAgreementKey *pamoja_agreement_key_from_seed(const uint8_t *seed, uintptr_t seed_len);
+
+// Copies out the public key to hand to a peer.
+//
+// # Arguments
+//
+// * `key` - the agreement key.
+// * `out_public_key` - receives [`PAMOJA_SESSION_KEY_LEN`] bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `key` must be a live handle from [`pamoja_agreement_key_from_seed`], and
+// `out_public_key` must point to at least [`PAMOJA_SESSION_KEY_LEN`] writable
+// bytes.
+PamojaStatus pamoja_agreement_key_public(const PamojaAgreementKey *key, uint8_t *out_public_key);
+
+// Releases an agreement key handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `key` must be a handle from [`pamoja_agreement_key_from_seed`] that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_agreement_key_free(PamojaAgreementKey *key);
+
+// Establishes a session with a peer.
+//
+// Both devices call this with the same salt and opposite roles, and arrive at
+// the same key without either sending it. The salt is a fresh per-session value
+// exchanged in the clear; reusing one with the same pair of keys reuses the
+// session key, so it must change each session.
+//
+// # Arguments
+//
+// * `local` - this device key-agreement secret.
+// * `peer_public_key` - the [`PAMOJA_SESSION_KEY_LEN`]-byte public key of the
+//   peer, already authenticated by pinning or by a signature.
+// * `salt` - the fresh per-session salt both sides share.
+// * `salt_len` - the length of `salt`.
+// * `role` - whether this device opens the session or answers.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_session_free`], or null on
+// failure.
+//
+// # Safety
+//
+// `local` must be a live agreement key handle, `peer_public_key` must point to
+// at least [`PAMOJA_SESSION_KEY_LEN`] readable bytes, and `salt` must point to
+// at least `salt_len` readable bytes, or be null when `salt_len` is 0.
+PamojaSession *pamoja_session_establish(const PamojaAgreementKey *local,
+                                        const uint8_t *peer_public_key,
+                                        const uint8_t *salt,
+                                        uintptr_t salt_len,
+                                        PamojaSessionRole role);
+
+// Seals a message for the peer, encrypting it in place.
+//
+// The associated data is authenticated but not encrypted, so it stays readable
+// on the wire yet cannot be altered: a device identifier or a routing header
+// belongs there. On success `buf` holds the ciphertext and `out_sealed` holds
+// the counter and tag to send with it.
+//
+// # Arguments
+//
+// * `session` - the session.
+// * `buf` - the plaintext, replaced by the ciphertext of equal length.
+// * `len` - the length of `buf`.
+// * `aad` - associated data to authenticate alongside the message.
+// * `aad_len` - the length of `aad`.
+// * `out_sealed` - receives the counter and tag.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `session` must be a live handle from [`pamoja_session_establish`], `buf` must
+// point to at least `len` readable and writable bytes or be null when `len` is
+// 0, `aad` must point to at least `aad_len` readable bytes or be null when
+// `aad_len` is 0, and `out_sealed` must be writable.
+PamojaStatus pamoja_session_seal(PamojaSession *session,
+                                 uint8_t *buf,
+                                 uintptr_t len,
+                                 const uint8_t *aad,
+                                 uintptr_t aad_len,
+                                 PamojaSealed *out_sealed);
+
+// Opens a message from the peer, verifying it and decrypting it in place.
+//
+// A message is rejected if its counter repeats or is older than the replay
+// window still tracks, and if its tag does not authenticate. On any rejection
+// `buf` is left zeroed, so a failed open never yields readable bytes.
+//
+// # Arguments
+//
+// * `session` - the session.
+// * `sealed` - the counter and tag that arrived with the ciphertext.
+// * `buf` - the ciphertext, replaced by the plaintext on success.
+// * `len` - the length of `buf`.
+// * `aad` - the same associated data the sender authenticated.
+// * `aad_len` - the length of `aad`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] if the message is authentic and fresh, or
+// [`PamojaStatus::Auth`] if it is not, with the message from
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message) saying whether
+// it failed authentication or repeated a counter.
+//
+// # Safety
+//
+// `session` must be a live handle from [`pamoja_session_establish`], `buf` must
+// point to at least `len` readable and writable bytes or be null when `len` is
+// 0, and `aad` must point to at least `aad_len` readable bytes or be null when
+// `aad_len` is 0.
+PamojaStatus pamoja_session_open(PamojaSession *session,
+                                 PamojaSealed sealed,
+                                 uint8_t *buf,
+                                 uintptr_t len,
+                                 const uint8_t *aad,
+                                 uintptr_t aad_len);
+
+// Releases a session handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `session` must be a handle from [`pamoja_session_establish`] that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_session_free(PamojaSession *session);
+
+// Computes a keyed hash over a message.
+//
+// This is the primitive a host uses to authenticate a pairing exchange or a
+// single command, where a whole session would be more than the job needs.
+//
+// # Arguments
+//
+// * `key` - the secret key.
+// * `key_len` - the length of `key`.
+// * `message` - the message to authenticate.
+// * `message_len` - the length of `message`.
+// * `out_digest` - receives [`PAMOJA_SESSION_KEY_LEN`] bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `key` and `message` must point to at least their stated lengths of readable
+// bytes, or be null when those lengths are 0, and `out_digest` must point to at
+// least [`PAMOJA_SESSION_KEY_LEN`] writable bytes.
+PamojaStatus pamoja_session_hmac_sha256(const uint8_t *key,
+                                        uintptr_t key_len,
+                                        const uint8_t *message,
+                                        uintptr_t message_len,
+                                        uint8_t *out_digest);
+
+// Expands input keying material into as many bytes as are asked for.
+//
+// # Arguments
+//
+// * `salt` - the salt, which may be empty.
+// * `salt_len` - the length of `salt`.
+// * `ikm` - the input keying material.
+// * `ikm_len` - the length of `ikm`.
+// * `info` - context binding the output to its purpose, which may be empty.
+// * `info_len` - the length of `info`.
+// * `out` - receives `out_len` derived bytes.
+// * `out_len` - how many bytes to derive.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `salt`, `ikm`, and `info` must each point to at least their stated lengths of
+// readable bytes, or be null when those lengths are 0, and `out` must point to
+// at least `out_len` writable bytes, or be null when `out_len` is 0.
+PamojaStatus pamoja_session_hkdf_sha256(const uint8_t *salt,
+                                        uintptr_t salt_len,
+                                        const uint8_t *ikm,
+                                        uintptr_t ikm_len,
+                                        const uint8_t *info,
+                                        uintptr_t info_len,
+                                        uint8_t *out,
+                                        uintptr_t out_len);
+
+// Returns the level a link cost calls for.
+//
+// # Arguments
+//
+// * `cost` - what the link currently costs.
+//
+// # Returns
+//
+// The lowest level still worth its bytes at that cost.
+PamojaTelemetryLevel pamoja_link_cost_threshold(PamojaLinkCost cost);
+
+// Creates a reporter that ships events at or above a level.
+//
+// # Arguments
+//
+// * `threshold` - the lowest level to ship.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_reporter_free`].
+PamojaReporter *pamoja_reporter_new(PamojaTelemetryLevel threshold);
+
+// Returns the level a reporter is currently shipping from.
+//
+// # Arguments
+//
+// * `reporter` - the reporter.
+//
+// # Returns
+//
+// The threshold, or [`PamojaTelemetryLevel::Trace`] if `reporter` is null.
+//
+// # Safety
+//
+// `reporter` must be a live handle from [`pamoja_reporter_new`], or null.
+PamojaTelemetryLevel pamoja_reporter_threshold(const PamojaReporter *reporter);
+
+// Moves the level a reporter ships from.
+//
+// # Arguments
+//
+// * `reporter` - the reporter.
+// * `threshold` - the new lowest level to ship.
+//
+// # Safety
+//
+// `reporter` must be a live handle from [`pamoja_reporter_new`], or null.
+void pamoja_reporter_set_threshold(PamojaReporter *reporter, PamojaTelemetryLevel threshold);
+
+// Moves the threshold to match what the link now costs.
+//
+// # Arguments
+//
+// * `reporter` - the reporter.
+// * `cost` - what the link currently costs.
+//
+// # Safety
+//
+// `reporter` must be a live handle from [`pamoja_reporter_new`], or null.
+void pamoja_reporter_adapt_to(PamojaReporter *reporter, PamojaLinkCost cost);
+
+// Records an event and reports whether it is worth shipping.
+//
+// Only the level crosses the boundary, because the level is the whole of what
+// the reporter decides on. The code and the optional value stay with the caller,
+// which is free to ship its own event when this returns `true`.
+//
+// # Arguments
+//
+// * `reporter` - the reporter.
+// * `level` - the severity of the event that occurred.
+//
+// # Returns
+//
+// `true` if the event passed the threshold and should be shipped, or `false` if
+// it was counted and dropped, or `reporter` is null.
+//
+// # Safety
+//
+// `reporter` must be a live handle from [`pamoja_reporter_new`], or null.
+bool pamoja_reporter_record(PamojaReporter *reporter, PamojaTelemetryLevel level);
+
+// Returns how many events a reporter has seen at a level, shipped or not.
+//
+// # Arguments
+//
+// * `reporter` - the reporter.
+// * `level` - the level to count.
+//
+// # Returns
+//
+// The count, or 0 if `reporter` is null.
+//
+// # Safety
+//
+// `reporter` must be a live handle from [`pamoja_reporter_new`], or null.
+uint32_t pamoja_reporter_count(const PamojaReporter *reporter, PamojaTelemetryLevel level);
+
+// Returns how many events a reporter has seen across every level.
+//
+// # Arguments
+//
+// * `reporter` - the reporter.
+//
+// # Returns
+//
+// The total, or 0 if `reporter` is null.
+//
+// # Safety
+//
+// `reporter` must be a live handle from [`pamoja_reporter_new`], or null.
+uint32_t pamoja_reporter_total(const PamojaReporter *reporter);
+
+// Returns how many events passed the threshold and were shipped.
+//
+// # Arguments
+//
+// * `reporter` - the reporter.
+//
+// # Returns
+//
+// The emitted count, or 0 if `reporter` is null.
+//
+// # Safety
+//
+// `reporter` must be a live handle from [`pamoja_reporter_new`], or null.
+uint32_t pamoja_reporter_emitted(const PamojaReporter *reporter);
+
+// Returns how many events the threshold dropped.
+//
+// # Arguments
+//
+// * `reporter` - the reporter.
+//
+// # Returns
+//
+// The dropped count, or 0 if `reporter` is null.
+//
+// # Safety
+//
+// `reporter` must be a live handle from [`pamoja_reporter_new`], or null.
+uint32_t pamoja_reporter_dropped(const PamojaReporter *reporter);
+
+// Takes a snapshot of the counters to ship in place of the event stream.
+//
+// # Arguments
+//
+// * `reporter` - the reporter.
+//
+// # Returns
+//
+// The snapshot, or an all-zero snapshot if `reporter` is null.
+//
+// # Safety
+//
+// `reporter` must be a live handle from [`pamoja_reporter_new`], or null.
+PamojaTelemetrySnapshot pamoja_reporter_snapshot(const PamojaReporter *reporter);
+
+// Releases a reporter handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `reporter` must be a handle from [`pamoja_reporter_new`] that has not already
+// been freed, or null. After this call it must not be used again.
+void pamoja_reporter_free(PamojaReporter *reporter);
+
+// Encodes the body of a manifest, which is the part a signature covers.
+//
+// # Arguments
+//
+// * `manifest` - the manifest to encode.
+//
+// # Returns
+//
+// A buffer the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free), or null if the manifest
+// carries a payload format this build cannot write.
+PamojaBuffer *pamoja_manifest_encode(PamojaManifest manifest);
+
+// Reads a manifest body back from its bytes.
+//
+// This reads what a manifest claims; it proves nothing about who wrote it. Use
+// [`pamoja_envelope_verify`] to read one whose signature has been checked.
+//
+// # Arguments
+//
+// * `bytes` - the encoded manifest body.
+// * `len` - the length of `bytes`.
+// * `out_manifest` - receives the decoded manifest.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `bytes` must point to at least `len` readable bytes, or be null when `len` is
+// 0, and `out_manifest` must be writable.
+PamojaStatus pamoja_manifest_decode(const uint8_t *bytes,
+                                    uintptr_t len,
+                                    PamojaManifest *out_manifest);
+
+// Signs a manifest into the envelope that is offered to a device.
+//
+// # Arguments
+//
+// * `manifest` - the manifest to sign.
+// * `author` - the identity signing the release.
+//
+// # Returns
+//
+// A buffer the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free), or null on failure.
+//
+// # Safety
+//
+// `author` must be a live handle from
+// [`pamoja_device_identity_new`](crate::security::pamoja_device_identity_new),
+// or null.
+PamojaBuffer *pamoja_manifest_sign(PamojaManifest manifest, const PamojaDeviceIdentity *author);
+
+// Verifies an envelope against a key and reads the manifest inside it.
+//
+// # Arguments
+//
+// * `bytes` - the signed envelope.
+// * `len` - the length of `bytes`.
+// * `public_key` - the [`PAMOJA_KEY_LEN`]-byte key expected to have signed it.
+// * `out_manifest` - receives the verified manifest.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] if the signature is from that key, or
+// [`PamojaStatus::Auth`] if it is not.
+//
+// # Safety
+//
+// `bytes` must point to at least `len` readable bytes or be null when `len` is
+// 0, `public_key` must point to at least [`PAMOJA_KEY_LEN`] readable bytes, and
+// `out_manifest` must be writable.
+PamojaStatus pamoja_envelope_verify(const uint8_t *bytes,
+                                    uintptr_t len,
+                                    const uint8_t *public_key,
+                                    PamojaManifest *out_manifest);
+
+// Copies out the signed body of an envelope, without checking the signature.
+//
+// This is what a gateway relays onward unchanged, and what a device hashes when
+// it checks the signature itself.
+//
+// # Arguments
+//
+// * `bytes` - the signed envelope.
+// * `len` - the length of `bytes`.
+//
+// # Returns
+//
+// A buffer the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free), or null if the envelope is
+// malformed.
+//
+// # Safety
+//
+// `bytes` must point to at least `len` readable bytes, or be null when `len` is
+// 0.
+PamojaBuffer *pamoja_envelope_body(const uint8_t *bytes, uintptr_t len);
+
+// Signs a delegation, naming a release key the anchor stands behind.
+//
+// # Arguments
+//
+// * `delegation` - the statement to sign.
+// * `anchor` - the anchor identity, which is the root of the trust.
+//
+// # Returns
+//
+// A buffer the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free), or null on failure.
+//
+// # Safety
+//
+// `anchor` must be a live identity handle, or null.
+PamojaBuffer *pamoja_delegation_sign(PamojaDelegation delegation,
+                                     const PamojaDeviceIdentity *anchor);
+
+// Opens a signed delegation against the anchor that should have signed it.
+//
+// # Arguments
+//
+// * `bytes` - the signed delegation envelope.
+// * `len` - the length of `bytes`.
+// * `anchor_public_key` - the [`PAMOJA_KEY_LEN`]-byte anchor key.
+// * `out_delegation` - receives the verified delegation.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] if the delegation is from the anchor, or
+// [`PamojaStatus::Auth`] if it is not.
+//
+// # Safety
+//
+// `bytes` must point to at least `len` readable bytes or be null when `len` is
+// 0, `anchor_public_key` must point to at least [`PAMOJA_KEY_LEN`] readable
+// bytes, and `out_delegation` must be writable.
+PamojaStatus pamoja_delegation_open(const uint8_t *bytes,
+                                    uintptr_t len,
+                                    const uint8_t *anchor_public_key,
+                                    PamojaDelegation *out_delegation);
+
+// Creates a verifier that hashes an image against what a manifest declares.
+//
+// # Arguments
+//
+// * `manifest` - the manifest describing the image.
+//
+// # Returns
+//
+// A handle the caller must settle with [`pamoja_image_verifier_finish`] or
+// abandon with [`pamoja_image_verifier_free`], or null if the manifest carries
+// a payload format this build cannot apply.
+PamojaImageVerifier *pamoja_image_verifier_new(PamojaManifest manifest);
+
+// Takes the next piece of the image.
+//
+// # Arguments
+//
+// * `verifier` - the verifier.
+// * `chunk` - the next bytes of the image, in order.
+// * `len` - the length of `chunk`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once the chunk is hashed, or a failure if more bytes
+// have arrived than the manifest declared.
+//
+// # Safety
+//
+// `verifier` must be a live handle from [`pamoja_image_verifier_new`], and
+// `chunk` must point to at least `len` readable bytes, or be null when `len` is
+// 0.
+PamojaStatus pamoja_image_verifier_update(PamojaImageVerifier *verifier,
+                                          const uint8_t *chunk,
+                                          uintptr_t len);
+
+// Settles an image against its manifest, consuming the verifier.
+//
+// The handle is released whether the image matched or not, so it must not be
+// used again after this call and must not also be passed to
+// [`pamoja_image_verifier_free`].
+//
+// # Arguments
+//
+// * `verifier` - the verifier, consumed by this call.
+// * `out_size` - receives the length of the image that was hashed.
+// * `out_digest` - receives [`PAMOJA_UPDATE_DIGEST_LEN`] bytes of digest.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] if the image is the one the manifest described, or a
+// failure naming the rule it broke.
+//
+// # Safety
+//
+// `verifier` must be a live handle from [`pamoja_image_verifier_new`] that has
+// not been freed, `out_size` must be writable or null, and `out_digest` must
+// point to at least [`PAMOJA_UPDATE_DIGEST_LEN`] writable bytes or be null.
+PamojaStatus pamoja_image_verifier_finish(PamojaImageVerifier *verifier,
+                                          uint32_t *out_size,
+                                          uint8_t *out_digest);
+
+// Releases a verifier handle that will not be settled.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `verifier` must be a handle from [`pamoja_image_verifier_new`] that has not
+// already been freed or passed to [`pamoja_image_verifier_finish`], or null.
+void pamoja_image_verifier_free(PamojaImageVerifier *verifier);
+
+// Creates an updater over a device slots.
+//
+// # Arguments
+//
+// * `device` - who the device is and whose signature it trusts.
+// * `slot_count` - how many slots the device has.
+// * `slot_capacity` - how many bytes each slot holds.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_updater_free`], or null if the
+// anchor is not a valid public key.
+PamojaUpdater *pamoja_updater_new(PamojaDevice device, uint8_t slot_count, uint32_t slot_capacity);
+
+// Adopts a delegation, so releases signed by the key it names are accepted.
+//
+// # Arguments
+//
+// * `updater` - the updater.
+// * `bytes` - the signed delegation envelope.
+// * `len` - the length of `bytes`.
+// * `has_now` - `true` if the device has a clock, `false` if it does not.
+// * `now` - seconds since the Unix epoch, read only when `has_now` is `true`.
+// * `out_delegation` - receives the adopted delegation, or may be null.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] if the delegation was signed by the anchor, is newer
+// than the one held, and has not expired.
+//
+// # Safety
+//
+// `updater` must be a live handle from [`pamoja_updater_new`], `bytes` must
+// point to at least `len` readable bytes or be null when `len` is 0, and
+// `out_delegation` must be writable or null.
+PamojaStatus pamoja_updater_adopt(PamojaUpdater *updater,
+                                  const uint8_t *bytes,
+                                  uintptr_t len,
+                                  bool has_now,
+                                  uint64_t now,
+                                  PamojaDelegation *out_delegation);
+
+// Reads the delegation an updater currently honours.
+//
+// # Arguments
+//
+// * `updater` - the updater.
+// * `out_delegation` - receives the delegation when there is one.
+//
+// # Returns
+//
+// `true` if a delegation is held and was written out, or `false` if releases
+// must be signed by the anchor itself.
+//
+// # Safety
+//
+// `updater` must be a live handle from [`pamoja_updater_new`], and
+// `out_delegation` must be writable or null.
+bool pamoja_updater_delegation(const PamojaUpdater *updater, PamojaDelegation *out_delegation);
+
+// Reads the highest sequence number the device already holds.
+//
+// # Arguments
+//
+// * `updater` - the updater.
+// * `out_sequence` - receives the sequence number.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `updater` must be a live handle from [`pamoja_updater_new`], and
+// `out_sequence` must be writable.
+PamojaStatus pamoja_updater_installed_sequence(const PamojaUpdater *updater,
+                                               uint64_t *out_sequence);
+
+// Reads what a device believes about one slot.
+//
+// # Arguments
+//
+// * `updater` - the updater.
+// * `slot` - the slot to read.
+// * `out_record` - receives the record.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, or a failure if the device has no such slot.
+//
+// # Safety
+//
+// `updater` must be a live handle from [`pamoja_updater_new`], and `out_record`
+// must be writable.
+PamojaStatus pamoja_updater_slot_record(const PamojaUpdater *updater,
+                                        uint8_t slot,
+                                        PamojaSlotRecord *out_record);
+
+// Returns how many slots a device has.
+//
+// # Arguments
+//
+// * `updater` - the updater.
+//
+// # Returns
+//
+// The slot count, or 0 if `updater` is null.
+//
+// # Safety
+//
+// `updater` must be a live handle from [`pamoja_updater_new`], or null.
+uint8_t pamoja_updater_slot_count(const PamojaUpdater *updater);
+
+// Records that a slot already holds a confirmed image at a sequence number.
+//
+// This is how a device that shipped with firmware tells the updater what it is
+// running, so the rollback rule has something to compare against.
+//
+// # Arguments
+//
+// * `updater` - the updater.
+// * `slot` - the slot holding the running image.
+// * `sequence` - the sequence number of that image.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `updater` must be a live handle from [`pamoja_updater_new`].
+PamojaStatus pamoja_updater_provision(PamojaUpdater *updater, uint8_t slot, uint64_t sequence);
+
+// Checks a manifest and stages an image that is already held whole.
+//
+// # Arguments
+//
+// * `updater` - the updater.
+// * `envelope` - the signed manifest offered to this device.
+// * `envelope_len` - the length of `envelope`.
+// * `image` - the whole image.
+// * `image_len` - the length of `image`.
+// * `has_now` - `true` if the device has a clock.
+// * `now` - seconds since the Unix epoch, read only when `has_now` is `true`.
+// * `out_slot` - receives the slot the image was staged into.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, or a failure naming the rule that refused
+// the update.
+//
+// # Safety
+//
+// `updater` must be a live handle from [`pamoja_updater_new`], `envelope` and
+// `image` must point to at least their stated lengths of readable bytes or be
+// null when those lengths are 0, and `out_slot` must be writable or null.
+PamojaStatus pamoja_updater_stage(PamojaUpdater *updater,
+                                  const uint8_t *envelope,
+                                  uintptr_t envelope_len,
+                                  const uint8_t *image,
+                                  uintptr_t image_len,
+                                  bool has_now,
+                                  uint64_t now,
+                                  uint8_t *out_slot);
+
+// Checks a manifest and opens the slot it names for a transfer in pieces.
+//
+// Every check that can be made without the image runs here, so a release that
+// is not for this device, would roll it back, or does not fit is refused before
+// a byte of it is accepted.
+//
+// The envelope is remembered until [`pamoja_updater_finish`], so the calls that
+// follow do not repeat it. Each of those reopens the transfer from what the
+// slot records, which is the same path a device takes after a reset, and is
+// what lets a transfer survive one.
+//
+// # Arguments
+//
+// * `updater` - the updater.
+// * `envelope` - the signed manifest offered to this device.
+// * `envelope_len` - the length of `envelope`.
+// * `has_now` - `true` if the device has a clock.
+// * `now` - seconds since the Unix epoch, read only when `has_now` is `true`.
+// * `out_slot` - receives the slot the image will be written into.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `updater` must be a live handle from [`pamoja_updater_new`], `envelope` must
+// point to at least `envelope_len` readable bytes or be null when it is 0, and
+// `out_slot` must be writable or null.
+PamojaStatus pamoja_updater_begin(PamojaUpdater *updater,
+                                  const uint8_t *envelope,
+                                  uintptr_t envelope_len,
+                                  bool has_now,
+                                  uint64_t now,
+                                  uint8_t *out_slot);
+
+// Takes the next piece of an image opened with [`pamoja_updater_begin`].
+//
+// # Arguments
+//
+// * `updater` - the updater.
+// * `chunk` - the next bytes of the image, in order.
+// * `len` - the length of `chunk`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once the chunk is stored and its progress recorded.
+//
+// # Safety
+//
+// `updater` must be a live handle from [`pamoja_updater_new`], and `chunk` must
+// point to at least `len` readable bytes, or be null when `len` is 0.
+PamojaStatus pamoja_updater_write(PamojaUpdater *updater, const uint8_t *chunk, uintptr_t len);
+
+// Reports how much of an opened image has arrived.
+//
+// # Arguments
+//
+// * `updater` - the updater.
+// * `out_written` - receives the bytes stored so far.
+// * `out_total` - receives the total the manifest declares.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `updater` must be a live handle from [`pamoja_updater_new`], and the output
+// pointers must be writable or null.
+PamojaStatus pamoja_updater_progress(PamojaUpdater *updater,
+                                     uint32_t *out_written,
+                                     uint32_t *out_total);
+
+// Finishes an opened image and marks the slot bootable if it matched.
+//
+// # Arguments
+//
+// * `updater` - the updater.
+// * `out_slot` - receives the slot now holding a staged image.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, or a failure if the image is not the one the
+// manifest described, which leaves the slot unbootable.
+//
+// # Safety
+//
+// `updater` must be a live handle from [`pamoja_updater_new`], and `out_slot`
+// must be writable or null.
+PamojaStatus pamoja_updater_finish(PamojaUpdater *updater, uint8_t *out_slot);
+
+// Decides what to run, and records that decision before returning it.
+//
+// Call this once per boot, before jumping to an image. A staged image becomes
+// pending here, so a device that resets before confirming reverts on the next
+// call rather than trying a broken image forever.
+//
+// # Arguments
+//
+// * `updater` - the updater.
+// * `out_boot` - receives the decision.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, or a failure if there is nothing to fall
+// back to.
+//
+// # Safety
+//
+// `updater` must be a live handle from [`pamoja_updater_new`], and `out_boot`
+// must be writable.
+PamojaStatus pamoja_updater_on_boot(PamojaUpdater *updater, PamojaBoot *out_boot);
+
+// Confirms the pending image, so it will be run from now on.
+//
+// # Arguments
+//
+// * `updater` - the updater.
+// * `out_slot` - receives the slot that is now confirmed.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `updater` must be a live handle from [`pamoja_updater_new`], and `out_slot`
+// must be writable or null.
+PamojaStatus pamoja_updater_confirm(PamojaUpdater *updater, uint8_t *out_slot);
+
+// Fails the pending image and goes back to the confirmed one.
+//
+// # Arguments
+//
+// * `updater` - the updater.
+// * `out_slot` - receives the slot to fall back to.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, or a failure if there is nothing to fall
+// back to.
+//
+// # Safety
+//
+// `updater` must be a live handle from [`pamoja_updater_new`], and `out_slot`
+// must be writable or null.
+PamojaStatus pamoja_updater_revert(PamojaUpdater *updater, uint8_t *out_slot);
+
+// Releases an updater handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `updater` must be a handle from [`pamoja_updater_new`] that has not already
+// been freed, or null. After this call it must not be used again.
+void pamoja_updater_free(PamojaUpdater *updater);
 
 #ifdef __cplusplus
 }  // extern "C"

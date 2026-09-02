@@ -19,6 +19,8 @@ pub fn version() -> String {
 // over the test target.
 #[cfg(feature = "actuators")]
 pub mod actuators;
+#[cfg(feature = "audit")]
+pub mod audit;
 #[cfg(feature = "can")]
 pub mod can;
 #[cfg(feature = "codec")]
@@ -37,6 +39,8 @@ pub mod mesh;
 pub mod modbus;
 #[cfg(feature = "mqtt")]
 pub mod mqtt;
+#[cfg(feature = "power")]
+pub mod power;
 #[cfg(feature = "routing")]
 pub mod routing;
 #[cfg(feature = "security")]
@@ -45,3 +49,9 @@ pub mod security;
 pub mod sensors;
 #[cfg(feature = "serial")]
 pub mod serial;
+#[cfg(feature = "session")]
+pub mod session;
+#[cfg(feature = "telemetry")]
+pub mod telemetry;
+#[cfg(feature = "update")]
+pub mod update;

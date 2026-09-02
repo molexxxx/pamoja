@@ -2436,6 +2436,7 @@ dependencies = [
  "pamoja-security",
  "pamoja-sensors",
  "pamoja-serial",
+ "pamoja-session",
  "pamoja-sim",
  "pamoja-sync",
  "pamoja-telemetry",
@@ -2452,6 +2453,7 @@ version = "0.1.14"
 dependencies = [
  "cbindgen",
  "pamoja-actuators",
+ "pamoja-audit",
  "pamoja-can",
  "pamoja-codec",
  "pamoja-core",
@@ -2462,10 +2464,15 @@ dependencies = [
  "pamoja-mesh",
  "pamoja-modbus",
  "pamoja-mqtt",
+ "pamoja-power",
  "pamoja-routing",
  "pamoja-security",
  "pamoja-sensors",
  "pamoja-serial",
+ "pamoja-session",
+ "pamoja-telemetry",
+ "pamoja-update",
+ "sha2 0.11.0",
  "tokio",
 ]
 

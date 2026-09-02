@@ -109,6 +109,42 @@
       "waveStepCount": 4
     }
   },
+  "audit": {
+    "entries": [
+      {
+        "bytes": "00000000000000000000000000000000000000000000000000000000000000000000000000000000835f48ea1bdff58ec913a9d4f71de2acdb3f467516b7e693b2c53726281494bd13d6dfc20accdfab7d225e8936ef4ece05cf522ff95626d7648079d1a366390f76616c76653d6f70656e",
+        "digest": "60d9eec12ea8f61880dd2737c51d3e36e8044c356175a6fc706a6eba9b3c1d2a",
+        "index": 0,
+        "payload": "valve=open",
+        "previous": "0000000000000000000000000000000000000000000000000000000000000000",
+        "signature": "835f48ea1bdff58ec913a9d4f71de2acdb3f467516b7e693b2c53726281494bd13d6dfc20accdfab7d225e8936ef4ece05cf522ff95626d7648079d1a366390f"
+      },
+      {
+        "bytes": "010000000000000060d9eec12ea8f61880dd2737c51d3e36e8044c356175a6fc706a6eba9b3c1d2ac012ccd791461784ecc0965f26ba358624323870519197f4ec16272fed898e47695371e85b04ce7a35775faee41d8a83854e0f928dd45726393cc27e9b7b2f0976616c76653d73687574",
+        "digest": "8b5b0b3a076e8e332e5c2b6b95e5164ebe90e5fbf179be436aef76946bdf090c",
+        "index": 1,
+        "payload": "valve=shut",
+        "previous": "60d9eec12ea8f61880dd2737c51d3e36e8044c356175a6fc706a6eba9b3c1d2a",
+        "signature": "c012ccd791461784ecc0965f26ba358624323870519197f4ec16272fed898e47695371e85b04ce7a35775faee41d8a83854e0f928dd45726393cc27e9b7b2f09"
+      },
+      {
+        "bytes": "02000000000000008b5b0b3a076e8e332e5c2b6b95e5164ebe90e5fbf179be436aef76946bdf090c45a5c4e6f34fac169df8a6239e7c773b3ed1e93beaa7a0e038be18f62aa6c867b769c4490741873a843ab4f704da1f938748ba79081e10d293fa010c82e2f90076616c76653d6f70656e",
+        "digest": "0c82100b16ef720e27bf484bc0a680331aa2cd78f0e2ff372ef4a0d73c181932",
+        "index": 2,
+        "payload": "valve=open",
+        "previous": "8b5b0b3a076e8e332e5c2b6b95e5164ebe90e5fbf179be436aef76946bdf090c",
+        "signature": "45a5c4e6f34fac169df8a6239e7c773b3ed1e93beaa7a0e038be18f62aa6c867b769c4490741873a843ab4f704da1f938748ba79081e10d293fa010c82e2f900"
+      }
+    ],
+    "publicKey": "884b8857f4eaa1613c61504db34d4beaf346517a0e31de3cddd4d9b4201d9d0b",
+    "resumed": {
+      "bytes": "03000000000000000c82100b16ef720e27bf484bc0a680331aa2cd78f0e2ff372ef4a0d73c181932953d0d3fd7d1947a774f9df905245ed78f32ac38e34bd1ff64d02c6af58645801e5441c7a166550a2866676ac5714fb08a0f0a6b6ce36ac539286dd0342f250776616c76653d73687574",
+      "index": 3,
+      "payload": "valve=shut"
+    },
+    "seed": "2121212121212121212121212121212121212121212121212121212121212121",
+    "tampered": "02000000000000008b5b0b3a076e8e332e5c2b6b95e5164ebe90e5fbf179be436aef76946bdf090c45a5c4e6f34fac169df8a6239e7c773b3ed1e93beaa7a0e038be18f62aa6c867b769c4490741873a843ab4f704da1f938748ba79081e10d293fa010c82e2f90076616c76653d6f706591"
+  },
   "calibration": {
     "inputs": [
       0.0,
@@ -1115,6 +1151,57 @@
     ],
     "setpoint": 10.0
   },
+  "power": {
+    "charges": [
+      1.0,
+      0.6000000238418579,
+      0.5,
+      0.49000000953674316,
+      0.20000000298023224,
+      0.1899999976158142,
+      0.0
+    ],
+    "charging": [
+      "Active",
+      "Active",
+      "Active",
+      "Active",
+      "Active",
+      "Saver",
+      "Saver"
+    ],
+    "duty": {
+      "activeUs": 250000,
+      "fraction": 0.25,
+      "periodUs": 1000000,
+      "sleepUs": 750000
+    },
+    "intervalsUs": [
+      60000000,
+      60000000,
+      60000000,
+      300000000,
+      300000000,
+      3600000000,
+      3600000000
+    ],
+    "modes": [
+      "Active",
+      "Active",
+      "Active",
+      "Saver",
+      "Saver",
+      "Critical",
+      "Critical"
+    ],
+    "plan": {
+      "activeUs": 60000000,
+      "criticalBelow": 0.20000000298023224,
+      "criticalUs": 3600000000,
+      "saverBelow": 0.5,
+      "saverUs": 300000000
+    }
+  },
   "routing": {
     "address": 1,
     "afterForgetting": {
@@ -1368,6 +1455,41 @@
       ]
     }
   },
+  "session": {
+    "aad": "pump-3",
+    "gatewayPublicKey": "ce8d3ad1ccb633ec7b70c17814a5c76ecd029685050d344745ba05870e587d59",
+    "gatewaySeed": "0202020202020202020202020202020202020202020202020202020202020202",
+    "hkdf": {
+      "ikm": "secret",
+      "info": "pairing",
+      "length": 40,
+      "output": "9ea3a9bf56680a8e0ca89dcb503be40ea88991785aeef14763464e4590e97decaa4ce9068213665b",
+      "salt": "salt"
+    },
+    "hmac": {
+      "digest": "6e9ef29b75fffc5b7abae527d58fdadb2fe42e7219011976917343065f58ed4a",
+      "key": "key",
+      "message": "message"
+    },
+    "messages": [
+      {
+        "ciphertext": "25064735",
+        "counter": 0,
+        "plaintext": "4.8C",
+        "tag": "f91e25bd7e653bebfb5548ea2ffee3cd"
+      },
+      {
+        "ciphertext": "4205f4b4",
+        "counter": 1,
+        "plaintext": "4.9C",
+        "tag": "35cbb15841d55c56bfea0a4d6c7d2140"
+      }
+    ],
+    "nodePublicKey": "a4e09292b651c278b9772c569f5fa9bb13d906b46ab68c9df9dc2b4409f8a209",
+    "nodeSeed": "0101010101010101010101010101010101010101010101010101010101010101",
+    "salt": "09090909090909090909090909090909",
+    "wrongAad": "pump-4"
+  },
   "smoother": {
     "outputs": [
       10.0,
@@ -1384,6 +1506,48 @@
       12.0
     ],
     "weight": 0.5
+  },
+  "telemetry": {
+    "adaptedTo": "Expensive",
+    "costs": [
+      "Free",
+      "Metered",
+      "Expensive",
+      "Offline"
+    ],
+    "levels": [
+      "Trace",
+      "Debug",
+      "Info",
+      "Warn",
+      "Error",
+      "Info",
+      "Warn"
+    ],
+    "shipped": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true
+    ],
+    "snapshot": {
+      "debug": 1,
+      "dropped": 4,
+      "emitted": 3,
+      "error": 1,
+      "info": 2,
+      "trace": 1,
+      "warn": 2
+    },
+    "thresholds": [
+      "Trace",
+      "Info",
+      "Warn",
+      "Error"
+    ]
   },
   "thermostat": {
     "hysteresis": 1.0,
@@ -1407,6 +1571,46 @@
     "setpoint": 8.0
   },
   "tolerance": 1e-6,
+  "update": {
+    "anchorPublicKey": "db995fe25169d141cab9bbba92baa01f9f2e1ece7df4cb2ac05190f37fcc1f9d",
+    "anchorSeed": "4141414141414141414141414141414141414141414141414141414141414141",
+    "body": "a90101020203500a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a04500b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b05010601075820b91b0e42a1dc7137d27d882e758e6aeab06c5b59c78927aa9b52485a5921f15c081902580900",
+    "classId": "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+    "delegation": {
+      "envelope": "a2015828a301010258202152f8d19b791d24453242e15f2eab6cb7cffa7b6a5ed30097960e069881db120300025840265fb0975826c1b46315a73585797deb301279367aa997653b7fe9ee5c1a4e6241a50dc483c4631feeed5fdbd3d5c7ed59cb45133bc4f0940ca439d5be6a450f",
+      "epoch": 1,
+      "expires": 0,
+      "releaseKey": "2152f8d19b791d24453242e15f2eab6cb7cffa7b6a5ed30097960e069881db12"
+    },
+    "envelope": "a2015856a90101020203500a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a04500b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b05010601075820b91b0e42a1dc7137d27d882e758e6aeab06c5b59c78927aa9b52485a5921f15c08190258090002584059372a0b8d93a89f2f03c4f479d5717b4c8f886ef6b6f51b2b9c9f86e92865e59976716077300a22e41644ed8a373b0a1abf6968cf99897e1d2cba468f8ec007",
+    "forgedEnvelope": "a2015856a90101020203500a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a04500b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b05010601075820b91b0e42a1dc7137d27d882e758e6aeab06c5b59c78927aa9b52485a5921f15c081902580900025840e3b86170ef9df13598f4a839034e55aa0d8c6190ab7b33d5f922e3a6176137effa13e053ab25712927eb4d3a1b37f7e5eb95d2f70e54676892f5957847562c00",
+    "imageByte": 165,
+    "imageLen": 600,
+    "impostorSeed": "3232323232323232323232323232323232323232323232323232323232323232",
+    "lifecycle": {
+      "boot": "Trying",
+      "bootSlot": 1,
+      "chunk": 128,
+      "confirmed": 1,
+      "staged": 1,
+      "state": "Confirmed",
+      "written": 600
+    },
+    "manifest": {
+      "digest": "b91b0e42a1dc7137d27d882e758e6aeab06c5b59c78927aa9b52485a5921f15c",
+      "expires": 0,
+      "format": 1,
+      "sequence": 2,
+      "size": 600,
+      "storage": 1,
+      "structureVersion": 1
+    },
+    "publisherPublicKey": "48075a597e721a156e2e0799de5cc0c5324dc6e7eaf1cdd46250868ec53215dd",
+    "publisherSeed": "3131313131313131313131313131313131313131313131313131313131313131",
+    "releasePublicKey": "2152f8d19b791d24453242e15f2eab6cb7cffa7b6a5ed30097960e069881db12",
+    "releaseSeed": "4242424242424242424242424242424242424242424242424242424242424242",
+    "vendorId": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a"
+  },
   "windows": {
     "anomaly": {
       "flags": [

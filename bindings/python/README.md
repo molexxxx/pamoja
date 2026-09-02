@@ -58,6 +58,13 @@ reach half: what a transmission costs in airtime, the secured LoRaWAN frame that
 goes on the air, both halves of the join exchange so a deployment can run its own
 network server, and the mesh packets and routing that carry a message across nodes
 when no infrastructure will.
+
+The operational modules cover what a deployment needs after the first reading
+arrives: `pamoja.audit` keeps signed, hash-chained records that cannot be quietly
+edited, `pamoja.session` opens a confidential, replay-protected channel with one
+peer, `pamoja.update` signs releases and stages them into slots with verified
+rollback, `pamoja.power` says how often a falling battery can afford to work, and
+`pamoja.telemetry` thins the event stream out as the link gets expensive.
 The generated low-level contract stays available at `pamoja.raw`.
 
 ```python

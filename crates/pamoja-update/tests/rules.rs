@@ -464,6 +464,33 @@ fn a_transfer_cut_off_by_a_dead_link_picks_up_where_it_stopped() {
 }
 
 #[test]
+fn a_transfer_cut_off_after_its_last_byte_is_not_thrown_away() {
+    let mut updater = device_running_version_one();
+    let image = b"version two, whole but never settled";
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
+
+    // Every byte arrives, and then the device resets before the image is settled.
+    {
+        let mut staging = updater.begin(&envelope[..len]).expect("begin");
+        staging.write(image).expect("write");
+        assert_eq!(staging.progress(), (image.len() as u32, image.len() as u32));
+    }
+
+    // Half an hour of radio time is not worth throwing away for the sake of one
+    // call, so the resumed transfer settles what already arrived.
+    let staging = updater.resume_at(&envelope[..len], None).expect("resume");
+    assert_eq!(
+        staging.progress(),
+        (image.len() as u32, image.len() as u32),
+        "a complete but unsettled image must not be erased"
+    );
+    assert_eq!(staging.finish().expect("finish"), 1);
+
+    assert_eq!(updater.on_boot().expect("boot"), Boot::Trying(1));
+    assert_eq!(updater.confirm().expect("confirm"), 1);
+}
+
+#[test]
 fn a_resume_that_completes_the_wrong_bytes_still_fails_the_digest() {
     let mut updater = device_running_version_one();
     let image = b"version two, arriving over a slow radio that keeps dropping";
