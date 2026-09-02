@@ -947,11 +947,15 @@ pub unsafe extern "C" fn pamoja_updater_write(
     chunk: *const u8,
     len: usize,
 ) -> PamojaStatus {
+    if updater.is_null() {
+        set_last_error("updater must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
     let chunk = match read_bytes(chunk, len) {
         Ok(chunk) => chunk,
         Err(status) => return status,
     };
-    let Some((envelope, now)) = staging_state(updater) else {
+    let Some((envelope, now)) = open_transfer(&*updater) else {
         return PamojaStatus::InvalidArgument;
     };
     match (*updater).updater.resume_at(&envelope, now) {
@@ -985,7 +989,11 @@ pub unsafe extern "C" fn pamoja_updater_progress(
     out_written: *mut u32,
     out_total: *mut u32,
 ) -> PamojaStatus {
-    let Some((envelope, now)) = staging_state(updater) else {
+    if updater.is_null() {
+        set_last_error("updater must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let Some((envelope, now)) = open_transfer(&*updater) else {
         return PamojaStatus::InvalidArgument;
     };
     match (*updater).updater.resume_at(&envelope, now) {
@@ -1024,7 +1032,11 @@ pub unsafe extern "C" fn pamoja_updater_finish(
     updater: *mut PamojaUpdater,
     out_slot: *mut u8,
 ) -> PamojaStatus {
-    let Some((envelope, now)) = staging_state(updater) else {
+    if updater.is_null() {
+        set_last_error("updater must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let Some((envelope, now)) = open_transfer(&*updater) else {
         return PamojaStatus::InvalidArgument;
     };
     let outcome = match (*updater).updater.resume_at(&envelope, now) {
@@ -1202,16 +1214,8 @@ unsafe fn write_verified(verified: &Verified, out_size: *mut u32, out_digest: *m
 }
 
 /// Borrows the envelope an updater is part-way through, if there is one.
-///
-/// # Safety
-///
-/// `updater` must be a live handle from [`pamoja_updater_new`], or null.
-unsafe fn staging_state(updater: *mut PamojaUpdater) -> Option<(Vec<u8>, Option<u64>)> {
-    if updater.is_null() {
-        set_last_error("updater must not be null".to_owned());
-        return None;
-    }
-    match &(*updater).staging {
+fn open_transfer(updater: &PamojaUpdater) -> Option<(Vec<u8>, Option<u64>)> {
+    match &updater.staging {
         Some(staging) => Some((staging.envelope.clone(), staging.now)),
         None => {
             set_last_error("no transfer is open; call pamoja_updater_begin first".to_owned());
@@ -1691,6 +1695,18 @@ mod tests {
             assert!(pamoja_manifest_sign(manifest(&[], 1, 0), ptr::null()).is_null());
             assert_eq!(
                 pamoja_updater_on_boot(ptr::null_mut(), ptr::null_mut()),
+                PamojaStatus::InvalidArgument
+            );
+            assert_eq!(
+                pamoja_updater_write(ptr::null_mut(), b"x".as_ptr(), 1),
+                PamojaStatus::InvalidArgument
+            );
+            assert_eq!(
+                pamoja_updater_progress(ptr::null_mut(), ptr::null_mut(), ptr::null_mut()),
+                PamojaStatus::InvalidArgument
+            );
+            assert_eq!(
+                pamoja_updater_finish(ptr::null_mut(), ptr::null_mut()),
                 PamojaStatus::InvalidArgument
             );
             assert!(!pamoja_updater_delegation(ptr::null(), ptr::null_mut()));
