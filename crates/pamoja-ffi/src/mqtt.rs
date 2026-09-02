@@ -108,7 +108,6 @@ pub unsafe extern "C" fn pamoja_mqtt_client_new(
     Box::into_raw(Box::new(client))
 }
 
-
 /// Reads the broker settings a config describes.
 ///
 /// Shared with the composable transport handle, so a client and a ladder rung

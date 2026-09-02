@@ -16,7 +16,7 @@ use std::ptr;
 use pamoja_core::{Result, Store};
 use pamoja_sync::{drain_to, FileStore, MemoryStore};
 
-use crate::transport::{PamojaTransport};
+use crate::transport::PamojaTransport;
 use crate::{read_bytes, read_str, runtime, set_last_error, PamojaBuffer, PamojaStatus};
 
 /// One buffer, whichever kind it was created as.
@@ -384,8 +384,14 @@ mod tests {
     fn a_buffer_returns_records_oldest_first() {
         unsafe {
             let store = pamoja_store_memory(0);
-            assert_eq!(pamoja_store_append(store, b"one".as_ptr(), 3), PamojaStatus::Ok);
-            assert_eq!(pamoja_store_append(store, b"two".as_ptr(), 3), PamojaStatus::Ok);
+            assert_eq!(
+                pamoja_store_append(store, b"one".as_ptr(), 3),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                pamoja_store_append(store, b"two".as_ptr(), 3),
+                PamojaStatus::Ok
+            );
 
             let mut len = 0;
             assert_eq!(pamoja_store_len(store, &mut len), PamojaStatus::Ok);
@@ -411,8 +417,14 @@ mod tests {
     fn a_full_buffer_refuses_rather_than_losing_a_record() {
         unsafe {
             let store = pamoja_store_memory(2);
-            assert_eq!(pamoja_store_append(store, b"one".as_ptr(), 3), PamojaStatus::Ok);
-            assert_eq!(pamoja_store_append(store, b"two".as_ptr(), 3), PamojaStatus::Ok);
+            assert_eq!(
+                pamoja_store_append(store, b"one".as_ptr(), 3),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                pamoja_store_append(store, b"two".as_ptr(), 3),
+                PamojaStatus::Ok
+            );
             assert_ne!(
                 pamoja_store_append(store, b"raw".as_ptr(), 3),
                 PamojaStatus::Ok,

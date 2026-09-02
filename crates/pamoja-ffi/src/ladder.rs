@@ -337,7 +337,10 @@ mod tests {
             assert_eq!(delivery, PamojaDelivery::Buffered);
 
             let mut waiting = 0;
-            assert_eq!(pamoja_ladder_buffered(ladder, &mut waiting), PamojaStatus::Ok);
+            assert_eq!(
+                pamoja_ladder_buffered(ladder, &mut waiting),
+                PamojaStatus::Ok
+            );
             assert_eq!(waiting, 1);
 
             pamoja_ladder_free(ladder);

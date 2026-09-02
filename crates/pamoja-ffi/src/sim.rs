@@ -14,7 +14,7 @@ use std::ptr;
 
 use pamoja_core::{Actuator, Sensor};
 use pamoja_kit::{Pose, Twist};
-use pamoja_sim::{Replay, RecordingActuator, SimRobot, SimSensor};
+use pamoja_sim::{RecordingActuator, Replay, SimRobot, SimSensor};
 
 use crate::{runtime, set_last_error, PamojaStatus};
 
@@ -339,9 +339,7 @@ pub unsafe extern "C" fn pamoja_recording_actuator_commands(
 /// `actuator` must be a handle from [`pamoja_recording_actuator_new`] that has
 /// not already been freed, or null. After this call it must not be used again.
 #[no_mangle]
-pub unsafe extern "C" fn pamoja_recording_actuator_free(
-    actuator: *mut PamojaRecordingActuator,
-) {
+pub unsafe extern "C" fn pamoja_recording_actuator_free(actuator: *mut PamojaRecordingActuator) {
     if !actuator.is_null() {
         drop(Box::from_raw(actuator));
     }
@@ -536,7 +534,10 @@ mod tests {
             assert_eq!(pamoja_sim_robot_apply(robot, forward), PamojaStatus::Ok);
 
             let pose = pamoja_sim_robot_pose(robot);
-            assert!((pose.x - 1.0).abs() < 1e-5, "one second at one metre a second");
+            assert!(
+                (pose.x - 1.0).abs() < 1e-5,
+                "one second at one metre a second"
+            );
             assert!(pose.y.abs() < 1e-5);
 
             pamoja_sim_robot_free(robot);

@@ -286,9 +286,7 @@ pub unsafe extern "C" fn pamoja_loopback_transport_disconnect(
 /// `transport` must be a handle from [`pamoja_loopback_transport_new`] that has
 /// not already been freed, or null. After this call it must not be used again.
 #[no_mangle]
-pub unsafe extern "C" fn pamoja_loopback_transport_free(
-    transport: *mut PamojaLoopbackTransport,
-) {
+pub unsafe extern "C" fn pamoja_loopback_transport_free(transport: *mut PamojaLoopbackTransport) {
     if !transport.is_null() {
         drop(Box::from_raw(transport));
     }
@@ -353,7 +351,9 @@ unsafe fn transport_handle<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transport::{pamoja_message_payload, pamoja_message_payload_len, pamoja_message_free};
+    use crate::transport::{
+        pamoja_message_free, pamoja_message_payload, pamoja_message_payload_len,
+    };
 
     /// Reads a message handle out and releases it.
     unsafe fn take(message: *mut PamojaMessage) -> Vec<u8> {
@@ -374,7 +374,10 @@ mod tests {
             let publisher = pamoja_loopback_transport_new(broker);
             let subscriber = pamoja_loopback_transport_new(broker);
 
-            assert_eq!(pamoja_loopback_transport_connect(publisher), PamojaStatus::Ok);
+            assert_eq!(
+                pamoja_loopback_transport_connect(publisher),
+                PamojaStatus::Ok
+            );
             assert_eq!(
                 pamoja_loopback_transport_connect(subscriber),
                 PamojaStatus::Ok

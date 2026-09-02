@@ -12,10 +12,9 @@ use std::path::PathBuf;
 
 use pamoja_actuators::{pca9685, stepper};
 use pamoja_audit::{AuditLog, Entry};
-use pamoja_ladder::{Delivery, TransportLadder};
-use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
 use pamoja_can::{dlc_to_len, len_to_dlc, CanId, Frame, J1939Id};
 use pamoja_codec::{encode_deltas, json_to_cbor, Quantizer};
+use pamoja_core::{Actuator as _, Sensor as _, Transport as _};
 use pamoja_gpio::i2c::{Address, Direction};
 use pamoja_gpio::pin::{Edge, Level, Polarity};
 use pamoja_gpio::spi::Mode;
@@ -23,7 +22,8 @@ use pamoja_kit::{
     deadband, Anomaly, Boundary, Calibration, Coordinate, Depletion, Geofence, Median, Pid,
     Smoother, Thermostat, Trend, Window,
 };
-use pamoja_core::{Actuator as _, Sensor as _, Transport as _};
+use pamoja_ladder::{Delivery, TransportLadder};
+use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::{Device, Downlink, FrameHeader, JoinGrant, JoinRequest, Session, Uplink};
 use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
@@ -33,9 +33,9 @@ use pamoja_routing::{DynamicRouter, Forward};
 use pamoja_security::DeviceIdentity;
 use pamoja_sensors::{ads1115, bme280, ds18b20, ina219};
 use pamoja_serial::{cobs, slip};
+use pamoja_session::{AgreementKey, Role, Session as SecuredSession};
 use pamoja_sim::{Replay, SimSensor};
 use pamoja_sync::MemoryStore as BufferStore;
-use pamoja_session::{AgreementKey, Role, Session as SecuredSession};
 use pamoja_telemetry::{Event, Level as TelemetryLevel, LinkCost, Reporter};
 use pamoja_update::{
     Boot, Delegation, Device as UpdateDevice, Manifest, MemoryStore, PayloadFormat, SlotState,

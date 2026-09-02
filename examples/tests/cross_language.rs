@@ -10,10 +10,9 @@ use std::path::PathBuf;
 
 use pamoja_actuators::{pca9685, stepper};
 use pamoja_audit::{verify_chain, AuditLog, Entry};
-use pamoja_ladder::{Delivery, TransportLadder};
-use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
 use pamoja_can::{dlc_to_len, len_to_dlc, CanId, Frame, J1939Id};
 use pamoja_codec::{cbor_to_json, decode_deltas, encode_deltas, json_to_cbor, Quantizer};
+use pamoja_core::{Actuator as _, Sensor as _, Transport as _};
 use pamoja_gpio::i2c::{Address, Direction};
 use pamoja_gpio::pin::{Edge, Level, Polarity};
 use pamoja_gpio::spi::Mode;
@@ -21,7 +20,8 @@ use pamoja_kit::{
     deadband, Anomaly, Boundary, Calibration, Coordinate, Depletion, Geofence, Median, Pid,
     Smoother, Thermostat, Trend, Window,
 };
-use pamoja_core::{Actuator as _, Sensor as _, Transport as _};
+use pamoja_ladder::{Delivery, TransportLadder};
+use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::{
     Device, Direction as LorawanDirection, Downlink, FrameHeader, JoinGrant, JoinRequest,
@@ -35,9 +35,9 @@ use pamoja_routing::{DynamicRouter, Forward};
 use pamoja_security::{DeviceIdentity, PublicIdentity, Signature};
 use pamoja_sensors::{ads1115, bme280, ds18b20, ina219};
 use pamoja_serial::{cobs, slip};
+use pamoja_session::{AgreementKey, Role, Sealed, Session as SecuredSession, SessionError};
 use pamoja_sim::{Replay, SimRobot, SimSensor};
 use pamoja_sync::MemoryStore as BufferStore;
-use pamoja_session::{AgreementKey, Role, Sealed, Session as SecuredSession, SessionError};
 use pamoja_telemetry::{Event, Level as TelemetryLevel, LinkCost, Reporter};
 use pamoja_update::{
     Boot, Delegation, Device as UpdateDevice, Envelope, Manifest, MemoryStore, Refusal, SlotState,
@@ -1937,7 +1937,9 @@ fn ladder_vectors_match() {
         restored.connect().await.expect("connect");
         assert_eq!(
             restored.flush().await.expect("flush") as u64,
-            restored_want["flushed"].as_u64().expect("the flushed count"),
+            restored_want["flushed"]
+                .as_u64()
+                .expect("the flushed count"),
             "the buffer replays once a link returns"
         );
         assert_eq!(
@@ -1950,13 +1952,19 @@ fn ladder_vectors_match() {
             .as_u64()
             .expect("the failure count") as usize;
         let mut ladder = TransportLadder::new(BufferStore::new())
-            .rung(Faulty::new(LoopbackTransport::new(broker.clone()), failures))
+            .rung(Faulty::new(
+                LoopbackTransport::new(broker.clone()),
+                failures,
+            ))
             .rung(LoopbackTransport::new(broker.clone()));
         ladder.connect().await.expect("connect the rungs");
         let delivery = ladder
             .send(
                 topic,
-                fallthrough["payload"].as_str().expect("the payload").as_bytes(),
+                fallthrough["payload"]
+                    .as_str()
+                    .expect("the payload")
+                    .as_bytes(),
             )
             .await
             .expect("send through the ladder");

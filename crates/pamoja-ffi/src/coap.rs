@@ -100,9 +100,7 @@ pub unsafe extern "C" fn pamoja_coap_client_new(
 ///
 /// `client` must be a live handle from [`pamoja_coap_client_new`].
 #[no_mangle]
-pub unsafe extern "C" fn pamoja_coap_client_connect(
-    client: *mut PamojaCoapClient,
-) -> PamojaStatus {
+pub unsafe extern "C" fn pamoja_coap_client_connect(client: *mut PamojaCoapClient) -> PamojaStatus {
     let Some(client) = client_handle(client) else {
         return PamojaStatus::InvalidArgument;
     };

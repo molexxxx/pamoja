@@ -195,13 +195,14 @@ mod tests {
 
             for subscriber in [first, second] {
                 let mut event = ptr::null_mut();
-                assert_eq!(pamoja_event_bus_next(subscriber, &mut event), PamojaStatus::Ok);
+                assert_eq!(
+                    pamoja_event_bus_next(subscriber, &mut event),
+                    PamojaStatus::Ok
+                );
                 assert!(!event.is_null());
-                let bytes = std::slice::from_raw_parts(
-                    pamoja_buffer_data(event),
-                    pamoja_buffer_len(event),
-                )
-                .to_vec();
+                let bytes =
+                    std::slice::from_raw_parts(pamoja_buffer_data(event), pamoja_buffer_len(event))
+                        .to_vec();
                 assert_eq!(bytes, b"battery.low");
                 pamoja_buffer_free(event);
                 pamoja_event_bus_free(subscriber);

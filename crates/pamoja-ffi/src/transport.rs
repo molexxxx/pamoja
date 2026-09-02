@@ -166,7 +166,6 @@ impl Transport for Kind {
     }
 }
 
-
 /// An opaque handle to one message that arrived on a subscribed topic.
 ///
 /// CoAP and the loopback broker both hand back a topic and a payload, so one
@@ -396,9 +395,7 @@ pub unsafe extern "C" fn pamoja_transport_degraded(
 ///
 /// `transport` must be a live handle that has not been freed or consumed.
 #[no_mangle]
-pub unsafe extern "C" fn pamoja_transport_connect(
-    transport: *mut PamojaTransport,
-) -> PamojaStatus {
+pub unsafe extern "C" fn pamoja_transport_connect(transport: *mut PamojaTransport) -> PamojaStatus {
     let Some(transport) = transport_handle(transport) else {
         return PamojaStatus::InvalidArgument;
     };
@@ -493,9 +490,7 @@ pub unsafe extern "C" fn pamoja_transport_free(transport: *mut PamojaTransport) 
 /// # Safety
 ///
 /// `transport` must be a live handle from a call that produced one, or null.
-unsafe fn transport_handle<'a>(
-    transport: *mut PamojaTransport,
-) -> Option<&'a mut PamojaTransport> {
+unsafe fn transport_handle<'a>(transport: *mut PamojaTransport) -> Option<&'a mut PamojaTransport> {
     if transport.is_null() {
         set_last_error("transport must not be null".to_owned());
         return None;
