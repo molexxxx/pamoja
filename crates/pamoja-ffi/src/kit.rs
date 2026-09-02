@@ -16,8 +16,8 @@
 use std::ptr;
 
 use pamoja_kit::{
-    deadband, Boundary, Calibration, Coordinate, Debounce, Depletion, Geofence, Kalman, Pid, Ramp,
-    Smoother, Surge, Thermostat,
+    deadband, Anomaly, Boundary, Calibration, Coordinate, Debounce, Depletion, Geofence, Kalman,
+    Median, Pid, Ramp, Smoother, Surge, Thermostat, Trend, Window,
 };
 
 /// A latitude and longitude in degrees.
@@ -906,6 +906,405 @@ unsafe fn write_some<T>(value: Option<T>, out: *mut T) -> bool {
     }
 }
 
+/// The number of readings a windowed helper keeps.
+///
+/// The Rust helpers are generic over their capacity, which cannot cross a C ABI,
+/// so the ones here are built at one documented size. The crate's own examples
+/// use three to eight readings, so this is headroom rather than a constraint; a
+/// caller who needs another size has the Rust crate.
+pub const PAMOJA_WINDOW_CAPACITY: usize = 32;
+
+/// An opaque handle to a rolling window of readings.
+pub struct PamojaWindow {
+    inner: Window<PAMOJA_WINDOW_CAPACITY>,
+}
+
+/// An opaque handle to a median filter.
+pub struct PamojaMedian {
+    inner: Median<PAMOJA_WINDOW_CAPACITY>,
+}
+
+/// An opaque handle to a trend estimator.
+pub struct PamojaTrend {
+    inner: Trend<PAMOJA_WINDOW_CAPACITY>,
+}
+
+/// An opaque handle to an anomaly detector.
+pub struct PamojaAnomaly {
+    inner: Anomaly<PAMOJA_WINDOW_CAPACITY>,
+}
+
+/// Creates an empty rolling window of [`PAMOJA_WINDOW_CAPACITY`] readings.
+///
+/// # Returns
+///
+/// A handle the caller must release with [`pamoja_window_free`].
+///
+/// # Safety
+///
+/// The returned handle must be freed exactly once.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_window_new() -> *mut PamojaWindow {
+    Box::into_raw(Box::new(PamojaWindow {
+        inner: Window::new(),
+    }))
+}
+
+/// Adds a reading, dropping the oldest once the window is full.
+///
+/// Passing null is a no-op.
+///
+/// # Safety
+///
+/// `window` must be a live handle from [`pamoja_window_new`], or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_window_push(window: *mut PamojaWindow, reading: f32) {
+    if let Some(window) = window.as_mut() {
+        window.inner.push(reading);
+    }
+}
+
+/// Returns how many readings a window holds.
+///
+/// # Returns
+///
+/// The count, or 0 if `window` is null.
+///
+/// # Safety
+///
+/// `window` must be a live handle from [`pamoja_window_new`], or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_window_len(window: *const PamojaWindow) -> usize {
+    match window.as_ref() {
+        Some(window) => window.inner.len(),
+        None => 0,
+    }
+}
+
+/// Returns how many readings a window holds before it starts dropping.
+///
+/// # Returns
+///
+/// The capacity, or 0 if `window` is null.
+///
+/// # Safety
+///
+/// `window` must be a live handle from [`pamoja_window_new`], or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_window_capacity(window: *const PamojaWindow) -> usize {
+    match window.as_ref() {
+        Some(window) => window.inner.capacity(),
+        None => 0,
+    }
+}
+
+/// Reads the mean of a window's readings.
+///
+/// # Returns
+///
+/// `true` when the window holds a reading, with the mean written to `out_value`.
+///
+/// # Safety
+///
+/// `window` must be a live handle or null, and `out_value` must point to a
+/// writable `float`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_window_mean(
+    window: *const PamojaWindow,
+    out_value: *mut f32,
+) -> bool {
+    maybe(window.as_ref().and_then(|window| window.inner.mean()), out_value)
+}
+
+/// Reads the smallest reading in a window.
+///
+/// # Returns
+///
+/// `true` when the window holds a reading, with the value written to `out_value`.
+///
+/// # Safety
+///
+/// `window` must be a live handle or null, and `out_value` must point to a
+/// writable `float`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_window_min(
+    window: *const PamojaWindow,
+    out_value: *mut f32,
+) -> bool {
+    maybe(window.as_ref().and_then(|window| window.inner.min()), out_value)
+}
+
+/// Reads the largest reading in a window.
+///
+/// # Returns
+///
+/// `true` when the window holds a reading, with the value written to `out_value`.
+///
+/// # Safety
+///
+/// `window` must be a live handle or null, and `out_value` must point to a
+/// writable `float`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_window_max(
+    window: *const PamojaWindow,
+    out_value: *mut f32,
+) -> bool {
+    maybe(window.as_ref().and_then(|window| window.inner.max()), out_value)
+}
+
+/// Reads the spread between a window's smallest and largest readings.
+///
+/// # Returns
+///
+/// `true` when the window holds a reading, with the range written to `out_value`.
+///
+/// # Safety
+///
+/// `window` must be a live handle or null, and `out_value` must point to a
+/// writable `float`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_window_range(
+    window: *const PamojaWindow,
+    out_value: *mut f32,
+) -> bool {
+    maybe(window.as_ref().and_then(|window| window.inner.range()), out_value)
+}
+
+/// Reads the variance of a window's readings.
+///
+/// # Returns
+///
+/// `true` when the window holds enough readings to have a variance, with it
+/// written to `out_value`.
+///
+/// # Safety
+///
+/// `window` must be a live handle or null, and `out_value` must point to a
+/// writable `float`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_window_variance(
+    window: *const PamojaWindow,
+    out_value: *mut f32,
+) -> bool {
+    maybe(
+        window.as_ref().and_then(|window| window.inner.variance()),
+        out_value,
+    )
+}
+
+/// Releases a rolling window handle.
+///
+/// Passing null is a no-op.
+///
+/// # Safety
+///
+/// `window` must be a handle from [`pamoja_window_new`] that has not already been
+/// freed, or null. After this call it must not be used again.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_window_free(window: *mut PamojaWindow) {
+    if !window.is_null() {
+        drop(Box::from_raw(window));
+    }
+}
+
+/// Creates an empty median filter over [`PAMOJA_WINDOW_CAPACITY`] readings.
+///
+/// A median filter is what rejects a single wild reading, where an average would
+/// let it pull the answer.
+///
+/// # Returns
+///
+/// A handle the caller must release with [`pamoja_median_free`].
+///
+/// # Safety
+///
+/// The returned handle must be freed exactly once.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_median_new() -> *mut PamojaMedian {
+    Box::into_raw(Box::new(PamojaMedian {
+        inner: Median::new(),
+    }))
+}
+
+/// Folds a reading in and returns the median of the window.
+///
+/// # Returns
+///
+/// The median, or NaN if `median` is null.
+///
+/// # Safety
+///
+/// `median` must be a live handle from [`pamoja_median_new`], or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_median_update(median: *mut PamojaMedian, reading: f32) -> f32 {
+    match median.as_mut() {
+        Some(median) => median.inner.update(reading),
+        None => f32::NAN,
+    }
+}
+
+/// Reads the current median without folding in a reading.
+///
+/// # Returns
+///
+/// `true` when the filter holds a reading, with the median written to
+/// `out_value`.
+///
+/// # Safety
+///
+/// `median` must be a live handle or null, and `out_value` must point to a
+/// writable `float`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_median_value(
+    median: *const PamojaMedian,
+    out_value: *mut f32,
+) -> bool {
+    maybe(median.as_ref().and_then(|median| median.inner.median()), out_value)
+}
+
+/// Releases a median filter handle.
+///
+/// Passing null is a no-op.
+///
+/// # Safety
+///
+/// `median` must be a handle from [`pamoja_median_new`] that has not already been
+/// freed, or null. After this call it must not be used again.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_median_free(median: *mut PamojaMedian) {
+    if !median.is_null() {
+        drop(Box::from_raw(median));
+    }
+}
+
+/// Creates an empty trend estimator over [`PAMOJA_WINDOW_CAPACITY`] readings.
+///
+/// # Returns
+///
+/// A handle the caller must release with [`pamoja_trend_free`].
+///
+/// # Safety
+///
+/// The returned handle must be freed exactly once.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_trend_new() -> *mut PamojaTrend {
+    Box::into_raw(Box::new(PamojaTrend {
+        inner: Trend::new(),
+    }))
+}
+
+/// Adds a reading to a trend estimator.
+///
+/// Passing null is a no-op.
+///
+/// # Safety
+///
+/// `trend` must be a live handle from [`pamoja_trend_new`], or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_trend_push(trend: *mut PamojaTrend, reading: f32) {
+    if let Some(trend) = trend.as_mut() {
+        trend.inner.push(reading);
+    }
+}
+
+/// Reads the slope a trend estimator has fitted, in units per reading.
+///
+/// # Returns
+///
+/// `true` when there are enough readings to fit a line, with the slope written to
+/// `out_value`. A positive slope is a rising signal.
+///
+/// # Safety
+///
+/// `trend` must be a live handle or null, and `out_value` must point to a
+/// writable `float`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_trend_slope(
+    trend: *const PamojaTrend,
+    out_value: *mut f32,
+) -> bool {
+    maybe(trend.as_ref().and_then(|trend| trend.inner.slope()), out_value)
+}
+
+/// Releases a trend estimator handle.
+///
+/// Passing null is a no-op.
+///
+/// # Safety
+///
+/// `trend` must be a handle from [`pamoja_trend_new`] that has not already been
+/// freed, or null. After this call it must not be used again.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_trend_free(trend: *mut PamojaTrend) {
+    if !trend.is_null() {
+        drop(Box::from_raw(trend));
+    }
+}
+
+/// Creates an anomaly detector that flags a reading `sigmas` deviations out.
+///
+/// # Returns
+///
+/// A handle the caller must release with [`pamoja_anomaly_free`].
+///
+/// # Safety
+///
+/// The returned handle must be freed exactly once.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_anomaly_new(sigmas: f32) -> *mut PamojaAnomaly {
+    Box::into_raw(Box::new(PamojaAnomaly {
+        inner: Anomaly::new(sigmas),
+    }))
+}
+
+/// Folds a reading in and reports whether it stands out from the window.
+///
+/// # Returns
+///
+/// `true` when the reading is further from the mean than the configured number
+/// of deviations, or `false` if `anomaly` is null or the window is still filling.
+///
+/// # Safety
+///
+/// `anomaly` must be a live handle from [`pamoja_anomaly_new`], or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_anomaly_check(anomaly: *mut PamojaAnomaly, reading: f32) -> bool {
+    match anomaly.as_mut() {
+        Some(anomaly) => anomaly.inner.check(reading),
+        None => false,
+    }
+}
+
+/// Releases an anomaly detector handle.
+///
+/// Passing null is a no-op.
+///
+/// # Safety
+///
+/// `anomaly` must be a handle from [`pamoja_anomaly_new`] that has not already
+/// been freed, or null. After this call it must not be used again.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_anomaly_free(anomaly: *mut PamojaAnomaly) {
+    if !anomaly.is_null() {
+        drop(Box::from_raw(anomaly));
+    }
+}
+
+/// Writes an optional value through an out-pointer, reporting whether there was one.
+///
+/// # Safety
+///
+/// `out_value` must be null or point to a writable `float`.
+unsafe fn maybe(value: Option<f32>, out_value: *mut f32) -> bool {
+    match (value, out_value.as_mut()) {
+        (Some(value), Some(slot)) => {
+            *slot = value;
+            true
+        }
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1033,6 +1432,106 @@ mod tests {
             assert!(pamoja_surge_update(surge, 20.0, &mut delta));
             assert!(delta >= 5.0);
             pamoja_surge_free(surge);
+        }
+    }
+
+    #[test]
+    fn a_window_reports_its_spread_once_it_holds_a_reading() {
+        // Safety: the handle is live and the out-pointer is writable.
+        unsafe {
+            let window = pamoja_window_new();
+            let mut value = 0.0f32;
+            assert!(!pamoja_window_mean(window, &mut value), "empty has no mean");
+
+            for reading in [10.0f32, 20.0, 30.0] {
+                pamoja_window_push(window, reading);
+            }
+            assert_eq!(pamoja_window_len(window), 3);
+            assert_eq!(pamoja_window_capacity(window), PAMOJA_WINDOW_CAPACITY);
+            assert!(pamoja_window_mean(window, &mut value));
+            assert!((value - 20.0).abs() < 1e-6);
+            assert!(pamoja_window_min(window, &mut value) && (value - 10.0).abs() < 1e-6);
+            assert!(pamoja_window_max(window, &mut value) && (value - 30.0).abs() < 1e-6);
+            assert!(pamoja_window_range(window, &mut value) && (value - 20.0).abs() < 1e-6);
+            assert!(pamoja_window_variance(window, &mut value));
+            pamoja_window_free(window);
+        }
+    }
+
+    #[test]
+    fn a_window_drops_its_oldest_reading_once_full() {
+        // Safety: the handle is live and the out-pointer is writable.
+        unsafe {
+            let window = pamoja_window_new();
+            for index in 0..PAMOJA_WINDOW_CAPACITY + 8 {
+                pamoja_window_push(window, index as f32);
+            }
+            assert_eq!(pamoja_window_len(window), PAMOJA_WINDOW_CAPACITY);
+            let mut value = 0.0f32;
+            assert!(pamoja_window_min(window, &mut value));
+            assert!((value - 8.0).abs() < 1e-6, "the first eight fell out");
+            pamoja_window_free(window);
+        }
+    }
+
+    #[test]
+    fn a_median_rejects_the_single_wild_reading_an_average_would_follow() {
+        // Safety: the handle is live.
+        unsafe {
+            let median = pamoja_median_new();
+            for reading in [20.0f32, 21.0, 20.5] {
+                pamoja_median_update(median, reading);
+            }
+            let spike = pamoja_median_update(median, 900.0);
+            assert!(spike < 30.0, "the spike does not carry the median: {spike}");
+            pamoja_median_free(median);
+        }
+    }
+
+    #[test]
+    fn a_trend_reports_a_rising_signal_as_a_positive_slope() {
+        // Safety: the handle is live and the out-pointer is writable.
+        unsafe {
+            let trend = pamoja_trend_new();
+            let mut slope = 0.0f32;
+            assert!(!pamoja_trend_slope(trend, &mut slope), "one point is no line");
+
+            for reading in [1.0f32, 2.0, 3.0, 4.0] {
+                pamoja_trend_push(trend, reading);
+            }
+            assert!(pamoja_trend_slope(trend, &mut slope));
+            assert!((slope - 1.0).abs() < 1e-5, "got {slope}");
+            pamoja_trend_free(trend);
+        }
+    }
+
+    #[test]
+    fn an_anomaly_detector_flags_the_reading_that_stands_out() {
+        // Safety: the handle is live.
+        unsafe {
+            let anomaly = pamoja_anomaly_new(3.0);
+            for _ in 0..8 {
+                assert!(!pamoja_anomaly_check(anomaly, 20.0));
+            }
+            assert!(pamoja_anomaly_check(anomaly, 900.0), "a step that far out");
+            pamoja_anomaly_free(anomaly);
+        }
+    }
+
+    #[test]
+    fn calls_on_null_windowed_handles_are_rejected_without_dereferencing() {
+        let mut value = 0.0f32;
+        // Safety: passing null is explicitly handled.
+        unsafe {
+            assert_eq!(pamoja_window_len(ptr::null()), 0);
+            assert!(!pamoja_window_mean(ptr::null(), &mut value));
+            assert!(pamoja_median_update(ptr::null_mut(), 1.0).is_nan());
+            assert!(!pamoja_trend_slope(ptr::null(), &mut value));
+            assert!(!pamoja_anomaly_check(ptr::null_mut(), 1.0));
+            pamoja_window_free(ptr::null_mut());
+            pamoja_median_free(ptr::null_mut());
+            pamoja_trend_free(ptr::null_mut());
+            pamoja_anomaly_free(ptr::null_mut());
         }
     }
 }

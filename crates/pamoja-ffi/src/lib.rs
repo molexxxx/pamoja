@@ -36,6 +36,8 @@ use pamoja_core::Error;
 // the buffer-size constants a caller sizes an array from, stays reachable from
 // the crate root. A constant referenced only from the generated header reads as
 // dead code otherwise.
+#[cfg(feature = "actuators")]
+pub mod actuators;
 #[cfg(feature = "can")]
 pub mod can;
 #[cfg(feature = "codec")]
@@ -50,6 +52,8 @@ pub mod modbus;
 pub mod mqtt;
 #[cfg(feature = "security")]
 pub mod security;
+#[cfg(feature = "sensors")]
+pub mod sensors;
 #[cfg(feature = "serial")]
 pub mod serial;
 
@@ -151,6 +155,7 @@ pub extern "C" fn pamoja_last_error_message() -> *const c_char {
     feature = "modbus",
     feature = "mqtt",
     feature = "security",
+    feature = "sensors",
     feature = "serial"
 ))]
 pub(crate) unsafe fn read_bytes(ptr: *const u8, len: usize) -> Result<Vec<u8>, PamojaStatus> {
