@@ -22,7 +22,11 @@ const {
   deadband,
   can,
   gpio,
+  lora,
+  lorawan,
+  mesh,
   modbus,
+  routing,
   serial: serialFraming,
   actuators,
   sensors,
@@ -588,6 +592,370 @@ canVectors();
 gpioVectors();
 sensorVectors();
 actuatorVectors();
+
+function loraVectors() {
+  const vector = VECTORS.lora;
+
+  for (const described of vector.links) {
+    const link = linkOf(described);
+    assert.strictEqual(
+      lora.symbolTimeUs(link),
+      described.symbolTimeUs,
+      `symbol time for ${described.name}`,
+    );
+
+    for (const { payloadLen, airtimeUs } of described.airtimes) {
+      assert.strictEqual(
+        lora.airtimeUs(link, payloadLen),
+        airtimeUs,
+        `airtime of ${payloadLen} bytes on ${described.name}`,
+      );
+    }
+
+    for (const { payloadLen, permille, offTimeUs } of described.budgets) {
+      assert.strictEqual(
+        lora.minOffTimeUs(link, payloadLen, permille),
+        offTimeUs,
+        `off time at ${permille} permille on ${described.name}`,
+      );
+    }
+  }
+
+  for (const { asked, used } of vector.clamped) {
+    assert.strictEqual(
+      lora.link(asked, 125_000).spreadingFactor,
+      used,
+      "a spreading factor outside 7 to 12 is clamped",
+    );
+  }
+
+  // Rust saturates the off time when transmitting is forbidden; the facade
+  // reports it as null instead, so a caller cannot mistake it for a real wait.
+  const forbidden = vector.forbidden;
+  const link = linkOf(vector.links.find((entry) => entry.name === forbidden.link));
+  assert.strictEqual(
+    lora.minOffTimeUs(link, forbidden.payloadLen, forbidden.permille),
+    null,
+    "a zero duty cycle forbids transmitting",
+  );
+  assert.strictEqual(
+    lora.messagesPerHour(link, forbidden.payloadLen, forbidden.permille),
+    0,
+    "and so allows no messages at all",
+  );
+}
+
+/** Rebuilds the link a vector describes. */
+function linkOf(described) {
+  return {
+    spreadingFactor: described.spreadingFactor,
+    bandwidthHz: described.bandwidthHz,
+    codingRateDenominator: described.codingRateDenominator,
+    preambleSymbols: described.preambleSymbols,
+    explicitHeader: described.explicitHeader,
+    crc: described.crc,
+  };
+}
+
+function meshVectors() {
+  const vector = VECTORS.mesh;
+
+  assert.strictEqual(mesh.MAX_FRAME, vector.maxFrame, "the frame ceiling");
+  assert.strictEqual(mesh.MAX_PAYLOAD, vector.maxPayload, "the payload ceiling");
+  assert.strictEqual(mesh.BROADCAST, vector.broadcastAddress, "the broadcast address");
+  assert.strictEqual(mesh.SEEN_DEFAULT_CAPACITY, vector.seenCapacity, "the cache size");
+
+  const unicast = mesh.frame(
+    vector.unicast.src,
+    vector.unicast.dst,
+    vector.unicast.id,
+    unhex(vector.unicast.payload),
+    vector.unicast.hopLimit,
+  );
+  assert.strictEqual(
+    unicast.bytes.toString("hex"),
+    vector.unicast.bytes,
+    "an addressed frame matches byte for byte",
+  );
+
+  const broadcast = mesh.broadcast(
+    vector.broadcast.src,
+    vector.broadcast.id,
+    unhex(vector.broadcast.payload),
+  );
+  assert.strictEqual(
+    broadcast.bytes.toString("hex"),
+    vector.broadcast.bytes,
+    "a broadcast frame matches byte for byte",
+  );
+
+  const parsed = mesh.parse(unhex(vector.broadcast.bytes));
+  assert.ok(parsed.broadcast, "and parses back as a broadcast");
+  assert.strictEqual(parsed.payload.toString("hex"), vector.broadcast.payload);
+
+  const relayed = mesh.relayed(unhex(vector.broadcast.bytes));
+  assert.strictEqual(relayed.bytes.toString("hex"), vector.relayed.bytes, "relaying spends a hop");
+  assert.strictEqual(relayed.hopLimit, vector.relayed.hopLimit);
+
+  assert.strictEqual(
+    mesh.relayed(unhex(vector.exhausted)),
+    null,
+    "a frame with no hops left must not be relayed",
+  );
+
+  assert.throws(
+    () => mesh.parse(unhex(vector.corrupt)),
+    "a frame the air mangled must be refused",
+  );
+
+  assert.strictEqual(
+    mesh.crc16(unhex(vector.crc.check)),
+    vector.crc.checkValue,
+    "the published CRC-16/CCITT-FALSE check value",
+  );
+  assert.strictEqual(mesh.crc16(unhex(vector.crc.data)), vector.crc.value);
+
+  const seen = new mesh.SeenPackets(vector.seenCapacity);
+  vector.seen.keys.forEach(([src, id], index) => {
+    assert.strictEqual(
+      seen.record(src, id),
+      vector.seen.new[index],
+      "each packet is new exactly once",
+    );
+  });
+
+  const small = new mesh.SeenPackets(vector.sizedSeen.capacity);
+  assert.strictEqual(small.capacity, vector.sizedSeen.capacity, "the size it was given");
+  for (const [src, id] of vector.sizedSeen.keys) {
+    small.record(src, id);
+  }
+  assert.ok(
+    !small.contains(...vector.sizedSeen.evicted),
+    "a cache sized by the caller evicts at that size",
+  );
+}
+
+function routingVectors() {
+  const vector = VECTORS.routing;
+  const router = routing.router(vector.address, vector.capacity);
+
+  assert.strictEqual(router.capacity, vector.capacity, "the table size");
+
+  for (const { origin, via, cost, changed } of vector.observations) {
+    assert.strictEqual(
+      router.observe(origin, via, cost),
+      changed,
+      `observing ${origin} via ${via} changes the table`,
+    );
+  }
+
+  assert.strictEqual(router.size, vector.learned, "the routes it kept");
+
+  const route = router.route(vector.route.dst);
+  assert.strictEqual(route.nextHop, vector.route.nextHop, "the cheapest way it knows");
+  assert.strictEqual(route.cost, vector.route.cost);
+
+  for (const want of vector.decisions) {
+    assertDecision(router, want);
+  }
+
+  router.forget(vector.afterForgetting.dst);
+  assertDecision(router, vector.afterForgetting.decision);
+  assert.strictEqual(router.size, vector.afterForgetting.learned);
+
+  const small = routing.router(0x01, vector.sized.capacity);
+  assert.strictEqual(small.capacity, vector.sized.capacity, "the size it was given");
+  for (let node = 0; node < vector.sized.offered; node += 1) {
+    small.observe(node + 0x100, 0x05, 4);
+  }
+  assert.strictEqual(
+    small.size,
+    vector.sized.learned,
+    "a table sized by the caller holds exactly what it was asked for",
+  );
+}
+
+/** Checks one routing decision against the vector that describes it. */
+function assertDecision(router, want) {
+  const decision = router.forward(want.dst);
+  assert.strictEqual(decision.action, want.action, `packet for ${want.dst}`);
+  assert.strictEqual(decision.nextHop, want.nextHop, `next hop for ${want.dst}`);
+}
+
+function lorawanVectors() {
+  const vector = VECTORS.lorawan;
+  const session = lorawan.session(
+    vector.devAddr,
+    unhex(vector.nwkSKey),
+    unhex(vector.appSKey),
+  );
+
+  assert.strictEqual(session.devAddr, vector.devAddr, "the session is bound to its address");
+
+  const uplink = session.encodeUplink(
+    vector.uplink.fcnt,
+    vector.uplink.fport,
+    unhex(vector.uplink.payload),
+    { confirmed: vector.uplink.confirmed, adr: vector.uplink.adr, ack: vector.uplink.ack },
+  );
+  assert.strictEqual(
+    uplink.toString("hex"),
+    vector.uplink.frame,
+    "a secured uplink matches byte for byte",
+  );
+
+  const rx = session.decode(uplink, vector.uplink.fcnt);
+  assert.strictEqual(rx.direction, lorawan.Direction.Uplink, "the frame went up");
+  assert.strictEqual(rx.confirmed, vector.uplink.confirmed);
+  assert.strictEqual(rx.adr, vector.uplink.adr);
+  assert.strictEqual(rx.ack, vector.uplink.ack);
+  assert.strictEqual(rx.payload.toString("hex"), vector.uplink.payload, "the payload decrypts");
+
+  const downlink = session.encodeDownlink(
+    vector.downlink.fcnt,
+    vector.downlink.fport,
+    unhex(vector.downlink.payload),
+    {
+      ack: vector.downlink.ack,
+      fpending: vector.downlink.fpending,
+      fopts: unhex(vector.downlink.fopts),
+    },
+  );
+  assert.strictEqual(
+    downlink.toString("hex"),
+    vector.downlink.frame,
+    "a secured downlink matches byte for byte",
+  );
+
+  const down = session.decode(downlink, vector.downlink.fcnt);
+  assert.strictEqual(down.direction, lorawan.Direction.Downlink, "the frame came down");
+  assert.strictEqual(down.fpending, vector.downlink.fpending);
+  assert.strictEqual(down.fopts.toString("hex"), vector.downlink.fopts);
+
+  assert.throws(
+    () => session.decode(unhex(vector.forgedUplink), vector.uplink.fcnt),
+    "a frame altered after signing must not verify",
+  );
+  assert.throws(
+    () => session.decode(uplink, vector.wrongCounter),
+    "a frame out of its place in the counter stream must not verify",
+  );
+
+  const device = lorawan.device(
+    unhex(vector.join.devEui),
+    unhex(vector.join.appEui),
+    unhex(vector.join.appKey),
+  );
+  assert.strictEqual(
+    device.joinRequest(vector.join.devNonce).toString("hex"),
+    vector.join.request,
+    "the join request matches byte for byte",
+  );
+  assert.throws(
+    () => device.acceptJoin(unhex(vector.join.forgedAccept), vector.join.devNonce),
+    "a join the network never signed must not activate a session",
+  );
+}
+
 windowedVectors();
+loraVectors();
+meshVectors();
+routingVectors();
+
+function headerVectors() {
+  const vector = VECTORS.header;
+
+  for (const want of vector.frames) {
+    const header = lorawan.parseHeader(unhex(want.frame));
+    assert.strictEqual(header.messageType, want.messageType, "the message type");
+    assert.strictEqual(header.isData, want.isData, "whether it is a data frame");
+    assert.strictEqual(header.devAddr, want.devAddr ?? null, "the address a receiver routes by");
+    assert.strictEqual(header.fcnt, want.fcnt ?? null, "the counter");
+    assert.strictEqual(header.fport, want.fport ?? null, "the port");
+    assert.strictEqual(header.confirmed, want.confirmed, "the confirmed bit");
+    assert.strictEqual(header.adr, want.adr, "the ADR bit");
+    assert.strictEqual(header.ack, want.ack, "the ACK bit");
+    assert.strictEqual(header.fpending, want.fpending, "the pending bit");
+    assert.strictEqual(header.foptsLen, want.foptsLen, "the options length");
+    assert.strictEqual(header.payloadLen, want.payloadLen, "the payload length");
+  }
+
+  assert.throws(
+    () => lorawan.parseHeader(unhex(vector.unsupported)),
+    "a message type this build does not read must be refused",
+  );
+  assert.throws(
+    () => lorawan.parseHeader(unhex(vector.truncated)),
+    "a frame too short to hold a header must be refused",
+  );
+}
+
+/** Checks a grant builds its accept and derives the session both sides share. */
+function assertGrant(vector, appKey, devNonce) {
+  const grant = {
+    appNonce: vector.appNonce,
+    netId: vector.netId,
+    devAddr: vector.devAddr,
+    dlSettings: vector.dlSettings,
+    rxDelay: vector.rxDelay,
+    cflist: vector.cflist === undefined ? undefined : unhex(vector.cflist),
+  };
+  assert.strictEqual(
+    lorawan.grantAccept(grant, appKey, devNonce).toString("hex"),
+    vector.accept,
+    "the signed join-accept matches byte for byte",
+  );
+
+  // Neither side sent a key, so the proof they agree is that one reads what the
+  // other wrote.
+  const session = lorawan.grantSession(grant, appKey, devNonce);
+  const probe = vector.probe;
+  assert.strictEqual(
+    session.encodeUplink(probe.fcnt, probe.fport, unhex(probe.payload)).toString("hex"),
+    probe.frame,
+    "the session this network derived is the one the device holds",
+  );
+}
+
+function networkVectors() {
+  const vector = VECTORS.network;
+  const appKey = unhex(vector.appKey);
+
+  const request = lorawan.parseJoinRequest(unhex(vector.joinRequest.frame), appKey);
+  assert.strictEqual(request.devEui.toString("hex"), vector.joinRequest.devEui);
+  assert.strictEqual(request.appEui.toString("hex"), vector.joinRequest.appEui);
+  assert.strictEqual(request.devNonce, vector.joinRequest.devNonce);
+
+  assert.throws(
+    () => lorawan.parseJoinRequest(unhex(vector.forgedRequest), appKey),
+    "a request signed with another root key must not be trusted",
+  );
+
+  assertGrant(vector.grant, appKey, vector.devNonce);
+
+  // The captured join: a third party's numbers, so agreement here is not just this
+  // implementation agreeing with itself.
+  const published = vector.published;
+  const publishedKey = unhex(published.appKey);
+  assertGrant(published, publishedKey, published.devNonce);
+
+  const device = lorawan.device(Buffer.alloc(8), Buffer.alloc(8), publishedKey);
+  const accepted = device.acceptJoin(unhex(published.accept), published.devNonce);
+  assert.strictEqual(accepted.devAddr, published.devAddr, "the captured accept activates");
+
+  const probe = published.probe;
+  assert.strictEqual(
+    accepted
+      .session()
+      .encodeUplink(probe.fcnt, probe.fport, unhex(probe.payload))
+      .toString("hex"),
+    probe.frame,
+    "the session the device derived matches the published keys",
+  );
+}
+
+lorawanVectors();
+headerVectors();
+networkVectors();
 
 console.log("conformance ok");

@@ -56,6 +56,11 @@
 //! # Ok::<(), pamoja_mesh::MeshError>(())
 //! ```
 
+// `cfg(test)` already builds this crate against std, so the runtime-sized cache compiles
+// for the test run whether or not the feature is on, and its tests always execute.
+#[cfg(any(feature = "alloc", test))]
+extern crate alloc;
+
 mod crc;
 mod error;
 mod frame;
@@ -64,4 +69,6 @@ mod seen;
 pub use crc::{crc16, Crc16};
 pub use error::MeshError;
 pub use frame::{Frame, BROADCAST};
+#[cfg(any(feature = "alloc", test))]
+pub use seen::DynamicSeenCache;
 pub use seen::SeenCache;

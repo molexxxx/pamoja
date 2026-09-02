@@ -37,7 +37,11 @@ from pamoja import (
     actuators,
     can,
     gpio,
+    lora,
+    lorawan,
+    mesh,
     modbus,
+    routing,
     sensors,
     serial,
 )
@@ -459,3 +463,276 @@ def test_windowed_helper_vectors_match():
     anomaly = Anomaly(vector["anomaly"]["sigmas"])
     for reading, want in zip(vector["anomaly"]["readings"], vector["anomaly"]["flags"]):
         assert anomaly.check(reading) == want
+
+
+def _link_of(described: dict) -> lora.LoraLink:
+    """Rebuild the link a vector describes."""
+    return lora.link(
+        described["spreadingFactor"],
+        described["bandwidthHz"],
+        described["codingRateDenominator"],
+        described["preambleSymbols"],
+        described["explicitHeader"],
+        described["crc"],
+    )
+
+
+def test_lora_vectors_match():
+    vector = VECTORS["lora"]
+
+    for described in vector["links"]:
+        link = _link_of(described)
+        assert link.symbol_time_us() == described["symbolTimeUs"], described["name"]
+
+        for airtime in described["airtimes"]:
+            assert link.airtime_us(airtime["payloadLen"]) == airtime["airtimeUs"], (
+                f"airtime of {airtime['payloadLen']} bytes on {described['name']}"
+            )
+
+        for budget in described["budgets"]:
+            assert (
+                link.min_off_time_us(budget["payloadLen"], budget["permille"])
+                == budget["offTimeUs"]
+            ), f"off time at {budget['permille']} permille on {described['name']}"
+
+    for clamp in vector["clamped"]:
+        assert lora.link(clamp["asked"], 125_000).spreading_factor == clamp["used"]
+
+    # Rust saturates the off time when transmitting is forbidden; the facade
+    # reports None instead, so a caller cannot mistake it for a real wait.
+    forbidden = vector["forbidden"]
+    link = _link_of(
+        next(entry for entry in vector["links"] if entry["name"] == forbidden["link"])
+    )
+    assert (
+        link.min_off_time_us(forbidden["payloadLen"], forbidden["permille"]) is None
+    )
+    assert lora.messages_per_hour(link, forbidden["payloadLen"], forbidden["permille"]) == 0
+
+
+def test_mesh_vectors_match():
+    vector = VECTORS["mesh"]
+
+    assert mesh.MAX_FRAME == vector["maxFrame"]
+    assert mesh.MAX_PAYLOAD == vector["maxPayload"]
+    assert mesh.BROADCAST == vector["broadcastAddress"]
+    assert mesh.SEEN_DEFAULT_CAPACITY == vector["seenCapacity"]
+
+    unicast = vector["unicast"]
+    built = mesh.frame(
+        unicast["src"],
+        unicast["dst"],
+        unicast["id"],
+        unhex(unicast["payload"]),
+        unicast["hopLimit"],
+    )
+    assert built.bytes.hex() == unicast["bytes"]
+
+    broadcast = vector["broadcast"]
+    built = mesh.broadcast(broadcast["src"], broadcast["id"], unhex(broadcast["payload"]))
+    assert built.bytes.hex() == broadcast["bytes"]
+
+    parsed = mesh.parse(unhex(broadcast["bytes"]))
+    assert parsed.broadcast
+    assert parsed.payload.hex() == broadcast["payload"]
+
+    relayed = mesh.relayed(unhex(broadcast["bytes"]))
+    assert relayed.bytes.hex() == vector["relayed"]["bytes"]
+    assert relayed.hop_limit == vector["relayed"]["hopLimit"]
+
+    assert mesh.relayed(unhex(vector["exhausted"])) is None
+
+    with pytest.raises(PamojaError):
+        mesh.parse(unhex(vector["corrupt"]))
+
+    crc = vector["crc"]
+    assert mesh.crc16(unhex(crc["check"])) == crc["checkValue"]
+    assert mesh.crc16(unhex(crc["data"])) == crc["value"]
+
+    seen = mesh.SeenPackets(vector["seenCapacity"])
+    for (src, packet_id), expected in zip(vector["seen"]["keys"], vector["seen"]["new"]):
+        assert seen.record(src, packet_id) == expected
+
+    sized = vector["sizedSeen"]
+    small = mesh.SeenPackets(sized["capacity"])
+    assert small.capacity == sized["capacity"]
+    for src, packet_id in sized["keys"]:
+        small.record(src, packet_id)
+    assert not small.contains(*sized["evicted"])
+
+
+def _assert_decision(router, want: dict) -> None:
+    """Check one routing decision against the vector that describes it."""
+    decision = router.forward(want["dst"])
+    assert decision.action == want["action"], f"packet for {want['dst']}"
+    assert decision.next_hop == want["nextHop"], f"next hop for {want['dst']}"
+
+
+def test_routing_vectors_match():
+    vector = VECTORS["routing"]
+    router = routing.router(vector["address"], vector["capacity"])
+
+    assert router.capacity == vector["capacity"]
+    assert routing.DEFAULT_CAPACITY == vector["capacity"]
+
+    for observation in vector["observations"]:
+        assert (
+            router.observe(observation["origin"], observation["via"], observation["cost"])
+            == observation["changed"]
+        ), f"observing {observation['origin']} via {observation['via']}"
+
+    assert len(router) == vector["learned"]
+
+    route = router.route(vector["route"]["dst"])
+    assert route.next_hop == vector["route"]["nextHop"]
+    assert route.cost == vector["route"]["cost"]
+
+    for want in vector["decisions"]:
+        _assert_decision(router, want)
+
+    router.forget(vector["afterForgetting"]["dst"])
+    _assert_decision(router, vector["afterForgetting"]["decision"])
+    assert len(router) == vector["afterForgetting"]["learned"]
+
+    sized = vector["sized"]
+    small = routing.router(0x01, sized["capacity"])
+    assert small.capacity == sized["capacity"]
+    for node in range(sized["offered"]):
+        small.observe(node + 0x100, 0x05, 4)
+    assert len(small) == sized["learned"]
+
+
+def test_lorawan_vectors_match():
+    vector = VECTORS["lorawan"]
+    session = lorawan.session(
+        vector["devAddr"], unhex(vector["nwkSKey"]), unhex(vector["appSKey"])
+    )
+    assert session.dev_addr == vector["devAddr"]
+
+    up = vector["uplink"]
+    uplink = session.encode_uplink(
+        up["fcnt"],
+        up["fport"],
+        unhex(up["payload"]),
+        confirmed=up["confirmed"],
+        adr=up["adr"],
+        ack=up["ack"],
+    )
+    assert uplink.hex() == up["frame"]
+
+    rx = session.decode(uplink, up["fcnt"])
+    assert rx.direction == lorawan.Direction.UPLINK
+    assert rx.confirmed == up["confirmed"]
+    assert rx.adr == up["adr"]
+    assert rx.ack == up["ack"]
+    assert rx.payload.hex() == up["payload"]
+
+    down = vector["downlink"]
+    downlink = session.encode_downlink(
+        down["fcnt"],
+        down["fport"],
+        unhex(down["payload"]),
+        ack=down["ack"],
+        fpending=down["fpending"],
+        fopts=unhex(down["fopts"]),
+    )
+    assert downlink.hex() == down["frame"]
+
+    received = session.decode(downlink, down["fcnt"])
+    assert received.direction == lorawan.Direction.DOWNLINK
+    assert received.fpending == down["fpending"]
+    assert received.fopts.hex() == down["fopts"]
+
+    with pytest.raises(PamojaError):
+        session.decode(unhex(vector["forgedUplink"]), up["fcnt"])
+    with pytest.raises(PamojaError):
+        session.decode(uplink, vector["wrongCounter"])
+
+    join = vector["join"]
+    device = lorawan.device(
+        unhex(join["devEui"]), unhex(join["appEui"]), unhex(join["appKey"])
+    )
+    assert device.join_request(join["devNonce"]).hex() == join["request"]
+    with pytest.raises(PamojaError):
+        device.accept_join(unhex(join["forgedAccept"]), join["devNonce"])
+
+
+def _assert_grant(vector: dict, app_key: bytes, dev_nonce: int) -> None:
+    """Check a grant builds its accept and derives the session both sides share."""
+    cflist = vector.get("cflist")
+    granted = lorawan.grant(
+        vector["appNonce"],
+        vector["netId"],
+        vector["devAddr"],
+        vector["dlSettings"],
+        vector["rxDelay"],
+        None if cflist is None else unhex(cflist),
+    )
+    assert granted.accept(app_key, dev_nonce).hex() == vector["accept"]
+
+    # Neither side sent a key, so the proof they agree is that one reads what the
+    # other wrote.
+    probe = vector["probe"]
+    session = granted.session(app_key, dev_nonce)
+    assert (
+        session.encode_uplink(
+            probe["fcnt"], probe["fport"], unhex(probe["payload"])
+        ).hex()
+        == probe["frame"]
+    )
+
+
+def test_header_vectors_match():
+    vector = VECTORS["header"]
+
+    for want in vector["frames"]:
+        header = lorawan.parse_header(unhex(want["frame"]))
+        assert header.message_type == want["messageType"]
+        assert header.is_data == want["isData"]
+        assert header.dev_addr == want["devAddr"]
+        assert header.fcnt == want["fcnt"]
+        assert header.fport == want["fport"]
+        assert header.confirmed == want["confirmed"]
+        assert header.adr == want["adr"]
+        assert header.ack == want["ack"]
+        assert header.fpending == want["fpending"]
+        assert header.fopts_len == want["foptsLen"]
+        assert header.payload_len == want["payloadLen"]
+
+    with pytest.raises(PamojaError):
+        lorawan.parse_header(unhex(vector["unsupported"]))
+    with pytest.raises(PamojaError):
+        lorawan.parse_header(unhex(vector["truncated"]))
+
+
+def test_network_vectors_match():
+    vector = VECTORS["network"]
+    app_key = unhex(vector["appKey"])
+
+    request = lorawan.parse_join_request(unhex(vector["joinRequest"]["frame"]), app_key)
+    assert request.dev_eui.hex() == vector["joinRequest"]["devEui"]
+    assert request.app_eui.hex() == vector["joinRequest"]["appEui"]
+    assert request.dev_nonce == vector["joinRequest"]["devNonce"]
+
+    with pytest.raises(PamojaError):
+        lorawan.parse_join_request(unhex(vector["forgedRequest"]), app_key)
+
+    _assert_grant(vector["grant"], app_key, vector["devNonce"])
+
+    # The captured join: a third party's numbers, so agreement here is not just
+    # this implementation agreeing with itself.
+    published = vector["published"]
+    published_key = unhex(published["appKey"])
+    _assert_grant(published, published_key, published["devNonce"])
+
+    device = lorawan.device(bytes(8), bytes(8), published_key)
+    accepted = device.accept_join(unhex(published["accept"]), published["devNonce"])
+    assert accepted.dev_addr == published["devAddr"]
+
+    probe = published["probe"]
+    assert (
+        accepted.session()
+        .encode_uplink(probe["fcnt"], probe["fport"], unhex(probe["payload"]))
+        .hex()
+        == probe["frame"]
+    )

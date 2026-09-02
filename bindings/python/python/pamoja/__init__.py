@@ -9,8 +9,9 @@ work happens in the Rust core.
 Each capability also has its own module (:mod:`pamoja.mqtt`,
 :mod:`pamoja.security`, :mod:`pamoja.codec`, :mod:`pamoja.kit`,
 :mod:`pamoja.serial`, :mod:`pamoja.modbus`, :mod:`pamoja.can`,
-:mod:`pamoja.gpio`, :mod:`pamoja.sensors`, :mod:`pamoja.actuators`) for
-callers who want only one, and the generated low-level
+:mod:`pamoja.gpio`, :mod:`pamoja.sensors`, :mod:`pamoja.actuators`,
+:mod:`pamoja.lora`, :mod:`pamoja.lorawan`, :mod:`pamoja.mesh`,
+:mod:`pamoja.routing`) for callers who want only one, and the generated low-level
 contract remains available at :mod:`pamoja.raw`.
 
 The field-I/O capabilities are re-exported as modules rather than flattened:
@@ -19,7 +20,18 @@ their operations are named for their protocol (``frame``, ``raw``,
 it.
 """
 
-from . import actuators, can, gpio, modbus, sensors, serial
+from . import (
+    actuators,
+    can,
+    gpio,
+    lora,
+    lorawan,
+    mesh,
+    modbus,
+    routing,
+    sensors,
+    serial,
+)
 from ._core import PamojaError, version
 from .codec import Quantizer, from_cbor, pack_samples, to_cbor, unpack_samples
 from .kit import (
@@ -80,8 +92,12 @@ __all__ = [
     "fingerprint",
     "from_cbor",
     "gpio",
+    "lora",
+    "lorawan",
+    "mesh",
     "modbus",
     "pack_samples",
+    "routing",
     "sensors",
     "serial",
     "to_cbor",

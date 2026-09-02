@@ -24,6 +24,10 @@ default = [
     "gpio",
     "sensors",
     "actuators",
+    "lora",
+    "lorawan",
+    "mesh",
+    "routing",
 ]
 # Each capability is a feature, so the binding can later be split into
 # per-capability packages without reshaping the code.
@@ -37,6 +41,10 @@ can = ["dep:pamoja-can"]
 gpio = ["dep:pamoja-gpio"]
 sensors = ["dep:pamoja-sensors"]
 actuators = ["dep:pamoja-actuators"]
+lora = ["dep:pamoja-lora"]
+lorawan = ["dep:pamoja-lorawan"]
+mesh = ["dep:pamoja-mesh"]
+routing = ["dep:pamoja-routing"]
 
 [dependencies]
 napi = { version = "3", default-features = false, features = ["napi4", "tokio_rt"] }
@@ -52,6 +60,10 @@ pamoja-can = { path = "../../crates/pamoja-can", optional = true }
 pamoja-gpio = { path = "../../crates/pamoja-gpio", optional = true }
 pamoja-sensors = { path = "../../crates/pamoja-sensors", optional = true }
 pamoja-actuators = { path = "../../crates/pamoja-actuators", optional = true }
+pamoja-lora = { path = "../../crates/pamoja-lora", optional = true }
+pamoja-lorawan = { path = "../../crates/pamoja-lorawan", optional = true }
+pamoja-mesh = { path = "../../crates/pamoja-mesh", features = ["alloc"], optional = true }
+pamoja-routing = { path = "../../crates/pamoja-routing", features = ["alloc"], optional = true }
 tokio = { version = "1", default-features = false, features = ["sync"], optional = true }
 
 [build-dependencies]

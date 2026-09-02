@@ -48,6 +48,13 @@
 //! assert_eq!(router.forward(0x20), Forward::Flood);
 //! ```
 
+// `cfg(test)` already builds this crate against std, so the runtime-sized table compiles
+// for the test run whether or not the feature is on, and its tests always execute.
+#[cfg(any(feature = "alloc", test))]
+extern crate alloc;
+
 mod router;
 
+#[cfg(any(feature = "alloc", test))]
+pub use router::DynamicRouter;
 pub use router::{Forward, Route, Router};

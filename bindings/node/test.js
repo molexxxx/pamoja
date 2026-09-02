@@ -23,7 +23,11 @@ const {
   distanceBetween,
   can,
   gpio,
+  lora,
+  lorawan,
+  mesh,
   modbus,
+  routing,
   serial,
   actuators,
   sensors,
@@ -71,6 +75,7 @@ async function main() {
   helpers();
   fieldIo();
   sensingAndActuation();
+  radioAndReach();
 
   console.log("ok");
 }
@@ -285,6 +290,84 @@ function sensingAndActuation() {
   const anomaly = new Anomaly(3);
   for (let i = 0; i < 8; i += 1) anomaly.check(20);
   assert.ok(anomaly.check(900), "a reading far outside the window is flagged");
+}
+
+// Budgeting airtime, framing a mesh packet, routing it, and securing a LoRaWAN
+// uplink: everything a node needs to reach a network it cannot see.
+function radioAndReach() {
+  const link = lora.link(12, 125_000);
+  assert.strictEqual(link.spreadingFactor, 12, "SF12 is the longest-range setting");
+  assert.strictEqual(lora.airtimeUs(link, 10), 991_232, "the published LoRa airtime");
+  assert.strictEqual(
+    lora.minOffTimeUs(link, 20, 10),
+    lora.airtimeUs(link, 20) * 99,
+    "a 1% duty cycle costs ninety-nine times the airtime in silence",
+  );
+  assert.strictEqual(
+    lora.minOffTimeUs(link, 20, 0),
+    null,
+    "a zero duty cycle forbids transmitting at all",
+  );
+  assert.ok(lora.messagesPerHour(link, 20, 10) > 0, "and a 1% budget still allows some");
+
+  const reading = mesh.broadcast(0x1234_5678, 1, Buffer.from("level=high"));
+  const received = mesh.parse(reading.bytes);
+  assert.ok(received.broadcast, "a broadcast is addressed to every node");
+  assert.strictEqual(received.payload.toString(), "level=high", "and carries its reading");
+
+  const seen = new mesh.SeenPackets();
+  assert.ok(seen.record(received.src, received.id), "the first copy is new");
+  assert.ok(!seen.record(received.src, received.id), "a second copy is a duplicate");
+
+  const forwarded = mesh.relayed(received.bytes);
+  assert.strictEqual(
+    forwarded.hopLimit,
+    received.hopLimit - 1,
+    "relaying spends one hop",
+  );
+
+  const corrupt = Buffer.from(received.bytes);
+  corrupt[corrupt.length - 3] ^= 0xff;
+  assert.throws(() => mesh.parse(corrupt), /CRC/, "a mangled frame is refused");
+
+  const router = routing.router(0x01);
+  router.observe(0x09, 0x05, 2);
+  assert.strictEqual(router.forward(0x09).nextHop, 0x05, "a learned route relays");
+  router.observe(0x09, 0x07, 1);
+  assert.strictEqual(router.forward(0x09).nextHop, 0x07, "a cheaper neighbour wins");
+  assert.strictEqual(
+    router.forward(0x01).action,
+    routing.ForwardAction.Deliver,
+    "a packet for this node is delivered",
+  );
+  assert.strictEqual(
+    router.forward(0x20).action,
+    routing.ForwardAction.Flood,
+    "and an unknown destination falls back to flooding",
+  );
+
+  const session = lorawan.session(0x2601_1bda, Buffer.alloc(16, 0x2b), Buffer.alloc(16, 0x99));
+  const uplink = session.encodeUplink(42, 1, Buffer.from("temp=4.8"), { confirmed: true });
+  const rx = session.decode(uplink, 42);
+  assert.strictEqual(rx.direction, lorawan.Direction.Uplink, "the frame went up");
+  assert.ok(rx.confirmed, "and asked to be acknowledged");
+  assert.strictEqual(rx.payload.toString(), "temp=4.8", "the payload decrypts");
+
+  const forged = Buffer.from(uplink);
+  forged[forged.length - 1] ^= 0xff;
+  assert.throws(() => session.decode(forged, 42), /MIC/, "a forged frame is refused");
+
+  const node = lorawan.device(
+    Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]),
+    Buffer.from([0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18]),
+    Buffer.alloc(16, 0x2b),
+  );
+  assert.strictEqual(node.joinRequest(0x0102).length, 23, "a join request is 23 bytes");
+  assert.throws(
+    () => node.acceptJoin(Buffer.alloc(17, 0x20), 0x0102),
+    /MIC/,
+    "a join accept the network never signed does not activate a session",
+  );
 }
 
 main().catch((err) => {

@@ -43,7 +43,14 @@ wire codecs (`Codec`, `Quantizer`), the helper math (`Smoother`, `Pid`,
 J1939 (`Can`), and on-board bus addressing (`I2c`, `Spi`, `Pin`). The sensor and
 actuator drivers are there too: `Bme280Calibration`, `Ds18b20`, `Ina219`, and
 `Ads1115` decode register bytes into readings, while `Pwm`, `Pca9685`, and
-`Stepper` encode a desired output into the bytes a driver applies. Each
+`Stepper` encode a desired output into the bytes a driver applies.
+
+For reach, `LoraLink` answers what a transmission costs in airtime and what
+silence a duty-cycle limit then forces, `LorawanSession` and `LorawanDevice`
+build and verify the secured frames a long-range node puts on the air, while
+`Lorawan` and `LorawanGrant` are the network server half, admitting a device and
+reading a frame far enough to route it before any key is known. `Mesh` and
+`Router` carry a message across nodes when no infrastructure will. Each
 handle-backed type is `IDisposable`.
 
 ```csharp

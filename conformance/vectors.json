@@ -559,6 +559,68 @@
       }
     ]
   },
+  "header": {
+    "frames": [
+      {
+        "ack": false,
+        "adr": true,
+        "confirmed": true,
+        "devAddr": 637606874,
+        "fcnt": 42,
+        "foptsLen": 0,
+        "fpending": false,
+        "fport": 1,
+        "frame": "80da1b0126802a00015ea466ce0a1f0df8a1a37e00",
+        "isData": true,
+        "messageType": "ConfirmedUp",
+        "payloadLen": 8
+      },
+      {
+        "ack": false,
+        "adr": false,
+        "confirmed": false,
+        "devAddr": 637606874,
+        "fcnt": 7,
+        "foptsLen": 3,
+        "fpending": true,
+        "fport": 2,
+        "frame": "60da1b0126130700035000024ed3a41f4c665d",
+        "isData": true,
+        "messageType": "UnconfirmedDown",
+        "payloadLen": 3
+      },
+      {
+        "ack": false,
+        "adr": false,
+        "confirmed": false,
+        "devAddr": null,
+        "fcnt": null,
+        "foptsLen": 0,
+        "fpending": false,
+        "fport": null,
+        "frame": "00222222222222222211111111111111113412e78b8c51",
+        "isData": false,
+        "messageType": "JoinRequest",
+        "payloadLen": 0
+      },
+      {
+        "ack": false,
+        "adr": false,
+        "confirmed": false,
+        "devAddr": null,
+        "fcnt": null,
+        "foptsLen": 0,
+        "fpending": false,
+        "fport": null,
+        "frame": "20630418fde7cd7fd22aedd977b20d800b",
+        "isData": false,
+        "messageType": "JoinAccept",
+        "payloadLen": 0
+      }
+    ],
+    "truncated": "400102",
+    "unsupported": "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0"
+  },
   "identity": {
     "fingerprint": "ea4a6c63e29c520a",
     "payload": "21.5",
@@ -566,6 +628,344 @@
     "seed": "0707070707070707070707070707070707070707070707070707070707070707",
     "signature": "d78757ff91d869d7eed8cc5253ddacf3aa6664c38f922aa38e96f6caffe506f753ae73033a6c522b14125530a587ded0a852b2ae3ee3c94e0ed95a6bf71e170c",
     "tamperedPayload": "21.6"
+  },
+  "lora": {
+    "clamped": [
+      {
+        "asked": 2,
+        "used": 7
+      },
+      {
+        "asked": 15,
+        "used": 12
+      }
+    ],
+    "forbidden": {
+      "link": "sf12-125k",
+      "payloadLen": 20,
+      "permille": 0
+    },
+    "links": [
+      {
+        "airtimes": [
+          {
+            "airtimeUs": 663552,
+            "payloadLen": 0
+          },
+          {
+            "airtimeUs": 827392,
+            "payloadLen": 1
+          },
+          {
+            "airtimeUs": 991232,
+            "payloadLen": 10
+          },
+          {
+            "airtimeUs": 2465792,
+            "payloadLen": 51
+          },
+          {
+            "airtimeUs": 8036352,
+            "payloadLen": 222
+          }
+        ],
+        "bandwidthHz": 125000,
+        "budgets": [
+          {
+            "offTimeUs": 130572288,
+            "payloadLen": 20,
+            "permille": 10
+          },
+          {
+            "offTimeUs": 1317593088,
+            "payloadLen": 20,
+            "permille": 1
+          },
+          {
+            "offTimeUs": 22192128,
+            "payloadLen": 51,
+            "permille": 100
+          }
+        ],
+        "codingRateDenominator": 5,
+        "crc": true,
+        "explicitHeader": true,
+        "name": "sf12-125k",
+        "preambleSymbols": 8,
+        "spreadingFactor": 12,
+        "symbolTimeUs": 32768
+      },
+      {
+        "airtimes": [
+          {
+            "airtimeUs": 25856,
+            "payloadLen": 0
+          },
+          {
+            "airtimeUs": 25856,
+            "payloadLen": 1
+          },
+          {
+            "airtimeUs": 41216,
+            "payloadLen": 10
+          },
+          {
+            "airtimeUs": 102656,
+            "payloadLen": 51
+          },
+          {
+            "airtimeUs": 348416,
+            "payloadLen": 222
+          }
+        ],
+        "bandwidthHz": 125000,
+        "budgets": [
+          {
+            "offTimeUs": 5601024,
+            "payloadLen": 20,
+            "permille": 10
+          },
+          {
+            "offTimeUs": 56519424,
+            "payloadLen": 20,
+            "permille": 1
+          },
+          {
+            "offTimeUs": 923904,
+            "payloadLen": 51,
+            "permille": 100
+          }
+        ],
+        "codingRateDenominator": 5,
+        "crc": true,
+        "explicitHeader": true,
+        "name": "sf7-125k",
+        "preambleSymbols": 8,
+        "spreadingFactor": 7,
+        "symbolTimeUs": 1024
+      },
+      {
+        "airtimes": [
+          {
+            "airtimeUs": 66048,
+            "payloadLen": 0
+          },
+          {
+            "airtimeUs": 66048,
+            "payloadLen": 1
+          },
+          {
+            "airtimeUs": 98816,
+            "payloadLen": 10
+          },
+          {
+            "airtimeUs": 246272,
+            "payloadLen": 51
+          },
+          {
+            "airtimeUs": 868864,
+            "payloadLen": 222
+          }
+        ],
+        "bandwidthHz": 250000,
+        "budgets": [
+          {
+            "offTimeUs": 13026816,
+            "payloadLen": 20,
+            "permille": 10
+          },
+          {
+            "offTimeUs": 131452416,
+            "payloadLen": 20,
+            "permille": 1
+          },
+          {
+            "offTimeUs": 2216448,
+            "payloadLen": 51,
+            "permille": 100
+          }
+        ],
+        "codingRateDenominator": 8,
+        "crc": true,
+        "explicitHeader": true,
+        "name": "sf9-250k-cr48",
+        "preambleSymbols": 12,
+        "spreadingFactor": 9,
+        "symbolTimeUs": 2048
+      },
+      {
+        "airtimes": [
+          {
+            "airtimeUs": 165888,
+            "payloadLen": 0
+          },
+          {
+            "airtimeUs": 165888,
+            "payloadLen": 1
+          },
+          {
+            "airtimeUs": 247808,
+            "payloadLen": 10
+          },
+          {
+            "airtimeUs": 575488,
+            "payloadLen": 51
+          },
+          {
+            "airtimeUs": 1968128,
+            "payloadLen": 222
+          }
+        ],
+        "bandwidthHz": 125000,
+        "budgets": [
+          {
+            "offTimeUs": 32643072,
+            "payloadLen": 20,
+            "permille": 10
+          },
+          {
+            "offTimeUs": 329398272,
+            "payloadLen": 20,
+            "permille": 1
+          },
+          {
+            "offTimeUs": 5179392,
+            "payloadLen": 51,
+            "permille": 100
+          }
+        ],
+        "codingRateDenominator": 5,
+        "crc": false,
+        "explicitHeader": false,
+        "name": "sf10-125k-bare",
+        "preambleSymbols": 8,
+        "spreadingFactor": 10,
+        "symbolTimeUs": 8192
+      }
+    ]
+  },
+  "lorawan": {
+    "appSKey": "99999999999999999999999999999999",
+    "devAddr": 637606874,
+    "downlink": {
+      "ack": true,
+      "fcnt": 7,
+      "fopts": "035000",
+      "fpending": true,
+      "fport": 2,
+      "frame": "60da1b0126330700035000024ed3a458fca290",
+      "payload": "61636b"
+    },
+    "forgedUplink": "80da1b0126802a00015ea466ce0a1f0df8a1a37eff",
+    "join": {
+      "appEui": "8899aabbccddeeff",
+      "appKey": "abababababababababababababababab",
+      "devEui": "0011223344556677",
+      "devNonce": 4660,
+      "forgedAccept": "2020202020202020202020202020202020",
+      "request": "00ffeeddccbbaa99887766554433221100341250953d29"
+    },
+    "maxFrame": 256,
+    "maxPayload": 243,
+    "nwkSKey": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b",
+    "uplink": {
+      "ack": false,
+      "adr": true,
+      "confirmed": true,
+      "fcnt": 42,
+      "fport": 1,
+      "frame": "80da1b0126802a00015ea466ce0a1f0df8a1a37e00",
+      "payload": "74656d703d342e38"
+    },
+    "wrongCounter": 43
+  },
+  "mesh": {
+    "broadcast": {
+      "bytes": "0112345678ffffffff0001036c6576656c3d686967683335",
+      "hopLimit": 3,
+      "id": 1,
+      "payload": "6c6576656c3d68696768",
+      "src": 305419896
+    },
+    "broadcastAddress": 4294967295,
+    "corrupt": "0112345678ffffffff000103936576656c3d686967683335",
+    "crc": {
+      "check": "313233343536373839",
+      "checkValue": 10673,
+      "data": "6c6576656c3d68696768",
+      "value": 59220
+    },
+    "defaultHopLimit": 3,
+    "exhausted": "0112345678ffffffff0001006c6576656c3d686967683335",
+    "headerLen": 12,
+    "maxFrame": 250,
+    "maxPayload": 236,
+    "relayed": {
+      "bytes": "0112345678ffffffff0001026c6576656c3d686967683335",
+      "hopLimit": 2
+    },
+    "seen": {
+      "keys": [
+        [
+          66,
+          1
+        ],
+        [
+          66,
+          1
+        ],
+        [
+          66,
+          2
+        ],
+        [
+          67,
+          1
+        ],
+        [
+          66,
+          1
+        ]
+      ],
+      "new": [
+        true,
+        false,
+        true,
+        true,
+        false
+      ]
+    },
+    "seenCapacity": 64,
+    "sizedSeen": {
+      "capacity": 2,
+      "evicted": [
+        1,
+        1
+      ],
+      "keys": [
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          3
+        ]
+      ]
+    },
+    "unicast": {
+      "bytes": "0100000001000000090007056c6576656c3d686967689324",
+      "dst": 9,
+      "hopLimit": 5,
+      "id": 7,
+      "payload": "6c6576656c3d68696768",
+      "src": 1
+    },
+    "version": 1
   },
   "modbus": {
     "bitReply": {
@@ -646,6 +1046,51 @@
       "value": 3
     }
   },
+  "network": {
+    "appKey": "abababababababababababababababab",
+    "devNonce": 4660,
+    "forgedRequest": "00ffeeddccbbaa99887766554433221100341293446f1c",
+    "grant": {
+      "accept": "2020edb77300d4a709059f142c96b1a779",
+      "appNonce": 197121,
+      "devAddr": 637606874,
+      "dlSettings": 0,
+      "netId": 394500,
+      "probe": {
+        "fcnt": 1,
+        "fport": 1,
+        "frame": "40da1b0126000100019f457ceee7b9aa469b7f",
+        "payload": "6a6f696e6564"
+      },
+      "rxDelay": 1
+    },
+    "joinRequest": {
+      "appEui": "8899aabbccddeeff",
+      "devEui": "0011223344556677",
+      "devNonce": 4660,
+      "frame": "00ffeeddccbbaa99887766554433221100341250953d29"
+    },
+    "published": {
+      "accept": "204dd85ae608b87fc4889970b7d2042c9e72959b0057aed6094b16003df12de145",
+      "appKey": "b6b53f4a168a7a88bdf7ea135ce9cfca",
+      "appNonce": 15009338,
+      "appSKey": "f3a5c8f0232a38c144029c165865802c",
+      "cflist": "184f84e85684b85e84886684586e8400",
+      "devAddr": 637611587,
+      "devNonce": 52357,
+      "dlSettings": 3,
+      "netId": 19,
+      "nwkSKey": "2c96f7028184bb0be8aa49275290d4fc",
+      "probe": {
+        "fcnt": 1,
+        "fport": 1,
+        "frame": "40432e01260001000148c9952f7cafd204",
+        "payload": "7265616c"
+      },
+      "rxDelay": 1,
+      "source": "https://github.com/anthonykirby/lora-packet/issues/10"
+    }
+  },
   "note": "Generated by `cargo run -p pamoja-examples --example conformance_vectors`. Do not edit by hand.",
   "pid": {
     "dt": 0.10000000149011612,
@@ -669,6 +1114,78 @@
       0.004999995231628418
     ],
     "setpoint": 10.0
+  },
+  "routing": {
+    "address": 1,
+    "afterForgetting": {
+      "decision": {
+        "action": "Flood",
+        "dst": 9,
+        "nextHop": null
+      },
+      "dst": 9,
+      "learned": 1
+    },
+    "capacity": 64,
+    "decisions": [
+      {
+        "action": "Deliver",
+        "dst": 1,
+        "nextHop": null
+      },
+      {
+        "action": "Relay",
+        "dst": 9,
+        "nextHop": 7
+      },
+      {
+        "action": "Relay",
+        "dst": 10,
+        "nextHop": 5
+      },
+      {
+        "action": "Flood",
+        "dst": 32,
+        "nextHop": null
+      }
+    ],
+    "learned": 2,
+    "observations": [
+      {
+        "changed": true,
+        "cost": 2,
+        "origin": 9,
+        "via": 5
+      },
+      {
+        "changed": true,
+        "cost": 1,
+        "origin": 9,
+        "via": 7
+      },
+      {
+        "changed": false,
+        "cost": 4,
+        "origin": 9,
+        "via": 3
+      },
+      {
+        "changed": true,
+        "cost": 3,
+        "origin": 10,
+        "via": 5
+      }
+    ],
+    "route": {
+      "cost": 1,
+      "dst": 9,
+      "nextHop": 7
+    },
+    "sized": {
+      "capacity": 3,
+      "learned": 3,
+      "offered": 10
+    }
   },
   "sensors": {
     "ads1115": {

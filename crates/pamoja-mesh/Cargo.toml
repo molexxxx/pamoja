@@ -13,5 +13,11 @@ authors.workspace = true
 # never panic on hostile input, and every built frame must survive a parse round trip.
 proptest = "1"
 
+[features]
+default = []
+# A runtime-sized duplicate cache, for a relay or a language binding that cannot fix its
+# capacity at compile time. Off by default so a bare-metal build stays allocation-free.
+alloc = []
+
 [lints]
 workspace = true

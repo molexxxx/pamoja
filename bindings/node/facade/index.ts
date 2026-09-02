@@ -8,8 +8,9 @@
  *
  * Each capability also has its own entry point (`@pamoja/core/mqtt`,
  * `/security`, `/codec`, `/kit`, `/serial`, `/modbus`, `/can`, `/gpio`,
- * `/sensors`, `/actuators`) for callers who want only one, and the generated
- * low-level surface remains available at `@pamoja/core/raw`.
+ * `/sensors`, `/actuators`, `/lora`, `/lorawan`, `/mesh`, `/routing`) for
+ * callers who want only one, and the generated low-level surface remains
+ * available at `@pamoja/core/raw`.
  *
  * @packageDocumentation
  */
@@ -54,7 +55,15 @@ export * as can from './can'
 
 export * as gpio from './gpio'
 
+export * as lora from './lora'
+
+export * as lorawan from './lorawan'
+
+export * as mesh from './mesh'
+
 export * as modbus from './modbus'
+
+export * as routing from './routing'
 
 export * as sensors from './sensors'
 

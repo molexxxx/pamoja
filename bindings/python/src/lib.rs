@@ -20,10 +20,18 @@ mod codec;
 mod gpio;
 #[cfg(feature = "kit")]
 mod kit;
+#[cfg(feature = "lora")]
+mod lora;
+#[cfg(feature = "lorawan")]
+mod lorawan;
+#[cfg(feature = "mesh")]
+mod mesh;
 #[cfg(feature = "modbus")]
 mod modbus;
 #[cfg(feature = "mqtt")]
 mod mqtt;
+#[cfg(feature = "routing")]
+mod routing;
 #[cfg(feature = "security")]
 mod security;
 #[cfg(feature = "sensors")]
@@ -198,6 +206,40 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(actuators::pwm_full_off, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::stepper_step_count, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::stepper_steps_for_degrees, m)?)?;
+    }
+    #[cfg(feature = "lora")]
+    {
+        m.add_class::<lora::LoraLink>()?;
+    }
+    #[cfg(feature = "mesh")]
+    {
+        m.add_class::<mesh::MeshFrame>()?;
+        m.add_class::<mesh::SeenPackets>()?;
+        m.add_function(wrap_pyfunction!(mesh::mesh_frame, m)?)?;
+        m.add_function(wrap_pyfunction!(mesh::mesh_broadcast_frame, m)?)?;
+        m.add_function(wrap_pyfunction!(mesh::mesh_parse_frame, m)?)?;
+        m.add_function(wrap_pyfunction!(mesh::mesh_relayed, m)?)?;
+        m.add_function(wrap_pyfunction!(mesh::mesh_crc16, m)?)?;
+        m.add_function(wrap_pyfunction!(mesh::mesh_limits, m)?)?;
+    }
+    #[cfg(feature = "routing")]
+    {
+        m.add_class::<routing::Router>()?;
+        m.add_class::<routing::Route>()?;
+        m.add_class::<routing::ForwardDecision>()?;
+        m.add_function(wrap_pyfunction!(routing::routing_default_capacity, m)?)?;
+    }
+    #[cfg(feature = "lorawan")]
+    {
+        m.add_class::<lorawan::LorawanSession>()?;
+        m.add_class::<lorawan::LorawanDevice>()?;
+        m.add_class::<lorawan::LorawanJoinAccept>()?;
+        m.add_class::<lorawan::LorawanRxData>()?;
+        m.add_class::<lorawan::LorawanHeader>()?;
+        m.add_class::<lorawan::LorawanJoinRequest>()?;
+        m.add_class::<lorawan::LorawanGrant>()?;
+        m.add_function(wrap_pyfunction!(lorawan::lorawan_parse_header, m)?)?;
+        m.add_function(wrap_pyfunction!(lorawan::lorawan_parse_join_request, m)?)?;
     }
     Ok(())
 }
