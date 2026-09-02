@@ -43,6 +43,7 @@ FieldIo();
 SensingAndActuation();
 RadioAndReach();
 TrustAndOperation();
+await AsyncTransports();
 
 Console.WriteLine("ok");
 
@@ -217,6 +218,134 @@ static byte[] Repeat(byte value, int length)
     byte[] bytes = new byte[length];
     Array.Fill(bytes, value);
     return bytes;
+}
+
+
+// Reaching the network when no single link always works, and testing all of it
+// with nothing plugged in.
+static async Task AsyncTransports()
+{
+    // An in-process broker: publish on one link, receive on another.
+    using var broker = new LoopbackBroker();
+    using LoopbackTransport publisher = broker.Link();
+    using LoopbackTransport subscriber = broker.Link();
+    await publisher.ConnectAsync();
+    await subscriber.ConnectAsync();
+    Assert(await subscriber.IsConnectedAsync(), "a connected link reports it");
+
+    await subscriber.SubscribeAsync("sensors/1");
+    await publisher.SendAsync("sensors/1", "21.5"u8.ToArray());
+
+    TransportMessage? received = await subscriber.ReceiveAsync();
+    Assert(received?.Topic == "sensors/1", "the topic survives");
+    Assert(
+        received!.Payload.AsSpan().SequenceEqual("21.5"u8),
+        "and so does the reading");
+
+    // A buffer holds what cannot be sent yet.
+    using var store = Store.Memory();
+    await store.AppendAsync("one"u8.ToArray());
+    await store.AppendAsync("two"u8.ToArray());
+    Assert(await store.CountAsync() == 2, "both records are held");
+    Assert(
+        (await store.PeekAsync())!.AsSpan().SequenceEqual("one"u8),
+        "peek leaves the record in place");
+    Assert((await store.PopAsync())!.AsSpan().SequenceEqual("one"u8), "oldest first");
+    Assert((await store.PopAsync())!.AsSpan().SequenceEqual("two"u8), "then the next");
+    Assert(await store.PopAsync() is null, "an empty store yields nothing");
+
+    using var bounded = Store.Memory(1);
+    await bounded.AppendAsync("one"u8.ToArray());
+    try
+    {
+        await bounded.AppendAsync("two"u8.ToArray());
+        Fail("a full store must tell the caller rather than dropping something");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    // With no rung, a ladder buffers rather than losing the reading.
+    using var offline = new Ladder(Store.Memory());
+    Assert(
+        await offline.SendAsync("sensors/1", "21.5"u8.ToArray()) == Delivery.Buffered,
+        "buffering is a success, not a failure");
+    Assert(await offline.BufferedAsync() == 1, "and the reading is waiting");
+
+    // The link comes back, and the buffer drains over it.
+    offline.Rung(broker.Rung());
+    await offline.ConnectAsync();
+    Assert(await offline.FlushAsync() == 1, "the buffered reading went out");
+    Assert(await offline.BufferedAsync() == 0, "leaving the buffer empty");
+
+    // A rung that refuses falls through to the next.
+    using var rungs = new Ladder(Store.Memory());
+    rungs.Rung(Transport.Faulty(broker.Rung(), 1));
+    rungs.Rung(broker.Rung());
+    await rungs.ConnectAsync();
+    Assert(
+        await rungs.SendAsync("sensors/1", "4.8C"u8.ToArray()) == Delivery.Sent,
+        "the second rung carried what the first refused");
+
+    // A transport handed to a ladder is spent.
+    Transport spent = broker.Rung();
+    Assert(spent.IsAvailable, "a fresh transport is holdable");
+    rungs.Rung(spent);
+    Assert(!spent.IsAvailable, "and is not once it has been added");
+    try
+    {
+        rungs.Rung(spent);
+        Fail("adding a spent transport must be refused");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    // One publisher, many subscribers, in one process.
+    using var hub = new EventBus(8);
+    using EventBus firstSeat = hub.Subscribe();
+    using EventBus secondSeat = hub.Subscribe();
+    await hub.PublishAsync("battery.low"u8.ToArray());
+    Assert(
+        (await firstSeat.NextAsync())!.AsSpan().SequenceEqual("battery.low"u8),
+        "the first subscriber saw it");
+    Assert(
+        (await secondSeat.NextAsync())!.AsSpan().SequenceEqual("battery.low"u8),
+        "and so did the second");
+
+    // Devices that need no hardware.
+    using var seeded = new SimulatedSensor(20.0f, 0.5f, 1.0f, 42);
+    using var twin = new SimulatedSensor(20.0f, 0.5f, 1.0f, 42);
+    for (int at = 0; at < 5; at++)
+    {
+        Assert(
+            await seeded.ReadAsync() == await twin.ReadAsync(),
+            "the same seed gives the same readings");
+    }
+
+    using var replay = new Replay([21.0f, 21.5f, 22.0f], repeating: true);
+    for (int round = 0; round < 2; round++)
+    {
+        foreach (float want in new[] { 21.0f, 21.5f, 22.0f })
+        {
+            Assert(Math.Abs(await replay.ReadAsync() - want) < 1e-6f, "a capture reads back");
+        }
+    }
+
+    using var actuator = new RecordingActuator();
+    foreach (float command in new[] { 0.0f, 0.5f, 1.0f })
+    {
+        await actuator.ApplyAsync(command);
+    }
+
+    Assert(actuator.Count == 3, "every command was recorded");
+    Assert(actuator.Commands.AsSpan().SequenceEqual([0.0f, 0.5f, 1.0f]), "in order");
+
+    using var robot = new SimulatedRobot(1.0f);
+    await robot.ApplyAsync(new Twist(1.0f));
+    Assert(
+        Math.Abs(robot.Pose.X - 1.0f) < 1e-5f,
+        "one second at one metre a second puts it a metre ahead");
 }
 
 // Signing a payload and checking it, the way a gateway verifies a reading.
