@@ -37,15 +37,18 @@ while all behavior stays in the Rust core.
 | `@pamoja/core/transport` | building and composing the rungs a ladder tries |
 | `@pamoja/core/bus` | one publisher and many subscribers inside a single process |
 | `@pamoja/core/sim` | a sensor, an actuator, and a robot that need no hardware |
+| `@pamoja/core/profile` | named, pre-wired nodes and the decisions their policy makes |
+| `@pamoja/core/ros2` | ROS 2 names, DDS topics, type hashes, and CDR encoding |
+| `@pamoja/core/zenoh` | the key expressions a Zenoh network addresses data by |
 
 `@pamoja/core` re-exports them all, and the generated low-level contract stays
 available at `@pamoja/core/raw` for anything the facade does not surface. The
 hardware, radio, and operational capabilities arrive as namespaces (`serial`,
 `modbus`, `can`, `gpio`, `sensors`, `actuators`, `lora`, `lorawan`, `mesh`,
 `routing`, `audit`, `session`, `update`, `power`, `telemetry`, `coap`,
-`loopback`, `sync`, `ladder`, `transport`, `bus`, `sim`), because their names
-are ordinary words that only read unambiguously with the capability in front of
-them.
+`loopback`, `sync`, `ladder`, `transport`, `bus`, `sim`, `profile`, `ros2`,
+`zenoh`), because their names are ordinary words that only read unambiguously
+with the capability in front of them.
 
 ```js
 const { DeviceIdentity, Smoother, toCbor } = require("@pamoja/core");
