@@ -16,7 +16,7 @@ use pamoja_lora::LinkSettings;
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct LoraLink {
-    /// The spreading factor, 7 (fastest) to 12 (longest range).
+    /// The spreading factor, 5 (fastest) to 12 (longest range).
     #[pyo3(get)]
     spreading_factor: u8,
     /// The channel bandwidth in hertz, such as `125_000`.

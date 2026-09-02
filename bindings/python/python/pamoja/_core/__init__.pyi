@@ -1481,7 +1481,7 @@ class LoraLink:
     @property
     def spreading_factor(self) -> builtins.int:
         r"""
-        The spreading factor, 7 (fastest) to 12 (longest range).
+        The spreading factor, 5 (fastest) to 12 (longest range).
         """
     @property
     def bandwidth_hz(self) -> builtins.int:

@@ -836,14 +836,14 @@ typedef struct {
 //
 // Build one with [`pamoja_lora_link_default`] and adjust the fields that differ
 // from the defaults. Values outside the ranges LoRa defines are clamped when the
-// link is used: the spreading factor to 7-12 and the coding-rate denominator to
+// link is used: the spreading factor to 5-12 and the coding-rate denominator to
 // 5-8.
 typedef struct {
   // The channel bandwidth in hertz, such as `125000`.
   uint32_t bandwidth_hz;
   // The preamble length in symbols; the LoRa default is 8.
   uint16_t preamble_symbols;
-  // The spreading factor, 7 (fastest) to 12 (longest range).
+  // The spreading factor, 5 (fastest) to 12 (longest range).
   uint8_t spreading_factor;
   // The coding-rate denominator, 5 to 8, for 4/5 to 4/8.
   uint8_t coding_rate_denominator;

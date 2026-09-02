@@ -24,6 +24,9 @@ use pamoja_kit::{
 };
 use pamoja_ladder::{Delivery, TransportLadder};
 use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
+use pamoja_lora::region::{
+    ChannelPlan, ChannelPlanBuilder, DataRate, MaxPayload, Modulation, Region, SubBand,
+};
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::{Device, Downlink, FrameHeader, JoinGrant, JoinRequest, Session, Uplink};
 use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
@@ -115,6 +118,7 @@ fn main() {
         "actuators": actuators(),
         "windows": windows(),
         "lora": lora(),
+        "loraRegions": lora_regions(),
         "mesh": mesh(),
         "routing": routing(),
         "lorawan": lorawan(),
@@ -858,6 +862,217 @@ fn windows() -> Value {
 }
 
 /// The LoRa link budget: time on air, and the silence a duty cycle then forces.
+/// Describes one data rate the way every binding reports it.
+///
+/// # Arguments
+///
+/// * `rate` - the data rate, or `None` for a number the region reserves.
+///
+/// # Returns
+///
+/// The rate as a JSON object, with the fields its modulation does not use null.
+fn data_rate_vector(rate: Option<DataRate>) -> Value {
+    let Some(rate) = rate else {
+        return json!({
+            "kind": "reserved",
+            "bitrateBps": 0,
+            "bandwidthHz": Value::Null,
+            "spreadingFactor": Value::Null,
+            "codingRateNumerator": Value::Null,
+            "codingRateDenominator": Value::Null,
+        });
+    };
+    match rate.modulation {
+        Modulation::LoRa {
+            spreading_factor,
+            bandwidth_hz,
+        } => json!({
+            "kind": "lora",
+            "bitrateBps": rate.bitrate_bps,
+            "bandwidthHz": bandwidth_hz,
+            "spreadingFactor": spreading_factor,
+            "codingRateNumerator": Value::Null,
+            "codingRateDenominator": Value::Null,
+        }),
+        Modulation::Fsk { .. } => json!({
+            "kind": "fsk",
+            "bitrateBps": rate.bitrate_bps,
+            "bandwidthHz": Value::Null,
+            "spreadingFactor": Value::Null,
+            "codingRateNumerator": Value::Null,
+            "codingRateDenominator": Value::Null,
+        }),
+        Modulation::LrFhss {
+            coding_rate_numerator,
+            coding_rate_denominator,
+            bandwidth_hz,
+        } => json!({
+            "kind": "lr_fhss",
+            "bitrateBps": rate.bitrate_bps,
+            "bandwidthHz": bandwidth_hz,
+            "spreadingFactor": Value::Null,
+            "codingRateNumerator": coding_rate_numerator,
+            "codingRateDenominator": coding_rate_denominator,
+        }),
+    }
+}
+
+/// Describes a payload limit, or null where the plan publishes none.
+fn payload_vector(payload: Option<MaxPayload>) -> Value {
+    match payload {
+        Some(payload) => json!({
+            "macPayload": payload.mac_payload,
+            "application": payload.application,
+        }),
+        None => Value::Null,
+    }
+}
+
+/// Describes what every binding must report about one channel plan.
+///
+/// The Rust tests check each region cell by cell against the published tables;
+/// this pins a slice wide enough to exercise every accessor, so the four
+/// languages are held to the same answers.
+fn plan_vector(plan: &ChannelPlan<'_>) -> Value {
+    let uplink_count = plan.uplink_data_rates.len();
+    let fastest = (uplink_count - 1) as u8;
+    let probe = plan
+        .channel_frequency_hz(0)
+        .expect("a plan has a first channel");
+
+    let rx1_row: Vec<Value> = (0..=plan.max_rx1_data_rate_offset)
+        .map(|offset| match plan.rx1_data_rate(0, offset) {
+            Some(rate) => json!(rate),
+            None => Value::Null,
+        })
+        .collect();
+
+    let channels: Vec<Value> = (0..plan.default_channel_count().min(8))
+        .map(|channel| json!(plan.channel_frequency_hz(channel)))
+        .collect();
+
+    let sub_bands: Vec<Value> = plan
+        .sub_bands
+        .iter()
+        .map(|band| {
+            json!({
+                "startHz": band.start_hz,
+                "endHz": band.end_hz,
+                "dutyCyclePermille": band.duty_cycle_permille,
+                "maxEirpDbm": band.max_eirp_dbm,
+            })
+        })
+        .collect();
+
+    json!({
+        "name": plan.name,
+        "uplinkDataRateCount": uplink_count,
+        "downlinkDataRateCount": plan.downlink_data_rates.len(),
+        "defaultChannelCount": plan.default_channel_count(),
+        "joinChannelBlockCount": plan.join_channels.len(),
+        "defaultChannelBlockCount": plan.default_channels.len(),
+        "subBandCount": plan.sub_bands.len(),
+        "maxRx1DataRateOffset": plan.max_rx1_data_rate_offset,
+        "defaultMaxEirpDbm": plan.default_max_eirp_dbm,
+        "txPowerStepDb": plan.tx_power_step_db,
+        "maxTxPowerIndex": plan.max_tx_power_index,
+        "hasDwellTimeLimit": plan.has_dwell_time_limit,
+        "hasDwellLimitedPayloads": plan.max_payload_dwell_limited.is_some(),
+        "hasDwellLimitedRx1": plan.rx1_data_rate_offsets_dwell_limited.is_some(),
+        "rx2": {
+            "frequencyHz": plan.rx2_frequency_hz,
+            "dataRate": plan.rx2_data_rate,
+        },
+        "beacon": {
+            "frequencyHz": plan.beacon.frequency_hz,
+            "pingSlotFrequencyHz": plan.beacon.ping_slot_frequency_hz,
+            "dataRate": plan.beacon.data_rate,
+        },
+        // The slowest and fastest uplink rates, plus the same numbers read from
+        // the downlink table, which the 900 MHz plans number differently.
+        "slowestUplink": data_rate_vector(plan.uplink_data_rate(0)),
+        "fastestUplink": data_rate_vector(plan.uplink_data_rate(fastest)),
+        "slowestDownlink": data_rate_vector(plan.downlink_data_rate(0)),
+        "payloadAtSlowest": {
+            "repeater": payload_vector(plan.max_payload(0, true)),
+            "direct": payload_vector(plan.max_payload(0, false)),
+        },
+        "payloadAtFastest": {
+            "repeater": payload_vector(plan.max_payload(fastest, true)),
+            "direct": payload_vector(plan.max_payload(fastest, false)),
+        },
+        "dwellLimitedAtSlowest": payload_vector(plan.max_payload_dwell_limited(0)),
+        // Probed at the plan's own first channel, so the frequency is one the
+        // band actually uses.
+        "probeFrequencyHz": probe,
+        "dutyCyclePermilleAtProbe": plan.duty_cycle_permille(probe),
+        "maxEirpDbmAtProbe": plan.max_eirp_dbm(probe),
+        "txPowerAtProbe": {
+            "index0": plan.tx_power_dbm(0, plan.max_eirp_dbm(probe)),
+            "index3": plan.tx_power_dbm(3, plan.max_eirp_dbm(probe)),
+        },
+        "rx1RowForSlowest": rx1_row,
+        "backoffFromFastest": plan.next_backoff_data_rate(fastest),
+        "backoffFromSlowest": plan.next_backoff_data_rate(0),
+        "channelFrequencies": channels,
+        "subBands": sub_bands,
+    })
+}
+
+/// Vectors for the published channel plans and for one assembled at runtime.
+fn lora_regions() -> Value {
+    let published: Vec<Value> = Region::all()
+        .iter()
+        .map(|region| {
+            let mut described = plan_vector(region.plan());
+            described["code"] = json!(region.code());
+            described
+        })
+        .collect();
+
+    // A private deployment on licensed spectrum, which every binding must be able
+    // to assemble and which must answer what a published region does. The empty
+    // downlink and back-off tables are filled in by the builder.
+    let custom = ChannelPlanBuilder::new("private-915")
+        .uplink_data_rate(Some(DataRate::lora(12, 125_000, 250)))
+        .uplink_data_rate(Some(DataRate::lora(7, 125_000, 5_470)))
+        .max_payload(
+            pamoja_lora::region::PayloadTable::UplinkRepeater,
+            Some(MaxPayload::new(59, 51)),
+        )
+        .max_payload(
+            pamoja_lora::region::PayloadTable::UplinkRepeater,
+            Some(MaxPayload::new(230, 222)),
+        )
+        .max_payload(
+            pamoja_lora::region::PayloadTable::UplinkDirect,
+            Some(MaxPayload::new(59, 51)),
+        )
+        .max_payload(
+            pamoja_lora::region::PayloadTable::UplinkDirect,
+            Some(MaxPayload::new(230, 222)),
+        )
+        .default_channel(pamoja_lora::region::ChannelBlock::new(
+            915_000_000,
+            500_000,
+            4,
+            0,
+            1,
+        ))
+        .sub_band(SubBand::new(915_000_000, 917_000_000, 1000, 30))
+        .power(30, 2, 7)
+        .rx(915_000_000, 0, 0)
+        .rx1_row(&[0])
+        .rx1_row(&[1])
+        .build()
+        .expect("a consistent private plan");
+
+    json!({
+        "published": published,
+        "custom": custom.with_plan(plan_vector),
+    })
+}
+
 fn lora() -> Value {
     // Four settings that between them exercise every field: the slowest and
     // fastest spreading factors, a wider channel, and a link with the header and

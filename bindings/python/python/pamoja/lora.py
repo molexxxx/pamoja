@@ -64,7 +64,7 @@ def link(
     The defaults are coding rate 4/5, an eight-symbol preamble, an explicit
     header, and CRC on, which is a typical uplink.
 
-    :param spreading_factor: The spreading factor, clamped to 7 (fastest) to 12
+    :param spreading_factor: The spreading factor, clamped to 5 (fastest) to 12
         (longest range).
     :param bandwidth_hz: The channel bandwidth in hertz, such as ``125_000``.
     :param coding_rate_denominator: The coding-rate denominator, clamped to 5 to 8.

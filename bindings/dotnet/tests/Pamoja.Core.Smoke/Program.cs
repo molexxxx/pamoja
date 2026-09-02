@@ -955,6 +955,7 @@ static void Conformance()
     ConformActuators(vectors.GetProperty("actuators"));
     ConformWindows(vectors.GetProperty("windows"), tolerance);
     ConformLora(vectors.GetProperty("lora"));
+    ConformLoraRegions(vectors.GetProperty("loraRegions"));
     ConformMesh(vectors.GetProperty("mesh"));
     ConformRouting(vectors.GetProperty("routing"));
     ConformLorawan(vectors.GetProperty("lorawan"));
@@ -1747,6 +1748,8 @@ static void RadioAndReach()
     Assert(link.MinOffTimeMicros(20, 0) is null, "a zero duty cycle forbids transmitting");
     Assert(link.MessagesPerHour(20, 10) > 0, "and a 1% budget still allows some");
 
+    RegionalPlans();
+
     MeshFrame reading = Mesh.BroadcastFrame(0x1234_5678, 1, "level=high"u8);
     MeshFrame received = Mesh.Parse(reading.Bytes);
     Assert(received.Broadcast, "a broadcast is addressed to every node");
@@ -1824,6 +1827,336 @@ static void RadioAndReach()
     catch (PamojaException)
     {
     }
+}
+
+
+// What a band allows, and what a deployment on its own spectrum allows instead.
+// The plan reports; it never refuses a transmission.
+static void RegionalPlans()
+{
+    using var eu868 = LoraChannelPlan.ForRegion(LoraRegion.Eu868);
+    Assert(eu868.Name == "EU863-870", "the plan names its band");
+    Assert(eu868.LinkSettings(0)!.SpreadingFactor == 12, "EU868 DR0 is the slowest LoRa rate");
+    Assert(eu868.DutyCyclePermille(868_100_000) == 10, "the 868.1 MHz sub-band is 1%");
+    Assert(eu868.MaxEirpDbm(868_100_000) == 16, "and is capped at 16 dBm");
+    Assert(eu868.MaxPayload(5)!.Value.Application == 242, "DR5 carries the largest payload");
+    Assert(eu868.Rx1DataRate(5, 0) == 5, "RX1 at offset 0 mirrors the uplink rate");
+    Assert(eu868.Rx2().FrequencyHz == 869_525_000, "RX2 listens on 869.525 MHz");
+    Assert(eu868.NextBackoffDataRate(0) is null, "DR0 has nothing slower to fall back to");
+    Assert(eu868.SubBands().Count == 2, "EU868 describes two sub-bands");
+
+    // EU868 defines every number it has, including the LR-FHSS rates.
+    LoraDataRate fhss = eu868.DataRate(9)!.Value;
+    Assert(fhss.Kind == LoraModulation.LrFhss, "EU868 DR9 is LR-FHSS");
+    Assert(fhss.CodingRateNumerator == 2, "at coding rate 2/3");
+    Assert(eu868.DataRate(200) is null, "a number past the end of the table is absent");
+
+    // A number the region reserves is told from one it never defines.
+    using var us915 = LoraChannelPlan.ForRegion(LoraRegion.Us915);
+    Assert(
+        us915.DataRate(2, LoraDirection.Downlink)!.Value.Kind == LoraModulation.Reserved,
+        "US915 reserves downlink DR2");
+    Assert(
+        us915.DataRate(8, LoraDirection.Downlink)!.Value.Kind == LoraModulation.Lora,
+        "and starts its downlink rates at DR8");
+    Assert(
+        us915.DutyCyclePermille(903_000_000) is null,
+        "the FCC caps dwell time rather than duty cycle, so US915 describes no sub-band");
+
+    using var au915 = LoraChannelPlan.ForRegion(LoraRegion.Au915);
+    Assert(au915.Info().HasDwellTimeLimit, "AU915 does limit dwell time");
+
+    // Every published region resolves in this build.
+    foreach (LoraRegion region in Enum.GetValues<LoraRegion>())
+    {
+        Assert(LoraChannelPlan.IsAvailable(region), $"{region} is compiled into this build");
+        using LoraChannelPlan plan = LoraChannelPlan.ForRegion(region);
+        Assert(plan.Name.Length > 0, $"{region} names its band");
+    }
+
+    // A private deployment on licensed spectrum answers the same questions.
+    using LoraChannelPlan licensed = new LoraPlanBuilder("private-915")
+        .DataRate(LoraDataRate.ForLora(12, 125_000, 250))
+        .DataRate(LoraDataRate.ForLora(7, 125_000, 5_470))
+        .MaxPayload(new LoraMaxPayload(59, 51))
+        .MaxPayload(new LoraMaxPayload(230, 222))
+        .ChannelBlock(new LoraChannelBlock(915_000_000, 500_000, 4, 0, 1))
+        .SubBand(new LoraSubBand(915_000_000, 917_000_000, 1000, 30))
+        .Rx(915_000_000)
+        .Rx1Row([0])
+        .Rx1Row([1])
+        .Build();
+
+    Assert(licensed.Name == "private-915", "a private plan keeps its name");
+    Assert(licensed.ChannelFrequencyHz(3) == 916_500_000, "four channels, 500 kHz apart");
+    Assert(
+        licensed.DutyCyclePermille(915_500_000) == 1000,
+        "licensed spectrum is reported as unrestricted, not refused");
+    Assert(licensed.MaxEirpDbm(915_500_000) == 30, "and carries the power its licence allows");
+    Assert(
+        licensed.MaxPayload(1, LoraPayloadTable.DownlinkDirect)!.Value.Application == 222,
+        "an empty downlink table mirrors the uplink one");
+    Assert(
+        licensed.NextBackoffDataRate(1) == 0,
+        "an unset back-off chain steps down one rate at a time");
+    Assert(licensed.ChannelBlocks()[0].Count == 4, "and lists the channels it was given");
+
+    // A plan that would answer a question wrongly is refused where it is built.
+    bool refused = false;
+    try
+    {
+        using var narrow = new LoraPlanBuilder("too-narrow");
+        narrow
+            .DataRate(LoraDataRate.ForLora(12, 125_000, 250))
+            .Rx(915_000_000, 0, 5)
+            .Rx1Row([0])
+            .Build();
+    }
+    catch (PamojaException)
+    {
+        refused = true;
+    }
+
+    Assert(refused, "offsets up to 5 need six entries in every RX1 row");
+
+    // And a spent builder cannot be built twice.
+    var spent = new LoraPlanBuilder("spent");
+    spent.DataRate(LoraDataRate.ForLora(12, 125_000, 250)).Rx(915_000_000).Rx1Row([0]);
+    spent.Build().Dispose();
+    bool spentRefused = false;
+    try
+    {
+        spent.Build();
+    }
+    catch (PamojaException)
+    {
+        spentRefused = true;
+    }
+
+    Assert(spentRefused, "a builder is spent once built");
+}
+
+
+// Regional channel plans: every binding must report the same facts about each
+// band, and must assemble a private plan that answers the same questions.
+static void ConformLoraRegions(JsonElement vector)
+{
+    JsonElement published = vector.GetProperty("published");
+    LoraRegion[] regions = Enum.GetValues<LoraRegion>();
+    Assert(
+        published.GetArrayLength() == regions.Length,
+        "every published region is described");
+
+    int index = 0;
+    foreach (JsonElement want in published.EnumerateArray())
+    {
+        using LoraChannelPlan plan = LoraChannelPlan.ForRegion(regions[index]);
+        ConformPlan(plan, want);
+        index++;
+    }
+
+    using LoraChannelPlan custom = new LoraPlanBuilder("private-915")
+        .DataRate(LoraDataRate.ForLora(12, 125_000, 250))
+        .DataRate(LoraDataRate.ForLora(7, 125_000, 5_470))
+        .MaxPayload(new LoraMaxPayload(59, 51), LoraPayloadTable.UplinkRepeater)
+        .MaxPayload(new LoraMaxPayload(230, 222), LoraPayloadTable.UplinkRepeater)
+        .MaxPayload(new LoraMaxPayload(59, 51), LoraPayloadTable.UplinkDirect)
+        .MaxPayload(new LoraMaxPayload(230, 222), LoraPayloadTable.UplinkDirect)
+        .ChannelBlock(new LoraChannelBlock(915_000_000, 500_000, 4, 0, 1))
+        .SubBand(new LoraSubBand(915_000_000, 917_000_000, 1000, 30))
+        .Power(30, 2, 7)
+        .Rx(915_000_000, 0, 0)
+        .Rx1Row([0])
+        .Rx1Row([1])
+        .Build();
+
+    ConformPlan(custom, vector.GetProperty("custom"));
+}
+
+// Holds one channel plan to the answers every binding must give.
+static void ConformPlan(LoraChannelPlan plan, JsonElement want)
+{
+    string where = want.GetProperty("name").GetString()!;
+    LoraPlanInfo info = plan.Info();
+    Assert(plan.Name == where, $"the name of {where}");
+    Assert(
+        info.UplinkDataRateCount == want.GetProperty("uplinkDataRateCount").GetUInt16(),
+        $"uplink rates of {where}");
+    Assert(
+        info.DownlinkDataRateCount == want.GetProperty("downlinkDataRateCount").GetUInt16(),
+        $"downlink rates of {where}");
+    Assert(
+        info.DefaultChannelCount == want.GetProperty("defaultChannelCount").GetUInt16(),
+        $"default channels of {where}");
+    Assert(
+        info.MaxRx1DataRateOffset == want.GetProperty("maxRx1DataRateOffset").GetByte(),
+        $"RX1 offsets of {where}");
+    Assert(
+        info.HasDwellTimeLimit == want.GetProperty("hasDwellTimeLimit").GetBoolean(),
+        $"dwell limit of {where}");
+
+    JsonElement rx2 = want.GetProperty("rx2");
+    Assert(
+        plan.Rx2().FrequencyHz == rx2.GetProperty("frequencyHz").GetUInt32(),
+        $"RX2 frequency of {where}");
+    Assert(
+        plan.Rx2().DataRate == rx2.GetProperty("dataRate").GetByte(),
+        $"RX2 data rate of {where}");
+
+    byte fastest = (byte)(info.UplinkDataRateCount - 1);
+    ConformDataRate(plan.DataRate(0), want.GetProperty("slowestUplink"), where);
+    ConformDataRate(plan.DataRate(fastest), want.GetProperty("fastestUplink"), where);
+    ConformDataRate(
+        plan.DataRate(0, LoraDirection.Downlink),
+        want.GetProperty("slowestDownlink"),
+        where);
+
+    JsonElement atSlowest = want.GetProperty("payloadAtSlowest");
+    ConformPayload(
+        plan.MaxPayload(0, LoraPayloadTable.UplinkRepeater),
+        atSlowest.GetProperty("repeater"),
+        where);
+    ConformPayload(
+        plan.MaxPayload(0, LoraPayloadTable.UplinkDirect),
+        atSlowest.GetProperty("direct"),
+        where);
+    ConformPayload(
+        plan.MaxPayload(0, LoraPayloadTable.DwellLimited),
+        want.GetProperty("dwellLimitedAtSlowest"),
+        where);
+
+    uint probe = want.GetProperty("probeFrequencyHz").GetUInt32();
+    JsonElement duty = want.GetProperty("dutyCyclePermilleAtProbe");
+    uint? permille = plan.DutyCyclePermille(probe);
+    if (duty.ValueKind == JsonValueKind.Null)
+    {
+        Assert(permille is null, $"the duty cycle of {where}");
+    }
+    else
+    {
+        Assert(permille == duty.GetUInt32(), $"the duty cycle of {where}");
+    }
+
+    Assert(
+        plan.MaxEirpDbm(probe) == want.GetProperty("maxEirpDbmAtProbe").GetSByte(),
+        $"the EIRP ceiling of {where}");
+
+    byte offset = 0;
+    foreach (JsonElement entry in want.GetProperty("rx1RowForSlowest").EnumerateArray())
+    {
+        byte? got = plan.Rx1DataRate(0, offset);
+        Assert(
+            entry.ValueKind == JsonValueKind.Null ? got is null : got == entry.GetByte(),
+            $"RX1 offset {offset} of {where}");
+        offset++;
+    }
+
+    ConformOptionalByte(
+        plan.NextBackoffDataRate(fastest),
+        want.GetProperty("backoffFromFastest"),
+        $"back-off from the fastest rate of {where}");
+    ConformOptionalByte(
+        plan.NextBackoffDataRate(0),
+        want.GetProperty("backoffFromSlowest"),
+        $"back-off from the slowest rate of {where}");
+
+    ushort channel = 0;
+    foreach (JsonElement entry in want.GetProperty("channelFrequencies").EnumerateArray())
+    {
+        Assert(
+            plan.ChannelFrequencyHz(channel) == entry.GetUInt32(),
+            $"channel {channel} of {where}");
+        channel++;
+    }
+
+    JsonElement bands = want.GetProperty("subBands");
+    IReadOnlyList<LoraSubBand> got_bands = plan.SubBands();
+    Assert(got_bands.Count == bands.GetArrayLength(), $"sub-bands of {where}");
+    int band = 0;
+    foreach (JsonElement entry in bands.EnumerateArray())
+    {
+        Assert(got_bands[band].StartHz == entry.GetProperty("startHz").GetUInt32(), where);
+        Assert(got_bands[band].EndHz == entry.GetProperty("endHz").GetUInt32(), where);
+        Assert(
+            got_bands[band].DutyCyclePermille
+                == entry.GetProperty("dutyCyclePermille").GetUInt32(),
+            where);
+        Assert(
+            got_bands[band].MaxEirpDbm == entry.GetProperty("maxEirpDbm").GetSByte(),
+            where);
+        band++;
+    }
+}
+
+// Checks a data rate against the vector describing it.
+static void ConformDataRate(LoraDataRate? rate, JsonElement want, string where)
+{
+    string kind = want.GetProperty("kind").GetString()!;
+    if (rate is null)
+    {
+        Fail($"a data rate is missing in {where}");
+        return;
+    }
+
+    LoraDataRate got = rate.Value;
+    string gotKind = got.Kind switch
+    {
+        LoraModulation.Lora => "lora",
+        LoraModulation.Fsk => "fsk",
+        LoraModulation.LrFhss => "lr_fhss",
+        _ => "reserved",
+    };
+    Assert(gotKind == kind, $"the modulation in {where}");
+    Assert(
+        got.BitrateBps == want.GetProperty("bitrateBps").GetUInt32(),
+        $"the bitrate in {where}");
+    ConformOptionalUint(got.BandwidthHz, want.GetProperty("bandwidthHz"), $"bandwidth in {where}");
+    ConformOptionalByte(
+        got.SpreadingFactor,
+        want.GetProperty("spreadingFactor"),
+        $"spreading factor in {where}");
+    ConformOptionalByte(
+        got.CodingRateNumerator,
+        want.GetProperty("codingRateNumerator"),
+        $"coding-rate numerator in {where}");
+    ConformOptionalByte(
+        got.CodingRateDenominator,
+        want.GetProperty("codingRateDenominator"),
+        $"coding-rate denominator in {where}");
+}
+
+// Checks a payload limit against the vector describing it.
+static void ConformPayload(LoraMaxPayload? payload, JsonElement want, string where)
+{
+    if (want.ValueKind == JsonValueKind.Null)
+    {
+        Assert(payload is null, $"an absent payload limit in {where}");
+        return;
+    }
+
+    Assert(payload is not null, $"a payload limit in {where}");
+    Assert(
+        payload!.Value.MacPayload == want.GetProperty("macPayload").GetUInt16(),
+        $"the MAC payload in {where}");
+    Assert(
+        payload.Value.Application == want.GetProperty("application").GetUInt16(),
+        $"the application payload in {where}");
+}
+
+// Checks a value the vectors may report as null.
+static void ConformOptionalByte(byte? got, JsonElement want, string message)
+{
+    Assert(
+        want.ValueKind == JsonValueKind.Null ? got is null : got == want.GetByte(),
+        message);
+}
+
+// Checks a wider value the vectors may report as null.
+static void ConformOptionalUint(uint? got, JsonElement want, string message)
+{
+    Assert(
+        want.ValueKind == JsonValueKind.Null ? got is null : got == want.GetUInt32(),
+        message);
 }
 
 static LoraLink LinkOf(JsonElement described)

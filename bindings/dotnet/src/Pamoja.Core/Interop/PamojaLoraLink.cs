@@ -8,7 +8,7 @@ namespace Pamoja.Core.Interop;
 /// </summary>
 /// <remarks>
 /// Values outside the ranges LoRa defines are clamped when the link is used: the
-/// spreading factor to 7-12 and the coding-rate denominator to 5-8.
+/// spreading factor to 5-12 and the coding-rate denominator to 5-8.
 /// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public struct PamojaLoraLink
@@ -19,7 +19,7 @@ public struct PamojaLoraLink
     /// <summary>The preamble length in symbols; the LoRa default is 8.</summary>
     public ushort PreambleSymbols;
 
-    /// <summary>The spreading factor, 7 (fastest) to 12 (longest range).</summary>
+    /// <summary>The spreading factor, 5 (fastest) to 12 (longest range).</summary>
     public byte SpreadingFactor;
 
     /// <summary>The coding-rate denominator, 5 to 8, for 4/5 to 4/8.</summary>

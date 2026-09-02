@@ -22,6 +22,10 @@ use pamoja_kit::{
 };
 use pamoja_ladder::{Delivery, TransportLadder};
 use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
+use pamoja_lora::region::{
+    ChannelBlock, ChannelPlan, ChannelPlanBuilder, DataRate, MaxPayload, Modulation, PayloadTable,
+    Region, SubBand,
+};
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::{
     Device, Direction as LorawanDirection, Downlink, FrameHeader, JoinGrant, JoinRequest,
@@ -865,6 +869,257 @@ fn windowed_helper_vectors_match() {
             "the detector flags the reading that stands out"
         );
     }
+}
+
+/// Checks one plan against the vector describing it.
+///
+/// # Arguments
+///
+/// * `plan` - the plan to check.
+/// * `want` - the vector it must agree with.
+fn assert_plan(plan: &ChannelPlan<'_>, want: &serde_json::Value) {
+    let name = want["name"].as_str().expect("a name");
+    assert_eq!(plan.name, name);
+
+    let uplink_count = want["uplinkDataRateCount"].as_u64().expect("a count") as usize;
+    assert_eq!(
+        plan.uplink_data_rates.len(),
+        uplink_count,
+        "uplink rates of {name}"
+    );
+    assert_eq!(
+        plan.downlink_data_rates.len(),
+        want["downlinkDataRateCount"].as_u64().expect("a count") as usize,
+        "downlink rates of {name}"
+    );
+    assert_eq!(
+        u64::from(plan.default_channel_count()),
+        want["defaultChannelCount"].as_u64().expect("a count"),
+        "default channels of {name}"
+    );
+    assert_eq!(
+        u64::from(plan.max_rx1_data_rate_offset),
+        want["maxRx1DataRateOffset"].as_u64().expect("an offset"),
+        "RX1 offsets of {name}"
+    );
+    assert_eq!(
+        plan.has_dwell_time_limit,
+        want["hasDwellTimeLimit"].as_bool().expect("a flag"),
+        "dwell limit of {name}"
+    );
+
+    let (rx2_frequency, rx2_data_rate) = plan.rx2();
+    assert_eq!(
+        u64::from(rx2_frequency),
+        want["rx2"]["frequencyHz"].as_u64().expect("a frequency"),
+        "RX2 frequency of {name}"
+    );
+    assert_eq!(
+        u64::from(rx2_data_rate),
+        want["rx2"]["dataRate"].as_u64().expect("a data rate"),
+        "RX2 data rate of {name}"
+    );
+
+    let fastest = (uplink_count - 1) as u8;
+    assert_data_rate(plan.uplink_data_rate(0), &want["slowestUplink"], name);
+    assert_data_rate(plan.uplink_data_rate(fastest), &want["fastestUplink"], name);
+    assert_data_rate(plan.downlink_data_rate(0), &want["slowestDownlink"], name);
+
+    assert_payload(
+        plan.max_payload(0, true),
+        &want["payloadAtSlowest"]["repeater"],
+        name,
+    );
+    assert_payload(
+        plan.max_payload(0, false),
+        &want["payloadAtSlowest"]["direct"],
+        name,
+    );
+    assert_payload(
+        plan.max_payload_dwell_limited(0),
+        &want["dwellLimitedAtSlowest"],
+        name,
+    );
+
+    let probe = want["probeFrequencyHz"].as_u64().expect("a frequency") as u32;
+    assert_eq!(
+        plan.duty_cycle_permille(probe).map(u64::from),
+        want["dutyCyclePermilleAtProbe"].as_u64(),
+        "duty cycle of {name}"
+    );
+    assert_eq!(
+        i64::from(plan.max_eirp_dbm(probe)),
+        want["maxEirpDbmAtProbe"].as_i64().expect("a ceiling"),
+        "EIRP ceiling of {name}"
+    );
+
+    let row = want["rx1RowForSlowest"].as_array().expect("an array");
+    for (offset, entry) in row.iter().enumerate() {
+        assert_eq!(
+            plan.rx1_data_rate(0, offset as u8).map(u64::from),
+            entry.as_u64(),
+            "RX1 offset {offset} of {name}"
+        );
+    }
+
+    assert_eq!(
+        plan.next_backoff_data_rate(fastest).map(u64::from),
+        want["backoffFromFastest"].as_u64(),
+        "back-off from the fastest rate of {name}"
+    );
+    assert_eq!(
+        plan.next_backoff_data_rate(0).map(u64::from),
+        want["backoffFromSlowest"].as_u64(),
+        "back-off from the slowest rate of {name}"
+    );
+
+    for (channel, entry) in want["channelFrequencies"]
+        .as_array()
+        .expect("an array")
+        .iter()
+        .enumerate()
+    {
+        assert_eq!(
+            plan.channel_frequency_hz(channel as u16).map(u64::from),
+            entry.as_u64(),
+            "channel {channel} of {name}"
+        );
+    }
+
+    let bands = want["subBands"].as_array().expect("an array");
+    assert_eq!(plan.sub_bands.len(), bands.len(), "sub-bands of {name}");
+    for (band, entry) in plan.sub_bands.iter().zip(bands) {
+        assert_eq!(
+            u64::from(band.start_hz),
+            entry["startHz"].as_u64().expect("a start")
+        );
+        assert_eq!(
+            u64::from(band.end_hz),
+            entry["endHz"].as_u64().expect("an end")
+        );
+        assert_eq!(
+            u64::from(band.duty_cycle_permille),
+            entry["dutyCyclePermille"].as_u64().expect("a duty cycle")
+        );
+        assert_eq!(
+            i64::from(band.max_eirp_dbm),
+            entry["maxEirpDbm"].as_i64().expect("a ceiling")
+        );
+    }
+}
+
+/// Checks a data rate against the vector describing it.
+fn assert_data_rate(rate: Option<DataRate>, want: &serde_json::Value, region: &str) {
+    let kind = want["kind"].as_str().expect("a kind");
+    let Some(rate) = rate else {
+        assert_eq!(kind, "reserved", "a reserved rate in {region}");
+        return;
+    };
+    assert_eq!(
+        u64::from(rate.bitrate_bps),
+        want["bitrateBps"].as_u64().expect("a bitrate"),
+        "bitrate in {region}"
+    );
+    match rate.modulation {
+        Modulation::LoRa {
+            spreading_factor,
+            bandwidth_hz,
+        } => {
+            assert_eq!(kind, "lora", "modulation in {region}");
+            assert_eq!(
+                u64::from(spreading_factor),
+                want["spreadingFactor"]
+                    .as_u64()
+                    .expect("a spreading factor")
+            );
+            assert_eq!(
+                u64::from(bandwidth_hz),
+                want["bandwidthHz"].as_u64().expect("a bandwidth")
+            );
+        }
+        Modulation::Fsk { .. } => assert_eq!(kind, "fsk", "modulation in {region}"),
+        Modulation::LrFhss {
+            coding_rate_numerator,
+            coding_rate_denominator,
+            bandwidth_hz,
+        } => {
+            assert_eq!(kind, "lr_fhss", "modulation in {region}");
+            assert_eq!(
+                u64::from(coding_rate_numerator),
+                want["codingRateNumerator"].as_u64().expect("a numerator")
+            );
+            assert_eq!(
+                u64::from(coding_rate_denominator),
+                want["codingRateDenominator"]
+                    .as_u64()
+                    .expect("a denominator")
+            );
+            assert_eq!(
+                u64::from(bandwidth_hz),
+                want["bandwidthHz"].as_u64().expect("a bandwidth")
+            );
+        }
+    }
+}
+
+/// Checks a payload limit against the vector describing it.
+fn assert_payload(payload: Option<MaxPayload>, want: &serde_json::Value, region: &str) {
+    match payload {
+        Some(payload) => {
+            assert_eq!(
+                u64::from(payload.mac_payload),
+                want["macPayload"].as_u64().expect("a MAC payload"),
+                "MAC payload in {region}"
+            );
+            assert_eq!(
+                u64::from(payload.application),
+                want["application"]
+                    .as_u64()
+                    .expect("an application payload"),
+                "application payload in {region}"
+            );
+        }
+        None => assert!(want.is_null(), "an absent payload limit in {region}"),
+    }
+}
+
+#[test]
+fn lora_region_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["loraRegions"];
+
+    let published = case["published"].as_array().expect("an array");
+    assert_eq!(
+        published.len(),
+        Region::all().len(),
+        "every published region is described"
+    );
+    for (region, want) in Region::all().iter().zip(published) {
+        assert_eq!(region.code(), want["code"].as_str().expect("a code"));
+        assert_plan(region.plan(), want);
+    }
+
+    // The same questions, answered by a plan assembled at runtime rather than
+    // published: a private deployment on licensed spectrum.
+    let custom = ChannelPlanBuilder::new("private-915")
+        .uplink_data_rate(Some(DataRate::lora(12, 125_000, 250)))
+        .uplink_data_rate(Some(DataRate::lora(7, 125_000, 5_470)))
+        .max_payload(PayloadTable::UplinkRepeater, Some(MaxPayload::new(59, 51)))
+        .max_payload(
+            PayloadTable::UplinkRepeater,
+            Some(MaxPayload::new(230, 222)),
+        )
+        .max_payload(PayloadTable::UplinkDirect, Some(MaxPayload::new(59, 51)))
+        .max_payload(PayloadTable::UplinkDirect, Some(MaxPayload::new(230, 222)))
+        .default_channel(ChannelBlock::new(915_000_000, 500_000, 4, 0, 1))
+        .sub_band(SubBand::new(915_000_000, 917_000_000, 1000, 30))
+        .power(30, 2, 7)
+        .rx(915_000_000, 0, 0)
+        .rx1_row(&[0])
+        .rx1_row(&[1])
+        .build()
+        .expect("a consistent private plan");
+    custom.with_plan(|plan| assert_plan(plan, &case["custom"]));
 }
 
 #[test]

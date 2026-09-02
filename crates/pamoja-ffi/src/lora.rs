@@ -14,7 +14,7 @@ use pamoja_lora::LinkSettings;
 ///
 /// Build one with [`pamoja_lora_link_default`] and adjust the fields that differ
 /// from the defaults. Values outside the ranges LoRa defines are clamped when the
-/// link is used: the spreading factor to 7-12 and the coding-rate denominator to
+/// link is used: the spreading factor to 5-12 and the coding-rate denominator to
 /// 5-8.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -23,7 +23,7 @@ pub struct PamojaLoraLink {
     pub bandwidth_hz: u32,
     /// The preamble length in symbols; the LoRa default is 8.
     pub preamble_symbols: u16,
-    /// The spreading factor, 7 (fastest) to 12 (longest range).
+    /// The spreading factor, 5 (fastest) to 12 (longest range).
     pub spreading_factor: u8,
     /// The coding-rate denominator, 5 to 8, for 4/5 to 4/8.
     pub coding_rate_denominator: u8,

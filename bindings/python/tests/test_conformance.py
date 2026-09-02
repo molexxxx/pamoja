@@ -485,6 +485,107 @@ def _link_of(described: dict) -> lora.LoraLink:
     )
 
 
+def _data_rate_of(rate) -> dict | None:
+    """Describe a data rate the way the vectors do."""
+    if rate is None:
+        return None
+    return {
+        "kind": rate.kind,
+        "bitrateBps": rate.bitrate_bps,
+        "bandwidthHz": rate.bandwidth_hz,
+        "spreadingFactor": rate.spreading_factor,
+        "codingRateNumerator": rate.coding_rate_numerator,
+        "codingRateDenominator": rate.coding_rate_denominator,
+    }
+
+
+def _payload_of(payload) -> dict | None:
+    """Describe a payload limit the way the vectors do."""
+    if payload is None:
+        return None
+    return {"macPayload": payload.mac_payload, "application": payload.application}
+
+
+def _check_plan(plan, want: dict) -> None:
+    """Hold one channel plan to the answers every binding must give."""
+    where = want["name"]
+    info = plan.info()
+    assert plan.name == want["name"], where
+    assert info.uplink_data_rate_count == want["uplinkDataRateCount"], where
+    assert info.downlink_data_rate_count == want["downlinkDataRateCount"], where
+    assert info.default_channel_count == want["defaultChannelCount"], where
+    assert info.max_rx1_data_rate_offset == want["maxRx1DataRateOffset"], where
+    assert info.has_dwell_time_limit == want["hasDwellTimeLimit"], where
+    assert plan.rx2() == (want["rx2"]["frequencyHz"], want["rx2"]["dataRate"]), where
+
+    fastest = want["uplinkDataRateCount"] - 1
+    assert _data_rate_of(plan.data_rate(0)) == want["slowestUplink"], where
+    assert _data_rate_of(plan.data_rate(fastest)) == want["fastestUplink"], where
+    assert _data_rate_of(plan.data_rate(0, "downlink")) == want["slowestDownlink"], where
+
+    assert (
+        _payload_of(plan.max_payload(0, "uplink_repeater"))
+        == want["payloadAtSlowest"]["repeater"]
+    ), where
+    assert (
+        _payload_of(plan.max_payload(0, "uplink_direct"))
+        == want["payloadAtSlowest"]["direct"]
+    ), where
+    assert (
+        _payload_of(plan.max_payload(0, "dwell_limited")) == want["dwellLimitedAtSlowest"]
+    ), where
+
+    probe = want["probeFrequencyHz"]
+    assert plan.duty_cycle_permille(probe) == want["dutyCyclePermilleAtProbe"], where
+    assert plan.max_eirp_dbm(probe) == want["maxEirpDbmAtProbe"], where
+
+    for offset, entry in enumerate(want["rx1RowForSlowest"]):
+        assert plan.rx1_data_rate(0, offset) == entry, f"{where} RX1 offset {offset}"
+
+    assert plan.next_backoff_data_rate(fastest) == want["backoffFromFastest"], where
+    assert plan.next_backoff_data_rate(0) == want["backoffFromSlowest"], where
+
+    for channel, frequency in enumerate(want["channelFrequencies"]):
+        assert plan.channel_frequency_hz(channel) == frequency, f"{where} channel {channel}"
+
+    bands = plan.sub_bands()
+    assert len(bands) == len(want["subBands"]), where
+    for band, entry in zip(bands, want["subBands"]):
+        assert band.start_hz == entry["startHz"], where
+        assert band.end_hz == entry["endHz"], where
+        assert band.duty_cycle_permille == entry["dutyCyclePermille"], where
+        assert band.max_eirp_dbm == entry["maxEirpDbm"], where
+
+
+def test_lora_region_vectors_match():
+    vector = VECTORS["loraRegions"]
+
+    codes = lora.ChannelPlan.regions()
+    assert [want["code"] for want in vector["published"]] == codes, (
+        "every published region is described, in order"
+    )
+    for want in vector["published"]:
+        _check_plan(lora.plan_for(want["code"]), want)
+
+
+def test_a_private_plan_matches_the_same_vectors():
+    # A deployment on licensed spectrum, assembled rather than published, must
+    # answer what a named band does.
+    builder = lora.ChannelPlanBuilder("private-915")
+    builder.data_rate(lora.LoraDataRate.lora(12, 125_000, 250))
+    builder.data_rate(lora.LoraDataRate.lora(7, 125_000, 5_470))
+    for table in ("uplink_repeater", "uplink_direct"):
+        builder.max_payload(lora.LoraMaxPayload(59, 51), table)
+        builder.max_payload(lora.LoraMaxPayload(230, 222), table)
+    builder.channel_block(lora.LoraChannelBlock(915_000_000, 500_000, 4, 0, 1))
+    builder.sub_band(lora.LoraSubBand(915_000_000, 917_000_000, 1000, 30))
+    builder.power(30, 2, 7)
+    builder.rx(915_000_000, 0, 0)
+    builder.rx1_row([0])
+    builder.rx1_row([1])
+
+    _check_plan(builder.build(), VECTORS["loraRegions"]["custom"])
+
 def test_lora_vectors_match():
     vector = VECTORS["lora"]
 
