@@ -31,7 +31,7 @@ pub struct LoraLink {
 /// Returns the settings for a spreading factor and bandwidth, with LoRa defaults.
 ///
 /// The defaults are coding rate 4/5, an eight-symbol preamble, an explicit header,
-/// and CRC on, which is a typical uplink. The spreading factor is clamped to 7-12.
+/// and CRC on, which is a typical uplink. The spreading factor is clamped to 5-12.
 #[napi]
 pub fn lora_link_default(spreading_factor: u8, bandwidth_hz: u32) -> LoraLink {
     let settings = LinkSettings::new(spreading_factor, bandwidth_hz);

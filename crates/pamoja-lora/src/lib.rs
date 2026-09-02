@@ -40,4 +40,6 @@
 
 mod link;
 
+pub mod region;
+
 pub use link::LinkSettings;

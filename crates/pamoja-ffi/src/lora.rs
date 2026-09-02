@@ -40,7 +40,7 @@ pub struct PamojaLoraLink {
 ///
 /// # Arguments
 ///
-/// * `spreading_factor` - the spreading factor, clamped to 7-12.
+/// * `spreading_factor` - the spreading factor, clamped to 5-12.
 /// * `bandwidth_hz` - the channel bandwidth in hertz.
 ///
 /// # Returns
@@ -156,7 +156,7 @@ mod tests {
     #[test]
     fn a_spreading_factor_beyond_lora_is_clamped() {
         assert_eq!(pamoja_lora_link_default(15, 125_000).spreading_factor, 12);
-        assert_eq!(pamoja_lora_link_default(2, 125_000).spreading_factor, 7);
+        assert_eq!(pamoja_lora_link_default(2, 125_000).spreading_factor, 5);
     }
 
     #[test]

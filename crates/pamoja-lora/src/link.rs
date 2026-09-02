@@ -48,7 +48,8 @@ impl LinkSettings {
     ///
     /// # Arguments
     ///
-    /// * `spreading_factor` - the spreading factor; clamped to the LoRa range 7 to 12.
+    /// * `spreading_factor` - the spreading factor; clamped to the LoRa range 5 to 12.
+    ///   SF5 and SF6 carry the data rates RP002-1.0.5 added to several regions.
     /// * `bandwidth_hz` - the channel bandwidth in hertz, such as `125_000`.
     ///
     /// # Returns
@@ -56,7 +57,7 @@ impl LinkSettings {
     /// The link settings.
     pub fn new(spreading_factor: u8, bandwidth_hz: u32) -> Self {
         Self {
-            spreading_factor: spreading_factor.clamp(7, 12),
+            spreading_factor: spreading_factor.clamp(5, 12),
             bandwidth_hz,
             cr_denominator: 5,
             preamble_symbols: 8,
@@ -149,7 +150,7 @@ impl LinkSettings {
         let crc = i32::from(self.crc);
 
         let numerator = 8 * payload_len as i32 - 4 * sf + 28 + 16 * crc - 20 * ih;
-        let denominator = 4 * (sf - 2 * de); // always positive: sf >= 7, de <= 1
+        let denominator = 4 * (sf - 2 * de); // always positive: sf >= 5, de <= 1
         let term = if numerator > 0 {
             let groups = (numerator as u32).div_ceil(denominator as u32);
             groups * u32::from(self.cr_denominator)
@@ -239,8 +240,21 @@ mod tests {
 
     #[test]
     fn the_spreading_factor_is_clamped_to_the_lora_range() {
-        assert_eq!(LinkSettings::new(3, 125_000).spreading_factor(), 7);
+        assert_eq!(LinkSettings::new(3, 125_000).spreading_factor(), 5);
         assert_eq!(LinkSettings::new(20, 125_000).spreading_factor(), 12);
+    }
+
+    #[test]
+    fn the_fastest_spreading_factors_survive_unclamped() {
+        // RP002-1.0.5 added SF6 and SF5 data rates to several regions, so
+        // clamping them up to SF7 would report the wrong airtime for them.
+        assert_eq!(LinkSettings::new(6, 125_000).spreading_factor(), 6);
+        assert_eq!(LinkSettings::new(5, 125_000).spreading_factor(), 5);
+        assert!(
+            LinkSettings::new(5, 125_000).airtime_us(10)
+                < LinkSettings::new(7, 125_000).airtime_us(10),
+            "a lower spreading factor is faster"
+        );
     }
 
     #[test]

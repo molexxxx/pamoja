@@ -638,7 +638,7 @@ function loraVectors() {
     assert.strictEqual(
       lora.link(asked, 125_000).spreadingFactor,
       used,
-      "a spreading factor outside 7 to 12 is clamped",
+      "a spreading factor outside 5 to 12 is clamped",
     );
   }
 
