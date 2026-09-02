@@ -121,6 +121,18 @@
       "types": "./dist/transport.d.ts",
       "default": "./dist/transport.js"
     },
+    "./profile": {
+      "types": "./dist/profile.d.ts",
+      "default": "./dist/profile.js"
+    },
+    "./ros2": {
+      "types": "./dist/ros2.d.ts",
+      "default": "./dist/ros2.js"
+    },
+    "./zenoh": {
+      "types": "./dist/zenoh.d.ts",
+      "default": "./dist/zenoh.js"
+    },
     "./raw": {
       "types": "./index.d.ts",
       "default": "./index.js"

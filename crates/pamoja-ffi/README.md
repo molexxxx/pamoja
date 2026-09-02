@@ -122,6 +122,65 @@ not already been freed, or null. After this call it must not be used again.
 unsafe extern "C" fn pamoja_buffer_free(buffer: * mut PamojaBuffer)
 ```
 
+## struct `PamojaString`
+
+An owned, null-terminated UTF-8 string produced by the library.
+
+Some calls build a string rather than borrowing one that already lives inside
+a handle: a canonical key expression, a DDS topic name, a profile serialized
+to JSON. Those return this, and the caller releases it with
+[`pamoja_string_free`].
+
+## fn `pamoja_string_data`
+
+Returns a pointer to a string's bytes.
+
+The pointer is valid until the string is freed.
+
+**Returns**
+
+A null-terminated UTF-8 string, or null if `string` is null.
+
+**Safety**
+
+`string` must be a live handle from a call that produced one, or null. After
+[`pamoja_string_free`] it must not be used again.
+
+```rust
+unsafe extern "C" fn pamoja_string_data(string: * const PamojaString) -> * const c_char
+```
+
+## fn `pamoja_string_len`
+
+Returns the length in bytes of a string, excluding its null terminator.
+
+**Returns**
+
+The byte length, or 0 if `string` is null.
+
+**Safety**
+
+`string` must be a live handle from a call that produced one, or null.
+
+```rust
+unsafe extern "C" fn pamoja_string_len(string: * const PamojaString) -> usize
+```
+
+## fn `pamoja_string_free`
+
+Releases a string handle.
+
+Passing null is a no-op.
+
+**Safety**
+
+`string` must be a handle from a call that produced one and that has not
+already been freed, or null. After this call it must not be used again.
+
+```rust
+unsafe extern "C" fn pamoja_string_free(string: * mut PamojaString)
+```
+
 ## fn `pamoja_version`
 
 Returns the version string of the native pamoja library.

@@ -31,6 +31,11 @@ use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
 use pamoja_modbus::Pdu;
 use pamoja_modbus::{crc16, Adu};
 use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
+use pamoja_profile::{Alert, ControlSpec, Controller, Profile};
+use pamoja_ros2::key::entity_key;
+use pamoja_ros2::msg::{CdrReader, Twist as Ros2Twist, Vector3};
+use pamoja_ros2::name::{dds_topic, is_fully_qualified, is_valid_name, percent_mangle, EntityKind};
+use pamoja_ros2::typehash::{dds_type_name, TypeHash};
 use pamoja_routing::{DynamicRouter, Forward};
 use pamoja_security::{DeviceIdentity, PublicIdentity, Signature};
 use pamoja_sensors::{ads1115, bme280, ds18b20, ina219};
@@ -43,6 +48,7 @@ use pamoja_update::{
     Boot, Delegation, Device as UpdateDevice, Envelope, Manifest, MemoryStore, Refusal, SlotState,
     SlotStore, Updater,
 };
+use pamoja_zenoh::keyexpr;
 use serde_json::Value;
 
 /// Loads the committed vectors.
@@ -2025,4 +2031,297 @@ fn simulation_vectors_match() {
             assert_eq!(reached.theta, float(&pose["theta"]), "the heading it holds");
         }
     });
+}
+
+#[test]
+fn profile_vectors_match() {
+    let vectors = vectors();
+    let vector = &vectors["profile"];
+
+    let cold_chain = &vector["coldChain"];
+    let fridge = Profile::vaccine_fridge_monitor();
+    assert_eq!(fridge.name, cold_chain["name"].as_str().expect("the name"));
+    assert_eq!(
+        fridge.topic,
+        cold_chain["topic"].as_str().expect("the topic")
+    );
+    assert_control(fridge.control, &cold_chain["control"]);
+
+    let power = &cold_chain["power"];
+    assert_eq!(
+        fridge.power.active_secs,
+        power["activeSecs"].as_u64().expect("the active cadence")
+    );
+    assert_eq!(
+        fridge.power.saver_below,
+        float(&power["saverBelow"]),
+        "the saver threshold"
+    );
+
+    let mut control = fridge.controller();
+    assert_reactions(&mut control, &cold_chain["reactions"]);
+
+    let draining = &vector["draining"];
+    let well = Profile::well_level();
+    assert_eq!(well.name, draining["name"].as_str().expect("the name"));
+    assert_control(well.control, &draining["control"]);
+    let mut level = well.controller();
+    assert_reactions(&mut level, &draining["reactions"]);
+
+    let mut observer = Controller::monitor();
+    let observed = &vector["observed"];
+    let reaction = observer.evaluate(float(&observed["reading"]));
+    assert!(
+        reaction.actuator.is_none(),
+        "a monitoring profile drives no output"
+    );
+    assert_eq!(alert_name(reaction.alert.as_ref()), "None");
+}
+
+/// Walks a controller through a recorded run and checks every decision.
+fn assert_reactions(control: &mut Controller, reactions: &Value) {
+    for want in reactions.as_array().expect("the reactions") {
+        let reading = float(&want["reading"]);
+        let reaction = control.evaluate(reading);
+        assert_eq!(
+            reaction.actuator,
+            want["actuator"].as_bool(),
+            "the output setting at {reading}"
+        );
+
+        let alert = &want["alert"];
+        assert_eq!(
+            alert_name(reaction.alert.as_ref()),
+            alert["kind"].as_str().expect("the alert kind"),
+            "the alert raised at {reading}"
+        );
+        match reaction.alert {
+            Some(Alert::OutOfRange { reading: offending }) => {
+                assert_eq!(offending, float(&alert["reading"]));
+            }
+            Some(Alert::RunningOut { samples }) => {
+                assert_eq!(
+                    u64::from(samples),
+                    alert["samples"].as_u64().expect("count")
+                );
+            }
+            Some(Alert::ChangingFast { rate }) => {
+                assert_eq!(rate, float(&alert["rate"]));
+            }
+            None => {}
+        }
+    }
+}
+
+/// Checks a control policy against the flattened form the vectors carry.
+fn assert_control(spec: ControlSpec, want: &Value) {
+    let kind = want["kind"].as_str().expect("the policy kind");
+    match spec {
+        ControlSpec::Setpoint {
+            setpoint,
+            hysteresis,
+            cooling,
+            safe_band,
+        } => {
+            assert_eq!(kind, "Setpoint");
+            assert_eq!(setpoint, float(&want["setpoint"]));
+            assert_eq!(hysteresis, float(&want["hysteresis"]));
+            assert_eq!(cooling, want["cooling"].as_bool().expect("the direction"));
+            assert_eq!(safe_band, float(&want["safeBand"]));
+        }
+        ControlSpec::Level { empty, warn_within } => {
+            assert_eq!(kind, "Level");
+            assert_eq!(empty, float(&want["empty"]));
+            assert_eq!(
+                u64::from(warn_within),
+                want["warnWithin"].as_u64().expect("the warning horizon")
+            );
+        }
+        ControlSpec::Surge { rising, limit } => {
+            assert_eq!(kind, "Surge");
+            assert_eq!(rising, want["rising"].as_bool().expect("the direction"));
+            assert_eq!(limit, float(&want["limit"]));
+        }
+        ControlSpec::Monitor => assert_eq!(kind, "Monitor"),
+    }
+}
+
+/// Names an alert the way the vectors record it.
+fn alert_name(alert: Option<&Alert>) -> &'static str {
+    match alert {
+        None => "None",
+        Some(Alert::OutOfRange { .. }) => "OutOfRange",
+        Some(Alert::RunningOut { .. }) => "RunningOut",
+        Some(Alert::ChangingFast { .. }) => "ChangingFast",
+    }
+}
+
+#[test]
+fn ros2_vectors_match() {
+    let vectors = vectors();
+    let vector = &vectors["ros2"];
+
+    for case in vector["names"].as_array().expect("the names") {
+        let name = case["name"].as_str().expect("the name");
+        assert_eq!(
+            is_valid_name(name),
+            case["valid"].as_bool().expect("the verdict"),
+            "whether `{name}` obeys the ROS 2 rules"
+        );
+        assert_eq!(
+            is_fully_qualified(name),
+            case["fullyQualified"].as_bool().expect("the verdict"),
+            "whether `{name}` is fully qualified"
+        );
+    }
+
+    for case in vector["ddsTopics"].as_array().expect("the topics") {
+        let fqn = case["fqn"].as_str().expect("the name");
+        let kind = entity_kind(case["kind"].as_str().expect("the kind"));
+        assert_eq!(
+            dds_topic(fqn, kind).as_deref(),
+            case["topic"].as_str(),
+            "the DDS topic for `{fqn}`"
+        );
+    }
+
+    let prefixes = &vector["prefixes"];
+    for (name, kind) in [
+        ("Topic", EntityKind::Topic),
+        ("ServiceRequest", EntityKind::ServiceRequest),
+        ("ServiceResponse", EntityKind::ServiceResponse),
+    ] {
+        assert_eq!(kind.prefix(), prefixes[name].as_str().expect("the prefix"));
+    }
+
+    let mangled = &vector["mangled"];
+    assert_eq!(
+        percent_mangle(mangled["name"].as_str().expect("the name")),
+        mangled["mangled"].as_str().expect("the mangled name")
+    );
+
+    for case in vector["typeNames"].as_array().expect("the type names") {
+        let ros_type = case["rosType"].as_str().expect("the type");
+        assert_eq!(
+            dds_type_name(ros_type).as_deref(),
+            case["ddsType"].as_str(),
+            "the DDS type name for `{ros_type}`"
+        );
+    }
+
+    let type_hash = &vector["typeHash"];
+    let text = type_hash["text"].as_str().expect("the hash");
+    let hash = TypeHash::parse(text).expect("a well-formed RIHS01 hash");
+    assert_eq!(
+        hex(&hash.digest()),
+        type_hash["digest"].as_str().expect("the digest")
+    );
+    assert_eq!(hash.to_string(), text, "a hash renders back to its string");
+
+    let key = &vector["entityKey"];
+    assert_eq!(
+        entity_key(
+            key["domainId"].as_u64().expect("the domain") as u32,
+            key["fqn"].as_str().expect("the name"),
+            key["rosType"].as_str().expect("the type"),
+            &hash,
+        )
+        .as_deref(),
+        key["key"].as_str(),
+        "the Zenoh key an rmw_zenoh peer publishes on"
+    );
+
+    let twist = &vector["twist"];
+    let linear = floats(&twist["linear"]);
+    let angular = floats(&twist["angular"]);
+    let command = Ros2Twist {
+        linear: Vector3::new(
+            f64::from(linear[0]),
+            f64::from(linear[1]),
+            f64::from(linear[2]),
+        ),
+        angular: Vector3::new(
+            f64::from(angular[0]),
+            f64::from(angular[1]),
+            f64::from(angular[2]),
+        ),
+    };
+    let encoded = command.to_cdr();
+    assert_eq!(
+        hex(&encoded),
+        twist["cdr"].as_str().expect("the encoded twist"),
+        "a twist encodes to the same CDR everywhere"
+    );
+    assert_eq!(
+        Ros2Twist::from_cdr(&encoded),
+        Some(command),
+        "and decodes back unchanged"
+    );
+
+    let mixed = &vector["mixedWidths"];
+    let bytes = unhex(&mixed["cdr"]);
+    let mut reader = CdrReader::new(&bytes).expect("a valid encapsulation header");
+    assert_eq!(
+        u64::from(reader.read_u32().expect("the word")),
+        mixed["word"].as_u64().expect("the word")
+    );
+    assert_eq!(
+        reader.read_f64().expect("the double"),
+        mixed["double"].as_f64().expect("the double"),
+        "an eight-byte field keeps its alignment"
+    );
+    assert_eq!(
+        i64::from(reader.read_i32().expect("the signed word")),
+        mixed["signed"].as_i64().expect("the signed word"),
+        "and the field after it is not skewed"
+    );
+}
+
+/// Maps a subsystem name onto the kind it selects.
+fn entity_kind(name: &str) -> EntityKind {
+    match name {
+        "Topic" => EntityKind::Topic,
+        "ServiceRequest" => EntityKind::ServiceRequest,
+        "ServiceResponse" => EntityKind::ServiceResponse,
+        other => panic!("unknown entity kind `{other}`"),
+    }
+}
+
+#[test]
+fn zenoh_vectors_match() {
+    let vectors = vectors();
+    let vector = &vectors["zenoh"];
+
+    for case in vector["expressions"].as_array().expect("the expressions") {
+        let key = case["key"].as_str().expect("the expression");
+        assert_eq!(
+            keyexpr::is_valid(key),
+            case["valid"].as_bool().expect("the verdict"),
+            "whether `{key}` is well formed"
+        );
+        assert_eq!(
+            keyexpr::is_canon(key),
+            case["canon"].as_bool().expect("the verdict"),
+            "whether `{key}` is already canonical"
+        );
+    }
+
+    for case in vector["canonized"].as_array().expect("the canonical forms") {
+        let key = case["key"].as_str().expect("the expression");
+        assert_eq!(
+            keyexpr::canonize(key).as_deref(),
+            case["canonical"].as_str(),
+            "the canonical form of `{key}`"
+        );
+    }
+
+    for case in vector["matches"].as_array().expect("the matches") {
+        let pattern = case["pattern"].as_str().expect("the pattern");
+        let key = case["key"].as_str().expect("the key");
+        assert_eq!(
+            keyexpr::matches(pattern, key),
+            case["matches"].as_bool().expect("the verdict"),
+            "whether `{pattern}` selects `{key}`"
+        );
+    }
 }

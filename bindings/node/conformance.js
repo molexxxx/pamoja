@@ -22,6 +22,9 @@ const {
   deadband,
   audit,
   can,
+  profile,
+  ros2,
+  zenoh,
   ladder,
   loopback,
   sim,
@@ -1307,11 +1310,191 @@ async function simulationVectors() {
   }
 }
 
+// What a profile decides, so every binding reaches the same conclusion.
+function profileVectors() {
+  const vector = VECTORS.profile;
+
+  const coldChain = vector.coldChain;
+  const fridge = profile.Profile.vaccineFridgeMonitor();
+  assert.strictEqual(fridge.name, coldChain.name, "a preset carries its name");
+  assert.strictEqual(fridge.topic, coldChain.topic, "and its publish topic");
+  assertControl(fridge.control, coldChain.control);
+  close(fridge.power.activeSecs, coldChain.power.activeSecs, "the active cadence");
+  close(fridge.power.saverBelow, coldChain.power.saverBelow, "the saver threshold");
+  assertReactions(fridge.controller(), coldChain.reactions);
+
+  const draining = vector.draining;
+  const well = profile.Profile.wellLevel();
+  assert.strictEqual(well.name, draining.name);
+  assertControl(well.control, draining.control);
+  assertReactions(well.controller(), draining.reactions);
+
+  const observed = profile.Controller.monitor().evaluate(vector.observed.reading);
+  assert.ok(observed.actuator == null, "a monitoring profile drives no output");
+  assert.strictEqual(vector.observed.alert.kind, "None");
+  assert.ok(observed.alert == null, "and raises nothing");
+}
+
+// Walks a controller through a recorded run and checks every decision.
+function assertReactions(control, reactions) {
+  for (const want of reactions) {
+    const reaction = control.evaluate(want.reading);
+    const actuator = reaction.actuator ?? null;
+    assert.strictEqual(
+      actuator,
+      want.actuator,
+      `the output setting at ${want.reading}`,
+    );
+
+    const kind = reaction.alert?.kind ?? "None";
+    assert.strictEqual(kind, want.alert.kind, `the alert raised at ${want.reading}`);
+    if (kind === "OutOfRange") {
+      close(reaction.alert.reading, want.alert.reading, "the offending reading");
+    } else if (kind === "RunningOut") {
+      assert.strictEqual(reaction.alert.samples, want.alert.samples);
+    } else if (kind === "ChangingFast") {
+      close(reaction.alert.rate, want.alert.rate, "the rate of change");
+    }
+  }
+}
+
+// Checks a control policy against the flattened form the vectors carry.
+function assertControl(policy, want) {
+  assert.strictEqual(policy.kind, want.kind, "the policy kind");
+  if (want.kind === "Setpoint") {
+    close(policy.setpoint, want.setpoint, "the setpoint");
+    close(policy.hysteresis, want.hysteresis, "the hysteresis");
+    assert.strictEqual(policy.cooling, want.cooling, "the direction");
+    close(policy.safeBand, want.safeBand, "the safe band");
+  } else if (want.kind === "Level") {
+    close(policy.empty, want.empty, "the empty level");
+    assert.strictEqual(policy.warnWithin, want.warnWithin, "the warning horizon");
+  } else if (want.kind === "Surge") {
+    assert.strictEqual(policy.rising, want.rising, "the direction");
+    close(policy.limit, want.limit, "the limit");
+  }
+}
+
+// The ROS 2 naming and encoding answers every binding must agree on.
+function ros2Vectors() {
+  const vector = VECTORS.ros2;
+
+  for (const want of vector.names) {
+    assert.strictEqual(
+      ros2.name.isValid(want.name),
+      want.valid,
+      `whether ${want.name} obeys the ROS 2 rules`,
+    );
+    assert.strictEqual(
+      ros2.name.isFullyQualified(want.name),
+      want.fullyQualified,
+      `whether ${want.name} is fully qualified`,
+    );
+  }
+
+  for (const want of vector.ddsTopics) {
+    assert.strictEqual(
+      ros2.name.ddsTopic(want.fqn, want.kind),
+      want.topic,
+      `the DDS topic for ${want.fqn}`,
+    );
+  }
+
+  for (const [kind, prefix] of Object.entries(vector.prefixes)) {
+    assert.strictEqual(ros2.name.prefixFor(kind), prefix, `the ${kind} prefix`);
+  }
+
+  assert.strictEqual(
+    ros2.name.percentMangle(vector.mangled.name),
+    vector.mangled.mangled,
+    "the mangled name",
+  );
+
+  for (const want of vector.typeNames) {
+    assert.strictEqual(
+      ros2.name.ddsTypeName(want.rosType),
+      want.ddsType,
+      `the DDS type name for ${want.rosType}`,
+    );
+  }
+
+  assert.strictEqual(
+    ros2.typeHash.digest(vector.typeHash.text).toString("hex"),
+    vector.typeHash.digest,
+    "the digest a RIHS01 string carries",
+  );
+
+  const key = vector.entityKey;
+  assert.strictEqual(
+    ros2.typeHash.entityKey(key.domainId, key.fqn, key.rosType, vector.typeHash.text),
+    key.key,
+    "the Zenoh key an rmw_zenoh peer publishes on",
+  );
+
+  const twist = vector.twist;
+  const command = {
+    linear: { x: twist.linear[0], y: twist.linear[1], z: twist.linear[2] },
+    angular: { x: twist.angular[0], y: twist.angular[1], z: twist.angular[2] },
+  };
+  const encoded = ros2.cdr.twistToBytes(command);
+  assert.strictEqual(
+    encoded.toString("hex"),
+    twist.cdr,
+    "a twist encodes to the same CDR everywhere",
+  );
+  const decoded = ros2.cdr.twistFromBytes(encoded);
+  close(decoded.linear.x, command.linear.x, "the linear x it decoded");
+  close(decoded.angular.z, command.angular.z, "the angular z it decoded");
+
+  const mixed = vector.mixedWidths;
+  const reader = ros2.cdr.reader(Buffer.from(mixed.cdr, "hex"));
+  assert.strictEqual(reader.readU32(), mixed.word, "the first word");
+  close(reader.readF64(), mixed.double, "an eight-byte field keeps its alignment");
+  assert.strictEqual(reader.readI32(), mixed.signed, "and the field after it is not skewed");
+}
+
+// The key-expression answers every binding must agree on.
+function zenohVectors() {
+  const vector = VECTORS.zenoh;
+
+  for (const want of vector.expressions) {
+    assert.strictEqual(
+      zenoh.keyexpr.isValid(want.key),
+      want.valid,
+      `whether ${want.key} is well formed`,
+    );
+    assert.strictEqual(
+      zenoh.keyexpr.isCanon(want.key),
+      want.canon,
+      `whether ${want.key} is already canonical`,
+    );
+  }
+
+  for (const want of vector.canonized) {
+    assert.strictEqual(
+      zenoh.keyexpr.canonize(want.key),
+      want.canonical,
+      `the canonical form of ${want.key}`,
+    );
+  }
+
+  for (const want of vector.matches) {
+    assert.strictEqual(
+      zenoh.keyexpr.matches(want.pattern, want.key),
+      want.matches,
+      `whether ${want.pattern} selects ${want.key}`,
+    );
+  }
+}
+
 auditVectors();
 sessionVectors();
 updateVectors();
 powerVectors();
 telemetryVectors();
+profileVectors();
+ros2Vectors();
+zenohVectors();
 
 (async () => {
   await ladderVectors();

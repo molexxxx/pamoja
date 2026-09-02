@@ -68,6 +68,9 @@
 // A reasonable duplicate-cache size for a caller with no reason to choose one.
 #define PAMOJA_MESH_SEEN_DEFAULT_CAPACITY 64
 
+// The number of bytes in a RIHS01 type hash digest.
+#define PAMOJA_TYPE_HASH_LEN 32
+
 // A reasonable routing table size for a caller with no reason to choose one.
 #define PAMOJA_ROUTING_DEFAULT_CAPACITY 64
 
@@ -274,6 +277,40 @@ typedef enum {
   PamojaPowerMode_Critical = 2,
 } PamojaPowerMode;
 
+// Which control policy a profile applies to each reading.
+typedef enum {
+  // Hold a reading near a setpoint by switching an output on and off.
+  PamojaControlKind_Setpoint = 0,
+  // Watch a falling level and warn before it reaches empty.
+  PamojaControlKind_Level = 1,
+  // Warn when a reading changes faster than a limit.
+  PamojaControlKind_Surge = 2,
+  // Report readings only, with no output and no alerts.
+  PamojaControlKind_Monitor = 3,
+} PamojaControlKind;
+
+// Which threshold a reading crossed, if any.
+typedef enum {
+  // The reading raised nothing.
+  PamojaAlertKind_None = 0,
+  // A controlled reading drifted outside its safe band.
+  PamojaAlertKind_OutOfRange = 1,
+  // A falling level will reach empty within a few more samples.
+  PamojaAlertKind_RunningOut = 2,
+  // A reading is changing faster than its safe rate.
+  PamojaAlertKind_ChangingFast = 3,
+} PamojaAlertKind;
+
+// The ROS 2 subsystem a name belongs to, which fixes its DDS prefix.
+typedef enum {
+  // A topic, which takes the `rt` prefix.
+  PamojaEntityKind_Topic = 0,
+  // The request side of a service, which takes the `rq` prefix.
+  PamojaEntityKind_ServiceRequest = 1,
+  // The reply side of a service, which takes the `rr` prefix.
+  PamojaEntityKind_ServiceResponse = 2,
+} PamojaEntityKind;
+
 // What to do with a packet bound for a given node.
 typedef enum {
   // The packet is for this node; hand it to the application.
@@ -403,11 +440,24 @@ typedef struct PamojaCalibration PamojaCalibration;
 // [`pamoja_can_frame_free`].
 typedef struct PamojaCanFrame PamojaCanFrame;
 
+// An opaque handle to a CDR decoder.
+typedef struct PamojaCdrReader PamojaCdrReader;
+
+// An opaque handle to a CDR encoder.
+typedef struct PamojaCdrWriter PamojaCdrWriter;
+
 // An opaque handle to a CoAP endpoint.
 typedef struct PamojaCoapClient PamojaCoapClient;
 
 // An opaque handle to a streaming COBS decoder.
 typedef struct PamojaCobsDecoder PamojaCobsDecoder;
+
+// An opaque handle to a profile's decision logic.
+//
+// A controller carries state between readings, because a level estimate and a
+// rate of change both need the previous sample, so evaluate readings through
+// one controller in the order they were taken.
+typedef struct PamojaController PamojaController;
 
 // An opaque handle to a boolean debouncer.
 typedef struct PamojaDebounce PamojaDebounce;
@@ -522,6 +572,9 @@ typedef struct PamojaMqttMessage PamojaMqttMessage;
 // An opaque handle to a PID controller.
 typedef struct PamojaPid PamojaPid;
 
+// An opaque handle to a device profile.
+typedef struct PamojaProfile PamojaProfile;
+
 // An opaque handle to a rate limiter.
 typedef struct PamojaRamp PamojaRamp;
 
@@ -593,6 +646,14 @@ typedef struct PamojaStepper PamojaStepper;
 
 // An opaque handle to a store-and-forward buffer.
 typedef struct PamojaStore PamojaStore;
+
+// An owned, null-terminated UTF-8 string produced by the library.
+//
+// Some calls build a string rather than borrowing one that already lives inside
+// a handle: a canonical key expression, a DDS topic name, a profile serialized
+// to JSON. Those return this, and the caller releases it with
+// [`pamoja_string_free`].
+typedef struct PamojaString PamojaString;
 
 // An opaque handle to a step-change detector.
 typedef struct PamojaSurge PamojaSurge;
@@ -823,6 +884,96 @@ typedef struct {
   // Enter [`PamojaPowerMode::Critical`] below this state of charge.
   float critical_below;
 } PamojaPowerPlan;
+
+// A control policy, flattened so every variant crosses as one value.
+//
+// Only the fields belonging to `kind` carry meaning; the rest are zero.
+typedef struct {
+  // Which policy this describes.
+  PamojaControlKind kind;
+  // The target reading, for [`PamojaControlKind::Setpoint`].
+  float setpoint;
+  // Half the deadband width, for [`PamojaControlKind::Setpoint`].
+  float hysteresis;
+  // Whether the output cools rather than heats, for
+  // [`PamojaControlKind::Setpoint`].
+  bool cooling;
+  // How far the reading may stray before an alert, for
+  // [`PamojaControlKind::Setpoint`].
+  float safe_band;
+  // The level treated as empty, for [`PamojaControlKind::Level`].
+  float empty;
+  // How many samples ahead to warn, for [`PamojaControlKind::Level`].
+  uint32_t warn_within;
+  // Whether a rise rather than a fall is watched, for
+  // [`PamojaControlKind::Surge`].
+  bool rising;
+  // The largest safe change per sample, for [`PamojaControlKind::Surge`].
+  float limit;
+} PamojaControlSpec;
+
+// How often a node samples as its battery drains, in whole seconds.
+typedef struct {
+  // Seconds between samples at a healthy charge.
+  uint64_t active_secs;
+  // Seconds between samples while conserving.
+  uint64_t saver_secs;
+  // Seconds between samples when critically low.
+  uint64_t critical_secs;
+  // Enter the saver cadence below this state of charge.
+  float saver_below;
+  // Enter the critical cadence below this state of charge.
+  float critical_below;
+} PamojaPowerSchedule;
+
+// What a controller decided about one reading.
+//
+// Only the field belonging to `alert` carries meaning; the rest are zero.
+typedef struct {
+  // Whether the profile drives an output at all.
+  //
+  // `false` means the profile observes rather than controls, and `actuator`
+  // should be ignored.
+  bool has_actuator;
+  // The setting the output should take, when `has_actuator` is `true`.
+  bool actuator;
+  // Which threshold the reading crossed.
+  PamojaAlertKind alert;
+  // The offending reading, for [`PamojaAlertKind::OutOfRange`].
+  float reading;
+  // The estimated samples until empty, for [`PamojaAlertKind::RunningOut`].
+  uint32_t samples;
+  // The change since the previous sample, for
+  // [`PamojaAlertKind::ChangingFast`].
+  float rate;
+} PamojaReaction;
+
+// A RIHS01 type hash: the 32-byte digest that identifies a message definition.
+typedef struct {
+  // The SHA-256 digest the hash carries.
+  uint8_t digest[PAMOJA_TYPE_HASH_LEN];
+} PamojaTypeHash;
+
+// A three-dimensional vector, matching `geometry_msgs/msg/Vector3`.
+typedef struct {
+  // The x component.
+  double x;
+  // The y component.
+  double y;
+  // The z component.
+  double z;
+} PamojaVector3;
+
+// A body velocity command, matching `geometry_msgs/msg/Twist`.
+//
+// This is what a ROS 2 robot is driven by on `cmd_vel`, so it is the shape a
+// chassis or navigation helper from `pamoja-kit` publishes into a ROS graph.
+typedef struct {
+  // The linear velocity in metres per second.
+  PamojaVector3 linear;
+  // The angular velocity in radians per second.
+  PamojaVector3 angular;
+} PamojaRos2Twist;
 
 // A learned way to reach one node.
 //
@@ -1056,6 +1207,41 @@ uintptr_t pamoja_buffer_len(const PamojaBuffer *buffer);
 // `buffer` must be a handle from a pamoja call that produced one and that has
 // not already been freed, or null. After this call it must not be used again.
 void pamoja_buffer_free(PamojaBuffer *buffer);
+
+// Returns a pointer to a string's bytes.
+//
+// The pointer is valid until the string is freed.
+//
+// # Returns
+//
+// A null-terminated UTF-8 string, or null if `string` is null.
+//
+// # Safety
+//
+// `string` must be a live handle from a call that produced one, or null. After
+// [`pamoja_string_free`] it must not be used again.
+const char *pamoja_string_data(const PamojaString *string);
+
+// Returns the length in bytes of a string, excluding its null terminator.
+//
+// # Returns
+//
+// The byte length, or 0 if `string` is null.
+//
+// # Safety
+//
+// `string` must be a live handle from a call that produced one, or null.
+uintptr_t pamoja_string_len(const PamojaString *string);
+
+// Releases a string handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `string` must be a handle from a call that produced one and that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_string_free(PamojaString *string);
 
 // Returns the version string of the native pamoja library.
 //
@@ -4854,6 +5040,659 @@ uint64_t pamoja_power_plan_interval_for_us(PamojaPowerPlan plan, PamojaPowerMode
 // The interval in microseconds.
 uint64_t pamoja_power_plan_interval_us(PamojaPowerPlan plan, float soc);
 
+// Creates a cold-chain fridge monitor, which holds 5 C and flags an excursion.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_profile_free`].
+PamojaProfile *pamoja_profile_vaccine_fridge_monitor(void);
+
+// Creates an irrigation node, which opens a valve as soil moisture falls.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_profile_free`].
+PamojaProfile *pamoja_profile_irrigation_node(void);
+
+// Creates a well-level monitor, which warns before a tank runs dry.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_profile_free`].
+PamojaProfile *pamoja_profile_well_level(void);
+
+// Creates a flood sensor, which warns when a level rises too fast.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_profile_free`].
+PamojaProfile *pamoja_profile_flood_sensor(void);
+
+// Loads a profile from its JSON manifest.
+//
+// # Arguments
+//
+// * `manifest` - the manifest, as null-terminated UTF-8.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_profile_free`], or null if the
+// manifest is malformed or `manifest` is null, with the reason available from
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+//
+// # Safety
+//
+// `manifest` must be a valid null-terminated UTF-8 string for the duration of
+// the call, or null.
+PamojaProfile *pamoja_profile_from_json(const char *manifest);
+
+// Serializes a profile to its JSON manifest.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+//
+// # Returns
+//
+// A string the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if `profile` is
+// null or the profile cannot be serialized.
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, or null.
+PamojaString *pamoja_profile_to_json(const PamojaProfile *profile);
+
+// Returns a profile's stable name.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+//
+// # Returns
+//
+// A null-terminated UTF-8 string, which the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if `profile` is
+// null.
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, or null.
+PamojaString *pamoja_profile_name(const PamojaProfile *profile);
+
+// Returns the topic a profile publishes each reading to.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+//
+// # Returns
+//
+// A null-terminated UTF-8 string, which the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if `profile` is
+// null.
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, or null.
+PamojaString *pamoja_profile_topic(const PamojaProfile *profile);
+
+// Returns the control policy a profile applies.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+// * `out_control` - receives the policy.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, or [`PamojaStatus::InvalidArgument`] if
+// either pointer is null.
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, and
+// `out_control` must be writable.
+PamojaStatus pamoja_profile_control(const PamojaProfile *profile, PamojaControlSpec *out_control);
+
+// Returns the sampling schedule a profile keeps as its battery drains.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+// * `out_schedule` - receives the schedule.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, or [`PamojaStatus::InvalidArgument`] if
+// either pointer is null.
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, and
+// `out_schedule` must be writable.
+PamojaStatus pamoja_profile_power(const PamojaProfile *profile, PamojaPowerSchedule *out_schedule);
+
+// Assembles a profile's schedule into a power governor.
+//
+// The governor is the same one [`pamoja_power_plan_new`](crate::power::pamoja_power_plan_new)
+// builds, so the mode and interval calls in that module apply to it unchanged.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+// * `out_plan` - receives the governor.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, or [`PamojaStatus::InvalidArgument`] if
+// either pointer is null.
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, and `out_plan`
+// must be writable.
+PamojaStatus pamoja_profile_power_plan(const PamojaProfile *profile, PamojaPowerPlan *out_plan);
+
+// Builds the decision logic a profile describes.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_controller_free`], or null if
+// `profile` is null.
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, or null.
+PamojaController *pamoja_profile_controller(const PamojaProfile *profile);
+
+// Releases a profile handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `profile` must be a handle from a call that produced one and that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_profile_free(PamojaProfile *profile);
+
+// Creates a controller that holds a reading near a setpoint.
+//
+// # Arguments
+//
+// * `setpoint` - the target reading.
+// * `hysteresis` - half the deadband width, which stops the output chattering.
+// * `cooling` - whether the output cools rather than heats.
+// * `safe_band` - how far the reading may stray before an alert.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_controller_free`].
+PamojaController *pamoja_controller_setpoint(float setpoint,
+                                             float hysteresis,
+                                             bool cooling,
+                                             float safe_band);
+
+// Creates a controller that warns before a falling level reaches empty.
+//
+// # Arguments
+//
+// * `empty` - the level treated as empty.
+// * `warn_within` - warn once empty is this many samples away.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_controller_free`].
+PamojaController *pamoja_controller_level(float empty, uint32_t warn_within);
+
+// Creates a controller that warns when a reading changes too fast.
+//
+// # Arguments
+//
+// * `rising` - watch a rapid rise rather than a rapid fall.
+// * `limit` - the largest safe change per sample.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_controller_free`].
+PamojaController *pamoja_controller_surge(bool rising, float limit);
+
+// Creates a controller that reports readings without judging them.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_controller_free`].
+PamojaController *pamoja_controller_monitor(void);
+
+// Decides what one reading calls for.
+//
+// # Arguments
+//
+// * `controller` - the decision logic.
+// * `reading` - the reading to evaluate.
+// * `out_reaction` - receives the decision.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, or [`PamojaStatus::InvalidArgument`] if
+// either pointer is null.
+//
+// # Safety
+//
+// `controller` must be a live handle from a call that produced one, and
+// `out_reaction` must be writable.
+PamojaStatus pamoja_controller_evaluate(PamojaController *controller,
+                                        float reading,
+                                        PamojaReaction *out_reaction);
+
+// Releases a controller handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `controller` must be a handle from a call that produced one and that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_controller_free(PamojaController *controller);
+
+// Reports whether a string is a valid ROS 2 topic or service name.
+//
+// # Arguments
+//
+// * `name` - the candidate name, as null-terminated UTF-8.
+//
+// # Returns
+//
+// `true` when the name obeys the ROS 2 rules, or `false` if it does not or
+// `name` is null.
+//
+// # Safety
+//
+// `name` must be a valid null-terminated UTF-8 string for the duration of the
+// call, or null.
+bool pamoja_ros2_name_is_valid(const char *name);
+
+// Reports whether a name is fully qualified, so it resolves with no namespace.
+//
+// # Arguments
+//
+// * `name` - the candidate name, as null-terminated UTF-8.
+//
+// # Returns
+//
+// `true` when the name is fully qualified, or `false` if it is not or `name` is
+// null.
+//
+// # Safety
+//
+// `name` must be a valid null-terminated UTF-8 string for the duration of the
+// call, or null.
+bool pamoja_ros2_name_is_fully_qualified(const char *name);
+
+// Returns the DDS topic prefix a subsystem uses.
+//
+// # Arguments
+//
+// * `kind` - the subsystem.
+//
+// # Returns
+//
+// A null-terminated string with static lifetime, which the caller does not free.
+const char *pamoja_ros2_entity_kind_prefix(PamojaEntityKind kind);
+
+// Returns the DDS topic a fully qualified ROS 2 name maps onto.
+//
+// # Arguments
+//
+// * `fqn` - the fully qualified name, as null-terminated UTF-8.
+// * `kind` - which subsystem the name belongs to, which fixes the prefix.
+//
+// # Returns
+//
+// A string the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if the name is not
+// fully qualified or `fqn` is null.
+//
+// # Safety
+//
+// `fqn` must be a valid null-terminated UTF-8 string for the duration of the
+// call, or null.
+PamojaString *pamoja_ros2_dds_topic(const char *fqn, PamojaEntityKind kind);
+
+// Percent-mangles a name the way a DDS partition requires.
+//
+// # Arguments
+//
+// * `name` - the name to mangle, as null-terminated UTF-8.
+//
+// # Returns
+//
+// A string the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if `name` is null.
+//
+// # Safety
+//
+// `name` must be a valid null-terminated UTF-8 string for the duration of the
+// call, or null.
+PamojaString *pamoja_ros2_percent_mangle(const char *name);
+
+// Returns the DDS type name a ROS 2 interface type maps onto.
+//
+// # Arguments
+//
+// * `ros_type` - the interface type as `package/namespace/Type`, such as
+//   `std_msgs/msg/String`, as null-terminated UTF-8.
+//
+// # Returns
+//
+// A string such as `std_msgs::msg::dds_::String_`, which the caller must
+// release with [`pamoja_string_free`](crate::pamoja_string_free), or null if
+// the type is not a valid three-part interface type or `ros_type` is null.
+//
+// # Safety
+//
+// `ros_type` must be a valid null-terminated UTF-8 string for the duration of
+// the call, or null.
+PamojaString *pamoja_ros2_dds_type_name(const char *ros_type);
+
+// Parses a RIHS01 type hash string.
+//
+// # Arguments
+//
+// * `text` - the candidate hash, expected as `RIHS01_` plus 64 lowercase hex
+//   digits, as null-terminated UTF-8.
+// * `out_hash` - receives the parsed hash.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once parsed, or [`PamojaStatus::InvalidArgument`] if the
+// text is malformed or either pointer is null.
+//
+// # Safety
+//
+// `text` must be a valid null-terminated UTF-8 string for the duration of the
+// call, and `out_hash` must be writable.
+PamojaStatus pamoja_ros2_type_hash_parse(const char *text, PamojaTypeHash *out_hash);
+
+// Renders a type hash back to its RIHS01 string.
+//
+// # Arguments
+//
+// * `hash` - the hash to render.
+//
+// # Returns
+//
+// A string the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free).
+PamojaString *pamoja_ros2_type_hash_to_string(PamojaTypeHash hash);
+
+// Builds the Zenoh key an `rmw_zenoh` peer publishes an entity on.
+//
+// # Arguments
+//
+// * `domain_id` - the ROS 2 domain.
+// * `fqn` - the fully qualified entity name, as null-terminated UTF-8.
+// * `ros_type` - the interface type as `package/namespace/Type`, as
+//   null-terminated UTF-8.
+// * `hash` - the message type hash.
+//
+// # Returns
+//
+// A key such as `0/chatter/std_msgs::msg::dds_::String_/RIHS01_...`, which the
+// caller must release with [`pamoja_string_free`](crate::pamoja_string_free),
+// or null if the name is not fully qualified, the type is not a valid interface
+// type, or either string is null.
+//
+// # Safety
+//
+// `fqn` and `ros_type` must be valid null-terminated UTF-8 strings for the
+// duration of the call, or null.
+PamojaString *pamoja_ros2_entity_key(uint32_t domain_id,
+                                     const char *fqn,
+                                     const char *ros_type,
+                                     PamojaTypeHash hash);
+
+// Encodes a twist into its CDR representation.
+//
+// # Arguments
+//
+// * `twist` - the command to encode.
+//
+// # Returns
+//
+// A buffer the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+PamojaBuffer *pamoja_ros2_twist_to_cdr(PamojaRos2Twist twist);
+
+// Decodes a twist from its CDR representation.
+//
+// # Arguments
+//
+// * `data` - the encoded bytes.
+// * `data_len` - the length of `data`.
+// * `out_twist` - receives the decoded command.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once decoded, or [`PamojaStatus::InvalidArgument`] if the
+// bytes are not a well-formed twist or `out_twist` is null.
+//
+// # Safety
+//
+// `data` must point to at least `data_len` readable bytes or be null when that
+// length is 0, and `out_twist` must be writable.
+PamojaStatus pamoja_ros2_twist_from_cdr(const uint8_t *data,
+                                        uintptr_t data_len,
+                                        PamojaRos2Twist *out_twist);
+
+// Creates a CDR encoder with the encapsulation header already written.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_cdr_writer_free`] or consume
+// with [`pamoja_cdr_writer_into_bytes`].
+PamojaCdrWriter *pamoja_cdr_writer_new(void);
+
+// Appends a 32-bit signed integer.
+//
+// # Arguments
+//
+// * `writer` - the encoder.
+// * `value` - the value to append.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once written, or [`PamojaStatus::InvalidArgument`] if
+// `writer` is null.
+//
+// # Safety
+//
+// `writer` must be a live handle from [`pamoja_cdr_writer_new`], or null.
+PamojaStatus pamoja_cdr_writer_write_i32(PamojaCdrWriter *writer, int32_t value);
+
+// Appends a 32-bit unsigned integer.
+//
+// # Arguments
+//
+// * `writer` - the encoder.
+// * `value` - the value to append.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once written, or [`PamojaStatus::InvalidArgument`] if
+// `writer` is null.
+//
+// # Safety
+//
+// `writer` must be a live handle from [`pamoja_cdr_writer_new`], or null.
+PamojaStatus pamoja_cdr_writer_write_u32(PamojaCdrWriter *writer, uint32_t value);
+
+// Appends a 32-bit float.
+//
+// # Arguments
+//
+// * `writer` - the encoder.
+// * `value` - the value to append.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once written, or [`PamojaStatus::InvalidArgument`] if
+// `writer` is null.
+//
+// # Safety
+//
+// `writer` must be a live handle from [`pamoja_cdr_writer_new`], or null.
+PamojaStatus pamoja_cdr_writer_write_f32(PamojaCdrWriter *writer, float value);
+
+// Appends a 64-bit float.
+//
+// # Arguments
+//
+// * `writer` - the encoder.
+// * `value` - the value to append.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once written, or [`PamojaStatus::InvalidArgument`] if
+// `writer` is null.
+//
+// # Safety
+//
+// `writer` must be a live handle from [`pamoja_cdr_writer_new`], or null.
+PamojaStatus pamoja_cdr_writer_write_f64(PamojaCdrWriter *writer, double value);
+
+// Takes the encoded bytes, consuming the encoder.
+//
+// # Arguments
+//
+// * `writer` - the encoder, which this call frees.
+//
+// # Returns
+//
+// A buffer the caller must release with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free), or null if `writer` is
+// null.
+//
+// # Safety
+//
+// `writer` must be a live handle from [`pamoja_cdr_writer_new`], or null. After
+// this call it must not be used again.
+PamojaBuffer *pamoja_cdr_writer_into_bytes(PamojaCdrWriter *writer);
+
+// Releases a CDR encoder handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `writer` must be a handle from [`pamoja_cdr_writer_new`] that has not already
+// been freed or consumed, or null. After this call it must not be used again.
+void pamoja_cdr_writer_free(PamojaCdrWriter *writer);
+
+// Creates a CDR decoder over encoded bytes.
+//
+// # Arguments
+//
+// * `data` - the encoded bytes, which are copied.
+// * `data_len` - the length of `data`.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_cdr_reader_free`], or null if
+// the bytes carry no valid encapsulation header.
+//
+// # Safety
+//
+// `data` must point to at least `data_len` readable bytes, or be null when that
+// length is 0.
+PamojaCdrReader *pamoja_cdr_reader_new(const uint8_t *data, uintptr_t data_len);
+
+// Reads the next 32-bit signed integer.
+//
+// # Arguments
+//
+// * `reader` - the decoder.
+// * `out_value` - receives the value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once read, or [`PamojaStatus::InvalidArgument`] if the
+// buffer is exhausted or either pointer is null.
+//
+// # Safety
+//
+// `reader` must be a live handle from [`pamoja_cdr_reader_new`] and `out_value`
+// must be writable.
+PamojaStatus pamoja_cdr_reader_read_i32(PamojaCdrReader *reader, int32_t *out_value);
+
+// Reads the next 32-bit unsigned integer.
+//
+// # Arguments
+//
+// * `reader` - the decoder.
+// * `out_value` - receives the value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once read, or [`PamojaStatus::InvalidArgument`] if the
+// buffer is exhausted or either pointer is null.
+//
+// # Safety
+//
+// `reader` must be a live handle from [`pamoja_cdr_reader_new`] and `out_value`
+// must be writable.
+PamojaStatus pamoja_cdr_reader_read_u32(PamojaCdrReader *reader, uint32_t *out_value);
+
+// Reads the next 32-bit float.
+//
+// # Arguments
+//
+// * `reader` - the decoder.
+// * `out_value` - receives the value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once read, or [`PamojaStatus::InvalidArgument`] if the
+// buffer is exhausted or either pointer is null.
+//
+// # Safety
+//
+// `reader` must be a live handle from [`pamoja_cdr_reader_new`] and `out_value`
+// must be writable.
+PamojaStatus pamoja_cdr_reader_read_f32(PamojaCdrReader *reader, float *out_value);
+
+// Reads the next 64-bit float.
+//
+// # Arguments
+//
+// * `reader` - the decoder.
+// * `out_value` - receives the value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once read, or [`PamojaStatus::InvalidArgument`] if the
+// buffer is exhausted or either pointer is null.
+//
+// # Safety
+//
+// `reader` must be a live handle from [`pamoja_cdr_reader_new`] and `out_value`
+// must be writable.
+PamojaStatus pamoja_cdr_reader_read_f64(PamojaCdrReader *reader, double *out_value);
+
+// Releases a CDR decoder handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `reader` must be a handle from [`pamoja_cdr_reader_new`] that has not already
+// been freed, or null. After this call it must not be used again.
+void pamoja_cdr_reader_free(PamojaCdrReader *reader);
+
 // Creates an empty routing table for a node.
 //
 // # Arguments
@@ -7056,6 +7895,81 @@ PamojaStatus pamoja_updater_revert(PamojaUpdater *updater, uint8_t *out_slot);
 // `updater` must be a handle from [`pamoja_updater_new`] that has not already
 // been freed, or null. After this call it must not be used again.
 void pamoja_updater_free(PamojaUpdater *updater);
+
+// Reports whether a key expression is well formed.
+//
+// # Arguments
+//
+// * `key` - the expression to check, as null-terminated UTF-8.
+//
+// # Returns
+//
+// `true` when the expression is valid, or `false` if it is malformed or `key`
+// is null.
+//
+// # Safety
+//
+// `key` must be a valid null-terminated UTF-8 string for the duration of the
+// call, or null.
+bool pamoja_keyexpr_is_valid(const char *key);
+
+// Reports whether a key expression is already in its canonical form.
+//
+// # Arguments
+//
+// * `key` - the expression to check, as null-terminated UTF-8.
+//
+// # Returns
+//
+// `true` when the expression is canonical, or `false` if it is not or `key` is
+// null.
+//
+// # Safety
+//
+// `key` must be a valid null-terminated UTF-8 string for the duration of the
+// call, or null.
+bool pamoja_keyexpr_is_canon(const char *key);
+
+// Rewrites a key expression into its canonical form.
+//
+// Two expressions that select the same data have one canonical form, so
+// canonizing before comparing or routing avoids treating `a/**/**/b` and
+// `a/**/b` as different.
+//
+// # Arguments
+//
+// * `key` - the expression to canonize, as null-terminated UTF-8.
+//
+// # Returns
+//
+// A string the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if the expression
+// is malformed or `key` is null.
+//
+// # Safety
+//
+// `key` must be a valid null-terminated UTF-8 string for the duration of the
+// call, or null.
+PamojaString *pamoja_keyexpr_canonize(const char *key);
+
+// Reports whether a pattern selects a key.
+//
+// # Arguments
+//
+// * `pattern` - the expression that may carry wildcards, as null-terminated
+//   UTF-8.
+// * `key` - the concrete key to test against it, as null-terminated UTF-8.
+//
+// # Returns
+//
+// `true` when the pattern selects the key, or `false` if it does not or either
+// argument is null.
+//
+// # Safety
+//
+// Both arguments must be valid null-terminated UTF-8 strings for the duration
+// of the call, or null.
+bool pamoja_keyexpr_matches(const char *pattern, const char *key);
 
 #ifdef __cplusplus
 }  // extern "C"

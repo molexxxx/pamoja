@@ -33,6 +33,8 @@ const {
   ladder,
   loopback,
   power,
+  profile,
+  ros2,
   routing,
   serial,
   session,
@@ -41,6 +43,7 @@ const {
   telemetry,
   transport,
   update,
+  zenoh,
   actuators,
   sensors,
   Window,
@@ -660,6 +663,78 @@ async function asyncTransports() {
   assert.ok(
     Math.abs((await robot.pose()).x - 1.0) < 1e-5,
     "one second at one metre a second puts it a metre ahead",
+  );
+  // A profile decides what a reading calls for, with no hardware wired up.
+  const fridge = profile.Profile.vaccineFridgeMonitor();
+  assert.strictEqual(fridge.name, "vaccine-fridge-monitor");
+  assert.strictEqual(fridge.control.kind, profile.ControlKind.Setpoint);
+
+  const control = fridge.controller();
+  const warm = control.evaluate(9.0);
+  assert.strictEqual(warm.actuator, true, "a warm fridge runs the cooler");
+  assert.strictEqual(
+    warm.alert.kind,
+    profile.AlertKind.OutOfRange,
+    "and 9 C is a spoilage excursion",
+  );
+  assert.ok(Math.abs(warm.alert.reading - 9.0) < 1e-6);
+
+  const observed = profile.Controller.monitor().evaluate(21.5);
+  assert.ok(observed.actuator == null, "a monitor drives no output");
+  assert.ok(observed.alert == null, "and judges nothing");
+
+  const manifest = fridge.toJson();
+  const reloaded = profile.Profile.fromJson(manifest);
+  assert.strictEqual(reloaded.topic, fridge.topic, "a manifest round-trips");
+  assert.throws(() => profile.Profile.fromJson("{"), "a malformed manifest throws");
+
+  // The ROS 2 naming rules, with no ROS installation in sight.
+  assert.ok(ros2.name.isValid("/robot1/camera_left/image_raw"));
+  assert.ok(!ros2.name.isValid("/2foo"), "a token may not start with a digit");
+  assert.strictEqual(
+    ros2.name.ddsTopic("/robot1/cmd_vel", ros2.EntityKind.Topic),
+    "rt/robot1/cmd_vel",
+  );
+  assert.strictEqual(ros2.name.prefixFor(ros2.EntityKind.ServiceRequest), "rq");
+  assert.strictEqual(
+    ros2.name.ddsTypeName("std_msgs/msg/String"),
+    "std_msgs::msg::dds_::String_",
+  );
+
+  const chatterHash =
+    "RIHS01_df668c740482bbd48fb39d76a70dfd4bd59db1288021743503259e948f6b1a18";
+  assert.strictEqual(ros2.typeHash.digest(chatterHash).length, 32);
+  assert.strictEqual(
+    ros2.typeHash.entityKey(0, "/chatter", "std_msgs/msg/String", chatterHash),
+    `0/chatter/std_msgs::msg::dds_::String_/${chatterHash}`,
+  );
+
+  const command = {
+    linear: { x: 1.5, y: 0.0, z: 0.0 },
+    angular: { x: 0.0, y: 0.0, z: -0.25 },
+  };
+  const decoded = ros2.cdr.twistFromBytes(ros2.cdr.twistToBytes(command));
+  assert.strictEqual(decoded.linear.x, 1.5, "a twist survives a CDR round trip");
+  assert.strictEqual(decoded.angular.z, -0.25);
+
+  const writer = ros2.cdr.writer();
+  writer.writeU32(7);
+  writer.writeF64(2.5);
+  writer.writeI32(-3);
+  const reader = ros2.cdr.reader(writer.bytes);
+  assert.strictEqual(reader.readU32(), 7);
+  assert.strictEqual(reader.readF64(), 2.5, "an eight-byte field keeps its alignment");
+  assert.strictEqual(reader.readI32(), -3, "and the field after it is not skewed");
+  assert.strictEqual(reader.readU32(), null, "reading past the end yields null");
+
+  // Zenoh key expressions, which is how a fleet subtree is addressed.
+  assert.ok(zenoh.keyexpr.isValid("fleet/*/battery"));
+  assert.ok(zenoh.keyexpr.matches("fleet/*/battery", "fleet/n7/battery"));
+  assert.ok(!zenoh.keyexpr.matches("fleet/*/battery", "fleet/n7/rack/battery"));
+  assert.strictEqual(
+    zenoh.keyexpr.canonize("fleet/**/**/battery"),
+    "fleet/**/battery",
+    "a redundant double wildcard canonizes away",
   );
 }
 

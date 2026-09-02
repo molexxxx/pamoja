@@ -10,7 +10,8 @@
  * `/security`, `/codec`, `/kit`, `/serial`, `/modbus`, `/can`, `/gpio`,
  * `/sensors`, `/actuators`, `/lora`, `/lorawan`, `/mesh`, `/routing`,
  * `/audit`, `/session`, `/update`, `/power`, `/telemetry`, `/coap`,
- * `/loopback`, `/sync`, `/ladder`, `/bus`, `/sim`, `/transport`) for callers
+ * `/loopback`, `/sync`, `/ladder`, `/bus`, `/sim`, `/transport`, `/profile`,
+ * `/ros2`, `/zenoh`) for callers
  * who want only one, and the generated low-level surface remains available at
  * `@pamoja/core/raw`.
  *
@@ -77,6 +78,10 @@ export * as modbus from './modbus'
 
 export * as power from './power'
 
+export * as profile from './profile'
+
+export * as ros2 from './ros2'
+
 export * as routing from './routing'
 
 export * as sensors from './sensors'
@@ -94,3 +99,5 @@ export * as telemetry from './telemetry'
 export * as transport from './transport'
 
 export * as update from './update'
+
+export * as zenoh from './zenoh'

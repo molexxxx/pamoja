@@ -60,6 +60,13 @@ verified rollback, `PowerPlan` says how often a falling battery can afford to
 work, and `Reporter` thins the event stream out as the link gets expensive. Each
 handle-backed type is `IDisposable`.
 
+`Profile` and `Controller` turn a named, pre-wired bundle into decisions: the
+manifest loads from and saves to JSON, and the controller says what the output
+should do and whether a reading crossed a threshold. For a robot, `Ros2` holds
+the ROS 2 naming and encoding rules, with `CdrWriter` and `CdrReader` for the
+payload, and `KeyExpression` holds the Zenoh addressing rules. Neither needs a
+ROS 2 or Zenoh installation, because only the rules cross.
+
 For reaching the network when no single link always works, `CoapClient` speaks
 CoAP over UDP where MQTT costs more than the budget, `Ladder` tries links
 cheapest-first and buffers into a `Store` when none answer, and `EventBus`

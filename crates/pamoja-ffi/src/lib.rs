@@ -68,6 +68,10 @@ pub mod modbus;
 pub mod mqtt;
 #[cfg(feature = "power")]
 pub mod power;
+#[cfg(feature = "profile")]
+pub mod profile;
+#[cfg(feature = "ros2")]
+pub mod ros2;
 #[cfg(feature = "routing")]
 pub mod routing;
 #[cfg(feature = "security")]
@@ -88,6 +92,8 @@ pub mod telemetry;
 pub mod transport;
 #[cfg(feature = "update")]
 pub mod update;
+#[cfg(feature = "zenoh")]
+pub mod zenoh;
 
 /// The result of a fallible pamoja call.
 ///
@@ -189,6 +195,7 @@ pub extern "C" fn pamoja_last_error_message() -> *const c_char {
     feature = "mesh",
     feature = "modbus",
     feature = "mqtt",
+    feature = "ros2",
     feature = "runtime",
     feature = "security",
     feature = "sensors",
@@ -219,6 +226,7 @@ pub(crate) unsafe fn read_bytes(ptr: *const u8, len: usize) -> Result<Vec<u8>, P
     feature = "codec",
     feature = "lorawan",
     feature = "modbus",
+    feature = "ros2",
     feature = "serial",
     feature = "sync",
     feature = "update"
@@ -233,6 +241,7 @@ pub struct PamojaBuffer {
     feature = "codec",
     feature = "lorawan",
     feature = "modbus",
+    feature = "ros2",
     feature = "serial",
     feature = "sync",
     feature = "update"
@@ -270,6 +279,7 @@ impl PamojaBuffer {
     feature = "codec",
     feature = "lorawan",
     feature = "modbus",
+    feature = "ros2",
     feature = "serial",
     feature = "sync",
     feature = "update"
@@ -297,6 +307,7 @@ pub unsafe extern "C" fn pamoja_buffer_data(buffer: *const PamojaBuffer) -> *con
     feature = "codec",
     feature = "lorawan",
     feature = "modbus",
+    feature = "ros2",
     feature = "serial",
     feature = "sync",
     feature = "update"
@@ -323,6 +334,7 @@ pub unsafe extern "C" fn pamoja_buffer_len(buffer: *const PamojaBuffer) -> usize
     feature = "codec",
     feature = "lorawan",
     feature = "modbus",
+    feature = "ros2",
     feature = "serial",
     feature = "sync",
     feature = "update"
@@ -331,6 +343,95 @@ pub unsafe extern "C" fn pamoja_buffer_len(buffer: *const PamojaBuffer) -> usize
 pub unsafe extern "C" fn pamoja_buffer_free(buffer: *mut PamojaBuffer) {
     if !buffer.is_null() {
         drop(Box::from_raw(buffer));
+    }
+}
+
+/// An owned, null-terminated UTF-8 string produced by the library.
+///
+/// Some calls build a string rather than borrowing one that already lives inside
+/// a handle: a canonical key expression, a DDS topic name, a profile serialized
+/// to JSON. Those return this, and the caller releases it with
+/// [`pamoja_string_free`].
+#[cfg(any(feature = "profile", feature = "ros2", feature = "zenoh"))]
+pub struct PamojaString {
+    text: CString,
+}
+
+#[cfg(any(feature = "profile", feature = "ros2", feature = "zenoh"))]
+impl PamojaString {
+    /// Wraps an owned string in a heap-allocated handle for the caller to own.
+    ///
+    /// # Arguments
+    ///
+    /// * `text` - the string to hand across the boundary.
+    ///
+    /// # Returns
+    ///
+    /// A raw handle the caller must release with [`pamoja_string_free`], or null
+    /// if `text` contains an interior null byte.
+    pub(crate) fn into_raw(text: String) -> *mut Self {
+        match CString::new(text) {
+            Ok(text) => Box::into_raw(Box::new(Self { text })),
+            Err(_) => {
+                set_last_error("the string contains an interior null byte".to_owned());
+                ptr::null_mut()
+            }
+        }
+    }
+}
+
+/// Returns a pointer to a string's bytes.
+///
+/// The pointer is valid until the string is freed.
+///
+/// # Returns
+///
+/// A null-terminated UTF-8 string, or null if `string` is null.
+///
+/// # Safety
+///
+/// `string` must be a live handle from a call that produced one, or null. After
+/// [`pamoja_string_free`] it must not be used again.
+#[cfg(any(feature = "profile", feature = "ros2", feature = "zenoh"))]
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_string_data(string: *const PamojaString) -> *const c_char {
+    if string.is_null() {
+        return ptr::null();
+    }
+    (*string).text.as_ptr()
+}
+
+/// Returns the length in bytes of a string, excluding its null terminator.
+///
+/// # Returns
+///
+/// The byte length, or 0 if `string` is null.
+///
+/// # Safety
+///
+/// `string` must be a live handle from a call that produced one, or null.
+#[cfg(any(feature = "profile", feature = "ros2", feature = "zenoh"))]
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_string_len(string: *const PamojaString) -> usize {
+    if string.is_null() {
+        return 0;
+    }
+    (*string).text.as_bytes().len()
+}
+
+/// Releases a string handle.
+///
+/// Passing null is a no-op.
+///
+/// # Safety
+///
+/// `string` must be a handle from a call that produced one and that has not
+/// already been freed, or null. After this call it must not be used again.
+#[cfg(any(feature = "profile", feature = "ros2", feature = "zenoh"))]
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_string_free(string: *mut PamojaString) {
+    if !string.is_null() {
+        drop(Box::from_raw(string));
     }
 }
 
@@ -344,8 +445,11 @@ pub unsafe extern "C" fn pamoja_buffer_free(buffer: *mut PamojaBuffer) {
     feature = "coap",
     feature = "ladder",
     feature = "mqtt",
+    feature = "profile",
+    feature = "ros2",
     feature = "runtime",
-    feature = "sync"
+    feature = "sync",
+    feature = "zenoh"
 ))]
 pub(crate) unsafe fn read_str<'a>(ptr: *const c_char, name: &str) -> Option<&'a str> {
     if ptr.is_null() {

@@ -72,6 +72,15 @@ a :mod:`pamoja.sync` store when none answer, and :mod:`pamoja.bus` carries event
 between the parts of one gateway. For testing any of it with nothing plugged in,
 :mod:`pamoja.loopback` is a broker in the same process and :mod:`pamoja.sim`
 gives a sensor, an actuator, and a robot that need no hardware.
+A profile is the shortest path from a sensor to something that works.
+:mod:`pamoja.profile` carries the manifest, which loads from and saves to JSON,
+and the controller that turns a reading into an output setting and any alert it
+raised. For a robot, :mod:`pamoja.ros2` holds the ROS 2 naming and encoding
+rules - what a topic name may be, what it becomes on the DDS wire, the RIHS type
+hash, and CDR - and :mod:`pamoja.zenoh` holds the key expressions a Zenoh
+network addresses data by. Neither needs a ROS 2 or Zenoh installation, because
+only the rules cross; the live bridges stay in Rust.
+
 The generated low-level contract stays available at `pamoja.raw`.
 
 ```python
