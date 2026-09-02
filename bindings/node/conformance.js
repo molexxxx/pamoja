@@ -22,6 +22,11 @@ const {
   deadband,
   audit,
   can,
+  ladder,
+  loopback,
+  sim,
+  sync,
+  transport,
   gpio,
   lora,
   lorawan,
@@ -1228,10 +1233,91 @@ function telemetryVectors() {
 lorawanVectors();
 headerVectors();
 networkVectors();
+
+// What a ladder does with a message as its links come and go.
+async function ladderVectors() {
+  const vector = VECTORS.ladder;
+  const broker = new loopback.LoopbackBroker();
+  const listener = broker.link();
+  await listener.connect();
+  await listener.subscribe(vector.topic);
+
+  const offline = new ladder.Ladder(sync.Store.memory());
+  for (const [at, payload] of vector.payloads.entries()) {
+    assert.strictEqual(
+      await offline.send(vector.topic, Buffer.from(payload)),
+      vector.withNoRung.deliveries[at],
+      "a message no rung takes is buffered rather than lost",
+    );
+  }
+  assert.strictEqual(await offline.buffered(), vector.withNoRung.buffered, "the buffer holds them");
+
+  await offline.rung(broker.rung());
+  await offline.connect();
+  assert.strictEqual(
+    await offline.flush(),
+    vector.afterTheLinkReturns.flushed,
+    "the buffer replays once a link returns",
+  );
+  assert.strictEqual(await offline.buffered(), vector.afterTheLinkReturns.buffered);
+
+  const rungs = new ladder.Ladder(sync.Store.memory());
+  await rungs.rung(
+    transport.Transport.faulty(broker.rung(), vector.fallthrough.failuresOnFirstRung),
+  );
+  await rungs.rung(broker.rung());
+  await rungs.connect();
+  assert.strictEqual(
+    await rungs.send(vector.topic, Buffer.from(vector.fallthrough.payload)),
+    vector.fallthrough.delivery,
+    "a rung that refuses falls through to the next",
+  );
+}
+
+// What the simulated devices produce, so every binding invents the same run.
+async function simulationVectors() {
+  const vector = VECTORS.simulation;
+
+  const sensor = new sim.SimulatedSensor(
+    vector.sensor.baseline,
+    vector.sensor.driftPerRead,
+    vector.sensor.noise,
+    vector.sensor.seed,
+  );
+  for (const want of vector.sensor.readings) {
+    assert.strictEqual(
+      await sensor.read(),
+      want,
+      "a seeded sensor invents the same run everywhere",
+    );
+  }
+
+  const replay = new sim.Replay(vector.replay.capture, vector.replay.repeating);
+  for (const want of vector.replay.readings) {
+    assert.strictEqual(await replay.read(), want, "a capture reads back the same");
+  }
+
+  const robot = new sim.SimulatedRobot(vector.robot.dt);
+  for (const want of vector.robot.poses) {
+    await robot.apply({ vx: vector.robot.vx, vy: 0, omega: vector.robot.omega });
+    const pose = robot.pose;
+    close(pose.x, want.x, "the x it reached");
+    close(pose.y, want.y, "the y it reached");
+    close(pose.theta, want.theta, "the heading it holds");
+  }
+}
+
 auditVectors();
 sessionVectors();
 updateVectors();
 powerVectors();
 telemetryVectors();
 
-console.log("conformance ok");
+(async () => {
+  await ladderVectors();
+  await simulationVectors();
+  console.log("conformance ok");
+})().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

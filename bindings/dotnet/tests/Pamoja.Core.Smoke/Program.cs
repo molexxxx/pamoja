@@ -629,6 +629,8 @@ static void Conformance()
     ConformUpdate(vectors.GetProperty("update"));
     ConformPower(vectors.GetProperty("power"));
     ConformTelemetry(vectors.GetProperty("telemetry"));
+    ConformLadder(vectors.GetProperty("ladder")).GetAwaiter().GetResult();
+    ConformSimulation(vectors.GetProperty("simulation")).GetAwaiter().GetResult();
 
     Console.WriteLine("conformance ok");
 }
@@ -2277,4 +2279,103 @@ static void ConformTelemetry(JsonElement vector)
     Assert(
         snapshot.Dropped == want.GetProperty("dropped").GetUInt32(),
         "what was dropped is still counted");
+}
+
+static async Task ConformLadder(JsonElement vector)
+{
+    string topic = vector.GetProperty("topic").GetString()!;
+    using var broker = new LoopbackBroker();
+    using LoopbackTransport listener = broker.Link();
+    await listener.ConnectAsync();
+    await listener.SubscribeAsync(topic);
+
+    JsonElement offlineWant = vector.GetProperty("withNoRung");
+    JsonElement deliveries = offlineWant.GetProperty("deliveries");
+    using var offline = new Ladder(Store.Memory());
+
+    int at = 0;
+    foreach (JsonElement payload in vector.GetProperty("payloads").EnumerateArray())
+    {
+        Delivery delivery = await offline.SendAsync(
+            topic, System.Text.Encoding.UTF8.GetBytes(payload.GetString()!));
+        Assert(
+            delivery.ToString() == deliveries[at].GetString(),
+            "a message no rung takes is buffered rather than lost");
+        at++;
+    }
+
+    Assert(
+        await offline.BufferedAsync() == offlineWant.GetProperty("buffered").GetInt32(),
+        "the buffer holds them");
+
+    JsonElement restoredWant = vector.GetProperty("afterTheLinkReturns");
+    offline.Rung(broker.Rung());
+    await offline.ConnectAsync();
+    Assert(
+        await offline.FlushAsync() == restoredWant.GetProperty("flushed").GetInt32(),
+        "the buffer replays once a link returns");
+    Assert(
+        await offline.BufferedAsync() == restoredWant.GetProperty("buffered").GetInt32(),
+        "leaving it empty");
+
+    JsonElement fallthrough = vector.GetProperty("fallthrough");
+    using var rungs = new Ladder(Store.Memory());
+    rungs.Rung(Transport.Faulty(
+        broker.Rung(),
+        fallthrough.GetProperty("failuresOnFirstRung").GetInt32()));
+    rungs.Rung(broker.Rung());
+    await rungs.ConnectAsync();
+    Delivery fell = await rungs.SendAsync(
+        topic,
+        System.Text.Encoding.UTF8.GetBytes(fallthrough.GetProperty("payload").GetString()!));
+    Assert(
+        fell.ToString() == fallthrough.GetProperty("delivery").GetString(),
+        "a rung that refuses falls through to the next");
+}
+
+static async Task ConformSimulation(JsonElement vector)
+{
+    JsonElement want = vector.GetProperty("sensor");
+    using var sensor = new SimulatedSensor(
+        want.GetProperty("baseline").GetSingle(),
+        want.GetProperty("driftPerRead").GetSingle(),
+        want.GetProperty("noise").GetSingle(),
+        want.GetProperty("seed").GetUInt32());
+    foreach (JsonElement reading in want.GetProperty("readings").EnumerateArray())
+    {
+        Assert(
+            await sensor.ReadAsync() == reading.GetSingle(),
+            "a seeded sensor invents the same run everywhere");
+    }
+
+    want = vector.GetProperty("replay");
+    float[] capture = want.GetProperty("capture")
+        .EnumerateArray()
+        .Select(value => value.GetSingle())
+        .ToArray();
+    using var replay = new Replay(capture, want.GetProperty("repeating").GetBoolean());
+    foreach (JsonElement reading in want.GetProperty("readings").EnumerateArray())
+    {
+        Assert(
+            await replay.ReadAsync() == reading.GetSingle(),
+            "a capture reads back the same");
+    }
+
+    want = vector.GetProperty("robot");
+    using var robot = new SimulatedRobot(want.GetProperty("dt").GetSingle());
+    var twist = new Twist(
+        want.GetProperty("vx").GetSingle(),
+        0.0f,
+        want.GetProperty("omega").GetSingle());
+    foreach (JsonElement pose in want.GetProperty("poses").EnumerateArray())
+    {
+        await robot.ApplyAsync(twist);
+        Close(robot.Pose.X, pose.GetProperty("x").GetSingle(), 1e-6, "the x it reached");
+        Close(robot.Pose.Y, pose.GetProperty("y").GetSingle(), 1e-6, "the y it reached");
+        Close(
+            robot.Pose.Theta,
+            pose.GetProperty("theta").GetSingle(),
+            1e-6,
+            "the heading it holds");
+    }
 }

@@ -665,6 +665,29 @@
     "signature": "d78757ff91d869d7eed8cc5253ddacf3aa6664c38f922aa38e96f6caffe506f753ae73033a6c522b14125530a587ded0a852b2ae3ee3c94e0ed95a6bf71e170c",
     "tamperedPayload": "21.6"
   },
+  "ladder": {
+    "afterTheLinkReturns": {
+      "buffered": 0,
+      "flushed": 2
+    },
+    "fallthrough": {
+      "delivery": "Sent",
+      "failuresOnFirstRung": 1,
+      "payload": "4.8C"
+    },
+    "payloads": [
+      "21.5",
+      "21.7"
+    ],
+    "topic": "sensors/1",
+    "withNoRung": {
+      "buffered": 2,
+      "deliveries": [
+        "Buffered",
+        "Buffered"
+      ]
+    }
+  },
   "lora": {
     "clamped": [
       {
@@ -1489,6 +1512,60 @@
     "nodeSeed": "0101010101010101010101010101010101010101010101010101010101010101",
     "salt": "09090909090909090909090909090909",
     "wrongAad": "pump-4"
+  },
+  "simulation": {
+    "replay": {
+      "capture": [
+        21.0,
+        21.5,
+        22.0
+      ],
+      "readings": [
+        21.0,
+        21.5,
+        22.0,
+        21.0,
+        21.5,
+        22.0
+      ],
+      "repeating": true
+    },
+    "robot": {
+      "dt": 1.0,
+      "omega": 0.25,
+      "poses": [
+        {
+          "theta": 0.25,
+          "x": 0.9896158576011658,
+          "y": 0.12435030937194824
+        },
+        {
+          "theta": 0.5,
+          "x": 1.9177021980285645,
+          "y": 0.4896697998046875
+        },
+        {
+          "theta": 0.75,
+          "x": 2.726555109024048,
+          "y": 1.073244571685791
+        }
+      ],
+      "vx": 1.0
+    },
+    "sensor": {
+      "baseline": 20.0,
+      "driftPerRead": 0.5,
+      "noise": 1.0,
+      "readings": [
+        19.005287170410156,
+        20.82062339782715,
+        20.221914291381836,
+        22.198753356933594,
+        22.750879287719727,
+        22.171222686767578
+      ],
+      "seed": 42
+    }
   },
   "smoother": {
     "outputs": [

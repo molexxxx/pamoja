@@ -10,6 +10,8 @@ use std::path::PathBuf;
 
 use pamoja_actuators::{pca9685, stepper};
 use pamoja_audit::{verify_chain, AuditLog, Entry};
+use pamoja_ladder::{Delivery, TransportLadder};
+use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
 use pamoja_can::{dlc_to_len, len_to_dlc, CanId, Frame, J1939Id};
 use pamoja_codec::{cbor_to_json, decode_deltas, encode_deltas, json_to_cbor, Quantizer};
 use pamoja_gpio::i2c::{Address, Direction};
@@ -19,6 +21,7 @@ use pamoja_kit::{
     deadband, Anomaly, Boundary, Calibration, Coordinate, Depletion, Geofence, Median, Pid,
     Smoother, Thermostat, Trend, Window,
 };
+use pamoja_core::{Actuator as _, Sensor as _, Transport as _};
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::{
     Device, Direction as LorawanDirection, Downlink, FrameHeader, JoinGrant, JoinRequest,
@@ -32,6 +35,8 @@ use pamoja_routing::{DynamicRouter, Forward};
 use pamoja_security::{DeviceIdentity, PublicIdentity, Signature};
 use pamoja_sensors::{ads1115, bme280, ds18b20, ina219};
 use pamoja_serial::{cobs, slip};
+use pamoja_sim::{Replay, SimRobot, SimSensor};
+use pamoja_sync::MemoryStore as BufferStore;
 use pamoja_session::{AgreementKey, Role, Sealed, Session as SecuredSession, SessionError};
 use pamoja_telemetry::{Event, Level as TelemetryLevel, LinkCost, Reporter};
 use pamoja_update::{
@@ -1887,4 +1892,129 @@ fn telemetry_level_name(level: TelemetryLevel) -> &'static str {
         TelemetryLevel::Warn => "Warn",
         TelemetryLevel::Error => "Error",
     }
+}
+
+#[test]
+fn ladder_vectors_match() {
+    let vectors = vectors();
+    let vector = &vectors["ladder"];
+    let topic = vector["topic"].as_str().expect("the topic");
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("build a runtime");
+
+    runtime.block_on(async {
+        let broker = LoopbackBroker::new();
+        let mut listener = LoopbackTransport::new(broker.clone());
+        listener.connect().await.expect("connect the listener");
+        listener.subscribe(topic).await.expect("subscribe");
+
+        let payloads = vector["payloads"].as_array().expect("the payloads");
+        let offline_want = &vector["withNoRung"];
+        let deliveries = offline_want["deliveries"].as_array().expect("the outcomes");
+
+        let mut offline = TransportLadder::new(BufferStore::new());
+        for (at, payload) in payloads.iter().enumerate() {
+            let delivery = offline
+                .send(topic, payload.as_str().expect("the payload").as_bytes())
+                .await
+                .expect("send with no rung");
+            assert_eq!(
+                delivery_name(delivery),
+                deliveries[at].as_str().expect("the outcome"),
+                "a message no rung takes is buffered rather than lost"
+            );
+        }
+        assert_eq!(
+            offline.buffered().await.expect("count") as u64,
+            offline_want["buffered"].as_u64().expect("the count")
+        );
+
+        let restored_want = &vector["afterTheLinkReturns"];
+        let mut restored = offline.rung(LoopbackTransport::new(broker.clone()));
+        restored.connect().await.expect("connect");
+        assert_eq!(
+            restored.flush().await.expect("flush") as u64,
+            restored_want["flushed"].as_u64().expect("the flushed count"),
+            "the buffer replays once a link returns"
+        );
+        assert_eq!(
+            restored.buffered().await.expect("count") as u64,
+            restored_want["buffered"].as_u64().expect("the count")
+        );
+
+        let fallthrough = &vector["fallthrough"];
+        let failures = fallthrough["failuresOnFirstRung"]
+            .as_u64()
+            .expect("the failure count") as usize;
+        let mut ladder = TransportLadder::new(BufferStore::new())
+            .rung(Faulty::new(LoopbackTransport::new(broker.clone()), failures))
+            .rung(LoopbackTransport::new(broker.clone()));
+        ladder.connect().await.expect("connect the rungs");
+        let delivery = ladder
+            .send(
+                topic,
+                fallthrough["payload"].as_str().expect("the payload").as_bytes(),
+            )
+            .await
+            .expect("send through the ladder");
+        assert_eq!(
+            delivery_name(delivery),
+            fallthrough["delivery"].as_str().expect("the outcome"),
+            "a rung that refuses falls through to the next"
+        );
+    });
+}
+
+/// Names a delivery outcome the way the vectors record it.
+fn delivery_name(delivery: Delivery) -> &'static str {
+    match delivery {
+        Delivery::Sent => "Sent",
+        Delivery::Buffered => "Buffered",
+    }
+}
+
+#[test]
+fn simulation_vectors_match() {
+    let vectors = vectors();
+    let vector = &vectors["simulation"];
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("build a runtime");
+
+    runtime.block_on(async {
+        let want = &vector["sensor"];
+        let mut sensor = SimSensor::new(float(&want["baseline"]))
+            .with_drift(float(&want["driftPerRead"]))
+            .with_noise(float(&want["noise"]))
+            .with_seed(want["seed"].as_u64().expect("the seed") as u32);
+        for reading in want["readings"].as_array().expect("the readings") {
+            assert_eq!(
+                sensor.read().await.expect("read"),
+                float(reading),
+                "a seeded sensor invents the same run everywhere"
+            );
+        }
+
+        let want = &vector["replay"];
+        let mut replay = Replay::repeating(floats(&want["capture"]));
+        for reading in want["readings"].as_array().expect("the readings") {
+            assert_eq!(replay.read().await.expect("read"), float(reading));
+        }
+
+        let want = &vector["robot"];
+        let mut robot = SimRobot::new(float(&want["dt"]));
+        let twist = pamoja_kit::Twist::new(float(&want["vx"]), 0.0, float(&want["omega"]));
+        for pose in want["poses"].as_array().expect("the poses") {
+            robot.apply(twist).await.expect("drive");
+            let reached = robot.pose();
+            assert_eq!(reached.x, float(&pose["x"]), "the x it reached");
+            assert_eq!(reached.y, float(&pose["y"]), "the y it reached");
+            assert_eq!(reached.theta, float(&pose["theta"]), "the heading it holds");
+        }
+    });
 }

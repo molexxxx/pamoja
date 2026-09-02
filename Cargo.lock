@@ -2423,6 +2423,7 @@ dependencies = [
  "pamoja-core",
  "pamoja-gpio",
  "pamoja-kit",
+ "pamoja-ladder",
  "pamoja-loopback",
  "pamoja-lora",
  "pamoja-lorawan",
