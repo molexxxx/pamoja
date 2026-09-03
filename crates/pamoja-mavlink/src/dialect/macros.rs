@@ -137,6 +137,54 @@ macro_rules! mav_field_size {
     };
 }
 
+// The `FieldType` for a MAVLink scalar type token, the runtime counterpart of the type
+// name above.
+macro_rules! mav_scalar_kind {
+    (u8) => {
+        $crate::dialect::FieldType::U8
+    };
+    (i8) => {
+        $crate::dialect::FieldType::I8
+    };
+    (char) => {
+        $crate::dialect::FieldType::Char
+    };
+    (u16) => {
+        $crate::dialect::FieldType::U16
+    };
+    (i16) => {
+        $crate::dialect::FieldType::I16
+    };
+    (u32) => {
+        $crate::dialect::FieldType::U32
+    };
+    (i32) => {
+        $crate::dialect::FieldType::I32
+    };
+    (f32) => {
+        $crate::dialect::FieldType::F32
+    };
+    (u64) => {
+        $crate::dialect::FieldType::U64
+    };
+    (i64) => {
+        $crate::dialect::FieldType::I64
+    };
+    (f64) => {
+        $crate::dialect::FieldType::F64
+    };
+}
+
+// A field's `FieldType` (the element type for an array).
+macro_rules! mav_field_kind {
+    ([ $k:tt ; $n:literal ]) => {
+        mav_scalar_kind!($k)
+    };
+    ($k:tt) => {
+        mav_scalar_kind!($k)
+    };
+}
+
 // A field's MAVLink C type name (the element type for an array).
 macro_rules! mav_field_str {
     ([ $k:tt ; $n:literal ]) => {
@@ -238,6 +286,31 @@ macro_rules! message {
                     ),
                 )+
             ];
+
+            const DESCRIPTOR: &'static $crate::dialect::MessageDescriptor<'static> =
+                &$crate::dialect::MessageDescriptor {
+                    id: $id,
+                    name: $wire,
+                    crc_extra: $crc,
+                    fields: &[
+                        $(
+                            $crate::dialect::FieldDescriptor {
+                                name: $crate::dialect::xml_name(stringify!($field)),
+                                ty: mav_field_kind!($fty),
+                                array_len: mav_field_arraylen!($fty) as u8,
+                                extension: false,
+                            },
+                        )+
+                        $($(
+                            $crate::dialect::FieldDescriptor {
+                                name: $crate::dialect::xml_name(stringify!($efield)),
+                                ty: mav_field_kind!($efty),
+                                array_len: mav_field_arraylen!($efty) as u8,
+                                extension: true,
+                            },
+                        )+)?
+                    ],
+                };
 
             fn encode(&self, out: &mut [u8]) -> usize {
                 let mut off = 0usize;

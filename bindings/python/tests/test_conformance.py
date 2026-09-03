@@ -667,6 +667,82 @@ def test_mavlink_vectors_match():
             mavlink.timestamp_from_unix_micros(entry["unixMicros"]) == entry["timestamp"]
         ), entry["unixMicros"]
 
+
+def test_mavlink_schema_vectors_match():
+    """Field order, offsets, and the seed they imply are pinned across every binding."""
+    from pamoja import mavlink
+
+    vector = VECTORS["mavlinkSchema"]
+
+    for entry in vector["fieldTypes"]:
+        assert entry["code"] in [member.value for member in mavlink.FieldType], entry["name"]
+    assert mavlink.FieldType.UINT32 == 6
+    assert mavlink.FieldType.CHAR == 3
+
+    assert len(mavlink.known_messages()) == vector["messageCount"]
+    with pytest.raises(ValueError):
+        mavlink.schema_for(vector["unknownMessage"]["msgid"])
+    with pytest.raises(ValueError):
+        mavlink.schema_for(vector["unknownMessage"]["name"])
+
+    for described in vector["shapes"]:
+        shape = mavlink.schema_for(described["name"])
+        assert shape.id == described["msgid"], described["name"]
+        assert shape.crc_extra == described["crcExtra"], described["name"]
+        assert shape.wire_len == described["wireLen"], described["name"]
+
+        fields = shape.fields
+        assert len(fields) == len(described["fields"]), described["name"]
+        for field, want in zip(fields, described["fields"]):
+            where = f"{described['name']}.{want['name']}"
+            assert field.name == want["name"], where
+            assert field.type_name == want["typeName"], where
+            assert field.field_type == want["fieldType"], where
+            assert field.array_len == want["arrayLen"], where
+            assert field.extension == want["extension"], where
+            assert field.offset == want["offset"], where
+
+    # A definition written in declaration order lands in wire order and on the
+    # published seed, which is what lets a caller transcribe a dialect as it reads.
+    for key in ("declared", "private"):
+        described = vector[key]
+        builder = mavlink.MessageSchemaBuilder(described["msgid"], described["name"])
+        for field in described["fields"]:
+            builder.field(field["name"], field["fieldType"], field["arrayLen"])
+        built = builder.build()
+        assert [field.name for field in built.fields] == described["wireOrder"], key
+        assert built.crc_extra == described["crcExtra"], key
+
+    # A message filled in by name puts exactly these bytes on the wire.
+    filled = vector["filled"]
+    shape = mavlink.schema_for(filled["name"])
+    built = mavlink.message(shape)
+    for entry in filled["values"]:
+        built.set(entry["field"], entry["value"])
+    assert built.payload.hex() == filled["payload"]
+
+    frame = built.to_frame(mavlink.MavlinkHeader(1, 1, 7))
+    assert frame.bytes.hex() == filled["frame"]
+
+    read = mavlink.MavlinkMessage.decode(shape, frame.payload)
+    for entry in filled["values"]:
+        assert read.get_int(entry["field"]) == entry["value"], entry["field"]
+
+    # A char array carries text padded with zeros.
+    text = vector["text"]
+    status = mavlink.schema_for(text["name"])
+    written = mavlink.from_dict(
+        status, {"severity": text["severity"], text["field"]: text["value"]}
+    )
+    assert written.payload.hex() == text["payload"]
+    assert mavlink.to_dict(written, status)[text["field"]] == text["value"]
+
+    # A value an integer field cannot hold exactly is refused rather than truncated.
+    report = mavlink.message(shape)
+    for refused in vector["refused"]:
+        with pytest.raises(ValueError):
+            report.set(refused["field"], refused["value"])
+
 def test_lora_vectors_match():
     vector = VECTORS["lora"]
 

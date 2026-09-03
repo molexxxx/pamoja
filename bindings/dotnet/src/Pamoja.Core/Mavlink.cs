@@ -218,6 +218,16 @@ public sealed class MavlinkDialect : IDisposable
         return crcExtra;
     }
 
+    /// <summary>Adds a message shape, so frames carrying it check.</summary>
+    /// <param name="schema">The shape whose id and seed to add.</param>
+    /// <remarks>
+    /// This is the whole path for a dialect described field by field: build the shape once,
+    /// register it, and every frame carrying that message checks from then on.
+    /// </remarks>
+    public void AddSchema(MavlinkSchema schema) =>
+        PamojaCore.ThrowIfError(
+            NativeMethods.pamoja_mavlink_dialect_add_schema(Handle, schema.Handle));
+
     /// <summary>Returns the seed this dialect resolves a message id to.</summary>
     /// <param name="msgid">The message id to look up.</param>
     /// <returns>

@@ -83,7 +83,7 @@ pub struct MavlinkField {
 }
 
 /// Turns a MAVLink error into the exception a caller sees.
-fn error_of(error: MavlinkError) -> Error {
+pub(crate) fn error_of(error: MavlinkError) -> Error {
     let status = match error {
         MavlinkError::Unsigned | MavlinkError::BadSignature | MavlinkError::ReplayedTimestamp => {
             Status::GenericFailure
@@ -211,6 +211,13 @@ impl Default for Dialect {
 #[napi]
 pub struct MavlinkFrame {
     inner: CoreFrame,
+}
+
+impl MavlinkFrame {
+    /// Wraps a frame the engine built, for another module in this crate to hand back.
+    pub(crate) fn from_frame(inner: CoreFrame) -> Self {
+        Self { inner }
+    }
 }
 
 #[napi]

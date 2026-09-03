@@ -31,7 +31,11 @@ use pamoja_lorawan::{
     Device, Direction as LorawanDirection, Downlink, FrameHeader, JoinGrant, JoinRequest,
     MessageType, Session, Uplink,
 };
-use pamoja_mavlink::dialect::crc_extra as mavlink_crc_extra;
+use pamoja_mavlink::dialect::{
+    crc_extra as mavlink_crc_extra, descriptor, descriptor_by_name,
+    DynamicMessage as MavDynamicMessage, FieldType as MavFieldType,
+    MessageDescriptorBuilder as MavDescriptorBuilder, DESCRIPTORS,
+};
 use pamoja_mavlink::{
     crc16_mcrf4xx, message_crc_extra, signing, Frame as MavFrame, Header as MavHeader,
     Parser as MavParser, Signer as MavSigner, Verifier as MavVerifier,
@@ -2750,6 +2754,266 @@ fn zenoh_vectors_match() {
             keyexpr::matches(pattern, key),
             case["matches"].as_bool().expect("the verdict"),
             "whether `{pattern}` selects `{key}`"
+        );
+    }
+}
+
+// The stable code every binding writes a field type as, mirrored from the generator so the
+// vectors pin the numbering rather than a shared helper hiding a disagreement.
+fn field_type_code(ty: MavFieldType) -> u32 {
+    match ty {
+        MavFieldType::U8 => 1,
+        MavFieldType::I8 => 2,
+        MavFieldType::Char => 3,
+        MavFieldType::U16 => 4,
+        MavFieldType::I16 => 5,
+        MavFieldType::U32 => 6,
+        MavFieldType::I32 => 7,
+        MavFieldType::U64 => 8,
+        MavFieldType::I64 => 9,
+        MavFieldType::F32 => 10,
+        MavFieldType::F64 => 11,
+    }
+}
+
+// The reverse of the above, for reading a shape back out of the vectors.
+fn field_type_of(code: u32) -> MavFieldType {
+    [
+        MavFieldType::U8,
+        MavFieldType::I8,
+        MavFieldType::Char,
+        MavFieldType::U16,
+        MavFieldType::I16,
+        MavFieldType::U32,
+        MavFieldType::I32,
+        MavFieldType::U64,
+        MavFieldType::I64,
+        MavFieldType::F32,
+        MavFieldType::F64,
+    ][code as usize - 1]
+}
+
+#[test]
+fn mavlink_schema_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["mavlinkSchema"];
+
+    // The field type codes are written out in every language, so the numbering itself is
+    // part of the contract rather than an implementation detail.
+    for entry in case["fieldTypes"].as_array().expect("an array") {
+        let name = entry["name"].as_str().expect("a name");
+        let ty = MavFieldType::from_wire_name(name).expect("a MAVLink type");
+        assert_eq!(
+            u64::from(field_type_code(ty)),
+            entry["code"].as_u64().expect("a code"),
+            "the code for {name}"
+        );
+        assert_eq!(ty.wire_name(), name, "the name round trips for {name}");
+    }
+
+    assert_eq!(
+        DESCRIPTORS.len() as u64,
+        case["messageCount"].as_u64().expect("a count"),
+        "how many messages this build types"
+    );
+    let unknown = &case["unknownMessage"];
+    assert!(
+        descriptor(unknown["msgid"].as_u64().expect("an id") as u32).is_none(),
+        "an id outside the typed set has no shape here"
+    );
+    assert!(
+        descriptor_by_name(unknown["name"].as_str().expect("a name")).is_none(),
+        "a name outside the typed set has no shape here"
+    );
+
+    // Each shape, field by field: wire order, offsets, and the seed they imply.
+    for described in case["shapes"].as_array().expect("an array") {
+        let name = described["name"].as_str().expect("a name");
+        let shape = descriptor_by_name(name).expect("a typed message");
+        assert_eq!(
+            u64::from(shape.id),
+            described["msgid"].as_u64().expect("an id"),
+            "the id of {name}"
+        );
+        assert_eq!(
+            u64::from(shape.crc_extra),
+            described["crcExtra"].as_u64().expect("a seed"),
+            "the seed of {name}"
+        );
+        assert_eq!(
+            shape.crc_extra,
+            shape.derived_crc_extra(),
+            "the seed of {name} follows from its fields"
+        );
+        assert_eq!(
+            shape.wire_len() as u64,
+            described["wireLen"].as_u64().expect("a length"),
+            "the wire length of {name}"
+        );
+        assert_eq!(
+            shape.base_len() as u64,
+            described["baseLen"].as_u64().expect("a length"),
+            "the base length of {name}"
+        );
+
+        let expected = described["fields"].as_array().expect("an array");
+        assert_eq!(
+            shape.fields.len(),
+            expected.len(),
+            "the field count of {name}"
+        );
+        for (field, want) in shape.fields.iter().zip(expected) {
+            let field_name = want["name"].as_str().expect("a name");
+            assert_eq!(field.name, field_name, "the field order of {name}");
+            assert_eq!(
+                field.ty.wire_name(),
+                want["typeName"].as_str().expect("a type"),
+                "the type of {name}.{field_name}"
+            );
+            assert_eq!(
+                u64::from(field_type_code(field.ty)),
+                want["fieldType"].as_u64().expect("a code"),
+                "the type code of {name}.{field_name}"
+            );
+            assert_eq!(
+                u64::from(field.array_len),
+                want["arrayLen"].as_u64().expect("a length"),
+                "the array length of {name}.{field_name}"
+            );
+            assert_eq!(
+                field.extension,
+                want["extension"].as_bool().expect("a flag"),
+                "whether {name}.{field_name} is an extension"
+            );
+            assert_eq!(
+                shape.offset_of(field_name).map(|offset| offset as u64),
+                want["offset"].as_u64(),
+                "the offset of {name}.{field_name}"
+            );
+        }
+    }
+
+    // A definition written in declaration order lands in wire order and on the published
+    // seed, which is the whole reason a caller can transcribe a dialect as it reads.
+    for key in ["declared", "private"] {
+        let described = &case[key];
+        let mut builder = MavDescriptorBuilder::new(
+            described["msgid"].as_u64().expect("an id") as u32,
+            described["name"].as_str().expect("a name"),
+        );
+        for field in described["fields"].as_array().expect("an array") {
+            builder = builder.field(
+                field["name"].as_str().expect("a name"),
+                field_type_of(field["fieldType"].as_u64().expect("a code") as u32),
+                field["arrayLen"].as_u64().expect("a length") as u8,
+            );
+        }
+        let built = builder.build().expect("a valid shape");
+
+        let order: Vec<&str> = built
+            .fields()
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect();
+        let wanted: Vec<&str> = described["wireOrder"]
+            .as_array()
+            .expect("an array")
+            .iter()
+            .map(|name| name.as_str().expect("a name"))
+            .collect();
+        assert_eq!(
+            order, wanted,
+            "the wire order the builder produces for {key}"
+        );
+        assert_eq!(
+            u64::from(built.crc_extra()),
+            described["crcExtra"].as_u64().expect("a seed"),
+            "the seed the builder derives for {key}"
+        );
+    }
+
+    // A message filled in by name puts exactly these bytes on the wire.
+    let filled = &case["filled"];
+    let shape = descriptor_by_name(filled["name"].as_str().expect("a name")).expect("a shape");
+    let mut message = MavDynamicMessage::new(shape).expect("it fits a payload");
+    for entry in filled["values"].as_array().expect("an array") {
+        message
+            .set_int(
+                entry["field"].as_str().expect("a field"),
+                0,
+                entry["value"].as_i64().expect("a value"),
+            )
+            .expect("a settable field");
+    }
+    assert_eq!(
+        hex(message.payload()),
+        filled["payload"].as_str().expect("hex"),
+        "the payload of a filled message"
+    );
+    let frame = message
+        .to_frame(MavHeader::new(1, 1, 7))
+        .expect("it fits a frame");
+    assert_eq!(
+        hex(frame.as_bytes()),
+        filled["frame"].as_str().expect("hex"),
+        "the frame of a filled message"
+    );
+
+    // And reading it back gives the same values.
+    let read = MavDynamicMessage::decode(shape, frame.payload()).expect("a whole payload");
+    for entry in filled["values"].as_array().expect("an array") {
+        let field = entry["field"].as_str().expect("a field");
+        assert_eq!(
+            read.get_int(field, 0).expect("a readable field"),
+            entry["value"].as_i64().expect("a value"),
+            "the value read back from {field}"
+        );
+    }
+
+    // A char array carries text padded with zeros.
+    let text = &case["text"];
+    let status = descriptor_by_name(text["name"].as_str().expect("a name")).expect("a shape");
+    let mut written = MavDynamicMessage::new(status).expect("it fits a payload");
+    written
+        .set_uint(
+            "severity",
+            0,
+            text["severity"].as_u64().expect("a severity"),
+        )
+        .expect("a severity field");
+    written
+        .set_text(
+            text["field"].as_str().expect("a field"),
+            text["value"].as_str().expect("some text"),
+        )
+        .expect("a char array");
+    assert_eq!(
+        hex(written.payload()),
+        text["payload"].as_str().expect("hex"),
+        "the payload of a text message"
+    );
+    assert_eq!(
+        written
+            .text(text["field"].as_str().expect("a field"))
+            .expect("a char array"),
+        text["value"].as_str().expect("some text"),
+        "the text read back"
+    );
+
+    // A value an integer field cannot hold exactly is refused rather than truncated.
+    let mut report = MavDynamicMessage::new(shape).expect("it fits a payload");
+    for refused in case["refused"].as_array().expect("an array") {
+        assert!(
+            report
+                .set_number(
+                    refused["field"].as_str().expect("a field"),
+                    0,
+                    refused["value"].as_f64().expect("a value"),
+                )
+                .is_err(),
+            "{} is refused for {}",
+            refused["value"],
+            refused["field"]
         );
     }
 }

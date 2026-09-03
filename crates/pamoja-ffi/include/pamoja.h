@@ -136,6 +136,39 @@
 // The current wire format, with a 24-bit message id, flags, and optional signing.
 #define PAMOJA_MAVLINK_VERSION_V2 2
 
+// A `uint8_t` field.
+#define PAMOJA_MAVLINK_FIELD_UINT8 1
+
+// An `int8_t` field.
+#define PAMOJA_MAVLINK_FIELD_INT8 2
+
+// A `char` field; an array of these carries text.
+#define PAMOJA_MAVLINK_FIELD_CHAR 3
+
+// A `uint16_t` field.
+#define PAMOJA_MAVLINK_FIELD_UINT16 4
+
+// An `int16_t` field.
+#define PAMOJA_MAVLINK_FIELD_INT16 5
+
+// A `uint32_t` field.
+#define PAMOJA_MAVLINK_FIELD_UINT32 6
+
+// An `int32_t` field.
+#define PAMOJA_MAVLINK_FIELD_INT32 7
+
+// A `uint64_t` field.
+#define PAMOJA_MAVLINK_FIELD_UINT64 8
+
+// An `int64_t` field.
+#define PAMOJA_MAVLINK_FIELD_INT64 9
+
+// A `float` field.
+#define PAMOJA_MAVLINK_FIELD_FLOAT 10
+
+// A `double` field.
+#define PAMOJA_MAVLINK_FIELD_DOUBLE 11
+
 // The largest mesh frame, in bytes, including its header and checksum.
 #define PAMOJA_MESH_FRAME_MAX 250
 
@@ -660,10 +693,27 @@ typedef struct PamojaMavlinkDialect PamojaMavlinkDialect;
 // A handle the caller must release with [`pamoja_mavlink_frame_free`].
 typedef struct PamojaMavlinkFrame PamojaMavlinkFrame;
 
+// A message being written or read field by field against a schema.
+typedef struct PamojaMavlinkMessage PamojaMavlinkMessage;
+
 // A streaming frame parser, and the frames it has completed.
 //
 // A handle the caller must release with [`pamoja_mavlink_parser_free`].
 typedef struct PamojaMavlinkParser PamojaMavlinkParser;
+
+// The shape of one message: its id, name, seed, and fields.
+//
+// A schema is what turns bytes into named fields. It comes either from the built-in
+// registry of typed messages or from a [`PamojaMavlinkSchemaBuilder`], and behaves the
+// same way whichever it is.
+typedef struct PamojaMavlinkSchema PamojaMavlinkSchema;
+
+// Describes a message this build does not type, one field at a time.
+//
+// Fields are added in the order the message definition lists them;
+// [`pamoja_mavlink_schema_builder_build`] puts them in wire order and derives the
+// `CRC_EXTRA` seed from the result.
+typedef struct PamojaMavlinkSchemaBuilder PamojaMavlinkSchemaBuilder;
 
 // A signing key and the monotonic timestamp that goes with it.
 //
@@ -1103,6 +1153,25 @@ typedef struct {
   // The sender's sequence number, which wraps at 256.
   uint8_t sequence;
 } PamojaMavlinkHeader;
+
+// One field of a message shape, as read back from a schema.
+//
+// Both names point into the schema they came from and stay valid until it is released, so
+// a caller reads them in place rather than freeing them.
+typedef struct {
+  // The field name as the dialect writes it, such as `custom_mode`.
+  const char *name;
+  // The field's type name as the dialect writes it, such as `uint32_t`.
+  const char *type_name;
+  // The field's type, one of the `PAMOJA_MAVLINK_FIELD_*` codes.
+  uint32_t field_type;
+  // The element count for an array field, or `0` for a scalar.
+  uint8_t array_len;
+  // `1` for a MAVLink 2 extension field, `0` for a base field.
+  uint8_t extension;
+  // The field's byte offset within the payload.
+  uintptr_t offset;
+} PamojaMavlinkFieldInfo;
 
 // Connection settings for an MQTT client.
 //
@@ -5806,6 +5875,735 @@ PamojaStatus pamoja_mavlink_raw_message_to_frame(PamojaMavlinkHeader header,
                                                  const uint8_t *payload,
                                                  uintptr_t payload_len,
                                                  PamojaMavlinkFrame **out_frame);
+
+// Returns the shape of a message the engine types, by id.
+//
+// # Arguments
+//
+// * `msgid` - the message id to look up.
+// * `out_schema` - set to a new schema handle on success, which the caller releases with
+//   [`pamoja_mavlink_schema_free`].
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `out_schema` is null, and
+// [`PamojaStatus::Unsupported`] for an id this build does not type, which is what
+// [`PamojaMavlinkSchemaBuilder`] is for.
+//
+// # Safety
+//
+// `out_schema` must point at writable storage for one pointer.
+PamojaStatus pamoja_mavlink_schema_for_id(uint32_t msgid, PamojaMavlinkSchema **out_schema);
+
+// Returns the shape of a message the engine types, by name.
+//
+// # Arguments
+//
+// * `name` - the message name, such as `GLOBAL_POSITION_INT`.
+// * `out_schema` - set to a new schema handle on success, which the caller releases with
+//   [`pamoja_mavlink_schema_free`].
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or `name` is not
+// UTF-8, and [`PamojaStatus::Unsupported`] for a name this build does not type.
+//
+// # Safety
+//
+// `name` must be a null-terminated C string, and `out_schema` must point at writable
+// storage for one pointer.
+PamojaStatus pamoja_mavlink_schema_for_name(const char *name, PamojaMavlinkSchema **out_schema);
+
+// Returns how many messages this build types.
+//
+// Together with [`pamoja_mavlink_schema_at`] this enumerates the built-in registry, so a
+// caller can discover what is available rather than guessing ids.
+//
+// # Returns
+//
+// The count.
+uintptr_t pamoja_mavlink_schema_count(void);
+
+// Returns the shape of the message at a position in the built-in registry.
+//
+// # Arguments
+//
+// * `index` - the position, below [`pamoja_mavlink_schema_count`].
+// * `out_schema` - set to a new schema handle on success, which the caller releases with
+//   [`pamoja_mavlink_schema_free`].
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `out_schema` is null or `index` is past
+// the end of the registry.
+//
+// # Safety
+//
+// `out_schema` must point at writable storage for one pointer.
+PamojaStatus pamoja_mavlink_schema_at(uintptr_t index, PamojaMavlinkSchema **out_schema);
+
+// Returns the id of the message a schema describes.
+//
+// # Arguments
+//
+// * `schema` - the shape to read.
+//
+// # Returns
+//
+// The message id, or `0` if `schema` is null.
+//
+// # Safety
+//
+// `schema` must be a live schema handle or null.
+uint32_t pamoja_mavlink_schema_id(const PamojaMavlinkSchema *schema);
+
+// Returns the name of the message a schema describes.
+//
+// The pointer borrows the schema and stays valid until it is released.
+//
+// # Arguments
+//
+// * `schema` - the shape to read.
+//
+// # Returns
+//
+// The name, or null if `schema` is null.
+//
+// # Safety
+//
+// `schema` must be a live schema handle or null.
+const char *pamoja_mavlink_schema_name(const PamojaMavlinkSchema *schema);
+
+// Returns the `CRC_EXTRA` seed a schema implies.
+//
+// # Arguments
+//
+// * `schema` - the shape to read.
+//
+// # Returns
+//
+// The seed, or `0` if `schema` is null.
+//
+// # Safety
+//
+// `schema` must be a live schema handle or null.
+uint8_t pamoja_mavlink_schema_crc_extra(const PamojaMavlinkSchema *schema);
+
+// Returns the length of the message on the wire, extensions included.
+//
+// # Arguments
+//
+// * `schema` - the shape to read.
+//
+// # Returns
+//
+// The length in bytes, or `0` if `schema` is null.
+//
+// # Safety
+//
+// `schema` must be a live schema handle or null.
+uintptr_t pamoja_mavlink_schema_wire_len(const PamojaMavlinkSchema *schema);
+
+// Returns how many fields a message has.
+//
+// # Arguments
+//
+// * `schema` - the shape to read.
+//
+// # Returns
+//
+// The field count, or `0` if `schema` is null.
+//
+// # Safety
+//
+// `schema` must be a live schema handle or null.
+uintptr_t pamoja_mavlink_schema_field_count(const PamojaMavlinkSchema *schema);
+
+// Describes one field of a message.
+//
+// # Arguments
+//
+// * `schema` - the shape to read.
+// * `index` - the field position, in wire order, below
+//   [`pamoja_mavlink_schema_field_count`].
+// * `out_field` - set to the field's description on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or `index` is past
+// the end of the field list.
+//
+// # Safety
+//
+// `schema` must be a live schema handle, and `out_field` must point at writable storage
+// for one [`PamojaMavlinkFieldInfo`].
+PamojaStatus pamoja_mavlink_schema_field(const PamojaMavlinkSchema *schema,
+                                         uintptr_t index,
+                                         PamojaMavlinkFieldInfo *out_field);
+
+// Releases a schema.
+//
+// # Arguments
+//
+// * `schema` - the handle to release; null is ignored.
+//
+// # Safety
+//
+// `schema` must have come from one of the schema constructors and must not be used
+// afterwards.
+void pamoja_mavlink_schema_free(PamojaMavlinkSchema *schema);
+
+// Adds a schema's message to a dialect table, so frames carrying it check.
+//
+// # Arguments
+//
+// * `dialect` - the table to extend.
+// * `schema` - the shape whose id and seed to add.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `dialect` must be a live dialect handle and `schema` a live schema handle.
+PamojaStatus pamoja_mavlink_dialect_add_schema(PamojaMavlinkDialect *dialect,
+                                               const PamojaMavlinkSchema *schema);
+
+// Starts describing a message.
+//
+// # Arguments
+//
+// * `msgid` - the message id on the wire.
+// * `name` - the message name, which the seed derivation folds in, so it must match the
+//   dialect exactly.
+//
+// # Returns
+//
+// A builder the caller releases with [`pamoja_mavlink_schema_builder_free`] or consumes
+// with [`pamoja_mavlink_schema_builder_build`], or null if `name` is null or not UTF-8.
+//
+// # Safety
+//
+// `name` must be a null-terminated C string.
+PamojaMavlinkSchemaBuilder *pamoja_mavlink_schema_builder_new(uint32_t msgid, const char *name);
+
+// Adds a base field, in the order the definition declares it.
+//
+// # Arguments
+//
+// * `builder` - the description to extend.
+// * `name` - the field name.
+// * `field_type` - the field's type, one of the `PAMOJA_MAVLINK_FIELD_*` codes.
+// * `array_len` - the element count for an array, or `0` for a scalar.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, `name` is not UTF-8, or
+// `field_type` is not a MAVLink field type.
+//
+// # Safety
+//
+// `builder` must be a live builder handle and `name` a null-terminated C string.
+PamojaStatus pamoja_mavlink_schema_builder_field(PamojaMavlinkSchemaBuilder *builder,
+                                                 const char *name,
+                                                 uint32_t field_type,
+                                                 uint8_t array_len);
+
+// Adds a MAVLink 2 extension field, in the order the definition declares it.
+//
+// Extensions keep their declared order, stay out of the `CRC_EXTRA` seed, and read as zero
+// from a frame sent by a peer that predates them.
+//
+// # Arguments
+//
+// * `builder` - the description to extend.
+// * `name` - the field name.
+// * `field_type` - the field's type, one of the `PAMOJA_MAVLINK_FIELD_*` codes.
+// * `array_len` - the element count for an array, or `0` for a scalar.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, `name` is not UTF-8, or
+// `field_type` is not a MAVLink field type.
+//
+// # Safety
+//
+// `builder` must be a live builder handle and `name` a null-terminated C string.
+PamojaStatus pamoja_mavlink_schema_builder_extension(PamojaMavlinkSchemaBuilder *builder,
+                                                     const char *name,
+                                                     uint32_t field_type,
+                                                     uint8_t array_len);
+
+// Puts the declared fields in wire order and finishes the shape.
+//
+// The builder is consumed and released whether or not the shape is valid, so it must not
+// be used again.
+//
+// # Arguments
+//
+// * `builder` - the description to finish.
+// * `out_schema` - set to a new schema handle on success, which the caller releases with
+//   [`pamoja_mavlink_schema_free`].
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, if two fields share a
+// name, or if the fields do not fit a MAVLink payload.
+//
+// # Safety
+//
+// `builder` must be a live builder handle, and `out_schema` must point at writable
+// storage for one pointer.
+PamojaStatus pamoja_mavlink_schema_builder_build(PamojaMavlinkSchemaBuilder *builder,
+                                                 PamojaMavlinkSchema **out_schema);
+
+// Releases a builder that was never built.
+//
+// # Arguments
+//
+// * `builder` - the handle to release; null is ignored.
+//
+// # Safety
+//
+// `builder` must have come from [`pamoja_mavlink_schema_builder_new`], must not already
+// have been built, and must not be used afterwards.
+void pamoja_mavlink_schema_builder_free(PamojaMavlinkSchemaBuilder *builder);
+
+// Creates a message with every field zero.
+//
+// # Arguments
+//
+// * `schema` - the shape of the message to build.
+// * `out_message` - set to a new message handle on success, which the caller releases
+//   with [`pamoja_mavlink_message_free`].
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the shape does
+// not fit a MAVLink payload.
+//
+// # Safety
+//
+// `schema` must be a live schema handle, and `out_message` must point at writable storage
+// for one pointer.
+PamojaStatus pamoja_mavlink_message_new(const PamojaMavlinkSchema *schema,
+                                        PamojaMavlinkMessage **out_message);
+
+// Reads a message out of a frame payload.
+//
+// A payload shorter than the shape is zero-extended, as MAVLink 2 truncation requires, so
+// a frame from a peer that trimmed trailing zeros or predates an extension field decodes.
+//
+// # Arguments
+//
+// * `schema` - the shape to read the payload as.
+// * `payload` - the frame payload.
+// * `payload_len` - the payload length in bytes.
+// * `out_message` - set to a new message handle on success, which the caller releases
+//   with [`pamoja_mavlink_message_free`].
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, and
+// [`PamojaStatus::Codec`] if the payload is longer than the shape describes.
+//
+// # Safety
+//
+// `schema` must be a live schema handle, `payload` must point at `payload_len` readable
+// bytes, and `out_message` must point at writable storage for one pointer.
+PamojaStatus pamoja_mavlink_message_decode(const PamojaMavlinkSchema *schema,
+                                           const uint8_t *payload,
+                                           uintptr_t payload_len,
+                                           PamojaMavlinkMessage **out_message);
+
+// Returns a pointer to a message's payload bytes.
+//
+// The pointer borrows the message and stays valid until it is written to or released.
+//
+// # Arguments
+//
+// * `message` - the message to read.
+// * `out_len` - set to the payload length in bytes.
+//
+// # Returns
+//
+// A pointer to the bytes, or null if either pointer is null.
+//
+// # Safety
+//
+// `message` must be a live message handle, and `out_len` must point at writable storage
+// for one length.
+const uint8_t *pamoja_mavlink_message_payload(const PamojaMavlinkMessage *message,
+                                              uintptr_t *out_len);
+
+// Builds a v2 frame carrying a message.
+//
+// # Arguments
+//
+// * `message` - the message to send.
+// * `header` - the addressing fields to stamp on the frame.
+// * `out_frame` - set to a new frame handle on success, which the caller releases with
+//   `pamoja_mavlink_frame_free`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the message does
+// not fit a frame.
+//
+// # Safety
+//
+// `message` must be a live message handle, and `out_frame` must point at writable storage
+// for one pointer.
+PamojaStatus pamoja_mavlink_message_to_frame(const PamojaMavlinkMessage *message,
+                                             PamojaMavlinkHeader header,
+                                             PamojaMavlinkFrame **out_frame);
+
+// Releases a message.
+//
+// # Arguments
+//
+// * `message` - the handle to release; null is ignored.
+//
+// # Safety
+//
+// `message` must have come from [`pamoja_mavlink_message_new`] or
+// [`pamoja_mavlink_message_decode`] and must not be used afterwards.
+void pamoja_mavlink_message_free(PamojaMavlinkMessage *message);
+
+// Reads a field as a signed integer.
+//
+// Any integer field reads this way, whatever its width or sign.
+//
+// # Arguments
+//
+// * `message` - the message to read.
+// * `field` - the field name.
+// * `index` - the element to read, or `0` for a scalar field.
+// * `out_value` - set to the value on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, the message has no such
+// field, the element is past the end of an array, the field is floating-point, or a
+// `uint64_t` value is above the signed range.
+//
+// # Safety
+//
+// `message` must be a live message handle, `field` a null-terminated C string, and
+// `out_value` must point at writable storage for one 64-bit integer.
+PamojaStatus pamoja_mavlink_message_get_int(const PamojaMavlinkMessage *message,
+                                            const char *field,
+                                            uintptr_t index,
+                                            int64_t *out_value);
+
+// Reads a field as an unsigned integer.
+//
+// Any integer field reads this way, whatever its width or sign.
+//
+// # Arguments
+//
+// * `message` - the message to read.
+// * `field` - the field name.
+// * `index` - the element to read, or `0` for a scalar field.
+// * `out_value` - set to the value on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, the message has no such
+// field, the element is past the end of an array, the field is floating-point, or the
+// value is negative.
+//
+// # Safety
+//
+// `message` must be a live message handle, `field` a null-terminated C string, and
+// `out_value` must point at writable storage for one 64-bit integer.
+PamojaStatus pamoja_mavlink_message_get_uint(const PamojaMavlinkMessage *message,
+                                             const char *field,
+                                             uintptr_t index,
+                                             uint64_t *out_value);
+
+// Reads a floating-point field.
+//
+// # Arguments
+//
+// * `message` - the message to read.
+// * `field` - the field name.
+// * `index` - the element to read, or `0` for a scalar field.
+// * `out_value` - set to the value on success, widened from `float` where needed.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, the message has no such
+// field, the element is past the end of an array, or the field is an integer.
+//
+// # Safety
+//
+// `message` must be a live message handle, `field` a null-terminated C string, and
+// `out_value` must point at writable storage for one double.
+PamojaStatus pamoja_mavlink_message_get_float(const PamojaMavlinkMessage *message,
+                                              const char *field,
+                                              uintptr_t index,
+                                              double *out_value);
+
+// Writes a signed integer into a field.
+//
+// # Arguments
+//
+// * `message` - the message to write.
+// * `field` - the field name.
+// * `index` - the element to write, or `0` for a scalar field.
+// * `value` - the value to store.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, the message has no such
+// field, the element is past the end of an array, the field is floating-point, or the
+// value does not fit the field's type.
+//
+// # Safety
+//
+// `message` must be a live message handle and `field` a null-terminated C string.
+PamojaStatus pamoja_mavlink_message_set_int(PamojaMavlinkMessage *message,
+                                            const char *field,
+                                            uintptr_t index,
+                                            int64_t value);
+
+// Writes an unsigned integer into a field.
+//
+// # Arguments
+//
+// * `message` - the message to write.
+// * `field` - the field name.
+// * `index` - the element to write, or `0` for a scalar field.
+// * `value` - the value to store.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, the message has no such
+// field, the element is past the end of an array, the field is floating-point, or the
+// value does not fit the field's type.
+//
+// # Safety
+//
+// `message` must be a live message handle and `field` a null-terminated C string.
+PamojaStatus pamoja_mavlink_message_set_uint(PamojaMavlinkMessage *message,
+                                             const char *field,
+                                             uintptr_t index,
+                                             uint64_t value);
+
+// Writes a floating-point field.
+//
+// # Arguments
+//
+// * `message` - the message to write.
+// * `field` - the field name.
+// * `index` - the element to write, or `0` for a scalar field.
+// * `value` - the value to store, narrowed to `float` where the field is one.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, the message has no such
+// field, the element is past the end of an array, or the field is an integer.
+//
+// # Safety
+//
+// `message` must be a live message handle and `field` a null-terminated C string.
+PamojaStatus pamoja_mavlink_message_set_float(PamojaMavlinkMessage *message,
+                                              const char *field,
+                                              uintptr_t index,
+                                              double value);
+
+// Reads a field as a double, whatever its type.
+//
+// This is the reading a host language with one numeric type needs. An integer field wider
+// than 53 bits can exceed what a double holds exactly, so read those with
+// [`pamoja_mavlink_message_get_int`] or [`pamoja_mavlink_message_get_uint`] where the
+// exact value matters.
+//
+// # Arguments
+//
+// * `message` - the message to read.
+// * `field` - the field name.
+// * `index` - the element to read, or `0` for a scalar field.
+// * `out_value` - set to the value on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, the message has no such
+// field, or the element is past the end of an array.
+//
+// # Safety
+//
+// `message` must be a live message handle, `field` a null-terminated C string, and
+// `out_value` must point at writable storage for one double.
+PamojaStatus pamoja_mavlink_message_get_number(const PamojaMavlinkMessage *message,
+                                               const char *field,
+                                               uintptr_t index,
+                                               double *out_value);
+
+// Writes a double into a field, converting it to the field's type.
+//
+// This is the writing a host language with one numeric type needs. A value bound for an
+// integer field must be a whole number within that field's range, so a fractional or
+// oversized value is refused rather than silently truncated.
+//
+// # Arguments
+//
+// * `message` - the message to write.
+// * `field` - the field name.
+// * `index` - the element to write, or `0` for a scalar field.
+// * `value` - the value to store.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, the message has no such
+// field, the element is past the end of an array, or an integer field is given a value
+// that is fractional, infinite, not a number, or outside the range its width holds.
+//
+// # Safety
+//
+// `message` must be a live message handle and `field` a null-terminated C string.
+PamojaStatus pamoja_mavlink_message_set_number(PamojaMavlinkMessage *message,
+                                               const char *field,
+                                               uintptr_t index,
+                                               double value);
+
+// Copies the raw bytes of a byte-wide array field out.
+//
+// This is how a `char` array carrying text is read: the bytes come back padded with zeros,
+// and the caller stops at the first one.
+//
+// # Arguments
+//
+// * `message` - the message to read.
+// * `field` - the field name.
+// * `out_bytes` - the destination, which must hold at least the field's length.
+// * `out_bytes_len` - the space available at `out_bytes`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, the message has no such
+// field, the field is not a byte-wide array, or the destination is too small.
+//
+// # Safety
+//
+// `message` must be a live message handle, `field` a null-terminated C string, and
+// `out_bytes` must point at `out_bytes_len` writable bytes.
+PamojaStatus pamoja_mavlink_message_get_bytes(const PamojaMavlinkMessage *message,
+                                              const char *field,
+                                              uint8_t *out_bytes,
+                                              uintptr_t out_bytes_len);
+
+// Writes the raw bytes of a byte-wide array field, zero-padding the rest.
+//
+// This is how a `char` array carrying text is written: pass the text's bytes and the field
+// is padded to its declared length.
+//
+// # Arguments
+//
+// * `message` - the message to write.
+// * `field` - the field name.
+// * `bytes` - the bytes to store, at most the field's declared length.
+// * `bytes_len` - the number of bytes to store.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, the message has no such
+// field, the field is not a byte-wide array, or the bytes are longer than the field.
+//
+// # Safety
+//
+// `message` must be a live message handle, `field` a null-terminated C string, and
+// `bytes` must point at `bytes_len` readable bytes.
+PamojaStatus pamoja_mavlink_message_set_bytes(PamojaMavlinkMessage *message,
+                                              const char *field,
+                                              const uint8_t *bytes,
+                                              uintptr_t bytes_len);
 
 // Builds a mesh frame addressed to one node.
 //

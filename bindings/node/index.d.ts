@@ -681,6 +681,105 @@ export declare class MavlinkFrame {
   get signature(): Buffer | null
 }
 
+/** A message read and written by field name against a schema. */
+export declare class MavlinkMessage {
+  /**
+   * Creates a message with every field zero.
+   *
+   * @param schema - The shape of the message to build.
+   * @returns The zeroed message, ready for its fields to be set.
+   * @throws If the shape does not fit a MAVLink payload.
+   */
+  static empty(schema: MessageSchema): MavlinkMessage
+  /**
+   * Reads a message out of a frame payload.
+   *
+   * A payload shorter than the shape is zero-extended, as MAVLink 2 truncation requires,
+   * so a frame from a peer that trimmed trailing zeros or predates an extension field
+   * still decodes.
+   *
+   * @param schema - The shape to read the payload as.
+   * @param payload - The frame payload.
+   * @returns The decoded message.
+   * @throws If the payload is longer than the shape describes.
+   */
+  static decode(schema: MessageSchema, payload: Buffer): MavlinkMessage
+  /** The id of the message this carries. */
+  get messageId(): number
+  /** The name of the message this carries. */
+  get name(): string
+  /** The message's bytes as they go on the wire. */
+  get payload(): Buffer
+  /**
+   * Builds a v2 frame carrying this message.
+   *
+   * @param header - The addressing fields to stamp on the frame.
+   * @returns The frame ready to send.
+   * @throws If the message does not fit a frame.
+   */
+  toFrame(header: MavlinkHeader): MavlinkFrame
+  /**
+   * Reads a field as a number.
+   *
+   * Every field reads this way. An integer field wider than 53 bits can exceed what a
+   * JavaScript number holds exactly, which no common-dialect field reaches in practice.
+   *
+   * @param field - The field name.
+   * @param index - The element to read, or `0` for a scalar field.
+   * @returns The value.
+   * @throws If the message has no such field, or the element is past the end of an array.
+   */
+  get(field: string, index?: number | undefined | null): number
+  /**
+   * Writes a number into a field, converting it to the field's type.
+   *
+   * A value bound for an integer field must be a whole number within that field's range,
+   * so a fractional or oversized value is refused rather than silently truncated.
+   *
+   * @param field - The field name.
+   * @param value - The value to store.
+   * @param index - The element to write, or `0` for a scalar field.
+   * @throws If the message has no such field, the element is past the end of an array,
+   *   or an integer field cannot hold the value exactly.
+   */
+  set(field: string, value: number, index?: number | undefined | null): void
+  /**
+   * Copies the raw bytes of a byte-wide array field out.
+   *
+   * @param field - The field name.
+   * @returns The bytes, including the zero padding.
+   * @throws If the message has no such field, or it is not a byte-wide array.
+   */
+  getBytes(field: string): Buffer
+  /**
+   * Writes the raw bytes of a byte-wide array field, zero-padding the rest.
+   *
+   * @param field - The field name.
+   * @param bytes - The bytes to store, at most the field's declared length.
+   * @throws If the message has no such field, it is not a byte-wide array, or the bytes
+   *   are longer than the field.
+   */
+  setBytes(field: string, bytes: Buffer): void
+  /**
+   * Reads a `char` array as text, stopping at the padding.
+   *
+   * @param field - The field name.
+   * @returns The text, without its padding.
+   * @throws If the message has no such field, it is not a `char` array, or the bytes are
+   *   not valid UTF-8.
+   */
+  getText(field: string): string
+  /**
+   * Writes text into a `char` array, padding the rest with zeros.
+   *
+   * @param field - The field name.
+   * @param text - The text to store, at most the field's declared length.
+   * @throws If the message has no such field, it is not a `char` array, or the text is
+   *   longer than the field.
+   */
+  setText(field: string, text: string): void
+}
+
 /** A streaming frame parser, and the frames it has completed. */
 export declare class MavlinkParser {
   /** Creates a parser with an empty buffer. */
@@ -749,6 +848,82 @@ export declare class Median {
   update(reading: number): number
   /** The current median, or `null` before the first reading. */
   value(): number | null
+}
+
+/** The shape of one message: its id, name, seed, and fields. */
+export declare class MessageSchema {
+  /**
+   * Returns the shape of a message the engine types, by id.
+   *
+   * @param msgid - The message id to look up.
+   * @returns The shape.
+   * @throws If this build does not type that id, which is what a builder is for.
+   */
+  static forId(msgid: number): MessageSchema
+  /**
+   * Returns the shape of a message the engine types, by name.
+   *
+   * @param name - The message name, such as `GLOBAL_POSITION_INT`.
+   * @returns The shape.
+   * @throws If this build does not type that name.
+   */
+  static forName(name: string): MessageSchema
+  /** The id of the message this schema describes. */
+  get id(): number
+  /** The name of the message this schema describes. */
+  get name(): string
+  /** The `CRC_EXTRA` seed a frame carrying this message folds into its checksum. */
+  get crcExtra(): number
+  /** The length of the message on the wire, in bytes, extensions included. */
+  get wireLen(): number
+  /** The fields in wire order: the base fields largest first, then any extensions. */
+  get fields(): Array<MavlinkFieldInfo>
+}
+
+/**
+ * Describes a message this build does not type, one field at a time.
+ *
+ * Fields are added in the order the message definition lists them; building puts them in
+ * wire order and derives the `CRC_EXTRA` seed from the result.
+ */
+export declare class MessageSchemaBuilder {
+  /**
+   * Starts describing a message.
+   *
+   * @param msgid - The message id on the wire.
+   * @param name - The message name, which the seed derivation folds in, so it must
+   *   match the dialect exactly.
+   */
+  constructor(msgid: number, name: string)
+  /**
+   * Adds a base field, in the order the definition declares it.
+   *
+   * @param name - The field name.
+   * @param fieldType - The field's type, one of the `MAVLINK_FIELD_*` codes.
+   * @param arrayLen - The element count for an array, or `0` for a scalar.
+   * @throws If the type is not a MAVLink field type, or the shape is already built.
+   */
+  field(name: string, fieldType: number, arrayLen?: number | undefined | null): void
+  /**
+   * Adds a MAVLink 2 extension field, in the order the definition declares it.
+   *
+   * Extensions keep their declared order, stay out of the `CRC_EXTRA` seed, and read as
+   * zero from a frame sent by a peer that predates them.
+   *
+   * @param name - The field name.
+   * @param fieldType - The field's type, one of the `MAVLINK_FIELD_*` codes.
+   * @param arrayLen - The element count for an array, or `0` for a scalar.
+   * @throws If the type is not a MAVLink field type, or the shape is already built.
+   */
+  extension(name: string, fieldType: number, arrayLen?: number | undefined | null): void
+  /**
+   * Puts the declared fields in wire order and finishes the shape.
+   *
+   * @returns The finished schema.
+   * @throws If two fields share a name, the fields do not fit a MAVLink payload, or the
+   *   shape is already built.
+   */
+  build(): MessageSchema
 }
 
 /** An MQTT client transport backed by the native pamoja core. */
@@ -2182,6 +2357,39 @@ export interface Manifest {
 /** The default window a verifier accepts a timestamp within. */
 export const MAVLINK_DEFAULT_TIMESTAMP_WINDOW: number
 
+/** A `char` field; an array of these carries text. */
+export const MAVLINK_FIELD_CHAR: number
+
+/** A `double` field. */
+export const MAVLINK_FIELD_DOUBLE: number
+
+/** A `float` field. */
+export const MAVLINK_FIELD_FLOAT: number
+
+/** An `int16_t` field. */
+export const MAVLINK_FIELD_INT16: number
+
+/** An `int32_t` field. */
+export const MAVLINK_FIELD_INT32: number
+
+/** An `int64_t` field. */
+export const MAVLINK_FIELD_INT64: number
+
+/** An `int8_t` field. */
+export const MAVLINK_FIELD_INT8: number
+
+/** A `uint16_t` field. */
+export const MAVLINK_FIELD_UINT16: number
+
+/** A `uint32_t` field. */
+export const MAVLINK_FIELD_UINT32: number
+
+/** A `uint64_t` field. */
+export const MAVLINK_FIELD_UINT64: number
+
+/** A `uint8_t` field. */
+export const MAVLINK_FIELD_UINT8: number
+
 /** The length of a signing key, in bytes. */
 export const MAVLINK_KEY_LEN: number
 
@@ -2212,6 +2420,22 @@ export interface MavlinkField {
   arrayLen?: number
 }
 
+/** One field of a message shape. */
+export interface MavlinkFieldInfo {
+  /** The field name as the dialect writes it, such as `custom_mode`. */
+  name: string
+  /** The field's type name as the dialect writes it, such as `uint32_t`. */
+  typeName: string
+  /** The field's type, one of the `MAVLINK_FIELD_*` codes. */
+  fieldType: number
+  /** The element count for an array field, or `0` for a scalar. */
+  arrayLen: number
+  /** Whether this is a MAVLink 2 extension field. */
+  extension: boolean
+  /** The field's byte offset within the payload. */
+  offset: number
+}
+
 /** The addressing fields a sender stamps on every frame. */
 export interface MavlinkHeader {
   /** The sending system's id. */
@@ -2227,6 +2451,13 @@ export interface MavlinkHeader {
  * null for an id outside it, which is what a `Dialect` is for.
  */
 export declare function mavlinkKnownCrcExtra(msgid: number): number | null
+
+/**
+ * The names of every message this build types, in message-id order.
+ *
+ * @returns The message names, each usable with `MessageSchema.forName`.
+ */
+export declare function mavlinkKnownMessages(): Array<string>
 
 /**
  * Derives the `CRC_EXTRA` seed of a message from its definition.

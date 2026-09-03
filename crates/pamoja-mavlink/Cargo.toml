@@ -14,7 +14,10 @@ authors.workspace = true
 # impl. Turn it off (`default-features = false`) to build the protocol core (framing,
 # CRC, signing, dialect, protocol) for a `no_std` target.
 default = ["std"]
-std = ["dep:pamoja-core", "dep:tokio"]
+std = ["alloc", "dep:pamoja-core", "dep:tokio"]
+# `alloc` adds the owned message shapes and dialect tables, for describing a dialect this
+# crate does not type at runtime. It needs a global allocator but no operating system.
+alloc = []
 # `serial` adds the tokio-serial `ByteLink` driver on top of the `std` layer; it pulls
 # in a serial-port dependency, so it is opt-in.
 serial = ["std", "dep:tokio-serial"]

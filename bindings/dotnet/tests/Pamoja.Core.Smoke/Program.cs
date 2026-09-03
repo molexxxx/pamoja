@@ -957,6 +957,7 @@ static void Conformance()
     ConformLora(vectors.GetProperty("lora"));
     ConformLoraRegions(vectors.GetProperty("loraRegions"));
     ConformMavlink(vectors.GetProperty("mavlink"));
+    ConformMavlinkSchema(vectors.GetProperty("mavlinkSchema"));
     ConformMesh(vectors.GetProperty("mesh"));
     ConformRouting(vectors.GetProperty("routing"));
     ConformLorawan(vectors.GetProperty("lorawan"));
@@ -1751,6 +1752,7 @@ static void RadioAndReach()
 
     RegionalPlans();
     MavlinkWire();
+    MavlinkShapes();
 
     MeshFrame reading = Mesh.BroadcastFrame(0x1234_5678, 1, "level=high"u8);
     MeshFrame received = Mesh.Parse(reading.Bytes);
@@ -2262,6 +2264,70 @@ static void MavlinkWire()
 }
 
 // Runs an action that must throw, and fails the suite if it does not.
+// Message shapes: filling a message in by name, and describing one this build has
+// never heard of so a vendor dialect needs no code here.
+static void MavlinkShapes()
+{
+    using MavlinkSchema heartbeat = MavlinkSchema.ForName("HEARTBEAT");
+    Assert(heartbeat.MessageId == 0, "HEARTBEAT's id");
+    Assert(heartbeat.CrcExtra == Mavlink.KnownCrcExtra(0), "and its published seed");
+    Assert(heartbeat.WireLength == 9, "and its length on the wire");
+    Assert(
+        heartbeat.Fields[0].Name == "custom_mode",
+        "wire order puts the 32-bit field first");
+    Assert(
+        MavlinkSchema.KnownMessages().Contains("GLOBAL_POSITION_INT"),
+        "the registry lists it");
+    AssertThrows(() => MavlinkSchema.ForName("NOT_A_MESSAGE"), "an unknown name is refused");
+
+    using MavlinkMessage built = heartbeat.CreateMessage();
+    built.Set("type", 18); // MAV_TYPE_ONBOARD_CONTROLLER
+    built.Set("system_status", 4); // MAV_STATE_ACTIVE
+    built.Set("mavlink_version", 3);
+
+    using MavlinkFrame sent = built.ToFrame(new MavlinkHeader(1, 1));
+    Assert(sent.MessageId == 0, "the frame carries HEARTBEAT");
+
+    using MavlinkMessage received = heartbeat.Decode(sent.Payload);
+    Assert(received.Get("system_status") == 4, "the status survives the wire");
+    Assert(received.GetInt64("type") == 18, "and so does the vehicle type");
+
+    AssertThrows(() => received.Get("throttle"), "an unknown field is refused");
+    AssertThrows(() => built.Set("type", 300), "a value past a uint8_t is refused");
+    AssertThrows(() => built.Set("type", 1.5), "and so is a fractional one");
+
+    // Text lives in a fixed-length char array, padded with zeros.
+    using MavlinkSchema status = MavlinkSchema.ForName("STATUSTEXT");
+    int textLength = status.Fields.First(field => field.Name == "text").ArrayLen;
+    using MavlinkMessage spoken = status.CreateMessage();
+    spoken.SetText("text", "preflight checks passed");
+    Assert(
+        spoken.GetText("text", textLength) == "preflight checks passed",
+        "the text reads back");
+
+    // A private message: described once, then carried and checked like any other.
+    MavlinkSchemaBuilder builder = new(50_001, "BATTERY_CELLS");
+    using MavlinkSchema cells = builder
+        .Field("cell_mv", MavlinkFieldType.UInt16, 6)
+        .Field("pack_id", MavlinkFieldType.UInt8)
+        .Field("uptime_ms", MavlinkFieldType.UInt32)
+        .Build();
+    Assert(
+        cells.Fields[0].Name == "uptime_ms",
+        "the builder puts the widest field first");
+
+    using MavlinkMessage pack = cells.CreateMessage();
+    pack.Set("pack_id", 2);
+    pack.Set("cell_mv", 4151, 2);
+
+    using MavlinkDialect dialect = new();
+    dialect.AddSchema(cells);
+    using MavlinkFrame carried = pack.ToFrame(new MavlinkHeader(9, 1));
+    using MavlinkFrame back = MavlinkFrame.ParseKnown(carried.Bytes, dialect);
+    using MavlinkMessage read = cells.Decode(back.Payload);
+    Assert(read.Get("cell_mv", 2) == 4151, "a private message survives the wire whole");
+}
+
 static void AssertThrows(Action action, string message)
 {
     try
@@ -2402,6 +2468,149 @@ static void ConformMavlink(JsonElement vector)
             Mavlink.TimestampFromUnixMicros(entry.GetProperty("unixMicros").GetUInt64())
                 == entry.GetProperty("timestamp").GetUInt64(),
             "a signing timestamp");
+    }
+}
+
+
+// The message-shape layer: field order, offsets, and the seed they imply are what a
+// peer checks against, so a binding that reorders a field fails here rather than
+// against a vehicle.
+static void ConformMavlinkSchema(JsonElement vector)
+{
+    foreach (JsonElement entry in vector.GetProperty("fieldTypes").EnumerateArray())
+    {
+        uint code = entry.GetProperty("code").GetUInt32();
+        Assert(
+            Enum.IsDefined(typeof(MavlinkFieldType), code),
+            $"the code {code} for {entry.GetProperty("name").GetString()} is a field type");
+    }
+
+    Assert((uint)MavlinkFieldType.UInt32 == 6, "the uint32_t code");
+    Assert((uint)MavlinkFieldType.Char == 3, "the char code");
+
+    Assert(
+        MavlinkSchema.KnownMessages().Count == vector.GetProperty("messageCount").GetInt32(),
+        "how many messages this build types");
+    AssertThrows(
+        () => MavlinkSchema.ForId(vector.GetProperty("unknownMessage").GetProperty("msgid").GetUInt32()),
+        "an id outside the typed set has no shape here");
+    AssertThrows(
+        () => MavlinkSchema.ForName(vector.GetProperty("unknownMessage").GetProperty("name").GetString()!),
+        "a name outside the typed set has no shape here");
+
+    foreach (JsonElement described in vector.GetProperty("shapes").EnumerateArray())
+    {
+        string name = described.GetProperty("name").GetString()!;
+        using MavlinkSchema shape = MavlinkSchema.ForName(name);
+        Assert(shape.MessageId == described.GetProperty("msgid").GetUInt32(), $"the id of {name}");
+        Assert(
+            shape.CrcExtra == described.GetProperty("crcExtra").GetByte(),
+            $"the seed of {name}");
+        Assert(
+            shape.WireLength == described.GetProperty("wireLen").GetInt32(),
+            $"the wire length of {name}");
+
+        IReadOnlyList<MavlinkFieldInfo> fields = shape.Fields;
+        JsonElement wanted = described.GetProperty("fields");
+        Assert(fields.Count == wanted.GetArrayLength(), $"the field count of {name}");
+
+        int index = 0;
+        foreach (JsonElement want in wanted.EnumerateArray())
+        {
+            MavlinkFieldInfo field = fields[index];
+            string where = $"{name}.{want.GetProperty("name").GetString()}";
+            Assert(field.Name == want.GetProperty("name").GetString(), $"the field order of {where}");
+            Assert(field.TypeName == want.GetProperty("typeName").GetString(), $"the type of {where}");
+            Assert(
+                (uint)field.FieldType == want.GetProperty("fieldType").GetUInt32(),
+                $"the type code of {where}");
+            Assert(
+                field.ArrayLen == want.GetProperty("arrayLen").GetByte(),
+                $"the array length of {where}");
+            Assert(
+                field.Extension == want.GetProperty("extension").GetBoolean(),
+                $"whether {where} is an extension");
+            Assert(field.Offset == want.GetProperty("offset").GetInt32(), $"the offset of {where}");
+            index += 1;
+        }
+    }
+
+    // A definition written in declaration order lands in wire order and on the published
+    // seed, which is what lets a caller transcribe a dialect as it reads.
+    foreach (string key in new[] { "declared", "private" })
+    {
+        JsonElement described = vector.GetProperty(key);
+        MavlinkSchemaBuilder builder = new(
+            described.GetProperty("msgid").GetUInt32(),
+            described.GetProperty("name").GetString()!);
+        foreach (JsonElement field in described.GetProperty("fields").EnumerateArray())
+        {
+            builder.Field(
+                field.GetProperty("name").GetString()!,
+                (MavlinkFieldType)field.GetProperty("fieldType").GetUInt32(),
+                field.GetProperty("arrayLen").GetByte());
+        }
+
+        using MavlinkSchema built = builder.Build();
+        List<string> order = [.. built.Fields.Select(field => field.Name)];
+        List<string> expected =
+            [.. described.GetProperty("wireOrder").EnumerateArray().Select(name => name.GetString()!)];
+        Assert(order.SequenceEqual(expected), $"the wire order the builder produces for {key}");
+        Assert(
+            built.CrcExtra == described.GetProperty("crcExtra").GetByte(),
+            $"the seed the builder derives for {key}");
+    }
+
+    // A message filled in by name puts exactly these bytes on the wire.
+    JsonElement filled = vector.GetProperty("filled");
+    using MavlinkSchema position = MavlinkSchema.ForName(filled.GetProperty("name").GetString()!);
+    using MavlinkMessage built2 = position.CreateMessage();
+    foreach (JsonElement entry in filled.GetProperty("values").EnumerateArray())
+    {
+        built2.Set(entry.GetProperty("field").GetString()!, entry.GetProperty("value").GetDouble());
+    }
+
+    Assert(
+        Convert.ToHexString(built2.Payload).ToLowerInvariant() == filled.GetProperty("payload").GetString(),
+        "the payload of a filled message");
+
+    using MavlinkFrame frame = built2.ToFrame(new MavlinkHeader(1, 1, 7));
+    Assert(
+        Convert.ToHexString(frame.Bytes).ToLowerInvariant() == filled.GetProperty("frame").GetString(),
+        "the frame of a filled message");
+
+    using MavlinkMessage read = position.Decode(frame.Payload);
+    foreach (JsonElement entry in filled.GetProperty("values").EnumerateArray())
+    {
+        string field = entry.GetProperty("field").GetString()!;
+        Assert(
+            read.GetInt64(field) == entry.GetProperty("value").GetInt64(),
+            $"the value read back from {field}");
+    }
+
+    // A char array carries text padded with zeros.
+    JsonElement text = vector.GetProperty("text");
+    using MavlinkSchema status = MavlinkSchema.ForName(text.GetProperty("name").GetString()!);
+    string textField = text.GetProperty("field").GetString()!;
+    int textLength = status.Fields.First(field => field.Name == textField).ArrayLen;
+
+    using MavlinkMessage written = status.CreateMessage();
+    written.Set("severity", text.GetProperty("severity").GetDouble());
+    written.SetText(textField, text.GetProperty("value").GetString()!);
+    Assert(
+        Convert.ToHexString(written.Payload).ToLowerInvariant() == text.GetProperty("payload").GetString(),
+        "the payload of a text message");
+    Assert(
+        written.GetText(textField, textLength) == text.GetProperty("value").GetString(),
+        "the text read back");
+
+    // A value an integer field cannot hold exactly is refused rather than truncated.
+    using MavlinkMessage report = position.CreateMessage();
+    foreach (JsonElement refused in vector.GetProperty("refused").EnumerateArray())
+    {
+        string field = refused.GetProperty("field").GetString()!;
+        double value = refused.GetProperty("value").GetDouble();
+        AssertThrows(() => report.Set(field, value), $"{value} is refused for {field}");
     }
 }
 

@@ -45,6 +45,8 @@ pub mod lora_region;
 pub mod lorawan;
 #[cfg(feature = "mavlink")]
 pub mod mavlink;
+#[cfg(feature = "mavlink")]
+pub mod mavlink_schema;
 #[cfg(feature = "mesh")]
 pub mod mesh;
 #[cfg(feature = "modbus")]

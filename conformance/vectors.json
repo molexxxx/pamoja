@@ -2205,6 +2205,508 @@
     ],
     "unknownCrcExtra": 9999
   },
+  "mavlinkSchema": {
+    "declared": {
+      "crcExtra": 124,
+      "fields": [
+        {
+          "arrayLen": 0,
+          "fieldType": 6,
+          "name": "onboard_control_sensors_present"
+        },
+        {
+          "arrayLen": 0,
+          "fieldType": 6,
+          "name": "onboard_control_sensors_enabled"
+        },
+        {
+          "arrayLen": 0,
+          "fieldType": 6,
+          "name": "onboard_control_sensors_health"
+        },
+        {
+          "arrayLen": 0,
+          "fieldType": 4,
+          "name": "load"
+        },
+        {
+          "arrayLen": 0,
+          "fieldType": 4,
+          "name": "voltage_battery"
+        },
+        {
+          "arrayLen": 0,
+          "fieldType": 5,
+          "name": "current_battery"
+        },
+        {
+          "arrayLen": 0,
+          "fieldType": 2,
+          "name": "battery_remaining"
+        },
+        {
+          "arrayLen": 0,
+          "fieldType": 4,
+          "name": "drop_rate_comm"
+        },
+        {
+          "arrayLen": 0,
+          "fieldType": 4,
+          "name": "errors_comm"
+        },
+        {
+          "arrayLen": 0,
+          "fieldType": 4,
+          "name": "errors_count1"
+        },
+        {
+          "arrayLen": 0,
+          "fieldType": 4,
+          "name": "errors_count2"
+        },
+        {
+          "arrayLen": 0,
+          "fieldType": 4,
+          "name": "errors_count3"
+        },
+        {
+          "arrayLen": 0,
+          "fieldType": 4,
+          "name": "errors_count4"
+        }
+      ],
+      "msgid": 1,
+      "name": "SYS_STATUS",
+      "wireOrder": [
+        "onboard_control_sensors_present",
+        "onboard_control_sensors_enabled",
+        "onboard_control_sensors_health",
+        "load",
+        "voltage_battery",
+        "current_battery",
+        "drop_rate_comm",
+        "errors_comm",
+        "errors_count1",
+        "errors_count2",
+        "errors_count3",
+        "errors_count4",
+        "battery_remaining"
+      ]
+    },
+    "fieldTypes": [
+      {
+        "code": 1,
+        "name": "uint8_t"
+      },
+      {
+        "code": 2,
+        "name": "int8_t"
+      },
+      {
+        "code": 3,
+        "name": "char"
+      },
+      {
+        "code": 4,
+        "name": "uint16_t"
+      },
+      {
+        "code": 5,
+        "name": "int16_t"
+      },
+      {
+        "code": 6,
+        "name": "uint32_t"
+      },
+      {
+        "code": 7,
+        "name": "int32_t"
+      },
+      {
+        "code": 8,
+        "name": "uint64_t"
+      },
+      {
+        "code": 9,
+        "name": "int64_t"
+      },
+      {
+        "code": 10,
+        "name": "float"
+      },
+      {
+        "code": 11,
+        "name": "double"
+      }
+    ],
+    "filled": {
+      "frame": "fd1c000007010121000030750000f462fbfdc45c030928a00000d43000000000000006ff5046261a",
+      "name": "GLOBAL_POSITION_INT",
+      "payload": "30750000f462fbfdc45c030928a00000d43000000000000006ff5046",
+      "values": [
+        {
+          "field": "time_boot_ms",
+          "value": 30000
+        },
+        {
+          "field": "lat",
+          "value": -33856780
+        },
+        {
+          "field": "lon",
+          "value": 151215300
+        },
+        {
+          "field": "alt",
+          "value": 41000
+        },
+        {
+          "field": "relative_alt",
+          "value": 12500
+        },
+        {
+          "field": "vz",
+          "value": -250
+        },
+        {
+          "field": "hdg",
+          "value": 18000
+        }
+      ]
+    },
+    "messageCount": 36,
+    "private": {
+      "crcExtra": 200,
+      "fields": [
+        {
+          "arrayLen": 6,
+          "fieldType": 4,
+          "name": "cell_mv"
+        },
+        {
+          "arrayLen": 0,
+          "fieldType": 1,
+          "name": "pack_id"
+        },
+        {
+          "arrayLen": 0,
+          "fieldType": 6,
+          "name": "uptime_ms"
+        }
+      ],
+      "msgid": 50001,
+      "name": "BATTERY_CELLS",
+      "wireLen": 17,
+      "wireOrder": [
+        "uptime_ms",
+        "cell_mv",
+        "pack_id"
+      ]
+    },
+    "refused": [
+      {
+        "field": "hdg",
+        "value": 1.5
+      },
+      {
+        "field": "hdg",
+        "value": -1.0
+      },
+      {
+        "field": "hdg",
+        "value": 65536.0
+      }
+    ],
+    "shapes": [
+      {
+        "baseLen": 9,
+        "crcExtra": 50,
+        "fields": [
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 6,
+            "name": "custom_mode",
+            "offset": 0,
+            "typeName": "uint32_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 1,
+            "name": "type",
+            "offset": 4,
+            "typeName": "uint8_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 1,
+            "name": "autopilot",
+            "offset": 5,
+            "typeName": "uint8_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 1,
+            "name": "base_mode",
+            "offset": 6,
+            "typeName": "uint8_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 1,
+            "name": "system_status",
+            "offset": 7,
+            "typeName": "uint8_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 1,
+            "name": "mavlink_version",
+            "offset": 8,
+            "typeName": "uint8_t"
+          }
+        ],
+        "msgid": 0,
+        "name": "HEARTBEAT",
+        "wireLen": 9
+      },
+      {
+        "baseLen": 31,
+        "crcExtra": 124,
+        "fields": [
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 6,
+            "name": "onboard_control_sensors_present",
+            "offset": 0,
+            "typeName": "uint32_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 6,
+            "name": "onboard_control_sensors_enabled",
+            "offset": 4,
+            "typeName": "uint32_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 6,
+            "name": "onboard_control_sensors_health",
+            "offset": 8,
+            "typeName": "uint32_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 4,
+            "name": "load",
+            "offset": 12,
+            "typeName": "uint16_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 4,
+            "name": "voltage_battery",
+            "offset": 14,
+            "typeName": "uint16_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 5,
+            "name": "current_battery",
+            "offset": 16,
+            "typeName": "int16_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 4,
+            "name": "drop_rate_comm",
+            "offset": 18,
+            "typeName": "uint16_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 4,
+            "name": "errors_comm",
+            "offset": 20,
+            "typeName": "uint16_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 4,
+            "name": "errors_count1",
+            "offset": 22,
+            "typeName": "uint16_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 4,
+            "name": "errors_count2",
+            "offset": 24,
+            "typeName": "uint16_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 4,
+            "name": "errors_count3",
+            "offset": 26,
+            "typeName": "uint16_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 4,
+            "name": "errors_count4",
+            "offset": 28,
+            "typeName": "uint16_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 2,
+            "name": "battery_remaining",
+            "offset": 30,
+            "typeName": "int8_t"
+          }
+        ],
+        "msgid": 1,
+        "name": "SYS_STATUS",
+        "wireLen": 31
+      },
+      {
+        "baseLen": 28,
+        "crcExtra": 104,
+        "fields": [
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 6,
+            "name": "time_boot_ms",
+            "offset": 0,
+            "typeName": "uint32_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 7,
+            "name": "lat",
+            "offset": 4,
+            "typeName": "int32_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 7,
+            "name": "lon",
+            "offset": 8,
+            "typeName": "int32_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 7,
+            "name": "alt",
+            "offset": 12,
+            "typeName": "int32_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 7,
+            "name": "relative_alt",
+            "offset": 16,
+            "typeName": "int32_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 5,
+            "name": "vx",
+            "offset": 20,
+            "typeName": "int16_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 5,
+            "name": "vy",
+            "offset": 22,
+            "typeName": "int16_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 5,
+            "name": "vz",
+            "offset": 24,
+            "typeName": "int16_t"
+          },
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 4,
+            "name": "hdg",
+            "offset": 26,
+            "typeName": "uint16_t"
+          }
+        ],
+        "msgid": 33,
+        "name": "GLOBAL_POSITION_INT",
+        "wireLen": 28
+      },
+      {
+        "baseLen": 51,
+        "crcExtra": 83,
+        "fields": [
+          {
+            "arrayLen": 0,
+            "extension": false,
+            "fieldType": 1,
+            "name": "severity",
+            "offset": 0,
+            "typeName": "uint8_t"
+          },
+          {
+            "arrayLen": 50,
+            "extension": false,
+            "fieldType": 3,
+            "name": "text",
+            "offset": 1,
+            "typeName": "char"
+          }
+        ],
+        "msgid": 253,
+        "name": "STATUSTEXT",
+        "wireLen": 51
+      }
+    ],
+    "text": {
+      "field": "text",
+      "name": "STATUSTEXT",
+      "payload": "04707265666c6967687420636865636b7320706173736564000000000000000000000000000000000000000000000000000000",
+      "severity": 4,
+      "value": "preflight checks passed"
+    },
+    "unknownMessage": {
+      "msgid": 50000,
+      "name": "BATTERY_CELLS"
+    }
+  },
   "mesh": {
     "broadcast": {
       "bytes": "0112345678ffffffff0001036c6576656c3d686967683335",

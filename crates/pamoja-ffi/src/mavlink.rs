@@ -17,6 +17,9 @@
 //! [`PamojaMavlinkDialect`] table carries the results, taking precedence over the
 //! built-in registry. Nothing here is limited to the ids this crate happens to
 //! type.
+//!
+//! This module moves a message's bytes. [`mavlink_schema`](crate::mavlink_schema)
+//! is the layer above, which gives those bytes named fields.
 
 use pamoja_mavlink::dialect::{crc_extra as common_crc_extra, RawMessage};
 use pamoja_mavlink::{
@@ -96,7 +99,7 @@ pub struct PamojaMavlinkField {
 /// # Returns
 ///
 /// The status, with the message left in the last-error slot.
-fn status_of(error: MavlinkError) -> PamojaStatus {
+pub(crate) fn status_of(error: MavlinkError) -> PamojaStatus {
     set_last_error(error.to_string());
     match error {
         MavlinkError::FrameTooShort
@@ -105,7 +108,13 @@ fn status_of(error: MavlinkError) -> PamojaStatus {
         | MavlinkError::CrcMismatch { .. }
         | MavlinkError::UnknownMessage(_)
         | MavlinkError::BadPayload => PamojaStatus::Codec,
-        MavlinkError::PayloadTooLong => PamojaStatus::InvalidArgument,
+        MavlinkError::PayloadTooLong
+        | MavlinkError::UnknownField
+        | MavlinkError::UnknownFieldType
+        | MavlinkError::DuplicateField
+        | MavlinkError::FieldTypeMismatch
+        | MavlinkError::FieldIndexOutOfRange
+        | MavlinkError::ValueOutOfRange => PamojaStatus::InvalidArgument,
         MavlinkError::Unsigned | MavlinkError::BadSignature | MavlinkError::ReplayedTimestamp => {
             PamojaStatus::Auth
         }
@@ -399,7 +408,7 @@ pub struct PamojaMavlinkFrame {
 
 impl PamojaMavlinkFrame {
     /// Moves a frame onto the heap and hands the caller its handle.
-    fn into_handle(inner: Frame) -> *mut Self {
+    pub(crate) fn into_handle(inner: Frame) -> *mut Self {
         Box::into_raw(Box::new(Self { inner }))
     }
 }
