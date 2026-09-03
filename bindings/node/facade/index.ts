@@ -71,6 +71,7 @@ export * as loopback from './loopback'
 export * as lora from './lora'
 
 export * as lorawan from './lorawan'
+export * as mavlink from './mavlink'
 
 export * as mesh from './mesh'
 

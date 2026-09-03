@@ -1940,6 +1940,271 @@
     },
     "wrongCounter": 43
   },
+  "mavlink": {
+    "crc16": [
+      {
+        "checksum": 28561,
+        "input": "313233343536373839"
+      },
+      {
+        "checksum": 47403,
+        "input": "000000001200000403"
+      }
+    ],
+    "derivedCrcExtra": [
+      {
+        "crcExtra": 50,
+        "fields": [
+          {
+            "arrayLen": 0,
+            "name": "custom_mode",
+            "type": "uint32_t"
+          },
+          {
+            "arrayLen": 0,
+            "name": "type",
+            "type": "uint8_t"
+          },
+          {
+            "arrayLen": 0,
+            "name": "autopilot",
+            "type": "uint8_t"
+          },
+          {
+            "arrayLen": 0,
+            "name": "base_mode",
+            "type": "uint8_t"
+          },
+          {
+            "arrayLen": 0,
+            "name": "system_status",
+            "type": "uint8_t"
+          },
+          {
+            "arrayLen": 0,
+            "name": "mavlink_version",
+            "type": "uint8_t"
+          }
+        ],
+        "name": "HEARTBEAT"
+      },
+      {
+        "crcExtra": 25,
+        "fields": [
+          {
+            "arrayLen": 0,
+            "name": "uptime",
+            "type": "uint32_t"
+          }
+        ],
+        "name": "PRIVATE_STATUS"
+      }
+    ],
+    "frames": [
+      {
+        "bytes": "fd090000070101000000000000001200000403753a",
+        "crcExtra": 50,
+        "incompatFlags": 0,
+        "msgid": 0,
+        "name": "heartbeat-v2",
+        "payload": "000000001200000403",
+        "signed": false,
+        "version": 2
+      },
+      {
+        "bytes": "fe09070101000000000012000004032b3b",
+        "crcExtra": 50,
+        "incompatFlags": 0,
+        "msgid": 0,
+        "name": "heartbeat-v1",
+        "payload": "000000001200000403",
+        "signed": false,
+        "version": 1
+      },
+      {
+        "bytes": "fd01000000090150c3002addd8",
+        "crcExtra": 25,
+        "incompatFlags": 0,
+        "msgid": 50000,
+        "name": "private-status-v2",
+        "payload": "2a",
+        "signed": false,
+        "version": 2
+      }
+    ],
+    "header": {
+      "componentId": 1,
+      "sequence": 7,
+      "systemId": 1
+    },
+    "knownCrcExtra": [
+      {
+        "crcExtra": 50,
+        "msgid": 0
+      },
+      {
+        "crcExtra": 124,
+        "msgid": 1
+      },
+      {
+        "crcExtra": 137,
+        "msgid": 2
+      },
+      {
+        "crcExtra": 237,
+        "msgid": 4
+      },
+      {
+        "crcExtra": 89,
+        "msgid": 11
+      },
+      {
+        "crcExtra": 214,
+        "msgid": 20
+      },
+      {
+        "crcExtra": 159,
+        "msgid": 21
+      },
+      {
+        "crcExtra": 220,
+        "msgid": 22
+      },
+      {
+        "crcExtra": 168,
+        "msgid": 23
+      },
+      {
+        "crcExtra": 24,
+        "msgid": 24
+      },
+      {
+        "crcExtra": 39,
+        "msgid": 30
+      },
+      {
+        "crcExtra": 246,
+        "msgid": 31
+      },
+      {
+        "crcExtra": 185,
+        "msgid": 32
+      },
+      {
+        "crcExtra": 104,
+        "msgid": 33
+      },
+      {
+        "crcExtra": 222,
+        "msgid": 36
+      },
+      {
+        "crcExtra": 230,
+        "msgid": 40
+      },
+      {
+        "crcExtra": 28,
+        "msgid": 42
+      },
+      {
+        "crcExtra": 132,
+        "msgid": 43
+      },
+      {
+        "crcExtra": 221,
+        "msgid": 44
+      },
+      {
+        "crcExtra": 232,
+        "msgid": 45
+      },
+      {
+        "crcExtra": 153,
+        "msgid": 47
+      },
+      {
+        "crcExtra": 196,
+        "msgid": 51
+      },
+      {
+        "crcExtra": 118,
+        "msgid": 65
+      },
+      {
+        "crcExtra": 243,
+        "msgid": 69
+      },
+      {
+        "crcExtra": 38,
+        "msgid": 73
+      },
+      {
+        "crcExtra": 20,
+        "msgid": 74
+      },
+      {
+        "crcExtra": 158,
+        "msgid": 75
+      },
+      {
+        "crcExtra": 152,
+        "msgid": 76
+      },
+      {
+        "crcExtra": 143,
+        "msgid": 77
+      },
+      {
+        "crcExtra": 143,
+        "msgid": 84
+      },
+      {
+        "crcExtra": 5,
+        "msgid": 86
+      },
+      {
+        "crcExtra": 154,
+        "msgid": 147
+      },
+      {
+        "crcExtra": 178,
+        "msgid": 148
+      },
+      {
+        "crcExtra": 104,
+        "msgid": 242
+      },
+      {
+        "crcExtra": 130,
+        "msgid": 245
+      },
+      {
+        "crcExtra": 83,
+        "msgid": 253
+      }
+    ],
+    "payload": "000000001200000403",
+    "signed": {
+      "bytes": "fd09010007010100000000000000120000040392c201e80300000000837c97b428fd",
+      "crcExtra": 50,
+      "key": "0707070707070707070707070707070707070707070707070707070707070707",
+      "linkId": 1,
+      "msgid": 0,
+      "signature": "01e80300000000837c97b428fd",
+      "timestamp": 1000
+    },
+    "timestamps": [
+      {
+        "timestamp": 0,
+        "unixMicros": 0
+      },
+      {
+        "timestamp": 27992960000000,
+        "unixMicros": 1700000000000000
+      }
+    ],
+    "unknownCrcExtra": 9999
+  },
   "mesh": {
     "broadcast": {
       "bytes": "0112345678ffffffff0001036c6576656c3d686967683335",

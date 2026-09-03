@@ -805,6 +805,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "pamoja-mavlink"
+version = "0.1.14"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
 name = "pamoja-mesh"
 version = "0.1.14"
 
@@ -854,6 +861,7 @@ dependencies = [
  "pamoja-loopback",
  "pamoja-lora",
  "pamoja-lorawan",
+ "pamoja-mavlink",
  "pamoja-mesh",
  "pamoja-modbus",
  "pamoja-mqtt",

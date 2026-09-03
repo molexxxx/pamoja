@@ -31,6 +31,11 @@ use pamoja_lorawan::{
     Device, Direction as LorawanDirection, Downlink, FrameHeader, JoinGrant, JoinRequest,
     MessageType, Session, Uplink,
 };
+use pamoja_mavlink::dialect::crc_extra as mavlink_crc_extra;
+use pamoja_mavlink::{
+    crc16_mcrf4xx, message_crc_extra, signing, Frame as MavFrame, Header as MavHeader,
+    Parser as MavParser, Signer as MavSigner, Verifier as MavVerifier,
+};
 use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
 use pamoja_modbus::Pdu;
 use pamoja_modbus::{crc16, Adu};
@@ -1120,6 +1125,174 @@ fn lora_region_vectors_match() {
         .build()
         .expect("a consistent private plan");
     custom.with_plan(|plan| assert_plan(plan, &case["custom"]));
+}
+
+#[test]
+fn mavlink_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["mavlink"];
+
+    for described in case["crc16"].as_array().expect("an array") {
+        let input = unhex(&described["input"]);
+        assert_eq!(
+            u64::from(crc16_mcrf4xx(&input)),
+            described["checksum"].as_u64().expect("a checksum"),
+            "the CRC-16/MCRF4XX of {}",
+            described["input"]
+        );
+    }
+
+    for entry in case["knownCrcExtra"].as_array().expect("an array") {
+        let msgid = entry["msgid"].as_u64().expect("an id") as u32;
+        assert_eq!(
+            mavlink_crc_extra(msgid).map(u64::from),
+            entry["crcExtra"].as_u64(),
+            "the published CRC_EXTRA of message {msgid}"
+        );
+    }
+    let unknown = case["unknownCrcExtra"].as_u64().expect("an id") as u32;
+    assert!(
+        mavlink_crc_extra(unknown).is_none(),
+        "an id outside the common dialect has no seed here"
+    );
+
+    // A seed derived from a message definition must equal the published one,
+    // which is what makes a dialect this build has never seen usable.
+    for described in case["derivedCrcExtra"].as_array().expect("an array") {
+        let name = described["name"].as_str().expect("a name");
+        let fields: Vec<(String, String, u8)> = described["fields"]
+            .as_array()
+            .expect("an array")
+            .iter()
+            .map(|field| {
+                (
+                    field["type"].as_str().expect("a type").to_owned(),
+                    field["name"].as_str().expect("a name").to_owned(),
+                    field["arrayLen"].as_u64().expect("a length") as u8,
+                )
+            })
+            .collect();
+        let borrowed: Vec<(&str, &str, u8)> = fields
+            .iter()
+            .map(|(ty, field, len)| (ty.as_str(), field.as_str(), *len))
+            .collect();
+        assert_eq!(
+            u64::from(message_crc_extra(name, &borrowed)),
+            described["crcExtra"].as_u64().expect("a seed"),
+            "the derived CRC_EXTRA of {name}"
+        );
+    }
+
+    let header = MavHeader::new(
+        case["header"]["systemId"].as_u64().expect("a system") as u8,
+        case["header"]["componentId"].as_u64().expect("a component") as u8,
+        case["header"]["sequence"].as_u64().expect("a sequence") as u8,
+    );
+    let payload = unhex(&case["payload"]);
+
+    for described in case["frames"].as_array().expect("an array") {
+        let name = described["name"].as_str().expect("a name");
+        let msgid = described["msgid"].as_u64().expect("an id") as u32;
+        let crc_extra = described["crcExtra"].as_u64().expect("a seed") as u8;
+        let want = unhex(&described["bytes"]);
+
+        // The frame this vector describes is rebuilt, not merely parsed, so the
+        // bytes a sender puts on the wire are what is pinned.
+        let built = match described["version"].as_u64().expect("a version") {
+            1 => {
+                let mine = MavHeader::new(header.system_id, header.component_id, header.sequence);
+                MavFrame::encode_v1(mine, msgid, &payload, crc_extra).expect("encodes")
+            }
+            _ if msgid == 50_000 => {
+                let mine = MavHeader::new(9, 1, 0);
+                MavFrame::encode_v2(mine, msgid, &42u32.to_le_bytes(), crc_extra).expect("encodes")
+            }
+            _ => MavFrame::encode_v2(header, msgid, &payload, crc_extra).expect("encodes"),
+        };
+        assert_eq!(built.as_bytes(), &want[..], "the wire bytes of {name}");
+
+        let parsed = MavFrame::parse(&want, crc_extra).expect("parses");
+        assert_eq!(parsed.message_id(), msgid, "the message id of {name}");
+        assert_eq!(
+            hex(parsed.payload()),
+            described["payload"].as_str().expect("hex"),
+            "the payload of {name}"
+        );
+        assert_eq!(
+            parsed.is_signed(),
+            described["signed"].as_bool().expect("a flag"),
+            "whether {name} is signed"
+        );
+        assert_eq!(
+            u64::from(parsed.incompat_flags()),
+            described["incompatFlags"].as_u64().expect("flags"),
+            "the incompatibility flags of {name}"
+        );
+
+        // A parser fed the same bytes must find the same frame.
+        let mut parser = MavParser::new();
+        let mut found = None;
+        for &byte in &want {
+            if let Some(frame) = parser.push_byte(byte, &|id: u32| {
+                if id == msgid {
+                    Some(crc_extra)
+                } else {
+                    mavlink_crc_extra(id)
+                }
+            }) {
+                found = Some(frame);
+            }
+        }
+        assert_eq!(
+            found.expect("the parser finds it").as_bytes(),
+            &want[..],
+            "the parser recovers {name} whole"
+        );
+    }
+
+    // Signing is deterministic given the key, link and timestamp.
+    let signed = &case["signed"];
+    let key: [u8; signing::KEY_LEN] = unhex(&signed["key"]).try_into().expect("a signing key");
+    let mut signer = MavSigner::new(
+        key,
+        signed["linkId"].as_u64().expect("a link") as u8,
+        signed["timestamp"].as_u64().expect("a timestamp"),
+    );
+    let frame = signer
+        .sign(
+            header,
+            signed["msgid"].as_u64().expect("an id") as u32,
+            &payload,
+            signed["crcExtra"].as_u64().expect("a seed") as u8,
+        )
+        .expect("signs");
+    assert_eq!(
+        hex(frame.as_bytes()),
+        signed["bytes"].as_str().expect("hex"),
+        "the bytes of a signed frame"
+    );
+    assert_eq!(
+        hex(frame.signature().expect("just signed")),
+        signed["signature"].as_str().expect("hex"),
+        "the signature block"
+    );
+
+    // And the frame those bytes describe verifies exactly once.
+    let mut verifier = MavVerifier::new(key);
+    assert!(verifier.verify(&frame).is_ok(), "a signed frame verifies");
+    assert!(
+        verifier.verify(&frame).is_err(),
+        "and the same timestamp again is a replay"
+    );
+
+    for entry in case["timestamps"].as_array().expect("an array") {
+        assert_eq!(
+            signing::timestamp_from_unix_micros(entry["unixMicros"].as_u64().expect("a time")),
+            entry["timestamp"].as_u64().expect("a timestamp"),
+            "the signing timestamp for {}",
+            entry["unixMicros"]
+        );
+    }
 }
 
 #[test]

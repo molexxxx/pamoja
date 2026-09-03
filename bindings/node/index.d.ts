@@ -233,6 +233,31 @@ export declare class DeviceIdentity {
   sign(payload: Buffer): Buffer
 }
 
+/**
+ * The `CRC_EXTRA` seeds of a dialect beyond the common one.
+ *
+ * Entries added here are consulted before the built-in common-dialect registry,
+ * so a private dialect may also override an id the common one defines.
+ */
+export declare class Dialect {
+  /** Creates an empty dialect table. */
+  constructor()
+  /** Adds or replaces the seed for a message id. */
+  add(msgid: number, crcExtra: number): void
+  /**
+   * Adds a message by its definition, deriving the seed, and returns it.
+   *
+   * This is the whole path for a vendor dialect: describe the message once,
+   * and every frame carrying it checks from then on.
+   */
+  addMessage(msgid: number, name: string, fields: Array<MavlinkField>): number
+  /**
+   * Returns the seed this dialect resolves a message id to, or null if
+   * neither it nor the common dialect knows the id.
+   */
+  crcExtra(msgid: number): number | null
+}
+
 /** The split between the time a node works and the time it sleeps. */
 export declare class DutyCycle {
   /**
@@ -591,6 +616,129 @@ export declare class LorawanSession {
    * must match the counter the frame carries.
    */
   decode(bytes: Buffer, fcnt: number): LorawanRxData
+}
+
+/** One MAVLink frame, assembled or received. */
+export declare class MavlinkFrame {
+  /**
+   * Assembles a v2 frame carrying a message.
+   *
+   * This is the current wire format and what a modern autopilot expects.
+   */
+  static encodeV2(header: MavlinkHeader, msgid: number, payload: Buffer, crcExtra: number): MavlinkFrame
+  /**
+   * Assembles a v1 frame, for a peer that predates MAVLink 2.
+   *
+   * A v1 frame only carries message ids below 256.
+   */
+  static encodeV1(header: MavlinkHeader, msgid: number, payload: Buffer, crcExtra: number): MavlinkFrame
+  /**
+   * Parses one frame, checking it against a known `CRC_EXTRA`.
+   *
+   * Throws if the bytes are not a whole frame or the checksum does not match,
+   * which is what rejects a frame mangled in transit.
+   */
+  static parse(bytes: Buffer, crcExtra: number): MavlinkFrame
+  /**
+   * Parses one frame, looking its `CRC_EXTRA` up as it goes.
+   *
+   * This is what a receiver holding many message types uses: the id comes out
+   * of the frame, and the seed comes from the dialect or the common registry.
+   */
+  static parseKnown(bytes: Buffer, dialect?: Dialect | undefined | null): MavlinkFrame
+  /**
+   * Assembles a v2 frame carrying a message this build does not type.
+   *
+   * The escape hatch a private dialect needs: supply the id, the payload, and
+   * the seed, and the frame is built and checked like any other.
+   */
+  static raw(header: MavlinkHeader, msgid: number, crcExtra: number, payload: Buffer): MavlinkFrame
+  /** Which wire format this frame uses. */
+  get version(): MavlinkVersion
+  /** The addressing fields the frame carries. */
+  get header(): MavlinkHeader
+  /** The id of the message the frame carries. */
+  get messageId(): number
+  /** The incompatibility flags a v2 frame declares. */
+  get incompatFlags(): number
+  /**
+   * Whether the frame carries a signature.
+   *
+   * This says only that the frame was signed, not that the signature is good;
+   * a `Verifier` decides that.
+   */
+  get signed(): boolean
+  /**
+   * The message payload.
+   *
+   * A v2 frame drops trailing zero bytes, so a payload can arrive shorter
+   * than the message's full length; a decoder zero-extends it.
+   */
+  get payload(): Buffer
+  /** The whole frame, ready to put on the wire. */
+  get bytes(): Buffer
+  /** The signature block, or null when the frame is not signed. */
+  get signature(): Buffer | null
+}
+
+/** A streaming frame parser, and the frames it has completed. */
+export declare class MavlinkParser {
+  /** Creates a parser with an empty buffer. */
+  constructor()
+  /**
+   * Feeds bytes off a link and returns the frames that completed.
+   *
+   * Whatever a serial port or socket delivers can be pushed as it arrives,
+   * however it is split. Noise between frames is skipped rather than
+   * reported, which is what lets a parser join a stream already in progress.
+   */
+  push(bytes: Buffer, dialect?: Dialect | undefined | null): Array<MavlinkFrame>
+  /** Feeds bytes and queues what completed, for a caller that drains later. */
+  feed(bytes: Buffer, dialect?: Dialect | undefined | null): void
+  /** Takes the next queued frame, or null when the parser needs more bytes. */
+  nextFrame(): MavlinkFrame | null
+  /** How many completed frames are waiting to be taken. */
+  get pending(): number
+}
+
+/** A signing key and the monotonic timestamp that goes with it. */
+export declare class MavlinkSigner {
+  /**
+   * Creates a signer.
+   *
+   * The link id separates two links from one system, so traffic on one does
+   * not look like a replay of the other.
+   */
+  constructor(key: Buffer, linkId: number, timestamp: number)
+  /**
+   * Signs a message into a v2 frame.
+   *
+   * Each call advances the timestamp, which is what makes a replayed frame
+   * detectable.
+   */
+  sign(header: MavlinkHeader, msgid: number, payload: Buffer, crcExtra: number): MavlinkFrame
+  /** Which link this signer signs on. */
+  get linkId(): number
+}
+
+/** A signing key and the timestamps it has already accepted. */
+export declare class MavlinkVerifier {
+  /** Creates a verifier. */
+  constructor(key: Buffer)
+  /**
+   * Sets how far a timestamp may run ahead of the last one accepted.
+   *
+   * A wider window tolerates a noisier link; a narrower one narrows the
+   * chance of a replay landing inside it.
+   */
+  setWindow(window: number): void
+  /**
+   * Checks a frame's signature and its place in the timestamp sequence.
+   *
+   * Throws when the frame is unsigned, the signature does not match the key,
+   * or the timestamp has been seen before.
+   */
+  verify(frame: MavlinkFrame): void
 }
 
 /** Rejects a single wild reading, where an average would let it pull the answer. */
@@ -2029,6 +2177,77 @@ export interface Manifest {
    * or `0` to never expire.
    */
   expires: number
+}
+
+/** The default window a verifier accepts a timestamp within. */
+export const MAVLINK_DEFAULT_TIMESTAMP_WINDOW: number
+
+/** The length of a signing key, in bytes. */
+export const MAVLINK_KEY_LEN: number
+
+/** The largest frame, in bytes, header, checksum and signature included. */
+export const MAVLINK_MAX_FRAME: number
+
+/** The largest payload a frame can carry, in bytes. */
+export const MAVLINK_MAX_PAYLOAD: number
+
+/** The length of a v2 signature block, in bytes. */
+export const MAVLINK_SIGNATURE_LEN: number
+
+/**
+ * Returns the CRC-16/MCRF4XX checksum of a byte string.
+ *
+ * This is the checksum every MAVLink frame carries, exposed because a host that
+ * implements part of the protocol itself needs the same arithmetic.
+ */
+export declare function mavlinkCrc16Mcrf4Xx(bytes: Buffer): number
+
+/** One field of a message definition, as the `CRC_EXTRA` derivation reads it. */
+export interface MavlinkField {
+  /** The field's type name as the dialect writes it, such as `uint8_t`. */
+  typeName: string
+  /** The field's name as the dialect writes it, such as `custom_mode`. */
+  fieldName: string
+  /** The element count for an array field; omit or pass `0` for a scalar. */
+  arrayLen?: number
+}
+
+/** The addressing fields a sender stamps on every frame. */
+export interface MavlinkHeader {
+  /** The sending system's id. */
+  systemId: number
+  /** The sending component's id. */
+  componentId: number
+  /** The sender's sequence number, which wraps at 256. */
+  sequence: number
+}
+
+/**
+ * Returns the `CRC_EXTRA` the common dialect publishes for a message id, or
+ * null for an id outside it, which is what a `Dialect` is for.
+ */
+export declare function mavlinkKnownCrcExtra(msgid: number): number | null
+
+/**
+ * Derives the `CRC_EXTRA` seed of a message from its definition.
+ *
+ * This is what makes a dialect this build has never seen usable: given a
+ * message's name and its base fields in wire order, the seed comes out the same
+ * as the one the dialect publishes, and a frame carrying that message then
+ * checks like any other. Extension fields are excluded from the seed and must
+ * not be listed.
+ */
+export declare function mavlinkMessageCrcExtra(name: string, fields: Array<MavlinkField>): number
+
+/** Converts Unix time into the timestamp MAVLink signing counts in. */
+export declare function mavlinkTimestampFromUnixMicros(unixMicros: number): number
+
+/** Which MAVLink wire format a frame uses. */
+export declare const enum MavlinkVersion {
+  /** The original six-byte-header format. */
+  V1 = 'V1',
+  /** The current format: a 24-bit message id, flag bytes, and optional signing. */
+  V2 = 'V2'
 }
 
 /** The destination address that means every node. */
