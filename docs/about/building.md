@@ -35,8 +35,8 @@ pytest                                                                  # smoke 
 
 cd ../..
 cargo build -p pamoja-ffi --release                       # build the native C ABI and refresh pamoja.h
-dotnet build bindings/dotnet/Pamoja.Core.sln -c Release    # build the .NET interop and facade
-dotnet run --project bindings/dotnet/tests/Pamoja.Core.Smoke -c Release  # smoke and conformance tests
+dotnet build bindings/dotnet/Pamoja.sln -c Release    # build the .NET interop and facade
+dotnet run --project bindings/dotnet/tests/Pamoja.Smoke -c Release  # smoke and conformance tests
 ```
 
 `just` lists the recipes CI runs, and `cargo xtask` lists the workspace tasks.

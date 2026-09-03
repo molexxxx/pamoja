@@ -4,7 +4,7 @@
     {
       "src": [
         {
-          "files": ["src/Pamoja.Core/Pamoja.Core.csproj"],
+          "files": ["src/*/*.csproj"],
           "src": ".."
         }
       ],
@@ -28,8 +28,8 @@
     "output": "../../../target/docs/site/reference/dotnet",
     "template": ["default", "modern"],
     "globalMetadata": {
-      "_appName": "Pamoja.Core",
-      "_appTitle": "Pamoja.Core reference",
+      "_appName": "Pamoja",
+      "_appTitle": "pamoja for .NET",
       "_enableSearch": true,
       "_disableContribution": true
     }

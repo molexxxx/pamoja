@@ -15,8 +15,9 @@ same shape: on npm each capability is its own package (`@pamoja/mqtt`),
 one package. The compiled engine itself is `@pamoja/native`, a build artifact
 every package depends on and nobody installs by hand. On PyPI the same four
 kinds are `pamoja-<name>`, `pamoja-core`, `pamoja`, and `pamoja-native`, merged
-into one `pamoja` namespace on import. The .NET packages are being split the
-same way, into `Pamoja.<Name>`, `Pamoja.Core`, `Pamoja`, and `Pamoja.Native`.
+into one `pamoja` namespace on import. On NuGet they are `Pamoja.<Name>`,
+`Pamoja.Core`, `Pamoja`, and `Pamoja.Native`, each package a namespace of the
+same name.
 
 ```
    npm  pamoja, @pamoja/<capability>      PyPI  pamoja, pamoja-<capability>

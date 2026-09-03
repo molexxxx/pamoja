@@ -43,7 +43,7 @@ jobs:
           fi
 
       - name: Build the .NET binding
-        run: dotnet build bindings/dotnet/Pamoja.Core.sln -c Release
+        run: dotnet build bindings/dotnet/Pamoja.sln -c Release
 
       - name: Smoke test
-        run: dotnet run --project bindings/dotnet/tests/Pamoja.Core.Smoke -c Release
+        run: dotnet run --project bindings/dotnet/tests/Pamoja.Smoke -c Release

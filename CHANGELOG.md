@@ -45,6 +45,15 @@ released together, so one entry covers all of them.
   distribution depends on. `pamoja` is a namespace package now, so the flat
   `from pamoja import DeviceIdentity` becomes `from pamoja.security import
   DeviceIdentity`, and `pamoja.transport` is `pamoja.core`.
+- The .NET binding is split the same way. `Pamoja` is the whole framework in
+  one package; each capability is `Pamoja.<Name>`, a package and a namespace of
+  the same name; `Pamoja.Core` is the engine's surface; and `Pamoja.Native` is
+  the compiled engine and the P/Invoke contract (`Pamoja.Native.Interop`) that
+  every package depends on. Types keep their names but move namespaces
+  (`Pamoja.Core.MqttClient` is `Pamoja.Mqtt.MqttClient`), and the transport
+  factories move next to their clients: `Transport.Mqtt(options)` is
+  `MqttTransport.Open(options)` and `Transport.Coap(options)` is
+  `CoapTransport.Open(options)`.
 
 ### Fixed
 

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Pamoja.Native</PackageId>
+    <AssemblyName>Pamoja.Native</AssemblyName>
+    <RootNamespace>Pamoja.Native</RootNamespace>
+    <Description>The compiled pamoja engine for .NET and the P/Invoke contract every Pamoja package builds on. Installed as a dependency, not directly.</Description>
+    <PackageTags>pamoja;iot;robotics;drones;native</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <!-- The native cdylib per runtime identifier, assembled by the release workflow
+         into runtimes/<rid>/native/ before packing. %(Identity) keeps the relative
+         path so each binary lands where NuGet's native-asset resolution expects it. -->
+    <None Include="runtimes/**/*.*" Pack="true" PackagePath="%(Identity)" />
+  </ItemGroup>
+
+</Project>

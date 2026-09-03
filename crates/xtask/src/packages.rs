@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use crate::catalog::{node_reference_url, Capability, Catalog, SITE};
+use crate::catalog::{dotnet_name, node_reference_url, Capability, Catalog, SITE};
 use crate::regions;
 
 /// The repository URL every manifest points at.
@@ -773,6 +773,277 @@ fn python_native_readme() -> String {
          contract for anything a facade does not cover, and `pamoja/_native/__init__.pyi` types it.\n\n\
          ## Documentation\n\n\
          - [The guides]({SITE}/) and the [Python reference]({SITE}/reference/python/pamoja.html).\n\n\
+         ## License\n\nMIT\n"
+    )
+}
+
+/// Render every generated file of the .NET packages as (path, contents): a project
+/// file and a README for `Pamoja.Core` and each `Pamoja.<Name>` capability package,
+/// the `Pamoja` metapackage that depends on all of them, and the README of
+/// `Pamoja.Native`, whose project file carries the native runtimes and is hand-written.
+///
+/// # Errors
+///
+/// Returns the reason when a package's sources cannot be read.
+pub fn render_dotnet(root: &Path, catalog: &Catalog) -> Result<Vec<(String, String)>, String> {
+    let src = root.join("bindings/dotnet/src");
+    let mut files = Vec::new();
+
+    let core_deps = dotnet_package_usings(&src.join("Pamoja.Core"), "Core")?;
+    files.push((
+        "bindings/dotnet/src/Pamoja.Core/Pamoja.Core.csproj".to_owned(),
+        csproj(
+            "Core",
+            "The pamoja engine's surface for .NET: the runtime version, the exception every native call can raise, and the transport every link shares, the counterpart of the pamoja-core crate.",
+            &format!("{SITE}/"),
+            &["pamoja", "iot", "robotics", "core"],
+            &core_deps,
+            false,
+        ),
+    ));
+    files.push((
+        "bindings/dotnet/src/Pamoja.Core/README.md".to_owned(),
+        dotnet_core_readme(),
+    ));
+
+    let mut names: Vec<String> = Vec::new();
+    for capability in &catalog.capabilities {
+        if capability.dotnet_package() == "Pamoja.Core" {
+            continue;
+        }
+        let name = dotnet_name(&capability.key);
+        let deps = dotnet_package_usings(&src.join(format!("Pamoja.{name}")), &name)?;
+        files.push((
+            format!("bindings/dotnet/src/Pamoja.{name}/Pamoja.{name}.csproj"),
+            csproj(
+                &name,
+                &format!("{}.", capability.summary),
+                &homepage(capability),
+                &["pamoja", "iot", "robotics", &capability.key],
+                &deps,
+                false,
+            ),
+        ));
+        files.push((
+            format!("bindings/dotnet/src/Pamoja.{name}/README.md"),
+            dotnet_capability_readme(root, capability, &name)?,
+        ));
+        names.push(name);
+    }
+
+    let all: BTreeSet<String> = names
+        .iter()
+        .cloned()
+        .chain(["Core".to_owned(), "Native".to_owned()])
+        .collect();
+    files.push((
+        "bindings/dotnet/src/Pamoja/Pamoja.csproj".to_owned(),
+        csproj(
+            "",
+            "The whole pamoja framework in one package: every capability of one memory-safe Rust core, behind an idiomatic C# facade, for IoT, robotics, and drones.",
+            &format!("{SITE}/"),
+            &["pamoja", "iot", "robotics", "drones", "mqtt", "embedded"],
+            &all,
+            true,
+        ),
+    ));
+    files.push((
+        "bindings/dotnet/src/Pamoja/README.md".to_owned(),
+        dotnet_bundle_readme(catalog),
+    ));
+    files.push((
+        "bindings/dotnet/src/Pamoja.Native/README.md".to_owned(),
+        dotnet_native_readme(),
+    ));
+
+    Ok(files)
+}
+
+/// A project file. `name` is the part after `Pamoja.`, or empty for the metapackage,
+/// which ships no assembly and only depends.
+fn csproj(
+    name: &str,
+    description: &str,
+    homepage: &str,
+    tags: &[&str],
+    deps: &BTreeSet<String>,
+    metapackage: bool,
+) -> String {
+    let id = if name.is_empty() {
+        "Pamoja".to_owned()
+    } else {
+        format!("Pamoja.{name}")
+    };
+    let mut properties = format!(
+        "    <PackageId>{id}</PackageId>\n\
+         \x20   <AssemblyName>{id}</AssemblyName>\n\
+         \x20   <RootNamespace>{id}</RootNamespace>\n\
+         \x20   <Description>{description}</Description>\n\
+         \x20   <PackageTags>{}</PackageTags>\n\
+         \x20   <PackageProjectUrl>{homepage}</PackageProjectUrl>\n\
+         \x20   <PackageReadmeFile>README.md</PackageReadmeFile>\n",
+        tags.join(";")
+    );
+    if metapackage {
+        properties.push_str(
+            "    <IncludeBuildOutput>false</IncludeBuildOutput>\n\
+             \x20   <GenerateDocumentationFile>false</GenerateDocumentationFile>\n\
+             \x20   <NoWarn>$(NoWarn);NU5128</NoWarn>\n",
+        );
+    } else {
+        properties.push_str(
+            "    <GenerateDocumentationFile>true</GenerateDocumentationFile>\n\
+             \x20   <IncludeSymbols>true</IncludeSymbols>\n\
+             \x20   <SymbolPackageFormat>snupkg</SymbolPackageFormat>\n",
+        );
+    }
+    let references: Vec<String> = deps
+        .iter()
+        .map(|dep| {
+            format!("    <ProjectReference Include=\"../Pamoja.{dep}/Pamoja.{dep}.csproj\" />")
+        })
+        .collect();
+    format!(
+        "<Project Sdk=\"Microsoft.NET.Sdk\">\n\n\
+         \x20 <PropertyGroup>\n{properties}  </PropertyGroup>\n\n\
+         \x20 <ItemGroup>\n\
+         \x20   <None Include=\"README.md\" Pack=\"true\" PackagePath=\"\\\" />\n\
+         \x20 </ItemGroup>\n\n\
+         \x20 <ItemGroup>\n{}\n  </ItemGroup>\n\n\
+         </Project>\n",
+        references.join("\n")
+    )
+}
+
+/// The `Pamoja.<X>` packages the C# sources of a project use, never itself.
+fn dotnet_package_usings(project: &Path, own: &str) -> Result<BTreeSet<String>, String> {
+    let entries =
+        fs::read_dir(project).map_err(|err| format!("reading {}: {err}", project.display()))?;
+    let mut names = BTreeSet::new();
+    for path in entries.filter_map(|entry| entry.ok().map(|entry| entry.path())) {
+        if path.extension().and_then(|ext| ext.to_str()) != Some("cs") {
+            continue;
+        }
+        let text = fs::read_to_string(&path)
+            .map_err(|err| format!("reading {}: {err}", path.display()))?;
+        names.extend(dotnet_usings(&text));
+    }
+    names.remove(own);
+    Ok(names)
+}
+
+/// The `Pamoja.<X>` packages a C# source names in its `using` directives.
+fn dotnet_usings(source: &str) -> BTreeSet<String> {
+    source
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("using Pamoja."))
+        .filter_map(|rest| rest.strip_suffix(';'))
+        .map(|name| name.split('.').next().unwrap_or(name).to_owned())
+        .collect()
+}
+
+/// The README of one .NET capability package.
+fn dotnet_capability_readme(
+    root: &Path,
+    capability: &Capability,
+    name: &str,
+) -> Result<String, String> {
+    let mut out = format!(
+        "# Pamoja.{name}\n\n{}. One capability of [pamoja](https://github.com/molexxxx/pamoja), \
+         one memory-safe Rust core with bindings for TypeScript, Python, and C#.\n\n\
+         ## Install\n\n```sh\ndotnet add package Pamoja.{name}\n```\n\n```csharp\nusing Pamoja.{name};\n```\n\n\
+         This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Core`, and nothing else. \
+         `dotnet add package Pamoja` is the whole framework in one package.\n",
+        capability.summary
+    );
+
+    let snippet = format!("bindings/dotnet/samples/Pamoja.Guides/{name}.cs");
+    if root.join(&snippet).is_file() {
+        let example = regions::snippet(root, &format!("{snippet}#example"))?;
+        out.push_str(
+            "\n## Example\n\nThe guide project's example, spliced here as it ran in CI.\n\n",
+        );
+        out.push_str(&example);
+        out.push('\n');
+    }
+
+    out.push_str("\n## Documentation\n\n");
+    if capability.guide.is_some() {
+        out.push_str(&format!(
+            "- [The {} guide]({}), with the same example in Rust, TypeScript, and Python.\n",
+            capability.title,
+            homepage(capability)
+        ));
+    }
+    out.push_str(&format!(
+        "- [The reference for `Pamoja.{name}`]({SITE}/reference/dotnet/api/Pamoja.{name}.html), generated from its source.\n\
+         - [Every capability]({SITE}/), and the [install page]({SITE}/install.html).\n\n\
+         ## License\n\nMIT\n"
+    ));
+    Ok(out)
+}
+
+/// The README of the `Pamoja` metapackage.
+fn dotnet_bundle_readme(catalog: &Catalog) -> String {
+    let mut out = String::from(
+        "# Pamoja\n\n\
+         The whole pamoja framework in one package: every capability of one memory-safe Rust \
+         core, behind an idiomatic C# facade, for IoT, robotics, and drones. Each capability \
+         is also its own package, so an application that needs one thing can depend on \
+         `Pamoja.Mqtt` alone; this package depends on all of them.\n\n\
+         ## Install\n\n```sh\ndotnet add package Pamoja\n```\n\n\
+         ## What it installs\n\n| Package | What it covers |\n| --- | --- |\n",
+    );
+    for capability in catalog.ordered() {
+        out.push_str(&format!(
+            "| `{}` | {} |\n",
+            capability.dotnet_package(),
+            capability.summary
+        ));
+    }
+    out.push_str(&format!(
+        "\nAll of them run on `Pamoja.Native`, the compiled engine, which is one library \
+         whichever packages you install.\n\n\
+         ## Documentation\n\n\
+         - [The guides]({SITE}/), one page per capability with the same example in Rust, TypeScript, Python, and C#.\n\
+         - [The C# reference]({SITE}/reference/dotnet/index.html), generated from every package.\n\n\
+         ## License\n\nMIT\n"
+    ));
+    out
+}
+
+/// The README of `Pamoja.Core`.
+fn dotnet_core_readme() -> String {
+    format!(
+        "# Pamoja.Core\n\n\
+         The pamoja engine's surface for .NET: the runtime version, the exception every native \
+         call can raise, and the transport every link shares. This is the counterpart of the \
+         `pamoja-core` crate, and like it, it is small; the compiled engine is `Pamoja.Native`, \
+         which this package depends on.\n\n\
+         ## Install\n\n```sh\ndotnet add package Pamoja.Core\n```\n\n```csharp\nusing Pamoja.Core;\n```\n\n\
+         Each capability is its own package (`Pamoja.Mqtt`, `Pamoja.Security`, and so on) and \
+         `dotnet add package Pamoja` is the whole framework in one package.\n\n\
+         ## Documentation\n\n\
+         - [The reference for `Pamoja.Core`]({SITE}/reference/dotnet/api/Pamoja.Core.html), generated from its source.\n\
+         - [The guides]({SITE}/) and the [install page]({SITE}/install.html).\n\n\
+         ## License\n\nMIT\n"
+    )
+}
+
+/// The README of `Pamoja.Native`.
+fn dotnet_native_readme() -> String {
+    format!(
+        "# Pamoja.Native\n\n\
+         The compiled pamoja engine for .NET, bundled for `win-x64`, `linux-x64`, `linux-arm64`, \
+         `osx-x64`, and `osx-arm64`, and the P/Invoke contract every `Pamoja` package builds on: \
+         `Pamoja.Native.Interop.NativeMethods` mirrors the generated C header one-to-one. It is one \
+         library that carries every capability; the capability packages are facades over it, so \
+         picking packages narrows the API you depend on, not the size of the engine.\n\n\
+         You do not install this package directly. Every `Pamoja.<Capability>` package and the \
+         `Pamoja` metapackage depend on it. The interop layer stays available for anything a \
+         facade does not cover.\n\n\
+         ## Documentation\n\n\
+         - [The guides]({SITE}/) and the [C# reference]({SITE}/reference/dotnet/index.html).\n\n\
          ## License\n\nMIT\n"
     )
 }

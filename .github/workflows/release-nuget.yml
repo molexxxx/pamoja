@@ -91,7 +91,7 @@ jobs:
       - name: Assemble runtimes for packing
         shell: bash
         run: |
-          dest=bindings/dotnet/src/Pamoja.Core/runtimes
+          dest=bindings/dotnet/src/Pamoja.Native/runtimes
           for rid in win-x64 linux-x64 linux-arm64 osx-x64 osx-arm64; do
             mkdir -p "$dest/$rid/native"
             cp natives/native-$rid/* "$dest/$rid/native/"
@@ -99,7 +99,7 @@ jobs:
           find "$dest" -type f
 
       - name: Pack
-        run: dotnet pack bindings/dotnet/src/Pamoja.Core/Pamoja.Core.csproj -c Release -o dist
+        run: dotnet pack bindings/dotnet/Pamoja.sln -c Release -o dist
 
       - name: Authenticate to NuGet via OIDC trusted publishing
         uses: NuGet/login@v1
