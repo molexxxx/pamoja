@@ -16,10 +16,17 @@
  * {@link MavlinkMessage} is filled in and read back by name rather than by byte offset,
  * and {@link MessageSchemaBuilder} describes a message this build has never heard of.
  *
+ * Above the messages sit the exchanges: {@link MissionSender} and {@link MissionReceiver}
+ * carry a plan between a station and a vehicle, {@link CommandProtocol} matches a command
+ * to its acknowledgement and counts retries, and {@link offboard} builds setpoints. Each
+ * takes a frame off the link and hands back the frame to send, with no IO or timers of its
+ * own.
+ *
  * @packageDocumentation
  */
 
 import {
+  CommandProtocol as NativeCommandProtocol,
   Dialect,
   MavlinkFrame,
   MavlinkMessage,
@@ -28,6 +35,10 @@ import {
   MavlinkVerifier,
   MessageSchema,
   MessageSchemaBuilder,
+  MissionReceiver,
+  MissionSender,
+  ReceiverStep,
+  SenderStep,
   type MavlinkField,
   type MavlinkFieldInfo,
   type MavlinkHeader,
@@ -47,11 +58,22 @@ import {
   MAVLINK_KEY_LEN,
   MAVLINK_MAX_FRAME,
   MAVLINK_MAX_PAYLOAD,
+  MAVLINK_MAX_RETRIES,
   MAVLINK_SIGNATURE_LEN,
+  MAVLINK_TYPEMASK_ACCELERATION,
+  MAVLINK_TYPEMASK_FORCE,
+  MAVLINK_TYPEMASK_POSITION,
+  MAVLINK_TYPEMASK_VELOCITY,
+  MAVLINK_TYPEMASK_YAW,
+  MAVLINK_TYPEMASK_YAW_RATE,
   mavlinkCrc16Mcrf4Xx,
   mavlinkKnownCrcExtra,
   mavlinkKnownMessages,
   mavlinkMessageCrcExtra,
+  mavlinkOffboardGlobalPosition,
+  mavlinkOffboardLocalPosition,
+  mavlinkOffboardLocalVelocity,
+  mavlinkOffboardTypeMask,
   mavlinkTimestampFromUnixMicros,
 } from '../index'
 
@@ -64,10 +86,20 @@ export {
   MavlinkVerifier,
   MessageSchema,
   MessageSchemaBuilder,
+  MissionReceiver,
+  MissionSender,
+  ReceiverStep,
+  SenderStep,
   type MavlinkField,
   type MavlinkFieldInfo,
   type MavlinkHeader,
 }
+
+/**
+ * The number of times a request is retransmitted before a transfer is abandoned, as the
+ * mission protocol recommends.
+ */
+export const MAX_RETRIES = MAVLINK_MAX_RETRIES
 
 /** The largest payload a frame can carry, in bytes. */
 export const MAX_PAYLOAD = MAVLINK_MAX_PAYLOAD
@@ -335,3 +367,211 @@ export function fromObject(schema: MessageSchema, values: MavlinkFields): Mavlin
   }
   return built
 }
+
+/**
+ * The fields of a setpoint the autopilot should act on.
+ *
+ * Provided as a runtime object so a caller can combine flags by name; the rest of a
+ * setpoint's fields are ignored.
+ */
+export const MavlinkTypeMask = {
+  /** The position fields. */
+  POSITION: MAVLINK_TYPEMASK_POSITION,
+  /** The velocity fields. */
+  VELOCITY: MAVLINK_TYPEMASK_VELOCITY,
+  /** The acceleration fields. */
+  ACCELERATION: MAVLINK_TYPEMASK_ACCELERATION,
+  /** The yaw field. */
+  YAW: MAVLINK_TYPEMASK_YAW,
+  /** The yaw rate field. */
+  YAW_RATE: MAVLINK_TYPEMASK_YAW_RATE,
+  /** Treat the acceleration fields as a force. */
+  FORCE: MAVLINK_TYPEMASK_FORCE,
+} as const
+
+/** What an incoming acknowledgement means for the command in flight. */
+export interface AckOutcome {
+  /** `unrelated`, `inProgress`, or `final`. */
+  kind: 'unrelated' | 'inProgress' | 'final'
+  /**
+   * The progress percent when in progress (255 when the autopilot does not report one),
+   * the `MAV_RESULT` when final, or `null` when unrelated.
+   */
+  value: number | null
+}
+
+/**
+ * Tracks one command awaiting its acknowledgement.
+ *
+ * Wraps the generated class so an unrelated acknowledgement reports `null` rather than an
+ * absent key, matching the rest of this package.
+ */
+export class CommandProtocol {
+  readonly #native: NativeCommandProtocol
+
+  /**
+   * Starts tracking a command.
+   *
+   * @param command - The `MAV_CMD` id being sent.
+   * @param maxRetries - How many times the command may be resent after a timeout before
+   *   the caller gives up; defaults to {@link MAX_RETRIES}.
+   */
+  constructor(command: number, maxRetries: number = MAX_RETRIES) {
+    this.#native = new NativeCommandProtocol(command, maxRetries)
+  }
+
+  /** The command id being tracked. */
+  get command(): number {
+    return this.#native.command
+  }
+
+  /**
+   * The `confirmation` count to stamp on the command being sent: zero for the first
+   * transmission, incremented on each retransmission.
+   */
+  get confirmation(): number {
+    return this.#native.confirmation
+  }
+
+  /**
+   * Classifies an incoming frame against the command in flight.
+   *
+   * @param frame - The frame off the link.
+   * @returns The outcome, or `null` if the frame is not a `COMMAND_ACK`.
+   */
+  onFrame(frame: MavlinkFrame): AckOutcome | null {
+    const outcome = this.#native.onFrame(frame)
+    if (outcome == null) {
+      return null
+    }
+    return { kind: outcome.kind as AckOutcome['kind'], value: outcome.value ?? null }
+  }
+
+  /**
+   * Records a timeout and reports whether the command may be resent.
+   *
+   * @returns The new confirmation count to stamp on the resend, or `null` once the retry
+   *   budget is exhausted.
+   */
+  onTimeout(): number | null {
+    return this.#native.onTimeout() ?? null
+  }
+}
+
+/** The setpoint constructors for offboard control, each returning a frame ready to send. */
+export const offboard = {
+  /**
+   * Builds a setpoint `type_mask` from the fields to use.
+   *
+   * @param flags - A bitwise-or of the {@link MavlinkTypeMask} flags.
+   * @returns The mask, as the `type_mask` field of a setpoint carries it.
+   */
+  typeMask(flags: number): number {
+    return mavlinkOffboardTypeMask(flags)
+  },
+
+  /**
+   * Builds a local-frame position setpoint.
+   *
+   * @param header - The addressing fields to stamp on the frame.
+   * @param timeBootMs - The sender's boot timestamp, in milliseconds.
+   * @param coordinateFrame - The `MAV_FRAME` of the setpoint.
+   * @param targetSystem - The target system id.
+   * @param targetComponent - The target component id.
+   * @param x - The position along x, in metres in the chosen frame.
+   * @param y - The position along y.
+   * @param z - The position along z.
+   * @returns The `SET_POSITION_TARGET_LOCAL_NED` frame.
+   */
+  localPosition(
+    header: MavlinkHeader,
+    timeBootMs: number,
+    coordinateFrame: number,
+    targetSystem: number,
+    targetComponent: number,
+    x: number,
+    y: number,
+    z: number,
+  ): MavlinkFrame {
+    return mavlinkOffboardLocalPosition(
+      header,
+      timeBootMs,
+      coordinateFrame,
+      targetSystem,
+      targetComponent,
+      x,
+      y,
+      z,
+    )
+  },
+
+  /**
+   * Builds a local-frame velocity setpoint.
+   *
+   * @param header - The addressing fields to stamp on the frame.
+   * @param timeBootMs - The sender's boot timestamp, in milliseconds.
+   * @param coordinateFrame - The `MAV_FRAME` of the setpoint.
+   * @param targetSystem - The target system id.
+   * @param targetComponent - The target component id.
+   * @param vx - The velocity along x, in metres per second in the chosen frame.
+   * @param vy - The velocity along y.
+   * @param vz - The velocity along z.
+   * @returns The `SET_POSITION_TARGET_LOCAL_NED` frame.
+   */
+  localVelocity(
+    header: MavlinkHeader,
+    timeBootMs: number,
+    coordinateFrame: number,
+    targetSystem: number,
+    targetComponent: number,
+    vx: number,
+    vy: number,
+    vz: number,
+  ): MavlinkFrame {
+    return mavlinkOffboardLocalVelocity(
+      header,
+      timeBootMs,
+      coordinateFrame,
+      targetSystem,
+      targetComponent,
+      vx,
+      vy,
+      vz,
+    )
+  },
+
+  /**
+   * Builds a global-frame position setpoint.
+   *
+   * @param header - The addressing fields to stamp on the frame.
+   * @param timeBootMs - The sender's boot timestamp, in milliseconds.
+   * @param coordinateFrame - The `MAV_FRAME` of the setpoint.
+   * @param targetSystem - The target system id.
+   * @param targetComponent - The target component id.
+   * @param latInt - The latitude, in degrees times ten million.
+   * @param lonInt - The longitude, in degrees times ten million.
+   * @param alt - The altitude, in metres.
+   * @returns The `SET_POSITION_TARGET_GLOBAL_INT` frame.
+   */
+  globalPosition(
+    header: MavlinkHeader,
+    timeBootMs: number,
+    coordinateFrame: number,
+    targetSystem: number,
+    targetComponent: number,
+    latInt: number,
+    lonInt: number,
+    alt: number,
+  ): MavlinkFrame {
+    return mavlinkOffboardGlobalPosition(
+      header,
+      timeBootMs,
+      coordinateFrame,
+      targetSystem,
+      targetComponent,
+      latInt,
+      lonInt,
+      alt,
+    )
+  },
+} as const

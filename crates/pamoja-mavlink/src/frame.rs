@@ -63,7 +63,7 @@ impl Header {
     /// # Returns
     ///
     /// The header.
-    pub fn new(system_id: u8, component_id: u8, sequence: u8) -> Self {
+    pub const fn new(system_id: u8, component_id: u8, sequence: u8) -> Self {
         Header {
             system_id,
             component_id,

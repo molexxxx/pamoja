@@ -117,6 +117,29 @@ macro_rules! mav_scalar_str {
     };
 }
 
+// The zero value of a MAVLink scalar type token, in its storage type.
+macro_rules! mav_scalar_zero {
+    (f32) => {
+        0.0
+    };
+    (f64) => {
+        0.0
+    };
+    ($k:tt) => {
+        0
+    };
+}
+
+// A field's zero value: a zero-filled array for `[k; n]`, otherwise the scalar's zero.
+macro_rules! mav_field_zero {
+    ([ $k:tt ; $n:literal ]) => {
+        [mav_scalar_zero!($k); $n]
+    };
+    ($k:tt) => {
+        mav_scalar_zero!($k)
+    };
+}
+
 // A field's Rust type: an array for `[k; n]`, otherwise the scalar's storage type.
 macro_rules! mav_field_ty {
     ([ $k:tt ; $n:literal ]) => {
@@ -269,6 +292,26 @@ macro_rules! message {
         pub struct $struct {
             $( pub $field: mav_field_ty!($fty), )+
             $( $( pub $efield: mav_field_ty!($efty), )+ )?
+        }
+
+        impl $struct {
+            /// Returns the message with every field zero, the base a partial literal builds on.
+            ///
+            /// # Returns
+            ///
+            /// The zeroed message.
+            pub const fn zeroed() -> Self {
+                $struct {
+                    $( $field: mav_field_zero!($fty), )+
+                    $( $( $efield: mav_field_zero!($efty), )+ )?
+                }
+            }
+        }
+
+        impl Default for $struct {
+            fn default() -> Self {
+                Self::zeroed()
+            }
         }
 
         impl $crate::dialect::Message for $struct {

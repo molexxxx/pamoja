@@ -46,6 +46,8 @@ pub mod lorawan;
 #[cfg(feature = "mavlink")]
 pub mod mavlink;
 #[cfg(feature = "mavlink")]
+pub mod mavlink_protocol;
+#[cfg(feature = "mavlink")]
 pub mod mavlink_schema;
 #[cfg(feature = "mesh")]
 pub mod mesh;

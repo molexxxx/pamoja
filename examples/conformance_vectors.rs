@@ -30,9 +30,11 @@ use pamoja_lora::region::{
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::{Device, Downlink, FrameHeader, JoinGrant, JoinRequest, Session, Uplink};
 use pamoja_mavlink::dialect::{
-    crc_extra as mavlink_crc_extra, descriptor_by_name, DynamicMessage as MavDynamicMessage,
-    FieldType as MavFieldType, MessageDescriptorBuilder as MavDescriptorBuilder, DESCRIPTORS,
+    crc_extra as mavlink_crc_extra, descriptor_by_name, encode_message as mav_encode,
+    DynamicMessage as MavDynamicMessage, FieldType as MavFieldType, Message as _,
+    MessageDescriptorBuilder as MavDescriptorBuilder, MissionItemInt, DESCRIPTORS,
 };
+use pamoja_mavlink::protocol::TypeMask;
 use pamoja_mavlink::{
     crc16_mcrf4xx, message_crc_extra, signing, Frame as MavFrame, Header as MavHeader,
     Signer as MavSigner,
@@ -129,6 +131,7 @@ fn main() {
         "loraRegions": lora_regions(),
         "mavlink": mavlink(),
         "mavlinkSchema": mavlink_schema(),
+        "mavlinkProtocol": mavlink_protocol(),
         "mesh": mesh(),
         "routing": routing(),
         "lorawan": lorawan(),
@@ -1426,6 +1429,251 @@ fn mavlink_schema() -> Value {
             { "field": "hdg", "value": -1.0 },
             { "field": "hdg", "value": 65_536.0 },
         ],
+    })
+}
+
+fn mavlink_protocol() -> Value {
+    use pamoja_mavlink::dialect::{mav_cmd, mav_result, CommandAck, MissionRequestInt};
+    use pamoja_mavlink::protocol::{
+        CommandProtocol, MissionReceiver, MissionSender, ReceiverAction, SenderStep,
+    };
+
+    let vehicle = MavHeader::new(1, 1, 0);
+    let station = MavHeader::new(255, 190, 0);
+
+    // A two-item plan, given as the fields a caller sets on MISSION_ITEM_INT. The sender
+    // stamps the sequence number and target ids itself, so only the content is here.
+    let plan_fields = [
+        vec![("command", mav_cmd::NAV_TAKEOFF as f64), ("z", 20.0)],
+        vec![
+            ("command", mav_cmd::NAV_WAYPOINT as f64),
+            ("x", -338_567_800.0),
+            ("y", 1_512_153_000.0),
+            ("z", 50.0),
+        ],
+    ];
+    let item_shape = descriptor_by_name("MISSION_ITEM_INT").expect("a typed message");
+    let mut plan_payloads = Vec::new();
+    let mut plan = Vec::new();
+    for fields in &plan_fields {
+        let mut item = MavDynamicMessage::new(item_shape).expect("it fits a payload");
+        for (field, value) in fields {
+            item.set_number(field, 0, *value).expect("a settable field");
+        }
+        plan_payloads.push(hex(item.payload()));
+        plan.push(MissionItemInt::decode(item.payload()).expect("a whole item"));
+    }
+
+    // The whole upload, frame by frame, with each side's exact bytes pinned. The station
+    // opens with a request list, the vehicle answers with the count, and the two then take
+    // turns until the station acknowledges.
+    let upload = MissionSender::new(&plan, 1, 1, 0);
+    let mut download = MissionReceiver::new(255, 190, 0);
+
+    let request_list = download.request_list_frame(station).expect("a frame");
+    let Some(SenderStep::Reply(count)) = upload.on_frame(&request_list, vehicle).expect("handled")
+    else {
+        panic!("a request list is answered with the count");
+    };
+
+    let mut exchange = Vec::new();
+    let mut from_vehicle = count;
+    loop {
+        let step = download
+            .on_frame(&from_vehicle, station)
+            .expect("handled")
+            .expect("a mission frame");
+        let receiver_kind = match step.action {
+            ReceiverAction::Request(_) => "request",
+            ReceiverAction::Ack(_) => "ack",
+        };
+        let sender = upload
+            .on_frame(&step.reply, vehicle)
+            .expect("handled")
+            .expect("a mission frame");
+        let (sender_kind, sender_reply, sender_result) = match sender {
+            SenderStep::Reply(reply) => ("reply", Some(hex(reply.as_bytes())), None),
+            SenderStep::Finished(result) => ("finished", None, Some(result)),
+        };
+        exchange.push(json!({
+            "feed": hex(from_vehicle.as_bytes()),
+            "receiverKind": receiver_kind,
+            "accepted": step.accepted.is_some(),
+            "acceptedSeq": step.accepted.map(|item| item.seq),
+            "reply": hex(step.reply.as_bytes()),
+            "senderKind": sender_kind,
+            "senderReply": sender_reply,
+            "senderResult": sender_result,
+        }));
+        match sender {
+            SenderStep::Reply(reply) => from_vehicle = reply,
+            SenderStep::Finished(_) => break,
+        }
+    }
+
+    // A request past the end of the plan is refused with the published result.
+    let overrun = MissionRequestInt {
+        seq: 7,
+        target_system: 255,
+        target_component: 190,
+        mission_type: 0,
+    };
+    let overrun_frame = mav_encode(vehicle, &overrun).expect("a frame");
+    let Some(SenderStep::Reply(refusal)) =
+        upload.on_frame(&overrun_frame, station).expect("handled")
+    else {
+        panic!("a request is answered");
+    };
+
+    // The command protocol: one final ack, one for another command, one still in progress.
+    let arm = CommandProtocol::new(mav_cmd::COMPONENT_ARM_DISARM, 2);
+    let acks = [
+        (
+            CommandAck {
+                command: mav_cmd::COMPONENT_ARM_DISARM,
+                result: mav_result::ACCEPTED,
+                ..CommandAck::zeroed()
+            },
+            "final",
+            Some(mav_result::ACCEPTED),
+        ),
+        (
+            CommandAck {
+                command: mav_cmd::NAV_TAKEOFF,
+                result: mav_result::ACCEPTED,
+                ..CommandAck::zeroed()
+            },
+            "unrelated",
+            None,
+        ),
+        (
+            CommandAck {
+                command: mav_cmd::COMPONENT_ARM_DISARM,
+                result: mav_result::IN_PROGRESS,
+                progress: 40,
+                ..CommandAck::zeroed()
+            },
+            "inProgress",
+            Some(40),
+        ),
+    ];
+    let ack_vectors: Vec<Value> = acks
+        .iter()
+        .map(|(ack, kind, value)| {
+            json!({
+                "frame": hex(mav_encode(vehicle, ack).expect("a frame").as_bytes()),
+                "kind": kind,
+                "value": value,
+            })
+        })
+        .collect();
+    let mut retried = arm;
+    let timeouts: Vec<Option<u8>> = (0..3).map(|_| retried.on_timeout()).collect();
+
+    // A frame none of the machines handle.
+    let heartbeat = pamoja_mavlink::dialect::Heartbeat {
+        type_: 2,
+        autopilot: 3,
+        system_status: 4,
+        mavlink_version: 3,
+        ..pamoja_mavlink::dialect::Heartbeat::zeroed()
+    };
+    let ignored = mav_encode(vehicle, &heartbeat).expect("a frame");
+
+    // Setpoints, with the exact frame each constructor puts on the wire.
+    let local_position = mav_encode(
+        station,
+        &pamoja_mavlink::dialect::SetPositionTargetLocalNed::position(
+            1_000, 1, 1, 1, 10.0, 0.0, -5.0,
+        ),
+    )
+    .expect("a frame");
+    let local_velocity = mav_encode(
+        station,
+        &pamoja_mavlink::dialect::SetPositionTargetLocalNed::velocity(
+            1_000, 1, 1, 1, 0.5, 0.0, 0.0,
+        ),
+    )
+    .expect("a frame");
+    let global_position = mav_encode(
+        station,
+        &pamoja_mavlink::dialect::SetPositionTargetGlobalInt::position(
+            1_000,
+            6,
+            1,
+            1,
+            -338_567_800,
+            1_512_153_000,
+            50.0,
+        ),
+    )
+    .expect("a frame");
+    let masks: Vec<Value> = [
+        (0u32, TypeMask::ignore_all()),
+        (1, TypeMask::ignore_all().use_position()),
+        (2 | 16, TypeMask::ignore_all().use_velocity().use_yaw_rate()),
+        (4 | 32, TypeMask::ignore_all().use_acceleration().force()),
+        (
+            63,
+            TypeMask::ignore_all()
+                .use_position()
+                .use_velocity()
+                .use_acceleration()
+                .use_yaw()
+                .use_yaw_rate()
+                .force(),
+        ),
+    ]
+    .iter()
+    .map(|(flags, mask)| json!({ "flags": flags, "mask": mask.bits() }))
+    .collect();
+
+    json!({
+        "vehicle": { "systemId": 1, "componentId": 1, "sequence": 0 },
+        "station": { "systemId": 255, "componentId": 190, "sequence": 0 },
+        "plan": plan_fields
+            .iter()
+            .map(|fields| {
+                json!(fields
+                    .iter()
+                    .map(|(field, value)| json!({ "field": field, "value": value }))
+                    .collect::<Vec<Value>>())
+            })
+            .collect::<Vec<Value>>(),
+        "planPayloads": plan_payloads,
+        "requestList": hex(request_list.as_bytes()),
+        "count": hex(count.as_bytes()),
+        "exchange": exchange,
+        "overrun": {
+            "request": hex(overrun_frame.as_bytes()),
+            "reply": hex(refusal.as_bytes()),
+            "result": pamoja_mavlink::dialect::mav_mission_result::INVALID_SEQUENCE,
+        },
+        "command": {
+            "command": mav_cmd::COMPONENT_ARM_DISARM,
+            "maxRetries": 2,
+            "acks": ack_vectors,
+            "timeouts": timeouts,
+        },
+        "ignored": hex(ignored.as_bytes()),
+        "offboard": {
+            "typeMasks": masks,
+            "localPosition": {
+                "timeBootMs": 1_000, "coordinateFrame": 1, "targetSystem": 1, "targetComponent": 1,
+                "x": 10.0, "y": 0.0, "z": -5.0,
+                "frame": hex(local_position.as_bytes()),
+            },
+            "localVelocity": {
+                "timeBootMs": 1_000, "coordinateFrame": 1, "targetSystem": 1, "targetComponent": 1,
+                "vx": 0.5, "vy": 0.0, "vz": 0.0,
+                "frame": hex(local_velocity.as_bytes()),
+            },
+            "globalPosition": {
+                "timeBootMs": 1_000, "coordinateFrame": 6, "targetSystem": 1, "targetComponent": 1,
+                "latInt": -338_567_800, "lonInt": 1_512_153_000, "alt": 50.0,
+                "frame": hex(global_position.as_bytes()),
+            },
+        },
     })
 }
 

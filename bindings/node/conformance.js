@@ -749,6 +749,145 @@ function mavlinkSchemaVectors() {
   }
 }
 
+// The service protocols: a whole mission upload frame by frame, command acknowledgements,
+// and setpoints, each pinned to the exact bytes the engine puts on the wire.
+function mavlinkProtocolVectors() {
+  const vectors = VECTORS.mavlinkProtocol;
+  const parse = (hex) => mavlink.MavlinkFrame.parseKnown(Buffer.from(hex, "hex"));
+  const bytesOf = (frame) => frame.bytes.toString("hex");
+
+  // The plan's items are built by field name and must match the pinned payloads.
+  const itemShape = mavlink.schemaFor("MISSION_ITEM_INT");
+  const upload = new mavlink.MissionSender(1, 1, 0);
+  vectors.plan.forEach((fields, index) => {
+    const item = mavlink.message(itemShape);
+    for (const { field, value } of fields) {
+      item.set(field, value);
+    }
+    assert.strictEqual(
+      item.payload.toString("hex"),
+      vectors.planPayloads[index],
+      `plan item ${index}`,
+    );
+    upload.addItem(item.payload);
+  });
+  assert.strictEqual(upload.length, vectors.plan.length, "the plan's length");
+
+  const download = new mavlink.MissionReceiver(255, 190, 0);
+  const requestList = download.requestList(vectors.station);
+  assert.strictEqual(bytesOf(requestList), vectors.requestList, "the request list frame");
+  const opened = upload.onFrame(requestList, vectors.vehicle);
+  assert.strictEqual(opened.kind, "reply", "a request list is answered");
+  assert.strictEqual(bytesOf(opened.reply), vectors.count, "the count frame");
+
+  vectors.exchange.forEach((step, index) => {
+    const received = download.onFrame(parse(step.feed), vectors.station);
+    assert.strictEqual(received.kind, step.receiverKind, `receiver kind at ${index}`);
+    assert.strictEqual(
+      received.accepted !== null,
+      step.accepted,
+      `whether an item was accepted at ${index}`,
+    );
+    if (received.accepted !== null) {
+      assert.strictEqual(
+        received.accepted.get("seq"),
+        step.acceptedSeq,
+        `the accepted item's sequence at ${index}`,
+      );
+    }
+    assert.strictEqual(bytesOf(received.reply), step.reply, `the receiver's reply at ${index}`);
+
+    const answered = upload.onFrame(received.reply, vectors.vehicle);
+    assert.strictEqual(answered.kind, step.senderKind, `sender kind at ${index}`);
+    if (answered.kind === "reply") {
+      assert.strictEqual(bytesOf(answered.reply), step.senderReply, `the sender's reply at ${index}`);
+    } else {
+      assert.strictEqual(answered.result, step.senderResult, `the transfer's result at ${index}`);
+    }
+  });
+  assert.ok(download.complete, "the download finished");
+
+  // A request past the end of the plan is refused with the published result.
+  const refusal = upload.onFrame(parse(vectors.overrun.request), vectors.station);
+  assert.strictEqual(bytesOf(refusal.reply), vectors.overrun.reply, "the refusal");
+  const ack = mavlink.MavlinkMessage.decode(mavlink.schemaFor("MISSION_ACK"), refusal.reply.payload);
+  assert.strictEqual(ack.get("type"), vectors.overrun.result, "the refusal's result");
+
+  // The command protocol classifies acknowledgements and counts retries.
+  const arm = new mavlink.CommandProtocol(vectors.command.command, vectors.command.maxRetries);
+  for (const described of vectors.command.acks) {
+    const outcome = arm.onFrame(parse(described.frame));
+    assert.strictEqual(outcome.kind, described.kind, "an ack's kind");
+    assert.strictEqual(outcome.value, described.value, "an ack's value");
+  }
+  for (const want of vectors.command.timeouts) {
+    assert.strictEqual(arm.onTimeout(), want, "a timeout's verdict");
+  }
+
+  // A frame none of the machines handle is passed over by all of them.
+  const ignored = parse(vectors.ignored);
+  assert.strictEqual(upload.onFrame(ignored, vectors.station), null, "the sender ignores it");
+  assert.strictEqual(download.onFrame(ignored, vectors.station), null, "the receiver ignores it");
+  assert.strictEqual(arm.onFrame(ignored), null, "the command ignores it");
+
+  // Setpoints put exactly these bytes on the wire.
+  const offboard = vectors.offboard;
+  for (const { flags, mask } of offboard.typeMasks) {
+    assert.strictEqual(mavlink.offboard.typeMask(flags), mask, `the mask for ${flags}`);
+  }
+  const local = offboard.localPosition;
+  assert.strictEqual(
+    bytesOf(
+      mavlink.offboard.localPosition(
+        vectors.station,
+        local.timeBootMs,
+        local.coordinateFrame,
+        local.targetSystem,
+        local.targetComponent,
+        local.x,
+        local.y,
+        local.z,
+      ),
+    ),
+    local.frame,
+    "a position setpoint",
+  );
+  const velocity = offboard.localVelocity;
+  assert.strictEqual(
+    bytesOf(
+      mavlink.offboard.localVelocity(
+        vectors.station,
+        velocity.timeBootMs,
+        velocity.coordinateFrame,
+        velocity.targetSystem,
+        velocity.targetComponent,
+        velocity.vx,
+        velocity.vy,
+        velocity.vz,
+      ),
+    ),
+    velocity.frame,
+    "a velocity setpoint",
+  );
+  const global = offboard.globalPosition;
+  assert.strictEqual(
+    bytesOf(
+      mavlink.offboard.globalPosition(
+        vectors.station,
+        global.timeBootMs,
+        global.coordinateFrame,
+        global.targetSystem,
+        global.targetComponent,
+        global.latInt,
+        global.lonInt,
+        global.alt,
+      ),
+    ),
+    global.frame,
+    "a global setpoint",
+  );
+}
+
 function loraRegionVectors() {
   const vectors = VECTORS.loraRegions;
   const dataRateOf = (rate) => {
@@ -1330,6 +1469,7 @@ loraVectors();
 loraRegionVectors();
 mavlinkVectors();
 mavlinkSchemaVectors();
+mavlinkProtocolVectors();
 meshVectors();
 routingVectors();
 

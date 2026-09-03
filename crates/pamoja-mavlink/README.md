@@ -33,7 +33,9 @@ its reference values rather than guessed from memory:
   does not type, so a vendor or private dialect is usable at runtime.
 - [`protocol`] - the mission, command, and offboard exchanges as pure, allocation-free
   state machines: the rules of order, matching, and retransmission that turn single
-  messages into a real conversation with an autopilot, with no IO of their own.
+  messages into a real conversation with an autopilot, with no IO of their own. Each
+  machine also takes a [`Frame`] at a time and hands back the frame to send, so a
+  caller holding a link writes no decoding or dispatch of its own.
 
 The protocol core is `no_std` and allocation-free, so the same framing runs on a
 microcontroller flight controller. The default `std` feature adds the async layer: the

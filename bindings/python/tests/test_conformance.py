@@ -743,6 +743,131 @@ def test_mavlink_schema_vectors_match():
         with pytest.raises(ValueError):
             report.set(refused["field"], refused["value"])
 
+
+def test_mavlink_protocol_vectors_match():
+    """A whole mission upload, command acks, and setpoints are pinned frame by frame."""
+    from pamoja import mavlink
+
+    vector = VECTORS["mavlinkProtocol"]
+    vehicle = mavlink.MavlinkHeader(**_header(vector["vehicle"]))
+    station = mavlink.MavlinkHeader(**_header(vector["station"]))
+
+    def parse(text: str) -> mavlink.MavlinkFrame:
+        return mavlink.MavlinkFrame.parse_known(bytes.fromhex(text))
+
+    # The plan's items are built by field name and must match the pinned payloads.
+    item_shape = mavlink.schema_for("MISSION_ITEM_INT")
+    upload = mavlink.MissionSender(1, 1, 0)
+    for fields, want in zip(vector["plan"], vector["planPayloads"]):
+        item = mavlink.message(item_shape)
+        for entry in fields:
+            item.set(entry["field"], entry["value"])
+        assert item.payload.hex() == want
+        upload.add_item(item.payload)
+    assert len(upload) == len(vector["plan"])
+
+    download = mavlink.MissionReceiver(255, 190, 0)
+    request_list = download.request_list(station)
+    assert request_list.bytes.hex() == vector["requestList"]
+    opened = upload.on_frame(request_list, vehicle)
+    assert opened.kind == "reply"
+    assert opened.reply.bytes.hex() == vector["count"]
+
+    for index, step in enumerate(vector["exchange"]):
+        received = download.on_frame(parse(step["feed"]), station)
+        assert received.kind == step["receiverKind"], index
+        assert (received.accepted is not None) == step["accepted"], index
+        if received.accepted is not None:
+            assert received.accepted.get_int("seq") == step["acceptedSeq"], index
+        assert received.reply.bytes.hex() == step["reply"], index
+
+        answered = upload.on_frame(received.reply, vehicle)
+        assert answered.kind == step["senderKind"], index
+        if answered.kind == "reply":
+            assert answered.reply.bytes.hex() == step["senderReply"], index
+        else:
+            assert answered.result == step["senderResult"], index
+    assert download.complete
+
+    # A request past the end of the plan is refused with the published result.
+    overrun = vector["overrun"]
+    refusal = upload.on_frame(parse(overrun["request"]), station)
+    assert refusal.reply.bytes.hex() == overrun["reply"]
+    ack = mavlink.MavlinkMessage.decode(mavlink.schema_for("MISSION_ACK"), refusal.reply.payload)
+    assert ack.get_int("type") == overrun["result"]
+
+    # The command protocol classifies acknowledgements and counts retries.
+    command = vector["command"]
+    arm = mavlink.CommandProtocol(command["command"], command["maxRetries"])
+    kinds = {"unrelated": "unrelated", "inProgress": "in_progress", "final": "final"}
+    for described in command["acks"]:
+        outcome = arm.on_frame(parse(described["frame"]))
+        assert outcome.kind == kinds[described["kind"]]
+        assert outcome.value == described["value"]
+    for want in command["timeouts"]:
+        assert arm.on_timeout() == want
+
+    # A frame none of the machines handle is passed over by all of them.
+    ignored = parse(vector["ignored"])
+    assert upload.on_frame(ignored, station) is None
+    assert download.on_frame(ignored, station) is None
+    assert arm.on_frame(ignored) is None
+
+    # Setpoints put exactly these bytes on the wire.
+    offboard = vector["offboard"]
+    for entry in offboard["typeMasks"]:
+        assert mavlink.type_mask(entry["flags"]) == entry["mask"], entry["flags"]
+    local = offboard["localPosition"]
+    assert (
+        mavlink.local_position(
+            station,
+            local["timeBootMs"],
+            local["coordinateFrame"],
+            local["targetSystem"],
+            local["targetComponent"],
+            local["x"],
+            local["y"],
+            local["z"],
+        ).bytes.hex()
+        == local["frame"]
+    )
+    velocity = offboard["localVelocity"]
+    assert (
+        mavlink.local_velocity(
+            station,
+            velocity["timeBootMs"],
+            velocity["coordinateFrame"],
+            velocity["targetSystem"],
+            velocity["targetComponent"],
+            velocity["vx"],
+            velocity["vy"],
+            velocity["vz"],
+        ).bytes.hex()
+        == velocity["frame"]
+    )
+    global_ = offboard["globalPosition"]
+    assert (
+        mavlink.global_position(
+            station,
+            global_["timeBootMs"],
+            global_["coordinateFrame"],
+            global_["targetSystem"],
+            global_["targetComponent"],
+            global_["latInt"],
+            global_["lonInt"],
+            global_["alt"],
+        ).bytes.hex()
+        == global_["frame"]
+    )
+
+
+def _header(described: dict) -> dict:
+    return {
+        "system_id": described["systemId"],
+        "component_id": described["componentId"],
+        "sequence": described["sequence"],
+    }
+
 def test_lora_vectors_match():
     vector = VECTORS["lora"]
 

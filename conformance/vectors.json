@@ -2205,6 +2205,172 @@
     ],
     "unknownCrcExtra": 9999
   },
+  "mavlinkProtocol": {
+    "command": {
+      "acks": [
+        {
+          "frame": "fd0200000001014d00009001a058",
+          "kind": "final",
+          "value": 0
+        },
+        {
+          "frame": "fd0100000001014d000016ac3e",
+          "kind": "unrelated",
+          "value": null
+        },
+        {
+          "frame": "fd0400000001014d000090010528c591",
+          "kind": "inProgress",
+          "value": 40
+        }
+      ],
+      "command": 400,
+      "maxRetries": 2,
+      "timeouts": [
+        1,
+        2,
+        null
+      ]
+    },
+    "count": "fd0400000001012c0000020001018011",
+    "exchange": [
+      {
+        "accepted": false,
+        "acceptedSeq": null,
+        "feed": "fd0400000001012c0000020001018011",
+        "receiverKind": "request",
+        "reply": "fd04000000ffbe3300000000ffbec813",
+        "senderKind": "reply",
+        "senderReply": "fd2200000001014900000000000000000000000000000000000000000000000000000000a041000016000101ecb8",
+        "senderResult": null
+      },
+      {
+        "accepted": true,
+        "acceptedSeq": 0,
+        "feed": "fd2200000001014900000000000000000000000000000000000000000000000000000000a041000016000101ecb8",
+        "receiverKind": "request",
+        "reply": "fd04000000ffbe3300000100ffbe8c18",
+        "senderKind": "reply",
+        "senderReply": "fd2200000001014900000000000000000000000000000000000088ddd1eba89f215a000048420100100001018963",
+        "senderResult": null
+      },
+      {
+        "accepted": true,
+        "acceptedSeq": 1,
+        "feed": "fd2200000001014900000000000000000000000000000000000088ddd1eba89f215a000048420100100001018963",
+        "receiverKind": "ack",
+        "reply": "fd02000000ffbe2f0000ffbee96e",
+        "senderKind": "finished",
+        "senderReply": null,
+        "senderResult": 0
+      }
+    ],
+    "ignored": "fd0900000001010000000000000002030004034ad7",
+    "offboard": {
+      "globalPosition": {
+        "alt": 50.0,
+        "coordinateFrame": 6,
+        "frame": "fd35000000ffbe560000e803000088ddd1eba89f215a000048420000000000000000000000000000000000000000000000000000000000000000f80d0101060e0c",
+        "latInt": -338567800,
+        "lonInt": 1512153000,
+        "targetComponent": 1,
+        "targetSystem": 1,
+        "timeBootMs": 1000
+      },
+      "localPosition": {
+        "coordinateFrame": 1,
+        "frame": "fd35000000ffbe540000e803000000002041000000000000a0c00000000000000000000000000000000000000000000000000000000000000000f80d0101012c5e",
+        "targetComponent": 1,
+        "targetSystem": 1,
+        "timeBootMs": 1000,
+        "x": 10.0,
+        "y": 0.0,
+        "z": -5.0
+      },
+      "localVelocity": {
+        "coordinateFrame": 1,
+        "frame": "fd35000000ffbe540000e80300000000000000000000000000000000003f00000000000000000000000000000000000000000000000000000000c70d010101f441",
+        "targetComponent": 1,
+        "targetSystem": 1,
+        "timeBootMs": 1000,
+        "vx": 0.5,
+        "vy": 0.0,
+        "vz": 0.0
+      },
+      "typeMasks": [
+        {
+          "flags": 0,
+          "mask": 3583
+        },
+        {
+          "flags": 1,
+          "mask": 3576
+        },
+        {
+          "flags": 18,
+          "mask": 1479
+        },
+        {
+          "flags": 36,
+          "mask": 3647
+        },
+        {
+          "flags": 63,
+          "mask": 512
+        }
+      ]
+    },
+    "overrun": {
+      "reply": "fd03000000ffbe2f000001010d9511",
+      "request": "fd0400000001013300000700ffbed775",
+      "result": 13
+    },
+    "plan": [
+      [
+        {
+          "field": "command",
+          "value": 22.0
+        },
+        {
+          "field": "z",
+          "value": 20.0
+        }
+      ],
+      [
+        {
+          "field": "command",
+          "value": 16.0
+        },
+        {
+          "field": "x",
+          "value": -338567800.0
+        },
+        {
+          "field": "y",
+          "value": 1512153000.0
+        },
+        {
+          "field": "z",
+          "value": 50.0
+        }
+      ]
+    ],
+    "planPayloads": [
+      "0000000000000000000000000000000000000000000000000000a04100001600000000000000",
+      "0000000000000000000000000000000088ddd1eba89f215a0000484200001000000000000000"
+    ],
+    "requestList": "fd02000000ffbe2b0000ffbe21b5",
+    "station": {
+      "componentId": 190,
+      "sequence": 0,
+      "systemId": 255
+    },
+    "vehicle": {
+      "componentId": 1,
+      "sequence": 0,
+      "systemId": 1
+    }
+  },
   "mavlinkSchema": {
     "declared": {
       "crcExtra": 124,

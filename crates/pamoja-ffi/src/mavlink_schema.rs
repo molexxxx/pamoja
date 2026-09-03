@@ -719,6 +719,16 @@ pub struct PamojaMavlinkMessage {
     payload: Vec<u8>,
 }
 
+impl PamojaMavlinkMessage {
+    /// Wraps a message the engine decoded, for another module in this crate to hand back.
+    pub(crate) fn from_typed(shape: &MessageDescriptor<'static>, payload: Vec<u8>) -> *mut Self {
+        Box::into_raw(Box::new(Self {
+            shape: OwnedMessageDescriptor::from_descriptor(shape),
+            payload,
+        }))
+    }
+}
+
 /// Runs a read against a message, writing the result through `out`.
 unsafe fn get<T: Copy>(
     message: *const PamojaMavlinkMessage,

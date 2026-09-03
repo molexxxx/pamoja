@@ -16,12 +16,17 @@
 //!   same two machines.
 //! - [`offboard`] - the `type_mask` builder and setpoint constructors for offboard position,
 //!   velocity, and acceleration control.
+//! - [`frames`] - the same machines driven by a [`Frame`](crate::Frame) at a time: the
+//!   payload decoding, message-id dispatch, and reply encoding a caller with a link would
+//!   otherwise write around every machine.
 
 pub mod command;
+pub mod frames;
 pub mod mission;
 pub mod offboard;
 
 pub use command::{AckOutcome, CommandProtocol};
+pub use frames::{ReceiverStep, SenderStep};
 pub use mission::{MissionReceiver, MissionSender, ReceiverAction};
 pub use offboard::TypeMask;
 
