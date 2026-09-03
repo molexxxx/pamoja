@@ -1,0 +1,38 @@
+{
+  "name": "@pamoja/sensors",
+  "version": "0.1.14",
+  "description": "Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115.",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/molexxxx/pamoja.git",
+    "directory": "bindings/node/packages/sensors"
+  },
+  "homepage": "https://pamoja.molex.cloud/docs/",
+  "keywords": [
+    "pamoja",
+    "iot",
+    "robotics",
+    "sensors"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "engines": {
+    "node": ">= 16"
+  },
+  "dependencies": {
+    "@pamoja/native": "0.1.14"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "name": "@pamoja/lora",
+  "version": "0.1.14",
+  "description": "Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to.",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/molexxxx/pamoja.git",
+    "directory": "bindings/node/packages/lora"
+  },
+  "homepage": "https://pamoja.molex.cloud/docs/",
+  "keywords": [
+    "pamoja",
+    "iot",
+    "robotics",
+    "lora"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "engines": {
+    "node": ">= 16"
+  },
+  "dependencies": {
+    "@pamoja/native": "0.1.14"
+  }
+}

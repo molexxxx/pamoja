@@ -1,0 +1,38 @@
+{
+  "name": "@pamoja/ros2",
+  "version": "0.1.14",
+  "description": "ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed.",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/molexxxx/pamoja.git",
+    "directory": "bindings/node/packages/ros2"
+  },
+  "homepage": "https://pamoja.molex.cloud/docs/",
+  "keywords": [
+    "pamoja",
+    "iot",
+    "robotics",
+    "ros2"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "engines": {
+    "node": ">= 16"
+  },
+  "dependencies": {
+    "@pamoja/native": "0.1.14"
+  }
+}

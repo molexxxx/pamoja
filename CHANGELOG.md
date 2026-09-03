@@ -31,6 +31,13 @@ released together, so one entry covers all of them.
 
 - `pamoja-ffi` exposes every capability behind a default-on feature and now
   depends on the whole workspace.
+- The Node binding is split into packages the way the crates are. `pamoja` is
+  the whole framework in one package; each capability is its own `@pamoja/<name>`
+  for installing only what you use; `@pamoja/core` is the engine's surface, the
+  counterpart of `pamoja-core`; and `@pamoja/native` is the compiled engine and
+  generated contract every package depends on. The `@pamoja/core/<name>` subpath
+  imports are gone: `@pamoja/core/mqtt` is now `@pamoja/mqtt`, and
+  `@pamoja/core/raw` is `@pamoja/native`.
 
 ### Fixed
 

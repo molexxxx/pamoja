@@ -49,7 +49,7 @@ const {
   Trend,
   Anomaly,
   WINDOW_CAPACITY,
-} = require("./dist/index.js");
+} = require("pamoja");
 
 const VECTORS = JSON.parse(
   fs.readFileSync(path.join(__dirname, "..", "..", "conformance", "vectors.json"), "utf8"),

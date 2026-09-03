@@ -1,94 +1,33 @@
-# @pamoja/core
+# The Node binding
 
-Node.js bindings for the [pamoja](https://github.com/molexxxx/pamoja)
-device SDK core, built with [napi-rs](https://napi.rs).
+The napi-rs crate at this directory compiles the Rust core into a native addon,
+and the npm workspace under `packages/` publishes it as `@pamoja/core`, one
+package per capability (`@pamoja/mqtt`, `@pamoja/security`, and so on), and the
+`pamoja` bundle that depends on all of them.
 
-The generated surface is intentionally thin. A hand-written, idiomatic layer is
-added on top of it so JavaScript and TypeScript callers get a native-feeling API
-while all behavior stays in the Rust core.
-
-## What is here
-
-| Import | Covers |
-| --- | --- |
-| `@pamoja/core/mqtt` | an MQTT client with async iteration over incoming messages |
-| `@pamoja/core/security` | device identity: sign a reading, verify one, label a key |
-| `@pamoja/core/codec` | JSON to CBOR and back, and packing samples for a metered link |
-| `@pamoja/core/kit` | the helper math: smoothing, PID, thermostat, depletion, geofencing |
-| `@pamoja/core/serial` | SLIP and COBS packet framing, with streaming decoders for a UART |
-| `@pamoja/core/modbus` | Modbus RTU requests and replies for RS485 field devices |
-| `@pamoja/core/can` | CAN 2.0 and CAN-FD frames, and the J1939 identifier above them |
-| `@pamoja/core/gpio` | I2C addressing, the SPI clock modes, and active-low pin logic |
-| `@pamoja/core/sensors` | BME280, DS18B20, INA219, and ADS1115 register decoding |
-| `@pamoja/core/actuators` | PCA9685 PWM and servo commands, and stepper coil sequencing |
-| `@pamoja/core/lora` | time on air, and the silence a regional duty-cycle limit forces |
-| `@pamoja/core/lorawan` | secured LoRaWAN frames, both halves of activation, header routing |
-| `@pamoja/core/mesh` | addressed mesh packets, relaying, and duplicate suppression |
-| `@pamoja/core/routing` | learning the way to a node, and when to fall back to flooding |
-| `@pamoja/core/audit` | signed, hash-chained records that cannot be quietly edited |
-| `@pamoja/core/session` | a confidential, replay-protected channel with one peer |
-| `@pamoja/core/update` | signed releases, staged into slots, with verified rollback |
-| `@pamoja/core/power` | duty cycling, and the interval a falling battery calls for |
-| `@pamoja/core/telemetry` | leveled events that thin out as the link gets expensive |
-| `@pamoja/core/coap` | CoAP over UDP, for links where MQTT costs more than the budget |
-| `@pamoja/core/loopback` | an in-process broker, so a message flow is testable with no broker |
-| `@pamoja/core/sync` | the buffer a node writes into while it has nowhere to send |
-| `@pamoja/core/ladder` | trying links cheapest-first, and buffering when none answer |
-| `@pamoja/core/transport` | building and composing the rungs a ladder tries |
-| `@pamoja/core/bus` | one publisher and many subscribers inside a single process |
-| `@pamoja/core/sim` | a sensor, an actuator, and a robot that need no hardware |
-| `@pamoja/core/profile` | named, pre-wired nodes and the decisions their policy makes |
-| `@pamoja/core/ros2` | ROS 2 names, DDS topics, type hashes, and CDR encoding |
-| `@pamoja/core/zenoh` | the key expressions a Zenoh network addresses data by |
-
-`@pamoja/core` re-exports them all, and the generated low-level contract stays
-available at `@pamoja/core/raw` for anything the facade does not surface. The
-hardware, radio, and operational capabilities arrive as namespaces (`serial`,
-`modbus`, `can`, `gpio`, `sensors`, `actuators`, `lora`, `lorawan`, `mesh`,
-`routing`, `audit`, `session`, `update`, `power`, `telemetry`, `coap`,
-`loopback`, `sync`, `ladder`, `transport`, `bus`, `sim`, `profile`, `ros2`,
-`zenoh`), because their names are ordinary words that only read unambiguously
-with the capability in front of them.
-
-```js
-const { DeviceIdentity, Smoother, toCbor } = require("@pamoja/core");
-
-const smoother = new Smoother(0.3);
-const reading = smoother.update(21.7);
-
-const device = DeviceIdentity.fromSeed(seed);
-const payload = toCbor({ c: reading });
-const signature = device.sign(payload);
+```
+Cargo.toml, src/        the napi-rs crate: one binding module per capability
+packages/core/          @pamoja/core: the generated index.js and index.d.ts, the
+                        per-platform packages under npm/, and the engine's own surface
+packages/<capability>/  @pamoja/<capability>: src/index.ts is the hand-written facade;
+                        package.json, tsconfig.json, and README.md are generated
+packages/pamoja/        pamoja: re-exports every package
+docs/                   the typedoc build of every package
+guides/                 the examples the documentation site splices
 ```
 
-Talking to the wires a gateway actually has looks the same way:
+`cargo xtask docs` renders each package's manifest, project file, and README
+from `docs/capabilities.toml`, deriving dependencies from the package's own
+imports; `cargo xtask docs --check` fails if any of them is stale.
 
-```js
-const { modbus, serial } = require("@pamoja/core");
-
-// Ask an RS485 energy meter for three holding registers.
-port.write(modbus.readHoldingRegisters(0x11, 0x006b, 3));
-
-// Reassemble whole packets from the chunks the port delivers.
-const decoder = new serial.SlipDecoder();
-port.on("data", (chunk) => {
-  for (const frame of decoder.feed(chunk)) handle(frame);
-});
-```
-
-## Build
+## Build and test
 
 ```
 npm install
-npm run build
-npm test
+npm run build      # the native addon into packages/core, then tsc -b over every package
+npm test           # the smoke test and the cross-language conformance suite
 ```
 
-`npm test` runs the smoke test and then the cross-language conformance suite,
-which asserts the same vectors every other binding does.
-
-`npm run build` compiles the Rust core into a native Node addon and emits
-`index.js` and `index.d.ts`. Both are generated artifacts, but they are
-committed and drift-checked in CI, so they can never fall behind the Rust
-source. `index.js` also carries the package version, so a version bump means
-rebuilding and committing it.
+`packages/core/index.js` and `index.d.ts` are generated by the native build and
+committed; CI checks they match the Rust source, and `cargo xtask version`
+rewrites the version they embed.

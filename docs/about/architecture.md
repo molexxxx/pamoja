@@ -9,10 +9,13 @@ nothing else.
 
 This separation is literal in Rust: `pamoja-core` defines the traits, and each
 transport (`pamoja-mqtt`, `pamoja-coap`) is its own crate, so Rust code pulls
-`MqttTransport` from `pamoja-mqtt`, not from the core. Each language binding
-ships one package that carries every capability, scoped the way that language
-scopes things: a subpath per capability in `@pamoja/core`, a module per
-capability in `pamoja`, and a namespace of types in `Pamoja.Core`.
+`MqttTransport` from `pamoja-mqtt`, not from the core. The bindings follow the
+same shape: on npm each capability is its own package (`@pamoja/mqtt`),
+`@pamoja/core` is the engine's surface, and `pamoja` is the whole framework in
+one package. The compiled engine itself is `@pamoja/native`, a build artifact
+every package depends on and nobody installs by hand. The Python and .NET
+packages are being split the same way, into `pamoja-mqtt` and `Pamoja.Mqtt`
+with `pamoja` and `Pamoja` as the bundles.
 
 ```
         bindings (two tiers: generated contract + hand-written facade)
@@ -36,8 +39,8 @@ Each binding has a generated contract and a hand-written facade. The contract
 is produced from the Rust source (napi-rs for Node, PyO3 with a generated type
 stub for Python, cbindgen and P/Invoke for .NET) and is drift-checked in CI, so
 it cannot fall behind the core. The facade is written in the language's own
-idiom on top of it: `async for` in Python, `IAsyncEnumerable` in C#,
-subpath imports in TypeScript. The facade adds ergonomics only; every
+idiom on top of it: `async for` in Python, `IAsyncEnumerable` in C#, a package
+per capability in TypeScript. The facade adds ergonomics only; every
 operation delegates to the Rust core.
 
 A single file of conformance vectors, generated from the Rust implementation,

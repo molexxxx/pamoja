@@ -1,0 +1,35 @@
+{
+  "name": "@pamoja/native-win32-x64-msvc",
+  "version": "0.1.14",
+  "cpu": [
+    "x64"
+  ],
+  "main": "pamoja-native.win32-x64-msvc.node",
+  "files": [
+    "pamoja-native.win32-x64-msvc.node"
+  ],
+  "description": "The compiled pamoja engine for Node and the generated napi-rs contract every @pamoja package builds on. Installed as a dependency, not directly.",
+  "keywords": [
+    "pamoja",
+    "iot",
+    "robotics",
+    "drones",
+    "napi-rs"
+  ],
+  "homepage": "https://pamoja.molex.cloud/docs/",
+  "license": "MIT",
+  "engines": {
+    "node": ">= 16"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/molexxxx/pamoja.git",
+    "directory": "bindings/node/packages/native"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "os": [
+    "win32"
+  ]
+}

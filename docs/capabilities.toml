@@ -1,7 +1,9 @@
 # The capability map: every crate, binding module, and .NET type, grouped into the
 # chapters the guides follow. `cargo xtask docs` renders the tables in the READMEs
 # and the site from this file and fails if it disagrees with the code: every library
-# crate must be claimed exactly once, the node and python keys must match the
+# crate must be claimed exactly once, the node keys must match the packages under
+# bindings/node/packages (or be "core" for a surface the engine carries itself), the
+# python keys must match the
 # package exports and modules, and every dotnet name must be a declared type.
 
 [[chapter]]
@@ -332,10 +334,10 @@ dotnet = ["EventBus"]
 [[capability]]
 key = "transport"
 chapter = "transports"
-title = "Transports"
-summary = "The transport surface every link shares: send, receive, subscribe, and a faulty wrapper for tests"
+title = "Engine surface"
+summary = "The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version"
 crates = []
-node = "transport"
+node = "core"
 python = "transport"
 dotnet = ["Transport", "TransportMessage"]
 

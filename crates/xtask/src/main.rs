@@ -11,6 +11,7 @@ mod catalog;
 mod docs;
 mod footprint;
 mod i18n;
+mod packages;
 mod regions;
 mod release;
 mod version;

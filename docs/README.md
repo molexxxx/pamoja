@@ -88,7 +88,7 @@ Reaching the network when no single link always works, and testing all of it wit
 - Store and forward - Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss
 - Transport ladder - Cheapest reachable link first, buffering to a store when every link is down
 - Event bus - An in-memory typed publish and subscribe event bus
-- Transports - The transport surface every link shares: send, receive, subscribe, and a faulty wrapper for tests
+- Engine surface - The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version
 - Simulators - Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose
 
 ### Profiles and robotics
