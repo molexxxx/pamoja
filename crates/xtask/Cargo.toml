@@ -18,6 +18,8 @@ flate2 = "1"
 # rustdoc comments.
 syn = { version = "3", features = ["full", "parsing", "printing", "extra-traits"] }
 quote = "1"
+# The version task rewrites every manifest in place, keeping comments and layout.
+toml_edit = "0.25"
 
 [lints]
 workspace = true

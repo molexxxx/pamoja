@@ -4545,6 +4545,7 @@ dependencies = [
  "indexmap 2.14.0",
  "toml_datetime 1.1.1+spec-1.1.0",
  "toml_parser",
+ "toml_writer",
  "winnow 1.0.3",
 ]
 
@@ -5259,6 +5260,7 @@ dependencies = [
  "quote",
  "serde_json",
  "syn 3.0.4",
+ "toml_edit 0.25.12+spec-1.1.0",
 ]
 
 [[package]]
