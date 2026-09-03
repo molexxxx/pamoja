@@ -2467,6 +2467,7 @@ dependencies = [
  "pamoja-loopback",
  "pamoja-lora",
  "pamoja-lorawan",
+ "pamoja-mavlink",
  "pamoja-mesh",
  "pamoja-modbus",
  "pamoja-mqtt",

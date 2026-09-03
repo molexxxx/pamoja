@@ -29,6 +29,7 @@ default = [
     "lora",
     "regions",
     "lorawan",
+    "mavlink",
     "mesh",
     "routing",
     "audit",
@@ -83,6 +84,8 @@ kr920 = ["pamoja-lora?/kr920"]
 in865 = ["pamoja-lora?/in865"]
 ru864 = ["pamoja-lora?/ru864"]
 lorawan = ["dep:pamoja-lorawan"]
+# The MAVLink wire layer; the vehicle model and its live drivers stay Rust-only.
+mavlink = ["dep:pamoja-mavlink"]
 mesh = ["dep:pamoja-mesh"]
 routing = ["dep:pamoja-routing"]
 audit = ["dep:pamoja-audit", "security"]
@@ -113,6 +116,8 @@ pamoja-actuators = { path = "../pamoja-actuators", version = "0.1.14", optional 
 # that asked for one.
 pamoja-lora = { path = "../pamoja-lora", version = "0.1.14", default-features = false, optional = true }
 pamoja-lorawan = { path = "../pamoja-lorawan", version = "0.1.14", optional = true }
+# Default features off: the wire core is what crosses, not the tokio drivers.
+pamoja-mavlink = { path = "../pamoja-mavlink", version = "0.1.14", default-features = false, optional = true }
 pamoja-mesh = { path = "../pamoja-mesh", version = "0.1.14", features = ["alloc"], optional = true }
 pamoja-routing = { path = "../pamoja-routing", version = "0.1.14", features = ["alloc"], optional = true }
 pamoja-audit = { path = "../pamoja-audit", version = "0.1.14", optional = true }
