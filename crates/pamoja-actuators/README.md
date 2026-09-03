@@ -7,6 +7,8 @@ Concrete actuator drivers for pamoja: the command-encode half of common parts - 
 <a href="https://crates.io/crates/pamoja-actuators"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-actuators"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-actuators) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_actuators/index.html).
+
 Concrete actuator drivers for the pamoja SDK.
 
 Where [`pamoja-sensors`](https://docs.rs/pamoja-sensors) decodes what a part
@@ -16,10 +18,10 @@ or coil pattern a driver writes to the hardware. Like the rest of the SDK's
 hardware crates, it is the command half ahead of the actual bus driver, pure logic
 with no I/O, so the same code runs on a microcontroller and in a test.
 
-- [`pca9685`] - the NXP PCA9685 16-channel 12-bit PWM controller, the common way
+- `pca9685` - the NXP PCA9685 16-channel 12-bit PWM controller, the common way
   to drive servos, dimmable LEDs, and motor-driver inputs over I2C. Its register
   map, prescale formula, and channel words follow the datasheet.
-- [`stepper`] - coil sequencing for four-wire stepper motors: the wave, full-step,
+- `stepper` - coil sequencing for four-wire stepper motors: the wave, full-step,
   and half-step drive patterns, plus a step-and-direction position model for
   driver chips that take a step pulse and a direction level.
 

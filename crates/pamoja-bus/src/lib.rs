@@ -1,6 +1,6 @@
 //! An in-memory typed publish/subscribe event bus.
 //!
-//! [`BroadcastBus`] implements the core [`EventBus`](pamoja_core::EventBus) trait
+//! [`BroadcastBus`] implements the core [`EventBus`] trait
 //! over a bounded broadcast channel: every event published is delivered to every
 //! current subscriber. Producers such as sensors and transports publish events,
 //! and consumers await them, all statically typed to one event type per bus.

@@ -7,15 +7,17 @@ Cost-aware transport ladder for the pamoja device SDK: try the cheapest link fir
 <a href="https://crates.io/crates/pamoja-ladder"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-ladder"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-ladder) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ladder/index.html).
+
 Cost-aware transport ladder for the pamoja SDK.
 
 A field node usually has more than one way to reach the wider network, and
 those links differ wildly in cost, range, and availability: a local mesh hop is
 nearly free, long-range radio is cheap but slow, cellular is metered, and
-satellite is expensive. [`TransportLadder`] models that hierarchy. It holds a
-set of [`Transport`](pamoja_core::Transport) rungs ordered cheapest-first and,
+satellite is expensive. `TransportLadder` models that hierarchy. It holds a
+set of `Transport` rungs ordered cheapest-first and,
 on each send, uses the first rung that accepts the message. When no rung is
-reachable, the message is buffered in a durable [`Store`](pamoja_core::Store)
+reachable, the message is buffered in a durable `Store`
 and replayed later, so connectivity degrades gracefully instead of failing.
 
 This is the offline-first behavior the target deployments need on day one: an
@@ -26,10 +28,10 @@ loses nothing once one returns.
 
 Delivery is in order. Once anything is buffered, later sends are buffered too
 rather than jumping ahead of the backlog over a recovered link;
-[`flush`](TransportLadder::flush) drains the backlog oldest-first, removing each
+`flush` drains the backlog oldest-first, removing each
 record only after a rung accepts it. The pattern is to call
-[`flush`](TransportLadder::flush) when a link event suggests connectivity may
-have returned, and [`send`](TransportLadder::send) for new data.
+`flush` when a link event suggests connectivity may
+have returned, and `send` for new data.
 
 **Examples**
 
@@ -51,10 +53,10 @@ match ladder.send("sensors/1/temperature", b"21.5").await? {
 
 ## enum `Delivery`
 
-The outcome of a [`TransportLadder::send`].
+The outcome of a `TransportLadder::send`.
 
 - `Sent` - The message was delivered immediately over one of the ladder's rungs.
-- `Buffered` - No rung accepted the message, so it was buffered for a later [`flush`](TransportLadder::flush).
+- `Buffered` - No rung accepted the message, so it was buffered for a later `flush`.
 
 ## struct `TransportLadder`
 
@@ -62,7 +64,7 @@ An ordered set of transports backed by an offline buffer.
 
 Rungs are tried in the order they are added, so the cheapest, most-preferred
 link is added first. A send that no rung accepts is buffered in the
-[`Store`](pamoja_core::Store) and replayed by [`flush`](Self::flush).
+`Store` and replayed by `flush`.
 
 ### `TransportLadder <S>::new`
 
@@ -75,7 +77,7 @@ Creates an empty ladder that buffers into `buffer`.
 
 **Returns**
 
-A ladder with no rungs; add them with [`rung`](Self::rung).
+A ladder with no rungs; add them with `rung`.
 
 ```rust
 fn new(buffer: S) -> Self
@@ -132,12 +134,12 @@ backlog, the message is buffered to preserve order.
 
 **Returns**
 
-[`Delivery::Sent`] if a rung delivered the message, or [`Delivery::Buffered`]
-if it was queued for a later [`flush`](Self::flush).
+`Delivery::Sent` if a rung delivered the message, or `Delivery::Buffered`
+if it was queued for a later `flush`.
 
 **Errors**
 
-Returns [`Error::Io`](pamoja_core::Error::Io) if the message must be buffered
+Returns `Error::Io` if the message must be buffered
 but the store cannot be written.
 
 ```rust
@@ -159,8 +161,8 @@ one.
 
 **Errors**
 
-Returns [`Error::Io`](pamoja_core::Error::Io) if the store cannot be read or
-written, or [`Error::Codec`](pamoja_core::Error::Codec) if a buffered record
+Returns `Error::Io` if the store cannot be read or
+written, or `Error::Codec` if a buffered record
 cannot be decoded.
 
 ```rust
@@ -178,11 +180,11 @@ requirement than a transport should have to meet.
 
 **Returns**
 
-The number of records waiting for a [`flush`](Self::flush).
+The number of records waiting for a `flush`.
 
 **Errors**
 
-Returns [`Error::Io`](pamoja_core::Error::Io) if the store length cannot be
+Returns `Error::Io` if the store length cannot be
 read.
 
 ```rust

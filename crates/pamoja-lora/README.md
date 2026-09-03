@@ -7,6 +7,8 @@ LoRa link math for pamoja: exact time-on-air and duty-cycle off-time, so a long-
 <a href="https://crates.io/crates/pamoja-lora"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-lora"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-lora) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_lora/index.html).
+
 LoRa link math for the pamoja SDK.
 
 LoRa is the SDK's answer to reach: kilometres of range on license-free bands at
@@ -19,9 +21,9 @@ transmitting is the most expensive thing it does, wasteful of its battery.
 This crate provides the arithmetic that keeps a long-range node honest, with no
 radio and no floating point:
 
-- [`LinkSettings`] - the spreading factor, bandwidth, coding rate, and frame
-  options of a link, with [`airtime_us`](LinkSettings::airtime_us) for a payload's
-  exact time on air and [`min_off_time_us`](LinkSettings::min_off_time_us) for the
+- `LinkSettings` - the spreading factor, bandwidth, coding rate, and frame
+  options of a link, with `airtime_us` for a payload's
+  exact time on air and `min_off_time_us` for the
   silence a duty-cycle limit then forces.
 
 The time-on-air calculation is the published LoRa formula, evaluated with exact

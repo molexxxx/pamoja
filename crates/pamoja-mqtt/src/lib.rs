@@ -1,6 +1,6 @@
 //! MQTT transport for the pamoja SDK.
 //!
-//! [`MqttTransport`] implements the core [`Transport`](pamoja_core::Transport)
+//! [`MqttTransport`] implements the core [`Transport`]
 //! trait on top of the pure-Rust [`rumqttc`] client, so an application can publish
 //! to and subscribe from an MQTT broker through the same protocol-agnostic surface
 //! it uses for every other transport.
@@ -204,7 +204,7 @@ impl MqttTransport {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Closed`](pamoja_core::Error::Closed) if the transport
+    /// Returns [`Error::Closed`] if the transport
     /// is not connected.
     pub async fn recv(&mut self) -> Result<Option<Message>> {
         let incoming = self.incoming.as_mut().ok_or(Error::Closed)?;

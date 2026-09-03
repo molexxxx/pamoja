@@ -7,23 +7,25 @@ CoAP transport for the pamoja device SDK, built on coap-lite over UDP.
 <a href="https://crates.io/crates/pamoja-coap"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-coap"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-coap) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_coap/index.html).
+
 CoAP transport for the pamoja SDK.
 
-[`CoapTransport`] implements the core [`Transport`](pamoja_core::Transport)
-trait on top of the pure-Rust [`coap_lite`] message codec and a UDP socket, so
+`CoapTransport` implements the core `Transport`
+trait on top of the pure-Rust `coap_lite` message codec and a UDP socket, so
 an application can talk to constrained RESTful devices through the same
 protocol-agnostic surface it uses for every other transport.
 
-CoAP is connectionless: [`connect`](Transport::connect) binds a local UDP
+CoAP is connectionless: `connect` binds a local UDP
 socket and points it at the server, then spawns a background task that decodes
-inbound datagrams. A [`send`](Transport::send) is a CoAP `PUT` to a resource
-path, and a [`subscribe`](Transport::subscribe) registers an RFC 7641 observe on
+inbound datagrams. A `send` is a CoAP `PUT` to a resource
+path, and a `subscribe` registers an RFC 7641 observe on
 a resource so the server's notifications are forwarded to an internal queue that
-[`recv`](CoapTransport::recv) drains.
+`recv` drains.
 
-Delivery follows the configured [`Reliability`]: [`Reliability::Confirmable`]
+Delivery follows the configured `Reliability`: `Reliability::Confirmable`
 messages are acknowledged with retransmission (at-least-once), while
-[`Reliability::NonConfirmable`] messages are fire-and-forget (at-most-once),
+`Reliability::NonConfirmable` messages are fire-and-forget (at-most-once),
 which suits the cheapest, most power-constrained devices.
 
 **Examples**
@@ -53,9 +55,9 @@ These map onto the CoAP message types defined in RFC 7252.
 
 ## struct `CoapConfig`
 
-Connection settings for a [`CoapTransport`].
+Connection settings for a `CoapTransport`.
 
-Construct with [`CoapConfig::new`] and refine with the chained setters; every
+Construct with `CoapConfig::new` and refine with the chained setters; every
 field has a sensible default so only the server address is required.
 
 ### `CoapConfig::new`
@@ -155,12 +157,12 @@ Fields:
 
 ## struct `CoapTransport`
 
-A CoAP client that implements the core [`Transport`] trait.
+A CoAP client that implements the core `Transport` trait.
 
-A transport is created disconnected; [`connect`](Transport::connect) binds the
+A transport is created disconnected; `connect` binds the
 socket and spawns the background task that decodes inbound datagrams for the
 life of the connection. Observe notifications are queued and read with
-[`recv`](CoapTransport::recv).
+`recv`.
 
 ### `CoapTransport::new`
 
@@ -172,7 +174,7 @@ Creates a transport from the given configuration without connecting.
 
 **Returns**
 
-A disconnected transport ready for [`connect`](Transport::connect).
+A disconnected transport ready for `connect`.
 
 ```rust
 fn new(config: CoapConfig) -> Self
@@ -184,8 +186,8 @@ Reports whether the transport currently holds a bound socket.
 
 **Returns**
 
-`true` once [`connect`](Transport::connect) has succeeded and before
-[`disconnect`](CoapTransport::disconnect) is called.
+`true` once `connect` has succeeded and before
+`disconnect` is called.
 
 ```rust
 fn is_connected(&self) -> bool
@@ -202,7 +204,7 @@ background task has stopped and no further messages will arrive.
 
 **Errors**
 
-Returns [`Error::Closed`](pamoja_core::Error::Closed) if the transport is
+Returns `Error::Closed` if the transport is
 not connected.
 
 ```rust

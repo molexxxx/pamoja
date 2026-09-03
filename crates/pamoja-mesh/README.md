@@ -7,6 +7,8 @@ Mesh packet framing for pamoja: an addressed, hop-limited, CRC-checked frame for
 <a href="https://crates.io/crates/pamoja-mesh"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-mesh"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-mesh) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mesh/index.html).
+
 Mesh packet framing for the pamoja SDK.
 
 When the fixed infrastructure is gone or was never there, devices have to carry each
@@ -21,15 +23,15 @@ its own.
 
 This crate is that missing layer, as pure logic with no radio and no allocation:
 
-- [`Frame`] - an addressed packet: a source and destination node, a sequence number,
-  a hop limit, a payload, and a checksum. It [encodes](Frame::new) a packet to send
-  and [parses](Frame::parse) one received, rejecting anything a noisy radio mangled.
+- `Frame` - an addressed packet: a source and destination node, a sequence number,
+  a hop limit, a payload, and a checksum. It encodes a packet to send
+  and parses one received, rejecting anything a noisy radio mangled.
   The checksum deliberately covers everything except the hop limit, so a packet's
   integrity check is end to end and survives relaying unchanged.
-- [`Frame::relayed`] - the forwarding primitive: the same packet with one hop spent,
+- `Frame::relayed` - the forwarding primitive: the same packet with one hop spent,
   or nothing once its hops run out, which is what stops a flood from circulating
   forever.
-- [`SeenCache`] - the duplicate suppressor: a fixed-size memory of recently seen
+- `SeenCache` - the duplicate suppressor: a fixed-size memory of recently seen
   packets, so a node relays each packet once however many copies reach it across the
   mesh. Without it a flood multiplies without bound.
 

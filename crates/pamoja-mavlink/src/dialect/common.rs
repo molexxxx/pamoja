@@ -9,7 +9,7 @@ use super::{Message, MessageDescriptor};
 
 /// Every typed message's shape, in message-id order.
 ///
-/// This is what [`descriptor`] and [`descriptor_by_name`] search, and what a caller
+/// This is what [`descriptor`](super::descriptor) and [`descriptor_by_name`](super::descriptor_by_name) search, and what a caller
 /// enumerates to discover which messages this build types.
 pub const DESCRIPTORS: &[&MessageDescriptor<'static>] = &[
     <Heartbeat as Message>::DESCRIPTOR,

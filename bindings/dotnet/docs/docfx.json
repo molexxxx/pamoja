@@ -1,0 +1,37 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
+  "metadata": [
+    {
+      "src": [
+        {
+          "files": ["src/Pamoja.Core/Pamoja.Core.csproj"],
+          "src": ".."
+        }
+      ],
+      "dest": "api",
+      "includePrivateMembers": false,
+      "disableGitFeatures": false,
+      "properties": {
+        "TargetFramework": "net8.0"
+      }
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": ["api/**.yml", "api/index.md"]
+      },
+      {
+        "files": ["toc.yml", "index.md"]
+      }
+    ],
+    "output": "../../../target/docs/site/reference/dotnet",
+    "template": ["default", "modern"],
+    "globalMetadata": {
+      "_appName": "Pamoja.Core",
+      "_appTitle": "Pamoja.Core reference",
+      "_enableSearch": true,
+      "_disableContribution": true
+    }
+  }
+}

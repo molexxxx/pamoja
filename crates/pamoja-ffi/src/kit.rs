@@ -9,7 +9,7 @@
 //! nothing here returns a status for the work itself. Each stateful helper is an
 //! opaque handle whose constructor returns null only when allocation is refused,
 //! and whose methods document what they return for a null handle, following
-//! [`pamoja_mqtt_client_is_connected`](crate::pamoja_mqtt_client_is_connected).
+//! `pamoja_mqtt_client_is_connected`.
 //! Helpers that answer "maybe" return a `bool` and write the value through an
 //! out-parameter.
 

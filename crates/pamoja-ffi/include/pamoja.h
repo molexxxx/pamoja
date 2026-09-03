@@ -1973,7 +1973,7 @@ void pamoja_audit_entry_free(PamojaAuditEntry *entry);
 //
 // # Arguments
 //
-// * `public_key` - the [`PAMOJA_KEY_LEN`]-byte key the entries were signed with.
+// * `public_key` - the `PAMOJA_KEY_LEN`-byte key the entries were signed with.
 //
 // # Returns
 //
@@ -1982,7 +1982,7 @@ void pamoja_audit_entry_free(PamojaAuditEntry *entry);
 //
 // # Safety
 //
-// `public_key` must point to at least [`PAMOJA_KEY_LEN`] readable bytes.
+// `public_key` must point to at least `PAMOJA_KEY_LEN` readable bytes.
 PamojaAuditVerifier *pamoja_audit_verifier_new(const uint8_t *public_key);
 
 // Checks the next entry of a chain, in the order the entries were written.
@@ -2022,7 +2022,7 @@ void pamoja_audit_verifier_free(PamojaAuditVerifier *verifier);
 //
 // # Arguments
 //
-// * `public_key` - the [`PAMOJA_KEY_LEN`]-byte key the entries were signed with.
+// * `public_key` - the `PAMOJA_KEY_LEN`-byte key the entries were signed with.
 // * `entries` - an array of entry handles, in the order they were written.
 // * `count` - how many handles `entries` holds.
 //
@@ -2033,7 +2033,7 @@ void pamoja_audit_verifier_free(PamojaAuditVerifier *verifier);
 //
 // # Safety
 //
-// `public_key` must point to at least [`PAMOJA_KEY_LEN`] readable bytes, and
+// `public_key` must point to at least `PAMOJA_KEY_LEN` readable bytes, and
 // `entries` must point to at least `count` live entry handles, none of them
 // null, or be null when `count` is 0.
 PamojaStatus pamoja_audit_verify_chain(const uint8_t *public_key,
@@ -3963,7 +3963,7 @@ PamojaStatus pamoja_lora_plan_data_rate(const PamojaLoraPlan *plan,
 //
 // This is what turns a data-rate number into something a radio can be told: the
 // spreading factor and bandwidth to transmit at, ready for
-// [`pamoja_lora_airtime_us`](crate::pamoja_lora_airtime_us).
+// `pamoja_lora_airtime_us`.
 //
 // # Arguments
 //
@@ -4021,7 +4021,7 @@ PamojaStatus pamoja_lora_plan_max_payload(const PamojaLoraPlan *plan,
 // Returns the share of time a transmitter may hold a frequency.
 //
 // This reports the limit; it does not impose it. Pair it with
-// [`pamoja_lora_min_off_time_us`](crate::pamoja_lora_min_off_time_us) to turn the
+// `pamoja_lora_min_off_time_us` to turn the
 // limit into the silence a given frame costs.
 //
 // # Arguments
@@ -4560,7 +4560,7 @@ PamojaStatus pamoja_lora_plan_builder_set_beacon(PamojaLoraPlanBuilder *builder,
 //
 // Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the
 // plan is inconsistent, with the reason available from
-// [`pamoja_last_error`](crate::pamoja_last_error), and
+// `pamoja_last_error_message`, and
 // [`PamojaStatus::Closed`] if the builder was already built.
 //
 // # Safety

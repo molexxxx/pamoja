@@ -4,9 +4,9 @@
 //! those links differ wildly in cost, range, and availability: a local mesh hop is
 //! nearly free, long-range radio is cheap but slow, cellular is metered, and
 //! satellite is expensive. [`TransportLadder`] models that hierarchy. It holds a
-//! set of [`Transport`](pamoja_core::Transport) rungs ordered cheapest-first and,
+//! set of [`Transport`] rungs ordered cheapest-first and,
 //! on each send, uses the first rung that accepts the message. When no rung is
-//! reachable, the message is buffered in a durable [`Store`](pamoja_core::Store)
+//! reachable, the message is buffered in a durable [`Store`]
 //! and replayed later, so connectivity degrades gracefully instead of failing.
 //!
 //! This is the offline-first behavior the target deployments need on day one: an
@@ -103,7 +103,7 @@ impl<T: Transport + Send> DynTransport for Erased<T> {
 ///
 /// Rungs are tried in the order they are added, so the cheapest, most-preferred
 /// link is added first. A send that no rung accepts is buffered in the
-/// [`Store`](pamoja_core::Store) and replayed by [`flush`](Self::flush).
+/// [`Store`] and replayed by [`flush`](Self::flush).
 pub struct TransportLadder<S> {
     rungs: Vec<Box<dyn DynTransport>>,
     buffer: S,
@@ -179,7 +179,7 @@ impl<S: Store> TransportLadder<S> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Io`](pamoja_core::Error::Io) if the message must be buffered
+    /// Returns [`Error::Io`] if the message must be buffered
     /// but the store cannot be written.
     pub async fn send(&mut self, topic: &str, payload: &[u8]) -> Result<Delivery> {
         if self.buffer.is_empty().await? && Self::deliver(&mut self.rungs, topic, payload).await {
@@ -202,8 +202,8 @@ impl<S: Store> TransportLadder<S> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Io`](pamoja_core::Error::Io) if the store cannot be read or
-    /// written, or [`Error::Codec`](pamoja_core::Error::Codec) if a buffered record
+    /// Returns [`Error::Io`] if the store cannot be read or
+    /// written, or [`Error::Codec`] if a buffered record
     /// cannot be decoded.
     pub async fn flush(&mut self) -> Result<usize> {
         let mut forwarded = 0;
@@ -231,7 +231,7 @@ impl<S: Store> TransportLadder<S> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Io`](pamoja_core::Error::Io) if the store length cannot be
+    /// Returns [`Error::Io`] if the store length cannot be
     /// read.
     pub async fn buffered(&mut self) -> Result<usize> {
         self.buffer.len().await

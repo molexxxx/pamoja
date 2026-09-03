@@ -58,13 +58,12 @@ class MqttClient:
     ) -> None:
         """Create a disconnected client from the given broker settings.
 
-        Args:
-            client_id: The MQTT client identifier presented to the broker.
-            host: The broker hostname or IP address.
-            port: The broker TCP port, conventionally 1883 for plaintext MQTT.
-            keep_alive_secs: Keep-alive interval in seconds. Defaults to 30.
-            capacity: Bound on outstanding client requests. Defaults to 64.
-            qos: Default quality of service. Defaults to ``Qos.AT_LEAST_ONCE``.
+        :param client_id: The MQTT client identifier presented to the broker.
+        :param host: The broker hostname or IP address.
+        :param port: The broker TCP port, conventionally 1883 for plaintext MQTT.
+        :param keep_alive_secs: Keep-alive interval in seconds. Defaults to 30.
+        :param capacity: Bound on outstanding client requests. Defaults to 64.
+        :param qos: Default quality of service. Defaults to ``Qos.AT_LEAST_ONCE``.
         """
         qos_value = qos.value if isinstance(qos, Qos) else qos
         self._native = _NativeMqttClient(
@@ -79,17 +78,15 @@ class MqttClient:
     async def connect(self) -> None:
         """Connect to the broker and start the background event loop.
 
-        Raises:
-            PamojaError: If the connection cannot be established.
+        :raises PamojaError: If the connection cannot be established.
         """
         await self._native.connect()
 
     async def publish(self, topic: str, payload: Union[str, bytes]) -> None:
         """Publish a payload to a topic.
 
-        Args:
-            topic: The destination topic.
-            payload: The message body; ``str`` payloads are encoded as UTF-8.
+        :param topic: The destination topic.
+        :param payload: The message body; ``str`` payloads are encoded as UTF-8.
         """
         data = payload.encode("utf-8") if isinstance(payload, str) else bytes(payload)
         await self._native.publish(topic, data)
@@ -97,16 +94,14 @@ class MqttClient:
     async def subscribe(self, topic: str) -> None:
         """Subscribe to a topic filter.
 
-        Args:
-            topic: The topic or wildcard filter to subscribe to.
+        :param topic: The topic or wildcard filter to subscribe to.
         """
         await self._native.subscribe(topic)
 
     async def recv(self) -> Optional[MqttMessage]:
         """Await the next message from any subscribed topic.
 
-        Returns:
-            The next message, or ``None`` once the connection has ended.
+        :returns: The next message, or ``None`` once the connection has ended.
         """
         return await self._native.recv()
 

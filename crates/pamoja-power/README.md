@@ -7,6 +7,8 @@ Power-aware scheduling for the pamoja device SDK: duty cycling and an energy-awa
 <a href="https://crates.io/crates/pamoja-power"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-power"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-power) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_power/index.html).
+
 Power-aware scheduling for the pamoja SDK.
 
 A node on a battery or a solar panel lives or dies by how much it sleeps. This
@@ -14,13 +16,13 @@ crate holds the scheduling math that keeps such a node alive, with no runtime
 and no hardware assumptions, so the same decisions can be made on a
 microcontroller and verified on a server:
 
-- [`DutyCycle`] - trade wakefulness for battery life with a repeating
+- `DutyCycle` - trade wakefulness for battery life with a repeating
   wake/sleep schedule, and read back the duty fraction as a power proxy.
-- [`PowerPlan`] - an energy-aware governor that stretches the sampling interval
-  as the battery drains, picking a [`PowerMode`] from the state of charge and
+- `PowerPlan` - an energy-aware governor that stretches the sampling interval
+  as the battery drains, picking a `PowerMode` from the state of charge and
   easing off when the panel is charging.
 
-The state of charge fed to a [`PowerPlan`] is noisy in the field, so smoothing
+The state of charge fed to a `PowerPlan` is noisy in the field, so smoothing
 it first (for example with a `Smoother` from `pamoja-kit`) keeps the governor
 from flapping between modes at a threshold.
 

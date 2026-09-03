@@ -47,3 +47,6 @@ Thumbs.db
 # Logs and coverage
 coverage/
 *.log
+
+# DocFX metadata intermediates, rebuilt by the docs workflow.
+bindings/dotnet/docs/api/

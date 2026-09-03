@@ -7,9 +7,11 @@
 use std::path::Path;
 use std::process::{Command, ExitCode};
 
+mod catalog;
 mod docs;
 mod footprint;
 mod i18n;
+mod regions;
 mod release;
 mod version;
 
@@ -37,7 +39,7 @@ const TASKS: &[(&str, &str)] = &[
     ),
     (
         "docs",
-        "regenerate every crate README and the API index from rustdoc (docs [--check])",
+        "regenerate the crate READMEs, the site navigation, and the generated regions (docs [--check])",
     ),
 ];
 

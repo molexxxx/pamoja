@@ -18,8 +18,8 @@
 //! - [`State`] is the language-neutral fleet snapshot served at `GET /state`:
 //!   [`Org`]s of [`Group`]s of [`Sensor`]s, each group on its own [`Link`].
 //! - [`StateSource`] is the one seam between the dashboard and its data; a real
-//!   gateway and the [`Mock`] both implement it.
-//! - [`Mock`] serves a deterministic [`Scenario`] so the whole dashboard runs and is
+//!   gateway and the `Mock` both implement it.
+//! - `Mock` serves a deterministic `Scenario` so the whole dashboard runs and is
 //!   debugged with no hardware.
 //! - [`Server`] serves the page, the snapshot, and a live event stream over plain TCP.
 //!
@@ -62,7 +62,7 @@
 //! assert!(json.contains("\"status\":\"alarm\""));
 //! ```
 //!
-//! The hardware-free [`Mock`] fleet (the `mock` feature) implements [`StateSource`] the same
+//! The hardware-free `Mock` fleet (the `mock` feature) implements [`StateSource`] the same
 //! way a real node does, so the whole dashboard runs and is debugged with no hardware.
 
 mod assets;

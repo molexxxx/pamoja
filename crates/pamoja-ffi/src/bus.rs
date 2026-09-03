@@ -9,7 +9,7 @@
 //! The Rust bus carries any cloneable event; a C ABI has no such parameter, so
 //! this one carries bytes. That is the shape every binding already exchanges,
 //! and a caller who wants structure encodes it with
-//! [`crate::codec`](crate::codec) on the way in.
+//! [`crate::codec`] on the way in.
 
 use std::ptr;
 

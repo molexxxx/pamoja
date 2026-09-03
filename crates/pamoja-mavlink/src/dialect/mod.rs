@@ -1,7 +1,7 @@
 //! The typed message layer: a broad slice of the MAVLink common dialect, plus the seam
 //! that lets any message id be carried and checked.
 //!
-//! A [`Frame`](crate::Frame) moves opaque payload bytes; this module gives those bytes
+//! A [`Frame`] moves opaque payload bytes; this module gives those bytes
 //! meaning. Each typed message knows its id, its `CRC_EXTRA` seed, and how its fields are
 //! laid out on the wire, so a sender fills named fields instead of hand-packing a buffer
 //! and a receiver reads them back. The set covers what a ground station and an autopilot

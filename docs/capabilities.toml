@@ -1,0 +1,385 @@
+# The capability map: every crate, binding module, and .NET type, grouped into the
+# chapters the guides follow. `cargo xtask docs` renders the tables in the READMEs
+# and the site from this file and fails if it disagrees with the code: every library
+# crate must be claimed exactly once, the node and python keys must match the
+# package exports and modules, and every dotnet name must be a declared type.
+
+[[chapter]]
+key = "identity"
+title = "Identity"
+intent = "Signing a payload and checking it, the way a gateway verifies a reading."
+
+[[chapter]]
+key = "codecs"
+title = "Codecs"
+intent = "Moving a document to the compact form a metered link should carry, and back."
+
+[[chapter]]
+key = "helpers"
+title = "Helpers"
+intent = "The helper math a field node runs between reading a sensor and acting on it."
+
+[[chapter]]
+key = "field-io"
+title = "Field I/O"
+intent = "The wires a gateway actually has: framed serial packets, an RS485 request and the reply it draws, a CAN frame, and the address a chip answers on."
+
+[[chapter]]
+key = "sensing"
+title = "Sensing and actuation"
+intent = "The parts wired to a board: a thermometer that checks its own bytes, a servo pulse, and a stepper walking its coils."
+
+[[chapter]]
+key = "radio"
+title = "Radio and reach"
+intent = "Budgeting airtime, framing a mesh packet, routing it, and securing a LoRaWAN uplink: everything a node needs to reach a network it cannot see."
+
+[[chapter]]
+key = "mavlink"
+title = "MAVLink"
+intent = "Talking to an autopilot: framing a message, reading it back off a link that splits and garbles it, proving a signed frame came from who it claims, and moving a plan across one frame at a time."
+
+[[chapter]]
+key = "trust"
+title = "Trust and operation"
+intent = "Proving what a node did, saying it in confidence, fixing it in the field, and deciding how often it can afford to do any of that."
+
+[[chapter]]
+key = "transports"
+title = "Transports and testing"
+intent = "Reaching the network when no single link always works, and testing all of it with nothing plugged in."
+
+[[chapter]]
+key = "profiles"
+title = "Profiles and robotics"
+intent = "A node instantiated by name with its policy and schedule, and the naming and encoding rules a robot's topics follow, with no ROS 2 or Zenoh installed."
+
+[[capability]]
+key = "security"
+chapter = "identity"
+title = "Device identity"
+summary = "ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic"
+crates = ["pamoja-security"]
+node = "security"
+python = "security"
+dotnet = ["DeviceIdentity"]
+
+[[capability]]
+key = "codec"
+chapter = "codecs"
+title = "Codecs"
+summary = "CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links"
+crates = ["pamoja-codec"]
+node = "codec"
+python = "codec"
+dotnet = ["Codec", "Quantizer"]
+
+[[capability]]
+key = "kit"
+chapter = "helpers"
+title = "Helpers"
+summary = "Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo"
+crates = ["pamoja-kit"]
+node = "kit"
+python = "kit"
+dotnet = [
+    "Kit", "Smoother", "Median", "Kalman", "Calibration", "Pid", "Ramp", "Thermostat",
+    "Debounce", "Boundary", "Coordinate", "Geofence", "Window", "Trend", "Surge",
+    "Depletion", "Anomaly",
+]
+
+[[capability]]
+key = "serial"
+chapter = "field-io"
+title = "Serial framing"
+summary = "SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets"
+crates = ["pamoja-serial"]
+node = "serial"
+python = "serial"
+dotnet = ["Serial", "SlipDecoder", "CobsDecoder"]
+
+[[capability]]
+key = "modbus"
+chapter = "field-io"
+title = "Modbus RTU"
+summary = "Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices"
+crates = ["pamoja-modbus"]
+node = "modbus"
+python = "modbus"
+dotnet = ["Modbus", "ModbusFrame"]
+
+[[capability]]
+key = "can"
+chapter = "field-io"
+title = "CAN and J1939"
+summary = "CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose"
+crates = ["pamoja-can"]
+node = "can"
+python = "can"
+dotnet = ["Can", "CanFrame", "J1939Message"]
+
+[[capability]]
+key = "gpio"
+chapter = "field-io"
+title = "I2C, SPI, and GPIO"
+summary = "I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins"
+crates = ["pamoja-gpio"]
+node = "gpio"
+python = "gpio"
+dotnet = ["I2c", "Spi", "SpiClock", "Pin", "PinLevel", "PinEdge", "PinPolarity"]
+
+[[capability]]
+key = "sensors"
+chapter = "sensing"
+title = "Sensor drivers"
+summary = "Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115"
+crates = ["pamoja-sensors"]
+node = "sensors"
+python = "sensors"
+dotnet = [
+    "Bme280", "Bme280Calibration", "Bme280Measurement", "Ds18b20", "Ds18b20Reading",
+    "Ina219", "Ads1115", "Ads1115Config",
+]
+
+[[capability]]
+key = "actuators"
+chapter = "sensing"
+title = "Actuator drivers"
+summary = "PCA9685 PWM and servo pulses, and stepper coil sequencing"
+crates = ["pamoja-actuators"]
+node = "actuators"
+python = "actuators"
+dotnet = ["Pca9685", "Pwm", "Stepper", "StepDrive", "StepDirection"]
+
+[[capability]]
+key = "lora"
+chapter = "radio"
+title = "LoRa airtime"
+summary = "Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to"
+crates = ["pamoja-lora"]
+node = "lora"
+python = "lora"
+dotnet = [
+    "LoraLink", "LoraChannelPlan", "LoraPlanBuilder", "LoraPlanInfo", "LoraRegion",
+    "LoraDataRate", "LoraChannelBlock", "LoraChannelSet", "LoraSubBand", "LoraRx2",
+    "LoraBeacon", "LoraMaxPayload", "LoraPayloadTable", "LoraModulation", "LoraDirection",
+]
+
+[[capability]]
+key = "lorawan"
+chapter = "radio"
+title = "LoRaWAN"
+summary = "LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join"
+crates = ["pamoja-lorawan"]
+node = "lorawan"
+python = "lorawan"
+dotnet = [
+    "Lorawan", "LorawanDevice", "LorawanSession", "LorawanHeader", "LorawanJoinRequest",
+    "LorawanJoinAccept", "LorawanGrant", "LorawanOptions", "LorawanRxData",
+    "LorawanMessageType", "LorawanDirection",
+]
+
+[[capability]]
+key = "mesh"
+chapter = "radio"
+title = "Mesh frames"
+summary = "Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once"
+crates = ["pamoja-mesh"]
+node = "mesh"
+python = "mesh"
+dotnet = ["Mesh", "MeshFrame", "SeenPackets"]
+
+[[capability]]
+key = "routing"
+chapter = "radio"
+title = "Routing"
+summary = "Reverse-path routing that learns the cheapest route from overheard traffic"
+crates = ["pamoja-routing"]
+node = "routing"
+python = "routing"
+dotnet = ["Router", "Route", "ForwardDecision", "ForwardAction"]
+
+[[capability]]
+key = "mavlink"
+chapter = "mavlink"
+title = "MAVLink"
+summary = "MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols"
+crates = ["pamoja-mavlink"]
+node = "mavlink"
+python = "mavlink"
+dotnet = [
+    "Mavlink", "MavlinkFrame", "MavlinkHeader", "MavlinkParser", "MavlinkSigner",
+    "MavlinkVerifier", "MavlinkVersion", "MavlinkDialect", "MavlinkField", "MavlinkSchema",
+    "MavlinkSchemaBuilder", "MavlinkMessage", "MavlinkFieldInfo", "MavlinkFieldType",
+    "MavlinkMissionReceiver", "MavlinkMissionSender", "MavlinkReceiverStep",
+    "MavlinkSenderStep", "MavlinkReceiverKind", "MavlinkSenderKind", "MavlinkCommand",
+    "MavlinkAckOutcome", "MavlinkAckKind", "MavlinkOffboard", "MavlinkTypeMask",
+]
+
+[[capability]]
+key = "audit"
+chapter = "trust"
+title = "Audit log"
+summary = "A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification"
+crates = ["pamoja-audit"]
+node = "audit"
+python = "audit"
+dotnet = ["Audit", "AuditLog", "AuditEntry", "AuditVerifier"]
+
+[[capability]]
+key = "session"
+chapter = "trust"
+title = "Secured session"
+summary = "X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack"
+crates = ["pamoja-session"]
+node = "session"
+python = "session"
+dotnet = ["Session", "SessionRole", "AgreementKey", "SealedMessage"]
+
+[[capability]]
+key = "update"
+chapter = "trust"
+title = "Signed updates"
+summary = "Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own"
+crates = ["pamoja-update"]
+node = "update"
+python = "update"
+dotnet = [
+    "Update", "Updater", "Manifest", "ImageVerifier", "Progress", "Delegation", "SlotRecord",
+    "SlotState", "BootDecision", "BootAction",
+]
+
+[[capability]]
+key = "power"
+chapter = "trust"
+title = "Power"
+summary = "Duty cycling and an energy-aware governor that stretches work as the battery drains"
+crates = ["pamoja-power"]
+node = "power"
+python = "power"
+dotnet = ["DutyCycle", "PowerPlan", "PowerMode"]
+
+[[capability]]
+key = "telemetry"
+chapter = "trust"
+title = "Telemetry"
+summary = "Observability that ships only what is worth the bytes as link cost rises, while counting everything"
+crates = ["pamoja-telemetry"]
+node = "telemetry"
+python = "telemetry"
+dotnet = ["Reporter", "TelemetryEvent", "TelemetryLevel", "TelemetrySnapshot", "LinkCost"]
+
+[[capability]]
+key = "mqtt"
+chapter = "transports"
+title = "MQTT"
+summary = "An MQTT client with the topic and wildcard rules, as the core transport"
+crates = ["pamoja-mqtt"]
+node = "mqtt"
+python = "mqtt"
+dotnet = ["MqttClient", "MqttClientOptions", "MqttMessage", "Qos"]
+
+[[capability]]
+key = "coap"
+chapter = "transports"
+title = "CoAP"
+summary = "A CoAP client over UDP with confirmable delivery and observe"
+crates = ["pamoja-coap"]
+node = "coap"
+python = "coap"
+dotnet = ["CoapClient", "CoapClientOptions", "Reliability"]
+
+[[capability]]
+key = "loopback"
+chapter = "transports"
+title = "Loopback"
+summary = "An in-process transport with topic matching and a fault injector, for testing with no broker"
+crates = ["pamoja-loopback"]
+node = "loopback"
+python = "loopback"
+dotnet = ["LoopbackBroker", "LoopbackTransport"]
+
+[[capability]]
+key = "sync"
+chapter = "transports"
+title = "Store and forward"
+summary = "Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss"
+crates = ["pamoja-sync"]
+node = "sync"
+python = "sync"
+dotnet = ["Store"]
+
+[[capability]]
+key = "ladder"
+chapter = "transports"
+title = "Transport ladder"
+summary = "Cheapest reachable link first, buffering to a store when every link is down"
+crates = ["pamoja-ladder"]
+node = "ladder"
+python = "ladder"
+dotnet = ["Ladder", "Delivery"]
+
+[[capability]]
+key = "bus"
+chapter = "transports"
+title = "Event bus"
+summary = "An in-memory typed publish and subscribe event bus"
+crates = ["pamoja-bus"]
+node = "bus"
+python = "bus"
+dotnet = ["EventBus"]
+
+[[capability]]
+key = "transport"
+chapter = "transports"
+title = "Transports"
+summary = "The transport surface every link shares: send, receive, subscribe, and a faulty wrapper for tests"
+crates = []
+node = "transport"
+python = "transport"
+dotnet = ["Transport", "TransportMessage"]
+
+[[capability]]
+key = "sim"
+chapter = "transports"
+title = "Simulators"
+summary = "Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose"
+crates = ["pamoja-sim"]
+node = "sim"
+python = "sim"
+dotnet = ["SimulatedSensor", "Replay", "RecordingActuator", "SimulatedRobot", "Pose", "Twist"]
+
+[[capability]]
+key = "profile"
+chapter = "profiles"
+title = "Device profiles"
+summary = "Named, ready-to-run device profiles from plain data or a JSON manifest"
+crates = ["pamoja-profile"]
+node = "profile"
+python = "profile"
+dotnet = ["Profile", "ControlPolicy", "ControlKind", "Controller", "Reaction", "Alert", "AlertKind", "PowerSchedule"]
+
+[[capability]]
+key = "ros2"
+chapter = "profiles"
+title = "ROS 2 rules"
+summary = "ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed"
+crates = ["pamoja-ros2"]
+node = "ros2"
+python = "ros2"
+dotnet = ["Ros2", "Ros2Twist", "Vector3", "CdrReader", "CdrWriter", "EntityKind"]
+
+[[capability]]
+key = "zenoh"
+chapter = "profiles"
+title = "Zenoh keys"
+summary = "Zenoh key expressions: validity, canonical form, and wildcard matching"
+crates = ["pamoja-zenoh"]
+node = "zenoh"
+python = "zenoh"
+dotnet = ["KeyExpression"]
+
+# The crates that are not a capability of their own: the trait core every capability
+# implements, the C ABI the .NET binding rides on, and the fleet dashboard.
+[engine]
+crates = ["pamoja-core", "pamoja-ffi", "pamoja-dashboard"]

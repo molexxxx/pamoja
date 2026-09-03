@@ -7,22 +7,24 @@ Offline-first store-and-forward buffering for pamoja: durable queues behind the 
 <a href="https://crates.io/crates/pamoja-sync"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-sync"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-sync) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sync/index.html).
+
 Offline-first store-and-forward buffering for pamoja.
 
 Devices on intermittent links append records while offline and drain them in
 order when a link returns, so a node that is disconnected for hours or days
 loses nothing. This crate provides durable first-in first-out implementations
-of the core [`Store`](pamoja_core::Store) trait:
+of the core `Store` trait:
 
-- [`MemoryStore`] - a fast in-memory queue, optionally capacity-bounded so a
+- `MemoryStore` - a fast in-memory queue, optionally capacity-bounded so a
   full queue becomes an explicit backpressure signal.
-- [`FileStore`] - a crash-safe on-disk queue that survives power loss, for the
+- `FileStore` - a crash-safe on-disk queue that survives power loss, for the
   power-loss-safe field logging the mission depends on.
 
-Both buffer raw bytes, so an application pairs a [`Store`](pamoja_core::Store)
+Both buffer raw bytes, so an application pairs a `Store`
 with a [`Codec`](https://docs.rs/pamoja-codec) to persist encoded payloads and
-a [`Transport`](pamoja_core::Transport) to forward them when a link appears.
-[`drain_to`] is the forward half: it publishes buffered records onto a
+a `Transport` to forward them when a link appears.
+`drain_to` is the forward half: it publishes buffered records onto a
 transport in order, removing each only after it is sent, so a failed link
 loses nothing.
 

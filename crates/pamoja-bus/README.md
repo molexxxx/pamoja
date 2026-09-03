@@ -7,9 +7,11 @@ In-memory typed publish/subscribe event bus implementing the core EventBus trait
 <a href="https://crates.io/crates/pamoja-bus"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-bus"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-bus) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_bus/index.html).
+
 An in-memory typed publish/subscribe event bus.
 
-[`BroadcastBus`] implements the core [`EventBus`](pamoja_core::EventBus) trait
+`BroadcastBus` implements the core `EventBus` trait
 over a bounded broadcast channel: every event published is delivered to every
 current subscriber. Producers such as sensors and transports publish events,
 and consumers await them, all statically typed to one event type per bus.
@@ -23,7 +25,7 @@ devices.
 
 A typed publish/subscribe bus that broadcasts each event to all subscribers.
 
-Every handle can both publish and receive. Use [`subscribe`](BroadcastBus::subscribe)
+Every handle can both publish and receive. Use `subscribe`
 to add an independent consumer; an event published after a handle subscribes
 is delivered to it. A subscriber only sees events published after it
 subscribed, mirroring a live pub/sub channel.

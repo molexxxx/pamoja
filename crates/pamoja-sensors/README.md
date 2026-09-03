@@ -7,6 +7,8 @@ Concrete sensor drivers for pamoja: the decode-and-configure half of common part
 <a href="https://crates.io/crates/pamoja-sensors"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-sensors"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-sensors) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html).
+
 Concrete sensor drivers for the pamoja SDK.
 
 [`pamoja-gpio`](https://docs.rs/pamoja-gpio) builds the address and mode bytes a
@@ -30,10 +32,10 @@ the Maxim 1-Wire polynomial; the INA219 math is checked against the datasheet's
 worked design example; the ADS1115 full-scale conversion against its per-gain LSB
 sizes.
 
-- [`bme280`] - Bosch temperature, pressure, and humidity over I2C or SPI.
-- [`ds18b20`] - Maxim 1-Wire digital thermometer, with CRC-checked scratchpads.
-- [`ina219`] - Texas Instruments high-side current, voltage, and power monitor.
-- [`ads1115`] - Texas Instruments 16-bit I2C analog-to-digital converter.
+- `bme280` - Bosch temperature, pressure, and humidity over I2C or SPI.
+- `ds18b20` - Maxim 1-Wire digital thermometer, with CRC-checked scratchpads.
+- `ina219` - Texas Instruments high-side current, voltage, and power monitor.
+- `ads1115` - Texas Instruments 16-bit I2C analog-to-digital converter.
 
 ## License
 

@@ -7,23 +7,25 @@ Serialization and framing for pamoja: pluggable wire formats behind a common Cod
 <a href="https://crates.io/crates/pamoja-codec"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-codec"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-codec) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_codec/index.html).
+
 Pluggable serialization for pamoja payloads.
 
 Concrete wire formats - CBOR for constrained devices, Protocol Buffers, JSON,
-or raw framing - implement the [`Codec`] trait. This crate defines the trait
+or raw framing - implement the `Codec` trait. This crate defines the trait
 and provides serde-based implementations behind feature flags:
 
-- [`CborCodec`] (feature `cbor`, on by default) - compact binary framing for
+- `CborCodec` (feature `cbor`, on by default) - compact binary framing for
   constrained devices and metered links.
-- [`JsonCodec`] (feature `json`, on by default) - human-readable framing for
+- `JsonCodec` (feature `json`, on by default) - human-readable framing for
   interop and debugging.
-- [`BytesCodec`] (always available) - a no-op codec that carries raw bytes.
+- `BytesCodec` (always available) - a no-op codec that carries raw bytes.
 
 For metered links it also packs batches of samples into far fewer bytes:
-[`encode_deltas`] delta-encodes a series of integers, and [`Quantizer`] rounds
+`encode_deltas` delta-encodes a series of integers, and `Quantizer` rounds
 `f32` readings to a fixed precision and delta-encodes them.
 
-[`json_to_cbor`] and [`cbor_to_json`] convert a whole document between the two
+`json_to_cbor` and `cbor_to_json` convert a whole document between the two
 formats without a Rust type for it, which is what a caller holding an untyped
 payload needs in order to reach the compact form.
 
@@ -60,8 +62,8 @@ assert_eq!(codec.decode(&encoded).unwrap(), 42);
 Encodes and decodes values of type `T` to and from byte buffers.
 
 A codec is the bridge between in-memory values and the bytes carried by a
-[`Transport`](pamoja_core::Transport) or persisted by a
-[`Store`](pamoja_core::Store).
+`Transport` or persisted by a
+`Store`.
 
 ### `fn encode(&self, value: &T) -> Result <Vec <u8>>`
 
@@ -77,7 +79,7 @@ A byte buffer containing the encoded representation of `value`.
 
 **Errors**
 
-Returns [`Error::Codec`](pamoja_core::Error::Codec) if the value cannot
+Returns `Error::Codec` if the value cannot
 be encoded.
 
 ### `fn decode(&self, bytes: &[u8]) -> Result <T>`
@@ -94,7 +96,7 @@ The value decoded from `bytes`.
 
 **Errors**
 
-Returns [`Error::Codec`](pamoja_core::Error::Codec) if `bytes` is not a
+Returns `Error::Codec` if `bytes` is not a
 valid encoding of `T`.
 
 ## License

@@ -1,15 +1,17 @@
-//! Generate each crate's README from its rustdoc, for crates.io and GitHub.
+//! Generate the documentation that is derived from the code, and check it is current.
 //!
-//! The crates carry thorough `///` and `//!` documentation. This turns each crate's lib.rs
-//! overview and the items it defines into a committed `README.md` in the crate directory -
-//! the crates.io page and the crate's landing doc - with registry buttons at the top. It
-//! parses the source with `syn` (no nightly needed), so it runs on the scoop toolchain.
-//! `cargo xtask docs` regenerates the READMEs; `cargo xtask docs --check` re-generates in
-//! memory and fails if a committed README is stale, the way the dashboard i18n bundles are
-//! guarded. A hand-written crate README (the dashboard's) is detected by the absence of the
-//! generated marker and left untouched. It also writes `docs/README.md`, a one-file API index
-//! that links each crate's README (which in turn buttons through to docs.rs).
+//! Three things are generated. Each crate's `README.md` comes from its lib.rs rustdoc, with
+//! registry buttons at the top, and is the crates.io page and the crate's landing doc; the
+//! source is parsed with `syn`, so no nightly toolchain is needed. `docs/SUMMARY.md`, the
+//! site's navigation, comes from the capability map in `docs/capabilities.toml`. And the
+//! generated regions inside hand-written Markdown (the capability tables in the READMEs and
+//! the site, and the code snippets spliced from test files) are re-rendered in place; see
+//! [`regions`](crate::regions). `cargo xtask docs` writes all of it; `cargo xtask docs --check`
+//! renders in memory, fails if any committed file is stale, and checks the capability map
+//! against the crates, the binding exports, and the .NET types. A hand-written crate README
+//! (the dashboard's) is detected by the absence of the generated marker and left untouched.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -17,23 +19,26 @@ use std::process::ExitCode;
 use quote::ToTokens;
 use syn::{Fields, ImplItem, Item, TraitItem, Visibility};
 
-/// Run the `docs` task: regenerate the crate READMEs, or `--check` to verify they are in sync.
+use crate::catalog::{Catalog, SITE};
+use crate::regions;
+
+/// Run the `docs` task: regenerate every derived file, or `--check` to verify they are in sync.
 ///
 /// # Arguments
 ///
-/// * `args` - `--check` verifies without writing; otherwise the READMEs are regenerated.
+/// * `args` - `--check` verifies without writing; otherwise the files are regenerated.
 ///
 /// # Returns
 ///
-/// Success when the READMEs were written, or when the check found them in sync.
+/// Success when the files were written, or when the check found them in sync.
 pub fn run(args: &[String]) -> ExitCode {
     let check = args.iter().any(|arg| arg == "--check");
     match render_all() {
         Ok(readmes) => {
             let ok = if check {
-                verify_crate_readmes(&readmes)
+                verify_files(&readmes)
             } else {
-                write_crate_readmes(&readmes)
+                write_files(&readmes)
             };
             if ok {
                 ExitCode::SUCCESS
@@ -125,6 +130,10 @@ fn crate_readme(krate: &str, overview: &str, items: &str) -> String {
     }
     out.push_str(&buttons.join("\n"));
     out.push_str("\n\n");
+    out.push_str(&format!(
+        "Full API reference: [docs.rs](https://docs.rs/{krate}) and [the pamoja site]({SITE}/reference/rust/{}/index.html).\n\n",
+        krate.replace('-', "_")
+    ));
     if !overview.is_empty() {
         out.push_str(overview);
         out.push_str("\n\n");
@@ -156,16 +165,17 @@ fn lib_crates() -> Result<Vec<String>, String> {
     Ok(names)
 }
 
-// Renders the per-crate READMEs plus a top API index (a TOC linking each crate's README),
-// as (path, contents).
+// Renders every derived file as (path, contents): the per-crate READMEs, the site navigation,
+// and each hand-written Markdown file that holds generated regions. Checks the capability
+// map first, so a stale map fails before anything is rendered from it.
 fn render_all() -> Result<Vec<(String, String)>, String> {
-    let crates_root = repo_root().join("crates");
+    let root = repo_root();
+    let crates_root = root.join("crates");
     let crates = lib_crates()?;
-    let mut readmes = Vec::new();
-    let mut index = format!(
-        "{GEN_MARKER}\n\n# API reference\n\nEach crate's README is its overview, examples, and crates.io page, with a button to the full per-item API on docs.rs. This index links them all.\n\n## Crates\n\n"
-    );
+    let catalog = Catalog::load(&root)?;
+    catalog.check(&root, &crates, false)?;
 
+    let mut files = Vec::new();
     for krate in &crates {
         let lib = fs::read_to_string(crates_root.join(krate).join("src/lib.rs"))
             .map_err(|e| format!("reading {krate}/lib.rs: {e}"))?;
@@ -173,22 +183,88 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
             syn::parse_file(&lib).map_err(|e| format!("parsing {krate}/lib.rs: {e}"))?;
         let overview = doc_of(&lib_parsed.attrs);
         let items = render_items(&lib_parsed.items);
-        readmes.push((
+        files.push((
             format!("crates/{krate}/README.md"),
             crate_readme(krate, &overview, &items),
         ));
-        // Anchor the link to the crate README's title heading, so it opens at the top.
-        match crate_description(krate) {
-            Some(desc) => index.push_str(&format!(
-                "- [{krate}](../crates/{krate}/README.md#{krate}) - {desc}\n"
-            )),
-            None => index.push_str(&format!(
-                "- [{krate}](../crates/{krate}/README.md#{krate})\n"
-            )),
+    }
+
+    files.push(("docs/SUMMARY.md".to_owned(), catalog.summary()));
+
+    let descriptions: BTreeMap<String, String> = crates
+        .iter()
+        .filter_map(|krate| crate_description(krate).map(|desc| (krate.clone(), desc)))
+        .collect();
+    for path in region_files(&root)? {
+        let text =
+            fs::read_to_string(root.join(&path)).map_err(|e| format!("reading {path}: {e}"))?;
+        if !regions::has_regions(&text) {
+            continue;
+        }
+        let processed = regions::process(&text, &mut |directive| {
+            if let Some(spec) = directive.strip_prefix("snippet:") {
+                regions::snippet(&root, spec.trim())
+            } else if let Some(table) = directive.strip_prefix("table:") {
+                catalog.render(table.trim(), &descriptions)
+            } else {
+                Err(format!("unknown directive `{directive}`"))
+            }
+        })
+        .map_err(|e| format!("{path}: {e}"))?;
+        files.push((path, processed));
+    }
+    Ok(files)
+}
+
+// The hand-written Markdown files that may hold generated regions: the root README, every
+// page of the site except the generated navigation, and the three binding READMEs.
+fn region_files(root: &Path) -> Result<Vec<String>, String> {
+    let mut paths = vec!["README.md".to_owned()];
+    let mut pages = Vec::new();
+    collect_markdown(&root.join("docs"), &mut pages)?;
+    for page in pages {
+        let relative = page
+            .strip_prefix(root)
+            .unwrap_or(&page)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if relative != "docs/SUMMARY.md" {
+            paths.push(relative);
         }
     }
-    readmes.push(("docs/README.md".to_owned(), index));
-    Ok(readmes)
+    paths.extend(
+        [
+            "bindings/node/README.md",
+            "bindings/python/README.md",
+            "bindings/dotnet/src/Pamoja.Core/README.md",
+        ]
+        .into_iter()
+        .map(str::to_owned),
+    );
+    Ok(paths
+        .into_iter()
+        .filter(|path| root.join(path).is_file())
+        .collect())
+}
+
+// Every `.md` file under `dir`, recursively, sorted.
+fn collect_markdown(dir: &Path, into: &mut Vec<PathBuf>) -> Result<(), String> {
+    if !dir.is_dir() {
+        return Ok(());
+    }
+    let mut entries: Vec<PathBuf> = fs::read_dir(dir)
+        .map_err(|e| format!("reading {}: {e}", dir.display()))?
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .collect();
+    entries.sort();
+    for path in entries {
+        if path.is_dir() {
+            collect_markdown(&path, into)?;
+        } else if path.extension().and_then(|ext| ext.to_str()) == Some("md") {
+            into.push(path);
+        }
+    }
+    Ok(())
 }
 
 // Renders the public items of lib.rs to Markdown, in source order.
@@ -420,11 +496,80 @@ fn doc_of(attrs: &[syn::Attribute]) -> String {
             }
         } else if SECTIONS.contains(&line.as_str()) {
             out.push(format!("**{}**", &line[2..]));
-        } else {
-            out.push(line);
+        } else if let Some(plain) = without_intra_doc_links(&line) {
+            out.push(plain);
         }
     }
     out.join("\n").trim_end().to_owned()
+}
+
+// Whether a link target is a Rust path rustdoc would resolve (`Reading`, `crate::x::Y`,
+// `Type::method`) rather than a URL, an anchor, or a file.
+fn is_rust_path(target: &str) -> bool {
+    !target.is_empty()
+        && !target.contains("://")
+        && !target.starts_with('#')
+        && !target.contains('/')
+        && !target.ends_with(".md")
+        && !target.ends_with(".html")
+        && target.chars().all(|c| {
+            c.is_alphanumeric() || matches!(c, '_' | ':' | '<' | '>' | '!' | '(' | ')' | '@' | '.')
+        })
+}
+
+// Rewrites a Markdown line so rustdoc's intra-doc links, which only docs.rs resolves, read as
+// plain code: `[`Name`]` and `[text](rust::path)` become their text, a `[text][ref]` becomes
+// its text, and a `[ref]: rust::path` definition line is dropped (`None`). Real links to
+// URLs, anchors, and files are kept.
+fn without_intra_doc_links(line: &str) -> Option<String> {
+    let trimmed = line.trim_start();
+    if trimmed.starts_with('[') {
+        if let Some(close) = trimmed.find("]:") {
+            let target = trimmed[close + 2..].trim();
+            if !target.contains(' ') && is_rust_path(target) {
+                return None;
+            }
+        }
+    }
+
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(open) = rest.find('[') {
+        let Some(close) = rest[open..].find(']').map(|at| open + at) else {
+            break;
+        };
+        let text = &rest[open + 1..close];
+        let after = &rest[close + 1..];
+        out.push_str(&rest[..open]);
+
+        if let Some(paren) = after.strip_prefix('(') {
+            if let Some(end) = paren.find(')') {
+                let target = &paren[..end];
+                if is_rust_path(target) {
+                    out.push_str(text);
+                } else {
+                    out.push_str(&rest[open..close + 2 + end + 1]);
+                }
+                rest = &paren[end + 1..];
+                continue;
+            }
+        }
+        if let Some(bracket) = after.strip_prefix('[') {
+            if let Some(end) = bracket.find(']') {
+                out.push_str(text);
+                rest = &bracket[end + 1..];
+                continue;
+            }
+        }
+        if text.len() >= 2 && text.starts_with('`') && text.ends_with('`') {
+            out.push_str(text);
+        } else {
+            out.push_str(&rest[open..=close]);
+        }
+        rest = after;
+    }
+    out.push_str(rest);
+    Some(out)
 }
 
 // Tidies a token-stream-rendered signature so it reads like source, not spaced tokens.
@@ -450,13 +595,19 @@ fn is_handwritten(path: &Path) -> bool {
     }
 }
 
-// Writes the per-crate READMEs, leaving any hand-written one (no marker) in place.
-fn write_crate_readmes(readmes: &[(String, String)]) -> bool {
+// Whether a generated file is a crate README that may be hand-written (no marker) and must
+// then be left in place.
+fn is_kept_handwritten(name: &str, path: &Path) -> bool {
+    name.starts_with("crates/") && path.exists() && is_handwritten(path)
+}
+
+// Writes every derived file, leaving a hand-written crate README in place.
+fn write_files(readmes: &[(String, String)]) -> bool {
     let base = repo_root();
     let mut written = 0;
     for (name, body) in readmes {
         let path = base.join(name);
-        if path.exists() && is_handwritten(&path) {
+        if is_kept_handwritten(name, &path) {
             continue;
         }
         if let Some(parent) = path.parent() {
@@ -471,17 +622,19 @@ fn write_crate_readmes(readmes: &[(String, String)]) -> bool {
         }
         written += 1;
     }
-    println!("docs: wrote {written} files (crate READMEs + API index; hand-written ones kept)");
+    println!(
+        "docs: wrote {written} files (crate READMEs, the site navigation, and the generated regions)"
+    );
     true
 }
 
-// Verifies the generated crate READMEs are in sync, skipping any hand-written one.
-fn verify_crate_readmes(readmes: &[(String, String)]) -> bool {
+// Verifies every derived file is in sync, skipping a hand-written crate README.
+fn verify_files(readmes: &[(String, String)]) -> bool {
     let base = repo_root();
     let mut stale = Vec::new();
     for (name, body) in readmes {
         let path = base.join(name);
-        if path.exists() && is_handwritten(&path) {
+        if is_kept_handwritten(name, &path) {
             continue;
         }
         match fs::read_to_string(&path) {
@@ -490,13 +643,46 @@ fn verify_crate_readmes(readmes: &[(String, String)]) -> bool {
         }
     }
     if stale.is_empty() {
-        println!("docs: crate READMEs are in sync");
+        println!(
+            "docs: the crate READMEs, the site navigation, and the generated regions are in sync"
+        );
         true
     } else {
         eprintln!(
-            "xtask docs: stale or missing crate READMEs: {}\n  run `cargo xtask docs` and commit the result",
+            "xtask docs: stale or missing generated files: {}\n  run `cargo xtask docs` and commit the result",
             stale.join(", ")
         );
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn intra_doc_links_become_plain_code() {
+        assert_eq!(
+            without_intra_doc_links("Use [`Reading`] with [`Codec::encode`](Codec::encode)."),
+            Some("Use `Reading` with `Codec::encode`.".to_owned())
+        );
+        assert_eq!(
+            without_intra_doc_links("see [the trait](crate::Transport) and [`X`][x]"),
+            Some("see the trait and `X`".to_owned())
+        );
+        assert_eq!(without_intra_doc_links("[`Reading`]: crate::Reading"), None);
+    }
+
+    #[test]
+    fn real_links_are_kept() {
+        let kept = [
+            "[RFC 4493](https://www.rfc-editor.org/rfc/rfc4493)",
+            "[the section](#arguments) and [notes](../docs/notes.md)",
+            "an array `[u8; 4]` in prose",
+            "[LICENSE-MIT]: https://opensource.org/license/mit",
+        ];
+        for line in kept {
+            assert_eq!(without_intra_doc_links(line).as_deref(), Some(line));
+        }
     }
 }

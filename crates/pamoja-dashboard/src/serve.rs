@@ -108,7 +108,7 @@ impl Transport for TcpTransport {
 ///
 /// Build one with [`Server::new`], optionally set the live-update cadence with
 /// [`Server::with_push_interval`], then block in [`Server::run`] (plain TCP) or
-/// [`Server::run_on`] (a custom [`Transport`]).
+/// [`Server::run_on`] (a custom `Transport`).
 ///
 /// # Examples
 ///
@@ -146,7 +146,7 @@ impl<S: StateSource + Send + 'static> Server<S> {
     ///
     /// # Arguments
     ///
-    /// * `source` - the state source to serve, a real node or a [`Mock`](crate::Mock).
+    /// * `source` - the state source to serve, a real node or a `Mock`.
     /// * `assets` - where the page files come from, embedded or a directory.
     ///
     /// # Returns
@@ -234,7 +234,7 @@ impl<S: StateSource + Send + 'static> Server<S> {
         self.run_on(transport)
     }
 
-    /// Serves forever over a supplied [`Transport`], one thread per connection.
+    /// Serves forever over a supplied `Transport`, one thread per connection.
     ///
     /// This is the seam for a non-default transport, such as a future TLS transport
     /// for a capable tier.

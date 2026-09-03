@@ -7,6 +7,8 @@ MAVLink for pamoja: build, parse, and sign v1/v2 frames (CRC-16/MCRF4XX, per-mes
 <a href="https://crates.io/crates/pamoja-mavlink"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-mavlink"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-mavlink) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mavlink/index.html).
+
 The MAVLink wire protocol for the pamoja SDK.
 
 MAVLink is the language drones speak: PX4 and ArduPilot autopilots and MAVSDK ground
@@ -15,33 +17,33 @@ right bytes on the wire and trusting the bytes that come back. This crate is tha
 layer, hand-written from the [MAVLink specification](https://mavlink.io) and pinned to
 its reference values rather than guessed from memory:
 
-- [`crc16_mcrf4xx`] - the CRC-16/MCRF4XX every frame carries, the checksum that lets a
+- `crc16_mcrf4xx` - the CRC-16/MCRF4XX every frame carries, the checksum that lets a
   receiver reject a frame mangled in transit, anchored to the catalogue check value.
-- [`Frame`] - the v1 and v2 frame on the wire, which both [assembles](Frame::encode_v2)
-  a frame to send and [parses](Frame::parse) one received, verifying the checksum and
-  the per-message [`message_crc_extra`] seed so a corrupt or mismatched frame never
+- `Frame` - the v1 and v2 frame on the wire, which both assembles
+  a frame to send and parses one received, verifying the checksum and
+  the per-message `message_crc_extra` seed so a corrupt or mismatched frame never
   reaches the application.
-- [`Parser`] - a streaming parser that turns the bytes a link delivers into whole
+- `Parser` - a streaming parser that turns the bytes a link delivers into whole
   frames, resynchronizing on noise so a serial port or UDP socket just works.
-- [`signing`] - MAVLink 2 message signing: the SHA-256 signature and the monotonic
+- `signing` - MAVLink 2 message signing: the SHA-256 signature and the monotonic
   timestamp that let a ground station trust a command came from the vehicle it expects
   and was not replayed.
-- [`dialect`] - a broad, typed slice of the common dialect (HEARTBEAT, the command,
+- `dialect` - a broad, typed slice of the common dialect (HEARTBEAT, the command,
   parameter, and mission protocols, and core telemetry), plus message shapes as data:
-  a [`MessageDescriptor`](dialect::MessageDescriptor) gives any message's bytes named
-  fields, and a [builder](dialect::MessageDescriptorBuilder) describes one this crate
+  a `MessageDescriptor` gives any message's bytes named
+  fields, and a builder describes one this crate
   does not type, so a vendor or private dialect is usable at runtime.
-- [`protocol`] - the mission, command, and offboard exchanges as pure, allocation-free
+- `protocol` - the mission, command, and offboard exchanges as pure, allocation-free
   state machines: the rules of order, matching, and retransmission that turn single
   messages into a real conversation with an autopilot, with no IO of their own. Each
-  machine also takes a [`Frame`] at a time and hands back the frame to send, so a
+  machine also takes a `Frame` at a time and hands back the frame to send, so a
   caller holding a link writes no decoding or dispatch of its own.
 
 The protocol core is `no_std` and allocation-free, so the same framing runs on a
 microcontroller flight controller. The default `std` feature adds the async layer: the
-byte-stream link seam and an in-process software-in-the-loop autopilot ([`link`]), the
-[`vehicle`] device model that presents an autopilot as a pamoja `Device`, and the real
-[`drivers`] (UDP, TCP, and serial behind the `serial` feature) that carry MAVLink to a real
+byte-stream link seam and an in-process software-in-the-loop autopilot (`link`), the
+`vehicle` device model that presents an autopilot as a pamoja `Device`, and the real
+`drivers` (UDP, TCP, and serial behind the `serial` feature) that carry MAVLink to a real
 or simulated autopilot.
 
 **Examples**

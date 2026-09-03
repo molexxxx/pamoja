@@ -7,6 +7,8 @@ Serial-line packet framing for pamoja: SLIP (RFC 1055) and COBS byte-stuffing wi
 <a href="https://crates.io/crates/pamoja-serial"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-serial"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-serial) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_serial/index.html).
+
 Serial-line packet framing for the pamoja SDK.
 
 A serial line, whether a bare UART, an RS232/RS485 link, or a USB-serial bridge, is a
@@ -19,17 +21,17 @@ payload so that value can never occur inside it.
 
 This crate is that framing layer, as pure logic with no serial port and no allocation:
 
-- [`slip`] - SLIP (RFC 1055), the simplest serial framing there is: an `END` byte ends
+- `slip` - SLIP (RFC 1055), the simplest serial framing there is: an `END` byte ends
   a packet, and an escape pair carries `END` or the escape byte itself when they appear
   in the data. Ubiquitous and trivial, at a worst case of doubling the payload.
-- [`cobs`] - COBS (Consistent Overhead Byte Stuffing), which removes the zero byte from
+- `cobs` - COBS (Consistent Overhead Byte Stuffing), which removes the zero byte from
   the payload so a single zero delimits packets unambiguously, at a bounded worst case
   of one byte of overhead per 254. This is the framing motor-control and robotics links
   reach for when the overhead has to stay small and predictable.
 
-Each module both [encodes](slip::encode) a packet into a frame and [decodes](slip::decode)
+Each module both encodes a packet into a frame and decodes
 one back, rejecting a frame that arrived corrupt. Each also offers a streaming decoder,
-[`slip::SlipDecoder`] and [`cobs::CobsDecoder`], that reassembles whole frames from the
+`slip::SlipDecoder` and `cobs::CobsDecoder`, that reassembles whole frames from the
 stream a byte at a time, because a UART hands an application arbitrary chunks rather
 than tidy packets. It is the streaming decoder, not the one-shot call, that a real
 serial read loop uses.

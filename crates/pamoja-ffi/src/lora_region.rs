@@ -613,7 +613,7 @@ pub unsafe extern "C" fn pamoja_lora_plan_data_rate(
 ///
 /// This is what turns a data-rate number into something a radio can be told: the
 /// spreading factor and bandwidth to transmit at, ready for
-/// [`pamoja_lora_airtime_us`](crate::pamoja_lora_airtime_us).
+/// `pamoja_lora_airtime_us`.
 ///
 /// # Arguments
 ///
@@ -743,7 +743,7 @@ pub unsafe extern "C" fn pamoja_lora_plan_max_payload(
 /// Returns the share of time a transmitter may hold a frequency.
 ///
 /// This reports the limit; it does not impose it. Pair it with
-/// [`pamoja_lora_min_off_time_us`](crate::pamoja_lora_min_off_time_us) to turn the
+/// `pamoja_lora_min_off_time_us` to turn the
 /// limit into the silence a given frame costs.
 ///
 /// # Arguments
@@ -1656,7 +1656,7 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_set_beacon(
 ///
 /// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the
 /// plan is inconsistent, with the reason available from
-/// [`pamoja_last_error`](crate::pamoja_last_error), and
+/// `pamoja_last_error_message`, and
 /// [`PamojaStatus::Closed`] if the builder was already built.
 ///
 /// # Safety

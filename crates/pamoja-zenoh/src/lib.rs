@@ -17,8 +17,8 @@
 //! - matching: [`matches`](keyexpr::matches) tests whether a concrete key is selected by a pattern,
 //!   the routing question a subscriber asks of every publication.
 //!
-//! With the `runtime` feature on, [`ZenohTransport`] adds the live half: it opens a Zenoh session
-//! and implements the core [`Transport`](pamoja_core::Transport), so Zenoh becomes the efficient
+//! With the `runtime` feature on, `ZenohTransport` adds the live half: it opens a Zenoh session
+//! and implements the core `Transport`, so Zenoh becomes the efficient
 //! edge-to-edge and fleet transport behind the same surface as every other link. Pattern-against-
 //! pattern intersection and inclusion arrive later, cross-checked against Zenoh's own implementation.
 //!

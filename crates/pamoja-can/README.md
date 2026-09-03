@@ -7,6 +7,8 @@ CAN bus framing for pamoja: classic CAN 2.0 and CAN-FD frames with 11-bit and 29
 <a href="https://crates.io/crates/pamoja-can"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-can"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-can) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_can/index.html).
+
 CAN bus framing for the pamoja SDK.
 
 CAN is the bus that connects the moving parts of a machine: motor controllers, servos,
@@ -17,11 +19,11 @@ diesel-and-hydraulic world of rural machinery.
 
 This crate is the byte layer for that, with no controller and no allocation:
 
-- [`CanId`] - a standard 11-bit or extended 29-bit identifier, always masked to width.
-- [`Frame`] - a classic CAN 2.0 frame, a CAN-FD frame at the discrete CAN-FD lengths,
-  or a remote frame, with [`len_to_dlc`] and [`dlc_to_len`] for the length encoding
+- `CanId` - a standard 11-bit or extended 29-bit identifier, always masked to width.
+- `Frame` - a classic CAN 2.0 frame, a CAN-FD frame at the discrete CAN-FD lengths,
+  or a remote frame, with `len_to_dlc` and `dlc_to_len` for the length encoding
   CAN-FD uses above eight bytes.
-- [`J1939Id`] - the priority, parameter group, and addresses J1939 packs into a 29-bit
+- `J1939Id` - the priority, parameter group, and addresses J1939 packs into a 29-bit
   identifier, decoded from one and composed back into one.
 
 The controller hardware handles the wire itself (arbitration, bit timing, the frame
