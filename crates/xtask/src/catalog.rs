@@ -1,0 +1,725 @@
+//! The capability map in `docs/capabilities.toml`: the chapters the guides follow,
+//! what each capability covers in every language, and the checks that keep the map
+//! honest against the crates, the binding exports, and the .NET types. The map
+//! renders the tables in the READMEs and the site through [`Catalog::render`].
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::path::Path;
+
+use toml_edit::{DocumentMut, Item};
+
+/// Where the site is published; the tables link into it with absolute URLs so the
+/// registry pages, which do not resolve relative links, reach the guides too.
+pub const SITE: &str = "https://pamoja.molex.cloud/docs";
+
+/// A group of capabilities that share a chapter of the guides.
+pub struct Chapter {
+    pub key: String,
+    pub title: String,
+    pub intent: String,
+}
+
+/// One capability: what it is called, what it covers, and where it lives in each language.
+pub struct Capability {
+    pub key: String,
+    pub chapter: String,
+    pub title: String,
+    pub summary: String,
+    pub crates: Vec<String>,
+    pub node: String,
+    pub python: String,
+    pub dotnet: Vec<String>,
+    pub guide: Option<String>,
+}
+
+/// The whole map: chapters in order, capabilities in order, and the engine crates.
+pub struct Catalog {
+    pub chapters: Vec<Chapter>,
+    pub capabilities: Vec<Capability>,
+    pub engine: Vec<String>,
+}
+
+impl Catalog {
+    /// Read `docs/capabilities.toml` under `root`.
+    ///
+    /// # Errors
+    ///
+    /// Returns the reason when the file is missing or malformed.
+    pub fn load(root: &Path) -> Result<Catalog, String> {
+        let path = root.join("docs/capabilities.toml");
+        let text = fs::read_to_string(&path)
+            .map_err(|err| format!("reading {}: {err}", path.display()))?;
+        Catalog::parse(&text)
+    }
+
+    /// Parse the map from its TOML text.
+    ///
+    /// # Errors
+    ///
+    /// Returns the reason when a required field is missing or has the wrong type.
+    pub fn parse(text: &str) -> Result<Catalog, String> {
+        let doc: DocumentMut = text
+            .parse()
+            .map_err(|err| format!("capabilities.toml is not valid TOML: {err}"))?;
+
+        let mut chapters = Vec::new();
+        for table in tables(&doc, "chapter")? {
+            chapters.push(Chapter {
+                key: string(table, "key", "chapter")?,
+                title: string(table, "title", "chapter")?,
+                intent: string(table, "intent", "chapter")?,
+            });
+        }
+
+        let mut capabilities = Vec::new();
+        for table in tables(&doc, "capability")? {
+            let key = string(table, "key", "capability")?;
+            let context = format!("capability {key}");
+            capabilities.push(Capability {
+                chapter: string(table, "chapter", &context)?,
+                title: string(table, "title", &context)?,
+                summary: string(table, "summary", &context)?,
+                crates: strings(table, "crates", &context)?,
+                node: string(table, "node", &context)?,
+                python: string(table, "python", &context)?,
+                dotnet: strings(table, "dotnet", &context)?,
+                guide: table.get("guide").and_then(Item::as_str).map(str::to_owned),
+                key,
+            });
+        }
+
+        let engine = doc
+            .get("engine")
+            .and_then(Item::as_table_like)
+            .map(|engine| strings_of(engine, "crates", "engine"))
+            .transpose()?
+            .unwrap_or_default();
+
+        Ok(Catalog {
+            chapters,
+            capabilities,
+            engine,
+        })
+    }
+
+    /// The capabilities of one chapter, in map order.
+    pub fn in_chapter<'a>(&'a self, chapter: &'a str) -> impl Iterator<Item = &'a Capability> {
+        self.capabilities
+            .iter()
+            .filter(move |capability| capability.chapter == chapter)
+    }
+
+    /// The capability with `key`.
+    pub fn capability(&self, key: &str) -> Option<&Capability> {
+        self.capabilities
+            .iter()
+            .find(|capability| capability.key == key)
+    }
+
+    /// Check the map against the repository: every library crate claimed once, the
+    /// node and python keys matching the package exports and modules, every dotnet
+    /// name declared, and every guide present. With `require_guides`, a capability
+    /// without a guide is an error too.
+    ///
+    /// # Errors
+    ///
+    /// Returns every disagreement found, one per line.
+    pub fn check(
+        &self,
+        root: &Path,
+        lib_crates: &[String],
+        require_guides: bool,
+    ) -> Result<(), String> {
+        let mut problems = Vec::new();
+
+        let mut chapter_keys = BTreeSet::new();
+        for chapter in &self.chapters {
+            if !chapter_keys.insert(chapter.key.as_str()) {
+                problems.push(format!("chapter {} is declared twice", chapter.key));
+            }
+        }
+        let mut capability_keys = BTreeSet::new();
+        for capability in &self.capabilities {
+            if !capability_keys.insert(capability.key.as_str()) {
+                problems.push(format!("capability {} is declared twice", capability.key));
+            }
+            if !chapter_keys.contains(capability.chapter.as_str()) {
+                problems.push(format!(
+                    "capability {} names the unknown chapter {}",
+                    capability.key, capability.chapter
+                ));
+            }
+        }
+
+        let mut claimed: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+        for capability in &self.capabilities {
+            for krate in &capability.crates {
+                claimed
+                    .entry(krate.as_str())
+                    .or_default()
+                    .push(capability.key.as_str());
+            }
+        }
+        for krate in &self.engine {
+            claimed.entry(krate.as_str()).or_default().push("engine");
+        }
+        for krate in lib_crates {
+            match claimed.get(krate.as_str()) {
+                None => problems.push(format!(
+                    "crate {krate} is claimed by no capability and is not in [engine]"
+                )),
+                Some(owners) if owners.len() > 1 => problems.push(format!(
+                    "crate {krate} is claimed more than once: {}",
+                    owners.join(", ")
+                )),
+                Some(_) => {}
+            }
+        }
+        for krate in claimed.keys() {
+            if !lib_crates.iter().any(|known| known == krate) {
+                problems.push(format!("{krate} is claimed but is not a library crate"));
+            }
+        }
+
+        match node_exports(root) {
+            Ok(exports) => {
+                let keys: BTreeSet<&str> = self
+                    .capabilities
+                    .iter()
+                    .map(|capability| capability.node.as_str())
+                    .collect();
+                for export in exports.difference(&keys.iter().map(|k| (*k).to_owned()).collect()) {
+                    problems.push(format!(
+                        "package.json exports ./{export}, which no capability claims"
+                    ));
+                }
+                for key in &keys {
+                    if !exports.contains(*key) {
+                        problems.push(format!(
+                            "node = \"{key}\" is not an export of bindings/node/package.json"
+                        ));
+                    }
+                }
+            }
+            Err(err) => problems.push(err),
+        }
+
+        match python_modules(root) {
+            Ok(modules) => {
+                let keys: BTreeSet<&str> = self
+                    .capabilities
+                    .iter()
+                    .map(|capability| capability.python.as_str())
+                    .collect();
+                for module in &modules {
+                    if !keys.contains(module.as_str()) {
+                        problems.push(format!(
+                            "python/pamoja/{module}.py exists, which no capability claims"
+                        ));
+                    }
+                }
+                for key in &keys {
+                    if !modules.contains(*key) {
+                        problems.push(format!(
+                            "python = \"{key}\" is not a module under bindings/python/python/pamoja"
+                        ));
+                    }
+                }
+            }
+            Err(err) => problems.push(err),
+        }
+
+        match dotnet_types(root) {
+            Ok(types) => {
+                for capability in &self.capabilities {
+                    for name in &capability.dotnet {
+                        if !types.contains(name) {
+                            problems.push(format!(
+                                "capability {}: {name} is not a type declared under bindings/dotnet/src/Pamoja.Core",
+                                capability.key
+                            ));
+                        }
+                    }
+                }
+            }
+            Err(err) => problems.push(err),
+        }
+
+        for capability in &self.capabilities {
+            match &capability.guide {
+                Some(guide) if !root.join("docs").join(guide).is_file() => problems.push(format!(
+                    "capability {}: docs/{guide} does not exist",
+                    capability.key
+                )),
+                None if require_guides => {
+                    problems.push(format!("capability {} has no guide", capability.key))
+                }
+                _ => {}
+            }
+        }
+
+        if problems.is_empty() {
+            Ok(())
+        } else {
+            Err(format!(
+                "docs/capabilities.toml disagrees with the repository:\n  {}",
+                problems.join("\n  ")
+            ))
+        }
+    }
+
+    /// Render one generated table for a `<!-- table: <kind> [arg] -->` region.
+    ///
+    /// The kinds are `chapters` (the capability map by chapter), `guides` (the guide
+    /// list for the site's front page), `crates` (every crate with its reference
+    /// links), `reference <capability>` (the per-language reference links of one
+    /// guide), and `binding <node|python|dotnet>` (the capability table of one
+    /// binding README).
+    ///
+    /// # Errors
+    ///
+    /// Returns the reason when the kind or its argument is unknown.
+    pub fn render(
+        &self,
+        directive: &str,
+        crate_descriptions: &BTreeMap<String, String>,
+    ) -> Result<String, String> {
+        let mut words = directive.split_whitespace();
+        let kind = words.next().unwrap_or_default();
+        let arg = words.next();
+        match (kind, arg) {
+            ("chapters", None) => Ok(self.chapters_table()),
+            ("guides", None) => Ok(self.guide_list()),
+            ("crates", None) => Ok(self.crates_table(crate_descriptions)),
+            ("reference", Some(key)) => self
+                .capability(key)
+                .map(|capability| self.reference_links(capability))
+                .ok_or_else(|| format!("reference table names the unknown capability {key}")),
+            ("binding", Some(language @ ("node" | "python" | "dotnet"))) => {
+                Ok(self.binding_table(language))
+            }
+            _ => Err(format!("unknown table `{directive}`")),
+        }
+    }
+
+    fn chapters_table(&self) -> String {
+        let mut out = String::from("| Chapter | Guides | Crates |\n| --- | --- | --- |\n");
+        for chapter in &self.chapters {
+            let guides: Vec<String> = self
+                .in_chapter(&chapter.key)
+                .map(|capability| match guide_url(capability) {
+                    Some(url) => format!("[{}]({url})", capability.title),
+                    None => capability.title.clone(),
+                })
+                .collect();
+            let crates: Vec<String> = self
+                .in_chapter(&chapter.key)
+                .flat_map(|capability| capability.crates.iter())
+                .map(|krate| crate_link(krate))
+                .collect();
+            out.push_str(&format!(
+                "| {} | {} | {} |\n",
+                chapter.title,
+                guides.join(", "),
+                crates.join(", ")
+            ));
+        }
+        let engine: Vec<String> = self.engine.iter().map(|krate| crate_link(krate)).collect();
+        out.push_str(&format!(
+            "| Engine | the traits every capability implements, the C ABI, and the dashboard | {} |",
+            engine.join(", ")
+        ));
+        out
+    }
+
+    fn guide_list(&self) -> String {
+        let mut sections = Vec::new();
+        for chapter in &self.chapters {
+            let mut section = format!("### {}\n\n{}\n\n", chapter.title, chapter.intent);
+            for capability in self.in_chapter(&chapter.key) {
+                match &capability.guide {
+                    Some(guide) => section.push_str(&format!(
+                        "- [{}]({guide}) - {}\n",
+                        capability.title, capability.summary
+                    )),
+                    None => section.push_str(&format!(
+                        "- {} - {}\n",
+                        capability.title, capability.summary
+                    )),
+                }
+            }
+            sections.push(section.trim_end().to_owned());
+        }
+        sections.join("\n\n")
+    }
+
+    fn crates_table(&self, descriptions: &BTreeMap<String, String>) -> String {
+        let mut out = String::from("| Crate | Chapter | What it does |\n| --- | --- | --- |\n");
+        let mut rows: Vec<(String, String)> = Vec::new();
+        for chapter in &self.chapters {
+            for capability in self.in_chapter(&chapter.key) {
+                for krate in &capability.crates {
+                    rows.push((krate.clone(), chapter.title.clone()));
+                }
+            }
+        }
+        for krate in &self.engine {
+            rows.push((krate.clone(), "Engine".to_owned()));
+        }
+        rows.sort();
+        for (krate, chapter) in rows {
+            let description = descriptions.get(&krate).cloned().unwrap_or_default();
+            out.push_str(&format!(
+                "| {} ([site]({})) | {chapter} | {description} |\n",
+                crate_link(&krate),
+                rustdoc_url(&krate)
+            ));
+        }
+        out.trim_end().to_owned()
+    }
+
+    fn reference_links(&self, capability: &Capability) -> String {
+        let mut lines = Vec::new();
+        if !capability.crates.is_empty() {
+            let crates: Vec<String> = capability
+                .crates
+                .iter()
+                .map(|krate| format!("{} ([site]({}))", crate_link(krate), rustdoc_url(krate)))
+                .collect();
+            lines.push(format!("- Rust: {}", crates.join(", ")));
+        } else {
+            lines.push(format!(
+                "- Rust: the `Transport` trait in {} ([site]({}))",
+                crate_link("pamoja-core"),
+                rustdoc_url("pamoja-core")
+            ));
+        }
+        lines.push(format!(
+            "- TypeScript: [`@pamoja/core/{0}`]({SITE}/reference/node/modules/{0}.html)",
+            capability.node
+        ));
+        lines.push(format!(
+            "- Python: [`pamoja.{0}`]({SITE}/reference/python/pamoja/{0}.html)",
+            capability.python
+        ));
+        let types: Vec<String> = capability
+            .dotnet
+            .iter()
+            .map(|name| format!("[`{name}`]({SITE}/reference/dotnet/api/Pamoja.Core.{name}.html)"))
+            .collect();
+        lines.push(format!("- C#: {}", types.join(", ")));
+        lines.join("\n")
+    }
+
+    fn binding_table(&self, language: &str) -> String {
+        let import_heading = match language {
+            "node" => "Import",
+            "python" => "Module",
+            _ => "Types",
+        };
+        let mut out =
+            format!("| Capability | {import_heading} | What it covers |\n| --- | --- | --- |\n");
+        for chapter in &self.chapters {
+            for capability in self.in_chapter(&chapter.key) {
+                let import = match language {
+                    "node" => format!("`@pamoja/core/{}`", capability.node),
+                    "python" => format!("`pamoja.{}`", capability.python),
+                    _ => capability
+                        .dotnet
+                        .iter()
+                        .map(|name| format!("`{name}`"))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                };
+                let title = match guide_url(capability) {
+                    Some(url) => format!("[{}]({url})", capability.title),
+                    None => capability.title.clone(),
+                };
+                out.push_str(&format!(
+                    "| {title} | {import} | {} |\n",
+                    capability.summary
+                ));
+            }
+        }
+        out.trim_end().to_owned()
+    }
+
+    /// Render `docs/SUMMARY.md`, the site's navigation: the front page and install
+    /// page, a part per chapter holding its guides, then the references and the
+    /// pages about the project.
+    pub fn summary(&self) -> String {
+        let mut out =
+            String::from("# Summary\n\n[Introduction](README.md)\n[Install](install.md)\n");
+        for chapter in &self.chapters {
+            let guides: Vec<&Capability> = self
+                .in_chapter(&chapter.key)
+                .filter(|capability| capability.guide.is_some())
+                .collect();
+            if guides.is_empty() {
+                continue;
+            }
+            out.push_str(&format!("\n# {}\n\n", chapter.title));
+            for capability in guides {
+                if let Some(guide) = &capability.guide {
+                    out.push_str(&format!("- [{}]({guide})\n", capability.title));
+                }
+            }
+        }
+        out.push_str(
+            "\n# Reference\n\n\
+             - [Rust](reference/rust.md)\n\
+             - [TypeScript](reference/node.md)\n\
+             - [Python](reference/python.md)\n\
+             - [C#](reference/dotnet.md)\n\
+             \n# About\n\n\
+             - [Why it exists](about/why.md)\n\
+             - [Architecture](about/architecture.md)\n\
+             - [Standards and conformance](about/standards.md)\n\
+             - [Building](about/building.md)\n\
+             - [Releasing](about/releasing.md)\n",
+        );
+        out
+    }
+}
+
+/// The absolute URL of a capability's guide on the site, when it has one.
+fn guide_url(capability: &Capability) -> Option<String> {
+    capability.guide.as_ref().map(|guide| {
+        let page = guide.strip_suffix(".md").unwrap_or(guide);
+        format!("{SITE}/{page}.html")
+    })
+}
+
+/// A crate name linked to its docs.rs page.
+fn crate_link(krate: &str) -> String {
+    format!("[`{krate}`](https://docs.rs/{krate})")
+}
+
+/// The URL of a crate's rustdoc on the site.
+fn rustdoc_url(krate: &str) -> String {
+    format!(
+        "{SITE}/reference/rust/{}/index.html",
+        krate.replace('-', "_")
+    )
+}
+
+/// The `[[name]]` tables of a document.
+fn tables<'a>(
+    doc: &'a DocumentMut,
+    name: &str,
+) -> Result<Vec<&'a dyn toml_edit::TableLike>, String> {
+    let Some(item) = doc.get(name) else {
+        return Ok(Vec::new());
+    };
+    let array = item
+        .as_array_of_tables()
+        .ok_or_else(|| format!("[[{name}]] must be an array of tables"))?;
+    Ok(array
+        .iter()
+        .map(|table| table as &dyn toml_edit::TableLike)
+        .collect())
+}
+
+fn string(table: &dyn toml_edit::TableLike, key: &str, context: &str) -> Result<String, String> {
+    table
+        .get(key)
+        .and_then(Item::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| format!("{context}: `{key}` must be a string"))
+}
+
+fn strings(
+    table: &dyn toml_edit::TableLike,
+    key: &str,
+    context: &str,
+) -> Result<Vec<String>, String> {
+    strings_of(table, key, context)
+}
+
+fn strings_of(
+    table: &dyn toml_edit::TableLike,
+    key: &str,
+    context: &str,
+) -> Result<Vec<String>, String> {
+    let array = table
+        .get(key)
+        .and_then(Item::as_array)
+        .ok_or_else(|| format!("{context}: `{key}` must be an array of strings"))?;
+    array
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| format!("{context}: `{key}` must hold only strings"))
+        })
+        .collect()
+}
+
+/// The subpath exports of the Node package, without `.` and `./raw`.
+fn node_exports(root: &Path) -> Result<BTreeSet<String>, String> {
+    let path = root.join("bindings/node/package.json");
+    let text =
+        fs::read_to_string(&path).map_err(|err| format!("reading {}: {err}", path.display()))?;
+    let package: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|err| format!("{} is not JSON: {err}", path.display()))?;
+    let exports = package["exports"]
+        .as_object()
+        .ok_or("bindings/node/package.json has no exports object")?;
+    Ok(exports
+        .keys()
+        .filter_map(|key| key.strip_prefix("./"))
+        .filter(|key| *key != "raw")
+        .map(str::to_owned)
+        .collect())
+}
+
+/// The facade modules of the Python package, without `__init__` and `raw`.
+fn python_modules(root: &Path) -> Result<BTreeSet<String>, String> {
+    let dir = root.join("bindings/python/python/pamoja");
+    let entries = fs::read_dir(&dir).map_err(|err| format!("reading {}: {err}", dir.display()))?;
+    Ok(entries
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .filter_map(|path| {
+            let name = path.file_name()?.to_str()?;
+            let module = name.strip_suffix(".py")?;
+            (module != "__init__" && module != "raw").then(|| module.to_owned())
+        })
+        .collect())
+}
+
+/// Every type declared in the .NET binding's sources.
+fn dotnet_types(root: &Path) -> Result<BTreeSet<String>, String> {
+    let dir = root.join("bindings/dotnet/src/Pamoja.Core");
+    let entries = fs::read_dir(&dir).map_err(|err| format!("reading {}: {err}", dir.display()))?;
+    let mut types = BTreeSet::new();
+    for path in entries.filter_map(|entry| entry.ok().map(|entry| entry.path())) {
+        if path.extension().and_then(|ext| ext.to_str()) != Some("cs") {
+            continue;
+        }
+        let text = fs::read_to_string(&path)
+            .map_err(|err| format!("reading {}: {err}", path.display()))?;
+        types.extend(declared_types(&text));
+    }
+    Ok(types)
+}
+
+/// The names declared by `class`, `record`, `struct`, `enum`, and `interface` in C# source.
+fn declared_types(source: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut tokens = source.split_whitespace().peekable();
+    while let Some(token) = tokens.next() {
+        if !matches!(token, "class" | "record" | "struct" | "enum" | "interface") {
+            continue;
+        }
+        let Some(next) = tokens.peek() else {
+            break;
+        };
+        // `record struct Name` names its kind twice.
+        if *next == "struct" || *next == "class" {
+            continue;
+        }
+        let name: String = next
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        if !name.is_empty() {
+            names.push(name);
+        }
+    }
+    names
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SAMPLE: &str = r#"
+[[chapter]]
+key = "field-io"
+title = "Field I/O"
+intent = "The wires a gateway has."
+
+[[capability]]
+key = "modbus"
+chapter = "field-io"
+title = "Modbus RTU"
+summary = "Modbus RTU requests and replies"
+crates = ["pamoja-modbus"]
+node = "modbus"
+python = "modbus"
+dotnet = ["Modbus", "ModbusFrame"]
+guide = "guides/modbus.md"
+
+[[capability]]
+key = "transport"
+chapter = "field-io"
+title = "Transports"
+summary = "The transport surface"
+crates = []
+node = "transport"
+python = "transport"
+dotnet = ["Transport"]
+
+[engine]
+crates = ["pamoja-core"]
+"#;
+
+    #[test]
+    fn parses_the_map() {
+        let catalog = Catalog::parse(SAMPLE).unwrap();
+        assert_eq!(catalog.chapters.len(), 1);
+        assert_eq!(catalog.capabilities.len(), 2);
+        assert_eq!(catalog.engine, ["pamoja-core"]);
+        let modbus = catalog.capability("modbus").unwrap();
+        assert_eq!(modbus.dotnet, ["Modbus", "ModbusFrame"]);
+        assert_eq!(modbus.guide.as_deref(), Some("guides/modbus.md"));
+        assert!(catalog.capability("transport").unwrap().guide.is_none());
+    }
+
+    #[test]
+    fn renders_the_tables() {
+        let catalog = Catalog::parse(SAMPLE).unwrap();
+        let descriptions = BTreeMap::from([
+            ("pamoja-modbus".to_owned(), "Modbus RTU framing".to_owned()),
+            ("pamoja-core".to_owned(), "The device model".to_owned()),
+        ]);
+
+        let chapters = catalog.render("chapters", &descriptions).unwrap();
+        assert!(chapters.contains("| Field I/O | [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html), Transports | [`pamoja-modbus`](https://docs.rs/pamoja-modbus) |"));
+        assert!(chapters.contains("| Engine |"));
+
+        let guides = catalog.render("guides", &descriptions).unwrap();
+        assert!(guides.starts_with("### Field I/O\n\nThe wires a gateway has.\n\n- [Modbus RTU](guides/modbus.md) - Modbus RTU requests and replies\n- Transports - The transport surface"));
+
+        let crates = catalog.render("crates", &descriptions).unwrap();
+        assert!(crates.contains("| [`pamoja-core`](https://docs.rs/pamoja-core) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html)) | Engine | The device model |"));
+
+        let reference = catalog.render("reference modbus", &descriptions).unwrap();
+        assert!(reference.contains("- TypeScript: [`@pamoja/core/modbus`](https://pamoja.molex.cloud/docs/reference/node/modules/modbus.html)"));
+        assert!(reference.contains("- C#: [`Modbus`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.Modbus.html), [`ModbusFrame`]"));
+
+        let binding = catalog.render("binding python", &descriptions).unwrap();
+        assert!(binding.contains("| [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html) | `pamoja.modbus` | Modbus RTU requests and replies |"));
+        assert!(binding.contains("| Transports | `pamoja.transport` | The transport surface |"));
+
+        assert!(catalog.render("reference nothing", &descriptions).is_err());
+        assert!(catalog.render("binding lua", &descriptions).is_err());
+    }
+
+    #[test]
+    fn renders_the_summary_with_a_part_per_chapter_that_has_guides() {
+        let catalog = Catalog::parse(SAMPLE).unwrap();
+        let summary = catalog.summary();
+        assert!(summary.contains("\n# Field I/O\n\n- [Modbus RTU](guides/modbus.md)\n"));
+        assert!(!summary.contains("Transports"));
+        assert!(summary.contains("- [Releasing](about/releasing.md)\n"));
+    }
+
+    #[test]
+    fn finds_declared_dotnet_types() {
+        let source = "public sealed class Modbus : IDisposable { }\npublic readonly record struct Pose(double X);\npublic enum Qos { AtMostOnce }\ninternal interface IHandle<T> { }";
+        assert_eq!(declared_types(source), ["Modbus", "Pose", "Qos", "IHandle"]);
+    }
+}

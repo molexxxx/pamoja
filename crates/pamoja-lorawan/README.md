@@ -7,6 +7,8 @@ LoRaWAN 1.0.x MAC framing for pamoja: build and parse data-frame PHYPayloads wit
 <a href="https://crates.io/crates/pamoja-lorawan"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-lorawan"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-lorawan) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_lorawan/index.html).
+
 LoRaWAN 1.0.x MAC framing for the pamoja SDK.
 
 LoRaWAN is how a low-power node reaches a network kilometres away over a license-free
@@ -21,20 +23,20 @@ message integrity code keyed to the network proves the frame is authentic and in
 and the payload is encrypted to the application so only its owner can read it. This
 crate builds and verifies exactly that, with no radio and no allocation:
 
-- [`Session`] - an activated device's address and session keys. It [encodes](Session::encode_uplink)
+- `Session` - an activated device's address and session keys. It encodes
   an uplink or downlink data frame, encrypting the payload and appending the MIC, and
-  [decodes](Session::decode) one received, verifying the MIC before decrypting.
-- [`Uplink`] and [`Downlink`] - the data frame to send, built up from the fields a
+  decodes one received, verifying the MIC before decrypting.
+- `Uplink` and `Downlink` - the data frame to send, built up from the fields a
   sender sets (confirmed, adaptive data rate, acknowledgement, frame options).
-- [`RxData`] - a decoded frame: its header fields and its recovered payload.
-- [`Device`] - the root credentials for over-the-air activation: it builds the
+- `RxData` - a decoded frame: its header fields and its recovered payload.
+- `Device` - the root credentials for over-the-air activation: it builds the
   join-request a device broadcasts and turns the network's join-accept into a ready
-  [`Session`], deriving the session keys the spec prescribes.
-- [`JoinRequest`] and [`JoinGrant`] - the other half of that exchange, so a deployment
+  `Session`, deriving the session keys the spec prescribes.
+- `JoinRequest` and `JoinGrant` - the other half of that exchange, so a deployment
   can run its own network instead of joining someone else's: verify the request a
   device sent, then grant it an address and sign the reply. Both sides derive the same
   session keys from the same nonces, with no key ever on the air.
-- [`FrameHeader`] - what a frame says about itself before any key is involved: its
+- `FrameHeader` - what a frame says about itself before any key is involved: its
   message type, the device address, and the counter. A receiver holding many sessions
   reads this first to find the one a frame belongs to, then decodes.
 

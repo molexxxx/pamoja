@@ -7,6 +7,8 @@ On-board bus addressing and pin logic for pamoja: I2C 7-bit and 10-bit address-f
 <a href="https://crates.io/crates/pamoja-gpio"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-gpio"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-gpio) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_gpio/index.html).
+
 On-board bus addressing and pin logic for the pamoja SDK.
 
 Before a node reaches any network it has to talk to the chips wired to the board it
@@ -20,16 +22,16 @@ active-low relay driven as if it were active-high.
 
 This crate is that logic, with no pins toggled and no allocation:
 
-- [`i2c`] - I2C addressing per the NXP I2C-bus specification (UM10204): the 7-bit
+- `i2c` - I2C addressing per the NXP I2C-bus specification (UM10204): the 7-bit
   address byte `(address << 1) | r/w`, the two-byte `11110xx` frame for a 10-bit
   address, and the reserved ranges (`0x00..=0x07` and `0x78..=0x7F`) that leave
   `0x08..=0x77` for real devices, so a bad address is caught before it reaches the bus.
-- [`spi`] - the four SPI clock [`Mode`](spi::Mode)s as the `(CPOL, CPHA)` pair every
+- `spi` - the four SPI clock `Mode`s as the `(CPOL, CPHA)` pair every
   datasheet quotes, plus bit order, so "mode 3, MSB first" is a checked value rather
   than two booleans a caller can transpose.
-- [`pin`] - the GPIO pin model: physical [`Level`](pin::Level), input pull and output
-  drive, the interrupt [`Edge`](pin::Edge), and an active-high/active-low
-  [`Polarity`](pin::Polarity) that maps a logical "asserted" onto the physical level,
+- `pin` - the GPIO pin model: physical `Level`, input pull and output
+  drive, the interrupt `Edge`, and an active-high/active-low
+  `Polarity` that maps a logical "asserted" onto the physical level,
   so an active-low button or relay is handled by the type rather than by remembering
   to invert.
 

@@ -7,6 +7,8 @@ Signed firmware updates for pamoja: an RFC 9124 manifest, image verification, an
 <a href="https://crates.io/crates/pamoja-update"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-update"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-update) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_update/index.html).
+
 Signed firmware updates for the pamoja SDK.
 
 A device in a clinic, on a pump, or under a solar panel is expensive to reach
@@ -14,18 +16,18 @@ and sometimes impossible. If it cannot be updated in place, every bug in it is
 permanent and every fix is a journey. This crate is what makes updating one
 safe enough to do remotely:
 
-- [`Manifest`] - what an update claims about itself: which device it is for,
+- `Manifest` - what an update claims about itself: which device it is for,
   where it goes, how big it is, what it hashes to, and where it sits in the
   release order.
-- [`Envelope`] - that manifest next to a signature over it, so a device can
+- `Envelope` - that manifest next to a signature over it, so a device can
   tell an author's release from anyone else's bytes.
-- [`ImageVerifier`] - hashes the image as it arrives, so a device with
+- `ImageVerifier` - hashes the image as it arrives, so a device with
   kilobytes of memory can check a payload of megabytes.
-- [`SlotStore`] and [`MemoryStore`] - where images live, with an in-memory
+- `SlotStore` and `MemoryStore` - where images live, with an in-memory
   implementation so the whole flow runs in a test with no hardware.
-- [`Delegation`] - the anchor's signed statement of which key may sign
+- `Delegation` - the anchor's signed statement of which key may sign
   releases, so that key can be rotated without visiting the devices.
-- [`Updater`] - the rules: verify, then stage, then try, then confirm or fall
+- `Updater` - the rules: verify, then stage, then try, then confirm or fall
   back. A transfer cut off by a dead link resumes where it stopped rather than
   starting over, which is what makes a large image installable over a slow
   radio at all.
@@ -50,7 +52,7 @@ remains an Internet-Draft awaiting publication.
 So this crate implements the settled part and serializes it itself, rather
 than pinning the SDK to a wire format that can still change. The encoding is
 deliberately kept separate from the model, so a SUIT reader can later produce
-the same [`Manifest`] without any of the rules around it moving. This is the same kind of considered deviation as the hand-written
+the same `Manifest` without any of the rules around it moving. This is the same kind of considered deviation as the hand-written
 MAVLink dialect, and it is recorded here rather than left to be discovered.
 
 # What it defends against
@@ -62,7 +64,7 @@ Each one this crate answers is answered by a rule with a test naming it:
 | --- | --- |
 | `THREAT.IMG.NON_AUTH`, unauthorised firmware | the author's signature, checked before the manifest is parsed |
 | `THREAT.IMG.EXPIRED`, a replayed older release | a sequence number that must beat every slot, failed ones included |
-| `THREAT.IMG.EXPIRED.OFFLINE`, a stale release aimed at a device that has been out of contact | [`Manifest::expires`], which bounds how long a release stays usable |
+| `THREAT.IMG.EXPIRED.OFFLINE`, a stale release aimed at a device that has been out of contact | `Manifest::expires`, which bounds how long a release stays usable |
 | `THREAT.IMG.INCOMPATIBLE`, firmware for another device | authenticated vendor and class identifiers |
 | `THREAT.IMG.FORMAT`, a misread payload type | the payload format sits inside the signed body |
 
@@ -86,13 +88,13 @@ between several parties; that is not implemented, and a release key cannot
 appoint a successor.
 
 **The sequence number is only as trustworthy as the slot records.** It is
-derived from what [`SlotStore`] reports, so an implementation that loses or
+derived from what `SlotStore` reports, so an implementation that loses or
 exposes those records weakens rollback protection. Hardware that can keep a
 monotonic counter should be used where it exists.
 
 **It does not fetch, and it does not write to flash.** There is no transport
 and no driver: the image arrives however the caller arranges, and
-[`SlotStore`] is the seam to real storage.
+`SlotStore` is the seam to real storage.
 
 Also absent: attestation and secure boot, delta updates, encrypted payloads,
 multi-payload dependency manifests, and the optional RFC 9124 elements for
@@ -102,7 +104,7 @@ multi-component devices, payload URIs, and execute-in-place metadata.
 
 A slow radio can spend half an hour on one image, so a link that drops near the
 end must not mean starting again. Progress is recorded as it is made, and
-[`Updater::resume_at`] continues from there when the slot already holds part of
+`Updater::resume_at` continues from there when the slot already holds part of
 exactly the same image. Anything else starts over, because two images spliced
 together are neither.
 
@@ -118,7 +120,7 @@ after a reset.
 # Who may sign
 
 A device anchors its trust in one key. That anchor can sign releases itself,
-which is the simple arrangement, or it can sign a [`Delegation`] naming a
+which is the simple arrangement, or it can sign a `Delegation` naming a
 separate release key and then stay somewhere hard to reach.
 
 The second is worth the extra step. The key that signs releases has to be

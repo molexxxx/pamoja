@@ -7,6 +7,8 @@ Encrypted, authenticated sessions for pamoja: X25519 key agreement (RFC 7748) an
 <a href="https://crates.io/crates/pamoja-session"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-session"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-session) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_session/index.html).
+
 Encrypted, authenticated sessions for the pamoja SDK.
 
 [`pamoja-security`](https://docs.rs/pamoja-security) proves a payload came from a
@@ -16,8 +18,8 @@ not just trustworthy but private, and a captured message cannot be replayed to
 reopen a valve or re-trigger an alarm.
 
 Two devices that each hold the other's authenticated public key agree a session
-key with [`Session::establish`] and then exchange messages with [`Session::seal`]
-and [`Session::open`]. The whole exchange is built from published standards and
+key with `Session::establish` and then exchange messages with `Session::seal`
+and `Session::open`. The whole exchange is built from published standards and
 the tests are pinned to their reference vectors:
 
 - X25519 key agreement, RFC 7748, so neither side ever sends the key.
@@ -33,7 +35,7 @@ groundwork the security pillar builds on, ahead of full transport TLS/DTLS.
 # Authenticating the peer
 
 Key agreement gives a private channel; it does not by itself say who is on the
-other end. The peer's [`AgreementPublicKey`] must be authenticated out of band,
+other end. The peer's `AgreementPublicKey` must be authenticated out of band,
 by pinning it at provisioning time or by having it signed with the peer's
 `pamoja-security` identity. Without that, the channel is confidential but open to
 a man in the middle.

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "@pamoja/core",
+  "entryPoints": ["../facade/*.ts"],
+  "tsconfig": "./tsconfig.json",
+  "out": "../../../target/docs/site/reference/node",
+  "readme": "../README.md",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "includeVersion": true,
+  "navigation": {
+    "includeCategories": false,
+    "includeGroups": false
+  },
+  "githubPages": false,
+  "hideGenerator": true
+}

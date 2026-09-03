@@ -7,10 +7,12 @@ Curated C ABI surface over the pamoja device SDK, for C, C++, and .NET.
 <a href="https://crates.io/crates/pamoja-ffi"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-ffi"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-ffi) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ffi/index.html).
+
 The curated C ABI surface for the pamoja SDK.
 
 This crate exposes a small, hand-written `extern "C"` API over
-[`pamoja_core`] and the capability crates so that languages without a native
+`pamoja_core` and the capability crates so that languages without a native
 Rust bridge - C, C++, and C#/.NET through P/Invoke - can drive the SDK. It is
 deliberately the project's single auditable `unsafe` boundary: every raw
 pointer is dereferenced here and nowhere else.
@@ -21,9 +23,9 @@ never fall behind the Rust surface.
 
 # Conventions
 
-- Fallible calls return a [`PamojaStatus`] code. On any non-`Ok` result a
+- Fallible calls return a `PamojaStatus` code. On any non-`Ok` result a
   human-readable message is stored for the calling thread and can be read with
-  [`pamoja_last_error_message`].
+  `pamoja_last_error_message`.
 - Handles are opaque, heap-allocated, and owned by the caller, who must release
   each with its matching `*_free` function.
 - All strings crossing the boundary are UTF-8. Inputs are borrowed for the
@@ -33,8 +35,8 @@ never fall behind the Rust surface.
 
 The result of a fallible pamoja call.
 
-A return of [`PamojaStatus::Ok`] means success; any other value indicates a
-failure whose description is available from [`pamoja_last_error_message`] on
+A return of `PamojaStatus::Ok` means success; any other value indicates a
+failure whose description is available from `pamoja_last_error_message` on
 the same thread.
 
 - `Ok` - The call succeeded.
@@ -69,14 +71,14 @@ An opaque handle to a byte buffer owned by the caller.
 
 Calls that produce a variable-length result hand back one of these rather than
 writing into a caller buffer, so the caller never has to guess a size. Read it
-with [`pamoja_buffer_data`] and [`pamoja_buffer_len`], then release it with
-[`pamoja_buffer_free`].
+with `pamoja_buffer_data` and `pamoja_buffer_len`, then release it with
+`pamoja_buffer_free`.
 
 ## fn `pamoja_buffer_data`
 
 Returns a pointer to a buffer's bytes.
 
-Use [`pamoja_buffer_len`] for the length. The pointer is valid until the
+Use `pamoja_buffer_len` for the length. The pointer is valid until the
 buffer is freed.
 
 **Returns**
@@ -129,7 +131,7 @@ An owned, null-terminated UTF-8 string produced by the library.
 Some calls build a string rather than borrowing one that already lives inside
 a handle: a canonical key expression, a DDS topic name, a profile serialized
 to JSON. Those return this, and the caller releases it with
-[`pamoja_string_free`].
+`pamoja_string_free`.
 
 ## fn `pamoja_string_data`
 
@@ -144,7 +146,7 @@ A null-terminated UTF-8 string, or null if `string` is null.
 **Safety**
 
 `string` must be a live handle from a call that produced one, or null. After
-[`pamoja_string_free`] it must not be used again.
+`pamoja_string_free` it must not be used again.
 
 ```rust
 unsafe extern "C" fn pamoja_string_data(string: * const PamojaString) -> * const c_char

@@ -10,6 +10,8 @@ Core engine for the pamoja device SDK: device model, transport, event bus, and e
 <a href="https://pypi.org/project/pamoja-core/"><img height="28" alt="PyPI" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-pypi.svg"></a>
 <a href="https://www.nuget.org/packages/Pamoja.Core"><img height="28" alt="NuGet" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-nuget.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-core) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html).
+
 Core abstractions for the pamoja device SDK.
 
 This crate defines the traits that every capability crate (for example
@@ -20,18 +22,18 @@ capability crates so that an application depends only on what it uses.
 
 The primary abstractions are:
 
-- [`Device`] - a connectable physical or virtual device.
-- [`Sensor`] - a source of typed readings.
-- [`Actuator`] - a sink for typed commands.
-- [`Telemetry`] - a stream of telemetry frames.
-- [`Transport`] - a bidirectional byte transport.
-- [`Store`] - a durable store-and-forward queue.
-- [`EventBus`] - a typed publish/subscribe channel.
-- [`Error`] and [`Result`] - the shared error model.
+- `Device` - a connectable physical or virtual device.
+- `Sensor` - a source of typed readings.
+- `Actuator` - a sink for typed commands.
+- `Telemetry` - a stream of telemetry frames.
+- `Transport` - a bidirectional byte transport.
+- `Store` - a durable store-and-forward queue.
+- `EventBus` - a typed publish/subscribe channel.
+- `Error` and `Result` - the shared error model.
 
 **Examples**
 
-Implementing [`Sensor`] for a temperature probe:
+Implementing `Sensor` for a temperature probe:
 
 ```rust
 use pamoja_core::{Result, Sensor};

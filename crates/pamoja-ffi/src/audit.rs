@@ -377,7 +377,7 @@ pub unsafe extern "C" fn pamoja_audit_entry_free(entry: *mut PamojaAuditEntry) {
 ///
 /// # Arguments
 ///
-/// * `public_key` - the [`PAMOJA_KEY_LEN`]-byte key the entries were signed with.
+/// * `public_key` - the `PAMOJA_KEY_LEN`-byte key the entries were signed with.
 ///
 /// # Returns
 ///
@@ -386,7 +386,7 @@ pub unsafe extern "C" fn pamoja_audit_entry_free(entry: *mut PamojaAuditEntry) {
 ///
 /// # Safety
 ///
-/// `public_key` must point to at least [`PAMOJA_KEY_LEN`] readable bytes.
+/// `public_key` must point to at least `PAMOJA_KEY_LEN` readable bytes.
 #[no_mangle]
 pub unsafe extern "C" fn pamoja_audit_verifier_new(
     public_key: *const u8,
@@ -460,7 +460,7 @@ pub unsafe extern "C" fn pamoja_audit_verifier_free(verifier: *mut PamojaAuditVe
 ///
 /// # Arguments
 ///
-/// * `public_key` - the [`PAMOJA_KEY_LEN`]-byte key the entries were signed with.
+/// * `public_key` - the `PAMOJA_KEY_LEN`-byte key the entries were signed with.
 /// * `entries` - an array of entry handles, in the order they were written.
 /// * `count` - how many handles `entries` holds.
 ///
@@ -471,7 +471,7 @@ pub unsafe extern "C" fn pamoja_audit_verifier_free(verifier: *mut PamojaAuditVe
 ///
 /// # Safety
 ///
-/// `public_key` must point to at least [`PAMOJA_KEY_LEN`] readable bytes, and
+/// `public_key` must point to at least `PAMOJA_KEY_LEN` readable bytes, and
 /// `entries` must point to at least `count` live entry handles, none of them
 /// null, or be null when `count` is 0.
 #[no_mangle]

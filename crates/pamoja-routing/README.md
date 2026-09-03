@@ -7,6 +7,8 @@ Cost-aware mesh routing for pamoja: a bounded routing table that learns reverse-
 <a href="https://crates.io/crates/pamoja-routing"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-routing"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-routing) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_routing/index.html).
+
 Cost-aware mesh routing for the pamoja SDK.
 
 Flooding gets a packet across a mesh by having every node rebroadcast it, which always
@@ -20,20 +22,20 @@ not.
 This crate is the decision layer for that, as pure logic with no radio and no
 allocation:
 
-- [`Router`] - a fixed-size table that learns the way to a node from the traffic it
+- `Router` - a fixed-size table that learns the way to a node from the traffic it
   already hears: when a packet from a distant node arrives via a neighbour, that
   neighbour is the way back, at the cost the packet reports. The table keeps the
   cheapest way it knows to each destination and forgets the most expensive when it runs
   out of room.
-- [`Router::forward`] - the per-packet decision: deliver a packet that is for this
-  node, [relay](Forward::Relay) one toward a known destination, or [flood](Forward::Flood)
+- `Router::forward` - the per-packet decision: deliver a packet that is for this
+  node, relay one toward a known destination, or flood
   when there is no route yet. That last case is where this layer hands back to the
   flooding in `pamoja-mesh`, so routing is an optimisation over flooding, never a
   single point of failure.
 
 Nodes are identified by the same address a [`pamoja-mesh`](https://docs.rs/pamoja-mesh)
 frame carries, so the two compose directly: learn from a received frame's source and
-the neighbour it came from, then ask [`forward`](Router::forward) where the next one
+the neighbour it came from, then ask `forward` where the next one
 should go.
 
 **Examples**

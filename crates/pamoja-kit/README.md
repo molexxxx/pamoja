@@ -7,6 +7,8 @@ Goal-named helper math for the pamoja device SDK: smoothing/filtering, calibrati
 <a href="https://crates.io/crates/pamoja-kit"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-kit"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-kit) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_kit/index.html).
+
 Goal-named helper math for the pamoja SDK.
 
 The hardest part of building something real on a cheap sensor is rarely reading
@@ -18,41 +20,41 @@ layer down, so it teaches as it abstracts.
 
 The first helpers cover the jobs the cookbook leans on most:
 
-- [`Smoother`] - smooth a noisy reading (exponential moving average).
-- [`Kalman`] - settle to a steady value from a noisy sensor (one-dimensional Kalman).
-- [`Complementary`] - fuse a fast rate with a slow absolute reading (complementary filter).
-- [`Median`] - reject spikes with a rolling median (robust to a lone bad reading).
-- [`Debounce`] - clean a chattering on/off signal into one event (counter debounce).
-- [`Calibration`] - turn a raw reading into real units (two-point linear map).
-- [`deadband`] - ignore small wiggle around a setpoint so an actuator does not chatter.
-- [`Thermostat`] - keep a reading near a setpoint (on/off control with
+- `Smoother` - smooth a noisy reading (exponential moving average).
+- `Kalman` - settle to a steady value from a noisy sensor (one-dimensional Kalman).
+- `Complementary` - fuse a fast rate with a slow absolute reading (complementary filter).
+- `Median` - reject spikes with a rolling median (robust to a lone bad reading).
+- `Debounce` - clean a chattering on/off signal into one event (counter debounce).
+- `Calibration` - turn a raw reading into real units (two-point linear map).
+- `deadband` - ignore small wiggle around a setpoint so an actuator does not chatter.
+- `Thermostat` - keep a reading near a setpoint (on/off control with
   hysteresis).
-- [`Pid`] - hold a value at a target with a smooth, proportional command (PID control).
-- [`Ramp`] - ease a command toward a target at a limited rate (slew-rate limiter).
-- [`Depletion`] - warn before a falling level runs out (linear extrapolation).
-- [`Surge`] - warn when a reading changes dangerously fast (first difference).
-- [`Trend`] - tell whether a value is rising or falling and how fast (least-squares slope).
-- [`Anomaly`] - flag a reading that departs from its recent history (three-sigma rule).
-- [`Window`] - keep a rolling window of recent readings and read their spread
+- `Pid` - hold a value at a target with a smooth, proportional command (PID control).
+- `Ramp` - ease a command toward a target at a limited rate (slew-rate limiter).
+- `Depletion` - warn before a falling level runs out (linear extrapolation).
+- `Surge` - warn when a reading changes dangerously fast (first difference).
+- `Trend` - tell whether a value is rising or falling and how fast (least-squares slope).
+- `Anomaly` - flag a reading that departs from its recent history (three-sigma rule).
+- `Window` - keep a rolling window of recent readings and read their spread
   (min, max, range, mean, population variance).
-- [`units`] - convert a reading to the unit a person reads (Celsius and Fahrenheit,
+- `units` - convert a reading to the unit a person reads (Celsius and Fahrenheit,
   pascals to hPa/kPa/psi, ratio and percent).
-- [`DiffDrive`], [`Ackermann`], [`SkidSteer`], [`Mecanum`] - wheel kinematics for the common
+- `DiffDrive`, `Ackermann`, `SkidSteer`, `Mecanum` - wheel kinematics for the common
   differential, car-like, skid-steer, and omnidirectional chassis (behind `robotics`).
-- [`TwoLinkArm`] / [`forward_kinematics`] - manipulator kinematics: the planar two-link inverse,
+- `TwoLinkArm` / `forward_kinematics` - manipulator kinematics: the planar two-link inverse,
   and Denavit-Hartenberg forward kinematics for any serial arm.
-- [`Odometry`] - dead-reckon a [`Pose`] from a body motion or wheel deltas, exact-arc.
-- [`WaypointFollower`] / [`obstacle_stop`] - steer toward a waypoint and stop for an obstacle
+- `Odometry` - dead-reckon a `Pose` from a body motion or wheel deltas, exact-arc.
+- `WaypointFollower` / `obstacle_stop` - steer toward a waypoint and stop for an obstacle
   (behind `robotics` and `geo`).
-- [`SafetyGate`] - the gate every motion command passes through: emergency [`EStop`], deadman
-  [`Watchdog`], and bounded motion ([`Limits`]).
-- [`ServoMap`] / [`Esc`] / [`Quadrature`] / [`QuadratureScale`] - servo and ESC pulse widths
+- `SafetyGate` - the gate every motion command passes through: emergency `EStop`, deadman
+  `Watchdog`, and bounded motion (`Limits`).
+- `ServoMap` / `Esc` / `Quadrature` / `QuadratureScale` - servo and ESC pulse widths
   and quadrature-encoder decoding.
-- [`Twist`] / [`Pose`] - the shared body-velocity and world-pose types the robotics helpers use.
-- [`Coordinate`] / [`Geofence`] - great-circle distance and bearing, and leaving a safe
+- `Twist` / `Pose` - the shared body-velocity and world-pose types the robotics helpers use.
+- `Coordinate` / `Geofence` - great-circle distance and bearing, and leaving a safe
   area (behind the default `geo` feature).
-- [`imu`] - roll and pitch from a three-axis accelerometer (behind the `imu` feature).
-- [`weather`] - the dew point from temperature and humidity (behind the `weather` feature).
+- `imu` - roll and pitch from a three-axis accelerometer (behind the `imu` feature).
+- `weather` - the dew point from temperature and humidity (behind the `weather` feature).
 
 The `geo`, `imu`, `weather`, and `robotics` features each pull in `libm` for `no_std` float
 math and can be turned off on the most constrained targets; the waypoint guidance needs both

@@ -10,8 +10,8 @@
 //!
 //! - [`command`] - the command protocol: send a command, match its acknowledgement, treat an
 //!   in-progress result as "keep waiting", and count retries.
-//! - [`mission`] - the mission (plan) transfer protocol, as a [`MissionSender`](mission::MissionSender)
-//!   that answers item requests and a [`MissionReceiver`](mission::MissionReceiver) that
+//! - [`mission`] - the mission (plan) transfer protocol, as a [`MissionSender`]
+//!   that answers item requests and a [`MissionReceiver`] that
 //!   requests and collects items; a vehicle and a ground station play opposite roles with the
 //!   same two machines.
 //! - [`offboard`] - the `type_mask` builder and setpoint constructors for offboard position,

@@ -7,6 +7,8 @@ Modbus RTU framing for pamoja: CRC-16/Modbus, the RTU ADU envelope, the standard
 <a href="https://crates.io/crates/pamoja-modbus"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-modbus"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-modbus) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html).
+
 Modbus RTU framing for the pamoja SDK.
 
 Modbus is the lingua franca of cheap industrial sensing. Soil NPK probes, energy
@@ -18,18 +20,18 @@ back, and Modbus RTU pins down precisely what those bytes are.
 
 This crate is that byte layer, with no serial port and no allocation:
 
-- [`crc16`] - the CRC-16/MODBUS that every RTU frame ends with, the check that lets a
+- `crc16` - the CRC-16/MODBUS that every RTU frame ends with, the check that lets a
   receiver reject a frame mangled by electrical noise on a long cable.
-- [`Pdu`] - the protocol data unit: a function code and its data. Constructors build
+- `Pdu` - the protocol data unit: a function code and its data. Constructors build
   the standard requests (read and write coils and registers) so callers never hand-pack
-  a frame, with a [`raw`](Pdu::raw) escape hatch for the function codes this crate does
+  a frame, with a `raw` escape hatch for the function codes this crate does
   not name.
-- [`Adu`] - the RTU application data unit: a unit address, a PDU, and the CRC. It both
-  [assembles](Adu::from_pdu) a frame to send and [parses](Adu::parse) one received,
+- `Adu` - the RTU application data unit: a unit address, a PDU, and the CRC. It both
+  assembles a frame to send and parses one received,
   verifying the CRC so a corrupt frame never reaches the application.
-- [`Response`] - reads the values back out of a reply: the 16-bit registers of a
+- `Response` - reads the values back out of a reply: the 16-bit registers of a
   read-registers response and the packed bits of a read-coils response, plus the
-  [`Exception`] a device returns when it refuses a request.
+  `Exception` a device returns when it refuses a request.
 
 Everything is exact integer and byte work, so the same framing runs on the smallest
 microcontroller hanging off the bus. Driving the RS485 line itself arrives with the

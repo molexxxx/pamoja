@@ -7,6 +7,8 @@ Device-side observability for pamoja: structured leveled events and counters tha
 <a href="https://crates.io/crates/pamoja-telemetry"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-telemetry"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-telemetry) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_telemetry/index.html).
+
 Device-side observability for the pamoja SDK.
 
 Observability is hard on the devices this SDK targets: a node on a metered radio
@@ -15,15 +17,15 @@ something goes wrong in the field. This crate squares that by separating the
 detail a node records from the detail it ships, and by letting the link decide how
 much detail is worth sending:
 
-- [`Event`] - a structured, allocation-free event: a [`Level`], a stable short
+- `Event` - a structured, allocation-free event: a `Level`, a stable short
   code, and an optional measurement.
-- [`Reporter`] - records events, ships only those at or above a threshold, and
+- `Reporter` - records events, ships only those at or above a threshold, and
   counts every event it sees so the aggregate picture stays complete even when
   detail is held back.
-- [`LinkCost`] - maps how costly the link is onto that threshold, so telemetry
+- `LinkCost` - maps how costly the link is onto that threshold, so telemetry
   degrades gracefully: everything on a free link, only warnings and errors on an
   expensive one.
-- [`Snapshot`] - a handful of integers a node ships periodically in place of the
+- `Snapshot` - a handful of integers a node ships periodically in place of the
   raw event stream.
 
 The crate is `no_std` and allocation-free - it keeps only fixed counters and

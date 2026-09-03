@@ -1,6 +1,6 @@
 //! CoAP transport for the pamoja SDK.
 //!
-//! [`CoapTransport`] implements the core [`Transport`](pamoja_core::Transport)
+//! [`CoapTransport`] implements the core [`Transport`]
 //! trait on top of the pure-Rust [`coap_lite`] message codec and a UDP socket, so
 //! an application can talk to constrained RESTful devices through the same
 //! protocol-agnostic surface it uses for every other transport.
@@ -224,7 +224,7 @@ impl CoapTransport {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Closed`](pamoja_core::Error::Closed) if the transport is
+    /// Returns [`Error::Closed`] if the transport is
     /// not connected.
     pub async fn recv(&mut self) -> Result<Option<Message>> {
         let incoming = self.incoming.as_mut().ok_or(Error::Closed)?;

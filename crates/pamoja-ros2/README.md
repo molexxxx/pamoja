@@ -7,6 +7,8 @@ ROS 2 bridge logic for the pamoja SDK: topic/service name validation and DDS map
 <a href="https://crates.io/crates/pamoja-ros2"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-ros2"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-ros2) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ros2/index.html).
+
 ROS 2 bridge logic for the pamoja SDK.
 
 Bridging a ROS 2 robot onto the pamoja device model means speaking ROS 2's wire conventions
@@ -18,18 +20,18 @@ the live `r2r`/Zenoh bridge that carries the bytes.
 
 The modules are:
 
-- [`name`] - validate ROS 2 topic and service names and map them to DDS topic names with the
+- `name` - validate ROS 2 topic and service names and map them to DDS topic names with the
   `rt`/`rq`/`rr` prefixes, plus the `%`-mangling `rmw_zenoh` uses in liveliness tokens.
-- [`typehash`] - parse and format the `RIHS01` type hash (REP-2011) and turn a ROS type like
+- `typehash` - parse and format the `RIHS01` type hash (REP-2011) and turn a ROS type like
   `std_msgs/msg/String` into its DDS type name `std_msgs::msg::dds_::String_`.
-- [`key`] - assemble the `rmw_zenoh` key expression `<domain>/<name>/<type>/<hash>` a Zenoh peer
-  subscribes to, validated as a Zenoh key expression through [`pamoja_zenoh`].
-- [`msg`] - encode and decode messages as CDR (the OMG Common Data Representation, the format
+- `key` - assemble the `rmw_zenoh` key expression `<domain>/<name>/<type>/<hash>` a Zenoh peer
+  subscribes to, validated as a Zenoh key expression through `pamoja_zenoh`.
+- `msg` - encode and decode messages as CDR (the OMG Common Data Representation, the format
   DDS and `rmw_zenoh` put on the wire), starting with the geometry messages a robot is driven by.
 
-With the `bridge` feature on, [`bridge`] adds the live layer: a [`bridge::Ros2Node`] over `r2r`
+With the `bridge` feature on, `bridge` adds the live layer: a `bridge::Ros2Node` over `r2r`
 whose publishers and subscribers are exposed as the core
-[`Actuator`](pamoja_core::Actuator) and [`Sensor`](pamoja_core::Sensor), so a ROS 2 robot drives
+`Actuator` and `Sensor`, so a ROS 2 robot drives
 like any other pamoja device. That layer needs a sourced ROS 2 install (r2r generates message
 bindings at build time), so it is built and tested in the ros:jazzy container.
 

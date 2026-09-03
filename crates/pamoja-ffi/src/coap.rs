@@ -8,7 +8,7 @@
 //! A client holds a socket and a background loop, so it crosses as an opaque
 //! handle and every call blocks on the shared runtime. To use CoAP as one rung
 //! of a ladder rather than driving it directly, build a
-//! [`PamojaTransport`](crate::transport::PamojaTransport) with
+//! [`PamojaTransport`] with
 //! [`pamoja_transport_coap`] instead.
 
 use std::ffi::c_char;

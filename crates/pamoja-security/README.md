@@ -7,6 +7,8 @@ Device identity and signed telemetry for pamoja: ed25519 keys that sign payloads
 <a href="https://crates.io/crates/pamoja-security"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-security"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-security) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_security/index.html).
+
 Device identity and signed telemetry for the pamoja SDK.
 
 Many of the deployments this SDK is built for - vaccine fridges, clinic
@@ -15,11 +17,11 @@ just delivered. A reading that drives a health or billing decision has to be
 provably from the device that claims to have sent it, and provably unaltered on
 the way. This crate provides that foundation with ed25519 signatures:
 
-- [`DeviceIdentity`] - a device's private key, built from a provisioned 32-byte
+- `DeviceIdentity` - a device's private key, built from a provisioned 32-byte
   seed, that signs the payloads the device emits.
-- [`PublicIdentity`] - the matching public key, safe to share, that a gateway or
+- `PublicIdentity` - the matching public key, safe to share, that a gateway or
   auditor uses to verify a payload is authentic and unaltered.
-- [`Signature`] - the 64-byte detached signature carried alongside a payload.
+- `Signature` - the 64-byte detached signature carried alongside a payload.
 
 Signing and verifying are deterministic and need no randomness, so the crate is
 `no_std` and runs unchanged on a microcontroller that signs its own telemetry.

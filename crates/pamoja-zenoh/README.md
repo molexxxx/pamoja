@@ -7,6 +7,8 @@ Zenoh key-expression logic for the pamoja SDK: validity, canonical form, and mat
 <a href="https://crates.io/crates/pamoja-zenoh"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-zenoh"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-zenoh) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_zenoh/index.html).
+
 Zenoh key-expression logic and transport for the pamoja SDK.
 
 Zenoh addresses data by key expressions: `/`-joined chunks with a small, exact wildcard
@@ -15,17 +17,17 @@ its one canonical spelling is, and whether a subscription pattern matches a publ
 is pure string logic with no I/O, and getting it wrong silently drops or misroutes messages, so
 it lives here as checked logic anchored to the Zenoh specification, ahead of the live transport.
 
-See [`keyexpr`] for the rules and the operations:
+See `keyexpr` for the rules and the operations:
 
 - validity: a key expression is `/`-joined non-empty chunks with no leading, trailing, or
   doubled `/`, where `*` and `**` are whole-chunk wildcards and `$*` is a sub-chunk wildcard.
 - canonical form: two expressions that select the same keys share one spelling, so equality is
-  a string comparison; [`canonize`](keyexpr::canonize) produces it.
-- matching: [`matches`](keyexpr::matches) tests whether a concrete key is selected by a pattern,
+  a string comparison; `canonize` produces it.
+- matching: `matches` tests whether a concrete key is selected by a pattern,
   the routing question a subscriber asks of every publication.
 
-With the `runtime` feature on, [`ZenohTransport`] adds the live half: it opens a Zenoh session
-and implements the core [`Transport`](pamoja_core::Transport), so Zenoh becomes the efficient
+With the `runtime` feature on, `ZenohTransport` adds the live half: it opens a Zenoh session
+and implements the core `Transport`, so Zenoh becomes the efficient
 edge-to-edge and fleet transport behind the same surface as every other link. Pattern-against-
 pattern intersection and inclusion arrive later, cross-checked against Zenoh's own implementation.
 

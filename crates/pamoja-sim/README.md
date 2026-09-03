@@ -7,26 +7,28 @@ Hardware-free device simulators for pamoja: fake sensors with configurable noise
 <a href="https://crates.io/crates/pamoja-sim"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-sim"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-sim) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sim/index.html).
+
 Hardware-free device simulators for the pamoja SDK.
 
 The SDK is meant to be built and tested with no hardware at all, and that promise
 only holds if there are convincing stand-ins for the parts a device would have.
 This crate provides those stand-ins as ordinary implementations of the core
-[`Sensor`](pamoja_core::Sensor) and [`Actuator`](pamoja_core::Actuator) traits, so
+`Sensor` and `Actuator` traits, so
 they drop into a `Node`, a profile, or a test exactly where a real driver will go
 once the hardware-I/O layer lands:
 
-- [`SimSensor`] - a fake sensor that generates a lifelike signal from a baseline,
+- `SimSensor` - a fake sensor that generates a lifelike signal from a baseline,
   a drift, and bounded, seedable noise, so a control loop meets the kind of messy
   input it will see in the field.
-- [`Replay`] - a fake sensor that plays back an exact sequence of readings, for
+- `Replay` - a fake sensor that plays back an exact sequence of readings, for
   deterministic tests and scripted demos.
-- [`RecordingActuator`] - a fake actuator that logs every command instead of
+- `RecordingActuator` - a fake actuator that logs every command instead of
   driving hardware, so a test can assert what a control loop decided to do.
-- [`DegradedLink`] - a [`Transport`](pamoja_core::Transport) decorator that
+- `DegradedLink` - a `Transport` decorator that
   simulates a lossy and intermittent radio link, so offline-first store-and-
   forward can be proven against a realistic bad network rather than assumed.
-- [`SimRobot`] - a hardware-free differential-drive robot driven by a `Twist` and read back as
+- `SimRobot` - a hardware-free differential-drive robot driven by a `Twist` and read back as
   a `Pose`, so a robot control loop can be developed and tested with no robot.
 
 **Examples**

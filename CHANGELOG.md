@@ -21,6 +21,11 @@ released together, so one entry covers all of them.
 - `cargo xtask release --plan` derives the crates.io publish order from
   `cargo metadata`, and `cargo xtask version` sets and checks the version in
   every manifest, lockfile, and generated file.
+- A documentation site at [pamoja.molex.cloud/docs](https://pamoja.molex.cloud/docs/):
+  the guides rendered by mdBook and a generated reference for each language
+  (rustdoc, typedoc, pdoc, DocFX), built on every pull request and published
+  with the showcase. `docs/capabilities.toml` is the one map of what each
+  capability covers in every language, checked against the code.
 
 ### Changed
 
@@ -30,6 +35,8 @@ released together, so one entry covers all of them.
 ### Fixed
 
 - The gateway pairing code no longer appears in a captured dashboard log (#67).
+- Broken intra-doc links in the rustdoc of nine crates, which docs.rs rendered
+  as dead links; `cargo doc` now runs with warnings denied.
 
 ### Dependencies
 

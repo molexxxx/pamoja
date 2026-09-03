@@ -7,18 +7,20 @@ MQTT transport for the pamoja device SDK, built on rumqttc.
 <a href="https://crates.io/crates/pamoja-mqtt"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-mqtt"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-mqtt) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mqtt/index.html).
+
 MQTT transport for the pamoja SDK.
 
-[`MqttTransport`] implements the core [`Transport`](pamoja_core::Transport)
-trait on top of the pure-Rust [`rumqttc`] client, so an application can publish
+`MqttTransport` implements the core `Transport`
+trait on top of the pure-Rust `rumqttc` client, so an application can publish
 to and subscribe from an MQTT broker through the same protocol-agnostic surface
 it uses for every other transport.
 
-Once [`connect`](Transport::connect) succeeds the transport owns a background
+Once `connect` succeeds the transport owns a background
 task that drives the MQTT event loop: it answers keep-alive pings, completes
 delivery handshakes, and forwards inbound messages to an internal queue that
-[`recv`](MqttTransport::recv) drains. Publishing and subscribing use the
-default [`QualityOfService`] configured on the transport.
+`recv` drains. Publishing and subscribing use the
+default `QualityOfService` configured on the transport.
 
 **Examples**
 
@@ -48,9 +50,9 @@ These map one-to-one onto the MQTT protocol's quality-of-service levels.
 
 ## struct `MqttConfig`
 
-Connection settings for an [`MqttTransport`].
+Connection settings for an `MqttTransport`.
 
-Construct with [`MqttConfig::new`] and refine with the chained setters; every
+Construct with `MqttConfig::new` and refine with the chained setters; every
 field has a sensible default so only the broker address and client id are
 required.
 
@@ -67,7 +69,7 @@ Creates a configuration for the given client id and broker address.
 **Returns**
 
 A configuration with a 30-second keep-alive, a request capacity of 64, and
-a default quality of service of [`QualityOfService::AtLeastOnce`].
+a default quality of service of `QualityOfService::AtLeastOnce`.
 
 ```rust
 fn new(client_id: impl Into <String>, host: impl Into <String>, port: u16) -> Self
@@ -112,8 +114,8 @@ Sets the default quality of service for publishes and subscriptions.
 
 **Arguments**
 
-* `qos` - the delivery guarantee applied by [`send`](Transport::send) and
-  [`subscribe`](Transport::subscribe).
+* `qos` - the delivery guarantee applied by `send` and
+  `subscribe`.
 
 **Returns**
 
@@ -134,12 +136,12 @@ Fields:
 
 ## struct `MqttTransport`
 
-An MQTT client that implements the core [`Transport`] trait.
+An MQTT client that implements the core `Transport` trait.
 
-A transport is created disconnected; [`connect`](Transport::connect) opens the
+A transport is created disconnected; `connect` opens the
 link and spawns the background task that runs the MQTT event loop for the life
 of the connection. Inbound messages are queued and read with
-[`recv`](MqttTransport::recv).
+`recv`.
 
 ### `MqttTransport::new`
 
@@ -151,7 +153,7 @@ Creates a transport from the given configuration without connecting.
 
 **Returns**
 
-A disconnected transport ready for [`connect`](Transport::connect).
+A disconnected transport ready for `connect`.
 
 ```rust
 fn new(config: MqttConfig) -> Self
@@ -163,8 +165,8 @@ Reports whether the transport currently holds an active connection.
 
 **Returns**
 
-`true` once [`connect`](Transport::connect) has succeeded and before
-[`disconnect`](MqttTransport::disconnect) is called.
+`true` once `connect` has succeeded and before
+`disconnect` is called.
 
 ```rust
 fn is_connected(&self) -> bool
@@ -181,7 +183,7 @@ has stopped and no further messages will arrive.
 
 **Errors**
 
-Returns [`Error::Closed`](pamoja_core::Error::Closed) if the transport
+Returns `Error::Closed` if the transport
 is not connected.
 
 ```rust

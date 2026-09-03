@@ -2,7 +2,7 @@
 //!
 //! A ground station sends a [`CommandLong`](crate::dialect::CommandLong) (or
 //! [`CommandInt`](crate::dialect::CommandInt)) and waits for a
-//! [`CommandAck`](crate::dialect::CommandAck) carrying the same command id. The
+//! [`CommandAck`] carrying the same command id. The
 //! acknowledgement's result may be
 //! [`IN_PROGRESS`](crate::dialect::mav_result::IN_PROGRESS), which means a long-running
 //! command is still executing and the sender should keep waiting rather than time out. If no

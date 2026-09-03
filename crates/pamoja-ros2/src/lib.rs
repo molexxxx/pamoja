@@ -20,9 +20,9 @@
 //! - [`msg`] - encode and decode messages as CDR (the OMG Common Data Representation, the format
 //!   DDS and `rmw_zenoh` put on the wire), starting with the geometry messages a robot is driven by.
 //!
-//! With the `bridge` feature on, [`bridge`] adds the live layer: a [`bridge::Ros2Node`] over `r2r`
+//! With the `bridge` feature on, `bridge` adds the live layer: a `bridge::Ros2Node` over `r2r`
 //! whose publishers and subscribers are exposed as the core
-//! [`Actuator`](pamoja_core::Actuator) and [`Sensor`](pamoja_core::Sensor), so a ROS 2 robot drives
+//! `Actuator` and `Sensor`, so a ROS 2 robot drives
 //! like any other pamoja device. That layer needs a sourced ROS 2 install (r2r generates message
 //! bindings at build time), so it is built and tested in the ros:jazzy container.
 //!

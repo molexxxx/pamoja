@@ -4,7 +4,7 @@
 //! UDP socket to a ground station, a radio. This module abstracts that as a single
 //! [`ByteLink`] trait, so the same logic drives all of them, and a real serial or UDP
 //! backend plugs into it later without touching the protocol above. A [`Connection`]
-//! pairs a link with a [`Parser`] and, optionally, signing, so sending and receiving whole
+//! pairs a link with a [`Parser`](crate::Parser) and, optionally, signing, so sending and receiving whole
 //! messages is one call each.
 //!
 //! To make the whole path testable with nothing plugged in, [`MemoryLink`] connects two
@@ -73,7 +73,7 @@ const READ_CHUNK: usize = 512;
 /// A MAVLink endpoint over a [`ByteLink`]: sends and receives whole messages, and signs
 /// and verifies them when configured to.
 ///
-/// A connection owns its sending identity and sequence counter, a streaming [`Parser`] for
+/// A connection owns its sending identity and sequence counter, a streaming [`Parser`](crate::Parser) for
 /// the bytes it reads, and optional signing. Attach a [`Signer`] to sign every outgoing
 /// frame and a [`Verifier`] to check every signed incoming one.
 pub struct Connection<L> {

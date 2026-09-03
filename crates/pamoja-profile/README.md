@@ -7,6 +7,8 @@ Named, ready-to-run device profiles for pamoja: assemble a sensor, actuator, tra
 <a href="https://crates.io/crates/pamoja-profile"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-profile"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-profile) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_profile/index.html).
+
 Device profiles: named, ready-to-run nodes assembled from pamoja capabilities.
 
 Most people who can put a sensor to good use are not electrical engineers, and the
@@ -20,19 +22,19 @@ This guide runs from the simplest use to a fully themed dashboard. Skip to
 
 # The shape of a profile
 
-- [`Profile`] is the manifest: plain data a community can publish and share, carrying
-  a [`ControlSpec`], a [`PowerSchedule`], and an optional [`Presentation`]. It
-  serializes to and from JSON with [`Profile::to_json`] and [`Profile::from_json`], so
+- `Profile` is the manifest: plain data a community can publish and share, carrying
+  a `ControlSpec`, a `PowerSchedule`, and an optional `Presentation`. It
+  serializes to and from JSON with `Profile::to_json` and `Profile::from_json`, so
   a profile ships as a file and loads onto a device. The presets
-  [`Profile::vaccine_fridge_monitor`], [`Profile::irrigation_node`],
-  [`Profile::well_level`], and [`Profile::flood_sensor`] are convenience constructors
+  `Profile::vaccine_fridge_monitor`, `Profile::irrigation_node`,
+  `Profile::well_level`, and `Profile::flood_sensor` are convenience constructors
   for the same data.
-- [`Node`] is what the runtime assembles from a profile and real components: a
-  [`Sensor`](pamoja_core::Sensor), an [`Actuator`](pamoja_core::Actuator), a
-  [`Transport`](pamoja_core::Transport), and a [`Codec`](pamoja_codec::Codec). Each
-  [`tick`](Node::tick) reads, decides, drives the output, and publishes.
+- `Node` is what the runtime assembles from a profile and real components: a
+  `Sensor`, an `Actuator`, a
+  `Transport`, and a `Codec`. Each
+  `tick` reads, decides, drives the output, and publishes.
 
-The decision logic is a [`Controller`] that composes the `pamoja-kit` helpers, so a
+The decision logic is a `Controller` that composes the `pamoja-kit` helpers, so a
 profile is glue over field-tested math rather than new behavior. Its I/O is async; its
 decisions are synchronous and hardware-free, so a whole control policy is unit-testable
 with no devices and no network.
@@ -55,7 +57,7 @@ assert!(matches!(reaction.alert, Some(Alert::OutOfRange { .. })));
 # The manifest: write it, share it, load it
 
 A profile is just data, so a community can write one as JSON, store it in a file, and
-share it - no code. [`Profile::from_json`] loads it and [`Profile::to_json`] writes it
+share it - no code. `Profile::from_json` loads it and `Profile::to_json` writes it
 back; the power thresholds are optional and default when omitted.
 
 ```rust
@@ -75,7 +77,7 @@ assert!(profile.to_json().unwrap().contains("rain-tank"));
 
 # Control policies
 
-Every profile names one [`ControlSpec`], the rule applied to each reading:
+Every profile names one `ControlSpec`, the rule applied to each reading:
 
 - `Setpoint` holds a value by switching an output on and off (a fridge's cooler, an
   irrigation valve) and alerts when the reading leaves a safe band.
@@ -102,29 +104,29 @@ assert_eq!(control.evaluate(28.0).actuator, Some(true)); // dry: the valve opens
 
 # Power: sampling that follows the battery
 
-A [`PowerSchedule`] sets how often a node samples as its battery drains - often when
+A `PowerSchedule` sets how often a node samples as its battery drains - often when
 healthy, sparingly when low - and eases back toward the active cadence while charging.
-[`Node::schedule`] turns it into the power mode and the interval to wait before the
-next [`tick`](Node::tick).
+`Node::schedule` turns it into the power mode and the interval to wait before the
+next `tick`.
 
 # Custom dashboard elements
 
 The local-first dashboard (the `pamoja-dashboard` crate) draws a built-in set of sensor
 types. When a deployment measures something beyond it, the profile *declares* the extra
-as a [`Presentation`], and the dashboard renders it with no page change. Each
-[`ElementSpec`] names a stable key and unit, the graphic to draw it with ([`Viz`]), an
+as a `Presentation`, and the dashboard renders it with no page change. Each
+`ElementSpec` names a stable key and unit, the graphic to draw it with (`Viz`), an
 optional safe band, a label (with optional per-locale labels), whether it is a node
-stat, and which groups it is offered on ([`Scope`]). A [`Theme`] tints the console, and
-[`with_message`](Presentation::with_message) localizes any custom state or event code
+stat, and which groups it is offered on (`Scope`). A `Theme` tints the console, and
+`with_message` localizes any custom state or event code
 the profile emits.
 
-The full set of graphics is [`Viz::ALL`], fifteen hand-drawn instruments: a
-[`Spark`](Viz::Spark)line, a 270-degree [`Gauge`](Viz::Gauge), a needle
-[`Dial`](Viz::Dial), a [`Bar`](Viz::Bar), a [`Thermometer`](Viz::Thermometer), a
-[`Droplet`](Viz::Droplet), a [`Battery`](Viz::Battery), a [`Wind`](Viz::Wind) rotor, a
-[`Sun`](Viz::Sun), an acoustic [`Wave`](Viz::Wave), a [`Switch`](Viz::Switch) chip, a
-[`Valve`](Viz::Valve), a hash [`Chain`](Viz::Chain), a [`Mesh`](Viz::Mesh) map, and a
-[`Count`](Viz::Count). Each renders to a stable kind ([`Viz::kind`]) the page draws.
+The full set of graphics is `Viz::ALL`, fifteen hand-drawn instruments: a
+`Spark`line, a 270-degree `Gauge`, a needle
+`Dial`, a `Bar`, a `Thermometer`, a
+`Droplet`, a `Battery`, a `Wind` rotor, a
+`Sun`, an acoustic `Wave`, a `Switch` chip, a
+`Valve`, a hash `Chain`, a `Mesh` map, and a
+`Count`. Each renders to a stable kind (`Viz::kind`) the page draws.
 
 ```rust
 use pamoja_profile::{ElementSpec, Presentation, Profile, Scope, Theme, Viz};
@@ -185,11 +187,11 @@ dashboard reads it; control actions queue back for you to apply. See the
 
 # Which pieces do I need?
 
-- **Just want it to work?** Pick a preset and call [`controller`](Profile::controller).
-- **Sharing a recipe?** Write a JSON manifest and load it with [`Profile::from_json`].
-- **A sensor we do not draw?** Add an [`ElementSpec`] with the [`Viz`] you want.
-- **Your own look and words?** Add a [`Theme`] and
-  [`with_message`](Presentation::with_message) for custom states and events.
+- **Just want it to work?** Pick a preset and call `controller`.
+- **Sharing a recipe?** Write a JSON manifest and load it with `Profile::from_json`.
+- **A sensor we do not draw?** Add an `ElementSpec` with the `Viz` you want.
+- **Your own look and words?** Add a `Theme` and
+  `with_message` for custom states and events.
 
 ## License
 

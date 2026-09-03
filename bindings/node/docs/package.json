@@ -1,0 +1,13 @@
+{
+  "name": "@pamoja/core-docs",
+  "private": true,
+  "description": "Renders the TypeScript reference for @pamoja/core with typedoc. The facade builds with TypeScript 7, which typedoc does not run on, so this pins its own compiler.",
+  "scripts": {
+    "build": "typedoc"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "typedoc": "0.28.20",
+    "typescript": "6.0.3"
+  }
+}

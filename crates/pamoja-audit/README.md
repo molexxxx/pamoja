@@ -7,6 +7,8 @@ Tamper-evident audit logs for pamoja: signed, hash-chained entries so altering, 
 <a href="https://crates.io/crates/pamoja-audit"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-audit"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
+Full API reference: [docs.rs](https://docs.rs/pamoja-audit) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_audit/index.html).
+
 Tamper-evident audit logs for the pamoja SDK.
 
 The health and cold-chain deployments this SDK targets need more than authentic
@@ -15,13 +17,13 @@ temperature history is only useful as evidence if no one can quietly edit out an
 excursion, drop an inconvenient reading, or reorder the log after the fact. This
 crate provides that record by chaining signed entries together:
 
-- [`AuditLog`] - appends entries, each signed with a
-  [`DeviceIdentity`](pamoja_security::DeviceIdentity) and linked by hash to the
+- `AuditLog` - appends entries, each signed with a
+  `DeviceIdentity` and linked by hash to the
   entry before it.
-- [`Entry`] - one record: its payload, its index, the previous entry's digest,
+- `Entry` - one record: its payload, its index, the previous entry's digest,
   and the signature, with a byte form for durable storage.
-- [`Verifier`] and [`verify_chain`] - replay a stored log and confirm, against the
-  device's [`PublicIdentity`](pamoja_security::PublicIdentity), that every entry
+- `Verifier` and `verify_chain` - replay a stored log and confirm, against the
+  device's `PublicIdentity`, that every entry
   is in sequence, correctly chained, and authentically signed.
 
 Because each entry commits to the previous one with a SHA-256 hash and an ed25519
