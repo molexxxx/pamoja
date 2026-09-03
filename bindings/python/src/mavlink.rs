@@ -211,6 +211,13 @@ pub struct MavlinkFrame {
     inner: CoreFrame,
 }
 
+impl MavlinkFrame {
+    /// Wraps a frame the engine built, for another module in this crate to hand back.
+    pub(crate) fn from_frame(inner: CoreFrame) -> Self {
+        Self { inner }
+    }
+}
+
 #[gen_stub_pymethods]
 #[pymethods]
 impl MavlinkFrame {

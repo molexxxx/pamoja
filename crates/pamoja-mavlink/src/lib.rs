@@ -20,8 +20,10 @@
 //!   timestamp that let a ground station trust a command came from the vehicle it expects
 //!   and was not replayed.
 //! - [`dialect`] - a broad, typed slice of the common dialect (HEARTBEAT, the command,
-//!   parameter, and mission protocols, and core telemetry), plus a registry and a raw
-//!   escape hatch so any message id can still be carried and checked.
+//!   parameter, and mission protocols, and core telemetry), plus message shapes as data:
+//!   a [`MessageDescriptor`](dialect::MessageDescriptor) gives any message's bytes named
+//!   fields, and a [builder](dialect::MessageDescriptorBuilder) describes one this crate
+//!   does not type, so a vendor or private dialect is usable at runtime.
 //! - [`protocol`] - the mission, command, and offboard exchanges as pure, allocation-free
 //!   state machines: the rules of order, matching, and retransmission that turn single
 //!   messages into a real conversation with an autopilot, with no IO of their own.
@@ -59,6 +61,9 @@
 //! assert_eq!(decoded.system_status, 4);
 //! # Ok::<(), pamoja_mavlink::MavlinkError>(())
 //! ```
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
 
 mod crc;
 pub mod dialect;

@@ -64,6 +64,8 @@ pub mod lora_region;
 pub mod lorawan;
 #[cfg(feature = "mavlink")]
 pub mod mavlink;
+#[cfg(feature = "mavlink")]
+pub mod mavlink_schema;
 #[cfg(feature = "mesh")]
 pub mod mesh;
 #[cfg(feature = "modbus")]
@@ -197,6 +199,7 @@ pub extern "C" fn pamoja_last_error_message() -> *const c_char {
     feature = "codec",
     feature = "lora",
     feature = "lorawan",
+    feature = "mavlink",
     feature = "mesh",
     feature = "modbus",
     feature = "mqtt",
@@ -359,6 +362,7 @@ pub unsafe extern "C" fn pamoja_buffer_free(buffer: *mut PamojaBuffer) {
 /// [`pamoja_string_free`].
 #[cfg(any(
     feature = "lora",
+    feature = "mavlink",
     feature = "profile",
     feature = "ros2",
     feature = "zenoh"
@@ -369,6 +373,7 @@ pub struct PamojaString {
 
 #[cfg(any(
     feature = "lora",
+    feature = "mavlink",
     feature = "profile",
     feature = "ros2",
     feature = "zenoh"
@@ -409,6 +414,7 @@ impl PamojaString {
 /// [`pamoja_string_free`] it must not be used again.
 #[cfg(any(
     feature = "lora",
+    feature = "mavlink",
     feature = "profile",
     feature = "ros2",
     feature = "zenoh"
@@ -432,6 +438,7 @@ pub unsafe extern "C" fn pamoja_string_data(string: *const PamojaString) -> *con
 /// `string` must be a live handle from a call that produced one, or null.
 #[cfg(any(
     feature = "lora",
+    feature = "mavlink",
     feature = "profile",
     feature = "ros2",
     feature = "zenoh"
@@ -454,6 +461,7 @@ pub unsafe extern "C" fn pamoja_string_len(string: *const PamojaString) -> usize
 /// already been freed, or null. After this call it must not be used again.
 #[cfg(any(
     feature = "lora",
+    feature = "mavlink",
     feature = "profile",
     feature = "ros2",
     feature = "zenoh"
@@ -475,6 +483,7 @@ pub unsafe extern "C" fn pamoja_string_free(string: *mut PamojaString) {
     feature = "coap",
     feature = "ladder",
     feature = "lora",
+    feature = "mavlink",
     feature = "mqtt",
     feature = "profile",
     feature = "ros2",

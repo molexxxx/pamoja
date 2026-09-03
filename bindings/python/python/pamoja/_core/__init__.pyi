@@ -55,14 +55,18 @@ __all__ = [
     "LorawanRxData",
     "LorawanSession",
     "Manifest",
+    "MavlinkFieldInfo",
     "MavlinkFrame",
     "MavlinkHeader",
+    "MavlinkMessage",
     "MavlinkParser",
     "MavlinkSigner",
     "MavlinkVerifier",
     "Median",
     "MeshFrame",
     "Message",
+    "MessageSchema",
+    "MessageSchemaBuilder",
     "ModbusFrame",
     "MqttClient",
     "MqttMessage",
@@ -156,6 +160,7 @@ __all__ = [
     "lorawan_parse_join_request",
     "mavlink_crc16_mcrf4xx",
     "mavlink_known_crc_extra",
+    "mavlink_known_messages",
     "mavlink_message_crc_extra",
     "mavlink_timestamp_from_unix_micros",
     "mesh_broadcast_frame",
@@ -2028,6 +2033,46 @@ class Manifest:
         """
 
 @typing.final
+class MavlinkFieldInfo:
+    r"""
+    One field of a message shape.
+    """
+    @property
+    def name(self) -> builtins.str:
+        r"""
+        The field name as the dialect writes it, such as `custom_mode`.
+        """
+    @property
+    def type_name(self) -> builtins.str:
+        r"""
+        The field's type name as the dialect writes it, such as `uint32_t`.
+        """
+    @property
+    def field_type(self) -> builtins.int:
+        r"""
+        The field's type, one of the `FieldType` values.
+        """
+    @property
+    def array_len(self) -> builtins.int:
+        r"""
+        The element count for an array field, or `0` for a scalar.
+        """
+    @property
+    def extension(self) -> builtins.bool:
+        r"""
+        Whether this is a MAVLink 2 extension field.
+        """
+    @property
+    def offset(self) -> builtins.int:
+        r"""
+        The field's byte offset within the payload.
+        """
+    def __repr__(self) -> builtins.str:
+        r"""
+        Returns a readable form for logs and the interpreter.
+        """
+
+@typing.final
 class MavlinkFrame:
     r"""
     One MAVLink frame, assembled or received.
@@ -2140,6 +2185,94 @@ class MavlinkHeader:
         """
     def __new__(cls, system_id: builtins.int, component_id: builtins.int, sequence: builtins.int = 0) -> MavlinkHeader: ...
     def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class MavlinkMessage:
+    r"""
+    A message read and written by field name against a schema.
+    """
+    @property
+    def message_id(self) -> builtins.int:
+        r"""
+        The id of the message this carries.
+        """
+    @property
+    def name(self) -> builtins.str:
+        r"""
+        The name of the message this carries.
+        """
+    @property
+    def payload(self) -> bytes:
+        r"""
+        The message's bytes as they go on the wire.
+        """
+    @staticmethod
+    def empty(schema: MessageSchema) -> MavlinkMessage:
+        r"""
+        Creates a message with every field zero.
+        
+        Raises `ValueError` if the shape does not fit a MAVLink payload.
+        """
+    @staticmethod
+    def decode(schema: MessageSchema, payload: typing.Sequence[builtins.int]) -> MavlinkMessage:
+        r"""
+        Reads a message out of a frame payload.
+        
+        A payload shorter than the shape is zero-extended, as MAVLink 2
+        truncation requires, so a frame from a peer that trimmed trailing zeros or
+        predates an extension field still decodes. Raises `ValueError` if the
+        payload is longer than the shape describes.
+        """
+    def to_frame(self, header: MavlinkHeader) -> MavlinkFrame:
+        r"""
+        Builds a v2 frame carrying this message.
+        
+        Raises `ValueError` if the message does not fit a frame.
+        """
+    def get(self, field: builtins.str, index: builtins.int = 0) -> builtins.float:
+        r"""
+        Reads a field as a number.
+        
+        Every field reads this way. An integer field wider than 53 bits can exceed
+        what a float holds exactly; read those with `get_int` where the exact value
+        matters.
+        """
+    def get_int(self, field: builtins.str, index: builtins.int = 0) -> builtins.int:
+        r"""
+        Reads an integer field exactly, whatever its width or sign.
+        """
+    def set(self, field: builtins.str, value: builtins.float, index: builtins.int = 0) -> None:
+        r"""
+        Writes a number into a field, converting it to the field's type.
+        
+        A value bound for an integer field must be a whole number within that
+        field's range, so a fractional or oversized value is refused rather than
+        silently truncated.
+        """
+    def set_int(self, field: builtins.str, value: builtins.int, index: builtins.int = 0) -> None:
+        r"""
+        Writes an integer into a field exactly, whatever its width or sign.
+        """
+    def get_bytes(self, field: builtins.str) -> bytes:
+        r"""
+        Copies the raw bytes of a byte-wide array field out, padding included.
+        """
+    def set_bytes(self, field: builtins.str, data: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Writes the raw bytes of a byte-wide array field, zero-padding the rest.
+        """
+    def get_text(self, field: builtins.str) -> builtins.str:
+        r"""
+        Reads a `char` array as text, stopping at the padding.
+        """
+    def set_text(self, field: builtins.str, text: builtins.str) -> None:
+        r"""
+        Writes text into a `char` array, padding the rest with zeros.
+        """
+    def __repr__(self) -> builtins.str:
+        r"""
+        Returns a readable form for logs and the interpreter.
+        """
 
 @typing.final
 class MavlinkParser:
@@ -2305,6 +2438,91 @@ class Message:
         The raw payload bytes.
         """
     def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class MessageSchema:
+    r"""
+    The shape of one message: its id, name, seed, and fields.
+    """
+    @property
+    def id(self) -> builtins.int:
+        r"""
+        The id of the message this schema describes.
+        """
+    @property
+    def name(self) -> builtins.str:
+        r"""
+        The name of the message this schema describes.
+        """
+    @property
+    def crc_extra(self) -> builtins.int:
+        r"""
+        The `CRC_EXTRA` seed a frame carrying this message folds into its checksum.
+        """
+    @property
+    def wire_len(self) -> builtins.int:
+        r"""
+        The length of the message on the wire, in bytes, extensions included.
+        """
+    @property
+    def fields(self) -> builtins.list[MavlinkFieldInfo]:
+        r"""
+        The fields in wire order: the base fields largest first, then extensions.
+        """
+    @staticmethod
+    def for_id(msgid: builtins.int) -> MessageSchema:
+        r"""
+        Returns the shape of a message the engine types, by id.
+        
+        Raises `ValueError` if this build does not type that id, which is what a
+        builder is for.
+        """
+    @staticmethod
+    def for_name(name: builtins.str) -> MessageSchema:
+        r"""
+        Returns the shape of a message the engine types, by name.
+        
+        Raises `ValueError` if this build does not type that name.
+        """
+    def __repr__(self) -> builtins.str:
+        r"""
+        Returns a readable form for logs and the interpreter.
+        """
+
+@typing.final
+class MessageSchemaBuilder:
+    r"""
+    Describes a message this build does not type, one field at a time.
+    
+    Fields are added in the order the message definition lists them; building
+    puts them in wire order and derives the `CRC_EXTRA` seed from the result.
+    """
+    def __new__(cls, msgid: builtins.int, name: builtins.str) -> MessageSchemaBuilder:
+        r"""
+        Starts describing a message with an id and the name its dialect uses.
+        """
+    def field(self, name: builtins.str, field_type: typing.Any, array_len: builtins.int = 0) -> None:
+        r"""
+        Adds a base field, in the order the definition declares it.
+        
+        The type is either a `FieldType` value or the name a dialect writes, such
+        as `"uint32_t"`. Raises `ValueError` if it is neither, or if the shape has
+        already been built.
+        """
+    def extension(self, name: builtins.str, field_type: typing.Any, array_len: builtins.int = 0) -> None:
+        r"""
+        Adds a MAVLink 2 extension field, in the order the definition declares it.
+        
+        Extensions keep their declared order, stay out of the `CRC_EXTRA` seed,
+        and read as zero from a frame sent by a peer that predates them.
+        """
+    def build(self) -> MessageSchema:
+        r"""
+        Puts the declared fields in wire order and finishes the shape.
+        
+        Raises `ValueError` if two fields share a name, the fields do not fit a
+        MAVLink payload, or the shape has already been built.
+        """
 
 @typing.final
 class ModbusFrame:
@@ -3676,6 +3894,11 @@ def mavlink_known_crc_extra(msgid: builtins.int) -> typing.Optional[builtins.int
     r"""
     Returns the `CRC_EXTRA` the common dialect publishes for a message id, or
     `None` for an id outside it, which is what a `Dialect` is for.
+    """
+
+def mavlink_known_messages() -> builtins.list[builtins.str]:
+    r"""
+    Returns the names of every message this build types, in message-id order.
     """
 
 def mavlink_message_crc_extra(name: builtins.str, fields: typing.Sequence[tuple[builtins.str, builtins.str, builtins.int]]) -> builtins.int:

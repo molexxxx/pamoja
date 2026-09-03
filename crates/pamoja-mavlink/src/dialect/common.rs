@@ -5,6 +5,51 @@
 //! to fly a mission: the heartbeat, system status, the command, parameter, and mission
 //! protocols, and the core position and attitude telemetry.
 
+use super::{Message, MessageDescriptor};
+
+/// Every typed message's shape, in message-id order.
+///
+/// This is what [`descriptor`] and [`descriptor_by_name`] search, and what a caller
+/// enumerates to discover which messages this build types.
+pub const DESCRIPTORS: &[&MessageDescriptor<'static>] = &[
+    <Heartbeat as Message>::DESCRIPTOR,
+    <SysStatus as Message>::DESCRIPTOR,
+    <SystemTime as Message>::DESCRIPTOR,
+    <Ping as Message>::DESCRIPTOR,
+    <SetMode as Message>::DESCRIPTOR,
+    <ParamRequestRead as Message>::DESCRIPTOR,
+    <ParamRequestList as Message>::DESCRIPTOR,
+    <ParamValue as Message>::DESCRIPTOR,
+    <ParamSet as Message>::DESCRIPTOR,
+    <GpsRawInt as Message>::DESCRIPTOR,
+    <Attitude as Message>::DESCRIPTOR,
+    <AttitudeQuaternion as Message>::DESCRIPTOR,
+    <LocalPositionNed as Message>::DESCRIPTOR,
+    <GlobalPositionInt as Message>::DESCRIPTOR,
+    <ServoOutputRaw as Message>::DESCRIPTOR,
+    <MissionRequest as Message>::DESCRIPTOR,
+    <MissionCurrent as Message>::DESCRIPTOR,
+    <MissionRequestList as Message>::DESCRIPTOR,
+    <MissionCount as Message>::DESCRIPTOR,
+    <MissionClearAll as Message>::DESCRIPTOR,
+    <MissionAck as Message>::DESCRIPTOR,
+    <MissionRequestInt as Message>::DESCRIPTOR,
+    <RcChannels as Message>::DESCRIPTOR,
+    <ManualControl as Message>::DESCRIPTOR,
+    <MissionItemInt as Message>::DESCRIPTOR,
+    <VfrHud as Message>::DESCRIPTOR,
+    <CommandInt as Message>::DESCRIPTOR,
+    <CommandLong as Message>::DESCRIPTOR,
+    <CommandAck as Message>::DESCRIPTOR,
+    <SetPositionTargetLocalNed as Message>::DESCRIPTOR,
+    <SetPositionTargetGlobalInt as Message>::DESCRIPTOR,
+    <BatteryStatus as Message>::DESCRIPTOR,
+    <AutopilotVersion as Message>::DESCRIPTOR,
+    <HomePosition as Message>::DESCRIPTOR,
+    <ExtendedSysState as Message>::DESCRIPTOR,
+    <Statustext as Message>::DESCRIPTOR,
+];
+
 message! {
     /// `HEARTBEAT`: the periodic broadcast every MAVLink node sends to announce its type,
     /// autopilot, and status, and the frame a peer waits for before deciding a link is up.

@@ -29,7 +29,10 @@ use pamoja_lora::region::{
 };
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::{Device, Downlink, FrameHeader, JoinGrant, JoinRequest, Session, Uplink};
-use pamoja_mavlink::dialect::crc_extra as mavlink_crc_extra;
+use pamoja_mavlink::dialect::{
+    crc_extra as mavlink_crc_extra, descriptor_by_name, DynamicMessage as MavDynamicMessage,
+    FieldType as MavFieldType, MessageDescriptorBuilder as MavDescriptorBuilder, DESCRIPTORS,
+};
 use pamoja_mavlink::{
     crc16_mcrf4xx, message_crc_extra, signing, Frame as MavFrame, Header as MavHeader,
     Signer as MavSigner,
@@ -125,6 +128,7 @@ fn main() {
         "lora": lora(),
         "loraRegions": lora_regions(),
         "mavlink": mavlink(),
+        "mavlinkSchema": mavlink_schema(),
         "mesh": mesh(),
         "routing": routing(),
         "lorawan": lorawan(),
@@ -1218,6 +1222,209 @@ fn mavlink() -> Value {
                 "unixMicros": 1_700_000_000_000_000u64,
                 "timestamp": signing::timestamp_from_unix_micros(1_700_000_000_000_000),
             },
+        ],
+    })
+}
+
+// The stable code every binding writes a field type as. Kept here rather than read from a
+// helper so the vectors pin the numbering itself.
+fn field_type_code(ty: MavFieldType) -> u32 {
+    match ty {
+        MavFieldType::U8 => 1,
+        MavFieldType::I8 => 2,
+        MavFieldType::Char => 3,
+        MavFieldType::U16 => 4,
+        MavFieldType::I16 => 5,
+        MavFieldType::U32 => 6,
+        MavFieldType::I32 => 7,
+        MavFieldType::U64 => 8,
+        MavFieldType::I64 => 9,
+        MavFieldType::F32 => 10,
+        MavFieldType::F64 => 11,
+    }
+}
+
+fn mavlink_schema() -> Value {
+    // The shapes of a few typed messages, pinned field by field. Wire order, offsets, and
+    // the seed derived from them are the whole contract a peer checks against, so a binding
+    // that reorders a field or mistakes a type fails here rather than against a vehicle.
+    let described: Vec<Value> = [
+        "HEARTBEAT",
+        "SYS_STATUS",
+        "GLOBAL_POSITION_INT",
+        "STATUSTEXT",
+    ]
+    .iter()
+    .map(|name| {
+        let shape = descriptor_by_name(name).expect("a typed message");
+        let mut offset = 0usize;
+        let fields: Vec<Value> = shape
+            .fields
+            .iter()
+            .map(|field| {
+                let described = json!({
+                    "name": field.name,
+                    "typeName": field.ty.wire_name(),
+                    "fieldType": field_type_code(field.ty),
+                    "arrayLen": field.array_len,
+                    "extension": field.extension,
+                    "offset": offset,
+                });
+                offset += field.size();
+                described
+            })
+            .collect();
+        json!({
+            "name": shape.name,
+            "msgid": shape.id,
+            "crcExtra": shape.crc_extra,
+            "wireLen": shape.wire_len(),
+            "baseLen": shape.base_len(),
+            "fields": fields,
+        })
+    })
+    .collect();
+
+    // A message described the way its definition reads, in declaration order, which the
+    // builder puts on the wire largest first. SYS_STATUS declares an int8 in the middle of
+    // its 16-bit fields, so only a stable sort by size lands on the published seed.
+    let declared = [
+        ("onboard_control_sensors_present", MavFieldType::U32, 0u8),
+        ("onboard_control_sensors_enabled", MavFieldType::U32, 0),
+        ("onboard_control_sensors_health", MavFieldType::U32, 0),
+        ("load", MavFieldType::U16, 0),
+        ("voltage_battery", MavFieldType::U16, 0),
+        ("current_battery", MavFieldType::I16, 0),
+        ("battery_remaining", MavFieldType::I8, 0),
+        ("drop_rate_comm", MavFieldType::U16, 0),
+        ("errors_comm", MavFieldType::U16, 0),
+        ("errors_count1", MavFieldType::U16, 0),
+        ("errors_count2", MavFieldType::U16, 0),
+        ("errors_count3", MavFieldType::U16, 0),
+        ("errors_count4", MavFieldType::U16, 0),
+    ];
+    let mut builder = MavDescriptorBuilder::new(1, "SYS_STATUS");
+    for (name, ty, array_len) in declared {
+        builder = builder.field(name, ty, array_len);
+    }
+    let built = builder.build().expect("a valid shape");
+    let built_order: Vec<&str> = built
+        .fields()
+        .iter()
+        .map(|field| field.name.as_str())
+        .collect();
+
+    // A private message, to prove the same path works for a dialect this build cannot know.
+    let private = MavDescriptorBuilder::new(50_001, "BATTERY_CELLS")
+        .field("cell_mv", MavFieldType::U16, 6)
+        .field("pack_id", MavFieldType::U8, 0)
+        .field("uptime_ms", MavFieldType::U32, 0)
+        .build()
+        .expect("a valid shape");
+
+    // A message filled in by name, then put on the wire. The payload and frame are pinned
+    // exactly: this is where a binding that writes a field to the wrong offset shows up.
+    let position = descriptor_by_name("GLOBAL_POSITION_INT").expect("a typed message");
+    let mut report = MavDynamicMessage::new(position).expect("it fits a payload");
+    report
+        .set_uint("time_boot_ms", 0, 30_000)
+        .expect("a u32 field");
+    report.set_int("lat", 0, -33_856_780).expect("an i32 field");
+    report.set_int("lon", 0, 151_215_300).expect("an i32 field");
+    report.set_int("alt", 0, 41_000).expect("an i32 field");
+    report
+        .set_int("relative_alt", 0, 12_500)
+        .expect("an i32 field");
+    report.set_int("vz", 0, -250).expect("an i16 field");
+    report.set_uint("hdg", 0, 18_000).expect("a u16 field");
+    let report_frame = report
+        .to_frame(MavHeader::new(1, 1, 7))
+        .expect("it fits a frame");
+
+    // A char array carries text, padded with zeros, which is how STATUSTEXT is read back.
+    let status_shape = descriptor_by_name("STATUSTEXT").expect("a typed message");
+    let mut status = MavDynamicMessage::new(status_shape).expect("it fits a payload");
+    status.set_uint("severity", 0, 4).expect("a u8 field");
+    status
+        .set_text("text", "preflight checks passed")
+        .expect("a char array");
+
+    json!({
+        // The field type codes, which every binding writes out rather than deriving from
+        // an enum, so a value means the same thing in every build.
+        "fieldTypes": [
+            { "name": "uint8_t", "code": 1 },
+            { "name": "int8_t", "code": 2 },
+            { "name": "char", "code": 3 },
+            { "name": "uint16_t", "code": 4 },
+            { "name": "int16_t", "code": 5 },
+            { "name": "uint32_t", "code": 6 },
+            { "name": "int32_t", "code": 7 },
+            { "name": "uint64_t", "code": 8 },
+            { "name": "int64_t", "code": 9 },
+            { "name": "float", "code": 10 },
+            { "name": "double", "code": 11 },
+        ],
+        "messageCount": DESCRIPTORS.len(),
+        "unknownMessage": { "msgid": 50_000, "name": "BATTERY_CELLS" },
+        "shapes": described,
+        "declared": {
+            "msgid": 1,
+            "name": "SYS_STATUS",
+            "fields": declared
+                .iter()
+                .map(|(name, ty, array_len)| json!({
+                    "name": name,
+                    "fieldType": field_type_code(*ty),
+                    "arrayLen": array_len,
+                }))
+                .collect::<Vec<Value>>(),
+            "wireOrder": built_order,
+            "crcExtra": built.crc_extra(),
+        },
+        "private": {
+            "msgid": 50_001,
+            "name": "BATTERY_CELLS",
+            "fields": [
+                { "name": "cell_mv", "fieldType": 4, "arrayLen": 6 },
+                { "name": "pack_id", "fieldType": 1, "arrayLen": 0 },
+                { "name": "uptime_ms", "fieldType": 6, "arrayLen": 0 },
+            ],
+            "wireOrder": private
+                .fields()
+                .iter()
+                .map(|field| field.name.as_str())
+                .collect::<Vec<&str>>(),
+            "crcExtra": private.crc_extra(),
+            "wireLen": private.with_descriptor(|shape| shape.wire_len()),
+        },
+        "filled": {
+            "name": "GLOBAL_POSITION_INT",
+            "values": [
+                { "field": "time_boot_ms", "value": 30_000 },
+                { "field": "lat", "value": -33_856_780 },
+                { "field": "lon", "value": 151_215_300 },
+                { "field": "alt", "value": 41_000 },
+                { "field": "relative_alt", "value": 12_500 },
+                { "field": "vz", "value": -250 },
+                { "field": "hdg", "value": 18_000 },
+            ],
+            "payload": hex(report.payload()),
+            "frame": hex(report_frame.as_bytes()),
+        },
+        "text": {
+            "name": "STATUSTEXT",
+            "field": "text",
+            "value": "preflight checks passed",
+            "severity": 4,
+            "payload": hex(status.payload()),
+        },
+        // A value an integer field cannot hold exactly is refused rather than truncated,
+        // which every binding must agree on or the same call succeeds in one and not another.
+        "refused": [
+            { "field": "hdg", "value": 1.5 },
+            { "field": "hdg", "value": -1.0 },
+            { "field": "hdg", "value": 65_536.0 },
         ],
     })
 }

@@ -916,3 +916,62 @@ def test_a_signed_frame_proves_its_sender_and_refuses_a_replay():
 
     with pytest.raises(ValueError, match="signing key"):
         mavlink.MavlinkSigner(b"short", 1, 0)
+
+
+def test_mavlink_shapes_fill_a_message_by_name():
+    """A typed message is filled in and read back without a hand-packed payload."""
+    from pamoja import mavlink
+
+    heartbeat = mavlink.schema_for("HEARTBEAT")
+    assert heartbeat.id == 0
+    assert heartbeat.crc_extra == mavlink.known_crc_extra(0)
+    assert heartbeat.wire_len == 9
+    assert heartbeat.fields[0].name == "custom_mode"
+    assert "GLOBAL_POSITION_INT" in mavlink.known_messages()
+    with pytest.raises(ValueError):
+        mavlink.schema_for("NOT_A_MESSAGE")
+
+    built = mavlink.from_dict(
+        heartbeat,
+        {"type": 18, "autopilot": 0, "system_status": 4, "mavlink_version": 3},
+    )
+    frame = built.to_frame(mavlink.MavlinkHeader(1, 1))
+    assert frame.message_id == 0
+
+    received = mavlink.MavlinkMessage.decode(heartbeat, frame.payload)
+    assert received.get("system_status") == 4
+    assert mavlink.to_dict(received, heartbeat)["type"] == 18
+
+    with pytest.raises(ValueError):
+        received.get("throttle")
+    with pytest.raises(ValueError):
+        built.set("type", 300)
+    with pytest.raises(ValueError):
+        built.set("type", 1.5)
+
+    status = mavlink.schema_for("STATUSTEXT")
+    spoken = mavlink.message(status)
+    spoken.set_text("text", "preflight checks passed")
+    assert spoken.get_text("text") == "preflight checks passed"
+
+
+def test_mavlink_shapes_describe_a_private_dialect():
+    """A message this build has never heard of is carried and checked like any other."""
+    from pamoja import mavlink
+
+    builder = mavlink.MessageSchemaBuilder(50_001, "BATTERY_CELLS")
+    builder.field("cell_mv", mavlink.FieldType.UINT16, 6)
+    builder.field("pack_id", "uint8_t")
+    builder.field("uptime_ms", mavlink.FieldType.UINT32)
+    cells = builder.build()
+
+    # Wire order puts the widest field first, whatever order the definition lists.
+    assert [field.name for field in cells.fields] == ["uptime_ms", "cell_mv", "pack_id"]
+
+    pack = mavlink.from_dict(cells, {"pack_id": 2, "cell_mv": [4150, 4148, 4151, 0, 0, 0]})
+    dialect = mavlink.Dialect()
+    dialect.add(cells.id, cells.crc_extra)
+
+    sent = pack.to_frame(mavlink.MavlinkHeader(9, 1))
+    back = mavlink.MavlinkFrame.parse_known(sent.bytes, dialect)
+    assert mavlink.MavlinkMessage.decode(cells, back.payload).get("cell_mv", 2) == 4151

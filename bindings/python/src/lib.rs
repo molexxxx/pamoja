@@ -38,6 +38,8 @@ mod lora_region;
 mod lorawan;
 #[cfg(feature = "mavlink")]
 mod mavlink;
+#[cfg(feature = "mavlink")]
+mod mavlink_schema;
 #[cfg(feature = "mesh")]
 mod mesh;
 #[cfg(feature = "modbus")]
@@ -377,6 +379,11 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
             mavlink::mavlink_timestamp_from_unix_micros,
             m
         )?)?;
+        m.add_class::<mavlink_schema::MavlinkFieldInfo>()?;
+        m.add_class::<mavlink_schema::MessageSchema>()?;
+        m.add_class::<mavlink_schema::MessageSchemaBuilder>()?;
+        m.add_class::<mavlink_schema::MavlinkMessage>()?;
+        m.add_function(wrap_pyfunction!(mavlink_schema::mavlink_known_messages, m)?)?;
     }
     #[cfg(feature = "profile")]
     {

@@ -93,6 +93,7 @@ async function main() {
   sensingAndActuation();
   radioAndReach();
   mavlinkWire();
+  mavlinkShapes();
   trustAndOperation();
   await asyncTransports();
 
@@ -424,6 +425,74 @@ function mavlinkWire() {
 
 // Budgeting airtime, framing a mesh packet, routing it, and securing a LoRaWAN
 // uplink: everything a node needs to reach a network it cannot see.
+// Message shapes: filling a message in by name, and describing one this build has never
+// heard of so a vendor dialect needs no code here.
+function mavlinkShapes() {
+  const heartbeat = mavlink.schemaFor("HEARTBEAT");
+  assert.strictEqual(heartbeat.id, 0, "HEARTBEAT's id");
+  assert.strictEqual(heartbeat.crcExtra, mavlink.knownCrcExtra(0), "and its published seed");
+  assert.strictEqual(heartbeat.wireLen, 9, "and its length on the wire");
+  assert.strictEqual(
+    heartbeat.fields[0].name,
+    "custom_mode",
+    "wire order puts the 32-bit field first",
+  );
+  assert.ok(mavlink.knownMessages().includes("GLOBAL_POSITION_INT"), "the registry lists it");
+  assert.throws(() => mavlink.schemaFor("NOT_A_MESSAGE"), "an unknown name is refused");
+
+  // Fill it in by name and send it, then read it back the way a receiver would.
+  const built = mavlink.fromObject(heartbeat, {
+    type: 18, // MAV_TYPE_ONBOARD_CONTROLLER
+    autopilot: 0,
+    system_status: 4, // MAV_STATE_ACTIVE
+    mavlink_version: 3,
+  });
+  const frame = built.toFrame({ systemId: 1, componentId: 1, sequence: 0 });
+  assert.strictEqual(frame.messageId, 0, "the frame carries HEARTBEAT");
+
+  const received = mavlink.MavlinkMessage.decode(heartbeat, frame.payload);
+  assert.strictEqual(received.get("system_status"), 4, "the status survives the wire");
+  assert.deepStrictEqual(
+    mavlink.toObject(received, heartbeat).type,
+    18,
+    "and so does the vehicle type",
+  );
+
+  // A field the message does not have, and a value its type cannot hold.
+  assert.throws(() => received.get("throttle"), "an unknown field is refused");
+  assert.throws(() => built.set("type", 300), "a value past a uint8_t is refused");
+  assert.throws(() => built.set("type", 1.5), "and so is a fractional one");
+
+  // Text lives in a fixed-length char array, padded with zeros.
+  const status = mavlink.schemaFor("STATUSTEXT");
+  const spoken = mavlink.message(status);
+  spoken.setText("text", "preflight checks passed");
+  assert.strictEqual(spoken.getText("text"), "preflight checks passed", "the text reads back");
+
+  // A private message: described once, then carried and checked like any other.
+  const builder = new mavlink.MessageSchemaBuilder(50_001, "BATTERY_CELLS");
+  builder.field("cell_mv", mavlink.MavlinkFieldType.UINT16, 6);
+  builder.field("pack_id", mavlink.MavlinkFieldType.UINT8);
+  builder.field("uptime_ms", mavlink.MavlinkFieldType.UINT32);
+  const cells = builder.build();
+  assert.strictEqual(
+    cells.fields[0].name,
+    "uptime_ms",
+    "the builder puts the widest field first",
+  );
+
+  const pack = mavlink.fromObject(cells, { pack_id: 2, cell_mv: [4150, 4148, 4151, 0, 0, 0] });
+  const dialect = new mavlink.Dialect();
+  dialect.add(cells.id, cells.crcExtra);
+  const sent = pack.toFrame({ systemId: 9, componentId: 1, sequence: 0 });
+  const back = mavlink.MavlinkFrame.parseKnown(sent.bytes, dialect);
+  assert.strictEqual(
+    mavlink.MavlinkMessage.decode(cells, back.payload).get("cell_mv", 2),
+    4151,
+    "a private message survives the wire whole",
+  );
+}
+
 function radioAndReach() {
   const link = lora.link(12, 125_000);
   assert.strictEqual(link.spreadingFactor, 12, "SF12 is the longest-range setting");

@@ -123,9 +123,18 @@ pub const fn checksum(frame: &[u8], crc_extra: u8) -> u16 {
 /// assert_eq!(crc_extra, 50);
 /// ```
 pub fn message_crc_extra(name: &str, fields: &[(&str, &str, u8)]) -> u8 {
+    crc_extra_of(name, fields.iter().copied())
+}
+
+// The seed derivation itself, over any sequence of `(type, name, array_len)` fields, so
+// the descriptor layer derives the same value without collecting its fields into a slice.
+pub(crate) fn crc_extra_of<'f>(
+    name: &str,
+    fields: impl IntoIterator<Item = (&'f str, &'f str, u8)>,
+) -> u8 {
     let mut crc = accumulate(0xFFFF, name.as_bytes());
     crc = accumulate(crc, b" ");
-    for &(ty, field, array_len) in fields {
+    for (ty, field, array_len) in fields {
         crc = accumulate(crc, ty.as_bytes());
         crc = accumulate(crc, b" ");
         crc = accumulate(crc, field.as_bytes());

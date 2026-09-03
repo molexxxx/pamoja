@@ -50,6 +50,24 @@ pub enum MavlinkError {
     /// A typed message was decoded from a payload of the wrong size or shape.
     BadPayload,
 
+    /// The message has no field of the requested name.
+    UnknownField,
+
+    /// A field type name is not one MAVLink defines.
+    UnknownFieldType,
+
+    /// A message shape names the same field twice.
+    DuplicateField,
+
+    /// A field was read or written as a kind its type is not.
+    FieldTypeMismatch,
+
+    /// An array element index is past the end of the field.
+    FieldIndexOutOfRange,
+
+    /// A value does not fit the field's type.
+    ValueOutOfRange,
+
     /// The link reached end of input before a frame could be read.
     Closed,
 }
@@ -72,6 +90,12 @@ impl fmt::Display for MavlinkError {
             Self::BadSignature => f.write_str("signature does not verify"),
             Self::ReplayedTimestamp => f.write_str("signing timestamp is too old"),
             Self::BadPayload => f.write_str("payload does not match the message layout"),
+            Self::UnknownField => f.write_str("message has no field of that name"),
+            Self::UnknownFieldType => f.write_str("unrecognized MAVLink field type"),
+            Self::DuplicateField => f.write_str("message names the same field twice"),
+            Self::FieldTypeMismatch => f.write_str("field is not of the requested kind"),
+            Self::FieldIndexOutOfRange => f.write_str("array index is past the end of the field"),
+            Self::ValueOutOfRange => f.write_str("value does not fit the field type"),
             Self::Closed => f.write_str("link reached end of input"),
         }
     }

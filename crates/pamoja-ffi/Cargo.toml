@@ -85,7 +85,7 @@ in865 = ["pamoja-lora?/in865"]
 ru864 = ["pamoja-lora?/ru864"]
 lorawan = ["dep:pamoja-lorawan"]
 # The MAVLink wire layer; the vehicle model and its live drivers stay Rust-only.
-mavlink = ["dep:pamoja-mavlink"]
+mavlink = ["dep:pamoja-mavlink", "pamoja-mavlink/alloc"]
 mesh = ["dep:pamoja-mesh"]
 routing = ["dep:pamoja-routing"]
 audit = ["dep:pamoja-audit", "security"]

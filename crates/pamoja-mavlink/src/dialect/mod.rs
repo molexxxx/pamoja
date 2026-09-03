@@ -14,10 +14,9 @@
 //! the field definitions, so a wrong field type, name, or order is caught against the
 //! published dialect rather than only by a round-trip.
 //!
-//! Only a message's base fields are modeled; MAVLink 2 extension fields are not yet
-//! surfaced. Because the checksum excludes extension fields, decoding a frame that carries
-//! them still verifies and reads its base fields correctly. A message this slice does not
-//! type can still be carried as a [`RawMessage`].
+//! A message this crate does not type is still reachable two ways: [`RawMessage`] carries
+//! it by id and raw payload, and a [`MessageDescriptor`] gives those bytes named fields, so
+//! a vendor's dialect is usable at runtime without being compiled in.
 
 use crate::error::Result;
 use crate::frame::{Frame, Header, MAX_PAYLOAD};
@@ -27,9 +26,11 @@ mod macros;
 
 mod common;
 mod enums;
+mod schema;
 
 pub use common::*;
 pub use enums::*;
+pub use schema::*;
 
 /// A typed MAVLink message: its identity on the wire and how it serializes.
 ///
@@ -46,6 +47,10 @@ pub trait Message: Sized {
     /// The base fields in wire order as `(type, name, array_len)`, the input from which
     /// [`CRC_EXTRA`](Self::CRC_EXTRA) is derived and against which it is verified.
     const BASE_FIELDS: &'static [(&'static str, &'static str, u8)];
+
+    /// The message's shape as data: the runtime counterpart of this type's fields, for a
+    /// caller reading and writing by name rather than through the struct.
+    const DESCRIPTOR: &'static MessageDescriptor<'static>;
 
     /// Serializes the message into `out`, returning the number of bytes written.
     ///

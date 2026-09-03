@@ -609,6 +609,146 @@ actuatorVectors();
 
 // Regional channel plans: every binding must report the same facts about each
 // band, and must assemble a private plan that answers the same questions.
+// The message-shape layer: field order, offsets, and the seed they imply are what a peer
+// checks against, so a binding that reorders a field fails here rather than against a
+// vehicle.
+function mavlinkSchemaVectors() {
+  const vectors = VECTORS.mavlinkSchema;
+
+  for (const { name, code } of vectors.fieldTypes) {
+    const known = Object.values(mavlink.MavlinkFieldType);
+    assert.ok(known.includes(code), `the code ${code} for ${name} is one of the field types`);
+  }
+  assert.strictEqual(mavlink.MavlinkFieldType.UINT32, 6, "the uint32_t code");
+  assert.strictEqual(mavlink.MavlinkFieldType.CHAR, 3, "the char code");
+
+  assert.strictEqual(
+    mavlink.knownMessages().length,
+    vectors.messageCount,
+    "how many messages this build types",
+  );
+  assert.throws(
+    () => mavlink.schemaFor(vectors.unknownMessage.msgid),
+    "an id outside the typed set has no shape here",
+  );
+  assert.throws(
+    () => mavlink.schemaFor(vectors.unknownMessage.name),
+    "a name outside the typed set has no shape here",
+  );
+
+  for (const described of vectors.shapes) {
+    const shape = mavlink.schemaFor(described.name);
+    assert.strictEqual(shape.id, described.msgid, `the id of ${described.name}`);
+    assert.strictEqual(shape.crcExtra, described.crcExtra, `the seed of ${described.name}`);
+    assert.strictEqual(shape.wireLen, described.wireLen, `the wire length of ${described.name}`);
+
+    const fields = shape.fields;
+    assert.strictEqual(
+      fields.length,
+      described.fields.length,
+      `the field count of ${described.name}`,
+    );
+    described.fields.forEach((want, index) => {
+      const field = fields[index];
+      assert.strictEqual(field.name, want.name, `the field order of ${described.name}`);
+      assert.strictEqual(
+        field.typeName,
+        want.typeName,
+        `the type of ${described.name}.${want.name}`,
+      );
+      assert.strictEqual(
+        field.fieldType,
+        want.fieldType,
+        `the type code of ${described.name}.${want.name}`,
+      );
+      assert.strictEqual(
+        field.arrayLen,
+        want.arrayLen,
+        `the array length of ${described.name}.${want.name}`,
+      );
+      assert.strictEqual(
+        field.extension,
+        want.extension,
+        `whether ${described.name}.${want.name} is an extension`,
+      );
+      assert.strictEqual(
+        field.offset,
+        want.offset,
+        `the offset of ${described.name}.${want.name}`,
+      );
+    });
+  }
+
+  // A definition written in declaration order lands in wire order and on the published seed.
+  for (const key of ["declared", "private"]) {
+    const described = vectors[key];
+    const builder = new mavlink.MessageSchemaBuilder(described.msgid, described.name);
+    for (const field of described.fields) {
+      builder.field(field.name, field.fieldType, field.arrayLen);
+    }
+    const built = builder.build();
+    assert.deepStrictEqual(
+      built.fields.map((field) => field.name),
+      described.wireOrder,
+      `the wire order the builder produces for ${key}`,
+    );
+    assert.strictEqual(
+      built.crcExtra,
+      described.crcExtra,
+      `the seed the builder derives for ${key}`,
+    );
+  }
+
+  // A message filled in by name puts exactly these bytes on the wire.
+  const filled = vectors.filled;
+  const shape = mavlink.schemaFor(filled.name);
+  const built = mavlink.message(shape);
+  for (const { field, value } of filled.values) {
+    built.set(field, value);
+  }
+  assert.strictEqual(
+    built.payload.toString("hex"),
+    filled.payload,
+    "the payload of a filled message",
+  );
+  const frame = built.toFrame({ systemId: 1, componentId: 1, sequence: 7 });
+  assert.strictEqual(
+    frame.bytes.toString("hex"),
+    filled.frame,
+    "the frame of a filled message",
+  );
+
+  // And reading it back gives the same values.
+  const read = mavlink.MavlinkMessage.decode(shape, frame.payload);
+  for (const { field, value } of filled.values) {
+    assert.strictEqual(read.get(field), value, `the value read back from ${field}`);
+  }
+
+  // A char array carries text padded with zeros.
+  const text = vectors.text;
+  const status = mavlink.schemaFor(text.name);
+  const written = mavlink.fromObject(status, {
+    severity: text.severity,
+    [text.field]: text.value,
+  });
+  assert.strictEqual(
+    written.payload.toString("hex"),
+    text.payload,
+    "the payload of a text message",
+  );
+  assert.strictEqual(
+    mavlink.toObject(written, status)[text.field],
+    text.value,
+    "the text read back",
+  );
+
+  // A value an integer field cannot hold exactly is refused rather than truncated.
+  const report = mavlink.message(shape);
+  for (const { field, value } of vectors.refused) {
+    assert.throws(() => report.set(field, value), `${value} is refused for ${field}`);
+  }
+}
+
 function loraRegionVectors() {
   const vectors = VECTORS.loraRegions;
   const dataRateOf = (rate) => {
@@ -1189,6 +1329,7 @@ windowedVectors();
 loraVectors();
 loraRegionVectors();
 mavlinkVectors();
+mavlinkSchemaVectors();
 meshVectors();
 routingVectors();
 

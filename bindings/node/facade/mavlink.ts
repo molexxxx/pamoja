@@ -12,25 +12,45 @@
  * dialect's seeds are built in, and {@link Dialect} carries any others, derived
  * from a message definition the way the specification does.
  *
+ * Above the bytes sits the shape: {@link MessageSchema} names a message's fields, so a
+ * {@link MavlinkMessage} is filled in and read back by name rather than by byte offset,
+ * and {@link MessageSchemaBuilder} describes a message this build has never heard of.
+ *
  * @packageDocumentation
  */
 
 import {
   Dialect,
   MavlinkFrame,
+  MavlinkMessage,
   MavlinkParser,
   MavlinkSigner,
   MavlinkVerifier,
+  MessageSchema,
+  MessageSchemaBuilder,
   type MavlinkField,
+  type MavlinkFieldInfo,
   type MavlinkHeader,
   type MavlinkVersion as NativeMavlinkVersion,
   MAVLINK_DEFAULT_TIMESTAMP_WINDOW,
+  MAVLINK_FIELD_CHAR,
+  MAVLINK_FIELD_DOUBLE,
+  MAVLINK_FIELD_FLOAT,
+  MAVLINK_FIELD_INT16,
+  MAVLINK_FIELD_INT32,
+  MAVLINK_FIELD_INT64,
+  MAVLINK_FIELD_INT8,
+  MAVLINK_FIELD_UINT16,
+  MAVLINK_FIELD_UINT32,
+  MAVLINK_FIELD_UINT64,
+  MAVLINK_FIELD_UINT8,
   MAVLINK_KEY_LEN,
   MAVLINK_MAX_FRAME,
   MAVLINK_MAX_PAYLOAD,
   MAVLINK_SIGNATURE_LEN,
   mavlinkCrc16Mcrf4Xx,
   mavlinkKnownCrcExtra,
+  mavlinkKnownMessages,
   mavlinkMessageCrcExtra,
   mavlinkTimestampFromUnixMicros,
 } from '../index'
@@ -38,10 +58,14 @@ import {
 export {
   Dialect,
   MavlinkFrame,
+  MavlinkMessage,
   MavlinkParser,
   MavlinkSigner,
   MavlinkVerifier,
+  MessageSchema,
+  MessageSchemaBuilder,
   type MavlinkField,
+  type MavlinkFieldInfo,
   type MavlinkHeader,
 }
 
@@ -166,4 +190,148 @@ export function frame(header: MavlinkHeader, msgid: number, payload: Buffer): Ma
     )
   }
   return MavlinkFrame.encodeV2(header, msgid, payload, crcExtra)
+}
+
+/**
+ * The field types a message definition uses.
+ *
+ * Provided as a runtime object because the generated constants are plain numbers, and a
+ * caller describing a dialect wants to write the type rather than remember its code.
+ */
+export const MavlinkFieldType = {
+  /** `uint8_t`. */
+  UINT8: MAVLINK_FIELD_UINT8,
+  /** `int8_t`. */
+  INT8: MAVLINK_FIELD_INT8,
+  /** `char`; an array of these carries text. */
+  CHAR: MAVLINK_FIELD_CHAR,
+  /** `uint16_t`. */
+  UINT16: MAVLINK_FIELD_UINT16,
+  /** `int16_t`. */
+  INT16: MAVLINK_FIELD_INT16,
+  /** `uint32_t`. */
+  UINT32: MAVLINK_FIELD_UINT32,
+  /** `int32_t`. */
+  INT32: MAVLINK_FIELD_INT32,
+  /** `uint64_t`. */
+  UINT64: MAVLINK_FIELD_UINT64,
+  /** `int64_t`. */
+  INT64: MAVLINK_FIELD_INT64,
+  /** `float`. */
+  FLOAT: MAVLINK_FIELD_FLOAT,
+  /** `double`. */
+  DOUBLE: MAVLINK_FIELD_DOUBLE,
+} as const
+
+/** One of the {@link MavlinkFieldType} values. */
+export type MavlinkFieldTypeValue = (typeof MavlinkFieldType)[keyof typeof MavlinkFieldType]
+
+/** What a field's value looks like outside the message: a number, an array, or text. */
+export type MavlinkFieldValue = number | number[] | string
+
+/** A whole message as plain values, keyed by field name. */
+export type MavlinkFields = Record<string, MavlinkFieldValue>
+
+/**
+ * Returns the shape of a message the engine types.
+ *
+ * @param message - The message id or name, such as `33` or `GLOBAL_POSITION_INT`.
+ * @returns The shape.
+ * @throws If this build does not type that message, in which case describe it with
+ *   {@link MessageSchemaBuilder}.
+ *
+ * @example
+ * ```ts
+ * const position = schemaFor('GLOBAL_POSITION_INT')
+ * console.log(position.id, position.wireLen)
+ * ```
+ */
+export function schemaFor(message: number | string): MessageSchema {
+  return typeof message === 'number' ? MessageSchema.forId(message) : MessageSchema.forName(message)
+}
+
+/**
+ * Returns the names of every message this build types, in message-id order.
+ *
+ * @returns The message names, each usable with {@link schemaFor}.
+ */
+export function knownMessages(): string[] {
+  return mavlinkKnownMessages()
+}
+
+/**
+ * Creates a message with every field zero.
+ *
+ * @param shape - The shape to build, or the id or name of a message the engine types.
+ * @returns The zeroed message, ready for its fields to be set.
+ *
+ * @example
+ * ```ts
+ * const heartbeat = message('HEARTBEAT')
+ * heartbeat.set('type', 18)
+ * heartbeat.set('system_status', 4)
+ * const frame = heartbeat.toFrame({ systemId: 1, componentId: 1, sequence: 0 })
+ * ```
+ */
+export function message(shape: MessageSchema | number | string): MavlinkMessage {
+  const schema = shape instanceof MessageSchema ? shape : schemaFor(shape)
+  return MavlinkMessage.empty(schema)
+}
+
+/**
+ * Reads a whole message as plain values, keyed by field name.
+ *
+ * A scalar field comes back as a number, an array field as an array, and a `char` array as
+ * the text it carries, so a received message reads like an ordinary object.
+ *
+ * @param message - The message to read.
+ * @param schema - The shape it was built from, which names its fields.
+ * @returns The fields as plain values.
+ */
+export function toObject(message: MavlinkMessage, schema: MessageSchema): MavlinkFields {
+  const values: MavlinkFields = {}
+  for (const field of schema.fields) {
+    if (field.arrayLen === 0) {
+      values[field.name] = message.get(field.name)
+    } else if (field.fieldType === MavlinkFieldType.CHAR) {
+      values[field.name] = message.getText(field.name)
+    } else {
+      const elements: number[] = []
+      for (let index = 0; index < field.arrayLen; index += 1) {
+        elements.push(message.get(field.name, index))
+      }
+      values[field.name] = elements
+    }
+  }
+  return values
+}
+
+/**
+ * Builds a message from plain values, keyed by field name.
+ *
+ * A field left out stays zero, which is what a sender filling in part of a message wants.
+ *
+ * @param schema - The shape to build.
+ * @param values - The fields to set.
+ * @returns The message.
+ * @throws If a name is not a field of the message, or a value does not fit its field.
+ *
+ * @example
+ * ```ts
+ * const position = schemaFor('GLOBAL_POSITION_INT')
+ * const report = fromObject(position, { lat: -33856780, lon: 151215300, hdg: 18000 })
+ * ```
+ */
+export function fromObject(schema: MessageSchema, values: MavlinkFields): MavlinkMessage {
+  const built = MavlinkMessage.empty(schema)
+  for (const [name, value] of Object.entries(values)) {
+    if (typeof value === 'string') {
+      built.setText(name, value)
+    } else if (Array.isArray(value)) {
+      value.forEach((element, index) => built.set(name, element, index))
+    } else {
+      built.set(name, value)
+    }
+  }
+  return built
 }
