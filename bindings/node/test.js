@@ -52,7 +52,7 @@ const {
   Trend,
   Anomaly,
   WINDOW_CAPACITY,
-} = require("./dist/index.js");
+} = require("pamoja");
 
 async function main() {
   const v = version();

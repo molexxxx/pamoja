@@ -1,0 +1,103 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "composite": true
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../actuators"
+    },
+    {
+      "path": "../audit"
+    },
+    {
+      "path": "../bus"
+    },
+    {
+      "path": "../can"
+    },
+    {
+      "path": "../coap"
+    },
+    {
+      "path": "../codec"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../gpio"
+    },
+    {
+      "path": "../kit"
+    },
+    {
+      "path": "../ladder"
+    },
+    {
+      "path": "../loopback"
+    },
+    {
+      "path": "../lora"
+    },
+    {
+      "path": "../lorawan"
+    },
+    {
+      "path": "../mavlink"
+    },
+    {
+      "path": "../mesh"
+    },
+    {
+      "path": "../modbus"
+    },
+    {
+      "path": "../mqtt"
+    },
+    {
+      "path": "../power"
+    },
+    {
+      "path": "../profile"
+    },
+    {
+      "path": "../ros2"
+    },
+    {
+      "path": "../routing"
+    },
+    {
+      "path": "../security"
+    },
+    {
+      "path": "../sensors"
+    },
+    {
+      "path": "../serial"
+    },
+    {
+      "path": "../session"
+    },
+    {
+      "path": "../sim"
+    },
+    {
+      "path": "../sync"
+    },
+    {
+      "path": "../telemetry"
+    },
+    {
+      "path": "../update"
+    },
+    {
+      "path": "../zenoh"
+    }
+  ]
+}

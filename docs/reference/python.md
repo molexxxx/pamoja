@@ -37,7 +37,7 @@ for anything the facade does not cover.
 | Store and forward | `pamoja.sync` | Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss |
 | Transport ladder | `pamoja.ladder` | Cheapest reachable link first, buffering to a store when every link is down |
 | Event bus | `pamoja.bus` | An in-memory typed publish and subscribe event bus |
-| Transports | `pamoja.transport` | The transport surface every link shares: send, receive, subscribe, and a faulty wrapper for tests |
+| Engine surface | `pamoja.transport` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | Simulators | `pamoja.sim` | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
 | Device profiles | `pamoja.profile` | Named, ready-to-run device profiles from plain data or a JSON manifest |
 | ROS 2 rules | `pamoja.ros2` | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |

@@ -1,172 +1,18 @@
 {
-  "name": "@pamoja/core",
+  "name": "pamoja-node-workspace",
   "version": "0.1.14",
-  "description": "Node.js bindings for the pamoja device SDK core.",
+  "private": true,
+  "description": "The Node binding workspace: the napi-rs crate at this directory, @pamoja/core with the compiled engine under packages/core, one @pamoja package per capability, and the pamoja bundle.",
   "license": "MIT",
-  "publishConfig": {
-    "access": "public"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/molexxxx/pamoja.git"
-  },
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./mqtt": {
-      "types": "./dist/mqtt.d.ts",
-      "default": "./dist/mqtt.js"
-    },
-    "./security": {
-      "types": "./dist/security.d.ts",
-      "default": "./dist/security.js"
-    },
-    "./codec": {
-      "types": "./dist/codec.d.ts",
-      "default": "./dist/codec.js"
-    },
-    "./kit": {
-      "types": "./dist/kit.d.ts",
-      "default": "./dist/kit.js"
-    },
-    "./serial": {
-      "types": "./dist/serial.d.ts",
-      "default": "./dist/serial.js"
-    },
-    "./modbus": {
-      "types": "./dist/modbus.d.ts",
-      "default": "./dist/modbus.js"
-    },
-    "./can": {
-      "types": "./dist/can.d.ts",
-      "default": "./dist/can.js"
-    },
-    "./gpio": {
-      "types": "./dist/gpio.d.ts",
-      "default": "./dist/gpio.js"
-    },
-    "./sensors": {
-      "types": "./dist/sensors.d.ts",
-      "default": "./dist/sensors.js"
-    },
-    "./actuators": {
-      "types": "./dist/actuators.d.ts",
-      "default": "./dist/actuators.js"
-    },
-    "./lora": {
-      "types": "./dist/lora.d.ts",
-      "default": "./dist/lora.js"
-    },
-    "./lorawan": {
-      "types": "./dist/lorawan.d.ts",
-      "default": "./dist/lorawan.js"
-    },
-    "./mavlink": {
-      "types": "./dist/mavlink.d.ts",
-      "default": "./dist/mavlink.js"
-    },
-    "./mesh": {
-      "types": "./dist/mesh.d.ts",
-      "default": "./dist/mesh.js"
-    },
-    "./routing": {
-      "types": "./dist/routing.d.ts",
-      "default": "./dist/routing.js"
-    },
-    "./audit": {
-      "types": "./dist/audit.d.ts",
-      "default": "./dist/audit.js"
-    },
-    "./session": {
-      "types": "./dist/session.d.ts",
-      "default": "./dist/session.js"
-    },
-    "./update": {
-      "types": "./dist/update.d.ts",
-      "default": "./dist/update.js"
-    },
-    "./power": {
-      "types": "./dist/power.d.ts",
-      "default": "./dist/power.js"
-    },
-    "./telemetry": {
-      "types": "./dist/telemetry.d.ts",
-      "default": "./dist/telemetry.js"
-    },
-    "./coap": {
-      "types": "./dist/coap.d.ts",
-      "default": "./dist/coap.js"
-    },
-    "./loopback": {
-      "types": "./dist/loopback.d.ts",
-      "default": "./dist/loopback.js"
-    },
-    "./sync": {
-      "types": "./dist/sync.d.ts",
-      "default": "./dist/sync.js"
-    },
-    "./ladder": {
-      "types": "./dist/ladder.d.ts",
-      "default": "./dist/ladder.js"
-    },
-    "./bus": {
-      "types": "./dist/bus.d.ts",
-      "default": "./dist/bus.js"
-    },
-    "./sim": {
-      "types": "./dist/sim.d.ts",
-      "default": "./dist/sim.js"
-    },
-    "./transport": {
-      "types": "./dist/transport.d.ts",
-      "default": "./dist/transport.js"
-    },
-    "./profile": {
-      "types": "./dist/profile.d.ts",
-      "default": "./dist/profile.js"
-    },
-    "./ros2": {
-      "types": "./dist/ros2.d.ts",
-      "default": "./dist/ros2.js"
-    },
-    "./zenoh": {
-      "types": "./dist/zenoh.d.ts",
-      "default": "./dist/zenoh.js"
-    },
-    "./raw": {
-      "types": "./index.d.ts",
-      "default": "./index.js"
-    }
-  },
-  "napi": {
-    "binaryName": "pamoja-core",
-    "targets": [
-      "x86_64-unknown-linux-gnu",
-      "aarch64-unknown-linux-gnu",
-      "x86_64-apple-darwin",
-      "aarch64-apple-darwin",
-      "x86_64-pc-windows-msvc"
-    ]
-  },
-  "files": [
-    "index.js",
-    "index.d.ts",
-    "dist/"
+  "workspaces": [
+    "packages/*"
   ],
-  "engines": {
-    "node": ">= 16"
-  },
   "scripts": {
-    "build": "napi build --platform --release && tsc -p tsconfig.json",
-    "build:native": "napi build --platform --release",
-    "build:debug": "napi build --platform && tsc -p tsconfig.json",
-    "build:facade": "tsc -p tsconfig.json",
-    "test": "node test.js && node conformance.js",
-    "prepack": "tsc -p tsconfig.json"
+    "build": "npm run build:native && npm run build:facade",
+    "build:native": "napi build --platform --release --package-json-path packages/native/package.json --output-dir packages/native",
+    "build:debug": "napi build --platform --package-json-path packages/native/package.json --output-dir packages/native && npm run build:facade",
+    "build:facade": "tsc -b",
+    "test": "node test.js && node conformance.js"
   },
   "devDependencies": {
     "@napi-rs/cli": "^3.8.0",

@@ -49,7 +49,8 @@ they come from and regenerate:
 | `crates/*/README.md` | each crate's `lib.rs` rustdoc | `cargo xtask docs` |
 | `docs/SUMMARY.md` and the tables in the READMEs and this site | `docs/capabilities.toml` | `cargo xtask docs` |
 | `crates/pamoja-ffi/include/pamoja.h` | the `pamoja-ffi` source | `cargo build -p pamoja-ffi` |
-| `bindings/node/index.js` and `index.d.ts` | the Node binding source | `npm run build` in `bindings/node` |
+| `bindings/node/packages/native/index.js` and `index.d.ts` | the Node binding source | `npm run build` in `bindings/node` |
+| `bindings/node/packages/*/package.json`, `tsconfig.json`, and `README.md` | `docs/capabilities.toml` and each package's imports | `cargo xtask docs` |
 | `bindings/python/python/pamoja/_core/__init__.pyi` | the Python binding source | `cargo run --bin stub_gen` in `bindings/python` |
 | `conformance/vectors.json` | the Rust implementation | `cargo run -p pamoja-examples --example conformance_vectors` |
 

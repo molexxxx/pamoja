@@ -1,12 +1,16 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "name": "@pamoja/core",
-  "entryPoints": ["../facade/*.ts"],
-  "tsconfig": "./tsconfig.json",
+  "name": "pamoja for Node",
+  "entryPointStrategy": "packages",
+  "entryPoints": ["../packages/*"],
+  "packageOptions": {
+    "entryPoints": ["src/index.ts"],
+    "tsconfig": "tsconfig.json",
+    "excludePrivate": true,
+    "excludeInternal": true
+  },
   "out": "../../../target/docs/site/reference/node",
-  "readme": "../README.md",
-  "excludePrivate": true,
-  "excludeInternal": true,
+  "readme": "../packages/pamoja/README.md",
   "includeVersion": true,
   "navigation": {
     "includeCategories": false,

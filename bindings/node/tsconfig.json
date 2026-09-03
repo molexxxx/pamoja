@@ -1,17 +1,98 @@
 {
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "node16",
-    "moduleResolution": "node16",
-    "lib": ["ES2020"],
-    "types": ["node"],
-    "declaration": true,
-    "outDir": "dist",
-    "rootDir": "facade",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
-  },
-  "include": ["facade/**/*.ts"]
+  "files": [],
+  "references": [
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/security"
+    },
+    {
+      "path": "packages/codec"
+    },
+    {
+      "path": "packages/kit"
+    },
+    {
+      "path": "packages/serial"
+    },
+    {
+      "path": "packages/modbus"
+    },
+    {
+      "path": "packages/can"
+    },
+    {
+      "path": "packages/gpio"
+    },
+    {
+      "path": "packages/sensors"
+    },
+    {
+      "path": "packages/actuators"
+    },
+    {
+      "path": "packages/lora"
+    },
+    {
+      "path": "packages/lorawan"
+    },
+    {
+      "path": "packages/mesh"
+    },
+    {
+      "path": "packages/routing"
+    },
+    {
+      "path": "packages/mavlink"
+    },
+    {
+      "path": "packages/audit"
+    },
+    {
+      "path": "packages/session"
+    },
+    {
+      "path": "packages/update"
+    },
+    {
+      "path": "packages/power"
+    },
+    {
+      "path": "packages/telemetry"
+    },
+    {
+      "path": "packages/mqtt"
+    },
+    {
+      "path": "packages/coap"
+    },
+    {
+      "path": "packages/loopback"
+    },
+    {
+      "path": "packages/sync"
+    },
+    {
+      "path": "packages/ladder"
+    },
+    {
+      "path": "packages/bus"
+    },
+    {
+      "path": "packages/sim"
+    },
+    {
+      "path": "packages/profile"
+    },
+    {
+      "path": "packages/ros2"
+    },
+    {
+      "path": "packages/zenoh"
+    },
+    {
+      "path": "packages/pamoja"
+    }
+  ]
 }

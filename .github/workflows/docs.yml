@@ -64,11 +64,15 @@ jobs:
           mkdir -p target/docs/site/reference
           cp -r target/doc target/docs/site/reference/rust
 
-      # typedoc reads the facade against the committed napi-rs contract, so no native
-      # build is needed; it pins its own TypeScript under bindings/node/docs.
+      # typedoc documents each package against the committed napi-rs contract, so no
+      # native build is needed, only the facade build that gives the packages their
+      # declarations; it pins its own TypeScript under bindings/node/docs.
       - name: TypeScript reference
-        working-directory: bindings/node/docs
+        working-directory: bindings/node
         run: |
+          npm ci
+          npm run build:facade
+          cd docs
           npm ci
           npx typedoc
 

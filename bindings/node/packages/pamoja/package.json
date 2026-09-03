@@ -1,0 +1,70 @@
+{
+  "name": "pamoja",
+  "version": "0.1.14",
+  "description": "The whole pamoja framework in one package: every capability of one memory-safe Rust core, behind an idiomatic TypeScript facade, for IoT, robotics, and drones.",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/molexxxx/pamoja.git",
+    "directory": "bindings/node/packages/pamoja"
+  },
+  "homepage": "https://pamoja.molex.cloud/docs/",
+  "keywords": [
+    "pamoja",
+    "iot",
+    "robotics",
+    "drones",
+    "mqtt",
+    "embedded"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "engines": {
+    "node": ">= 16"
+  },
+  "dependencies": {
+    "@pamoja/actuators": "0.1.14",
+    "@pamoja/audit": "0.1.14",
+    "@pamoja/bus": "0.1.14",
+    "@pamoja/can": "0.1.14",
+    "@pamoja/coap": "0.1.14",
+    "@pamoja/codec": "0.1.14",
+    "@pamoja/core": "0.1.14",
+    "@pamoja/gpio": "0.1.14",
+    "@pamoja/kit": "0.1.14",
+    "@pamoja/ladder": "0.1.14",
+    "@pamoja/loopback": "0.1.14",
+    "@pamoja/lora": "0.1.14",
+    "@pamoja/lorawan": "0.1.14",
+    "@pamoja/mavlink": "0.1.14",
+    "@pamoja/mesh": "0.1.14",
+    "@pamoja/modbus": "0.1.14",
+    "@pamoja/mqtt": "0.1.14",
+    "@pamoja/native": "0.1.14",
+    "@pamoja/power": "0.1.14",
+    "@pamoja/profile": "0.1.14",
+    "@pamoja/ros2": "0.1.14",
+    "@pamoja/routing": "0.1.14",
+    "@pamoja/security": "0.1.14",
+    "@pamoja/sensors": "0.1.14",
+    "@pamoja/serial": "0.1.14",
+    "@pamoja/session": "0.1.14",
+    "@pamoja/sim": "0.1.14",
+    "@pamoja/sync": "0.1.14",
+    "@pamoja/telemetry": "0.1.14",
+    "@pamoja/update": "0.1.14",
+    "@pamoja/zenoh": "0.1.14"
+  }
+}

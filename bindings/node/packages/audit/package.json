@@ -1,0 +1,39 @@
+{
+  "name": "@pamoja/audit",
+  "version": "0.1.14",
+  "description": "A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification.",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/molexxxx/pamoja.git",
+    "directory": "bindings/node/packages/audit"
+  },
+  "homepage": "https://pamoja.molex.cloud/docs/",
+  "keywords": [
+    "pamoja",
+    "iot",
+    "robotics",
+    "audit"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "engines": {
+    "node": ">= 16"
+  },
+  "dependencies": {
+    "@pamoja/native": "0.1.14",
+    "@pamoja/security": "0.1.14"
+  }
+}

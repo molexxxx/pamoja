@@ -56,7 +56,7 @@ struct Reading {
 }
 
 /// The workspace version, from `[workspace.package]` in the root manifest.
-fn current() -> Result<String, String> {
+pub(crate) fn current() -> Result<String, String> {
     let path = repo_root().join("Cargo.toml");
     let doc = parse_toml(&path)?;
     doc.get("workspace")
@@ -159,13 +159,15 @@ fn bump(new: &str) -> Result<(), String> {
 
     for package_json in package_manifests(&root) {
         rewrite(&package_json, "\"version\": \"", "\"", new, 1)?;
+        let text = read(&package_json)?;
+        write(&package_json, &with_package_pins(&text, new))?;
     }
 
     for props in binding_files(&root, "Directory.Build.props") {
         rewrite(&props, "<Version>", "</Version>", new, usize::MAX)?;
     }
 
-    for loader in binding_files(&root, "index.js") {
+    for loader in loader_files(&root) {
         for (before, after) in LOADER_SITES {
             rewrite(&loader, before, after, new, usize::MAX)?;
         }
@@ -278,6 +280,13 @@ fn readings() -> Result<Vec<Reading>, String> {
     for package_json in package_manifests(&root) {
         let version = json_version(&package_json, &[])?;
         readings.push(reading(&package_json, "version", &version));
+        for (name, pinned) in package_pins(&package_json)? {
+            readings.push(reading(
+                &package_json,
+                &format!("dependency {name}"),
+                &pinned,
+            ));
+        }
     }
 
     for lockfile in binding_files(&root, "package-lock.json") {
@@ -297,7 +306,7 @@ fn readings() -> Result<Vec<Reading>, String> {
         }
     }
 
-    for loader in binding_files(&root, "index.js") {
+    for loader in loader_files(&root) {
         let text = read(&loader)?;
         let mut versions: Vec<String> = LOADER_SITES
             .iter()
@@ -492,19 +501,96 @@ fn cargo_lockfiles(root: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-/// Every npm manifest: a binding's own and those of its platform packages.
+/// Every npm manifest: a binding's workspace root, each package under its
+/// `packages/`, and the platform packages under any of those.
 fn package_manifests(root: &Path) -> Vec<PathBuf> {
     let mut manifests = binding_files(root, "package.json");
     for binding in subdirectories(&root.join("bindings")).unwrap_or_default() {
-        for platform in subdirectories(&binding.join("npm")).unwrap_or_default() {
-            let manifest = platform.join("package.json");
+        for package in subdirectories(&binding.join("packages")).unwrap_or_default() {
+            let manifest = package.join("package.json");
             if manifest.is_file() {
                 manifests.push(manifest);
+            }
+            for platform in subdirectories(&package.join("npm")).unwrap_or_default() {
+                let manifest = platform.join("package.json");
+                if manifest.is_file() {
+                    manifests.push(manifest);
+                }
             }
         }
     }
     manifests.sort();
     manifests
+}
+
+/// Every generated napi-rs loader: `index.js` under a binding or under one of its
+/// packages.
+fn loader_files(root: &Path) -> Vec<PathBuf> {
+    let mut loaders = binding_files(root, "index.js");
+    for binding in subdirectories(&root.join("bindings")).unwrap_or_default() {
+        for package in subdirectories(&binding.join("packages")).unwrap_or_default() {
+            let loader = package.join("index.js");
+            if loader.is_file() {
+                loaders.push(loader);
+            }
+        }
+    }
+    loaders.sort();
+    loaders
+}
+
+/// The dependency sections of an npm manifest whose entries pin sibling packages.
+const PIN_SECTIONS: [&str; 3] = ["dependencies", "optionalDependencies", "peerDependencies"];
+
+/// Whether an npm dependency name is one of this repository's own packages.
+fn is_own_package(name: &str) -> bool {
+    name == "pamoja" || name.starts_with("@pamoja/")
+}
+
+/// The pinned versions of this repository's own packages in an npm manifest, as
+/// (name, version).
+fn package_pins(file: &Path) -> Result<Vec<(String, String)>, String> {
+    let document: serde_json::Value = serde_json::from_str(&read(file)?)
+        .map_err(|err| format!("{} is not JSON: {err}", display(file)))?;
+    let mut pins = Vec::new();
+    for section in PIN_SECTIONS {
+        let Some(entries) = document[section].as_object() else {
+            continue;
+        };
+        for (name, version) in entries {
+            if is_own_package(name) {
+                let version = version.as_str().unwrap_or("?").to_owned();
+                pins.push((name.clone(), version));
+            }
+        }
+    }
+    Ok(pins)
+}
+
+/// Rewrite the pinned version of every own-package dependency in npm manifest text,
+/// line by line so the file's layout survives.
+fn with_package_pins(text: &str, new: &str) -> String {
+    let lines: Vec<String> = text
+        .lines()
+        .map(|line| {
+            let Some((key, rest)) = line.split_once("\": \"") else {
+                return line.to_owned();
+            };
+            let name = key.trim_start().trim_start_matches('"');
+            if !is_own_package(name) {
+                return line.to_owned();
+            }
+            let Some(end) = rest.find('"') else {
+                return line.to_owned();
+            };
+            format!("{key}\": \"{new}{}", &rest[end..])
+        })
+        .collect();
+    let mut joined = lines.join("\n");
+    if text.ends_with('\n') {
+        joined.push('\n');
+    }
+    joined
 }
 
 /// The file called `name` directly under each binding directory, where present.

@@ -59,7 +59,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.target }}
-          path: bindings/node/*.node
+          path: bindings/node/packages/native/*.node
           if-no-files-found: error
 
   publish:
@@ -88,13 +88,16 @@ jobs:
         with:
           path: bindings/node/artifacts
 
-      - name: Move addons into platform packages
-        run: npx napi artifacts --output-dir artifacts
+      - name: Move addons into the platform packages
+        run: npx napi artifacts --output-dir artifacts --package-json-path packages/native/package.json --npm-dir packages/native/npm
 
-      - name: Publish platform packages and the root package
+      # pre-publish publishes @pamoja/native platform packages and pins them in its
+      # manifest; the workspace publish then covers @pamoja/native, @pamoja/core, every capability
+      # package, and the pamoja bundle.
+      - name: Publish the platform packages, then every workspace package
         run: |
-          npx napi pre-publish -t npm
-          npm publish --access public
+          npx napi pre-publish -t npm --package-json-path packages/native/package.json --npm-dir packages/native/npm
+          npm publish --workspaces --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

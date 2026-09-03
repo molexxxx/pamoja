@@ -1,9 +1,0 @@
-{
-  "extends": "../tsconfig.json",
-  "compilerOptions": {
-    "noEmit": true,
-    "types": ["node"],
-    "typeRoots": ["./node_modules/@types"]
-  },
-  "include": ["../facade/**/*.ts", "../index.d.ts"]
-}

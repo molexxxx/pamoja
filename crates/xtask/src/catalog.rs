@@ -118,7 +118,7 @@ impl Catalog {
     }
 
     /// Check the map against the repository: every library crate claimed once, the
-    /// node and python keys matching the package exports and modules, every dotnet
+    /// node keys matching the packages, the python keys matching the modules, every dotnet
     /// name declared, and every guide present. With `require_guides`, a capability
     /// without a guide is an error too.
     ///
@@ -182,22 +182,25 @@ impl Catalog {
             }
         }
 
-        match node_exports(root) {
-            Ok(exports) => {
+        match node_packages(root) {
+            Ok(packages) => {
                 let keys: BTreeSet<&str> = self
                     .capabilities
                     .iter()
                     .map(|capability| capability.node.as_str())
+                    .filter(|key| *key != "core")
                     .collect();
-                for export in exports.difference(&keys.iter().map(|k| (*k).to_owned()).collect()) {
-                    problems.push(format!(
-                        "package.json exports ./{export}, which no capability claims"
-                    ));
+                for package in &packages {
+                    if !keys.contains(package.as_str()) {
+                        problems.push(format!(
+                            "bindings/node/packages/{package} exists, which no capability claims"
+                        ));
+                    }
                 }
                 for key in &keys {
-                    if !exports.contains(*key) {
+                    if !packages.contains(*key) {
                         problems.push(format!(
-                            "node = \"{key}\" is not an export of bindings/node/package.json"
+                            "node = \"{key}\" has no package under bindings/node/packages"
                         ));
                     }
                 }
@@ -396,8 +399,9 @@ impl Catalog {
             ));
         }
         lines.push(format!(
-            "- TypeScript: [`@pamoja/core/{0}`]({SITE}/reference/node/modules/{0}.html)",
-            capability.node
+            "- TypeScript: [`{}`]({})",
+            node_package(capability),
+            node_reference_url(&capability.node)
         ));
         lines.push(format!(
             "- Python: [`pamoja.{0}`]({SITE}/reference/python/pamoja/{0}.html)",
@@ -423,7 +427,7 @@ impl Catalog {
         for chapter in &self.chapters {
             for capability in self.in_chapter(&chapter.key) {
                 let import = match language {
-                    "node" => format!("`@pamoja/core/{}`", capability.node),
+                    "node" => format!("`{}`", node_package(capability)),
                     "python" => format!("`pamoja.{}`", capability.python),
                     _ => capability
                         .dotnet
@@ -558,21 +562,26 @@ fn strings_of(
 }
 
 /// The subpath exports of the Node package, without `.` and `./raw`.
-fn node_exports(root: &Path) -> Result<BTreeSet<String>, String> {
-    let path = root.join("bindings/node/package.json");
-    let text =
-        fs::read_to_string(&path).map_err(|err| format!("reading {}: {err}", path.display()))?;
-    let package: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|err| format!("{} is not JSON: {err}", path.display()))?;
-    let exports = package["exports"]
-        .as_object()
-        .ok_or("bindings/node/package.json has no exports object")?;
-    Ok(exports
-        .keys()
-        .filter_map(|key| key.strip_prefix("./"))
-        .filter(|key| *key != "raw")
-        .map(str::to_owned)
+fn node_packages(root: &Path) -> Result<BTreeSet<String>, String> {
+    let dir = root.join("bindings/node/packages");
+    let entries = fs::read_dir(&dir).map_err(|err| format!("reading {}: {err}", dir.display()))?;
+    Ok(entries
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .filter(|path| path.join("src/index.ts").is_file())
+        .filter_map(|path| path.file_name()?.to_str().map(str::to_owned))
+        .filter(|name| name != "core" && name != "native" && name != "pamoja")
         .collect())
+}
+
+/// The URL of a capability package's page in the generated TypeScript reference.
+pub fn node_reference_url(key: &str) -> String {
+    format!("{SITE}/reference/node/modules/_pamoja_{key}.html")
+}
+
+/// The npm package a capability lives in: its own `@pamoja/<key>`, or `@pamoja/core`
+/// for the transport surface the engine carries itself.
+pub fn node_package(capability: &Capability) -> String {
+    format!("@pamoja/{}", capability.node)
 }
 
 /// The facade modules of the Python package, without `__init__` and `raw`.
@@ -697,7 +706,7 @@ crates = ["pamoja-core"]
         assert!(crates.contains("| [`pamoja-core`](https://docs.rs/pamoja-core) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html)) | Engine | The device model |"));
 
         let reference = catalog.render("reference modbus", &descriptions).unwrap();
-        assert!(reference.contains("- TypeScript: [`@pamoja/core/modbus`](https://pamoja.molex.cloud/docs/reference/node/modules/modbus.html)"));
+        assert!(reference.contains("- TypeScript: [`@pamoja/modbus`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_modbus.html)"));
         assert!(reference.contains("- C#: [`Modbus`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.Modbus.html), [`ModbusFrame`]"));
 
         let binding = catalog.render("binding python", &descriptions).unwrap();

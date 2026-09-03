@@ -8,7 +8,8 @@
 //! the site, and the code snippets spliced from test files) are re-rendered in place; see
 //! [`regions`](crate::regions). `cargo xtask docs` writes all of it; `cargo xtask docs --check`
 //! renders in memory, fails if any committed file is stale, and checks the capability map
-//! against the crates, the binding exports, and the .NET types. A hand-written crate README
+//! against the crates, the Node packages, the Python modules, and the .NET types. It also renders
+//! the Node packages' manifests and READMEs from that map. A hand-written crate README
 //! (the dashboard's) is detected by the absence of the generated marker and left untouched.
 
 use std::collections::BTreeMap;
@@ -20,7 +21,7 @@ use quote::ToTokens;
 use syn::{Fields, ImplItem, Item, TraitItem, Visibility};
 
 use crate::catalog::{Catalog, SITE};
-use crate::regions;
+use crate::{packages, regions, version};
 
 /// Run the `docs` task: regenerate every derived file, or `--check` to verify they are in sync.
 ///
@@ -213,6 +214,9 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
         .map_err(|e| format!("{path}: {e}"))?;
         files.push((path, processed));
     }
+
+    let version = version::current()?;
+    files.extend(packages::render_node(&root, &catalog, &version)?);
     Ok(files)
 }
 

@@ -31,8 +31,8 @@ jobs:
 
       - name: Check generated bindings are in sync with the Rust source
         run: |
-          if ! git diff --exit-code -- index.js index.d.ts; then
-            echo "::error::Generated bindings are stale. Run 'npm run build' in bindings/node and commit index.js and index.d.ts."
+          if ! git diff --exit-code -- packages/native/index.js packages/native/index.d.ts; then
+            echo "::error::Generated bindings are stale. Run 'npm run build' in bindings/node and commit packages/native/index.js and packages/native/index.d.ts."
             exit 1
           fi
 
