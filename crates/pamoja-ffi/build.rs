@@ -28,6 +28,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src/lora.rs");
     println!("cargo:rerun-if-changed=src/lora_region.rs");
     println!("cargo:rerun-if-changed=src/lorawan.rs");
+    println!("cargo:rerun-if-changed=src/mavlink.rs");
     println!("cargo:rerun-if-changed=src/mesh.rs");
     println!("cargo:rerun-if-changed=src/modbus.rs");
     println!("cargo:rerun-if-changed=src/mqtt.rs");

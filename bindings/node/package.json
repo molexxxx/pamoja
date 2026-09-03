@@ -65,6 +65,10 @@
       "types": "./dist/lorawan.d.ts",
       "default": "./dist/lorawan.js"
     },
+    "./mavlink": {
+      "types": "./dist/mavlink.d.ts",
+      "default": "./dist/mavlink.js"
+    },
     "./mesh": {
       "types": "./dist/mesh.d.ts",
       "default": "./dist/mesh.js"

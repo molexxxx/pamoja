@@ -110,6 +110,32 @@
 // The length of a LoRaWAN EUI, in bytes.
 #define PAMOJA_LORAWAN_EUI_LEN 8
 
+
+
+
+
+
+
+// The largest payload a frame can carry, in bytes.
+#define PAMOJA_MAVLINK_MAX_PAYLOAD MAX_PAYLOAD
+
+
+
+// The length of a v2 signature block, in bytes.
+#define PAMOJA_MAVLINK_SIGNATURE_LEN SIGNATURE_LEN
+
+
+
+
+
+
+
+// The original wire format, with a six-byte header.
+#define PAMOJA_MAVLINK_VERSION_V1 1
+
+// The current wire format, with a 24-bit message id, flags, and optional signing.
+#define PAMOJA_MAVLINK_VERSION_V2 2
+
 // The largest mesh frame, in bytes, including its header and checksum.
 #define PAMOJA_MESH_FRAME_MAX 250
 
@@ -622,6 +648,33 @@ typedef struct PamojaLorawanRx PamojaLorawanRx;
 // Release it with [`pamoja_lorawan_session_free`].
 typedef struct PamojaLorawanSession PamojaLorawanSession;
 
+// The `CRC_EXTRA` seeds of a dialect beyond the common one.
+//
+// A handle the caller must release with [`pamoja_mavlink_dialect_free`].
+// Entries added here are consulted before the built-in common-dialect registry,
+// so a private dialect may also override an id the common one defines.
+typedef struct PamojaMavlinkDialect PamojaMavlinkDialect;
+
+// One MAVLink frame, assembled or received.
+//
+// A handle the caller must release with [`pamoja_mavlink_frame_free`].
+typedef struct PamojaMavlinkFrame PamojaMavlinkFrame;
+
+// A streaming frame parser, and the frames it has completed.
+//
+// A handle the caller must release with [`pamoja_mavlink_parser_free`].
+typedef struct PamojaMavlinkParser PamojaMavlinkParser;
+
+// A signing key and the monotonic timestamp that goes with it.
+//
+// A handle the caller must release with [`pamoja_mavlink_signer_free`].
+typedef struct PamojaMavlinkSigner PamojaMavlinkSigner;
+
+// A signing key and the timestamps it has already accepted.
+//
+// A handle the caller must release with [`pamoja_mavlink_verifier_free`].
+typedef struct PamojaMavlinkVerifier PamojaMavlinkVerifier;
+
 // An opaque handle to a median filter.
 typedef struct PamojaMedian PamojaMedian;
 
@@ -1023,6 +1076,33 @@ typedef struct {
   // The delay before the first receive window, in seconds.
   uint8_t rx_delay;
 } PamojaLorawanGrant;
+
+// One field of a message definition, as the `CRC_EXTRA` derivation reads it.
+//
+// The seed folds in each field's type name and field name in wire order, plus
+// the element count for an array field, which is what makes it catch a peer
+// whose idea of the message shape differs.
+typedef struct {
+  // The field's type name as the dialect writes it, such as `uint8_t`.
+  const char *type_name;
+  // The field's name as the dialect writes it, such as `custom_mode`.
+  const char *field_name;
+  // The element count for an array field, or `0` for a scalar.
+  uint8_t array_len;
+} PamojaMavlinkField;
+
+// The addressing fields a sender stamps on every frame.
+//
+// A frame says who sent it, a system and a component, and where it sits in that
+// sender's stream, so a receiver can tell a dropped frame from a quiet link.
+typedef struct {
+  // The sending system's id.
+  uint8_t system_id;
+  // The sending component's id.
+  uint8_t component_id;
+  // The sender's sequence number, which wraps at 256.
+  uint8_t sequence;
+} PamojaMavlinkHeader;
 
 // Connection settings for an MQTT client.
 //
@@ -5022,6 +5102,710 @@ PamojaStatus pamoja_lorawan_grant_session(PamojaLorawanGrant grant,
                                           uintptr_t app_key_len,
                                           uint16_t dev_nonce,
                                           PamojaLorawanSession **out_session);
+
+// Returns the CRC-16/MCRF4XX checksum of a byte string.
+//
+// This is the checksum every MAVLink frame carries, exposed because a host that
+// implements part of the protocol itself still needs the same arithmetic.
+//
+// # Arguments
+//
+// * `bytes` - the data to checksum.
+// * `bytes_len` - how many bytes `bytes` holds.
+//
+// # Returns
+//
+// The checksum, or `0` if `bytes` is null with a non-zero length.
+//
+// # Safety
+//
+// When `bytes_len` is non-zero, `bytes` must point to at least `bytes_len`
+// readable bytes.
+uint16_t pamoja_mavlink_crc16_mcrf4xx(const uint8_t *bytes, uintptr_t bytes_len);
+
+// Derives the `CRC_EXTRA` seed of a message from its definition.
+//
+// This is what makes a dialect this build has never seen usable: given a
+// message's name and its fields in wire order, the seed comes out the same as
+// the one the dialect publishes, and a frame carrying that message then checks
+// like any other.
+//
+// # Arguments
+//
+// * `name` - the message name, such as `HEARTBEAT`.
+// * `fields` - the base fields in wire order; extension fields are excluded from
+//   the seed and must not be listed.
+// * `field_count` - how many fields `fields` holds.
+// * `out_crc_extra` - set to the seed on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if any pointer is null or any name
+// is not valid UTF-8.
+//
+// # Safety
+//
+// `name` must be a valid null-terminated string, `fields` must point to
+// `field_count` readable entries whose own pointers are valid null-terminated
+// strings, and `out_crc_extra` must point at writable storage for one byte.
+PamojaStatus pamoja_mavlink_message_crc_extra(const char *name,
+                                              const PamojaMavlinkField *fields,
+                                              uintptr_t field_count,
+                                              uint8_t *out_crc_extra);
+
+// Returns the `CRC_EXTRA` the common dialect publishes for a message id.
+//
+// # Arguments
+//
+// * `msgid` - the message id to look up.
+// * `out_crc_extra` - set to the seed on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `out_crc_extra` is null, and
+// [`PamojaStatus::Unsupported`] if the id is outside the common dialect, which
+// is what a [`PamojaMavlinkDialect`] table is for.
+//
+// # Safety
+//
+// `out_crc_extra` must point at writable storage for one byte.
+PamojaStatus pamoja_mavlink_known_crc_extra(uint32_t msgid, uint8_t *out_crc_extra);
+
+// Creates an empty dialect table.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_mavlink_dialect_free`].
+PamojaMavlinkDialect *pamoja_mavlink_dialect_new(void);
+
+// Adds or replaces the `CRC_EXTRA` seed for a message id.
+//
+// # Arguments
+//
+// * `dialect` - the table to extend.
+// * `msgid` - the message id.
+// * `crc_extra` - the seed, usually from
+//   [`pamoja_mavlink_message_crc_extra`].
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `dialect` is null.
+//
+// # Safety
+//
+// `dialect` must be a live dialect handle.
+PamojaStatus pamoja_mavlink_dialect_add(PamojaMavlinkDialect *dialect,
+                                        uint32_t msgid,
+                                        uint8_t crc_extra);
+
+// Returns the seed a dialect resolves a message id to.
+//
+// # Arguments
+//
+// * `dialect` - the table to search, or null for the common dialect alone.
+// * `msgid` - the message id to look up.
+// * `out_crc_extra` - set to the seed on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `out_crc_extra` is null, and
+// [`PamojaStatus::Unsupported`] if neither the table nor the common dialect
+// knows the id.
+//
+// # Safety
+//
+// `dialect` must be a live dialect handle or null, and `out_crc_extra` must
+// point at writable storage for one byte.
+PamojaStatus pamoja_mavlink_dialect_crc_extra(const PamojaMavlinkDialect *dialect,
+                                              uint32_t msgid,
+                                              uint8_t *out_crc_extra);
+
+// Releases a dialect table.
+//
+// # Arguments
+//
+// * `dialect` - the handle to release; null is ignored.
+//
+// # Safety
+//
+// `dialect` must have come from [`pamoja_mavlink_dialect_new`] and must not be
+// used afterwards.
+void pamoja_mavlink_dialect_free(PamojaMavlinkDialect *dialect);
+
+// Assembles a frame carrying a message.
+//
+// # Arguments
+//
+// * `version` - [`PAMOJA_MAVLINK_VERSION_V1`] or [`PAMOJA_MAVLINK_VERSION_V2`].
+// * `header` - the addressing fields to stamp on the frame.
+// * `msgid` - the message id; a v1 frame only carries ids below 256.
+// * `payload` - the message payload.
+// * `payload_len` - how many bytes `payload` holds.
+// * `crc_extra` - the seed for this message id.
+// * `out_frame` - set to the frame handle on success, and to null otherwise.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `out_frame` is null, the version
+// is neither constant, or the payload does not fit a frame.
+//
+// # Safety
+//
+// `payload` must point to `payload_len` readable bytes when the length is
+// non-zero, and `out_frame` must point at writable storage for one pointer.
+PamojaStatus pamoja_mavlink_frame_encode(uint8_t version,
+                                         PamojaMavlinkHeader header,
+                                         uint32_t msgid,
+                                         const uint8_t *payload,
+                                         uintptr_t payload_len,
+                                         uint8_t crc_extra,
+                                         PamojaMavlinkFrame **out_frame);
+
+// Parses one frame, checking it against a known `CRC_EXTRA`.
+//
+// # Arguments
+//
+// * `bytes` - the frame as received.
+// * `bytes_len` - how many bytes `bytes` holds.
+// * `crc_extra` - the seed for the message the frame carries.
+// * `out_frame` - set to the frame handle on success, and to null otherwise.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `out_frame` is null, and
+// [`PamojaStatus::Codec`] if the bytes are not a whole frame or the checksum
+// does not match, which is what rejects a frame mangled in transit.
+//
+// # Safety
+//
+// `bytes` must point to `bytes_len` readable bytes when the length is non-zero,
+// and `out_frame` must point at writable storage for one pointer.
+PamojaStatus pamoja_mavlink_frame_parse(const uint8_t *bytes,
+                                        uintptr_t bytes_len,
+                                        uint8_t crc_extra,
+                                        PamojaMavlinkFrame **out_frame);
+
+// Parses one frame, looking its `CRC_EXTRA` up as it goes.
+//
+// This is what a receiver holding many message types uses: the id comes out of
+// the frame, and the seed comes from the dialect table or the common registry.
+//
+// # Arguments
+//
+// * `bytes` - the frame as received.
+// * `bytes_len` - how many bytes `bytes` holds.
+// * `dialect` - the dialect to prefer, or null for the common one alone.
+// * `out_frame` - set to the frame handle on success, and to null otherwise.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `out_frame` is null, and
+// [`PamojaStatus::Codec`] if the bytes are not a whole frame, the checksum does
+// not match, or no dialect here knows the message id.
+//
+// # Safety
+//
+// `bytes` must point to `bytes_len` readable bytes when the length is non-zero,
+// `dialect` must be a live dialect handle or null, and `out_frame` must point at
+// writable storage for one pointer.
+PamojaStatus pamoja_mavlink_frame_parse_known(const uint8_t *bytes,
+                                              uintptr_t bytes_len,
+                                              const PamojaMavlinkDialect *dialect,
+                                              PamojaMavlinkFrame **out_frame);
+
+// Releases a frame.
+//
+// # Arguments
+//
+// * `frame` - the handle to release; null is ignored.
+//
+// # Safety
+//
+// `frame` must have come from one of the frame constructors and must not be used
+// afterwards.
+void pamoja_mavlink_frame_free(PamojaMavlinkFrame *frame);
+
+// Returns the wire format a frame uses.
+//
+// # Arguments
+//
+// * `frame` - the frame to read.
+//
+// # Returns
+//
+// [`PAMOJA_MAVLINK_VERSION_V1`] or [`PAMOJA_MAVLINK_VERSION_V2`], or `0` if
+// `frame` is null.
+//
+// # Safety
+//
+// `frame` must be a live frame handle, or null.
+uint8_t pamoja_mavlink_frame_version(const PamojaMavlinkFrame *frame);
+
+// Returns the addressing fields a frame carries.
+//
+// # Arguments
+//
+// * `frame` - the frame to read.
+// * `out_header` - set to the header on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `frame` must be a live frame handle and `out_header` must point at writable
+// storage for one [`PamojaMavlinkHeader`].
+PamojaStatus pamoja_mavlink_frame_header(const PamojaMavlinkFrame *frame,
+                                         PamojaMavlinkHeader *out_header);
+
+// Returns the id of the message a frame carries.
+//
+// # Arguments
+//
+// * `frame` - the frame to read.
+//
+// # Returns
+//
+// The message id, or `0` if `frame` is null.
+//
+// # Safety
+//
+// `frame` must be a live frame handle, or null.
+uint32_t pamoja_mavlink_frame_message_id(const PamojaMavlinkFrame *frame);
+
+// Returns the incompatibility flags a v2 frame declares.
+//
+// # Arguments
+//
+// * `frame` - the frame to read.
+//
+// # Returns
+//
+// The flags, or `0` for a v1 frame or a null handle.
+//
+// # Safety
+//
+// `frame` must be a live frame handle, or null.
+uint8_t pamoja_mavlink_frame_incompat_flags(const PamojaMavlinkFrame *frame);
+
+// Reports whether a frame carries a signature.
+//
+// A signature only says the frame was signed, not that the signature is good;
+// [`pamoja_mavlink_verifier_verify`] decides that.
+//
+// # Arguments
+//
+// * `frame` - the frame to read.
+//
+// # Returns
+//
+// `1` if the frame is signed, `0` otherwise.
+//
+// # Safety
+//
+// `frame` must be a live frame handle, or null.
+uint8_t pamoja_mavlink_frame_is_signed(const PamojaMavlinkFrame *frame);
+
+// Returns a pointer to a frame's payload.
+//
+// The pointer is valid until the frame is released.
+//
+// # Arguments
+//
+// * `frame` - the frame to read.
+// * `out_len` - set to the payload length in bytes.
+//
+// # Returns
+//
+// A pointer to the payload, or null if either argument is null.
+//
+// # Safety
+//
+// `frame` must be a live frame handle and `out_len` must point at writable
+// storage for one length.
+const uint8_t *pamoja_mavlink_frame_payload(const PamojaMavlinkFrame *frame, uintptr_t *out_len);
+
+// Returns a pointer to a frame's bytes, ready to put on the wire.
+//
+// The pointer is valid until the frame is released.
+//
+// # Arguments
+//
+// * `frame` - the frame to read.
+// * `out_len` - set to the frame length in bytes.
+//
+// # Returns
+//
+// A pointer to the frame, or null if either argument is null.
+//
+// # Safety
+//
+// `frame` must be a live frame handle and `out_len` must point at writable
+// storage for one length.
+const uint8_t *pamoja_mavlink_frame_bytes(const PamojaMavlinkFrame *frame, uintptr_t *out_len);
+
+// Copies a frame's signature block out.
+//
+// # Arguments
+//
+// * `frame` - the frame to read.
+// * `out_signature` - filled with [`PAMOJA_MAVLINK_SIGNATURE_LEN`] bytes on
+//   success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, and
+// [`PamojaStatus::Unsupported`] if the frame carries no signature.
+//
+// # Safety
+//
+// `frame` must be a live frame handle and `out_signature` must point at writable
+// storage for [`PAMOJA_MAVLINK_SIGNATURE_LEN`] bytes.
+PamojaStatus pamoja_mavlink_frame_signature(const PamojaMavlinkFrame *frame,
+                                            uint8_t *out_signature);
+
+// Creates a parser with an empty buffer.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_mavlink_parser_free`].
+PamojaMavlinkParser *pamoja_mavlink_parser_new(void);
+
+// Feeds bytes off a link into the parser.
+//
+// Whatever a serial port or socket delivers can be pushed as it arrives, however
+// it is split. Frames that complete are queued for
+// [`pamoja_mavlink_parser_next`]. Noise between frames is skipped rather than
+// reported, which is what lets a parser join a stream already in progress.
+//
+// # Arguments
+//
+// * `parser` - the parser to feed.
+// * `bytes` - the bytes just read off the link.
+// * `bytes_len` - how many bytes `bytes` holds.
+// * `dialect` - the dialect to prefer, or null for the common one alone.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `parser` is null.
+//
+// # Safety
+//
+// `parser` must be a live parser handle, `bytes` must point to `bytes_len`
+// readable bytes when the length is non-zero, and `dialect` must be a live
+// dialect handle or null.
+PamojaStatus pamoja_mavlink_parser_push(PamojaMavlinkParser *parser,
+                                        const uint8_t *bytes,
+                                        uintptr_t bytes_len,
+                                        const PamojaMavlinkDialect *dialect);
+
+// Takes the next completed frame out of the parser.
+//
+// # Arguments
+//
+// * `parser` - the parser to drain.
+// * `out_frame` - set to the frame handle, or to null when none is waiting.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] whether or not a frame was waiting; a null `out_frame`
+// means the parser needs more bytes.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `parser` must be a live parser handle and `out_frame` must point at writable
+// storage for one pointer.
+PamojaStatus pamoja_mavlink_parser_next(PamojaMavlinkParser *parser,
+                                        PamojaMavlinkFrame **out_frame);
+
+// Returns how many completed frames are waiting to be taken.
+//
+// # Arguments
+//
+// * `parser` - the parser to inspect.
+//
+// # Returns
+//
+// The number of frames waiting, or `0` if `parser` is null.
+//
+// # Safety
+//
+// `parser` must be a live parser handle, or null.
+uintptr_t pamoja_mavlink_parser_pending(const PamojaMavlinkParser *parser);
+
+// Releases a parser.
+//
+// # Arguments
+//
+// * `parser` - the handle to release; null is ignored.
+//
+// # Safety
+//
+// `parser` must have come from [`pamoja_mavlink_parser_new`] and must not be
+// used afterwards.
+void pamoja_mavlink_parser_free(PamojaMavlinkParser *parser);
+
+// Converts Unix time into the timestamp MAVLink signing counts in.
+//
+// # Arguments
+//
+// * `unix_micros` - the time in microseconds since the Unix epoch.
+//
+// # Returns
+//
+// The MAVLink signing timestamp, in units of ten microseconds since 2015.
+uint64_t pamoja_mavlink_timestamp_from_unix_micros(uint64_t unix_micros);
+
+// Creates a signer.
+//
+// # Arguments
+//
+// * `key` - the shared signing key, [`PAMOJA_MAVLINK_KEY_LEN`] bytes.
+// * `link_id` - which link this sender signs on, so two links from one system
+//   do not look like replays of each other.
+// * `timestamp` - the timestamp to start from, usually from
+//   [`pamoja_mavlink_timestamp_from_unix_micros`].
+// * `out_signer` - set to the signer handle on success, and to null otherwise.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `key` must point to [`PAMOJA_MAVLINK_KEY_LEN`] readable bytes and
+// `out_signer` must point at writable storage for one pointer.
+PamojaStatus pamoja_mavlink_signer_new(const uint8_t *key,
+                                       uint8_t link_id,
+                                       uint64_t timestamp,
+                                       PamojaMavlinkSigner **out_signer);
+
+// Signs a message into a v2 frame.
+//
+// Each call advances the signer's timestamp, which is what makes a replayed
+// frame detectable.
+//
+// # Arguments
+//
+// * `signer` - the signer to use.
+// * `header` - the addressing fields to stamp on the frame.
+// * `msgid` - the message id.
+// * `payload` - the message payload.
+// * `payload_len` - how many bytes `payload` holds.
+// * `crc_extra` - the seed for this message id.
+// * `out_frame` - set to the signed frame on success, and to null otherwise.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `signer` or `out_frame` is null,
+// or the payload does not fit a frame.
+//
+// # Safety
+//
+// `signer` must be a live signer handle, `payload` must point to `payload_len`
+// readable bytes when the length is non-zero, and `out_frame` must point at
+// writable storage for one pointer.
+PamojaStatus pamoja_mavlink_signer_sign(PamojaMavlinkSigner *signer,
+                                        PamojaMavlinkHeader header,
+                                        uint32_t msgid,
+                                        const uint8_t *payload,
+                                        uintptr_t payload_len,
+                                        uint8_t crc_extra,
+                                        PamojaMavlinkFrame **out_frame);
+
+// Returns the link a signer signs on.
+//
+// # Arguments
+//
+// * `signer` - the signer to read.
+//
+// # Returns
+//
+// The link id, or `0` if `signer` is null.
+//
+// # Safety
+//
+// `signer` must be a live signer handle, or null.
+uint8_t pamoja_mavlink_signer_link_id(const PamojaMavlinkSigner *signer);
+
+// Releases a signer.
+//
+// # Arguments
+//
+// * `signer` - the handle to release; null is ignored.
+//
+// # Safety
+//
+// `signer` must have come from [`pamoja_mavlink_signer_new`] and must not be
+// used afterwards.
+void pamoja_mavlink_signer_free(PamojaMavlinkSigner *signer);
+
+// Creates a verifier.
+//
+// # Arguments
+//
+// * `key` - the shared signing key, [`PAMOJA_MAVLINK_KEY_LEN`] bytes.
+// * `out_verifier` - set to the handle on success, and to null otherwise.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `key` must point to [`PAMOJA_MAVLINK_KEY_LEN`] readable bytes and
+// `out_verifier` must point at writable storage for one pointer.
+PamojaStatus pamoja_mavlink_verifier_new(const uint8_t *key, PamojaMavlinkVerifier **out_verifier);
+
+// Sets how far a timestamp may run ahead of the last one accepted.
+//
+// A wider window tolerates a noisier link; a narrower one narrows the chance of
+// a replay landing inside it.
+//
+// # Arguments
+//
+// * `verifier` - the verifier to set.
+// * `window` - the window in timestamp units, ten microseconds each.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `verifier` is null.
+//
+// # Safety
+//
+// `verifier` must be a live verifier handle.
+PamojaStatus pamoja_mavlink_verifier_set_window(PamojaMavlinkVerifier *verifier, uint64_t window);
+
+// Checks a frame's signature and its place in the timestamp sequence.
+//
+// # Arguments
+//
+// * `verifier` - the verifier to use.
+// * `frame` - the frame to check.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] if the frame is authentic and not a replay.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, and
+// [`PamojaStatus::Auth`] if the frame is unsigned, the signature does not match
+// the key, or the timestamp has been seen before.
+//
+// # Safety
+//
+// `verifier` must be a live verifier handle and `frame` must be a live frame
+// handle.
+PamojaStatus pamoja_mavlink_verifier_verify(PamojaMavlinkVerifier *verifier,
+                                            const PamojaMavlinkFrame *frame);
+
+// Releases a verifier.
+//
+// # Arguments
+//
+// * `verifier` - the handle to release; null is ignored.
+//
+// # Safety
+//
+// `verifier` must have come from [`pamoja_mavlink_verifier_new`] and must not be
+// used afterwards.
+void pamoja_mavlink_verifier_free(PamojaMavlinkVerifier *verifier);
+
+// Assembles a v2 frame carrying a message this build does not type.
+//
+// This is the escape hatch a private dialect needs: supply the id, the payload,
+// and the seed, and the frame is built and checked like any other.
+//
+// # Arguments
+//
+// * `header` - the addressing fields to stamp on the frame.
+// * `msgid` - the message id.
+// * `crc_extra` - the seed for this message id.
+// * `payload` - the message payload.
+// * `payload_len` - how many bytes `payload` holds.
+// * `out_frame` - set to the frame handle on success, and to null otherwise.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `out_frame` is null or the
+// payload does not fit a frame.
+//
+// # Safety
+//
+// `payload` must point to `payload_len` readable bytes when the length is
+// non-zero, and `out_frame` must point at writable storage for one pointer.
+PamojaStatus pamoja_mavlink_raw_message_to_frame(PamojaMavlinkHeader header,
+                                                 uint32_t msgid,
+                                                 uint8_t crc_extra,
+                                                 const uint8_t *payload,
+                                                 uintptr_t payload_len,
+                                                 PamojaMavlinkFrame **out_frame);
 
 // Builds a mesh frame addressed to one node.
 //

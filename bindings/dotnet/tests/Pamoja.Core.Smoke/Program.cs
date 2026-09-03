@@ -956,6 +956,7 @@ static void Conformance()
     ConformWindows(vectors.GetProperty("windows"), tolerance);
     ConformLora(vectors.GetProperty("lora"));
     ConformLoraRegions(vectors.GetProperty("loraRegions"));
+    ConformMavlink(vectors.GetProperty("mavlink"));
     ConformMesh(vectors.GetProperty("mesh"));
     ConformRouting(vectors.GetProperty("routing"));
     ConformLorawan(vectors.GetProperty("lorawan"));
@@ -1749,6 +1750,7 @@ static void RadioAndReach()
     Assert(link.MessagesPerHour(20, 10) > 0, "and a 1% budget still allows some");
 
     RegionalPlans();
+    MavlinkWire();
 
     MeshFrame reading = Mesh.BroadcastFrame(0x1234_5678, 1, "level=high"u8);
     MeshFrame received = Mesh.Parse(reading.Bytes);
@@ -2157,6 +2159,250 @@ static void ConformOptionalUint(uint? got, JsonElement want, string message)
     Assert(
         want.ValueKind == JsonValueKind.Null ? got is null : got == want.GetUInt32(),
         message);
+}
+
+
+// Talking to an autopilot: framing a message, reading it back off a link that
+// splits and garbles it, and proving a signed frame came from who it claims.
+static void MavlinkWire()
+{
+    MavlinkHeader header = new(1, 1, 7);
+    // HEARTBEAT announcing an onboard controller in an active state.
+    ReadOnlySpan<byte> heartbeat = [0, 0, 0, 0, 18, 0, 0, 4, 3];
+
+    Assert(Mavlink.KnownCrcExtra(0) == 50, "HEARTBEAT's published CRC_EXTRA");
+    Assert(Mavlink.KnownCrcExtra(9999) is null, "an id outside the common dialect");
+
+    using MavlinkFrame frame = Mavlink.Frame(header, 0, heartbeat);
+    Assert(frame.Version == MavlinkVersion.V2, "v2 is the current wire format");
+    Assert(frame.MessageId == 0, "and the id survives");
+    Assert(!frame.Signed, "an ordinary frame carries no signature");
+    Assert(frame.Signature is null, "so there is none to read");
+    Assert(frame.Header == header, "the addressing fields survive");
+
+    byte[] wire = frame.Bytes;
+    using (MavlinkFrame received = MavlinkFrame.ParseKnown(wire))
+    {
+        Assert(received.MessageId == 0, "the frame reads back");
+        Assert(received.Payload.AsSpan().SequenceEqual(heartbeat), "with its payload intact");
+    }
+
+    // A frame mangled in transit is refused rather than acted on.
+    byte[] mangled = (byte[])wire.Clone();
+    mangled[12] ^= 0xFF;
+    AssertThrows(() => MavlinkFrame.ParseKnown(mangled).Dispose(), "a corrupt frame is refused");
+
+    // A parser joins a stream already in progress and survives arbitrary splits.
+    using (MavlinkParser parser = new())
+    {
+        Assert(
+            parser.Push(new byte[] { 0x11, 0x22, 0x33 }).Count == 0,
+            "noise between frames is skipped, not reported");
+        Assert(parser.Push(wire.AsSpan(0, 5)).Count == 0, "half a frame is not a frame");
+
+        IReadOnlyList<MavlinkFrame> found = parser.Push(wire.AsSpan(5));
+        Assert(found.Count == 1, "the rest of it completes one");
+        Assert(found[0].MessageId == 0, "and it is the frame that was sent");
+        foreach (MavlinkFrame each in found)
+        {
+            each.Dispose();
+        }
+
+        Assert(parser.Pending == 0, "a drained parser holds nothing");
+    }
+
+    // A private dialect: describe the message once, and it checks from then on.
+    using MavlinkDialect dialect = new();
+    MavlinkField[] fields = [new MavlinkField("uint32_t", "uptime")];
+    byte seed = dialect.AddMessage(50_000, "PRIVATE_STATUS", fields);
+    Assert(
+        seed == Mavlink.MessageCrcExtra("PRIVATE_STATUS", fields),
+        "the seed is derived, not invented");
+    Assert(dialect.CrcExtra(50_000) == seed, "the dialect keeps it");
+    Assert(dialect.CrcExtra(0) == 50, "and the common dialect still answers");
+
+    using MavlinkFrame priv = MavlinkFrame.Raw(header, 50_000, seed, BitConverter.GetBytes(42u));
+    byte[] privWire = priv.Bytes;
+    AssertThrows(
+        () => MavlinkFrame.ParseKnown(privWire).Dispose(),
+        "the common registry alone cannot check a private message");
+
+    using (MavlinkFrame back = MavlinkFrame.ParseKnown(privWire, dialect))
+    {
+        Assert(back.MessageId == 50_000, "but the dialect can");
+        // MAVLink 2 drops trailing zero bytes, so a four-byte field holding 42
+        // arrives as one byte; a decoder zero-extends it.
+        Assert(back.Payload.AsSpan().SequenceEqual(new byte[] { 42 }), "and the payload is truncated");
+    }
+
+    // Signing: a ground station trusts a command came from the vehicle it expects.
+    byte[] key = new byte[Mavlink.KeyLength];
+    key.AsSpan().Fill(7);
+    using MavlinkSigner signer = new(key, linkId: 1, timestamp: Mavlink.TimestampNow());
+    Assert(signer.LinkId == 1, "the signer knows its link");
+
+    using MavlinkFrame signed = signer.Sign(header, 0, heartbeat, 50);
+    Assert(signed.Signed, "a signed frame says so");
+    Assert(signed.Signature!.Length == Mavlink.SignatureLength, "and carries a full block");
+    Assert(signed.Signature![0] == 1, "the link id leads the signature block");
+
+    using MavlinkVerifier verifier = new(key);
+    verifier.Verify(signed);
+    AssertThrows(() => verifier.Verify(signed), "the same frame a second time is a replay");
+
+    byte[] otherKey = new byte[Mavlink.KeyLength];
+    otherKey.AsSpan().Fill(9);
+    using MavlinkVerifier stranger = new(otherKey);
+    AssertThrows(() => stranger.Verify(signed), "a different key is a different sender");
+
+    using MavlinkVerifier strict = new(key);
+    AssertThrows(
+        () => strict.Verify(frame),
+        "an unsigned frame is never silently treated as authentic");
+}
+
+// Runs an action that must throw, and fails the suite if it does not.
+static void AssertThrows(Action action, string message)
+{
+    try
+    {
+        action();
+    }
+    catch (Exception)
+    {
+        return;
+    }
+
+    Fail(message);
+}
+
+
+// The MAVLink wire layer: the bytes a sender puts on the wire are pinned
+// exactly, because a protocol that is self-consistent but wrong is what this
+// suite exists to catch.
+static void ConformMavlink(JsonElement vector)
+{
+    foreach (JsonElement entry in vector.GetProperty("crc16").EnumerateArray())
+    {
+        byte[] input = Convert.FromHexString(entry.GetProperty("input").GetString()!);
+        Assert(
+            Mavlink.Crc16(input) == entry.GetProperty("checksum").GetUInt16(),
+            "a published checksum");
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("knownCrcExtra").EnumerateArray())
+    {
+        uint msgid = entry.GetProperty("msgid").GetUInt32();
+        Assert(
+            Mavlink.KnownCrcExtra(msgid) == entry.GetProperty("crcExtra").GetByte(),
+            $"the published CRC_EXTRA of message {msgid}");
+    }
+
+    Assert(
+        Mavlink.KnownCrcExtra(vector.GetProperty("unknownCrcExtra").GetUInt32()) is null,
+        "an id outside the common dialect has no seed here");
+
+    // A seed derived from a definition must equal the published one.
+    foreach (JsonElement described in vector.GetProperty("derivedCrcExtra").EnumerateArray())
+    {
+        List<MavlinkField> fields = [];
+        foreach (JsonElement field in described.GetProperty("fields").EnumerateArray())
+        {
+            fields.Add(new MavlinkField(
+                field.GetProperty("type").GetString()!,
+                field.GetProperty("name").GetString()!,
+                field.GetProperty("arrayLen").GetByte()));
+        }
+
+        string name = described.GetProperty("name").GetString()!;
+        Assert(
+            Mavlink.MessageCrcExtra(name, fields) == described.GetProperty("crcExtra").GetByte(),
+            $"the derived CRC_EXTRA of {name}");
+    }
+
+    JsonElement head = vector.GetProperty("header");
+    MavlinkHeader header = new(
+        head.GetProperty("systemId").GetByte(),
+        head.GetProperty("componentId").GetByte(),
+        head.GetProperty("sequence").GetByte());
+    byte[] payload = Convert.FromHexString(vector.GetProperty("payload").GetString()!);
+
+    foreach (JsonElement described in vector.GetProperty("frames").EnumerateArray())
+    {
+        string name = described.GetProperty("name").GetString()!;
+        uint msgid = described.GetProperty("msgid").GetUInt32();
+        byte crcExtra = described.GetProperty("crcExtra").GetByte();
+        byte[] want = Convert.FromHexString(described.GetProperty("bytes").GetString()!);
+
+        using MavlinkFrame built = described.GetProperty("version").GetByte() == 1
+            ? MavlinkFrame.EncodeV1(header, msgid, payload, crcExtra)
+            : msgid == 50_000
+                ? MavlinkFrame.EncodeV2(
+                    new MavlinkHeader(9, 1),
+                    msgid,
+                    BitConverter.GetBytes(42u),
+                    crcExtra)
+                : MavlinkFrame.EncodeV2(header, msgid, payload, crcExtra);
+        Assert(built.Bytes.AsSpan().SequenceEqual(want), $"the wire bytes of {name}");
+
+        using MavlinkFrame parsed = MavlinkFrame.Parse(want, crcExtra);
+        Assert(parsed.MessageId == msgid, $"the id of {name}");
+        Assert(
+            Convert.ToHexString(parsed.Payload).ToLowerInvariant()
+                == described.GetProperty("payload").GetString(),
+            $"the payload of {name}");
+        Assert(
+            parsed.Signed == described.GetProperty("signed").GetBoolean(),
+            $"whether {name} is signed");
+        Assert(
+            parsed.IncompatFlags == described.GetProperty("incompatFlags").GetByte(),
+            $"the flags of {name}");
+
+        // A parser fed the same bytes must find the same frame.
+        using MavlinkDialect dialect = new();
+        dialect.Add(msgid, crcExtra);
+        using MavlinkParser parser = new();
+        IReadOnlyList<MavlinkFrame> found = parser.Push(want, dialect);
+        Assert(found.Count == 1, $"the parser finds {name}");
+        Assert(found[0].Bytes.AsSpan().SequenceEqual(want), $"and recovers {name} whole");
+        foreach (MavlinkFrame each in found)
+        {
+            each.Dispose();
+        }
+    }
+
+    // Signing is deterministic given the key, link and timestamp.
+    JsonElement signed = vector.GetProperty("signed");
+    byte[] key = Convert.FromHexString(signed.GetProperty("key").GetString()!);
+    using MavlinkSigner signer = new(
+        key,
+        signed.GetProperty("linkId").GetByte(),
+        signed.GetProperty("timestamp").GetUInt64());
+    using MavlinkFrame frame = signer.Sign(
+        header,
+        signed.GetProperty("msgid").GetUInt32(),
+        payload,
+        signed.GetProperty("crcExtra").GetByte());
+    Assert(
+        Convert.ToHexString(frame.Bytes).ToLowerInvariant()
+            == signed.GetProperty("bytes").GetString(),
+        "the bytes of a signed frame");
+    Assert(
+        Convert.ToHexString(frame.Signature!).ToLowerInvariant()
+            == signed.GetProperty("signature").GetString(),
+        "and its signature block");
+
+    using MavlinkVerifier verifier = new(key);
+    verifier.Verify(frame);
+    AssertThrows(() => verifier.Verify(frame), "the same timestamp again is a replay");
+
+    foreach (JsonElement entry in vector.GetProperty("timestamps").EnumerateArray())
+    {
+        Assert(
+            Mavlink.TimestampFromUnixMicros(entry.GetProperty("unixMicros").GetUInt64())
+                == entry.GetProperty("timestamp").GetUInt64(),
+            "a signing timestamp");
+    }
 }
 
 static LoraLink LinkOf(JsonElement described)

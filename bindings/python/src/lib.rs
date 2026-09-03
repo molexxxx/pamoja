@@ -36,6 +36,8 @@ mod lora;
 mod lora_region;
 #[cfg(feature = "lorawan")]
 mod lorawan;
+#[cfg(feature = "mavlink")]
+mod mavlink;
 #[cfg(feature = "mesh")]
 mod mesh;
 #[cfg(feature = "modbus")]
@@ -359,6 +361,22 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<lorawan::LorawanGrant>()?;
         m.add_function(wrap_pyfunction!(lorawan::lorawan_parse_header, m)?)?;
         m.add_function(wrap_pyfunction!(lorawan::lorawan_parse_join_request, m)?)?;
+    }
+    #[cfg(feature = "mavlink")]
+    {
+        m.add_class::<mavlink::MavlinkHeader>()?;
+        m.add_class::<mavlink::MavlinkFrame>()?;
+        m.add_class::<mavlink::MavlinkParser>()?;
+        m.add_class::<mavlink::MavlinkSigner>()?;
+        m.add_class::<mavlink::MavlinkVerifier>()?;
+        m.add_class::<mavlink::Dialect>()?;
+        m.add_function(wrap_pyfunction!(mavlink::mavlink_crc16_mcrf4xx, m)?)?;
+        m.add_function(wrap_pyfunction!(mavlink::mavlink_message_crc_extra, m)?)?;
+        m.add_function(wrap_pyfunction!(mavlink::mavlink_known_crc_extra, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            mavlink::mavlink_timestamp_from_unix_micros,
+            m
+        )?)?;
     }
     #[cfg(feature = "profile")]
     {

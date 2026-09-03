@@ -33,6 +33,7 @@ const {
   gpio,
   lora,
   lorawan,
+  mavlink,
   mesh,
   modbus,
   power,
@@ -808,6 +809,118 @@ function loraRegionVectors() {
   checkPlan(builder.build(), vectors.custom);
 }
 
+// The MAVLink wire layer: the bytes a sender puts on the wire are pinned
+// exactly, because a protocol that is self-consistent but wrong is what this
+// suite exists to catch.
+function mavlinkVectors() {
+  const vectors = VECTORS.mavlink;
+  const bytes = (value) => Buffer.from(value, "hex");
+
+  for (const { input, checksum } of vectors.crc16) {
+    assert.strictEqual(mavlink.crc16(bytes(input)), checksum, `the checksum of ${input}`);
+  }
+
+  for (const { msgid, crcExtra } of vectors.knownCrcExtra) {
+    assert.strictEqual(
+      mavlink.knownCrcExtra(msgid),
+      crcExtra,
+      `the published CRC_EXTRA of message ${msgid}`,
+    );
+  }
+  assert.strictEqual(
+    mavlink.knownCrcExtra(vectors.unknownCrcExtra),
+    null,
+    "an id outside the common dialect has no seed here",
+  );
+
+  // A seed derived from a definition must equal the published one.
+  for (const described of vectors.derivedCrcExtra) {
+    const fields = described.fields.map((field) => ({
+      typeName: field.type,
+      fieldName: field.name,
+      arrayLen: field.arrayLen,
+    }));
+    assert.strictEqual(
+      mavlink.messageCrcExtra(described.name, fields),
+      described.crcExtra,
+      `the derived CRC_EXTRA of ${described.name}`,
+    );
+  }
+
+  const header = {
+    systemId: vectors.header.systemId,
+    componentId: vectors.header.componentId,
+    sequence: vectors.header.sequence,
+  };
+  const payload = bytes(vectors.payload);
+
+  for (const described of vectors.frames) {
+    const want = bytes(described.bytes);
+    const built =
+      described.version === 1
+        ? mavlink.MavlinkFrame.encodeV1(header, described.msgid, payload, described.crcExtra)
+        : described.msgid === 50_000
+          ? mavlink.MavlinkFrame.encodeV2(
+              { systemId: 9, componentId: 1, sequence: 0 },
+              described.msgid,
+              Buffer.from(new Uint32Array([42]).buffer),
+              described.crcExtra,
+            )
+          : mavlink.MavlinkFrame.encodeV2(
+              header,
+              described.msgid,
+              payload,
+              described.crcExtra,
+            );
+    assert.deepStrictEqual(built.bytes, want, `the wire bytes of ${described.name}`);
+
+    const parsed = mavlink.MavlinkFrame.parse(want, described.crcExtra);
+    assert.strictEqual(parsed.messageId, described.msgid, `the id of ${described.name}`);
+    assert.strictEqual(
+      parsed.payload.toString("hex"),
+      described.payload,
+      `the payload of ${described.name}`,
+    );
+    assert.strictEqual(parsed.signed, described.signed, `whether ${described.name} is signed`);
+    assert.strictEqual(
+      parsed.incompatFlags,
+      described.incompatFlags,
+      `the flags of ${described.name}`,
+    );
+
+    // A parser fed the same bytes must find the same frame.
+    const dialect = new mavlink.Dialect();
+    dialect.add(described.msgid, described.crcExtra);
+    const found = new mavlink.MavlinkParser().push(want, dialect);
+    assert.strictEqual(found.length, 1, `the parser finds ${described.name}`);
+    assert.deepStrictEqual(found[0].bytes, want, `and recovers it whole`);
+  }
+
+  // Signing is deterministic given the key, link and timestamp.
+  const signed = vectors.signed;
+  const key = bytes(signed.key);
+  const signer = new mavlink.MavlinkSigner(key, signed.linkId, signed.timestamp);
+  const frame = signer.sign(header, signed.msgid, payload, signed.crcExtra);
+  assert.strictEqual(frame.bytes.toString("hex"), signed.bytes, "the bytes of a signed frame");
+  assert.strictEqual(
+    frame.signature.toString("hex"),
+    signed.signature,
+    "and its signature block",
+  );
+
+  const verifier = new mavlink.MavlinkVerifier(key);
+  verifier.verify(frame);
+  assert.throws(() => verifier.verify(frame), "the same timestamp again is a replay");
+
+  for (const { unixMicros, timestamp } of vectors.timestamps) {
+    assert.strictEqual(
+      mavlink.timestampFromUnixMicros(unixMicros),
+      timestamp,
+      `the signing timestamp for ${unixMicros}`,
+    );
+  }
+}
+
 function loraVectors() {
   const vector = VECTORS.lora;
 
@@ -1075,6 +1188,7 @@ function lorawanVectors() {
 windowedVectors();
 loraVectors();
 loraRegionVectors();
+mavlinkVectors();
 meshVectors();
 routingVectors();
 

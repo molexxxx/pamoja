@@ -586,6 +586,87 @@ def test_a_private_plan_matches_the_same_vectors():
 
     _check_plan(builder.build(), VECTORS["loraRegions"]["custom"])
 
+
+def test_mavlink_vectors_match():
+    """The bytes a sender puts on the wire are pinned, not merely round-tripped."""
+    from pamoja import mavlink
+
+    vector = VECTORS["mavlink"]
+
+    for entry in vector["crc16"]:
+        assert mavlink.crc16(bytes.fromhex(entry["input"])) == entry["checksum"]
+
+    for entry in vector["knownCrcExtra"]:
+        assert mavlink.known_crc_extra(entry["msgid"]) == entry["crcExtra"], entry["msgid"]
+    assert mavlink.known_crc_extra(vector["unknownCrcExtra"]) is None
+
+    # A seed derived from a definition must equal the published one, which is
+    # what makes a dialect this build has never seen usable.
+    for described in vector["derivedCrcExtra"]:
+        fields = [
+            (field["type"], field["name"], field["arrayLen"]) for field in described["fields"]
+        ]
+        assert mavlink.message_crc_extra(described["name"], fields) == described["crcExtra"], (
+            described["name"]
+        )
+
+    header = mavlink.MavlinkHeader(
+        vector["header"]["systemId"],
+        vector["header"]["componentId"],
+        vector["header"]["sequence"],
+    )
+    payload = bytes.fromhex(vector["payload"])
+
+    for described in vector["frames"]:
+        want = bytes.fromhex(described["bytes"])
+        if described["version"] == 1:
+            built = mavlink.MavlinkFrame.encode_v1(
+                header, described["msgid"], payload, described["crcExtra"]
+            )
+        elif described["msgid"] == 50_000:
+            built = mavlink.MavlinkFrame.encode_v2(
+                mavlink.MavlinkHeader(9, 1, 0),
+                described["msgid"],
+                (42).to_bytes(4, "little"),
+                described["crcExtra"],
+            )
+        else:
+            built = mavlink.MavlinkFrame.encode_v2(
+                header, described["msgid"], payload, described["crcExtra"]
+            )
+        assert built.bytes == want, described["name"]
+
+        parsed = mavlink.MavlinkFrame.parse(want, described["crcExtra"])
+        assert parsed.message_id == described["msgid"], described["name"]
+        assert parsed.payload.hex() == described["payload"], described["name"]
+        assert parsed.signed == described["signed"], described["name"]
+        assert parsed.incompat_flags == described["incompatFlags"], described["name"]
+
+        # A parser fed the same bytes must find the same frame.
+        dialect = mavlink.Dialect()
+        dialect.add(described["msgid"], described["crcExtra"])
+        found = mavlink.MavlinkParser().push(want, dialect)
+        assert len(found) == 1, described["name"]
+        assert found[0].bytes == want, described["name"]
+
+    # Signing is deterministic given the key, link and timestamp.
+    signed = vector["signed"]
+    key = bytes.fromhex(signed["key"])
+    signer = mavlink.MavlinkSigner(key, signed["linkId"], signed["timestamp"])
+    frame = signer.sign(header, signed["msgid"], payload, signed["crcExtra"])
+    assert frame.bytes.hex() == signed["bytes"]
+    assert frame.signature.hex() == signed["signature"]
+
+    verifier = mavlink.MavlinkVerifier(key)
+    verifier.verify(frame)
+    with pytest.raises(ValueError):
+        verifier.verify(frame)
+
+    for entry in vector["timestamps"]:
+        assert (
+            mavlink.timestamp_from_unix_micros(entry["unixMicros"]) == entry["timestamp"]
+        ), entry["unixMicros"]
+
 def test_lora_vectors_match():
     vector = VECTORS["lora"]
 

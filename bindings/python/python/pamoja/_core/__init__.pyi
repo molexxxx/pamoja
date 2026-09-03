@@ -28,6 +28,7 @@ __all__ = [
     "Delegation",
     "Depletion",
     "DeviceIdentity",
+    "Dialect",
     "Ds18b20Reading",
     "DutyCycle",
     "EventBus",
@@ -54,6 +55,11 @@ __all__ = [
     "LorawanRxData",
     "LorawanSession",
     "Manifest",
+    "MavlinkFrame",
+    "MavlinkHeader",
+    "MavlinkParser",
+    "MavlinkSigner",
+    "MavlinkVerifier",
     "Median",
     "MeshFrame",
     "Message",
@@ -148,6 +154,10 @@ __all__ = [
     "link_cost_threshold",
     "lorawan_parse_header",
     "lorawan_parse_join_request",
+    "mavlink_crc16_mcrf4xx",
+    "mavlink_known_crc_extra",
+    "mavlink_message_crc_extra",
+    "mavlink_timestamp_from_unix_micros",
     "mesh_broadcast_frame",
     "mesh_crc16",
     "mesh_frame",
@@ -1045,6 +1055,35 @@ class DeviceIdentity:
         Signs a payload, returning the 64-byte detached signature.
         """
     def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class Dialect:
+    r"""
+    The `CRC_EXTRA` seeds of a dialect beyond the common one.
+    
+    Entries added here are consulted before the built-in common-dialect registry,
+    so a private dialect may also override an id the common one defines.
+    """
+    def __new__(cls) -> Dialect:
+        r"""
+        Creates an empty dialect table.
+        """
+    def add(self, msgid: builtins.int, crc_extra: builtins.int) -> None:
+        r"""
+        Adds or replaces the seed for a message id.
+        """
+    def add_message(self, msgid: builtins.int, name: builtins.str, fields: typing.Sequence[tuple[builtins.str, builtins.str, builtins.int]]) -> builtins.int:
+        r"""
+        Adds a message by its definition, deriving the seed, and returns it.
+        
+        This is the whole path for a vendor dialect: describe the message once,
+        and every frame carrying it checks from then on.
+        """
+    def crc_extra(self, msgid: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        Returns the seed this dialect resolves a message id to, or `None` if
+        neither it nor the common dialect knows the id.
+        """
 
 @typing.final
 class Ds18b20Reading:
@@ -1986,6 +2025,200 @@ class Manifest:
     def __new__(cls, sequence: builtins.int, vendor_id: typing.Sequence[builtins.int], class_id: typing.Sequence[builtins.int], storage: builtins.int, digest: typing.Sequence[builtins.int], size: builtins.int, expires: builtins.int = 0, format: builtins.int = 1, structure_version: builtins.int = 1) -> Manifest:
         r"""
         Describes a release.
+        """
+
+@typing.final
+class MavlinkFrame:
+    r"""
+    One MAVLink frame, assembled or received.
+    """
+    @property
+    def version(self) -> builtins.int:
+        r"""
+        Which wire format this frame uses: `1` or `2`.
+        """
+    @property
+    def header(self) -> MavlinkHeader:
+        r"""
+        The addressing fields the frame carries.
+        """
+    @property
+    def message_id(self) -> builtins.int:
+        r"""
+        The id of the message the frame carries.
+        """
+    @property
+    def incompat_flags(self) -> builtins.int:
+        r"""
+        The incompatibility flags a v2 frame declares.
+        """
+    @property
+    def signed(self) -> builtins.bool:
+        r"""
+        Whether the frame carries a signature.
+        
+        This says only that the frame was signed, not that the signature is good;
+        a `MavlinkVerifier` decides that.
+        """
+    @property
+    def payload(self) -> bytes:
+        r"""
+        The message payload.
+        
+        A v2 frame drops trailing zero bytes, so a payload can arrive shorter
+        than the message's full length; a decoder zero-extends it.
+        """
+    @property
+    def bytes(self) -> bytes:
+        r"""
+        The whole frame, ready to put on the wire.
+        """
+    @property
+    def signature(self) -> typing.Optional[bytes]:
+        r"""
+        The signature block, or `None` when the frame is not signed.
+        """
+    @staticmethod
+    def encode_v2(header: MavlinkHeader, msgid: builtins.int, payload: typing.Sequence[builtins.int], crc_extra: builtins.int) -> MavlinkFrame:
+        r"""
+        Assembles a v2 frame carrying a message.
+        
+        This is the current wire format and what a modern autopilot expects.
+        """
+    @staticmethod
+    def encode_v1(header: MavlinkHeader, msgid: builtins.int, payload: typing.Sequence[builtins.int], crc_extra: builtins.int) -> MavlinkFrame:
+        r"""
+        Assembles a v1 frame, for a peer that predates MAVLink 2.
+        
+        A v1 frame only carries message ids below 256.
+        """
+    @staticmethod
+    def parse(data: typing.Sequence[builtins.int], crc_extra: builtins.int) -> MavlinkFrame:
+        r"""
+        Parses one frame, checking it against a known `CRC_EXTRA`.
+        
+        Raises `ValueError` if the bytes are not a whole frame or the checksum
+        does not match, which is what rejects a frame mangled in transit.
+        """
+    @staticmethod
+    def parse_known(data: typing.Sequence[builtins.int], dialect: typing.Optional[Dialect] = None) -> MavlinkFrame:
+        r"""
+        Parses one frame, looking its `CRC_EXTRA` up as it goes.
+        
+        This is what a receiver holding many message types uses: the id comes out
+        of the frame, and the seed comes from the dialect or the common registry.
+        """
+    @staticmethod
+    def raw(header: MavlinkHeader, msgid: builtins.int, crc_extra: builtins.int, payload: typing.Sequence[builtins.int]) -> MavlinkFrame:
+        r"""
+        Assembles a v2 frame carrying a message this build does not type.
+        
+        The escape hatch a private dialect needs: supply the id, the payload, and
+        the seed, and the frame is built and checked like any other.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class MavlinkHeader:
+    r"""
+    The addressing fields a sender stamps on every frame.
+    """
+    @property
+    def system_id(self) -> builtins.int:
+        r"""
+        The sending system's id.
+        """
+    @property
+    def component_id(self) -> builtins.int:
+        r"""
+        The sending component's id.
+        """
+    @property
+    def sequence(self) -> builtins.int:
+        r"""
+        The sender's sequence number, which wraps at 256.
+        """
+    def __new__(cls, system_id: builtins.int, component_id: builtins.int, sequence: builtins.int = 0) -> MavlinkHeader: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class MavlinkParser:
+    r"""
+    A streaming frame parser, and the frames it has completed.
+    """
+    @property
+    def pending(self) -> builtins.int:
+        r"""
+        How many completed frames are waiting to be taken.
+        """
+    def __new__(cls) -> MavlinkParser:
+        r"""
+        Creates a parser with an empty buffer.
+        """
+    def push(self, data: typing.Sequence[builtins.int], dialect: typing.Optional[Dialect] = None) -> builtins.list[MavlinkFrame]:
+        r"""
+        Feeds bytes off a link and returns the frames that completed.
+        
+        Whatever a serial port or socket delivers can be pushed as it arrives,
+        however it is split. Noise between frames is skipped rather than
+        reported, which is what lets a parser join a stream already in progress.
+        """
+    def feed(self, data: typing.Sequence[builtins.int], dialect: typing.Optional[Dialect] = None) -> None:
+        r"""
+        Feeds bytes and queues what completed, for a caller that drains later.
+        """
+    def next_frame(self) -> typing.Optional[MavlinkFrame]:
+        r"""
+        Takes the next queued frame, or `None` when the parser needs more bytes.
+        """
+
+@typing.final
+class MavlinkSigner:
+    r"""
+    A signing key and the monotonic timestamp that goes with it.
+    """
+    @property
+    def link_id(self) -> builtins.int:
+        r"""
+        Which link this signer signs on.
+        """
+    def __new__(cls, key: typing.Sequence[builtins.int], link_id: builtins.int = 0, timestamp: builtins.int = 0) -> MavlinkSigner:
+        r"""
+        Creates a signer.
+        
+        The link id separates two links from one system, so traffic on one does
+        not look like a replay of the other.
+        """
+    def sign(self, header: MavlinkHeader, msgid: builtins.int, payload: typing.Sequence[builtins.int], crc_extra: builtins.int) -> MavlinkFrame:
+        r"""
+        Signs a message into a v2 frame.
+        
+        Each call advances the timestamp, which is what makes a replayed frame
+        detectable.
+        """
+
+@typing.final
+class MavlinkVerifier:
+    r"""
+    A signing key and the timestamps it has already accepted.
+    """
+    def __new__(cls, key: typing.Sequence[builtins.int]) -> MavlinkVerifier:
+        r"""
+        Creates a verifier.
+        """
+    def set_window(self, window: builtins.int) -> None:
+        r"""
+        Sets how far a timestamp may run ahead of the last one accepted.
+        
+        A wider window tolerates a noisier link; a narrower one narrows the
+        chance of a replay landing inside it.
+        """
+    def verify(self, frame: MavlinkFrame) -> None:
+        r"""
+        Checks a frame's signature and its place in the timestamp sequence.
+        
+        Raises `ValueError` when the frame is unsigned, the signature does not
+        match the key, or the timestamp has been seen before.
         """
 
 @typing.final
@@ -3429,6 +3662,38 @@ def lorawan_parse_header(bytes: typing.Sequence[builtins.int]) -> LorawanHeader:
 def lorawan_parse_join_request(bytes: typing.Sequence[builtins.int], app_key: typing.Sequence[builtins.int]) -> LorawanJoinRequest:
     r"""
     Verifies a join-request and reads the identifiers out of it.
+    """
+
+def mavlink_crc16_mcrf4xx(data: typing.Sequence[builtins.int]) -> builtins.int:
+    r"""
+    Returns the CRC-16/MCRF4XX checksum of a byte string.
+    
+    This is the checksum every MAVLink frame carries, exposed because a host that
+    implements part of the protocol itself needs the same arithmetic.
+    """
+
+def mavlink_known_crc_extra(msgid: builtins.int) -> typing.Optional[builtins.int]:
+    r"""
+    Returns the `CRC_EXTRA` the common dialect publishes for a message id, or
+    `None` for an id outside it, which is what a `Dialect` is for.
+    """
+
+def mavlink_message_crc_extra(name: builtins.str, fields: typing.Sequence[tuple[builtins.str, builtins.str, builtins.int]]) -> builtins.int:
+    r"""
+    Derives the `CRC_EXTRA` seed of a message from its definition.
+    
+    This is what makes a dialect this build has never seen usable: given a
+    message's name and its base fields in wire order as `(type, name, array_len)`
+    triples, the seed comes out the same as the one the dialect publishes, and a
+    frame carrying that message then checks like any other.
+    
+    Extension fields are excluded from the seed and must not be listed, which is
+    what lets a peer that predates them still check the frame.
+    """
+
+def mavlink_timestamp_from_unix_micros(unix_micros: builtins.int) -> builtins.int:
+    r"""
+    Converts Unix time into the timestamp MAVLink signing counts in.
     """
 
 def mesh_broadcast_frame(src: builtins.int, id: builtins.int, payload: typing.Sequence[builtins.int], hop_limit: typing.Optional[builtins.int] = None) -> MeshFrame:

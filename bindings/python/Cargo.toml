@@ -35,6 +35,7 @@ default = [
     "actuators",
     "lora",
     "lorawan",
+    "mavlink",
     "mesh",
     "routing",
     "audit",
@@ -66,6 +67,7 @@ sensors = ["dep:pamoja-sensors"]
 actuators = ["dep:pamoja-actuators"]
 lora = ["dep:pamoja-lora"]
 lorawan = ["dep:pamoja-lorawan"]
+mavlink = ["dep:pamoja-mavlink"]
 mesh = ["dep:pamoja-mesh"]
 routing = ["dep:pamoja-routing"]
 coap = ["dep:pamoja-coap"]
@@ -108,6 +110,7 @@ pamoja-sensors = { path = "../../crates/pamoja-sensors", optional = true }
 pamoja-actuators = { path = "../../crates/pamoja-actuators", optional = true }
 pamoja-lora = { path = "../../crates/pamoja-lora", features = ["alloc"], optional = true }
 pamoja-lorawan = { path = "../../crates/pamoja-lorawan", optional = true }
+pamoja-mavlink = { path = "../../crates/pamoja-mavlink", default-features = false, optional = true }
 pamoja-mesh = { path = "../../crates/pamoja-mesh", features = ["alloc"], optional = true }
 pamoja-routing = { path = "../../crates/pamoja-routing", features = ["alloc"], optional = true }
 pamoja-audit = { path = "../../crates/pamoja-audit", optional = true }

@@ -29,6 +29,11 @@ use pamoja_lora::region::{
 };
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::{Device, Downlink, FrameHeader, JoinGrant, JoinRequest, Session, Uplink};
+use pamoja_mavlink::dialect::crc_extra as mavlink_crc_extra;
+use pamoja_mavlink::{
+    crc16_mcrf4xx, message_crc_extra, signing, Frame as MavFrame, Header as MavHeader,
+    Signer as MavSigner,
+};
 use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
 use pamoja_modbus::{crc16, Adu, Pdu, Response};
 use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
@@ -119,6 +124,7 @@ fn main() {
         "windows": windows(),
         "lora": lora(),
         "loraRegions": lora_regions(),
+        "mavlink": mavlink(),
         "mesh": mesh(),
         "routing": routing(),
         "lorawan": lorawan(),
@@ -1070,6 +1076,149 @@ fn lora_regions() -> Value {
     json!({
         "published": published,
         "custom": custom.with_plan(plan_vector),
+    })
+}
+
+/// Vectors for the MAVLink wire layer.
+///
+/// The frame bytes are pinned exactly, because a wire protocol that is
+/// self-consistent but wrong is the failure this suite exists to catch: every
+/// binding must put the same bytes on the wire, not merely agree with itself.
+fn mavlink() -> Value {
+    // HEARTBEAT announcing an onboard controller in an active state.
+    let heartbeat: [u8; 9] = [0, 0, 0, 0, 18, 0, 0, 4, 3];
+    let header = MavHeader::new(1, 1, 7);
+
+    let v2 = MavFrame::encode_v2(header, 0, &heartbeat, 50).expect("a heartbeat fits");
+    let v1 = MavFrame::encode_v1(header, 0, &heartbeat, 50).expect("a heartbeat fits");
+
+    // A message no common dialect defines, with a seed derived from its own
+    // definition the way the specification does.
+    let private_seed = message_crc_extra("PRIVATE_STATUS", &[("uint32_t", "uptime", 0)]);
+    let private_frame = MavFrame::encode_v2(
+        MavHeader::new(9, 1, 0),
+        50_000,
+        &42u32.to_le_bytes(),
+        private_seed,
+    )
+    .expect("a private status fits");
+
+    // Signing is deterministic given the key, link and timestamp, so the signed
+    // bytes are pinned too.
+    let key = [7u8; signing::KEY_LEN];
+    let mut signer = MavSigner::new(key, 1, 1_000);
+    let signed = signer.sign(header, 0, &heartbeat, 50).expect("signs");
+
+    // The published CRC_EXTRA of each typed message, re-derived from the
+    // registry so a binding cannot quietly disagree about any of them.
+    let seeds: Vec<Value> = [
+        0u32, 1, 2, 4, 11, 20, 21, 22, 23, 24, 30, 31, 32, 33, 36, 40, 42, 43, 44, 45, 47, 51, 65,
+        69, 73, 74, 75, 76, 77, 84, 86, 147, 148, 242, 245, 253,
+    ]
+    .iter()
+    .map(|&msgid| {
+        json!({
+            "msgid": msgid,
+            "crcExtra": mavlink_crc_extra(msgid).expect("a common-dialect id"),
+        })
+    })
+    .collect();
+
+    json!({
+        // The catalogue check value, plus the frame this suite builds.
+        "crc16": [
+            { "input": hex("123456789".as_bytes()), "checksum": crc16_mcrf4xx(b"123456789") },
+            { "input": hex(&heartbeat), "checksum": crc16_mcrf4xx(&heartbeat) },
+        ],
+        "knownCrcExtra": seeds,
+        "unknownCrcExtra": 9999,
+        // Seeds derived from a definition rather than looked up, which is what
+        // makes a dialect this build has never seen usable.
+        "derivedCrcExtra": [
+            {
+                "name": "HEARTBEAT",
+                "fields": [
+                    { "type": "uint32_t", "name": "custom_mode", "arrayLen": 0 },
+                    { "type": "uint8_t", "name": "type", "arrayLen": 0 },
+                    { "type": "uint8_t", "name": "autopilot", "arrayLen": 0 },
+                    { "type": "uint8_t", "name": "base_mode", "arrayLen": 0 },
+                    { "type": "uint8_t", "name": "system_status", "arrayLen": 0 },
+                    { "type": "uint8_t", "name": "mavlink_version", "arrayLen": 0 },
+                ],
+                "crcExtra": message_crc_extra(
+                    "HEARTBEAT",
+                    &[
+                        ("uint32_t", "custom_mode", 0),
+                        ("uint8_t", "type", 0),
+                        ("uint8_t", "autopilot", 0),
+                        ("uint8_t", "base_mode", 0),
+                        ("uint8_t", "system_status", 0),
+                        ("uint8_t", "mavlink_version", 0),
+                    ],
+                ),
+            },
+            {
+                "name": "PRIVATE_STATUS",
+                "fields": [{ "type": "uint32_t", "name": "uptime", "arrayLen": 0 }],
+                "crcExtra": private_seed,
+            },
+        ],
+        "header": {
+            "systemId": header.system_id,
+            "componentId": header.component_id,
+            "sequence": header.sequence,
+        },
+        "payload": hex(&heartbeat),
+        "frames": [
+            {
+                "name": "heartbeat-v2",
+                "version": 2,
+                "msgid": 0,
+                "crcExtra": 50,
+                "bytes": hex(v2.as_bytes()),
+                "payload": hex(v2.payload()),
+                "signed": v2.is_signed(),
+                "incompatFlags": v2.incompat_flags(),
+            },
+            {
+                "name": "heartbeat-v1",
+                "version": 1,
+                "msgid": 0,
+                "crcExtra": 50,
+                "bytes": hex(v1.as_bytes()),
+                "payload": hex(v1.payload()),
+                "signed": v1.is_signed(),
+                "incompatFlags": v1.incompat_flags(),
+            },
+            {
+                // A four-byte field holding 42 truncates to one byte on the
+                // wire, which a decoder zero-extends.
+                "name": "private-status-v2",
+                "version": 2,
+                "msgid": 50_000,
+                "crcExtra": private_seed,
+                "bytes": hex(private_frame.as_bytes()),
+                "payload": hex(private_frame.payload()),
+                "signed": private_frame.is_signed(),
+                "incompatFlags": private_frame.incompat_flags(),
+            },
+        ],
+        "signed": {
+            "key": hex(&key),
+            "linkId": 1,
+            "timestamp": 1_000,
+            "msgid": 0,
+            "crcExtra": 50,
+            "bytes": hex(signed.as_bytes()),
+            "signature": hex(signed.signature().expect("just signed")),
+        },
+        "timestamps": [
+            { "unixMicros": 0u64, "timestamp": signing::timestamp_from_unix_micros(0) },
+            {
+                "unixMicros": 1_700_000_000_000_000u64,
+                "timestamp": signing::timestamp_from_unix_micros(1_700_000_000_000_000),
+            },
+        ],
     })
 }
 

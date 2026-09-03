@@ -809,3 +809,110 @@ def test_an_inconsistent_plan_is_refused_where_it_is_built():
     builder.rx1_row([0])
     with pytest.raises(ValueError, match="RX2 listens"):
         builder.build()
+
+
+# HEARTBEAT announcing an onboard controller in an active state.
+_HEARTBEAT = bytes([0, 0, 0, 0, 18, 0, 0, 4, 3])
+
+
+def test_a_frame_reaches_an_autopilot_and_reads_back():
+    from pamoja import mavlink
+
+    header = mavlink.MavlinkHeader(1, 1, 7)
+    assert mavlink.known_crc_extra(0) == 50, "HEARTBEAT's published CRC_EXTRA"
+    assert mavlink.known_crc_extra(9999) is None, "an id outside the common dialect"
+
+    sent = mavlink.frame(header, 0, _HEARTBEAT)
+    assert sent.version == 2, "v2 is the current wire format"
+    assert sent.message_id == 0
+    assert not sent.signed, "an ordinary frame carries no signature"
+    assert sent.signature is None
+
+    back = mavlink.MavlinkFrame.parse_known(sent.bytes)
+    assert back.payload == _HEARTBEAT
+    assert back.header.system_id == 1
+    assert back.header.sequence == 7
+
+    # A frame mangled in transit is refused rather than acted on.
+    mangled = bytearray(sent.bytes)
+    mangled[12] ^= 0xFF
+    with pytest.raises(ValueError):
+        mavlink.MavlinkFrame.parse_known(bytes(mangled))
+
+    # A message the common dialect does not define cannot be built blind.
+    with pytest.raises(ValueError, match="not in the common dialect"):
+        mavlink.frame(header, 50_000, b"\x00")
+
+
+def test_the_parser_joins_a_stream_already_in_progress():
+    from pamoja import mavlink
+
+    wire = mavlink.frame(mavlink.MavlinkHeader(2, 1), 0, _HEARTBEAT).bytes
+    parser = mavlink.MavlinkParser()
+
+    assert parser.push(b"\x11\x22\x33") == [], "noise between frames is skipped"
+    assert parser.push(wire[:5]) == [], "half a frame is not a frame"
+    found = parser.push(wire[5:])
+    assert len(found) == 1, "the rest of it completes one"
+    assert found[0].message_id == 0
+
+    # The queueing form, for a caller that drains on its own schedule.
+    parser.feed(wire)
+    assert parser.pending == 1
+    assert parser.next_frame().message_id == 0
+    assert parser.next_frame() is None, "an empty parser means feed it more"
+
+
+def test_a_private_dialect_is_checked_once_its_seed_is_derived():
+    from pamoja import mavlink
+
+    header = mavlink.MavlinkHeader(9, 1)
+    fields = [("uint32_t", "uptime", 0)]
+
+    dialect = mavlink.Dialect()
+    seed = dialect.add_message(50_000, "PRIVATE_STATUS", fields)
+    assert seed == mavlink.message_crc_extra("PRIVATE_STATUS", fields), (
+        "the seed is derived, not invented"
+    )
+    assert dialect.crc_extra(50_000) == seed
+    assert dialect.crc_extra(0) == 50, "and the common dialect still answers"
+
+    sent = mavlink.MavlinkFrame.raw(header, 50_000, seed, (42).to_bytes(4, "little"))
+
+    with pytest.raises(ValueError):
+        mavlink.MavlinkFrame.parse_known(sent.bytes)
+
+    back = mavlink.MavlinkFrame.parse_known(sent.bytes, dialect)
+    assert back.message_id == 50_000, "the dialect makes it checkable"
+    # MAVLink 2 drops trailing zero bytes, so a four-byte field holding 42
+    # arrives as one byte; a decoder zero-extends it.
+    assert back.payload == bytes([42])
+
+
+def test_a_signed_frame_proves_its_sender_and_refuses_a_replay():
+    from pamoja import mavlink
+
+    key = bytes([7]) * mavlink.KEY_LEN
+    header = mavlink.MavlinkHeader(1, 1)
+    signer = mavlink.MavlinkSigner(key, link_id=1, timestamp=mavlink.timestamp_now())
+    assert signer.link_id == 1
+
+    signed = signer.sign(header, 0, _HEARTBEAT, 50)
+    assert signed.signed
+    assert len(signed.signature) == mavlink.SIGNATURE_LEN
+    assert signed.signature[0] == 1, "the link id leads the signature block"
+
+    verifier = mavlink.MavlinkVerifier(key)
+    verifier.verify(signed)
+    with pytest.raises(ValueError):
+        verifier.verify(signed)
+
+    # A different key is a different sender, and an unsigned frame is never
+    # silently treated as authentic.
+    with pytest.raises(ValueError):
+        mavlink.MavlinkVerifier(bytes([9]) * mavlink.KEY_LEN).verify(signed)
+    with pytest.raises(ValueError):
+        mavlink.MavlinkVerifier(key).verify(mavlink.frame(header, 0, _HEARTBEAT))
+
+    with pytest.raises(ValueError, match="signing key"):
+        mavlink.MavlinkSigner(b"short", 1, 0)

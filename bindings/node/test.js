@@ -28,6 +28,7 @@ const {
   gpio,
   lora,
   lorawan,
+  mavlink,
   mesh,
   modbus,
   ladder,
@@ -91,6 +92,7 @@ async function main() {
   fieldIo();
   sensingAndActuation();
   radioAndReach();
+  mavlinkWire();
   trustAndOperation();
   await asyncTransports();
 
@@ -307,6 +309,117 @@ function sensingAndActuation() {
   const anomaly = new Anomaly(3);
   for (let i = 0; i < 8; i += 1) anomaly.check(20);
   assert.ok(anomaly.check(900), "a reading far outside the window is flagged");
+}
+
+// Talking to an autopilot: framing a message, reading it back off a link that
+// splits and garbles it, and proving a signed frame came from who it claims.
+function mavlinkWire() {
+  const header = { systemId: 1, componentId: 1, sequence: 7 };
+  // HEARTBEAT announcing an onboard controller in an active state.
+  const heartbeat = Buffer.from([0, 0, 0, 0, 18, 0, 0, 4, 3]);
+
+  assert.strictEqual(mavlink.knownCrcExtra(0), 50, "HEARTBEAT's published CRC_EXTRA");
+  assert.strictEqual(mavlink.knownCrcExtra(9999), null, "an id outside the common dialect");
+
+  const frame = mavlink.frame(header, 0, heartbeat);
+  assert.strictEqual(frame.version, mavlink.MavlinkVersion.V2, "v2 is the current format");
+  assert.strictEqual(frame.messageId, 0);
+  assert.strictEqual(frame.signed, false, "an ordinary frame carries no signature");
+  assert.strictEqual(frame.signature, null);
+  assert.deepStrictEqual(frame.header, header, "the addressing fields survive");
+
+  const received = mavlink.MavlinkFrame.parseKnown(frame.bytes);
+  assert.strictEqual(received.messageId, 0, "and the frame reads back");
+  assert.deepStrictEqual(received.payload, heartbeat, "with its payload intact");
+
+  // A frame mangled in transit is refused rather than acted on.
+  const mangled = Buffer.from(frame.bytes);
+  mangled[12] ^= 0xff;
+  assert.throws(
+    () => mavlink.MavlinkFrame.parseKnown(mangled),
+    /checksum|CRC/i,
+    "a corrupt frame does not reach the application",
+  );
+
+  // A parser joins a stream already in progress and survives arbitrary splits.
+  const parser = new mavlink.MavlinkParser();
+  assert.deepStrictEqual(
+    parser.push(Buffer.from([0x11, 0x22, 0x33])),
+    [],
+    "noise between frames is skipped, not reported",
+  );
+  const wire = frame.bytes;
+  assert.deepStrictEqual(parser.push(wire.subarray(0, 5)), [], "half a frame is not a frame");
+  const found = parser.push(wire.subarray(5));
+  assert.strictEqual(found.length, 1, "the rest of it completes one");
+  assert.strictEqual(found[0].messageId, 0);
+
+  // The queueing form, for a caller that drains on its own schedule.
+  parser.feed(wire);
+  assert.strictEqual(parser.pending, 1);
+  assert.strictEqual(parser.nextFrame().messageId, 0);
+  assert.strictEqual(parser.nextFrame(), null, "an empty parser means feed it more");
+
+  // A private dialect: describe the message once, and it checks from then on.
+  const dialect = new mavlink.Dialect();
+  const seed = dialect.addMessage(50_000, "PRIVATE_STATUS", [
+    { typeName: "uint32_t", fieldName: "uptime" },
+  ]);
+  assert.strictEqual(
+    seed,
+    mavlink.messageCrcExtra("PRIVATE_STATUS", [{ typeName: "uint32_t", fieldName: "uptime" }]),
+    "the seed is derived, not invented",
+  );
+  assert.strictEqual(dialect.crcExtra(50_000), seed);
+  assert.strictEqual(dialect.crcExtra(0), 50, "and the common dialect still answers");
+
+  const privateFrame = mavlink.MavlinkFrame.raw(
+    header,
+    50_000,
+    seed,
+    Buffer.from(new Uint32Array([42]).buffer),
+  );
+  assert.throws(
+    () => mavlink.MavlinkFrame.parseKnown(privateFrame.bytes),
+    /50000|unknown/i,
+    "the common registry alone cannot check a private message",
+  );
+  const privateBack = mavlink.MavlinkFrame.parseKnown(privateFrame.bytes, dialect);
+  assert.strictEqual(privateBack.messageId, 50_000, "but the dialect can");
+  // MAVLink 2 drops trailing zero bytes, so a four-byte field holding 42 arrives
+  // as one byte; a decoder zero-extends it.
+  assert.deepStrictEqual(privateBack.payload, Buffer.from([42]));
+
+  // Signing: a ground station trusts a command came from the vehicle it expects.
+  const key = Buffer.alloc(mavlink.KEY_LEN, 7);
+  const signer = new mavlink.MavlinkSigner(key, 1, mavlink.timestampNow());
+  assert.strictEqual(signer.linkId, 1);
+  const signed = signer.sign(header, 0, heartbeat, 50);
+  assert.strictEqual(signed.signed, true);
+  assert.strictEqual(signed.signature.length, mavlink.SIGNATURE_LEN);
+  assert.strictEqual(signed.signature[0], 1, "the link id leads the signature block");
+
+  const verifier = new mavlink.MavlinkVerifier(key);
+  verifier.verify(signed);
+  assert.throws(
+    () => verifier.verify(signed),
+    /replay|timestamp/i,
+    "the same frame a second time is a replay",
+  );
+  assert.throws(
+    () => new mavlink.MavlinkVerifier(Buffer.alloc(mavlink.KEY_LEN, 9)).verify(signed),
+    /signature/i,
+    "and a different key is a different sender",
+  );
+
+  // An unsigned frame is not silently treated as authentic.
+  assert.throws(() => new mavlink.MavlinkVerifier(key).verify(frame), /signed/i);
+
+  assert.strictEqual(
+    mavlink.crc16(Buffer.from("123456789")),
+    mavlink.crc16(Buffer.from("123456789")),
+    "the checksum is a pure function of its input",
+  );
 }
 
 // Budgeting airtime, framing a mesh packet, routing it, and securing a LoRaWAN
