@@ -9,8 +9,6 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use serde_json::{json, Map, Value};
-
 use crate::catalog::{node_reference_url, Capability, Catalog, SITE};
 use crate::regions;
 
@@ -20,6 +18,98 @@ const REPOSITORY: &str = "git+https://github.com/molexxxx/pamoja.git";
 /// The package that carries the compiled engine and the generated contract. It is
 /// not a TypeScript project, so it is a dependency but never a project reference.
 const NATIVE: &str = "native";
+
+/// A JSON value whose object keys keep the order they were given, so a manifest reads
+/// the way npm writes one and an `exports` map keeps `types` ahead of `default`.
+enum Json {
+    Str(String),
+    Bool(bool),
+    Array(Vec<Json>),
+    Object(Vec<(String, Json)>),
+}
+
+impl Json {
+    fn str(text: impl Into<String>) -> Json {
+        Json::Str(text.into())
+    }
+
+    fn strings<I, S>(items: I) -> Json
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        Json::Array(
+            items
+                .into_iter()
+                .map(|item| Json::Str(item.into()))
+                .collect(),
+        )
+    }
+
+    fn object(fields: Vec<(&str, Json)>) -> Json {
+        Json::Object(
+            fields
+                .into_iter()
+                .map(|(key, value)| (key.to_owned(), value))
+                .collect(),
+        )
+    }
+
+    fn render(&self, out: &mut String, indent: usize) {
+        match self {
+            Json::Str(text) => {
+                out.push('"');
+                for c in text.chars() {
+                    match c {
+                        '"' => out.push_str("\\\""),
+                        '\\' => out.push_str("\\\\"),
+                        '\n' => out.push_str("\\n"),
+                        c => out.push(c),
+                    }
+                }
+                out.push('"');
+            }
+            Json::Bool(flag) => out.push_str(if *flag { "true" } else { "false" }),
+            Json::Array(items) => {
+                if items.is_empty() {
+                    out.push_str("[]");
+                    return;
+                }
+                out.push_str("[\n");
+                for (index, item) in items.iter().enumerate() {
+                    out.push_str(&" ".repeat(indent + 2));
+                    item.render(out, indent + 2);
+                    if index + 1 < items.len() {
+                        out.push(',');
+                    }
+                    out.push('\n');
+                }
+                out.push_str(&" ".repeat(indent));
+                out.push(']');
+            }
+            Json::Object(fields) => {
+                if fields.is_empty() {
+                    out.push_str("{}");
+                    return;
+                }
+                out.push_str("{\n");
+                for (index, (key, value)) in fields.iter().enumerate() {
+                    out.push_str(&" ".repeat(indent + 2));
+                    out.push('"');
+                    out.push_str(key);
+                    out.push_str("\": ");
+                    value.render(out, indent + 2);
+                    if index + 1 < fields.len() {
+                        out.push(',');
+                    }
+                    out.push('\n');
+                }
+                out.push_str(&" ".repeat(indent));
+                out.push('}');
+            }
+        }
+    }
+}
 
 /// Render every generated file of the Node workspace as (path, contents).
 ///
@@ -100,15 +190,15 @@ pub fn render_node(
         native_readme(),
     ));
 
-    let mut references: Vec<Value> = vec![json!({ "path": "packages/core" })];
-    references.extend(
-        keys.iter()
-            .map(|key| json!({ "path": format!("packages/{key}") })),
-    );
-    references.push(json!({ "path": "packages/pamoja" }));
+    let mut references = vec![reference("packages/core")];
+    references.extend(keys.iter().map(|key| reference(&format!("packages/{key}"))));
+    references.push(reference("packages/pamoja"));
     files.push((
         "bindings/node/tsconfig.json".to_owned(),
-        pretty(&json!({ "files": [], "references": references })),
+        pretty(&Json::object(vec![
+            ("files", Json::Array(Vec::new())),
+            ("references", Json::Array(references)),
+        ])),
     ));
 
     Ok(files)
@@ -118,7 +208,7 @@ pub fn render_node(
 fn package_files(
     key: &str,
     deps: &BTreeSet<String>,
-    manifest: &Value,
+    manifest: &Json,
     readme: String,
 ) -> Vec<(String, String)> {
     vec![
@@ -145,46 +235,58 @@ fn manifest(
     keywords: &[&str],
     deps: &BTreeSet<String>,
     subpaths: &[&str],
-) -> Value {
+) -> Json {
     let name = if key == "pamoja" {
         "pamoja".to_owned()
     } else {
         format!("@pamoja/{key}")
     };
-    let mut exports = Map::new();
-    exports.insert(
-        ".".to_owned(),
-        json!({ "types": "./dist/index.d.ts", "default": "./dist/index.js" }),
-    );
+    let mut exports = vec![(".".to_owned(), entry("index"))];
     for subpath in subpaths {
-        exports.insert(
-            format!("./{subpath}"),
-            json!({
-                "types": format!("./dist/{subpath}.d.ts"),
-                "default": format!("./dist/{subpath}.js")
-            }),
-        );
+        exports.push((format!("./{subpath}"), entry(subpath)));
     }
-    json!({
-        "name": name,
-        "version": version,
-        "description": description,
-        "license": "MIT",
-        "publishConfig": { "access": "public" },
-        "repository": {
-            "type": "git",
-            "url": REPOSITORY,
-            "directory": format!("bindings/node/packages/{key}")
-        },
-        "homepage": homepage,
-        "keywords": keywords,
-        "main": "dist/index.js",
-        "types": "dist/index.d.ts",
-        "exports": Value::Object(exports),
-        "files": ["dist/"],
-        "engines": { "node": ">= 16" },
-        "dependencies": pins(deps, version)
-    })
+    Json::object(vec![
+        ("name", Json::str(name)),
+        ("version", Json::str(version)),
+        ("description", Json::str(description)),
+        ("license", Json::str("MIT")),
+        (
+            "publishConfig",
+            Json::object(vec![("access", Json::str("public"))]),
+        ),
+        (
+            "repository",
+            Json::object(vec![
+                ("type", Json::str("git")),
+                ("url", Json::str(REPOSITORY)),
+                (
+                    "directory",
+                    Json::str(format!("bindings/node/packages/{key}")),
+                ),
+            ]),
+        ),
+        ("homepage", Json::str(homepage)),
+        ("keywords", Json::strings(keywords.iter().copied())),
+        ("main", Json::str("dist/index.js")),
+        ("types", Json::str("dist/index.d.ts")),
+        ("exports", Json::Object(exports)),
+        ("files", Json::strings(["dist/"])),
+        ("engines", Json::object(vec![("node", Json::str(">= 16"))])),
+        ("dependencies", pins(deps, version)),
+    ])
+}
+
+/// One `exports` entry: the declaration first, so TypeScript matches it before `default`.
+fn entry(module: &str) -> Json {
+    Json::object(vec![
+        ("types", Json::str(format!("./dist/{module}.d.ts"))),
+        ("default", Json::str(format!("./dist/{module}.js"))),
+    ])
+}
+
+/// One project reference.
+fn reference(path: &str) -> Json {
+    Json::object(vec![("path", Json::str(path))])
 }
 
 /// The `@pamoja/<name>` packages the TypeScript sources under a package's `src/` import.
@@ -222,28 +324,36 @@ fn node_imports(source: &str) -> BTreeSet<String> {
 }
 
 /// The dependency map of a package: every name pinned to the workspace version.
-fn pins(names: &BTreeSet<String>, version: &str) -> Value {
-    let mut map = Map::new();
-    for name in names {
-        map.insert(format!("@pamoja/{name}"), json!(version));
-    }
-    Value::Object(map)
+fn pins(names: &BTreeSet<String>, version: &str) -> Json {
+    Json::Object(
+        names
+            .iter()
+            .map(|name| (format!("@pamoja/{name}"), Json::str(version)))
+            .collect(),
+    )
 }
 
 /// A package's TypeScript project: the shared options, and a reference to each
 /// TypeScript package it depends on so `tsc -b` builds them first.
-fn tsconfig(deps: &BTreeSet<String>) -> Value {
-    let references: Vec<Value> = deps
+fn tsconfig(deps: &BTreeSet<String>) -> Json {
+    let references: Vec<Json> = deps
         .iter()
         .filter(|dep| dep.as_str() != NATIVE)
-        .map(|dep| json!({ "path": format!("../{dep}") }))
+        .map(|dep| reference(&format!("../{dep}")))
         .collect();
-    json!({
-        "extends": "../../tsconfig.base.json",
-        "compilerOptions": { "rootDir": "src", "outDir": "dist", "composite": true },
-        "include": ["src/**/*.ts"],
-        "references": references
-    })
+    Json::object(vec![
+        ("extends", Json::str("../../tsconfig.base.json")),
+        (
+            "compilerOptions",
+            Json::object(vec![
+                ("rootDir", Json::str("src")),
+                ("outDir", Json::str("dist")),
+                ("composite", Json::Bool(true)),
+            ]),
+        ),
+        ("include", Json::strings(["src/**/*.ts"])),
+        ("references", Json::Array(references)),
+    ])
 }
 
 /// The guide's URL when the capability has one, else the site's front page.
@@ -356,8 +466,9 @@ fn native_readme() -> String {
 }
 
 /// Two-space JSON with a trailing newline, the way npm writes a manifest.
-fn pretty(value: &Value) -> String {
-    let mut text = serde_json::to_string_pretty(value).expect("a JSON value serializes");
+fn pretty(value: &Json) -> String {
+    let mut text = String::new();
+    value.render(&mut text, 0);
     text.push('\n');
     text
 }
@@ -383,25 +494,46 @@ mod tests {
             .iter()
             .map(|s| (*s).to_owned())
             .collect();
-        let pinned = pins(&deps, "0.2.0");
-        assert_eq!(pinned["@pamoja/native"], "0.2.0");
-        assert_eq!(pinned["@pamoja/security"], "0.2.0");
-        let project = tsconfig(&deps);
-        assert_eq!(project["references"].as_array().unwrap().len(), 1);
-        assert_eq!(project["references"][0]["path"], "../security");
+        let pinned = pretty(&pins(&deps, "0.2.0"));
+        assert!(pinned.contains("\"@pamoja/native\": \"0.2.0\""));
+        assert!(pinned.contains("\"@pamoja/security\": \"0.2.0\""));
+        let project = pretty(&tsconfig(&deps));
+        assert!(project.contains("\"path\": \"../security\""));
+        assert!(!project.contains("../native"));
     }
 
     #[test]
     fn the_bundle_is_the_bare_name_and_the_rest_are_scoped() {
         let deps = BTreeSet::new();
-        let bundle = manifest("pamoja", "0.2.0", "d", "h", &[], &deps, &[]);
-        assert_eq!(bundle["name"], "pamoja");
-        let core = manifest("core", "0.2.0", "d", "h", &[], &deps, &["transport"]);
-        assert_eq!(core["name"], "@pamoja/core");
+        let bundle = pretty(&manifest("pamoja", "0.2.0", "d", "h", &[], &deps, &[]));
+        assert!(bundle.starts_with("{\n  \"name\": \"pamoja\",\n  \"version\": \"0.2.0\","));
+        assert!(!bundle.contains("./transport"));
+        let core = pretty(&manifest(
+            "core",
+            "0.2.0",
+            "d",
+            "h",
+            &[],
+            &deps,
+            &["transport"],
+        ));
+        assert!(core.contains("\"name\": \"@pamoja/core\""));
+        assert!(core.contains(
+            "\"./transport\": {\n      \"types\": \"./dist/transport.d.ts\",\n      \"default\": \"./dist/transport.js\"\n    }"
+        ));
+    }
+
+    #[test]
+    fn json_renders_the_way_npm_writes_it() {
+        let value = Json::object(vec![
+            ("a", Json::strings(["x"])),
+            ("b", Json::Array(Vec::new())),
+            ("c", Json::object(Vec::new())),
+            ("d", Json::Bool(true)),
+        ]);
         assert_eq!(
-            core["exports"]["./transport"]["default"],
-            "./dist/transport.js"
+            pretty(&value),
+            "{\n  \"a\": [\n    \"x\"\n  ],\n  \"b\": [],\n  \"c\": {},\n  \"d\": true\n}\n"
         );
-        assert!(bundle["exports"]["./transport"].is_null());
     }
 }

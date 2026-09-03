@@ -12,7 +12,7 @@ publish = false
 [dependencies]
 # The dashboard i18n check parses the per-locale JSON bundles and gzips them to enforce
 # the per-locale footprint budget.
-serde_json = { version = "1", features = ["preserve_order"] }
+serde_json = "1"
 flate2 = "1"
 # The docs task parses a crate's source to generate scoped Markdown API docs from its
 # rustdoc comments.
