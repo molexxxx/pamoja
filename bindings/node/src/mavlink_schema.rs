@@ -13,8 +13,8 @@
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use pamoja_mavlink::dialect::{
-    descriptor, descriptor_by_name, DynamicMessage, FieldType, MessageDescriptorBuilder,
-    OwnedMessageDescriptor, DESCRIPTORS,
+    descriptor, descriptor_by_name, DynamicMessage, FieldType, MessageDescriptor,
+    MessageDescriptorBuilder, OwnedMessageDescriptor, DESCRIPTORS,
 };
 use pamoja_mavlink::{Header, MavlinkError};
 
@@ -314,6 +314,16 @@ impl MessageSchemaBuilder {
 pub struct MavlinkMessage {
     shape: OwnedMessageDescriptor,
     payload: Vec<u8>,
+}
+
+impl MavlinkMessage {
+    /// Wraps a message the engine decoded, for another module in this crate to hand back.
+    pub(crate) fn from_typed(shape: &MessageDescriptor<'static>, payload: Vec<u8>) -> Self {
+        Self {
+            shape: OwnedMessageDescriptor::from_descriptor(shape),
+            payload,
+        }
+    }
 }
 
 #[napi]

@@ -958,6 +958,7 @@ static void Conformance()
     ConformLoraRegions(vectors.GetProperty("loraRegions"));
     ConformMavlink(vectors.GetProperty("mavlink"));
     ConformMavlinkSchema(vectors.GetProperty("mavlinkSchema"));
+    ConformMavlinkProtocol(vectors.GetProperty("mavlinkProtocol"));
     ConformMesh(vectors.GetProperty("mesh"));
     ConformRouting(vectors.GetProperty("routing"));
     ConformLorawan(vectors.GetProperty("lorawan"));
@@ -1753,6 +1754,7 @@ static void RadioAndReach()
     RegionalPlans();
     MavlinkWire();
     MavlinkShapes();
+    MavlinkProtocols();
 
     MeshFrame reading = Mesh.BroadcastFrame(0x1234_5678, 1, "level=high"u8);
     MeshFrame received = Mesh.Parse(reading.Bytes);
@@ -2328,6 +2330,87 @@ static void MavlinkShapes()
     Assert(read.Get("cell_mv", 2) == 4151, "a private message survives the wire whole");
 }
 
+
+// The service protocols: a plan crosses from a station to a vehicle one frame at a time,
+// a command is matched to its acknowledgement, and a setpoint goes out as the right message.
+static void MavlinkProtocols()
+{
+    MavlinkHeader vehicle = new(1, 1);
+    MavlinkHeader station = new(255, 190);
+
+    // Two waypoints, described by field name; the sender numbers them itself.
+    using MavlinkSchema itemShape = MavlinkSchema.ForName("MISSION_ITEM_INT");
+    using MavlinkMissionSender upload = new(1, 1);
+    using (MavlinkMessage takeoff = itemShape.CreateMessage())
+    {
+        takeoff.Set("command", 22);
+        takeoff.Set("z", 20);
+        upload.AddItem(takeoff);
+    }
+
+    using (MavlinkMessage waypoint = itemShape.CreateMessage())
+    {
+        waypoint.Set("command", 16);
+        waypoint.Set("x", -338_567_800);
+        waypoint.Set("y", 1_512_153_000);
+        waypoint.Set("z", 50);
+        upload.AddItem(waypoint);
+    }
+
+    Assert(upload.Count == 2, "the plan holds both items");
+
+    // The station opens the download and the two sides take turns until it is acknowledged.
+    using MavlinkMissionReceiver download = new(255, 190);
+    using MavlinkFrame requestList = download.RequestList(station);
+    MavlinkFrame fromVehicle = upload.OnFrame(requestList, vehicle)!.Value.Reply!;
+    List<long> accepted = [];
+    while (true)
+    {
+        MavlinkReceiverStep? step = download.OnFrame(fromVehicle, station);
+        fromVehicle.Dispose();
+        Assert(step is not null, "the vehicle only sends what the receiver handles");
+        if (step!.Value.Accepted is not null)
+        {
+            accepted.Add(step.Value.Accepted.GetInt64("command"));
+            step.Value.Accepted.Dispose();
+        }
+
+        MavlinkSenderStep answer = upload.OnFrame(step.Value.Reply, vehicle)!.Value;
+        step.Value.Reply.Dispose();
+        if (answer.Kind == MavlinkSenderKind.Finished)
+        {
+            Assert(answer.Result == 0, "the transfer is accepted");
+            break;
+        }
+
+        fromVehicle = answer.Reply!;
+    }
+
+    Assert(accepted.SequenceEqual([22L, 16L]), "both items arrive in order");
+    Assert(download.Complete, "and the download is complete");
+
+    // A command is matched to its acknowledgement, and a stray frame is passed over.
+    using MavlinkCommand arm = new(400);
+    Assert(arm.Confirmation == 0, "the first send carries confirmation 0");
+    using MavlinkSchema ackShape = MavlinkSchema.ForName("COMMAND_ACK");
+    using MavlinkMessage ackMessage = ackShape.CreateMessage();
+    ackMessage.Set("command", 400);
+    using MavlinkFrame ack = ackMessage.ToFrame(vehicle);
+    MavlinkAckOutcome outcome = arm.OnFrame(ack)!.Value;
+    Assert(outcome.Kind == MavlinkAckKind.Final && outcome.Value == 0, "an accepted arm");
+    Assert(arm.OnFrame(requestList) is null, "a mission frame is not an ack");
+    Assert(arm.OnTimeout() == 1, "a timeout allows a resend with confirmation 1");
+
+    // A setpoint goes out as the right message with the right mask.
+    using MavlinkFrame setpoint = MavlinkOffboard.LocalVelocity(station, 1000, 1, 1, 1, 0.5f, 0f, 0f);
+    Assert(setpoint.MessageId == 84, "SET_POSITION_TARGET_LOCAL_NED");
+    using MavlinkSchema setpointShape = MavlinkSchema.ForName("SET_POSITION_TARGET_LOCAL_NED");
+    using MavlinkMessage read = setpointShape.Decode(setpoint.Payload);
+    Assert(
+        read.GetInt64("type_mask") == MavlinkOffboard.TypeMask(MavlinkTypeMask.Velocity),
+        "only the velocity fields are active");
+}
+
 static void AssertThrows(Action action, string message)
 {
     try
@@ -2613,6 +2696,187 @@ static void ConformMavlinkSchema(JsonElement vector)
         AssertThrows(() => report.Set(field, value), $"{value} is refused for {field}");
     }
 }
+
+
+// The service protocols: a whole mission upload frame by frame, command acknowledgements,
+// and setpoints, each pinned to the exact bytes the engine puts on the wire.
+static void ConformMavlinkProtocol(JsonElement vector)
+{
+    MavlinkHeader vehicle = HeaderOf(vector.GetProperty("vehicle"));
+    MavlinkHeader station = HeaderOf(vector.GetProperty("station"));
+    using MavlinkDialect common = new();
+    MavlinkFrame Parse(string hex) => MavlinkFrame.ParseKnown(Convert.FromHexString(hex), common);
+    string BytesOf(MavlinkFrame frame) => Convert.ToHexString(frame.Bytes).ToLowerInvariant();
+
+    // The plan's items are built by field name and must match the pinned payloads.
+    using MavlinkSchema itemShape = MavlinkSchema.ForName("MISSION_ITEM_INT");
+    using MavlinkMissionSender upload = new(1, 1);
+    int index = 0;
+    foreach (JsonElement fields in vector.GetProperty("plan").EnumerateArray())
+    {
+        using MavlinkMessage item = itemShape.CreateMessage();
+        foreach (JsonElement entry in fields.EnumerateArray())
+        {
+            item.Set(entry.GetProperty("field").GetString()!, entry.GetProperty("value").GetDouble());
+        }
+
+        Assert(
+            Convert.ToHexString(item.Payload).ToLowerInvariant()
+                == vector.GetProperty("planPayloads")[index].GetString(),
+            $"plan item {index}");
+        upload.AddItem(item);
+        index += 1;
+    }
+
+    Assert(upload.Count == index, "the plan's length");
+
+    using MavlinkMissionReceiver download = new(255, 190);
+    using MavlinkFrame requestList = download.RequestList(station);
+    Assert(BytesOf(requestList) == vector.GetProperty("requestList").GetString(), "the request list frame");
+    MavlinkSenderStep opened = upload.OnFrame(requestList, vehicle)!.Value;
+    Assert(opened.Kind == MavlinkSenderKind.Reply, "a request list is answered");
+    using (opened.Reply)
+    {
+        Assert(BytesOf(opened.Reply!) == vector.GetProperty("count").GetString(), "the count frame");
+    }
+
+    index = 0;
+    foreach (JsonElement step in vector.GetProperty("exchange").EnumerateArray())
+    {
+        using MavlinkFrame feed = Parse(step.GetProperty("feed").GetString()!);
+        MavlinkReceiverStep received = download.OnFrame(feed, station)!.Value;
+        string receiverKind = received.Kind == MavlinkReceiverKind.Request ? "request" : "ack";
+        Assert(receiverKind == step.GetProperty("receiverKind").GetString(), $"receiver kind at {index}");
+        Assert(
+            (received.Accepted is not null) == step.GetProperty("accepted").GetBoolean(),
+            $"whether an item was accepted at {index}");
+        if (received.Accepted is not null)
+        {
+            Assert(
+                received.Accepted.GetInt64("seq") == step.GetProperty("acceptedSeq").GetInt64(),
+                $"the accepted item's sequence at {index}");
+            received.Accepted.Dispose();
+        }
+
+        Assert(BytesOf(received.Reply) == step.GetProperty("reply").GetString(), $"the receiver's reply at {index}");
+
+        MavlinkSenderStep answered = upload.OnFrame(received.Reply, vehicle)!.Value;
+        received.Reply.Dispose();
+        string senderKind = answered.Kind == MavlinkSenderKind.Reply ? "reply" : "finished";
+        Assert(senderKind == step.GetProperty("senderKind").GetString(), $"sender kind at {index}");
+        if (answered.Kind == MavlinkSenderKind.Reply)
+        {
+            Assert(BytesOf(answered.Reply!) == step.GetProperty("senderReply").GetString(), $"the sender's reply at {index}");
+            answered.Reply!.Dispose();
+        }
+        else
+        {
+            Assert(answered.Result == step.GetProperty("senderResult").GetByte(), $"the transfer's result at {index}");
+        }
+
+        index += 1;
+    }
+
+    Assert(download.Complete, "the download finished");
+
+    // A request past the end of the plan is refused with the published result.
+    JsonElement overrun = vector.GetProperty("overrun");
+    using MavlinkFrame overrunRequest = Parse(overrun.GetProperty("request").GetString()!);
+    MavlinkSenderStep refusal = upload.OnFrame(overrunRequest, station)!.Value;
+    using (refusal.Reply)
+    {
+        Assert(BytesOf(refusal.Reply!) == overrun.GetProperty("reply").GetString(), "the refusal");
+        using MavlinkSchema ackShape = MavlinkSchema.ForName("MISSION_ACK");
+        using MavlinkMessage ack = ackShape.Decode(refusal.Reply!.Payload);
+        Assert(ack.GetInt64("type") == overrun.GetProperty("result").GetInt64(), "the refusal's result");
+    }
+
+    // The command protocol classifies acknowledgements and counts retries.
+    JsonElement command = vector.GetProperty("command");
+    using MavlinkCommand arm = new(
+        command.GetProperty("command").GetUInt16(),
+        command.GetProperty("maxRetries").GetByte());
+    foreach (JsonElement described in command.GetProperty("acks").EnumerateArray())
+    {
+        using MavlinkFrame ackFrame = Parse(described.GetProperty("frame").GetString()!);
+        MavlinkAckOutcome outcome = arm.OnFrame(ackFrame)!.Value;
+        string kind = outcome.Kind switch
+        {
+            MavlinkAckKind.Unrelated => "unrelated",
+            MavlinkAckKind.InProgress => "inProgress",
+            _ => "final",
+        };
+        Assert(kind == described.GetProperty("kind").GetString(), "an ack's kind");
+        byte? value = described.GetProperty("value").ValueKind == JsonValueKind.Null
+            ? null
+            : described.GetProperty("value").GetByte();
+        Assert(outcome.Value == value, "an ack's value");
+    }
+
+    foreach (JsonElement want in command.GetProperty("timeouts").EnumerateArray())
+    {
+        byte? expected = want.ValueKind == JsonValueKind.Null ? null : want.GetByte();
+        Assert(arm.OnTimeout() == expected, "a timeout's verdict");
+    }
+
+    // A frame none of the machines handle is passed over by all of them.
+    using MavlinkFrame ignored = Parse(vector.GetProperty("ignored").GetString()!);
+    Assert(upload.OnFrame(ignored, station) is null, "the sender ignores it");
+    Assert(download.OnFrame(ignored, station) is null, "the receiver ignores it");
+    Assert(arm.OnFrame(ignored) is null, "the command ignores it");
+
+    // Setpoints put exactly these bytes on the wire.
+    JsonElement offboard = vector.GetProperty("offboard");
+    foreach (JsonElement entry in offboard.GetProperty("typeMasks").EnumerateArray())
+    {
+        uint flags = entry.GetProperty("flags").GetUInt32();
+        Assert(
+            MavlinkOffboard.TypeMask((MavlinkTypeMask)flags) == entry.GetProperty("mask").GetUInt16(),
+            $"the mask for {flags}");
+    }
+
+    JsonElement local = offboard.GetProperty("localPosition");
+    using MavlinkFrame position = MavlinkOffboard.LocalPosition(
+        station,
+        local.GetProperty("timeBootMs").GetUInt32(),
+        local.GetProperty("coordinateFrame").GetByte(),
+        local.GetProperty("targetSystem").GetByte(),
+        local.GetProperty("targetComponent").GetByte(),
+        local.GetProperty("x").GetSingle(),
+        local.GetProperty("y").GetSingle(),
+        local.GetProperty("z").GetSingle());
+    Assert(BytesOf(position) == local.GetProperty("frame").GetString(), "a position setpoint");
+
+    JsonElement velocity = offboard.GetProperty("localVelocity");
+    using MavlinkFrame speed = MavlinkOffboard.LocalVelocity(
+        station,
+        velocity.GetProperty("timeBootMs").GetUInt32(),
+        velocity.GetProperty("coordinateFrame").GetByte(),
+        velocity.GetProperty("targetSystem").GetByte(),
+        velocity.GetProperty("targetComponent").GetByte(),
+        velocity.GetProperty("vx").GetSingle(),
+        velocity.GetProperty("vy").GetSingle(),
+        velocity.GetProperty("vz").GetSingle());
+    Assert(BytesOf(speed) == velocity.GetProperty("frame").GetString(), "a velocity setpoint");
+
+    JsonElement global = offboard.GetProperty("globalPosition");
+    using MavlinkFrame fix = MavlinkOffboard.GlobalPosition(
+        station,
+        global.GetProperty("timeBootMs").GetUInt32(),
+        global.GetProperty("coordinateFrame").GetByte(),
+        global.GetProperty("targetSystem").GetByte(),
+        global.GetProperty("targetComponent").GetByte(),
+        global.GetProperty("latInt").GetInt32(),
+        global.GetProperty("lonInt").GetInt32(),
+        global.GetProperty("alt").GetSingle());
+    Assert(BytesOf(fix) == global.GetProperty("frame").GetString(), "a global setpoint");
+}
+
+static MavlinkHeader HeaderOf(JsonElement described) =>
+    new(
+        described.GetProperty("systemId").GetByte(),
+        described.GetProperty("componentId").GetByte(),
+        described.GetProperty("sequence").GetByte());
 
 static LoraLink LinkOf(JsonElement described)
 {

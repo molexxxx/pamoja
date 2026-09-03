@@ -20,8 +20,8 @@ use pyo3::types::PyBytes;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 
 use pamoja_mavlink::dialect::{
-    descriptor, descriptor_by_name, DynamicMessage, FieldType, MessageDescriptorBuilder,
-    OwnedMessageDescriptor, DESCRIPTORS,
+    descriptor, descriptor_by_name, DynamicMessage, FieldType, MessageDescriptor,
+    MessageDescriptorBuilder, OwnedMessageDescriptor, DESCRIPTORS,
 };
 use pamoja_mavlink::{Header, MavlinkError};
 
@@ -312,6 +312,16 @@ impl MessageSchemaBuilder {
 pub struct MavlinkMessage {
     shape: OwnedMessageDescriptor,
     payload: Mutex<Vec<u8>>,
+}
+
+impl MavlinkMessage {
+    /// Wraps a message the engine decoded, for another module in this crate to hand back.
+    pub(crate) fn from_typed(shape: &MessageDescriptor<'static>, payload: Vec<u8>) -> Self {
+        Self {
+            shape: OwnedMessageDescriptor::from_descriptor(shape),
+            payload: Mutex::new(payload),
+        }
+    }
 }
 
 #[gen_stub_pymethods]

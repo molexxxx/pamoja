@@ -183,27 +183,6 @@ impl SetPositionTargetLocalNed {
             ..Self::zeroed()
         }
     }
-
-    fn zeroed() -> Self {
-        SetPositionTargetLocalNed {
-            time_boot_ms: 0,
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-            vx: 0.0,
-            vy: 0.0,
-            vz: 0.0,
-            afx: 0.0,
-            afy: 0.0,
-            afz: 0.0,
-            yaw: 0.0,
-            yaw_rate: 0.0,
-            type_mask: 0,
-            target_system: 0,
-            target_component: 0,
-            coordinate_frame: 0,
-        }
-    }
 }
 
 impl SetPositionTargetGlobalInt {
@@ -240,27 +219,6 @@ impl SetPositionTargetGlobalInt {
             target_component,
             coordinate_frame,
             ..Self::zeroed()
-        }
-    }
-
-    fn zeroed() -> Self {
-        SetPositionTargetGlobalInt {
-            time_boot_ms: 0,
-            lat_int: 0,
-            lon_int: 0,
-            alt: 0.0,
-            vx: 0.0,
-            vy: 0.0,
-            vz: 0.0,
-            afx: 0.0,
-            afy: 0.0,
-            afz: 0.0,
-            yaw: 0.0,
-            yaw_rate: 0.0,
-            type_mask: 0,
-            target_system: 0,
-            target_component: 0,
-            coordinate_frame: 0,
         }
     }
 }

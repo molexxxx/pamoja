@@ -39,6 +39,8 @@ mod lorawan;
 #[cfg(feature = "mavlink")]
 mod mavlink;
 #[cfg(feature = "mavlink")]
+mod mavlink_protocol;
+#[cfg(feature = "mavlink")]
 mod mavlink_schema;
 #[cfg(feature = "mesh")]
 mod mesh;
@@ -384,6 +386,28 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<mavlink_schema::MessageSchemaBuilder>()?;
         m.add_class::<mavlink_schema::MavlinkMessage>()?;
         m.add_function(wrap_pyfunction!(mavlink_schema::mavlink_known_messages, m)?)?;
+        m.add_class::<mavlink_protocol::ReceiverStep>()?;
+        m.add_class::<mavlink_protocol::MissionReceiver>()?;
+        m.add_class::<mavlink_protocol::SenderStep>()?;
+        m.add_class::<mavlink_protocol::MissionSender>()?;
+        m.add_class::<mavlink_protocol::AckOutcome>()?;
+        m.add_class::<mavlink_protocol::CommandProtocol>()?;
+        m.add_function(wrap_pyfunction!(
+            mavlink_protocol::mavlink_offboard_type_mask,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            mavlink_protocol::mavlink_offboard_local_position,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            mavlink_protocol::mavlink_offboard_local_velocity,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            mavlink_protocol::mavlink_offboard_global_position,
+            m
+        )?)?;
     }
     #[cfg(feature = "profile")]
     {

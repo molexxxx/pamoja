@@ -19,7 +19,9 @@
 //! type.
 //!
 //! This module moves a message's bytes. [`mavlink_schema`](crate::mavlink_schema)
-//! is the layer above, which gives those bytes named fields.
+//! is the layer above, which gives those bytes named fields, and
+//! [`mavlink_protocol`](crate::mavlink_protocol) the one above that, which turns
+//! single messages into the mission, command, and offboard exchanges.
 
 use pamoja_mavlink::dialect::{crc_extra as common_crc_extra, RawMessage};
 use pamoja_mavlink::{
@@ -407,6 +409,11 @@ pub struct PamojaMavlinkFrame {
 }
 
 impl PamojaMavlinkFrame {
+    /// Returns the frame this handle wraps, for another module in this crate to read.
+    pub(crate) fn frame(&self) -> &Frame {
+        &self.inner
+    }
+
     /// Moves a frame onto the heap and hands the caller its handle.
     pub(crate) fn into_handle(inner: Frame) -> *mut Self {
         Box::into_raw(Box::new(Self { inner }))

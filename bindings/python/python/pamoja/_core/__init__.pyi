@@ -4,6 +4,7 @@
 import builtins
 import typing
 __all__ = [
+    "AckOutcome",
     "Ads1115Config",
     "AgreementKey",
     "AlertReport",
@@ -22,6 +23,7 @@ __all__ = [
     "ChannelPlanBuilder",
     "CoapClient",
     "CobsDecoder",
+    "CommandProtocol",
     "ControlPolicy",
     "Controller",
     "Debounce",
@@ -67,6 +69,8 @@ __all__ = [
     "Message",
     "MessageSchema",
     "MessageSchemaBuilder",
+    "MissionReceiver",
+    "MissionSender",
     "ModbusFrame",
     "MqttClient",
     "MqttMessage",
@@ -80,6 +84,7 @@ __all__ = [
     "Quantizer",
     "Ramp",
     "Reaction",
+    "ReceiverStep",
     "RecordingActuatorHandle",
     "Replay",
     "Reporter",
@@ -87,6 +92,7 @@ __all__ = [
     "Router",
     "SealedMessage",
     "SeenPackets",
+    "SenderStep",
     "Session",
     "SimulatedRobot",
     "SimulatedSensor",
@@ -162,6 +168,10 @@ __all__ = [
     "mavlink_known_crc_extra",
     "mavlink_known_messages",
     "mavlink_message_crc_extra",
+    "mavlink_offboard_global_position",
+    "mavlink_offboard_local_position",
+    "mavlink_offboard_local_velocity",
+    "mavlink_offboard_type_mask",
     "mavlink_timestamp_from_unix_micros",
     "mesh_broadcast_frame",
     "mesh_crc16",
@@ -223,6 +233,28 @@ __all__ = [
     "version",
     "window_capacity",
 ]
+
+@typing.final
+class AckOutcome:
+    r"""
+    What an incoming acknowledgement means for the command in flight.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        ``"unrelated"`` if the ack was for another command, ``"in_progress"`` if
+        the command is still running, or ``"final"`` if it finished.
+        """
+    @property
+    def value(self) -> typing.Optional[builtins.int]:
+        r"""
+        The progress percent when in progress (255 when the autopilot does not
+        report one), or the ``MAV_RESULT`` when final.
+        """
+    def __repr__(self) -> builtins.str:
+        r"""
+        Returns a readable form for logs and the interpreter.
+        """
 
 @typing.final
 class Ads1115Config:
@@ -884,6 +916,41 @@ class CobsDecoder:
     def reset(self) -> None:
         r"""
         Discards any partly assembled frame.
+        """
+
+@typing.final
+class CommandProtocol:
+    r"""
+    Tracks one command awaiting its acknowledgement.
+    """
+    @property
+    def command(self) -> builtins.int:
+        r"""
+        The command id being tracked.
+        """
+    @property
+    def confirmation(self) -> builtins.int:
+        r"""
+        The ``confirmation`` count to stamp on the command being sent: zero for
+        the first transmission, incremented on each retransmission.
+        """
+    def __new__(cls, command: builtins.int, max_retries: builtins.int = 5) -> CommandProtocol:
+        r"""
+        Starts tracking a ``MAV_CMD``, allowing ``max_retries`` retransmissions
+        after a timeout before the caller gives up.
+        """
+    def on_frame(self, frame: MavlinkFrame) -> typing.Optional[AckOutcome]:
+        r"""
+        Classifies an incoming frame against the command in flight.
+        
+        Returns the outcome, or ``None`` if the frame is not a ``COMMAND_ACK``.
+        """
+    def on_timeout(self) -> typing.Optional[builtins.int]:
+        r"""
+        Records a timeout and reports whether the command may be resent.
+        
+        Returns the new confirmation count to stamp on the resend, or ``None``
+        once the retry budget is exhausted.
         """
 
 @typing.final
@@ -2525,6 +2592,79 @@ class MessageSchemaBuilder:
         """
 
 @typing.final
+class MissionReceiver:
+    r"""
+    Requests a plan's items in order and collects them, ending with an
+    acknowledgement.
+    """
+    @property
+    def complete(self) -> builtins.bool:
+        r"""
+        Whether every item has been received and the acknowledgement produced.
+        """
+    @property
+    def expected(self) -> builtins.int:
+        r"""
+        The next sequence number the receiver expects.
+        """
+    def __new__(cls, target_system: builtins.int, target_component: builtins.int, mission_type: builtins.int = 0) -> MissionReceiver:
+        r"""
+        Creates a receiver for a plan from a target vehicle, identified by system
+        and component id, for one ``MAV_MISSION_TYPE``.
+        """
+    def request_list(self, header: MavlinkHeader) -> MavlinkFrame:
+        r"""
+        Builds the ``MISSION_REQUEST_LIST`` frame that starts a download.
+        """
+    def on_frame(self, frame: MavlinkFrame, header: MavlinkHeader) -> typing.Optional[ReceiverStep]:
+        r"""
+        Handles an incoming frame, if it is one this transfer is waiting for.
+        
+        A ``MISSION_COUNT`` opens the transfer and a ``MISSION_ITEM_INT``
+        advances it. Returns the step taken, or ``None`` if the frame carries a
+        message this transfer does not handle.
+        """
+
+@typing.final
+class MissionSender:
+    r"""
+    Holds a plan and answers a receiver's requests for its items.
+    """
+    def __new__(cls, target_system: builtins.int, target_component: builtins.int, mission_type: builtins.int = 0) -> MissionSender:
+        r"""
+        Creates a sender for a plan bound for a target vehicle, with no items
+        yet.
+        """
+    def add_item(self, item: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Appends an item to the plan, from a ``MISSION_ITEM_INT`` payload.
+        
+        The sender stamps the sequence number, target ids, and mission type onto
+        each item as it is handed out, so the item need only carry its content:
+        command, frame, position, and parameters. Build one by field name with the
+        ``MISSION_ITEM_INT`` schema and pass its payload.
+        """
+    def __len__(self) -> builtins.int:
+        r"""
+        Returns the number of items in the plan.
+        """
+    def count(self, header: MavlinkHeader) -> MavlinkFrame:
+        r"""
+        Builds the ``MISSION_COUNT`` frame that opens an upload.
+        """
+    def on_frame(self, frame: MavlinkFrame, header: MavlinkHeader) -> typing.Optional[SenderStep]:
+        r"""
+        Handles an incoming frame, if it is one this transfer answers.
+        
+        A ``MISSION_REQUEST_LIST`` is answered with the count, a
+        ``MISSION_REQUEST_INT`` (or the older ``MISSION_REQUEST``) with the item
+        asked for, and a request past the end of the plan with a ``MISSION_ACK``
+        reporting an invalid sequence. A ``MISSION_ACK`` from the receiver ends
+        the transfer. Returns ``None`` for a message this transfer does not
+        handle.
+        """
+
+@typing.final
 class ModbusFrame:
     r"""
     A received Modbus RTU frame whose CRC has been verified.
@@ -2904,6 +3044,33 @@ class Reaction:
         """
 
 @typing.final
+class ReceiverStep:
+    r"""
+    What one incoming frame produced for a mission receiver.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        What the receiver answered with: ``"request"`` for the next item, or
+        ``"ack"`` to end the transfer.
+        """
+    @property
+    def accepted(self) -> typing.Optional[MavlinkMessage]:
+        r"""
+        The ``MISSION_ITEM_INT`` the frame carried, if it was the one expected
+        next, as a message read by field name.
+        """
+    @property
+    def reply(self) -> MavlinkFrame:
+        r"""
+        The frame to send back.
+        """
+    def __repr__(self) -> builtins.str:
+        r"""
+        Returns a readable form for logs and the interpreter.
+        """
+
+@typing.final
 class RecordingActuatorHandle:
     r"""
     An actuator that records every command instead of acting on one.
@@ -3117,6 +3284,32 @@ class SeenPackets:
         
         A true answer is when a node should act on the packet and relay it; a
         false one means another copy already arrived by a different path.
+        """
+
+@typing.final
+class SenderStep:
+    r"""
+    What one incoming frame produced for a mission sender.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        What happened: ``"reply"`` when there is a frame to send, or
+        ``"finished"`` when the receiver acknowledged the transfer.
+        """
+    @property
+    def reply(self) -> typing.Optional[MavlinkFrame]:
+        r"""
+        The frame to send back, when there is one.
+        """
+    @property
+    def result(self) -> typing.Optional[builtins.int]:
+        r"""
+        The receiver's ``MAV_MISSION_RESULT``, when the transfer finished.
+        """
+    def __repr__(self) -> builtins.str:
+        r"""
+        Returns a readable form for logs and the interpreter.
         """
 
 @typing.final
@@ -3912,6 +4105,32 @@ def mavlink_message_crc_extra(name: builtins.str, fields: typing.Sequence[tuple[
     
     Extension fields are excluded from the seed and must not be listed, which is
     what lets a peer that predates them still check the frame.
+    """
+
+def mavlink_offboard_global_position(header: MavlinkHeader, time_boot_ms: builtins.int, coordinate_frame: builtins.int, target_system: builtins.int, target_component: builtins.int, lat_int: builtins.int, lon_int: builtins.int, alt: builtins.float) -> MavlinkFrame:
+    r"""
+    Builds a global-frame position setpoint frame, with latitude and longitude
+    in degrees times ten million and altitude in metres.
+    """
+
+def mavlink_offboard_local_position(header: MavlinkHeader, time_boot_ms: builtins.int, coordinate_frame: builtins.int, target_system: builtins.int, target_component: builtins.int, x: builtins.float, y: builtins.float, z: builtins.float) -> MavlinkFrame:
+    r"""
+    Builds a local-frame position setpoint frame, in metres in the chosen
+    ``MAV_FRAME``.
+    """
+
+def mavlink_offboard_local_velocity(header: MavlinkHeader, time_boot_ms: builtins.int, coordinate_frame: builtins.int, target_system: builtins.int, target_component: builtins.int, vx: builtins.float, vy: builtins.float, vz: builtins.float) -> MavlinkFrame:
+    r"""
+    Builds a local-frame velocity setpoint frame, in metres per second in the
+    chosen ``MAV_FRAME``.
+    """
+
+def mavlink_offboard_type_mask(flags: builtins.int) -> builtins.int:
+    r"""
+    Builds a setpoint ``type_mask`` from the fields to use.
+    
+    ``flags`` is a bitwise-or of the ``TypeMask`` flags; fields left out are
+    ignored. Returns the mask as the ``type_mask`` field of a setpoint carries it.
     """
 
 def mavlink_timestamp_from_unix_micros(unix_micros: builtins.int) -> builtins.int:

@@ -136,6 +136,53 @@
 // The current wire format, with a 24-bit message id, flags, and optional signing.
 #define PAMOJA_MAVLINK_VERSION_V2 2
 
+// The number of times a request is retransmitted before a transfer is abandoned, as the
+// mission protocol recommends.
+#define PAMOJA_MAVLINK_MAX_RETRIES MAX_RETRIES
+
+// The frame was not one this machine handles; nothing was produced.
+#define PAMOJA_MAVLINK_STEP_IGNORED 0
+
+// A mission receiver answered with a request for the next item.
+#define PAMOJA_MAVLINK_RECEIVER_REQUEST 1
+
+// A mission receiver answered with the acknowledgement that ends the transfer.
+#define PAMOJA_MAVLINK_RECEIVER_ACK 2
+
+// A mission sender answered with a frame to send.
+#define PAMOJA_MAVLINK_SENDER_REPLY 1
+
+// A mission sender saw the receiver's acknowledgement; the transfer is over.
+#define PAMOJA_MAVLINK_SENDER_FINISHED 2
+
+// An acknowledgement was for a different command; keep waiting.
+#define PAMOJA_MAVLINK_ACK_UNRELATED 1
+
+// The command is still running; the value is the reported progress percent, or 255 when
+// the autopilot does not report one.
+#define PAMOJA_MAVLINK_ACK_IN_PROGRESS 2
+
+// The command finished; the value is its `MAV_RESULT`.
+#define PAMOJA_MAVLINK_ACK_FINAL 3
+
+// Use the position fields of a setpoint.
+#define PAMOJA_MAVLINK_TYPEMASK_POSITION (1 << 0)
+
+// Use the velocity fields of a setpoint.
+#define PAMOJA_MAVLINK_TYPEMASK_VELOCITY (1 << 1)
+
+// Use the acceleration fields of a setpoint.
+#define PAMOJA_MAVLINK_TYPEMASK_ACCELERATION (1 << 2)
+
+// Use the yaw field of a setpoint.
+#define PAMOJA_MAVLINK_TYPEMASK_YAW (1 << 3)
+
+// Use the yaw rate field of a setpoint.
+#define PAMOJA_MAVLINK_TYPEMASK_YAW_RATE (1 << 4)
+
+// Treat the acceleration fields as a force.
+#define PAMOJA_MAVLINK_TYPEMASK_FORCE (1 << 5)
+
 // A `uint8_t` field.
 #define PAMOJA_MAVLINK_FIELD_UINT8 1
 
@@ -681,6 +728,9 @@ typedef struct PamojaLorawanRx PamojaLorawanRx;
 // Release it with [`pamoja_lorawan_session_free`].
 typedef struct PamojaLorawanSession PamojaLorawanSession;
 
+// Tracks one command awaiting its acknowledgement.
+typedef struct PamojaMavlinkCommand PamojaMavlinkCommand;
+
 // The `CRC_EXTRA` seeds of a dialect beyond the common one.
 //
 // A handle the caller must release with [`pamoja_mavlink_dialect_free`].
@@ -695,6 +745,12 @@ typedef struct PamojaMavlinkFrame PamojaMavlinkFrame;
 
 // A message being written or read field by field against a schema.
 typedef struct PamojaMavlinkMessage PamojaMavlinkMessage;
+
+// Requests a plan's items in order and collects them, ending with an acknowledgement.
+typedef struct PamojaMavlinkMissionReceiver PamojaMavlinkMissionReceiver;
+
+// Holds a plan and answers a receiver's requests for its items.
+typedef struct PamojaMavlinkMissionSender PamojaMavlinkMissionSender;
 
 // A streaming frame parser, and the frames it has completed.
 //
@@ -5875,6 +5931,485 @@ PamojaStatus pamoja_mavlink_raw_message_to_frame(PamojaMavlinkHeader header,
                                                  const uint8_t *payload,
                                                  uintptr_t payload_len,
                                                  PamojaMavlinkFrame **out_frame);
+
+// Creates a receiver for a plan from a target vehicle.
+//
+// # Arguments
+//
+// * `target_system` - the sending system's id.
+// * `target_component` - the sending component's id.
+// * `mission_type` - the `MAV_MISSION_TYPE` to transfer.
+//
+// # Returns
+//
+// A receiver the caller releases with [`pamoja_mavlink_mission_receiver_free`].
+PamojaMavlinkMissionReceiver *pamoja_mavlink_mission_receiver_new(uint8_t target_system,
+                                                                  uint8_t target_component,
+                                                                  uint8_t mission_type);
+
+// Builds the frame that starts a download.
+//
+// # Arguments
+//
+// * `receiver` - the transfer.
+// * `header` - the addressing fields to stamp on the frame.
+// * `out_frame` - set to the `MISSION_REQUEST_LIST` frame, which the caller releases with
+//   `pamoja_mavlink_frame_free`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `receiver` must be a live receiver handle, and `out_frame` must point at writable storage
+// for one pointer.
+PamojaStatus pamoja_mavlink_mission_receiver_request_list(const PamojaMavlinkMissionReceiver *receiver,
+                                                          PamojaMavlinkHeader header,
+                                                          PamojaMavlinkFrame **out_frame);
+
+// Handles an incoming frame, if it is one this transfer is waiting for.
+//
+// A `MISSION_COUNT` opens the transfer and a `MISSION_ITEM_INT` advances it. Any other
+// message sets `out_kind` to [`PAMOJA_MAVLINK_STEP_IGNORED`] and produces nothing.
+//
+// # Arguments
+//
+// * `receiver` - the transfer.
+// * `frame` - the frame off the link.
+// * `header` - the addressing fields to stamp on the reply.
+// * `out_kind` - set to [`PAMOJA_MAVLINK_RECEIVER_REQUEST`],
+//   [`PAMOJA_MAVLINK_RECEIVER_ACK`], or [`PAMOJA_MAVLINK_STEP_IGNORED`].
+// * `out_accepted` - set to the `MISSION_ITEM_INT` the frame carried if it was the one
+//   expected next, as a message the caller reads by field name and releases with
+//   `pamoja_mavlink_message_free`, or to null.
+// * `out_reply` - set to the frame to send back, which the caller releases with
+//   `pamoja_mavlink_frame_free`, or to null if the frame was ignored.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, including when the frame was ignored.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if any pointer is null.
+//
+// # Safety
+//
+// `receiver` must be a live receiver handle, `frame` a live frame handle, and each out
+// pointer must point at writable storage for its value.
+PamojaStatus pamoja_mavlink_mission_receiver_on_frame(PamojaMavlinkMissionReceiver *receiver,
+                                                      const PamojaMavlinkFrame *frame,
+                                                      PamojaMavlinkHeader header,
+                                                      uint32_t *out_kind,
+                                                      PamojaMavlinkMessage **out_accepted,
+                                                      PamojaMavlinkFrame **out_reply);
+
+// Reports whether the transfer has finished.
+//
+// # Arguments
+//
+// * `receiver` - the transfer.
+//
+// # Returns
+//
+// `1` once every item has been received and the acknowledgement produced, `0` otherwise or
+// if `receiver` is null.
+//
+// # Safety
+//
+// `receiver` must be a live receiver handle or null.
+uint8_t pamoja_mavlink_mission_receiver_is_complete(const PamojaMavlinkMissionReceiver *receiver);
+
+// Returns the next sequence number the receiver expects.
+//
+// # Arguments
+//
+// * `receiver` - the transfer.
+//
+// # Returns
+//
+// The expected sequence number, or `0` if `receiver` is null.
+//
+// # Safety
+//
+// `receiver` must be a live receiver handle or null.
+uint16_t pamoja_mavlink_mission_receiver_expected(const PamojaMavlinkMissionReceiver *receiver);
+
+// Releases a receiver.
+//
+// # Arguments
+//
+// * `receiver` - the handle to release; null is ignored.
+//
+// # Safety
+//
+// `receiver` must have come from [`pamoja_mavlink_mission_receiver_new`] and must not be
+// used afterwards.
+void pamoja_mavlink_mission_receiver_free(PamojaMavlinkMissionReceiver *receiver);
+
+// Creates a sender for a plan bound for a target vehicle, with no items yet.
+//
+// # Arguments
+//
+// * `target_system` - the receiving system's id.
+// * `target_component` - the receiving component's id.
+// * `mission_type` - the `MAV_MISSION_TYPE` of the plan.
+//
+// # Returns
+//
+// A sender the caller releases with [`pamoja_mavlink_mission_sender_free`].
+PamojaMavlinkMissionSender *pamoja_mavlink_mission_sender_new(uint8_t target_system,
+                                                              uint8_t target_component,
+                                                              uint8_t mission_type);
+
+// Appends an item to the plan.
+//
+// The sender stamps the sequence number, target ids, and mission type onto each item as it
+// is handed out, so the payload need only carry the item's content: its command, frame,
+// position, and parameters. Build one by field name with the message schema for
+// `MISSION_ITEM_INT` and pass its payload.
+//
+// # Arguments
+//
+// * `sender` - the plan to extend.
+// * `payload` - a `MISSION_ITEM_INT` payload.
+// * `payload_len` - the payload length in bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, and
+// [`PamojaStatus::Codec`] if the payload does not form an item.
+//
+// # Safety
+//
+// `sender` must be a live sender handle and `payload` must point at `payload_len` readable
+// bytes.
+PamojaStatus pamoja_mavlink_mission_sender_add_item(PamojaMavlinkMissionSender *sender,
+                                                    const uint8_t *payload,
+                                                    uintptr_t payload_len);
+
+// Returns the number of items in the plan.
+//
+// # Arguments
+//
+// * `sender` - the plan.
+//
+// # Returns
+//
+// The item count, or `0` if `sender` is null.
+//
+// # Safety
+//
+// `sender` must be a live sender handle or null.
+uint16_t pamoja_mavlink_mission_sender_len(const PamojaMavlinkMissionSender *sender);
+
+// Builds the frame that opens an upload.
+//
+// # Arguments
+//
+// * `sender` - the plan.
+// * `header` - the addressing fields to stamp on the frame.
+// * `out_frame` - set to the `MISSION_COUNT` frame, which the caller releases with
+//   `pamoja_mavlink_frame_free`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `sender` must be a live sender handle, and `out_frame` must point at writable storage for
+// one pointer.
+PamojaStatus pamoja_mavlink_mission_sender_count(const PamojaMavlinkMissionSender *sender,
+                                                 PamojaMavlinkHeader header,
+                                                 PamojaMavlinkFrame **out_frame);
+
+// Handles an incoming frame, if it is one this transfer answers.
+//
+// A `MISSION_REQUEST_LIST` is answered with the count, a `MISSION_REQUEST_INT` (or the
+// older `MISSION_REQUEST`) with the item asked for, and a request past the end of the plan
+// with a `MISSION_ACK` reporting an invalid sequence. A `MISSION_ACK` from the receiver
+// ends the transfer. Any other message sets `out_kind` to [`PAMOJA_MAVLINK_STEP_IGNORED`].
+//
+// # Arguments
+//
+// * `sender` - the plan.
+// * `frame` - the frame off the link.
+// * `header` - the addressing fields to stamp on the reply.
+// * `out_kind` - set to [`PAMOJA_MAVLINK_SENDER_REPLY`],
+//   [`PAMOJA_MAVLINK_SENDER_FINISHED`], or [`PAMOJA_MAVLINK_STEP_IGNORED`].
+// * `out_result` - set to the receiver's `MAV_MISSION_RESULT` when the transfer finished.
+// * `out_reply` - set to the frame to send back, which the caller releases with
+//   `pamoja_mavlink_frame_free`, or to null if there is nothing to send.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, including when the frame was ignored.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if any pointer is null.
+//
+// # Safety
+//
+// `sender` must be a live sender handle, `frame` a live frame handle, and each out pointer
+// must point at writable storage for its value.
+PamojaStatus pamoja_mavlink_mission_sender_on_frame(const PamojaMavlinkMissionSender *sender,
+                                                    const PamojaMavlinkFrame *frame,
+                                                    PamojaMavlinkHeader header,
+                                                    uint32_t *out_kind,
+                                                    uint8_t *out_result,
+                                                    PamojaMavlinkFrame **out_reply);
+
+// Releases a sender.
+//
+// # Arguments
+//
+// * `sender` - the handle to release; null is ignored.
+//
+// # Safety
+//
+// `sender` must have come from [`pamoja_mavlink_mission_sender_new`] and must not be used
+// afterwards.
+void pamoja_mavlink_mission_sender_free(PamojaMavlinkMissionSender *sender);
+
+// Starts tracking a command.
+//
+// # Arguments
+//
+// * `command` - the `MAV_CMD` id being sent.
+// * `max_retries` - how many times the command may be resent after a timeout before the
+//   caller gives up; [`PAMOJA_MAVLINK_MAX_RETRIES`] is the usual choice.
+//
+// # Returns
+//
+// A tracker the caller releases with [`pamoja_mavlink_command_free`].
+PamojaMavlinkCommand *pamoja_mavlink_command_new(uint16_t command, uint8_t max_retries);
+
+// Returns the command id being tracked.
+//
+// # Arguments
+//
+// * `command` - the tracker.
+//
+// # Returns
+//
+// The command id, or `0` if `command` is null.
+//
+// # Safety
+//
+// `command` must be a live tracker handle or null.
+uint16_t pamoja_mavlink_command_id(const PamojaMavlinkCommand *command);
+
+// Returns the `confirmation` count to stamp on the command being sent.
+//
+// It is zero for the first transmission and increments on each retransmission, which is
+// how an autopilot distinguishes a resend from a new command.
+//
+// # Arguments
+//
+// * `command` - the tracker.
+//
+// # Returns
+//
+// The current confirmation count, or `0` if `command` is null.
+//
+// # Safety
+//
+// `command` must be a live tracker handle or null.
+uint8_t pamoja_mavlink_command_confirmation(const PamojaMavlinkCommand *command);
+
+// Classifies an incoming frame against the command in flight.
+//
+// # Arguments
+//
+// * `command` - the tracker.
+// * `frame` - the frame off the link.
+// * `out_kind` - set to [`PAMOJA_MAVLINK_ACK_UNRELATED`], [`PAMOJA_MAVLINK_ACK_IN_PROGRESS`],
+//   [`PAMOJA_MAVLINK_ACK_FINAL`], or [`PAMOJA_MAVLINK_STEP_IGNORED`] if the frame is not a
+//   `COMMAND_ACK`.
+// * `out_value` - set to the progress percent when in progress, or the `MAV_RESULT` when
+//   final.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, including when the frame was ignored.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if any pointer is null.
+//
+// # Safety
+//
+// `command` must be a live tracker handle, `frame` a live frame handle, and each out
+// pointer must point at writable storage for its value.
+PamojaStatus pamoja_mavlink_command_on_frame(const PamojaMavlinkCommand *command,
+                                             const PamojaMavlinkFrame *frame,
+                                             uint32_t *out_kind,
+                                             uint8_t *out_value);
+
+// Records a timeout and reports whether the command may be resent.
+//
+// On a resend the `confirmation` count is incremented, so the next call to
+// [`pamoja_mavlink_command_confirmation`] stamps the new value.
+//
+// # Arguments
+//
+// * `command` - the tracker.
+// * `out_confirmation` - set to the new confirmation count when a resend is allowed.
+//
+// # Returns
+//
+// `1` if a retry remains and the command should be resent, `0` once the retry budget is
+// exhausted or if a pointer is null.
+//
+// # Safety
+//
+// `command` must be a live tracker handle, and `out_confirmation` must point at writable
+// storage for one byte.
+uint8_t pamoja_mavlink_command_on_timeout(PamojaMavlinkCommand *command, uint8_t *out_confirmation);
+
+// Releases a command tracker.
+//
+// # Arguments
+//
+// * `command` - the handle to release; null is ignored.
+//
+// # Safety
+//
+// `command` must have come from [`pamoja_mavlink_command_new`] and must not be used
+// afterwards.
+void pamoja_mavlink_command_free(PamojaMavlinkCommand *command);
+
+// Builds a setpoint `type_mask` from the fields to use.
+//
+// A setpoint carries position, velocity, acceleration, yaw, and yaw rate together; the mask
+// says which of them the autopilot should act on. Fields left out of `flags` are ignored.
+//
+// # Arguments
+//
+// * `flags` - a bitwise-or of the `PAMOJA_MAVLINK_TYPEMASK_*` flags.
+//
+// # Returns
+//
+// The mask, as the `type_mask` field of a setpoint carries it.
+uint16_t pamoja_mavlink_offboard_type_mask(uint32_t flags);
+
+// Builds a local-frame position setpoint frame.
+//
+// # Arguments
+//
+// * `header` - the addressing fields to stamp on the frame.
+// * `time_boot_ms` - the sender's boot timestamp, in milliseconds.
+// * `coordinate_frame` - the `MAV_FRAME` of the setpoint.
+// * `target_system` - the target system id.
+// * `target_component` - the target component id.
+// * `x`, `y`, `z` - the position, in metres in the chosen frame.
+// * `out_frame` - set to the `SET_POSITION_TARGET_LOCAL_NED` frame, which the caller
+//   releases with `pamoja_mavlink_frame_free`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `out_frame` is null.
+//
+// # Safety
+//
+// `out_frame` must point at writable storage for one pointer.
+PamojaStatus pamoja_mavlink_offboard_local_position(PamojaMavlinkHeader header,
+                                                    uint32_t time_boot_ms,
+                                                    uint8_t coordinate_frame,
+                                                    uint8_t target_system,
+                                                    uint8_t target_component,
+                                                    float x,
+                                                    float y,
+                                                    float z,
+                                                    PamojaMavlinkFrame **out_frame);
+
+// Builds a local-frame velocity setpoint frame.
+//
+// # Arguments
+//
+// * `header` - the addressing fields to stamp on the frame.
+// * `time_boot_ms` - the sender's boot timestamp, in milliseconds.
+// * `coordinate_frame` - the `MAV_FRAME` of the setpoint.
+// * `target_system` - the target system id.
+// * `target_component` - the target component id.
+// * `vx`, `vy`, `vz` - the velocity, in metres per second in the chosen frame.
+// * `out_frame` - set to the `SET_POSITION_TARGET_LOCAL_NED` frame, which the caller
+//   releases with `pamoja_mavlink_frame_free`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `out_frame` is null.
+//
+// # Safety
+//
+// `out_frame` must point at writable storage for one pointer.
+PamojaStatus pamoja_mavlink_offboard_local_velocity(PamojaMavlinkHeader header,
+                                                    uint32_t time_boot_ms,
+                                                    uint8_t coordinate_frame,
+                                                    uint8_t target_system,
+                                                    uint8_t target_component,
+                                                    float vx,
+                                                    float vy,
+                                                    float vz,
+                                                    PamojaMavlinkFrame **out_frame);
+
+// Builds a global-frame position setpoint frame.
+//
+// # Arguments
+//
+// * `header` - the addressing fields to stamp on the frame.
+// * `time_boot_ms` - the sender's boot timestamp, in milliseconds.
+// * `coordinate_frame` - the `MAV_FRAME` of the setpoint.
+// * `target_system` - the target system id.
+// * `target_component` - the target component id.
+// * `lat_int`, `lon_int` - the latitude and longitude, in degrees times ten million.
+// * `alt` - the altitude, in metres.
+// * `out_frame` - set to the `SET_POSITION_TARGET_GLOBAL_INT` frame, which the caller
+//   releases with `pamoja_mavlink_frame_free`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `out_frame` is null.
+//
+// # Safety
+//
+// `out_frame` must point at writable storage for one pointer.
+PamojaStatus pamoja_mavlink_offboard_global_position(PamojaMavlinkHeader header,
+                                                     uint32_t time_boot_ms,
+                                                     uint8_t coordinate_frame,
+                                                     uint8_t target_system,
+                                                     uint8_t target_component,
+                                                     int32_t lat_int,
+                                                     int32_t lon_int,
+                                                     float alt,
+                                                     PamojaMavlinkFrame **out_frame);
 
 // Returns the shape of a message the engine types, by id.
 //

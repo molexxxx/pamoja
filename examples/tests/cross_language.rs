@@ -32,7 +32,7 @@ use pamoja_lorawan::{
     MessageType, Session, Uplink,
 };
 use pamoja_mavlink::dialect::{
-    crc_extra as mavlink_crc_extra, descriptor, descriptor_by_name,
+    crc_extra as mavlink_crc_extra, descriptor, descriptor_by_name, encode_message as mav_encode,
     DynamicMessage as MavDynamicMessage, FieldType as MavFieldType,
     MessageDescriptorBuilder as MavDescriptorBuilder, DESCRIPTORS,
 };
@@ -3016,4 +3016,280 @@ fn mavlink_schema_vectors_match() {
             refused["field"]
         );
     }
+}
+
+#[test]
+fn mavlink_protocol_vectors_match() {
+    use pamoja_mavlink::dialect::{Message as _, MissionAck, MissionItemInt};
+    use pamoja_mavlink::protocol::{AckOutcome, TypeMask};
+    use pamoja_mavlink::protocol::{
+        CommandProtocol, MissionReceiver, MissionSender, ReceiverAction, SenderStep,
+    };
+
+    let vectors = vectors();
+    let case = &vectors["mavlinkProtocol"];
+    let header = |who: &str| {
+        let described = &case[who];
+        MavHeader::new(
+            described["systemId"].as_u64().expect("an id") as u8,
+            described["componentId"].as_u64().expect("an id") as u8,
+            described["sequence"].as_u64().expect("a sequence") as u8,
+        )
+    };
+    let vehicle = header("vehicle");
+    let station = header("station");
+    let parse = |value: &Value| {
+        MavFrame::parse_with(&unhex(value), mavlink_crc_extra).expect("a common-dialect frame")
+    };
+
+    // The plan's items are built by field name and must match the pinned payloads, which
+    // ties the shape layer to the protocol layer.
+    let item_shape = descriptor_by_name("MISSION_ITEM_INT").expect("a typed message");
+    let mut plan = Vec::new();
+    for (fields, want) in case["plan"]
+        .as_array()
+        .expect("an array")
+        .iter()
+        .zip(case["planPayloads"].as_array().expect("an array"))
+    {
+        let mut item = MavDynamicMessage::new(item_shape).expect("it fits a payload");
+        for entry in fields.as_array().expect("an array") {
+            item.set_number(
+                entry["field"].as_str().expect("a field"),
+                0,
+                entry["value"].as_f64().expect("a value"),
+            )
+            .expect("a settable field");
+        }
+        assert_eq!(
+            hex(item.payload()),
+            want.as_str().expect("hex"),
+            "a plan item's payload"
+        );
+        plan.push(MissionItemInt::decode(item.payload()).expect("a whole item"));
+    }
+    let upload = MissionSender::new(&plan, 1, 1, 0);
+    let mut download = MissionReceiver::new(255, 190, 0);
+
+    // The station opens, the vehicle answers with the count, and the two take turns.
+    let request_list = download.request_list_frame(station).expect("a frame");
+    assert_eq!(
+        hex(request_list.as_bytes()),
+        case["requestList"].as_str().expect("hex"),
+        "the request list frame"
+    );
+    let Some(SenderStep::Reply(count)) = upload.on_frame(&request_list, vehicle).expect("handled")
+    else {
+        panic!("a request list is answered");
+    };
+    assert_eq!(
+        hex(count.as_bytes()),
+        case["count"].as_str().expect("hex"),
+        "the count frame"
+    );
+
+    for (index, step) in case["exchange"]
+        .as_array()
+        .expect("an array")
+        .iter()
+        .enumerate()
+    {
+        let received = download
+            .on_frame(&parse(&step["feed"]), station)
+            .expect("handled")
+            .expect("a mission frame");
+        let kind = match received.action {
+            ReceiverAction::Request(_) => "request",
+            ReceiverAction::Ack(_) => "ack",
+        };
+        assert_eq!(
+            kind,
+            step["receiverKind"].as_str().expect("a kind"),
+            "receiver kind at {index}"
+        );
+        assert_eq!(
+            received.accepted.is_some(),
+            step["accepted"].as_bool().expect("a flag"),
+            "whether an item was accepted at {index}"
+        );
+        assert_eq!(
+            received.accepted.map(|item| u64::from(item.seq)),
+            step["acceptedSeq"].as_u64(),
+            "the accepted item's sequence at {index}"
+        );
+        assert_eq!(
+            hex(received.reply.as_bytes()),
+            step["reply"].as_str().expect("hex"),
+            "the receiver's reply at {index}"
+        );
+
+        let answered = upload
+            .on_frame(&received.reply, vehicle)
+            .expect("handled")
+            .expect("a mission frame");
+        match answered {
+            SenderStep::Reply(reply) => {
+                assert_eq!(step["senderKind"], "reply", "sender kind at {index}");
+                assert_eq!(
+                    hex(reply.as_bytes()),
+                    step["senderReply"].as_str().expect("hex"),
+                    "the sender's reply at {index}"
+                );
+            }
+            SenderStep::Finished(result) => {
+                assert_eq!(step["senderKind"], "finished", "sender kind at {index}");
+                assert_eq!(
+                    u64::from(result),
+                    step["senderResult"].as_u64().expect("a result"),
+                    "the transfer's result at {index}"
+                );
+            }
+        }
+    }
+    assert!(download.is_complete(), "the download finished");
+
+    // A request past the end of the plan is refused with the published result.
+    let overrun = &case["overrun"];
+    let Some(SenderStep::Reply(refusal)) = upload
+        .on_frame(&parse(&overrun["request"]), station)
+        .expect("handled")
+    else {
+        panic!("a request is answered");
+    };
+    assert_eq!(
+        hex(refusal.as_bytes()),
+        overrun["reply"].as_str().expect("hex"),
+        "the refusal"
+    );
+    assert_eq!(
+        u64::from(MissionAck::decode(refusal.payload()).expect("an ack").type_),
+        overrun["result"].as_u64().expect("a result"),
+        "the refusal's result"
+    );
+
+    // The command protocol classifies acknowledgements and counts retries.
+    let command = &case["command"];
+    let mut arm = CommandProtocol::new(
+        command["command"].as_u64().expect("an id") as u16,
+        command["maxRetries"].as_u64().expect("a count") as u8,
+    );
+    for ack in command["acks"].as_array().expect("an array") {
+        let outcome = arm
+            .on_frame(&parse(&ack["frame"]))
+            .expect("handled")
+            .expect("an ack");
+        let (kind, value) = match outcome {
+            AckOutcome::Unrelated => ("unrelated", None),
+            AckOutcome::InProgress(progress) => ("inProgress", Some(u64::from(progress))),
+            AckOutcome::Final(result) => ("final", Some(u64::from(result))),
+        };
+        assert_eq!(kind, ack["kind"].as_str().expect("a kind"), "an ack's kind");
+        assert_eq!(value, ack["value"].as_u64(), "an ack's value");
+    }
+    for want in command["timeouts"].as_array().expect("an array") {
+        assert_eq!(
+            arm.on_timeout().map(u64::from),
+            want.as_u64(),
+            "a timeout's verdict"
+        );
+    }
+
+    // A frame none of the machines handle is passed over by all of them.
+    let ignored = parse(&case["ignored"]);
+    assert!(upload
+        .on_frame(&ignored, station)
+        .expect("handled")
+        .is_none());
+    assert!(download
+        .on_frame(&ignored, station)
+        .expect("handled")
+        .is_none());
+    assert!(arm.on_frame(&ignored).expect("handled").is_none());
+
+    // Setpoints put exactly these bytes on the wire.
+    let offboard = &case["offboard"];
+    for entry in offboard["typeMasks"].as_array().expect("an array") {
+        let flags = entry["flags"].as_u64().expect("flags") as u32;
+        let mut mask = TypeMask::ignore_all();
+        if flags & 1 != 0 {
+            mask = mask.use_position();
+        }
+        if flags & 2 != 0 {
+            mask = mask.use_velocity();
+        }
+        if flags & 4 != 0 {
+            mask = mask.use_acceleration();
+        }
+        if flags & 8 != 0 {
+            mask = mask.use_yaw();
+        }
+        if flags & 16 != 0 {
+            mask = mask.use_yaw_rate();
+        }
+        if flags & 32 != 0 {
+            mask = mask.force();
+        }
+        assert_eq!(
+            u64::from(mask.bits()),
+            entry["mask"].as_u64().expect("a mask"),
+            "mask for {flags}"
+        );
+    }
+    let local = &offboard["localPosition"];
+    let frame = mav_encode(
+        station,
+        &pamoja_mavlink::dialect::SetPositionTargetLocalNed::position(
+            local["timeBootMs"].as_u64().expect("ms") as u32,
+            local["coordinateFrame"].as_u64().expect("a frame") as u8,
+            local["targetSystem"].as_u64().expect("an id") as u8,
+            local["targetComponent"].as_u64().expect("an id") as u8,
+            local["x"].as_f64().expect("x") as f32,
+            local["y"].as_f64().expect("y") as f32,
+            local["z"].as_f64().expect("z") as f32,
+        ),
+    )
+    .expect("a frame");
+    assert_eq!(
+        hex(frame.as_bytes()),
+        local["frame"].as_str().expect("hex"),
+        "a position setpoint"
+    );
+    let velocity = &offboard["localVelocity"];
+    let frame = mav_encode(
+        station,
+        &pamoja_mavlink::dialect::SetPositionTargetLocalNed::velocity(
+            velocity["timeBootMs"].as_u64().expect("ms") as u32,
+            velocity["coordinateFrame"].as_u64().expect("a frame") as u8,
+            velocity["targetSystem"].as_u64().expect("an id") as u8,
+            velocity["targetComponent"].as_u64().expect("an id") as u8,
+            velocity["vx"].as_f64().expect("vx") as f32,
+            velocity["vy"].as_f64().expect("vy") as f32,
+            velocity["vz"].as_f64().expect("vz") as f32,
+        ),
+    )
+    .expect("a frame");
+    assert_eq!(
+        hex(frame.as_bytes()),
+        velocity["frame"].as_str().expect("hex"),
+        "a velocity setpoint"
+    );
+    let global = &offboard["globalPosition"];
+    let frame = mav_encode(
+        station,
+        &pamoja_mavlink::dialect::SetPositionTargetGlobalInt::position(
+            global["timeBootMs"].as_u64().expect("ms") as u32,
+            global["coordinateFrame"].as_u64().expect("a frame") as u8,
+            global["targetSystem"].as_u64().expect("an id") as u8,
+            global["targetComponent"].as_u64().expect("an id") as u8,
+            global["latInt"].as_i64().expect("lat") as i32,
+            global["lonInt"].as_i64().expect("lon") as i32,
+            global["alt"].as_f64().expect("alt") as f32,
+        ),
+    )
+    .expect("a frame");
+    assert_eq!(
+        hex(frame.as_bytes()),
+        global["frame"].as_str().expect("hex"),
+        "a global setpoint"
+    );
 }

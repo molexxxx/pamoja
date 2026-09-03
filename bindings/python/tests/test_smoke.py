@@ -975,3 +975,58 @@ def test_mavlink_shapes_describe_a_private_dialect():
     sent = pack.to_frame(mavlink.MavlinkHeader(9, 1))
     back = mavlink.MavlinkFrame.parse_known(sent.bytes, dialect)
     assert mavlink.MavlinkMessage.decode(cells, back.payload).get("cell_mv", 2) == 4151
+
+
+def test_mavlink_protocols_carry_a_plan_and_match_a_command():
+    """A plan crosses one frame at a time, and a command finds its acknowledgement."""
+    from pamoja import mavlink
+
+    vehicle = mavlink.MavlinkHeader(1, 1)
+    station = mavlink.MavlinkHeader(255, 190)
+
+    # Two waypoints, described by field name; the sender numbers them itself.
+    upload = mavlink.MissionSender(1, 1)
+    item_shape = mavlink.schema_for("MISSION_ITEM_INT")
+    upload.add_item(mavlink.from_dict(item_shape, {"command": 22, "z": 20}).payload)
+    upload.add_item(
+        mavlink.from_dict(
+            item_shape, {"command": 16, "x": -338567800, "y": 1512153000, "z": 50}
+        ).payload
+    )
+    assert len(upload) == 2
+
+    # The station opens the download and the two sides take turns until it is acknowledged.
+    download = mavlink.MissionReceiver(255, 190)
+    from_vehicle = upload.on_frame(download.request_list(station), vehicle).reply
+    accepted = []
+    while True:
+        step = download.on_frame(from_vehicle, station)
+        assert step is not None
+        if step.accepted is not None:
+            accepted.append(step.accepted.get_int("command"))
+        answer = upload.on_frame(step.reply, vehicle)
+        if answer.kind == "finished":
+            assert answer.result == 0
+            break
+        from_vehicle = answer.reply
+    assert accepted == [22, 16]
+    assert download.complete
+
+    # A command is matched to its acknowledgement, and a stray frame is passed over.
+    arm = mavlink.CommandProtocol(400)
+    assert arm.confirmation == 0
+    ack = mavlink.from_dict(
+        mavlink.schema_for("COMMAND_ACK"), {"command": 400, "result": 0}
+    ).to_frame(vehicle)
+    outcome = arm.on_frame(ack)
+    assert (outcome.kind, outcome.value) == ("final", 0)
+    assert arm.on_frame(from_vehicle) is None
+    assert arm.on_timeout() == 1
+
+    # A setpoint goes out as the right message with the right mask.
+    setpoint = mavlink.local_velocity(station, 1000, 1, 1, 1, 0.5, 0.0, 0.0)
+    assert setpoint.message_id == 84
+    read = mavlink.MavlinkMessage.decode(
+        mavlink.schema_for("SET_POSITION_TARGET_LOCAL_NED"), setpoint.payload
+    )
+    assert read.get_int("type_mask") == mavlink.type_mask(mavlink.TypeMask.VELOCITY)

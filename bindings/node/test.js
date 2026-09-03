@@ -94,6 +94,7 @@ async function main() {
   radioAndReach();
   mavlinkWire();
   mavlinkShapes();
+  mavlinkProtocols();
   trustAndOperation();
   await asyncTransports();
 
@@ -490,6 +491,64 @@ function mavlinkShapes() {
     mavlink.MavlinkMessage.decode(cells, back.payload).get("cell_mv", 2),
     4151,
     "a private message survives the wire whole",
+  );
+}
+
+// The service protocols: a plan crosses from a station to a vehicle one frame at a time,
+// a command is matched to its acknowledgement, and a setpoint goes out as the right message.
+function mavlinkProtocols() {
+  const vehicle = { systemId: 1, componentId: 1, sequence: 0 };
+  const station = { systemId: 255, componentId: 190, sequence: 0 };
+
+  // Two waypoints, described by field name; the sender numbers them itself.
+  const upload = new mavlink.MissionSender(1, 1);
+  const itemShape = mavlink.schemaFor("MISSION_ITEM_INT");
+  upload.addItem(mavlink.fromObject(itemShape, { command: 22, z: 20 }).payload);
+  upload.addItem(
+    mavlink.fromObject(itemShape, { command: 16, x: -338567800, y: 1512153000, z: 50 }).payload,
+  );
+  assert.strictEqual(upload.length, 2, "the plan holds both items");
+
+  // The station opens the download and the two sides take turns until it is acknowledged.
+  const download = new mavlink.MissionReceiver(255, 190);
+  let fromVehicle = upload.onFrame(download.requestList(station), vehicle).reply;
+  const accepted = [];
+  for (;;) {
+    const step = download.onFrame(fromVehicle, station);
+    assert.ok(step !== null, "the vehicle only sends what the receiver handles");
+    if (step.accepted !== null) {
+      accepted.push(step.accepted.get("command"));
+    }
+    const answer = upload.onFrame(step.reply, vehicle);
+    if (answer.kind === "finished") {
+      assert.strictEqual(answer.result, 0, "the transfer is accepted");
+      break;
+    }
+    fromVehicle = answer.reply;
+  }
+  assert.deepStrictEqual(accepted, [22, 16], "both items arrive in order");
+  assert.ok(download.complete, "and the download is complete");
+
+  // A command is matched to its acknowledgement, and a stray frame is passed over.
+  const arm = new mavlink.CommandProtocol(400);
+  assert.strictEqual(arm.confirmation, 0, "the first send carries confirmation 0");
+  const ackShape = mavlink.schemaFor("COMMAND_ACK");
+  const ack = mavlink.fromObject(ackShape, { command: 400, result: 0 }).toFrame(vehicle);
+  assert.deepStrictEqual(arm.onFrame(ack), { kind: "final", value: 0 }, "an accepted arm");
+  assert.strictEqual(arm.onFrame(fromVehicle), null, "a mission frame is not an ack");
+  assert.strictEqual(arm.onTimeout(), 1, "a timeout allows a resend with confirmation 1");
+
+  // A setpoint goes out as the right message with the right mask.
+  const setpoint = mavlink.offboard.localVelocity(station, 1000, 1, 1, 1, 0.5, 0, 0);
+  assert.strictEqual(setpoint.messageId, 84, "SET_POSITION_TARGET_LOCAL_NED");
+  const read = mavlink.MavlinkMessage.decode(
+    mavlink.schemaFor("SET_POSITION_TARGET_LOCAL_NED"),
+    setpoint.payload,
+  );
+  assert.strictEqual(
+    read.get("type_mask"),
+    mavlink.offboard.typeMask(mavlink.MavlinkTypeMask.VELOCITY),
+    "only the velocity fields are active",
   );
 }
 

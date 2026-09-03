@@ -160,6 +160,39 @@ export declare class CobsDecoder {
   reset(): void
 }
 
+/** Tracks one command awaiting its acknowledgement. */
+export declare class CommandProtocol {
+  /**
+   * Starts tracking a command.
+   *
+   * @param command - The `MAV_CMD` id being sent.
+   * @param maxRetries - How many times the command may be resent after a timeout before
+   *   the caller gives up; defaults to `MAVLINK_MAX_RETRIES`.
+   */
+  constructor(command: number, maxRetries?: number | undefined | null)
+  /** The command id being tracked. */
+  get command(): number
+  /**
+   * The `confirmation` count to stamp on the command being sent: zero for the first
+   * transmission, incremented on each retransmission.
+   */
+  get confirmation(): number
+  /**
+   * Classifies an incoming frame against the command in flight.
+   *
+   * @param frame - The frame off the link.
+   * @returns The outcome, or `null` if the frame is not a `COMMAND_ACK`.
+   */
+  onFrame(frame: MavlinkFrame): AckOutcome | null
+  /**
+   * Records a timeout and reports whether the command may be resent.
+   *
+   * @returns The new confirmation count to stamp on the resend, or `null` once the retry
+   *   budget is exhausted.
+   */
+  onTimeout(): number | null
+}
+
 /**
  * The decision logic a profile assembles.
  *
@@ -926,6 +959,87 @@ export declare class MessageSchemaBuilder {
   build(): MessageSchema
 }
 
+/** Requests a plan's items in order and collects them, ending with an acknowledgement. */
+export declare class MissionReceiver {
+  /**
+   * Creates a receiver for a plan from a target vehicle.
+   *
+   * @param targetSystem - The sending system's id.
+   * @param targetComponent - The sending component's id.
+   * @param missionType - The `MAV_MISSION_TYPE` to transfer; defaults to the main
+   *   mission.
+   */
+  constructor(targetSystem: number, targetComponent: number, missionType?: number | undefined | null)
+  /**
+   * Builds the frame that starts a download.
+   *
+   * @param header - The addressing fields to stamp on the frame.
+   * @returns The `MISSION_REQUEST_LIST` frame.
+   */
+  requestList(header: MavlinkHeader): MavlinkFrame
+  /**
+   * Handles an incoming frame, if it is one this transfer is waiting for.
+   *
+   * A `MISSION_COUNT` opens the transfer and a `MISSION_ITEM_INT` advances it.
+   *
+   * @param frame - The frame off the link.
+   * @param header - The addressing fields to stamp on the reply.
+   * @returns The step taken, or `null` if the frame carries a message this transfer does
+   *   not handle.
+   */
+  onFrame(frame: MavlinkFrame, header: MavlinkHeader): ReceiverStep | null
+  /** Whether every item has been received and the acknowledgement produced. */
+  get complete(): boolean
+  /** The next sequence number the receiver expects. */
+  get expected(): number
+}
+
+/** Holds a plan and answers a receiver's requests for its items. */
+export declare class MissionSender {
+  /**
+   * Creates a sender for a plan bound for a target vehicle, with no items yet.
+   *
+   * @param targetSystem - The receiving system's id.
+   * @param targetComponent - The receiving component's id.
+   * @param missionType - The `MAV_MISSION_TYPE` of the plan; defaults to the main
+   *   mission.
+   */
+  constructor(targetSystem: number, targetComponent: number, missionType?: number | undefined | null)
+  /**
+   * Appends an item to the plan.
+   *
+   * The sender stamps the sequence number, target ids, and mission type onto each item as
+   * it is handed out, so the item need only carry its content: command, frame, position,
+   * and parameters. Build one by field name with the `MISSION_ITEM_INT` schema.
+   *
+   * @param item - The item, as a `MISSION_ITEM_INT` message or its payload.
+   */
+  addItem(item: Buffer): void
+  /** The number of items in the plan. */
+  get length(): number
+  /**
+   * Builds the frame that opens an upload.
+   *
+   * @param header - The addressing fields to stamp on the frame.
+   * @returns The `MISSION_COUNT` frame.
+   */
+  count(header: MavlinkHeader): MavlinkFrame
+  /**
+   * Handles an incoming frame, if it is one this transfer answers.
+   *
+   * A `MISSION_REQUEST_LIST` is answered with the count, a `MISSION_REQUEST_INT` (or the
+   * older `MISSION_REQUEST`) with the item asked for, and a request past the end of the
+   * plan with a `MISSION_ACK` reporting an invalid sequence. A `MISSION_ACK` from the
+   * receiver ends the transfer.
+   *
+   * @param frame - The frame off the link.
+   * @param header - The addressing fields to stamp on the reply.
+   * @returns The step taken, or `null` if the frame carries a message this transfer does
+   *   not handle.
+   */
+  onFrame(frame: MavlinkFrame, header: MavlinkHeader): SenderStep | null
+}
+
 /** An MQTT client transport backed by the native pamoja core. */
 export declare class MqttClient {
   /** Creates a disconnected client from the given options. */
@@ -1037,6 +1151,22 @@ export declare class Ramp {
   value(): number
   /** Forces the value without rate limiting. */
   set(value: number): void
+}
+
+/** What one incoming frame produced for a mission receiver. */
+export declare class ReceiverStep {
+  /**
+   * What the receiver answered with: `request` for the next item, or `ack` to end the
+   * transfer.
+   */
+  get kind(): string
+  /**
+   * The `MISSION_ITEM_INT` the frame carried, if it was the one expected next, as a
+   * message read by field name.
+   */
+  get accepted(): MavlinkMessage | null
+  /** The frame to send back. */
+  get reply(): MavlinkFrame
 }
 
 /** An actuator that records every command instead of acting on one. */
@@ -1160,6 +1290,19 @@ export declare class SeenPackets {
   record(src: number, id: number): boolean
   /** How many packets this cache remembers. */
   get capacity(): number
+}
+
+/** What one incoming frame produced for a mission sender. */
+export declare class SenderStep {
+  /**
+   * What happened: `reply` when there is a frame to send, or `finished` when the receiver
+   * acknowledged the transfer.
+   */
+  get kind(): string
+  /** The frame to send back, when there is one. */
+  get reply(): MavlinkFrame | null
+  /** The receiver's `MAV_MISSION_RESULT`, when the transfer finished. */
+  get result(): number | null
 }
 
 /** A confidential, tamper-evident, replay-protected channel with one peer. */
@@ -1456,6 +1599,20 @@ export declare class Window {
   range(): number | null
   /** The variance of the readings, or `null` without enough of them. */
   variance(): number | null
+}
+
+/** What an incoming acknowledgement means for the command in flight. */
+export interface AckOutcome {
+  /**
+   * `unrelated` if the ack was for another command, `inProgress` if the command is still
+   * running, or `final` if it finished.
+   */
+  kind: string
+  /**
+   * The progress percent when in progress (255 when the autopilot does not report one),
+   * or the `MAV_RESULT` when final.
+   */
+  value?: number
 }
 
 /** An ADS1115 configuration register, field by field. */
@@ -2399,8 +2556,32 @@ export const MAVLINK_MAX_FRAME: number
 /** The largest payload a frame can carry, in bytes. */
 export const MAVLINK_MAX_PAYLOAD: number
 
+/**
+ * The number of times a request is retransmitted before a transfer is abandoned, as the
+ * mission protocol recommends.
+ */
+export const MAVLINK_MAX_RETRIES: number
+
 /** The length of a v2 signature block, in bytes. */
 export const MAVLINK_SIGNATURE_LEN: number
+
+/** Use the acceleration fields of a setpoint. */
+export const MAVLINK_TYPEMASK_ACCELERATION: number
+
+/** Treat the acceleration fields as a force. */
+export const MAVLINK_TYPEMASK_FORCE: number
+
+/** Use the position fields of a setpoint. */
+export const MAVLINK_TYPEMASK_POSITION: number
+
+/** Use the velocity fields of a setpoint. */
+export const MAVLINK_TYPEMASK_VELOCITY: number
+
+/** Use the yaw field of a setpoint. */
+export const MAVLINK_TYPEMASK_YAW: number
+
+/** Use the yaw rate field of a setpoint. */
+export const MAVLINK_TYPEMASK_YAW_RATE: number
 
 /**
  * Returns the CRC-16/MCRF4XX checksum of a byte string.
@@ -2469,6 +2650,59 @@ export declare function mavlinkKnownMessages(): Array<string>
  * not be listed.
  */
 export declare function mavlinkMessageCrcExtra(name: string, fields: Array<MavlinkField>): number
+
+/**
+ * Builds a global-frame position setpoint frame.
+ *
+ * @param header - The addressing fields to stamp on the frame.
+ * @param timeBootMs - The sender's boot timestamp, in milliseconds.
+ * @param coordinateFrame - The `MAV_FRAME` of the setpoint.
+ * @param targetSystem - The target system id.
+ * @param targetComponent - The target component id.
+ * @param latInt - The latitude, in degrees times ten million.
+ * @param lonInt - The longitude, in degrees times ten million.
+ * @param alt - The altitude, in metres.
+ * @returns The `SET_POSITION_TARGET_GLOBAL_INT` frame.
+ */
+export declare function mavlinkOffboardGlobalPosition(header: MavlinkHeader, timeBootMs: number, coordinateFrame: number, targetSystem: number, targetComponent: number, latInt: number, lonInt: number, alt: number): MavlinkFrame
+
+/**
+ * Builds a local-frame position setpoint frame.
+ *
+ * @param header - The addressing fields to stamp on the frame.
+ * @param timeBootMs - The sender's boot timestamp, in milliseconds.
+ * @param coordinateFrame - The `MAV_FRAME` of the setpoint.
+ * @param targetSystem - The target system id.
+ * @param targetComponent - The target component id.
+ * @param x - The position along x, in metres in the chosen frame.
+ * @param y - The position along y.
+ * @param z - The position along z.
+ * @returns The `SET_POSITION_TARGET_LOCAL_NED` frame.
+ */
+export declare function mavlinkOffboardLocalPosition(header: MavlinkHeader, timeBootMs: number, coordinateFrame: number, targetSystem: number, targetComponent: number, x: number, y: number, z: number): MavlinkFrame
+
+/**
+ * Builds a local-frame velocity setpoint frame.
+ *
+ * @param header - The addressing fields to stamp on the frame.
+ * @param timeBootMs - The sender's boot timestamp, in milliseconds.
+ * @param coordinateFrame - The `MAV_FRAME` of the setpoint.
+ * @param targetSystem - The target system id.
+ * @param targetComponent - The target component id.
+ * @param vx - The velocity along x, in metres per second in the chosen frame.
+ * @param vy - The velocity along y.
+ * @param vz - The velocity along z.
+ * @returns The `SET_POSITION_TARGET_LOCAL_NED` frame.
+ */
+export declare function mavlinkOffboardLocalVelocity(header: MavlinkHeader, timeBootMs: number, coordinateFrame: number, targetSystem: number, targetComponent: number, vx: number, vy: number, vz: number): MavlinkFrame
+
+/**
+ * Builds a setpoint `type_mask` from the fields to use.
+ *
+ * @param flags - A bitwise-or of the `MAVLINK_TYPEMASK_*` flags; fields left out are ignored.
+ * @returns The mask, as the `type_mask` field of a setpoint carries it.
+ */
+export declare function mavlinkOffboardTypeMask(flags: number): number
 
 /** Converts Unix time into the timestamp MAVLink signing counts in. */
 export declare function mavlinkTimestampFromUnixMicros(unixMicros: number): number

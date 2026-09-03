@@ -216,6 +216,11 @@ impl MavlinkFrame {
     pub(crate) fn from_frame(inner: CoreFrame) -> Self {
         Self { inner }
     }
+
+    /// Returns the frame this wraps, for another module in this crate to read.
+    pub(crate) fn frame(&self) -> &CoreFrame {
+        &self.inner
+    }
 }
 
 #[gen_stub_pymethods]

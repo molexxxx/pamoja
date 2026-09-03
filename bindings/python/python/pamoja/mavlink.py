@@ -15,14 +15,23 @@ Above the bytes sits the shape: :class:`MessageSchema` names a message's fields,
 so a :class:`MavlinkMessage` is filled in and read back by name rather than by
 byte offset, and :class:`MessageSchemaBuilder` describes a message this build has
 never heard of.
+
+Above the messages sit the exchanges: :class:`MissionSender` and
+:class:`MissionReceiver` carry a plan between a station and a vehicle,
+:class:`CommandProtocol` matches a command to its acknowledgement and counts
+retries, and :func:`local_position`, :func:`local_velocity`, and
+:func:`global_position` build setpoints. Each takes a frame off the link and
+hands back the frame to send, with no IO or timers of its own.
 """
 
 from __future__ import annotations
 
 import time
-from enum import IntEnum
+from enum import IntEnum, IntFlag
 
 from ._core import (
+    AckOutcome,
+    CommandProtocol,
     Dialect,
     MavlinkFieldInfo,
     MavlinkFrame,
@@ -33,20 +42,31 @@ from ._core import (
     MavlinkVerifier,
     MessageSchema,
     MessageSchemaBuilder,
+    MissionReceiver,
+    MissionSender,
+    ReceiverStep,
+    SenderStep,
     mavlink_crc16_mcrf4xx,
     mavlink_known_crc_extra,
     mavlink_known_messages,
     mavlink_message_crc_extra,
+    mavlink_offboard_global_position,
+    mavlink_offboard_local_position,
+    mavlink_offboard_local_velocity,
+    mavlink_offboard_type_mask,
     mavlink_timestamp_from_unix_micros,
 )
 
 __all__ = [
+    "AckOutcome",
+    "CommandProtocol",
     "DEFAULT_TIMESTAMP_WINDOW",
     "Dialect",
     "FieldType",
     "KEY_LEN",
     "MAX_FRAME",
     "MAX_PAYLOAD",
+    "MAX_RETRIES",
     "MavlinkFieldInfo",
     "MavlinkFrame",
     "MavlinkHeader",
@@ -56,18 +76,27 @@ __all__ = [
     "MavlinkVerifier",
     "MessageSchema",
     "MessageSchemaBuilder",
+    "MissionReceiver",
+    "MissionSender",
+    "ReceiverStep",
     "SIGNATURE_LEN",
+    "SenderStep",
+    "TypeMask",
     "crc16",
     "frame",
     "from_dict",
+    "global_position",
     "known_crc_extra",
     "known_messages",
+    "local_position",
+    "local_velocity",
     "message",
     "message_crc_extra",
     "schema_for",
     "timestamp_from_unix_micros",
     "timestamp_now",
     "to_dict",
+    "type_mask",
 ]
 
 #: The largest payload a frame can carry, in bytes.
@@ -84,6 +113,10 @@ KEY_LEN = 32
 
 #: The default window a verifier accepts a timestamp within.
 DEFAULT_TIMESTAMP_WINDOW = 6_000_000
+
+#: The number of times a request is retransmitted before a transfer is abandoned, as
+#: the mission protocol recommends.
+MAX_RETRIES = 5
 
 
 def crc16(data: bytes) -> int:
@@ -308,3 +341,123 @@ def from_dict(shape: MessageSchema, values: dict[str, object]) -> MavlinkMessage
         else:
             built.set(name, float(value))
     return built
+
+
+class TypeMask(IntFlag):
+    """The fields of a setpoint the autopilot should act on.
+
+    Combine members with ``|``; the fields left out are ignored.
+    """
+
+    POSITION = 1
+    VELOCITY = 2
+    ACCELERATION = 4
+    YAW = 8
+    YAW_RATE = 16
+    FORCE = 32
+
+
+def type_mask(fields: TypeMask | int) -> int:
+    """Build a setpoint ``type_mask`` from the fields to use.
+
+    :param fields: The fields the autopilot should act on.
+    :returns: The mask, as the ``type_mask`` field of a setpoint carries it.
+
+    >>> type_mask(TypeMask.VELOCITY | TypeMask.YAW_RATE) == mavlink_offboard_type_mask(2 | 16)
+    True
+    """
+    return mavlink_offboard_type_mask(int(fields))
+
+
+def local_position(
+    header: MavlinkHeader,
+    time_boot_ms: int,
+    coordinate_frame: int,
+    target_system: int,
+    target_component: int,
+    x: float,
+    y: float,
+    z: float,
+) -> MavlinkFrame:
+    """Build a local-frame position setpoint, ready to send.
+
+    :param header: The addressing fields to stamp on the frame.
+    :param time_boot_ms: The sender's boot timestamp, in milliseconds.
+    :param coordinate_frame: The ``MAV_FRAME`` of the setpoint.
+    :param target_system: The target system id.
+    :param target_component: The target component id.
+    :param x: The position along x, in metres in the chosen frame.
+    :param y: The position along y.
+    :param z: The position along z.
+    :returns: The ``SET_POSITION_TARGET_LOCAL_NED`` frame.
+
+    >>> local_position(MavlinkHeader(255, 190), 1000, 1, 1, 1, 10.0, 0.0, -5.0).message_id
+    84
+    """
+    return mavlink_offboard_local_position(
+        header, time_boot_ms, coordinate_frame, target_system, target_component, x, y, z
+    )
+
+
+def local_velocity(
+    header: MavlinkHeader,
+    time_boot_ms: int,
+    coordinate_frame: int,
+    target_system: int,
+    target_component: int,
+    vx: float,
+    vy: float,
+    vz: float,
+) -> MavlinkFrame:
+    """Build a local-frame velocity setpoint, ready to send.
+
+    :param header: The addressing fields to stamp on the frame.
+    :param time_boot_ms: The sender's boot timestamp, in milliseconds.
+    :param coordinate_frame: The ``MAV_FRAME`` of the setpoint.
+    :param target_system: The target system id.
+    :param target_component: The target component id.
+    :param vx: The velocity along x, in metres per second in the chosen frame.
+    :param vy: The velocity along y.
+    :param vz: The velocity along z.
+    :returns: The ``SET_POSITION_TARGET_LOCAL_NED`` frame.
+    """
+    return mavlink_offboard_local_velocity(
+        header, time_boot_ms, coordinate_frame, target_system, target_component, vx, vy, vz
+    )
+
+
+def global_position(
+    header: MavlinkHeader,
+    time_boot_ms: int,
+    coordinate_frame: int,
+    target_system: int,
+    target_component: int,
+    lat_int: int,
+    lon_int: int,
+    alt: float,
+) -> MavlinkFrame:
+    """Build a global-frame position setpoint, ready to send.
+
+    :param header: The addressing fields to stamp on the frame.
+    :param time_boot_ms: The sender's boot timestamp, in milliseconds.
+    :param coordinate_frame: The ``MAV_FRAME`` of the setpoint.
+    :param target_system: The target system id.
+    :param target_component: The target component id.
+    :param lat_int: The latitude, in degrees times ten million.
+    :param lon_int: The longitude, in degrees times ten million.
+    :param alt: The altitude, in metres.
+    :returns: The ``SET_POSITION_TARGET_GLOBAL_INT`` frame.
+
+    >>> global_position(MavlinkHeader(255, 190), 1000, 6, 1, 1, -338567800, 1512153000, 50.0).message_id
+    86
+    """
+    return mavlink_offboard_global_position(
+        header,
+        time_boot_ms,
+        coordinate_frame,
+        target_system,
+        target_component,
+        lat_int,
+        lon_int,
+        alt,
+    )
