@@ -11,6 +11,7 @@ low-level escape hatch for anything the facade does not cover.
 <!-- table: binding dotnet -->
 | Capability | Types | What it covers |
 | --- | --- | --- |
+| Engine surface | `Transport`, `TransportMessage` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | Device identity | `DeviceIdentity` | ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic |
 | Codecs | `Codec`, `Quantizer` | CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links |
 | Helpers | `Kit`, `Smoother`, `Median`, `Kalman`, `Calibration`, `Pid`, `Ramp`, `Thermostat`, `Debounce`, `Boundary`, `Coordinate`, `Geofence`, `Window`, `Trend`, `Surge`, `Depletion`, `Anomaly` | Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo |
@@ -36,7 +37,6 @@ low-level escape hatch for anything the facade does not cover.
 | Store and forward | `Store` | Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss |
 | Transport ladder | `Ladder`, `Delivery` | Cheapest reachable link first, buffering to a store when every link is down |
 | Event bus | `EventBus` | An in-memory typed publish and subscribe event bus |
-| Engine surface | `Transport`, `TransportMessage` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | Simulators | `SimulatedSensor`, `Replay`, `RecordingActuator`, `SimulatedRobot`, `Pose`, `Twist` | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
 | Device profiles | `Profile`, `ControlPolicy`, `ControlKind`, `Controller`, `Reaction`, `Alert`, `AlertKind`, `PowerSchedule` | Named, ready-to-run device profiles from plain data or a JSON manifest |
 | ROS 2 rules | `Ros2`, `Ros2Twist`, `Vector3`, `CdrReader`, `CdrWriter`, `EntityKind` | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |

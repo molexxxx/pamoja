@@ -23,20 +23,23 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Set up venv and build the extension
+      # pamoja-native is the PyO3 crate under packages/native; every other package is
+      # pure Python, installed from its directory so the namespace portions merge.
+      - name: Set up venv, build the engine, and install every package
         run: |
           python -m venv .venv
           . .venv/bin/activate
           pip install maturin pytest
-          maturin develop
+          maturin develop -m packages/native/Cargo.toml
+          pip install $(find packages -mindepth 1 -maxdepth 1 -type d ! -name native)
 
       - name: Regenerate the type stub
-        run: cargo run --bin stub_gen
+        run: cargo run --bin stub_gen --manifest-path packages/native/Cargo.toml
 
       - name: Check the generated stub is in sync with the Rust source
         run: |
-          if ! git diff --exit-code -- python/pamoja/_core/__init__.pyi; then
-            echo "::error::Generated stub is stale. Run 'cargo run --bin stub_gen' in bindings/python and commit python/pamoja/_core/__init__.pyi."
+          if ! git diff --exit-code -- packages/native/python/pamoja/_native/__init__.pyi; then
+            echo "::error::Generated stub is stale. Run 'cargo run --bin stub_gen' in bindings/python/packages/native and commit python/pamoja/_native/__init__.pyi."
             exit 1
           fi
 

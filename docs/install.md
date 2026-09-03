@@ -48,6 +48,7 @@ not the download. Node 16 or later.
 <!-- table: binding node -->
 | Capability | Import | What it covers |
 | --- | --- | --- |
+| Engine surface | `@pamoja/core` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | Device identity | `@pamoja/security` | ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic |
 | Codecs | `@pamoja/codec` | CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links |
 | Helpers | `@pamoja/kit` | Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo |
@@ -73,7 +74,6 @@ not the download. Node 16 or later.
 | Store and forward | `@pamoja/sync` | Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss |
 | Transport ladder | `@pamoja/ladder` | Cheapest reachable link first, buffering to a store when every link is down |
 | Event bus | `@pamoja/bus` | An in-memory typed publish and subscribe event bus |
-| Engine surface | `@pamoja/core` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | Simulators | `@pamoja/sim` | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
 | Device profiles | `@pamoja/profile` | Named, ready-to-run device profiles from plain data or a JSON manifest |
 | ROS 2 rules | `@pamoja/ros2` | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |
@@ -83,21 +83,25 @@ not the download. Node 16 or later.
 ## Python
 
 ```sh
-pip install pamoja                # every capability
-pip install pamoja-core           # the engine's surface, and the capabilities as modules today
+pip install pamoja                          # every capability
+pip install pamoja-security pamoja-codec    # only the distributions you use
 ```
 
 ```python
-from pamoja import security, codec
+from pamoja.security import DeviceIdentity
+from pamoja.codec import to_cbor, from_cbor
 ```
 
-Wheels exist for the same platforms as the Node engine, for Python 3.10 and
-later; on any other platform `pip` builds the extension from the sdist, which
-needs a Rust toolchain.
+`pamoja` is a namespace package: each distribution ships one `pamoja.<name>`
+module and they merge on import. Every distribution depends on `pamoja-native`,
+the compiled engine, with wheels for the same platforms as the Node engine and
+for Python 3.10 and later; elsewhere `pip` builds it from the sdist, which needs
+a Rust toolchain.
 
 <!-- table: binding python -->
 | Capability | Module | What it covers |
 | --- | --- | --- |
+| Engine surface | `pamoja.core` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | Device identity | `pamoja.security` | ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic |
 | Codecs | `pamoja.codec` | CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links |
 | Helpers | `pamoja.kit` | Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo |
@@ -123,7 +127,6 @@ needs a Rust toolchain.
 | Store and forward | `pamoja.sync` | Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss |
 | Transport ladder | `pamoja.ladder` | Cheapest reachable link first, buffering to a store when every link is down |
 | Event bus | `pamoja.bus` | An in-memory typed publish and subscribe event bus |
-| Engine surface | `pamoja.transport` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | Simulators | `pamoja.sim` | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
 | Device profiles | `pamoja.profile` | Named, ready-to-run device profiles from plain data or a JSON manifest |
 | ROS 2 rules | `pamoja.ros2` | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |
@@ -133,20 +136,23 @@ needs a Rust toolchain.
 ## C# and .NET
 
 ```sh
-dotnet add package Pamoja         # every capability
-dotnet add package Pamoja.Core    # the engine's surface, and the capabilities as types today
+dotnet add package Pamoja                          # every capability
+dotnet add package Pamoja.Security Pamoja.Codec    # only the packages you use
 ```
 
 ```csharp
-using Pamoja.Core;
+using Pamoja.Security;
+using Pamoja.Codec;
 ```
 
-The package carries the native library for `win-x64`, `linux-x64`,
-`linux-arm64`, `osx-x64`, and `osx-arm64` and targets .NET 8.
+Each package is one namespace of the same name. Every package depends on
+`Pamoja.Native`, which carries the native library for `win-x64`, `linux-x64`,
+`linux-arm64`, `osx-x64`, and `osx-arm64`, and targets .NET 8.
 
 <!-- table: binding dotnet -->
 | Capability | Types | What it covers |
 | --- | --- | --- |
+| Engine surface | `Transport`, `TransportMessage` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | Device identity | `DeviceIdentity` | ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic |
 | Codecs | `Codec`, `Quantizer` | CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links |
 | Helpers | `Kit`, `Smoother`, `Median`, `Kalman`, `Calibration`, `Pid`, `Ramp`, `Thermostat`, `Debounce`, `Boundary`, `Coordinate`, `Geofence`, `Window`, `Trend`, `Surge`, `Depletion`, `Anomaly` | Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo |
@@ -172,7 +178,6 @@ The package carries the native library for `win-x64`, `linux-x64`,
 | Store and forward | `Store` | Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss |
 | Transport ladder | `Ladder`, `Delivery` | Cheapest reachable link first, buffering to a store when every link is down |
 | Event bus | `EventBus` | An in-memory typed publish and subscribe event bus |
-| Engine surface | `Transport`, `TransportMessage` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | Simulators | `SimulatedSensor`, `Replay`, `RecordingActuator`, `SimulatedRobot`, `Pose`, `Twist` | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
 | Device profiles | `Profile`, `ControlPolicy`, `ControlKind`, `Controller`, `Reaction`, `Alert`, `AlertKind`, `PowerSchedule` | Named, ready-to-run device profiles from plain data or a JSON manifest |
 | ROS 2 rules | `Ros2`, `Ros2Twist`, `Vector3`, `CdrReader`, `CdrWriter`, `EntityKind` | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |

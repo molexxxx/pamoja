@@ -1,0 +1,130 @@
+[package]
+name = "pamoja-python"
+version = "0.1.14"
+edition = "2021"
+# PyO3 sets the real minimum supported Rust version for this binding.
+rust-version = "1.74"
+license = "MIT"
+repository = "https://github.com/molexxxx/pamoja"
+authors = ["molexxxx"]
+publish = false
+
+[lib]
+name = "pamoja_python"
+crate-type = ["cdylib", "rlib"]
+
+# Regenerates the committed type stub from the Rust source. Built without
+# pyo3/extension-module so it links libpython and can run as a normal binary.
+# Kept at src/stub_gen.rs (not src/bin/) so the repo's .NET bin/ ignore rule
+# does not exclude it.
+[[bin]]
+name = "stub_gen"
+path = "src/stub_gen.rs"
+
+[features]
+default = [
+    "mqtt",
+    "security",
+    "codec",
+    "kit",
+    "serial",
+    "modbus",
+    "can",
+    "gpio",
+    "sensors",
+    "actuators",
+    "lora",
+    "lorawan",
+    "mavlink",
+    "mesh",
+    "routing",
+    "audit",
+    "session",
+    "update",
+    "power",
+    "telemetry",
+    "coap",
+    "loopback",
+    "sync",
+    "ladder",
+    "bus",
+    "sim",
+    "profile",
+    "ros2",
+    "zenoh",
+]
+# Each capability is a feature, so the binding can later be split into
+# per-capability packages without reshaping the code.
+mqtt = ["dep:pamoja-mqtt", "dep:tokio"]
+security = ["dep:pamoja-security"]
+codec = ["dep:pamoja-codec"]
+kit = ["dep:pamoja-kit"]
+serial = ["dep:pamoja-serial"]
+modbus = ["dep:pamoja-modbus"]
+can = ["dep:pamoja-can"]
+gpio = ["dep:pamoja-gpio"]
+sensors = ["dep:pamoja-sensors"]
+actuators = ["dep:pamoja-actuators"]
+lora = ["dep:pamoja-lora"]
+lorawan = ["dep:pamoja-lorawan"]
+mavlink = ["dep:pamoja-mavlink", "pamoja-mavlink/alloc"]
+mesh = ["dep:pamoja-mesh"]
+routing = ["dep:pamoja-routing"]
+coap = ["dep:pamoja-coap"]
+loopback = ["dep:pamoja-loopback"]
+sync = ["dep:pamoja-sync"]
+# A ladder buffers into a store, so it carries the sync stores with it.
+ladder = ["dep:pamoja-ladder", "sync"]
+bus = ["dep:pamoja-bus"]
+# The simulated robot moves in the kit pose and twist types.
+sim = ["dep:pamoja-sim", "kit"]
+# A profile assembles a control policy over the kit helpers and a power schedule.
+profile = ["dep:pamoja-profile", "kit", "power"]
+# Only the naming and encoding rules cross; the live bridges stay Rust-only.
+ros2 = ["dep:pamoja-ros2"]
+zenoh = ["dep:pamoja-zenoh"]
+audit = ["dep:pamoja-audit", "security"]
+session = ["dep:pamoja-session"]
+update = ["dep:pamoja-update", "security"]
+power = ["dep:pamoja-power"]
+telemetry = ["dep:pamoja-telemetry"]
+
+[dependencies]
+# pyo3 0.29 carries the fix for RUSTSEC advisories in the list/tuple iterators;
+# pyo3-stub-gen 0.23 and pyo3-async-runtimes 0.29 track that release. abi3-py310
+# (not py39) because pyo3-stub-gen references the 3.10+ stable-ABI EncodingWarning
+# type, which a lower abi3 floor would hide.
+pyo3 = { version = "0.29", features = ["abi3-py310"] }
+pyo3-async-runtimes = { version = "0.29", features = ["tokio-runtime"] }
+pyo3-stub-gen = "0.23"
+pamoja-core = { path = "../../../../crates/pamoja-core" }
+pamoja-mqtt = { path = "../../../../crates/pamoja-mqtt", optional = true }
+pamoja-security = { path = "../../../../crates/pamoja-security", optional = true }
+pamoja-codec = { path = "../../../../crates/pamoja-codec", optional = true }
+pamoja-kit = { path = "../../../../crates/pamoja-kit", optional = true }
+pamoja-serial = { path = "../../../../crates/pamoja-serial", optional = true }
+pamoja-modbus = { path = "../../../../crates/pamoja-modbus", optional = true }
+pamoja-can = { path = "../../../../crates/pamoja-can", optional = true }
+pamoja-gpio = { path = "../../../../crates/pamoja-gpio", optional = true }
+pamoja-sensors = { path = "../../../../crates/pamoja-sensors", optional = true }
+pamoja-actuators = { path = "../../../../crates/pamoja-actuators", optional = true }
+pamoja-lora = { path = "../../../../crates/pamoja-lora", features = ["alloc"], optional = true }
+pamoja-lorawan = { path = "../../../../crates/pamoja-lorawan", optional = true }
+pamoja-mavlink = { path = "../../../../crates/pamoja-mavlink", default-features = false, optional = true }
+pamoja-mesh = { path = "../../../../crates/pamoja-mesh", features = ["alloc"], optional = true }
+pamoja-routing = { path = "../../../../crates/pamoja-routing", features = ["alloc"], optional = true }
+pamoja-audit = { path = "../../../../crates/pamoja-audit", optional = true }
+pamoja-session = { path = "../../../../crates/pamoja-session", optional = true }
+pamoja-update = { path = "../../../../crates/pamoja-update", optional = true }
+pamoja-power = { path = "../../../../crates/pamoja-power", optional = true }
+pamoja-telemetry = { path = "../../../../crates/pamoja-telemetry", optional = true }
+pamoja-coap = { path = "../../../../crates/pamoja-coap", optional = true }
+pamoja-loopback = { path = "../../../../crates/pamoja-loopback", optional = true }
+pamoja-sync = { path = "../../../../crates/pamoja-sync", optional = true }
+pamoja-ladder = { path = "../../../../crates/pamoja-ladder", optional = true }
+pamoja-bus = { path = "../../../../crates/pamoja-bus", optional = true }
+pamoja-sim = { path = "../../../../crates/pamoja-sim", optional = true }
+pamoja-profile = { path = "../../../../crates/pamoja-profile", optional = true }
+pamoja-ros2 = { path = "../../../../crates/pamoja-ros2", optional = true }
+pamoja-zenoh = { path = "../../../../crates/pamoja-zenoh", optional = true }
+tokio = { version = "1", default-features = false, features = ["sync"], optional = true }

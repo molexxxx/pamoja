@@ -7,12 +7,12 @@ and types. `pamoja` bundles all of them.
 
 Each package is hand-written TypeScript over `@pamoja/native`, the compiled
 engine and its generated napi-rs contract, which stays importable for anything
-the facades do not cover. `@pamoja/core` is the engine's own surface, the
-counterpart of the `pamoja-core` crate.
+the facades do not cover.
 
 <!-- table: binding node -->
 | Capability | Import | What it covers |
 | --- | --- | --- |
+| Engine surface | `@pamoja/core` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | Device identity | `@pamoja/security` | ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic |
 | Codecs | `@pamoja/codec` | CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links |
 | Helpers | `@pamoja/kit` | Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo |
@@ -38,7 +38,6 @@ counterpart of the `pamoja-core` crate.
 | Store and forward | `@pamoja/sync` | Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss |
 | Transport ladder | `@pamoja/ladder` | Cheapest reachable link first, buffering to a store when every link is down |
 | Event bus | `@pamoja/bus` | An in-memory typed publish and subscribe event bus |
-| Engine surface | `@pamoja/core` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | Simulators | `@pamoja/sim` | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
 | Device profiles | `@pamoja/profile` | Named, ready-to-run device profiles from plain data or a JSON manifest |
 | ROS 2 rules | `@pamoja/ros2` | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |

@@ -217,6 +217,7 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
 
     let version = version::current()?;
     files.extend(packages::render_node(&root, &catalog, &version)?);
+    files.extend(packages::render_python(&root, &catalog, &version)?);
     Ok(files)
 }
 

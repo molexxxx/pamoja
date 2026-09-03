@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pamoja"
+version = "0.1.14"
+description = "The whole pamoja framework in one package: every capability of one memory-safe Rust core, behind an idiomatic Python facade, for IoT, robotics, and drones."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "molexxxx" }]
+keywords = ["pamoja", "iot", "robotics", "drones", "mqtt", "embedded"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pamoja-actuators==0.1.14",
+    "pamoja-audit==0.1.14",
+    "pamoja-bus==0.1.14",
+    "pamoja-can==0.1.14",
+    "pamoja-coap==0.1.14",
+    "pamoja-codec==0.1.14",
+    "pamoja-core==0.1.14",
+    "pamoja-gpio==0.1.14",
+    "pamoja-kit==0.1.14",
+    "pamoja-ladder==0.1.14",
+    "pamoja-loopback==0.1.14",
+    "pamoja-lora==0.1.14",
+    "pamoja-lorawan==0.1.14",
+    "pamoja-mavlink==0.1.14",
+    "pamoja-mesh==0.1.14",
+    "pamoja-modbus==0.1.14",
+    "pamoja-mqtt==0.1.14",
+    "pamoja-native==0.1.14",
+    "pamoja-power==0.1.14",
+    "pamoja-profile==0.1.14",
+    "pamoja-ros2==0.1.14",
+    "pamoja-routing==0.1.14",
+    "pamoja-security==0.1.14",
+    "pamoja-sensors==0.1.14",
+    "pamoja-serial==0.1.14",
+    "pamoja-session==0.1.14",
+    "pamoja-sim==0.1.14",
+    "pamoja-sync==0.1.14",
+    "pamoja-telemetry==0.1.14",
+    "pamoja-update==0.1.14",
+    "pamoja-zenoh==0.1.14",
+]
+
+[project.urls]
+Repository = "https://github.com/molexxxx/pamoja"
+Documentation = "https://pamoja.molex.cloud/docs/"
+
+[tool.hatch.build.targets.wheel]
+bypass-selection = true

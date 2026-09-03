@@ -38,6 +38,13 @@ released together, so one entry covers all of them.
   generated contract every package depends on. The `@pamoja/core/<name>` subpath
   imports are gone: `@pamoja/core/mqtt` is now `@pamoja/mqtt`, and
   `@pamoja/core/raw` is `@pamoja/native`.
+- The Python binding is split the same way. `pamoja` is the whole framework in
+  one distribution; each capability is `pamoja-<name>`, one module of the
+  `pamoja` namespace; `pamoja-core` is the engine's surface (`pamoja.core`); and
+  `pamoja-native` is the compiled engine, `pamoja._native`, that every
+  distribution depends on. `pamoja` is a namespace package now, so the flat
+  `from pamoja import DeviceIdentity` becomes `from pamoja.security import
+  DeviceIdentity`, and `pamoja.transport` is `pamoja.core`.
 
 ### Fixed
 

@@ -76,15 +76,16 @@ jobs:
           npm ci
           npx typedoc
 
-      # pdoc imports the package, so the extension is built first.
+      # pdoc imports the packages, so the engine is built and every pure package installed first.
       - name: Python reference
         working-directory: bindings/python
         run: |
           python -m venv .venv
           . .venv/bin/activate
           pip install maturin pdoc==16.0
-          maturin develop
-          pdoc pamoja -o ../../target/docs/site/reference/python --docformat restructuredtext
+          maturin develop -m packages/native/Cargo.toml
+          pip install $(find packages -mindepth 1 -maxdepth 1 -type d ! -name native)
+          pdoc pamoja '!pamoja._native' -o ../../target/docs/site/reference/python --docformat restructuredtext
 
       - name: .NET reference
         run: |

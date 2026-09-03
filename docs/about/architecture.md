@@ -13,20 +13,22 @@ transport (`pamoja-mqtt`, `pamoja-coap`) is its own crate, so Rust code pulls
 same shape: on npm each capability is its own package (`@pamoja/mqtt`),
 `@pamoja/core` is the engine's surface, and `pamoja` is the whole framework in
 one package. The compiled engine itself is `@pamoja/native`, a build artifact
-every package depends on and nobody installs by hand. The Python and .NET
-packages are being split the same way, into `pamoja-mqtt` and `Pamoja.Mqtt`
-with `pamoja` and `Pamoja` as the bundles.
+every package depends on and nobody installs by hand. On PyPI the same four
+kinds are `pamoja-<name>`, `pamoja-core`, `pamoja`, and `pamoja-native`, merged
+into one `pamoja` namespace on import. The .NET packages are being split the
+same way, into `Pamoja.<Name>`, `Pamoja.Core`, `Pamoja`, and `Pamoja.Native`.
 
 ```
-        bindings (two tiers: generated contract + hand-written facade)
-   npm @pamoja/core     PyPI pamoja-core     NuGet Pamoja.Core
-        |                     |                    |
-        +---------------------+--------------------+
-                              |
-                     +--------+--------+   device model, event bus,
-                     |   pamoja-core   |   error model, transports
-                     +--------+--------+
-                              |  trait-based abstraction layer
+   npm  pamoja, @pamoja/<capability>      PyPI  pamoja, pamoja-<capability>
+   NuGet  Pamoja, Pamoja.<Capability>     crates.io  pamoja, pamoja-<capability>
+        |                |                     |                    |
+   @pamoja/native   pamoja-native        Pamoja.Native          (source)
+        +----------------+---------------------+--------------------+
+                                     |  the compiled engine: every crate below
+                            +--------+--------+   device model, event bus,
+                            |   pamoja-core   |   error model, transports
+                            +--------+--------+
+                                     |  trait-based abstraction layer
    messaging   hardware I/O   robotics    drones    trust      resilience   power
    mqtt/coap   serial/can/    ros2/       mavlink   identity/  store-and-   duty-
    lora/mesh   gpio/rs485     zenoh                 session/   forward      cycling

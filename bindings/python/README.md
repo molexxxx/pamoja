@@ -1,112 +1,40 @@
-# pamoja-core (Python)
+# The Python binding
 
-Python bindings for the [pamoja](https://github.com/molexxxx/pamoja) device
-SDK core, built with [PyO3](https://pyo3.rs) and [maturin](https://www.maturin.rs).
-
-The generated surface is intentionally thin. A hand-written, idiomatic layer is
-added on top of it so Python callers get a native-feeling async API - awaitable
-methods, `async for` over incoming messages, `async with` lifecycle, and
-exceptions for errors - while all behavior stays in the Rust core.
-
-The generated low-level contract remains available at `pamoja.raw`.
-
-## Install
+One distribution per package under `packages/`, shaped like the crates:
 
 ```
-pip install pamoja-core
+packages/native/        pamoja-native: the PyO3 crate, built by maturin into the
+                        extension module pamoja._native, with its committed type
+                        stub and pamoja.raw; every other distribution depends on it
+packages/core/          pamoja-core: pamoja/core, the engine's surface
+packages/<capability>/  pamoja-<capability>: pamoja/<capability>, the hand-written
+                        facade; pyproject.toml, README.md, and py.typed are generated
+packages/pamoja/        pamoja: a metapackage that installs every distribution
+tests/                  the smoke tests and the cross-language conformance suite
+guides/                 the examples the documentation site splices
 ```
 
-## Build from source
+`pamoja` is a namespace package (PEP 420): each distribution ships one
+`pamoja/<name>/` directory and they merge on import, so `pip install pamoja-mqtt`
+gives `pamoja.mqtt` and pulls in `pamoja-native` and nothing else.
+
+`cargo xtask docs` renders each package's `pyproject.toml` and README from
+`docs/capabilities.toml`, deriving dependencies from the package's own imports;
+`cargo xtask docs --check` fails if any of them is stale.
+
+## Build and test
 
 ```
 python -m venv .venv
 .venv/bin/pip install maturin pytest
-.venv/bin/maturin develop
+.venv/bin/maturin develop -m packages/native/Cargo.toml
+.venv/bin/pip install $(find packages -mindepth 1 -maxdepth 1 -type d ! -name native)
 .venv/bin/python -m pytest
 ```
 
-`maturin develop` compiles the Rust core into a native extension (`pamoja._core`)
-and installs the `pamoja` package into the active environment.
-
-`cargo run --bin stub_gen` regenerates the committed type stub
-`python/pamoja/_core.pyi`. It is a generated artifact, drift-checked in CI so it
-can never fall behind the Rust source.
-
-## Usage
-
-```python
-import asyncio
-from pamoja import MqttClient
-
-async def main():
-    async with MqttClient(client_id="sensor-1", host="localhost", port=1883) as client:
-        await client.subscribe("sensors/+/temperature")
-        await client.publish("sensors/1/temperature", "21.5")
-        async for message in client:
-            print(message.topic, message.payload.decode())
-
-asyncio.run(main())
-```
-
-Beyond the transport, the same import carries device identity, the wire codecs,
-the helper math, and the hardware a gateway talks to, each in its own module
-(`pamoja.security`, `pamoja.codec`, `pamoja.kit`, `pamoja.serial`,
-`pamoja.modbus`, `pamoja.can`, `pamoja.gpio`, `pamoja.sensors`,
-`pamoja.actuators`) and all reachable from `pamoja`. The radio modules
-(`pamoja.lora`, `pamoja.lorawan`, `pamoja.mesh`, `pamoja.routing`) carry the
-reach half: what a transmission costs in airtime, the secured LoRaWAN frame that
-goes on the air, both halves of the join exchange so a deployment can run its own
-network server, and the mesh packets and routing that carry a message across nodes
-when no infrastructure will.
-
-The operational modules cover what a deployment needs after the first reading
-arrives: `pamoja.audit` keeps signed, hash-chained records that cannot be quietly
-edited, `pamoja.session` opens a confidential, replay-protected channel with one
-peer, `pamoja.update` signs releases and stages them into slots with verified
-rollback, `pamoja.power` says how often a falling battery can afford to work, and
-`pamoja.telemetry` thins the event stream out as the link gets expensive.
-The transport modules cover reaching the network when no single link always
-works. :mod:`pamoja.coap` speaks CoAP over UDP for links where MQTT costs more
-than the budget, :mod:`pamoja.ladder` tries links cheapest-first and buffers into
-a :mod:`pamoja.sync` store when none answer, and :mod:`pamoja.bus` carries events
-between the parts of one gateway. For testing any of it with nothing plugged in,
-:mod:`pamoja.loopback` is a broker in the same process and :mod:`pamoja.sim`
-gives a sensor, an actuator, and a robot that need no hardware.
-A profile is the shortest path from a sensor to something that works.
-:mod:`pamoja.profile` carries the manifest, which loads from and saves to JSON,
-and the controller that turns a reading into an output setting and any alert it
-raised. For a robot, :mod:`pamoja.ros2` holds the ROS 2 naming and encoding
-rules - what a topic name may be, what it becomes on the DDS wire, the RIHS type
-hash, and CDR - and :mod:`pamoja.zenoh` holds the key expressions a Zenoh
-network addresses data by. Neither needs a ROS 2 or Zenoh installation, because
-only the rules cross; the live bridges stay in Rust.
-
-The generated low-level contract stays available at `pamoja.raw`.
-
-```python
-from pamoja import DeviceIdentity, Smoother, to_cbor
-
-smoother = Smoother(0.3)
-reading = smoother.update(21.7)
-
-device = DeviceIdentity.from_seed(seed)
-payload = to_cbor({"c": reading})
-signature = device.sign(payload)
-```
-
-Talking to the wires themselves looks the same way:
-
-```python
-from pamoja import modbus, serial
-
-# Ask an RS485 energy meter for three holding registers.
-port.write(modbus.read_holding_registers(0x11, 0x006B, 3))
-
-# Reassemble whole packets from the chunks the port delivers.
-decoder = serial.SlipDecoder()
-for frame in decoder.feed(port.read(256)):
-    handle(frame)
-```
-
-`pytest` runs the smoke tests and the cross-language conformance suite, which
-asserts the same vectors every other binding does.
+`maturin develop` compiles the engine and installs `pamoja-native` into the
+environment; the second `pip install` adds every pure distribution. `pytest`
+runs the smoke tests, the conformance suite, the facades' doctests, and the
+guide examples. `cargo run --bin stub_gen --manifest-path packages/native/Cargo.toml`
+regenerates the committed stub `packages/native/python/pamoja/_native/__init__.pyi`,
+which CI checks against the Rust source.

@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pamoja-kit"
+version = "0.1.14"
+description = "Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "molexxxx" }]
+keywords = ["pamoja", "iot", "robotics", "kit"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pamoja-native==0.1.14",
+]
+
+[project.urls]
+Repository = "https://github.com/molexxxx/pamoja"
+Documentation = "https://pamoja.molex.cloud/docs/"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pamoja"]
