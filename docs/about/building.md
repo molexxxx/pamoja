@@ -57,6 +57,34 @@ they come from and regenerate:
 | `bindings/python/packages/*/pyproject.toml`, `README.md`, and `py.typed` | `docs/capabilities.toml` and each portion's imports | `cargo xtask docs` |
 | `conformance/vectors.json` | the Rust implementation | `cargo run -p pamoja-examples --example conformance_vectors` |
 
+## Guide examples
+
+Every code block in a guide is spliced from a test that ran in CI. A guide page
+holds a region such as
+
+```
+<!-- snippet: bindings/python/guides/modbus.py#example -->
+<!-- end -->
+```
+
+and `cargo xtask docs` fills it with the lines between `# ANCHOR: example` and
+`# ANCHOR_END: example` in that file, dedented, under a link to the file.
+`cargo xtask docs --check` fails if the spliced text no longer matches the
+source. One file per guide and language:
+
+| Language | File | Run with |
+| --- | --- | --- |
+| Rust | `examples/tests/guides/<name>.rs`, one `#[test]`, declared in `main.rs` | `cargo test -p pamoja-examples --test guides` |
+| TypeScript | `bindings/node/guides/<name>.ts`, top-level statements with `node:assert/strict` | `npm run test:guides` in `bindings/node` |
+| Python | `bindings/python/guides/<name>.py`, a script with plain `assert` | `pytest` in `bindings/python` |
+| C# | `bindings/dotnet/samples/Pamoja.Guides/<Name>.cs`, a static `Run()` called from `Program.cs` | `dotnet run --project bindings/dotnet/samples/Pamoja.Guides` |
+
+`just guides` runs all four. The TypeScript files import the `@pamoja/<name>`
+packages through the workspace links under `node_modules`, so they see each
+package the way a user does; build the facade first. The C# project has a plain
+`Guides` namespace rather than a `Pamoja.*` one, so its examples name types the
+way an application does.
+
 ## This site
 
 The guides are rendered by [mdBook](https://rust-lang.github.io/mdBook/) from

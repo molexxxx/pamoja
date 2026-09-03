@@ -45,9 +45,16 @@ dashboard-checks:
     cargo build -p pamoja-dashboard --no-default-features --features "serve,tier-c"
     cargo build -p pamoja-dashboard --no-default-features --features "serve,tier-b,locale-sw"
 
-# verify the generated crate READMEs and API index are in sync
+# verify the generated crate READMEs, the site navigation, and the doc regions are in sync
 docs-check:
     cargo run -p xtask -- docs --check
+
+# run the guide examples in every language (the code the documentation site shows)
+guides:
+    cargo test -p pamoja-examples --test guides
+    cd bindings/node && npm run test:guides
+    cd bindings/python && python -m pytest tests/test_guides.py
+    dotnet run --project bindings/dotnet/samples/Pamoja.Guides -c Release
 
 # audit dependencies against deny.toml (needs cargo-deny installed)
 deny:

@@ -31,6 +31,9 @@ released together, so one entry covers all of them.
   `npm install pamoja`, `pip install pamoja`, and `dotnet add package Pamoja`
   are. `pamoja::mqtt` is `pamoja-mqtt`; with the default features off, naming
   only the `no_std` capabilities builds for bare metal.
+- Guide examples that run as tests in all four languages, spliced into the
+  documentation from the test files, and the Python facade's doctests now run
+  with its test suite.
 
 ### Changed
 
