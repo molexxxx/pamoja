@@ -27,8 +27,16 @@ pub fn process(
 ) -> Result<String, String> {
     let mut out = Vec::new();
     let mut lines = text.lines();
+    let mut in_fence = false;
     while let Some(line) = lines.next() {
         out.push(line.to_owned());
+        if is_fence(line) {
+            in_fence = !in_fence;
+            continue;
+        }
+        if in_fence {
+            continue;
+        }
         let Some(directive) = directive_of(line) else {
             continue;
         };
@@ -50,6 +58,13 @@ pub fn process(
         joined.push('\n');
     }
     Ok(joined)
+}
+
+/// Whether a line opens or closes a fenced code block, inside which a marker is
+/// documentation rather than a region.
+fn is_fence(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    trimmed.starts_with("```") || trimmed.starts_with("~~~")
 }
 
 /// The directive of an opening marker line, if the line is one.
@@ -202,6 +217,31 @@ mod tests {
         );
         assert!(extract(source, "missing").is_none());
         assert!(extract("# ANCHOR: open\nx = 1\n", "open").is_none());
+    }
+
+    #[test]
+    fn markers_inside_a_code_fence_are_documentation() {
+        let text = concat!(
+            "A region looks like\n",
+            "\n",
+            "```\n",
+            "<!-- snippet: a.py#example -->\n",
+            "<!-- end -->\n",
+            "```\n",
+            "\n",
+            "<!-- table: guides -->\n",
+            "old\n",
+            "<!-- end -->\n",
+        );
+        let mut seen = Vec::new();
+        let processed = process(text, &mut |directive| {
+            seen.push(directive.to_owned());
+            Ok("new".to_owned())
+        })
+        .unwrap();
+        assert_eq!(seen, ["table: guides"]);
+        assert!(processed.contains("```\n<!-- snippet: a.py#example -->\n<!-- end -->\n```\n"));
+        assert!(processed.ends_with("<!-- table: guides -->\nnew\n<!-- end -->\n"));
     }
 
     #[test]
