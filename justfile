@@ -53,8 +53,20 @@ docs-check:
 deny:
     cargo deny check
 
+# verify every manifest, lockfile, and generated loader carries the workspace version
+version-check:
+    cargo run -p xtask -- version --check
+
 # run everything the main CI job runs
-ci: fmt-check lint nostd test dashboard-checks docs-check
+ci: fmt-check lint nostd test dashboard-checks docs-check version-check release-plan
+
+# set the workspace version everywhere and refresh the lockfiles (just bump 0.2.0)
+bump version:
+    cargo xtask version {{version}}
+
+# print the crates.io publish order derived from cargo metadata
+release-plan:
+    cargo run -p xtask -- release --plan
 
 # publish every workspace crate to crates.io in dependency order
 release:

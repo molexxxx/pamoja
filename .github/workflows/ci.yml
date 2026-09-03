@@ -91,6 +91,16 @@ jobs:
       - name: Crate READMEs in sync
         run: cargo run -p xtask -- docs --check
 
+      # Every manifest, lockfile, and generated loader must carry the workspace version, and
+      # CHANGELOG.md must have that version's entry; this fails on the first one that drifts.
+      - name: Versions in lockstep
+        run: cargo run -p xtask -- version --check
+
+      # The crates.io publish order is derived from cargo metadata; this fails if a crate
+      # depends on an unpublishable member or the dependencies form a cycle.
+      - name: Publish order resolves
+        run: cargo run -p xtask -- release --plan
+
   embedded:
     name: bare-metal cross-compile
     runs-on: ubuntu-latest
