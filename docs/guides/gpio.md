@@ -225,8 +225,8 @@ Expect(
 ## Reference
 
 <!-- table: reference gpio -->
-- Rust: [`pamoja-gpio`](https://docs.rs/pamoja-gpio) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_gpio/index.html))
+- Rust: [`pamoja-gpio`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_gpio/index.html)
 - TypeScript: [`@pamoja/gpio`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_gpio.html)
 - Python: [`pamoja.gpio`](https://pamoja.molex.cloud/docs/reference/python/pamoja/gpio.html)
-- C#: [`I2c`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Gpio.I2c.html), [`Spi`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Gpio.Spi.html), [`SpiClock`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Gpio.SpiClock.html), [`Pin`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Gpio.Pin.html), [`PinLevel`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Gpio.PinLevel.html), [`PinEdge`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Gpio.PinEdge.html), [`PinPolarity`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Gpio.PinPolarity.html)
+- C#: [`Pamoja.Gpio`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Gpio.html)
 <!-- end -->

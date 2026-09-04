@@ -4,13 +4,14 @@
 
 The whole pamoja device SDK in one crate: every capability behind a feature, all on by default, for IoT, robotics, and drones.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
 <a href="https://crates.io/crates/pamoja"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 <a href="https://www.npmjs.com/package/pamoja"><img height="28" alt="npm" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-npm.svg"></a>
 <a href="https://pypi.org/project/pamoja/"><img height="28" alt="PyPI" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-pypi.svg"></a>
 <a href="https://www.nuget.org/packages/Pamoja"><img height="28" alt="NuGet" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-nuget.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html).
+The full API reference is [on the site](https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html), and the copy for each published version is on [docs.rs](https://docs.rs/pamoja).
 
 The whole pamoja device SDK in one crate.
 

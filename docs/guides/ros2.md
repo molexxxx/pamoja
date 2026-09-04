@@ -162,8 +162,8 @@ Expect(Ros2.DdsTypeName("not a type") is null, "and a malformed type has none");
 ## Reference
 
 <!-- table: reference ros2 -->
-- Rust: [`pamoja-ros2`](https://docs.rs/pamoja-ros2) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ros2/index.html))
+- Rust: [`pamoja-ros2`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ros2/index.html)
 - TypeScript: [`@pamoja/ros2`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ros2.html)
 - Python: [`pamoja.ros2`](https://pamoja.molex.cloud/docs/reference/python/pamoja/ros2.html)
-- C#: [`Ros2`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ros2.Ros2.html), [`Ros2Twist`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ros2.Ros2Twist.html), [`Vector3`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ros2.Vector3.html), [`CdrReader`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ros2.CdrReader.html), [`CdrWriter`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ros2.CdrWriter.html), [`EntityKind`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ros2.EntityKind.html)
+- C#: [`Pamoja.Ros2`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ros2.html)
 <!-- end -->

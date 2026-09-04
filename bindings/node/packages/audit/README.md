@@ -2,6 +2,10 @@
 
 A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
+[![API reference](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg)](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_audit.html)
+[![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/audit.html)
+[![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
+
 ## Install
 
 ```sh
@@ -63,13 +67,14 @@ assert.ok(!verifyChain(keeper.publicKey(), [stopped]))
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-audit`](https://crates.io/crates/pamoja-audit) | [docs.rs](https://docs.rs/pamoja-audit), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_audit/index.html) |
+| Rust | [`pamoja-audit`](https://crates.io/crates/pamoja-audit) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_audit/index.html), [docs.rs](https://docs.rs/pamoja-audit) |
 | TypeScript | [`@pamoja/audit`](https://www.npmjs.com/package/@pamoja/audit) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_audit.html) |
-| Python | [`pamoja-audit`](https://pypi.org/project/pamoja-audit/) | [`pamoja.audit`](https://pamoja.molex.cloud/docs/reference/python/pamoja/audit.html) |
-| C# | [`Pamoja.Audit`](https://www.nuget.org/packages/Pamoja.Audit) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Audit.Audit.html) |
+| Python | [`pamoja-audit`](https://pypi.org/project/pamoja-audit/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/audit.html) |
+| C# | [`Pamoja.Audit`](https://www.nuget.org/packages/Pamoja.Audit) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Audit.html) |
 
 ## Documentation
 
+- [`@pamoja/audit` reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_audit.html), every class, function, and type this package exports.
 - [The Audit log guide](https://pamoja.molex.cloud/docs/guides/audit.html), with the same example in Rust, Python, and C#.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 

@@ -4,6 +4,7 @@
 
 Offline-first store-and-forward buffering for pamoja: durable queues behind the core Store trait.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_sync/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
 <a href="https://crates.io/crates/pamoja-sync"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-sync"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +12,10 @@ Offline-first store-and-forward buffering for pamoja: durable queues behind the 
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-sync`](https://crates.io/crates/pamoja-sync) | [docs.rs](https://docs.rs/pamoja-sync), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sync/index.html) |
+| Rust | [`pamoja-sync`](https://crates.io/crates/pamoja-sync) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sync/index.html), [docs.rs](https://docs.rs/pamoja-sync) |
 | TypeScript | [`@pamoja/sync`](https://www.npmjs.com/package/@pamoja/sync) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sync.html) |
-| Python | [`pamoja-sync`](https://pypi.org/project/pamoja-sync/) | [`pamoja.sync`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sync.html) |
-| C# | [`Pamoja.Sync`](https://www.nuget.org/packages/Pamoja.Sync) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sync.Store.html) |
+| Python | [`pamoja-sync`](https://pypi.org/project/pamoja-sync/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/sync.html) |
+| C# | [`Pamoja.Sync`](https://www.nuget.org/packages/Pamoja.Sync) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sync.html) |
 
 Offline-first store-and-forward buffering for pamoja.
 

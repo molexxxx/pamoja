@@ -2,6 +2,10 @@
 
 Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
+[![API reference](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg)](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lora.html)
+[![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/lora.html)
+[![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
+
 ## Install
 
 ```sh
@@ -55,13 +59,14 @@ Expect(plan.DutyCyclePermille(700_000_000) is null, "700 MHz is outside the band
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-lora`](https://crates.io/crates/pamoja-lora) | [docs.rs](https://docs.rs/pamoja-lora), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_lora/index.html) |
+| Rust | [`pamoja-lora`](https://crates.io/crates/pamoja-lora) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_lora/index.html), [docs.rs](https://docs.rs/pamoja-lora) |
 | TypeScript | [`@pamoja/lora`](https://www.npmjs.com/package/@pamoja/lora) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_lora.html) |
-| Python | [`pamoja-lora`](https://pypi.org/project/pamoja-lora/) | [`pamoja.lora`](https://pamoja.molex.cloud/docs/reference/python/pamoja/lora.html) |
-| C# | [`Pamoja.Lora`](https://www.nuget.org/packages/Pamoja.Lora) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lora.LoraLink.html) |
+| Python | [`pamoja-lora`](https://pypi.org/project/pamoja-lora/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/lora.html) |
+| C# | [`Pamoja.Lora`](https://www.nuget.org/packages/Pamoja.Lora) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lora.html) |
 
 ## Documentation
 
+- [`Pamoja.Lora` reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lora.html), every type in this namespace.
 - [The LoRa airtime guide](https://pamoja.molex.cloud/docs/guides/lora.html), with the same example in Rust, TypeScript, and Python.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 

@@ -4,6 +4,7 @@
 
 MQTT transport for the pamoja device SDK, built on rumqttc.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_mqtt/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
 <a href="https://crates.io/crates/pamoja-mqtt"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-mqtt"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +12,10 @@ MQTT transport for the pamoja device SDK, built on rumqttc.
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-mqtt`](https://crates.io/crates/pamoja-mqtt) | [docs.rs](https://docs.rs/pamoja-mqtt), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mqtt/index.html) |
+| Rust | [`pamoja-mqtt`](https://crates.io/crates/pamoja-mqtt) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mqtt/index.html), [docs.rs](https://docs.rs/pamoja-mqtt) |
 | TypeScript | [`@pamoja/mqtt`](https://www.npmjs.com/package/@pamoja/mqtt) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mqtt.html) |
-| Python | [`pamoja-mqtt`](https://pypi.org/project/pamoja-mqtt/) | [`pamoja.mqtt`](https://pamoja.molex.cloud/docs/reference/python/pamoja/mqtt.html) |
-| C# | [`Pamoja.Mqtt`](https://www.nuget.org/packages/Pamoja.Mqtt) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mqtt.MqttClient.html) |
+| Python | [`pamoja-mqtt`](https://pypi.org/project/pamoja-mqtt/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/mqtt.html) |
+| C# | [`Pamoja.Mqtt`](https://www.nuget.org/packages/Pamoja.Mqtt) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mqtt.html) |
 
 MQTT transport for the pamoja SDK.
 

@@ -208,8 +208,8 @@ Expect(rejected, "classic CAN carries at most eight bytes");
 ## Reference
 
 <!-- table: reference can -->
-- Rust: [`pamoja-can`](https://docs.rs/pamoja-can) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_can/index.html))
+- Rust: [`pamoja-can`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_can/index.html)
 - TypeScript: [`@pamoja/can`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_can.html)
 - Python: [`pamoja.can`](https://pamoja.molex.cloud/docs/reference/python/pamoja/can.html)
-- C#: [`Can`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Can.Can.html), [`CanFrame`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Can.CanFrame.html), [`J1939Message`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Can.J1939Message.html)
+- C#: [`Pamoja.Can`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Can.html)
 <!-- end -->

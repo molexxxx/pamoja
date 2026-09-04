@@ -4,6 +4,8 @@
 
 Device-side observability for pamoja: structured leveled events and counters that degrade gracefully on metered links, no_std and allocation-free.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_telemetry/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/guides/telemetry.html"><img height="28" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://crates.io/crates/pamoja-telemetry"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-telemetry"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +13,10 @@ Device-side observability for pamoja: structured leveled events and counters tha
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-telemetry`](https://crates.io/crates/pamoja-telemetry) | [docs.rs](https://docs.rs/pamoja-telemetry), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_telemetry/index.html) |
+| Rust | [`pamoja-telemetry`](https://crates.io/crates/pamoja-telemetry) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_telemetry/index.html), [docs.rs](https://docs.rs/pamoja-telemetry) |
 | TypeScript | [`@pamoja/telemetry`](https://www.npmjs.com/package/@pamoja/telemetry) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_telemetry.html) |
-| Python | [`pamoja-telemetry`](https://pypi.org/project/pamoja-telemetry/) | [`pamoja.telemetry`](https://pamoja.molex.cloud/docs/reference/python/pamoja/telemetry.html) |
-| C# | [`Pamoja.Telemetry`](https://www.nuget.org/packages/Pamoja.Telemetry) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Telemetry.Reporter.html) |
+| Python | [`pamoja-telemetry`](https://pypi.org/project/pamoja-telemetry/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/telemetry.html) |
+| C# | [`Pamoja.Telemetry`](https://www.nuget.org/packages/Pamoja.Telemetry) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Telemetry.html) |
 
 Device-side observability for the pamoja SDK.
 

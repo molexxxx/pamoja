@@ -56,6 +56,16 @@ const BUTTONS: &[Button] = &[
         warm: true,
     },
     Button {
+        file: "btn-api.svg",
+        label: "API reference",
+        warm: true,
+    },
+    Button {
+        file: "btn-guide.svg",
+        label: "read the guide",
+        warm: true,
+    },
+    Button {
         file: "btn-cratesio.svg",
         label: "crates.io",
         warm: false,

@@ -4,6 +4,8 @@
 
 Zenoh key-expression logic for the pamoja SDK: validity, canonical form, and matching of the chunk-based key-expression language (the `*`, `**`, and `$*` wildcards), no_std and allocation-light. The pure-logic half ahead of the Zenoh transport.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_zenoh/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/guides/zenoh.html"><img height="28" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://crates.io/crates/pamoja-zenoh"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-zenoh"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +13,10 @@ Zenoh key-expression logic for the pamoja SDK: validity, canonical form, and mat
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-zenoh`](https://crates.io/crates/pamoja-zenoh) | [docs.rs](https://docs.rs/pamoja-zenoh), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_zenoh/index.html) |
+| Rust | [`pamoja-zenoh`](https://crates.io/crates/pamoja-zenoh) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_zenoh/index.html), [docs.rs](https://docs.rs/pamoja-zenoh) |
 | TypeScript | [`@pamoja/zenoh`](https://www.npmjs.com/package/@pamoja/zenoh) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_zenoh.html) |
-| Python | [`pamoja-zenoh`](https://pypi.org/project/pamoja-zenoh/) | [`pamoja.zenoh`](https://pamoja.molex.cloud/docs/reference/python/pamoja/zenoh.html) |
-| C# | [`Pamoja.Zenoh`](https://www.nuget.org/packages/Pamoja.Zenoh) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Zenoh.KeyExpression.html) |
+| Python | [`pamoja-zenoh`](https://pypi.org/project/pamoja-zenoh/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/zenoh.html) |
+| C# | [`Pamoja.Zenoh`](https://www.nuget.org/packages/Pamoja.Zenoh) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Zenoh.html) |
 
 Zenoh key-expression logic and transport for the pamoja SDK.
 

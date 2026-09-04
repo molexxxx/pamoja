@@ -192,7 +192,7 @@ impl Catalog {
         let mut out = String::from("| Language | Package | Reference |\n| --- | --- | --- |\n");
         let rust = if capability.crates.is_empty() {
             format!(
-                "| Rust | [`pamoja-core`](https://crates.io/crates/pamoja-core) | [docs.rs](https://docs.rs/pamoja-core), [site]({}) |\n",
+                "| Rust | [`pamoja-core`](https://crates.io/crates/pamoja-core) | [reference]({}), [docs.rs](https://docs.rs/pamoja-core) |\n",
                 rustdoc_url("pamoja-core")
             )
         } else {
@@ -201,7 +201,7 @@ impl Catalog {
                 .iter()
                 .map(|krate| {
                     format!(
-                        "| Rust | [`{krate}`](https://crates.io/crates/{krate}) | [docs.rs](https://docs.rs/{krate}), [site]({}) |\n",
+                        "| Rust | [`{krate}`](https://crates.io/crates/{krate}) | [reference]({}), [docs.rs](https://docs.rs/{krate}) |\n",
                         rustdoc_url(krate)
                     )
                 })
@@ -214,17 +214,14 @@ impl Catalog {
             node_reference_url(&capability.node)
         ));
         out.push_str(&format!(
-            "| Python | [`pamoja-{0}`](https://pypi.org/project/pamoja-{0}/) | [`pamoja.{0}`]({SITE}/reference/python/pamoja/{0}.html) |\n",
-            capability.python
+            "| Python | [`pamoja-{0}`](https://pypi.org/project/pamoja-{0}/) | [reference]({1}) |\n",
+            capability.python,
+            python_reference_url(&capability.python)
         ));
         let package = capability.dotnet_package();
-        let anchor = capability
-            .dotnet
-            .first()
-            .map(|name| format!("{SITE}/reference/dotnet/api/{package}.{name}.html"))
-            .unwrap_or_else(|| format!("{SITE}/reference/dotnet/api/{package}.html"));
         out.push_str(&format!(
-            "| C# | [`{package}`](https://www.nuget.org/packages/{package}) | [reference]({anchor}) |\n"
+            "| C# | [`{package}`](https://www.nuget.org/packages/{package}) | [reference]({}) |\n",
+            dotnet_reference_url(&package)
         ));
         out.trim_end().to_owned()
     }
@@ -572,6 +569,8 @@ impl Catalog {
             ("domains", Some(language @ ("rust" | "node" | "python" | "dotnet"))) => {
                 Ok(self.domains_block(language))
             }
+            ("references", None) => Ok(references(false)),
+            ("references", Some("absolute")) => Ok(references(true)),
             ("reference-link", Some(language @ ("rust" | "node" | "python" | "dotnet"))) => {
                 Ok(reference_link(language))
             }
@@ -667,10 +666,9 @@ impl Catalog {
                 format!("**{chapter}**")
             };
             out.push_str(&format!(
-                "| {shown} | {} ([site]({})) | {description} |
+                "| {shown} | {} | {description} |
 ",
-                crate_link(&krate),
-                rustdoc_url(&krate)
+                crate_link(&krate)
             ));
         }
         out.trim_end().to_owned()
@@ -682,13 +680,12 @@ impl Catalog {
             let crates: Vec<String> = capability
                 .crates
                 .iter()
-                .map(|krate| format!("{} ([site]({}))", crate_link(krate), rustdoc_url(krate)))
+                .map(|krate| format!("[`{krate}`]({})", rustdoc_url(krate)))
                 .collect();
             lines.push(format!("- Rust: {}", crates.join(", ")));
         } else {
             lines.push(format!(
-                "- Rust: the `Transport` trait in {} ([site]({}))",
-                crate_link("pamoja-core"),
+                "- Rust: the `Transport` trait in [`pamoja-core`]({})",
                 rustdoc_url("pamoja-core")
             ));
         }
@@ -698,20 +695,15 @@ impl Catalog {
             node_reference_url(&capability.node)
         ));
         lines.push(format!(
-            "- Python: [`pamoja.{0}`]({SITE}/reference/python/pamoja/{0}.html)",
-            capability.python
+            "- Python: [`pamoja.{0}`]({1})",
+            capability.python,
+            python_reference_url(&capability.python)
         ));
-        let types: Vec<String> = capability
-            .dotnet
-            .iter()
-            .map(|name| {
-                format!(
-                    "[`{name}`]({SITE}/reference/dotnet/api/{}.{name}.html)",
-                    capability.dotnet_package()
-                )
-            })
-            .collect();
-        lines.push(format!("- C#: {}", types.join(", ")));
+        let package = capability.dotnet_package();
+        lines.push(format!(
+            "- C#: [`{package}`]({})",
+            dotnet_reference_url(&package)
+        ));
         lines.join("\n")
     }
 
@@ -775,9 +767,20 @@ impl Catalog {
         let mut last = "";
         for capability in self.ordered() {
             let import = match language {
-                "node" => format!("`{}`", node_package(capability)),
-                "python" => format!("`pamoja.{}`", capability.python),
-                _ => format!("`{}`", capability.dotnet_package()),
+                "node" => format!(
+                    "[`{}`]({})",
+                    node_package(capability),
+                    node_reference_url(&capability.node)
+                ),
+                "python" => format!(
+                    "[`pamoja.{0}`]({1})",
+                    capability.python,
+                    python_reference_url(&capability.python)
+                ),
+                _ => {
+                    let package = capability.dotnet_package();
+                    format!("[`{package}`]({})", dotnet_reference_url(&package))
+                }
             };
             let title = match guide_url(capability) {
                 Some(url) => format!("[{}]({url})", capability.title),
@@ -852,9 +855,64 @@ fn guide_url(capability: &Capability) -> Option<String> {
     })
 }
 
-/// A crate name linked to its docs.rs page.
+/// A crate name linked to its rustdoc on the site, which is where every other reference
+/// on every page points; docs.rs stays the per-version copy, named on the Rust reference.
 fn crate_link(krate: &str) -> String {
-    format!("[`{krate}`](https://docs.rs/{krate})")
+    format!("[`{krate}`]({})", rustdoc_url(krate))
+}
+
+/// The four bindings on the front page: what a reader installs, the page on this site that
+/// says what the binding covers, and the generated reference site itself. Relative, since
+/// only the site front page carries it, unless `absolute` is set, which the root README
+/// needs since a registry renders it away from the site.
+fn references(absolute: bool) -> String {
+    let rows = [
+        (
+            "Rust",
+            "cargo add pamoja",
+            "reference/rust.md",
+            "reference/rust/pamoja/index.html",
+            "rustdoc",
+        ),
+        (
+            "TypeScript",
+            "npm install pamoja",
+            "reference/node.md",
+            "reference/node/index.html",
+            "typedoc",
+        ),
+        (
+            "Python",
+            "pip install pamoja",
+            "reference/python.md",
+            "reference/python/pamoja.html",
+            "pdoc",
+        ),
+        (
+            "C#",
+            "dotnet add package Pamoja",
+            "reference/dotnet.md",
+            "reference/dotnet/index.html",
+            "DocFX",
+        ),
+    ];
+    let mut out = String::from(
+        "| Language | Install | What it covers | Full API reference |\n| --- | --- | --- | --- |\n",
+    );
+    for (language, install, page, site, generator) in rows {
+        let (page, site) = if absolute {
+            (
+                format!("{SITE}/{}.html", page.trim_end_matches(".md")),
+                format!("{SITE}/{site}"),
+            )
+        } else {
+            (page.to_owned(), site.to_owned())
+        };
+        out.push_str(&format!(
+            "| {language} | `{install}` | [every package]({page}) | [{language} reference]({site}), generated by {generator} |\n"
+        ));
+    }
+    out.trim_end().to_owned()
 }
 
 /// The button that opens one language's generated reference, the same shape on all four
@@ -862,29 +920,59 @@ fn crate_link(krate: &str) -> String {
 /// index above the crates, so the Rust button opens the bundle crate, which re-exports
 /// every other.
 fn reference_link(language: &str) -> String {
-    let (href, what) = match language {
+    let (href, binding, subtitle, what) = match language {
         "rust" => (
             "rust/pamoja/index.html",
-            "Every crate's rustdoc, built from this commit",
+            "Rust",
+            "Rust API reference",
+            "Every crate, generated by rustdoc from this commit",
         ),
         "node" => (
             "node/index.html",
-            "Every `@pamoja` package, generated by typedoc",
+            "TypeScript",
+            "TypeScript binding reference",
+            "Every <code>@pamoja</code> package, generated by typedoc",
         ),
         "python" => (
             "python/pamoja.html",
-            "Every `pamoja` module, generated by pdoc",
+            "Python",
+            "Python binding reference",
+            "Every <code>pamoja</code> module, generated by pdoc",
         ),
         _ => (
             "dotnet/index.html",
-            "Every `Pamoja` package, generated by DocFX",
+            "C#",
+            "C# binding reference",
+            "Every <code>Pamoja</code> package, generated by DocFX",
         ),
     };
     format!(
-        "<a href=\"{href}\"><img height=\"34\" alt=\"open the reference\" src=\"https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-reference.svg\"></a>
+        "<p align=\"center\">
+  <img src=\"../assets/pamoja-logo.svg\" alt=\"pamoja\" height=\"64\">
+</p>
 
-{what}."
+<p align=\"center\"><strong>{subtitle}</strong></p>
+
+<p align=\"center\">
+  <a href=\"{href}\"><img height=\"38\" alt=\"Open the {binding} API reference\" src=\"https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg\"></a>
+</p>
+
+<p align=\"center\">
+  {what}. It is a site of its own; the tables on this page name what it documents,
+  and every name below opens its page there.
+</p>"
     )
+}
+
+/// The URL of a module's page in the Python reference on the site.
+pub fn python_reference_url(module: &str) -> String {
+    format!("{SITE}/reference/python/pamoja/{module}.html")
+}
+
+/// The URL of a package's namespace page in the C# reference on the site. The namespace
+/// page lists every type the package defines, so it is the one link the package needs.
+pub fn dotnet_reference_url(package: &str) -> String {
+    format!("{SITE}/reference/dotnet/api/{package}.html")
 }
 
 /// The URL of a crate's rustdoc on the site.
@@ -1129,26 +1217,25 @@ crate = "pamoja"
         ]);
 
         let chapters = catalog.render("chapters", &descriptions).unwrap();
-        assert!(chapters.contains("| Field I/O | [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html), Transports | [`pamoja-modbus`](https://docs.rs/pamoja-modbus) |"));
+        assert!(chapters.contains("| Field I/O | [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html), Transports | [`pamoja-modbus`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html) |"));
         assert!(chapters.contains("| Engine |"));
-        assert!(chapters.ends_with("| Everything | `cargo add pamoja`: every capability above, behind a feature each | [`pamoja`](https://docs.rs/pamoja) |"));
+        assert!(chapters.ends_with("| Everything | `cargo add pamoja`: every capability above, behind a feature each | [`pamoja`](https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html) |"));
 
         let guides = catalog.render("guides", &descriptions).unwrap();
         assert!(guides.starts_with("### Field I/O\n\nThe wires a gateway has.\n\n- [Modbus RTU](guides/modbus.md) - Modbus RTU requests and replies\n- Transports - The transport surface"));
 
         let crates = catalog.render("crates", &descriptions).unwrap();
-        assert!(crates.contains("| **Engine** | [`pamoja-core`](https://docs.rs/pamoja-core) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html)) | The device model |"));
-        assert!(crates.starts_with("| Chapter | Crate | What it does |\n| --- | --- | --- |\n| **Everything** | [`pamoja`](https://docs.rs/pamoja) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html)) | Everything in one crate |"));
+        assert!(crates.contains("| **Engine** | [`pamoja-core`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html) | The device model |"));
+        assert!(crates.starts_with("| Chapter | Crate | What it does |\n| --- | --- | --- |\n| **Everything** | [`pamoja`](https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html) | Everything in one crate |"));
 
         let reference = catalog.render("reference modbus", &descriptions).unwrap();
         assert!(reference.contains("- TypeScript: [`@pamoja/modbus`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_modbus.html)"));
-        assert!(reference.contains("- C#: [`Modbus`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Modbus.Modbus.html), [`ModbusFrame`]"));
+        assert!(reference.contains("- Rust: [`pamoja-modbus`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html)"));
+        assert!(reference.contains("- C#: [`Pamoja.Modbus`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Modbus.html)"));
 
         let binding = catalog.render("binding python", &descriptions).unwrap();
-        assert!(binding.contains("| **Field I/O** | [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html) | `pamoja.modbus` | Modbus RTU requests and replies |"));
-        assert!(
-            binding.contains("| **Engine** | Transports | `pamoja.core` | The transport surface |")
-        );
+        assert!(binding.contains("| **Field I/O** | [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html) | [`pamoja.modbus`](https://pamoja.molex.cloud/docs/reference/python/pamoja/modbus.html) | Modbus RTU requests and replies |"));
+        assert!(binding.contains("| **Engine** | Transports | [`pamoja.core`](https://pamoja.molex.cloud/docs/reference/python/pamoja/core.html) | The transport surface |"));
 
         assert!(catalog.render("reference nothing", &descriptions).is_err());
         assert!(catalog.render("binding lua", &descriptions).is_err());

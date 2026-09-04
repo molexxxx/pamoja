@@ -4,6 +4,7 @@
 
 In-memory typed publish/subscribe event bus implementing the core EventBus trait.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_bus/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
 <a href="https://crates.io/crates/pamoja-bus"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-bus"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +12,10 @@ In-memory typed publish/subscribe event bus implementing the core EventBus trait
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-bus`](https://crates.io/crates/pamoja-bus) | [docs.rs](https://docs.rs/pamoja-bus), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_bus/index.html) |
+| Rust | [`pamoja-bus`](https://crates.io/crates/pamoja-bus) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_bus/index.html), [docs.rs](https://docs.rs/pamoja-bus) |
 | TypeScript | [`@pamoja/bus`](https://www.npmjs.com/package/@pamoja/bus) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_bus.html) |
-| Python | [`pamoja-bus`](https://pypi.org/project/pamoja-bus/) | [`pamoja.bus`](https://pamoja.molex.cloud/docs/reference/python/pamoja/bus.html) |
-| C# | [`Pamoja.Bus`](https://www.nuget.org/packages/Pamoja.Bus) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Bus.EventBus.html) |
+| Python | [`pamoja-bus`](https://pypi.org/project/pamoja-bus/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/bus.html) |
+| C# | [`Pamoja.Bus`](https://www.nuget.org/packages/Pamoja.Bus) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Bus.html) |
 
 An in-memory typed publish/subscribe event bus.
 

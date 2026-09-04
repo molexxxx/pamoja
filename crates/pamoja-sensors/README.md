@@ -4,6 +4,8 @@
 
 Concrete sensor drivers for pamoja: the decode-and-configure half of common parts - BME280 temperature/pressure/humidity (Bosch compensation), DS18B20 1-Wire thermometer (datasheet temperature table + Maxim CRC-8), INA219 current/voltage/power monitor (TI calibration math), and ADS1115 ADC (config register and full-scale conversion) - each turning raw register bytes into physical readings exactly as the manufacturer datasheet specifies, no_std and allocation-free. The decode half ahead of the bus driver.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/guides/sensors.html"><img height="28" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://crates.io/crates/pamoja-sensors"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-sensors"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +13,10 @@ Concrete sensor drivers for pamoja: the decode-and-configure half of common part
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-sensors`](https://crates.io/crates/pamoja-sensors) | [docs.rs](https://docs.rs/pamoja-sensors), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html) |
+| Rust | [`pamoja-sensors`](https://crates.io/crates/pamoja-sensors) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html), [docs.rs](https://docs.rs/pamoja-sensors) |
 | TypeScript | [`@pamoja/sensors`](https://www.npmjs.com/package/@pamoja/sensors) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sensors.html) |
-| Python | [`pamoja-sensors`](https://pypi.org/project/pamoja-sensors/) | [`pamoja.sensors`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sensors.html) |
-| C# | [`Pamoja.Sensors`](https://www.nuget.org/packages/Pamoja.Sensors) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sensors.Bme280.html) |
+| Python | [`pamoja-sensors`](https://pypi.org/project/pamoja-sensors/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/sensors.html) |
+| C# | [`Pamoja.Sensors`](https://www.nuget.org/packages/Pamoja.Sensors) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sensors.html) |
 
 Concrete sensor drivers for the pamoja SDK.
 

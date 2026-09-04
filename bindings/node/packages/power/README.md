@@ -2,6 +2,10 @@
 
 Duty cycling and an energy-aware governor that stretches work as the battery drains. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
+[![API reference](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg)](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_power.html)
+[![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/power.html)
+[![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
+
 ## Install
 
 ```sh
@@ -57,13 +61,14 @@ assert.equal(quarter.sleepUs, 750_000)
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-power`](https://crates.io/crates/pamoja-power) | [docs.rs](https://docs.rs/pamoja-power), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_power/index.html) |
+| Rust | [`pamoja-power`](https://crates.io/crates/pamoja-power) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_power/index.html), [docs.rs](https://docs.rs/pamoja-power) |
 | TypeScript | [`@pamoja/power`](https://www.npmjs.com/package/@pamoja/power) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_power.html) |
-| Python | [`pamoja-power`](https://pypi.org/project/pamoja-power/) | [`pamoja.power`](https://pamoja.molex.cloud/docs/reference/python/pamoja/power.html) |
-| C# | [`Pamoja.Power`](https://www.nuget.org/packages/Pamoja.Power) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Power.DutyCycle.html) |
+| Python | [`pamoja-power`](https://pypi.org/project/pamoja-power/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/power.html) |
+| C# | [`Pamoja.Power`](https://www.nuget.org/packages/Pamoja.Power) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Power.html) |
 
 ## Documentation
 
+- [`@pamoja/power` reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_power.html), every class, function, and type this package exports.
 - [The Power guide](https://pamoja.molex.cloud/docs/guides/power.html), with the same example in Rust, Python, and C#.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 

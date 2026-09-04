@@ -4,6 +4,8 @@
 
 CAN bus framing for pamoja: classic CAN 2.0 and CAN-FD frames with 11-bit and 29-bit identifiers and the discrete CAN-FD length encoding, plus J1939 identifier decoding for trucks, tractors, and gensets, no_std and allocation-free. The framing half ahead of the CAN controller.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_can/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/guides/can.html"><img height="28" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://crates.io/crates/pamoja-can"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-can"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +13,10 @@ CAN bus framing for pamoja: classic CAN 2.0 and CAN-FD frames with 11-bit and 29
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-can`](https://crates.io/crates/pamoja-can) | [docs.rs](https://docs.rs/pamoja-can), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_can/index.html) |
+| Rust | [`pamoja-can`](https://crates.io/crates/pamoja-can) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_can/index.html), [docs.rs](https://docs.rs/pamoja-can) |
 | TypeScript | [`@pamoja/can`](https://www.npmjs.com/package/@pamoja/can) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_can.html) |
-| Python | [`pamoja-can`](https://pypi.org/project/pamoja-can/) | [`pamoja.can`](https://pamoja.molex.cloud/docs/reference/python/pamoja/can.html) |
-| C# | [`Pamoja.Can`](https://www.nuget.org/packages/Pamoja.Can) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Can.Can.html) |
+| Python | [`pamoja-can`](https://pypi.org/project/pamoja-can/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/can.html) |
+| C# | [`Pamoja.Can`](https://www.nuget.org/packages/Pamoja.Can) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Can.html) |
 
 CAN bus framing for the pamoja SDK.
 

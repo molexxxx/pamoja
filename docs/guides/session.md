@@ -243,8 +243,8 @@ Expect(refused, "the same message is refused a second time");
 ## Reference
 
 <!-- table: reference session -->
-- Rust: [`pamoja-session`](https://docs.rs/pamoja-session) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_session/index.html))
+- Rust: [`pamoja-session`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_session/index.html)
 - TypeScript: [`@pamoja/session`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_session.html)
 - Python: [`pamoja.session`](https://pamoja.molex.cloud/docs/reference/python/pamoja/session.html)
-- C#: [`Session`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Session.Session.html), [`SessionRole`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Session.SessionRole.html), [`AgreementKey`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Session.AgreementKey.html), [`SealedMessage`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Session.SealedMessage.html)
+- C#: [`Pamoja.Session`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Session.html)
 <!-- end -->

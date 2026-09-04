@@ -4,6 +4,8 @@
 
 Modbus RTU framing for pamoja: CRC-16/Modbus, the RTU ADU envelope, the standard request PDUs, and response decoding, so a long-cable RS485 field sensor speaks Modbus, no_std and allocation-free. The framing half ahead of the serial driver.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/guides/modbus.html"><img height="28" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://crates.io/crates/pamoja-modbus"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-modbus"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +13,10 @@ Modbus RTU framing for pamoja: CRC-16/Modbus, the RTU ADU envelope, the standard
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-modbus`](https://crates.io/crates/pamoja-modbus) | [docs.rs](https://docs.rs/pamoja-modbus), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html) |
+| Rust | [`pamoja-modbus`](https://crates.io/crates/pamoja-modbus) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html), [docs.rs](https://docs.rs/pamoja-modbus) |
 | TypeScript | [`@pamoja/modbus`](https://www.npmjs.com/package/@pamoja/modbus) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_modbus.html) |
-| Python | [`pamoja-modbus`](https://pypi.org/project/pamoja-modbus/) | [`pamoja.modbus`](https://pamoja.molex.cloud/docs/reference/python/pamoja/modbus.html) |
-| C# | [`Pamoja.Modbus`](https://www.nuget.org/packages/Pamoja.Modbus) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Modbus.Modbus.html) |
+| Python | [`pamoja-modbus`](https://pypi.org/project/pamoja-modbus/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/modbus.html) |
+| C# | [`Pamoja.Modbus`](https://www.nuget.org/packages/Pamoja.Modbus) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Modbus.html) |
 
 Modbus RTU framing for the pamoja SDK.
 

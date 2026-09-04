@@ -215,8 +215,8 @@ Expect(Ina219.PowerMicrowatts(0x1766, currentLsb) == 119_800_000, "drawing 119.8
 ## Reference
 
 <!-- table: reference sensors -->
-- Rust: [`pamoja-sensors`](https://docs.rs/pamoja-sensors) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html))
+- Rust: [`pamoja-sensors`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html)
 - TypeScript: [`@pamoja/sensors`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sensors.html)
 - Python: [`pamoja.sensors`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sensors.html)
-- C#: [`Bme280`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sensors.Bme280.html), [`Bme280Calibration`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sensors.Bme280Calibration.html), [`Bme280Measurement`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sensors.Bme280Measurement.html), [`Ds18b20`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sensors.Ds18b20.html), [`Ds18b20Reading`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sensors.Ds18b20Reading.html), [`Ina219`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sensors.Ina219.html), [`Ads1115`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sensors.Ads1115.html), [`Ads1115Config`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sensors.Ads1115Config.html)
+- C#: [`Pamoja.Sensors`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sensors.html)
 <!-- end -->

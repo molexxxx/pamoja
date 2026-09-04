@@ -4,6 +4,8 @@
 
 LoRaWAN 1.0.x MAC framing for pamoja: build and parse data-frame PHYPayloads with the message integrity code and payload encryption the spec mandates, plus the over-the-air-activation join exchange, so a long-range node speaks LoRaWAN, no_std and allocation-free. The secured-packet half ahead of the radio driver.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_lorawan/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/guides/lorawan.html"><img height="28" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://crates.io/crates/pamoja-lorawan"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-lorawan"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +13,10 @@ LoRaWAN 1.0.x MAC framing for pamoja: build and parse data-frame PHYPayloads wit
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-lorawan`](https://crates.io/crates/pamoja-lorawan) | [docs.rs](https://docs.rs/pamoja-lorawan), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_lorawan/index.html) |
+| Rust | [`pamoja-lorawan`](https://crates.io/crates/pamoja-lorawan) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_lorawan/index.html), [docs.rs](https://docs.rs/pamoja-lorawan) |
 | TypeScript | [`@pamoja/lorawan`](https://www.npmjs.com/package/@pamoja/lorawan) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_lorawan.html) |
-| Python | [`pamoja-lorawan`](https://pypi.org/project/pamoja-lorawan/) | [`pamoja.lorawan`](https://pamoja.molex.cloud/docs/reference/python/pamoja/lorawan.html) |
-| C# | [`Pamoja.Lorawan`](https://www.nuget.org/packages/Pamoja.Lorawan) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.Lorawan.html) |
+| Python | [`pamoja-lorawan`](https://pypi.org/project/pamoja-lorawan/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/lorawan.html) |
+| C# | [`Pamoja.Lorawan`](https://www.nuget.org/packages/Pamoja.Lorawan) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.html) |
 
 LoRaWAN 1.0.x MAC framing for the pamoja SDK.
 

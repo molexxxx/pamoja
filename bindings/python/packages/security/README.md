@@ -2,6 +2,10 @@
 
 ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
+[![API reference](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg)](https://pamoja.molex.cloud/docs/reference/python/pamoja/security.html)
+[![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/security.html)
+[![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
+
 ## Install
 
 ```sh
@@ -56,13 +60,14 @@ assert verify(impostor.public_key, reading, signature) is False
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-security`](https://crates.io/crates/pamoja-security) | [docs.rs](https://docs.rs/pamoja-security), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_security/index.html) |
+| Rust | [`pamoja-security`](https://crates.io/crates/pamoja-security) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_security/index.html), [docs.rs](https://docs.rs/pamoja-security) |
 | TypeScript | [`@pamoja/security`](https://www.npmjs.com/package/@pamoja/security) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_security.html) |
-| Python | [`pamoja-security`](https://pypi.org/project/pamoja-security/) | [`pamoja.security`](https://pamoja.molex.cloud/docs/reference/python/pamoja/security.html) |
-| C# | [`Pamoja.Security`](https://www.nuget.org/packages/Pamoja.Security) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Security.DeviceIdentity.html) |
+| Python | [`pamoja-security`](https://pypi.org/project/pamoja-security/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/security.html) |
+| C# | [`Pamoja.Security`](https://www.nuget.org/packages/Pamoja.Security) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Security.html) |
 
 ## Documentation
 
+- [`pamoja.security` reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/security.html), every class and function in this module.
 - [The Device identity guide](https://pamoja.molex.cloud/docs/guides/security.html), with the same example in Rust, TypeScript, and C#.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 

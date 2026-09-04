@@ -2,6 +2,9 @@
 
 The pamoja engine's surface for Node: the runtime version and the transport every link shares. This is the counterpart of the `pamoja-core` crate, and like it, it is small; the compiled engine lives in `@pamoja/native`, which this package depends on.
 
+[![API reference](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg)](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_core.html)
+[![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
+
 ## Install
 
 ```sh

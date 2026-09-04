@@ -170,8 +170,8 @@ Expect(rejected, "a frame mangled on the wire is rejected");
 ## Reference
 
 <!-- table: reference modbus -->
-- Rust: [`pamoja-modbus`](https://docs.rs/pamoja-modbus) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html))
+- Rust: [`pamoja-modbus`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html)
 - TypeScript: [`@pamoja/modbus`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_modbus.html)
 - Python: [`pamoja.modbus`](https://pamoja.molex.cloud/docs/reference/python/pamoja/modbus.html)
-- C#: [`Modbus`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Modbus.Modbus.html), [`ModbusFrame`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Modbus.ModbusFrame.html)
+- C#: [`Pamoja.Modbus`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Modbus.html)
 <!-- end -->

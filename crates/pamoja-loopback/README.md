@@ -4,6 +4,7 @@
 
 In-process loopback transport for pamoja: a broker-free Transport for tests, examples, and simulators.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_loopback/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
 <a href="https://crates.io/crates/pamoja-loopback"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-loopback"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +12,10 @@ In-process loopback transport for pamoja: a broker-free Transport for tests, exa
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-loopback`](https://crates.io/crates/pamoja-loopback) | [docs.rs](https://docs.rs/pamoja-loopback), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_loopback/index.html) |
+| Rust | [`pamoja-loopback`](https://crates.io/crates/pamoja-loopback) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_loopback/index.html), [docs.rs](https://docs.rs/pamoja-loopback) |
 | TypeScript | [`@pamoja/loopback`](https://www.npmjs.com/package/@pamoja/loopback) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_loopback.html) |
-| Python | [`pamoja-loopback`](https://pypi.org/project/pamoja-loopback/) | [`pamoja.loopback`](https://pamoja.molex.cloud/docs/reference/python/pamoja/loopback.html) |
-| C# | [`Pamoja.Loopback`](https://www.nuget.org/packages/Pamoja.Loopback) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Loopback.LoopbackBroker.html) |
+| Python | [`pamoja-loopback`](https://pypi.org/project/pamoja-loopback/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/loopback.html) |
+| C# | [`Pamoja.Loopback`](https://www.nuget.org/packages/Pamoja.Loopback) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Loopback.html) |
 
 An in-process loopback transport for hardware-free testing and examples.
 
