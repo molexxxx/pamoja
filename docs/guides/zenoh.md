@@ -47,7 +47,10 @@ assert!(matches("fleet/**/battery", "fleet/battery"));
 // Two expressions that select the same keys have one canonical form. Comparing or
 // routing on the written form would treat these as different subscriptions.
 assert!(!is_canon("fleet/**/**/battery"));
-assert_eq!(canonize("fleet/**/**/battery").as_deref(), Some("fleet/**/battery"));
+assert_eq!(
+    canonize("fleet/**/**/battery").as_deref(),
+    Some("fleet/**/battery")
+);
 assert!(is_canon("fleet/**/battery"));
 
 // A malformed expression is rejected rather than canonized into something plausible.
