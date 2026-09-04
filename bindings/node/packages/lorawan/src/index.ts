@@ -12,6 +12,8 @@
  * @packageDocumentation
  */
 
+import type { LorawanDirection as DirectionName, LorawanMessageType as MessageTypeName } from '@pamoja/native'
+
 import {
   LORAWAN_MAX_FRAME,
   LORAWAN_MAX_PAYLOAD,
@@ -42,13 +44,13 @@ export const MAX_FRAME = LORAWAN_MAX_FRAME
  */
 export const Direction = {
   /** From an end device up to the network. */
-  Uplink: 'Uplink',
+  Uplink: 'Uplink' as DirectionName,
   /** From the network down to an end device. */
-  Downlink: 'Downlink',
+  Downlink: 'Downlink' as DirectionName,
 } as const
 
 /** One of the {@link Direction} values. */
-export type Direction = (typeof Direction)[keyof typeof Direction]
+export type Direction = DirectionName
 
 /** A decoded data frame, with its payload decrypted. */
 export interface RxData {
@@ -277,21 +279,21 @@ export function device(
 /** What kind of message a frame is, read from its header. */
 export const MessageType = {
   /** A device asking to join a network. */
-  JoinRequest: 'JoinRequest',
+  JoinRequest: 'JoinRequest' as MessageTypeName,
   /** A network admitting a device. */
-  JoinAccept: 'JoinAccept',
+  JoinAccept: 'JoinAccept' as MessageTypeName,
   /** Data from a device that does not need acknowledging. */
-  UnconfirmedUp: 'UnconfirmedUp',
+  UnconfirmedUp: 'UnconfirmedUp' as MessageTypeName,
   /** Data from a device that asks to be acknowledged. */
-  ConfirmedUp: 'ConfirmedUp',
+  ConfirmedUp: 'ConfirmedUp' as MessageTypeName,
   /** Data to a device that does not need acknowledging. */
-  UnconfirmedDown: 'UnconfirmedDown',
+  UnconfirmedDown: 'UnconfirmedDown' as MessageTypeName,
   /** Data to a device that asks to be acknowledged. */
-  ConfirmedDown: 'ConfirmedDown',
+  ConfirmedDown: 'ConfirmedDown' as MessageTypeName,
 } as const
 
 /** One of the {@link MessageType} values. */
-export type MessageType = (typeof MessageType)[keyof typeof MessageType]
+export type MessageType = MessageTypeName
 
 /** What a frame says about itself before any key is involved. */
 export interface Header {

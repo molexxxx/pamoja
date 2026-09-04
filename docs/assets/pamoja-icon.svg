@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="pamoja icon">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1B2D49"/>
+      <stop offset="1" stop-color="#0E1B2E"/>
+    </linearGradient>
+    <radialGradient id="core" cx="0.5" cy="0.42" r="0.62">
+      <stop offset="0" stop-color="#FFF3D6"/>
+      <stop offset="0.45" stop-color="#FFB627"/>
+      <stop offset="1" stop-color="#F26A4B"/>
+    </radialGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="240" height="240" rx="54" fill="url(#bg)"/>
+
+  <!-- radio ripples reaching outward -->
+  <g fill="none" stroke-width="2">
+    <circle cx="120" cy="120" r="20" stroke="#FFB627">
+      <animate attributeName="r" values="20;104" dur="3.6s" begin="0s" repeatCount="indefinite"/>
+      <animate attributeName="stroke-opacity" values="0.55;0" dur="3.6s" begin="0s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="120" cy="120" r="20" stroke="#1FA995">
+      <animate attributeName="r" values="20;104" dur="3.6s" begin="1.2s" repeatCount="indefinite"/>
+      <animate attributeName="stroke-opacity" values="0.55;0" dur="3.6s" begin="1.2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="120" cy="120" r="20" stroke="#F26A4B">
+      <animate attributeName="r" values="20;104" dur="3.6s" begin="2.4s" repeatCount="indefinite"/>
+      <animate attributeName="stroke-opacity" values="0.55;0" dur="3.6s" begin="2.4s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- mesh, slowly turning -->
+  <g>
+    <animateTransform attributeName="transform" attributeType="XML" type="rotate" from="0 120 120" to="360 120 120" dur="60s" repeatCount="indefinite"/>
+
+    <polygon points="120,48 182,84 182,156 120,192 58,156 58,84" fill="none" stroke="#FBF3E4" stroke-opacity="0.18" stroke-width="2"/>
+    <g stroke="#FBF3E4" stroke-opacity="0.16" stroke-width="2">
+      <line x1="120" y1="120" x2="120" y2="48"/>
+      <line x1="120" y1="120" x2="182" y2="84"/>
+      <line x1="120" y1="120" x2="182" y2="156"/>
+      <line x1="120" y1="120" x2="120" y2="192"/>
+      <line x1="120" y1="120" x2="58" y2="156"/>
+      <line x1="120" y1="120" x2="58" y2="84"/>
+    </g>
+
+    <!-- data pulses flowing in to the core -->
+    <g fill="#FBF3E4">
+      <circle r="3.2"><animateMotion dur="2.4s" begin="0s" repeatCount="indefinite" path="M120,48 L120,120"/><animate attributeName="opacity" values="0;1;1;0" dur="2.4s" begin="0s" repeatCount="indefinite"/></circle>
+      <circle r="3.2"><animateMotion dur="2.4s" begin="0.4s" repeatCount="indefinite" path="M182,84 L120,120"/><animate attributeName="opacity" values="0;1;1;0" dur="2.4s" begin="0.4s" repeatCount="indefinite"/></circle>
+      <circle r="3.2"><animateMotion dur="2.4s" begin="0.8s" repeatCount="indefinite" path="M182,156 L120,120"/><animate attributeName="opacity" values="0;1;1;0" dur="2.4s" begin="0.8s" repeatCount="indefinite"/></circle>
+      <circle r="3.2"><animateMotion dur="2.4s" begin="1.2s" repeatCount="indefinite" path="M120,192 L120,120"/><animate attributeName="opacity" values="0;1;1;0" dur="2.4s" begin="1.2s" repeatCount="indefinite"/></circle>
+      <circle r="3.2"><animateMotion dur="2.4s" begin="1.6s" repeatCount="indefinite" path="M58,156 L120,120"/><animate attributeName="opacity" values="0;1;1;0" dur="2.4s" begin="1.6s" repeatCount="indefinite"/></circle>
+      <circle r="3.2"><animateMotion dur="2.4s" begin="2.0s" repeatCount="indefinite" path="M58,84 L120,120"/><animate attributeName="opacity" values="0;1;1;0" dur="2.4s" begin="2.0s" repeatCount="indefinite"/></circle>
+    </g>
+
+    <!-- the community of nodes -->
+    <g>
+      <circle cx="120" cy="48" r="9" fill="#FFB627"><animate attributeName="r" values="8;11;8" dur="2.4s" begin="0s" repeatCount="indefinite"/></circle>
+      <circle cx="182" cy="84" r="9" fill="#F26A4B"><animate attributeName="r" values="8;11;8" dur="2.4s" begin="0.4s" repeatCount="indefinite"/></circle>
+      <circle cx="182" cy="156" r="9" fill="#1FA995"><animate attributeName="r" values="8;11;8" dur="2.4s" begin="0.8s" repeatCount="indefinite"/></circle>
+      <circle cx="120" cy="192" r="9" fill="#FFB627"><animate attributeName="r" values="8;11;8" dur="2.4s" begin="1.2s" repeatCount="indefinite"/></circle>
+      <circle cx="58" cy="156" r="9" fill="#F26A4B"><animate attributeName="r" values="8;11;8" dur="2.4s" begin="1.6s" repeatCount="indefinite"/></circle>
+      <circle cx="58" cy="84" r="9" fill="#1FA995"><animate attributeName="r" values="8;11;8" dur="2.4s" begin="2.0s" repeatCount="indefinite"/></circle>
+    </g>
+  </g>
+
+  <!-- the glowing core, where everything comes together -->
+  <circle cx="120" cy="120" r="17" fill="url(#core)" filter="url(#glow)">
+    <animate attributeName="r" values="16;19;16" dur="2.4s" repeatCount="indefinite"/>
+  </circle>
+</svg>

@@ -8,6 +8,7 @@ version = "0.1.14"
 description = "A CoAP client over UDP with confirmable delivery and observe."
 readme = "README.md"
 license = { text = "MIT" }
+license-files = ["LICENSE-MIT"]
 requires-python = ">=3.10"
 authors = [{ name = "molexxxx" }]
 keywords = ["pamoja", "iot", "robotics", "coap"]
@@ -23,7 +24,7 @@ dependencies = [
 
 [project.urls]
 Repository = "https://github.com/molexxxx/pamoja"
-Documentation = "https://pamoja.molex.cloud/docs/"
+Documentation = "https://pamoja.molex.cloud/docs/guides/coap.html"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pamoja"]

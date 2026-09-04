@@ -8,6 +8,7 @@ version = "0.1.14"
 description = "An MQTT client with the topic and wildcard rules, as the core transport."
 readme = "README.md"
 license = { text = "MIT" }
+license-files = ["LICENSE-MIT"]
 requires-python = ">=3.10"
 authors = [{ name = "molexxxx" }]
 keywords = ["pamoja", "iot", "robotics", "mqtt"]
@@ -23,7 +24,7 @@ dependencies = [
 
 [project.urls]
 Repository = "https://github.com/molexxxx/pamoja"
-Documentation = "https://pamoja.molex.cloud/docs/"
+Documentation = "https://pamoja.molex.cloud/docs/guides/mqtt.html"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pamoja"]

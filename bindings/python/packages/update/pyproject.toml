@@ -8,6 +8,7 @@ version = "0.1.14"
 description = "Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own."
 readme = "README.md"
 license = { text = "MIT" }
+license-files = ["LICENSE-MIT"]
 requires-python = ">=3.10"
 authors = [{ name = "molexxxx" }]
 keywords = ["pamoja", "iot", "robotics", "update"]

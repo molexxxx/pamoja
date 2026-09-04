@@ -8,6 +8,7 @@ version = "0.1.14"
 description = "The pamoja engine's surface for Python: the runtime version, the error every native call raises, and the transport every link shares, the counterpart of the pamoja-core crate."
 readme = "README.md"
 license = { text = "MIT" }
+license-files = ["LICENSE-MIT"]
 requires-python = ">=3.10"
 authors = [{ name = "molexxxx" }]
 keywords = ["pamoja", "iot", "robotics", "core"]

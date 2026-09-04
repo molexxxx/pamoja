@@ -1,10 +1,6 @@
 # TypeScript reference
 
 <!-- table: reference-link node -->
-<p align="center">
-  <img src="../assets/pamoja-logo.svg" alt="pamoja" height="64">
-</p>
-
 <p align="center"><strong>TypeScript binding reference</strong></p>
 
 <p align="center">
@@ -43,7 +39,7 @@ npm install @pamoja/profiles    # Profiles and robotics
 <!-- table: binding node -->
 | Group | Capability | Import | What it covers |
 | --- | --- | --- | --- |
-| **Engine** | Engine surface | [`@pamoja/core`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_core.html) | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
+| **Engine** | [Engine surface](https://pamoja.molex.cloud/docs/guides/transport.html) | [`@pamoja/core`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_core.html) | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | **Identity** | [Device identity](https://pamoja.molex.cloud/docs/guides/security.html) | [`@pamoja/security`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_security.html) | ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic |
 | **Codecs** | [Codecs](https://pamoja.molex.cloud/docs/guides/codec.html) | [`@pamoja/codec`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_codec.html) | CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links |
 | **Helpers** | [Helpers](https://pamoja.molex.cloud/docs/guides/kit.html) | [`@pamoja/kit`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_kit.html) | Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo |
@@ -63,14 +59,14 @@ npm install @pamoja/profiles    # Profiles and robotics
 |  | [Signed updates](https://pamoja.molex.cloud/docs/guides/update.html) | [`@pamoja/update`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_update.html) | Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own |
 |  | [Power](https://pamoja.molex.cloud/docs/guides/power.html) | [`@pamoja/power`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_power.html) | Duty cycling and an energy-aware governor that stretches work as the battery drains |
 |  | [Telemetry](https://pamoja.molex.cloud/docs/guides/telemetry.html) | [`@pamoja/telemetry`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_telemetry.html) | Observability that ships only what is worth the bytes as link cost rises, while counting everything |
-| **Transports and testing** | MQTT | [`@pamoja/mqtt`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mqtt.html) | An MQTT client with the topic and wildcard rules, as the core transport |
-|  | CoAP | [`@pamoja/coap`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_coap.html) | A CoAP client over UDP with confirmable delivery and observe |
-|  | Loopback | [`@pamoja/loopback`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_loopback.html) | An in-process transport with topic matching and a fault injector, for testing with no broker |
-|  | Store and forward | [`@pamoja/sync`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sync.html) | Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss |
-|  | Transport ladder | [`@pamoja/ladder`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ladder.html) | Cheapest reachable link first, buffering to a store when every link is down |
-|  | Event bus | [`@pamoja/bus`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_bus.html) | An in-memory typed publish and subscribe event bus |
-|  | Simulators | [`@pamoja/sim`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sim.html) | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
-| **Profiles and robotics** | Device profiles | [`@pamoja/profile`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_profile.html) | Named, ready-to-run device profiles from plain data or a JSON manifest |
+| **Transports and testing** | [MQTT](https://pamoja.molex.cloud/docs/guides/mqtt.html) | [`@pamoja/mqtt`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mqtt.html) | An MQTT client with the topic and wildcard rules, as the core transport |
+|  | [CoAP](https://pamoja.molex.cloud/docs/guides/coap.html) | [`@pamoja/coap`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_coap.html) | A CoAP client over UDP with confirmable delivery and observe |
+|  | [Loopback](https://pamoja.molex.cloud/docs/guides/loopback.html) | [`@pamoja/loopback`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_loopback.html) | An in-process transport with topic matching and a fault injector, for testing with no broker |
+|  | [Store and forward](https://pamoja.molex.cloud/docs/guides/sync.html) | [`@pamoja/sync`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sync.html) | Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss |
+|  | [Transport ladder](https://pamoja.molex.cloud/docs/guides/ladder.html) | [`@pamoja/ladder`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ladder.html) | Cheapest reachable link first, buffering to a store when every link is down |
+|  | [Event bus](https://pamoja.molex.cloud/docs/guides/bus.html) | [`@pamoja/bus`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_bus.html) | An in-memory typed publish and subscribe event bus |
+|  | [Simulators](https://pamoja.molex.cloud/docs/guides/sim.html) | [`@pamoja/sim`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sim.html) | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
+| **Profiles and robotics** | [Device profiles](https://pamoja.molex.cloud/docs/guides/profile.html) | [`@pamoja/profile`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_profile.html) | Named, ready-to-run device profiles from plain data or a JSON manifest |
 |  | [ROS 2 rules](https://pamoja.molex.cloud/docs/guides/ros2.html) | [`@pamoja/ros2`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ros2.html) | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |
 |  | [Zenoh keys](https://pamoja.molex.cloud/docs/guides/zenoh.html) | [`@pamoja/zenoh`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_zenoh.html) | Zenoh key expressions: validity, canonical form, and wildcard matching |
 <!-- end -->

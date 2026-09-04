@@ -69,6 +69,9 @@ pamoja-kit = { path = "../crates/pamoja-kit" }
 pamoja-ros2 = { path = "../crates/pamoja-ros2" }
 pamoja-sync = { path = "../crates/pamoja-sync" }
 pamoja-loopback = { path = "../crates/pamoja-loopback" }
+pamoja-mqtt = { path = "../crates/pamoja-mqtt" }
+pamoja-coap = { path = "../crates/pamoja-coap" }
+pamoja-bus = { path = "../crates/pamoja-bus" }
 pamoja-ladder = { path = "../crates/pamoja-ladder" }
 pamoja-power = { path = "../crates/pamoja-power" }
 pamoja-profile = { path = "../crates/pamoja-profile" }

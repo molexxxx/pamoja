@@ -14,6 +14,8 @@
  * @packageDocumentation
  */
 
+import type { Level as LevelName } from '@pamoja/native'
+
 import {
   Level as NativeLevel,
   LinkCost as NativeLinkCost,
@@ -32,19 +34,19 @@ export type { Snapshot }
  */
 export const Level = {
   /** Fine-grained detail, useful only when chasing a specific problem. */
-  Trace: 'Trace',
+  Trace: 'Trace' as LevelName,
   /** Diagnostic detail for development. */
-  Debug: 'Debug',
+  Debug: 'Debug' as LevelName,
   /** A normal, noteworthy event. */
-  Info: 'Info',
+  Info: 'Info' as LevelName,
   /** Something unexpected that the node recovered from. */
-  Warn: 'Warn',
+  Warn: 'Warn' as LevelName,
   /** A failure that needs attention. */
-  Error: 'Error',
+  Error: 'Error' as LevelName,
 } as const
 
 /** One of the {@link Level} choices. */
-export type Level = (typeof Level)[keyof typeof Level]
+export type Level = LevelName
 
 /**
  * What the link back to the network currently costs.

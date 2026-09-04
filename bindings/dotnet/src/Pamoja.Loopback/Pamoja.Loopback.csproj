@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Loopback</RootNamespace>
     <Description>An in-process transport with topic matching and a fault injector, for testing with no broker.</Description>
     <PackageTags>pamoja;iot;robotics;loopback</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/loopback.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

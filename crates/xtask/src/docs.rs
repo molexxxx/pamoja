@@ -21,7 +21,7 @@ use quote::ToTokens;
 use syn::{Fields, ImplItem, Item, TraitItem, Visibility};
 
 use crate::catalog::{Catalog, SITE};
-use crate::{builds, buttons, packages, regions, theme, version};
+use crate::{builds, buttons, landings, licenses, packages, regions, theme, version};
 
 /// Run the `docs` task: regenerate every derived file, or `--check` to verify they are in sync.
 ///
@@ -201,7 +201,9 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
     let crates_root = root.join("crates");
     let crates = lib_crates()?;
     let catalog = Catalog::load(&root)?;
-    catalog.check(&root, &crates, false)?;
+    // Every capability has a guide now, so a page going missing is a failure rather
+    // than a capability quietly dropping out of the navigation.
+    catalog.check(&root, &crates, true)?;
 
     let mut files = Vec::new();
     for krate in &crates {
@@ -247,14 +249,19 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
 
     files.extend(buttons::render());
     files.extend(theme::render());
+    files.extend(landings::render(&root, &catalog)?);
+    files.extend(licenses::render(&root)?);
 
     // The mark the showcase uses, carried into the site so every reference page opens with
     // it; mdBook copies anything under `docs` that is not a chapter into the built site.
-    let logo = root.join("web/assets/pamoja-logo.svg");
-    files.push((
-        "docs/assets/pamoja-logo.svg".to_owned(),
-        fs::read_to_string(&logo).map_err(|e| format!("reading {}: {e}", logo.display()))?,
-    ));
+    for mark in ["pamoja-logo.svg", "pamoja-icon.svg"] {
+        let source = root.join("web/assets").join(mark);
+        files.push((
+            format!("docs/assets/{mark}"),
+            fs::read_to_string(&source)
+                .map_err(|e| format!("reading {}: {e}", source.display()))?,
+        ));
+    }
 
     let version = version::current()?;
     files.extend(packages::render_node(&root, &catalog, &version)?);

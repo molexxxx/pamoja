@@ -8,6 +8,7 @@ version = "0.1.14"
 description = "X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack."
 readme = "README.md"
 license = { text = "MIT" }
+license-files = ["LICENSE-MIT"]
 requires-python = ">=3.10"
 authors = [{ name = "molexxxx" }]
 keywords = ["pamoja", "iot", "robotics", "session"]

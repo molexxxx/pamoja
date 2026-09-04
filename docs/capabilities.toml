@@ -299,6 +299,7 @@ crates = ["pamoja-mqtt"]
 node = "mqtt"
 python = "mqtt"
 dotnet = ["MqttClient", "MqttClientOptions", "MqttMessage", "Qos"]
+guide = "guides/mqtt.md"
 
 [[capability]]
 key = "coap"
@@ -309,6 +310,7 @@ crates = ["pamoja-coap"]
 node = "coap"
 python = "coap"
 dotnet = ["CoapClient", "CoapClientOptions", "Reliability"]
+guide = "guides/coap.md"
 
 [[capability]]
 key = "loopback"
@@ -319,6 +321,7 @@ crates = ["pamoja-loopback"]
 node = "loopback"
 python = "loopback"
 dotnet = ["LoopbackBroker", "LoopbackTransport"]
+guide = "guides/loopback.md"
 
 [[capability]]
 key = "sync"
@@ -329,6 +332,7 @@ crates = ["pamoja-sync"]
 node = "sync"
 python = "sync"
 dotnet = ["Store"]
+guide = "guides/sync.md"
 
 [[capability]]
 key = "ladder"
@@ -339,6 +343,7 @@ crates = ["pamoja-ladder"]
 node = "ladder"
 python = "ladder"
 dotnet = ["Ladder", "Delivery"]
+guide = "guides/ladder.md"
 
 [[capability]]
 key = "bus"
@@ -349,6 +354,7 @@ crates = ["pamoja-bus"]
 node = "bus"
 python = "bus"
 dotnet = ["EventBus"]
+guide = "guides/bus.md"
 
 [[capability]]
 key = "transport"
@@ -359,6 +365,7 @@ crates = []
 node = "core"
 python = "core"
 dotnet = ["Transport", "TransportMessage"]
+guide = "guides/transport.md"
 
 [[capability]]
 key = "sim"
@@ -369,6 +376,7 @@ crates = ["pamoja-sim"]
 node = "sim"
 python = "sim"
 dotnet = ["SimulatedSensor", "Replay", "RecordingActuator", "SimulatedRobot", "Pose", "Twist"]
+guide = "guides/sim.md"
 
 [[capability]]
 key = "profile"
@@ -379,6 +387,7 @@ crates = ["pamoja-profile"]
 node = "profile"
 python = "profile"
 dotnet = ["Profile", "ControlPolicy", "ControlKind", "Controller", "Reaction", "Alert", "AlertKind", "PowerSchedule"]
+guide = "guides/profile.md"
 
 [[capability]]
 key = "ros2"

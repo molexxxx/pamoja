@@ -8,6 +8,7 @@ version = "0.1.14"
 description = "I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins."
 readme = "README.md"
 license = { text = "MIT" }
+license-files = ["LICENSE-MIT"]
 requires-python = ">=3.10"
 authors = [{ name = "molexxxx" }]
 keywords = ["pamoja", "iot", "robotics", "gpio"]

@@ -3,6 +3,7 @@
 Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![API reference](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg)](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sync.html)
+[![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/sync.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
 
 ## Install
@@ -12,6 +13,54 @@ npm install @pamoja/sync
 ```
 
 This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
+
+## Example
+
+The test that runs in CI, spliced here as it ran.
+
+From [`bindings/node/guides/sync.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/sync.ts):
+
+```typescript
+import assert from 'node:assert/strict'
+
+import { Store } from '@pamoja/sync'
+
+async function main() {
+  // A node with nowhere to send buffers its readings. This queue is held in memory, so
+  // it lasts as long as the process; Store.file(dir) is the same queue on disk.
+  const outbox = Store.memory()
+  for (const reading of ['20.1', '20.4', '20.2']) {
+    await outbox.append(Buffer.from(reading))
+  }
+  assert.equal(await outbox.len(), 3)
+
+  // Peek reads the oldest record without taking it, so a send that fails part-way leaves
+  // the queue exactly as it was.
+  assert.equal((await outbox.peek())?.toString(), '20.1')
+  assert.equal(await outbox.len(), 3)
+
+  // The link returns and the queue drains oldest first, in the order the readings were
+  // taken rather than the order they happen to come back off a buffer.
+  const drained: string[] = []
+  let record = await outbox.pop()
+  while (record !== null) {
+    drained.push(record.toString())
+    record = await outbox.pop()
+  }
+  assert.deepEqual(drained, ['20.1', '20.4', '20.2'])
+  assert.equal(await outbox.len(), 0)
+
+  // A bounded queue refuses the append that would overflow it. A full store is
+  // backpressure the caller is told about, not a reading dropped behind its back.
+  const bounded = Store.memory(2)
+  await bounded.append(Buffer.from('20.1'))
+  await bounded.append(Buffer.from('20.4'))
+  await assert.rejects(() => bounded.append(Buffer.from('20.2')))
+  assert.equal(await bounded.len(), 2)
+}
+
+main()
+```
 
 ## The same capability in every language
 
@@ -25,6 +74,7 @@ This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the
 ## Documentation
 
 - [`@pamoja/sync` reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sync.html), every class, function, and type this package exports.
+- [The Store and forward guide](https://pamoja.molex.cloud/docs/guides/sync.html), with the same example in Rust, Python, and C#.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License
