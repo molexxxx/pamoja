@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Ros2</RootNamespace>
     <Description>ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed.</Description>
     <PackageTags>pamoja;iot;robotics;ros2</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/ros2.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

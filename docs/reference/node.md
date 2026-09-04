@@ -60,6 +60,6 @@ npm install @pamoja/profiles    # Profiles and robotics
 |  | Event bus | `@pamoja/bus` | An in-memory typed publish and subscribe event bus |
 |  | Simulators | `@pamoja/sim` | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
 | **Profiles and robotics** | Device profiles | `@pamoja/profile` | Named, ready-to-run device profiles from plain data or a JSON manifest |
-|  | ROS 2 rules | `@pamoja/ros2` | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |
-|  | Zenoh keys | `@pamoja/zenoh` | Zenoh key expressions: validity, canonical form, and wildcard matching |
+|  | [ROS 2 rules](https://pamoja.molex.cloud/docs/guides/ros2.html) | `@pamoja/ros2` | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |
+|  | [Zenoh keys](https://pamoja.molex.cloud/docs/guides/zenoh.html) | `@pamoja/zenoh` | Zenoh key expressions: validity, canonical form, and wildcard matching |
 <!-- end -->

@@ -33,9 +33,9 @@ export { type SpiClock }
 /** The physical voltage level on a pin. */
 export const PinLevel = {
   /** A low level, near ground. */
-  Low: 'Low',
+  Low: 'Low' as PinLevelName,
   /** A high level, near the supply voltage. */
-  High: 'High',
+  High: 'High' as PinLevelName,
 } as const
 
 /** The physical voltage level on a pin. */
@@ -44,11 +44,11 @@ export type PinLevel = PinLevelName
 /** The signal transition that triggers a pin interrupt. */
 export const PinEdge = {
   /** A low-to-high transition. */
-  Rising: 'Rising',
+  Rising: 'Rising' as PinEdgeName,
   /** A high-to-low transition. */
-  Falling: 'Falling',
+  Falling: 'Falling' as PinEdgeName,
   /** Either transition. */
-  Both: 'Both',
+  Both: 'Both' as PinEdgeName,
 } as const
 
 /** The signal transition that triggers a pin interrupt. */
@@ -57,9 +57,9 @@ export type PinEdge = PinEdgeName
 /** Whether a signal is asserted by a high or a low physical level. */
 export const PinPolarity = {
   /** A high level means asserted. */
-  ActiveHigh: 'ActiveHigh',
+  ActiveHigh: 'ActiveHigh' as PinPolarityName,
   /** A low level means asserted, the wiring of most buttons and relay boards. */
-  ActiveLow: 'ActiveLow',
+  ActiveLow: 'ActiveLow' as PinPolarityName,
 } as const
 
 /** Whether a signal is asserted by a high or a low physical level. */

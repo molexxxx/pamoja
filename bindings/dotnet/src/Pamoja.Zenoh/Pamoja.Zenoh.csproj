@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Zenoh</RootNamespace>
     <Description>Zenoh key expressions: validity, canonical form, and wildcard matching.</Description>
     <PackageTags>pamoja;iot;robotics;zenoh</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/zenoh.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

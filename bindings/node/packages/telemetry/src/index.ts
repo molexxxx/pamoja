@@ -53,13 +53,13 @@ export type Level = (typeof Level)[keyof typeof Level]
  */
 export const LinkCost = {
   /** Bytes are effectively free, such as on wired power and ethernet. */
-  Free: 'Free',
+  Free: 'Free' as NativeLinkCost,
   /** Bytes are paid for, such as on a cellular plan. */
-  Metered: 'Metered',
+  Metered: 'Metered' as NativeLinkCost,
   /** Bytes are scarce, such as on a satellite or long-range radio link. */
-  Expensive: 'Expensive',
+  Expensive: 'Expensive' as NativeLinkCost,
   /** Nothing can be shipped at all. */
-  Offline: 'Offline',
+  Offline: 'Offline' as NativeLinkCost,
 } as const
 
 /** One of the {@link LinkCost} choices. */

@@ -27,6 +27,7 @@ import {
   ros2TwistFromCdr,
   ros2TwistToCdr,
   ros2TypeHashDigest,
+  type EntityKindName,
 } from '@pamoja/native'
 
 export { CdrReader, CdrWriter } from '@pamoja/native'
@@ -40,15 +41,15 @@ export type { Ros2Twist, Ros2Vector3 } from '@pamoja/native'
  */
 export const EntityKind = {
   /** A topic, which takes the `rt` prefix. */
-  Topic: 'Topic',
+  Topic: 'Topic' as EntityKindName,
   /** The request side of a service, which takes the `rq` prefix. */
-  ServiceRequest: 'ServiceRequest',
+  ServiceRequest: 'ServiceRequest' as EntityKindName,
   /** The reply side of a service, which takes the `rr` prefix. */
-  ServiceResponse: 'ServiceResponse',
+  ServiceResponse: 'ServiceResponse' as EntityKindName,
 } as const
 
 /** One of the {@link EntityKind} choices. */
-export type EntityKind = (typeof EntityKind)[keyof typeof EntityKind]
+export type EntityKind = EntityKindName
 
 /** The ROS 2 rules for what a name may be and what it maps onto. */
 export const name = {

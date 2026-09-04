@@ -22,5 +22,7 @@ SessionGuide.Run();
 UpdateGuide.Run();
 PowerGuide.Run();
 TelemetryGuide.Run();
+Ros2Guide.Run();
+ZenohGuide.Run();
 
 Console.WriteLine("guides ok");

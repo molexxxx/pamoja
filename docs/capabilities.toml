@@ -389,6 +389,7 @@ crates = ["pamoja-ros2"]
 node = "ros2"
 python = "ros2"
 dotnet = ["Ros2", "Ros2Twist", "Vector3", "CdrReader", "CdrWriter", "EntityKind"]
+guide = "guides/ros2.md"
 
 [[capability]]
 key = "zenoh"
@@ -399,6 +400,7 @@ crates = ["pamoja-zenoh"]
 node = "zenoh"
 python = "zenoh"
 dotnet = ["KeyExpression"]
+guide = "guides/zenoh.md"
 
 # The crates that are not a capability of their own: the trait core every capability
 # implements, the C ABI the .NET binding rides on, and the fleet dashboard.

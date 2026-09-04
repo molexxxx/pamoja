@@ -46,6 +46,11 @@
 - [Power](guides/power.md)
 - [Telemetry](guides/telemetry.md)
 
+# Profiles and robotics
+
+- [ROS 2 rules](guides/ros2.md)
+- [Zenoh keys](guides/zenoh.md)
+
 # Reference
 
 - [Rust](reference/rust.md)

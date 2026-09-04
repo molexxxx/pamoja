@@ -54,11 +54,11 @@ export function stepsForDegrees(degrees: number, stepsPerRevolution: number): nu
 /** A stepper drive pattern, trading torque, smoothness, and resolution. */
 export const StepDrive = {
   /** One coil energised at a time: four steps, least torque and least power. */
-  Wave: 'Wave',
+  Wave: 'Wave' as StepDriveName,
   /** Two adjacent coils at a time: four steps, most torque. */
-  FullStep: 'FullStep',
+  FullStep: 'FullStep' as StepDriveName,
   /** Alternating one and two coils: eight steps, double resolution. */
-  HalfStep: 'HalfStep',
+  HalfStep: 'HalfStep' as StepDriveName,
 } as const
 
 /** A stepper drive pattern, trading torque, smoothness, and resolution. */

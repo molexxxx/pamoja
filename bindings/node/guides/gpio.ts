@@ -28,13 +28,13 @@ assert.equal(spi.modeFor(true, false), 2)
 
 // A relay board sold as active low energises when its pin is driven low. The polarity
 // carries that inversion so no call site has to remember it.
-const relay = PinPolarity.ActiveLow as PinPolarity
+const relay = PinPolarity.ActiveLow
 const energised = pin.levelFor(relay, true)
 assert.equal(energised, PinLevel.Low)
 assert.equal(pin.isAsserted(relay, energised), true)
 
 // Releasing the relay drives the line back high, an edge a falling trigger ignores.
 const released = pin.invert(energised)
-assert.equal(pin.triggers(PinEdge.Rising as PinEdge, energised, released), true)
-assert.equal(pin.triggers(PinEdge.Falling as PinEdge, energised, released), false)
+assert.equal(pin.triggers(PinEdge.Rising, energised, released), true)
+assert.equal(pin.triggers(PinEdge.Falling, energised, released), false)
 // ANCHOR_END: example
