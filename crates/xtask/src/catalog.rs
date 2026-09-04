@@ -141,6 +141,22 @@ impl Catalog {
         out
     }
 
+    /// The chapters worth naming as a set: those holding more than one capability that
+    /// has a package of its own. A chapter with a single capability is that capability.
+    pub fn domains(&self) -> Vec<(&Chapter, Vec<&Capability>)> {
+        self.chapters
+            .iter()
+            .map(|chapter| {
+                let members: Vec<&Capability> = self
+                    .in_chapter(&chapter.key)
+                    .filter(|capability| !capability.crates.is_empty())
+                    .collect();
+                (chapter, members)
+            })
+            .filter(|(_, members)| members.len() > 1)
+            .collect()
+    }
+
     /// The capabilities of one chapter, in map order.
     pub fn in_chapter<'a>(&'a self, chapter: &'a str) -> impl Iterator<Item = &'a Capability> {
         self.capabilities
@@ -483,6 +499,9 @@ impl Catalog {
             ("binding", Some(language @ ("node" | "python" | "dotnet"))) => {
                 Ok(self.binding_table(language))
             }
+            ("domains", Some(language @ ("rust" | "node" | "python" | "dotnet"))) => {
+                Ok(self.domains_block(language))
+            }
             _ => Err(format!("unknown table `{directive}`")),
         }
     }
@@ -609,6 +628,63 @@ impl Catalog {
             .collect();
         lines.push(format!("- C#: {}", types.join(", ")));
         lines.join("\n")
+    }
+
+    // The install line for each domain, in the language's own mechanism: a feature in
+    // Rust, which decides what compiles, and the capability packages elsewhere, where
+    // naming them keeps the manifest an honest record of what the code uses.
+    fn domains_block(&self, language: &str) -> String {
+        let rows: Vec<(String, String)> = self
+            .domains()
+            .into_iter()
+            .map(|(chapter, members)| {
+                let command = match language {
+                    "rust" => format!("cargo add pamoja --features {}", chapter.key),
+                    "node" => format!(
+                        "npm install {}",
+                        members
+                            .iter()
+                            .map(|capability| format!("@pamoja/{}", capability.node))
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    ),
+                    "python" => format!(
+                        "pip install {}",
+                        members
+                            .iter()
+                            .map(|capability| format!("pamoja-{}", capability.python))
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    ),
+                    _ => format!(
+                        "dotnet add package {}",
+                        members
+                            .iter()
+                            .map(|capability| capability.dotnet_package())
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    ),
+                };
+                (command, chapter.title.clone())
+            })
+            .collect();
+        let width = rows
+            .iter()
+            .map(|(command, _)| command.len())
+            .max()
+            .unwrap_or(0);
+        let mut out = String::from(
+            "```sh
+",
+        );
+        for (command, title) in rows {
+            out.push_str(&format!(
+                "{command:<width$}  # {title}
+"
+            ));
+        }
+        out.push_str("```");
+        out
     }
 
     fn binding_table(&self, language: &str) -> String {

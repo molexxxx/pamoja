@@ -66,10 +66,22 @@ dependency graph, for a `x86_64-unknown-linux-gnu` build:
 | Bare metal, no `std` | `--features modbus,sensors,lora` | 5 | 5 | 0 |
 <!-- end -->
 
-`field-io` there is a group feature: the six chapters holding more than one
-capability each have one, so a build names a domain rather than listing its
-parts. The narrow builds carry no third-party code at all: `pamoja`,
-`pamoja-core`, and the capability crates, and nothing else. Most capability crates are `no_std`, so
+`field-io` there is a group feature. Six domains have one, so a build names a
+domain rather than listing its parts:
+
+<!-- table: domains rust -->
+```sh
+cargo add pamoja --features field-io    # Field I/O
+cargo add pamoja --features sensing     # Sensing and actuation
+cargo add pamoja --features radio       # Radio and reach
+cargo add pamoja --features trust       # Trust and operation
+cargo add pamoja --features transports  # Transports and testing
+cargo add pamoja --features profiles    # Profiles and robotics
+```
+<!-- end -->
+
+The narrow builds carry no third-party code at all: `pamoja`, `pamoja-core`, and
+the capability crates, and nothing else. Most capability crates are `no_std`, so
 the same code runs on a gateway and on a microcontroller. The
 [Rust reference](reference/rust.md) lists every crate.
 
@@ -90,6 +102,21 @@ Linux (x64, arm64), macOS (x64, arm64), and Windows (x64); npm picks the right
 one. It is one binary carrying every capability whichever packages you install,
 so the choice is about the API surface and your dependency manifest, not the
 download. Node 16 or later.
+
+The same six domains, as the packages that make them up. There is no domain
+package: naming the capabilities keeps the manifest an honest record of what the
+code uses, and `pamoja` is there when you would rather not choose at all.
+
+<!-- table: domains node -->
+```sh
+npm install @pamoja/serial @pamoja/modbus @pamoja/can @pamoja/gpio                                          # Field I/O
+npm install @pamoja/sensors @pamoja/actuators                                                               # Sensing and actuation
+npm install @pamoja/lora @pamoja/lorawan @pamoja/mesh @pamoja/routing                                       # Radio and reach
+npm install @pamoja/audit @pamoja/session @pamoja/update @pamoja/power @pamoja/telemetry                    # Trust and operation
+npm install @pamoja/mqtt @pamoja/coap @pamoja/loopback @pamoja/sync @pamoja/ladder @pamoja/bus @pamoja/sim  # Transports and testing
+npm install @pamoja/profile @pamoja/ros2 @pamoja/zenoh                                                      # Profiles and robotics
+```
+<!-- end -->
 
 <!-- table: binding node -->
 | Group | Capability | Import | What it covers |
@@ -144,6 +171,21 @@ the compiled engine, with wheels for the same platforms as the Node engine and
 for Python 3.10 and later; elsewhere `pip` builds it from the sdist, which needs
 a Rust toolchain.
 
+The same six domains, as the packages that make them up. There is no domain
+package: naming the capabilities keeps the manifest an honest record of what the
+code uses, and `pamoja` is there when you would rather not choose at all.
+
+<!-- table: domains python -->
+```sh
+pip install pamoja-serial pamoja-modbus pamoja-can pamoja-gpio                                       # Field I/O
+pip install pamoja-sensors pamoja-actuators                                                          # Sensing and actuation
+pip install pamoja-lora pamoja-lorawan pamoja-mesh pamoja-routing                                    # Radio and reach
+pip install pamoja-audit pamoja-session pamoja-update pamoja-power pamoja-telemetry                  # Trust and operation
+pip install pamoja-mqtt pamoja-coap pamoja-loopback pamoja-sync pamoja-ladder pamoja-bus pamoja-sim  # Transports and testing
+pip install pamoja-profile pamoja-ros2 pamoja-zenoh                                                  # Profiles and robotics
+```
+<!-- end -->
+
 <!-- table: binding python -->
 | Group | Capability | Module | What it covers |
 | --- | --- | --- | --- |
@@ -194,6 +236,21 @@ using Pamoja.Codec;
 Each package is one namespace of the same name. Every package depends on
 `Pamoja.Native`, which carries the native library for `win-x64`, `linux-x64`,
 `linux-arm64`, `osx-x64`, and `osx-arm64`, and targets .NET 8.
+
+The same six domains, as the packages that make them up. There is no domain
+package: naming the capabilities keeps the manifest an honest record of what the
+code uses, and `pamoja` is there when you would rather not choose at all.
+
+<!-- table: domains dotnet -->
+```sh
+dotnet add package Pamoja.Serial Pamoja.Modbus Pamoja.Can Pamoja.Gpio                                       # Field I/O
+dotnet add package Pamoja.Sensors Pamoja.Actuators                                                          # Sensing and actuation
+dotnet add package Pamoja.Lora Pamoja.Lorawan Pamoja.Mesh Pamoja.Routing                                    # Radio and reach
+dotnet add package Pamoja.Audit Pamoja.Session Pamoja.Update Pamoja.Power Pamoja.Telemetry                  # Trust and operation
+dotnet add package Pamoja.Mqtt Pamoja.Coap Pamoja.Loopback Pamoja.Sync Pamoja.Ladder Pamoja.Bus Pamoja.Sim  # Transports and testing
+dotnet add package Pamoja.Profile Pamoja.Ros2 Pamoja.Zenoh                                                  # Profiles and robotics
+```
+<!-- end -->
 
 <!-- table: binding dotnet -->
 | Group | Capability | Package | What it covers |
