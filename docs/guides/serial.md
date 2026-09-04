@@ -170,8 +170,8 @@ Expect(decoder.Discarded == 1, "the truncated frame is counted, not raised");
 ## Reference
 
 <!-- table: reference serial -->
-- Rust: [`pamoja-serial`](https://docs.rs/pamoja-serial) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_serial/index.html))
+- Rust: [`pamoja-serial`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_serial/index.html)
 - TypeScript: [`@pamoja/serial`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_serial.html)
 - Python: [`pamoja.serial`](https://pamoja.molex.cloud/docs/reference/python/pamoja/serial.html)
-- C#: [`Serial`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Serial.Serial.html), [`SlipDecoder`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Serial.SlipDecoder.html), [`CobsDecoder`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Serial.CobsDecoder.html)
+- C#: [`Pamoja.Serial`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Serial.html)
 <!-- end -->

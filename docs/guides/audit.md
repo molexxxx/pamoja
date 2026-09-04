@@ -231,8 +231,8 @@ Expect(
 ## Reference
 
 <!-- table: reference audit -->
-- Rust: [`pamoja-audit`](https://docs.rs/pamoja-audit) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_audit/index.html))
+- Rust: [`pamoja-audit`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_audit/index.html)
 - TypeScript: [`@pamoja/audit`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_audit.html)
 - Python: [`pamoja.audit`](https://pamoja.molex.cloud/docs/reference/python/pamoja/audit.html)
-- C#: [`Audit`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Audit.Audit.html), [`AuditLog`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Audit.AuditLog.html), [`AuditEntry`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Audit.AuditEntry.html), [`AuditVerifier`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Audit.AuditVerifier.html)
+- C#: [`Pamoja.Audit`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Audit.html)
 <!-- end -->

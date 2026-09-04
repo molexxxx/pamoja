@@ -4,6 +4,8 @@
 
 Signed firmware updates for pamoja: an RFC 9124 manifest, image verification, and A/B slots with verified rollback, so a device can be fixed in the field.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_update/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/guides/update.html"><img height="28" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://crates.io/crates/pamoja-update"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-update"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +13,10 @@ Signed firmware updates for pamoja: an RFC 9124 manifest, image verification, an
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-update`](https://crates.io/crates/pamoja-update) | [docs.rs](https://docs.rs/pamoja-update), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_update/index.html) |
+| Rust | [`pamoja-update`](https://crates.io/crates/pamoja-update) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_update/index.html), [docs.rs](https://docs.rs/pamoja-update) |
 | TypeScript | [`@pamoja/update`](https://www.npmjs.com/package/@pamoja/update) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_update.html) |
-| Python | [`pamoja-update`](https://pypi.org/project/pamoja-update/) | [`pamoja.update`](https://pamoja.molex.cloud/docs/reference/python/pamoja/update.html) |
-| C# | [`Pamoja.Update`](https://www.nuget.org/packages/Pamoja.Update) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.Update.html) |
+| Python | [`pamoja-update`](https://pypi.org/project/pamoja-update/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/update.html) |
+| C# | [`Pamoja.Update`](https://www.nuget.org/packages/Pamoja.Update) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.html) |
 
 Signed firmware updates for the pamoja SDK.
 

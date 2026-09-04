@@ -214,8 +214,8 @@ Expect(quarter.SleepUs == 750_000, "and three quarters asleep");
 ## Reference
 
 <!-- table: reference power -->
-- Rust: [`pamoja-power`](https://docs.rs/pamoja-power) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_power/index.html))
+- Rust: [`pamoja-power`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_power/index.html)
 - TypeScript: [`@pamoja/power`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_power.html)
 - Python: [`pamoja.power`](https://pamoja.molex.cloud/docs/reference/python/pamoja/power.html)
-- C#: [`DutyCycle`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Power.DutyCycle.html), [`PowerPlan`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Power.PowerPlan.html), [`PowerMode`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Power.PowerMode.html)
+- C#: [`Pamoja.Power`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Power.html)
 <!-- end -->

@@ -309,8 +309,8 @@ Expect(refused, "a release signed by an untrusted key is refused");
 ## Reference
 
 <!-- table: reference update -->
-- Rust: [`pamoja-update`](https://docs.rs/pamoja-update) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_update/index.html))
+- Rust: [`pamoja-update`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_update/index.html)
 - TypeScript: [`@pamoja/update`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_update.html)
 - Python: [`pamoja.update`](https://pamoja.molex.cloud/docs/reference/python/pamoja/update.html)
-- C#: [`Update`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.Update.html), [`Updater`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.Updater.html), [`Manifest`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.Manifest.html), [`ImageVerifier`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.ImageVerifier.html), [`Progress`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.Progress.html), [`Delegation`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.Delegation.html), [`SlotRecord`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.SlotRecord.html), [`SlotState`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.SlotState.html), [`BootDecision`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.BootDecision.html), [`BootAction`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.BootAction.html)
+- C#: [`Pamoja.Update`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.html)
 <!-- end -->

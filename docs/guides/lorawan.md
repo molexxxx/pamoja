@@ -271,8 +271,8 @@ Expect(refused, "a join accept nobody signed does not activate a session");
 ## Reference
 
 <!-- table: reference lorawan -->
-- Rust: [`pamoja-lorawan`](https://docs.rs/pamoja-lorawan) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_lorawan/index.html))
+- Rust: [`pamoja-lorawan`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_lorawan/index.html)
 - TypeScript: [`@pamoja/lorawan`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_lorawan.html)
 - Python: [`pamoja.lorawan`](https://pamoja.molex.cloud/docs/reference/python/pamoja/lorawan.html)
-- C#: [`Lorawan`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.Lorawan.html), [`LorawanDevice`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.LorawanDevice.html), [`LorawanSession`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.LorawanSession.html), [`LorawanHeader`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.LorawanHeader.html), [`LorawanJoinRequest`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.LorawanJoinRequest.html), [`LorawanJoinAccept`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.LorawanJoinAccept.html), [`LorawanGrant`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.LorawanGrant.html), [`LorawanOptions`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.LorawanOptions.html), [`LorawanRxData`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.LorawanRxData.html), [`LorawanMessageType`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.LorawanMessageType.html), [`LorawanDirection`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.LorawanDirection.html)
+- C#: [`Pamoja.Lorawan`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.html)
 <!-- end -->

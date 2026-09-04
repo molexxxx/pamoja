@@ -188,8 +188,8 @@ Expect(router.Count == 1, "forgetting drops exactly one route");
 ## Reference
 
 <!-- table: reference routing -->
-- Rust: [`pamoja-routing`](https://docs.rs/pamoja-routing) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_routing/index.html))
+- Rust: [`pamoja-routing`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_routing/index.html)
 - TypeScript: [`@pamoja/routing`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_routing.html)
 - Python: [`pamoja.routing`](https://pamoja.molex.cloud/docs/reference/python/pamoja/routing.html)
-- C#: [`Router`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Routing.Router.html), [`Route`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Routing.Route.html), [`ForwardDecision`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Routing.ForwardDecision.html), [`ForwardAction`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Routing.ForwardAction.html)
+- C#: [`Pamoja.Routing`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Routing.html)
 <!-- end -->

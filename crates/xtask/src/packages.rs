@@ -9,7 +9,10 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use crate::catalog::{dotnet_name, node_reference_url, Capability, Catalog, Chapter, SITE};
+use crate::catalog::{
+    dotnet_name, dotnet_reference_url, node_package, node_reference_url, python_reference_url,
+    Capability, Catalog, Chapter, SITE,
+};
 use crate::regions;
 
 /// The repository URL every manifest points at.
@@ -465,13 +468,15 @@ fn capability_readme(
     capability: &Capability,
     key: &str,
 ) -> Result<String, String> {
+    let reference = node_reference_url(&capability.node);
     let mut out = format!(
         "# @pamoja/{key}\n\n{}. One capability of [pamoja](https://github.com/molexxxx/pamoja), \
-         one memory-safe Rust core with bindings for TypeScript, Python, and C#.\n\n\
+         one memory-safe Rust core with bindings for TypeScript, Python, and C#.\n\n{}\n\n\
          ## Install\n\n```sh\nnpm install @pamoja/{key}\n```\n\n\
          This pulls in `@pamoja/native`, the compiled engine{}. \
          `npm install pamoja` is the whole framework in one package.\n",
         capability.summary,
+        doc_buttons(capability, &reference),
         siblings(deps, NATIVE, |dep| format!("`@pamoja/{dep}`"))
     );
 
@@ -488,7 +493,11 @@ fn capability_readme(
         catalog.cross_language(capability)
     ));
 
-    out.push_str("\n## Documentation\n\n");
+    out.push_str(&format!(
+        "\n## Documentation\n\n- [`{}` reference]({reference}), every class, function, and \
+         type this package exports.\n",
+        node_package(capability)
+    ));
     if capability.guide.is_some() {
         out.push_str(&format!(
             "- [The {} guide]({}), with the same example in Rust, Python, and C#.\n",
@@ -503,6 +512,48 @@ fn capability_readme(
     Ok(out)
 }
 
+// The row of buttons every registry page opens with: the capability's own reference in the
+// language of the package, its guide when it has one, and the site the rest of it is on.
+// Written as Markdown image links rather than HTML, since the four registries do not agree
+// on how much raw HTML they render.
+//
+// # Arguments
+//
+// * `capability` - the capability the page is about.
+// * `reference` - the URL of its reference in this language.
+fn doc_buttons(capability: &Capability, reference: &str) -> String {
+    let mut row = vec![badge("API reference", "btn-api.svg", reference)];
+    if capability.guide.is_some() {
+        row.push(badge(
+            "read the guide",
+            "btn-guide.svg",
+            &homepage(capability),
+        ));
+    }
+    row.push(badge("documentation", "btn-docs.svg", &format!("{SITE}/")));
+    row.join("\n")
+}
+
+// The same row for a page that covers a whole binding rather than one capability.
+//
+// # Arguments
+//
+// * `reference` - the URL of that binding's generated reference.
+fn site_buttons(reference: &str) -> String {
+    format!(
+        "{}\n{}",
+        badge("API reference", "btn-api.svg", reference),
+        badge("documentation", "btn-docs.svg", &format!("{SITE}/"))
+    )
+}
+
+// One button: a linked image, served from the repository so every registry can fetch it.
+fn badge(alt: &str, file: &str, href: &str) -> String {
+    format!(
+        "[![{alt}](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/{file})]({href})"
+    )
+}
+
 /// The README of the `pamoja` bundle.
 fn bundle_readme(catalog: &Catalog) -> String {
     let mut out = String::from(
@@ -510,14 +561,20 @@ fn bundle_readme(catalog: &Catalog) -> String {
          The whole pamoja framework in one package: every capability of one memory-safe Rust \
          core, behind an idiomatic TypeScript facade, for IoT, robotics, and drones. Each \
          capability is also its own package, so an application that needs one thing can depend \
-         on `@pamoja/mqtt` alone; this package depends on all of them and re-exports them.\n\n\
-         ## Install\n\n```sh\nnpm install pamoja\n```\n\n\
-         ## What it bundles\n\n| Package | What it covers |\n| --- | --- |\n",
+         on `@pamoja/mqtt` alone; this package depends on all of them and re-exports them.\n\n",
+    );
+    out.push_str(&site_buttons(&format!("{SITE}/reference/node/index.html")));
+    out.push_str(
+        "\n\n## Install\n\n```sh\nnpm install pamoja\n```\n\n\
+         ## What it bundles\n\nEach package name opens its reference.\n\n\
+         | Package | What it covers |\n| --- | --- |\n",
     );
     for capability in catalog.ordered() {
         out.push_str(&format!(
-            "| `@pamoja/{}` | {} |\n",
-            capability.node, capability.summary
+            "| [`@pamoja/{}`]({}) | {} |\n",
+            capability.node,
+            node_reference_url(&capability.node),
+            capability.summary
         ));
     }
     out.push_str(&format!(
@@ -537,7 +594,7 @@ fn core_readme() -> String {
         "# @pamoja/core\n\n\
          The pamoja engine's surface for Node: the runtime version and the transport every \
          link shares. This is the counterpart of the `pamoja-core` crate, and like it, it is \
-         small; the compiled engine lives in `@pamoja/native`, which this package depends on.\n\n\
+         small; the compiled engine lives in `@pamoja/native`, which this package depends on.\n\n{}\n\n\
          ## Install\n\n```sh\nnpm install @pamoja/core\n```\n\n\
          Each capability is its own package (`@pamoja/mqtt`, `@pamoja/security`, and so on) \
          and `npm install pamoja` is the whole framework in one package.\n\n\
@@ -545,6 +602,7 @@ fn core_readme() -> String {
          - [The reference for this package]({}), generated from its source.\n\
          - [The guides]({SITE}/) and the [install page]({SITE}/install.html).\n\n\
          ## License\n\nMIT\n",
+        site_buttons(&node_reference_url("core")),
         node_reference_url("core")
     )
 }
@@ -788,13 +846,15 @@ fn python_capability_readme(
     capability: &Capability,
     key: &str,
 ) -> Result<String, String> {
+    let reference = python_reference_url(&capability.python);
     let mut out = format!(
         "# pamoja-{key}\n\n{}. One capability of [pamoja](https://github.com/molexxxx/pamoja), \
-         one memory-safe Rust core with bindings for TypeScript, Python, and C#.\n\n\
+         one memory-safe Rust core with bindings for TypeScript, Python, and C#.\n\n{}\n\n\
          ## Install\n\n```sh\npip install pamoja-{key}\n```\n\n```python\nfrom pamoja import {key}\n```\n\n\
          This pulls in `pamoja-native`, the compiled engine{}. \
          `pip install pamoja` is the whole framework in one package.\n",
         capability.summary,
+        doc_buttons(capability, &reference),
         siblings(deps, NATIVE, |dep| format!("`pamoja-{dep}`"))
     );
 
@@ -811,7 +871,11 @@ fn python_capability_readme(
         catalog.cross_language(capability)
     ));
 
-    out.push_str("\n## Documentation\n\n");
+    out.push_str(&format!(
+        "\n## Documentation\n\n- [`pamoja.{}` reference]({reference}), every class and \
+         function in this module.\n",
+        capability.python
+    ));
     if capability.guide.is_some() {
         out.push_str(&format!(
             "- [The {} guide]({}), with the same example in Rust, TypeScript, and C#.\n",
@@ -833,14 +897,22 @@ fn python_bundle_readme(catalog: &Catalog) -> String {
          The whole pamoja framework in one package: every capability of one memory-safe Rust \
          core, behind an idiomatic Python facade, for IoT, robotics, and drones. Each \
          capability is also its own distribution, so an application that needs one thing can \
-         depend on `pamoja-mqtt` alone; this package depends on all of them.\n\n\
-         ## Install\n\n```sh\npip install pamoja\n```\n\n```python\nfrom pamoja import mqtt, security\n```\n\n\
-         ## What it installs\n\n| Distribution | Module | What it covers |\n| --- | --- | --- |\n",
+         depend on `pamoja-mqtt` alone; this package depends on all of them.\n\n",
+    );
+    out.push_str(&site_buttons(&format!(
+        "{SITE}/reference/python/pamoja.html"
+    )));
+    out.push_str(
+        "\n\n## Install\n\n```sh\npip install pamoja\n```\n\n```python\nfrom pamoja import mqtt, security\n```\n\n\
+         ## What it installs\n\nEach module name opens its reference.\n\n\
+         | Distribution | Module | What it covers |\n| --- | --- | --- |\n",
     );
     for capability in &catalog.capabilities {
         out.push_str(&format!(
-            "| `pamoja-{0}` | `pamoja.{0}` | {1} |\n",
-            capability.python, capability.summary
+            "| `pamoja-{0}` | [`pamoja.{0}`]({1}) | {2} |\n",
+            capability.python,
+            python_reference_url(&capability.python),
+            capability.summary
         ));
     }
     out.push_str(&format!(
@@ -861,14 +933,15 @@ fn python_core_readme() -> String {
          The pamoja engine's surface for Python: the runtime version, the error every native \
          call raises, and the transport every link shares. This is the counterpart of the \
          `pamoja-core` crate, and like it, it is small; the compiled engine is `pamoja-native`, \
-         which this package depends on.\n\n\
+         which this package depends on.\n\n{}\n\n\
          ## Install\n\n```sh\npip install pamoja-core\n```\n\n```python\nfrom pamoja.core import version, PamojaError, Transport\n```\n\n\
          Each capability is its own distribution (`pamoja-mqtt` gives `pamoja.mqtt`, and so on) \
          and `pip install pamoja` is the whole framework in one package.\n\n\
          ## Documentation\n\n\
          - [The reference for `pamoja.core`]({SITE}/reference/python/pamoja/core.html), generated from its source.\n\
          - [The guides]({SITE}/) and the [install page]({SITE}/install.html).\n\n\
-         ## License\n\nMIT\n"
+         ## License\n\nMIT\n",
+        site_buttons(&python_reference_url("core"))
     )
 }
 
@@ -1067,13 +1140,16 @@ fn dotnet_capability_readme(
     capability: &Capability,
     name: &str,
 ) -> Result<String, String> {
+    let package = capability.dotnet_package();
+    let reference = dotnet_reference_url(&package);
     let mut out = format!(
         "# Pamoja.{name}\n\n{}. One capability of [pamoja](https://github.com/molexxxx/pamoja), \
-         one memory-safe Rust core with bindings for TypeScript, Python, and C#.\n\n\
+         one memory-safe Rust core with bindings for TypeScript, Python, and C#.\n\n{}\n\n\
          ## Install\n\n```sh\ndotnet add package Pamoja.{name}\n```\n\n```csharp\nusing Pamoja.{name};\n```\n\n\
          This pulls in `Pamoja.Native`, the compiled engine{}. \
          `dotnet add package Pamoja` is the whole framework in one package.\n",
         capability.summary,
+        doc_buttons(capability, &reference),
         siblings(deps, "Native", |dep| format!("`Pamoja.{dep}`"))
     );
 
@@ -1094,7 +1170,10 @@ fn dotnet_capability_readme(
         catalog.cross_language(capability)
     ));
 
-    out.push_str("\n## Documentation\n\n");
+    out.push_str(&format!(
+        "\n## Documentation\n\n- [`{package}` reference]({reference}), every type in this \
+         namespace.\n"
+    ));
     if capability.guide.is_some() {
         out.push_str(&format!(
             "- [The {} guide]({}), with the same example in Rust, TypeScript, and Python.\n",
@@ -1141,14 +1220,21 @@ fn dotnet_bundle_readme(catalog: &Catalog) -> String {
          The whole pamoja framework in one package: every capability of one memory-safe Rust \
          core, behind an idiomatic C# facade, for IoT, robotics, and drones. Each capability \
          is also its own package, so an application that needs one thing can depend on \
-         `Pamoja.Mqtt` alone; this package depends on all of them.\n\n\
-         ## Install\n\n```sh\ndotnet add package Pamoja\n```\n\n\
-         ## What it installs\n\n| Package | What it covers |\n| --- | --- |\n",
+         `Pamoja.Mqtt` alone; this package depends on all of them.\n\n",
+    );
+    out.push_str(&site_buttons(&format!(
+        "{SITE}/reference/dotnet/index.html"
+    )));
+    out.push_str(
+        "\n\n## Install\n\n```sh\ndotnet add package Pamoja\n```\n\n\
+         ## What it installs\n\nEach package name opens its reference.\n\n\
+         | Package | What it covers |\n| --- | --- |\n",
     );
     for capability in catalog.ordered() {
+        let package = capability.dotnet_package();
         out.push_str(&format!(
-            "| `{}` | {} |\n",
-            capability.dotnet_package(),
+            "| [`{package}`]({}) | {} |\n",
+            dotnet_reference_url(&package),
             capability.summary
         ));
     }
@@ -1171,14 +1257,15 @@ fn dotnet_core_readme() -> String {
          link implements. This is the counterpart of the `pamoja-core` crate, and like it, it \
          is small. It is a capability like the others rather than a foundation: only the \
          transport packages depend on it, because they are the ones that return a transport. \
-         The compiled engine, which every package depends on, is `Pamoja.Native`.\n\n\
+         The compiled engine, which every package depends on, is `Pamoja.Native`.\n\n{}\n\n\
          ## Install\n\n```sh\ndotnet add package Pamoja.Core\n```\n\n```csharp\nusing Pamoja.Core;\n```\n\n\
          Each capability is its own package (`Pamoja.Mqtt`, `Pamoja.Security`, and so on) and \
          `dotnet add package Pamoja` is the whole framework in one package.\n\n\
          ## Documentation\n\n\
          - [The reference for `Pamoja.Core`]({SITE}/reference/dotnet/api/Pamoja.Core.html), generated from its source.\n\
          - [The guides]({SITE}/) and the [install page]({SITE}/install.html).\n\n\
-         ## License\n\nMIT\n"
+         ## License\n\nMIT\n",
+        site_buttons(&dotnet_reference_url("Pamoja.Core"))
     )
 }
 

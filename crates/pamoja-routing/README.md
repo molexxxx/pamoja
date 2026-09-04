@@ -4,6 +4,8 @@
 
 Cost-aware mesh routing for pamoja: a bounded routing table that learns reverse-path routes from the traffic it hears and decides whether to deliver, relay toward a destination, or fall back to flooding, so a mesh forwards instead of blindly flooding, no_std and allocation-free.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_routing/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/guides/routing.html"><img height="28" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://crates.io/crates/pamoja-routing"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-routing"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +13,10 @@ Cost-aware mesh routing for pamoja: a bounded routing table that learns reverse-
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-routing`](https://crates.io/crates/pamoja-routing) | [docs.rs](https://docs.rs/pamoja-routing), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_routing/index.html) |
+| Rust | [`pamoja-routing`](https://crates.io/crates/pamoja-routing) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_routing/index.html), [docs.rs](https://docs.rs/pamoja-routing) |
 | TypeScript | [`@pamoja/routing`](https://www.npmjs.com/package/@pamoja/routing) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_routing.html) |
-| Python | [`pamoja-routing`](https://pypi.org/project/pamoja-routing/) | [`pamoja.routing`](https://pamoja.molex.cloud/docs/reference/python/pamoja/routing.html) |
-| C# | [`Pamoja.Routing`](https://www.nuget.org/packages/Pamoja.Routing) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Routing.Router.html) |
+| Python | [`pamoja-routing`](https://pypi.org/project/pamoja-routing/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/routing.html) |
+| C# | [`Pamoja.Routing`](https://www.nuget.org/packages/Pamoja.Routing) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Routing.html) |
 
 Cost-aware mesh routing for the pamoja SDK.
 

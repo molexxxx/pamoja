@@ -201,8 +201,8 @@ Expect(
 ## Reference
 
 <!-- table: reference security -->
-- Rust: [`pamoja-security`](https://docs.rs/pamoja-security) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_security/index.html))
+- Rust: [`pamoja-security`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_security/index.html)
 - TypeScript: [`@pamoja/security`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_security.html)
 - Python: [`pamoja.security`](https://pamoja.molex.cloud/docs/reference/python/pamoja/security.html)
-- C#: [`DeviceIdentity`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Security.DeviceIdentity.html)
+- C#: [`Pamoja.Security`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Security.html)
 <!-- end -->

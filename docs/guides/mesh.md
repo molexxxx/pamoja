@@ -231,8 +231,8 @@ Expect(rejected, "a frame mangled on the air is rejected");
 ## Reference
 
 <!-- table: reference mesh -->
-- Rust: [`pamoja-mesh`](https://docs.rs/pamoja-mesh) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mesh/index.html))
+- Rust: [`pamoja-mesh`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mesh/index.html)
 - TypeScript: [`@pamoja/mesh`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mesh.html)
 - Python: [`pamoja.mesh`](https://pamoja.molex.cloud/docs/reference/python/pamoja/mesh.html)
-- C#: [`Mesh`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mesh.Mesh.html), [`MeshFrame`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mesh.MeshFrame.html), [`SeenPackets`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mesh.SeenPackets.html)
+- C#: [`Pamoja.Mesh`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mesh.html)
 <!-- end -->

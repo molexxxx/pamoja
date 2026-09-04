@@ -165,8 +165,8 @@ Expect(KeyExpression.Canonize("fleet//battery") is null, "and has no canonical f
 ## Reference
 
 <!-- table: reference zenoh -->
-- Rust: [`pamoja-zenoh`](https://docs.rs/pamoja-zenoh) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_zenoh/index.html))
+- Rust: [`pamoja-zenoh`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_zenoh/index.html)
 - TypeScript: [`@pamoja/zenoh`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_zenoh.html)
 - Python: [`pamoja.zenoh`](https://pamoja.molex.cloud/docs/reference/python/pamoja/zenoh.html)
-- C#: [`KeyExpression`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Zenoh.KeyExpression.html)
+- C#: [`Pamoja.Zenoh`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Zenoh.html)
 <!-- end -->

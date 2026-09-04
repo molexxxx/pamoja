@@ -4,6 +4,8 @@
 
 Concrete actuator drivers for pamoja: the command-encode half of common parts - the PCA9685 16-channel PWM/servo/LED controller (mode and prescale registers, the frequency-to-prescale formula, and 12-bit on/off channel words) and stepper-motor coil sequencing (wave, full-step, and half-step drive plus a step/direction position model) - turning a desired output into the bytes and steps a driver applies against the manufacturer datasheet, no_std and allocation-free. The command-encode half ahead of the bus driver.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_actuators/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/guides/actuators.html"><img height="28" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://crates.io/crates/pamoja-actuators"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-actuators"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +13,10 @@ Concrete actuator drivers for pamoja: the command-encode half of common parts - 
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-actuators`](https://crates.io/crates/pamoja-actuators) | [docs.rs](https://docs.rs/pamoja-actuators), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_actuators/index.html) |
+| Rust | [`pamoja-actuators`](https://crates.io/crates/pamoja-actuators) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_actuators/index.html), [docs.rs](https://docs.rs/pamoja-actuators) |
 | TypeScript | [`@pamoja/actuators`](https://www.npmjs.com/package/@pamoja/actuators) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_actuators.html) |
-| Python | [`pamoja-actuators`](https://pypi.org/project/pamoja-actuators/) | [`pamoja.actuators`](https://pamoja.molex.cloud/docs/reference/python/pamoja/actuators.html) |
-| C# | [`Pamoja.Actuators`](https://www.nuget.org/packages/Pamoja.Actuators) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Actuators.Pca9685.html) |
+| Python | [`pamoja-actuators`](https://pypi.org/project/pamoja-actuators/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/actuators.html) |
+| C# | [`Pamoja.Actuators`](https://www.nuget.org/packages/Pamoja.Actuators) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Actuators.html) |
 
 Concrete actuator drivers for the pamoja SDK.
 

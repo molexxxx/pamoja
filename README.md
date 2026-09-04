@@ -223,18 +223,18 @@ Expect(Codec.UnpackSamples(packed).SequenceEqual(samples), "and the batch round-
 <!-- table: chapters -->
 | Chapter | Guides | Crates |
 | --- | --- | --- |
-| Identity | [Device identity](https://pamoja.molex.cloud/docs/guides/security.html) | [`pamoja-security`](https://docs.rs/pamoja-security) |
-| Codecs | [Codecs](https://pamoja.molex.cloud/docs/guides/codec.html) | [`pamoja-codec`](https://docs.rs/pamoja-codec) |
-| Helpers | [Helpers](https://pamoja.molex.cloud/docs/guides/kit.html) | [`pamoja-kit`](https://docs.rs/pamoja-kit) |
-| Field I/O | [Serial framing](https://pamoja.molex.cloud/docs/guides/serial.html), [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html), [CAN and J1939](https://pamoja.molex.cloud/docs/guides/can.html), [I2C, SPI, and GPIO](https://pamoja.molex.cloud/docs/guides/gpio.html) | [`pamoja-serial`](https://docs.rs/pamoja-serial), [`pamoja-modbus`](https://docs.rs/pamoja-modbus), [`pamoja-can`](https://docs.rs/pamoja-can), [`pamoja-gpio`](https://docs.rs/pamoja-gpio) |
-| Sensing and actuation | [Sensor drivers](https://pamoja.molex.cloud/docs/guides/sensors.html), [Actuator drivers](https://pamoja.molex.cloud/docs/guides/actuators.html) | [`pamoja-sensors`](https://docs.rs/pamoja-sensors), [`pamoja-actuators`](https://docs.rs/pamoja-actuators) |
-| Radio and reach | [LoRa airtime](https://pamoja.molex.cloud/docs/guides/lora.html), [LoRaWAN](https://pamoja.molex.cloud/docs/guides/lorawan.html), [Mesh frames](https://pamoja.molex.cloud/docs/guides/mesh.html), [Routing](https://pamoja.molex.cloud/docs/guides/routing.html) | [`pamoja-lora`](https://docs.rs/pamoja-lora), [`pamoja-lorawan`](https://docs.rs/pamoja-lorawan), [`pamoja-mesh`](https://docs.rs/pamoja-mesh), [`pamoja-routing`](https://docs.rs/pamoja-routing) |
-| MAVLink | [MAVLink](https://pamoja.molex.cloud/docs/guides/mavlink.html) | [`pamoja-mavlink`](https://docs.rs/pamoja-mavlink) |
-| Trust and operation | [Audit log](https://pamoja.molex.cloud/docs/guides/audit.html), [Secured session](https://pamoja.molex.cloud/docs/guides/session.html), [Signed updates](https://pamoja.molex.cloud/docs/guides/update.html), [Power](https://pamoja.molex.cloud/docs/guides/power.html), [Telemetry](https://pamoja.molex.cloud/docs/guides/telemetry.html) | [`pamoja-audit`](https://docs.rs/pamoja-audit), [`pamoja-session`](https://docs.rs/pamoja-session), [`pamoja-update`](https://docs.rs/pamoja-update), [`pamoja-power`](https://docs.rs/pamoja-power), [`pamoja-telemetry`](https://docs.rs/pamoja-telemetry) |
-| Transports and testing | MQTT, CoAP, Loopback, Store and forward, Transport ladder, Event bus, Engine surface, Simulators | [`pamoja-mqtt`](https://docs.rs/pamoja-mqtt), [`pamoja-coap`](https://docs.rs/pamoja-coap), [`pamoja-loopback`](https://docs.rs/pamoja-loopback), [`pamoja-sync`](https://docs.rs/pamoja-sync), [`pamoja-ladder`](https://docs.rs/pamoja-ladder), [`pamoja-bus`](https://docs.rs/pamoja-bus), [`pamoja-sim`](https://docs.rs/pamoja-sim) |
-| Profiles and robotics | Device profiles, [ROS 2 rules](https://pamoja.molex.cloud/docs/guides/ros2.html), [Zenoh keys](https://pamoja.molex.cloud/docs/guides/zenoh.html) | [`pamoja-profile`](https://docs.rs/pamoja-profile), [`pamoja-ros2`](https://docs.rs/pamoja-ros2), [`pamoja-zenoh`](https://docs.rs/pamoja-zenoh) |
-| Engine | the traits every capability implements, the C ABI, and the dashboard | [`pamoja-core`](https://docs.rs/pamoja-core), [`pamoja-ffi`](https://docs.rs/pamoja-ffi), [`pamoja-dashboard`](https://docs.rs/pamoja-dashboard) |
-| Everything | `cargo add pamoja`: every capability above, behind a feature each | [`pamoja`](https://docs.rs/pamoja) |
+| Identity | [Device identity](https://pamoja.molex.cloud/docs/guides/security.html) | [`pamoja-security`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_security/index.html) |
+| Codecs | [Codecs](https://pamoja.molex.cloud/docs/guides/codec.html) | [`pamoja-codec`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_codec/index.html) |
+| Helpers | [Helpers](https://pamoja.molex.cloud/docs/guides/kit.html) | [`pamoja-kit`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_kit/index.html) |
+| Field I/O | [Serial framing](https://pamoja.molex.cloud/docs/guides/serial.html), [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html), [CAN and J1939](https://pamoja.molex.cloud/docs/guides/can.html), [I2C, SPI, and GPIO](https://pamoja.molex.cloud/docs/guides/gpio.html) | [`pamoja-serial`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_serial/index.html), [`pamoja-modbus`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html), [`pamoja-can`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_can/index.html), [`pamoja-gpio`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_gpio/index.html) |
+| Sensing and actuation | [Sensor drivers](https://pamoja.molex.cloud/docs/guides/sensors.html), [Actuator drivers](https://pamoja.molex.cloud/docs/guides/actuators.html) | [`pamoja-sensors`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html), [`pamoja-actuators`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_actuators/index.html) |
+| Radio and reach | [LoRa airtime](https://pamoja.molex.cloud/docs/guides/lora.html), [LoRaWAN](https://pamoja.molex.cloud/docs/guides/lorawan.html), [Mesh frames](https://pamoja.molex.cloud/docs/guides/mesh.html), [Routing](https://pamoja.molex.cloud/docs/guides/routing.html) | [`pamoja-lora`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_lora/index.html), [`pamoja-lorawan`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_lorawan/index.html), [`pamoja-mesh`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mesh/index.html), [`pamoja-routing`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_routing/index.html) |
+| MAVLink | [MAVLink](https://pamoja.molex.cloud/docs/guides/mavlink.html) | [`pamoja-mavlink`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mavlink/index.html) |
+| Trust and operation | [Audit log](https://pamoja.molex.cloud/docs/guides/audit.html), [Secured session](https://pamoja.molex.cloud/docs/guides/session.html), [Signed updates](https://pamoja.molex.cloud/docs/guides/update.html), [Power](https://pamoja.molex.cloud/docs/guides/power.html), [Telemetry](https://pamoja.molex.cloud/docs/guides/telemetry.html) | [`pamoja-audit`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_audit/index.html), [`pamoja-session`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_session/index.html), [`pamoja-update`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_update/index.html), [`pamoja-power`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_power/index.html), [`pamoja-telemetry`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_telemetry/index.html) |
+| Transports and testing | MQTT, CoAP, Loopback, Store and forward, Transport ladder, Event bus, Engine surface, Simulators | [`pamoja-mqtt`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mqtt/index.html), [`pamoja-coap`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_coap/index.html), [`pamoja-loopback`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_loopback/index.html), [`pamoja-sync`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sync/index.html), [`pamoja-ladder`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ladder/index.html), [`pamoja-bus`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_bus/index.html), [`pamoja-sim`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sim/index.html) |
+| Profiles and robotics | Device profiles, [ROS 2 rules](https://pamoja.molex.cloud/docs/guides/ros2.html), [Zenoh keys](https://pamoja.molex.cloud/docs/guides/zenoh.html) | [`pamoja-profile`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_profile/index.html), [`pamoja-ros2`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ros2/index.html), [`pamoja-zenoh`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_zenoh/index.html) |
+| Engine | the traits every capability implements, the C ABI, and the dashboard | [`pamoja-core`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html), [`pamoja-ffi`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ffi/index.html), [`pamoja-dashboard`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_dashboard/index.html) |
+| Everything | `cargo add pamoja`: every capability above, behind a feature each | [`pamoja`](https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html) |
 <!-- end -->
 
 ## Documentation
@@ -242,12 +242,16 @@ Expect(Codec.UnpackSamples(packed).SequenceEqual(samples), "and the batch round-
 Every guide shows the same task in all four languages, and each capability's
 page on any registry links to the same capability on the other three.
 
+<!-- table: references absolute -->
+| Language | Install | What it covers | Full API reference |
+| --- | --- | --- | --- |
+| Rust | `cargo add pamoja` | [every package](https://pamoja.molex.cloud/docs/reference/rust.html) | [Rust reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html), generated by rustdoc |
+| TypeScript | `npm install pamoja` | [every package](https://pamoja.molex.cloud/docs/reference/node.html) | [TypeScript reference](https://pamoja.molex.cloud/docs/reference/node/index.html), generated by typedoc |
+| Python | `pip install pamoja` | [every package](https://pamoja.molex.cloud/docs/reference/python.html) | [Python reference](https://pamoja.molex.cloud/docs/reference/python/pamoja.html), generated by pdoc |
+| C# | `dotnet add package Pamoja` | [every package](https://pamoja.molex.cloud/docs/reference/dotnet.html) | [C# reference](https://pamoja.molex.cloud/docs/reference/dotnet/index.html), generated by DocFX |
+<!-- end -->
+
 - [The guides and the install page](https://pamoja.molex.cloud/docs/).
-- The reference for [Rust](https://pamoja.molex.cloud/docs/reference/rust.html),
-  [TypeScript](https://pamoja.molex.cloud/docs/reference/node.html),
-  [Python](https://pamoja.molex.cloud/docs/reference/python.html), and
-  [C#](https://pamoja.molex.cloud/docs/reference/dotnet.html), each generated
-  from its own source.
 - [Why it exists](https://pamoja.molex.cloud/docs/about/why.html),
   [how it is put together](https://pamoja.molex.cloud/docs/about/architecture.html),
   and [which standards it is held to](https://pamoja.molex.cloud/docs/about/standards.html).

@@ -24,5 +24,6 @@
   --bs-font-monospace: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 h1, h2, h3, h4, .navbar-brand { font-family: 'Sora', 'Inter', system-ui, sans-serif; letter-spacing: -0.015em; }
+.navbar-brand #logo { height: 30px; width: auto; margin-right: 0.35rem; }
 [data-bs-theme="dark"] pre, [data-bs-theme="dark"] code { background: #0a1322; }
 [data-bs-theme="dark"] .navbar, [data-bs-theme="dark"] .toc { background: #0a1322 !important; }

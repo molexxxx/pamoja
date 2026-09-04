@@ -4,6 +4,8 @@
 
 Serial-line packet framing for pamoja: SLIP (RFC 1055) and COBS byte-stuffing with streaming frame decoders, so a raw UART byte stream carries discrete, self-delimiting packets to and from motor controllers, GPS, and LiDAR, no_std and allocation-free. The framing half ahead of the serial driver.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_serial/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/guides/serial.html"><img height="28" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://crates.io/crates/pamoja-serial"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-serial"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +13,10 @@ Serial-line packet framing for pamoja: SLIP (RFC 1055) and COBS byte-stuffing wi
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-serial`](https://crates.io/crates/pamoja-serial) | [docs.rs](https://docs.rs/pamoja-serial), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_serial/index.html) |
+| Rust | [`pamoja-serial`](https://crates.io/crates/pamoja-serial) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_serial/index.html), [docs.rs](https://docs.rs/pamoja-serial) |
 | TypeScript | [`@pamoja/serial`](https://www.npmjs.com/package/@pamoja/serial) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_serial.html) |
-| Python | [`pamoja-serial`](https://pypi.org/project/pamoja-serial/) | [`pamoja.serial`](https://pamoja.molex.cloud/docs/reference/python/pamoja/serial.html) |
-| C# | [`Pamoja.Serial`](https://www.nuget.org/packages/Pamoja.Serial) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Serial.Serial.html) |
+| Python | [`pamoja-serial`](https://pypi.org/project/pamoja-serial/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/serial.html) |
+| C# | [`Pamoja.Serial`](https://www.nuget.org/packages/Pamoja.Serial) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Serial.html) |
 
 Serial-line packet framing for the pamoja SDK.
 

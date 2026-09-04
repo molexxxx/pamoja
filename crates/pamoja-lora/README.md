@@ -4,6 +4,8 @@
 
 LoRa link math for pamoja: exact time-on-air and duty-cycle off-time, so a long-range node stays within regulations and budgets its power, no_std and allocation-free.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_lora/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/guides/lora.html"><img height="28" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://crates.io/crates/pamoja-lora"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-lora"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +13,10 @@ LoRa link math for pamoja: exact time-on-air and duty-cycle off-time, so a long-
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-lora`](https://crates.io/crates/pamoja-lora) | [docs.rs](https://docs.rs/pamoja-lora), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_lora/index.html) |
+| Rust | [`pamoja-lora`](https://crates.io/crates/pamoja-lora) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_lora/index.html), [docs.rs](https://docs.rs/pamoja-lora) |
 | TypeScript | [`@pamoja/lora`](https://www.npmjs.com/package/@pamoja/lora) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_lora.html) |
-| Python | [`pamoja-lora`](https://pypi.org/project/pamoja-lora/) | [`pamoja.lora`](https://pamoja.molex.cloud/docs/reference/python/pamoja/lora.html) |
-| C# | [`Pamoja.Lora`](https://www.nuget.org/packages/Pamoja.Lora) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lora.LoraLink.html) |
+| Python | [`pamoja-lora`](https://pypi.org/project/pamoja-lora/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/lora.html) |
+| C# | [`Pamoja.Lora`](https://www.nuget.org/packages/Pamoja.Lora) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lora.html) |
 
 LoRa link math for the pamoja SDK.
 

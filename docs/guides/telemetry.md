@@ -211,8 +211,8 @@ Expect(
 ## Reference
 
 <!-- table: reference telemetry -->
-- Rust: [`pamoja-telemetry`](https://docs.rs/pamoja-telemetry) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_telemetry/index.html))
+- Rust: [`pamoja-telemetry`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_telemetry/index.html)
 - TypeScript: [`@pamoja/telemetry`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_telemetry.html)
 - Python: [`pamoja.telemetry`](https://pamoja.molex.cloud/docs/reference/python/pamoja/telemetry.html)
-- C#: [`Reporter`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Telemetry.Reporter.html), [`TelemetryEvent`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Telemetry.TelemetryEvent.html), [`TelemetryLevel`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Telemetry.TelemetryLevel.html), [`TelemetrySnapshot`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Telemetry.TelemetrySnapshot.html), [`LinkCost`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Telemetry.LinkCost.html)
+- C#: [`Pamoja.Telemetry`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Telemetry.html)
 <!-- end -->

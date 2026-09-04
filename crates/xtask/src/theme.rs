@@ -283,6 +283,7 @@ fn docfx() -> String {
   --bs-font-monospace: {mono};
 }}
 h1, h2, h3, h4, .navbar-brand {{ font-family: {display}; letter-spacing: -0.015em; }}
+.navbar-brand #logo {{ height: 30px; width: auto; margin-right: 0.35rem; }}
 [data-bs-theme=\"dark\"] pre, [data-bs-theme=\"dark\"] code {{ background: {navy0}; }}
 [data-bs-theme=\"dark\"] .navbar, [data-bs-theme=\"dark\"] .toc {{ background: {navy0} !important; }}
 ",

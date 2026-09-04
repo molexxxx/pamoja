@@ -225,8 +225,8 @@ Expect(Stepper.StepsForDegrees(90.0f, 200) == 50, "a quarter turn is fifty steps
 ## Reference
 
 <!-- table: reference actuators -->
-- Rust: [`pamoja-actuators`](https://docs.rs/pamoja-actuators) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_actuators/index.html))
+- Rust: [`pamoja-actuators`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_actuators/index.html)
 - TypeScript: [`@pamoja/actuators`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_actuators.html)
 - Python: [`pamoja.actuators`](https://pamoja.molex.cloud/docs/reference/python/pamoja/actuators.html)
-- C#: [`Pca9685`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Actuators.Pca9685.html), [`Pwm`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Actuators.Pwm.html), [`Stepper`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Actuators.Stepper.html), [`StepDrive`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Actuators.StepDrive.html), [`StepDirection`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Actuators.StepDirection.html)
+- C#: [`Pamoja.Actuators`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Actuators.html)
 <!-- end -->

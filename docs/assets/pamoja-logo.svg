@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 240" width="760" height="240" role="img" aria-label="pamoja - an open SDK for IoT, robotics, and drones">
+  <defs>
+    <radialGradient id="core" cx="0.5" cy="0.42" r="0.62">
+      <stop offset="0" stop-color="#FFF3D6"/>
+      <stop offset="0.45" stop-color="#FFB627"/>
+      <stop offset="1" stop-color="#F26A4B"/>
+    </radialGradient>
+    <linearGradient id="word" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFB627"/>
+      <stop offset="0.5" stop-color="#F26A4B"/>
+      <stop offset="1" stop-color="#1FA995"/>
+      <animateTransform attributeName="gradientTransform" type="translate" values="-0.25 0;0.25 0;-0.25 0" dur="7s" repeatCount="indefinite"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- mark -->
+  <g>
+    <g fill="none" stroke-width="2">
+      <circle cx="120" cy="120" r="20" stroke="#FFB627">
+        <animate attributeName="r" values="20;100" dur="3.6s" begin="0s" repeatCount="indefinite"/>
+        <animate attributeName="stroke-opacity" values="0.5;0" dur="3.6s" begin="0s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="120" cy="120" r="20" stroke="#1FA995">
+        <animate attributeName="r" values="20;100" dur="3.6s" begin="1.2s" repeatCount="indefinite"/>
+        <animate attributeName="stroke-opacity" values="0.5;0" dur="3.6s" begin="1.2s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="120" cy="120" r="20" stroke="#F26A4B">
+        <animate attributeName="r" values="20;100" dur="3.6s" begin="2.4s" repeatCount="indefinite"/>
+        <animate attributeName="stroke-opacity" values="0.5;0" dur="3.6s" begin="2.4s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+
+    <g>
+      <animateTransform attributeName="transform" attributeType="XML" type="rotate" from="0 120 120" to="360 120 120" dur="60s" repeatCount="indefinite"/>
+      <polygon points="120,52 174,86 174,154 120,188 66,154 66,86" fill="none" stroke="#64748B" stroke-opacity="0.5" stroke-width="2"/>
+      <g stroke="#64748B" stroke-opacity="0.45" stroke-width="2">
+        <line x1="120" y1="120" x2="120" y2="52"/>
+        <line x1="120" y1="120" x2="174" y2="86"/>
+        <line x1="120" y1="120" x2="174" y2="154"/>
+        <line x1="120" y1="120" x2="120" y2="188"/>
+        <line x1="120" y1="120" x2="66" y2="154"/>
+        <line x1="120" y1="120" x2="66" y2="86"/>
+      </g>
+      <g fill="#FFB627">
+        <circle r="3"><animateMotion dur="2.4s" begin="0s" repeatCount="indefinite" path="M120,52 L120,120"/><animate attributeName="opacity" values="0;1;1;0" dur="2.4s" begin="0s" repeatCount="indefinite"/></circle>
+        <circle r="3"><animateMotion dur="2.4s" begin="0.4s" repeatCount="indefinite" path="M174,86 L120,120"/><animate attributeName="opacity" values="0;1;1;0" dur="2.4s" begin="0.4s" repeatCount="indefinite"/></circle>
+        <circle r="3"><animateMotion dur="2.4s" begin="0.8s" repeatCount="indefinite" path="M174,154 L120,120"/><animate attributeName="opacity" values="0;1;1;0" dur="2.4s" begin="0.8s" repeatCount="indefinite"/></circle>
+        <circle r="3"><animateMotion dur="2.4s" begin="1.2s" repeatCount="indefinite" path="M120,188 L120,120"/><animate attributeName="opacity" values="0;1;1;0" dur="2.4s" begin="1.2s" repeatCount="indefinite"/></circle>
+        <circle r="3"><animateMotion dur="2.4s" begin="1.6s" repeatCount="indefinite" path="M66,154 L120,120"/><animate attributeName="opacity" values="0;1;1;0" dur="2.4s" begin="1.6s" repeatCount="indefinite"/></circle>
+        <circle r="3"><animateMotion dur="2.4s" begin="2.0s" repeatCount="indefinite" path="M66,86 L120,120"/><animate attributeName="opacity" values="0;1;1;0" dur="2.4s" begin="2.0s" repeatCount="indefinite"/></circle>
+      </g>
+      <g>
+        <circle cx="120" cy="52" r="8" fill="#FFB627"><animate attributeName="r" values="7;10;7" dur="2.4s" begin="0s" repeatCount="indefinite"/></circle>
+        <circle cx="174" cy="86" r="8" fill="#F26A4B"><animate attributeName="r" values="7;10;7" dur="2.4s" begin="0.4s" repeatCount="indefinite"/></circle>
+        <circle cx="174" cy="154" r="8" fill="#1FA995"><animate attributeName="r" values="7;10;7" dur="2.4s" begin="0.8s" repeatCount="indefinite"/></circle>
+        <circle cx="120" cy="188" r="8" fill="#FFB627"><animate attributeName="r" values="7;10;7" dur="2.4s" begin="1.2s" repeatCount="indefinite"/></circle>
+        <circle cx="66" cy="154" r="8" fill="#F26A4B"><animate attributeName="r" values="7;10;7" dur="2.4s" begin="1.6s" repeatCount="indefinite"/></circle>
+        <circle cx="66" cy="86" r="8" fill="#1FA995"><animate attributeName="r" values="7;10;7" dur="2.4s" begin="2.0s" repeatCount="indefinite"/></circle>
+      </g>
+    </g>
+
+    <circle cx="120" cy="120" r="16" fill="url(#core)" filter="url(#glow)">
+      <animate attributeName="r" values="15;18;15" dur="2.4s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- wordmark -->
+  <text x="250" y="134" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="98" font-weight="800" letter-spacing="-2" fill="url(#word)">pamoja</text>
+  <text x="254" y="172" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="18" font-weight="500" fill="#64748B">an open SDK for IoT, robotics, and drones</text>
+</svg>

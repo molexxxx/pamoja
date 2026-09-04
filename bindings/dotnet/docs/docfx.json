@@ -25,11 +25,18 @@
         "files": ["toc.yml", "index.md"]
       }
     ],
+    "resource": [
+      {
+        "files": ["pamoja-icon.svg"],
+        "src": "../../../web/assets"
+      }
+    ],
     "output": "../../../target/docs/site/reference/dotnet",
     "template": ["default", "modern", "templates/pamoja"],
     "globalMetadata": {
       "_appName": "Pamoja",
       "_appTitle": "pamoja for .NET",
+      "_appLogoPath": "pamoja-icon.svg",
       "_enableSearch": true,
       "_disableContribution": true
     }

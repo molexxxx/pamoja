@@ -101,18 +101,35 @@ fn crate_readme(krate: &str, catalog: &Catalog, overview: &str, items: &str) -> 
         out.push_str(&description);
         out.push_str("\n\n");
     }
-    let mut buttons = vec![
-        button(
-            &format!("https://crates.io/crates/{krate}"),
-            "crates.io",
-            "btn-cratesio.svg",
+    let capability = catalog
+        .capabilities
+        .iter()
+        .find(|capability| capability.crates.iter().any(|owned| owned == krate));
+    let mut buttons = vec![button(
+        &format!(
+            "{SITE}/reference/rust/{}/index.html",
+            krate.replace('-', "_")
         ),
-        button(
-            &format!("https://docs.rs/{krate}"),
-            "docs.rs",
-            "btn-docsrs.svg",
-        ),
-    ];
+        "API reference",
+        "btn-api.svg",
+    )];
+    if let Some(guide) = capability.and_then(|capability| capability.guide.as_deref()) {
+        buttons.push(button(
+            &format!("{SITE}/{}.html", guide.trim_end_matches(".md")),
+            "read the guide",
+            "btn-guide.svg",
+        ));
+    }
+    buttons.push(button(
+        &format!("https://crates.io/crates/{krate}"),
+        "crates.io",
+        "btn-cratesio.svg",
+    ));
+    buttons.push(button(
+        &format!("https://docs.rs/{krate}"),
+        "docs.rs",
+        "btn-docsrs.svg",
+    ));
     if let Some((npm, pypi, nuget)) = bindings(krate) {
         buttons.push(button(
             &format!("https://www.npmjs.com/package/{npm}"),
@@ -134,17 +151,14 @@ fn crate_readme(krate: &str, catalog: &Catalog, overview: &str, items: &str) -> 
     out.push_str("\n\n");
     // A capability crate is one of four packages for the same thing, so its page says where
     // the other three are; an engine crate has no counterpart and just names its reference.
-    match catalog
-        .capabilities
-        .iter()
-        .find(|capability| capability.crates.iter().any(|owned| owned == krate))
-    {
+    match capability {
         Some(capability) => out.push_str(&format!(
             "## The same capability in every language\n\n{}\n\n",
             catalog.cross_language(capability)
         )),
         None => out.push_str(&format!(
-            "Full API reference: [docs.rs](https://docs.rs/{krate}) and [the pamoja site]({SITE}/reference/rust/{}/index.html).\n\n",
+            "The full API reference is [on the site]({SITE}/reference/rust/{}/index.html), and \
+             the copy for each published version is on [docs.rs](https://docs.rs/{krate}).\n\n",
             krate.replace('-', "_")
         )),
     }
@@ -233,6 +247,14 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
 
     files.extend(buttons::render());
     files.extend(theme::render());
+
+    // The mark the showcase uses, carried into the site so every reference page opens with
+    // it; mdBook copies anything under `docs` that is not a chapter into the built site.
+    let logo = root.join("web/assets/pamoja-logo.svg");
+    files.push((
+        "docs/assets/pamoja-logo.svg".to_owned(),
+        fs::read_to_string(&logo).map_err(|e| format!("reading {}: {e}", logo.display()))?,
+    ));
 
     let version = version::current()?;
     files.extend(packages::render_node(&root, &catalog, &version)?);

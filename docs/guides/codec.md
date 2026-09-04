@@ -185,8 +185,8 @@ for (int i = 0; i < readings.Length; i++)
 ## Reference
 
 <!-- table: reference codec -->
-- Rust: [`pamoja-codec`](https://docs.rs/pamoja-codec) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_codec/index.html))
+- Rust: [`pamoja-codec`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_codec/index.html)
 - TypeScript: [`@pamoja/codec`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_codec.html)
 - Python: [`pamoja.codec`](https://pamoja.molex.cloud/docs/reference/python/pamoja/codec.html)
-- C#: [`Codec`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Codec.Codec.html), [`Quantizer`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Codec.Quantizer.html)
+- C#: [`Pamoja.Codec`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Codec.html)
 <!-- end -->

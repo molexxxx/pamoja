@@ -85,7 +85,7 @@ jobs:
           pip install maturin pdoc==16.0
           maturin develop -m packages/native/Cargo.toml
           pip install $(find packages -mindepth 1 -maxdepth 1 -type d ! -name native)
-          pdoc pamoja '!pamoja._native' -o ../../target/docs/site/reference/python --docformat restructuredtext --template-directory ../../docs/theme/pdoc
+          pdoc pamoja '!pamoja._native' -o ../../target/docs/site/reference/python --docformat restructuredtext --template-directory ../../docs/theme/pdoc --logo https://pamoja.molex.cloud/docs/assets/pamoja-logo.svg --logo-link https://pamoja.molex.cloud/docs/
 
       - name: .NET reference
         run: |

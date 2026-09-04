@@ -4,6 +4,7 @@
 
 Hardware-free device simulators for pamoja: fake sensors with configurable noise and drift, a recording actuator, a lossy-link transport, and a drivable differential-drive robot, behind the core Sensor and Actuator traits.
 
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_sim/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
 <a href="https://crates.io/crates/pamoja-sim"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-sim"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
@@ -11,10 +12,10 @@ Hardware-free device simulators for pamoja: fake sensors with configurable noise
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-sim`](https://crates.io/crates/pamoja-sim) | [docs.rs](https://docs.rs/pamoja-sim), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sim/index.html) |
+| Rust | [`pamoja-sim`](https://crates.io/crates/pamoja-sim) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sim/index.html), [docs.rs](https://docs.rs/pamoja-sim) |
 | TypeScript | [`@pamoja/sim`](https://www.npmjs.com/package/@pamoja/sim) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sim.html) |
-| Python | [`pamoja-sim`](https://pypi.org/project/pamoja-sim/) | [`pamoja.sim`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sim.html) |
-| C# | [`Pamoja.Sim`](https://www.nuget.org/packages/Pamoja.Sim) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sim.SimulatedSensor.html) |
+| Python | [`pamoja-sim`](https://pypi.org/project/pamoja-sim/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/sim.html) |
+| C# | [`Pamoja.Sim`](https://www.nuget.org/packages/Pamoja.Sim) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sim.html) |
 
 Hardware-free device simulators for the pamoja SDK.
 
