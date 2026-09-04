@@ -11,310 +11,255 @@
 &nbsp;<a href="https://github.com/molexxxx/pamoja/actions/workflows/ci.yml"><img height="22" alt="CI" src="https://raw.githubusercontent.com/molexxxx/molexxxx/main/.github/badges/pamoja-ci-pamoja.svg?v=2d04e663"></a>
 &nbsp;<a href="LICENSE-MIT"><img height="22" alt="license MIT" src="https://raw.githubusercontent.com/molexxxx/molexxxx/main/.github/badges/pamoja-license-pamoja.svg?v=79a1d17d"></a>
 
-<a href="https://pamoja.molex.cloud"><img height="34" alt="website" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-website.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/"><img height="34" alt="documentation" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg"></a>
+&nbsp;<a href="https://pamoja.molex.cloud"><img height="34" alt="website" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-website.svg"></a>
 &nbsp;<a href="https://pamoja.molex.cloud/dashboard"><img height="34" alt="dashboard demo" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-dashboard.svg"></a>
-&nbsp;<a href="https://github.com/molexxxx/pamoja/tree/main/docs#api-reference"><img height="34" alt="API docs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg"></a>
 
 </div>
 
-## In plain words
+pamoja is an SDK for IoT, robotics, and drones: one Rust engine with idiomatic
+bindings for TypeScript, Python, and C#. Every capability is a crate in Rust and
+a package in each binding, and the same concepts work the same way in all four
+languages. Most of it is `no_std`, so the same code runs on a gateway and on a
+microcontroller.
 
-pamoja is free software for building things that watch and control the physical world - a
-fridge that warns you before vaccines spoil, a pump that runs when a tank gets low, a sensor
-that keeps working when the internet does not. It is built to run on cheap, solar-powered
-hardware and the ordinary phones people already have, in places with little money and weak or
-no connectivity. It costs nothing and works offline.
+It is built for the hard environment first: cheap and salvageable hardware, weak
+or no connectivity, solar power. Offline-first store-and-forward, compact codecs,
+long-range radio, and power-aware scheduling are first-class, and all of it can be
+built and tested with nothing plugged in.
 
-You do not have to be an engineer to use it, and you do not give anything up if you are one.
-
-For developers, that means a single modular SDK for IoT, robotics, and drones: one memory-safe Rust engine at the core, with idiomatic bindings for TypeScript, Python, C#, and Rust itself. Control and communicate with physical things from the language you already work in, with C-class performance and memory safety, without hand-rolling FFI. You install only the capabilities you need, and the same concepts work the same way everywhere.
-
-**Where to start**
-
-- **Just want to install it?** Go to the [quick start](#quick-start): one command per language, and the same example in each.
-- **Try it with no hardware.** The simulators (`pamoja-sim`) stand in for real sensors, radios, and even a robot, so you can build and test with nothing plugged in.
-- **Building something?** Skip to the [crate list](#engine-and-capability-crates) and add only the pieces you need - each crate's README is its getting-started guide.
-- **On a microcontroller or in a rural clinic?** That is the design target, not an afterthought - see [Why it exists](#why-it-exists).
-
-## Quick start
-
-Install the core plus only the capabilities you need. Every binding wraps the same Rust engine, so the same concepts carry across languages.
+## Install
 
 ```sh
-cargo add pamoja-core pamoja-mqtt   # Rust
-npm install @pamoja/core            # TypeScript / Node
-pip install pamoja-core             # Python
-dotnet add package Pamoja.Core      # C# / .NET
+cargo add pamoja                 # Rust
+npm install pamoja               # TypeScript and Node
+pip install pamoja               # Python
+dotnet add package Pamoja        # C# and .NET
 ```
 
-Publish a reading and read messages back:
+That is the whole framework. Every registry offers three grain sizes, so a
+project can take less:
+
+| What you want | Rust | npm | PyPI | NuGet |
+| --- | --- | --- | --- | --- |
+| Everything | `pamoja` | `pamoja` | `pamoja` | `Pamoja` |
+| A domain, six of them | `pamoja --features radio` | `@pamoja/radio` | `pamoja-radio` | `Pamoja.Radio` |
+| One capability, thirty | `pamoja-lora` | `@pamoja/lora` | `pamoja-lora` | `Pamoja.Lora` |
+
+In Rust that decides what gets compiled, and a Modbus-only build carries three
+crates and no third-party code at all. In the bindings it decides what you
+import, because one compiled engine sits under every package. The
+[install page](https://pamoja.molex.cloud/docs/install.html) measures both.
+
+## First example
+
+A reading off a wire, smoothed, signed, and packed for a metered link, with
+nothing plugged in. Each of these is spliced from a test that runs in CI.
 
 <details open>
 <summary><b>Rust</b></summary>
 
+<!-- snippet: examples/tests/guides/quickstart.rs#example -->
+From [`examples/tests/guides/quickstart.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/quickstart.rs):
+
 ```rust
-use pamoja_core::Transport;
-use pamoja_mqtt::{MqttConfig, MqttTransport};
+use pamoja_codec::{decode_deltas, encode_deltas};
+use pamoja_kit::Smoother;
+use pamoja_security::DeviceIdentity;
+use pamoja_sensors::ds18b20::{crc8, Scratchpad};
 
-let mut transport = MqttTransport::new(MqttConfig::new("sensor-1", "localhost", 1883));
-transport.connect().await?;
-transport.subscribe("sensors/+/temperature").await?;
-transport.send("sensors/1/temperature", b"21.5").await?;
+// The nine bytes a DS18B20 sends, CRC last; a bad CRC is a rejected read.
+let mut scratchpad = [0x91, 0x01, 0x4b, 0x46, 0x7f, 0xff, 0x0c, 0x10, 0x00];
+scratchpad[8] = crc8(&scratchpad[..8]);
+let celsius = Scratchpad::parse(&scratchpad)
+    .expect("the CRC matches")
+    .temperature_celsius();
+assert_eq!(celsius, 25.0625);
 
-if let Some(message) = transport.recv().await? {
-    println!("{}: {} bytes", message.topic, message.payload.len());
-}
+// Smooth the noise out of successive readings.
+let mut smoother = Smoother::new(0.5);
+smoother.update(celsius);
+let smoothed = smoother.update(celsius + 1.0);
+assert!(smoothed > celsius && smoothed < celsius + 1.0);
+
+// Sign the reading so a gateway can prove which device sent it.
+let device = DeviceIdentity::from_seed(&[7u8; 32]);
+let payload = format!("{smoothed:.2}");
+let signature = device.sign(payload.as_bytes());
+let verified = device.public().verify(payload.as_bytes(), &signature);
+assert!(verified.is_ok());
+
+// Pack a batch of readings for a link where every byte costs money.
+let samples = [2506i64, 2507, 2509, 2508, 2510];
+let packed = encode_deltas(&samples);
+assert!(packed.len() < samples.len() * 8);
+assert_eq!(decode_deltas(&packed).expect("a valid batch"), samples);
 ```
+<!-- end -->
 
 </details>
 
 <details>
-<summary><b>TypeScript / Node</b></summary>
+<summary><b>TypeScript</b></summary>
 
-```ts
-import { MqttClient } from '@pamoja/core'
+<!-- snippet: bindings/node/guides/quickstart.ts#example -->
+From [`bindings/node/guides/quickstart.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/quickstart.ts):
 
-const client = new MqttClient({ clientId: 'sensor-1', host: 'localhost', port: 1883 })
-await client.connect()
-await client.subscribe('sensors/+/temperature')
-await client.publish('sensors/1/temperature', '21.5')
-for await (const message of client) {
-  console.log(message.topic, message.payload.toString())
-}
+```typescript
+import assert from 'node:assert/strict'
+
+import { packSamples, unpackSamples } from '@pamoja/codec'
+import { Smoother } from '@pamoja/kit'
+import { DeviceIdentity, verify } from '@pamoja/security'
+import { ds18b20 } from '@pamoja/sensors'
+
+// The nine bytes a DS18B20 sends, CRC last; a bad CRC is a rejected read.
+const scratchpad = Buffer.from([0x91, 0x01, 0x4b, 0x46, 0x7f, 0xff, 0x0c, 0x10, 0x00])
+scratchpad[8] = ds18b20.crc8(scratchpad.subarray(0, 8))
+const celsius = ds18b20.parseScratchpad(scratchpad).microCelsius / 1e6
+assert.equal(celsius, 25.0625)
+
+// Smooth the noise out of successive readings.
+const smoother = new Smoother(0.5)
+smoother.update(celsius)
+const smoothed = smoother.update(celsius + 1)
+assert.ok(smoothed > celsius && smoothed < celsius + 1)
+
+// Sign the reading so a gateway can prove which device sent it.
+const device = DeviceIdentity.fromSeed(Buffer.alloc(32, 7))
+const payload = smoothed.toFixed(2)
+const signature = device.sign(payload)
+assert.ok(verify(device.publicKey(), payload, signature))
+
+// Pack a batch of readings for a link where every byte costs money.
+const samples = [2506, 2507, 2509, 2508, 2510]
+const packed = packSamples(samples)
+assert.ok(packed.length < samples.length * 8)
+assert.deepEqual(unpackSamples(packed), samples)
 ```
+<!-- end -->
 
 </details>
 
 <details>
 <summary><b>Python</b></summary>
 
+<!-- snippet: bindings/python/guides/quickstart.py#example -->
+From [`bindings/python/guides/quickstart.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/quickstart.py):
+
 ```python
-import asyncio
-from pamoja import MqttClient
+from pamoja import sensors
+from pamoja.codec import pack_samples, unpack_samples
+from pamoja.kit import Smoother
+from pamoja.security import DeviceIdentity, verify
 
-async def main():
-    async with MqttClient(client_id="sensor-1", host="localhost", port=1883) as client:
-        await client.subscribe("sensors/+/temperature")
-        await client.publish("sensors/1/temperature", "21.5")
-        async for message in client:
-            print(message.topic, message.payload.decode())
+# The nine bytes a DS18B20 sends, CRC last; a bad CRC is a rejected read.
+scratchpad = bytearray([0x91, 0x01, 0x4B, 0x46, 0x7F, 0xFF, 0x0C, 0x10, 0x00])
+scratchpad[8] = sensors.ds18b20.crc8(bytes(scratchpad[:8]))
+celsius = sensors.ds18b20.parse_scratchpad(bytes(scratchpad)).micro_celsius / 1e6
+assert celsius == 25.0625
 
-asyncio.run(main())
+# Smooth the noise out of successive readings.
+smoother = Smoother(0.5)
+smoother.update(celsius)
+smoothed = smoother.update(celsius + 1.0)
+assert celsius < smoothed < celsius + 1.0
+
+# Sign the reading so a gateway can prove which device sent it.
+device = DeviceIdentity.from_seed(bytes([7]) * 32)
+payload = f"{smoothed:.2f}"
+signature = device.sign(payload)
+assert verify(device.public_key, payload, signature)
+
+# Pack a batch of readings for a link where every byte costs money.
+samples = [2506, 2507, 2509, 2508, 2510]
+packed = pack_samples(samples)
+assert len(packed) < len(samples) * 8
+assert unpack_samples(packed) == samples
 ```
+<!-- end -->
 
 </details>
 
 <details>
-<summary><b>C# / .NET</b></summary>
+<summary><b>C#</b></summary>
+
+<!-- snippet: bindings/dotnet/samples/Pamoja.Guides/Quickstart.cs#example -->
+From [`bindings/dotnet/samples/Pamoja.Guides/Quickstart.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/Quickstart.cs):
 
 ```csharp
-using Pamoja.Core;
+// The nine bytes a DS18B20 sends, CRC last; a bad CRC is a rejected read.
+byte[] scratchpad = [0x91, 0x01, 0x4B, 0x46, 0x7F, 0xFF, 0x0C, 0x10, 0x00];
+scratchpad[8] = Ds18b20.Crc8(scratchpad.AsSpan(0, 8));
+float celsius = Ds18b20.ParseScratchpad(scratchpad).MicroCelsius / 1e6f;
+Expect(celsius == 25.0625f, "the register decodes to 25.0625 C");
 
-await using var client = new MqttClient(new MqttClientOptions
-{
-    ClientId = "sensor-1",
-    Host = "localhost",
-    Port = 1883,
-});
+// Smooth the noise out of successive readings.
+using var smoother = new Smoother(0.5f);
+smoother.Update(celsius);
+float smoothed = smoother.Update(celsius + 1.0f);
+Expect(smoothed > celsius && smoothed < celsius + 1.0f, "smoothing lags the step");
 
-await client.ConnectAsync();
-await client.SubscribeAsync("sensors/+/temperature");
-await client.PublishAsync("sensors/1/temperature", "21.5");
+// Sign the reading so a gateway can prove which device sent it.
+byte[] seed = new byte[DeviceIdentity.KeyLength];
+Array.Fill(seed, (byte)7);
+using var device = new DeviceIdentity(seed);
+string payload = smoothed.ToString("F2", CultureInfo.InvariantCulture);
+byte[] signature = device.Sign(payload);
+Expect(DeviceIdentity.Verify(device.PublicKey, payload, signature), "the signature verifies");
 
-await foreach (var message in client)
-{
-    Console.WriteLine($"{message.Topic}: {message.Payload.Length} bytes");
-}
+// Pack a batch of readings for a link where every byte costs money.
+long[] samples = [2506, 2507, 2509, 2508, 2510];
+byte[] packed = Codec.PackSamples(samples);
+Expect(packed.Length < samples.Length * 8, "packing beats eight bytes a sample");
+Expect(Codec.UnpackSamples(packed).SequenceEqual(samples), "and the batch round-trips");
 ```
+<!-- end -->
 
 </details>
 
-No hardware needed: `pamoja-sim` and `pamoja-loopback` stand in for sensors, radios, degraded links, and even a robot, so all of the above runs with nothing plugged in.
+## What it covers
 
-## Why it exists
-
-The places where connected devices can do the most good - smallholder farms, off-grid villages, rural clinics, disaster zones - are exactly the places with the least money, the worst connectivity, and the cheapest hardware. Most IoT and robotics stacks quietly assume the opposite of all of that.
-
-pamoja is built for the hard environment first. If it runs well on a two-dollar microcontroller on a solar panel with an intermittent radio link, it runs well anywhere. That single constraint makes the library better for everyone.
-
-What that means in practice:
-
-- Cheap and salvageable hardware, down to microcontrollers with a few hundred KB of RAM.
-- Offline-first: local buffering and store-and-forward, so a device disconnected for days loses nothing.
-- Low bandwidth and long range: compact codecs and radio (LoRa, mesh) treated as first-class.
-- Low power: async duty-cycling and energy-aware scheduling for battery and solar.
-- Free and unencumbered, so cost is never a barrier to use.
-- Reachable: many languages, plus a plain-language helper layer so you do not need to be an engineer to build something that works.
-
-## The pillars
-
-- Performant - native Rust, async-first, small enough to run `no_std` on microcontrollers.
-- Secure - memory safety by construction, TLS 1.3 / DTLS, device identity, signed OTA.
-- Quality of life - one consistent API in every language, with a high-level ergonomic facade plus a low-level escape hatch.
-- Easy to adopt - opt-in scoped packages, strong defaults, and simulators so you can build and test with zero hardware.
-
-## Where things stand
-
-Released and installable, not a prototype:
-
-- **31 crates on crates.io**, with the Node, Python, and .NET bindings on npm, PyPI, and NuGet, all versioned in lockstep.
-- **884 tests across 82 targets**, pinned wherever a standard exists to that standard's own published vectors rather than to round-trips, so an implementation that is wrong but self-consistent still fails.
-- **Checked against the real thing in CI**, not just mocked: MAVLink against live ArduPilot and PX4 SITL, the ROS 2 bridge against ROS 2 Jazzy with rmw_zenoh, and every `no_std` crate cross-compiled for a Cortex-M4F microcontroller.
-- **Audited on every change**: rustfmt, clippy at `-D warnings`, CodeQL over five languages, and a license and security-advisory sweep of the dependency graph a consumer actually installs.
-
-Generated surfaces (the language binding contracts and the C header) are drift-checked against the Rust source, so they cannot quietly fall behind it.
-
-## Engine and capability crates
-
-| Crate | Area | What it does |
+<!-- table: chapters -->
+| Chapter | Guides | Crates |
 | --- | --- | --- |
-| [`pamoja-core`](crates/pamoja-core/README.md#pamoja-core) | core | The device model: `Transport`, `Device`, `Sensor`, `Actuator`, `Store`, event-bus, and error traits. |
-| [`pamoja-codec`](crates/pamoja-codec/README.md#pamoja-codec) | serialize | CBOR, JSON, and raw codecs behind one trait, plus delta+varint batch packing and an `f32` quantizer for metered links. |
-| [`pamoja-mqtt`](crates/pamoja-mqtt/README.md#pamoja-mqtt) | messaging | An MQTT client implementing the core `Transport` trait, tested against an embedded broker. |
-| [`pamoja-coap`](crates/pamoja-coap/README.md#pamoja-coap) | messaging | A CoAP client over UDP with confirmable and non-confirmable delivery and RFC 7641 observe. |
-| [`pamoja-ladder`](crates/pamoja-ladder/README.md#pamoja-ladder) | resilience | A cost-aware transport ladder: cheapest reachable rung first, buffering to a `Store` when every link is down. |
-| [`pamoja-sync`](crates/pamoja-sync/README.md#pamoja-sync) | resilience | Offline-first store-and-forward queues: in-memory, plus a crash-safe on-disk queue that survives power loss. |
-| [`pamoja-dashboard`](crates/pamoja-dashboard/README.md#pamoja-dashboard) | resilience | A local-first fleet dashboard a node serves over its own hotspot - multilingual and fully offline, with a hardware-free mock for development - so a community can see its own data with no cloud; it scales from a full gateway build down to a microcontroller no-JavaScript floor page, and profiles can declare custom sensors, node stats, and a theme the page renders with no code change. |
-| [`pamoja-bus`](crates/pamoja-bus/README.md#pamoja-bus) | core | An in-memory typed publish/subscribe event bus implementing the core `EventBus` trait. |
-| [`pamoja-loopback`](crates/pamoja-loopback/README.md#pamoja-loopback) | testing | An in-process `Transport` with topic matching and a fault injector, exercising the full path with no broker. |
-| [`pamoja-sim`](crates/pamoja-sim/README.md#pamoja-sim) | testing | Hardware-free simulators: noisy and replay sensors, a recording actuator, a degraded-link transport, and a simulated robot that turns velocity commands into a dead-reckoned pose. |
-| [`pamoja-power`](crates/pamoja-power/README.md#pamoja-power) | energy | Duty cycling plus an energy-aware governor that stretches work as the battery drains and eases off while charging. |
-| [`pamoja-security`](crates/pamoja-security/README.md#pamoja-security) | trust | ed25519 device identity: sign a device's telemetry and verify it, so a gateway can prove a reading is authentic. |
-| [`pamoja-audit`](crates/pamoja-audit/README.md#pamoja-audit) | trust | A `no_std` tamper-evident, SHA-256 hash-chained log; altering, reordering, or dropping any record breaks verification. |
-| [`pamoja-update`](crates/pamoja-update/README.md#pamoja-update) | trust | Signed firmware updates: an RFC 9124 manifest, streaming image verification, and A/B slots that fall back on their own when an image does not come up; a transfer cut off by a dead link resumes where it stopped, and the key that signs releases can be rotated without visiting the devices. |
-| [`pamoja-session`](crates/pamoja-session/README.md#pamoja-session) | trust | A secured channel - X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window - so two nodes get confidentiality and integrity over a hostile link without a TLS stack. |
-| [`pamoja-telemetry`](crates/pamoja-telemetry/README.md#pamoja-telemetry) | observe | Allocation-free observability that ships only what is worth the bytes as link cost rises, while counting everything. |
-| [`pamoja-lora`](crates/pamoja-lora/README.md#pamoja-lora) | radio | The exact LoRa time-on-air of a payload and the duty-cycle off-time it forces, so a node stays in regulation and budget. |
-| [`pamoja-lorawan`](crates/pamoja-lorawan/README.md#pamoja-lorawan) | radio | LoRaWAN 1.0.x MAC framing with AES-CMAC and AES encryption and OTAA join, against the FIPS-197 and RFC 4493 vectors. |
-| [`pamoja-mesh`](crates/pamoja-mesh/README.md#pamoja-mesh) | mesh | Addressed, hop-limited, CRC-checked frames plus duplicate suppression that floods a packet across the mesh exactly once. |
-| [`pamoja-routing`](crates/pamoja-routing/README.md#pamoja-routing) | mesh | Reverse-path routing that learns the cheapest route from overheard traffic, saving the airtime flooding wastes. |
-| [`pamoja-modbus`](crates/pamoja-modbus/README.md#pamoja-modbus) | field I/O | Modbus RTU framing (CRC-16/Modbus) with request builders and reply decoders for RS485 field sensors. |
-| [`pamoja-can`](crates/pamoja-can/README.md#pamoja-can) | field I/O | CAN 2.0 and CAN-FD frames (11- and 29-bit IDs) plus J1939 decode and compose for trucks, tractors, and gensets. |
-| [`pamoja-serial`](crates/pamoja-serial/README.md#pamoja-serial) | field I/O | SLIP (RFC 1055) and COBS byte-stuffing with streaming frame decoders, so a raw UART byte stream carries discrete packets to motor controllers, GPS, and LiDAR. |
-| [`pamoja-gpio`](crates/pamoja-gpio/README.md#pamoja-gpio) | field I/O | On-board bus logic: I2C 7- and 10-bit address frames (NXP UM10204) with reserved-range checks, the four SPI clock modes, and active-high/active-low GPIO pins. |
-| [`pamoja-sensors`](crates/pamoja-sensors/README.md#pamoja-sensors) | field I/O | Datasheet-anchored, `no_std` decoders for common, cheap parts: BME280 (temp/humidity/pressure), DS18B20, INA219 power, and the ADS1115 ADC. |
-| [`pamoja-actuators`](crates/pamoja-actuators/README.md#pamoja-actuators) | field I/O | `no_std` drivers for cheap outputs: PCA9685 16-channel PWM with servo-angle helpers, plus a stepper driver. |
-| [`pamoja-zenoh`](crates/pamoja-zenoh/README.md#pamoja-zenoh) | robotics | A Zenoh transport plus a key-expression engine (validity, canonical form, wildcard matching) so fleets and robots share data over Zenoh, with or without ROS 2. |
-| [`pamoja-ros2`](crates/pamoja-ros2/README.md#pamoja-ros2) | robotics | A ROS 2 bridge - topics, services, and actions - with ROS 2 name, RIHS01 type-hash, and CDR handling plus rmw_zenoh key assembly, so a robot appears as an ordinary pamoja device; interoperates with rmw_zenoh, routerless. |
-| [`pamoja-mavlink`](crates/pamoja-mavlink/README.md#pamoja-mavlink) | drones | MAVLink v1/v2 framing with the CRC-16/MCRF4XX checksum, per-message CRC_EXTRA, and MAVLink 2 SHA-256 signing, a typed common dialect with MAVLink 2 extension fields, the mission, command, and offboard protocols as sans-IO state machines, and a vehicle modeled as a pamoja `Device` driven over real serial, UDP, and TCP links - verified in CI against real ArduPilot and PX4 SITL. |
-| [`pamoja-kit`](crates/pamoja-kit/README.md#pamoja-kit) | ergonomics | Plain-language helpers that name the goal over the math: smoothing/filtering (EMA, median, Kalman, complementary, debounce), calibration, units and deadband shaping, PID and on/off control with ramping, trend/surge/depletion and anomaly prediction, rolling-window stats, wheel kinematics (differential, Ackermann, skid-steer, mecanum), odometry, waypoint guidance and motion safety (e-stop, watchdog, limits), two-link arm forward/inverse kinematics, and geo (distance/bearing/geofence), IMU tilt, and dew-point helpers. |
-| [`pamoja-profile`](crates/pamoja-profile/README.md#pamoja-profile) | ergonomics | Named, ready-to-run device profiles from plain data or a JSON manifest; assembled and testable with no hardware. |
-| [`pamoja-ffi`](crates/pamoja-ffi/README.md#pamoja-ffi) | bindings | The curated C ABI over the core, MQTT, identity, the codecs, the helper math, and the field I/O, with a `cbindgen`-generated, drift-checked `pamoja.h`. |
+| Identity | Device identity | [`pamoja-security`](https://docs.rs/pamoja-security) |
+| Codecs | Codecs | [`pamoja-codec`](https://docs.rs/pamoja-codec) |
+| Helpers | Helpers | [`pamoja-kit`](https://docs.rs/pamoja-kit) |
+| Field I/O | Serial framing, Modbus RTU, CAN and J1939, I2C, SPI, and GPIO | [`pamoja-serial`](https://docs.rs/pamoja-serial), [`pamoja-modbus`](https://docs.rs/pamoja-modbus), [`pamoja-can`](https://docs.rs/pamoja-can), [`pamoja-gpio`](https://docs.rs/pamoja-gpio) |
+| Sensing and actuation | Sensor drivers, Actuator drivers | [`pamoja-sensors`](https://docs.rs/pamoja-sensors), [`pamoja-actuators`](https://docs.rs/pamoja-actuators) |
+| Radio and reach | LoRa airtime, LoRaWAN, Mesh frames, Routing | [`pamoja-lora`](https://docs.rs/pamoja-lora), [`pamoja-lorawan`](https://docs.rs/pamoja-lorawan), [`pamoja-mesh`](https://docs.rs/pamoja-mesh), [`pamoja-routing`](https://docs.rs/pamoja-routing) |
+| MAVLink | MAVLink | [`pamoja-mavlink`](https://docs.rs/pamoja-mavlink) |
+| Trust and operation | Audit log, Secured session, Signed updates, Power, Telemetry | [`pamoja-audit`](https://docs.rs/pamoja-audit), [`pamoja-session`](https://docs.rs/pamoja-session), [`pamoja-update`](https://docs.rs/pamoja-update), [`pamoja-power`](https://docs.rs/pamoja-power), [`pamoja-telemetry`](https://docs.rs/pamoja-telemetry) |
+| Transports and testing | MQTT, CoAP, Loopback, Store and forward, Transport ladder, Event bus, Engine surface, Simulators | [`pamoja-mqtt`](https://docs.rs/pamoja-mqtt), [`pamoja-coap`](https://docs.rs/pamoja-coap), [`pamoja-loopback`](https://docs.rs/pamoja-loopback), [`pamoja-sync`](https://docs.rs/pamoja-sync), [`pamoja-ladder`](https://docs.rs/pamoja-ladder), [`pamoja-bus`](https://docs.rs/pamoja-bus), [`pamoja-sim`](https://docs.rs/pamoja-sim) |
+| Profiles and robotics | Device profiles, ROS 2 rules, Zenoh keys | [`pamoja-profile`](https://docs.rs/pamoja-profile), [`pamoja-ros2`](https://docs.rs/pamoja-ros2), [`pamoja-zenoh`](https://docs.rs/pamoja-zenoh) |
+| Engine | the traits every capability implements, the C ABI, and the dashboard | [`pamoja-core`](https://docs.rs/pamoja-core), [`pamoja-ffi`](https://docs.rs/pamoja-ffi), [`pamoja-dashboard`](https://docs.rs/pamoja-dashboard) |
+| Everything | `cargo add pamoja`: every capability above, behind a feature each | [`pamoja`](https://docs.rs/pamoja) |
+<!-- end -->
 
-## Language bindings
+## Documentation
 
-One engine, many front doors. A version tag publishes every binding to its registry at once, so the four never drift apart.
+Every guide shows the same task in all four languages, and each capability's
+page on any registry links to the same capability on the other three.
 
-| Language | Package | Status |
-| --- | --- | --- |
-| Rust | `pamoja-core`, `pamoja-mqtt`, and 29 more | available - the engine itself |
-| TypeScript / Node | `@pamoja/core` | available - generated contract plus a hand-written facade (napi-rs) |
-| Python | `pamoja-core` | available - generated, type-stubbed contract plus an async facade (PyO3 + maturin) |
-| C# / .NET | `Pamoja.Core` | available - P/Invoke interop plus an async facade with `IAsyncEnumerable` streams |
-| Lua | embeddable | planned |
-| WebAssembly | browser / npm | planned |
-| Kotlin, Swift, Go | platform-native | planned |
+- [The guides and the install page](https://pamoja.molex.cloud/docs/).
+- The reference for [Rust](https://pamoja.molex.cloud/docs/reference/rust.html),
+  [TypeScript](https://pamoja.molex.cloud/docs/reference/node.html),
+  [Python](https://pamoja.molex.cloud/docs/reference/python.html), and
+  [C#](https://pamoja.molex.cloud/docs/reference/dotnet.html), each generated
+  from its own source.
+- [Why it exists](https://pamoja.molex.cloud/docs/about/why.html),
+  [how it is put together](https://pamoja.molex.cloud/docs/about/architecture.html),
+  and [which standards it is held to](https://pamoja.molex.cloud/docs/about/standards.html).
 
-Device identity, the wire codecs, the helper math, and the hardware a gateway actually talks to - serial packet framing, Modbus RTU, CAN and J1939, on-board I2C/SPI/GPIO, and the sensor and actuator drivers themselves - reach all three bindings alongside the MQTT transport, and so does the reach layer: LoRa airtime and duty-cycle budgeting, secured LoRaWAN frames, mesh packets, and cost-aware routing. LoRaWAN covers both halves of the join exchange, so a community can run its own network server rather than joining someone else's, and a frame can be read far enough to route it before any key is known. A reading can be pulled off an RS485 sensor or a BME280, smoothed, signed, packed for a metered link, and sent kilometres over LoRaWAN or hopped across a mesh, with a servo or stepper driven in reply, without leaving the language you started in. The operational layer crosses too: tamper-evident audit logs, a secured session between two devices that never sends the key, signed firmware updates with verified rollback, power-aware scheduling, and telemetry that thins out as the link gets expensive. So does the transport layer: CoAP for links too small for MQTT, a ladder that tries them cheapest-first and buffers into a durable store when none answer, an in-process event bus, and the loopback broker and simulated devices that let all of it be tested with nothing plugged in. Device profiles cross as well, so a named, pre-wired node - its control policy, its publish topic, its power schedule - is instantiated rather than assembled by hand, and its decisions are reachable from every language. For a robot, so do the ROS 2 naming and encoding rules and the Zenoh key expressions, neither of which needs a ROS 2 or Zenoh installation, because only the rules cross and the live bridges stay in Rust. A single file of conformance vectors, generated from the Rust implementation, is asserted by every binding's test suite, so the four cannot quietly disagree about what the same call returns.
+## Building and contributing
 
-## Standards and conformance
-
-Anything defined by a published standard is implemented from the authoritative specification itself, and its tests are anchored to that specification's own reference vectors. Bit layouts, field orders, reserved bits, and algorithm constants are where the subtle bugs hide, and a plausible guess is worse than none.
-
-| Area | Anchored to |
-| --- | --- |
-| Crypto | FIPS-197 (AES-128), RFC 4493 (AES-CMAC), FIPS-180 (SHA-256), RFC 2104 and RFC 4231 (HMAC-SHA256), RFC 5869 (HKDF), RFC 7748 (X25519), RFC 8439 (ChaCha20-Poly1305) |
-| Messaging | MQTT topic and wildcard rules, RFC 7252 and RFC 7641 (CoAP with observe) |
-| Radio and mesh | LoRaWAN 1.0.x MAC framing and OTAA join, LoRa time-on-air and duty cycle, CRC-16/CCITT frames |
-| Field I/O | RFC 1055 (SLIP) and COBS, CRC-16/MODBUS, CAN 2.0 and CAN-FD with SAE J1939, NXP UM10204 (I2C) |
-| Drones | MAVLink v1/v2 framing, CRC-16/MCRF4XX, per-message CRC_EXTRA, MAVLink 2 signing |
-| Robotics | ROS 2 names, RIHS01 type hashes, CDR encoding, rmw_zenoh key expressions |
-
-That rigor is also what makes dependency upgrades safe to take. When the primitives underneath change, every vector still matches or the build fails.
-
-A second set of vectors, in `conformance/`, does the same job across languages rather than against a specification: generated from the Rust implementation and asserted by every binding's test suite, so a facade that drifts fails instead of quietly returning something else.
-
-## Architecture
-
-Every domain capability is a separate crate behind a trait defined in the core. The core knows about `Transport`, `Device`, `Sensor`, `Actuator`, `Store`, and the event bus; it knows nothing about MQTT or CAN specifically. Concrete crates implement those traits and are pulled in only when needed, so nobody pays for what they do not use, and on a microcontroller you compile in two crates and nothing else.
-
-This separation is literal in Rust: `pamoja-core` defines the traits, and each transport (`pamoja-mqtt`, `pamoja-coap`) is its own crate, so Rust code pulls `MqttTransport` from `pamoja-mqtt`, not from the core. The language bindings are heading to the same shape, with capability-scoped packages (`@pamoja/mqtt`, `pamoja-mqtt`, `Pamoja.Mqtt`) sitting next to the core package. Today, while the polyglot release pipeline is being proven end to end with a single capability, that first transport ships inside each language's `core` package, so the bindings import `MqttClient` from core for now. Splitting the bindings into scoped packages is on the roadmap.
-
-```
-        bindings (two tiers: generated contract + hand-written facade)
-   npm @pamoja/*   PyPI pamoja-*   NuGet Pamoja.*   Lua / WASM / Kotlin / Swift
-        |                |               |                    |
-        +----------------+---------------+--------------------+
-                                  |
-                         +--------+--------+   async runtime, device model,
-                         |   pamoja-core   |   event bus, error model, codecs
-                         +--------+--------+
-                                  |  trait-based abstraction layer
-   messaging   hardware I/O   robotics    drones    security   resilience   power
-   mqtt/coap   serial/can/    ros2/       mavlink   tls/       store-and-   duty-
-   lora/mesh   gpio/rs485     zenoh                 identity   forward      cycling
-```
-
-## Roadmap
-
-Messaging and radio. MQTT and CoAP work today, behind a cost-aware transport ladder that tries the cheapest link first and buffers when there is none. LoRa and LoRaWAN long-range radio, and a CRC-checked mesh frame with reverse-path routing, now ship as further rungs. Next: the cheap-radio drivers they ride on (ESP-NOW, nRF24), a Meshtastic bridge for off-grid networks, and cellular and satellite uplinks for the most remote telemetry.
-
-Hardware and sensors. Serial (SLIP/COBS), CAN with J1939, RS485/Modbus, and on-board GPIO/I2C/SPI ship today for field wiring, alongside datasheet-anchored decoders for common, salvageable parts (BME280, DS18B20, INA219, ADS1115) and actuator drivers (PCA9685 PWM/servo, stepper). You can also instantiate a node by name with a device profile (an irrigation node, a well-level monitor) instead of wiring pins. Next: a broader driver catalog.
-
-Resilience and power. Offline-first store-and-forward, energy-aware duty cycling for solar and battery, and a local-first dashboard a node serves over its own hotspot - multilingual, fully offline, with a hardware-free mock - all work today. The dashboard now also renders custom sensors and node stats a profile declares, and reaches any phone over the gateway's own WiFi while the radio mesh carries the data behind it - the shape of a pre-flashed field kit. Next is data-mule sync for places with no link at all.
-
-Robotics and drones. A ROS 2 bridge - topics, services, and actions - over a Zenoh transport ships today, interoperating with rmw_zenoh, routerless; the kit adds wheel kinematics, odometry, waypoint guidance, motion safety, and arm forward/inverse kinematics, and a simulated robot exercises it all with no hardware. MAVLink ships too: a vehicle is an ordinary pamoja device you arm, command, and fly missions through, over real serial, UDP, and TCP links, with the whole path verified in CI against real ArduPilot and PX4 SITL. Next: multi-device fleet orchestration, and the vehicle model surfaced through the language bindings.
-
-Security. Memory safety by construction today, with ed25519 device identity, a tamper-evident hash-chained audit log, and a secured channel (X25519 key agreement and ChaCha20-Poly1305 with anti-replay) already shipping. Signed firmware updates ship too: a device checks a release against the manifest its author signed, stages it beside the running image, and falls back on its own if the new one never reports healthy. Because the signature reaches the image through the manifest's digest, an update is safe to carry over a link nobody trusts - a radio mesh, a passing phone, a USB stick. Next: TLS 1.3 and DTLS, X.509 device identity, then attestation and delta updates.
-
-Reach. Python and C#/.NET ship alongside Node today, each with the same capability set behind a facade written in that language's idiom and held to shared conformance vectors. Next: Lua, WebAssembly, Kotlin, Swift, and Go. The plain-language helper layer (`pamoja-kit`) is broad today - smooth a noisy reading, hold a value with a PID, warn before a tank runs dry, steer by wheel kinematics - each naming the goal over the math with the real algorithm one layer down. And an offline-first community cookbook so the SDK reaches the people it is built for.
-
-## Repository layout
-
-```
-crates/      Rust engine and capability crates (each crate's README is its doc landing)
-bindings/    per-language bindings (Node, Python, .NET today; more to come)
-examples/    runnable end-to-end scenarios, including a cross-crate conformance test
-conformance/ the vectors every binding asserts, so the languages cannot disagree
-docs/        a generated API index linking each crate's README (cargo xtask docs)
-sitl/        ArduPilot and PX4 SITL images for the MAVLink interop job
-web/         the showcase site and the hosted dashboard demo
-assets/      brand and logo
-```
-
-Device and transport simulators live in `pamoja-sim` and `pamoja-loopback`, so the examples and tests run with no hardware.
-
-## Building from source
-
-```sh
-cargo build --workspace      # build the engine and capability crates
-cargo test --workspace       # run tests, including doctests and the MQTT round-trip
-
-cd bindings/node
-npm install && npm run build  # build the native addon and the TypeScript facade
-npm test                      # smoke-test the binding
-
-cd ../python
-python -m venv .venv && . .venv/bin/activate
-pip install maturin pytest && maturin develop  # build the extension and install the facade
-pytest                                          # smoke-test the binding
-
-cd ../..
-cargo build -p pamoja-ffi --release                       # build the native C ABI and refresh pamoja.h
-dotnet build bindings/dotnet/Pamoja.sln -c Release    # build the .NET interop and facade
-dotnet run --project bindings/dotnet/tests/Pamoja.Smoke -c Release  # smoke-test the binding
-```
-
-The local toolchain needs no extra components; formatting and clippy run in CI.
-
-## Contributing
-
-Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers how to build, test,
-and submit changes, and the conventions the code holds to (documented public items, the
-`no_std` constraint, standards-anchored tests). To report a security issue, see
-[SECURITY.md](SECURITY.md); please report vulnerabilities privately rather than in a
-public issue.
+`cargo build --workspace` and `cargo test --workspace` build and test the engine
+and every crate; each binding builds from its own directory. The full layout,
+the per-language builds, and how the guide examples are spliced are on the
+[building page](https://pamoja.molex.cloud/docs/about/building.html), and
+[CONTRIBUTING.md](CONTRIBUTING.md) covers the conventions a change is held to.
 
 ## License
 
-Released under the [MIT License](LICENSE-MIT). Free to use, with no legal or financial barrier, because cost should never be the reason a good idea does not get built.
+MIT. See [LICENSE-MIT](LICENSE-MIT).

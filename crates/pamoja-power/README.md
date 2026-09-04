@@ -7,7 +7,14 @@ Power-aware scheduling for the pamoja device SDK: duty cycling and an energy-awa
 <a href="https://crates.io/crates/pamoja-power"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-power"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-power) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_power/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-power`](https://crates.io/crates/pamoja-power) | [docs.rs](https://docs.rs/pamoja-power), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_power/index.html) |
+| TypeScript | [`@pamoja/power`](https://www.npmjs.com/package/@pamoja/power) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_power.html) |
+| Python | [`pamoja-power`](https://pypi.org/project/pamoja-power/) | [`pamoja.power`](https://pamoja.molex.cloud/docs/reference/python/pamoja/power.html) |
+| C# | [`Pamoja.Power`](https://www.nuget.org/packages/Pamoja.Power) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Power.DutyCycle.html) |
 
 Power-aware scheduling for the pamoja SDK.
 

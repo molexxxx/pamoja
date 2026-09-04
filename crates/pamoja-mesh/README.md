@@ -7,7 +7,14 @@ Mesh packet framing for pamoja: an addressed, hop-limited, CRC-checked frame for
 <a href="https://crates.io/crates/pamoja-mesh"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-mesh"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-mesh) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mesh/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-mesh`](https://crates.io/crates/pamoja-mesh) | [docs.rs](https://docs.rs/pamoja-mesh), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mesh/index.html) |
+| TypeScript | [`@pamoja/mesh`](https://www.npmjs.com/package/@pamoja/mesh) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mesh.html) |
+| Python | [`pamoja-mesh`](https://pypi.org/project/pamoja-mesh/) | [`pamoja.mesh`](https://pamoja.molex.cloud/docs/reference/python/pamoja/mesh.html) |
+| C# | [`Pamoja.Mesh`](https://www.nuget.org/packages/Pamoja.Mesh) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mesh.Mesh.html) |
 
 Mesh packet framing for the pamoja SDK.
 

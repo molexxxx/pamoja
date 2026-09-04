@@ -7,7 +7,14 @@ Modbus RTU framing for pamoja: CRC-16/Modbus, the RTU ADU envelope, the standard
 <a href="https://crates.io/crates/pamoja-modbus"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-modbus"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-modbus) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-modbus`](https://crates.io/crates/pamoja-modbus) | [docs.rs](https://docs.rs/pamoja-modbus), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html) |
+| TypeScript | [`@pamoja/modbus`](https://www.npmjs.com/package/@pamoja/modbus) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_modbus.html) |
+| Python | [`pamoja-modbus`](https://pypi.org/project/pamoja-modbus/) | [`pamoja.modbus`](https://pamoja.molex.cloud/docs/reference/python/pamoja/modbus.html) |
+| C# | [`Pamoja.Modbus`](https://www.nuget.org/packages/Pamoja.Modbus) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Modbus.Modbus.html) |
 
 Modbus RTU framing for the pamoja SDK.
 

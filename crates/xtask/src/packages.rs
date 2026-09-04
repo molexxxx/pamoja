@@ -161,7 +161,7 @@ pub fn render_node(
                 &deps,
                 &[],
             ),
-            capability_readme(root, capability, key)?,
+            capability_readme(root, catalog, capability, key)?,
         ));
     }
 
@@ -458,7 +458,12 @@ fn camel(key: &str) -> String {
     out
 }
 
-fn capability_readme(root: &Path, capability: &Capability, key: &str) -> Result<String, String> {
+fn capability_readme(
+    root: &Path,
+    catalog: &Catalog,
+    capability: &Capability,
+    key: &str,
+) -> Result<String, String> {
     let mut out = format!(
         "# @pamoja/{key}\n\n{}. One capability of [pamoja](https://github.com/molexxxx/pamoja), \
          one memory-safe Rust core with bindings for TypeScript, Python, and C#.\n\n\
@@ -476,6 +481,11 @@ fn capability_readme(root: &Path, capability: &Capability, key: &str) -> Result<
         out.push('\n');
     }
 
+    out.push_str(&format!(
+        "\n## The same capability in every language\n\n{}\n",
+        catalog.cross_language(capability)
+    ));
+
     out.push_str("\n## Documentation\n\n");
     if capability.guide.is_some() {
         out.push_str(&format!(
@@ -485,10 +495,8 @@ fn capability_readme(root: &Path, capability: &Capability, key: &str) -> Result<
         ));
     }
     out.push_str(&format!(
-        "- [The reference for this package]({}), generated from its source.\n\
-         - [Every capability]({SITE}/), and the [install page]({SITE}/install.html).\n\n\
-         ## License\n\nMIT\n",
-        node_reference_url(key)
+        "- [Every capability]({SITE}/), and the [install page]({SITE}/install.html).\n\n\
+         ## License\n\nMIT\n"
     ));
     Ok(out)
 }
@@ -599,7 +607,7 @@ pub fn render_python(
             &homepage(capability),
             &["pamoja", "iot", "robotics", key],
             &deps,
-            python_capability_readme(root, capability, key)?,
+            python_capability_readme(root, catalog, capability, key)?,
         ));
     }
 
@@ -773,6 +781,7 @@ fn python_imports(source: &str) -> BTreeSet<String> {
 /// The README of one Python capability package.
 fn python_capability_readme(
     root: &Path,
+    catalog: &Catalog,
     capability: &Capability,
     key: &str,
 ) -> Result<String, String> {
@@ -793,6 +802,11 @@ fn python_capability_readme(
         out.push('\n');
     }
 
+    out.push_str(&format!(
+        "\n## The same capability in every language\n\n{}\n",
+        catalog.cross_language(capability)
+    ));
+
     out.push_str("\n## Documentation\n\n");
     if capability.guide.is_some() {
         out.push_str(&format!(
@@ -802,8 +816,7 @@ fn python_capability_readme(
         ));
     }
     out.push_str(&format!(
-        "- [The reference for `pamoja.{key}`]({SITE}/reference/python/pamoja/{key}.html), generated from its source.\n\
-         - [Every capability]({SITE}/), and the [install page]({SITE}/install.html).\n\n\
+        "- [Every capability]({SITE}/), and the [install page]({SITE}/install.html).\n\n\
          ## License\n\nMIT\n"
     ));
     Ok(out)
@@ -922,7 +935,7 @@ pub fn render_dotnet(root: &Path, catalog: &Catalog) -> Result<Vec<(String, Stri
         ));
         files.push((
             format!("bindings/dotnet/src/Pamoja.{name}/README.md"),
-            dotnet_capability_readme(root, capability, &name)?,
+            dotnet_capability_readme(root, catalog, &deps, capability, &name)?,
         ));
         names.push(name);
     }
@@ -1045,6 +1058,8 @@ fn dotnet_usings(source: &str) -> BTreeSet<String> {
 /// The README of one .NET capability package.
 fn dotnet_capability_readme(
     root: &Path,
+    catalog: &Catalog,
+    deps: &BTreeSet<String>,
     capability: &Capability,
     name: &str,
 ) -> Result<String, String> {
@@ -1052,12 +1067,15 @@ fn dotnet_capability_readme(
         "# Pamoja.{name}\n\n{}. One capability of [pamoja](https://github.com/molexxxx/pamoja), \
          one memory-safe Rust core with bindings for TypeScript, Python, and C#.\n\n\
          ## Install\n\n```sh\ndotnet add package Pamoja.{name}\n```\n\n```csharp\nusing Pamoja.{name};\n```\n\n\
-         This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Core`, and nothing else. \
+         This pulls in `Pamoja.Native`, the compiled engine{}. \
          `dotnet add package Pamoja` is the whole framework in one package.\n",
-        capability.summary
+        capability.summary,
+        extras(deps)
     );
 
-    let snippet = format!("bindings/dotnet/samples/Pamoja.Guides/{name}.cs");
+    // The class is suffixed so it cannot shadow the type it demonstrates: a Guides.Modbus
+    // would hide the Pamoja.Modbus.Modbus the example calls.
+    let snippet = format!("bindings/dotnet/samples/Pamoja.Guides/{name}Guide.cs");
     if root.join(&snippet).is_file() {
         let example = regions::snippet(root, &format!("{snippet}#example"))?;
         out.push_str(
@@ -1066,6 +1084,11 @@ fn dotnet_capability_readme(
         out.push_str(&example);
         out.push('\n');
     }
+
+    out.push_str(&format!(
+        "\n## The same capability in every language\n\n{}\n",
+        catalog.cross_language(capability)
+    ));
 
     out.push_str("\n## Documentation\n\n");
     if capability.guide.is_some() {
@@ -1076,11 +1099,30 @@ fn dotnet_capability_readme(
         ));
     }
     out.push_str(&format!(
-        "- [The reference for `Pamoja.{name}`]({SITE}/reference/dotnet/api/Pamoja.{name}.html), generated from its source.\n\
-         - [Every capability]({SITE}/), and the [install page]({SITE}/install.html).\n\n\
+        "- [Every capability]({SITE}/), and the [install page]({SITE}/install.html).\n\n\
          ## License\n\nMIT\n"
     ));
     Ok(out)
+}
+
+// The sibling packages a facade needs besides the engine, named in its README so the
+// install line is not a surprise. Most capabilities need none.
+fn extras(deps: &BTreeSet<String>) -> String {
+    let mut names: Vec<String> = deps
+        .iter()
+        .filter(|dep| dep.as_str() != "Native")
+        .map(|dep| format!("`Pamoja.{dep}`"))
+        .collect();
+    names.sort();
+    match names.len() {
+        0 => String::new(),
+        1 => format!(", and {}", names[0]),
+        _ => format!(
+            ", and {} and {}",
+            names[..names.len() - 1].join(", "),
+            names[names.len() - 1]
+        ),
+    }
 }
 
 /// The README of the `Pamoja` metapackage.

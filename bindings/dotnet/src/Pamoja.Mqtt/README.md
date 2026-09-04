@@ -12,11 +12,19 @@ dotnet add package Pamoja.Mqtt
 using Pamoja.Mqtt;
 ```
 
-This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Core`, and nothing else. `dotnet add package Pamoja` is the whole framework in one package.
+This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Core`. `dotnet add package Pamoja` is the whole framework in one package.
+
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-mqtt`](https://crates.io/crates/pamoja-mqtt) | [docs.rs](https://docs.rs/pamoja-mqtt), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mqtt/index.html) |
+| TypeScript | [`@pamoja/mqtt`](https://www.npmjs.com/package/@pamoja/mqtt) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mqtt.html) |
+| Python | [`pamoja-mqtt`](https://pypi.org/project/pamoja-mqtt/) | [`pamoja.mqtt`](https://pamoja.molex.cloud/docs/reference/python/pamoja/mqtt.html) |
+| C# | [`Pamoja.Mqtt`](https://www.nuget.org/packages/Pamoja.Mqtt) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mqtt.MqttClient.html) |
 
 ## Documentation
 
-- [The reference for `Pamoja.Mqtt`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mqtt.html), generated from its source.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License

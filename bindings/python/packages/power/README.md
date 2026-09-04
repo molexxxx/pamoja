@@ -14,9 +14,17 @@ from pamoja import power
 
 This pulls in `pamoja-native`, the compiled engine, and nothing else. `pip install pamoja` is the whole framework in one package.
 
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-power`](https://crates.io/crates/pamoja-power) | [docs.rs](https://docs.rs/pamoja-power), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_power/index.html) |
+| TypeScript | [`@pamoja/power`](https://www.npmjs.com/package/@pamoja/power) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_power.html) |
+| Python | [`pamoja-power`](https://pypi.org/project/pamoja-power/) | [`pamoja.power`](https://pamoja.molex.cloud/docs/reference/python/pamoja/power.html) |
+| C# | [`Pamoja.Power`](https://www.nuget.org/packages/Pamoja.Power) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Power.DutyCycle.html) |
+
 ## Documentation
 
-- [The reference for `pamoja.power`](https://pamoja.molex.cloud/docs/reference/python/pamoja/power.html), generated from its source.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License

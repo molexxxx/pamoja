@@ -12,11 +12,19 @@ dotnet add package Pamoja.Session
 using Pamoja.Session;
 ```
 
-This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Core`, and nothing else. `dotnet add package Pamoja` is the whole framework in one package.
+This pulls in `Pamoja.Native`, the compiled engine. `dotnet add package Pamoja` is the whole framework in one package.
+
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-session`](https://crates.io/crates/pamoja-session) | [docs.rs](https://docs.rs/pamoja-session), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_session/index.html) |
+| TypeScript | [`@pamoja/session`](https://www.npmjs.com/package/@pamoja/session) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_session.html) |
+| Python | [`pamoja-session`](https://pypi.org/project/pamoja-session/) | [`pamoja.session`](https://pamoja.molex.cloud/docs/reference/python/pamoja/session.html) |
+| C# | [`Pamoja.Session`](https://www.nuget.org/packages/Pamoja.Session) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Session.Session.html) |
 
 ## Documentation
 
-- [The reference for `Pamoja.Session`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Session.html), generated from its source.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License

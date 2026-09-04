@@ -8,6 +8,7 @@ use std::path::Path;
 use std::process::{Command, ExitCode};
 
 mod builds;
+mod buttons;
 mod catalog;
 mod docs;
 mod footprint;

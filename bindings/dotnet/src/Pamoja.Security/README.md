@@ -12,11 +12,19 @@ dotnet add package Pamoja.Security
 using Pamoja.Security;
 ```
 
-This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Core`, and nothing else. `dotnet add package Pamoja` is the whole framework in one package.
+This pulls in `Pamoja.Native`, the compiled engine. `dotnet add package Pamoja` is the whole framework in one package.
+
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-security`](https://crates.io/crates/pamoja-security) | [docs.rs](https://docs.rs/pamoja-security), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_security/index.html) |
+| TypeScript | [`@pamoja/security`](https://www.npmjs.com/package/@pamoja/security) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_security.html) |
+| Python | [`pamoja-security`](https://pypi.org/project/pamoja-security/) | [`pamoja.security`](https://pamoja.molex.cloud/docs/reference/python/pamoja/security.html) |
+| C# | [`Pamoja.Security`](https://www.nuget.org/packages/Pamoja.Security) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Security.DeviceIdentity.html) |
 
 ## Documentation
 
-- [The reference for `Pamoja.Security`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Security.html), generated from its source.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License

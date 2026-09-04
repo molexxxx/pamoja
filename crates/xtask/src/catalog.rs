@@ -176,6 +176,59 @@ impl Catalog {
             .find(|capability| capability.key == key)
     }
 
+    /// The same capability in the other three languages: where to install it from and
+    /// where its reference is. Every capability page in every registry carries this, so a
+    /// reader who arrives on the crates.io page can reach the npm one without going back
+    /// through the site.
+    ///
+    /// # Arguments
+    ///
+    /// * `capability` - the capability the page is about.
+    ///
+    /// # Returns
+    ///
+    /// A Markdown table, without a trailing newline.
+    pub fn cross_language(&self, capability: &Capability) -> String {
+        let mut out = String::from("| Language | Package | Reference |\n| --- | --- | --- |\n");
+        let rust = if capability.crates.is_empty() {
+            format!(
+                "| Rust | [`pamoja-core`](https://crates.io/crates/pamoja-core) | [docs.rs](https://docs.rs/pamoja-core), [site]({}) |\n",
+                rustdoc_url("pamoja-core")
+            )
+        } else {
+            capability
+                .crates
+                .iter()
+                .map(|krate| {
+                    format!(
+                        "| Rust | [`{krate}`](https://crates.io/crates/{krate}) | [docs.rs](https://docs.rs/{krate}), [site]({}) |\n",
+                        rustdoc_url(krate)
+                    )
+                })
+                .collect()
+        };
+        out.push_str(&rust);
+        out.push_str(&format!(
+            "| TypeScript | [`{0}`](https://www.npmjs.com/package/{0}) | [reference]({1}) |\n",
+            node_package(capability),
+            node_reference_url(&capability.node)
+        ));
+        out.push_str(&format!(
+            "| Python | [`pamoja-{0}`](https://pypi.org/project/pamoja-{0}/) | [`pamoja.{0}`]({SITE}/reference/python/pamoja/{0}.html) |\n",
+            capability.python
+        ));
+        let package = capability.dotnet_package();
+        let anchor = capability
+            .dotnet
+            .first()
+            .map(|name| format!("{SITE}/reference/dotnet/api/{package}.{name}.html"))
+            .unwrap_or_else(|| format!("{SITE}/reference/dotnet/api/{package}.html"));
+        out.push_str(&format!(
+            "| C# | [`{package}`](https://www.nuget.org/packages/{package}) | [reference]({anchor}) |\n"
+        ));
+        out.trim_end().to_owned()
+    }
+
     /// Check the map against the repository: every library crate claimed once, the
     /// node keys matching the packages, the python keys matching the modules, every dotnet
     /// name declared, and every guide present. With `require_guides`, a capability
@@ -581,26 +634,38 @@ impl Catalog {
     }
 
     fn crates_table(&self, descriptions: &BTreeMap<String, String>) -> String {
-        let mut out = String::from("| Crate | Chapter | What it does |\n| --- | --- | --- |\n");
+        let mut out = String::from(
+            "| Chapter | Crate | What it does |
+| --- | --- | --- |
+",
+        );
         let mut rows: Vec<(String, String)> = Vec::new();
+        if let Some(bundle) = &self.bundle {
+            rows.push(("Everything".to_owned(), bundle.clone()));
+        }
+        for krate in &self.engine {
+            rows.push(("Engine".to_owned(), krate.clone()));
+        }
         for chapter in &self.chapters {
             for capability in self.in_chapter(&chapter.key) {
                 for krate in &capability.crates {
-                    rows.push((krate.clone(), chapter.title.clone()));
+                    rows.push((chapter.title.clone(), krate.clone()));
                 }
             }
         }
-        for krate in &self.engine {
-            rows.push((krate.clone(), "Engine".to_owned()));
-        }
-        if let Some(bundle) = &self.bundle {
-            rows.push((bundle.clone(), "Everything".to_owned()));
-        }
-        rows.sort();
-        for (krate, chapter) in rows {
+        // The chapter is named once per run, so the table reads as a handful of groups.
+        let mut last = String::new();
+        for (chapter, krate) in rows {
             let description = descriptions.get(&krate).cloned().unwrap_or_default();
+            let shown = if chapter == last {
+                String::new()
+            } else {
+                last.clone_from(&chapter);
+                format!("**{chapter}**")
+            };
             out.push_str(&format!(
-                "| {} ([site]({})) | {chapter} | {description} |\n",
+                "| {shown} | {} ([site]({})) | {description} |
+",
                 crate_link(&krate),
                 rustdoc_url(&krate)
             ));
@@ -997,8 +1062,8 @@ chapter = "field-io"
 title = "Transports"
 summary = "The transport surface"
 crates = []
-node = "transport"
-python = "transport"
+node = "core"
+python = "core"
 dotnet = ["Transport"]
 
 [engine]
@@ -1039,16 +1104,18 @@ crate = "pamoja"
         assert!(guides.starts_with("### Field I/O\n\nThe wires a gateway has.\n\n- [Modbus RTU](guides/modbus.md) - Modbus RTU requests and replies\n- Transports - The transport surface"));
 
         let crates = catalog.render("crates", &descriptions).unwrap();
-        assert!(crates.contains("| [`pamoja-core`](https://docs.rs/pamoja-core) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html)) | Engine | The device model |"));
-        assert!(crates.starts_with("| Crate | Chapter | What it does |\n| --- | --- | --- |\n| [`pamoja`](https://docs.rs/pamoja) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html)) | Everything | Everything in one crate |"));
+        assert!(crates.contains("| **Engine** | [`pamoja-core`](https://docs.rs/pamoja-core) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html)) | The device model |"));
+        assert!(crates.starts_with("| Chapter | Crate | What it does |\n| --- | --- | --- |\n| **Everything** | [`pamoja`](https://docs.rs/pamoja) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html)) | Everything in one crate |"));
 
         let reference = catalog.render("reference modbus", &descriptions).unwrap();
         assert!(reference.contains("- TypeScript: [`@pamoja/modbus`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_modbus.html)"));
         assert!(reference.contains("- C#: [`Modbus`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Modbus.Modbus.html), [`ModbusFrame`]"));
 
         let binding = catalog.render("binding python", &descriptions).unwrap();
-        assert!(binding.contains("| [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html) | `pamoja.modbus` | Modbus RTU requests and replies |"));
-        assert!(binding.contains("| Transports | `pamoja.transport` | The transport surface |"));
+        assert!(binding.contains("| **Field I/O** | [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html) | `pamoja.modbus` | Modbus RTU requests and replies |"));
+        assert!(
+            binding.contains("| **Engine** | Transports | `pamoja.core` | The transport surface |")
+        );
 
         assert!(catalog.render("reference nothing", &descriptions).is_err());
         assert!(catalog.render("binding lua", &descriptions).is_err());

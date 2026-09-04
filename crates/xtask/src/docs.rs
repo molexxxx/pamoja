@@ -21,7 +21,7 @@ use quote::ToTokens;
 use syn::{Fields, ImplItem, Item, TraitItem, Visibility};
 
 use crate::catalog::{Catalog, SITE};
-use crate::{builds, packages, regions, version};
+use crate::{builds, buttons, packages, regions, version};
 
 /// Run the `docs` task: regenerate every derived file, or `--check` to verify they are in sync.
 ///
@@ -95,7 +95,7 @@ fn button(href: &str, alt: &str, file: &str) -> String {
 // The single per-crate README - the crates.io page and the crate's doc landing in one file:
 // name, description, registry buttons, the lib.rs overview, and the items lib.rs defines. The
 // full per-module API reference is docs.rs (linked by the buttons).
-fn crate_readme(krate: &str, overview: &str, items: &str) -> String {
+fn crate_readme(krate: &str, catalog: &Catalog, overview: &str, items: &str) -> String {
     let mut out = format!("{GEN_MARKER}\n\n# {krate}\n\n");
     if let Some(description) = crate_description(krate) {
         out.push_str(&description);
@@ -132,10 +132,22 @@ fn crate_readme(krate: &str, overview: &str, items: &str) -> String {
     }
     out.push_str(&buttons.join("\n"));
     out.push_str("\n\n");
-    out.push_str(&format!(
-        "Full API reference: [docs.rs](https://docs.rs/{krate}) and [the pamoja site]({SITE}/reference/rust/{}/index.html).\n\n",
-        krate.replace('-', "_")
-    ));
+    // A capability crate is one of four packages for the same thing, so its page says where
+    // the other three are; an engine crate has no counterpart and just names its reference.
+    match catalog
+        .capabilities
+        .iter()
+        .find(|capability| capability.crates.iter().any(|owned| owned == krate))
+    {
+        Some(capability) => out.push_str(&format!(
+            "## The same capability in every language\n\n{}\n\n",
+            catalog.cross_language(capability)
+        )),
+        None => out.push_str(&format!(
+            "Full API reference: [docs.rs](https://docs.rs/{krate}) and [the pamoja site]({SITE}/reference/rust/{}/index.html).\n\n",
+            krate.replace('-', "_")
+        )),
+    }
     if !overview.is_empty() {
         out.push_str(overview);
         out.push_str("\n\n");
@@ -187,7 +199,7 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
         let items = render_items(&lib_parsed.items);
         files.push((
             format!("crates/{krate}/README.md"),
-            crate_readme(krate, &overview, &items),
+            crate_readme(krate, &catalog, &overview, &items),
         ));
     }
 
@@ -218,6 +230,8 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
         .map_err(|e| format!("{path}: {e}"))?;
         files.push((path, processed));
     }
+
+    files.extend(buttons::render());
 
     let version = version::current()?;
     files.extend(packages::render_node(&root, &catalog, &version)?);

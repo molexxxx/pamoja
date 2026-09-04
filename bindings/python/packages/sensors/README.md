@@ -14,9 +14,17 @@ from pamoja import sensors
 
 This pulls in `pamoja-native`, the compiled engine, and nothing else. `pip install pamoja` is the whole framework in one package.
 
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-sensors`](https://crates.io/crates/pamoja-sensors) | [docs.rs](https://docs.rs/pamoja-sensors), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html) |
+| TypeScript | [`@pamoja/sensors`](https://www.npmjs.com/package/@pamoja/sensors) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sensors.html) |
+| Python | [`pamoja-sensors`](https://pypi.org/project/pamoja-sensors/) | [`pamoja.sensors`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sensors.html) |
+| C# | [`Pamoja.Sensors`](https://www.nuget.org/packages/Pamoja.Sensors) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sensors.Bme280.html) |
+
 ## Documentation
 
-- [The reference for `pamoja.sensors`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sensors.html), generated from its source.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License

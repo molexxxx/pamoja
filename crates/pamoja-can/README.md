@@ -7,7 +7,14 @@ CAN bus framing for pamoja: classic CAN 2.0 and CAN-FD frames with 11-bit and 29
 <a href="https://crates.io/crates/pamoja-can"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-can"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-can) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_can/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-can`](https://crates.io/crates/pamoja-can) | [docs.rs](https://docs.rs/pamoja-can), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_can/index.html) |
+| TypeScript | [`@pamoja/can`](https://www.npmjs.com/package/@pamoja/can) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_can.html) |
+| Python | [`pamoja-can`](https://pypi.org/project/pamoja-can/) | [`pamoja.can`](https://pamoja.molex.cloud/docs/reference/python/pamoja/can.html) |
+| C# | [`Pamoja.Can`](https://www.nuget.org/packages/Pamoja.Can) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Can.Can.html) |
 
 CAN bus framing for the pamoja SDK.
 

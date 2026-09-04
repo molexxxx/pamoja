@@ -7,7 +7,14 @@ MAVLink for pamoja: build, parse, and sign v1/v2 frames (CRC-16/MCRF4XX, per-mes
 <a href="https://crates.io/crates/pamoja-mavlink"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-mavlink"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-mavlink) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mavlink/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-mavlink`](https://crates.io/crates/pamoja-mavlink) | [docs.rs](https://docs.rs/pamoja-mavlink), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mavlink/index.html) |
+| TypeScript | [`@pamoja/mavlink`](https://www.npmjs.com/package/@pamoja/mavlink) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mavlink.html) |
+| Python | [`pamoja-mavlink`](https://pypi.org/project/pamoja-mavlink/) | [`pamoja.mavlink`](https://pamoja.molex.cloud/docs/reference/python/pamoja/mavlink.html) |
+| C# | [`Pamoja.Mavlink`](https://www.nuget.org/packages/Pamoja.Mavlink) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mavlink.Mavlink.html) |
 
 The MAVLink wire protocol for the pamoja SDK.
 

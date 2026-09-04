@@ -7,7 +7,14 @@ Encrypted, authenticated sessions for pamoja: X25519 key agreement (RFC 7748) an
 <a href="https://crates.io/crates/pamoja-session"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-session"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-session) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_session/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-session`](https://crates.io/crates/pamoja-session) | [docs.rs](https://docs.rs/pamoja-session), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_session/index.html) |
+| TypeScript | [`@pamoja/session`](https://www.npmjs.com/package/@pamoja/session) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_session.html) |
+| Python | [`pamoja-session`](https://pypi.org/project/pamoja-session/) | [`pamoja.session`](https://pamoja.molex.cloud/docs/reference/python/pamoja/session.html) |
+| C# | [`Pamoja.Session`](https://www.nuget.org/packages/Pamoja.Session) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Session.Session.html) |
 
 Encrypted, authenticated sessions for the pamoja SDK.
 

@@ -7,7 +7,14 @@ Goal-named helper math for the pamoja device SDK: smoothing/filtering, calibrati
 <a href="https://crates.io/crates/pamoja-kit"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-kit"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-kit) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_kit/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-kit`](https://crates.io/crates/pamoja-kit) | [docs.rs](https://docs.rs/pamoja-kit), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_kit/index.html) |
+| TypeScript | [`@pamoja/kit`](https://www.npmjs.com/package/@pamoja/kit) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_kit.html) |
+| Python | [`pamoja-kit`](https://pypi.org/project/pamoja-kit/) | [`pamoja.kit`](https://pamoja.molex.cloud/docs/reference/python/pamoja/kit.html) |
+| C# | [`Pamoja.Kit`](https://www.nuget.org/packages/Pamoja.Kit) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Kit.Kit.html) |
 
 Goal-named helper math for the pamoja SDK.
 

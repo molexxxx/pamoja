@@ -10,9 +10,17 @@ npm install @pamoja/sim
 
 This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
 
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-sim`](https://crates.io/crates/pamoja-sim) | [docs.rs](https://docs.rs/pamoja-sim), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sim/index.html) |
+| TypeScript | [`@pamoja/sim`](https://www.npmjs.com/package/@pamoja/sim) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sim.html) |
+| Python | [`pamoja-sim`](https://pypi.org/project/pamoja-sim/) | [`pamoja.sim`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sim.html) |
+| C# | [`Pamoja.Sim`](https://www.nuget.org/packages/Pamoja.Sim) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sim.SimulatedSensor.html) |
+
 ## Documentation
 
-- [The reference for this package](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sim.html), generated from its source.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License

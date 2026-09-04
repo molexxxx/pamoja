@@ -7,7 +7,14 @@ Tamper-evident audit logs for pamoja: signed, hash-chained entries so altering, 
 <a href="https://crates.io/crates/pamoja-audit"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-audit"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-audit) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_audit/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-audit`](https://crates.io/crates/pamoja-audit) | [docs.rs](https://docs.rs/pamoja-audit), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_audit/index.html) |
+| TypeScript | [`@pamoja/audit`](https://www.npmjs.com/package/@pamoja/audit) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_audit.html) |
+| Python | [`pamoja-audit`](https://pypi.org/project/pamoja-audit/) | [`pamoja.audit`](https://pamoja.molex.cloud/docs/reference/python/pamoja/audit.html) |
+| C# | [`Pamoja.Audit`](https://www.nuget.org/packages/Pamoja.Audit) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Audit.Audit.html) |
 
 Tamper-evident audit logs for the pamoja SDK.
 
