@@ -96,6 +96,13 @@ released together, so one entry covers all of them.
   without a using and a consumer catches it with `using Pamoja;`. Only the five
   transport packages depend on `Pamoja.Core` now, matching the Node and Python
   bindings, where a capability package depends on the engine alone.
+- The Node facades exported enum constants a TypeScript caller could not pass to
+  the facade's own functions. `PinLevel`, `PinEdge`, `PinPolarity`, `StepDrive`,
+  `LinkCost`, and `EntityKind` held plain strings, which are not assignable to
+  the `const enum` the generated contract takes, so every call needed a cast. The
+  smoke suites are JavaScript and never saw it. The constants carry the contract
+  type now, and `@pamoja/ros2` exports the contract's `EntityKind` type rather
+  than one derived from its own object.
 - The Node, Python, and .NET workflows all named their job "build and smoke
   test", so a pull request showed three identical checks, none of which could be
   required and none of which said which binding had failed. Each names its

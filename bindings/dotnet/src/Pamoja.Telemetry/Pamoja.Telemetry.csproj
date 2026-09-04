@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Telemetry</RootNamespace>
     <Description>Observability that ships only what is worth the bytes as link cost rises, while counting everything.</Description>
     <PackageTags>pamoja;iot;robotics;telemetry</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/telemetry.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

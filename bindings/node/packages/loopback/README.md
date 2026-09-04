@@ -8,7 +8,7 @@ An in-process transport with topic matching and a fault injector, for testing wi
 npm install @pamoja/loopback
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

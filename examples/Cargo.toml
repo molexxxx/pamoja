@@ -109,3 +109,4 @@ workspace = true
 [dev-dependencies]
 # The MQTT guide example runs against an embedded broker, so it needs no infrastructure.
 rumqttd = { version = "0.20", default-features = false }
+getrandom = "0.3"

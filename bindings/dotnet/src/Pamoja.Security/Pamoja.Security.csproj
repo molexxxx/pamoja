@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Security</RootNamespace>
     <Description>ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic.</Description>
     <PackageTags>pamoja;iot;robotics;security</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/security.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

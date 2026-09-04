@@ -8,7 +8,7 @@ An MQTT client with the topic and wildcard rules, as the core transport. One cap
 npm install @pamoja/mqtt
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

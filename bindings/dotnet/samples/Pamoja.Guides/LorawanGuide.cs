@@ -1,0 +1,69 @@
+using Pamoja;
+using Pamoja.Lorawan;
+
+using static Guides.Guide;
+
+namespace Guides;
+
+/// <summary>The LoRaWAN guide example; see docs/guides/lorawan.md.</summary>
+public static class LorawanGuide
+{
+    /// <summary>Runs the example.</summary>
+    public static void Run()
+    {
+        // ANCHOR: example
+        // A join accept captured off a live EU868 network, the root key it was signed
+        // under, and the session keys an independent implementation derived from it.
+        // Published at https://github.com/anthonykirby/lora-packet/issues/10
+        byte[] captured = Convert.FromHexString(
+            "204dd85ae608b87fc4889970b7d2042c9e72959b0057aed6094b16003df12de145");
+        byte[] appKey = Convert.FromHexString("b6b53f4a168a7a88bdf7ea135ce9cfca");
+        const ushort devNonce = 0xCC85;
+
+        // The network half: the address and radio settings this network grants, encrypted
+        // and signed under the root key, are the frame that was captured.
+        var offer = new LorawanGrant(
+            appNonce: 0x00E5063A,
+            netId: 0x13,
+            devAddr: 0x26012E43,
+            dlSettings: 0x03,
+            rxDelay: 0x01,
+            cflist: Convert.FromHexString("184f84e85684b85e84886684586e8400"));
+        Expect(
+            offer.Accept(appKey, devNonce).SequenceEqual(captured),
+            "the join accept this network signs is the frame that was captured");
+
+        // The device half. A join accept carries no EUI, so only the root key decides
+        // whether it verifies.
+        using var node = new LorawanDevice(new byte[8], new byte[8], appKey);
+        using LorawanJoinAccept accepted = node.AcceptJoin(captured, devNonce);
+        Expect(accepted.DevAddr == 0x26012E43, "the device takes the address it was granted");
+
+        // Neither side transmits a session key; both derive it from the two nonces. What
+        // the device derived is read back by a session holding the published keys.
+        byte[] keys = Convert.FromHexString(
+            "2c96f7028184bb0be8aa49275290d4fcf3a5c8f0232a38c144029c165865802c");
+        using var gateway = new LorawanSession(0x26012E43, keys.AsSpan(0, 16), keys.AsSpan(16));
+        using LorawanSession activated = accepted.Session();
+        byte[] uplink = activated.EncodeUplink(1, 1, "real"u8);
+        Expect(
+            gateway.Decode(uplink, 1).Payload.AsSpan().SequenceEqual("real"u8),
+            "the network reads what the device it just admitted wrote");
+
+        // A single byte changed in the air fails the MIC, so no one else can admit the
+        // device.
+        byte[] forged = [.. captured];
+        forged[1] ^= 0xFF;
+        bool refused = false;
+        try
+        {
+            using LorawanJoinAccept _ = node.AcceptJoin(forged, devNonce);
+        }
+        catch (PamojaException)
+        {
+            refused = true;
+        }
+        Expect(refused, "a join accept nobody signed does not activate a session");
+        // ANCHOR_END: example
+    }
+}

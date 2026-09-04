@@ -8,7 +8,7 @@ Named, ready-to-run device profiles from plain data or a JSON manifest. One capa
 npm install @pamoja/profile
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

@@ -8,7 +8,7 @@ Cheapest reachable link first, buffering to a store when every link is down. One
 npm install @pamoja/ladder
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

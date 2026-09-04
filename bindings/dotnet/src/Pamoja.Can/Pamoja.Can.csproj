@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Can</RootNamespace>
     <Description>CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose.</Description>
     <PackageTags>pamoja;iot;robotics;can</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/can.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

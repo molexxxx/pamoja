@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Audit</RootNamespace>
     <Description>A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification.</Description>
     <PackageTags>pamoja;iot;robotics;audit</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/audit.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

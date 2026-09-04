@@ -12,7 +12,38 @@ pip install pamoja-zenoh
 from pamoja import zenoh
 ```
 
-This pulls in `pamoja-native`, the compiled engine, and nothing else. `pip install pamoja` is the whole framework in one package.
+This pulls in `pamoja-native`, the compiled engine. `pip install pamoja` is the whole framework in one package.
+
+## Example
+
+The script the test suite runs, spliced here as it ran.
+
+From [`bindings/python/guides/zenoh.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/zenoh.py):
+
+```python
+from pamoja.zenoh import canonize, is_canon, is_valid, matches
+
+# A key expression names a set of keys. `*` stands for exactly one chunk, so this
+# selects the battery of any node, and not a battery nested deeper.
+assert is_valid("fleet/*/battery")
+assert matches("fleet/*/battery", "fleet/n7/battery")
+assert not matches("fleet/*/battery", "fleet/n7/rack/battery")
+
+# `**` stands for any number of chunks, including none, which is what a subscription
+# covering a whole subtree wants.
+assert matches("fleet/**", "fleet/n7/rack/battery")
+assert matches("fleet/**/battery", "fleet/battery")
+
+# Two expressions that select the same keys have one canonical form. Comparing or
+# routing on the written form would treat these as different subscriptions.
+assert not is_canon("fleet/**/**/battery")
+assert canonize("fleet/**/**/battery") == "fleet/**/battery"
+assert is_canon("fleet/**/battery")
+
+# A malformed expression is rejected rather than canonized into something plausible.
+assert not is_valid("fleet//battery")
+assert canonize("fleet//battery") is None
+```
 
 ## The same capability in every language
 
@@ -25,6 +56,7 @@ This pulls in `pamoja-native`, the compiled engine, and nothing else. `pip insta
 
 ## Documentation
 
+- [The Zenoh keys guide](https://pamoja.molex.cloud/docs/guides/zenoh.html), with the same example in Rust, TypeScript, and C#.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License
