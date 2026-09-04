@@ -2347,6 +2347,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "pamoja"
+version = "0.1.14"
+dependencies = [
+ "pamoja-actuators",
+ "pamoja-audit",
+ "pamoja-bus",
+ "pamoja-can",
+ "pamoja-coap",
+ "pamoja-codec",
+ "pamoja-core",
+ "pamoja-dashboard",
+ "pamoja-gpio",
+ "pamoja-kit",
+ "pamoja-ladder",
+ "pamoja-loopback",
+ "pamoja-lora",
+ "pamoja-lorawan",
+ "pamoja-mavlink",
+ "pamoja-mesh",
+ "pamoja-modbus",
+ "pamoja-mqtt",
+ "pamoja-power",
+ "pamoja-profile",
+ "pamoja-ros2",
+ "pamoja-routing",
+ "pamoja-security",
+ "pamoja-sensors",
+ "pamoja-serial",
+ "pamoja-session",
+ "pamoja-sim",
+ "pamoja-sync",
+ "pamoja-telemetry",
+ "pamoja-update",
+ "pamoja-zenoh",
+]
+
+[[package]]
 name = "pamoja-actuators"
 version = "0.1.14"
 

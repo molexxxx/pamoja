@@ -385,3 +385,9 @@ dotnet = ["KeyExpression"]
 # implements, the C ABI the .NET binding rides on, and the fleet dashboard.
 [engine]
 crates = ["pamoja-core", "pamoja-ffi", "pamoja-dashboard"]
+
+# The crate that bundles every capability behind a feature each, all on by default,
+# so `cargo add pamoja` is the whole framework. Its manifest is checked against the
+# capabilities above: one feature per capability crate, in the default set.
+[bundle]
+crate = "pamoja"

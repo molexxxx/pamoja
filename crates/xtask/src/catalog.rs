@@ -45,11 +45,13 @@ impl Capability {
     }
 }
 
-/// The whole map: chapters in order, capabilities in order, and the engine crates.
+/// The whole map: chapters in order, capabilities in order, the engine crates, and the
+/// crate that bundles every capability behind a feature each.
 pub struct Catalog {
     pub chapters: Vec<Chapter>,
     pub capabilities: Vec<Capability>,
     pub engine: Vec<String>,
+    pub bundle: Option<String>,
 }
 
 impl Catalog {
@@ -108,10 +110,17 @@ impl Catalog {
             .transpose()?
             .unwrap_or_default();
 
+        let bundle = doc
+            .get("bundle")
+            .and_then(Item::as_table_like)
+            .map(|bundle| string(bundle, "crate", "bundle"))
+            .transpose()?;
+
         Ok(Catalog {
             chapters,
             capabilities,
             engine,
+            bundle,
         })
     }
 
@@ -192,6 +201,10 @@ impl Catalog {
         }
         for krate in &self.engine {
             claimed.entry(krate.as_str()).or_default().push("engine");
+        }
+        if let Some(name) = &self.bundle {
+            claimed.entry(name.as_str()).or_default().push("bundle");
+            problems.extend(self.bundle_problems(root, name));
         }
         for krate in lib_crates {
             match claimed.get(krate.as_str()) {
@@ -328,6 +341,60 @@ impl Catalog {
         }
     }
 
+    // The bundle crate's manifest against the map: one feature per capability, named by
+    // the capability key, enabling exactly that capability's crates, and in the default set.
+    fn bundle_problems(&self, root: &Path, name: &str) -> Vec<String> {
+        let path = root.join("crates").join(name).join("Cargo.toml");
+        let text = match fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(err) => return vec![format!("reading {}: {err}", path.display())],
+        };
+        let doc: DocumentMut = match text.parse() {
+            Ok(doc) => doc,
+            Err(err) => return vec![format!("{} is not valid TOML: {err}", path.display())],
+        };
+        let Some(features) = doc.get("features").and_then(Item::as_table_like) else {
+            return vec![format!("crates/{name}/Cargo.toml has no [features] table")];
+        };
+        let feature = |key: &str| -> Option<Vec<String>> {
+            features.get(key).and_then(Item::as_array).map(|values| {
+                values
+                    .iter()
+                    .filter_map(|value| value.as_str())
+                    .map(str::to_owned)
+                    .collect()
+            })
+        };
+        let default = feature("default").unwrap_or_default();
+
+        let mut problems = Vec::new();
+        for capability in &self.capabilities {
+            if capability.crates.is_empty() {
+                continue;
+            }
+            let key = &capability.key;
+            match feature(key) {
+                None => problems.push(format!("crates/{name}/Cargo.toml has no `{key}` feature")),
+                Some(enabled) => {
+                    for krate in &capability.crates {
+                        let dep = format!("dep:{krate}");
+                        if !enabled.contains(&dep) {
+                            problems.push(format!(
+                                "crates/{name}/Cargo.toml: feature `{key}` does not enable {dep}"
+                            ));
+                        }
+                    }
+                }
+            }
+            if !default.contains(key) {
+                problems.push(format!(
+                    "crates/{name}/Cargo.toml: `{key}` is not in the default feature set"
+                ));
+            }
+        }
+        problems
+    }
+
     /// Render one generated table for a `<!-- table: <kind> [arg] -->` region.
     ///
     /// The kinds are `chapters` (the capability map by chapter), `guides` (the guide
@@ -389,6 +456,12 @@ impl Catalog {
             "| Engine | the traits every capability implements, the C ABI, and the dashboard | {} |",
             engine.join(", ")
         ));
+        if let Some(bundle) = &self.bundle {
+            out.push_str(&format!(
+                "\n| Everything | `cargo add {bundle}`: every capability above, behind a feature each | {} |",
+                crate_link(bundle)
+            ));
+        }
         out
     }
 
@@ -425,6 +498,9 @@ impl Catalog {
         }
         for krate in &self.engine {
             rows.push((krate.clone(), "Engine".to_owned()));
+        }
+        if let Some(bundle) = &self.bundle {
+            rows.push((bundle.clone(), "Everything".to_owned()));
         }
         rows.sort();
         for (krate, chapter) in rows {
@@ -765,6 +841,9 @@ dotnet = ["Transport"]
 
 [engine]
 crates = ["pamoja-core"]
+
+[bundle]
+crate = "pamoja"
 "#;
 
     #[test]
@@ -773,6 +852,7 @@ crates = ["pamoja-core"]
         assert_eq!(catalog.chapters.len(), 1);
         assert_eq!(catalog.capabilities.len(), 2);
         assert_eq!(catalog.engine, ["pamoja-core"]);
+        assert_eq!(catalog.bundle.as_deref(), Some("pamoja"));
         let modbus = catalog.capability("modbus").unwrap();
         assert_eq!(modbus.dotnet, ["Modbus", "ModbusFrame"]);
         assert_eq!(modbus.guide.as_deref(), Some("guides/modbus.md"));
@@ -785,17 +865,20 @@ crates = ["pamoja-core"]
         let descriptions = BTreeMap::from([
             ("pamoja-modbus".to_owned(), "Modbus RTU framing".to_owned()),
             ("pamoja-core".to_owned(), "The device model".to_owned()),
+            ("pamoja".to_owned(), "Everything in one crate".to_owned()),
         ]);
 
         let chapters = catalog.render("chapters", &descriptions).unwrap();
         assert!(chapters.contains("| Field I/O | [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html), Transports | [`pamoja-modbus`](https://docs.rs/pamoja-modbus) |"));
         assert!(chapters.contains("| Engine |"));
+        assert!(chapters.ends_with("| Everything | `cargo add pamoja`: every capability above, behind a feature each | [`pamoja`](https://docs.rs/pamoja) |"));
 
         let guides = catalog.render("guides", &descriptions).unwrap();
         assert!(guides.starts_with("### Field I/O\n\nThe wires a gateway has.\n\n- [Modbus RTU](guides/modbus.md) - Modbus RTU requests and replies\n- Transports - The transport surface"));
 
         let crates = catalog.render("crates", &descriptions).unwrap();
         assert!(crates.contains("| [`pamoja-core`](https://docs.rs/pamoja-core) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html)) | Engine | The device model |"));
+        assert!(crates.starts_with("| Crate | Chapter | What it does |\n| --- | --- | --- |\n| [`pamoja`](https://docs.rs/pamoja) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html)) | Everything | Everything in one crate |"));
 
         let reference = catalog.render("reference modbus", &descriptions).unwrap();
         assert!(reference.contains("- TypeScript: [`@pamoja/modbus`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_modbus.html)"));

@@ -6,6 +6,8 @@ each published version is on [docs.rs](https://docs.rs/pamoja-core). Each crate'
 README, on crates.io and in the repository, is its overview and getting-started
 page, generated from the same rustdoc.
 
+The `pamoja` crate is every capability crate behind a feature each, all on by
+default; `pamoja::mqtt` is `pamoja-mqtt`, with the same types and documentation.
 The engine crates define the traits (`Transport`, `Device`, `Sensor`,
 `Actuator`, `Store`, the event bus) that every capability crate implements, the
 C ABI the .NET binding rides on, and the fleet dashboard.
@@ -13,6 +15,7 @@ C ABI the .NET binding rides on, and the fleet dashboard.
 <!-- table: crates -->
 | Crate | Chapter | What it does |
 | --- | --- | --- |
+| [`pamoja`](https://docs.rs/pamoja) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html)) | Everything | The whole pamoja device SDK in one crate: every capability behind a feature, all on by default, for IoT, robotics, and drones. |
 | [`pamoja-actuators`](https://docs.rs/pamoja-actuators) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_actuators/index.html)) | Sensing and actuation | Concrete actuator drivers for pamoja: the command-encode half of common parts - the PCA9685 16-channel PWM/servo/LED controller (mode and prescale registers, the frequency-to-prescale formula, and 12-bit on/off channel words) and stepper-motor coil sequencing (wave, full-step, and half-step drive plus a step/direction position model) - turning a desired output into the bytes and steps a driver applies against the manufacturer datasheet, no_std and allocation-free. The command-encode half ahead of the bus driver. |
 | [`pamoja-audit`](https://docs.rs/pamoja-audit) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_audit/index.html)) | Trust and operation | Tamper-evident audit logs for pamoja: signed, hash-chained entries so altering, reordering, or dropping a record is detectable. |
 | [`pamoja-bus`](https://docs.rs/pamoja-bus) ([site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_bus/index.html)) | Transports and testing | In-memory typed publish/subscribe event bus implementing the core EventBus trait. |

@@ -20,12 +20,20 @@ all of them in one entry.
 
 ```sh
 cargo add pamoja                        # every capability, behind a feature each
-cargo add pamoja-core pamoja-codec      # only the crates you use
+cargo add pamoja-security pamoja-codec  # only the crates you use
 ```
 
+```rust
+use pamoja::security::DeviceIdentity;   // the same type as pamoja_security::DeviceIdentity
+use pamoja_codec::Cbor;
+```
+
+Each module of `pamoja` is the crate of the same name, so the two ways in share
+one API and one set of documentation. A build that names only some features
+(`cargo add pamoja --no-default-features --features std,security,codec`) takes on
+only those crates' dependencies, the same as depending on the crates directly.
 Most capability crates are `no_std`, so the same code runs on a gateway and on
-a microcontroller, and a build carries only the crates it names. The
-[Rust reference](reference/rust.md) lists every crate.
+a microcontroller. The [Rust reference](reference/rust.md) lists every crate.
 
 ## TypeScript and Node
 

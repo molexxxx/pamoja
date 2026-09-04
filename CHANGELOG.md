@@ -26,6 +26,11 @@ released together, so one entry covers all of them.
   (rustdoc, typedoc, pdoc, DocFX), built on every pull request and published
   with the showcase. `docs/capabilities.toml` is the one map of what each
   capability covers in every language, checked against the code.
+- A `pamoja` crate that bundles every capability behind a feature each, all on
+  by default, so `cargo add pamoja` is the whole framework the way
+  `npm install pamoja`, `pip install pamoja`, and `dotnet add package Pamoja`
+  are. `pamoja::mqtt` is `pamoja-mqtt`; with the default features off, naming
+  only the `no_std` capabilities builds for bare metal.
 
 ### Changed
 
@@ -60,6 +65,9 @@ released together, so one entry covers all of them.
 - The gateway pairing code no longer appears in a captured dashboard log (#67).
 - Broken intra-doc links in the rustdoc of nine crates, which docs.rs rendered
   as dead links; `cargo doc` now runs with warnings denied.
+- `pamoja-lora` with its `std` feature on did not compile outside its own test
+  build, because the crate stayed `no_std` regardless; it now links `std` when
+  the feature is on, and the `pamoja` crate's default build exercises it.
 
 ### Dependencies
 
