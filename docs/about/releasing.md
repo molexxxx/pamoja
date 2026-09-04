@@ -34,7 +34,8 @@ cargo xtask release --dry-run       # resolves every crate against its siblings
 ```
 
 Open that as a pull request labelled `release`, merge it when green, and wait for
-`ci`, `node`, `python`, and `dotnet` to finish on the merge commit. Then tag it:
+`rust (fmt, clippy, test)` and the three binding jobs to finish on the merge
+commit. Then tag it:
 
 ```sh
 git tag -a v0.1.15 -m "pamoja 0.1.15" <merge sha>

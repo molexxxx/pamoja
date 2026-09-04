@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: build and smoke test
+    name: node (build, smoke, guides)
     runs-on: ubuntu-latest
     defaults:
       run:

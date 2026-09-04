@@ -96,6 +96,10 @@ released together, so one entry covers all of them.
   without a using and a consumer catches it with `using Pamoja;`. Only the five
   transport packages depend on `Pamoja.Core` now, matching the Node and Python
   bindings, where a capability package depends on the engine alone.
+- The Node, Python, and .NET workflows all named their job "build and smoke
+  test", so a pull request showed three identical checks, none of which could be
+  required and none of which said which binding had failed. Each names its
+  language now.
 - Three binding workflows started an MQTT broker that nothing connected to,
   pulling an image from Docker Hub on every run; one such pull failed and took
   the build with it. No example needs a broker.
