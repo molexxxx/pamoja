@@ -5,36 +5,48 @@ The core knows about `Transport`, `Device`, `Sensor`, `Actuator`, `Store`, and
 the event bus; it knows nothing about MQTT or CAN specifically. Concrete crates
 implement those traits and are pulled in only when needed, so nobody pays for
 what they do not use, and on a microcontroller you compile in two crates and
-nothing else.
+nothing else. The [install page](../install.md) measures that claim per feature
+set, down to a single-capability build that carries no third-party code at all.
 
 This separation is literal in Rust: `pamoja-core` defines the traits, and each
 transport (`pamoja-mqtt`, `pamoja-coap`) is its own crate, so Rust code pulls
-`MqttTransport` from `pamoja-mqtt`, not from the core. The bindings follow the
-same shape: on npm each capability is its own package (`@pamoja/mqtt`),
-`@pamoja/core` is the engine's surface, and `pamoja` is the whole framework in
-one package. The compiled engine itself is `@pamoja/native`, a build artifact
-every package depends on and nobody installs by hand. On PyPI the same four
-kinds are `pamoja-<name>`, `pamoja-core`, `pamoja`, and `pamoja-native`, merged
-into one `pamoja` namespace on import. On NuGet they are `Pamoja.<Name>`,
-`Pamoja.Core`, `Pamoja`, and `Pamoja.Native`, each package a namespace of the
-same name.
+`MqttTransport` from `pamoja-mqtt`, not from the core. Every registry offers the
+same three grain sizes, and the guides' chapters are the domains:
 
-```
-   npm  pamoja, @pamoja/<capability>      PyPI  pamoja, pamoja-<capability>
-   NuGet  Pamoja, Pamoja.<Capability>     crates.io  pamoja, pamoja-<capability>
-        |                |                     |                    |
-   @pamoja/native   pamoja-native        Pamoja.Native          (source)
-        +----------------+---------------------+--------------------+
-                                     |  the compiled engine: every crate below
-                            +--------+--------+   device model, event bus,
-                            |   pamoja-core   |   error model, transports
-                            +--------+--------+
-                                     |  trait-based abstraction layer
-   messaging   hardware I/O   robotics    drones    trust      resilience   power
-   mqtt/coap   serial/can/    ros2/       mavlink   identity/  store-and-   duty-
-   lora/mesh   gpio/rs485     zenoh                 session/   forward      cycling
-                                                    update
-```
+| What you want | Rust | npm | PyPI | NuGet |
+| --- | --- | --- | --- | --- |
+| Everything | `pamoja` | `pamoja` | `pamoja` | `Pamoja` |
+| A domain, six of them | `pamoja --features radio` | `@pamoja/radio` | `pamoja-radio` | `Pamoja.Radio` |
+| One capability, thirty | `pamoja-lora` | `@pamoja/lora` | `pamoja-lora` | `Pamoja.Lora` |
+
+Underneath the three bindings, and nowhere in Rust, is the compiled engine:
+`@pamoja/native`, `pamoja-native`, and `Pamoja.Native`. It is the built library,
+the generated contract over it, and the plumbing a facade needs to call it, which
+is the handle type, the error every failed call raises, and string marshalling.
+Every package declares it, so it arrives on its own and nobody installs it by
+hand. A Rust build has no equivalent because it compiles the crates.
+
+`pamoja-core` is a different thing with a similar name. It is the engine's own
+surface, the runtime version and the `Transport` every link implements, and in
+the bindings it is a capability like the others: `@pamoja/mqtt` returns something
+that satisfies it, so the transports depend on it and the rest do not.
+
+That per-package shape means different things on the two sides of the C ABI. A
+Rust build compiles only the crates it names, which the
+[install page](../install.md) measures per feature set. A binding loads one
+compiled engine carrying every capability, so choosing packages there narrows the
+API and the dependency manifest rather than the download. Compiling away what you
+do not use is a property of a compiled language, and the targets that need it run
+Rust rather than a managed runtime. A C or C++ host that builds `pamoja-ffi`
+itself gets the Rust behaviour, because the capabilities are cargo features
+there: dropping the seven that need an async runtime halves the library.
+
+A domain package brings in its capabilities and, where the language allows it,
+re-exports each under its own name rather than flattening them, because two
+capabilities of a domain can export the same name: `pamoja-lorawan` and
+`pamoja-mesh` both define a maximum frame size, and flattening those silently
+resolves to one of them. Naming the capability is how Rust and C# already read,
+so the bindings read that way too.
 
 ## Two tiers in every binding
 

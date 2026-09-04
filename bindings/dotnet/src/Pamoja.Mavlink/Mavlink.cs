@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Mavlink;
@@ -110,7 +109,7 @@ public static class Mavlink
                 };
             }
 
-            PamojaCore.ThrowIfError(
+            Status.ThrowIfError(
                 NativeMethods.pamoja_mavlink_message_crc_extra(
                     name,
                     described,
@@ -201,7 +200,7 @@ public sealed class MavlinkDialect : IDisposable
     /// <param name="msgid">The message id.</param>
     /// <param name="crcExtra">The seed.</param>
     public void Add(uint msgid, byte crcExtra) =>
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_mavlink_dialect_add(Handle, msgid, crcExtra));
+        Status.ThrowIfError(NativeMethods.pamoja_mavlink_dialect_add(Handle, msgid, crcExtra));
 
     /// <summary>Adds a message by its definition, deriving the seed.</summary>
     /// <param name="msgid">The message id.</param>
@@ -226,7 +225,7 @@ public sealed class MavlinkDialect : IDisposable
     /// register it, and every frame carrying that message checks from then on.
     /// </remarks>
     public void AddSchema(MavlinkSchema schema) =>
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_dialect_add_schema(Handle, schema.Handle));
 
     /// <summary>Returns the seed this dialect resolves a message id to.</summary>
@@ -269,7 +268,7 @@ public sealed class MavlinkFrame : IDisposable
         ReadOnlySpan<byte> payload,
         byte crcExtra)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_frame_encode(
                 NativeMethods.MavlinkVersionV2,
                 header.ToNative(),
@@ -294,7 +293,7 @@ public sealed class MavlinkFrame : IDisposable
         ReadOnlySpan<byte> payload,
         byte crcExtra)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_frame_encode(
                 NativeMethods.MavlinkVersionV1,
                 header.ToNative(),
@@ -316,7 +315,7 @@ public sealed class MavlinkFrame : IDisposable
     /// </exception>
     public static MavlinkFrame Parse(ReadOnlySpan<byte> bytes, byte crcExtra)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_frame_parse(
                 bytes,
                 (nuint)bytes.Length,
@@ -339,7 +338,7 @@ public sealed class MavlinkFrame : IDisposable
     /// </remarks>
     public static MavlinkFrame ParseKnown(ReadOnlySpan<byte> bytes, MavlinkDialect? dialect = null)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_frame_parse_known(
                 bytes,
                 (nuint)bytes.Length,
@@ -365,7 +364,7 @@ public sealed class MavlinkFrame : IDisposable
         byte crcExtra,
         ReadOnlySpan<byte> payload)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_raw_message_to_frame(
                 header.ToNative(),
                 msgid,
@@ -388,7 +387,7 @@ public sealed class MavlinkFrame : IDisposable
     {
         get
         {
-            PamojaCore.ThrowIfError(
+            Status.ThrowIfError(
                 NativeMethods.pamoja_mavlink_frame_header(
                     Handle,
                     out PamojaMavlinkHeader header));
@@ -478,7 +477,7 @@ public sealed class MavlinkParser : IDisposable
         MavlinkDialect? dialect = null)
     {
         IntPtr handle = _handle.DangerousGetHandle();
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_parser_push(
                 handle,
                 bytes,
@@ -488,7 +487,7 @@ public sealed class MavlinkParser : IDisposable
         List<MavlinkFrame> found = [];
         while (true)
         {
-            PamojaCore.ThrowIfError(
+            Status.ThrowIfError(
                 NativeMethods.pamoja_mavlink_parser_next(handle, out IntPtr frame));
             if (frame == IntPtr.Zero)
             {
@@ -530,7 +529,7 @@ public sealed class MavlinkSigner : IDisposable
                 nameof(key));
         }
 
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_signer_new(key, linkId, timestamp, out IntPtr signer));
         _handle = NativeHandle.Create(signer, NativeMethods.pamoja_mavlink_signer_free, "signer");
     }
@@ -552,7 +551,7 @@ public sealed class MavlinkSigner : IDisposable
         ReadOnlySpan<byte> payload,
         byte crcExtra)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_signer_sign(
                 _handle.DangerousGetHandle(),
                 header.ToNative(),
@@ -589,7 +588,7 @@ public sealed class MavlinkVerifier : IDisposable
                 nameof(key));
         }
 
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_verifier_new(key, out IntPtr verifier));
         _handle = NativeHandle.Create(
             verifier,
@@ -604,7 +603,7 @@ public sealed class MavlinkVerifier : IDisposable
     /// of a replay landing inside it.
     /// </remarks>
     public void SetWindow(ulong window) =>
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_verifier_set_window(
                 _handle.DangerousGetHandle(),
                 window));
@@ -616,7 +615,7 @@ public sealed class MavlinkVerifier : IDisposable
     /// timestamp has been seen before.
     /// </exception>
     public void Verify(MavlinkFrame frame) =>
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_verifier_verify(
                 _handle.DangerousGetHandle(),
                 frame.Handle));

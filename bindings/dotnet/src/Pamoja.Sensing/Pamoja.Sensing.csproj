@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Pamoja.Sensing</PackageId>
+    <Description>Sensing and actuation: The parts wired to a board: a thermometer that checks its own bytes, a servo pulse, and a stepper walking its coils.</Description>
+    <PackageTags>pamoja;iot;robotics;sensing</PackageTags>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/install.html</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Pamoja.Sensors/Pamoja.Sensors.csproj" />
+    <ProjectReference Include="../Pamoja.Actuators/Pamoja.Actuators.csproj" />
+  </ItemGroup>
+
+</Project>

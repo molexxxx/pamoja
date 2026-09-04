@@ -1,5 +1,4 @@
 using Pamoja.Codec;
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Serial;
@@ -21,7 +20,7 @@ public static class Serial
     /// <exception cref="PamojaException">The native call failed.</exception>
     public static byte[] SlipEncode(ReadOnlySpan<byte> payload)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_serial_slip_encode(
+        Status.ThrowIfError(NativeMethods.pamoja_serial_slip_encode(
             payload, (nuint)payload.Length, out IntPtr buffer));
         return Pamoja.Codec.Codec.TakeBytes(buffer);
     }
@@ -32,7 +31,7 @@ public static class Serial
     /// <exception cref="PamojaException">The frame is corrupt.</exception>
     public static byte[] SlipDecode(ReadOnlySpan<byte> frame)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_serial_slip_decode(
+        Status.ThrowIfError(NativeMethods.pamoja_serial_slip_decode(
             frame, (nuint)frame.Length, out IntPtr buffer));
         return Pamoja.Codec.Codec.TakeBytes(buffer);
     }
@@ -43,7 +42,7 @@ public static class Serial
     /// <exception cref="PamojaException">The native call failed.</exception>
     public static byte[] CobsEncode(ReadOnlySpan<byte> payload)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_serial_cobs_encode(
+        Status.ThrowIfError(NativeMethods.pamoja_serial_cobs_encode(
             payload, (nuint)payload.Length, out IntPtr buffer));
         return Pamoja.Codec.Codec.TakeBytes(buffer);
     }
@@ -54,7 +53,7 @@ public static class Serial
     /// <exception cref="PamojaException">The frame is corrupt.</exception>
     public static byte[] CobsDecode(ReadOnlySpan<byte> frame)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_serial_cobs_decode(
+        Status.ThrowIfError(NativeMethods.pamoja_serial_cobs_decode(
             frame, (nuint)frame.Length, out IntPtr buffer));
         return Pamoja.Codec.Codec.TakeBytes(buffer);
     }
@@ -139,7 +138,7 @@ public sealed class SlipDecoder : IDisposable
         byte[] copy = chunk.ToArray();
         IntPtr frames = _handle.Use(handle =>
         {
-            PamojaCore.ThrowIfError(NativeMethods.pamoja_slip_decoder_feed(
+            Status.ThrowIfError(NativeMethods.pamoja_slip_decoder_feed(
                 handle, copy, (nuint)copy.Length, out IntPtr produced));
             return produced;
         });
@@ -184,7 +183,7 @@ public sealed class CobsDecoder : IDisposable
         byte[] copy = chunk.ToArray();
         IntPtr frames = _handle.Use(handle =>
         {
-            PamojaCore.ThrowIfError(NativeMethods.pamoja_cobs_decoder_feed(
+            Status.ThrowIfError(NativeMethods.pamoja_cobs_decoder_feed(
                 handle, copy, (nuint)copy.Length, out IntPtr produced));
             return produced;
         });

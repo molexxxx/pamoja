@@ -84,6 +84,17 @@ sim = ["dep:pamoja-sim"]
 profile = ["dep:pamoja-profile"]
 ros2 = ["dep:pamoja-ros2"]
 zenoh = ["dep:pamoja-zenoh"]
+
+# Chapter features: the groups the guides are organised into, so a build can name a
+# domain rather than listing its capabilities. Each is exactly the capabilities of that
+# chapter, and is checked against docs/capabilities.toml.
+field-io = ["serial", "modbus", "can", "gpio"]
+sensing = ["sensors", "actuators"]
+radio = ["lora", "lorawan", "mesh", "routing"]
+trust = ["audit", "session", "update", "power", "telemetry"]
+transports = ["mqtt", "coap", "loopback", "sync", "ladder", "bus", "sim"]
+profiles = ["profile", "ros2", "zenoh"]
+
 # The fleet dashboard is a web server, so it is opt-in rather than part of the default set.
 dashboard = ["dep:pamoja-dashboard"]
 

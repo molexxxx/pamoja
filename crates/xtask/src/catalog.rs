@@ -141,6 +141,27 @@ impl Catalog {
         out
     }
 
+    /// The chapters worth naming as a set, with every capability they hold. A chapter
+    /// qualifies when more than one of its capabilities has a crate of its own, and the
+    /// engine's own surface comes with the chapter it belongs to, so installing a domain
+    /// gives the whole chapter as the guides present it.
+    pub fn domains(&self) -> Vec<(&Chapter, Vec<&Capability>)> {
+        self.chapters
+            .iter()
+            .map(|chapter| {
+                let members: Vec<&Capability> = self.in_chapter(&chapter.key).collect();
+                (chapter, members)
+            })
+            .filter(|(_, members)| {
+                members
+                    .iter()
+                    .filter(|capability| !capability.crates.is_empty())
+                    .count()
+                    > 1
+            })
+            .collect()
+    }
+
     /// The capabilities of one chapter, in map order.
     pub fn in_chapter<'a>(&'a self, chapter: &'a str) -> impl Iterator<Item = &'a Capability> {
         self.capabilities
@@ -224,6 +245,13 @@ impl Catalog {
             }
         }
 
+        // A domain has a package of its own in each binding, alongside the capabilities.
+        let domain_keys: BTreeSet<&str> = self
+            .domains()
+            .into_iter()
+            .map(|(chapter, _)| chapter.key.as_str())
+            .collect();
+
         match node_packages(root) {
             Ok(packages) => {
                 let keys: BTreeSet<&str> = self
@@ -231,6 +259,7 @@ impl Catalog {
                     .iter()
                     .map(|capability| capability.node.as_str())
                     .filter(|key| *key != "core")
+                    .chain(domain_keys.iter().copied())
                     .collect();
                 for package in &packages {
                     if !keys.contains(package.as_str()) {
@@ -257,6 +286,7 @@ impl Catalog {
                     .iter()
                     .map(|capability| capability.python.as_str())
                     .filter(|key| *key != "core")
+                    .chain(domain_keys.iter().copied())
                     .collect();
                 for package in &packages {
                     if !keys.contains(package.as_str()) {
@@ -294,12 +324,15 @@ impl Catalog {
 
         match dotnet_packages(root) {
             Ok(packages) => {
-                let names: BTreeSet<String> = self
-                    .capabilities
-                    .iter()
-                    .filter(|capability| capability.node != "core")
-                    .map(|capability| dotnet_name(&capability.key))
-                    .collect();
+                let names: BTreeSet<String> =
+                    self.capabilities
+                        .iter()
+                        .filter(|capability| capability.node != "core")
+                        .map(|capability| dotnet_name(&capability.key))
+                        .chain(domain_keys.iter().map(|key| {
+                            key.split('-').map(dotnet_name).collect::<Vec<_>>().concat()
+                        }))
+                        .collect();
                 for package in &packages {
                     if !names.contains(package) {
                         problems.push(format!(
@@ -342,7 +375,8 @@ impl Catalog {
     }
 
     // The bundle crate's manifest against the map: one feature per capability, named by
-    // the capability key, enabling exactly that capability's crates, and in the default set.
+    // the capability key, enabling that capability's crates and no crate another
+    // capability claims, and in the default set.
     fn bundle_problems(&self, root: &Path, name: &str) -> Vec<String> {
         let path = root.join("crates").join(name).join("Cargo.toml");
         let text = match fs::read_to_string(&path) {
@@ -367,7 +401,53 @@ impl Catalog {
         };
         let default = feature("default").unwrap_or_default();
 
+        // The crates another capability claims: a feature may pull in a shared engine crate,
+        // but never one this map attributes to a different capability.
+        let claimed_elsewhere = |key: &str| -> BTreeSet<&str> {
+            self.capabilities
+                .iter()
+                .filter(|other| other.key != key)
+                .flat_map(|other| other.crates.iter().map(String::as_str))
+                .collect()
+        };
+
         let mut problems = Vec::new();
+
+        // A chapter with more than one capability gets a feature of its own, so a build can
+        // name a domain instead of listing its parts.
+        for chapter in &self.chapters {
+            let members: Vec<&str> = self
+                .in_chapter(&chapter.key)
+                .filter(|capability| !capability.crates.is_empty())
+                .map(|capability| capability.key.as_str())
+                .collect();
+            if members.len() < 2 {
+                continue;
+            }
+            match feature(&chapter.key) {
+                None => problems.push(format!(
+                    "crates/{name}/Cargo.toml has no `{}` feature for the chapter of the same name",
+                    chapter.key
+                )),
+                Some(enabled) => {
+                    let listed: BTreeSet<&str> = enabled.iter().map(String::as_str).collect();
+                    let expected: BTreeSet<&str> = members.iter().copied().collect();
+                    for missing in expected.difference(&listed) {
+                        problems.push(format!(
+                            "crates/{name}/Cargo.toml: feature `{}` does not enable `{missing}`",
+                            chapter.key
+                        ));
+                    }
+                    for extra in listed.difference(&expected) {
+                        problems.push(format!(
+                            "crates/{name}/Cargo.toml: feature `{}` enables `{extra}`, which is not in that chapter",
+                            chapter.key
+                        ));
+                    }
+                }
+            }
+        }
+
         for capability in &self.capabilities {
             if capability.crates.is_empty() {
                 continue;
@@ -381,6 +461,17 @@ impl Catalog {
                         if !enabled.contains(&dep) {
                             problems.push(format!(
                                 "crates/{name}/Cargo.toml: feature `{key}` does not enable {dep}"
+                            ));
+                        }
+                    }
+                    let others = claimed_elsewhere(key);
+                    for entry in &enabled {
+                        let Some(krate) = entry.strip_prefix("dep:") else {
+                            continue;
+                        };
+                        if others.contains(krate) {
+                            problems.push(format!(
+                                "crates/{name}/Cargo.toml: feature `{key}` also enables {entry}, which another capability claims"
                             ));
                         }
                     }
@@ -424,6 +515,9 @@ impl Catalog {
                 .ok_or_else(|| format!("reference table names the unknown capability {key}")),
             ("binding", Some(language @ ("node" | "python" | "dotnet"))) => {
                 Ok(self.binding_table(language))
+            }
+            ("domains", Some(language @ ("rust" | "node" | "python" | "dotnet"))) => {
+                Ok(self.domains_block(language))
             }
             _ => Err(format!("unknown table `{directive}`")),
         }
@@ -553,14 +647,64 @@ impl Catalog {
         lines.join("\n")
     }
 
+    // The install line for each domain, in the language's own mechanism: a feature in
+    // Rust, which decides what compiles, and the capability packages elsewhere, where
+    // naming them keeps the manifest an honest record of what the code uses.
+    fn domains_block(&self, language: &str) -> String {
+        let rows: Vec<(String, String)> = self
+            .domains()
+            .into_iter()
+            .map(|(chapter, _members)| {
+                let command = match language {
+                    "rust" => format!("cargo add pamoja --features {}", chapter.key),
+                    "node" => format!("npm install @pamoja/{}", chapter.key),
+                    "python" => format!("pip install pamoja-{}", chapter.key),
+                    _ => format!(
+                        "dotnet add package Pamoja.{}",
+                        chapter
+                            .key
+                            .split('-')
+                            .map(dotnet_name)
+                            .collect::<Vec<_>>()
+                            .concat()
+                    ),
+                };
+                (command, chapter.title.clone())
+            })
+            .collect();
+        let width = rows
+            .iter()
+            .map(|(command, _)| command.len())
+            .max()
+            .unwrap_or(0);
+        let mut out = String::from(
+            "```sh
+",
+        );
+        for (command, title) in rows {
+            out.push_str(&format!(
+                "{command:<width$}  # {title}
+"
+            ));
+        }
+        out.push_str("```");
+        out
+    }
+
     fn binding_table(&self, language: &str) -> String {
         let import_heading = match language {
             "node" => "Import",
             "python" => "Module",
             _ => "Package",
         };
-        let mut out =
-            format!("| Capability | {import_heading} | What it covers |\n| --- | --- | --- |\n");
+        let mut out = format!(
+            "| Group | Capability | {import_heading} | What it covers |
+| --- | --- | --- | --- |
+"
+        );
+        // The chapter is named once per group, so thirty rows read as a handful of domains
+        // rather than a flat list.
+        let mut last = "";
         for capability in self.ordered() {
             let import = match language {
                 "node" => format!("`{}`", node_package(capability)),
@@ -571,8 +715,23 @@ impl Catalog {
                 Some(url) => format!("[{}]({url})", capability.title),
                 None => capability.title.clone(),
             };
+            // The engine's own surface is hoisted above the chapters, so it is labelled for
+            // what it is rather than borrowing the chapter it happens to sit in.
+            let chapter = if capability.node == "core" {
+                "**Engine**".to_owned()
+            } else if capability.chapter == last {
+                String::new()
+            } else {
+                last = &capability.chapter;
+                self.chapters
+                    .iter()
+                    .find(|chapter| chapter.key == capability.chapter)
+                    .map(|chapter| format!("**{}**", chapter.title))
+                    .unwrap_or_default()
+            };
             out.push_str(&format!(
-                "| {title} | {import} | {} |\n",
+                "| {chapter} | {title} | {import} | {} |
+",
                 capability.summary
             ));
         }
@@ -722,8 +881,11 @@ fn python_packages(root: &Path) -> Result<BTreeSet<String>, String> {
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
         .filter_map(|path| {
             let name = path.file_name()?.to_str()?.to_owned();
+            // A domain's directory keeps the map's key, `field-io`, while its module is the
+            // identifier `field_io`, since a hyphen cannot appear in a Python module name.
+            let module = name.replace('-', "_");
             path.join("pamoja")
-                .join(&name)
+                .join(&module)
                 .join("__init__.py")
                 .is_file()
                 .then_some(name)

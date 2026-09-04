@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Can;
@@ -24,7 +23,7 @@ public static class Can
     /// </exception>
     public static CanFrame Frame(uint id, ReadOnlySpan<byte> data, bool extended = false)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_can_frame_new(
+        Status.ThrowIfError(NativeMethods.pamoja_can_frame_new(
             id, extended, data, (nuint)data.Length, out IntPtr frame));
         return Describe(frame);
     }
@@ -42,7 +41,7 @@ public static class Can
     /// </exception>
     public static CanFrame FdFrame(uint id, ReadOnlySpan<byte> data, bool extended = false)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_can_frame_fd(
+        Status.ThrowIfError(NativeMethods.pamoja_can_frame_fd(
             id, extended, data, (nuint)data.Length, out IntPtr frame));
         return Describe(frame);
     }
@@ -55,7 +54,7 @@ public static class Can
     /// <exception cref="PamojaException">The native call failed.</exception>
     public static CanFrame RemoteFrame(uint id, int length, bool extended = false)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_can_frame_remote(
+        Status.ThrowIfError(NativeMethods.pamoja_can_frame_remote(
             id, extended, (nuint)length, out IntPtr frame));
         return Describe(frame);
     }

@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Mqtt;

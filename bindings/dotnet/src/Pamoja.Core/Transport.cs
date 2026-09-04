@@ -27,7 +27,7 @@ public sealed class Transport : IDisposable
     {
         if (handle == IntPtr.Zero)
         {
-            throw new PamojaException(PamojaCore.LastError() ?? $"failed to create the {what}");
+            throw new PamojaException(Status.LastError() ?? $"failed to create the {what}");
         }
 
         _handle = handle;
@@ -69,7 +69,7 @@ public sealed class Transport : IDisposable
     /// <summary>Connects this transport.</summary>
     /// <exception cref="PamojaException">The link could not be established.</exception>
     public Task ConnectAsync() =>
-        Task.Run(() => PamojaCore.ThrowIfError(
+        Task.Run(() => Status.ThrowIfError(
             NativeMethods.pamoja_transport_connect(Live())));
 
     /// <summary>Sends a payload to a topic over this transport.</summary>
@@ -84,7 +84,7 @@ public sealed class Transport : IDisposable
             IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
             try
             {
-                PamojaCore.ThrowIfError(NativeMethods.pamoja_transport_send(
+                Status.ThrowIfError(NativeMethods.pamoja_transport_send(
                     Live(), topicPtr, bytes, (nuint)bytes.Length));
             }
             finally
@@ -102,7 +102,7 @@ public sealed class Transport : IDisposable
         IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
         try
         {
-            PamojaCore.ThrowIfError(
+            Status.ThrowIfError(
                 NativeMethods.pamoja_transport_subscribe(Live(), topicPtr));
         }
         finally

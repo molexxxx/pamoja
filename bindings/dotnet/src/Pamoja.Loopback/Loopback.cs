@@ -57,7 +57,7 @@ public sealed class LoopbackTransport : IDisposable
 
     /// <summary>Marks this link connected so it will carry traffic.</summary>
     /// <exception cref="PamojaException">The native call failed.</exception>
-    public Task ConnectAsync() => Task.Run(() => PamojaCore.ThrowIfError(
+    public Task ConnectAsync() => Task.Run(() => Status.ThrowIfError(
         _handle.Use(NativeMethods.pamoja_loopback_transport_connect)));
 
     /// <summary>Publishes a payload to a topic on the broker.</summary>
@@ -72,7 +72,7 @@ public sealed class LoopbackTransport : IDisposable
             IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
             try
             {
-                PamojaCore.ThrowIfError(_handle.Use(handle =>
+                Status.ThrowIfError(_handle.Use(handle =>
                     NativeMethods.pamoja_loopback_transport_send(
                         handle, topicPtr, bytes, (nuint)bytes.Length)));
             }
@@ -91,7 +91,7 @@ public sealed class LoopbackTransport : IDisposable
         IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
         try
         {
-            PamojaCore.ThrowIfError(_handle.Use(handle =>
+            Status.ThrowIfError(_handle.Use(handle =>
                 NativeMethods.pamoja_loopback_transport_subscribe(handle, topicPtr)));
         }
         finally
@@ -106,7 +106,7 @@ public sealed class LoopbackTransport : IDisposable
     public Task<TransportMessage?> ReceiveAsync() => Task.Run(() =>
     {
         IntPtr message = IntPtr.Zero;
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_loopback_transport_recv(handle, out message)));
         return Messages.Take(message);
     });

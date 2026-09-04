@@ -1,0 +1,39 @@
+{
+  "name": "@pamoja/sensing",
+  "version": "0.1.14",
+  "description": "Sensing and actuation: The parts wired to a board: a thermometer that checks its own bytes, a servo pulse, and a stepper walking its coils.",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/molexxxx/pamoja.git",
+    "directory": "bindings/node/packages/sensing"
+  },
+  "homepage": "https://pamoja.molex.cloud/docs/install.html",
+  "keywords": [
+    "pamoja",
+    "iot",
+    "robotics",
+    "sensing"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "engines": {
+    "node": ">= 16"
+  },
+  "dependencies": {
+    "@pamoja/actuators": "0.1.14",
+    "@pamoja/sensors": "0.1.14"
+  }
+}

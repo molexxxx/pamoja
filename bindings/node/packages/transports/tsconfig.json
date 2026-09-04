@@ -1,0 +1,37 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "composite": true
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../bus"
+    },
+    {
+      "path": "../coap"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../ladder"
+    },
+    {
+      "path": "../loopback"
+    },
+    {
+      "path": "../mqtt"
+    },
+    {
+      "path": "../sim"
+    },
+    {
+      "path": "../sync"
+    }
+  ]
+}

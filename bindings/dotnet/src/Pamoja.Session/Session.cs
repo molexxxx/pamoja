@@ -1,4 +1,3 @@
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Session;
@@ -50,7 +49,7 @@ public sealed class AgreementKey : IDisposable
         get
         {
             byte[] key = new byte[KeyLength];
-            PamojaCore.ThrowIfError(_handle.Use(handle =>
+            Status.ThrowIfError(_handle.Use(handle =>
                 NativeMethods.pamoja_agreement_key_public(handle, key)));
             return key;
         }
@@ -132,7 +131,7 @@ public sealed class Session : IDisposable
         byte[] message = plaintext.ToArray();
         byte[] associated = aad.ToArray();
         PamojaSealed header = default;
-        PamojaCore.ThrowIfError(_handle.Use(handle => NativeMethods.pamoja_session_seal(
+        Status.ThrowIfError(_handle.Use(handle => NativeMethods.pamoja_session_seal(
             handle,
             message,
             (nuint)message.Length,
@@ -164,7 +163,7 @@ public sealed class Session : IDisposable
             Counter = message.Counter,
             Tag = PamojaTag.From(message.Tag, nameof(message)),
         };
-        PamojaCore.ThrowIfError(_handle.Use(handle => NativeMethods.pamoja_session_open(
+        Status.ThrowIfError(_handle.Use(handle => NativeMethods.pamoja_session_open(
             handle,
             header,
             buffer,
@@ -186,7 +185,7 @@ public sealed class Session : IDisposable
     public static byte[] HmacSha256(ReadOnlySpan<byte> key, ReadOnlySpan<byte> message)
     {
         byte[] digest = new byte[NativeMethods.SessionKeyLen];
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_session_hmac_sha256(
+        Status.ThrowIfError(NativeMethods.pamoja_session_hmac_sha256(
             key, (nuint)key.Length, message, (nuint)message.Length, digest));
         return digest;
     }
@@ -205,7 +204,7 @@ public sealed class Session : IDisposable
         int length)
     {
         byte[] derived = new byte[length];
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_session_hkdf_sha256(
+        Status.ThrowIfError(NativeMethods.pamoja_session_hkdf_sha256(
             salt,
             (nuint)salt.Length,
             ikm,

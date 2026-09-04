@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pamoja-sensing"
+version = "0.1.14"
+description = "Sensing and actuation: The parts wired to a board: a thermometer that checks its own bytes, a servo pulse, and a stepper walking its coils."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "molexxxx" }]
+keywords = ["pamoja", "iot", "robotics", "sensing"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pamoja-actuators==0.1.14",
+    "pamoja-sensors==0.1.14",
+]
+
+[project.urls]
+Repository = "https://github.com/molexxxx/pamoja"
+Documentation = "https://pamoja.molex.cloud/docs/install.html"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pamoja"]

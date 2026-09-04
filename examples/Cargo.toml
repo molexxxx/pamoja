@@ -62,6 +62,7 @@ name = "degraded_link"
 path = "tests/degraded_link.rs"
 
 [dependencies]
+pamoja = { path = "../crates/pamoja" }
 pamoja-core = { workspace = true }
 pamoja-codec = { path = "../crates/pamoja-codec" }
 pamoja-kit = { path = "../crates/pamoja-kit" }
@@ -104,3 +105,7 @@ path = "conformance_vectors.rs"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+# The MQTT guide example runs against an embedded broker, so it needs no infrastructure.
+rumqttd = { version = "0.20", default-features = false }

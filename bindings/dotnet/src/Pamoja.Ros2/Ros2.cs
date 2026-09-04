@@ -1,4 +1,3 @@
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Ros2;
@@ -160,22 +159,22 @@ public sealed class CdrWriter : IDisposable
     /// <summary>Appends a 32-bit signed integer.</summary>
     /// <param name="value">The value to append.</param>
     public void WriteInt32(int value) => _handle.Use(w =>
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_cdr_writer_write_i32(w, value)));
+        Status.ThrowIfError(NativeMethods.pamoja_cdr_writer_write_i32(w, value)));
 
     /// <summary>Appends a 32-bit unsigned integer.</summary>
     /// <param name="value">The value to append.</param>
     public void WriteUInt32(uint value) => _handle.Use(w =>
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_cdr_writer_write_u32(w, value)));
+        Status.ThrowIfError(NativeMethods.pamoja_cdr_writer_write_u32(w, value)));
 
     /// <summary>Appends a 32-bit float.</summary>
     /// <param name="value">The value to append.</param>
     public void WriteSingle(float value) => _handle.Use(w =>
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_cdr_writer_write_f32(w, value)));
+        Status.ThrowIfError(NativeMethods.pamoja_cdr_writer_write_f32(w, value)));
 
     /// <summary>Appends a 64-bit float.</summary>
     /// <param name="value">The value to append.</param>
     public void WriteDouble(double value) => _handle.Use(w =>
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_cdr_writer_write_f64(w, value)));
+        Status.ThrowIfError(NativeMethods.pamoja_cdr_writer_write_f64(w, value)));
 
     /// <summary>Takes the encoded bytes, leaving the encoder spent.</summary>
     /// <remarks>
@@ -258,7 +257,7 @@ internal static class NativeBuffer
     {
         if (buffer == IntPtr.Zero)
         {
-            throw new PamojaException(PamojaCore.LastError() ?? "the call produced no buffer");
+            throw new PamojaException(Status.LastError() ?? "the call produced no buffer");
         }
 
         try

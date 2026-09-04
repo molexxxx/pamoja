@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pamoja-transports"
+version = "0.1.14"
+description = "Transports and testing: Reaching the network when no single link always works, and testing all of it with nothing plugged in."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "molexxxx" }]
+keywords = ["pamoja", "iot", "robotics", "transports"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pamoja-bus==0.1.14",
+    "pamoja-coap==0.1.14",
+    "pamoja-core==0.1.14",
+    "pamoja-ladder==0.1.14",
+    "pamoja-loopback==0.1.14",
+    "pamoja-mqtt==0.1.14",
+    "pamoja-sim==0.1.14",
+    "pamoja-sync==0.1.14",
+]
+
+[project.urls]
+Repository = "https://github.com/molexxxx/pamoja"
+Documentation = "https://pamoja.molex.cloud/docs/install.html"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pamoja"]

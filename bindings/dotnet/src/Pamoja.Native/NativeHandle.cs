@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Pamoja.Core;
+namespace Pamoja.Native.Interop;
 
 /// <summary>
 /// A <see cref="SafeHandle"/> over a native pointer whose release function is
@@ -39,7 +39,7 @@ public sealed class NativeHandle : SafeHandle
     {
         if (handle == IntPtr.Zero)
         {
-            throw new PamojaException(PamojaCore.LastError() ?? $"failed to create the {what}");
+            throw new PamojaException(Status.LastError() ?? $"failed to create the {what}");
         }
 
         return new NativeHandle(handle, release);

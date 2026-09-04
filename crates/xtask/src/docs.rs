@@ -21,7 +21,7 @@ use quote::ToTokens;
 use syn::{Fields, ImplItem, Item, TraitItem, Visibility};
 
 use crate::catalog::{Catalog, SITE};
-use crate::{packages, regions, version};
+use crate::{builds, packages, regions, version};
 
 /// Run the `docs` task: regenerate every derived file, or `--check` to verify they are in sync.
 ///
@@ -207,7 +207,10 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
             if let Some(spec) = directive.strip_prefix("snippet:") {
                 regions::snippet(&root, spec.trim())
             } else if let Some(table) = directive.strip_prefix("table:") {
-                catalog.render(table.trim(), &descriptions)
+                match table.trim() {
+                    "builds" => builds::table(&root),
+                    other => catalog.render(other, &descriptions),
+                }
             } else {
                 Err(format!("unknown directive `{directive}`"))
             }

@@ -1,4 +1,3 @@
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Sensors;
@@ -156,7 +155,7 @@ public sealed class Bme280Calibration : IDisposable
     /// <exception cref="PamojaException">Either block is the wrong length.</exception>
     public Bme280Calibration(ReadOnlySpan<byte> tempPress, ReadOnlySpan<byte> humidity)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_bme280_calibration_new(
+        Status.ThrowIfError(NativeMethods.pamoja_bme280_calibration_new(
             tempPress,
             (nuint)tempPress.Length,
             humidity,
@@ -175,7 +174,7 @@ public sealed class Bme280Calibration : IDisposable
         byte[] copy = measurement.ToArray();
         PamojaBme280Measurement reading = _handle.Use(handle =>
         {
-            PamojaCore.ThrowIfError(NativeMethods.pamoja_bme280_compensate(
+            Status.ThrowIfError(NativeMethods.pamoja_bme280_compensate(
                 handle, copy, (nuint)copy.Length, out PamojaBme280Measurement produced));
             return produced;
         });
@@ -215,7 +214,7 @@ public static class Ds18b20
     /// </exception>
     public static Ds18b20Reading ParseScratchpad(ReadOnlySpan<byte> bytes)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_ds18b20_parse_scratchpad(
+        Status.ThrowIfError(NativeMethods.pamoja_ds18b20_parse_scratchpad(
             bytes, (nuint)bytes.Length, out PamojaDs18b20Reading reading));
         return new Ds18b20Reading(
             reading.RawTemperature,
@@ -247,7 +246,7 @@ public static class Ds18b20
     /// <exception cref="PamojaException">The resolution is not one the part offers.</exception>
     public static byte ConfigByte(byte bits)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_ds18b20_config_byte(bits, out byte value));
+        Status.ThrowIfError(NativeMethods.pamoja_ds18b20_config_byte(bits, out byte value));
         return value;
     }
 
@@ -263,7 +262,7 @@ public static class Ds18b20
     /// <exception cref="PamojaException">The resolution is not one the part offers.</exception>
     public static uint StepMicroCelsius(byte bits)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_ds18b20_step_micro_celsius(bits, out uint value));
         return value;
     }
@@ -274,7 +273,7 @@ public static class Ds18b20
     /// <exception cref="PamojaException">The resolution is not one the part offers.</exception>
     public static uint MaxConversionMicros(byte bits)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_ds18b20_max_conversion_micros(bits, out uint value));
         return value;
     }
@@ -359,7 +358,7 @@ public static class Ads1115
     /// <exception cref="PamojaException">The native call failed.</exception>
     public static Ads1115Config ConfigFromBits(ushort bits)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_ads1115_config_from_bits(bits, out PamojaAds1115Config config));
         return Ads1115Config.FromNative(config);
     }

@@ -1,4 +1,3 @@
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Mavlink;
@@ -121,7 +120,7 @@ public sealed class MavlinkMissionReceiver : IDisposable
     /// <returns>The <c>MISSION_REQUEST_LIST</c> frame.</returns>
     public MavlinkFrame RequestList(MavlinkHeader header)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_mission_receiver_request_list(
                 Handle,
                 header.ToNative(),
@@ -141,7 +140,7 @@ public sealed class MavlinkMissionReceiver : IDisposable
     /// </remarks>
     public MavlinkReceiverStep? OnFrame(MavlinkFrame frame, MavlinkHeader header)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_mission_receiver_on_frame(
                 Handle,
                 frame.Handle,
@@ -196,7 +195,7 @@ public sealed class MavlinkMissionSender : IDisposable
     /// schema and pass its <see cref="MavlinkMessage.Payload"/>.
     /// </remarks>
     public void AddItem(ReadOnlySpan<byte> item) =>
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_mission_sender_add_item(Handle, item, (nuint)item.Length));
 
     /// <summary>Appends an item to the plan.</summary>
@@ -211,7 +210,7 @@ public sealed class MavlinkMissionSender : IDisposable
     /// <returns>The <c>MISSION_COUNT</c> frame.</returns>
     public MavlinkFrame CountFrame(MavlinkHeader header)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_mission_sender_count(Handle, header.ToNative(), out IntPtr frame));
         return new MavlinkFrame(frame);
     }
@@ -231,7 +230,7 @@ public sealed class MavlinkMissionSender : IDisposable
     /// </remarks>
     public MavlinkSenderStep? OnFrame(MavlinkFrame frame, MavlinkHeader header)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_mission_sender_on_frame(
                 Handle,
                 frame.Handle,
@@ -286,7 +285,7 @@ public sealed class MavlinkCommand : IDisposable
     /// <returns>The outcome, or <c>null</c> if the frame is not a <c>COMMAND_ACK</c>.</returns>
     public MavlinkAckOutcome? OnFrame(MavlinkFrame frame)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_command_on_frame(
                 Handle,
                 frame.Handle,
@@ -343,7 +342,7 @@ public static class MavlinkOffboard
         float y,
         float z)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_offboard_local_position(
                 header.ToNative(),
                 timeBootMs,
@@ -377,7 +376,7 @@ public static class MavlinkOffboard
         float vy,
         float vz)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_offboard_local_velocity(
                 header.ToNative(),
                 timeBootMs,
@@ -411,7 +410,7 @@ public static class MavlinkOffboard
         int lonInt,
         float alt)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_offboard_global_position(
                 header.ToNative(),
                 timeBootMs,

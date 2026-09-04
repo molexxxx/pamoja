@@ -1,5 +1,4 @@
 using Pamoja.Codec;
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Sim;
@@ -51,7 +50,7 @@ public sealed class SimulatedSensor : IDisposable
     public Task<float> ReadAsync() => Task.Run(() =>
     {
         float reading = 0.0f;
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_sim_sensor_read(handle, out reading)));
         return reading;
     });
@@ -90,7 +89,7 @@ public sealed class Replay : IDisposable
     public Task<float> ReadAsync() => Task.Run(() =>
     {
         float reading = 0.0f;
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_replay_read(handle, out reading)));
         return reading;
     });
@@ -138,7 +137,7 @@ public sealed class RecordingActuator : IDisposable
     /// <summary>Applies a command, which is recorded rather than acted on.</summary>
     /// <param name="command">The value commanded.</param>
     /// <exception cref="PamojaException">The native call failed.</exception>
-    public Task ApplyAsync(float command) => Task.Run(() => PamojaCore.ThrowIfError(
+    public Task ApplyAsync(float command) => Task.Run(() => Status.ThrowIfError(
         _handle.Use(handle =>
             NativeMethods.pamoja_recording_actuator_apply(handle, command))));
 
@@ -185,7 +184,7 @@ public sealed class SimulatedRobot : IDisposable
             Vy = command.Vy,
             Omega = command.Omega,
         };
-        return Task.Run(() => PamojaCore.ThrowIfError(
+        return Task.Run(() => Status.ThrowIfError(
             _handle.Use(handle => NativeMethods.pamoja_sim_robot_apply(handle, twist))));
     }
 

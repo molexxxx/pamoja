@@ -31,6 +31,21 @@ released together, so one entry covers all of them.
   `npm install pamoja`, `pip install pamoja`, and `dotnet add package Pamoja`
   are. `pamoja::mqtt` is `pamoja-mqtt`; with the default features off, naming
   only the `no_std` capabilities builds for bare metal.
+- Guide examples that run as tests in all four languages, spliced into the
+  documentation from the test files, and the Python facade's doctests now run
+  with its test suite.
+- `cargo xtask builds` measures what each named feature set of the `pamoja`
+  crate compiles, resolved for a fixed target so the counts are the same on
+  every machine. The install page carries the table, regenerated and
+  drift-checked with the rest of the generated documentation.
+- Domains: the six chapters of the guides that hold more than one capability are
+  installable as a unit in every language. In Rust each is a feature on the
+  `pamoja` crate, so it decides what compiles. In the bindings each is a package
+  (`@pamoja/field-io`, `pamoja-field-io`, `Pamoja.FieldIo`) that brings in its
+  capabilities and, where the language allows it, re-exports each under its own
+  name; a name two capabilities share stays reachable and unambiguous, which a
+  flat re-export could not manage. Every domain is checked against the
+  capability map, so a capability cannot fall out of its own domain.
 
 ### Changed
 
@@ -62,12 +77,28 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- The capability tables in the install page and every binding README are grouped
+  by chapter, so thirty rows read as a handful of domains.
+- `Pamoja.Core` was two things at once, the engine's surface and the marshalling
+  every facade needs, so all twenty-nine capability packages depended on it. The
+  handle type, the error type, the status helpers, and string marshalling move to
+  `Pamoja.Native`, where the rest of the P/Invoke contract already lives, and
+  `PamojaException` sits in the root `Pamoja` namespace so a facade sees it
+  without a using and a consumer catches it with `using Pamoja;`. Only the five
+  transport packages depend on `Pamoja.Core` now, matching the Node and Python
+  bindings, where a capability package depends on the engine alone.
 - The gateway pairing code no longer appears in a captured dashboard log (#67).
 - Broken intra-doc links in the rustdoc of nine crates, which docs.rs rendered
   as dead links; `cargo doc` now runs with warnings denied.
 - `pamoja-lora` with its `std` feature on did not compile outside its own test
   build, because the crate stayed `no_std` regardless; it now links `std` when
   the feature is on, and the `pamoja` crate's default build exercises it.
+- The install page described choosing packages as if it shrank a binding's
+  download. It does not: each binding loads one engine carrying every
+  capability, so the choice narrows the API and the dependency manifest. The
+  page now says which of the two applies per language and measures the Rust
+  claim, and `pamoja-ffi` documents the feature sets that do shrink the library
+  for a C or C++ host that builds it.
 
 ### Dependencies
 

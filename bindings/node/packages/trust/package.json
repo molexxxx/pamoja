@@ -1,0 +1,42 @@
+{
+  "name": "@pamoja/trust",
+  "version": "0.1.14",
+  "description": "Trust and operation: Proving what a node did, saying it in confidence, fixing it in the field, and deciding how often it can afford to do any of that.",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/molexxxx/pamoja.git",
+    "directory": "bindings/node/packages/trust"
+  },
+  "homepage": "https://pamoja.molex.cloud/docs/install.html",
+  "keywords": [
+    "pamoja",
+    "iot",
+    "robotics",
+    "trust"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "engines": {
+    "node": ">= 16"
+  },
+  "dependencies": {
+    "@pamoja/audit": "0.1.14",
+    "@pamoja/power": "0.1.14",
+    "@pamoja/session": "0.1.14",
+    "@pamoja/telemetry": "0.1.14",
+    "@pamoja/update": "0.1.14"
+  }
+}

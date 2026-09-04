@@ -50,7 +50,7 @@ public sealed class Ladder : IDisposable
     public void Rung(Transport transport)
     {
         ArgumentNullException.ThrowIfNull(transport);
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_ladder_rung(handle, transport.Take())));
     }
 
@@ -59,7 +59,7 @@ public sealed class Ladder : IDisposable
     /// A rung that will not connect is left in the ladder: it may come back, and
     /// a send simply falls through it until it does.
     /// </remarks>
-    public Task ConnectAsync() => Task.Run(() => PamojaCore.ThrowIfError(
+    public Task ConnectAsync() => Task.Run(() => Status.ThrowIfError(
         _handle.Use(NativeMethods.pamoja_ladder_connect)));
 
     /// <summary>Sends a payload, buffering it if no rung takes it.</summary>
@@ -76,7 +76,7 @@ public sealed class Ladder : IDisposable
             try
             {
                 PamojaDelivery delivery = PamojaDelivery.Buffered;
-                PamojaCore.ThrowIfError(_handle.Use(handle => NativeMethods.pamoja_ladder_send(
+                Status.ThrowIfError(_handle.Use(handle => NativeMethods.pamoja_ladder_send(
                     handle, topicPtr, bytes, (nuint)bytes.Length, out delivery)));
                 return (Delivery)delivery;
             }
@@ -93,7 +93,7 @@ public sealed class Ladder : IDisposable
     public Task<int> FlushAsync() => Task.Run(() =>
     {
         nuint sent = 0;
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_ladder_flush(handle, out sent)));
         return checked((int)sent);
     });
@@ -104,7 +104,7 @@ public sealed class Ladder : IDisposable
     public Task<int> BufferedAsync() => Task.Run(() =>
     {
         nuint count = 0;
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_ladder_buffered(handle, out count)));
         return checked((int)count);
     });

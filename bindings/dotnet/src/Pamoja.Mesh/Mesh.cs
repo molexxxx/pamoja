@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Mesh;
@@ -45,7 +44,7 @@ public static class Mesh
         ReadOnlySpan<byte> payload,
         byte? hopLimit = null)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_mesh_frame_new(
+        Status.ThrowIfError(NativeMethods.pamoja_mesh_frame_new(
             src, dst, id, payload, (nuint)payload.Length, out IntPtr frame));
         return Describe(frame, hopLimit);
     }
@@ -67,7 +66,7 @@ public static class Mesh
         ReadOnlySpan<byte> payload,
         byte? hopLimit = null)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_mesh_frame_broadcast(
+        Status.ThrowIfError(NativeMethods.pamoja_mesh_frame_broadcast(
             src, id, payload, (nuint)payload.Length, out IntPtr frame));
         return Describe(frame, hopLimit);
     }
@@ -81,7 +80,7 @@ public static class Mesh
     /// </exception>
     public static MeshFrame Parse(ReadOnlySpan<byte> bytes)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_mesh_frame_parse(
+        Status.ThrowIfError(NativeMethods.pamoja_mesh_frame_parse(
             bytes, (nuint)bytes.Length, out IntPtr frame));
         return Describe(frame, null);
     }
@@ -95,7 +94,7 @@ public static class Mesh
     /// <exception cref="PamojaException">The frame cannot be parsed.</exception>
     public static MeshFrame? Relayed(ReadOnlySpan<byte> bytes)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_mesh_frame_parse(
+        Status.ThrowIfError(NativeMethods.pamoja_mesh_frame_parse(
             bytes, (nuint)bytes.Length, out IntPtr frame));
         try
         {

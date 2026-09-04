@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 using Pamoja.Native.Interop;
 
-namespace Pamoja.Core;
+namespace Pamoja.Native.Interop;
 
 /// <summary>Reads and releases the owned strings the C ABI produces.</summary>
 public static class OwnedString
@@ -15,7 +15,7 @@ public static class OwnedString
     {
         string? read = ReadOrNull(text);
         return read ?? throw new PamojaException(
-            PamojaCore.LastError() ?? "the call produced no string");
+            Status.LastError() ?? "the call produced no string");
     }
 
     /// <summary>Copies an owned string out and releases it, allowing none.</summary>

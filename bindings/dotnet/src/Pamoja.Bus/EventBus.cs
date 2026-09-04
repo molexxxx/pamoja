@@ -1,5 +1,4 @@
 using Pamoja.Codec;
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Bus;
@@ -50,7 +49,7 @@ public sealed class EventBus : IDisposable
     public Task PublishAsync(ReadOnlyMemory<byte> payload)
     {
         byte[] bytes = payload.ToArray();
-        return Task.Run(() => PamojaCore.ThrowIfError(_handle.Use(handle =>
+        return Task.Run(() => Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_event_bus_publish(handle, bytes, (nuint)bytes.Length))));
     }
 
@@ -60,7 +59,7 @@ public sealed class EventBus : IDisposable
     public Task<byte[]?> NextAsync() => Task.Run(() =>
     {
         IntPtr next = IntPtr.Zero;
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_event_bus_next(handle, out next)));
         return next == IntPtr.Zero ? null : Pamoja.Codec.Codec.TakeBytes(next);
     });

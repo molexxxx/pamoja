@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Codec;
@@ -47,7 +46,7 @@ public sealed class Quantizer
     /// <exception cref="PamojaException">The native call failed.</exception>
     public byte[] Encode(ReadOnlySpan<float> readings)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_codec_quantizer_encode(
+        Status.ThrowIfError(NativeMethods.pamoja_codec_quantizer_encode(
             _scale, readings, (nuint)readings.Length, out IntPtr buffer));
         return Codec.TakeBytes(buffer);
     }
@@ -58,7 +57,7 @@ public sealed class Quantizer
     /// <exception cref="PamojaException">The buffer is malformed.</exception>
     public float[] Decode(ReadOnlySpan<byte> bytes)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_codec_quantizer_decode(
+        Status.ThrowIfError(NativeMethods.pamoja_codec_quantizer_decode(
             _scale, bytes, (nuint)bytes.Length, out IntPtr readings));
         try
         {

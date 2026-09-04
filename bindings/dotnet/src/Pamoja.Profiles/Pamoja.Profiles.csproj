@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Pamoja.Profiles</PackageId>
+    <Description>Profiles and robotics: A node instantiated by name with its policy and schedule, and the naming and encoding rules a robot's topics follow, with no ROS 2 or Zenoh installed.</Description>
+    <PackageTags>pamoja;iot;robotics;profiles</PackageTags>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/install.html</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Pamoja.Profile/Pamoja.Profile.csproj" />
+    <ProjectReference Include="../Pamoja.Ros2/Pamoja.Ros2.csproj" />
+    <ProjectReference Include="../Pamoja.Zenoh/Pamoja.Zenoh.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,5 +1,4 @@
 using Pamoja.Codec;
-using Pamoja.Core;
 using Pamoja.Security;
 using Pamoja.Native.Interop;
 
@@ -125,7 +124,7 @@ public sealed class ImageVerifier : IDisposable
         if (_handle == IntPtr.Zero)
         {
             throw new PamojaException(
-                PamojaCore.LastError() ?? "failed to create the image verifier");
+                Status.LastError() ?? "failed to create the image verifier");
         }
     }
 
@@ -137,7 +136,7 @@ public sealed class ImageVerifier : IDisposable
     /// </exception>
     public void Update(ReadOnlySpan<byte> chunk)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_image_verifier_update(
+        Status.ThrowIfError(NativeMethods.pamoja_image_verifier_update(
             Live(), chunk, (nuint)chunk.Length));
     }
 
@@ -152,7 +151,7 @@ public sealed class ImageVerifier : IDisposable
         IntPtr handle = Live();
         _handle = IntPtr.Zero;
         byte[] digest = new byte[PamojaDigest.Length];
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_image_verifier_finish(
+        Status.ThrowIfError(NativeMethods.pamoja_image_verifier_finish(
             handle, out _, digest));
         return digest;
     }
@@ -224,7 +223,7 @@ public sealed class Updater : IDisposable
         get
         {
             ulong sequence = 0;
-            PamojaCore.ThrowIfError(_handle.Use(handle =>
+            Status.ThrowIfError(_handle.Use(handle =>
                 NativeMethods.pamoja_updater_installed_sequence(handle, out sequence)));
             return sequence;
         }
@@ -252,7 +251,7 @@ public sealed class Updater : IDisposable
     public SlotRecord Record(byte slot)
     {
         PamojaSlotRecord record = default;
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_updater_slot_record(handle, slot, out record)));
         return new SlotRecord(
             (SlotState)record.State,
@@ -271,7 +270,7 @@ public sealed class Updater : IDisposable
     /// <param name="sequence">The sequence number of that image.</param>
     /// <exception cref="PamojaException">The native call failed.</exception>
     public void Provision(byte slot, ulong sequence) =>
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_updater_provision(handle, slot, sequence)));
 
     /// <summary>Adopts a delegation, accepting releases signed by the key it names.</summary>
@@ -288,7 +287,7 @@ public sealed class Updater : IDisposable
     {
         byte[] bytes = envelope.ToArray();
         PamojaDelegation adopted = default;
-        PamojaCore.ThrowIfError(_handle.Use(handle => NativeMethods.pamoja_updater_adopt(
+        Status.ThrowIfError(_handle.Use(handle => NativeMethods.pamoja_updater_adopt(
             handle,
             bytes,
             (nuint)bytes.Length,
@@ -311,7 +310,7 @@ public sealed class Updater : IDisposable
         byte[] envelopeBytes = envelope.ToArray();
         byte[] imageBytes = image.ToArray();
         byte slot = 0;
-        PamojaCore.ThrowIfError(_handle.Use(handle => NativeMethods.pamoja_updater_stage(
+        Status.ThrowIfError(_handle.Use(handle => NativeMethods.pamoja_updater_stage(
             handle,
             envelopeBytes,
             (nuint)envelopeBytes.Length,
@@ -342,7 +341,7 @@ public sealed class Updater : IDisposable
     {
         byte[] bytes = envelope.ToArray();
         byte slot = 0;
-        PamojaCore.ThrowIfError(_handle.Use(handle => NativeMethods.pamoja_updater_begin(
+        Status.ThrowIfError(_handle.Use(handle => NativeMethods.pamoja_updater_begin(
             handle,
             bytes,
             (nuint)bytes.Length,
@@ -360,7 +359,7 @@ public sealed class Updater : IDisposable
     public void Write(ReadOnlySpan<byte> chunk)
     {
         byte[] bytes = chunk.ToArray();
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_updater_write(handle, bytes, (nuint)bytes.Length)));
     }
 
@@ -371,7 +370,7 @@ public sealed class Updater : IDisposable
     {
         uint written = 0;
         uint total = 0;
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_updater_progress(handle, out written, out total)));
         return new Progress(written, total);
     }
@@ -385,7 +384,7 @@ public sealed class Updater : IDisposable
     public byte Finish()
     {
         byte slot = 0;
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_updater_finish(handle, out slot)));
         return slot;
     }
@@ -401,7 +400,7 @@ public sealed class Updater : IDisposable
     public BootDecision OnBoot()
     {
         PamojaBoot boot = default;
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_updater_on_boot(handle, out boot)));
         return new BootDecision((BootAction)boot.Action, boot.Slot, boot.Fallback);
     }
@@ -412,7 +411,7 @@ public sealed class Updater : IDisposable
     public byte Confirm()
     {
         byte slot = 0;
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_updater_confirm(handle, out slot)));
         return slot;
     }
@@ -423,7 +422,7 @@ public sealed class Updater : IDisposable
     public byte Revert()
     {
         byte slot = 0;
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_updater_revert(handle, out slot)));
         return slot;
     }
@@ -458,7 +457,7 @@ public static class Update
     /// <exception cref="PamojaException">The bytes are not a well-formed manifest.</exception>
     public static Manifest DecodeManifest(ReadOnlySpan<byte> bytes)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_manifest_decode(
+        Status.ThrowIfError(NativeMethods.pamoja_manifest_decode(
             bytes, (nuint)bytes.Length, out PamojaManifest manifest));
         return FromNative(manifest);
     }
@@ -485,7 +484,7 @@ public static class Update
         ReadOnlySpan<byte> envelope,
         ReadOnlySpan<byte> publicKey)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_envelope_verify(
+        Status.ThrowIfError(NativeMethods.pamoja_envelope_verify(
             envelope, (nuint)envelope.Length, publicKey, out PamojaManifest manifest));
         return FromNative(manifest);
     }
@@ -531,7 +530,7 @@ public static class Update
         ReadOnlySpan<byte> envelope,
         ReadOnlySpan<byte> anchorPublicKey)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_delegation_open(
+        Status.ThrowIfError(NativeMethods.pamoja_delegation_open(
             envelope,
             (nuint)envelope.Length,
             anchorPublicKey,
@@ -581,5 +580,5 @@ public static class Update
     /// <summary>Reads a produced buffer, or throws when the call returned null.</summary>
     private static byte[] TakeOrThrow(IntPtr buffer) => buffer != IntPtr.Zero
         ? Pamoja.Codec.Codec.TakeBytes(buffer)
-        : throw new PamojaException(PamojaCore.LastError() ?? "the update call failed");
+        : throw new PamojaException(Status.LastError() ?? "the update call failed");
 }

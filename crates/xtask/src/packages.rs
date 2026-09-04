@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use crate::catalog::{dotnet_name, node_reference_url, Capability, Catalog, SITE};
+use crate::catalog::{dotnet_name, node_reference_url, Capability, Catalog, Chapter, SITE};
 use crate::regions;
 
 /// The repository URL every manifest points at.
@@ -165,6 +165,31 @@ pub fn render_node(
         ));
     }
 
+    for (chapter, members) in catalog.domains() {
+        let deps: BTreeSet<String> = members
+            .iter()
+            .map(|capability| capability.node.clone())
+            .collect();
+        files.extend(package_files(
+            &chapter.key,
+            &deps,
+            &manifest(
+                &chapter.key,
+                version,
+                &format!("{}: {}", chapter.title, chapter.intent),
+                &format!("{SITE}/install.html"),
+                &["pamoja", "iot", "robotics", &chapter.key],
+                &deps,
+                &[],
+            ),
+            domain_readme(chapter, &members),
+        ));
+        files.push((
+            format!("bindings/node/packages/{}/src/index.ts", chapter.key),
+            domain_entry(chapter, &members),
+        ));
+    }
+
     let all: BTreeSet<String> = keys
         .iter()
         .map(|key| (*key).to_owned())
@@ -192,6 +217,12 @@ pub fn render_node(
 
     let mut references = vec![reference("packages/core")];
     references.extend(keys.iter().map(|key| reference(&format!("packages/{key}"))));
+    references.extend(
+        catalog
+            .domains()
+            .iter()
+            .map(|(chapter, _)| reference(&format!("packages/{}", chapter.key))),
+    );
     references.push(reference("packages/pamoja"));
     files.push((
         "bindings/node/tsconfig.json".to_owned(),
@@ -366,6 +397,67 @@ fn homepage(capability: &Capability) -> String {
 
 /// The README of one capability package: what it is, how to install it, the guide's
 /// example when the guide exists, and where the documentation is.
+/// The entry point of a domain package: every capability of the domain re-exported flat,
+/// and again under the capability's own name. A name two capabilities of the domain both
+/// export is ambiguous, so `export *` leaves it out and the namespaced form reaches it.
+fn domain_entry(chapter: &Chapter, members: &[&Capability]) -> String {
+    let names: Vec<&str> = members.iter().map(|c| c.node.as_str()).collect();
+    let installs = names
+        .iter()
+        .map(|name| format!("`@pamoja/{name}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut out = format!(
+        "/**\n * {}: {}\n *\n * Installing this package installs {installs}, and re-exports each under its own\n * name, so a name two of them share stays unambiguous.\n *\n * @packageDocumentation\n */\n\n",
+        chapter.title, chapter.intent
+    );
+    for name in &names {
+        out.push_str(&format!(
+            "export * as {} from '@pamoja/{name}'\n",
+            camel(name)
+        ));
+    }
+    out
+}
+
+/// The README of a domain package.
+fn domain_readme(chapter: &Chapter, members: &[&Capability]) -> String {
+    let mut out = format!(
+        "# @pamoja/{}\n\n{}\n\nOne install for the {} capabilities of this domain. Each is also its own package, and\n`pamoja` is the whole framework in one.\n\n```sh\nnpm install @pamoja/{}\n```\n\n| Capability | Package | What it covers |\n| --- | --- | --- |\n",
+        chapter.key,
+        chapter.intent,
+        members.len(),
+        chapter.key
+    );
+    for capability in members {
+        out.push_str(&format!(
+            "| [{}]({SITE}/guides/{}.html) | `@pamoja/{}` | {} |\n",
+            capability.title, capability.key, capability.node, capability.summary
+        ));
+    }
+    out.push_str(&format!(
+        "\nThe guides, with a worked TypeScript example for each, are at [{SITE}]({SITE}/).\n\n## License\n\nMIT\n"
+    ));
+    out
+}
+
+// A domain key as a JavaScript identifier: `field-io` is not one, `fieldIo` is.
+fn camel(key: &str) -> String {
+    let mut out = String::new();
+    let mut upper = false;
+    for ch in key.chars() {
+        if ch == '-' || ch == '_' {
+            upper = true;
+        } else if upper {
+            out.extend(ch.to_uppercase());
+            upper = false;
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
 fn capability_readme(root: &Path, capability: &Capability, key: &str) -> Result<String, String> {
     let mut out = format!(
         "# @pamoja/{key}\n\n{}. One capability of [pamoja](https://github.com/molexxxx/pamoja), \
@@ -509,6 +601,10 @@ pub fn render_python(
             &deps,
             python_capability_readme(root, capability, key)?,
         ));
+    }
+
+    for (chapter, members) in catalog.domains() {
+        files.extend(python_domain_files(chapter, &members, version));
     }
 
     let all: BTreeSet<String> = keys
@@ -794,7 +890,7 @@ pub fn render_dotnet(root: &Path, catalog: &Catalog) -> Result<Vec<(String, Stri
         "bindings/dotnet/src/Pamoja.Core/Pamoja.Core.csproj".to_owned(),
         csproj(
             "Core",
-            "The pamoja engine's surface for .NET: the runtime version, the exception every native call can raise, and the transport every link shares, the counterpart of the pamoja-core crate.",
+            "The pamoja engine's surface for .NET: the runtime version and the transport every link implements, the counterpart of the pamoja-core crate.",
             &format!("{SITE}/"),
             &["pamoja", "iot", "robotics", "core"],
             &core_deps,
@@ -829,6 +925,10 @@ pub fn render_dotnet(root: &Path, catalog: &Catalog) -> Result<Vec<(String, Stri
             dotnet_capability_readme(root, capability, &name)?,
         ));
         names.push(name);
+    }
+
+    for (chapter, members) in catalog.domains() {
+        files.extend(dotnet_domain_files(chapter, &members));
     }
 
     let all: BTreeSet<String> = names
@@ -1016,10 +1116,11 @@ fn dotnet_bundle_readme(catalog: &Catalog) -> String {
 fn dotnet_core_readme() -> String {
     format!(
         "# Pamoja.Core\n\n\
-         The pamoja engine's surface for .NET: the runtime version, the exception every native \
-         call can raise, and the transport every link shares. This is the counterpart of the \
-         `pamoja-core` crate, and like it, it is small; the compiled engine is `Pamoja.Native`, \
-         which this package depends on.\n\n\
+         The pamoja engine's surface for .NET: the runtime version and the transport every \
+         link implements. This is the counterpart of the `pamoja-core` crate, and like it, it \
+         is small. It is a capability like the others rather than a foundation: only the \
+         transport packages depend on it, because they are the ones that return a transport. \
+         The compiled engine, which every package depends on, is `Pamoja.Native`.\n\n\
          ## Install\n\n```sh\ndotnet add package Pamoja.Core\n```\n\n```csharp\nusing Pamoja.Core;\n```\n\n\
          Each capability is its own package (`Pamoja.Mqtt`, `Pamoja.Security`, and so on) and \
          `dotnet add package Pamoja` is the whole framework in one package.\n\n\
@@ -1036,9 +1137,13 @@ fn dotnet_native_readme() -> String {
         "# Pamoja.Native\n\n\
          The compiled pamoja engine for .NET, bundled for `win-x64`, `linux-x64`, `linux-arm64`, \
          `osx-x64`, and `osx-arm64`, and the P/Invoke contract every `Pamoja` package builds on: \
-         `Pamoja.Native.Interop.NativeMethods` mirrors the generated C header one-to-one. It is one \
-         library that carries every capability; the capability packages are facades over it, so \
-         picking packages narrows the API you depend on, not the size of the engine.\n\n\
+         `Pamoja.Native.Interop.NativeMethods` mirrors the generated C header one-to-one. It also \
+         carries the marshalling a facade needs to use that contract: the safe handle type, the \
+         status helpers, owned strings, and `PamojaException`, which every failed native call \
+         raises and which sits in the root `Pamoja` namespace so a facade sees it without a \
+         using. It is one library that carries every capability; the capability packages are \
+         facades over it, so picking packages narrows the API you depend on, not the size of \
+         the engine.\n\n\
          You do not install this package directly. Every `Pamoja.<Capability>` package and the \
          `Pamoja` metapackage depend on it. The interop layer stays available for anything a \
          facade does not cover.\n\n\
@@ -1049,6 +1154,140 @@ fn dotnet_native_readme() -> String {
 }
 
 /// Two-space JSON with a trailing newline, the way npm writes a manifest.
+/// A domain's Python distribution: `pamoja-<key>`, shipping the `pamoja.<key>` module that
+/// re-exports the domain's capability modules under their own names, for the same reason the
+/// Node package does.
+fn python_domain_files(
+    chapter: &Chapter,
+    members: &[&Capability],
+    version: &str,
+) -> Vec<(String, String)> {
+    let module = chapter.key.replace('-', "_");
+    let names: Vec<&str> = members.iter().map(|c| c.python.as_str()).collect();
+    let deps: BTreeSet<String> = names.iter().map(|name| (*name).to_owned()).collect();
+    let installs = names
+        .iter()
+        .map(|name| format!("``pamoja.{name}``"))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let mut init = format!(
+        "\"\"\"{}: {}\n\nInstalling this distribution installs {installs}, and re-exports each under its\nown name, so a name two of them share stays unambiguous.\n\"\"\"\n\nfrom pamoja import {}\n\n__all__ = [{}]\n",
+        chapter.title,
+        chapter.intent,
+        names.join(", "),
+        names
+            .iter()
+            .map(|name| format!("\"{name}\""))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    init.push('\n');
+
+    let mut readme = format!(
+        "# pamoja-{}\n\n{}\n\nOne install for the {} capabilities of this domain. Each is also its own\ndistribution, and `pamoja` is the whole framework in one.\n\n```sh\npip install pamoja-{}\n```\n\n```python\nfrom pamoja.{module} import {}\n```\n\n| Capability | Module | What it covers |\n| --- | --- | --- |\n",
+        chapter.key,
+        chapter.intent,
+        members.len(),
+        chapter.key,
+        names[0]
+    );
+    for capability in members {
+        readme.push_str(&format!(
+            "| [{}]({SITE}/guides/{}.html) | `pamoja.{}` | {} |\n",
+            capability.title, capability.key, capability.python, capability.summary
+        ));
+    }
+    readme.push_str(&format!(
+        "\nThe guides, with a worked Python example for each, are at [{SITE}]({SITE}/).\n\n## License\n\nMIT\n"
+    ));
+
+    vec![
+        (
+            format!("bindings/python/packages/{}/pyproject.toml", chapter.key),
+            pyproject(
+                &chapter.key,
+                version,
+                &format!("{}: {}", chapter.title, chapter.intent),
+                &format!("{SITE}/install.html"),
+                &["pamoja", "iot", "robotics", &chapter.key],
+                &deps,
+                false,
+            ),
+        ),
+        (
+            format!("bindings/python/packages/{}/README.md", chapter.key),
+            readme,
+        ),
+        (
+            format!(
+                "bindings/python/packages/{}/pamoja/{module}/__init__.py",
+                chapter.key
+            ),
+            init,
+        ),
+        (
+            format!(
+                "bindings/python/packages/{}/pamoja/{module}/py.typed",
+                chapter.key
+            ),
+            String::new(),
+        ),
+    ]
+}
+
+/// A domain's NuGet package: `Pamoja.<Name>`, which references the domain's capability
+/// packages and ships no assembly of its own. C# cannot re-export a namespace, so a
+/// consumer writes the capability's `using` as they would anyway.
+fn dotnet_domain_files(chapter: &Chapter, members: &[&Capability]) -> Vec<(String, String)> {
+    let name = pascal(&chapter.key);
+    let mut references = String::new();
+    for capability in members {
+        let package = capability.dotnet_package();
+        references.push_str(&format!(
+            "    <ProjectReference Include=\"../{package}/{package}.csproj\" />\n"
+        ));
+    }
+    let csproj = format!(
+        "<Project Sdk=\"Microsoft.NET.Sdk\">\n\n  <PropertyGroup>\n    <PackageId>Pamoja.{name}</PackageId>\n    <Description>{}: {}</Description>\n    <PackageTags>pamoja;iot;robotics;{}</PackageTags>\n    <PackageProjectUrl>{SITE}/install.html</PackageProjectUrl>\n    <PackageReadmeFile>README.md</PackageReadmeFile>\n    <IncludeBuildOutput>false</IncludeBuildOutput>\n    <GenerateDocumentationFile>false</GenerateDocumentationFile>\n    <NoWarn>$(NoWarn);NU5128</NoWarn>\n  </PropertyGroup>\n\n  <ItemGroup>\n    <None Include=\"README.md\" Pack=\"true\" PackagePath=\"\\\" />\n  </ItemGroup>\n\n  <ItemGroup>\n{references}  </ItemGroup>\n\n</Project>\n",
+        chapter.title, chapter.intent, chapter.key
+    );
+
+    let mut readme = format!(
+        "# Pamoja.{name}\n\n{}\n\nOne reference for the {} capabilities of this domain. Each is also its own package,\nand `Pamoja` is the whole framework in one.\n\n```sh\ndotnet add package Pamoja.{name}\n```\n\nThis package ships no assembly: it brings in the packages below, and each keeps its own\nnamespace, so a type is named the way it is when the package is referenced directly.\n\n| Capability | Package | What it covers |\n| --- | --- | --- |\n",
+        chapter.intent,
+        members.len()
+    );
+    for capability in members {
+        readme.push_str(&format!(
+            "| [{}]({SITE}/guides/{}.html) | `{}` | {} |\n",
+            capability.title,
+            capability.key,
+            capability.dotnet_package(),
+            capability.summary
+        ));
+    }
+    readme.push_str(&format!(
+        "\nThe guides, with a worked C# example for each, are at [{SITE}]({SITE}/).\n\n## License\n\nMIT\n"
+    ));
+
+    vec![
+        (
+            format!("bindings/dotnet/src/Pamoja.{name}/Pamoja.{name}.csproj"),
+            csproj,
+        ),
+        (
+            format!("bindings/dotnet/src/Pamoja.{name}/README.md"),
+            readme,
+        ),
+    ]
+}
+
+// A kebab-case key as a .NET package-name segment: `field-io` becomes `FieldIo`.
+fn pascal(key: &str) -> String {
+    key.split('-').map(dotnet_name).collect::<Vec<_>>().concat()
+}
+
 fn pretty(value: &Json) -> String {
     let mut text = String::new();
     value.render(&mut text, 0);

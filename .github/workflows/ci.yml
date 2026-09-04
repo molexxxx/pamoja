@@ -60,6 +60,16 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+      # Every example under examples/ runs to completion with nothing plugged in, except the
+      # SITL interop, which has its own job. The last one regenerates the cross-language
+      # conformance vectors, and the diff fails if the committed file no longer matches.
+      - name: Examples run and the conformance vectors are current
+        run: |
+          for example in $(ls examples/*.rs | xargs -n1 basename | sed 's/\.rs$//' | grep -v '^mavlink_sitl$'); do
+            cargo run -p pamoja-examples --example "$example" > /dev/null
+          done
+          git diff --exit-code -- conformance/vectors.json
+
       # The demo fleet is off by default, so its tests, doctests, and examples are gated
       # behind the `mock` feature; run them (and compile the dev and snapshot examples) here.
       - name: Dashboard mock tests

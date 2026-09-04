@@ -102,7 +102,7 @@ public sealed class CoapClient : IDisposable
 
     /// <summary>Binds the local socket so the endpoint can carry traffic.</summary>
     /// <exception cref="PamojaException">The socket could not be bound.</exception>
-    public Task ConnectAsync() => Task.Run(() => PamojaCore.ThrowIfError(
+    public Task ConnectAsync() => Task.Run(() => Status.ThrowIfError(
         _handle.Use(NativeMethods.pamoja_coap_client_connect)));
 
     /// <summary>Sends a payload to a resource path.</summary>
@@ -117,7 +117,7 @@ public sealed class CoapClient : IDisposable
             IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
             try
             {
-                PamojaCore.ThrowIfError(_handle.Use(handle =>
+                Status.ThrowIfError(_handle.Use(handle =>
                     NativeMethods.pamoja_coap_client_send(
                         handle, topicPtr, bytes, (nuint)bytes.Length)));
             }
@@ -136,7 +136,7 @@ public sealed class CoapClient : IDisposable
         IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
         try
         {
-            PamojaCore.ThrowIfError(_handle.Use(handle =>
+            Status.ThrowIfError(_handle.Use(handle =>
                 NativeMethods.pamoja_coap_client_subscribe(handle, topicPtr)));
         }
         finally
@@ -151,7 +151,7 @@ public sealed class CoapClient : IDisposable
     public Task<TransportMessage?> ReceiveAsync() => Task.Run(() =>
     {
         IntPtr message = IntPtr.Zero;
-        PamojaCore.ThrowIfError(_handle.Use(handle =>
+        Status.ThrowIfError(_handle.Use(handle =>
             NativeMethods.pamoja_coap_client_recv(handle, out message)));
         return Messages.Take(message);
     });
@@ -163,7 +163,7 @@ public sealed class CoapClient : IDisposable
 
     /// <summary>Releases the socket the endpoint holds.</summary>
     /// <exception cref="PamojaException">The native call failed.</exception>
-    public Task DisconnectAsync() => Task.Run(() => PamojaCore.ThrowIfError(
+    public Task DisconnectAsync() => Task.Run(() => Status.ThrowIfError(
         _handle.Use(NativeMethods.pamoja_coap_client_disconnect)));
 
     /// <inheritdoc/>

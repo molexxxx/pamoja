@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Guides</RootNamespace>
+
+    <!-- The native cdylib from a release build of pamoja-ffi, copied next to the
+         executable so P/Invoke resolves it for the host runtime. -->
+    <RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../../../'))</RepoRoot>
+    <PamojaNativeName Condition="$([MSBuild]::IsOSPlatform('Windows'))">pamoja_ffi.dll</PamojaNativeName>
+    <PamojaNativeName Condition="$([MSBuild]::IsOSPlatform('Linux'))">libpamoja_ffi.so</PamojaNativeName>
+    <PamojaNativeName Condition="$([MSBuild]::IsOSPlatform('OSX'))">libpamoja_ffi.dylib</PamojaNativeName>
+    <PamojaNativePath>$(RepoRoot)target/release/$(PamojaNativeName)</PamojaNativePath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Pamoja/Pamoja.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(PamojaNativePath)" Condition="Exists('$(PamojaNativePath)')">
+      <Link>$(PamojaNativeName)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

@@ -1,16 +1,20 @@
 # The Node binding
 
 The napi-rs crate at this directory compiles the Rust core into a native addon,
-and the npm workspace under `packages/` publishes it as `@pamoja/core`, one
-package per capability (`@pamoja/mqtt`, `@pamoja/security`, and so on), and the
-`pamoja` bundle that depends on all of them.
+and the npm workspace under `packages/` publishes it and the facade over it.
 
 ```
 Cargo.toml, src/        the napi-rs crate: one binding module per capability
-packages/core/          @pamoja/core: the generated index.js and index.d.ts, the
-                        per-platform packages under npm/, and the engine's own surface
+packages/native/        @pamoja/native: the built addon, the generated index.js and
+                        index.d.ts, and the per-platform packages under npm/; every
+                        other package depends on it and nobody installs it by hand
+packages/core/          @pamoja/core: the engine's own surface, the runtime version and
+                        the transport every link implements
 packages/<capability>/  @pamoja/<capability>: src/index.ts is the hand-written facade;
                         package.json, tsconfig.json, and README.md are generated
+packages/<domain>/      @pamoja/<domain>: one per chapter of the guides holding more than
+                        one capability; brings them in and re-exports each by name,
+                        entry point included, all generated
 packages/pamoja/        pamoja: re-exports every package
 docs/                   the typedoc build of every package
 guides/                 the examples the documentation site splices

@@ -43,5 +43,9 @@ jobs:
             exit 1
           fi
 
-      - name: Smoke test
+      # The MQTT guide example talks to a real broker on 1883.
+      - name: Start an MQTT broker
+        run: docker run -d --rm -p 1883:1883 eclipse-mosquitto:2 mosquitto -c /mosquitto-no-auth.conf
+
+      - name: Smoke, conformance, guide, and doctest suites
         run: .venv/bin/python -m pytest

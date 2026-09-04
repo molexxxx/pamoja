@@ -1,4 +1,3 @@
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Lora;
@@ -286,7 +285,7 @@ public sealed class LoraChannelPlan : IDisposable
     /// </exception>
     public static LoraChannelPlan ForRegion(LoraRegion region)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_for_region((uint)region, out IntPtr plan));
         return new LoraChannelPlan(plan);
     }
@@ -310,7 +309,7 @@ public sealed class LoraChannelPlan : IDisposable
     /// <returns>The plan's scalars.</returns>
     public LoraPlanInfo Info()
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_info(
                 _handle.DangerousGetHandle(),
                 out PamojaLoraPlanInfo info));
@@ -415,7 +414,7 @@ public sealed class LoraChannelPlan : IDisposable
     /// </returns>
     public sbyte MaxEirpDbm(uint frequencyHz)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_max_eirp_dbm(
                 _handle.DangerousGetHandle(),
                 frequencyHz,
@@ -508,7 +507,7 @@ public sealed class LoraChannelPlan : IDisposable
         List<LoraChannelBlock> blocks = new(count);
         for (ushort index = 0; index < count; index++)
         {
-            PamojaCore.ThrowIfError(
+            Status.ThrowIfError(
                 NativeMethods.pamoja_lora_plan_channel_block(
                     _handle.DangerousGetHandle(),
                     (uint)which,
@@ -533,7 +532,7 @@ public sealed class LoraChannelPlan : IDisposable
         List<LoraSubBand> bands = new(count);
         for (ushort index = 0; index < count; index++)
         {
-            PamojaCore.ThrowIfError(
+            Status.ThrowIfError(
                 NativeMethods.pamoja_lora_plan_sub_band(
                     _handle.DangerousGetHandle(),
                     index,
