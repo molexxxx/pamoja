@@ -116,6 +116,25 @@ on by default:
 | `zenoh` | `pamoja::zenoh` | [pamoja-zenoh](https://docs.rs/pamoja-zenoh) |
 | `dashboard` (off by default) | `pamoja::dashboard` | [pamoja-dashboard](https://docs.rs/pamoja-dashboard) |
 
+Six of those capabilities' chapters hold more than one capability, and each has a
+feature that turns on exactly its own, so a build can name a domain instead of listing
+its parts. They are checked against the capability map, so a new capability cannot fall
+out of its group:
+
+| Group feature | Turns on |
+| --- | --- |
+| `field-io` | `serial`, `modbus`, `can`, `gpio` |
+| `sensing` | `sensors`, `actuators` |
+| `radio` | `lora`, `lorawan`, `mesh`, `routing` |
+| `trust` | `audit`, `session`, `update`, `power`, `telemetry` |
+| `transports` | `mqtt`, `coap`, `loopback`, `sync`, `ladder`, `bus`, `sim` |
+| `profiles` | `profile`, `ros2`, `zenoh` |
+
+```toml
+[dependencies]
+pamoja = { version = "0.1", default-features = false, features = ["std", "field-io"] }
+```
+
 `std`, on by default, turns on the standard-library layer of the crates that
 have one (`pamoja-core`, `pamoja-lora`, `pamoja-mavlink`) and implies `alloc`,
 which adds the owned channel plans, tables, and message shapes of `pamoja-lora`,

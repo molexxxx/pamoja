@@ -12,36 +12,36 @@ generated C header one-to-one), which stays available for anything the facades
 do not cover.
 
 <!-- table: binding dotnet -->
-| Capability | Package | What it covers |
-| --- | --- | --- |
-| Engine surface | `Pamoja.Core` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
-| Device identity | `Pamoja.Security` | ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic |
-| Codecs | `Pamoja.Codec` | CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links |
-| Helpers | `Pamoja.Kit` | Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo |
-| Serial framing | `Pamoja.Serial` | SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets |
-| Modbus RTU | `Pamoja.Modbus` | Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices |
-| CAN and J1939 | `Pamoja.Can` | CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose |
-| I2C, SPI, and GPIO | `Pamoja.Gpio` | I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins |
-| Sensor drivers | `Pamoja.Sensors` | Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115 |
-| Actuator drivers | `Pamoja.Actuators` | PCA9685 PWM and servo pulses, and stepper coil sequencing |
-| LoRa airtime | `Pamoja.Lora` | Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to |
-| LoRaWAN | `Pamoja.Lorawan` | LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join |
-| Mesh frames | `Pamoja.Mesh` | Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once |
-| Routing | `Pamoja.Routing` | Reverse-path routing that learns the cheapest route from overheard traffic |
-| MAVLink | `Pamoja.Mavlink` | MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols |
-| Audit log | `Pamoja.Audit` | A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification |
-| Secured session | `Pamoja.Session` | X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack |
-| Signed updates | `Pamoja.Update` | Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own |
-| Power | `Pamoja.Power` | Duty cycling and an energy-aware governor that stretches work as the battery drains |
-| Telemetry | `Pamoja.Telemetry` | Observability that ships only what is worth the bytes as link cost rises, while counting everything |
-| MQTT | `Pamoja.Mqtt` | An MQTT client with the topic and wildcard rules, as the core transport |
-| CoAP | `Pamoja.Coap` | A CoAP client over UDP with confirmable delivery and observe |
-| Loopback | `Pamoja.Loopback` | An in-process transport with topic matching and a fault injector, for testing with no broker |
-| Store and forward | `Pamoja.Sync` | Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss |
-| Transport ladder | `Pamoja.Ladder` | Cheapest reachable link first, buffering to a store when every link is down |
-| Event bus | `Pamoja.Bus` | An in-memory typed publish and subscribe event bus |
-| Simulators | `Pamoja.Sim` | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
-| Device profiles | `Pamoja.Profile` | Named, ready-to-run device profiles from plain data or a JSON manifest |
-| ROS 2 rules | `Pamoja.Ros2` | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |
-| Zenoh keys | `Pamoja.Zenoh` | Zenoh key expressions: validity, canonical form, and wildcard matching |
+| Group | Capability | Package | What it covers |
+| --- | --- | --- | --- |
+| **Engine** | Engine surface | `Pamoja.Core` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
+| **Identity** | Device identity | `Pamoja.Security` | ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic |
+| **Codecs** | Codecs | `Pamoja.Codec` | CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links |
+| **Helpers** | Helpers | `Pamoja.Kit` | Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo |
+| **Field I/O** | Serial framing | `Pamoja.Serial` | SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets |
+|  | Modbus RTU | `Pamoja.Modbus` | Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices |
+|  | CAN and J1939 | `Pamoja.Can` | CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose |
+|  | I2C, SPI, and GPIO | `Pamoja.Gpio` | I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins |
+| **Sensing and actuation** | Sensor drivers | `Pamoja.Sensors` | Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115 |
+|  | Actuator drivers | `Pamoja.Actuators` | PCA9685 PWM and servo pulses, and stepper coil sequencing |
+| **Radio and reach** | LoRa airtime | `Pamoja.Lora` | Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to |
+|  | LoRaWAN | `Pamoja.Lorawan` | LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join |
+|  | Mesh frames | `Pamoja.Mesh` | Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once |
+|  | Routing | `Pamoja.Routing` | Reverse-path routing that learns the cheapest route from overheard traffic |
+| **MAVLink** | MAVLink | `Pamoja.Mavlink` | MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols |
+| **Trust and operation** | Audit log | `Pamoja.Audit` | A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification |
+|  | Secured session | `Pamoja.Session` | X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack |
+|  | Signed updates | `Pamoja.Update` | Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own |
+|  | Power | `Pamoja.Power` | Duty cycling and an energy-aware governor that stretches work as the battery drains |
+|  | Telemetry | `Pamoja.Telemetry` | Observability that ships only what is worth the bytes as link cost rises, while counting everything |
+| **Transports and testing** | MQTT | `Pamoja.Mqtt` | An MQTT client with the topic and wildcard rules, as the core transport |
+|  | CoAP | `Pamoja.Coap` | A CoAP client over UDP with confirmable delivery and observe |
+|  | Loopback | `Pamoja.Loopback` | An in-process transport with topic matching and a fault injector, for testing with no broker |
+|  | Store and forward | `Pamoja.Sync` | Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss |
+|  | Transport ladder | `Pamoja.Ladder` | Cheapest reachable link first, buffering to a store when every link is down |
+|  | Event bus | `Pamoja.Bus` | An in-memory typed publish and subscribe event bus |
+|  | Simulators | `Pamoja.Sim` | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
+| **Profiles and robotics** | Device profiles | `Pamoja.Profile` | Named, ready-to-run device profiles from plain data or a JSON manifest |
+|  | ROS 2 rules | `Pamoja.Ros2` | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |
+|  | Zenoh keys | `Pamoja.Zenoh` | Zenoh key expressions: validity, canonical form, and wildcard matching |
 <!-- end -->

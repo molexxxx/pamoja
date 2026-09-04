@@ -379,6 +379,42 @@ impl Catalog {
         };
 
         let mut problems = Vec::new();
+
+        // A chapter with more than one capability gets a feature of its own, so a build can
+        // name a domain instead of listing its parts.
+        for chapter in &self.chapters {
+            let members: Vec<&str> = self
+                .in_chapter(&chapter.key)
+                .filter(|capability| !capability.crates.is_empty())
+                .map(|capability| capability.key.as_str())
+                .collect();
+            if members.len() < 2 {
+                continue;
+            }
+            match feature(&chapter.key) {
+                None => problems.push(format!(
+                    "crates/{name}/Cargo.toml has no `{}` feature for the chapter of the same name",
+                    chapter.key
+                )),
+                Some(enabled) => {
+                    let listed: BTreeSet<&str> = enabled.iter().map(String::as_str).collect();
+                    let expected: BTreeSet<&str> = members.iter().copied().collect();
+                    for missing in expected.difference(&listed) {
+                        problems.push(format!(
+                            "crates/{name}/Cargo.toml: feature `{}` does not enable `{missing}`",
+                            chapter.key
+                        ));
+                    }
+                    for extra in listed.difference(&expected) {
+                        problems.push(format!(
+                            "crates/{name}/Cargo.toml: feature `{}` enables `{extra}`, which is not in that chapter",
+                            chapter.key
+                        ));
+                    }
+                }
+            }
+        }
+
         for capability in &self.capabilities {
             if capability.crates.is_empty() {
                 continue;
@@ -581,8 +617,14 @@ impl Catalog {
             "python" => "Module",
             _ => "Package",
         };
-        let mut out =
-            format!("| Capability | {import_heading} | What it covers |\n| --- | --- | --- |\n");
+        let mut out = format!(
+            "| Group | Capability | {import_heading} | What it covers |
+| --- | --- | --- | --- |
+"
+        );
+        // The chapter is named once per group, so thirty rows read as a handful of domains
+        // rather than a flat list.
+        let mut last = "";
         for capability in self.ordered() {
             let import = match language {
                 "node" => format!("`{}`", node_package(capability)),
@@ -593,8 +635,23 @@ impl Catalog {
                 Some(url) => format!("[{}]({url})", capability.title),
                 None => capability.title.clone(),
             };
+            // The engine's own surface is hoisted above the chapters, so it is labelled for
+            // what it is rather than borrowing the chapter it happens to sit in.
+            let chapter = if capability.node == "core" {
+                "**Engine**".to_owned()
+            } else if capability.chapter == last {
+                String::new()
+            } else {
+                last = &capability.chapter;
+                self.chapters
+                    .iter()
+                    .find(|chapter| chapter.key == capability.chapter)
+                    .map(|chapter| format!("**{}**", chapter.title))
+                    .unwrap_or_default()
+            };
             out.push_str(&format!(
-                "| {title} | {import} | {} |\n",
+                "| {chapter} | {title} | {import} | {} |
+",
                 capability.summary
             ));
         }

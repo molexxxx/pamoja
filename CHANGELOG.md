@@ -38,6 +38,10 @@ released together, so one entry covers all of them.
   crate compiles, resolved for a fixed target so the counts are the same on
   every machine. The install page carries the table, regenerated and
   drift-checked with the rest of the generated documentation.
+- Group features on the `pamoja` crate, one per chapter of the guides that holds
+  more than one capability (`field-io`, `sensing`, `radio`, `trust`,
+  `transports`, `profiles`), so a build names a domain rather than listing its
+  parts. Each is checked against the capability map.
 
 ### Changed
 
@@ -69,6 +73,8 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- The capability tables in the install page and every binding README are grouped
+  by chapter, so thirty rows read as a handful of domains.
 - The gateway pairing code no longer appears in a captured dashboard log (#67).
 - Broken intra-doc links in the rustdoc of nine crates, which docs.rs rendered
   as dead links; `cargo doc` now runs with warnings denied.

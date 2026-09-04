@@ -53,8 +53,8 @@ const BUILDS: &[Build] = &[
     },
     Build {
         label: "Field I/O",
-        invocation: "--features modbus,can,serial,gpio",
-        features: "std,modbus,can,serial,gpio",
+        invocation: "--features field-io",
+        features: "std,field-io",
         default: false,
     },
     Build {
