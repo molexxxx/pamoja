@@ -12,6 +12,8 @@
  * @packageDocumentation
  */
 
+import type { PowerMode as PowerModeName } from '@pamoja/native'
+
 export { DutyCycle, PowerPlan } from '@pamoja/native'
 
 /**
@@ -22,12 +24,12 @@ export { DutyCycle, PowerPlan } from '@pamoja/native'
  */
 export const PowerMode = {
   /** Full duty, because the charge is healthy. */
-  Active: 'Active',
+  Active: 'Active' as PowerModeName,
   /** Reduced duty, to conserve charge. */
-  Saver: 'Saver',
+  Saver: 'Saver' as PowerModeName,
   /** Minimum duty, to stay alive as long as possible. */
-  Critical: 'Critical',
+  Critical: 'Critical' as PowerModeName,
 } as const
 
 /** One of the {@link PowerMode} choices. */
-export type PowerMode = (typeof PowerMode)[keyof typeof PowerMode]
+export type PowerMode = PowerModeName

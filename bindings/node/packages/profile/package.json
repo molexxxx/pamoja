@@ -11,7 +11,7 @@
     "url": "git+https://github.com/molexxxx/pamoja.git",
     "directory": "bindings/node/packages/profile"
   },
-  "homepage": "https://pamoja.molex.cloud/docs/",
+  "homepage": "https://pamoja.molex.cloud/docs/guides/profile.html",
   "keywords": [
     "pamoja",
     "iot",

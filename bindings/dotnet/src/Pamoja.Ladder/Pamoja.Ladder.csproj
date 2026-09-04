@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Ladder</RootNamespace>
     <Description>Cheapest reachable link first, buffering to a store when every link is down.</Description>
     <PackageTags>pamoja;iot;robotics;ladder</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/ladder.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

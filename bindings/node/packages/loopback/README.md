@@ -3,6 +3,7 @@
 An in-process transport with topic matching and a fault injector, for testing with no broker. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![API reference](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg)](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_loopback.html)
+[![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/loopback.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
 
 ## Install
@@ -12,6 +13,56 @@ npm install @pamoja/loopback
 ```
 
 This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
+
+## Example
+
+The test that runs in CI, spliced here as it ran.
+
+From [`bindings/node/guides/loopback.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/loopback.ts):
+
+```typescript
+import assert from 'node:assert/strict'
+
+import { LoopbackBroker } from '@pamoja/loopback'
+
+async function main() {
+  // One broker and two links off it, all in this process. Nothing binds a port and
+  // nothing has to be running for the traffic below to flow.
+  const broker = new LoopbackBroker()
+  const publisher = broker.link()
+  const subscriber = broker.link()
+  await publisher.connect()
+  await subscriber.connect()
+
+  // A `+` stands for exactly one level, so the deeper topic is not delivered here and
+  // the first message this subscriber sees is the second publish.
+  await subscriber.subscribe('line/+/temp')
+  await publisher.send('line/mixer/temp/raw', Buffer.from('2150'))
+  await publisher.send('line/mixer/temp', Buffer.from('21.5'))
+
+  const message = await subscriber.recv()
+  assert.equal(message?.topic, 'line/mixer/temp')
+  assert.equal(message?.payload.toString(), '21.5')
+
+  // A `#` covers the levels that remain, so a second link takes the whole subtree,
+  // including the reading the single-level filter passed over.
+  const watcher = broker.link()
+  await watcher.connect()
+  await watcher.subscribe('line/#')
+  await publisher.send('line/mixer/temp/raw', Buffer.from('2150'))
+
+  const deep = await watcher.recv()
+  assert.equal(deep?.topic, 'line/mixer/temp/raw')
+  assert.equal(deep?.payload.toString(), '2150')
+
+  // A link that has been disconnected reports the failure instead of dropping the
+  // reading, which is the case a test wants to reach without unplugging anything.
+  await publisher.disconnect()
+  await assert.rejects(() => publisher.send('line/mixer/temp', Buffer.from('21.6')))
+}
+
+main()
+```
 
 ## The same capability in every language
 
@@ -25,6 +76,7 @@ This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the
 ## Documentation
 
 - [`@pamoja/loopback` reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_loopback.html), every class, function, and type this package exports.
+- [The Loopback guide](https://pamoja.molex.cloud/docs/guides/loopback.html), with the same example in Rust, Python, and C#.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License

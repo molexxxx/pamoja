@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Mqtt</RootNamespace>
     <Description>An MQTT client with the topic and wildcard rules, as the core transport.</Description>
     <PackageTags>pamoja;iot;robotics;mqtt</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/mqtt.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

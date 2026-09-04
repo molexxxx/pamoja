@@ -12,6 +12,8 @@
  * @packageDocumentation
  */
 
+import type { Delivery as DeliveryName } from '@pamoja/native'
+
 export { Ladder } from '@pamoja/native'
 
 /**
@@ -21,10 +23,10 @@ export { Ladder } from '@pamoja/native'
  */
 export const Delivery = {
   /** A rung took the message and it is on its way. */
-  Sent: 'Sent',
+  Sent: 'Sent' as DeliveryName,
   /** No rung would take it, so it is in the buffer awaiting a flush. */
-  Buffered: 'Buffered',
+  Buffered: 'Buffered' as DeliveryName,
 } as const
 
 /** One of the {@link Delivery} choices. */
-export type Delivery = (typeof Delivery)[keyof typeof Delivery]
+export type Delivery = DeliveryName

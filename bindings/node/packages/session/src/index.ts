@@ -13,6 +13,8 @@
  * @packageDocumentation
  */
 
+import type { Role as RoleName } from '@pamoja/native'
+
 import {
   AgreementKey as NativeAgreementKey,
   hkdfSha256Expand,
@@ -36,13 +38,13 @@ export type { SealedMessage }
  */
 export const Role = {
   /** The device that opens the session. */
-  Initiator: 'Initiator',
+  Initiator: 'Initiator' as RoleName,
   /** The device that answers. */
-  Responder: 'Responder',
+  Responder: 'Responder' as RoleName,
 } as const
 
 /** One of the {@link Role} choices. */
-export type Role = (typeof Role)[keyof typeof Role]
+export type Role = RoleName
 
 /** A confidential, tamper-evident, replay-protected channel with one peer. */
 export class Session {

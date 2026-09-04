@@ -13,6 +13,8 @@
  * @packageDocumentation
  */
 
+import type { ForwardAction as ForwardActionName } from '@pamoja/native'
+
 import { ROUTING_DEFAULT_CAPACITY, Router as NativeRouter } from '@pamoja/native'
 
 /** A routing table size for a caller with no reason to choose one. */
@@ -26,15 +28,15 @@ export const DEFAULT_CAPACITY = ROUTING_DEFAULT_CAPACITY
  */
 export const ForwardAction = {
   /** The packet is for this node; hand it to the application. */
-  Deliver: 'Deliver',
+  Deliver: 'Deliver' as ForwardActionName,
   /** A route is known; unicast the packet to the next hop reported alongside. */
-  Relay: 'Relay',
+  Relay: 'Relay' as ForwardActionName,
   /** No route is known; fall back to flooding the packet. */
-  Flood: 'Flood',
+  Flood: 'Flood' as ForwardActionName,
 } as const
 
 /** One of the {@link ForwardAction} choices. */
-export type ForwardAction = (typeof ForwardAction)[keyof typeof ForwardAction]
+export type ForwardAction = ForwardActionName
 
 /** A routing decision, and the neighbour it names when there is one. */
 export interface ForwardDecision {

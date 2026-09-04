@@ -12,6 +12,8 @@
  * @packageDocumentation
  */
 
+import type { BoundaryState as BoundaryName } from '@pamoja/native'
+
 export {
   Anomaly,
   bearingBetween,
@@ -43,14 +45,14 @@ export {
  */
 export const Boundary = {
   /** The fix is inside the fence and was inside before, or is the first fix inside. */
-  Inside: 'Inside',
+  Inside: 'Inside' as BoundaryName,
   /** The fix is outside the fence and was outside before, or is the first fix outside. */
-  Outside: 'Outside',
+  Outside: 'Outside' as BoundaryName,
   /** The fix just crossed from inside to outside: the moment to raise a breach alert. */
-  Exited: 'Exited',
+  Exited: 'Exited' as BoundaryName,
   /** The fix just crossed from outside back inside. */
-  Entered: 'Entered',
+  Entered: 'Entered' as BoundaryName,
 } as const
 
 /** One of the {@link Boundary} states. */
-export type Boundary = (typeof Boundary)[keyof typeof Boundary]
+export type Boundary = BoundaryName

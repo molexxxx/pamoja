@@ -3,6 +3,7 @@
 Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![API reference](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg)](https://pamoja.molex.cloud/docs/reference/python/pamoja/sim.html)
+[![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/sim.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
 
 ## Install
@@ -17,6 +18,52 @@ from pamoja import sim
 
 This pulls in `pamoja-native`, the compiled engine. `pip install pamoja` is the whole framework in one package.
 
+## Example
+
+The script the test suite runs, spliced here as it ran.
+
+From [`bindings/python/guides/sim.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/sim.py):
+
+```python
+import asyncio
+
+from pamoja.sim import RecordingActuator, Replay, SimulatedRobot
+
+
+async def main() -> None:
+    # The clear distance ahead, in metres, taken from an earlier survey run. A replay
+    # hands it back one reading at a time, so the loop below sees the same input on
+    # every run.
+    capture = [4.0, 3.0, 1.5, 0.5]
+    ahead = Replay(capture)
+    throttle = RecordingActuator()
+    rover = SimulatedRobot(0.5)  # each command advances the rover half a second
+
+    seen = []
+    for _ in capture:
+        reading = await ahead.read()
+        seen.append(reading)
+        # Drive on while there is room ahead, otherwise stop and turn on the spot.
+        clear = reading > 1.0
+        speed = 1.0 if clear else 0.0
+        turn = 0.0 if clear else 1.0
+        await throttle.apply(speed)
+        await rover.apply(vx=speed, omega=turn)
+
+    assert seen == capture
+    assert await throttle.commands() == [1.0, 1.0, 1.0, 0.0]
+
+    # Three half-second commands at 1 m/s reach 1.5 m along x. The last one turns on the
+    # spot at 1 rad/s for half a second, which moves the rover nowhere.
+    pose = await rover.pose()
+    assert abs(pose.x - 1.5) < 1e-6
+    assert abs(pose.y) < 1e-6
+    assert abs(pose.theta - 0.5) < 1e-6
+
+
+asyncio.run(main())
+```
+
 ## The same capability in every language
 
 | Language | Package | Reference |
@@ -29,6 +76,7 @@ This pulls in `pamoja-native`, the compiled engine. `pip install pamoja` is the 
 ## Documentation
 
 - [`pamoja.sim` reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/sim.html), every class and function in this module.
+- [The Simulators guide](https://pamoja.molex.cloud/docs/guides/sim.html), with the same example in Rust, TypeScript, and C#.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License
