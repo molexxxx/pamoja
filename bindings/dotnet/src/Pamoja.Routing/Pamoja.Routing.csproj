@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Routing</RootNamespace>
     <Description>Reverse-path routing that learns the cheapest route from overheard traffic.</Description>
     <PackageTags>pamoja;iot;robotics;routing</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/routing.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

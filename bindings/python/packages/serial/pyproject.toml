@@ -23,7 +23,7 @@ dependencies = [
 
 [project.urls]
 Repository = "https://github.com/molexxxx/pamoja"
-Documentation = "https://pamoja.molex.cloud/docs/"
+Documentation = "https://pamoja.molex.cloud/docs/guides/serial.html"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pamoja"]

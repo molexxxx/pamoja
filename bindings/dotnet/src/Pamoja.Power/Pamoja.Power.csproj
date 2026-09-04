@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Power</RootNamespace>
     <Description>Duty cycling and an energy-aware governor that stretches work as the battery drains.</Description>
     <PackageTags>pamoja;iot;robotics;power</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/power.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

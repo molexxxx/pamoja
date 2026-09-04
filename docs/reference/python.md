@@ -30,25 +30,25 @@ pip install pamoja-profiles    # Profiles and robotics
 | Group | Capability | Module | What it covers |
 | --- | --- | --- | --- |
 | **Engine** | Engine surface | `pamoja.core` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
-| **Identity** | Device identity | `pamoja.security` | ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic |
-| **Codecs** | Codecs | `pamoja.codec` | CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links |
-| **Helpers** | Helpers | `pamoja.kit` | Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo |
-| **Field I/O** | Serial framing | `pamoja.serial` | SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets |
+| **Identity** | [Device identity](https://pamoja.molex.cloud/docs/guides/security.html) | `pamoja.security` | ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic |
+| **Codecs** | [Codecs](https://pamoja.molex.cloud/docs/guides/codec.html) | `pamoja.codec` | CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links |
+| **Helpers** | [Helpers](https://pamoja.molex.cloud/docs/guides/kit.html) | `pamoja.kit` | Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo |
+| **Field I/O** | [Serial framing](https://pamoja.molex.cloud/docs/guides/serial.html) | `pamoja.serial` | SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets |
 |  | [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html) | `pamoja.modbus` | Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices |
-|  | CAN and J1939 | `pamoja.can` | CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose |
-|  | I2C, SPI, and GPIO | `pamoja.gpio` | I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins |
-| **Sensing and actuation** | Sensor drivers | `pamoja.sensors` | Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115 |
-|  | Actuator drivers | `pamoja.actuators` | PCA9685 PWM and servo pulses, and stepper coil sequencing |
-| **Radio and reach** | LoRa airtime | `pamoja.lora` | Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to |
-|  | LoRaWAN | `pamoja.lorawan` | LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join |
-|  | Mesh frames | `pamoja.mesh` | Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once |
-|  | Routing | `pamoja.routing` | Reverse-path routing that learns the cheapest route from overheard traffic |
-| **MAVLink** | MAVLink | `pamoja.mavlink` | MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols |
-| **Trust and operation** | Audit log | `pamoja.audit` | A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification |
-|  | Secured session | `pamoja.session` | X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack |
-|  | Signed updates | `pamoja.update` | Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own |
-|  | Power | `pamoja.power` | Duty cycling and an energy-aware governor that stretches work as the battery drains |
-|  | Telemetry | `pamoja.telemetry` | Observability that ships only what is worth the bytes as link cost rises, while counting everything |
+|  | [CAN and J1939](https://pamoja.molex.cloud/docs/guides/can.html) | `pamoja.can` | CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose |
+|  | [I2C, SPI, and GPIO](https://pamoja.molex.cloud/docs/guides/gpio.html) | `pamoja.gpio` | I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins |
+| **Sensing and actuation** | [Sensor drivers](https://pamoja.molex.cloud/docs/guides/sensors.html) | `pamoja.sensors` | Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115 |
+|  | [Actuator drivers](https://pamoja.molex.cloud/docs/guides/actuators.html) | `pamoja.actuators` | PCA9685 PWM and servo pulses, and stepper coil sequencing |
+| **Radio and reach** | [LoRa airtime](https://pamoja.molex.cloud/docs/guides/lora.html) | `pamoja.lora` | Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to |
+|  | [LoRaWAN](https://pamoja.molex.cloud/docs/guides/lorawan.html) | `pamoja.lorawan` | LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join |
+|  | [Mesh frames](https://pamoja.molex.cloud/docs/guides/mesh.html) | `pamoja.mesh` | Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once |
+|  | [Routing](https://pamoja.molex.cloud/docs/guides/routing.html) | `pamoja.routing` | Reverse-path routing that learns the cheapest route from overheard traffic |
+| **MAVLink** | [MAVLink](https://pamoja.molex.cloud/docs/guides/mavlink.html) | `pamoja.mavlink` | MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols |
+| **Trust and operation** | [Audit log](https://pamoja.molex.cloud/docs/guides/audit.html) | `pamoja.audit` | A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification |
+|  | [Secured session](https://pamoja.molex.cloud/docs/guides/session.html) | `pamoja.session` | X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack |
+|  | [Signed updates](https://pamoja.molex.cloud/docs/guides/update.html) | `pamoja.update` | Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own |
+|  | [Power](https://pamoja.molex.cloud/docs/guides/power.html) | `pamoja.power` | Duty cycling and an energy-aware governor that stretches work as the battery drains |
+|  | [Telemetry](https://pamoja.molex.cloud/docs/guides/telemetry.html) | `pamoja.telemetry` | Observability that ships only what is worth the bytes as link cost rises, while counting everything |
 | **Transports and testing** | MQTT | `pamoja.mqtt` | An MQTT client with the topic and wildcard rules, as the core transport |
 |  | CoAP | `pamoja.coap` | A CoAP client over UDP with confirmable delivery and observe |
 |  | Loopback | `pamoja.loopback` | An in-process transport with topic matching and a fault injector, for testing with no broker |

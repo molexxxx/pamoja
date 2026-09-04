@@ -3,9 +3,48 @@
 [Introduction](README.md)
 [Install](install.md)
 
+# Identity
+
+- [Device identity](guides/security.md)
+
+# Codecs
+
+- [Codecs](guides/codec.md)
+
+# Helpers
+
+- [Helpers](guides/kit.md)
+
 # Field I/O
 
+- [Serial framing](guides/serial.md)
 - [Modbus RTU](guides/modbus.md)
+- [CAN and J1939](guides/can.md)
+- [I2C, SPI, and GPIO](guides/gpio.md)
+
+# Sensing and actuation
+
+- [Sensor drivers](guides/sensors.md)
+- [Actuator drivers](guides/actuators.md)
+
+# Radio and reach
+
+- [LoRa airtime](guides/lora.md)
+- [LoRaWAN](guides/lorawan.md)
+- [Mesh frames](guides/mesh.md)
+- [Routing](guides/routing.md)
+
+# MAVLink
+
+- [MAVLink](guides/mavlink.md)
+
+# Trust and operation
+
+- [Audit log](guides/audit.md)
+- [Secured session](guides/session.md)
+- [Signed updates](guides/update.md)
+- [Power](guides/power.md)
+- [Telemetry](guides/telemetry.md)
 
 # Reference
 

@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Update</RootNamespace>
     <Description>Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own.</Description>
     <PackageTags>pamoja;iot;robotics;update</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/update.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

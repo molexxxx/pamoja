@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Sensors</RootNamespace>
     <Description>Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115.</Description>
     <PackageTags>pamoja;iot;robotics;sensors</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/sensors.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

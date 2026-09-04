@@ -65,6 +65,7 @@ crates = ["pamoja-security"]
 node = "security"
 python = "security"
 dotnet = ["DeviceIdentity"]
+guide = "guides/security.md"
 
 [[capability]]
 key = "codec"
@@ -75,6 +76,7 @@ crates = ["pamoja-codec"]
 node = "codec"
 python = "codec"
 dotnet = ["Codec", "Quantizer"]
+guide = "guides/codec.md"
 
 [[capability]]
 key = "kit"
@@ -89,6 +91,7 @@ dotnet = [
     "Debounce", "Boundary", "Coordinate", "Geofence", "Window", "Trend", "Surge",
     "Depletion", "Anomaly",
 ]
+guide = "guides/kit.md"
 
 [[capability]]
 key = "serial"
@@ -99,6 +102,7 @@ crates = ["pamoja-serial"]
 node = "serial"
 python = "serial"
 dotnet = ["Serial", "SlipDecoder", "CobsDecoder"]
+guide = "guides/serial.md"
 
 [[capability]]
 key = "modbus"
@@ -120,6 +124,7 @@ crates = ["pamoja-can"]
 node = "can"
 python = "can"
 dotnet = ["Can", "CanFrame", "J1939Message"]
+guide = "guides/can.md"
 
 [[capability]]
 key = "gpio"
@@ -130,6 +135,7 @@ crates = ["pamoja-gpio"]
 node = "gpio"
 python = "gpio"
 dotnet = ["I2c", "Spi", "SpiClock", "Pin", "PinLevel", "PinEdge", "PinPolarity"]
+guide = "guides/gpio.md"
 
 [[capability]]
 key = "sensors"
@@ -143,6 +149,7 @@ dotnet = [
     "Bme280", "Bme280Calibration", "Bme280Measurement", "Ds18b20", "Ds18b20Reading",
     "Ina219", "Ads1115", "Ads1115Config",
 ]
+guide = "guides/sensors.md"
 
 [[capability]]
 key = "actuators"
@@ -153,6 +160,7 @@ crates = ["pamoja-actuators"]
 node = "actuators"
 python = "actuators"
 dotnet = ["Pca9685", "Pwm", "Stepper", "StepDrive", "StepDirection"]
+guide = "guides/actuators.md"
 
 [[capability]]
 key = "lora"
@@ -167,6 +175,7 @@ dotnet = [
     "LoraDataRate", "LoraChannelBlock", "LoraChannelSet", "LoraSubBand", "LoraRx2",
     "LoraBeacon", "LoraMaxPayload", "LoraPayloadTable", "LoraModulation", "LoraDirection",
 ]
+guide = "guides/lora.md"
 
 [[capability]]
 key = "lorawan"
@@ -181,6 +190,7 @@ dotnet = [
     "LorawanJoinAccept", "LorawanGrant", "LorawanOptions", "LorawanRxData",
     "LorawanMessageType", "LorawanDirection",
 ]
+guide = "guides/lorawan.md"
 
 [[capability]]
 key = "mesh"
@@ -191,6 +201,7 @@ crates = ["pamoja-mesh"]
 node = "mesh"
 python = "mesh"
 dotnet = ["Mesh", "MeshFrame", "SeenPackets"]
+guide = "guides/mesh.md"
 
 [[capability]]
 key = "routing"
@@ -201,6 +212,7 @@ crates = ["pamoja-routing"]
 node = "routing"
 python = "routing"
 dotnet = ["Router", "Route", "ForwardDecision", "ForwardAction"]
+guide = "guides/routing.md"
 
 [[capability]]
 key = "mavlink"
@@ -218,6 +230,7 @@ dotnet = [
     "MavlinkSenderStep", "MavlinkReceiverKind", "MavlinkSenderKind", "MavlinkCommand",
     "MavlinkAckOutcome", "MavlinkAckKind", "MavlinkOffboard", "MavlinkTypeMask",
 ]
+guide = "guides/mavlink.md"
 
 [[capability]]
 key = "audit"
@@ -228,6 +241,7 @@ crates = ["pamoja-audit"]
 node = "audit"
 python = "audit"
 dotnet = ["Audit", "AuditLog", "AuditEntry", "AuditVerifier"]
+guide = "guides/audit.md"
 
 [[capability]]
 key = "session"
@@ -238,6 +252,7 @@ crates = ["pamoja-session"]
 node = "session"
 python = "session"
 dotnet = ["Session", "SessionRole", "AgreementKey", "SealedMessage"]
+guide = "guides/session.md"
 
 [[capability]]
 key = "update"
@@ -251,6 +266,7 @@ dotnet = [
     "Update", "Updater", "Manifest", "ImageVerifier", "Progress", "Delegation", "SlotRecord",
     "SlotState", "BootDecision", "BootAction",
 ]
+guide = "guides/update.md"
 
 [[capability]]
 key = "power"
@@ -261,6 +277,7 @@ crates = ["pamoja-power"]
 node = "power"
 python = "power"
 dotnet = ["DutyCycle", "PowerPlan", "PowerMode"]
+guide = "guides/power.md"
 
 [[capability]]
 key = "telemetry"
@@ -271,6 +288,7 @@ crates = ["pamoja-telemetry"]
 node = "telemetry"
 python = "telemetry"
 dotnet = ["Reporter", "TelemetryEvent", "TelemetryLevel", "TelemetrySnapshot", "LinkCost"]
+guide = "guides/telemetry.md"
 
 [[capability]]
 key = "mqtt"

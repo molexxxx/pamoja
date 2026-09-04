@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Gpio</RootNamespace>
     <Description>I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins.</Description>
     <PackageTags>pamoja;iot;robotics;gpio</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/gpio.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

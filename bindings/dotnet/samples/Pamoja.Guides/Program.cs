@@ -3,6 +3,24 @@
 using Guides;
 
 Quickstart.Run();
+SecurityGuide.Run();
+CodecGuide.Run();
+KitGuide.Run();
+SerialGuide.Run();
 ModbusGuide.Run();
+CanGuide.Run();
+GpioGuide.Run();
+SensorsGuide.Run();
+ActuatorsGuide.Run();
+LoraGuide.Run();
+LorawanGuide.Run();
+MeshGuide.Run();
+RoutingGuide.Run();
+MavlinkGuide.Run();
+AuditGuide.Run();
+SessionGuide.Run();
+UpdateGuide.Run();
+PowerGuide.Run();
+TelemetryGuide.Run();
 
 Console.WriteLine("guides ok");
