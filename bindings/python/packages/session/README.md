@@ -21,6 +21,8 @@ The script the test suite runs, spliced here as it ran.
 From [`bindings/python/guides/session.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/session.py):
 
 ```python
+import os
+
 from pamoja.core import PamojaError
 from pamoja.session import AgreementKey, Role, Session
 
@@ -39,7 +41,10 @@ assert node.public_key.hex() == (
 
 # Neither side sends the session key. Both derive it from the shared secret, a salt that
 # travels in the clear, and both public keys. The roles have to be opposite.
-salt = bytes([0x09]) * 16
+# The salt must be fresh for every session: reusing one derives the same key from the
+# same pair of devices twice. The initiator draws it and sends it in the clear, so the
+# responder here uses the salt it received rather than one of its own.
+salt = os.urandom(16)
 uplink = Session(node, gateway.public_key, salt, Role.INITIATOR)
 downlink = Session(gateway, node.public_key, salt, Role.RESPONDER)
 

@@ -2453,6 +2453,7 @@ dependencies = [
 name = "pamoja-examples"
 version = "0.1.14"
 dependencies = [
+ "getrandom 0.3.4",
  "pamoja",
  "pamoja-actuators",
  "pamoja-audit",

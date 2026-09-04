@@ -32,7 +32,12 @@ fn two_devices_agree_a_key_and_the_gateway_refuses_a_replay() {
 
     // Neither side sends the session key. Both derive it from the shared secret, a salt that
     // travels in the clear, and both public keys. The roles have to be opposite.
-    let salt = [0x09u8; 16];
+    //
+    // The salt must be fresh for every session: reusing one derives the same key from the
+    // same pair of devices twice. The initiator draws it and sends it in the clear, so the
+    // responder here uses the salt it received rather than one of its own.
+    let mut salt = [0u8; 16];
+    getrandom::fill(&mut salt).expect("the system random source");
     let mut uplink = Session::establish(&node, &gateway.public(), &salt, Role::Initiator);
     let mut downlink = Session::establish(&gateway, &node.public(), &salt, Role::Responder);
 

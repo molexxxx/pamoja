@@ -1,4 +1,6 @@
 using Pamoja;
+using System.Security.Cryptography;
+
 using Pamoja.Session;
 
 using static Guides.Guide;
@@ -26,8 +28,10 @@ public static class SessionGuide
 
         // Neither side sends the session key. Both derive it from the shared secret, a
         // salt that travels in the clear, and both public keys. The roles are opposite.
-        byte[] salt = new byte[16];
-        Array.Fill(salt, (byte)0x09);
+        // The salt must be fresh for every session: reusing one derives the same key from
+        // the same pair of devices twice. The initiator draws it and sends it in the clear,
+        // so the responder here uses the salt it received rather than one of its own.
+        byte[] salt = RandomNumberGenerator.GetBytes(16);
         using var uplink = new Session(node, gateway.PublicKey, salt, SessionRole.Initiator);
         using var downlink = new Session(gateway, node.PublicKey, salt, SessionRole.Responder);
 
