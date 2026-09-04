@@ -1,6 +1,6 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "name": "pamoja for Node",
+  "name": "pamoja for TypeScript",
   "entryPointStrategy": "packages",
   "entryPoints": ["../packages/*"],
   "packageOptions": {
@@ -10,7 +10,7 @@
     "excludeInternal": true
   },
   "out": "../../../target/docs/site/reference/node",
-  "readme": "../packages/pamoja/README.md",
+  "readme": "index.md",
   "includeVersion": true,
   "navigation": {
     "includeCategories": false,

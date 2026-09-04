@@ -13,6 +13,7 @@ mod catalog;
 mod docs;
 mod footprint;
 mod i18n;
+mod landings;
 mod packages;
 mod regions;
 mod release;

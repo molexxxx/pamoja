@@ -1,10 +1,6 @@
 # TypeScript reference
 
 <!-- table: reference-link node -->
-<p align="center">
-  <img src="../assets/pamoja-logo.svg" alt="pamoja" height="64">
-</p>
-
 <p align="center"><strong>TypeScript binding reference</strong></p>
 
 <p align="center">

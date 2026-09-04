@@ -1,10 +1,6 @@
 # Rust reference
 
 <!-- table: reference-link rust -->
-<p align="center">
-  <img src="../assets/pamoja-logo.svg" alt="pamoja" height="64">
-</p>
-
 <p align="center"><strong>Rust API reference</strong></p>
 
 <p align="center">

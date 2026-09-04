@@ -947,11 +947,7 @@ fn reference_link(language: &str) -> String {
         ),
     };
     format!(
-        "<p align=\"center\">
-  <img src=\"../assets/pamoja-logo.svg\" alt=\"pamoja\" height=\"64\">
-</p>
-
-<p align=\"center\"><strong>{subtitle}</strong></p>
+        "<p align=\"center\"><strong>{subtitle}</strong></p>
 
 <p align=\"center\">
   <a href=\"{href}\"><img height=\"38\" alt=\"Open the {binding} API reference\" src=\"https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg\"></a>

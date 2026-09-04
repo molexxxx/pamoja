@@ -38,6 +38,10 @@ code, pre, kbd { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Me
 .navy .hljs { background: #0a1322; }
 .navy a:hover { color: #ffb627; }
 .navy .menu-title { font-family: 'Sora', 'Inter', system-ui, sans-serif; font-weight: 700; color: #fbf3e4; }
+.menu-title { display: flex; align-items: center; justify-content: center; }
+.menu-title a { display: inline-flex; }
+.pamoja-mark { height: 30px; width: auto; display: block; }
+.pamoja-landing table { width: 100%; }
 .navy .chapter li.part-title { color: #ffb627; font-family: 'Sora', 'Inter', system-ui, sans-serif; letter-spacing: 0.04em; }
 .navy .chapter li a.active { color: #ffb627; }
 .navy table thead { background: #16263f; }

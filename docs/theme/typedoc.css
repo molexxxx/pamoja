@@ -28,5 +28,14 @@
 :root { --color-link: #1fa995; --color-focus-outline: #ffb627; }
 body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
 h1, h2, h3, h4, .tsd-page-title h1 { font-family: 'Sora', 'Inter', system-ui, sans-serif; letter-spacing: -0.015em; }
+.tsd-toolbar-contents .title::before {
+  content: "";
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  margin-right: 0.5rem;
+  vertical-align: -5px;
+  background: url("../../../assets/pamoja-icon.svg") no-repeat center / contain;
+}
 code, pre, .tsd-signature { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 a:hover { color: #ffb627; }

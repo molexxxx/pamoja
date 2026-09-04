@@ -1,10 +1,6 @@
 # C# reference
 
 <!-- table: reference-link dotnet -->
-<p align="center">
-  <img src="../assets/pamoja-logo.svg" alt="pamoja" height="64">
-</p>
-
 <p align="center"><strong>C# binding reference</strong></p>
 
 <p align="center">
