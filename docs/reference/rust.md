@@ -1,10 +1,15 @@
 # Rust reference
 
-Every crate's rustdoc, built from this commit, is under
-[`reference/rust/`](rust/pamoja_core/index.html); the same documentation for
-each published version is on [docs.rs](https://docs.rs/pamoja-core). Each crate's
-README, on crates.io and in the repository, is its overview and getting-started
-page, generated from the same rustdoc.
+<!-- table: reference-link rust -->
+<a href="rust/pamoja/index.html"><img height="34" alt="open the reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-reference.svg"></a>
+
+Every crate's rustdoc, built from this commit.
+<!-- end -->
+
+The same documentation for each published version is on
+[docs.rs](https://docs.rs/pamoja). Each crate's README, on crates.io and in the
+repository, is its overview and getting-started page, generated from the same
+rustdoc.
 
 The `pamoja` crate is every capability crate behind a feature each, all on by
 default; `pamoja::mqtt` is `pamoja-mqtt`, with the same types and documentation.

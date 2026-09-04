@@ -32,8 +32,8 @@ struct Button {
     warm: bool,
 }
 
-/// Every button the documentation links. The warm ones are the three places a reader is
-/// being invited to go; the rest name a registry.
+/// Every button the documentation links. The warm ones are the places a reader is being
+/// invited to go; the rest name a registry.
 const BUTTONS: &[Button] = &[
     Button {
         file: "btn-website.svg",
@@ -48,6 +48,11 @@ const BUTTONS: &[Button] = &[
     Button {
         file: "btn-dashboard.svg",
         label: "dashboard demo",
+        warm: true,
+    },
+    Button {
+        file: "btn-reference.svg",
+        label: "open the reference",
         warm: true,
     },
     Button {
