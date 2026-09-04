@@ -8,7 +8,7 @@ A tamper-evident, hash-chained log; altering, reordering, or dropping a record b
 npm install @pamoja/audit
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine, and `@pamoja/security`. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

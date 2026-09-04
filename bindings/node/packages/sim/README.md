@@ -8,7 +8,7 @@ Noisy and replay sensors, a recording actuator, and a simulated robot that dead-
 npm install @pamoja/sim
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

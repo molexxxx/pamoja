@@ -12,7 +12,7 @@ pip install pamoja-bus
 from pamoja import bus
 ```
 
-This pulls in `pamoja-native`, the compiled engine, and nothing else. `pip install pamoja` is the whole framework in one package.
+This pulls in `pamoja-native`, the compiled engine. `pip install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

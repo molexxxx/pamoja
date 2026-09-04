@@ -8,7 +8,7 @@ CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and
 npm install @pamoja/can
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

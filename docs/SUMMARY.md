@@ -3,6 +3,10 @@
 [Introduction](README.md)
 [Install](install.md)
 
+# Field I/O
+
+- [Modbus RTU](guides/modbus.md)
+
 # Reference
 
 - [Rust](reference/rust.md)

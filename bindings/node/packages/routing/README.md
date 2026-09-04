@@ -8,7 +8,7 @@ Reverse-path routing that learns the cheapest route from overheard traffic. One 
 npm install @pamoja/routing
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

@@ -8,7 +8,7 @@ Observability that ships only what is worth the bytes as link cost rises, while 
 npm install @pamoja/telemetry
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

@@ -3,5 +3,6 @@
 using Guides;
 
 Quickstart.Run();
+ModbusGuide.Run();
 
 Console.WriteLine("guides ok");

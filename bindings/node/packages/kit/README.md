@@ -8,7 +8,7 @@ Plain-language helper math: smoothing, calibration, PID and thermostat control, 
 npm install @pamoja/kit
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

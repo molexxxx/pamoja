@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Modbus</RootNamespace>
     <Description>Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices.</Description>
     <PackageTags>pamoja;iot;robotics;modbus</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/modbus.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

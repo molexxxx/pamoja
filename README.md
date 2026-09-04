@@ -226,7 +226,7 @@ Expect(Codec.UnpackSamples(packed).SequenceEqual(samples), "and the batch round-
 | Identity | Device identity | [`pamoja-security`](https://docs.rs/pamoja-security) |
 | Codecs | Codecs | [`pamoja-codec`](https://docs.rs/pamoja-codec) |
 | Helpers | Helpers | [`pamoja-kit`](https://docs.rs/pamoja-kit) |
-| Field I/O | Serial framing, Modbus RTU, CAN and J1939, I2C, SPI, and GPIO | [`pamoja-serial`](https://docs.rs/pamoja-serial), [`pamoja-modbus`](https://docs.rs/pamoja-modbus), [`pamoja-can`](https://docs.rs/pamoja-can), [`pamoja-gpio`](https://docs.rs/pamoja-gpio) |
+| Field I/O | Serial framing, [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html), CAN and J1939, I2C, SPI, and GPIO | [`pamoja-serial`](https://docs.rs/pamoja-serial), [`pamoja-modbus`](https://docs.rs/pamoja-modbus), [`pamoja-can`](https://docs.rs/pamoja-can), [`pamoja-gpio`](https://docs.rs/pamoja-gpio) |
 | Sensing and actuation | Sensor drivers, Actuator drivers | [`pamoja-sensors`](https://docs.rs/pamoja-sensors), [`pamoja-actuators`](https://docs.rs/pamoja-actuators) |
 | Radio and reach | LoRa airtime, LoRaWAN, Mesh frames, Routing | [`pamoja-lora`](https://docs.rs/pamoja-lora), [`pamoja-lorawan`](https://docs.rs/pamoja-lorawan), [`pamoja-mesh`](https://docs.rs/pamoja-mesh), [`pamoja-routing`](https://docs.rs/pamoja-routing) |
 | MAVLink | MAVLink | [`pamoja-mavlink`](https://docs.rs/pamoja-mavlink) |

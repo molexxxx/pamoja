@@ -8,7 +8,7 @@ CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and
 npm install @pamoja/codec
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

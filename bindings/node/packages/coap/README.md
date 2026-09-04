@@ -8,7 +8,7 @@ A CoAP client over UDP with confirmable delivery and observe. One capability of 
 npm install @pamoja/coap
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

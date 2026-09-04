@@ -8,7 +8,7 @@ Signed firmware manifests, streaming image verification, and A/B slots that fall
 npm install @pamoja/update
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine, and `@pamoja/security`. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

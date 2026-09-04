@@ -145,7 +145,7 @@ npm install @pamoja/profiles    # Profiles and robotics
 | **Codecs** | Codecs | `@pamoja/codec` | CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links |
 | **Helpers** | Helpers | `@pamoja/kit` | Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo |
 | **Field I/O** | Serial framing | `@pamoja/serial` | SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets |
-|  | Modbus RTU | `@pamoja/modbus` | Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices |
+|  | [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html) | `@pamoja/modbus` | Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices |
 |  | CAN and J1939 | `@pamoja/can` | CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose |
 |  | I2C, SPI, and GPIO | `@pamoja/gpio` | I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins |
 | **Sensing and actuation** | Sensor drivers | `@pamoja/sensors` | Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115 |
@@ -213,7 +213,7 @@ pip install pamoja-profiles    # Profiles and robotics
 | **Codecs** | Codecs | `pamoja.codec` | CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links |
 | **Helpers** | Helpers | `pamoja.kit` | Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo |
 | **Field I/O** | Serial framing | `pamoja.serial` | SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets |
-|  | Modbus RTU | `pamoja.modbus` | Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices |
+|  | [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html) | `pamoja.modbus` | Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices |
 |  | CAN and J1939 | `pamoja.can` | CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose |
 |  | I2C, SPI, and GPIO | `pamoja.gpio` | I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins |
 | **Sensing and actuation** | Sensor drivers | `pamoja.sensors` | Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115 |
@@ -283,7 +283,7 @@ dotnet add package Pamoja.Profiles    # Profiles and robotics
 | **Codecs** | Codecs | `Pamoja.Codec` | CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links |
 | **Helpers** | Helpers | `Pamoja.Kit` | Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo |
 | **Field I/O** | Serial framing | `Pamoja.Serial` | SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets |
-|  | Modbus RTU | `Pamoja.Modbus` | Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices |
+|  | [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html) | `Pamoja.Modbus` | Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices |
 |  | CAN and J1939 | `Pamoja.Can` | CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose |
 |  | I2C, SPI, and GPIO | `Pamoja.Gpio` | I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins |
 | **Sensing and actuation** | Sensor drivers | `Pamoja.Sensors` | Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115 |

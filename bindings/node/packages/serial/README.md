@@ -8,7 +8,7 @@ SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carri
 npm install @pamoja/serial
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

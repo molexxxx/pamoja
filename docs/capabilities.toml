@@ -109,6 +109,7 @@ crates = ["pamoja-modbus"]
 node = "modbus"
 python = "modbus"
 dotnet = ["Modbus", "ModbusFrame"]
+guide = "guides/modbus.md"
 
 [[capability]]
 key = "can"

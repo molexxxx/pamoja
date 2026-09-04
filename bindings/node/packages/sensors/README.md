@@ -8,7 +8,7 @@ Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115. One ca
 npm install @pamoja/sensors
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

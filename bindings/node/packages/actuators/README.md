@@ -8,7 +8,7 @@ PCA9685 PWM and servo pulses, and stepper coil sequencing. One capability of [pa
 npm install @pamoja/actuators
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

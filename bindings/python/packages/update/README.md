@@ -12,7 +12,7 @@ pip install pamoja-update
 from pamoja import update
 ```
 
-This pulls in `pamoja-native`, the compiled engine, and nothing else. `pip install pamoja` is the whole framework in one package.
+This pulls in `pamoja-native`, the compiled engine, and `pamoja-security`. `pip install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

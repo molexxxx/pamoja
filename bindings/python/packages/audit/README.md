@@ -12,7 +12,7 @@ pip install pamoja-audit
 from pamoja import audit
 ```
 
-This pulls in `pamoja-native`, the compiled engine, and nothing else. `pip install pamoja` is the whole framework in one package.
+This pulls in `pamoja-native`, the compiled engine, and `pamoja-security`. `pip install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

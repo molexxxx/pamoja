@@ -8,7 +8,7 @@ ed25519 device identity: sign a reading and verify it, so a gateway can prove it
 npm install @pamoja/security
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

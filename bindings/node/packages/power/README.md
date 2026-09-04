@@ -8,7 +8,7 @@ Duty cycling and an energy-aware governor that stretches work as the battery dra
 npm install @pamoja/power
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

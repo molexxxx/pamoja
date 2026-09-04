@@ -8,7 +8,7 @@ Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node mus
 npm install @pamoja/lora
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

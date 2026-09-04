@@ -161,7 +161,7 @@ pub fn render_node(
                 &deps,
                 &[],
             ),
-            capability_readme(root, catalog, capability, key)?,
+            capability_readme(root, catalog, &deps, capability, key)?,
         ));
     }
 
@@ -461,6 +461,7 @@ fn camel(key: &str) -> String {
 fn capability_readme(
     root: &Path,
     catalog: &Catalog,
+    deps: &BTreeSet<String>,
     capability: &Capability,
     key: &str,
 ) -> Result<String, String> {
@@ -468,9 +469,10 @@ fn capability_readme(
         "# @pamoja/{key}\n\n{}. One capability of [pamoja](https://github.com/molexxxx/pamoja), \
          one memory-safe Rust core with bindings for TypeScript, Python, and C#.\n\n\
          ## Install\n\n```sh\nnpm install @pamoja/{key}\n```\n\n\
-         This pulls in `@pamoja/native`, the compiled engine, and nothing else. \
+         This pulls in `@pamoja/native`, the compiled engine{}. \
          `npm install pamoja` is the whole framework in one package.\n",
-        capability.summary
+        capability.summary,
+        siblings(deps, NATIVE, |dep| format!("`@pamoja/{dep}`"))
     );
 
     let snippet = format!("bindings/node/guides/{}.ts", capability.key);
@@ -607,7 +609,7 @@ pub fn render_python(
             &homepage(capability),
             &["pamoja", "iot", "robotics", key],
             &deps,
-            python_capability_readme(root, catalog, capability, key)?,
+            python_capability_readme(root, catalog, &deps, capability, key)?,
         ));
     }
 
@@ -782,6 +784,7 @@ fn python_imports(source: &str) -> BTreeSet<String> {
 fn python_capability_readme(
     root: &Path,
     catalog: &Catalog,
+    deps: &BTreeSet<String>,
     capability: &Capability,
     key: &str,
 ) -> Result<String, String> {
@@ -789,9 +792,10 @@ fn python_capability_readme(
         "# pamoja-{key}\n\n{}. One capability of [pamoja](https://github.com/molexxxx/pamoja), \
          one memory-safe Rust core with bindings for TypeScript, Python, and C#.\n\n\
          ## Install\n\n```sh\npip install pamoja-{key}\n```\n\n```python\nfrom pamoja import {key}\n```\n\n\
-         This pulls in `pamoja-native`, the compiled engine, and nothing else. \
+         This pulls in `pamoja-native`, the compiled engine{}. \
          `pip install pamoja` is the whole framework in one package.\n",
-        capability.summary
+        capability.summary,
+        siblings(deps, NATIVE, |dep| format!("`pamoja-{dep}`"))
     );
 
     let snippet = format!("bindings/python/guides/{}.py", capability.key);
@@ -1070,7 +1074,7 @@ fn dotnet_capability_readme(
          This pulls in `Pamoja.Native`, the compiled engine{}. \
          `dotnet add package Pamoja` is the whole framework in one package.\n",
         capability.summary,
-        extras(deps)
+        siblings(deps, "Native", |dep| format!("`Pamoja.{dep}`"))
     );
 
     // The class is suffixed so it cannot shadow the type it demonstrates: a Guides.Modbus
@@ -1107,11 +1111,16 @@ fn dotnet_capability_readme(
 
 // The sibling packages a facade needs besides the engine, named in its README so the
 // install line is not a surprise. Most capabilities need none.
-fn extras(deps: &BTreeSet<String>) -> String {
+// # Arguments
+//
+// * `deps` - the package's own dependencies, the engine included.
+// * `engine` - the dependency to leave out, since the sentence names it already.
+// * `render` - how a dependency is written in this registry.
+fn siblings(deps: &BTreeSet<String>, engine: &str, render: impl Fn(&str) -> String) -> String {
     let mut names: Vec<String> = deps
         .iter()
-        .filter(|dep| dep.as_str() != "Native")
-        .map(|dep| format!("`Pamoja.{dep}`"))
+        .filter(|dep| dep.as_str() != engine)
+        .map(|dep| render(dep))
         .collect();
     names.sort();
     match names.len() {

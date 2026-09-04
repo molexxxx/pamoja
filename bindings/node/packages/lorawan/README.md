@@ -8,7 +8,7 @@ LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the O
 npm install @pamoja/lorawan
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 

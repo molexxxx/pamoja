@@ -8,7 +8,7 @@ ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with 
 npm install @pamoja/ros2
 ```
 
-This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
 
 ## The same capability in every language
 
