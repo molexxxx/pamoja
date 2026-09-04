@@ -16,4 +16,10 @@
     <RepositoryUrl>https://github.com/molexxxx/pamoja</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
+
+  <!-- MIT asks that the notice travel with the copies, so the text is packed beside the
+       expression that names it. `cargo xtask docs` writes one copy per package. -->
+  <ItemGroup Condition="Exists('$(MSBuildProjectDirectory)/LICENSE-MIT')">
+    <None Include="LICENSE-MIT" Pack="true" PackagePath="\" />
+  </ItemGroup>
 </Project>

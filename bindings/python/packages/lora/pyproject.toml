@@ -8,6 +8,7 @@ version = "0.1.14"
 description = "Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to."
 readme = "README.md"
 license = { text = "MIT" }
+license-files = ["LICENSE-MIT"]
 requires-python = ">=3.10"
 authors = [{ name = "molexxxx" }]
 keywords = ["pamoja", "iot", "robotics", "lora"]

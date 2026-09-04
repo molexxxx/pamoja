@@ -8,6 +8,7 @@ version = "0.1.14"
 description = "Radio and reach: Budgeting airtime, framing a mesh packet, routing it, and securing a LoRaWAN uplink: everything a node needs to reach a network it cannot see."
 readme = "README.md"
 license = { text = "MIT" }
+license-files = ["LICENSE-MIT"]
 requires-python = ">=3.10"
 authors = [{ name = "molexxxx" }]
 keywords = ["pamoja", "iot", "robotics", "radio"]

@@ -304,7 +304,7 @@ fn manifest(
         ("main", Json::str("dist/index.js")),
         ("types", Json::str("dist/index.d.ts")),
         ("exports", Json::Object(exports)),
-        ("files", Json::strings(["dist/"])),
+        ("files", Json::strings(["dist/", "LICENSE-MIT"])),
         ("engines", Json::object(vec![("node", Json::str(">= 16"))])),
         ("dependencies", pins(deps, version)),
     ])
@@ -763,6 +763,7 @@ fn pyproject(
          description = \"{description}\"\n\
          readme = \"README.md\"\n\
          license = {{ text = \"MIT\" }}\n\
+         license-files = [\"LICENSE-MIT\"]\n\
          requires-python = \">=3.10\"\n\
          authors = [{{ name = \"molexxxx\" }}]\n\
          keywords = [{}]\n\

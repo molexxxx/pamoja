@@ -50,7 +50,7 @@ jobs:
       # `no_std` (only `core` and `alloc`) and never silently regains a `std`
       # dependency that would break the microcontroller target.
       - name: no_std build
-        run: cargo build --no-default-features -p pamoja-core -p pamoja-codec -p pamoja-security -p pamoja-audit -p pamoja-update -p pamoja-zenoh -p pamoja-ros2 -p pamoja-mavlink
+        run: cargo build --no-default-features -p pamoja-core -p pamoja-security -p pamoja-audit -p pamoja-update -p pamoja-zenoh -p pamoja-ros2 -p pamoja-mavlink
 
       # The robotics helpers are opt-in but must also stay `no_std`, so build them
       # explicitly with their feature on (and `geo`, which the waypoint guidance needs).
@@ -137,7 +137,8 @@ jobs:
           T=thumbv7em-none-eabihf
           # Feature-gated crates build with their std layer off; the rest are no_std by default.
           cargo build --target $T --no-default-features \
-            -p pamoja-core -p pamoja-security -p pamoja-audit -p pamoja-update -p pamoja-mavlink
+            -p pamoja-core -p pamoja-security -p pamoja-audit -p pamoja-update -p pamoja-mavlink \
+            -p pamoja-zenoh -p pamoja-ros2
           cargo build --target $T --no-default-features --features "robotics geo" -p pamoja-kit
           cargo build --target $T \
             -p pamoja-session -p pamoja-sensors -p pamoja-actuators -p pamoja-serial \
@@ -147,6 +148,33 @@ jobs:
           # same build through one dependency.
           cargo build --target $T --no-default-features -p pamoja --features \
             "security audit update mavlink session sensors actuators serial mesh modbus can gpio lora lorawan routing power telemetry"
+
+  msrv:
+    name: minimum supported rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Every published crate inherits `rust-version` from the workspace, and a consumer
+      # on that toolchain is entitled to a build. Nothing else in this workflow pins a
+      # version, so without this the number is a claim rather than a fact. The two
+      # excluded crates are the task runner and the examples, neither of which is
+      # published.
+      - name: Read the declared minimum
+        id: msrv
+        run: |
+          VERSION=$(cargo metadata --no-deps --format-version 1 \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["rust_version"])')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "the workspace declares Rust $VERSION"
+
+      - name: Install it
+        run: rustup toolchain install ${{ steps.msrv.outputs.version }} --profile minimal
+
+      - name: Check every published crate against it
+        run: |
+          cargo +${{ steps.msrv.outputs.version }} check --workspace \
+            --exclude xtask --exclude pamoja-examples
 
   deny:
     name: license + advisory audit

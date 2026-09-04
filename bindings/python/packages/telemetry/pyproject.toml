@@ -8,6 +8,7 @@ version = "0.1.14"
 description = "Observability that ships only what is worth the bytes as link cost rises, while counting everything."
 readme = "README.md"
 license = { text = "MIT" }
+license-files = ["LICENSE-MIT"]
 requires-python = ">=3.10"
 authors = [{ name = "molexxxx" }]
 keywords = ["pamoja", "iot", "robotics", "telemetry"]

@@ -14,6 +14,7 @@ mod docs;
 mod footprint;
 mod i18n;
 mod landings;
+mod licenses;
 mod packages;
 mod regions;
 mod release;

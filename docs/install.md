@@ -79,10 +79,10 @@ dependency graph, for a `x86_64-unknown-linux-gnu` build:
 | Build | What you write | Crates compiled | From this workspace | External |
 | --- | --- | --- | --- | --- |
 | Every capability | `cargo add pamoja` | 107 | 31 | 76 |
-| Codecs and identity | `--features codec,security` | 36 | 4 | 32 |
-| Field I/O | `--features field-io` | 6 | 6 | 0 |
-| One capability | `--features modbus` | 3 | 3 | 0 |
-| Bare metal, no `std` | `--features modbus,sensors,lora` | 5 | 5 | 0 |
+| Codecs and identity | `cargo add pamoja --no-default-features --features codec,security` | 36 | 4 | 32 |
+| Field I/O | `cargo add pamoja --no-default-features --features field-io` | 6 | 6 | 0 |
+| One capability | `cargo add pamoja --no-default-features --features modbus` | 3 | 3 | 0 |
+| Bare metal, no `std` | `cargo add pamoja --no-default-features --features modbus,sensors,lora` | 5 | 5 | 0 |
 <!-- end -->
 
 `field-io` there is a group feature. Six domains have one, so a build names a
