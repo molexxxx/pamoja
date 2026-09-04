@@ -20,6 +20,15 @@ You do not need any hardware. The `pamoja-sim` and `pamoja-loopback` crates prov
 simulated sensors, actuators, and transports, and the tests and examples run entirely
 against them.
 
+## Examples in the documentation
+
+Every code block in a guide, and the first example in the README, is spliced
+from a test that runs in CI. Edit the test, not the Markdown, and run
+`cargo xtask docs` to re-splice it; `cargo xtask docs --check` fails when a
+committed block no longer matches its source. The four runners and the marker
+convention are described on the
+[building page](https://pamoja.molex.cloud/docs/about/building.html).
+
 ## Before you open a pull request
 
 CI runs formatting, linting, tests, a dependency audit, and a set of drift and
