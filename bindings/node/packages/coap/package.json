@@ -11,7 +11,7 @@
     "url": "git+https://github.com/molexxxx/pamoja.git",
     "directory": "bindings/node/packages/coap"
   },
-  "homepage": "https://pamoja.molex.cloud/docs/",
+  "homepage": "https://pamoja.molex.cloud/docs/guides/coap.html",
   "keywords": [
     "pamoja",
     "iot",

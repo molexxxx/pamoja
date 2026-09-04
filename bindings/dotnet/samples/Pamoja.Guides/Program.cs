@@ -22,6 +22,15 @@ SessionGuide.Run();
 UpdateGuide.Run();
 PowerGuide.Run();
 TelemetryGuide.Run();
+await MqttGuide.RunAsync();
+await CoapGuide.RunAsync();
+await LoopbackGuide.RunAsync();
+await SyncGuide.RunAsync();
+await LadderGuide.RunAsync();
+await BusGuide.RunAsync();
+await TransportGuide.RunAsync();
+await SimGuide.RunAsync();
+ProfileGuide.Run();
 Ros2Guide.Run();
 ZenohGuide.Run();
 

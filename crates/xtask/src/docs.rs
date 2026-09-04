@@ -201,7 +201,9 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
     let crates_root = root.join("crates");
     let crates = lib_crates()?;
     let catalog = Catalog::load(&root)?;
-    catalog.check(&root, &crates, false)?;
+    // Every capability has a guide now, so a page going missing is a failure rather
+    // than a capability quietly dropping out of the navigation.
+    catalog.check(&root, &crates, true)?;
 
     let mut files = Vec::new();
     for krate in &crates {

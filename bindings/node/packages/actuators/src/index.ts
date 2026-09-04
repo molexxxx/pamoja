@@ -67,9 +67,9 @@ export type StepDrive = StepDriveName
 /** Which way to step a motor. */
 export const StepDirection = {
   /** Advance the sequence, turning the shaft one way. */
-  Forward: 'Forward',
+  Forward: 'Forward' as StepDirectionName,
   /** Reverse the sequence, turning the shaft the other way. */
-  Backward: 'Backward',
+  Backward: 'Backward' as StepDirectionName,
 } as const
 
 /** Which way to step a motor. */

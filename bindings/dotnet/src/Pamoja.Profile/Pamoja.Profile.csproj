@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Profile</RootNamespace>
     <Description>Named, ready-to-run device profiles from plain data or a JSON manifest.</Description>
     <PackageTags>pamoja;iot;robotics;profile</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/profile.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

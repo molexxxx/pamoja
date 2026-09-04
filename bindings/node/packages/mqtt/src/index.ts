@@ -8,6 +8,8 @@
  * @packageDocumentation
  */
 
+import type { Qos as QosName } from '@pamoja/native'
+
 import {
   MqttClient as NativeMqttClient,
   type MqttClientOptions as NativeMqttClientOptions,
@@ -24,15 +26,15 @@ export type { MqttMessage }
  */
 export const Qos = {
   /** Fire and forget; the broker does not acknowledge delivery. */
-  AtMostOnce: 'AtMostOnce',
+  AtMostOnce: 'AtMostOnce' as QosName,
   /** Delivered at least once and acknowledged. */
-  AtLeastOnce: 'AtLeastOnce',
+  AtLeastOnce: 'AtLeastOnce' as QosName,
   /** Delivered exactly once via a four-step handshake. */
-  ExactlyOnce: 'ExactlyOnce',
+  ExactlyOnce: 'ExactlyOnce' as QosName,
 } as const
 
 /** One of the {@link Qos} levels. */
-export type Qos = (typeof Qos)[keyof typeof Qos]
+export type Qos = QosName
 
 /** Connection settings for an {@link MqttClient}. */
 export interface MqttClientOptions {

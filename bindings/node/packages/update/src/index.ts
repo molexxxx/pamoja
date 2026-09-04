@@ -13,6 +13,8 @@
  * @packageDocumentation
  */
 
+import type { BootAction as BootActionName, SlotState as SlotStateName } from '@pamoja/native'
+
 import {
   type Delegation,
   type Manifest,
@@ -71,21 +73,21 @@ export function signDelegation(
  */
 export const SlotState = {
   /** Nothing has been written here. */
-  Empty: 'Empty',
+  Empty: 'Empty' as SlotStateName,
   /** An image is arriving, and `written` says how much of it has. */
-  Receiving: 'Receiving',
+  Receiving: 'Receiving' as SlotStateName,
   /** A complete image that matched its manifest, not yet tried. */
-  Staged: 'Staged',
+  Staged: 'Staged' as SlotStateName,
   /** Being tried for the first time; it reverts unless it confirms. */
-  Pending: 'Pending',
+  Pending: 'Pending' as SlotStateName,
   /** Tried and confirmed working. */
-  Confirmed: 'Confirmed',
+  Confirmed: 'Confirmed' as SlotStateName,
   /** Tried and did not confirm, so it will not be tried again. */
-  Failed: 'Failed',
+  Failed: 'Failed' as SlotStateName,
 } as const
 
 /** One of the {@link SlotState} choices. */
-export type SlotState = (typeof SlotState)[keyof typeof SlotState]
+export type SlotState = SlotStateName
 
 /**
  * What a bootloader should do with what it found.
@@ -94,12 +96,12 @@ export type SlotState = (typeof SlotState)[keyof typeof SlotState]
  */
 export const BootAction = {
   /** Nothing new to try; run the confirmed image. */
-  Confirmed: 'Confirmed',
+  Confirmed: 'Confirmed' as BootActionName,
   /** A staged image is being tried for the first time. */
-  Trying: 'Trying',
+  Trying: 'Trying' as BootActionName,
   /** A pending image never confirmed, so it was failed. */
-  Reverted: 'Reverted',
+  Reverted: 'Reverted' as BootActionName,
 } as const
 
 /** One of the {@link BootAction} choices. */
-export type BootAction = (typeof BootAction)[keyof typeof BootAction]
+export type BootAction = BootActionName

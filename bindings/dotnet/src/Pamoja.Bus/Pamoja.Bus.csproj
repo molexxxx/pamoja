@@ -6,7 +6,7 @@
     <RootNamespace>Pamoja.Bus</RootNamespace>
     <Description>An in-memory typed publish and subscribe event bus.</Description>
     <PackageTags>pamoja;iot;robotics;bus</PackageTags>
-    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/bus.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>

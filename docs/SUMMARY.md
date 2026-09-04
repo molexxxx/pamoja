@@ -46,8 +46,20 @@
 - [Power](guides/power.md)
 - [Telemetry](guides/telemetry.md)
 
+# Transports and testing
+
+- [MQTT](guides/mqtt.md)
+- [CoAP](guides/coap.md)
+- [Loopback](guides/loopback.md)
+- [Store and forward](guides/sync.md)
+- [Transport ladder](guides/ladder.md)
+- [Event bus](guides/bus.md)
+- [Engine surface](guides/transport.md)
+- [Simulators](guides/sim.md)
+
 # Profiles and robotics
 
+- [Device profiles](guides/profile.md)
 - [ROS 2 rules](guides/ros2.md)
 - [Zenoh keys](guides/zenoh.md)
 
