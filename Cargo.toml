@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/pamoja",
     "crates/pamoja-core",
     "crates/pamoja-codec",
     "crates/pamoja-mqtt",

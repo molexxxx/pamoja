@@ -53,7 +53,7 @@ everyone. In practice:
 
 Released and installable, not a prototype:
 
-- 32 crates on crates.io, with the Node, Python, and .NET bindings on npm,
+- Every crate on crates.io, with the Node, Python, and .NET bindings on npm,
   PyPI, and NuGet, all versioned in lockstep.
 - Tests pinned, wherever a standard exists, to that standard's own published
   vectors rather than to round-trips, so an implementation that is wrong but

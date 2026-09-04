@@ -133,6 +133,10 @@ jobs:
             -p pamoja-session -p pamoja-sensors -p pamoja-actuators -p pamoja-serial \
             -p pamoja-mesh -p pamoja-modbus -p pamoja-can -p pamoja-gpio \
             -p pamoja-lora -p pamoja-lorawan -p pamoja-routing -p pamoja-power -p pamoja-telemetry
+          # The bundle crate with its std layer off and only those capabilities named is the
+          # same build through one dependency.
+          cargo build --target $T --no-default-features -p pamoja --features \
+            "security audit update mavlink session sensors actuators serial mesh modbus can gpio lora lorawan routing power telemetry"
 
   deny:
     name: license + advisory audit

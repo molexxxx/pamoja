@@ -79,6 +79,7 @@ fn crate_description(krate: &str) -> Option<String> {
 // so the README links the registries that actually have the crate.
 fn bindings(krate: &str) -> Option<(&'static str, &'static str, &'static str)> {
     match krate {
+        "pamoja" => Some(("pamoja", "pamoja", "Pamoja")),
         "pamoja-core" => Some(("@pamoja/core", "pamoja-core", "Pamoja.Core")),
         _ => None,
     }

@@ -1,0 +1,127 @@
+[package]
+name = "pamoja"
+description = "The whole pamoja device SDK in one crate: every capability behind a feature, all on by default, for IoT, robotics, and drones."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = [
+    "std",
+    "security",
+    "codec",
+    "kit",
+    "serial",
+    "modbus",
+    "can",
+    "gpio",
+    "sensors",
+    "actuators",
+    "lora",
+    "lorawan",
+    "mesh",
+    "routing",
+    "mavlink",
+    "audit",
+    "session",
+    "update",
+    "power",
+    "telemetry",
+    "mqtt",
+    "coap",
+    "loopback",
+    "sync",
+    "ladder",
+    "bus",
+    "sim",
+    "profile",
+    "ros2",
+    "zenoh",
+]
+# The standard-library layer of the crates that have one. With it off and only the
+# `no_std` capabilities named, the crate builds for a bare-metal target.
+std = ["alloc", "pamoja-core/std", "pamoja-lora?/std", "pamoja-mavlink?/std"]
+# The owned tables and message shapes that need an allocator but no operating system.
+alloc = [
+    "pamoja-lora?/alloc",
+    "pamoja-mavlink?/alloc",
+    "pamoja-mesh?/alloc",
+    "pamoja-routing?/alloc",
+]
+# One feature per capability crate, named as the crate is without its prefix.
+security = ["dep:pamoja-security"]
+codec = ["dep:pamoja-codec"]
+kit = ["dep:pamoja-kit"]
+serial = ["dep:pamoja-serial"]
+modbus = ["dep:pamoja-modbus"]
+can = ["dep:pamoja-can"]
+gpio = ["dep:pamoja-gpio"]
+sensors = ["dep:pamoja-sensors"]
+actuators = ["dep:pamoja-actuators"]
+lora = ["dep:pamoja-lora"]
+lorawan = ["dep:pamoja-lorawan"]
+mesh = ["dep:pamoja-mesh"]
+routing = ["dep:pamoja-routing"]
+mavlink = ["dep:pamoja-mavlink"]
+audit = ["dep:pamoja-audit"]
+session = ["dep:pamoja-session"]
+update = ["dep:pamoja-update"]
+power = ["dep:pamoja-power"]
+telemetry = ["dep:pamoja-telemetry"]
+mqtt = ["dep:pamoja-mqtt"]
+coap = ["dep:pamoja-coap"]
+loopback = ["dep:pamoja-loopback"]
+sync = ["dep:pamoja-sync"]
+ladder = ["dep:pamoja-ladder"]
+bus = ["dep:pamoja-bus"]
+sim = ["dep:pamoja-sim"]
+profile = ["dep:pamoja-profile"]
+ros2 = ["dep:pamoja-ros2"]
+zenoh = ["dep:pamoja-zenoh"]
+# The fleet dashboard is a web server, so it is opt-in rather than part of the default set.
+dashboard = ["dep:pamoja-dashboard"]
+
+[dependencies]
+# The core and MAVLink take their std layer from this crate's `std` feature, so a
+# bare-metal build can leave it off; every other crate is no_std as published or
+# needs std regardless.
+pamoja-core = { path = "../pamoja-core", version = "0.1.14", default-features = false }
+pamoja-security = { path = "../pamoja-security", version = "0.1.14", optional = true }
+pamoja-codec = { path = "../pamoja-codec", version = "0.1.14", optional = true }
+pamoja-kit = { path = "../pamoja-kit", version = "0.1.14", optional = true }
+pamoja-serial = { path = "../pamoja-serial", version = "0.1.14", optional = true }
+pamoja-modbus = { path = "../pamoja-modbus", version = "0.1.14", optional = true }
+pamoja-can = { path = "../pamoja-can", version = "0.1.14", optional = true }
+pamoja-gpio = { path = "../pamoja-gpio", version = "0.1.14", optional = true }
+pamoja-sensors = { path = "../pamoja-sensors", version = "0.1.14", optional = true }
+pamoja-actuators = { path = "../pamoja-actuators", version = "0.1.14", optional = true }
+pamoja-lora = { path = "../pamoja-lora", version = "0.1.14", optional = true }
+pamoja-lorawan = { path = "../pamoja-lorawan", version = "0.1.14", optional = true }
+pamoja-mesh = { path = "../pamoja-mesh", version = "0.1.14", optional = true }
+pamoja-routing = { path = "../pamoja-routing", version = "0.1.14", optional = true }
+pamoja-mavlink = { path = "../pamoja-mavlink", version = "0.1.14", default-features = false, optional = true }
+pamoja-audit = { path = "../pamoja-audit", version = "0.1.14", optional = true }
+pamoja-session = { path = "../pamoja-session", version = "0.1.14", optional = true }
+pamoja-update = { path = "../pamoja-update", version = "0.1.14", optional = true }
+pamoja-power = { path = "../pamoja-power", version = "0.1.14", optional = true }
+pamoja-telemetry = { path = "../pamoja-telemetry", version = "0.1.14", optional = true }
+pamoja-mqtt = { path = "../pamoja-mqtt", version = "0.1.14", optional = true }
+pamoja-coap = { path = "../pamoja-coap", version = "0.1.14", optional = true }
+pamoja-loopback = { path = "../pamoja-loopback", version = "0.1.14", optional = true }
+pamoja-sync = { path = "../pamoja-sync", version = "0.1.14", optional = true }
+pamoja-ladder = { path = "../pamoja-ladder", version = "0.1.14", optional = true }
+pamoja-bus = { path = "../pamoja-bus", version = "0.1.14", optional = true }
+pamoja-sim = { path = "../pamoja-sim", version = "0.1.14", optional = true }
+pamoja-profile = { path = "../pamoja-profile", version = "0.1.14", optional = true }
+pamoja-ros2 = { path = "../pamoja-ros2", version = "0.1.14", optional = true }
+pamoja-zenoh = { path = "../pamoja-zenoh", version = "0.1.14", optional = true }
+pamoja-dashboard = { path = "../pamoja-dashboard", version = "0.1.14", optional = true }
+
+[lints]
+workspace = true
