@@ -11,6 +11,21 @@ its P/Invoke contract (`Pamoja.Native.Interop.NativeMethods`, mirroring the
 generated C header one-to-one), which stays available for anything the facades
 do not cover.
 
+Six of the chapters below hold more than one capability, and each is a package of
+its own on NuGet, `Pamoja.<Domain>`, which brings its capabilities in and re-exports
+each under its own name:
+
+<!-- table: domains dotnet -->
+```sh
+dotnet add package Pamoja.FieldIo     # Field I/O
+dotnet add package Pamoja.Sensing     # Sensing and actuation
+dotnet add package Pamoja.Radio       # Radio and reach
+dotnet add package Pamoja.Trust       # Trust and operation
+dotnet add package Pamoja.Transports  # Transports and testing
+dotnet add package Pamoja.Profiles    # Profiles and robotics
+```
+<!-- end -->
+
 <!-- table: binding dotnet -->
 | Group | Capability | Package | What it covers |
 | --- | --- | --- | --- |

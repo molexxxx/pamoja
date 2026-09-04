@@ -8,9 +8,25 @@ page, generated from the same rustdoc.
 
 The `pamoja` crate is every capability crate behind a feature each, all on by
 default; `pamoja::mqtt` is `pamoja-mqtt`, with the same types and documentation.
-The engine crates define the traits (`Transport`, `Device`, `Sensor`,
-`Actuator`, `Store`, the event bus) that every capability crate implements, the
-C ABI the .NET binding rides on, and the fleet dashboard.
+Six of its features name a domain instead of a single capability, one per chapter
+below that holds more than one:
+
+<!-- table: domains rust -->
+```sh
+cargo add pamoja --features field-io    # Field I/O
+cargo add pamoja --features sensing     # Sensing and actuation
+cargo add pamoja --features radio       # Radio and reach
+cargo add pamoja --features trust       # Trust and operation
+cargo add pamoja --features transports  # Transports and testing
+cargo add pamoja --features profiles    # Profiles and robotics
+```
+<!-- end -->
+
+Naming features is what makes a Rust build small, and the
+[install page](../install.md) measures how small per feature set. The engine
+crates define the traits (`Transport`, `Device`, `Sensor`, `Actuator`, `Store`,
+the event bus) that every capability crate implements, the C ABI the .NET
+binding rides on, and the fleet dashboard.
 
 <!-- table: crates -->
 | Crate | Chapter | What it does |

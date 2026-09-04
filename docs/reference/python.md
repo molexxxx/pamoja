@@ -11,6 +11,21 @@ whose type stub ships as `pamoja/_native/__init__.pyi` so an editor sees every
 native signature; `pamoja.raw` re-exports that contract for anything the
 facades do not cover.
 
+Six of the chapters below hold more than one capability, and each is a package of
+its own on PyPI, `pamoja-<domain>`, which brings its capabilities in and re-exports
+each under its own name:
+
+<!-- table: domains python -->
+```sh
+pip install pamoja-field-io    # Field I/O
+pip install pamoja-sensing     # Sensing and actuation
+pip install pamoja-radio       # Radio and reach
+pip install pamoja-trust       # Trust and operation
+pip install pamoja-transports  # Transports and testing
+pip install pamoja-profiles    # Profiles and robotics
+```
+<!-- end -->
+
 <!-- table: binding python -->
 | Group | Capability | Module | What it covers |
 | --- | --- | --- | --- |

@@ -9,6 +9,21 @@ Each package is hand-written TypeScript over `@pamoja/native`, the compiled
 engine and its generated napi-rs contract, which stays importable for anything
 the facades do not cover.
 
+Six of the chapters below hold more than one capability, and each is a package of
+its own on npm, `@pamoja/<domain>`, which brings its capabilities in and re-exports
+each under its own name:
+
+<!-- table: domains node -->
+```sh
+npm install @pamoja/field-io    # Field I/O
+npm install @pamoja/sensing     # Sensing and actuation
+npm install @pamoja/radio       # Radio and reach
+npm install @pamoja/trust       # Trust and operation
+npm install @pamoja/transports  # Transports and testing
+npm install @pamoja/profiles    # Profiles and robotics
+```
+<!-- end -->
+
 <!-- table: binding node -->
 | Group | Capability | Import | What it covers |
 | --- | --- | --- | --- |
