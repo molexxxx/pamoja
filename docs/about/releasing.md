@@ -1,71 +1,61 @@
 # Releasing
 
-Every crate, the npm, PyPI, and NuGet packages, and the language bindings share
-one version and ship together. A release is one pull request and one tag.
+Every crate, package, and binding shares one version and goes out together, so
+`0.1.15` of any one of them wraps `0.1.15` of every other. A release is a tag on
+main; everything after that is automatic.
 
-## The release pull request
+## Why a publish gets checked first
 
-1. Branch from `main`: `git switch -c release/0.1.15`.
-2. Set the version everywhere: `cargo xtask version 0.1.15`. This rewrites the
-   workspace manifest and its dependency pins, every crate and binding
-   manifest, the npm platform packages, `pyproject.toml`,
-   `Directory.Build.props`, and the version napi-rs embeds in the Node loader,
-   then refreshes the cargo and npm lockfiles.
-3. Move the `Unreleased` entries in `CHANGELOG.md` under a `## [0.1.15] - <date>`
-   heading. The check in the next step fails until that heading exists.
-4. Verify:
-   - `cargo run -p xtask -- version --check 0.1.15`
-   - `cargo run -p xtask -- docs --check`
-   - `cargo run -p xtask -- release --dry-run`, which packages and verifies
-     every crate in one `cargo publish --workspace --dry-run`
-   - `cargo test --workspace`
-5. Commit as `Bump the workspace to 0.1.15`, open the pull request with the
-   `release` label, and merge it once every check is green.
+crates.io, npm, PyPI, and NuGet all refuse to re-release a version. A bad publish
+cannot be withdrawn, only superseded by another version, and a yanked crate stays
+in every lockfile that already resolved it. So the release workflows publish
+nothing until `release-preflight` passes, which turns three permanent mistakes
+into a failed job:
 
-## The tag
+- **A tag whose version is not the tree's.** `cargo xtask version --check <v>`
+  reads every manifest, lockfile, and generated loader structurally, so a
+  manifest added since the last release cannot be missed, and requires
+  `CHANGELOG.md` to have that version's entry.
+- **A tag that is not on main.** A tag on a branch, or on a commit that was
+  force-pushed away, would publish code that never landed.
+- **A tag whose tests never ran.** A green tick on a pull request is not a green
+  tick on the merge commit, so the check asks for a completed successful run of
+  `ci`, `node`, `python`, and `dotnet` on that exact commit.
 
-Wait for `ci`, `node`, `python`, `dotnet`, and `pages` to pass on the merge
-commit. Then tag that commit and push the tag:
+## Cutting one
+
+```sh
+git switch -c release/0.1.15
+cargo xtask version 0.1.15          # every manifest, lockfile, and loader
+# write the version's entry in CHANGELOG.md
+cargo run -p xtask -- version --check 0.1.15
+cargo run -p xtask -- docs --check
+cargo xtask release --dry-run       # resolves every crate against its siblings
+```
+
+Open that as a pull request labelled `release`, merge it when green, and wait for
+`ci`, `node`, `python`, and `dotnet` to finish on the merge commit. Then tag it:
 
 ```sh
 git tag -a v0.1.15 -m "pamoja 0.1.15" <merge sha>
 git push origin v0.1.15
 ```
 
-The tag starts five workflows. Each one runs the preflight first and publishes
-only if it passes:
+The tag starts five workflows. `release-github` publishes the notes, and the
+other four publish to crates.io, npm, PyPI, and NuGet. Each runs the preflight
+first, so a tag that should not have been pushed costs a red job rather than a
+version.
 
-- `release-github` creates the GitHub Release from the `CHANGELOG.md` entry and
-  the pull requests since the previous tag, grouped by label.
-- `release-crates` publishes every crate in the order `cargo xtask release
-  --plan` prints. A version already on crates.io is skipped, and a crate
-  throttled by the new-crate limit is retried after a wait.
-- `release-node` builds the native addon for each platform and publishes the
-  platform packages and `@pamoja/core`.
-- `release-python` builds the wheels and the sdist, installs the sdist from
-  source to prove it builds alone, and publishes to PyPI.
-- `release-nuget` builds the native library for each runtime and publishes
-  `Pamoja.Core`.
+## When one stalls
 
-## The preflight
+Every release workflow also takes a version by hand, so a run that failed
+partway can be restarted without inventing a new tag. crates.io publishes new
+crates at one per ten minutes, and `cargo xtask release` waits that out and skips
+what is already published, so a rerun continues rather than starting over.
 
-`release-preflight` is a reusable workflow every release workflow calls first.
-It fails, before anything is uploaded, unless:
+## The notes
 
-- every manifest, lockfile, and generated file carries the tagged version
-  (`cargo xtask version --check`);
-- the tagged commit is on `main`;
-- `ci`, `node`, `python`, and `dotnet` all have a successful run on that commit.
-
-Rehearse it without a tag from the Actions tab: dispatch `release-preflight`
-with the version you intend to release. It passes on `main` only when the tree
-is ready to tag.
-
-## Recovering
-
-If a release workflow stops part way, dispatch it again from the Actions tab
-with the version as its input. Every publish step skips what already exists, so
-a rerun finishes the release rather than duplicating it.
-
-Never re-tag a version. Registries refuse a second upload of the same version,
-and npm fails hard on it. Fix forward with the next patch version instead.
+`release-github` puts the changelog's entry for the version first, then the pull
+requests that went into it, grouped by label. The entry says what changed and why
+it matters; the list says which pull requests carried it. Labels come from the
+files a pull request touches, so nobody has to remember one while merging.

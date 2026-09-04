@@ -1,0 +1,80 @@
+# The GitHub release for a tag: the changelog's entry for that version, followed by the
+# pull requests that went into it.
+#
+# The hand-written entry says what changed and why it matters; the generated list says
+# which pull requests carried it. Neither is a substitute for the other, so the release
+# notes carry both.
+name: release-github
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version to publish notes for, with or without a leading v.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    uses: ./.github/workflows/release-preflight.yml
+    with:
+      version: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
+
+  release:
+    name: publish the release notes
+    needs: preflight
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Assemble the notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+
+          # The section for this version, from its heading to the next one.
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { printing = 1; next }
+            printing && /^## \[/ { exit }
+            printing { print }
+          ' CHANGELOG.md > notes.md
+
+          if [ ! -s notes.md ]; then
+            echo "::error::CHANGELOG.md has no entry for ${version}."
+            exit 1
+          fi
+
+          # The pull requests that landed since the previous tag, grouped by label.
+          previous=$(git tag --list 'v*' --sort=-version:refname | grep -v "^${TAG}$" | head -1)
+          {
+            echo
+            echo "## Pull requests"
+            echo
+            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="$TAG" \
+              ${previous:+-f previous_tag_name="$previous"} \
+              --jq .body | sed '/^#\{1,2\} What.s Changed/d'
+          } >> notes.md
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
+        run: |
+          gh release create "$TAG" \
+            --verify-tag \
+            --title "pamoja ${TAG#v}" \
+            --notes-file notes.md

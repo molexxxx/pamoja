@@ -1,0 +1,72 @@
+# Everything a release checks before it publishes anything.
+#
+# A publish is irreversible: crates.io, npm, PyPI, and NuGet all refuse to re-release a
+# version, so a bad tag cannot be fixed, only superseded. The four release workflows call
+# this first and do nothing until it passes, which turns three classes of mistake into a
+# failed job instead of a permanent one: a tag whose version disagrees with the manifests,
+# a tag on a commit that is not on main, and a tag on a commit whose tests never passed.
+name: release-preflight
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The version being released, with or without a leading v.
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version to check this commit against, with or without a leading v.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: preflight ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    steps:
+      # The ancestry check below reads main, so the clone needs its history.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Every manifest, lockfile, and generated loader must already carry this version,
+      # and CHANGELOG.md must have its entry. The task checks all of them structurally,
+      # so a manifest added since the last release cannot be missed.
+      - name: The tree is at this version
+        run: cargo run -p xtask -- version --check "${VERSION#v}"
+        env:
+          VERSION: ${{ inputs.version }}
+
+      # A tag on a branch, or on a commit that was force-pushed away, would publish code
+      # that never landed. Releases come from main or they do not happen.
+      - name: The commit is on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::${GITHUB_SHA} is not an ancestor of origin/main; tag a merged commit."
+            exit 1
+          fi
+
+      # A green tick on the pull request is not the same as a green tick on the merge
+      # commit. This asks for a completed successful run of each suite on this exact SHA.
+      - name: Every suite passed on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          failed=0
+          for workflow in ci.yml node.yml python.yml dotnet.yml; do
+            conclusion=$(gh run list --commit "$GITHUB_SHA" --workflow "$workflow" \
+              --json status,conclusion --jq \
+              'map(select(.status == "completed" and .conclusion == "success")) | length')
+            if [ "${conclusion:-0}" -eq 0 ]; then
+              echo "::error::${workflow} has no completed successful run on ${GITHUB_SHA}."
+              failed=1
+            else
+              echo "${workflow}: passed"
+            fi
+          done
+          exit "$failed"

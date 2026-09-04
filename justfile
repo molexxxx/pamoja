@@ -53,10 +53,6 @@ builds:
 docs-check:
     cargo run -p xtask -- docs --check
 
-# start the MQTT broker the binding guide examples talk to (stop with `docker stop pamoja-broker`)
-broker:
-    docker run -d --rm --name pamoja-broker -p 1883:1883 eclipse-mosquitto:2 mosquitto -c /mosquitto-no-auth.conf
-
 # run the guide examples in every language (the code the documentation site shows)
 guides:
     cargo test -p pamoja-examples --test guides
