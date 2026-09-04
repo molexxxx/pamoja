@@ -4,14 +4,26 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version to release, with or without a leading v.
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
+  preflight:
+    uses: ./.github/workflows/release-preflight.yml
+    with:
+      version: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
+
   build:
     name: wheels ${{ matrix.target }}
     runs-on: ${{ matrix.host }}
+    needs: preflight
     strategy:
       fail-fast: false
       matrix:

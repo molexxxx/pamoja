@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: build and smoke test
+    name: python (build, smoke, guides)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -42,10 +42,6 @@ jobs:
             echo "::error::Generated stub is stale. Run 'cargo run --bin stub_gen' in bindings/python/packages/native and commit python/pamoja/_native/__init__.pyi."
             exit 1
           fi
-
-      # The MQTT guide example talks to a real broker on 1883.
-      - name: Start an MQTT broker
-        run: docker run -d --rm -p 1883:1883 eclipse-mosquitto:2 mosquitto -c /mosquitto-no-auth.conf
 
       - name: Smoke, conformance, guide, and doctest suites
         run: .venv/bin/python -m pytest

@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: build and smoke test
+    name: node (build, smoke, guides)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -35,10 +35,6 @@ jobs:
             echo "::error::Generated bindings are stale. Run 'npm run build' in bindings/node and commit packages/native/index.js and packages/native/index.d.ts."
             exit 1
           fi
-
-      # The MQTT guide example talks to a real broker on 1883.
-      - name: Start an MQTT broker
-        run: docker run -d --rm -p 1883:1883 eclipse-mosquitto:2 mosquitto -c /mosquitto-no-auth.conf
 
       - name: Smoke, conformance, and guide tests
         run: npm test

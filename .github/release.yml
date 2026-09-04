@@ -1,0 +1,29 @@
+# How GitHub groups the pull requests in generated release notes. The categories are the
+# kinds of change a reader of the notes is looking for, and the labels are the ones the
+# labeller applies, so a pull request lands in a category without anyone choosing one.
+changelog:
+  exclude:
+    labels:
+      - release
+  categories:
+    - title: Capabilities
+      labels:
+        - capability
+    - title: Language bindings
+      labels:
+        - bindings
+    - title: Fixes
+      labels:
+        - bug
+    - title: Documentation
+      labels:
+        - documentation
+    - title: Continuous integration
+      labels:
+        - ci
+    - title: Dependencies
+      labels:
+        - dependencies
+    - title: Other
+      labels:
+        - "*"

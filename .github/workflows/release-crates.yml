@@ -5,6 +5,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: The version to release, with or without a leading v.
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -13,9 +18,15 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  preflight:
+    uses: ./.github/workflows/release-preflight.yml
+    with:
+      version: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
+
   publish:
     name: publish to crates.io
     runs-on: ubuntu-latest
+    needs: preflight
     # New crates publish one per ten minutes, so a first-time release of the
     # whole workspace sleeps through several waits. Give the job room for them.
     timeout-minutes: 180
