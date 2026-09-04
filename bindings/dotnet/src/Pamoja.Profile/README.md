@@ -12,11 +12,19 @@ dotnet add package Pamoja.Profile
 using Pamoja.Profile;
 ```
 
-This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Core`, and nothing else. `dotnet add package Pamoja` is the whole framework in one package.
+This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Power`. `dotnet add package Pamoja` is the whole framework in one package.
+
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-profile`](https://crates.io/crates/pamoja-profile) | [docs.rs](https://docs.rs/pamoja-profile), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_profile/index.html) |
+| TypeScript | [`@pamoja/profile`](https://www.npmjs.com/package/@pamoja/profile) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_profile.html) |
+| Python | [`pamoja-profile`](https://pypi.org/project/pamoja-profile/) | [`pamoja.profile`](https://pamoja.molex.cloud/docs/reference/python/pamoja/profile.html) |
+| C# | [`Pamoja.Profile`](https://www.nuget.org/packages/Pamoja.Profile) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Profile.Profile.html) |
 
 ## Documentation
 
-- [The reference for `Pamoja.Profile`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Profile.html), generated from its source.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License

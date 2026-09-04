@@ -7,7 +7,14 @@ Cost-aware transport ladder for the pamoja device SDK: try the cheapest link fir
 <a href="https://crates.io/crates/pamoja-ladder"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-ladder"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-ladder) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ladder/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-ladder`](https://crates.io/crates/pamoja-ladder) | [docs.rs](https://docs.rs/pamoja-ladder), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ladder/index.html) |
+| TypeScript | [`@pamoja/ladder`](https://www.npmjs.com/package/@pamoja/ladder) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ladder.html) |
+| Python | [`pamoja-ladder`](https://pypi.org/project/pamoja-ladder/) | [`pamoja.ladder`](https://pamoja.molex.cloud/docs/reference/python/pamoja/ladder.html) |
+| C# | [`Pamoja.Ladder`](https://www.nuget.org/packages/Pamoja.Ladder) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ladder.Ladder.html) |
 
 Cost-aware transport ladder for the pamoja SDK.
 

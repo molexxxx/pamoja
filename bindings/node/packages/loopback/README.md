@@ -10,9 +10,17 @@ npm install @pamoja/loopback
 
 This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
 
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-loopback`](https://crates.io/crates/pamoja-loopback) | [docs.rs](https://docs.rs/pamoja-loopback), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_loopback/index.html) |
+| TypeScript | [`@pamoja/loopback`](https://www.npmjs.com/package/@pamoja/loopback) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_loopback.html) |
+| Python | [`pamoja-loopback`](https://pypi.org/project/pamoja-loopback/) | [`pamoja.loopback`](https://pamoja.molex.cloud/docs/reference/python/pamoja/loopback.html) |
+| C# | [`Pamoja.Loopback`](https://www.nuget.org/packages/Pamoja.Loopback) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Loopback.LoopbackBroker.html) |
+
 ## Documentation
 
-- [The reference for this package](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_loopback.html), generated from its source.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License

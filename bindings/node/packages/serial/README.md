@@ -10,9 +10,17 @@ npm install @pamoja/serial
 
 This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
 
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-serial`](https://crates.io/crates/pamoja-serial) | [docs.rs](https://docs.rs/pamoja-serial), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_serial/index.html) |
+| TypeScript | [`@pamoja/serial`](https://www.npmjs.com/package/@pamoja/serial) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_serial.html) |
+| Python | [`pamoja-serial`](https://pypi.org/project/pamoja-serial/) | [`pamoja.serial`](https://pamoja.molex.cloud/docs/reference/python/pamoja/serial.html) |
+| C# | [`Pamoja.Serial`](https://www.nuget.org/packages/Pamoja.Serial) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Serial.Serial.html) |
+
 ## Documentation
 
-- [The reference for this package](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_serial.html), generated from its source.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License

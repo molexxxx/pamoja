@@ -14,9 +14,17 @@ from pamoja import can
 
 This pulls in `pamoja-native`, the compiled engine, and nothing else. `pip install pamoja` is the whole framework in one package.
 
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-can`](https://crates.io/crates/pamoja-can) | [docs.rs](https://docs.rs/pamoja-can), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_can/index.html) |
+| TypeScript | [`@pamoja/can`](https://www.npmjs.com/package/@pamoja/can) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_can.html) |
+| Python | [`pamoja-can`](https://pypi.org/project/pamoja-can/) | [`pamoja.can`](https://pamoja.molex.cloud/docs/reference/python/pamoja/can.html) |
+| C# | [`Pamoja.Can`](https://www.nuget.org/packages/Pamoja.Can) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Can.Can.html) |
+
 ## Documentation
 
-- [The reference for `pamoja.can`](https://pamoja.molex.cloud/docs/reference/python/pamoja/can.html), generated from its source.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License

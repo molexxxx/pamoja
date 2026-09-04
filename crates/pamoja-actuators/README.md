@@ -7,7 +7,14 @@ Concrete actuator drivers for pamoja: the command-encode half of common parts - 
 <a href="https://crates.io/crates/pamoja-actuators"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-actuators"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-actuators) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_actuators/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-actuators`](https://crates.io/crates/pamoja-actuators) | [docs.rs](https://docs.rs/pamoja-actuators), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_actuators/index.html) |
+| TypeScript | [`@pamoja/actuators`](https://www.npmjs.com/package/@pamoja/actuators) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_actuators.html) |
+| Python | [`pamoja-actuators`](https://pypi.org/project/pamoja-actuators/) | [`pamoja.actuators`](https://pamoja.molex.cloud/docs/reference/python/pamoja/actuators.html) |
+| C# | [`Pamoja.Actuators`](https://www.nuget.org/packages/Pamoja.Actuators) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Actuators.Pca9685.html) |
 
 Concrete actuator drivers for the pamoja SDK.
 

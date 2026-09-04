@@ -7,7 +7,14 @@ Device identity and signed telemetry for pamoja: ed25519 keys that sign payloads
 <a href="https://crates.io/crates/pamoja-security"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-security"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-security) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_security/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-security`](https://crates.io/crates/pamoja-security) | [docs.rs](https://docs.rs/pamoja-security), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_security/index.html) |
+| TypeScript | [`@pamoja/security`](https://www.npmjs.com/package/@pamoja/security) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_security.html) |
+| Python | [`pamoja-security`](https://pypi.org/project/pamoja-security/) | [`pamoja.security`](https://pamoja.molex.cloud/docs/reference/python/pamoja/security.html) |
+| C# | [`Pamoja.Security`](https://www.nuget.org/packages/Pamoja.Security) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Security.DeviceIdentity.html) |
 
 Device identity and signed telemetry for the pamoja SDK.
 

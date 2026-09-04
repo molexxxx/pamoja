@@ -7,7 +7,14 @@ Named, ready-to-run device profiles for pamoja: assemble a sensor, actuator, tra
 <a href="https://crates.io/crates/pamoja-profile"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-profile"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-profile) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_profile/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-profile`](https://crates.io/crates/pamoja-profile) | [docs.rs](https://docs.rs/pamoja-profile), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_profile/index.html) |
+| TypeScript | [`@pamoja/profile`](https://www.npmjs.com/package/@pamoja/profile) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_profile.html) |
+| Python | [`pamoja-profile`](https://pypi.org/project/pamoja-profile/) | [`pamoja.profile`](https://pamoja.molex.cloud/docs/reference/python/pamoja/profile.html) |
+| C# | [`Pamoja.Profile`](https://www.nuget.org/packages/Pamoja.Profile) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Profile.Profile.html) |
 
 Device profiles: named, ready-to-run nodes assembled from pamoja capabilities.
 

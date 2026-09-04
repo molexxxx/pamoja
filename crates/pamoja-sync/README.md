@@ -7,7 +7,14 @@ Offline-first store-and-forward buffering for pamoja: durable queues behind the 
 <a href="https://crates.io/crates/pamoja-sync"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-sync"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-sync) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sync/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-sync`](https://crates.io/crates/pamoja-sync) | [docs.rs](https://docs.rs/pamoja-sync), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sync/index.html) |
+| TypeScript | [`@pamoja/sync`](https://www.npmjs.com/package/@pamoja/sync) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sync.html) |
+| Python | [`pamoja-sync`](https://pypi.org/project/pamoja-sync/) | [`pamoja.sync`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sync.html) |
+| C# | [`Pamoja.Sync`](https://www.nuget.org/packages/Pamoja.Sync) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sync.Store.html) |
 
 Offline-first store-and-forward buffering for pamoja.
 

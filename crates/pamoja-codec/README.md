@@ -7,7 +7,14 @@ Serialization and framing for pamoja: pluggable wire formats behind a common Cod
 <a href="https://crates.io/crates/pamoja-codec"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-codec"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-codec) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_codec/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-codec`](https://crates.io/crates/pamoja-codec) | [docs.rs](https://docs.rs/pamoja-codec), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_codec/index.html) |
+| TypeScript | [`@pamoja/codec`](https://www.npmjs.com/package/@pamoja/codec) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_codec.html) |
+| Python | [`pamoja-codec`](https://pypi.org/project/pamoja-codec/) | [`pamoja.codec`](https://pamoja.molex.cloud/docs/reference/python/pamoja/codec.html) |
+| C# | [`Pamoja.Codec`](https://www.nuget.org/packages/Pamoja.Codec) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Codec.Codec.html) |
 
 Pluggable serialization for pamoja payloads.
 

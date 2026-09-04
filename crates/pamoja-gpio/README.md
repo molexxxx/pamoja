@@ -7,7 +7,14 @@ On-board bus addressing and pin logic for pamoja: I2C 7-bit and 10-bit address-f
 <a href="https://crates.io/crates/pamoja-gpio"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-gpio"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-gpio) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_gpio/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-gpio`](https://crates.io/crates/pamoja-gpio) | [docs.rs](https://docs.rs/pamoja-gpio), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_gpio/index.html) |
+| TypeScript | [`@pamoja/gpio`](https://www.npmjs.com/package/@pamoja/gpio) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_gpio.html) |
+| Python | [`pamoja-gpio`](https://pypi.org/project/pamoja-gpio/) | [`pamoja.gpio`](https://pamoja.molex.cloud/docs/reference/python/pamoja/gpio.html) |
+| C# | [`Pamoja.Gpio`](https://www.nuget.org/packages/Pamoja.Gpio) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Gpio.I2c.html) |
 
 On-board bus addressing and pin logic for the pamoja SDK.
 

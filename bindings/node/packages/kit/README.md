@@ -10,9 +10,17 @@ npm install @pamoja/kit
 
 This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
 
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-kit`](https://crates.io/crates/pamoja-kit) | [docs.rs](https://docs.rs/pamoja-kit), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_kit/index.html) |
+| TypeScript | [`@pamoja/kit`](https://www.npmjs.com/package/@pamoja/kit) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_kit.html) |
+| Python | [`pamoja-kit`](https://pypi.org/project/pamoja-kit/) | [`pamoja.kit`](https://pamoja.molex.cloud/docs/reference/python/pamoja/kit.html) |
+| C# | [`Pamoja.Kit`](https://www.nuget.org/packages/Pamoja.Kit) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Kit.Kit.html) |
+
 ## Documentation
 
-- [The reference for this package](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_kit.html), generated from its source.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License

@@ -7,7 +7,14 @@ CoAP transport for the pamoja device SDK, built on coap-lite over UDP.
 <a href="https://crates.io/crates/pamoja-coap"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
 <a href="https://docs.rs/pamoja-coap"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
-Full API reference: [docs.rs](https://docs.rs/pamoja-coap) and [the pamoja site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_coap/index.html).
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-coap`](https://crates.io/crates/pamoja-coap) | [docs.rs](https://docs.rs/pamoja-coap), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_coap/index.html) |
+| TypeScript | [`@pamoja/coap`](https://www.npmjs.com/package/@pamoja/coap) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_coap.html) |
+| Python | [`pamoja-coap`](https://pypi.org/project/pamoja-coap/) | [`pamoja.coap`](https://pamoja.molex.cloud/docs/reference/python/pamoja/coap.html) |
+| C# | [`Pamoja.Coap`](https://www.nuget.org/packages/Pamoja.Coap) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Coap.CoapClient.html) |
 
 CoAP transport for the pamoja SDK.
 

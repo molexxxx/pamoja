@@ -10,9 +10,17 @@ npm install @pamoja/ladder
 
 This pulls in `@pamoja/native`, the compiled engine, and nothing else. `npm install pamoja` is the whole framework in one package.
 
+## The same capability in every language
+
+| Language | Package | Reference |
+| --- | --- | --- |
+| Rust | [`pamoja-ladder`](https://crates.io/crates/pamoja-ladder) | [docs.rs](https://docs.rs/pamoja-ladder), [site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ladder/index.html) |
+| TypeScript | [`@pamoja/ladder`](https://www.npmjs.com/package/@pamoja/ladder) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ladder.html) |
+| Python | [`pamoja-ladder`](https://pypi.org/project/pamoja-ladder/) | [`pamoja.ladder`](https://pamoja.molex.cloud/docs/reference/python/pamoja/ladder.html) |
+| C# | [`Pamoja.Ladder`](https://www.nuget.org/packages/Pamoja.Ladder) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ladder.Ladder.html) |
+
 ## Documentation
 
-- [The reference for this package](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ladder.html), generated from its source.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License
