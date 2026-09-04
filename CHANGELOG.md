@@ -38,10 +38,14 @@ released together, so one entry covers all of them.
   crate compiles, resolved for a fixed target so the counts are the same on
   every machine. The install page carries the table, regenerated and
   drift-checked with the rest of the generated documentation.
-- Group features on the `pamoja` crate, one per chapter of the guides that holds
-  more than one capability (`field-io`, `sensing`, `radio`, `trust`,
-  `transports`, `profiles`), so a build names a domain rather than listing its
-  parts. Each is checked against the capability map.
+- Domains: the six chapters of the guides that hold more than one capability are
+  installable as a unit in every language. In Rust each is a feature on the
+  `pamoja` crate, so it decides what compiles. In the bindings each is a package
+  (`@pamoja/field-io`, `pamoja-field-io`, `Pamoja.FieldIo`) that brings in its
+  capabilities and, where the language allows it, re-exports each under its own
+  name; a name two capabilities share stays reachable and unambiguous, which a
+  flat re-export could not manage. Every domain is checked against the
+  capability map, so a capability cannot fall out of its own domain.
 
 ### Changed
 

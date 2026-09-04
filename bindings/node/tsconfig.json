@@ -92,6 +92,24 @@
       "path": "packages/zenoh"
     },
     {
+      "path": "packages/field-io"
+    },
+    {
+      "path": "packages/sensing"
+    },
+    {
+      "path": "packages/radio"
+    },
+    {
+      "path": "packages/trust"
+    },
+    {
+      "path": "packages/transports"
+    },
+    {
+      "path": "packages/profiles"
+    },
+    {
       "path": "packages/pamoja"
     }
   ]

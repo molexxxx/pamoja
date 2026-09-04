@@ -103,18 +103,18 @@ one. It is one binary carrying every capability whichever packages you install,
 so the choice is about the API surface and your dependency manifest, not the
 download. Node 16 or later.
 
-The same six domains, as the packages that make them up. There is no domain
-package: naming the capabilities keeps the manifest an honest record of what the
-code uses, and `pamoja` is there when you would rather not choose at all.
+The same six domains, one package each. A domain package brings in its
+capabilities and re-exports each under its own name, so a name two of them share
+stays unambiguous:
 
 <!-- table: domains node -->
 ```sh
-npm install @pamoja/serial @pamoja/modbus @pamoja/can @pamoja/gpio                                          # Field I/O
-npm install @pamoja/sensors @pamoja/actuators                                                               # Sensing and actuation
-npm install @pamoja/lora @pamoja/lorawan @pamoja/mesh @pamoja/routing                                       # Radio and reach
-npm install @pamoja/audit @pamoja/session @pamoja/update @pamoja/power @pamoja/telemetry                    # Trust and operation
-npm install @pamoja/mqtt @pamoja/coap @pamoja/loopback @pamoja/sync @pamoja/ladder @pamoja/bus @pamoja/sim  # Transports and testing
-npm install @pamoja/profile @pamoja/ros2 @pamoja/zenoh                                                      # Profiles and robotics
+npm install @pamoja/field-io    # Field I/O
+npm install @pamoja/sensing     # Sensing and actuation
+npm install @pamoja/radio       # Radio and reach
+npm install @pamoja/trust       # Trust and operation
+npm install @pamoja/transports  # Transports and testing
+npm install @pamoja/profiles    # Profiles and robotics
 ```
 <!-- end -->
 
@@ -171,18 +171,18 @@ the compiled engine, with wheels for the same platforms as the Node engine and
 for Python 3.10 and later; elsewhere `pip` builds it from the sdist, which needs
 a Rust toolchain.
 
-The same six domains, as the packages that make them up. There is no domain
-package: naming the capabilities keeps the manifest an honest record of what the
-code uses, and `pamoja` is there when you would rather not choose at all.
+The same six domains, one package each. A domain package brings in its
+capabilities and re-exports each under its own name, so a name two of them share
+stays unambiguous:
 
 <!-- table: domains python -->
 ```sh
-pip install pamoja-serial pamoja-modbus pamoja-can pamoja-gpio                                       # Field I/O
-pip install pamoja-sensors pamoja-actuators                                                          # Sensing and actuation
-pip install pamoja-lora pamoja-lorawan pamoja-mesh pamoja-routing                                    # Radio and reach
-pip install pamoja-audit pamoja-session pamoja-update pamoja-power pamoja-telemetry                  # Trust and operation
-pip install pamoja-mqtt pamoja-coap pamoja-loopback pamoja-sync pamoja-ladder pamoja-bus pamoja-sim  # Transports and testing
-pip install pamoja-profile pamoja-ros2 pamoja-zenoh                                                  # Profiles and robotics
+pip install pamoja-field-io    # Field I/O
+pip install pamoja-sensing     # Sensing and actuation
+pip install pamoja-radio       # Radio and reach
+pip install pamoja-trust       # Trust and operation
+pip install pamoja-transports  # Transports and testing
+pip install pamoja-profiles    # Profiles and robotics
 ```
 <!-- end -->
 
@@ -233,22 +233,26 @@ using Pamoja.Modbus;
 using Pamoja.Codec;
 ```
 
+A domain package there brings in its capabilities and ships no assembly of its
+own, since C# has no way to re-export a namespace, so a type is named the way it
+is when its package is referenced directly.
+
 Each package is one namespace of the same name. Every package depends on
 `Pamoja.Native`, which carries the native library for `win-x64`, `linux-x64`,
 `linux-arm64`, `osx-x64`, and `osx-arm64`, and targets .NET 8.
 
-The same six domains, as the packages that make them up. There is no domain
-package: naming the capabilities keeps the manifest an honest record of what the
-code uses, and `pamoja` is there when you would rather not choose at all.
+The same six domains, one package each. A domain package brings in its
+capabilities and re-exports each under its own name, so a name two of them share
+stays unambiguous:
 
 <!-- table: domains dotnet -->
 ```sh
-dotnet add package Pamoja.Serial Pamoja.Modbus Pamoja.Can Pamoja.Gpio                                       # Field I/O
-dotnet add package Pamoja.Sensors Pamoja.Actuators                                                          # Sensing and actuation
-dotnet add package Pamoja.Lora Pamoja.Lorawan Pamoja.Mesh Pamoja.Routing                                    # Radio and reach
-dotnet add package Pamoja.Audit Pamoja.Session Pamoja.Update Pamoja.Power Pamoja.Telemetry                  # Trust and operation
-dotnet add package Pamoja.Mqtt Pamoja.Coap Pamoja.Loopback Pamoja.Sync Pamoja.Ladder Pamoja.Bus Pamoja.Sim  # Transports and testing
-dotnet add package Pamoja.Profile Pamoja.Ros2 Pamoja.Zenoh                                                  # Profiles and robotics
+dotnet add package Pamoja.FieldIo     # Field I/O
+dotnet add package Pamoja.Sensing     # Sensing and actuation
+dotnet add package Pamoja.Radio       # Radio and reach
+dotnet add package Pamoja.Trust       # Trust and operation
+dotnet add package Pamoja.Transports  # Transports and testing
+dotnet add package Pamoja.Profiles    # Profiles and robotics
 ```
 <!-- end -->
 

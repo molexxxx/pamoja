@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "composite": true
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../profile"
+    },
+    {
+      "path": "../ros2"
+    },
+    {
+      "path": "../zenoh"
+    }
+  ]
+}

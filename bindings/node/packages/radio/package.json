@@ -1,0 +1,41 @@
+{
+  "name": "@pamoja/radio",
+  "version": "0.1.14",
+  "description": "Radio and reach: Budgeting airtime, framing a mesh packet, routing it, and securing a LoRaWAN uplink: everything a node needs to reach a network it cannot see.",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/molexxxx/pamoja.git",
+    "directory": "bindings/node/packages/radio"
+  },
+  "homepage": "https://pamoja.molex.cloud/docs/install.html",
+  "keywords": [
+    "pamoja",
+    "iot",
+    "robotics",
+    "radio"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "engines": {
+    "node": ">= 16"
+  },
+  "dependencies": {
+    "@pamoja/lora": "0.1.14",
+    "@pamoja/lorawan": "0.1.14",
+    "@pamoja/mesh": "0.1.14",
+    "@pamoja/routing": "0.1.14"
+  }
+}

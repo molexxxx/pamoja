@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Pamoja.Transports</PackageId>
+    <Description>Transports and testing: Reaching the network when no single link always works, and testing all of it with nothing plugged in.</Description>
+    <PackageTags>pamoja;iot;robotics;transports</PackageTags>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/install.html</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Pamoja.Mqtt/Pamoja.Mqtt.csproj" />
+    <ProjectReference Include="../Pamoja.Coap/Pamoja.Coap.csproj" />
+    <ProjectReference Include="../Pamoja.Loopback/Pamoja.Loopback.csproj" />
+    <ProjectReference Include="../Pamoja.Sync/Pamoja.Sync.csproj" />
+    <ProjectReference Include="../Pamoja.Ladder/Pamoja.Ladder.csproj" />
+    <ProjectReference Include="../Pamoja.Bus/Pamoja.Bus.csproj" />
+    <ProjectReference Include="../Pamoja.Sim/Pamoja.Sim.csproj" />
+  </ItemGroup>
+
+</Project>

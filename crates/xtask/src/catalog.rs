@@ -240,6 +240,13 @@ impl Catalog {
             }
         }
 
+        // A domain has a package of its own in each binding, alongside the capabilities.
+        let domain_keys: BTreeSet<&str> = self
+            .domains()
+            .into_iter()
+            .map(|(chapter, _)| chapter.key.as_str())
+            .collect();
+
         match node_packages(root) {
             Ok(packages) => {
                 let keys: BTreeSet<&str> = self
@@ -247,6 +254,7 @@ impl Catalog {
                     .iter()
                     .map(|capability| capability.node.as_str())
                     .filter(|key| *key != "core")
+                    .chain(domain_keys.iter().copied())
                     .collect();
                 for package in &packages {
                     if !keys.contains(package.as_str()) {
@@ -273,6 +281,7 @@ impl Catalog {
                     .iter()
                     .map(|capability| capability.python.as_str())
                     .filter(|key| *key != "core")
+                    .chain(domain_keys.iter().copied())
                     .collect();
                 for package in &packages {
                     if !keys.contains(package.as_str()) {
@@ -310,12 +319,15 @@ impl Catalog {
 
         match dotnet_packages(root) {
             Ok(packages) => {
-                let names: BTreeSet<String> = self
-                    .capabilities
-                    .iter()
-                    .filter(|capability| capability.node != "core")
-                    .map(|capability| dotnet_name(&capability.key))
-                    .collect();
+                let names: BTreeSet<String> =
+                    self.capabilities
+                        .iter()
+                        .filter(|capability| capability.node != "core")
+                        .map(|capability| dotnet_name(&capability.key))
+                        .chain(domain_keys.iter().map(|key| {
+                            key.split('-').map(dotnet_name).collect::<Vec<_>>().concat()
+                        }))
+                        .collect();
                 for package in &packages {
                     if !names.contains(package) {
                         problems.push(format!(
@@ -637,32 +649,19 @@ impl Catalog {
         let rows: Vec<(String, String)> = self
             .domains()
             .into_iter()
-            .map(|(chapter, members)| {
+            .map(|(chapter, _members)| {
                 let command = match language {
                     "rust" => format!("cargo add pamoja --features {}", chapter.key),
-                    "node" => format!(
-                        "npm install {}",
-                        members
-                            .iter()
-                            .map(|capability| format!("@pamoja/{}", capability.node))
-                            .collect::<Vec<_>>()
-                            .join(" ")
-                    ),
-                    "python" => format!(
-                        "pip install {}",
-                        members
-                            .iter()
-                            .map(|capability| format!("pamoja-{}", capability.python))
-                            .collect::<Vec<_>>()
-                            .join(" ")
-                    ),
+                    "node" => format!("npm install @pamoja/{}", chapter.key),
+                    "python" => format!("pip install pamoja-{}", chapter.key),
                     _ => format!(
-                        "dotnet add package {}",
-                        members
-                            .iter()
-                            .map(|capability| capability.dotnet_package())
+                        "dotnet add package Pamoja.{}",
+                        chapter
+                            .key
+                            .split('-')
+                            .map(dotnet_name)
                             .collect::<Vec<_>>()
-                            .join(" ")
+                            .concat()
                     ),
                 };
                 (command, chapter.title.clone())
@@ -877,8 +876,11 @@ fn python_packages(root: &Path) -> Result<BTreeSet<String>, String> {
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
         .filter_map(|path| {
             let name = path.file_name()?.to_str()?.to_owned();
+            // A domain's directory keeps the map's key, `field-io`, while its module is the
+            // identifier `field_io`, since a hyphen cannot appear in a Python module name.
+            let module = name.replace('-', "_");
             path.join("pamoja")
-                .join(&name)
+                .join(&module)
                 .join("__init__.py")
                 .is_file()
                 .then_some(name)

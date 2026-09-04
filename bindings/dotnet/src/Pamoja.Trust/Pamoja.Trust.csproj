@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Pamoja.Trust</PackageId>
+    <Description>Trust and operation: Proving what a node did, saying it in confidence, fixing it in the field, and deciding how often it can afford to do any of that.</Description>
+    <PackageTags>pamoja;iot;robotics;trust</PackageTags>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/install.html</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Pamoja.Audit/Pamoja.Audit.csproj" />
+    <ProjectReference Include="../Pamoja.Session/Pamoja.Session.csproj" />
+    <ProjectReference Include="../Pamoja.Update/Pamoja.Update.csproj" />
+    <ProjectReference Include="../Pamoja.Power/Pamoja.Power.csproj" />
+    <ProjectReference Include="../Pamoja.Telemetry/Pamoja.Telemetry.csproj" />
+  </ItemGroup>
+
+</Project>

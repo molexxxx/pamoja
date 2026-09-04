@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Pamoja.Radio</PackageId>
+    <Description>Radio and reach: Budgeting airtime, framing a mesh packet, routing it, and securing a LoRaWAN uplink: everything a node needs to reach a network it cannot see.</Description>
+    <PackageTags>pamoja;iot;robotics;radio</PackageTags>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/install.html</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Pamoja.Lora/Pamoja.Lora.csproj" />
+    <ProjectReference Include="../Pamoja.Lorawan/Pamoja.Lorawan.csproj" />
+    <ProjectReference Include="../Pamoja.Mesh/Pamoja.Mesh.csproj" />
+    <ProjectReference Include="../Pamoja.Routing/Pamoja.Routing.csproj" />
+  </ItemGroup>
+
+</Project>
