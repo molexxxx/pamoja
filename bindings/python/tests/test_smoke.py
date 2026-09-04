@@ -5,13 +5,14 @@ import asyncio
 
 import pytest
 
-import pamoja
-from pamoja import MqttClient, PamojaError, Qos, version
+from pamoja import core
+from pamoja.core import PamojaError, version
+from pamoja.mqtt import MqttClient, Qos
 
 
 def test_version_returns_string():
     assert isinstance(version(), str)
-    assert version() == pamoja.version()
+    assert version() == core.version()
 
 
 def test_qos_exposes_protocol_levels():
@@ -51,7 +52,7 @@ def test_connect_failure_raises_and_leaves_client_disconnected():
 
 
 def test_identity_signs_and_verifies_a_reading():
-    from pamoja import DeviceIdentity, fingerprint, verify
+    from pamoja.security import DeviceIdentity, fingerprint, verify
 
     device = DeviceIdentity.from_seed(bytes([7]) * 32)
     assert len(device.public_key) == 32
@@ -67,7 +68,7 @@ def test_identity_signs_and_verifies_a_reading():
 
 
 def test_a_wrong_length_key_is_an_argument_error():
-    from pamoja import DeviceIdentity, verify
+    from pamoja.security import DeviceIdentity, verify
 
     device = DeviceIdentity.from_seed(bytes(32))
     signature = device.sign(b"x")
@@ -81,7 +82,7 @@ def test_a_wrong_length_key_is_an_argument_error():
 
 
 def test_a_document_round_trips_through_cbor():
-    from pamoja import from_cbor, to_cbor
+    from pamoja.codec import from_cbor, to_cbor
 
     reading = {"id": "probe-1", "c": 21.5, "battery": 88}
     cbor = to_cbor(reading)
@@ -90,7 +91,8 @@ def test_a_document_round_trips_through_cbor():
 
 
 def test_malformed_cbor_raises():
-    from pamoja import PamojaError, from_cbor
+    from pamoja.codec import from_cbor
+    from pamoja.core import PamojaError
 
     try:
         from_cbor(bytes([0xFF, 0xFF]))
@@ -101,7 +103,7 @@ def test_malformed_cbor_raises():
 
 
 def test_readings_pack_smaller_and_decode_to_precision():
-    from pamoja import Quantizer, pack_samples, unpack_samples
+    from pamoja.codec import Quantizer, pack_samples, unpack_samples
 
     samples = [10, 11, 13, 12, 900]
     assert unpack_samples(pack_samples(samples)) == samples
@@ -115,7 +117,7 @@ def test_readings_pack_smaller_and_decode_to_precision():
 
 
 def test_helpers_carry_a_reading_through_to_an_action():
-    from pamoja import Calibration, Depletion, Smoother, Thermostat, deadband
+    from pamoja.kit import Calibration, Depletion, Smoother, Thermostat, deadband
 
     smoother = Smoother(0.5)
     assert smoother.value is None
@@ -141,7 +143,7 @@ def test_helpers_carry_a_reading_through_to_an_action():
 
 
 def test_a_geofence_reports_the_single_crossing_fix():
-    from pamoja import Boundary, Coordinate, Geofence, distance_between
+    from pamoja.kit import Boundary, Coordinate, Geofence, distance_between
 
     centre = Coordinate(-1.2921, 36.8219)
     away = Coordinate(-1.2930, 36.8219)
@@ -263,7 +265,7 @@ def test_an_actuator_command_encodes_to_its_registers():
 
 
 def test_the_windowed_helpers_summarise_recent_readings():
-    from pamoja import WINDOW_CAPACITY, Anomaly, Median, Trend, Window
+    from pamoja.kit import WINDOW_CAPACITY, Anomaly, Median, Trend, Window
 
     window = Window()
     for value in (10.0, 20.0, 30.0):
@@ -290,7 +292,8 @@ def test_the_windowed_helpers_summarise_recent_readings():
 
 
 def test_a_signed_chain_records_what_a_node_did():
-    from pamoja import DeviceIdentity, audit
+    from pamoja import audit
+    from pamoja.security import DeviceIdentity
 
     keeper = DeviceIdentity(bytes([0x21]) * 32)
     log = audit.AuditLog(keeper)
@@ -312,7 +315,8 @@ def test_a_signed_chain_records_what_a_node_did():
 
 
 def test_two_devices_talk_in_confidence_and_refuse_a_replay():
-    from pamoja import PamojaError, session
+    from pamoja import session
+    from pamoja.core import PamojaError
 
     node = session.AgreementKey(bytes([0x01]) * 32)
     gateway = session.AgreementKey(bytes([0x02]) * 32)
@@ -341,7 +345,9 @@ def test_two_devices_talk_in_confidence_and_refuse_a_replay():
 def test_a_release_stages_in_pieces_and_confirms_once_it_runs():
     import hashlib
 
-    from pamoja import DeviceIdentity, PamojaError, update
+    from pamoja import update
+    from pamoja.core import PamojaError
+    from pamoja.security import DeviceIdentity
 
     vendor = bytes([0x0A]) * 16
     device_class = bytes([0x0B]) * 16
@@ -390,7 +396,8 @@ def test_a_release_stages_in_pieces_and_confirms_once_it_runs():
 def test_a_delegated_key_may_sign_releases():
     import hashlib
 
-    from pamoja import DeviceIdentity, update
+    from pamoja import update
+    from pamoja.security import DeviceIdentity
 
     vendor = bytes([0x0C]) * 16
     device_class = bytes([0x0D]) * 16
@@ -503,7 +510,7 @@ def test_a_buffer_holds_records_until_a_link_returns():
 
 
 def test_a_ladder_falls_through_a_failing_rung_and_buffers_when_none_work():
-    from pamoja import ladder, loopback, sync, transport
+    from pamoja import core, ladder, loopback, sync
 
     async def run():
         broker = loopback.LoopbackBroker()
@@ -518,7 +525,7 @@ def test_a_ladder_falls_through_a_failing_rung_and_buffers_when_none_work():
 
         # The first rung refuses its next send; the second is the same broker.
         rungs = ladder.Ladder(sync.Store.memory())
-        await rungs.rung(transport.Transport.faulty(broker.rung(), 1))
+        await rungs.rung(core.Transport.faulty(broker.rung(), 1))
         await rungs.rung(broker.rung())
         await rungs.connect()
 
@@ -553,7 +560,7 @@ def test_a_flush_replays_what_was_buffered():
 
 
 def test_a_spent_transport_cannot_be_added_twice():
-    from pamoja import ladder, loopback, sync, transport
+    from pamoja import core, ladder, loopback, sync
 
     async def run():
         broker = loopback.LoopbackBroker()
@@ -568,7 +575,7 @@ def test_a_spent_transport_cannot_be_added_twice():
             await rungs.rung(rung)
 
         # A wrapper consumes it the same way.
-        wrapped = transport.Transport.faulty(broker.rung(), 1)
+        wrapped = core.Transport.faulty(broker.rung(), 1)
         assert wrapped.is_available is True
 
     asyncio.run(run())

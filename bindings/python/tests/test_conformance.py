@@ -10,49 +10,12 @@ import pathlib
 
 import pytest
 
-from pamoja import (
-    Calibration,
-    Coordinate,
-    Depletion,
-    DeviceIdentity,
-    Geofence,
-    Pid,
-    Quantizer,
-    Smoother,
-    Thermostat,
-    deadband,
-    from_cbor,
-    pack_samples,
-    to_cbor,
-    unpack_samples,
-    verify,
-)
-from pamoja import (
-    WINDOW_CAPACITY,
-    Anomaly,
-    Median,
-    PamojaError,
-    Trend,
-    Window,
-    actuators,
-    audit,
-    can,
-    gpio,
-    lora,
-    lorawan,
-    mesh,
-    modbus,
-    power,
-    profile,
-    ros2,
-    routing,
-    sensors,
-    serial,
-    session,
-    telemetry,
-    update,
-    zenoh,
-)
+from pamoja.codec import Quantizer, from_cbor, pack_samples, to_cbor, unpack_samples
+from pamoja.kit import Calibration, Coordinate, Depletion, Geofence, Pid, Smoother, Thermostat, deadband
+from pamoja.security import DeviceIdentity, verify
+from pamoja import actuators, audit, can, gpio, lora, lorawan, mesh, modbus, power, profile, ros2, routing, sensors, serial, session, telemetry, update, zenoh
+from pamoja.core import PamojaError
+from pamoja.kit import WINDOW_CAPACITY, Anomaly, Median, Trend, Window
 
 VECTORS = json.loads(
     (pathlib.Path(__file__).resolve().parents[3] / "conformance" / "vectors.json").read_text(
@@ -1298,7 +1261,7 @@ def test_telemetry_vectors_match():
 def test_ladder_vectors_match():
     import asyncio
 
-    from pamoja import ladder, loopback, sync, transport
+    from pamoja import core, ladder, loopback, sync
 
     vector = VECTORS["ladder"]
 
@@ -1323,7 +1286,7 @@ def test_ladder_vectors_match():
 
         rungs = ladder.Ladder(sync.Store.memory())
         await rungs.rung(
-            transport.Transport.faulty(
+            core.Transport.faulty(
                 broker.rung(), vector["fallthrough"]["failuresOnFirstRung"]
             )
         )

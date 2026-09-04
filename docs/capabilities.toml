@@ -338,7 +338,7 @@ title = "Engine surface"
 summary = "The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version"
 crates = []
 node = "core"
-python = "transport"
+python = "core"
 dotnet = ["Transport", "TransportMessage"]
 
 [[capability]]

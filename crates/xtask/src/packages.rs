@@ -412,7 +412,7 @@ fn bundle_readme(catalog: &Catalog) -> String {
          ## Install\n\n```sh\nnpm install pamoja\n```\n\n\
          ## What it bundles\n\n| Package | What it covers |\n| --- | --- |\n",
     );
-    for capability in &catalog.capabilities {
+    for capability in catalog.ordered() {
         out.push_str(&format!(
             "| `@pamoja/{}` | {} |\n",
             capability.node, capability.summary
@@ -461,6 +461,318 @@ fn native_readme() -> String {
          does not cover.\n\n\
          ## Documentation\n\n\
          - [The guides]({SITE}/) and the [TypeScript reference]({SITE}/reference/node/index.html).\n\n\
+         ## License\n\nMIT\n"
+    )
+}
+
+/// Render every generated file of the Python packages as (path, contents): a
+/// `pyproject.toml`, a README, and a `py.typed` marker for `pamoja-core` and each
+/// `pamoja-<key>` capability package, the `pamoja` metapackage that depends on all of
+/// them, and the README of `pamoja-native`, the maturin project under `packages/native`.
+///
+/// # Errors
+///
+/// Returns the reason when a package's source cannot be read.
+pub fn render_python(
+    root: &Path,
+    catalog: &Catalog,
+    version: &str,
+) -> Result<Vec<(String, String)>, String> {
+    let packages = root.join("bindings/python/packages");
+    let mut files = Vec::new();
+
+    let core_deps = python_package_imports(&packages.join("core/pamoja/core"), "core")?;
+    files.extend(python_package_files(
+        "core",
+        version,
+        "The pamoja engine's surface for Python: the runtime version, the error every native call raises, and the transport every link shares, the counterpart of the pamoja-core crate.",
+        &format!("{SITE}/"),
+        &["pamoja", "iot", "robotics", "core"],
+        &core_deps,
+        python_core_readme(),
+    ));
+
+    let mut keys: Vec<&str> = Vec::new();
+    for capability in catalog.ordered() {
+        let key = capability.python.as_str();
+        if key == "core" {
+            continue;
+        }
+        keys.push(key);
+        let deps = python_package_imports(&packages.join(key).join("pamoja").join(key), key)?;
+        files.extend(python_package_files(
+            key,
+            version,
+            &format!("{}.", capability.summary),
+            &homepage(capability),
+            &["pamoja", "iot", "robotics", key],
+            &deps,
+            python_capability_readme(root, capability, key)?,
+        ));
+    }
+
+    let all: BTreeSet<String> = keys
+        .iter()
+        .map(|key| (*key).to_owned())
+        .chain(["core".to_owned(), NATIVE.to_owned()])
+        .collect();
+    files.push((
+        "bindings/python/packages/pamoja/pyproject.toml".to_owned(),
+        pyproject(
+            "pamoja",
+            version,
+            "The whole pamoja framework in one package: every capability of one memory-safe Rust core, behind an idiomatic Python facade, for IoT, robotics, and drones.",
+            &format!("{SITE}/"),
+            &["pamoja", "iot", "robotics", "drones", "mqtt", "embedded"],
+            &all,
+            true,
+        ),
+    ));
+    files.push((
+        "bindings/python/packages/pamoja/README.md".to_owned(),
+        python_bundle_readme(catalog),
+    ));
+    files.push((
+        "bindings/python/packages/native/README.md".to_owned(),
+        python_native_readme(),
+    ));
+
+    Ok(files)
+}
+
+/// The three generated files of one pure Python package.
+fn python_package_files(
+    key: &str,
+    version: &str,
+    description: &str,
+    homepage: &str,
+    keywords: &[&str],
+    deps: &BTreeSet<String>,
+    readme: String,
+) -> Vec<(String, String)> {
+    vec![
+        (
+            format!("bindings/python/packages/{key}/pyproject.toml"),
+            pyproject(key, version, description, homepage, keywords, deps, false),
+        ),
+        (format!("bindings/python/packages/{key}/README.md"), readme),
+        (
+            format!("bindings/python/packages/{key}/pamoja/{key}/py.typed"),
+            String::new(),
+        ),
+    ]
+}
+
+/// A pure Python project manifest built by hatchling. A capability package ships its
+/// `pamoja/<key>` namespace portion; the metapackage ships nothing and only depends.
+fn pyproject(
+    key: &str,
+    version: &str,
+    description: &str,
+    homepage: &str,
+    keywords: &[&str],
+    deps: &BTreeSet<String>,
+    metapackage: bool,
+) -> String {
+    let name = if key == "pamoja" {
+        "pamoja".to_owned()
+    } else {
+        format!("pamoja-{key}")
+    };
+    let keywords: Vec<String> = keywords.iter().map(|k| format!("\"{k}\"")).collect();
+    let dependencies: Vec<String> = deps
+        .iter()
+        .map(|dep| format!("    \"pamoja-{dep}=={version}\","))
+        .collect();
+    let build = if metapackage {
+        "[tool.hatch.build.targets.wheel]\nbypass-selection = true\n"
+    } else {
+        "[tool.hatch.build.targets.wheel]\npackages = [\"pamoja\"]\n"
+    };
+    format!(
+        "[build-system]\n\
+         requires = [\"hatchling>=1.27\"]\n\
+         build-backend = \"hatchling.build\"\n\n\
+         [project]\n\
+         name = \"{name}\"\n\
+         version = \"{version}\"\n\
+         description = \"{description}\"\n\
+         readme = \"README.md\"\n\
+         license = {{ text = \"MIT\" }}\n\
+         requires-python = \">=3.10\"\n\
+         authors = [{{ name = \"molexxxx\" }}]\n\
+         keywords = [{}]\n\
+         classifiers = [\n\
+         \x20   \"Programming Language :: Python :: 3\",\n\
+         \x20   \"License :: OSI Approved :: MIT License\",\n\
+         \x20   \"Operating System :: OS Independent\",\n\
+         \x20   \"Typing :: Typed\",\n\
+         ]\n\
+         dependencies = [\n{}\n]\n\n\
+         [project.urls]\n\
+         Repository = \"https://github.com/molexxxx/pamoja\"\n\
+         Documentation = \"{homepage}\"\n\n\
+         {build}",
+        keywords.join(", "),
+        dependencies.join("\n"),
+    )
+}
+
+/// The `pamoja` distributions a namespace portion imports from: `native` for the
+/// generated contract and a capability key for each sibling module, never itself.
+fn python_package_imports(portion: &Path, own: &str) -> Result<BTreeSet<String>, String> {
+    let entries =
+        fs::read_dir(portion).map_err(|err| format!("reading {}: {err}", portion.display()))?;
+    let mut names = BTreeSet::new();
+    for path in entries.filter_map(|entry| entry.ok().map(|entry| entry.path())) {
+        if path.extension().and_then(|ext| ext.to_str()) != Some("py") {
+            continue;
+        }
+        let text = fs::read_to_string(&path)
+            .map_err(|err| format!("reading {}: {err}", path.display()))?;
+        names.extend(python_imports(&text));
+    }
+    names.remove(own);
+    Ok(names)
+}
+
+/// The `pamoja` distributions a Python source imports from.
+fn python_imports(source: &str) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+    for line in source.lines() {
+        let line = line.trim_start();
+        if let Some(rest) = line.strip_prefix("from pamoja.") {
+            let module: String = rest
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                .collect();
+            names.insert(module);
+        } else if let Some(rest) = line.strip_prefix("from pamoja import ") {
+            for name in rest.split(',') {
+                let name = name.trim().trim_matches(|c| c == '(' || c == ')').trim();
+                if !name.is_empty() {
+                    names.insert(name.to_owned());
+                }
+            }
+        } else if let Some(rest) = line.strip_prefix("import pamoja.") {
+            let module: String = rest
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                .collect();
+            names.insert(module);
+        }
+    }
+    names
+        .into_iter()
+        .map(|name| {
+            if name == "_native" || name == "raw" {
+                NATIVE.to_owned()
+            } else {
+                name
+            }
+        })
+        .collect()
+}
+
+/// The README of one Python capability package.
+fn python_capability_readme(
+    root: &Path,
+    capability: &Capability,
+    key: &str,
+) -> Result<String, String> {
+    let mut out = format!(
+        "# pamoja-{key}\n\n{}. One capability of [pamoja](https://github.com/molexxxx/pamoja), \
+         one memory-safe Rust core with bindings for TypeScript, Python, and C#.\n\n\
+         ## Install\n\n```sh\npip install pamoja-{key}\n```\n\n```python\nfrom pamoja import {key}\n```\n\n\
+         This pulls in `pamoja-native`, the compiled engine, and nothing else. \
+         `pip install pamoja` is the whole framework in one package.\n",
+        capability.summary
+    );
+
+    let snippet = format!("bindings/python/guides/{}.py", capability.key);
+    if root.join(&snippet).is_file() {
+        let example = regions::snippet(root, &format!("{snippet}#example"))?;
+        out.push_str("\n## Example\n\nThe script the test suite runs, spliced here as it ran.\n\n");
+        out.push_str(&example);
+        out.push('\n');
+    }
+
+    out.push_str("\n## Documentation\n\n");
+    if capability.guide.is_some() {
+        out.push_str(&format!(
+            "- [The {} guide]({}), with the same example in Rust, TypeScript, and C#.\n",
+            capability.title,
+            homepage(capability)
+        ));
+    }
+    out.push_str(&format!(
+        "- [The reference for `pamoja.{key}`]({SITE}/reference/python/pamoja/{key}.html), generated from its source.\n\
+         - [Every capability]({SITE}/), and the [install page]({SITE}/install.html).\n\n\
+         ## License\n\nMIT\n"
+    ));
+    Ok(out)
+}
+
+/// The README of the `pamoja` metapackage.
+fn python_bundle_readme(catalog: &Catalog) -> String {
+    let mut out = String::from(
+        "# pamoja\n\n\
+         The whole pamoja framework in one package: every capability of one memory-safe Rust \
+         core, behind an idiomatic Python facade, for IoT, robotics, and drones. Each \
+         capability is also its own distribution, so an application that needs one thing can \
+         depend on `pamoja-mqtt` alone; this package depends on all of them.\n\n\
+         ## Install\n\n```sh\npip install pamoja\n```\n\n```python\nfrom pamoja import mqtt, security\n```\n\n\
+         ## What it installs\n\n| Distribution | Module | What it covers |\n| --- | --- | --- |\n",
+    );
+    for capability in &catalog.capabilities {
+        out.push_str(&format!(
+            "| `pamoja-{0}` | `pamoja.{0}` | {1} |\n",
+            capability.python, capability.summary
+        ));
+    }
+    out.push_str(&format!(
+        "\nAll of them run on `pamoja-native`, the compiled engine, which is one extension \
+         whichever distributions you install.\n\n\
+         ## Documentation\n\n\
+         - [The guides]({SITE}/), one page per capability with the same example in Rust, TypeScript, Python, and C#.\n\
+         - [The Python reference]({SITE}/reference/python/pamoja.html), generated from every module.\n\n\
+         ## License\n\nMIT\n"
+    ));
+    out
+}
+
+/// The README of `pamoja-core`.
+fn python_core_readme() -> String {
+    format!(
+        "# pamoja-core\n\n\
+         The pamoja engine's surface for Python: the runtime version, the error every native \
+         call raises, and the transport every link shares. This is the counterpart of the \
+         `pamoja-core` crate, and like it, it is small; the compiled engine is `pamoja-native`, \
+         which this package depends on.\n\n\
+         ## Install\n\n```sh\npip install pamoja-core\n```\n\n```python\nfrom pamoja.core import version, PamojaError, Transport\n```\n\n\
+         Each capability is its own distribution (`pamoja-mqtt` gives `pamoja.mqtt`, and so on) \
+         and `pip install pamoja` is the whole framework in one package.\n\n\
+         ## Documentation\n\n\
+         - [The reference for `pamoja.core`]({SITE}/reference/python/pamoja/core.html), generated from its source.\n\
+         - [The guides]({SITE}/) and the [install page]({SITE}/install.html).\n\n\
+         ## License\n\nMIT\n"
+    )
+}
+
+/// The README of `pamoja-native`, the maturin project at the binding's root.
+fn python_native_readme() -> String {
+    format!(
+        "# pamoja-native\n\n\
+         The compiled pamoja engine for Python, built with PyO3 and maturin, with wheels for \
+         Linux (x64, arm64), macOS (x64, arm64), and Windows (x64), and the generated contract \
+         every `pamoja` package builds on. It is one extension module, `pamoja._native`, that \
+         carries every capability; the capability distributions are facades over it, so \
+         picking distributions narrows the API you depend on, not the size of the engine.\n\n\
+         You do not install this distribution directly. Every `pamoja-<capability>` \
+         distribution and the `pamoja` metapackage depend on it. `pamoja.raw` re-exports the \
+         contract for anything a facade does not cover, and `pamoja/_native/__init__.pyi` types it.\n\n\
+         ## Documentation\n\n\
+         - [The guides]({SITE}/) and the [Python reference]({SITE}/reference/python/pamoja.html).\n\n\
          ## License\n\nMIT\n"
     )
 }

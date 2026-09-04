@@ -103,6 +103,23 @@ impl Catalog {
         })
     }
 
+    /// Every capability in table order: the engine's own surface first, then the
+    /// chapters in map order.
+    pub fn ordered(&self) -> Vec<&Capability> {
+        let mut out: Vec<&Capability> = self
+            .capabilities
+            .iter()
+            .filter(|capability| capability.node == "core")
+            .collect();
+        for chapter in &self.chapters {
+            out.extend(
+                self.in_chapter(&chapter.key)
+                    .filter(|capability| capability.node != "core"),
+            );
+        }
+        out
+    }
+
     /// The capabilities of one chapter, in map order.
     pub fn in_chapter<'a>(&'a self, chapter: &'a str) -> impl Iterator<Item = &'a Capability> {
         self.capabilities
@@ -208,24 +225,25 @@ impl Catalog {
             Err(err) => problems.push(err),
         }
 
-        match python_modules(root) {
-            Ok(modules) => {
+        match python_packages(root) {
+            Ok(packages) => {
                 let keys: BTreeSet<&str> = self
                     .capabilities
                     .iter()
                     .map(|capability| capability.python.as_str())
+                    .filter(|key| *key != "core")
                     .collect();
-                for module in &modules {
-                    if !keys.contains(module.as_str()) {
+                for package in &packages {
+                    if !keys.contains(package.as_str()) {
                         problems.push(format!(
-                            "python/pamoja/{module}.py exists, which no capability claims"
+                            "bindings/python/packages/{package} exists, which no capability claims"
                         ));
                     }
                 }
                 for key in &keys {
-                    if !modules.contains(*key) {
+                    if !packages.contains(*key) {
                         problems.push(format!(
-                            "python = \"{key}\" is not a module under bindings/python/python/pamoja"
+                            "python = \"{key}\" has no package under bindings/python/packages"
                         ));
                     }
                 }
@@ -424,27 +442,25 @@ impl Catalog {
         };
         let mut out =
             format!("| Capability | {import_heading} | What it covers |\n| --- | --- | --- |\n");
-        for chapter in &self.chapters {
-            for capability in self.in_chapter(&chapter.key) {
-                let import = match language {
-                    "node" => format!("`{}`", node_package(capability)),
-                    "python" => format!("`pamoja.{}`", capability.python),
-                    _ => capability
-                        .dotnet
-                        .iter()
-                        .map(|name| format!("`{name}`"))
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                };
-                let title = match guide_url(capability) {
-                    Some(url) => format!("[{}]({url})", capability.title),
-                    None => capability.title.clone(),
-                };
-                out.push_str(&format!(
-                    "| {title} | {import} | {} |\n",
-                    capability.summary
-                ));
-            }
+        for capability in self.ordered() {
+            let import = match language {
+                "node" => format!("`{}`", node_package(capability)),
+                "python" => format!("`pamoja.{}`", capability.python),
+                _ => capability
+                    .dotnet
+                    .iter()
+                    .map(|name| format!("`{name}`"))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            };
+            let title = match guide_url(capability) {
+                Some(url) => format!("[{}]({url})", capability.title),
+                None => capability.title.clone(),
+            };
+            out.push_str(&format!(
+                "| {title} | {import} | {} |\n",
+                capability.summary
+            ));
         }
         out.trim_end().to_owned()
     }
@@ -585,16 +601,20 @@ pub fn node_package(capability: &Capability) -> String {
 }
 
 /// The facade modules of the Python package, without `__init__` and `raw`.
-fn python_modules(root: &Path) -> Result<BTreeSet<String>, String> {
-    let dir = root.join("bindings/python/python/pamoja");
+fn python_packages(root: &Path) -> Result<BTreeSet<String>, String> {
+    let dir = root.join("bindings/python/packages");
     let entries = fs::read_dir(&dir).map_err(|err| format!("reading {}: {err}", dir.display()))?;
     Ok(entries
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
         .filter_map(|path| {
-            let name = path.file_name()?.to_str()?;
-            let module = name.strip_suffix(".py")?;
-            (module != "__init__" && module != "raw").then(|| module.to_owned())
+            let name = path.file_name()?.to_str()?.to_owned();
+            path.join("pamoja")
+                .join(&name)
+                .join("__init__.py")
+                .is_file()
+                .then_some(name)
         })
+        .filter(|name| name != "core" && name != "pamoja")
         .collect())
 }
 

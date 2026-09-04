@@ -41,7 +41,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist --manifest-path bindings/python/Cargo.toml
+          args: --release --out dist --manifest-path bindings/python/packages/native/Cargo.toml
           manylinux: auto
           sccache: "true"
 
@@ -62,7 +62,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: --out dist --manifest-path bindings/python/Cargo.toml
+          args: --out dist --manifest-path bindings/python/packages/native/Cargo.toml
 
       - name: Upload sdist artifact
         uses: actions/upload-artifact@v7
@@ -71,9 +71,38 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
+  pure:
+    name: pure packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      # pamoja-core, every pamoja-<capability>, and the pamoja metapackage are pure
+      # Python: one universal wheel and one sdist each.
+      - name: Build every pure package
+        working-directory: bindings/python
+        run: |
+          pip install build
+          for package in $(find packages -mindepth 1 -maxdepth 1 -type d ! -name native); do
+            python -m build --outdir dist "$package"
+          done
+
+      - name: Upload the pure packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-pure
+          path: |
+            bindings/python/dist/*.whl
+            bindings/python/dist/*.tar.gz
+          if-no-files-found: error
+
   publish:
     name: publish to PyPI
-    needs: [build, sdist]
+    needs: [build, sdist, pure]
     runs-on: ubuntu-latest
     steps:
       - name: Download wheel and sdist artifacts

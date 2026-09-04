@@ -147,13 +147,24 @@ fn bump(new: &str) -> Result<(), String> {
         })?;
     }
 
-    for pyproject in binding_files(&root, "pyproject.toml") {
+    for pyproject in pyprojects(&root) {
         edit_toml(&pyproject, |doc| {
             let project = doc
                 .get_mut("project")
                 .and_then(Item::as_table_like_mut)
                 .ok_or("no [project] table")?;
-            set_version(project, new)
+            set_version(project, new)?;
+            if let Some(deps) = project.get_mut("dependencies").and_then(Item::as_array_mut) {
+                for entry in deps.iter_mut() {
+                    let Some(spec) = entry.as_str() else {
+                        continue;
+                    };
+                    if let Some((name, _)) = python_pin(spec) {
+                        replace_value(entry, &format!("{name}=={new}"));
+                    }
+                }
+            }
+            Ok(())
         })?;
     }
 
@@ -266,15 +277,22 @@ fn readings() -> Result<Vec<Reading>, String> {
         }
     }
 
-    for pyproject in binding_files(&root, "pyproject.toml") {
+    for pyproject in pyprojects(&root) {
         let doc = parse_toml(&pyproject)?;
-        let version = doc
-            .get("project")
-            .and_then(Item::as_table_like)
+        let project = doc.get("project").and_then(Item::as_table_like);
+        let version = project
             .and_then(|project| project.get("version"))
             .and_then(Item::as_str)
             .ok_or_else(|| format!("{} has no project.version", display(&pyproject)))?;
         readings.push(reading(&pyproject, "project.version", version));
+        let deps = project
+            .and_then(|project| project.get("dependencies"))
+            .and_then(Item::as_array);
+        for spec in deps.into_iter().flat_map(|deps| deps.iter()) {
+            if let Some((name, pinned)) = spec.as_str().and_then(python_pin) {
+                readings.push(reading(&pyproject, &format!("dependency {name}"), pinned));
+            }
+        }
     }
 
     for package_json in package_manifests(&root) {
@@ -480,9 +498,15 @@ fn for_each_dependency_table(
 /// Every crate manifest: the workspace members under `crates/` and `examples/`,
 /// and the standalone binding crates under `bindings/`.
 fn crate_manifests(root: &Path) -> Result<Vec<PathBuf>, String> {
+    let bindings = subdirectories(&root.join("bindings"))?;
+    let mut binding_packages = Vec::new();
+    for binding in &bindings {
+        binding_packages.extend(subdirectories(&binding.join("packages"))?);
+    }
     let mut manifests: Vec<PathBuf> = subdirectories(&root.join("crates"))?
         .into_iter()
-        .chain(subdirectories(&root.join("bindings"))?)
+        .chain(bindings)
+        .chain(binding_packages)
         .chain([root.join("examples")])
         .map(|dir| dir.join("Cargo.toml"))
         .filter(|path| path.is_file())
@@ -491,10 +515,16 @@ fn crate_manifests(root: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(manifests)
 }
 
-/// Every `Cargo.lock`: the workspace's and one per standalone binding crate.
+/// Every `Cargo.lock`: the workspace's and one per standalone binding crate, at a
+/// binding's root or under one of its packages.
 fn cargo_lockfiles(root: &Path) -> Vec<PathBuf> {
     let mut lockfiles = vec![root.join("Cargo.lock")];
     lockfiles.extend(binding_files(root, "Cargo.lock"));
+    for binding in subdirectories(&root.join("bindings")).unwrap_or_default() {
+        for package in subdirectories(&binding.join("packages")).unwrap_or_default() {
+            lockfiles.push(package.join("Cargo.lock"));
+        }
+    }
     lockfiles
         .into_iter()
         .filter(|path| path.is_file())
@@ -521,6 +551,29 @@ fn package_manifests(root: &Path) -> Vec<PathBuf> {
     }
     manifests.sort();
     manifests
+}
+
+/// Every Python project manifest: a binding's own and each package under its `packages/`.
+fn pyprojects(root: &Path) -> Vec<PathBuf> {
+    let mut manifests = binding_files(root, "pyproject.toml");
+    for binding in subdirectories(&root.join("bindings")).unwrap_or_default() {
+        for package in subdirectories(&binding.join("packages")).unwrap_or_default() {
+            let manifest = package.join("pyproject.toml");
+            if manifest.is_file() {
+                manifests.push(manifest);
+            }
+        }
+    }
+    manifests.sort();
+    manifests
+}
+
+/// A PyPI requirement that pins one of this repository's own distributions, as
+/// (name, version): `pamoja-native==0.1.14` gives `("pamoja-native", "0.1.14")`.
+fn python_pin(spec: &str) -> Option<(&str, &str)> {
+    let (name, version) = spec.split_once("==")?;
+    let own = name == "pamoja" || name.starts_with(CRATE_PREFIX);
+    own.then_some((name, version))
 }
 
 /// Every generated napi-rs loader: `index.js` under a binding or under one of its

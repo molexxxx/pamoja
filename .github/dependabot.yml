@@ -33,7 +33,7 @@ updates:
 
   # The Python binding crate (PyO3), excluded from the workspace.
   - package-ecosystem: cargo
-    directory: /bindings/python
+    directory: /bindings/python/packages/native
     schedule:
       interval: weekly
     commit-message:
@@ -59,7 +59,7 @@ updates:
 
   # The Python binding's build and test dependencies.
   - package-ecosystem: pip
-    directory: /bindings/python
+    directory: /bindings/python/packages/native
     schedule:
       interval: weekly
     commit-message:

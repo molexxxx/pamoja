@@ -12,6 +12,7 @@ npm install pamoja
 
 | Package | What it covers |
 | --- | --- |
+| `@pamoja/core` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | `@pamoja/security` | ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic |
 | `@pamoja/codec` | CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links |
 | `@pamoja/kit` | Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo |
@@ -37,7 +38,6 @@ npm install pamoja
 | `@pamoja/sync` | Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss |
 | `@pamoja/ladder` | Cheapest reachable link first, buffering to a store when every link is down |
 | `@pamoja/bus` | An in-memory typed publish and subscribe event bus |
-| `@pamoja/core` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | `@pamoja/sim` | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
 | `@pamoja/profile` | Named, ready-to-run device profiles from plain data or a JSON manifest |
 | `@pamoja/ros2` | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |

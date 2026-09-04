@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pamoja-lora"
+version = "0.1.14"
+description = "Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "molexxxx" }]
+keywords = ["pamoja", "iot", "robotics", "lora"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pamoja-native==0.1.14",
+]
+
+[project.urls]
+Repository = "https://github.com/molexxxx/pamoja"
+Documentation = "https://pamoja.molex.cloud/docs/"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pamoja"]

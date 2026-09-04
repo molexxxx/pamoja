@@ -28,8 +28,10 @@ npm test                      # smoke and conformance tests
 
 cd ../python
 python -m venv .venv && . .venv/bin/activate
-pip install maturin pytest && maturin develop  # build the extension and install the facade
-pytest                                          # smoke and conformance tests
+pip install maturin pytest
+maturin develop -m packages/native/Cargo.toml                          # build the engine, pamoja-native
+pip install $(find packages -mindepth 1 -maxdepth 1 -type d ! -name native)  # every pure distribution
+pytest                                                                  # smoke and conformance tests
 
 cd ../..
 cargo build -p pamoja-ffi --release                       # build the native C ABI and refresh pamoja.h
@@ -51,7 +53,8 @@ they come from and regenerate:
 | `crates/pamoja-ffi/include/pamoja.h` | the `pamoja-ffi` source | `cargo build -p pamoja-ffi` |
 | `bindings/node/packages/native/index.js` and `index.d.ts` | the Node binding source | `npm run build` in `bindings/node` |
 | `bindings/node/packages/*/package.json`, `tsconfig.json`, and `README.md` | `docs/capabilities.toml` and each package's imports | `cargo xtask docs` |
-| `bindings/python/python/pamoja/_core/__init__.pyi` | the Python binding source | `cargo run --bin stub_gen` in `bindings/python` |
+| `bindings/python/packages/native/python/pamoja/_native/__init__.pyi` | the Python binding source | `cargo run --bin stub_gen` in `bindings/python/packages/native` |
+| `bindings/python/packages/*/pyproject.toml`, `README.md`, and `py.typed` | `docs/capabilities.toml` and each portion's imports | `cargo xtask docs` |
 | `conformance/vectors.json` | the Rust implementation | `cargo run -p pamoja-examples --example conformance_vectors` |
 
 ## This site
@@ -68,7 +71,7 @@ cargo xtask docs && mdbook build          # the guides, into target/docs/site
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --exclude xtask --exclude pamoja-examples
 cp -r target/doc target/docs/site/reference/rust
 cd bindings/node/docs && npm ci && npx typedoc     # target/docs/site/reference/node
-cd bindings/python && pip install pdoc==16.0 && pdoc pamoja -o ../../target/docs/site/reference/python --docformat restructuredtext
+cd bindings/python && pip install pdoc==16.0 && pdoc pamoja '!pamoja._native' -o ../../target/docs/site/reference/python --docformat restructuredtext
 dotnet tool install -g docfx --version 2.78.5 && docfx bindings/dotnet/docs/docfx.json
 ```
 
