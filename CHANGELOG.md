@@ -21,6 +21,15 @@ released together, so one entry covers all of them.
 - `cargo xtask release --plan` derives the crates.io publish order from
   `cargo metadata`, and `cargo xtask version` sets and checks the version in
   every manifest, lockfile, and generated file.
+- A preflight every release workflow waits on. A publish cannot be withdrawn, so
+  before anything reaches a registry it checks that the tree carries the version
+  being tagged, that the commit is on main, and that `ci`, `node`, `python`, and
+  `dotnet` all completed successfully on that exact commit. Each release
+  workflow also takes a version by hand, so a run that stalled can be resumed
+  without inventing a tag.
+- A GitHub release for each tag, carrying the changelog's entry for the version
+  followed by the pull requests that went into it, grouped by label. Labels come
+  from the files a pull request touches.
 - A documentation site at [pamoja.molex.cloud/docs](https://pamoja.molex.cloud/docs/):
   the guides rendered by mdBook and a generated reference for each language
   (rustdoc, typedoc, pdoc, DocFX), built on every pull request and published
@@ -87,6 +96,13 @@ released together, so one entry covers all of them.
   without a using and a consumer catches it with `using Pamoja;`. Only the five
   transport packages depend on `Pamoja.Core` now, matching the Node and Python
   bindings, where a capability package depends on the engine alone.
+- The Node, Python, and .NET workflows all named their job "build and smoke
+  test", so a pull request showed three identical checks, none of which could be
+  required and none of which said which binding had failed. Each names its
+  language now.
+- Three binding workflows started an MQTT broker that nothing connected to,
+  pulling an image from Docker Hub on every run; one such pull failed and took
+  the build with it. No example needs a broker.
 - The gateway pairing code no longer appears in a captured dashboard log (#67).
 - Broken intra-doc links in the rustdoc of nine crates, which docs.rs rendered
   as dead links; `cargo doc` now runs with warnings denied.

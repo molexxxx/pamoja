@@ -79,9 +79,10 @@ source. One file per guide and language:
 | Python | `bindings/python/guides/<name>.py`, a script with plain `assert` | `pytest` in `bindings/python` |
 | C# | `bindings/dotnet/samples/Pamoja.Guides/<Name>Guide.cs`, a static `Run()` called from `Program.cs` | `dotnet run --project bindings/dotnet/samples/Pamoja.Guides` |
 
-`just guides` runs all four; the MQTT examples in the bindings talk to a broker
-on port 1883, which `just broker` starts (the Rust one embeds its own). The
-TypeScript files import the `@pamoja/<name>`
+`just guides` runs all four. No example needs a broker, a server, or hardware:
+where a capability is a network client, the example covers what is decidable
+without one, and the loopback transport carries the round trips. The TypeScript
+files import the `@pamoja/<name>`
 packages through the workspace links under `node_modules`, so they see each
 package the way a user does; build the facade first. The C# project has a plain
 `Guides` namespace rather than a `Pamoja.*` one, so its examples name types the

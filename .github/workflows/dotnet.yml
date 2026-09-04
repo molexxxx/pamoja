@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build:
-    name: build and smoke test
+    name: dotnet (build, smoke, guides)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -47,10 +47,6 @@ jobs:
 
       - name: Smoke test
         run: dotnet run --project bindings/dotnet/tests/Pamoja.Smoke -c Release
-
-      # The MQTT guide example talks to a real broker on 1883.
-      - name: Start an MQTT broker
-        run: docker run -d --rm -p 1883:1883 eclipse-mosquitto:2 mosquitto -c /mosquitto-no-auth.conf
 
       # The C# examples the documentation site shows are spliced from this project.
       - name: Guide examples
