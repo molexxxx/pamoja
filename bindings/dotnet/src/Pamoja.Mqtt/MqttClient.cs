@@ -64,7 +64,7 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
             if (client == IntPtr.Zero)
             {
                 throw new PamojaException(
-                    PamojaCore.LastError() ?? "failed to create the MQTT client");
+                    Status.LastError() ?? "failed to create the MQTT client");
             }
 
             _handle = new MqttClientHandle(client);
@@ -113,7 +113,7 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
                         _handle.DangerousGetHandle(), topicPtr, payloadPtr, (nuint)bytes.Length);
                 }
 
-                PamojaCore.ThrowIfError(status);
+                Status.ThrowIfError(status);
             }
             finally
             {
@@ -158,7 +158,7 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
             {
                 PamojaStatus status = NativeMethods.pamoja_mqtt_client_subscribe(
                     _handle.DangerousGetHandle(), topicPtr);
-                PamojaCore.ThrowIfError(status);
+                Status.ThrowIfError(status);
             }
             finally
             {
@@ -184,7 +184,7 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
             {
                 PamojaStatus status = NativeMethods.pamoja_mqtt_client_recv(
                     _handle.DangerousGetHandle(), out IntPtr message);
-                PamojaCore.ThrowIfError(status);
+                Status.ThrowIfError(status);
 
                 if (message == IntPtr.Zero)
                 {
@@ -312,7 +312,7 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
             _handle.DangerousAddRef(ref added);
             try
             {
-                PamojaCore.ThrowIfError(call(_handle.DangerousGetHandle()));
+                Status.ThrowIfError(call(_handle.DangerousGetHandle()));
             }
             finally
             {

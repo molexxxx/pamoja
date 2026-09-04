@@ -9,6 +9,10 @@ packages/native/        pamoja-native: the PyO3 crate, built by maturin into the
 packages/core/          pamoja-core: pamoja/core, the engine's surface
 packages/<capability>/  pamoja-<capability>: pamoja/<capability>, the hand-written
                         facade; pyproject.toml, README.md, and py.typed are generated
+packages/<domain>/      pamoja-<domain>: one per chapter of the guides holding more than
+                        one capability; brings them in and re-exports each by name from
+                        pamoja/<domain>, all generated. The directory keeps the map's
+                        hyphenated key; the module it ships is the underscored form
 packages/pamoja/        pamoja: a metapackage that installs every distribution
 tests/                  the smoke tests and the cross-language conformance suite
 guides/                 the examples the documentation site splices

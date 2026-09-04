@@ -1,4 +1,3 @@
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Lora;
@@ -30,7 +29,7 @@ public sealed class LoraPlanBuilder : IDisposable
     /// </remarks>
     public LoraPlanBuilder(string name)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_builder_new(name, out IntPtr builder));
         _builder = builder;
     }
@@ -45,7 +44,7 @@ public sealed class LoraPlanBuilder : IDisposable
         LoraDirection direction = LoraDirection.Uplink)
     {
         PamojaLoraDataRate native = rate.ToNative();
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_builder_push_data_rate(
                 Live(),
                 (uint)direction,
@@ -64,7 +63,7 @@ public sealed class LoraPlanBuilder : IDisposable
         LoraMaxPayload? payload,
         LoraPayloadTable table = LoraPayloadTable.UplinkDirect)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_builder_push_max_payload(
                 Live(),
                 (uint)table,
@@ -91,7 +90,7 @@ public sealed class LoraPlanBuilder : IDisposable
             MinDataRate = block.MinDataRate,
             MaxDataRate = block.MaxDataRate,
         };
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_builder_push_channel_block(
                 Live(),
                 (uint)which,
@@ -116,7 +115,7 @@ public sealed class LoraPlanBuilder : IDisposable
             DutyCyclePermille = band.DutyCyclePermille,
             MaxEirpDbm = band.MaxEirpDbm,
         };
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_builder_push_sub_band(Live(), in native));
         return this;
     }
@@ -131,7 +130,7 @@ public sealed class LoraPlanBuilder : IDisposable
     /// </remarks>
     public LoraPlanBuilder Rx1Row(ReadOnlySpan<byte> offsets, bool dwellLimited = false)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_builder_push_rx1_row(
                 Live(),
                 (byte)(dwellLimited ? 1 : 0),
@@ -149,7 +148,7 @@ public sealed class LoraPlanBuilder : IDisposable
     /// <exception cref="PamojaException">The builder has already been built.</exception>
     public LoraPlanBuilder Backoff(byte? lower)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_builder_push_backoff(
                 Live(),
                 (byte)(lower.HasValue ? 1 : 0),
@@ -165,7 +164,7 @@ public sealed class LoraPlanBuilder : IDisposable
     /// <exception cref="PamojaException">The builder has already been built.</exception>
     public LoraPlanBuilder Power(sbyte defaultMaxEirpDbm, byte stepDb = 2, byte maxIndex = 7)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_builder_set_power(
                 Live(),
                 defaultMaxEirpDbm,
@@ -185,7 +184,7 @@ public sealed class LoraPlanBuilder : IDisposable
     /// <exception cref="PamojaException">The builder has already been built.</exception>
     public LoraPlanBuilder Rx(uint rx2FrequencyHz, byte rx2DataRate = 0, byte maxRx1Offset = 0)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_builder_set_rx(
                 Live(),
                 rx2FrequencyHz,
@@ -209,7 +208,7 @@ public sealed class LoraPlanBuilder : IDisposable
             PingSlotFrequencyHz = beacon.PingSlotFrequencyHz,
             DataRate = beacon.DataRate,
         };
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_builder_set_beacon(
                 Live(),
                 in native,
@@ -233,7 +232,7 @@ public sealed class LoraPlanBuilder : IDisposable
     {
         IntPtr builder = Live();
         _builder = IntPtr.Zero;
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_builder_build(builder, out IntPtr plan));
         return new LoraChannelPlan(plan);
     }

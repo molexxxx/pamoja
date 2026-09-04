@@ -35,6 +35,7 @@
   "dependencies": {
     "@pamoja/bus": "0.1.14",
     "@pamoja/coap": "0.1.14",
+    "@pamoja/core": "0.1.14",
     "@pamoja/ladder": "0.1.14",
     "@pamoja/loopback": "0.1.14",
     "@pamoja/mqtt": "0.1.14",

@@ -1,4 +1,4 @@
-namespace Pamoja.Core;
+namespace Pamoja;
 
 /// <summary>The exception thrown when a pamoja operation fails.</summary>
 public sealed class PamojaException : Exception

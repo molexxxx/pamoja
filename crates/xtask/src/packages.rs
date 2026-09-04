@@ -890,7 +890,7 @@ pub fn render_dotnet(root: &Path, catalog: &Catalog) -> Result<Vec<(String, Stri
         "bindings/dotnet/src/Pamoja.Core/Pamoja.Core.csproj".to_owned(),
         csproj(
             "Core",
-            "The pamoja engine's surface for .NET: the runtime version, the exception every native call can raise, and the transport every link shares, the counterpart of the pamoja-core crate.",
+            "The pamoja engine's surface for .NET: the runtime version and the transport every link implements, the counterpart of the pamoja-core crate.",
             &format!("{SITE}/"),
             &["pamoja", "iot", "robotics", "core"],
             &core_deps,
@@ -1116,10 +1116,11 @@ fn dotnet_bundle_readme(catalog: &Catalog) -> String {
 fn dotnet_core_readme() -> String {
     format!(
         "# Pamoja.Core\n\n\
-         The pamoja engine's surface for .NET: the runtime version, the exception every native \
-         call can raise, and the transport every link shares. This is the counterpart of the \
-         `pamoja-core` crate, and like it, it is small; the compiled engine is `Pamoja.Native`, \
-         which this package depends on.\n\n\
+         The pamoja engine's surface for .NET: the runtime version and the transport every \
+         link implements. This is the counterpart of the `pamoja-core` crate, and like it, it \
+         is small. It is a capability like the others rather than a foundation: only the \
+         transport packages depend on it, because they are the ones that return a transport. \
+         The compiled engine, which every package depends on, is `Pamoja.Native`.\n\n\
          ## Install\n\n```sh\ndotnet add package Pamoja.Core\n```\n\n```csharp\nusing Pamoja.Core;\n```\n\n\
          Each capability is its own package (`Pamoja.Mqtt`, `Pamoja.Security`, and so on) and \
          `dotnet add package Pamoja` is the whole framework in one package.\n\n\
@@ -1136,9 +1137,13 @@ fn dotnet_native_readme() -> String {
         "# Pamoja.Native\n\n\
          The compiled pamoja engine for .NET, bundled for `win-x64`, `linux-x64`, `linux-arm64`, \
          `osx-x64`, and `osx-arm64`, and the P/Invoke contract every `Pamoja` package builds on: \
-         `Pamoja.Native.Interop.NativeMethods` mirrors the generated C header one-to-one. It is one \
-         library that carries every capability; the capability packages are facades over it, so \
-         picking packages narrows the API you depend on, not the size of the engine.\n\n\
+         `Pamoja.Native.Interop.NativeMethods` mirrors the generated C header one-to-one. It also \
+         carries the marshalling a facade needs to use that contract: the safe handle type, the \
+         status helpers, owned strings, and `PamojaException`, which every failed native call \
+         raises and which sits in the root `Pamoja` namespace so a facade sees it without a \
+         using. It is one library that carries every capability; the capability packages are \
+         facades over it, so picking packages narrows the API you depend on, not the size of \
+         the engine.\n\n\
          You do not install this package directly. Every `Pamoja.<Capability>` package and the \
          `Pamoja` metapackage depend on it. The interop layer stays available for anything a \
          facade does not cover.\n\n\

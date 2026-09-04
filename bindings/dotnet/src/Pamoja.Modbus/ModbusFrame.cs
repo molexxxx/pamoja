@@ -1,7 +1,6 @@
 using System.Runtime.InteropServices;
 
 using Pamoja.Codec;
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Modbus;
@@ -67,7 +66,7 @@ public sealed class ModbusFrame : IDisposable
     /// </exception>
     public ushort[] Registers() => _handle.Use(handle =>
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_modbus_frame_registers(handle, out IntPtr registers));
         try
         {
@@ -97,7 +96,7 @@ public sealed class ModbusFrame : IDisposable
     /// <exception cref="PamojaException">The reply does not carry that many bits.</exception>
     public bool[] Coils(ushort count) => _handle.Use(handle =>
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_modbus_frame_coils(handle, count, out IntPtr buffer));
         byte[] packed = Pamoja.Codec.Codec.TakeBytes(buffer);
         bool[] coils = new bool[packed.Length];

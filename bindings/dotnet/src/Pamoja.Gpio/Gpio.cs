@@ -1,4 +1,3 @@
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Gpio;
@@ -77,7 +76,7 @@ public static class I2c
         PamojaI2cDirection direction =
             read ? PamojaI2cDirection.Read : PamojaI2cDirection.Write;
         byte[] frame = new byte[2];
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_i2c_address_frame(
+        Status.ThrowIfError(NativeMethods.pamoja_i2c_address_frame(
             validated, direction, frame, (nuint)frame.Length, out nuint written));
         return frame[..checked((int)written)];
     }
@@ -121,7 +120,7 @@ public static class I2c
     {
         if (tenBit)
         {
-            PamojaCore.ThrowIfError(
+            Status.ThrowIfError(
                 NativeMethods.pamoja_i2c_address_ten_bit(address, out PamojaI2cAddress wide));
             return wide;
         }
@@ -131,7 +130,7 @@ public static class I2c
             throw new PamojaException("I2C address is out of range");
         }
 
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_i2c_address_seven_bit(
+        Status.ThrowIfError(NativeMethods.pamoja_i2c_address_seven_bit(
             (byte)address, out PamojaI2cAddress narrow));
         return narrow;
     }
@@ -146,7 +145,7 @@ public static class Spi
     /// <exception cref="PamojaException">The mode number is above 3.</exception>
     public static SpiClock ClockFor(byte mode)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_spi_mode_cpol_cpha(mode, out bool cpol, out bool cpha));
         return new SpiClock(cpol, cpha);
     }

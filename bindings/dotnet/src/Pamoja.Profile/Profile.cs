@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 
-using Pamoja.Core;
 using Pamoja.Power;
 using Pamoja.Native.Interop;
 
@@ -141,7 +140,7 @@ public sealed class Profile : IDisposable
     public ControlPolicy Control => _handle.Use(p =>
     {
         PamojaStatus status = NativeMethods.pamoja_profile_control(p, out PamojaControlSpec spec);
-        PamojaCore.ThrowIfError(status);
+        Status.ThrowIfError(status);
         return Policy(spec);
     });
 
@@ -149,7 +148,7 @@ public sealed class Profile : IDisposable
     public PowerSchedule Power => _handle.Use(p =>
     {
         PamojaStatus status = NativeMethods.pamoja_profile_power(p, out PamojaPowerSchedule s);
-        PamojaCore.ThrowIfError(status);
+        Status.ThrowIfError(status);
         return new PowerSchedule(
             s.ActiveSecs,
             s.SaverSecs,
@@ -162,7 +161,7 @@ public sealed class Profile : IDisposable
     public PowerPlan PowerPlan => _handle.Use(p =>
     {
         PamojaStatus status = NativeMethods.pamoja_profile_power_plan(p, out PamojaPowerPlan plan);
-        PamojaCore.ThrowIfError(status);
+        Status.ThrowIfError(status);
         return new PowerPlan(
             plan.ActiveUs,
             plan.SaverUs,
@@ -276,7 +275,7 @@ public sealed class Controller : IDisposable
     {
         PamojaStatus status =
             NativeMethods.pamoja_controller_evaluate(c, reading, out PamojaReaction reaction);
-        PamojaCore.ThrowIfError(status);
+        Status.ThrowIfError(status);
 
         Alert? alert = reaction.Alert switch
         {

@@ -1,6 +1,5 @@
 using System.Text;
 
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Security;
@@ -68,7 +67,7 @@ public sealed class DeviceIdentity : IDisposable
         get
         {
             byte[] key = new byte[KeyLength];
-            PamojaCore.ThrowIfError(
+            Status.ThrowIfError(
                 _handle.Use(handle =>
                     NativeMethods.pamoja_device_identity_public_key(handle, key)));
             return key;
@@ -101,7 +100,7 @@ public sealed class DeviceIdentity : IDisposable
             return false;
         }
 
-        PamojaCore.ThrowIfError(status);
+        Status.ThrowIfError(status);
         return true;
     }
 
@@ -128,7 +127,7 @@ public sealed class DeviceIdentity : IDisposable
     public static string FingerprintOf(ReadOnlySpan<byte> publicKey)
     {
         byte[] hex = new byte[FingerprintLength];
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_public_identity_fingerprint(publicKey, hex));
         return Encoding.ASCII.GetString(hex);
     }
@@ -148,7 +147,7 @@ public sealed class DeviceIdentity : IDisposable
         try
         {
             _handle.DangerousAddRef(ref added);
-            PamojaCore.ThrowIfError(NativeMethods.pamoja_device_identity_sign(
+            Status.ThrowIfError(NativeMethods.pamoja_device_identity_sign(
                 _handle.DangerousGetHandle(), payload, (nuint)length, signature));
         }
         finally

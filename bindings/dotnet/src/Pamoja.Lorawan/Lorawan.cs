@@ -1,7 +1,6 @@
 using System.Runtime.InteropServices;
 
 using Pamoja.Codec;
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Lorawan;
@@ -136,7 +135,7 @@ public sealed class LorawanSession : IDisposable
     /// <exception cref="PamojaException">Either key is not 16 bytes.</exception>
     public LorawanSession(uint devAddr, ReadOnlySpan<byte> nwkSKey, ReadOnlySpan<byte> appSKey)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_session_new(
+        Status.ThrowIfError(NativeMethods.pamoja_lorawan_session_new(
             devAddr,
             nwkSKey,
             (nuint)nwkSKey.Length,
@@ -177,7 +176,7 @@ public sealed class LorawanSession : IDisposable
         PamojaLorawanFlags flags = options.ToFlags();
         return _handle.Use(handle =>
         {
-            PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_session_encode_uplink(
+            Status.ThrowIfError(NativeMethods.pamoja_lorawan_session_encode_uplink(
                 handle,
                 fcnt,
                 fport,
@@ -212,7 +211,7 @@ public sealed class LorawanSession : IDisposable
         PamojaLorawanFlags flags = options.ToFlags();
         return _handle.Use(handle =>
         {
-            PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_session_encode_downlink(
+            Status.ThrowIfError(NativeMethods.pamoja_lorawan_session_encode_downlink(
                 handle,
                 fcnt,
                 fport,
@@ -251,7 +250,7 @@ public sealed class LorawanSession : IDisposable
     /// <exception cref="PamojaException">The frame did not verify or decode.</exception>
     private static LorawanRxData Decoded(IntPtr session, byte[] bytes, uint fcnt)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_session_decode(
+        Status.ThrowIfError(NativeMethods.pamoja_lorawan_session_decode(
             session, bytes, (nuint)bytes.Length, fcnt, out IntPtr rx));
         try
         {
@@ -313,7 +312,7 @@ public sealed class LorawanDevice : IDisposable
         ReadOnlySpan<byte> appEui,
         ReadOnlySpan<byte> appKey)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_device_new(
+        Status.ThrowIfError(NativeMethods.pamoja_lorawan_device_new(
             devEui,
             (nuint)devEui.Length,
             appEui,
@@ -335,7 +334,7 @@ public sealed class LorawanDevice : IDisposable
     {
         return _handle.Use(handle =>
         {
-            PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_device_join_request(
+            Status.ThrowIfError(NativeMethods.pamoja_lorawan_device_join_request(
                 handle, devNonce, out IntPtr frame));
             return Pamoja.Codec.Codec.TakeBytes(frame);
         });
@@ -353,7 +352,7 @@ public sealed class LorawanDevice : IDisposable
         byte[] frame = bytes.ToArray();
         return _handle.Use(handle =>
         {
-            PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_device_accept_join(
+            Status.ThrowIfError(NativeMethods.pamoja_lorawan_device_accept_join(
                 handle, frame, (nuint)frame.Length, devNonce, out IntPtr accept));
             return new LorawanJoinAccept(accept);
         });
@@ -395,7 +394,7 @@ public sealed class LorawanJoinAccept : IDisposable
     {
         return _handle.Use(handle =>
         {
-            PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_join_accept_session(
+            Status.ThrowIfError(NativeMethods.pamoja_lorawan_join_accept_session(
                 handle, out IntPtr session));
             return new LorawanSession(session);
         });
@@ -481,7 +480,7 @@ public static class Lorawan
     /// </exception>
     public static LorawanHeader ParseHeader(ReadOnlySpan<byte> bytes)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_header_parse(
+        Status.ThrowIfError(NativeMethods.pamoja_lorawan_header_parse(
             bytes, (nuint)bytes.Length, out PamojaLorawanHeader header));
         return new LorawanHeader(
             (LorawanMessageType)header.MessageType,
@@ -509,7 +508,7 @@ public static class Lorawan
         ReadOnlySpan<byte> bytes,
         ReadOnlySpan<byte> appKey)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_join_request_parse(
+        Status.ThrowIfError(NativeMethods.pamoja_lorawan_join_request_parse(
             bytes, (nuint)bytes.Length, appKey, (nuint)appKey.Length, out IntPtr request));
         try
         {
@@ -584,7 +583,7 @@ public sealed class LorawanGrant
     /// </exception>
     public byte[] Accept(ReadOnlySpan<byte> appKey, ushort devNonce)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_grant_accept(
+        Status.ThrowIfError(NativeMethods.pamoja_lorawan_grant_accept(
             _grant,
             _cflist,
             (nuint)_cflist.Length,
@@ -607,7 +606,7 @@ public sealed class LorawanGrant
     /// </exception>
     public LorawanSession Session(ReadOnlySpan<byte> appKey, ushort devNonce)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_lorawan_grant_session(
+        Status.ThrowIfError(NativeMethods.pamoja_lorawan_grant_session(
             _grant,
             _cflist,
             (nuint)_cflist.Length,

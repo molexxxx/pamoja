@@ -3,6 +3,7 @@
 using System.Text;
 using System.Text.Json;
 
+using Pamoja;
 using Pamoja.Core;
 using Pamoja.Security;
 using Pamoja.Codec;

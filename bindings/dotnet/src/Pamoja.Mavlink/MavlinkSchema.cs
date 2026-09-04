@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using System.Text;
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Mavlink;
@@ -90,7 +89,7 @@ public sealed class MavlinkSchema : IDisposable
     /// </exception>
     public static MavlinkSchema ForId(uint msgid)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_schema_for_id(msgid, out IntPtr schema));
         return new MavlinkSchema(schema);
     }
@@ -101,7 +100,7 @@ public sealed class MavlinkSchema : IDisposable
     /// <exception cref="PamojaException">This build does not type that name.</exception>
     public static MavlinkSchema ForName(string name)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_schema_for_name(name, out IntPtr schema));
         return new MavlinkSchema(schema);
     }
@@ -114,7 +113,7 @@ public sealed class MavlinkSchema : IDisposable
         List<string> names = new(count);
         for (int index = 0; index < count; index += 1)
         {
-            PamojaCore.ThrowIfError(
+            Status.ThrowIfError(
                 NativeMethods.pamoja_mavlink_schema_at((nuint)index, out IntPtr schema));
             using MavlinkSchema held = new(schema);
             names.Add(held.Name);
@@ -145,7 +144,7 @@ public sealed class MavlinkSchema : IDisposable
             List<MavlinkFieldInfo> fields = new(count);
             for (int index = 0; index < count; index += 1)
             {
-                PamojaCore.ThrowIfError(
+                Status.ThrowIfError(
                     NativeMethods.pamoja_mavlink_schema_field(
                         Handle,
                         (nuint)index,
@@ -168,7 +167,7 @@ public sealed class MavlinkSchema : IDisposable
     /// <exception cref="PamojaException">The shape does not fit a MAVLink payload.</exception>
     public MavlinkMessage CreateMessage()
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_new(Handle, out IntPtr message));
         return new MavlinkMessage(message);
     }
@@ -185,7 +184,7 @@ public sealed class MavlinkSchema : IDisposable
     /// </remarks>
     public MavlinkMessage Decode(ReadOnlySpan<byte> payload)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_decode(
                 Handle,
                 payload,
@@ -230,7 +229,7 @@ public sealed class MavlinkSchemaBuilder : IDisposable
     /// <exception cref="PamojaException">The shape has already been built.</exception>
     public MavlinkSchemaBuilder Field(string name, MavlinkFieldType fieldType, byte arrayLen = 0)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_schema_builder_field(
                 Live(),
                 name,
@@ -254,7 +253,7 @@ public sealed class MavlinkSchemaBuilder : IDisposable
         MavlinkFieldType fieldType,
         byte arrayLen = 0)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_schema_builder_extension(
                 Live(),
                 name,
@@ -278,7 +277,7 @@ public sealed class MavlinkSchemaBuilder : IDisposable
         _handle!.SetHandleAsInvalid();
         _handle = null;
 
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_schema_builder_build(builder, out IntPtr schema));
         return new MavlinkSchema(schema);
     }
@@ -338,7 +337,7 @@ public sealed class MavlinkMessage : IDisposable
     /// <exception cref="PamojaException">The message does not fit a frame.</exception>
     public MavlinkFrame ToFrame(MavlinkHeader header)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_to_frame(
                 Handle,
                 header.ToNative(),
@@ -360,7 +359,7 @@ public sealed class MavlinkMessage : IDisposable
     /// </remarks>
     public double Get(string field, int index = 0)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_get_number(
                 Handle,
                 field,
@@ -379,7 +378,7 @@ public sealed class MavlinkMessage : IDisposable
     /// </exception>
     public long GetInt64(string field, int index = 0)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_get_int(
                 Handle,
                 field,
@@ -398,7 +397,7 @@ public sealed class MavlinkMessage : IDisposable
     /// </exception>
     public ulong GetUInt64(string field, int index = 0)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_get_uint(
                 Handle,
                 field,
@@ -420,7 +419,7 @@ public sealed class MavlinkMessage : IDisposable
     /// so a fractional or oversized value is refused rather than silently truncated.
     /// </remarks>
     public void Set(string field, double value, int index = 0) =>
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_set_number(
                 Handle,
                 field,
@@ -436,7 +435,7 @@ public sealed class MavlinkMessage : IDisposable
     /// floating-point, or the value does not fit the field's type.
     /// </exception>
     public void SetInt64(string field, long value, int index = 0) =>
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_set_int(
                 Handle,
                 field,
@@ -452,7 +451,7 @@ public sealed class MavlinkMessage : IDisposable
     /// floating-point, or the value does not fit the field's type.
     /// </exception>
     public void SetUInt64(string field, ulong value, int index = 0) =>
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_set_uint(
                 Handle,
                 field,
@@ -469,7 +468,7 @@ public sealed class MavlinkMessage : IDisposable
     public byte[] GetBytes(string field, int length)
     {
         byte[] bytes = new byte[length];
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_get_bytes(
                 Handle,
                 field,
@@ -486,7 +485,7 @@ public sealed class MavlinkMessage : IDisposable
     /// than the field.
     /// </exception>
     public void SetBytes(string field, ReadOnlySpan<byte> bytes) =>
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_set_bytes(
                 Handle,
                 field,

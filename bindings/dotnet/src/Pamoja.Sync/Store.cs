@@ -26,7 +26,7 @@ public sealed class Store : IDisposable
     {
         if (handle == IntPtr.Zero)
         {
-            throw new PamojaException(PamojaCore.LastError() ?? "failed to open the store");
+            throw new PamojaException(Status.LastError() ?? "failed to open the store");
         }
 
         _handle = handle;
@@ -68,7 +68,7 @@ public sealed class Store : IDisposable
     public Task AppendAsync(ReadOnlyMemory<byte> record)
     {
         byte[] bytes = record.ToArray();
-        return Task.Run(() => PamojaCore.ThrowIfError(
+        return Task.Run(() => Status.ThrowIfError(
             NativeMethods.pamoja_store_append(Live(), bytes, (nuint)bytes.Length)));
     }
 
@@ -78,7 +78,7 @@ public sealed class Store : IDisposable
     public Task<byte[]?> PeekAsync() => Task.Run(() =>
     {
         IntPtr record = IntPtr.Zero;
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_store_peek(Live(), out record));
+        Status.ThrowIfError(NativeMethods.pamoja_store_peek(Live(), out record));
         return record == IntPtr.Zero ? null : Pamoja.Codec.Codec.TakeBytes(record);
     });
 
@@ -88,7 +88,7 @@ public sealed class Store : IDisposable
     public Task<byte[]?> PopAsync() => Task.Run(() =>
     {
         IntPtr record = IntPtr.Zero;
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_store_pop(Live(), out record));
+        Status.ThrowIfError(NativeMethods.pamoja_store_pop(Live(), out record));
         return record == IntPtr.Zero ? null : Pamoja.Codec.Codec.TakeBytes(record);
     });
 
@@ -98,7 +98,7 @@ public sealed class Store : IDisposable
     public Task<int> CountAsync() => Task.Run(() =>
     {
         nuint length = 0;
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_store_len(Live(), out length));
+        Status.ThrowIfError(NativeMethods.pamoja_store_len(Live(), out length));
         return checked((int)length);
     });
 
@@ -120,7 +120,7 @@ public sealed class Store : IDisposable
             try
             {
                 nuint sent = 0;
-                PamojaCore.ThrowIfError(NativeMethods.pamoja_store_drain_to(
+                Status.ThrowIfError(NativeMethods.pamoja_store_drain_to(
                     Live(), transport.Borrow(), topicPtr, out sent));
                 return checked((int)sent);
             }

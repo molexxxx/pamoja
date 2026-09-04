@@ -1,5 +1,4 @@
 using Pamoja.Codec;
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Modbus;
@@ -28,7 +27,7 @@ public static class Modbus
     /// <exception cref="PamojaException">The native call failed.</exception>
     public static byte[] ReadCoils(byte address, ushort start, ushort count)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_modbus_read_coils(address, start, count, out IntPtr buffer));
         return Pamoja.Codec.Codec.TakeBytes(buffer);
     }
@@ -41,7 +40,7 @@ public static class Modbus
     /// <exception cref="PamojaException">The native call failed.</exception>
     public static byte[] ReadDiscreteInputs(byte address, ushort start, ushort count)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_modbus_read_discrete_inputs(
+        Status.ThrowIfError(NativeMethods.pamoja_modbus_read_discrete_inputs(
             address, start, count, out IntPtr buffer));
         return Pamoja.Codec.Codec.TakeBytes(buffer);
     }
@@ -54,7 +53,7 @@ public static class Modbus
     /// <exception cref="PamojaException">The native call failed.</exception>
     public static byte[] ReadHoldingRegisters(byte address, ushort start, ushort count)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_modbus_read_holding_registers(
+        Status.ThrowIfError(NativeMethods.pamoja_modbus_read_holding_registers(
             address, start, count, out IntPtr buffer));
         return Pamoja.Codec.Codec.TakeBytes(buffer);
     }
@@ -67,7 +66,7 @@ public static class Modbus
     /// <exception cref="PamojaException">The native call failed.</exception>
     public static byte[] ReadInputRegisters(byte address, ushort start, ushort count)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_modbus_read_input_registers(
+        Status.ThrowIfError(NativeMethods.pamoja_modbus_read_input_registers(
             address, start, count, out IntPtr buffer));
         return Pamoja.Codec.Codec.TakeBytes(buffer);
     }
@@ -80,7 +79,7 @@ public static class Modbus
     /// <exception cref="PamojaException">The native call failed.</exception>
     public static byte[] WriteSingleCoil(byte address, ushort coil, bool on)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_modbus_write_single_coil(address, coil, on, out IntPtr buffer));
         return Pamoja.Codec.Codec.TakeBytes(buffer);
     }
@@ -93,7 +92,7 @@ public static class Modbus
     /// <exception cref="PamojaException">The native call failed.</exception>
     public static byte[] WriteSingleRegister(byte address, ushort register, ushort value)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_modbus_write_single_register(
+        Status.ThrowIfError(NativeMethods.pamoja_modbus_write_single_register(
             address, register, value, out IntPtr buffer));
         return Pamoja.Codec.Codec.TakeBytes(buffer);
     }
@@ -111,7 +110,7 @@ public static class Modbus
         ushort start,
         ReadOnlySpan<ushort> values)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_modbus_write_multiple_registers(
+        Status.ThrowIfError(NativeMethods.pamoja_modbus_write_multiple_registers(
             address, start, values, (nuint)values.Length, out IntPtr buffer));
         return Pamoja.Codec.Codec.TakeBytes(buffer);
     }
@@ -132,7 +131,7 @@ public static class Modbus
             packed[index] = values[index] ? (byte)1 : (byte)0;
         }
 
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_modbus_write_multiple_coils(
+        Status.ThrowIfError(NativeMethods.pamoja_modbus_write_multiple_coils(
             address, start, packed, (nuint)packed.Length, out IntPtr buffer));
         return Pamoja.Codec.Codec.TakeBytes(buffer);
     }
@@ -146,7 +145,7 @@ public static class Modbus
     /// <remarks>The escape hatch for the function codes this SDK does not name.</remarks>
     public static byte[] Raw(byte address, byte functionCode, ReadOnlySpan<byte> data)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_modbus_raw(
+        Status.ThrowIfError(NativeMethods.pamoja_modbus_raw(
             address, functionCode, data, (nuint)data.Length, out IntPtr buffer));
         return Pamoja.Codec.Codec.TakeBytes(buffer);
     }
@@ -159,7 +158,7 @@ public static class Modbus
     /// </exception>
     public static ModbusFrame ParseFrame(ReadOnlySpan<byte> bytes)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_modbus_frame_parse(
+        Status.ThrowIfError(NativeMethods.pamoja_modbus_frame_parse(
             bytes, (nuint)bytes.Length, out IntPtr frame));
         return new ModbusFrame(frame);
     }

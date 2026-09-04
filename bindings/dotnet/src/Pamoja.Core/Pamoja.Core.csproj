@@ -4,7 +4,7 @@
     <PackageId>Pamoja.Core</PackageId>
     <AssemblyName>Pamoja.Core</AssemblyName>
     <RootNamespace>Pamoja.Core</RootNamespace>
-    <Description>The pamoja engine's surface for .NET: the runtime version, the exception every native call can raise, and the transport every link shares, the counterpart of the pamoja-core crate.</Description>
+    <Description>The pamoja engine's surface for .NET: the runtime version and the transport every link implements, the counterpart of the pamoja-core crate.</Description>
     <PackageTags>pamoja;iot;robotics;core</PackageTags>
     <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>

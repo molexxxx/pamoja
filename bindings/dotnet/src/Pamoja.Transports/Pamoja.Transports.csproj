@@ -22,6 +22,7 @@
     <ProjectReference Include="../Pamoja.Sync/Pamoja.Sync.csproj" />
     <ProjectReference Include="../Pamoja.Ladder/Pamoja.Ladder.csproj" />
     <ProjectReference Include="../Pamoja.Bus/Pamoja.Bus.csproj" />
+    <ProjectReference Include="../Pamoja.Core/Pamoja.Core.csproj" />
     <ProjectReference Include="../Pamoja.Sim/Pamoja.Sim.csproj" />
   </ItemGroup>
 

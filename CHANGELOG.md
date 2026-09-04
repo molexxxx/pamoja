@@ -79,6 +79,14 @@ released together, so one entry covers all of them.
 
 - The capability tables in the install page and every binding README are grouped
   by chapter, so thirty rows read as a handful of domains.
+- `Pamoja.Core` was two things at once, the engine's surface and the marshalling
+  every facade needs, so all twenty-nine capability packages depended on it. The
+  handle type, the error type, the status helpers, and string marshalling move to
+  `Pamoja.Native`, where the rest of the P/Invoke contract already lives, and
+  `PamojaException` sits in the root `Pamoja` namespace so a facade sees it
+  without a using and a consumer catches it with `using Pamoja;`. Only the five
+  transport packages depend on `Pamoja.Core` now, matching the Node and Python
+  bindings, where a capability package depends on the engine alone.
 - The gateway pairing code no longer appears in a captured dashboard log (#67).
 - Broken intra-doc links in the rustdoc of nine crates, which docs.rs rendered
   as dead links; `cargo doc` now runs with warnings denied.

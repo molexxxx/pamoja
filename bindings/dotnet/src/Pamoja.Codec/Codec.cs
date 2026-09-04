@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Codec;
@@ -20,7 +19,7 @@ public static class Codec
     /// <exception cref="PamojaException">The document is not valid JSON.</exception>
     public static byte[] JsonToCbor(ReadOnlySpan<byte> json)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_codec_json_to_cbor(json, (nuint)json.Length, out IntPtr buffer));
         return TakeBytes(buffer);
     }
@@ -34,7 +33,7 @@ public static class Codec
     /// </exception>
     public static byte[] CborToJson(ReadOnlySpan<byte> cbor)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_codec_cbor_to_json(cbor, (nuint)cbor.Length, out IntPtr buffer));
         return TakeBytes(buffer);
     }
@@ -45,7 +44,7 @@ public static class Codec
     /// <exception cref="PamojaException">The native call failed.</exception>
     public static byte[] PackSamples(ReadOnlySpan<long> samples)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_codec_encode_deltas(
+        Status.ThrowIfError(NativeMethods.pamoja_codec_encode_deltas(
             samples, (nuint)samples.Length, out IntPtr buffer));
         return TakeBytes(buffer);
     }
@@ -56,7 +55,7 @@ public static class Codec
     /// <exception cref="PamojaException">The buffer is malformed.</exception>
     public static long[] UnpackSamples(ReadOnlySpan<byte> bytes)
     {
-        PamojaCore.ThrowIfError(NativeMethods.pamoja_codec_decode_deltas(
+        Status.ThrowIfError(NativeMethods.pamoja_codec_decode_deltas(
             bytes, (nuint)bytes.Length, out IntPtr samples));
         try
         {

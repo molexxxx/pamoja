@@ -1,4 +1,3 @@
-using Pamoja.Core;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Actuators;
@@ -44,7 +43,7 @@ public static class Pca9685
     /// <exception cref="PamojaException">The channel is beyond the part.</exception>
     public static byte ChannelRegister(byte channel)
     {
-        PamojaCore.ThrowIfError(
+        Status.ThrowIfError(
             NativeMethods.pamoja_pca9685_channel_register(channel, out byte register));
         return register;
     }

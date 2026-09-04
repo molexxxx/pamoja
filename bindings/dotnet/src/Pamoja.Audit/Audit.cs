@@ -1,5 +1,4 @@
 using Pamoja.Codec;
-using Pamoja.Core;
 using Pamoja.Security;
 using Pamoja.Native.Interop;
 
@@ -28,7 +27,7 @@ public sealed class AuditEntry : IDisposable
         get
         {
             byte[] digest = new byte[NativeMethods.AuditDigestLen];
-            PamojaCore.ThrowIfError(_handle.Use(handle =>
+            Status.ThrowIfError(_handle.Use(handle =>
                 NativeMethods.pamoja_audit_entry_previous(handle, digest)));
             return digest;
         }
@@ -41,7 +40,7 @@ public sealed class AuditEntry : IDisposable
         get
         {
             byte[] digest = new byte[NativeMethods.AuditDigestLen];
-            PamojaCore.ThrowIfError(_handle.Use(handle =>
+            Status.ThrowIfError(_handle.Use(handle =>
                 NativeMethods.pamoja_audit_entry_digest(handle, digest)));
             return digest;
         }
@@ -59,7 +58,7 @@ public sealed class AuditEntry : IDisposable
         get
         {
             byte[] signature = new byte[NativeMethods.AuditSignatureLen];
-            PamojaCore.ThrowIfError(_handle.Use(handle =>
+            Status.ThrowIfError(_handle.Use(handle =>
                 NativeMethods.pamoja_audit_entry_signature(handle, signature)));
             return signature;
         }

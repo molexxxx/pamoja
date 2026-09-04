@@ -141,19 +141,24 @@ impl Catalog {
         out
     }
 
-    /// The chapters worth naming as a set: those holding more than one capability that
-    /// has a package of its own. A chapter with a single capability is that capability.
+    /// The chapters worth naming as a set, with every capability they hold. A chapter
+    /// qualifies when more than one of its capabilities has a crate of its own, and the
+    /// engine's own surface comes with the chapter it belongs to, so installing a domain
+    /// gives the whole chapter as the guides present it.
     pub fn domains(&self) -> Vec<(&Chapter, Vec<&Capability>)> {
         self.chapters
             .iter()
             .map(|chapter| {
-                let members: Vec<&Capability> = self
-                    .in_chapter(&chapter.key)
-                    .filter(|capability| !capability.crates.is_empty())
-                    .collect();
+                let members: Vec<&Capability> = self.in_chapter(&chapter.key).collect();
                 (chapter, members)
             })
-            .filter(|(_, members)| members.len() > 1)
+            .filter(|(_, members)| {
+                members
+                    .iter()
+                    .filter(|capability| !capability.crates.is_empty())
+                    .count()
+                    > 1
+            })
             .collect()
     }
 

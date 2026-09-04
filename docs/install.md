@@ -34,6 +34,25 @@ Neither is a workaround. Compiling only what you use is a property of a compiled
 language, and the deployments that need it (a microcontroller with kilobytes of
 flash) run Rust and could not host a Python or .NET runtime at all.
 
+## The two things called core
+
+A binding has one package you never name and one you sometimes do, and they are
+easy to confuse.
+
+The **compiled engine** is `@pamoja/native`, `pamoja-native`, and
+`Pamoja.Native`. It is the built Rust library, the generated contract over it,
+and the plumbing every facade needs to call it: the handle type, the error every
+failed call raises, and string marshalling. Every package declares it, so it
+arrives on its own and you never install it by hand. Rust has no equivalent,
+because there you compile the crates.
+
+The **engine surface** is `@pamoja/core`, `pamoja-core`, and `Pamoja.Core`, the
+counterpart of the `pamoja-core` crate. It is the runtime version and
+`Transport`, the abstraction MQTT, CoAP, and the loopback all implement. It is a
+capability like any other, listed first in the tables below, and most packages do
+not depend on it: only the transports do, because they are the ones that return a
+`Transport`. Install it when you want to hold a link behind that interface.
+
 ## Rust
 
 ```sh
