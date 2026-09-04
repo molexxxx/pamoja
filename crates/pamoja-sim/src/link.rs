@@ -118,7 +118,7 @@ impl<T> DegradedLink<T> {
 
     // Whether the current send is the one dropped by the loss pattern.
     fn packet_lost(&self) -> bool {
-        self.drop_every != 0 && self.sends % self.drop_every == 0
+        self.drop_every != 0 && self.sends.is_multiple_of(self.drop_every)
     }
 }
 

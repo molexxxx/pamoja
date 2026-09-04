@@ -32,7 +32,7 @@ impl Cipher {
     pub(crate) fn cmac(&self, data: &[u8]) -> [u8; 16] {
         let (k1, k2) = self.subkeys();
         let n = data.len();
-        let complete = n > 0 && n % 16 == 0;
+        let complete = n > 0 && n.is_multiple_of(16);
         // The blocks processed before the final one, which is handled specially.
         let leading = if n == 0 {
             0
