@@ -58,7 +58,7 @@ jobs:
 
       - name: Rust reference
         env:
-          RUSTDOCFLAGS: -D warnings
+          RUSTDOCFLAGS: -D warnings --html-in-header ${{ github.workspace }}/docs/theme/rustdoc.html
         run: |
           cargo doc --workspace --no-deps --exclude xtask --exclude pamoja-examples
           mkdir -p target/docs/site/reference
@@ -85,7 +85,7 @@ jobs:
           pip install maturin pdoc==16.0
           maturin develop -m packages/native/Cargo.toml
           pip install $(find packages -mindepth 1 -maxdepth 1 -type d ! -name native)
-          pdoc pamoja '!pamoja._native' -o ../../target/docs/site/reference/python --docformat restructuredtext
+          pdoc pamoja '!pamoja._native' -o ../../target/docs/site/reference/python --docformat restructuredtext --template-directory ../../docs/theme/pdoc
 
       - name: .NET reference
         run: |

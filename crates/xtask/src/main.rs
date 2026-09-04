@@ -16,6 +16,7 @@ mod i18n;
 mod packages;
 mod regions;
 mod release;
+mod theme;
 mod version;
 
 /// The tasks xtask knows about, each paired with a one-line description.

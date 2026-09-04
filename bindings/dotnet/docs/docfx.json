@@ -26,7 +26,7 @@
       }
     ],
     "output": "../../../target/docs/site/reference/dotnet",
-    "template": ["default", "modern"],
+    "template": ["default", "modern", "templates/pamoja"],
     "globalMetadata": {
       "_appName": "Pamoja",
       "_appTitle": "pamoja for .NET",

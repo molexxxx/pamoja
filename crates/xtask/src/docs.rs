@@ -21,7 +21,7 @@ use quote::ToTokens;
 use syn::{Fields, ImplItem, Item, TraitItem, Visibility};
 
 use crate::catalog::{Catalog, SITE};
-use crate::{builds, buttons, packages, regions, version};
+use crate::{builds, buttons, packages, regions, theme, version};
 
 /// Run the `docs` task: regenerate every derived file, or `--check` to verify they are in sync.
 ///
@@ -232,6 +232,7 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
     }
 
     files.extend(buttons::render());
+    files.extend(theme::render());
 
     let version = version::current()?;
     files.extend(packages::render_node(&root, &catalog, &version)?);

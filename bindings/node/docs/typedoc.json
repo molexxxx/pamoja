@@ -16,6 +16,7 @@
     "includeCategories": false,
     "includeGroups": false
   },
+  "customCss": "../../../docs/theme/typedoc.css",
   "githubPages": false,
   "hideGenerator": true
 }
