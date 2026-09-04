@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Pamoja.Profile</PackageId>
+    <AssemblyName>Pamoja.Profile</AssemblyName>
+    <RootNamespace>Pamoja.Profile</RootNamespace>
+    <Description>Named, ready-to-run device profiles from plain data or a JSON manifest.</Description>
+    <PackageTags>pamoja;iot;robotics;profile</PackageTags>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Pamoja.Core/Pamoja.Core.csproj" />
+    <ProjectReference Include="../Pamoja.Native/Pamoja.Native.csproj" />
+    <ProjectReference Include="../Pamoja.Power/Pamoja.Power.csproj" />
+  </ItemGroup>
+
+</Project>

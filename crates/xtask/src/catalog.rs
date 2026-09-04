@@ -33,6 +33,18 @@ pub struct Capability {
     pub guide: Option<String>,
 }
 
+impl Capability {
+    /// The NuGet package the capability lives in: its own `Pamoja.<Name>`, or
+    /// `Pamoja.Core` for the surface the engine carries itself.
+    pub fn dotnet_package(&self) -> String {
+        if self.node == "core" {
+            "Pamoja.Core".to_owned()
+        } else {
+            format!("Pamoja.{}", dotnet_name(&self.key))
+        }
+    }
+}
+
 /// The whole map: chapters in order, capabilities in order, and the engine crates.
 pub struct Catalog {
     pub chapters: Vec<Chapter>,
@@ -257,10 +269,36 @@ impl Catalog {
                     for name in &capability.dotnet {
                         if !types.contains(name) {
                             problems.push(format!(
-                                "capability {}: {name} is not a type declared under bindings/dotnet/src/Pamoja.Core",
+                                "capability {}: {name} is not a type declared under bindings/dotnet/src",
                                 capability.key
                             ));
                         }
+                    }
+                }
+            }
+            Err(err) => problems.push(err),
+        }
+
+        match dotnet_packages(root) {
+            Ok(packages) => {
+                let names: BTreeSet<String> = self
+                    .capabilities
+                    .iter()
+                    .filter(|capability| capability.node != "core")
+                    .map(|capability| dotnet_name(&capability.key))
+                    .collect();
+                for package in &packages {
+                    if !names.contains(package) {
+                        problems.push(format!(
+                            "bindings/dotnet/src/Pamoja.{package} exists, which no capability claims"
+                        ));
+                    }
+                }
+                for name in &names {
+                    if !packages.contains(name) {
+                        problems.push(format!(
+                            "capability package Pamoja.{name} has no project under bindings/dotnet/src"
+                        ));
                     }
                 }
             }
@@ -428,7 +466,12 @@ impl Catalog {
         let types: Vec<String> = capability
             .dotnet
             .iter()
-            .map(|name| format!("[`{name}`]({SITE}/reference/dotnet/api/Pamoja.Core.{name}.html)"))
+            .map(|name| {
+                format!(
+                    "[`{name}`]({SITE}/reference/dotnet/api/{}.{name}.html)",
+                    capability.dotnet_package()
+                )
+            })
             .collect();
         lines.push(format!("- C#: {}", types.join(", ")));
         lines.join("\n")
@@ -438,7 +481,7 @@ impl Catalog {
         let import_heading = match language {
             "node" => "Import",
             "python" => "Module",
-            _ => "Types",
+            _ => "Package",
         };
         let mut out =
             format!("| Capability | {import_heading} | What it covers |\n| --- | --- | --- |\n");
@@ -446,12 +489,7 @@ impl Catalog {
             let import = match language {
                 "node" => format!("`{}`", node_package(capability)),
                 "python" => format!("`pamoja.{}`", capability.python),
-                _ => capability
-                    .dotnet
-                    .iter()
-                    .map(|name| format!("`{name}`"))
-                    .collect::<Vec<_>>()
-                    .join(", "),
+                _ => format!("`{}`", capability.dotnet_package()),
             };
             let title = match guide_url(capability) {
                 Some(url) => format!("[{}]({url})", capability.title),
@@ -620,18 +658,52 @@ fn python_packages(root: &Path) -> Result<BTreeSet<String>, String> {
 
 /// Every type declared in the .NET binding's sources.
 fn dotnet_types(root: &Path) -> Result<BTreeSet<String>, String> {
-    let dir = root.join("bindings/dotnet/src/Pamoja.Core");
-    let entries = fs::read_dir(&dir).map_err(|err| format!("reading {}: {err}", dir.display()))?;
     let mut types = BTreeSet::new();
-    for path in entries.filter_map(|entry| entry.ok().map(|entry| entry.path())) {
-        if path.extension().and_then(|ext| ext.to_str()) != Some("cs") {
-            continue;
+    for project in dotnet_project_dirs(root)? {
+        let entries = fs::read_dir(&project)
+            .map_err(|err| format!("reading {}: {err}", project.display()))?;
+        for path in entries.filter_map(|entry| entry.ok().map(|entry| entry.path())) {
+            if path.extension().and_then(|ext| ext.to_str()) != Some("cs") {
+                continue;
+            }
+            let text = fs::read_to_string(&path)
+                .map_err(|err| format!("reading {}: {err}", path.display()))?;
+            types.extend(declared_types(&text));
         }
-        let text = fs::read_to_string(&path)
-            .map_err(|err| format!("reading {}: {err}", path.display()))?;
-        types.extend(declared_types(&text));
     }
     Ok(types)
+}
+
+/// Every project directory under `bindings/dotnet/src`.
+fn dotnet_project_dirs(root: &Path) -> Result<Vec<std::path::PathBuf>, String> {
+    let dir = root.join("bindings/dotnet/src");
+    let entries = fs::read_dir(&dir).map_err(|err| format!("reading {}: {err}", dir.display()))?;
+    let mut dirs: Vec<std::path::PathBuf> = entries
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .filter(|path| path.is_dir())
+        .collect();
+    dirs.sort();
+    Ok(dirs)
+}
+
+/// The capability packages under `bindings/dotnet/src`: every `Pamoja.<Name>` project
+/// other than the engine's own (`Core`, `Native`) and the metapackage.
+fn dotnet_packages(root: &Path) -> Result<BTreeSet<String>, String> {
+    Ok(dotnet_project_dirs(root)?
+        .into_iter()
+        .filter_map(|path| path.file_name()?.to_str().map(str::to_owned))
+        .filter_map(|name| name.strip_prefix("Pamoja.").map(str::to_owned))
+        .filter(|name| name != "Core" && name != "Native")
+        .collect())
+}
+
+/// The .NET package a capability key becomes: the key with its first letter raised.
+pub fn dotnet_name(key: &str) -> String {
+    let mut chars = key.chars();
+    match chars.next() {
+        Some(first) => first.to_ascii_uppercase().to_string() + chars.as_str(),
+        None => String::new(),
+    }
 }
 
 /// The names declared by `class`, `record`, `struct`, `enum`, and `interface` in C# source.
@@ -727,7 +799,7 @@ crates = ["pamoja-core"]
 
         let reference = catalog.render("reference modbus", &descriptions).unwrap();
         assert!(reference.contains("- TypeScript: [`@pamoja/modbus`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_modbus.html)"));
-        assert!(reference.contains("- C#: [`Modbus`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.Modbus.html), [`ModbusFrame`]"));
+        assert!(reference.contains("- C#: [`Modbus`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Modbus.Modbus.html), [`ModbusFrame`]"));
 
         let binding = catalog.render("binding python", &descriptions).unwrap();
         assert!(binding.contains("| [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html) | `pamoja.modbus` | Modbus RTU requests and replies |"));

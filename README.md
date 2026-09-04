@@ -301,8 +301,8 @@ pytest                                          # smoke-test the binding
 
 cd ../..
 cargo build -p pamoja-ffi --release                       # build the native C ABI and refresh pamoja.h
-dotnet build bindings/dotnet/Pamoja.Core.sln -c Release    # build the .NET interop and facade
-dotnet run --project bindings/dotnet/tests/Pamoja.Core.Smoke -c Release  # smoke-test the binding
+dotnet build bindings/dotnet/Pamoja.sln -c Release    # build the .NET interop and facade
+dotnet run --project bindings/dotnet/tests/Pamoja.Smoke -c Release  # smoke-test the binding
 ```
 
 The local toolchain needs no extra components; formatting and clippy run in CI.

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Pamoja.Kit</PackageId>
+    <AssemblyName>Pamoja.Kit</AssemblyName>
+    <RootNamespace>Pamoja.Kit</RootNamespace>
+    <Description>Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo.</Description>
+    <PackageTags>pamoja;iot;robotics;kit</PackageTags>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Pamoja.Core/Pamoja.Core.csproj" />
+    <ProjectReference Include="../Pamoja.Native/Pamoja.Native.csproj" />
+  </ItemGroup>
+
+</Project>

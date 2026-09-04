@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Pamoja.Audit</PackageId>
+    <AssemblyName>Pamoja.Audit</AssemblyName>
+    <RootNamespace>Pamoja.Audit</RootNamespace>
+    <Description>A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification.</Description>
+    <PackageTags>pamoja;iot;robotics;audit</PackageTags>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Pamoja.Codec/Pamoja.Codec.csproj" />
+    <ProjectReference Include="../Pamoja.Core/Pamoja.Core.csproj" />
+    <ProjectReference Include="../Pamoja.Native/Pamoja.Native.csproj" />
+    <ProjectReference Include="../Pamoja.Security/Pamoja.Security.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Pamoja.Actuators</PackageId>
+    <AssemblyName>Pamoja.Actuators</AssemblyName>
+    <RootNamespace>Pamoja.Actuators</RootNamespace>
+    <Description>PCA9685 PWM and servo pulses, and stepper coil sequencing.</Description>
+    <PackageTags>pamoja;iot;robotics;actuators</PackageTags>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Pamoja.Core/Pamoja.Core.csproj" />
+    <ProjectReference Include="../Pamoja.Native/Pamoja.Native.csproj" />
+  </ItemGroup>
+
+</Project>

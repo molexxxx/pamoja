@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Pamoja</PackageId>
+    <AssemblyName>Pamoja</AssemblyName>
+    <RootNamespace>Pamoja</RootNamespace>
+    <Description>The whole pamoja framework in one package: every capability of one memory-safe Rust core, behind an idiomatic C# facade, for IoT, robotics, and drones.</Description>
+    <PackageTags>pamoja;iot;robotics;drones;mqtt;embedded</PackageTags>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Pamoja.Actuators/Pamoja.Actuators.csproj" />
+    <ProjectReference Include="../Pamoja.Audit/Pamoja.Audit.csproj" />
+    <ProjectReference Include="../Pamoja.Bus/Pamoja.Bus.csproj" />
+    <ProjectReference Include="../Pamoja.Can/Pamoja.Can.csproj" />
+    <ProjectReference Include="../Pamoja.Coap/Pamoja.Coap.csproj" />
+    <ProjectReference Include="../Pamoja.Codec/Pamoja.Codec.csproj" />
+    <ProjectReference Include="../Pamoja.Core/Pamoja.Core.csproj" />
+    <ProjectReference Include="../Pamoja.Gpio/Pamoja.Gpio.csproj" />
+    <ProjectReference Include="../Pamoja.Kit/Pamoja.Kit.csproj" />
+    <ProjectReference Include="../Pamoja.Ladder/Pamoja.Ladder.csproj" />
+    <ProjectReference Include="../Pamoja.Loopback/Pamoja.Loopback.csproj" />
+    <ProjectReference Include="../Pamoja.Lora/Pamoja.Lora.csproj" />
+    <ProjectReference Include="../Pamoja.Lorawan/Pamoja.Lorawan.csproj" />
+    <ProjectReference Include="../Pamoja.Mavlink/Pamoja.Mavlink.csproj" />
+    <ProjectReference Include="../Pamoja.Mesh/Pamoja.Mesh.csproj" />
+    <ProjectReference Include="../Pamoja.Modbus/Pamoja.Modbus.csproj" />
+    <ProjectReference Include="../Pamoja.Mqtt/Pamoja.Mqtt.csproj" />
+    <ProjectReference Include="../Pamoja.Native/Pamoja.Native.csproj" />
+    <ProjectReference Include="../Pamoja.Power/Pamoja.Power.csproj" />
+    <ProjectReference Include="../Pamoja.Profile/Pamoja.Profile.csproj" />
+    <ProjectReference Include="../Pamoja.Ros2/Pamoja.Ros2.csproj" />
+    <ProjectReference Include="../Pamoja.Routing/Pamoja.Routing.csproj" />
+    <ProjectReference Include="../Pamoja.Security/Pamoja.Security.csproj" />
+    <ProjectReference Include="../Pamoja.Sensors/Pamoja.Sensors.csproj" />
+    <ProjectReference Include="../Pamoja.Serial/Pamoja.Serial.csproj" />
+    <ProjectReference Include="../Pamoja.Session/Pamoja.Session.csproj" />
+    <ProjectReference Include="../Pamoja.Sim/Pamoja.Sim.csproj" />
+    <ProjectReference Include="../Pamoja.Sync/Pamoja.Sync.csproj" />
+    <ProjectReference Include="../Pamoja.Telemetry/Pamoja.Telemetry.csproj" />
+    <ProjectReference Include="../Pamoja.Update/Pamoja.Update.csproj" />
+    <ProjectReference Include="../Pamoja.Zenoh/Pamoja.Zenoh.csproj" />
+  </ItemGroup>
+
+</Project>

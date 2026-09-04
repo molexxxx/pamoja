@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-using Pamoja.Core.Interop;
+using Pamoja.Native.Interop;
 
 namespace Pamoja.Core;
 
@@ -19,7 +19,7 @@ public static class PamojaCore
     /// The native last-error slot is thread-local, so this must be read on the same
     /// thread that made the failing call.
     /// </remarks>
-    internal static string? LastError()
+    public static string? LastError()
     {
         IntPtr message = NativeMethods.pamoja_last_error_message();
         return message == IntPtr.Zero ? null : Marshal.PtrToStringUTF8(message);
@@ -28,7 +28,7 @@ public static class PamojaCore
     /// <summary>Throws a <see cref="PamojaException"/> when <paramref name="status"/> is not OK.</summary>
     /// <param name="status">The status returned by a native call.</param>
     /// <remarks>Call this on the same thread as the native call so the last-error message resolves.</remarks>
-    internal static void ThrowIfError(PamojaStatus status)
+    public static void ThrowIfError(PamojaStatus status)
     {
         if (status != PamojaStatus.Ok)
         {

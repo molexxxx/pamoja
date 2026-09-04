@@ -12,7 +12,7 @@ namespace Pamoja.Core;
 /// which <c>*_free</c> function releases them, so one handle type carrying that
 /// function serves them all.
 /// </remarks>
-internal sealed class NativeHandle : SafeHandle
+public sealed class NativeHandle : SafeHandle
 {
     private readonly Action<IntPtr> _release;
 
@@ -123,4 +123,4 @@ internal sealed class NativeHandle : SafeHandle
 /// <param name="handle">The native handle to act on.</param>
 /// <param name="value">The value produced, when the call returns <c>true</c>.</param>
 /// <returns><c>true</c> when a value was produced.</returns>
-internal delegate bool NativeTry<TValue>(IntPtr handle, out TValue value);
+public delegate bool NativeTry<TValue>(IntPtr handle, out TValue value);
