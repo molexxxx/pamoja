@@ -7,6 +7,7 @@
 use std::path::Path;
 use std::process::{Command, ExitCode};
 
+mod builds;
 mod catalog;
 mod docs;
 mod footprint;
@@ -37,6 +38,10 @@ const TASKS: &[(&str, &str)] = &[
     (
         "dashboard",
         "run the local-first dashboard dev server with mock data (dashboard dev [scenario])",
+    ),
+    (
+        "builds",
+        "report what each named feature set of the pamoja crate compiles, and the built engine sizes",
     ),
     (
         "docs",
@@ -72,6 +77,24 @@ fn main() -> ExitCode {
 
     if task == "dashboard" {
         return dashboard(&args.collect::<Vec<_>>());
+    }
+
+    if task == "builds" {
+        return match builds::report(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .ancestors()
+                .nth(2)
+                .expect("repo root is two levels above the xtask crate"),
+        ) {
+            Ok(report) => {
+                print!("{report}");
+                ExitCode::SUCCESS
+            }
+            Err(err) => {
+                eprintln!("xtask builds: {err}");
+                ExitCode::FAILURE
+            }
+        };
     }
 
     if task == "docs" {

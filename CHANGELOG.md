@@ -34,6 +34,10 @@ released together, so one entry covers all of them.
 - Guide examples that run as tests in all four languages, spliced into the
   documentation from the test files, and the Python facade's doctests now run
   with its test suite.
+- `cargo xtask builds` measures what each named feature set of the `pamoja`
+  crate compiles, resolved for a fixed target so the counts are the same on
+  every machine. The install page carries the table, regenerated and
+  drift-checked with the rest of the generated documentation.
 
 ### Changed
 
@@ -71,6 +75,12 @@ released together, so one entry covers all of them.
 - `pamoja-lora` with its `std` feature on did not compile outside its own test
   build, because the crate stayed `no_std` regardless; it now links `std` when
   the feature is on, and the `pamoja` crate's default build exercises it.
+- The install page described choosing packages as if it shrank a binding's
+  download. It does not: each binding loads one engine carrying every
+  capability, so the choice narrows the API and the dependency manifest. The
+  page now says which of the two applies per language and measures the Rust
+  claim, and `pamoja-ffi` documents the feature sets that do shrink the library
+  for a C or C++ host that builds it.
 
 ### Dependencies
 

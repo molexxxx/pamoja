@@ -77,9 +77,11 @@ source. One file per guide and language:
 | Rust | `examples/tests/guides/<name>.rs`, one `#[test]`, declared in `main.rs` | `cargo test -p pamoja-examples --test guides` |
 | TypeScript | `bindings/node/guides/<name>.ts`, top-level statements with `node:assert/strict` | `npm run test:guides` in `bindings/node` |
 | Python | `bindings/python/guides/<name>.py`, a script with plain `assert` | `pytest` in `bindings/python` |
-| C# | `bindings/dotnet/samples/Pamoja.Guides/<Name>.cs`, a static `Run()` called from `Program.cs` | `dotnet run --project bindings/dotnet/samples/Pamoja.Guides` |
+| C# | `bindings/dotnet/samples/Pamoja.Guides/<Name>Guide.cs`, a static `Run()` called from `Program.cs` | `dotnet run --project bindings/dotnet/samples/Pamoja.Guides` |
 
-`just guides` runs all four. The TypeScript files import the `@pamoja/<name>`
+`just guides` runs all four; the MQTT examples in the bindings talk to a broker
+on port 1883, which `just broker` starts (the Rust one embeds its own). The
+TypeScript files import the `@pamoja/<name>`
 packages through the workspace links under `node_modules`, so they see each
 package the way a user does; build the facade first. The C# project has a plain
 `Guides` namespace rather than a `Pamoja.*` one, so its examples name types the

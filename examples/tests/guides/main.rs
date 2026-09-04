@@ -1,5 +1,5 @@
-//! The guide examples. Each module is one test whose marked region is spliced into a
-//! page of the documentation site by `cargo xtask docs`, so every Rust example the
-//! site shows is code that ran here.
+//! The guide examples: one module per page of the documentation site, each a test
+//! whose marked region is spliced into that page by `cargo xtask docs`.
 
+mod imports;
 mod quickstart;

@@ -31,6 +31,27 @@ never fall behind the Rust surface.
 - All strings crossing the boundary are UTF-8. Inputs are borrowed for the
   duration of the call; returned pointers document their own lifetime.
 
+# Choosing what the library carries
+
+Every capability is a cargo feature, all on by default, so a host that builds
+this crate itself gets the same "compile only what you use" property a Rust
+consumer has, and it is worth using. The seven capabilities that need an async
+runtime (`mqtt`, `coap`, `loopback`, `sync`, `ladder`, `bus`, and `sim`) carry
+Tokio and the network stacks with them, and are about half the compiled
+library on their own: dropping just those, keeping every other capability,
+took a release build from 2.07 MB to 1.01 MB. A host that only decodes
+protocol bytes can go much further, to 0.41 MB:
+
+```sh
+cargo build --release -p pamoja-ffi --no-default-features \
+  --features "modbus,can,serial,gpio,sensors,codec,security"
+```
+
+Those figures are one `x86_64-pc-windows-msvc` build and will differ per
+platform; `cargo xtask builds` reports the sizes on the machine at hand. The
+Node, Python, and .NET packages ship the full default build regardless,
+because their package managers cannot express the choice per consumer.
+
 ## enum `PamojaStatus`
 
 The result of a fallible pamoja call.

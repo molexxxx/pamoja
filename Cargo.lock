@@ -2453,6 +2453,7 @@ dependencies = [
 name = "pamoja-examples"
 version = "0.1.14"
 dependencies = [
+ "pamoja",
  "pamoja-actuators",
  "pamoja-audit",
  "pamoja-can",
@@ -2480,6 +2481,7 @@ dependencies = [
  "pamoja-telemetry",
  "pamoja-update",
  "pamoja-zenoh",
+ "rumqttd",
  "serde",
  "serde_json",
  "sha2 0.11.0",

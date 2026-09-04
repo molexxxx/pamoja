@@ -5,7 +5,8 @@ The core knows about `Transport`, `Device`, `Sensor`, `Actuator`, `Store`, and
 the event bus; it knows nothing about MQTT or CAN specifically. Concrete crates
 implement those traits and are pulled in only when needed, so nobody pays for
 what they do not use, and on a microcontroller you compile in two crates and
-nothing else.
+nothing else. The [install page](../install.md) measures that claim per feature
+set, down to a single-capability build that carries no third-party code at all.
 
 This separation is literal in Rust: `pamoja-core` defines the traits, and each
 transport (`pamoja-mqtt`, `pamoja-coap`) is its own crate, so Rust code pulls
@@ -18,6 +19,15 @@ kinds are `pamoja-<name>`, `pamoja-core`, `pamoja`, and `pamoja-native`, merged
 into one `pamoja` namespace on import. On NuGet they are `Pamoja.<Name>`,
 `Pamoja.Core`, `Pamoja`, and `Pamoja.Native`, each package a namespace of the
 same name.
+
+That per-package shape means different things on the two sides of the C ABI. A
+Rust build compiles only the crates it names. A binding loads one compiled
+engine carrying every capability, so choosing packages there narrows the API and
+the dependency manifest rather than the download. Compiling away what you do not
+use is a property of a compiled language, and the targets that need it run Rust
+rather than a managed runtime. A C or C++ host that builds `pamoja-ffi` itself
+gets the Rust behaviour, because the capabilities are cargo features there:
+dropping the seven that need an async runtime halves the library.
 
 ```
    npm  pamoja, @pamoja/<capability>      PyPI  pamoja, pamoja-<capability>

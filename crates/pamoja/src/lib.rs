@@ -10,7 +10,7 @@
 //! `pamoja-codec`, `pamoja::mqtt` is `pamoja-mqtt`, and `pamoja::core` is
 //! `pamoja-core`, the traits every capability implements. The types, the
 //! documentation, and the examples are those of the crate, so code moves between
-//! `use pamoja::codec::Cbor` and `use pamoja_codec::Cbor` with no other change.
+//! `use pamoja::codec::CborCodec` and `use pamoja_codec::CborCodec` with no other change.
 //!
 //! ```toml
 //! [dependencies]

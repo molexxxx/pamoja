@@ -45,9 +45,17 @@ dashboard-checks:
     cargo build -p pamoja-dashboard --no-default-features --features "serve,tier-c"
     cargo build -p pamoja-dashboard --no-default-features --features "serve,tier-b,locale-sw"
 
+# report what each named feature set of the pamoja crate compiles, and the built engine sizes
+builds:
+    cargo run -p xtask -- builds
+
 # verify the generated crate READMEs, the site navigation, and the doc regions are in sync
 docs-check:
     cargo run -p xtask -- docs --check
+
+# start the MQTT broker the binding guide examples talk to (stop with `docker stop pamoja-broker`)
+broker:
+    docker run -d --rm --name pamoja-broker -p 1883:1883 eclipse-mosquitto:2 mosquitto -c /mosquitto-no-auth.conf
 
 # run the guide examples in every language (the code the documentation site shows)
 guides:

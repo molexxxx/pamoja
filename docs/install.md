@@ -1,8 +1,6 @@
 # Install
 
-`pamoja` is the whole framework in one package, in every language. Install it
-when you want everything, or install only the packages you use: every
-capability is its own package, and the lists below say which.
+`pamoja` is the whole framework in one package, in every language:
 
 ```sh
 cargo add pamoja                 # Rust
@@ -11,47 +9,85 @@ pip install pamoja               # Python
 dotnet add package Pamoja        # C# and .NET
 ```
 
+That is the right default. Every capability is also its own package, and the
+sections below list them, but what you gain by picking them differs between
+Rust and the bindings. It is worth knowing which before you choose.
+
 Every crate, package, and binding shares one version and is released together,
 so `0.1.15` of any package wraps `0.1.15` of every other. The
 [changelog](https://github.com/molexxxx/pamoja/blob/main/CHANGELOG.md) covers
 all of them in one entry.
 
+## What picking packages changes
+
+In Rust, it changes what gets compiled. A crate you do not name is never built,
+and its dependencies are never fetched, so a narrow build is genuinely smaller
+and carries less third-party code.
+
+In the bindings it changes what you import, not what you download. Node, Python,
+and .NET each load one compiled engine that carries every capability, and every
+package depends on it. Choosing packages narrows the API you see, the manifest
+you ship, and the code your dependency scanners have to account for. It does not
+shrink the engine.
+
+Neither is a workaround. Compiling only what you use is a property of a compiled
+language, and the deployments that need it (a microcontroller with kilobytes of
+flash) run Rust and could not host a Python or .NET runtime at all.
+
 ## Rust
 
 ```sh
 cargo add pamoja                        # every capability, behind a feature each
-cargo add pamoja-security pamoja-codec  # only the crates you use
+cargo add pamoja-modbus                 # or one crate on its own
 ```
+
+<!-- snippet: examples/tests/guides/imports.rs#rust -->
+From [`examples/tests/guides/imports.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/imports.rs):
 
 ```rust
-use pamoja::security::DeviceIdentity;   // the same type as pamoja_security::DeviceIdentity
-use pamoja_codec::Cbor;
+use pamoja::modbus::Adu; // the same type as pamoja_modbus::Adu
+use pamoja_codec::CborCodec;
 ```
+<!-- end -->
 
 Each module of `pamoja` is the crate of the same name, so the two ways in share
-one API and one set of documentation. A build that names only some features
-(`cargo add pamoja --no-default-features --features std,security,codec`) takes on
-only those crates' dependencies, the same as depending on the crates directly.
-Most capability crates are `no_std`, so the same code runs on a gateway and on
-a microcontroller. The [Rust reference](reference/rust.md) lists every crate.
+one API and one set of documentation, and code moves between them unchanged.
+
+Naming features is what makes a build small. Measured from the resolved
+dependency graph, for a `x86_64-unknown-linux-gnu` build:
+
+<!-- table: builds -->
+| Build | What you write | Crates compiled | From this workspace | External |
+| --- | --- | --- | --- | --- |
+| Every capability | `cargo add pamoja` | 107 | 31 | 76 |
+| Codecs and identity | `--features codec,security` | 36 | 4 | 32 |
+| Field I/O | `--features modbus,can,serial,gpio` | 6 | 6 | 0 |
+| One capability | `--features modbus` | 3 | 3 | 0 |
+| Bare metal, no `std` | `--features modbus,sensors,lora` | 5 | 5 | 0 |
+<!-- end -->
+
+The narrow builds carry no third-party code at all: `pamoja`, `pamoja-core`, and
+the capability crate, and nothing else. Most capability crates are `no_std`, so
+the same code runs on a gateway and on a microcontroller. The
+[Rust reference](reference/rust.md) lists every crate.
 
 ## TypeScript and Node
 
 ```sh
 npm install pamoja                            # every capability
-npm install @pamoja/security @pamoja/codec   # only the packages you use
+npm install @pamoja/modbus @pamoja/codec      # or only the packages you use
 ```
 
 ```ts
-import { DeviceIdentity } from '@pamoja/security'
+import { readHoldingRegisters } from '@pamoja/modbus'
 import { toCbor, fromCbor } from '@pamoja/codec'
 ```
 
 Every package depends on `@pamoja/native`, the compiled engine, prebuilt for
 Linux (x64, arm64), macOS (x64, arm64), and Windows (x64); npm picks the right
-one. It is one binary that carries every capability whichever packages you
-install, so picking packages narrows the API and the dependencies you take on,
-not the download. Node 16 or later.
+one. It is one binary carrying every capability whichever packages you install,
+so the choice is about the API surface and your dependency manifest, not the
+download. Node 16 or later.
 
 <!-- table: binding node -->
 | Capability | Import | What it covers |
@@ -92,11 +128,11 @@ not the download. Node 16 or later.
 
 ```sh
 pip install pamoja                          # every capability
-pip install pamoja-security pamoja-codec    # only the distributions you use
+pip install pamoja-modbus pamoja-codec      # or only the distributions you use
 ```
 
 ```python
-from pamoja.security import DeviceIdentity
+from pamoja.modbus import read_holding_registers
 from pamoja.codec import to_cbor, from_cbor
 ```
 
@@ -144,12 +180,12 @@ a Rust toolchain.
 ## C# and .NET
 
 ```sh
-dotnet add package Pamoja                          # every capability
-dotnet add package Pamoja.Security Pamoja.Codec    # only the packages you use
+dotnet add package Pamoja                        # every capability
+dotnet add package Pamoja.Modbus Pamoja.Codec    # or only the packages you use
 ```
 
 ```csharp
-using Pamoja.Security;
+using Pamoja.Modbus;
 using Pamoja.Codec;
 ```
 

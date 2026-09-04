@@ -342,7 +342,8 @@ impl Catalog {
     }
 
     // The bundle crate's manifest against the map: one feature per capability, named by
-    // the capability key, enabling exactly that capability's crates, and in the default set.
+    // the capability key, enabling that capability's crates and no crate another
+    // capability claims, and in the default set.
     fn bundle_problems(&self, root: &Path, name: &str) -> Vec<String> {
         let path = root.join("crates").join(name).join("Cargo.toml");
         let text = match fs::read_to_string(&path) {
@@ -367,6 +368,16 @@ impl Catalog {
         };
         let default = feature("default").unwrap_or_default();
 
+        // The crates another capability claims: a feature may pull in a shared engine crate,
+        // but never one this map attributes to a different capability.
+        let claimed_elsewhere = |key: &str| -> BTreeSet<&str> {
+            self.capabilities
+                .iter()
+                .filter(|other| other.key != key)
+                .flat_map(|other| other.crates.iter().map(String::as_str))
+                .collect()
+        };
+
         let mut problems = Vec::new();
         for capability in &self.capabilities {
             if capability.crates.is_empty() {
@@ -381,6 +392,17 @@ impl Catalog {
                         if !enabled.contains(&dep) {
                             problems.push(format!(
                                 "crates/{name}/Cargo.toml: feature `{key}` does not enable {dep}"
+                            ));
+                        }
+                    }
+                    let others = claimed_elsewhere(key);
+                    for entry in &enabled {
+                        let Some(krate) = entry.strip_prefix("dep:") else {
+                            continue;
+                        };
+                        if others.contains(krate) {
+                            problems.push(format!(
+                                "crates/{name}/Cargo.toml: feature `{key}` also enables {entry}, which another capability claims"
                             ));
                         }
                     }
