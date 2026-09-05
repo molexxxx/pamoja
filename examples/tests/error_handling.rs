@@ -41,7 +41,8 @@ fn every_capability_error_crosses_the_question_mark_operator() -> Result<(), Box
 
     let node = AgreementKey::from_seed(&[7u8; 32]);
     let gateway = AgreementKey::from_seed(&[9u8; 32]);
-    let salt = [1u8; 16];
+    let mut salt = [0u8; 16];
+    getrandom::fill(&mut salt).expect("the system random source");
     let mut uplink = Session::establish(&node, &gateway.public(), &salt, Role::Initiator);
     let mut downlink = Session::establish(&gateway, &node.public(), &salt, Role::Responder);
     let mut buffer = *b"flow=41.2";
