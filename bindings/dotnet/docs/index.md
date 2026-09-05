@@ -18,47 +18,67 @@ Each capability is also its own package, so an application that needs one thing 
 
 ## A first example
 
-A reading off a wire, smoothed, signed, and packed for a metered link, with nothing plugged in. This runs in CI, and is spliced here from the test that runs it.
+A reading taken off a wire on a field node, sent over a link, and checked on the gateway that receives it, with nothing plugged in and nothing running. This runs in CI, and is spliced here from the test that runs it.
 
 From [`bindings/dotnet/samples/Pamoja.Guides/Quickstart.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/Quickstart.cs):
 
 ```csharp
-// A stand-in for the thermometer. On a running node these nine bytes arrive from
-// the 1-Wire bus; here the library builds what a part sitting at 25.0625 C would
-// send, so the program runs with nothing plugged in.
-byte[] offTheBus = Ds18b20.BuildScratchpad(25.0625f, 12, 75, -10);
-
-// Everything below is the node's own code, and none of it cares where the bytes
-// came from. The part checksums every read, so a value mangled on a long run comes
-// back as an error instead of a plausible temperature a couple of degrees off.
-float celsius = Ds18b20.ParseScratchpad(offTheBus).MicroCelsius / 1e6f;
-Console.WriteLine($"read      {celsius:F4} C"); // read      25.0625 C
-
-// Readings jitter. A smoother follows the trend without keeping a history to do
-// it, which matters on a part with kilobytes of RAM.
-using var smoother = new Smoother(0.5f);
-smoother.Update(celsius);
-float smoothed = smoother.Update(celsius + 1.0f);
-Console.WriteLine($"smoothed  {smoothed:F4} C"); // smoothed  25.5625 C
-
-// Sign it, so the gateway can tell this device's readings from anyone else's.
 byte[] seed = new byte[DeviceIdentity.KeyLength];
 Array.Fill(seed, (byte)7);
+
+// The link. A loopback broker stands in for MQTT or CoAP, so this runs with no
+// network and nothing listening. Point the node at a real transport and nothing
+// below changes.
+using var broker = new LoopbackBroker();
+using LoopbackTransport node = broker.Link();
+using LoopbackTransport gateway = broker.Link();
+await node.ConnectAsync();
+await gateway.ConnectAsync();
+await gateway.SubscribeAsync(Topic);
+
 using var device = new DeviceIdentity(seed);
-string reading = smoothed.ToString("F2", CultureInfo.InvariantCulture);
-byte[] signature = device.Sign(reading);
-if (!DeviceIdentity.Verify(device.PublicKey, reading, signature))
-{
-    throw new InvalidOperationException("the gateway would reject this reading");
-}
+byte[] known = device.PublicKey;
+Console.WriteLine($"gateway trusts device {DeviceIdentity.FingerprintOf(known)}");
 
-Console.WriteLine($"signed    {reading} C, and the signature checks out");
+// A stand-in for the thermometer. On a running node these nine bytes arrive from
+// the 1-Wire bus; here the library builds what a part at 25.0625 C would send.
+byte[] offTheBus = Ds18b20.BuildScratchpad(25.0625f, 12, 75, -10);
 
-// Send a batch rather than a reading at a time. Successive samples differ by very
-// little, so writing down the differences costs a fraction of eight bytes each.
-long[] batch = [2506, 2507, 2509, 2508, 2510];
+// On the node. The part checksums every read, so a value mangled on a long run is
+// an error rather than a plausible temperature a couple of degrees off.
+float celsius = Ds18b20.ParseScratchpad(offTheBus).MicroCelsius / 1e6f;
+Console.WriteLine($"read      {celsius:F4} C");
+
+// Readings jitter, so smooth them, and send a batch rather than one at a time.
+// Successive readings differ by very little, so the differences cost a fraction of
+// what the readings would on a link that charges by the byte.
+using var smoother = new Smoother(0.5f);
+long[] batch =
+[
+    .. new[] { celsius, celsius + 0.5f, celsius + 0.4f }
+        .Select(sample => (long)Math.Round(smoother.Update(sample) * 100)),
+];
 byte[] packed = Codec.PackSamples(batch);
 Console.WriteLine($"packed    {batch.Length} readings into {packed.Length} bytes");
+
+// Sign the batch and send it. The signature travels with the payload as one
+// message, so there is nothing to keep together and split correctly at the far end.
+await node.SendAsync(Topic, device.SignMessage(packed));
+
+// On the gateway. Verifying returns the payload, so a reading that was altered on
+// the way, or signed by some other device, never reaches the code that unpacks it.
+TransportMessage? received = await gateway.ReceiveAsync();
+byte[]? payload = DeviceIdentity.VerifyMessage(known, received!.Payload);
+if (payload is null)
+{
+    Console.WriteLine("gateway   rejected the reading");
+}
+else
+{
+    Console.WriteLine(
+        $"gateway   accepted {string.Join(", ", Codec.UnpackSamples(payload))}"
+        + " in hundredths of a degree");
+}
 ```
 
 ## Every package

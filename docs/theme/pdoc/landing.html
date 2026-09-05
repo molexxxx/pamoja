@@ -16,45 +16,73 @@ worked example in four languages, are on <a href="https://pamoja.molex.cloud/doc
 
 <h2>A first example</h2>
 
-<p>A reading off a wire, smoothed, signed, and packed for a metered link, with nothing plugged in. This runs in CI, and is spliced here from the test that runs it.</p>
+<p>A reading taken off a wire on a field node, sent over a link, and checked on the gateway that receives it, with nothing plugged in and nothing running. This runs in CI, and is spliced here from the test that runs it.</p>
 
-<pre><code>from pamoja import sensors
+<pre><code>import asyncio
+
+from pamoja import sensors
 from pamoja.codec import pack_samples, unpack_samples
 from pamoja.kit import Smoother
-from pamoja.security import DeviceIdentity, verify
+from pamoja.loopback import LoopbackBroker
+from pamoja.security import DeviceIdentity, fingerprint, verify_message
 
-# A stand-in for the thermometer. On a running node these nine bytes arrive from the
-# 1-Wire bus; here the library builds what a part sitting at 25.0625 C would send, so the
-# program runs with nothing plugged in.
-off_the_bus = sensors.ds18b20.build_scratchpad(25.0625, 12, 75, -10)
+# The device's identity is provisioned once and never leaves it. The gateway is told only
+# the public half, which is how it recognises this device later.
+SEED = bytes([7]) * 32
+TOPIC = "sensors/1/temperature"
 
-# Everything below is the node's own code, and none of it cares where the bytes came from.
-# The part checksums every read, so a value mangled on a long run comes back as an error
-# instead of a plausible temperature a couple of degrees off.
-scratchpad = sensors.ds18b20.parse_scratchpad(off_the_bus)
-celsius = scratchpad.micro_celsius / 1e6
-print(f"read      {celsius:.4f} C")  # read      25.0625 C
 
-# Readings jitter. A smoother follows the trend without keeping a history to do it, which
-# matters on a part with kilobytes of RAM.
-smoother = Smoother(0.5)
-smoother.update(celsius)
-smoothed = smoother.update(celsius + 1.0)
-print(f"smoothed  {smoothed:.4f} C")  # smoothed  25.5625 C
+async def main() -&gt; bytes:
+    # The link. A loopback broker stands in for MQTT or CoAP, so this runs with no network
+    # and nothing listening. Point the node at a real transport and nothing below changes.
+    broker = LoopbackBroker()
+    node = broker.link()
+    gateway = broker.link()
+    await node.connect()
+    await gateway.connect()
+    await gateway.subscribe(TOPIC)
 
-# Sign it, so the gateway can tell this device's readings from anyone else's.
-device = DeviceIdentity.from_seed(bytes([7]) * 32)
-reading = f"{smoothed:.2f}"
-signature = device.sign(reading)
-if not verify(device.public_key, reading, signature):
-    raise SystemExit("the gateway would reject this reading")
-print(f"signed    {reading} C, and the signature checks out")
+    device = DeviceIdentity.from_seed(SEED)
+    known = device.public_key
+    print(f"gateway trusts device {fingerprint(known)}")
 
-# Send a batch rather than a reading at a time. Successive samples differ by very little,
-# so writing down the differences costs a fraction of eight bytes each.
-batch = [2506, 2507, 2509, 2508, 2510]
-packed = pack_samples(batch)
-print(f"packed    {len(batch)} readings into {len(packed)} bytes")</code></pre>
+    # A stand-in for the thermometer. On a running node these nine bytes arrive from the
+    # 1-Wire bus; here the library builds what a part at 25.0625 C would send.
+    off_the_bus = sensors.ds18b20.build_scratchpad(25.0625, 12, 75, -10)
+
+    # On the node. The part checksums every read, so a value mangled on a long run is an
+    # error rather than a plausible temperature a couple of degrees off.
+    celsius = sensors.ds18b20.parse_scratchpad(off_the_bus).micro_celsius / 1e6
+    print(f"read      {celsius:.4f} C")
+
+    # Readings jitter, so smooth them, and send a batch rather than one at a time.
+    # Successive readings differ by very little, so the differences cost a fraction of
+    # what the readings would on a link that charges by the byte.
+    smoother = Smoother(0.5)
+    batch = [
+        round(smoother.update(sample) * 100)
+        for sample in (celsius, celsius + 0.5, celsius + 0.4)
+    ]
+    packed = pack_samples(batch)
+    print(f"packed    {len(batch)} readings into {len(packed)} bytes")
+
+    # Sign the batch and send it. The signature travels with the payload as one message,
+    # so there is nothing to keep together and split correctly at the far end.
+    await node.send(TOPIC, device.sign_message(packed))
+
+    # On the gateway. Verifying returns the payload, so a reading that was altered on the
+    # way, or signed by some other device, never reaches the code that unpacks it.
+    received = await gateway.recv()
+    payload = verify_message(known, received.payload)
+    if payload is None:
+        print("gateway   rejected the reading")
+    else:
+        print(f"gateway   accepted {unpack_samples(payload)} in hundredths of a degree")
+
+    return received.payload
+
+
+message = asyncio.run(main())</code></pre>
 
 <h2>Every package</h2>
 

@@ -966,5 +966,6 @@ module.exports.UPDATE_STRUCTURE_VERSION = nativeBinding.UPDATE_STRUCTURE_VERSION
 module.exports.verify = nativeBinding.verify
 module.exports.verifyAuditChain = nativeBinding.verifyAuditChain
 module.exports.verifyEnvelope = nativeBinding.verifyEnvelope
+module.exports.verifyMessage = nativeBinding.verifyMessage
 module.exports.version = nativeBinding.version
 module.exports.WINDOW_CAPACITY = nativeBinding.WINDOW_CAPACITY

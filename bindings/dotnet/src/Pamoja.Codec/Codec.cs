@@ -77,22 +77,5 @@ public static class Codec
     /// <summary>Copies a native byte buffer out and releases it.</summary>
     /// <param name="buffer">The buffer handle a native call produced.</param>
     /// <returns>The buffer's contents.</returns>
-    public static byte[] TakeBytes(IntPtr buffer)
-    {
-        try
-        {
-            int length = checked((int)NativeMethods.pamoja_buffer_len(buffer));
-            byte[] bytes = new byte[length];
-            if (length > 0)
-            {
-                Marshal.Copy(NativeMethods.pamoja_buffer_data(buffer), bytes, 0, length);
-            }
-
-            return bytes;
-        }
-        finally
-        {
-            NativeMethods.pamoja_buffer_free(buffer);
-        }
-    }
+    public static byte[] TakeBytes(IntPtr buffer) => OwnedBuffer.Take(buffer);
 }

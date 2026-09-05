@@ -53,6 +53,11 @@ impl DeviceIdentity {
         PyBytes::new(py, &self.inner.sign(&payload).to_bytes())
     }
 
+    /// Signs a payload and returns the signature followed by the payload, as one message.
+    fn sign_message<'py>(&self, py: Python<'py>, payload: Vec<u8>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.inner.sign_message(&payload))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "DeviceIdentity(fingerprint={:?})",
@@ -76,6 +81,27 @@ pub fn verify(public_key: Vec<u8>, payload: Vec<u8>, signature: Vec<u8>) -> PyRe
     Ok(public
         .verify(&payload, &Signature::from_bytes(&signature))
         .is_ok())
+}
+
+/// Verifies a signed message and returns the payload it carries.
+///
+/// Returns `None` when the message is too short to hold a signature, was altered,
+/// or was signed by a different device.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn verify_message<'py>(
+    py: Python<'py>,
+    public_key: Vec<u8>,
+    message: Vec<u8>,
+) -> PyResult<Option<Bound<'py, PyBytes>>> {
+    let key = fixed::<KEY_LEN>(&public_key, "public_key")?;
+    let Ok(public) = PublicIdentity::from_bytes(&key) else {
+        return Ok(None);
+    };
+    Ok(public
+        .verify_message(&message)
+        .ok()
+        .map(|payload| PyBytes::new(py, payload)))
 }
 
 /// Returns the short hex fingerprint of a public key.

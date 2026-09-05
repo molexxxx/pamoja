@@ -105,6 +105,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     {
         m.add_class::<security::DeviceIdentity>()?;
         m.add_function(wrap_pyfunction!(security::verify, m)?)?;
+        m.add_function(wrap_pyfunction!(security::verify_message, m)?)?;
         m.add_function(wrap_pyfunction!(security::fingerprint, m)?)?;
     }
     #[cfg(feature = "codec")]

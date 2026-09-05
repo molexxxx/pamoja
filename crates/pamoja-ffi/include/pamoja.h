@@ -8972,6 +8972,48 @@ PamojaStatus pamoja_device_identity_sign(const PamojaDeviceIdentity *identity,
                                          uintptr_t payload_len,
                                          uint8_t *out_signature);
 
+// Signs a payload and returns one buffer holding the signature and the payload.
+//
+// This is the answering half of [`pamoja_public_identity_verify_message`]: the
+// caller sends one blob instead of keeping a payload and a detached signature
+// together and splitting them correctly at the far end.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// the caller must release with `pamoja_buffer_free`.
+//
+// # Safety
+//
+// `identity` must be a live handle from [`pamoja_device_identity_new`];
+// `payload` must point to at least `payload_len` readable bytes, or be null when
+// `payload_len` is 0; and `out_buffer` must point to a writable
+// `*mut PamojaBuffer`.
+PamojaStatus pamoja_device_identity_sign_message(const PamojaDeviceIdentity *identity,
+                                                 const uint8_t *payload,
+                                                 uintptr_t payload_len,
+                                                 PamojaBuffer **out_buffer);
+
+// Verifies a signed message and returns the payload it carries.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding the payload, which the caller must release with `pamoja_buffer_free`.
+// Returns [`PamojaStatus::Auth`] if the message is shorter than a signature, was
+// altered, or was signed by a different device.
+//
+// # Safety
+//
+// `public_key` must point to at least [`PAMOJA_KEY_LEN`] readable bytes;
+// `message` must point to at least `message_len` readable bytes, or be null when
+// `message_len` is 0; and `out_buffer` must point to a writable
+// `*mut PamojaBuffer`.
+PamojaStatus pamoja_public_identity_verify_message(const uint8_t *public_key,
+                                                   const uint8_t *message,
+                                                   uintptr_t message_len,
+                                                   PamojaBuffer **out_buffer);
+
 // Releases a device identity handle.
 //
 // Passing null is a no-op.

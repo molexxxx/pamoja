@@ -16,7 +16,7 @@ use std::ptr;
 
 use pamoja_security::{DeviceIdentity, PublicIdentity, Signature};
 
-use crate::{read_bytes, set_last_error, PamojaStatus};
+use crate::{read_bytes, set_last_error, PamojaBuffer, PamojaStatus};
 
 /// The length in bytes of an identity seed and of a public key.
 pub const PAMOJA_KEY_LEN: usize = 32;
@@ -131,6 +131,99 @@ pub unsafe extern "C" fn pamoja_device_identity_sign(
         Err(_) => {
             set_last_error("panic at the FFI boundary".to_owned());
             PamojaStatus::Panic
+        }
+    }
+}
+
+/// Signs a payload and returns one buffer holding the signature and the payload.
+///
+/// This is the answering half of [`pamoja_public_identity_verify_message`]: the
+/// caller sends one blob instead of keeping a payload and a detached signature
+/// together and splitting them correctly at the far end.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+/// the caller must release with `pamoja_buffer_free`.
+///
+/// # Safety
+///
+/// `identity` must be a live handle from [`pamoja_device_identity_new`];
+/// `payload` must point to at least `payload_len` readable bytes, or be null when
+/// `payload_len` is 0; and `out_buffer` must point to a writable
+/// `*mut PamojaBuffer`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_device_identity_sign_message(
+    identity: *const PamojaDeviceIdentity,
+    payload: *const u8,
+    payload_len: usize,
+    out_buffer: *mut *mut PamojaBuffer,
+) -> PamojaStatus {
+    let Some(identity) = identity_handle(identity) else {
+        return PamojaStatus::InvalidArgument;
+    };
+    if out_buffer.is_null() {
+        set_last_error("out_buffer must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let payload = match read_bytes(payload, payload_len) {
+        Ok(payload) => payload,
+        Err(status) => return status,
+    };
+    match catch_unwind(AssertUnwindSafe(|| identity.inner.sign_message(&payload))) {
+        Ok(message) => {
+            *out_buffer = PamojaBuffer::into_raw(message);
+            PamojaStatus::Ok
+        }
+        Err(_) => {
+            set_last_error("panic at the FFI boundary".to_owned());
+            PamojaStatus::Panic
+        }
+    }
+}
+
+/// Verifies a signed message and returns the payload it carries.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+/// holding the payload, which the caller must release with `pamoja_buffer_free`.
+/// Returns [`PamojaStatus::Auth`] if the message is shorter than a signature, was
+/// altered, or was signed by a different device.
+///
+/// # Safety
+///
+/// `public_key` must point to at least [`PAMOJA_KEY_LEN`] readable bytes;
+/// `message` must point to at least `message_len` readable bytes, or be null when
+/// `message_len` is 0; and `out_buffer` must point to a writable
+/// `*mut PamojaBuffer`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_public_identity_verify_message(
+    public_key: *const u8,
+    message: *const u8,
+    message_len: usize,
+    out_buffer: *mut *mut PamojaBuffer,
+) -> PamojaStatus {
+    if out_buffer.is_null() {
+        set_last_error("out_buffer must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let public = match read_public(public_key) {
+        Ok(public) => public,
+        Err(status) => return status,
+    };
+    let message = match read_bytes(message, message_len) {
+        Ok(message) => message,
+        Err(status) => return status,
+    };
+    match public.verify_message(&message) {
+        Ok(payload) => {
+            *out_buffer = PamojaBuffer::into_raw(payload.to_vec());
+            PamojaStatus::Ok
+        }
+        Err(error) => {
+            set_last_error(error.to_string());
+            PamojaStatus::from_error(&error)
         }
     }
 }

@@ -27,40 +27,51 @@
 //!
 //! # Example
 //!
-//! A reading off a wire, smoothed, signed, and packed for a metered link, with
-//! nothing plugged in:
+//! A reading taken off a wire, smoothed, packed for a metered link, and signed so
+//! the gateway that receives it can tell which device sent it, with nothing plugged
+//! in:
 //!
 //! ```
 //! use pamoja::codec::{decode_deltas, encode_deltas};
 //! use pamoja::kit::Smoother;
-//! use pamoja::security::DeviceIdentity;
-//! use pamoja::sensors::ds18b20::{crc8, Scratchpad};
+//! use pamoja::security::{DeviceIdentity, PublicIdentity};
+//! use pamoja::sensors::ds18b20::{temperature_from_celsius, Resolution, Scratchpad};
 //!
-//! // The nine bytes a DS18B20 sends, CRC last; a bad CRC is a rejected read.
-//! let mut scratchpad = [0x91, 0x01, 0x4b, 0x46, 0x7f, 0xff, 0x0c, 0x10, 0x00];
-//! scratchpad[8] = crc8(&scratchpad[..8]);
-//! let celsius = Scratchpad::parse(&scratchpad)
-//!     .expect("the CRC matches")
+//! // A stand-in for the thermometer. On a running node these nine bytes arrive from
+//! // the 1-Wire bus; here the library builds what a part at 25.0625 C would send.
+//! let off_the_bus = Scratchpad::new(
+//!     temperature_from_celsius(25.0625, Resolution::Bits12),
+//!     Resolution::Bits12,
+//!     75,
+//!     -10,
+//! )
+//! .to_bytes();
+//!
+//! // The part checksums every read, so a value mangled on a long run is an error
+//! // rather than a plausible temperature a couple of degrees off.
+//! let celsius = Scratchpad::parse(&off_the_bus)
+//!     .expect("the checksum matches")
 //!     .temperature_celsius();
 //! assert_eq!(celsius, 25.0625);
 //!
-//! // Smooth the noise out of successive readings.
+//! // Readings jitter, so smooth them and send a batch rather than one at a time.
 //! let mut smoother = Smoother::new(0.5);
-//! smoother.update(celsius);
-//! let smoothed = smoother.update(celsius + 1.0);
-//! assert!(smoothed > celsius && smoothed < celsius + 1.0);
+//! let batch: Vec<i64> = [celsius, celsius + 0.5, celsius + 0.4]
+//!     .into_iter()
+//!     .map(|sample| (smoother.update(sample) * 100.0).round() as i64)
+//!     .collect();
+//! let packed = encode_deltas(&batch);
+//! assert!(packed.len() < batch.len() * 8);
 //!
-//! // Sign the reading so a gateway can prove which device sent it.
+//! // Sign the batch. The signature travels with the payload as one message, so a
+//! // gateway holding only the public key gets the payload back once it checks out.
 //! let device = DeviceIdentity::from_seed(&[7u8; 32]);
-//! let payload = format!("{smoothed:.2}");
-//! let signature = device.sign(payload.as_bytes());
-//! assert!(device.public().verify(payload.as_bytes(), &signature).is_ok());
+//! let message = device.sign_message(&packed);
 //!
-//! // Pack a batch of readings for a link where every byte costs money.
-//! let samples = [2506i64, 2507, 2509, 2508, 2510];
-//! let packed = encode_deltas(&samples);
-//! assert!(packed.len() < samples.len() * 8);
-//! assert_eq!(decode_deltas(&packed).expect("a valid batch"), samples);
+//! let known = PublicIdentity::from_bytes(&device.public().to_bytes())?;
+//! let payload = known.verify_message(&message)?;
+//! assert_eq!(decode_deltas(payload).expect("a valid batch"), batch);
+//! # Ok::<(), pamoja::core::Error>(())
 //! ```
 //!
 //! # Features

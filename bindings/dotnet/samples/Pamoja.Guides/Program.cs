@@ -2,7 +2,7 @@
 // site by `cargo xtask docs`, so every C# example the site shows is code that ran.
 using Guides;
 
-Quickstart.Run();
+await Quickstart.RunAsync();
 SecurityGuide.Run();
 CodecGuide.Run();
 KitGuide.Run();

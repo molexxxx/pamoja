@@ -48,6 +48,12 @@ impl DeviceIdentity {
     pub fn sign(&self, payload: Buffer) -> Buffer {
         self.inner.sign(payload.as_ref()).to_bytes().to_vec().into()
     }
+
+    /// Signs a payload and returns the signature followed by the payload, as one message.
+    #[napi]
+    pub fn sign_message(&self, payload: Buffer) -> Buffer {
+        self.inner.sign_message(payload.as_ref()).into()
+    }
 }
 
 /// Verifies that a signature covers a payload and was made by a public key.
@@ -64,6 +70,23 @@ pub fn verify(public_key: Buffer, payload: Buffer, signature: Buffer) -> napi::R
     Ok(public
         .verify(payload.as_ref(), &Signature::from_bytes(&signature))
         .is_ok())
+}
+
+/// Verifies a signed message and returns the payload it carries.
+///
+/// Returns `null` when the message is too short to hold a signature, was altered,
+/// or was signed by a different device, and throws only when the key is the wrong
+/// length.
+#[napi]
+pub fn verify_message(public_key: Buffer, message: Buffer) -> napi::Result<Option<Buffer>> {
+    let key = fixed::<KEY_LEN>(public_key.as_ref(), "publicKey")?;
+    let Ok(public) = PublicIdentity::from_bytes(&key) else {
+        return Ok(None);
+    };
+    Ok(public
+        .verify_message(message.as_ref())
+        .ok()
+        .map(|payload| payload.to_vec().into()))
 }
 
 /// Returns the short hex fingerprint of a public key.

@@ -264,6 +264,8 @@ export declare class DeviceIdentity {
   fingerprint(): string
   /** Signs a payload, returning the 64-byte detached signature. */
   sign(payload: Buffer): Buffer
+  /** Signs a payload and returns the signature followed by the payload, as one message. */
+  signMessage(payload: Buffer): Buffer
 }
 
 /**
@@ -3316,6 +3318,15 @@ export declare function verifyAuditChain(publicKey: Buffer, entries: Array<Audit
  * Throws when the signature is not from that key.
  */
 export declare function verifyEnvelope(bytes: Buffer, publicKey: Buffer): Manifest
+
+/**
+ * Verifies a signed message and returns the payload it carries.
+ *
+ * Returns `null` when the message is too short to hold a signature, was altered,
+ * or was signed by a different device, and throws only when the key is the wrong
+ * length.
+ */
+export declare function verifyMessage(publicKey: Buffer, message: Buffer): Buffer | null
 
 /** Returns the version of the native pamoja module. */
 export declare function version(): string

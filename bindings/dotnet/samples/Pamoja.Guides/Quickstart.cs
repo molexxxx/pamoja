@@ -1,7 +1,7 @@
-using System.Globalization;
-
 using Pamoja.Codec;
+using Pamoja.Core;
 using Pamoja.Kit;
+using Pamoja.Loopback;
 using Pamoja.Security;
 using Pamoja.Sensors;
 
@@ -10,57 +10,91 @@ using static Guides.Guide;
 namespace Guides;
 
 /// <summary>
-/// The first example on the README and the site: one field node's reading taken off a
-/// wire, smoothed, signed, and packed for a link that charges by the byte, start to
-/// finish with nothing plugged in.
+/// The first example on the README and the site: a reading taken off a wire on a field
+/// node, sent over a link, and checked on the gateway that receives it, with nothing
+/// plugged in and nothing running.
 /// </summary>
 public static class Quickstart
 {
+    // The device's identity is provisioned once and never leaves it. The gateway is told
+    // only the public half, which is how it recognises this device later.
+    private const string Topic = "sensors/1/temperature";
+
     /// <summary>Runs the example.</summary>
-    public static void Run()
+    /// <returns>A task that completes when the gateway has checked the reading.</returns>
+    public static async Task RunAsync()
     {
         // ANCHOR: example
-        // A stand-in for the thermometer. On a running node these nine bytes arrive from
-        // the 1-Wire bus; here the library builds what a part sitting at 25.0625 C would
-        // send, so the program runs with nothing plugged in.
-        byte[] offTheBus = Ds18b20.BuildScratchpad(25.0625f, 12, 75, -10);
-
-        // Everything below is the node's own code, and none of it cares where the bytes
-        // came from. The part checksums every read, so a value mangled on a long run comes
-        // back as an error instead of a plausible temperature a couple of degrees off.
-        float celsius = Ds18b20.ParseScratchpad(offTheBus).MicroCelsius / 1e6f;
-        Console.WriteLine($"read      {celsius:F4} C"); // read      25.0625 C
-
-        // Readings jitter. A smoother follows the trend without keeping a history to do
-        // it, which matters on a part with kilobytes of RAM.
-        using var smoother = new Smoother(0.5f);
-        smoother.Update(celsius);
-        float smoothed = smoother.Update(celsius + 1.0f);
-        Console.WriteLine($"smoothed  {smoothed:F4} C"); // smoothed  25.5625 C
-
-        // Sign it, so the gateway can tell this device's readings from anyone else's.
         byte[] seed = new byte[DeviceIdentity.KeyLength];
         Array.Fill(seed, (byte)7);
+
+        // The link. A loopback broker stands in for MQTT or CoAP, so this runs with no
+        // network and nothing listening. Point the node at a real transport and nothing
+        // below changes.
+        using var broker = new LoopbackBroker();
+        using LoopbackTransport node = broker.Link();
+        using LoopbackTransport gateway = broker.Link();
+        await node.ConnectAsync();
+        await gateway.ConnectAsync();
+        await gateway.SubscribeAsync(Topic);
+
         using var device = new DeviceIdentity(seed);
-        string reading = smoothed.ToString("F2", CultureInfo.InvariantCulture);
-        byte[] signature = device.Sign(reading);
-        if (!DeviceIdentity.Verify(device.PublicKey, reading, signature))
-        {
-            throw new InvalidOperationException("the gateway would reject this reading");
-        }
+        byte[] known = device.PublicKey;
+        Console.WriteLine($"gateway trusts device {DeviceIdentity.FingerprintOf(known)}");
 
-        Console.WriteLine($"signed    {reading} C, and the signature checks out");
+        // A stand-in for the thermometer. On a running node these nine bytes arrive from
+        // the 1-Wire bus; here the library builds what a part at 25.0625 C would send.
+        byte[] offTheBus = Ds18b20.BuildScratchpad(25.0625f, 12, 75, -10);
 
-        // Send a batch rather than a reading at a time. Successive samples differ by very
-        // little, so writing down the differences costs a fraction of eight bytes each.
-        long[] batch = [2506, 2507, 2509, 2508, 2510];
+        // On the node. The part checksums every read, so a value mangled on a long run is
+        // an error rather than a plausible temperature a couple of degrees off.
+        float celsius = Ds18b20.ParseScratchpad(offTheBus).MicroCelsius / 1e6f;
+        Console.WriteLine($"read      {celsius:F4} C");
+
+        // Readings jitter, so smooth them, and send a batch rather than one at a time.
+        // Successive readings differ by very little, so the differences cost a fraction of
+        // what the readings would on a link that charges by the byte.
+        using var smoother = new Smoother(0.5f);
+        long[] batch =
+        [
+            .. new[] { celsius, celsius + 0.5f, celsius + 0.4f }
+                .Select(sample => (long)Math.Round(smoother.Update(sample) * 100)),
+        ];
         byte[] packed = Codec.PackSamples(batch);
         Console.WriteLine($"packed    {batch.Length} readings into {packed.Length} bytes");
+
+        // Sign the batch and send it. The signature travels with the payload as one
+        // message, so there is nothing to keep together and split correctly at the far end.
+        await node.SendAsync(Topic, device.SignMessage(packed));
+
+        // On the gateway. Verifying returns the payload, so a reading that was altered on
+        // the way, or signed by some other device, never reaches the code that unpacks it.
+        TransportMessage? received = await gateway.ReceiveAsync();
+        byte[]? payload = DeviceIdentity.VerifyMessage(known, received!.Payload);
+        if (payload is null)
+        {
+            Console.WriteLine("gateway   rejected the reading");
+        }
+        else
+        {
+            Console.WriteLine(
+                $"gateway   accepted {string.Join(", ", Codec.UnpackSamples(payload))}"
+                + " in hundredths of a degree");
+        }
         // ANCHOR_END: example
 
         Expect(celsius == 25.0625f, "the register decodes to 25.0625 C");
-        Expect(smoothed > celsius && smoothed < celsius + 1.0f, "smoothing lags the step");
+        Expect(batch.SequenceEqual(new long[] { 2506, 2531, 2539 }), "smoothing lags the steps");
         Expect(packed.Length < batch.Length * 8, "packing beats eight bytes a sample");
-        Expect(Codec.UnpackSamples(packed).SequenceEqual(batch), "and the batch round-trips");
+        Expect(received.Topic == Topic, "the message arrives on the topic it was sent to");
+        Expect(payload is not null, "and the gateway recognises the device that signed it");
+        Expect(
+            Codec.UnpackSamples(payload!).SequenceEqual(batch),
+            "so the batch it unpacks is the one the node sent");
+
+        // A message edited in transit does not verify, so the gateway never unpacks it.
+        byte[] edited = [.. received.Payload];
+        edited[^1] ^= 0xFF;
+        Expect(DeviceIdentity.VerifyMessage(known, edited) is null, "an edited message fails");
     }
 }

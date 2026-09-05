@@ -1,6 +1,7 @@
 //! Device identities: the private key that signs and the public key that verifies.
 
 use alloc::string::String;
+use alloc::vec::Vec;
 
 use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
 
@@ -71,6 +72,27 @@ impl DeviceIdentity {
     /// A [`Signature`] over `payload`.
     pub fn sign(&self, payload: &[u8]) -> Signature {
         Signature(self.signing.sign(payload))
+    }
+
+    /// Signs a payload and returns one message carrying both.
+    ///
+    /// The message is the 64-byte signature followed by the payload, which is what a
+    /// caller usually wants to put on a link: one blob to send, rather than a payload
+    /// and a detached signature to keep together and split correctly at the far end.
+    /// [`PublicIdentity::verify_message`] reverses it.
+    ///
+    /// # Arguments
+    ///
+    /// * `payload` - the bytes to sign, such as an encoded reading.
+    ///
+    /// # Returns
+    ///
+    /// The signature followed by `payload`.
+    pub fn sign_message(&self, payload: &[u8]) -> Vec<u8> {
+        let mut message = Vec::with_capacity(Signature::LEN + payload.len());
+        message.extend_from_slice(&self.sign(payload).to_bytes());
+        message.extend_from_slice(payload);
+        message
     }
 }
 
@@ -152,6 +174,39 @@ impl PublicIdentity {
             .verify(payload, &signature.0)
             .map_err(|_| Error::Auth("signature verification failed".into()))
     }
+
+    /// Verifies a message built by [`sign_message`] and returns the payload it carries.
+    ///
+    /// The signature travels with the payload, so a caller sends one message and gets
+    /// one payload back instead of tracking two byte strings and splitting them by hand.
+    /// The payload is borrowed from `message`, and is only returned once the signature
+    /// over it has been checked.
+    ///
+    /// [`sign_message`]: DeviceIdentity::sign_message
+    ///
+    /// # Arguments
+    ///
+    /// * `message` - the signature followed by the payload, as [`sign_message`] wrote it.
+    ///
+    /// # Returns
+    ///
+    /// The payload, authentic and unaltered.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Auth`](pamoja_core::Error::Auth) if `message` is shorter than a
+    /// signature or the signature does not match the payload, which means the message was
+    /// altered or was not signed by this device.
+    pub fn verify_message<'a>(&self, message: &'a [u8]) -> Result<&'a [u8]> {
+        let (signature, payload) = message
+            .split_at_checked(Signature::LEN)
+            .ok_or_else(|| Error::Auth("message is shorter than a signature".into()))?;
+        let signature: [u8; Signature::LEN] = signature
+            .try_into()
+            .map_err(|_| Error::Auth("message is shorter than a signature".into()))?;
+        self.verify(payload, &Signature::from_bytes(&signature))?;
+        Ok(payload)
+    }
 }
 
 // Maps a 0-15 value to its lowercase hex digit.
@@ -185,6 +240,33 @@ mod tests {
                 0xb0, 0x0d, 0x29, 0x16, 0x12, 0xbb, 0x0c, 0x00,
             ]
         );
+    }
+
+    #[test]
+    fn a_signed_message_carries_its_payload_and_is_checked_before_it_is_returned() {
+        let device = DeviceIdentity::from_seed(&[3u8; 32]);
+        let message = device.sign_message(b"meter-4 1182.750 kWh");
+        assert_eq!(message.len(), Signature::LEN + 20);
+
+        let public = device.public();
+        assert_eq!(
+            public
+                .verify_message(&message)
+                .expect("an authentic message"),
+            b"meter-4 1182.750 kWh"
+        );
+
+        // A payload edited in transit no longer matches the signature travelling with it.
+        let mut edited = message.clone();
+        *edited.last_mut().expect("a payload byte") ^= 0xFF;
+        assert!(public.verify_message(&edited).is_err());
+
+        // So does a message too short to hold a signature at all.
+        assert!(public.verify_message(&[0u8; 8]).is_err());
+        assert!(DeviceIdentity::from_seed(&[4u8; 32])
+            .public()
+            .verify_message(&message)
+            .is_err());
     }
 
     #[test]

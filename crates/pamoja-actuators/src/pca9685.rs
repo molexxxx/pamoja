@@ -236,6 +236,24 @@ impl Pwm {
             (self.off >> 8) as u8,
         ]
     }
+
+    /// Returns the count at which the output goes high.
+    ///
+    /// # Returns
+    ///
+    /// The on count, including the full-on flag in bit 12 when the output is held high.
+    pub fn on(self) -> u16 {
+        self.on
+    }
+
+    /// Returns the count at which the output goes low.
+    ///
+    /// # Returns
+    ///
+    /// The off count, including the full-off flag in bit 12 when the output is held low.
+    pub fn off(self) -> u16 {
+        self.off
+    }
 }
 
 #[cfg(test)]

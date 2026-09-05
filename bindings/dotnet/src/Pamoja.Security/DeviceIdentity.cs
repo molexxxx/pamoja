@@ -161,6 +161,66 @@ public sealed class DeviceIdentity : IDisposable
         return signature;
     }
 
+    /// <summary>Signs a payload and returns one message carrying both.</summary>
+    /// <remarks>
+    /// The message is the signature followed by the payload, which is usually what goes
+    /// on a link: one blob to send, rather than a payload and a detached signature to
+    /// keep together and split correctly at the far end.
+    /// <see cref="DeviceIdentity.VerifyMessage"/> reverses it.
+    /// </remarks>
+    /// <param name="payload">The bytes to cover.</param>
+    /// <returns>The signature followed by the payload.</returns>
+    /// <exception cref="PamojaException">The native call failed.</exception>
+    public byte[] SignMessage(ReadOnlySpan<byte> payload)
+    {
+        int length = payload.Length;
+        bool added = false;
+        try
+        {
+            _handle.DangerousAddRef(ref added);
+            Status.ThrowIfError(NativeMethods.pamoja_device_identity_sign_message(
+                _handle.DangerousGetHandle(), payload, (nuint)length, out IntPtr buffer));
+            return OwnedBuffer.Take(buffer);
+        }
+        finally
+        {
+            if (added)
+            {
+                _handle.DangerousRelease();
+            }
+        }
+    }
+
+    /// <summary>Signs text and returns one message carrying both.</summary>
+    /// <param name="payload">The text to cover.</param>
+    /// <returns>The signature followed by the payload.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="payload"/> is null.</exception>
+    /// <exception cref="PamojaException">The native call failed.</exception>
+    public byte[] SignMessage(string payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        return SignMessage(Encoding.UTF8.GetBytes(payload));
+    }
+
+    /// <summary>Verifies a signed message and returns the payload it carries.</summary>
+    /// <param name="publicKey">The 32-byte public key of the claimed signer.</param>
+    /// <param name="message">The signature followed by the payload.</param>
+    /// <returns>
+    /// The payload if the message is authentic, and null if it is too short to hold a
+    /// signature, was altered, or was signed by a different device.
+    /// </returns>
+    public static byte[]? VerifyMessage(ReadOnlySpan<byte> publicKey, ReadOnlySpan<byte> message)
+    {
+        PamojaStatus status = NativeMethods.pamoja_public_identity_verify_message(
+            publicKey, message, (nuint)message.Length, out IntPtr buffer);
+        if (status != PamojaStatus.Ok)
+        {
+            return null;
+        }
+
+        return OwnedBuffer.Take(buffer);
+    }
+
     /// <summary>Signs text, encoded as UTF-8.</summary>
     /// <param name="payload">The text to cover.</param>
     /// <returns>The 64-byte detached signature.</returns>

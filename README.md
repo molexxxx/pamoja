@@ -53,8 +53,9 @@ import, because one compiled engine sits under every package. The
 
 ## First example
 
-A reading off a wire, smoothed, signed, and packed for a metered link, with
-nothing plugged in. Each of these is spliced from a test that runs in CI.
+A reading taken off a wire on a field node, sent over a link, and checked on the
+gateway that receives it, with nothing plugged in and nothing running. Each of
+these is spliced from a test that runs in CI.
 
 <details open>
 <summary><b>Rust</b></summary>
@@ -64,13 +65,30 @@ From [`examples/tests/guides/quickstart.rs`](https://github.com/molexxxx/pamoja/
 
 ```rust
 use pamoja_codec::{decode_deltas, encode_deltas};
+use pamoja_core::Transport;
 use pamoja_kit::Smoother;
-use pamoja_security::DeviceIdentity;
+use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
+use pamoja_security::{DeviceIdentity, PublicIdentity};
 use pamoja_sensors::ds18b20::{temperature_from_celsius, Resolution, Scratchpad};
 
+// The link. A loopback broker stands in for MQTT or CoAP, so this runs with no network
+// and nothing listening. Point the node at a real transport and nothing below changes.
+let broker = LoopbackBroker::new();
+let mut node = LoopbackTransport::new(broker.clone());
+let mut gateway = LoopbackTransport::new(broker);
+node.connect().await.expect("the node connects");
+gateway.connect().await.expect("the gateway connects");
+let topic = "sensors/1/temperature";
+gateway.subscribe(topic).await.expect("the gateway listens");
+
+// The device's identity is provisioned once and never leaves it. The gateway is told
+// only the public half, which is how it recognises this device later.
+let device = DeviceIdentity::from_seed(&[7u8; 32]);
+let known = PublicIdentity::from_bytes(&device.public().to_bytes()).expect("a valid key");
+println!("gateway trusts device {}", known.fingerprint());
+
 // A stand-in for the thermometer. On a running node these nine bytes arrive from the
-// 1-Wire bus; here the library builds what a part sitting at 25.0625 C would send, so
-// the program runs with nothing plugged in.
+// 1-Wire bus; here the library builds what a part at 25.0625 C would send.
 let off_the_bus = Scratchpad::new(
     temperature_from_celsius(25.0625, Resolution::Bits12),
     Resolution::Bits12,
@@ -79,36 +97,46 @@ let off_the_bus = Scratchpad::new(
 )
 .to_bytes();
 
-// Everything below is the node's own code, and none of it cares where the bytes came
-// from. The part checksums every read, so a value mangled on a long run comes back as
-// an error instead of a plausible temperature a couple of degrees off.
+// On the node. The part checksums every read, so a value mangled on a long run is an
+// error rather than a plausible temperature a couple of degrees off.
 let celsius = Scratchpad::parse(&off_the_bus)
     .expect("the thermometer's checksum matches")
     .temperature_celsius();
 println!("read      {celsius:.4} C");
 
-// Readings jitter. A smoother follows the trend without keeping a history to do it,
-// which matters on a part with kilobytes of RAM.
+// Readings jitter, so smooth them, and send a batch rather than one at a time.
+// Successive readings differ by very little, so the differences cost a fraction of
+// what the readings would on a link that charges by the byte.
 let mut smoother = Smoother::new(0.5);
-smoother.update(celsius);
-let smoothed = smoother.update(celsius + 1.0);
-println!("smoothed  {smoothed:.4} C");
-
-// Sign it, so the gateway can tell this device's readings from anyone else's.
-let device = DeviceIdentity::from_seed(&[7u8; 32]);
-let reading = format!("{smoothed:.2}");
-let signature = device.sign(reading.as_bytes());
-match device.public().verify(reading.as_bytes(), &signature) {
-    Ok(()) => println!("signed    {reading} C, and the signature checks out"),
-    Err(error) => println!("rejected  {error}"),
-}
-
-// Send a batch rather than a reading at a time. Successive samples differ by very
-// little, so writing down the differences costs a fraction of eight bytes each.
-let batch = [2506i64, 2507, 2509, 2508, 2510];
+let batch: Vec<i64> = [celsius, celsius + 0.5, celsius + 0.4]
+    .into_iter()
+    .map(|sample| (smoother.update(sample) * 100.0).round() as i64)
+    .collect();
 let packed = encode_deltas(&batch);
 let (readings, bytes) = (batch.len(), packed.len());
 println!("packed    {readings} readings into {bytes} bytes");
+
+// Sign the batch and send it. The signature travels with the payload as one message,
+// so there is nothing to keep together and split correctly at the far end.
+let message = device.sign_message(&packed);
+node.send(topic, &message)
+    .await
+    .expect("the node publishes");
+
+// On the gateway. Verifying returns the payload, so a reading that was altered on the
+// way, or signed by some other device, never reaches the code that unpacks it.
+let received = gateway
+    .recv()
+    .await
+    .expect("a delivery")
+    .expect("a message");
+match known.verify_message(&received.payload) {
+    Ok(payload) => {
+        let readings = decode_deltas(payload).expect("a valid batch");
+        println!("gateway   accepted {readings:?} in hundredths of a degree");
+    }
+    Err(error) => println!("gateway   rejected the reading: {error}"),
+}
 ```
 <!-- end -->
 
@@ -123,41 +151,66 @@ From [`bindings/node/guides/quickstart.ts`](https://github.com/molexxxx/pamoja/b
 ```typescript
 import { packSamples, unpackSamples } from '@pamoja/codec'
 import { Smoother } from '@pamoja/kit'
-import { DeviceIdentity, verify } from '@pamoja/security'
+import { LoopbackBroker } from '@pamoja/loopback'
+import { DeviceIdentity, fingerprint, verifyMessage } from '@pamoja/security'
 import { ds18b20 } from '@pamoja/sensors'
 
-// A stand-in for the thermometer. On a running node these nine bytes arrive from the
-// 1-Wire bus; here the library builds what a part sitting at 25.0625 C would send, so the
-// program runs with nothing plugged in.
-const offTheBus = ds18b20.buildScratchpad(25.0625, 12, 75, -10)
+// The device's identity is provisioned once and never leaves it. The gateway is told only
+// the public half, which is how it recognises this device later.
+const SEED = Buffer.alloc(32, 7)
+const TOPIC = 'sensors/1/temperature'
 
-// Everything below is the node's own code, and none of it cares where the bytes came from.
-// The part checksums every read, so a value mangled on a long run comes back as an error
-// instead of a plausible temperature a couple of degrees off.
-const celsius = ds18b20.parseScratchpad(offTheBus).microCelsius / 1e6
-console.log(`read      ${celsius.toFixed(4)} C`) // read      25.0625 C
+async function main(): Promise<Buffer> {
+  // The link. A loopback broker stands in for MQTT or CoAP, so this runs with no network
+  // and nothing listening. Point the node at a real transport and nothing below changes.
+  const broker = new LoopbackBroker()
+  const node = broker.link()
+  const gateway = broker.link()
+  await node.connect()
+  await gateway.connect()
+  await gateway.subscribe(TOPIC)
 
-// Readings jitter. A smoother follows the trend without keeping a history to do it, which
-// matters on a part with kilobytes of RAM.
-const smoother = new Smoother(0.5)
-smoother.update(celsius)
-const smoothed = smoother.update(celsius + 1)
-console.log(`smoothed  ${smoothed.toFixed(4)} C`) // smoothed  25.5625 C
+  const device = DeviceIdentity.fromSeed(SEED)
+  const known = device.publicKey()
+  console.log(`gateway trusts device ${fingerprint(known)}`)
 
-// Sign it, so the gateway can tell this device's readings from anyone else's.
-const device = DeviceIdentity.fromSeed(Buffer.alloc(32, 7))
-const reading = smoothed.toFixed(2)
-const signature = device.sign(reading)
-if (!verify(device.publicKey(), reading, signature)) {
-  throw new Error('the gateway would reject this reading')
+  // A stand-in for the thermometer. On a running node these nine bytes arrive from the
+  // 1-Wire bus; here the library builds what a part at 25.0625 C would send.
+  const offTheBus = ds18b20.buildScratchpad(25.0625, 12, 75, -10)
+
+  // On the node. The part checksums every read, so a value mangled on a long run is an
+  // error rather than a plausible temperature a couple of degrees off.
+  const celsius = ds18b20.parseScratchpad(offTheBus).microCelsius / 1e6
+  console.log(`read      ${celsius.toFixed(4)} C`)
+
+  // Readings jitter, so smooth them, and send a batch rather than one at a time.
+  // Successive readings differ by very little, so the differences cost a fraction of what
+  // the readings would on a link that charges by the byte.
+  const smoother = new Smoother(0.5)
+  const batch = [celsius, celsius + 0.5, celsius + 0.4].map((sample) =>
+    Math.round(smoother.update(sample) * 100),
+  )
+  const packed = packSamples(batch)
+  console.log(`packed    ${batch.length} readings into ${packed.length} bytes`)
+
+  // Sign the batch and send it. The signature travels with the payload as one message, so
+  // there is nothing to keep together and split correctly at the far end.
+  await node.send(TOPIC, device.signMessage(packed))
+
+  // On the gateway. Verifying returns the payload, so a reading that was altered on the
+  // way, or signed by some other device, never reaches the code that unpacks it.
+  const received = await gateway.recv()
+  const payload = verifyMessage(known, received!.payload)
+  if (payload === null) {
+    console.log('gateway   rejected the reading')
+  } else {
+    console.log(`gateway   accepted ${unpackSamples(payload).join(', ')} in hundredths of a degree`)
+  }
+
+  return received!.payload
 }
-console.log(`signed    ${reading} C, and the signature checks out`)
 
-// Send a batch rather than a reading at a time. Successive samples differ by very little,
-// so writing down the differences costs a fraction of eight bytes each.
-const batch = [2506, 2507, 2509, 2508, 2510]
-const packed = packSamples(batch)
-console.log(`packed    ${batch.length} readings into ${packed.length} bytes`)
+main()
 ```
 <!-- end -->
 
@@ -170,43 +223,71 @@ console.log(`packed    ${batch.length} readings into ${packed.length} bytes`)
 From [`bindings/python/guides/quickstart.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/quickstart.py):
 
 ```python
+import asyncio
+
 from pamoja import sensors
 from pamoja.codec import pack_samples, unpack_samples
 from pamoja.kit import Smoother
-from pamoja.security import DeviceIdentity, verify
+from pamoja.loopback import LoopbackBroker
+from pamoja.security import DeviceIdentity, fingerprint, verify_message
 
-# A stand-in for the thermometer. On a running node these nine bytes arrive from the
-# 1-Wire bus; here the library builds what a part sitting at 25.0625 C would send, so the
-# program runs with nothing plugged in.
-off_the_bus = sensors.ds18b20.build_scratchpad(25.0625, 12, 75, -10)
+# The device's identity is provisioned once and never leaves it. The gateway is told only
+# the public half, which is how it recognises this device later.
+SEED = bytes([7]) * 32
+TOPIC = "sensors/1/temperature"
 
-# Everything below is the node's own code, and none of it cares where the bytes came from.
-# The part checksums every read, so a value mangled on a long run comes back as an error
-# instead of a plausible temperature a couple of degrees off.
-scratchpad = sensors.ds18b20.parse_scratchpad(off_the_bus)
-celsius = scratchpad.micro_celsius / 1e6
-print(f"read      {celsius:.4f} C")  # read      25.0625 C
 
-# Readings jitter. A smoother follows the trend without keeping a history to do it, which
-# matters on a part with kilobytes of RAM.
-smoother = Smoother(0.5)
-smoother.update(celsius)
-smoothed = smoother.update(celsius + 1.0)
-print(f"smoothed  {smoothed:.4f} C")  # smoothed  25.5625 C
+async def main() -> bytes:
+    # The link. A loopback broker stands in for MQTT or CoAP, so this runs with no network
+    # and nothing listening. Point the node at a real transport and nothing below changes.
+    broker = LoopbackBroker()
+    node = broker.link()
+    gateway = broker.link()
+    await node.connect()
+    await gateway.connect()
+    await gateway.subscribe(TOPIC)
 
-# Sign it, so the gateway can tell this device's readings from anyone else's.
-device = DeviceIdentity.from_seed(bytes([7]) * 32)
-reading = f"{smoothed:.2f}"
-signature = device.sign(reading)
-if not verify(device.public_key, reading, signature):
-    raise SystemExit("the gateway would reject this reading")
-print(f"signed    {reading} C, and the signature checks out")
+    device = DeviceIdentity.from_seed(SEED)
+    known = device.public_key
+    print(f"gateway trusts device {fingerprint(known)}")
 
-# Send a batch rather than a reading at a time. Successive samples differ by very little,
-# so writing down the differences costs a fraction of eight bytes each.
-batch = [2506, 2507, 2509, 2508, 2510]
-packed = pack_samples(batch)
-print(f"packed    {len(batch)} readings into {len(packed)} bytes")
+    # A stand-in for the thermometer. On a running node these nine bytes arrive from the
+    # 1-Wire bus; here the library builds what a part at 25.0625 C would send.
+    off_the_bus = sensors.ds18b20.build_scratchpad(25.0625, 12, 75, -10)
+
+    # On the node. The part checksums every read, so a value mangled on a long run is an
+    # error rather than a plausible temperature a couple of degrees off.
+    celsius = sensors.ds18b20.parse_scratchpad(off_the_bus).micro_celsius / 1e6
+    print(f"read      {celsius:.4f} C")
+
+    # Readings jitter, so smooth them, and send a batch rather than one at a time.
+    # Successive readings differ by very little, so the differences cost a fraction of
+    # what the readings would on a link that charges by the byte.
+    smoother = Smoother(0.5)
+    batch = [
+        round(smoother.update(sample) * 100)
+        for sample in (celsius, celsius + 0.5, celsius + 0.4)
+    ]
+    packed = pack_samples(batch)
+    print(f"packed    {len(batch)} readings into {len(packed)} bytes")
+
+    # Sign the batch and send it. The signature travels with the payload as one message,
+    # so there is nothing to keep together and split correctly at the far end.
+    await node.send(TOPIC, device.sign_message(packed))
+
+    # On the gateway. Verifying returns the payload, so a reading that was altered on the
+    # way, or signed by some other device, never reaches the code that unpacks it.
+    received = await gateway.recv()
+    payload = verify_message(known, received.payload)
+    if payload is None:
+        print("gateway   rejected the reading")
+    else:
+        print(f"gateway   accepted {unpack_samples(payload)} in hundredths of a degree")
+
+    return received.payload
+
+
+message = asyncio.run(main())
 ```
 <!-- end -->
 
@@ -219,42 +300,62 @@ print(f"packed    {len(batch)} readings into {len(packed)} bytes")
 From [`bindings/dotnet/samples/Pamoja.Guides/Quickstart.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/Quickstart.cs):
 
 ```csharp
-// A stand-in for the thermometer. On a running node these nine bytes arrive from
-// the 1-Wire bus; here the library builds what a part sitting at 25.0625 C would
-// send, so the program runs with nothing plugged in.
-byte[] offTheBus = Ds18b20.BuildScratchpad(25.0625f, 12, 75, -10);
-
-// Everything below is the node's own code, and none of it cares where the bytes
-// came from. The part checksums every read, so a value mangled on a long run comes
-// back as an error instead of a plausible temperature a couple of degrees off.
-float celsius = Ds18b20.ParseScratchpad(offTheBus).MicroCelsius / 1e6f;
-Console.WriteLine($"read      {celsius:F4} C"); // read      25.0625 C
-
-// Readings jitter. A smoother follows the trend without keeping a history to do
-// it, which matters on a part with kilobytes of RAM.
-using var smoother = new Smoother(0.5f);
-smoother.Update(celsius);
-float smoothed = smoother.Update(celsius + 1.0f);
-Console.WriteLine($"smoothed  {smoothed:F4} C"); // smoothed  25.5625 C
-
-// Sign it, so the gateway can tell this device's readings from anyone else's.
 byte[] seed = new byte[DeviceIdentity.KeyLength];
 Array.Fill(seed, (byte)7);
+
+// The link. A loopback broker stands in for MQTT or CoAP, so this runs with no
+// network and nothing listening. Point the node at a real transport and nothing
+// below changes.
+using var broker = new LoopbackBroker();
+using LoopbackTransport node = broker.Link();
+using LoopbackTransport gateway = broker.Link();
+await node.ConnectAsync();
+await gateway.ConnectAsync();
+await gateway.SubscribeAsync(Topic);
+
 using var device = new DeviceIdentity(seed);
-string reading = smoothed.ToString("F2", CultureInfo.InvariantCulture);
-byte[] signature = device.Sign(reading);
-if (!DeviceIdentity.Verify(device.PublicKey, reading, signature))
-{
-    throw new InvalidOperationException("the gateway would reject this reading");
-}
+byte[] known = device.PublicKey;
+Console.WriteLine($"gateway trusts device {DeviceIdentity.FingerprintOf(known)}");
 
-Console.WriteLine($"signed    {reading} C, and the signature checks out");
+// A stand-in for the thermometer. On a running node these nine bytes arrive from
+// the 1-Wire bus; here the library builds what a part at 25.0625 C would send.
+byte[] offTheBus = Ds18b20.BuildScratchpad(25.0625f, 12, 75, -10);
 
-// Send a batch rather than a reading at a time. Successive samples differ by very
-// little, so writing down the differences costs a fraction of eight bytes each.
-long[] batch = [2506, 2507, 2509, 2508, 2510];
+// On the node. The part checksums every read, so a value mangled on a long run is
+// an error rather than a plausible temperature a couple of degrees off.
+float celsius = Ds18b20.ParseScratchpad(offTheBus).MicroCelsius / 1e6f;
+Console.WriteLine($"read      {celsius:F4} C");
+
+// Readings jitter, so smooth them, and send a batch rather than one at a time.
+// Successive readings differ by very little, so the differences cost a fraction of
+// what the readings would on a link that charges by the byte.
+using var smoother = new Smoother(0.5f);
+long[] batch =
+[
+    .. new[] { celsius, celsius + 0.5f, celsius + 0.4f }
+        .Select(sample => (long)Math.Round(smoother.Update(sample) * 100)),
+];
 byte[] packed = Codec.PackSamples(batch);
 Console.WriteLine($"packed    {batch.Length} readings into {packed.Length} bytes");
+
+// Sign the batch and send it. The signature travels with the payload as one
+// message, so there is nothing to keep together and split correctly at the far end.
+await node.SendAsync(Topic, device.SignMessage(packed));
+
+// On the gateway. Verifying returns the payload, so a reading that was altered on
+// the way, or signed by some other device, never reaches the code that unpacks it.
+TransportMessage? received = await gateway.ReceiveAsync();
+byte[]? payload = DeviceIdentity.VerifyMessage(known, received!.Payload);
+if (payload is null)
+{
+    Console.WriteLine("gateway   rejected the reading");
+}
+else
+{
+    Console.WriteLine(
+        $"gateway   accepted {string.Join(", ", Codec.UnpackSamples(payload))}"
+        + " in hundredths of a degree");
+}
 ```
 <!-- end -->
 
