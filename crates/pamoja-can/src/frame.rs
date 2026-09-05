@@ -204,6 +204,21 @@ impl Frame {
         }
     }
 
+    /// Reads the frame's data as J1939 signals.
+    ///
+    /// A J1939 message always carries exactly eight bytes, addressed by the offsets its
+    /// parameter group publishes, so this hands back a view that reads them by offset
+    /// rather than a slice a caller has to index.
+    ///
+    /// # Returns
+    ///
+    /// The eight data bytes as [`Signals`](crate::Signals), or `None` if this frame does
+    /// not carry exactly eight, which a J1939 message always does.
+    pub fn signals(&self) -> Option<crate::Signals> {
+        let bytes: [u8; 8] = self.data().try_into().ok()?;
+        Some(crate::Signals::from_bytes(bytes))
+    }
+
     /// Returns the data length: the payload length, or the requested length for a remote
     /// frame.
     ///

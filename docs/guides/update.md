@@ -48,14 +48,19 @@ use pamoja_update::{
 // half and will take firmware from nobody else.
 let publisher = DeviceIdentity::from_seed(&[7u8; 32]);
 
+// Who the release is for. Both identifiers are sixteen bytes a vendor assigns itself,
+// and a device takes firmware only for the pair it was built as.
+const VENDOR: [u8; 16] = [10; 16];
+const FLOW_METER: [u8; 16] = [11; 16];
+
 // The release. A manifest says who the image is for, which slot it belongs in, how big
 // it is and what it hashes to; nothing about the image itself is taken on trust.
 let image = b"firmware for a flow meter, version two";
 let manifest = Manifest {
     structure_version: STRUCTURE_VERSION,
     sequence: 2,
-    vendor_id: [0x0A; 16],
-    class_id: [0x0B; 16],
+    vendor_id: VENDOR,
+    class_id: FLOW_METER,
     format: PayloadFormat::Raw,
     storage: 1,
     digest: image_digest(image),

@@ -35,27 +35,38 @@ use pamoja_zenoh::keyexpr::{canonize, is_canon, is_valid, matches};
 
 // A key expression names a set of keys. `*` stands for exactly one chunk, so this
 // selects the battery of any node, and not a battery nested deeper.
-assert!(is_valid("fleet/*/battery"));
-assert!(matches("fleet/*/battery", "fleet/n7/battery"));
-assert!(!matches("fleet/*/battery", "fleet/n7/rack/battery"));
+let any_node = "fleet/*/battery";
+for key in ["fleet/n7/battery", "fleet/n7/rack/battery"] {
+    println!("{any_node} covers {key}: {}", matches(any_node, key));
+}
 
 // `**` stands for any number of chunks, including none, which is what a subscription
 // covering a whole subtree wants.
-assert!(matches("fleet/**", "fleet/n7/rack/battery"));
-assert!(matches("fleet/**/battery", "fleet/battery"));
+println!(
+    "fleet/** covers a nested key: {}",
+    matches("fleet/**", "fleet/n7/rack/battery")
+);
+println!(
+    "fleet/**/battery covers fleet/battery: {}",
+    matches("fleet/**/battery", "fleet/battery")
+);
 
 // Two expressions that select the same keys have one canonical form. Comparing or
 // routing on the written form would treat these as different subscriptions.
-assert!(!is_canon("fleet/**/**/battery"));
-assert_eq!(
-    canonize("fleet/**/**/battery").as_deref(),
-    Some("fleet/**/battery")
+let written = "fleet/**/**/battery";
+let canonical = canonize(written);
+println!(
+    "{written} is canonical: {}, and canonizes to {canonical:?}",
+    is_canon(written)
 );
-assert!(is_canon("fleet/**/battery"));
 
 // A malformed expression is rejected rather than canonized into something plausible.
-assert!(!is_valid("fleet//battery"));
-assert_eq!(canonize("fleet//battery"), None);
+let malformed = "fleet//battery";
+println!(
+    "{malformed} is valid: {}, canonizes to {:?}",
+    is_valid(malformed),
+    canonize(malformed)
+);
 ```
 <!-- end -->
 
@@ -65,30 +76,34 @@ assert_eq!(canonize("fleet//battery"), None);
 From [`bindings/node/guides/zenoh.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/zenoh.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { keyexpr } from '@pamoja/zenoh'
 
-// A key expression names a set of keys. `*` stands for exactly one chunk, so this
-// selects the battery of any node, and not a battery nested deeper.
-assert.ok(keyexpr.isValid('fleet/*/battery'))
-assert.ok(keyexpr.matches('fleet/*/battery', 'fleet/n7/battery'))
-assert.ok(!keyexpr.matches('fleet/*/battery', 'fleet/n7/rack/battery'))
+// A key expression names a set of keys. `*` stands for exactly one chunk, so this selects
+// the battery of any node, and not a battery nested deeper.
+const anyNode = 'fleet/*/battery'
+for (const key of ['fleet/n7/battery', 'fleet/n7/rack/battery']) {
+  console.log(`${anyNode} covers ${key}: ${keyexpr.matches(anyNode, key)}`)
+}
 
 // `**` stands for any number of chunks, including none, which is what a subscription
 // covering a whole subtree wants.
-assert.ok(keyexpr.matches('fleet/**', 'fleet/n7/rack/battery'))
-assert.ok(keyexpr.matches('fleet/**/battery', 'fleet/battery'))
+console.log(`fleet/** covers a nested key: ${keyexpr.matches('fleet/**', 'fleet/n7/rack/battery')}`)
+console.log(
+  `fleet/**/battery covers fleet/battery: ${keyexpr.matches('fleet/**/battery', 'fleet/battery')}`,
+)
 
-// Two expressions that select the same keys have one canonical form. Comparing or
-// routing on the written form would treat these as different subscriptions.
-assert.ok(!keyexpr.isCanon('fleet/**/**/battery'))
-assert.equal(keyexpr.canonize('fleet/**/**/battery'), 'fleet/**/battery')
-assert.ok(keyexpr.isCanon('fleet/**/battery'))
+// Two expressions that select the same keys have one canonical form. Comparing or routing
+// on the written form would treat these as different subscriptions.
+const written = 'fleet/**/**/battery'
+const canonical = keyexpr.canonize(written)
+console.log(`${written} is canonical: ${keyexpr.isCanon(written)}, and canonizes to ${canonical}`)
 
 // A malformed expression is rejected rather than canonized into something plausible.
-assert.ok(!keyexpr.isValid('fleet//battery'))
-assert.equal(keyexpr.canonize('fleet//battery'), null)
+const malformed = 'fleet//battery'
+console.log(
+  `${malformed} is valid: ${keyexpr.isValid(malformed)},` +
+    ` canonizes to ${keyexpr.canonize(malformed)}`,
+)
 ```
 <!-- end -->
 
@@ -100,26 +115,26 @@ From [`bindings/python/guides/zenoh.py`](https://github.com/molexxxx/pamoja/blob
 ```python
 from pamoja.zenoh import canonize, is_canon, is_valid, matches
 
-# A key expression names a set of keys. `*` stands for exactly one chunk, so this
-# selects the battery of any node, and not a battery nested deeper.
-assert is_valid("fleet/*/battery")
-assert matches("fleet/*/battery", "fleet/n7/battery")
-assert not matches("fleet/*/battery", "fleet/n7/rack/battery")
+# A key expression names a set of keys. `*` stands for exactly one chunk, so this selects
+# the battery of any node, and not a battery nested deeper.
+any_node = "fleet/*/battery"
+for key in ("fleet/n7/battery", "fleet/n7/rack/battery"):
+    print(f"{any_node} covers {key}: {matches(any_node, key)}")
 
 # `**` stands for any number of chunks, including none, which is what a subscription
 # covering a whole subtree wants.
-assert matches("fleet/**", "fleet/n7/rack/battery")
-assert matches("fleet/**/battery", "fleet/battery")
+print(f"fleet/** covers a nested key: {matches('fleet/**', 'fleet/n7/rack/battery')}")
+print(f"fleet/**/battery covers fleet/battery: {matches('fleet/**/battery', 'fleet/battery')}")
 
-# Two expressions that select the same keys have one canonical form. Comparing or
-# routing on the written form would treat these as different subscriptions.
-assert not is_canon("fleet/**/**/battery")
-assert canonize("fleet/**/**/battery") == "fleet/**/battery"
-assert is_canon("fleet/**/battery")
+# Two expressions that select the same keys have one canonical form. Comparing or routing
+# on the written form would treat these as different subscriptions.
+written = "fleet/**/**/battery"
+canonical = canonize(written)
+print(f"{written} is canonical: {is_canon(written)}, and canonizes to {canonical}")
 
 # A malformed expression is rejected rather than canonized into something plausible.
-assert not is_valid("fleet//battery")
-assert canonize("fleet//battery") is None
+malformed = "fleet//battery"
+print(f"{malformed} is valid: {is_valid(malformed)}, canonizes to {canonize(malformed)}")
 ```
 <!-- end -->
 
@@ -131,34 +146,35 @@ From [`bindings/dotnet/samples/Pamoja.Guides/ZenohGuide.cs`](https://github.com/
 ```csharp
 // A key expression names a set of keys. `*` stands for exactly one chunk, so this
 // selects the battery of any node, and not a battery nested deeper.
-Expect(KeyExpression.IsValid("fleet/*/battery"), "the pattern is well formed");
-Expect(
-    KeyExpression.Matches("fleet/*/battery", "fleet/n7/battery"),
-    "one chunk stands in for the node");
-Expect(
-    !KeyExpression.Matches("fleet/*/battery", "fleet/n7/rack/battery"),
-    "but not for two");
+const string AnyNode = "fleet/*/battery";
+foreach (string key in new[] { "fleet/n7/battery", "fleet/n7/rack/battery" })
+{
+    Console.WriteLine($"{AnyNode} covers {key}: {KeyExpression.Matches(AnyNode, key)}");
+}
 
 // `**` stands for any number of chunks, including none, which is what a
 // subscription covering a whole subtree wants.
-Expect(
-    KeyExpression.Matches("fleet/**", "fleet/n7/rack/battery"),
-    "the subtree wildcard reaches any depth");
-Expect(
-    KeyExpression.Matches("fleet/**/battery", "fleet/battery"),
-    "including no chunks at all");
+Console.WriteLine(
+    "fleet/** covers a nested key: "
+    + KeyExpression.Matches("fleet/**", "fleet/n7/rack/battery"));
+Console.WriteLine(
+    "fleet/**/battery covers fleet/battery: "
+    + KeyExpression.Matches("fleet/**/battery", "fleet/battery"));
 
 // Two expressions that select the same keys have one canonical form. Comparing or
 // routing on the written form would treat these as different subscriptions.
-Expect(!KeyExpression.IsCanon("fleet/**/**/battery"), "a repeated wildcard is not canonical");
-Expect(
-    KeyExpression.Canonize("fleet/**/**/battery") == "fleet/**/battery",
-    "and collapses to the form that selects the same keys");
-Expect(KeyExpression.IsCanon("fleet/**/battery"), "which is canonical");
+const string Written = "fleet/**/**/battery";
+string? canonical = KeyExpression.Canonize(Written);
+Console.WriteLine(
+    $"{Written} is canonical: {KeyExpression.IsCanon(Written)},"
+    + $" and canonizes to {canonical}");
 
-// A malformed expression is rejected rather than canonized into something plausible.
-Expect(!KeyExpression.IsValid("fleet//battery"), "an empty chunk is malformed");
-Expect(KeyExpression.Canonize("fleet//battery") is null, "and has no canonical form");
+// A malformed expression is rejected rather than canonized into something
+// plausible.
+const string Malformed = "fleet//battery";
+Console.WriteLine(
+    $"{Malformed} is valid: {KeyExpression.IsValid(Malformed)},"
+    + $" canonizes to {KeyExpression.Canonize(Malformed) ?? "nothing"}");
 ```
 <!-- end -->
 

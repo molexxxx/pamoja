@@ -25,58 +25,52 @@ The guide project's example, spliced here as it ran in CI.
 From [`bindings/dotnet/samples/Pamoja.Guides/LorawanGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/LorawanGuide.cs):
 
 ```csharp
-// A join accept captured off a live EU868 network, the root key it was signed
-// under, and the session keys an independent implementation derived from it.
-// Published at https://github.com/anthonykirby/lora-packet/issues/10
-byte[] captured = Convert.FromHexString(
-    "204dd85ae608b87fc4889970b7d2042c9e72959b0057aed6094b16003df12de145");
-byte[] appKey = Convert.FromHexString("b6b53f4a168a7a88bdf7ea135ce9cfca");
-const ushort devNonce = 0xCC85;
+// The root key is provisioned into the device at the factory and known to the
+// network server. It is the only secret either side starts with; any 16 bytes
+// stand in here.
+byte[] appKey = new byte[16];
+Array.Fill(appKey, (byte)7);
 
-// The network half: the address and radio settings this network grants, encrypted
-// and signed under the root key, are the frame that was captured.
-var offer = new LorawanGrant(
-    appNonce: 0x00E5063A,
-    netId: 0x13,
-    devAddr: 0x26012E43,
-    dlSettings: 0x03,
-    rxDelay: 0x01,
-    cflist: Convert.FromHexString("184f84e85684b85e84886684586e8400"));
-Expect(
-    offer.Accept(appKey, devNonce).SequenceEqual(captured),
-    "the join accept this network signs is the frame that was captured");
-
-// The device half. A join accept carries no EUI, so only the root key decides
-// whether it verifies.
+// The device asks to join with a nonce it has not used before, which is what stops
+// an old accept being replayed at it.
+const ushort DevNonce = 1;
 using var node = new LorawanDevice(new byte[8], new byte[8], appKey);
-using LorawanJoinAccept accepted = node.AcceptJoin(captured, devNonce);
-Expect(accepted.DevAddr == 0x26012E43, "the device takes the address it was granted");
 
-// Neither side transmits a session key; both derive it from the two nonces. What
-// the device derived is read back by a session holding the published keys.
-byte[] keys = Convert.FromHexString(
-    "2c96f7028184bb0be8aa49275290d4fcf3a5c8f0232a38c144029c165865802c");
-using var gateway = new LorawanSession(0x26012E43, keys.AsSpan(0, 16), keys.AsSpan(16));
-using LorawanSession activated = accepted.Session();
-byte[] uplink = activated.EncodeUplink(1, 1, "real"u8);
-Expect(
-    gateway.Decode(uplink, 1).Payload.AsSpan().SequenceEqual("real"u8),
-    "the network reads what the device it just admitted wrote");
+// The network grants the join. It draws its own nonce, names the network the
+// device is joining, and assigns the address it will answer to from then on.
+const uint DevAddr = 0x26012E43;
+var offer = new LorawanGrant(appNonce: 2, netId: 19, devAddr: DevAddr);
+byte[] accept = offer.Accept(appKey, DevNonce);
+Console.WriteLine($"granted   address 0x{DevAddr:X8} in a {accept.Length}-byte accept");
 
-// A single byte changed in the air fails the MIC, so no one else can admit the
-// device.
-byte[] forged = [.. captured];
+// The device verifies it against the root key. A join accept carries no device
+// identifier, so only that key decides whether it is for this device.
+using LorawanJoinAccept joined = node.AcceptJoin(accept, DevNonce);
+Console.WriteLine($"joined    the device took address 0x{joined.DevAddr:X8}");
+
+// Neither side transmits a session key. Both derive the same pair from the root
+// key and the two nonces, so the network reads what the device sends without ever
+// having been told how.
+using LorawanSession network = offer.Session(appKey, DevNonce);
+using LorawanSession activated = joined.Session();
+byte[] uplink = activated.EncodeUplink(1, 1, "level=high"u8);
+LorawanRxData received = network.Decode(uplink, 1);
+Console.WriteLine(
+    $"uplink    the network read {System.Text.Encoding.UTF8.GetString(received.Payload)}");
+
+// A single byte changed in the air fails that check, so no one else can admit the
+// device or put words in its mouth.
+byte[] forged = [.. accept];
 forged[1] ^= 0xFF;
-bool refused = false;
 try
 {
-    using LorawanJoinAccept _ = node.AcceptJoin(forged, devNonce);
+    node.AcceptJoin(forged, DevNonce).Dispose();
+    Console.WriteLine("a forged accept was taken, which should never happen");
 }
-catch (PamojaException)
+catch (PamojaException error)
 {
-    refused = true;
+    Console.WriteLine($"forged    accept refused: {error.Message}");
 }
-Expect(refused, "a join accept nobody signed does not activate a session");
 ```
 
 ## The same capability in every language

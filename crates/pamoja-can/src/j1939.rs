@@ -11,6 +11,26 @@ use crate::id::CanId;
 // formats at or above it are broadcast, with PS a group extension (PDU2).
 const PDU1_LIMIT: u8 = 240;
 
+/// The destination address that means every node on the bus.
+///
+/// A broadcast parameter group carries this in place of a destination, so a receiver
+/// knows the message is not addressed to it in particular.
+pub const BROADCAST_ADDRESS: u8 = 0xFF;
+
+/// The priorities J1939 conventionally assigns.
+///
+/// A priority is three bits, `0` highest and `7` lowest. The standard leaves the choice to
+/// the application, but publishes these as the usual ones, so naming them keeps a bare
+/// number out of a call site.
+pub mod priority {
+    /// The priority a control message such as engine speed is normally sent at.
+    pub const CONTROL: u8 = 3;
+    /// The default for everything that is not time critical, including requests.
+    pub const DEFAULT: u8 = 6;
+    /// The lowest priority, for traffic that may wait behind anything else.
+    pub const LOWEST: u8 = 7;
+}
+
 /// The fields a J1939 message packs into its 29-bit identifier.
 ///
 /// # Examples
@@ -65,6 +85,24 @@ impl J1939Id {
             source,
             pdu_specific: ps,
         })
+    }
+
+    /// Builds the identifier for a message addressed to every node.
+    ///
+    /// A broadcast parameter group has no destination, so this fills in
+    /// [`BROADCAST_ADDRESS`] rather than making a caller remember it.
+    ///
+    /// # Arguments
+    ///
+    /// * `priority` - the three-bit priority; [`priority`] names the usual ones.
+    /// * `pgn` - the parameter group number the message belongs to.
+    /// * `source` - the address of the node sending it.
+    ///
+    /// # Returns
+    ///
+    /// The identifier fields.
+    pub fn broadcast(priority: u8, pgn: u32, source: u8) -> J1939Id {
+        Self::from_parts(priority, pgn, source, BROADCAST_ADDRESS)
     }
 
     /// Composes a J1939 identifier from its fields.

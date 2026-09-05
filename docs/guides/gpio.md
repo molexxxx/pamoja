@@ -46,26 +46,24 @@ use pamoja_gpio::spi::Mode;
 // transaction reads or writes, which is the step easiest to get wrong by hand.
 const BME280: u8 = 0x76;
 let sensor = Address::seven_bit(BME280).expect("a 7-bit address");
-let mut frame = [0u8; 2];
-sensor
-    .write_frame(Direction::Write, &mut frame)
-    .expect("one byte");
-println!("write to  {:#04X}", frame[0]);
-sensor
-    .write_frame(Direction::Read, &mut frame)
-    .expect("one byte");
-println!("read from {:#04X}", frame[0]);
+let to_write = sensor.frame(Direction::Write);
+let to_read = sensor.frame(Direction::Read);
+println!("write to  {:#04X}", to_write.as_bytes()[0]);
+println!("read from {:#04X}", to_read.as_bytes()[0]);
 
 // The I2C specification keeps two ranges of addresses for itself, so a part answering
 // in either is a wiring mistake rather than a device.
+const TEN_BIT_PREFIX: u8 = 0x78; // the first address the specification keeps back
 let sensor_reserved = sensor.is_reserved();
-let broadcast_reserved = Address::seven_bit(0x78).expect("in range").is_reserved();
-println!("{BME280:#04X} reserved: {sensor_reserved}, 0x78 reserved: {broadcast_reserved}");
+let prefix = Address::seven_bit(TEN_BIT_PREFIX).expect("in range");
+println!("{BME280:#04X} reserved: {sensor_reserved}");
+println!("{TEN_BIT_PREFIX:#04X} reserved: {}", prefix.is_reserved());
 
 // A 10-bit address spends a reserved prefix over two bytes rather than one, so a bus
 // driver has to send a different number of bytes depending on the address it holds.
 let wide = Address::ten_bit(0x2A5).expect("a 10-bit address");
-println!("a 10-bit address takes {} bytes", wide.frame_len());
+let wide_frame = wide.frame(Direction::Write);
+println!("a 10-bit address takes {} bytes", wide_frame.len());
 
 // Datasheets quote clock polarity and phase as one mode number. Mode 3 idles the
 // clock high and samples on the trailing edge.

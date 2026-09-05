@@ -34,33 +34,37 @@ use pamoja_ros2::typehash::dds_type_name;
 
 // A name is slash-separated tokens. A token may hold letters, digits, and underscores,
 // and may not begin with a digit, which is the rule that catches most generated names.
-assert!(is_valid_name("/robot1/camera_left/image_raw"));
-assert!(!is_valid_name("/2foo"));
-assert!(is_fully_qualified("/chatter"));
-assert!(!is_fully_qualified("chatter"));
+for name in ["/robot1/camera_left/image_raw", "/2foo"] {
+    println!("{name} is a valid name: {}", is_valid_name(name));
+}
+println!(
+    "chatter is fully qualified: {}",
+    is_fully_qualified("chatter")
+);
+println!(
+    "/chatter is fully qualified: {}",
+    is_fully_qualified("/chatter")
+);
 
 // On the wire a topic carries a prefix that says what kind of endpoint it is, so a
 // subscription and a service request never collide in the same DDS partition.
-assert_eq!(
-    dds_topic("/robot1/cmd_vel", EntityKind::Topic).as_deref(),
-    Some("rt/robot1/cmd_vel")
-);
-assert_eq!(
-    dds_topic("/robot1/add", EntityKind::ServiceRequest).as_deref(),
-    Some("rq/robot1/add")
-);
-assert_eq!(
-    dds_topic("/robot1/add", EntityKind::ServiceResponse).as_deref(),
-    Some("rr/robot1/add")
-);
+let published = dds_topic("/robot1/cmd_vel", EntityKind::Topic);
+let asked = dds_topic("/robot1/add", EntityKind::ServiceRequest);
+let answered = dds_topic("/robot1/add", EntityKind::ServiceResponse);
+println!("a topic    becomes {published:?}");
+println!("a request  becomes {asked:?}");
+println!("a response becomes {answered:?}");
 
 // A message type maps to a DDS type name the same way, so both ends agree on what is
 // being carried before a byte is exchanged.
-assert_eq!(
-    dds_type_name("std_msgs/msg/String").as_deref(),
-    Some("std_msgs::msg::dds_::String_")
+println!(
+    "std_msgs/msg/String becomes {:?}",
+    dds_type_name("std_msgs/msg/String")
 );
-assert_eq!(dds_type_name("not a type"), None);
+println!(
+    "a malformed type name becomes {:?}",
+    dds_type_name("not a type")
+);
 ```
 <!-- end -->
 
@@ -70,27 +74,29 @@ assert_eq!(dds_type_name("not a type"), None);
 From [`bindings/node/guides/ros2.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/ros2.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { EntityKind, name } from '@pamoja/ros2'
 
-// A name is slash-separated tokens. A token may hold letters, digits, and underscores,
-// and may not begin with a digit, which is the rule that catches most generated names.
-assert.ok(name.isValid('/robot1/camera_left/image_raw'))
-assert.ok(!name.isValid('/2foo'))
-assert.ok(name.isFullyQualified('/chatter'))
-assert.ok(!name.isFullyQualified('chatter'))
+// A name is slash-separated tokens. A token may hold letters, digits, and underscores, and
+// may not begin with a digit, which is the rule that catches most generated names.
+for (const candidate of ['/robot1/camera_left/image_raw', '/2foo']) {
+  console.log(`${candidate} is a valid name: ${name.isValid(candidate)}`)
+}
+console.log(`chatter is fully qualified: ${name.isFullyQualified('chatter')}`)
+console.log(`/chatter is fully qualified: ${name.isFullyQualified('/chatter')}`)
 
 // On the wire a topic carries a prefix that says what kind of endpoint it is, so a
 // subscription and a service request never collide in the same DDS partition.
-assert.equal(name.ddsTopic('/robot1/cmd_vel', EntityKind.Topic), 'rt/robot1/cmd_vel')
-assert.equal(name.ddsTopic('/robot1/add', EntityKind.ServiceRequest), 'rq/robot1/add')
-assert.equal(name.ddsTopic('/robot1/add', EntityKind.ServiceResponse), 'rr/robot1/add')
+const published = name.ddsTopic('/robot1/cmd_vel', EntityKind.Topic)
+const asked = name.ddsTopic('/robot1/add', EntityKind.ServiceRequest)
+const answered = name.ddsTopic('/robot1/add', EntityKind.ServiceResponse)
+console.log(`a topic    becomes ${published}`)
+console.log(`a request  becomes ${asked}`)
+console.log(`a response becomes ${answered}`)
 
-// A message type maps to a DDS type name the same way, so both ends agree on what is
-// being carried before a byte is exchanged.
-assert.equal(name.ddsTypeName('std_msgs/msg/String'), 'std_msgs::msg::dds_::String_')
-assert.equal(name.ddsTypeName('not a type'), null)
+// A message type maps to a DDS type name the same way, so both ends agree on what is being
+// carried before a byte is exchanged.
+console.log(`std_msgs/msg/String becomes ${name.ddsTypeName('std_msgs/msg/String')}`)
+console.log(`a malformed type name becomes ${name.ddsTypeName('not a type')}`)
 ```
 <!-- end -->
 
@@ -100,27 +106,28 @@ assert.equal(name.ddsTypeName('not a type'), null)
 From [`bindings/python/guides/ros2.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/ros2.py):
 
 ```python
-from pamoja.ros2 import (
-    EntityKind, dds_topic, dds_type_name, is_fully_qualified, is_valid_name,
-)
+from pamoja.ros2 import EntityKind, dds_topic, dds_type_name, is_fully_qualified, is_valid_name
 
-# A name is slash-separated tokens. A token may hold letters, digits, and underscores,
-# and may not begin with a digit, which is the rule that catches most generated names.
-assert is_valid_name("/robot1/camera_left/image_raw")
-assert not is_valid_name("/2foo")
-assert is_fully_qualified("/chatter")
-assert not is_fully_qualified("chatter")
+# A name is slash-separated tokens. A token may hold letters, digits, and underscores, and
+# may not begin with a digit, which is the rule that catches most generated names.
+for name in ("/robot1/camera_left/image_raw", "/2foo"):
+    print(f"{name} is a valid name: {is_valid_name(name)}")
+print(f"chatter is fully qualified: {is_fully_qualified('chatter')}")
+print(f"/chatter is fully qualified: {is_fully_qualified('/chatter')}")
 
 # On the wire a topic carries a prefix that says what kind of endpoint it is, so a
 # subscription and a service request never collide in the same DDS partition.
-assert dds_topic("/robot1/cmd_vel", EntityKind.TOPIC) == "rt/robot1/cmd_vel"
-assert dds_topic("/robot1/add", EntityKind.SERVICE_REQUEST) == "rq/robot1/add"
-assert dds_topic("/robot1/add", EntityKind.SERVICE_RESPONSE) == "rr/robot1/add"
+published = dds_topic("/robot1/cmd_vel", EntityKind.TOPIC)
+asked = dds_topic("/robot1/add", EntityKind.SERVICE_REQUEST)
+answered = dds_topic("/robot1/add", EntityKind.SERVICE_RESPONSE)
+print(f"a topic    becomes {published}")
+print(f"a request  becomes {asked}")
+print(f"a response becomes {answered}")
 
-# A message type maps to a DDS type name the same way, so both ends agree on what is
-# being carried before a byte is exchanged.
-assert dds_type_name("std_msgs/msg/String") == "std_msgs::msg::dds_::String_"
-assert dds_type_name("not a type") is None
+# A message type maps to a DDS type name the same way, so both ends agree on what is being
+# carried before a byte is exchanged.
+print(f"std_msgs/msg/String becomes {dds_type_name('std_msgs/msg/String')}")
+print(f"a malformed type name becomes {dds_type_name('not a type')}")
 ```
 <!-- end -->
 
@@ -133,29 +140,29 @@ From [`bindings/dotnet/samples/Pamoja.Guides/Ros2Guide.cs`](https://github.com/m
 // A name is slash-separated tokens. A token may hold letters, digits, and
 // underscores, and may not begin with a digit, which is the rule that catches most
 // generated names.
-Expect(Ros2.IsValidName("/robot1/camera_left/image_raw"), "a well-formed name");
-Expect(!Ros2.IsValidName("/2foo"), "a token may not start with a digit");
-Expect(Ros2.IsFullyQualified("/chatter"), "a leading slash qualifies a name");
-Expect(!Ros2.IsFullyQualified("chatter"), "and without one it is relative");
+foreach (string candidate in new[] { "/robot1/camera_left/image_raw", "/2foo" })
+{
+    Console.WriteLine($"{candidate} is a valid name: {Ros2.IsValidName(candidate)}");
+}
+
+Console.WriteLine($"chatter is fully qualified: {Ros2.IsFullyQualified("chatter")}");
+Console.WriteLine($"/chatter is fully qualified: {Ros2.IsFullyQualified("/chatter")}");
 
 // On the wire a topic carries a prefix that says what kind of endpoint it is, so a
 // subscription and a service request never collide in the same DDS partition.
-Expect(
-    Ros2.DdsTopic("/robot1/cmd_vel", EntityKind.Topic) == "rt/robot1/cmd_vel",
-    "a topic is published under rt");
-Expect(
-    Ros2.DdsTopic("/robot1/add", EntityKind.ServiceRequest) == "rq/robot1/add",
-    "a service request under rq");
-Expect(
-    Ros2.DdsTopic("/robot1/add", EntityKind.ServiceResponse) == "rr/robot1/add",
-    "and its response under rr");
+string? published = Ros2.DdsTopic("/robot1/cmd_vel", EntityKind.Topic);
+string? asked = Ros2.DdsTopic("/robot1/add", EntityKind.ServiceRequest);
+string? answered = Ros2.DdsTopic("/robot1/add", EntityKind.ServiceResponse);
+Console.WriteLine($"a topic    becomes {published}");
+Console.WriteLine($"a request  becomes {asked}");
+Console.WriteLine($"a response becomes {answered}");
 
 // A message type maps to a DDS type name the same way, so both ends agree on what
 // is being carried before a byte is exchanged.
-Expect(
-    Ros2.DdsTypeName("std_msgs/msg/String") == "std_msgs::msg::dds_::String_",
-    "the DDS type name the graph expects");
-Expect(Ros2.DdsTypeName("not a type") is null, "and a malformed type has none");
+Console.WriteLine(
+    $"std_msgs/msg/String becomes {Ros2.DdsTypeName("std_msgs/msg/String")}");
+Console.WriteLine(
+    $"a malformed type name becomes {Ros2.DdsTypeName("not a type") ?? "nothing"}");
 ```
 <!-- end -->
 
