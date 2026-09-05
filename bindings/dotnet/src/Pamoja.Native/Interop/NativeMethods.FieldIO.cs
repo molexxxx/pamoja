@@ -354,6 +354,59 @@ public static partial class NativeMethods
         byte source,
         byte destination);
 
+    /// <summary>Composes the identifier of a J1939 broadcast.</summary>
+    [LibraryImport(Library)]
+    public static partial uint pamoja_can_j1939_broadcast(byte priority, uint pgn, byte source);
+
+    /// <summary>The byte a J1939 sender writes for a signal it is not reporting.</summary>
+    public const byte J1939NotAvailable = 0xFF;
+
+    /// <summary>The destination address every node on the bus reads.</summary>
+    public const byte J1939BroadcastAddress = 0xFF;
+
+    /// <summary>The priority a control message takes, ahead of ordinary traffic.</summary>
+    public const byte J1939PriorityControl = 3;
+
+    /// <summary>The priority ordinary traffic takes.</summary>
+    public const byte J1939PriorityDefault = 6;
+
+    /// <summary>The priority that yields to everything else on the bus.</summary>
+    public const byte J1939PriorityLowest = 7;
+
+    /// <summary>Builds a J1939 payload with every signal marked not available.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaJ1939Signals pamoja_can_signals_new();
+
+    /// <summary>Writes a one-byte signal at the offset its group defines.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaJ1939Signals pamoja_can_signals_set_u8(
+        PamojaJ1939Signals signals,
+        nuint at,
+        byte value);
+
+    /// <summary>Writes a two-byte little-endian signal at the offset its group defines.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaJ1939Signals pamoja_can_signals_set_u16(
+        PamojaJ1939Signals signals,
+        nuint at,
+        ushort value);
+
+    /// <summary>Reads a one-byte signal at the offset its group defines.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_can_signals_u8(
+        PamojaJ1939Signals signals,
+        nuint at,
+        out byte outValue);
+
+    /// <summary>Reads a two-byte little-endian signal at the offset its group defines.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_can_signals_u16(
+        PamojaJ1939Signals signals,
+        nuint at,
+        out ushort outValue);
+
     /// <summary>Validates a 7-bit I2C address.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_i2c_address_seven_bit(

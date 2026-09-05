@@ -11,16 +11,59 @@
 
 import {
   type CanFrame,
+  J1939_BROADCAST_ADDRESS,
+  J1939_NOT_AVAILABLE,
+  J1939_PRIORITY_CONTROL,
+  J1939_PRIORITY_DEFAULT,
+  J1939_PRIORITY_LOWEST,
+  Signals,
   canDlcToLen,
   canFdFrame,
   canFrame,
   canLenToDlc,
   canRemoteFrame,
+  j1939Broadcast,
   j1939Compose,
   j1939Decode,
 } from '@pamoja/native'
 
-export { type CanFrame }
+export { type CanFrame, Signals }
+
+/** The byte a J1939 sender writes for a signal it is not reporting. */
+export const NOT_AVAILABLE = J1939_NOT_AVAILABLE
+
+/** The destination address every node on the bus reads. */
+export const BROADCAST_ADDRESS = J1939_BROADCAST_ADDRESS
+
+/** The priorities J1939 publishes, so a caller does not write the number out. */
+export const priority = {
+  /** Ahead of ordinary traffic, for a message that controls something. */
+  control: J1939_PRIORITY_CONTROL,
+  /** What ordinary traffic uses. */
+  default: J1939_PRIORITY_DEFAULT,
+  /** Yields to everything else on the bus. */
+  lowest: J1939_PRIORITY_LOWEST,
+} as const
+
+/**
+ * Builds a J1939 payload with every signal marked not available.
+ *
+ * @returns Eight bytes a controller writes only its own signals into.
+ */
+export function signals(): Signals {
+  return new Signals()
+}
+
+/**
+ * Reads the eight data bytes of a frame that arrived off the bus.
+ *
+ * @param data - The frame's payload.
+ * @returns The payload, ready for its signals to be read out.
+ * @throws If the payload is not exactly eight bytes.
+ */
+export function signalsFrom(data: Uint8Array): Signals {
+  return Signals.fromBytes(Buffer.from(data))
+}
 
 /** The fields J1939 packs into an extended CAN identifier. */
 export interface J1939Message {
@@ -140,4 +183,19 @@ export function composeJ1939(
   destination = 0,
 ): number {
   return j1939Compose(priority, pgn, source, destination)
+}
+
+/**
+ * Composes the identifier of a J1939 broadcast, which every node on the bus reads.
+ *
+ * Most parameter groups are broadcast, so this is the common case; it saves a
+ * caller knowing that a broadcast is addressed to `0xFF`.
+ *
+ * @param priority - The message priority, 0 (highest) to 7.
+ * @param pgn - The parameter group number.
+ * @param source - The address of the sending node.
+ * @returns The 29-bit identifier.
+ */
+export function broadcastJ1939(priority: number, pgn: number, source: number): number {
+  return j1939Broadcast(priority, pgn, source)
 }

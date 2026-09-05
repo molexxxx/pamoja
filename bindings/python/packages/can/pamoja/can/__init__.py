@@ -8,18 +8,27 @@ handles the wire itself.
 
 from __future__ import annotations
 
-from pamoja._native import CanFrame, J1939Message
+from enum import IntEnum
+
+from pamoja._native import CanFrame, J1939Message, Signals
 from pamoja._native import can_dlc_to_len as _dlc_to_len
 from pamoja._native import can_fd_frame as _fd_frame
 from pamoja._native import can_frame as _frame
 from pamoja._native import can_len_to_dlc as _len_to_dlc
 from pamoja._native import can_remote_frame as _remote_frame
 from pamoja._native import j1939_compose as _j1939_compose
+from pamoja._native import j1939_broadcast as _j1939_broadcast
 from pamoja._native import j1939_decode as _j1939_decode
+from pamoja._native import j1939_limits as _limits
 
 __all__ = [
+    "BROADCAST_ADDRESS",
+    "NOT_AVAILABLE",
     "CanFrame",
     "J1939Message",
+    "Priority",
+    "Signals",
+    "broadcast_j1939",
     "compose_j1939",
     "decode_j1939",
     "dlc_to_len",
@@ -27,7 +36,48 @@ __all__ = [
     "frame",
     "len_to_dlc",
     "remote_frame",
+    "signals",
+    "signals_from",
 ]
+
+_NOT_AVAILABLE, _BROADCAST_ADDRESS, _CONTROL, _DEFAULT, _LOWEST = _limits()
+
+#: The byte a J1939 sender writes for a signal it is not reporting.
+NOT_AVAILABLE = _NOT_AVAILABLE
+
+#: The destination address every node on the bus reads.
+BROADCAST_ADDRESS = _BROADCAST_ADDRESS
+
+
+class Priority(IntEnum):
+    """The priorities J1939 publishes, so a caller does not write the number out."""
+
+    CONTROL = _CONTROL
+    """Ahead of ordinary traffic, for a message that controls something."""
+
+    DEFAULT = _DEFAULT
+    """What ordinary traffic uses."""
+
+    LOWEST = _LOWEST
+    """Yields to everything else on the bus."""
+
+
+def signals() -> Signals:
+    """Build a J1939 payload with every signal marked not available.
+
+    :returns: Eight bytes a controller writes only its own signals into.
+    """
+    return Signals()
+
+
+def signals_from(data: bytes) -> Signals:
+    """Read the eight data bytes of a frame that arrived off the bus.
+
+    :param data: The frame's payload.
+    :returns: The payload, ready for its signals to be read out.
+    :raises PamojaError: The payload is not exactly eight bytes.
+    """
+    return Signals.from_bytes(data)
 
 
 def frame(identifier: int, data: bytes, extended: bool = False) -> CanFrame:
@@ -107,3 +157,17 @@ def compose_j1939(priority: int, pgn: int, source: int, destination: int = 0) ->
     :returns: The 29-bit identifier.
     """
     return _j1939_compose(priority, pgn, source, destination)
+
+
+def broadcast_j1939(priority: int, pgn: int, source: int) -> int:
+    """Compose the identifier of a J1939 broadcast, which every node reads.
+
+    Most parameter groups are broadcast, so this is the common case; it saves a
+    caller knowing that a broadcast is addressed to ``0xFF``.
+
+    :param priority: The message priority, 0 (highest) to 7.
+    :param pgn: The parameter group number.
+    :param source: The address of the sending node.
+    :returns: The 29-bit identifier.
+    """
+    return _j1939_broadcast(priority, pgn, source)

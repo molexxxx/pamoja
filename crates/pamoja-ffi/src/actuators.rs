@@ -15,13 +15,19 @@ use pamoja_actuators::{pca9685, stepper};
 use crate::{set_last_error, PamojaStatus};
 
 /// The PCA9685's internal oscillator frequency, in hertz.
-pub const PAMOJA_PCA9685_INTERNAL_OSC_HZ: u32 = pca9685::INTERNAL_OSC_HZ;
+pub const PAMOJA_PCA9685_INTERNAL_OSC_HZ: u32 = 25_000_000;
 
 /// How many PWM channels a PCA9685 drives.
-pub const PAMOJA_PCA9685_CHANNELS: u8 = pca9685::CHANNELS;
+pub const PAMOJA_PCA9685_CHANNELS: u8 = 16;
 
 /// How many counts a PCA9685 period is divided into.
-pub const PAMOJA_PCA9685_COUNTS: u16 = pca9685::COUNTS;
+pub const PAMOJA_PCA9685_COUNTS: u16 = 4096;
+
+// The header generator does not read the crates this one depends on, so these
+// carry their value rather than the name of the constant that defines it.
+const _: () = assert!(PAMOJA_PCA9685_INTERNAL_OSC_HZ == pca9685::INTERNAL_OSC_HZ);
+const _: () = assert!(PAMOJA_PCA9685_CHANNELS == pca9685::CHANNELS);
+const _: () = assert!(PAMOJA_PCA9685_COUNTS == pca9685::COUNTS);
 
 /// A PCA9685 channel's four register bytes.
 ///

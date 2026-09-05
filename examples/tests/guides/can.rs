@@ -16,6 +16,11 @@ fn a_j1939_broadcast_and_the_frame_that_carries_it() {
     const ENGINE_CONTROLLER_1: u32 = 61_444; // carries engine speed
     const REQUEST: u32 = 59_904; // asks another node for a parameter group
 
+    // Where engine speed sits inside that group, and the scale the standard fixes for it.
+    // Naming both is what stops a sender and a receiver disagreeing about either.
+    const ENGINE_SPEED_AT: usize = 3;
+    const RPM_PER_BIT: f64 = 0.125;
+
     // J1939 keeps its addressing inside the CAN identifier: a priority, the parameter
     // group, and the address of whatever sent it. A broadcast has no destination, so it
     // is its own constructor rather than a magic address a caller has to know.
@@ -36,15 +41,14 @@ fn a_j1939_broadcast_and_the_frame_that_carries_it() {
     println!("heard     from node {from} for node {to}");
 
     // The payload. Every signal starts marked not available, and this controller reports
-    // only engine speed, which that group places at byte offset three, two bytes wide, at
-    // 0.125 rpm per bit.
+    // only engine speed, so that is the only one it writes.
     let mut reported = Signals::new();
-    reported.set_u16(3, (1000.0 / 0.125) as u16);
+    reported.set_u16(ENGINE_SPEED_AT, (1000.0 / RPM_PER_BIT) as u16);
     let frame = Frame::new(speed_id.to_id(), reported.as_bytes()).expect("eight bytes fit");
 
     // The receiving node reads the same offset back, so neither end slices the payload.
     let signals = frame.signals().expect("a J1939 frame carries eight bytes");
-    let rpm = f64::from(signals.u16(3).expect("engine speed")) * 0.125;
+    let rpm = f64::from(signals.u16(ENGINE_SPEED_AT).expect("engine speed")) * RPM_PER_BIT;
     println!("engine    {rpm} rpm, carried in {} bytes", frame.dlc());
 
     // Above eight bytes CAN-FD encodes the length in steps rather than exactly, and a

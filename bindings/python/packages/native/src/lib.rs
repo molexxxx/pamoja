@@ -175,6 +175,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(feature = "can")]
     {
         m.add_class::<can::CanFrame>()?;
+        m.add_class::<can::CanSignals>()?;
         m.add_class::<can::J1939Message>()?;
         m.add_function(wrap_pyfunction!(can::can_frame, m)?)?;
         m.add_function(wrap_pyfunction!(can::can_fd_frame, m)?)?;
@@ -183,6 +184,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(can::can_dlc_to_len, m)?)?;
         m.add_function(wrap_pyfunction!(can::j1939_decode, m)?)?;
         m.add_function(wrap_pyfunction!(can::j1939_compose, m)?)?;
+        m.add_function(wrap_pyfunction!(can::j1939_broadcast, m)?)?;
+        m.add_function(wrap_pyfunction!(can::j1939_limits, m)?)?;
     }
     #[cfg(feature = "gpio")]
     {

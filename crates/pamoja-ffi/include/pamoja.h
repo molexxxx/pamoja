@@ -9,17 +9,35 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+// The PCA9685's internal oscillator frequency, in hertz.
+#define PAMOJA_PCA9685_INTERNAL_OSC_HZ 25000000
 
+// How many PWM channels a PCA9685 drives.
+#define PAMOJA_PCA9685_CHANNELS 16
 
-
-
-
+// How many counts a PCA9685 period is divided into.
+#define PAMOJA_PCA9685_COUNTS 4096
 
 // The length in bytes of an entry hash.
 #define PAMOJA_AUDIT_DIGEST_LEN 32
 
 // The length in bytes of an entry signature.
 #define PAMOJA_AUDIT_SIGNATURE_LEN 64
+
+// The byte a J1939 sender writes for a signal it is not reporting.
+#define PAMOJA_J1939_NOT_AVAILABLE 255
+
+// The destination address every node on the bus reads.
+#define PAMOJA_J1939_BROADCAST_ADDRESS 255
+
+// The priority a control message takes, ahead of ordinary traffic.
+#define PAMOJA_J1939_PRIORITY_CONTROL 3
+
+// The priority ordinary traffic takes.
+#define PAMOJA_J1939_PRIORITY_DEFAULT 6
+
+// The priority that yields to everything else on the bus.
+#define PAMOJA_J1939_PRIORITY_LOWEST 7
 
 // The largest I2C address frame, in bytes: the two a 10-bit address needs.
 #define PAMOJA_I2C_FRAME_MAX 2
@@ -952,6 +970,16 @@ typedef struct {
   // `1` for an addressed (PDU1) message, `0` for a broadcast (PDU2) one.
   uint8_t addressed;
 } PamojaJ1939Id;
+
+// The eight data bytes of a J1939 frame, addressed by the signals inside them.
+//
+// A parameter group places each signal at a fixed byte offset, little-endian. The
+// payload is only bytes, so it crosses the boundary by value, which keeps reading
+// and writing a signal free of any allocation.
+typedef struct {
+  // The eight data bytes, in wire order.
+  uint8_t bytes[8];
+} PamojaJ1939Signals;
 
 // The settings a CoAP endpoint is built from.
 typedef struct {
@@ -2334,6 +2362,64 @@ uint32_t pamoja_can_j1939_compose(uint8_t priority,
                                   uint32_t pgn,
                                   uint8_t source,
                                   uint8_t destination);
+
+// Composes the identifier of a J1939 broadcast, which every node on the bus reads.
+//
+// # Returns
+//
+// The 29-bit identifier. Most parameter groups are broadcast, so this is the
+// common case, and it saves a caller knowing the broadcast address.
+uint32_t pamoja_can_j1939_broadcast(uint8_t priority, uint32_t pgn, uint8_t source);
+
+// Builds a J1939 payload with every signal marked not available.
+//
+// # Returns
+//
+// Eight bytes of [`PAMOJA_J1939_NOT_AVAILABLE`], ready for a sender to write only
+// the signals it has.
+PamojaJ1939Signals pamoja_can_signals_new(void);
+
+// Writes a one-byte signal at the offset its parameter group defines.
+//
+// # Returns
+//
+// The payload with the signal written, or unchanged if `at` is past its end.
+PamojaJ1939Signals pamoja_can_signals_set_u8(PamojaJ1939Signals signals,
+                                             uintptr_t at,
+                                             uint8_t value);
+
+// Writes a two-byte little-endian signal at the offset its group defines.
+//
+// # Returns
+//
+// The payload with the signal written, or unchanged if the signal would run past
+// its end.
+PamojaJ1939Signals pamoja_can_signals_set_u16(PamojaJ1939Signals signals,
+                                              uintptr_t at,
+                                              uint16_t value);
+
+// Reads a one-byte signal at the offset its parameter group defines.
+//
+// # Returns
+//
+// `true` with `*out_value` set, or `false` if `at` is past the payload.
+//
+// # Safety
+//
+// `out_value` must point to a writable `uint8_t`.
+bool pamoja_can_signals_u8(PamojaJ1939Signals signals, uintptr_t at, uint8_t *out_value);
+
+// Reads a two-byte little-endian signal at the offset its group defines.
+//
+// # Returns
+//
+// `true` with `*out_value` set, or `false` if the signal would run past the
+// payload.
+//
+// # Safety
+//
+// `out_value` must point to a writable `uint16_t`.
+bool pamoja_can_signals_u16(PamojaJ1939Signals signals, uintptr_t at, uint16_t *out_value);
 
 // Creates a disconnected CoAP endpoint from the given settings.
 //

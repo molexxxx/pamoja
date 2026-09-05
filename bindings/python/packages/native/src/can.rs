@@ -12,7 +12,10 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 
-use pamoja_can::{dlc_to_len, len_to_dlc, CanError, CanId, Frame, J1939Id};
+use pamoja_can::{
+    dlc_to_len, len_to_dlc, priority, CanError, CanId, Frame, J1939Id, Signals, BROADCAST_ADDRESS,
+    NOT_AVAILABLE,
+};
 
 use crate::PamojaError;
 
@@ -142,6 +145,93 @@ pub fn j1939_compose(priority: u8, pgn: u32, source: u8, destination: u8) -> u32
     J1939Id::from_parts(priority, pgn, source, destination)
         .to_id()
         .raw()
+}
+
+/// Composes the identifier of a J1939 broadcast, which every node on the bus reads.
+///
+/// Most parameter groups are broadcast, so this is the common case; it saves a
+/// caller knowing that a broadcast is addressed to `0xFF`.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn j1939_broadcast(priority: u8, pgn: u32, source: u8) -> u32 {
+    J1939Id::broadcast(priority, pgn, source).to_id().raw()
+}
+
+/// Returns the named values J1939 publishes.
+///
+/// The order is the not-available byte, the broadcast address, and the control,
+/// default, and lowest priorities.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn j1939_limits() -> (u8, u8, u8, u8, u8) {
+    (
+        NOT_AVAILABLE,
+        BROADCAST_ADDRESS,
+        priority::CONTROL,
+        priority::DEFAULT,
+        priority::LOWEST,
+    )
+}
+
+/// The eight data bytes of a J1939 frame, addressed by the signals inside them.
+///
+/// A parameter group places each signal at a fixed byte offset, little-endian. A
+/// payload starts with every signal marked not available, so a controller writes
+/// only the signals it actually reports.
+#[gen_stub_pyclass]
+#[pyclass(name = "Signals")]
+pub struct CanSignals {
+    inner: Signals,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl CanSignals {
+    /// Builds a payload with every signal marked not available.
+    #[new]
+    fn new() -> CanSignals {
+        CanSignals {
+            inner: Signals::new(),
+        }
+    }
+
+    /// Reads the eight data bytes of a frame that arrived off the bus.
+    #[staticmethod]
+    fn from_bytes(bytes: Vec<u8>) -> PyResult<CanSignals> {
+        let bytes: [u8; 8] = bytes.as_slice().try_into().map_err(|_| {
+            PamojaError::new_err("a J1939 payload is exactly eight bytes".to_string())
+        })?;
+        Ok(CanSignals {
+            inner: Signals::from_bytes(bytes),
+        })
+    }
+
+    /// Writes a one-byte signal at the offset its parameter group defines.
+    fn set_u8(&mut self, at: usize, value: u8) {
+        self.inner.set_u8(at, value);
+    }
+
+    /// Writes a two-byte little-endian signal at the offset its group defines.
+    fn set_u16(&mut self, at: usize, value: u16) {
+        self.inner.set_u16(at, value);
+    }
+
+    /// Reads a one-byte signal, or `None` if the offset is past the payload.
+    fn u8(&self, at: usize) -> Option<u8> {
+        self.inner.u8(at)
+    }
+
+    /// Reads a two-byte little-endian signal, or `None` if it would run past the
+    /// payload.
+    fn u16(&self, at: usize) -> Option<u16> {
+        self.inner.u16(at)
+    }
+
+    /// The eight data bytes, ready to put in a frame.
+    #[getter]
+    fn bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.as_bytes())
+    }
 }
 
 /// Describes a built frame as the read-only object Python receives.

@@ -10,7 +10,10 @@
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
-use pamoja_can::{dlc_to_len, len_to_dlc, CanError, CanId, Frame, J1939Id};
+use pamoja_can::{
+    dlc_to_len, len_to_dlc, priority, CanError, CanId, Frame, J1939Id, Signals, BROADCAST_ADDRESS,
+    NOT_AVAILABLE,
+};
 
 /// A CAN frame: an identifier, its flags, and its payload.
 #[napi(object)]
@@ -107,6 +110,105 @@ pub fn j1939_compose(priority: u8, pgn: u32, source: u8, destination: u8) -> u32
     J1939Id::from_parts(priority, pgn, source, destination)
         .to_id()
         .raw()
+}
+
+/// Composes the identifier of a J1939 broadcast, which every node on the bus reads.
+///
+/// This is the ordinary case: most parameter groups are broadcast, and a caller
+/// should not have to know that a broadcast is addressed to `0xFF`.
+#[napi]
+pub fn j1939_broadcast(priority: u8, pgn: u32, source: u8) -> u32 {
+    J1939Id::broadcast(priority, pgn, source).to_id().raw()
+}
+
+/// The byte a J1939 sender writes for a signal it is not reporting.
+#[napi]
+pub const J1939_NOT_AVAILABLE: u8 = NOT_AVAILABLE;
+
+/// The destination address every node on the bus reads.
+#[napi]
+pub const J1939_BROADCAST_ADDRESS: u8 = BROADCAST_ADDRESS;
+
+/// The priority a control message takes, ahead of ordinary traffic.
+#[napi]
+pub const J1939_PRIORITY_CONTROL: u8 = priority::CONTROL;
+
+/// The priority ordinary traffic takes.
+#[napi]
+pub const J1939_PRIORITY_DEFAULT: u8 = priority::DEFAULT;
+
+/// The priority that yields to everything else on the bus.
+#[napi]
+pub const J1939_PRIORITY_LOWEST: u8 = priority::LOWEST;
+
+/// The eight data bytes of a J1939 frame, addressed by the signals inside them.
+///
+/// A parameter group places each signal at a fixed byte offset, little-endian. A
+/// payload starts with every signal marked not available, so a controller writes
+/// only the signals it actually reports.
+#[napi(js_name = "Signals")]
+pub struct CanSignals {
+    inner: Signals,
+}
+
+impl Default for CanSignals {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[napi]
+impl CanSignals {
+    /// Builds a payload with every signal marked not available.
+    #[napi(constructor)]
+    pub fn new() -> CanSignals {
+        CanSignals {
+            inner: Signals::new(),
+        }
+    }
+
+    /// Reads the eight data bytes of a frame that arrived off the bus.
+    #[napi(factory)]
+    pub fn from_bytes(bytes: Buffer) -> napi::Result<CanSignals> {
+        let bytes: [u8; 8] = bytes
+            .as_ref()
+            .try_into()
+            .map_err(|_| napi::Error::from_reason("a J1939 payload is exactly eight bytes"))?;
+        Ok(CanSignals {
+            inner: Signals::from_bytes(bytes),
+        })
+    }
+
+    /// Writes a one-byte signal at the offset its parameter group defines.
+    #[napi]
+    pub fn set_u8(&mut self, at: u32, value: u8) {
+        self.inner.set_u8(at as usize, value);
+    }
+
+    /// Writes a two-byte little-endian signal at the offset its group defines.
+    #[napi]
+    pub fn set_u16(&mut self, at: u32, value: u16) {
+        self.inner.set_u16(at as usize, value);
+    }
+
+    /// Reads a one-byte signal, or `null` if the offset is past the payload.
+    #[napi]
+    pub fn u8(&self, at: u32) -> Option<u8> {
+        self.inner.u8(at as usize)
+    }
+
+    /// Reads a two-byte little-endian signal, or `null` if it would run past the
+    /// payload.
+    #[napi]
+    pub fn u16(&self, at: u32) -> Option<u16> {
+        self.inner.u16(at as usize)
+    }
+
+    /// The eight data bytes, ready to put in a frame.
+    #[napi(getter)]
+    pub fn bytes(&self) -> Buffer {
+        self.inner.as_bytes().to_vec().into()
+    }
 }
 
 /// Describes a built frame as the plain object JavaScript receives.
