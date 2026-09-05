@@ -1336,6 +1336,34 @@ export declare class Session {
   open(sealed: SealedMessage, aad?: Buffer | undefined | null): Buffer
 }
 
+/**
+ * The eight data bytes of a J1939 frame, addressed by the signals inside them.
+ *
+ * A parameter group places each signal at a fixed byte offset, little-endian. A
+ * payload starts with every signal marked not available, so a controller writes
+ * only the signals it actually reports.
+ */
+export declare class Signals {
+  /** Builds a payload with every signal marked not available. */
+  constructor()
+  /** Reads the eight data bytes of a frame that arrived off the bus. */
+  static fromBytes(bytes: Buffer): Signals
+  /** Writes a one-byte signal at the offset its parameter group defines. */
+  setU8(at: number, value: number): void
+  /** Writes a two-byte little-endian signal at the offset its group defines. */
+  setU16(at: number, value: number): void
+  /** Reads a one-byte signal, or `null` if the offset is past the payload. */
+  u8(at: number): number | null
+  /**
+   * Reads a two-byte little-endian signal, or `null` if it would run past the
+   * payload.
+   */
+  u16(at: number): number | null
+  /** The eight data bytes, ready to put in a frame. */
+  get bytes(): Buffer
+}
+export type CanSignals = Signals
+
 /** A robot that moves only in arithmetic. */
 export declare class SimulatedRobot {
   /**
@@ -1462,12 +1490,6 @@ export declare class Thermostat {
   isOn(): boolean
 }
 
-/**
- * One transport, ready to compose into a ladder or a wrapper.
- *
- * Build one with the static factories, then hand it to whatever should own it.
- * A transport handed on is spent: calling anything on it afterwards throws.
- */
 export declare class Transport {
   /** Creates an MQTT transport from broker settings. */
   static mqtt(options: MqttClientOptions): Transport
@@ -1484,14 +1506,14 @@ export declare class Transport {
   /**
    * Wraps a transport in a link that loses packets and goes down.
    *
-   * The wrapped transport is consumed.
+   * The wrapped transport is consumed. Every fault is off unless the options
+   * name it, so a link that only drops packets says only that.
    *
    * @param inner - the transport to degrade.
-   * @param dropEvery - lose one send in every this many, or 0 to lose none.
-   * @param up - how many sends the link stays up for, or 0 to never go down.
-   * @param down - how many sends it then stays down for.
+   * @param faults - `dropEvery` loses one send in every this many; `up` and
+   * `down` alternate that many sends of reachable and unreachable.
    */
-  static degraded(inner: Transport, dropEvery: number, up: number, down: number): Transport
+  static degraded(inner: Transport, faults?: Faults | undefined | null): Transport
   /** Whether this transport is still holdable, or has been handed on. */
   get isAvailable(): boolean
 }
@@ -1942,6 +1964,22 @@ export declare const enum EntityKindName {
  */
 export declare function envelopeBody(bytes: Buffer): Buffer
 
+/**
+ * One transport, ready to compose into a ladder or a wrapper.
+ *
+ * Build one with the static factories, then hand it to whatever should own it.
+ * A transport handed on is spent: calling anything on it afterwards throws.
+ * Which faults a degraded link injects, each off unless named.
+ */
+export interface Faults {
+  /** Lose one send in every this many. */
+  dropEvery?: number
+  /** How many sends the link stays reachable for before it goes down. */
+  up?: number
+  /** How many sends it then stays unreachable for. */
+  down?: number
+}
+
 /** Returns the short hex fingerprint of a public key. */
 export declare function fingerprint(publicKey: Buffer): string
 
@@ -1973,6 +2011,12 @@ export declare function hkdfSha256Expand(salt: Buffer, ikm: Buffer, info: Buffer
  * single command, where a whole session would be more than the job needs.
  */
 export declare function hmacSha256Digest(key: Buffer, message: Buffer): Buffer
+
+/** The first 7-bit address above the reserved block at the bottom of the range. */
+export const I2C_RESERVED_BELOW: number
+
+/** The lowest 7-bit address the I2C specification keeps for itself. */
+export const I2C_RESERVED_FROM: number
 
 /**
  * Returns the address bytes a controller puts on the bus for a transfer.
@@ -2041,6 +2085,29 @@ export declare function ina219ShuntMicrovolts(raw: number): number
 
 /** Builds the INA219 shunt-voltage register a monitor reports for a shunt voltage. */
 export declare function ina219ShuntRegister(microvolts: number): number
+
+/** The destination address every node on the bus reads. */
+export const J1939_BROADCAST_ADDRESS: number
+
+/** The byte a J1939 sender writes for a signal it is not reporting. */
+export const J1939_NOT_AVAILABLE: number
+
+/** The priority a control message takes, ahead of ordinary traffic. */
+export const J1939_PRIORITY_CONTROL: number
+
+/** The priority ordinary traffic takes. */
+export const J1939_PRIORITY_DEFAULT: number
+
+/** The priority that yields to everything else on the bus. */
+export const J1939_PRIORITY_LOWEST: number
+
+/**
+ * Composes the identifier of a J1939 broadcast, which every node on the bus reads.
+ *
+ * This is the ordinary case: most parameter groups are broadcast, and a caller
+ * should not have to know that a broadcast is addressed to `0xFF`.
+ */
+export declare function j1939Broadcast(priority: number, pgn: number, source: number): number
 
 /**
  * Composes the extended CAN identifier a set of J1939 fields describes.
@@ -2743,6 +2810,9 @@ export const MESH_BROADCAST: number
 
 /** The hop limit a frame starts with unless one is given. */
 export const MESH_DEFAULT_HOP_LIMIT: number
+
+/** How many bytes of a frame are header, so where its payload starts. */
+export const MESH_HEADER_LEN: number
 
 /** The largest mesh frame, in bytes, including its header and checksum. */
 export const MESH_MAX_FRAME: number

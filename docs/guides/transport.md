@@ -2,10 +2,10 @@
 
 A node should not care which link it got. The reading it took is worth the same
 whether it leaves over MQTT, over CoAP, over a mesh hop, or into a queue on disk
-until morning. So every link in pamoja implements one contract: connect, send,
-subscribe, receive, disconnect. Everything that carries traffic takes that
-contract rather than a particular link, which is what lets a store, a ladder, or
-a fault injector work with all of them and with each other.
+until morning. So every link in pamoja implements one contract: connect,
+subscribe, send. Everything that carries traffic takes that contract rather than
+a particular link, which is what lets a store, a ladder, or a fault injector work
+with all of them and with each other.
 
 The fault injector is the clearest case. It is a transport that wraps a transport
 and fails a set number of the sends passing through it, so the offline path can be
@@ -16,8 +16,8 @@ In Rust the contract is a trait and composition is a move, so the compiler alrea
 stops a link being used after it has been handed on. The three bindings have no way
 to say "any transport", so each holds one handle that dispatches to whichever kind
 was built, and composing empties the handle rather than leaving it aliasing what now
-belongs to something else. The examples below check that, since it is the one place
-the bindings have to do by hand what Rust gets from the language.
+belongs to something else. A link handed to a fault injector or to a ladder is
+spent, and calling anything on it afterwards throws.
 
 ## What the example does
 
@@ -25,17 +25,23 @@ It runs a link that fails its first send, underneath a ladder with a queue, and
 follows two readings through: the one the failure catches, and the one taken
 after it.
 
+The gateway and the ladder are two links onto the same in-process broker, so what
+the subscriber reads is what actually crossed the link rather than something
+handed to it. The failure is arranged by telling the injector how many sends to
+refuse, and the depth of the backlog is the ladder's own `buffered` count, not a
+tally the example keeps.
+
 It proves:
 
-- A fault injector is a transport wrapping a transport, so it goes wherever a
-  link goes.
-- A refused send is buffered rather than lost, and the queue says how much it is
-  holding.
-- The reading taken next joins the back of that queue instead of overtaking it,
-  even though the link would carry it now, so what reaches the subscriber is in
-  the order the readings were taken.
-- A flush forwards the whole backlog and empties the queue.
-- In the bindings, composing a transport spends the handle.
+- A fault injector sits in the ladder where a plain link would, and the send it
+  refuses comes back as `Buffered` rather than an error, so the reading is held
+  instead of lost.
+- The reading taken next is buffered too, even though the link would carry it
+  now, and the ladder counts both as queued.
+- A flush forwards the whole backlog and leaves nothing queued behind it.
+- The subscriber reads `20.1` and then `20.4`, so the far end sees the readings
+  in the order they were taken, not the order the link became willing to carry
+  them.
 
 ## Rust
 

@@ -42,9 +42,10 @@ fn a_reading_flooded_across_a_mesh() {
     }
 
     // A payload byte the air mangled fails the checksum rather than reaching the
-    // application as a plausible reading.
+    // application as a plausible reading. The header is a fixed width, so the first
+    // byte past it is the first byte of the reading itself.
     let mut mangled = reading.as_bytes().to_vec();
-    mangled[12] ^= 0xFF;
+    mangled[Frame::HEADER_LEN] ^= 0xFF;
     match Frame::parse(&mangled) {
         Ok(_) => println!("a mangled frame was accepted, which should never happen"),
         Err(error) => println!("mangled   rejected: {error}"),

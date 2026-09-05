@@ -15,22 +15,31 @@ image confirms itself, the next boot goes back to the one that worked.
 ## What the example does
 
 It signs a manifest for an image, checks the envelope on the device against the
-key that device is anchored to, stages the image into the spare slot while the
-running one is left alone, and confirms it after a trial boot. Then it offers the
-same release signed by a key the device does not trust.
+key that device is anchored to, then writes the image into the spare slot sixteen
+bytes at a time. The device is provisioned first as it left the factory, running
+sequence 1 from slot 0, so there is a working image to keep. The staged image
+gets its trial boot and is confirmed. Finally the same release comes back signed
+by a key the device does not trust.
 
 The manifest commits to a SHA-256 over the image, and the library computes it, so
 a publisher does not add a hashing dependency just to name the image it is
-releasing.
+releasing. The vendor and class identifiers are sixteen bytes a vendor assigns
+itself; a device takes firmware only for the pair it was built as.
 
 It proves:
 
-- A verified envelope carries back the digest that was signed.
+- Verifying the envelope hands back the manifest, so the device learns which slot
+  the release is for from the signature rather than from whoever sent it.
+- The digest in the manifest is the one the library computes over the image, so a
+  publisher that hashed the wrong bytes cannot produce a release that stages.
+- Staging completes only because every byte the manifest declared arrived and
+  hashed to that digest, which the device recomputes as the pieces come in.
 - The release lands in the slot the device is not running from, so the working
   image is never overwritten.
-- A first boot into a new image reports itself as a trial, and confirming it is
-  what makes it permanent.
-- A release signed by an untrusted key is refused.
+- The first boot into the staged image is a trial, and confirming it is what
+  leaves the slot confirmed rather than reverting on the next boot.
+- A release signed by a key the device is not anchored to is refused, even though
+  the manifest inside it is the same one that was just accepted.
 
 ## Rust
 

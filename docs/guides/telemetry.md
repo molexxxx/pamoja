@@ -11,21 +11,33 @@ it hands back actually go is the caller's business.
 
 ## What the example does
 
-It takes one node through two changes of link cost, records five events across
-the range of levels, and checks which of them come back to be shipped and what
-the counters say once the dust settles.
+A node willing to record everything adapts to a metered link, then records a
+loop tick, a sensor reading and the low-battery warning that follows it. It
+falls back to satellite, records the same reading again and a lost-link
+failure, and prints which of the five come back to be shipped. It ends on the
+snapshot, the few integers a node ships in place of the events themselves.
+
+No threshold is typed in. `adapt_to` takes a link cost and the library derives
+the level from it, so what a reader sees is the price of the link rather than a
+number someone picked. The same `reading.ok` is recorded under both costs, so
+what decides whether it travels is the link and not the event.
 
 It proves:
 
-- A metered link sets the bar at `Info` and an expensive one at `Warn`, so how
-  much a node says follows what the link costs rather than a build-time setting.
-- An event that clears the bar comes back with its code and its measurement
-  intact, ready to hand to a transport.
-- A dropped event is still counted: two readings were recorded at `Info` even
+- A link cost sets the bar: `Metered` puts it at `Info` and `Expensive` raises
+  it to `Warn`, so how much a node says follows what the link costs and not the
+  level it was built with.
+- The same `reading.ok` is handed back on the metered link and held back on the
+  satellite one, so each event is judged against the bar in force when it is
+  recorded.
+- A shipped event comes back with its code and its measurement, `battery.low`
+  at `0.18`, so a transport has the number that triggered it.
+- A held-back event is still counted: two readings were recorded at `Info` even
   though only the first one went out.
-- Five events recorded, three shipped and two dropped, so the totals reconcile
-  and the snapshot of them is what the node sends in place of the stream.
-- `Offline` is the last rung, holding back everything below `Error`.
+- Five events recorded reconcile as three shipped and two dropped, so thinning
+  the stream loses nothing from the totals.
+- `Offline` is the last rung, holding back everything below `Error`, so a node
+  with no link keeps its failures and nothing else.
 
 ## Rust
 

@@ -19,20 +19,30 @@ measured.
 
 ## What the example does
 
-It builds a ladder over two in-process links, one that drops everything and one
-that carries a single message and then goes down, and follows two readings and
-two flushes through it.
+It builds a ladder over two in-process links, a near mesh hop and a metered
+backhaul, and follows two readings and two flushes through it. Each link has its
+own loopback broker, and the gateway subscribes to the backhaul's, so which rung
+carried a reading is read off a subscriber rather than taken on trust.
+
+Neither failure is hand-written into a transport. Both rungs are ordinary
+loopback links wrapped in the simulator's degraded link, so what the ladder sees
+is the transport error an out-of-range radio raises. The mesh hop drops every
+send. The backhaul carries one send, refuses the next two, then is reachable
+again, which lines up with the four attempts the ladder makes on it: the two
+readings and the two flushes.
 
 It proves:
 
 - Rungs are tried in the order they were added, and a refusing rung falls through
   to the next.
-- The reading arrives on the broker belonging to the rung that carried it, so
+- The first reading arrives on the backhaul's subscriber carrying `21.5`, so
   which link was used is observable rather than assumed.
 - With every rung down, a send is buffered rather than lost, and the ladder
-  reports how much it is holding.
-- A flush while the links are down forwards nothing and leaves the backlog intact.
-- Once a rung is reachable the backlog goes out exactly once.
+  reports the one record it is holding.
+- A flush while both links are down forwards nothing and leaves that record
+  waiting in the queue.
+- The next flush forwards one, the gateway receives `21.6`, and the queue drops
+  to zero, so the backlog went out exactly once.
 
 ## Rust
 
@@ -113,8 +123,8 @@ async function main() {
   // Rungs are tried in the order they are added, cheapest first. The mesh hop loses every
   // packet here; the backhaul carries one send, then drops the next two.
   const ladder = new Ladder(Store.memory())
-  await ladder.rung(Transport.degraded(mesh.rung(), 1, 0, 0))
-  await ladder.rung(Transport.degraded(backhaul.rung(), 0, 1, 2))
+  await ladder.rung(Transport.degraded(mesh.rung(), { dropEvery: 1 }))
+  await ladder.rung(Transport.degraded(backhaul.rung(), { up: 1, down: 2 }))
   await ladder.connect()
 
   // The mesh hop refuses, so the reading goes out over the backhaul and arrives on the

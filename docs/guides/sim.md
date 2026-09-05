@@ -18,17 +18,29 @@ drift and jitter rather than what it does with a known input.
 
 ## What the example does
 
-It replays four range readings through a simple drive-or-turn rule, recording each
-throttle command and integrating each twist into the rover's pose.
+It replays four range readings from an earlier survey through a drive-or-turn
+rule, recording every throttle command and integrating every twist into the
+rover's pose. Nothing is wired up: the range finder is the capture played back
+one reading at a time, the throttle keeps its commands instead of turning a
+motor, and the rover advances half a second per command.
+
+The readings and the rule are the only things written out. The pose is not; the
+simulated robot integrates each twist with the same exact-arc odometry a real
+rover runs, so the 1.5 m and the half radian the run ends on come out of the
+kinematics rather than being typed in.
 
 It proves:
 
-- A replay sensor returns exactly the series it was given, in order.
-- A recording actuator keeps every command applied to it, so what the loop decided
-  is checkable after the fact.
-- The robot dead-reckons the pose the kinematics imply: three half-second commands
-  at one metre per second travel 1.5 m, and a turn on the spot changes the heading
-  without moving the vehicle.
+- The replay hands back exactly the series it was given: 4 m, 3 m, 1.5 m and
+  0.5 m, in that order.
+- The recording actuator keeps every command the loop issued: three at one metre
+  per second, then a zero once the 0.5 m reading falls under the metre of
+  clearance the rule drives on.
+- Those three half-second commands dead-reckon to 1.5 m along x and nothing along
+  y, so a straight run stays straight.
+- The turn on the spot puts the heading at 0.5 rad and leaves x at 1.5 m; an
+  integrator that translated on a pure rotation would carry the rover past that
+  and still look self-consistent.
 
 ## Rust
 

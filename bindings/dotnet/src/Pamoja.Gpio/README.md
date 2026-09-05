@@ -36,11 +36,13 @@ Console.WriteLine($"read from 0x{I2c.AddressFrame(Bme280, read: true)[0]:X2}");
 // answering in either is a wiring mistake rather than a device.
 Console.WriteLine(
     $"0x{Bme280:X2} reserved: {I2c.IsReserved(Bme280)}, "
-    + $"0x78 reserved: {I2c.IsReserved(0x78)}");
+    + $"0x{I2c.ReservedFrom:X2} reserved: {I2c.IsReserved(I2c.ReservedFrom)}");
 
 // A 10-bit address spends a reserved prefix over two bytes rather than one, so a
 // bus driver sends a different number of bytes depending on the address it holds.
-Console.WriteLine($"a 10-bit address takes {I2c.FrameLen(0x2A5, tenBit: true)} bytes");
+// This is the worked example UM10204 itself prints.
+const ushort TenBitDevice = 0x2A5;
+Console.WriteLine($"a 10-bit address takes {I2c.FrameLen(TenBitDevice, tenBit: true)} bytes");
 
 // Datasheets quote clock polarity and phase as one mode number. Mode 3 idles the
 // clock high and samples on the trailing edge.

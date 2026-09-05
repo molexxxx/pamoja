@@ -9,21 +9,26 @@ a Zenoh installation anywhere near it.
 
 ## What the example does
 
-It checks what each wildcard selects, using a fleet subtree as the subject, then
-canonizes an expression written with a redundant wildcard and confirms the
-canonical form selects the same keys. Finally it offers a malformed expression.
+It asks what each wildcard selects, using keys under a fleet subtree as the
+subject, then canonizes an expression written with a repeated wildcard, and
+finally offers a malformed one.
+
+The canonical form is not written out. `canonize` derives `fleet/**/battery`
+from the redundant `fleet/**/**/battery`, and the example asks the library
+whether what comes back is canonical rather than assuming it.
 
 It proves:
 
-- `*` stands for exactly one chunk, so a pattern for a node's battery does not
-  select a battery nested a level deeper.
-- `**` stands for any number of chunks, including none, so a subtree pattern
-  matches both a deep key and the bare one.
-- Two expressions that select the same keys have one canonical form, which is why
-  routing or comparing subscriptions canonizes first rather than comparing the
-  text.
-- A malformed expression is rejected rather than canonized into something
-  plausible.
+- `*` stands for exactly one chunk, so `fleet/*/battery` covers
+  `fleet/n7/battery` and not `fleet/n7/rack/battery`.
+- `**` stands for any number of chunks, so `fleet/**` covers
+  `fleet/n7/rack/battery`, and `fleet/**/battery` covers `fleet/battery`, where
+  it stands for none at all.
+- A repeated wildcard is not canonical. `fleet/**/**/battery` canonizes to
+  `fleet/**/battery`, and that form is canonical, so a router compares
+  subscriptions in it rather than as written.
+- An empty chunk makes `fleet//battery` invalid, and canonizing it yields
+  nothing rather than a repaired expression.
 
 ## Rust
 

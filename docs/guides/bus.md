@@ -19,16 +19,27 @@ history.
 
 ## What the example does
 
-It publishes to two subscribers, takes a third subscriber part-way through, and
-then overruns a two-event buffer with five events.
+It publishes to two subscribers on one hub, takes a third subscriber part-way
+through, then puts five events onto a separate bus that has room for two and
+reads back where the slow reader picks up.
+
+The events on the hub are the ones a node announces about itself, `battery.low`
+and `link.up`, rather than placeholder strings. The five on the crowded bus are
+numbered 0 to 4, so the value the reader resumes at is also the count of what it
+missed, not a constant to take on trust.
 
 It proves:
 
-- Every subscriber receives the same published event, independently.
-- A subscriber taken later starts from the next event and never sees what went
-  out before it existed.
-- A subscriber further behind than the buffer resumes at the most recent events
-  rather than blocking the publisher or replaying the ones it missed.
+- One publish reaches every subscriber, and each reads its own copy of
+  `battery.low` off its own queue.
+- A subscriber taken later starts at the next event, so its first read is
+  `link.up` and what went out before it existed is gone for good.
+- The subscriber that was already there still has `link.up` waiting after the
+  late one has read it, so an event is not consumed by whoever reads first.
+- Five events into a buffer of two leave the reader at `3` and then `4`, so a
+  reader that falls behind loses the oldest events, not the newest.
+- All five publishes return with nothing draining the buffer, so a slow
+  subscriber costs itself rather than the publisher.
 
 ## Rust
 

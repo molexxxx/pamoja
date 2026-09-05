@@ -16,20 +16,33 @@ a man in the middle.
 
 ## What the example does
 
-It provisions a node and its gateway, establishes a session from a salt that
-travels in the clear, seals a flow reading with the pump id as associated data,
-and opens it at the far end. Finally the same frame is offered a second time.
+It provisions a node and its gateway, establishes a session at each end from a
+salt that travels in the clear, seals a flow reading with the pump id as
+associated data, and opens it at the far end. Then the same frame is offered a
+second time.
 
-A real seed comes from the factory or a secure element and never leaves the
-device; any 32 bytes stand in here. The key agreement is pinned to the X25519
-vector RFC 7748 publishes in `pamoja-session`'s own tests, which is where a
-published constant belongs.
+The seeds are the only bytes written out on the page. A real one comes from the
+factory or a secure element and never leaves the device; any 32 stand in here.
+The public keys are derived from them, the salt is drawn from the system random
+source at run time rather than fixed here, and the counter and tag that
+authenticate the frame come back from `seal`, so a caller never composes a
+nonce. The key agreement itself is pinned to the X25519 vector RFC 7748
+publishes in `pamoja-session`'s own tests, which is where a published constant
+belongs.
+
+Sealing rewrites the buffer it is given, so the Rust example copies the
+ciphertext before the gateway opens it and replays that copy. The refusal comes
+from the counter window rather than from a buffer that has already been
+overwritten.
 
 It proves:
 
-- Both sides reach the same key from opposite roles, neither of them having sent it.
-- The reading is encrypted: what leaves the node is not the plaintext, and the
-  gateway recovers it exactly.
+- The gateway opens what the node sealed, so both ends reached the same key from
+  opposite roles without either of them sending it.
+- What leaves the node is not the reading: the ciphertext differs from
+  `flow=41.2`.
+- Those nine bytes come back exactly, in Rust out of the same buffer that held
+  the ciphertext a moment earlier.
 - A frame the gateway has already accepted is refused when it arrives again, so a
   message captured off the air cannot be delivered twice.
 

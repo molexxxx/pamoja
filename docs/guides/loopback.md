@@ -6,25 +6,34 @@ loopback transport is that stand-in: a routing table living in the process,
 shared by however many links are taken off one broker, matching topics with the
 same `+` and `#` rules MQTT fixes. Nothing binds a port and nothing has to be
 running, so a topic layout can be checked from a unit test instead of against a
-deployment. It is also the link the MQTT and CoAP pages reach for when the point
-being made is the composition, a ladder or a fault injector, rather than the
-network underneath it.
+deployment. It is also the link the [Transport ladder](ladder.md) and [Engine
+surface](transport.md) pages run on, where the point being made is the
+composition, a ladder or a fault injector, rather than the network underneath
+it.
 
 ## What the example does
 
-It builds a broker, takes a publisher and a subscriber off it, subscribes to a
-single-level pattern, and reads back what a publish on the other link produced.
-A third link on a multi-level pattern then shows where the two wildcards differ,
-and the publisher is disconnected to see what an unusable link does with a send.
+It builds one broker, takes a publisher and a subscriber off it, and moves a
+temperature reading from one to the other. The subscriber's filter is
+single-level, and the reading a level deeper is published first, so what comes
+back is `21.5` from the temperature topic and not the `2150` sent a moment
+earlier under `/raw`.
+
+A third link joins on the multi-level filter after both of those publishes have
+gone out, and takes the next `/raw` reading. The publisher is disconnected
+last, and one more send shows what an unusable link does with a reading.
 
 It proves:
 
 - A payload published on one link arrives on another carrying the topic it was
-  sent to, with no broker, no network, and no hardware involved.
-- `+` matches exactly one level: `line/+/temp` takes `line/mixer/temp` and
-  leaves `line/mixer/temp/raw` for someone else.
-- `#` matches the levels that remain, so `line/#` takes the deeper topic the
-  single-level filter passed over.
+  sent to, with no port bound and no broker process running.
+- `+` matches exactly one level, so the filter takes the temperature topic and
+  leaves the `/raw` reading a level below it, even though that one went out
+  first.
+- `#` matches the levels that remain, so the second filter takes the deeper
+  topic the single-level one passed over.
+- A link that subscribes late gets only what is published after it, not the
+  traffic the broker has already routed.
 - A disconnected link fails the send rather than accepting a reading it has no
   way to deliver.
 

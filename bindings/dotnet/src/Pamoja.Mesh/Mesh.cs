@@ -25,6 +25,9 @@ public static class Mesh
     /// <summary>The largest frame, in bytes, including its header and checksum.</summary>
     public const int MaxFrame = NativeMethods.MeshFrameMax;
 
+    /// <summary>How many bytes of a frame are header, so where its payload starts.</summary>
+    public const int HeaderLen = NativeMethods.MeshHeaderLen;
+
     /// <summary>Builds a frame addressed to one node.</summary>
     /// <param name="src">The address of this node.</param>
     /// <param name="dst">The address the frame is for, or <see cref="Broadcast"/>.</param>

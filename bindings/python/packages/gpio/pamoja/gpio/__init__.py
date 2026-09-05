@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import enum
 
+from pamoja._native import I2C_RESERVED_BELOW as _RESERVED_BELOW
+from pamoja._native import I2C_RESERVED_FROM as _RESERVED_FROM
 from pamoja._native import SpiClock
 from pamoja._native import i2c_address_frame as _address_frame
 from pamoja._native import i2c_address_frame_len as _address_frame_len
@@ -59,6 +61,12 @@ class _I2c:
     """I2C addressing per the NXP I2C-bus specification (UM10204)."""
 
     __slots__ = ()
+
+    #: The lowest 7-bit address the specification keeps for itself.
+    RESERVED_FROM = _RESERVED_FROM
+
+    #: The first 7-bit address above the reserved block at the bottom of the range.
+    RESERVED_BELOW = _RESERVED_BELOW
 
     def address_frame(
         self, address: int, *, read: bool = False, ten_bit: bool = False

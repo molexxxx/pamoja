@@ -40,11 +40,11 @@ print(f"channel 3 starts at register 0x{pca9685.channel_register(3):02X}")
 # A centred hobby servo holds its output high for 1500 us of the 20 ms period. The part
 # counts in 4096 steps per period, so that is where the pulse ends.
 centred = pwm.servo(1500, 50)
-print(f"centred servo goes low at count {pwm.counts(centred)[1]} of 4096")
+print(f"centred servo goes low at count {pwm.counts(centred).off} of 4096")
 
 # Fully off carries its own flag rather than a zero duty, which would still hold the
 # output high for the first count of every period.
-print(f"full off flag set: {pwm.counts(pwm.full_off())[1] != pwm.counts(pwm.duty(0))[1]}")
+print(f"full off flag set: {pwm.counts(pwm.full_off()).off != pwm.counts(pwm.duty(0)).off}")
 
 # A stepper is driven by walking a pattern of coil states. Half-step drive interleaves
 # the one-coil and two-coil patterns, so it has twice as many.

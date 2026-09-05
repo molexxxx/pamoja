@@ -20,19 +20,29 @@ It reads a tank level off a 4-20 mA current loop. A two-point calibration conver
 the loop current into a percentage, a median window discards a momentary dropout,
 and a hysteresis controller decides whether the refill pump runs.
 
+The calibration is built from the two ends of the loop, 4 mA empty and 20 mA full,
+rather than from a slope and an offset worked out by hand, so a reader sees the
+currents the loop is specified by. The level the pump acts on is not typed in
+either; it is the filtered, calibrated reading carried down from the stage above.
+
 It proves:
 
-- 12 mA is exactly half of the 4-20 mA span, and 4 mA is empty rather than an
-  absent signal, so a calibration that is wrong but self-consistent still fails.
-- 0 mA maps to -25 on that scale, which is what makes a broken loop distinguishable
-  from an empty tank.
-- One dropout among five samples does not move the filtered reading at all.
-- The controller holds its state inside the deadband instead of switching on every
-  sample that crosses the setpoint.
+- 12 mA reads 50% and 4 mA reads 0%, because the span starts at 4 mA and not at
+  zero; a map scaled from zero would put mid-scale at 60% and still be
+  self-consistent.
+- 0 mA reads -25%, off the bottom of the scale, which is what separates a broken
+  loop from an empty tank.
+- One dropout among five samples leaves the filtered level at 50%, where a mean
+  over the same window would be dragged down by it.
+- At the setpoint the pump stays off, and it starts only once the level falls below
+  the deadband.
+- Once running it keeps running at a level back inside the deadband, and stops only
+  above the top of it.
 
 The windowed helpers keep the most recent readings and nothing older. In Rust the
 window length is a const generic chosen at the call site; the bindings fix it at 32
-readings, so the same five samples give the same median in all four languages.
+readings. Five readings fit in either window, so the same samples give the same
+median in all four languages.
 
 ## Rust
 

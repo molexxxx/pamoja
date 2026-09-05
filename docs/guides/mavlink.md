@@ -9,26 +9,33 @@ adapter, a UDP socket, or a test that never leaves the process.
 
 ## What the example does
 
-It runs one side of a ground station: announce itself with a heartbeat, read the
-vehicle's heartbeat back off a link that delivers noise and a garbled copy first,
-then arm the vehicle and see that command through to the answer it gets.
+It runs one side of a ground station: announce itself with a heartbeat, read
+the vehicle's heartbeat back off a link that delivers noise and a garbled copy
+first, then arm the vehicle and follow that command through to its answer.
 
-Nothing here is a number to look up. A message is built by name, the common
-enumeration values have names, and the message supplies its own id and checksum
-seed to the frame builder, so there is no payload buffer and no pair of constants
-to keep in step. The exact v2 frame bytes are pinned in the conformance vectors
-every binding checks itself against, so this page shows the exchange instead.
+The garbled copy is the vehicle's own encoded frame with its last byte flipped,
+so the payload is intact and only the checksum disagrees. Fields are set by
+name rather than written into a payload buffer, and the message hands the frame
+builder its own id and checksum seed, so there is no pair of constants to keep
+in step. The confirmation number on the arm request comes from the exchange
+rather than a counter the caller keeps. Rust names the common dialect values;
+the other three bindings list the handful they use at the top of the file. The
+exact v1 and v2 frame bytes are pinned in the conformance vectors every binding
+checks itself against, so this page shows the exchange instead.
 
 It proves:
 
-- A parser skips bytes that do not start a frame, and drops one whose checksum
-  fails rather than passing it on, so what it hands back is the good copy.
-- A frame read back decodes to the same named fields the sender set.
-- A command is an exchange, not a send: it carries a confirmation count that
-  rises with each resend, which is how a vehicle tells a retry from a second,
-  deliberate command.
-- An acknowledgement names the command it answers, so one for a different command
-  leaves the exchange still waiting.
+- Fed noise and a copy whose checksum fails, the parser still recovers the
+  frame behind them, and it decodes to the vehicle's heartbeat field for field.
+- The recovered frame carries the message id the dialect gives `HEARTBEAT`, so
+  the header agrees with the payload it wraps.
+- The first arm request goes out with confirmation `0`, and a timeout hands back
+  `1` for the resend, so the vehicle can tell a retry from a second, deliberate
+  command.
+- An acknowledgement for `NAV_TAKEOFF` comes back unrelated, so another
+  command's answer leaves this exchange still waiting.
+- The acknowledgement naming `COMPONENT_ARM_DISARM` ends the exchange and hands
+  back the result the vehicle sent.
 
 ## Rust
 

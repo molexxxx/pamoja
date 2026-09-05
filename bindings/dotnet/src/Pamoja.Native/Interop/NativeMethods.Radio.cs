@@ -26,6 +26,9 @@ public static partial class NativeMethods
     /// <summary>The largest mesh frame, in bytes, header and checksum included.</summary>
     public const int MeshFrameMax = 250;
 
+    /// <summary>How many bytes of a mesh frame are header.</summary>
+    public const int MeshHeaderLen = 12;
+
     /// <summary>The destination address that means every node.</summary>
     public const uint MeshBroadcast = 0xFFFFFFFF;
 

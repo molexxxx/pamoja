@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 
 // ANCHOR: example
-import { BROADCAST, SeenPackets, broadcast, parse, relayed } from '@pamoja/mesh'
+import { BROADCAST, HEADER_LEN, SeenPackets, broadcast, parse, relayed } from '@pamoja/mesh'
 
 // A river gauge floods a level reading to every node in range. The header is fixed and
 // big-endian: version, source, destination, sequence id, hop limit, then the payload and
@@ -39,9 +39,10 @@ if (spent === null) {
 }
 
 // A payload byte the air mangled fails the checksum rather than reaching the application
-// as a plausible reading.
+// as a plausible reading. The header is a fixed width, so the first byte past it is the
+// first byte of the reading itself.
 const mangled = Buffer.from(reading.bytes)
-mangled[12] ^= 0xff
+mangled[HEADER_LEN] ^= 0xff
 try {
   parse(mangled)
   console.log('a mangled frame was accepted, which should never happen')

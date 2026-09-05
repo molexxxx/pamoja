@@ -12,24 +12,32 @@ or nothing at all sits underneath it.
 
 ## What the example does
 
-It replays a join accept captured off a live EU868 network, from both sides. The
-network builds and signs that frame out of the address and radio settings it
-grants; a device holding only the root key verifies the frame and activates on
-it; and each side then derives the session keys, which are checked against the
-pair an independent implementation published for the same capture.
+A network admits a device over the air. It grants an address and builds the
+signed accept that carries it; a device holding only its root key verifies that
+frame and activates on it; then both ends exchange a reading on session keys
+neither of them sent, and a tampered accept is refused.
+
+No frame is pasted in. The library builds the accept out of the fields the
+grant holds, so the 17 bytes it reports are one header byte over a single
+encrypted AES block: the nonce the network drew, the network identifier, the
+address, the downlink settings and the CMAC that signs them. The device reads
+`0x26012E43` back out of that block rather than being configured with it, and
+it is created with all-zero identifiers, because a join accept names no device.
+The root key alone decides whether an accept is this device's.
 
 It proves:
 
-- The accept a network signs is byte for byte the frame that was captured, so
-  the encryption of the granted settings and the CMAC over them are pinned to a
-  third party's numbers rather than to this implementation.
-- A device that holds nothing but the root key verifies that frame and reads the
-  address `0x26012E43` out of it.
-- Neither side transmits a session key, and the keys both sides derive are the
-  published pair: a frame the device encrypts is read back by a session built
-  from those keys.
-- A single byte changed in the accept fails the MIC, so a device does not
-  activate on a join it cannot attribute to its own network.
+- A device holding nothing but the root key verifies the accept and reads the
+  address `0x26012E43` out of it, decrypted from the frame rather than
+  configured on the device.
+- Neither side transmits a session key. The device derives its pair from the
+  accept it decrypts, the network derives its pair from the grant, and a frame
+  the device encrypts reads back at the network as `level=high`.
+- That uplink exercises both derived keys: the message integrity code verifies
+  under the network session key and the payload decrypts under the application
+  key, because the frame goes to a port above zero.
+- One byte flipped inside the accept fails the integrity check, so a device
+  does not activate on a join it cannot attribute to its own network.
 
 ## Rust
 

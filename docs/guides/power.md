@@ -20,22 +20,28 @@ will flap back and forth across a threshold. Smooth it first, with a `Smoother` 
 ## What the example does
 
 It runs a solar node through a draining battery. One plan holds three cadences, and
-the example asks it what to do at a healthy charge, a low one, and a nearly flat
-one, then asks again with the panel delivering. The work window stays two seconds
-throughout, so the duty fraction shows what stretching the cycle actually buys.
+the example prints the mode and the sampling interval at a healthy charge, a low
+one and a nearly flat one, then asks again with the panel delivering.
+
+The work window stays two seconds throughout. The sleep half of each duty cycle is
+the plan's own interval less that window, so the two fractions weigh the same job
+at the cadence the governor picked rather than at a period typed in by hand. A last
+cycle states the budget as a fraction of a second instead of as two durations.
 
 It proves:
 
-- The default thresholds are the lower bound of each mode: saver below 50% charge,
-  critical below 20%.
+- With the default thresholds, 80% charge is active, 35% is saver and 12% is
+  critical.
 - The interval follows the mode, so a battery at 12% is asked for one reading an
-  hour rather than sixty.
-- A delivering panel eases the governor off by exactly one mode, and no further.
-- The same two seconds of work is one part in thirty at the minute cadence and one
-  part in 1800 at the hourly one, which is the sixtyfold cut in average draw the
-  stretch was for.
-- Splitting a period by a fraction gives the same schedule as naming the two
-  durations.
+  hour where a healthy one gives sixty.
+- A delivering panel eases the governor off by one mode and no further, so the flat
+  battery reports on the saver cadence rather than the active one.
+- Two seconds of work is one part in thirty at the minute cadence and one part in
+  1800 at the hourly one, the sixtyfold cut in average draw the stretch buys.
+- The fraction is the awake share of the whole period, so two seconds awake and 58
+  asleep is one in thirty, not one in twenty-nine.
+- `from_fraction` divides the period it is given, so a quarter-duty second is 250ms
+  awake and 750ms asleep.
 
 Durations are a `Duration` in Rust and microseconds across the three bindings, so
 the same intervals appear scaled by a million in the other three snippets.

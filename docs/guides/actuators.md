@@ -12,22 +12,30 @@ with nothing wired to it.
 
 ## What the example does
 
-It programs a PCA9685 for a bank of hobby servos, centres the servo on channel
-3, and then walks a stepper motor through one half-step cycle.
+It sets a PCA9685 up for a bank of hobby servos, finds where channel 3's four
+registers begin, builds the pulse that centres the servo on that channel, and
+separates a channel held fully off from one sitting at zero duty. Then it walks
+a stepper through a complete half-step cycle.
+
+The register values are derived from what a caller already knows. The prescale
+byte comes from the 50 Hz update rate and the part's 25 MHz internal oscillator,
+and feeding it back reports the frequency it really produces. The servo pulse is
+named in microseconds and converted to the count the output stays high for. The
+coil patterns come from the drive itself, so the sequence is walked rather than
+written out as a table of bits.
 
 It proves:
 
-- The prescaler follows the datasheet's own worked example: 200 Hz off the
-  25 MHz internal oscillator is `0x1E`, so an implementation that is wrong but
-  self-consistent still fails.
-- Channel registers start at `0x06` and run four apart, which puts channel 3 at
-  `0x12`.
-- A centred 1500 microsecond pulse at 50 Hz is 307 of the 4096 counts, and its
-  four bytes come back in the channel's own register order.
-- Fully off is a dedicated bit rather than a zero duty, which would still hold
+- 50 Hz off the 25 MHz internal oscillator is prescale 121 (`0x79`), the value
+  the datasheet's formula gives, so a divider that is wrong but round-trips
+  consistently still fails.
+- Channel 3's registers begin at `0x12`, four along from each channel before it.
+- A centred 1500 microsecond pulse at 50 Hz goes low at count 307 of the 4096
+  counts in a period.
+- Fully off is its own encoding rather than a zero duty, which would still hold
   the output high for the first count of every period.
-- Half-step drive walks the eight-pattern sequence, one coil then two, and wraps
-  back to the pattern it started on.
+- Half-step drive alternates one energised coil with two, `1000` then `1100`
+  then `0100`, and eight steps wrap back to the pattern it started on.
 - A quarter turn of a 1.8-degree motor is 50 whole steps.
 
 ## Rust
@@ -159,11 +167,11 @@ print(f"channel 3 starts at register 0x{pca9685.channel_register(3):02X}")
 # A centred hobby servo holds its output high for 1500 us of the 20 ms period. The part
 # counts in 4096 steps per period, so that is where the pulse ends.
 centred = pwm.servo(1500, 50)
-print(f"centred servo goes low at count {pwm.counts(centred)[1]} of 4096")
+print(f"centred servo goes low at count {pwm.counts(centred).off} of 4096")
 
 # Fully off carries its own flag rather than a zero duty, which would still hold the
 # output high for the first count of every period.
-print(f"full off flag set: {pwm.counts(pwm.full_off())[1] != pwm.counts(pwm.duty(0))[1]}")
+print(f"full off flag set: {pwm.counts(pwm.full_off()).off != pwm.counts(pwm.duty(0)).off}")
 
 # A stepper is driven by walking a pattern of coil states. Half-step drive interleaves
 # the one-coil and two-coil patterns, so it has twice as many.

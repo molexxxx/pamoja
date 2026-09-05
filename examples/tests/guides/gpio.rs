@@ -5,7 +5,7 @@
 #[test]
 fn addressing_a_bus_and_driving_a_pin() {
     // ANCHOR: example
-    use pamoja_gpio::i2c::{Address, Direction};
+    use pamoja_gpio::i2c::{Address, Direction, RESERVED_FROM};
     use pamoja_gpio::pin::{Edge, Level, Polarity};
     use pamoja_gpio::spi::Mode;
 
@@ -21,15 +21,16 @@ fn addressing_a_bus_and_driving_a_pin() {
 
     // The I2C specification keeps two ranges of addresses for itself, so a part answering
     // in either is a wiring mistake rather than a device.
-    const TEN_BIT_PREFIX: u8 = 0x78; // the first address the specification keeps back
     let sensor_reserved = sensor.is_reserved();
-    let prefix = Address::seven_bit(TEN_BIT_PREFIX).expect("in range");
+    let prefix = Address::seven_bit(RESERVED_FROM).expect("in range");
     println!("{BME280:#04X} reserved: {sensor_reserved}");
-    println!("{TEN_BIT_PREFIX:#04X} reserved: {}", prefix.is_reserved());
+    println!("{RESERVED_FROM:#04X} reserved: {}", prefix.is_reserved());
 
     // A 10-bit address spends a reserved prefix over two bytes rather than one, so a bus
     // driver has to send a different number of bytes depending on the address it holds.
-    let wide = Address::ten_bit(0x2A5).expect("a 10-bit address");
+    // This is the worked example UM10204 itself prints.
+    const TEN_BIT_DEVICE: u16 = 0x2A5;
+    let wide = Address::ten_bit(TEN_BIT_DEVICE).expect("a 10-bit address");
     let wide_frame = wide.frame(Direction::Write);
     println!("a 10-bit address takes {} bytes", wide_frame.len());
 

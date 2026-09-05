@@ -2,28 +2,42 @@
 
 A log a device keeps about itself is worth only as much as the trouble it takes
 to edit afterwards. Each record here carries its position in the log, the digest
-of the record before it, and a signature over that digest, so what a device wrote
-is a chain rather than a pile of lines: altering a record, reordering two, or
-dropping one breaks the chain at that point and at every point after it. pamoja
-does not store the records. The device appends them and writes the bytes wherever
-it keeps them, an SD card or a file on a gateway, and whoever audits it later
-reads them back and checks the chain against the device's public key.
+of the record before it, and the payload. A record's own digest covers those
+three and the device signs it, so what a device wrote is a chain rather than a
+pile of lines: altering a record, reordering two, or dropping one breaks the
+chain at that point and at every point after it. pamoja does not store the
+records. The device appends them and writes the bytes wherever it keeps them, an
+SD card or a file on a gateway, and whoever audits it later reads them back and
+checks the chain against the device's public key.
 
 ## What the example does
 
-It signs two records of what a controller did, then breaks the log twice: once by
-editing a record already in storage, and once by dropping the record before it.
+It signs two records of what a burner controller did, `burner=on` then
+`burner=off`, then breaks the log twice: once by editing a record already
+written to storage, and once by leaving out the first record altogether.
 
-The digest a record hashes to is pinned in the conformance vectors every binding
-checks itself against, so this page shows what an auditor does with a log rather
-than restating the bytes one produces.
+The edited record is not a constant typed out by hand. It is the record's own
+stored bytes with the last byte flipped, parsed back into a record the auditor
+accepts as well formed. That byte lands in the payload, because the index, the
+link and the signature come before it in the encoding.
+
+A record does not carry its own digest. The auditor recomputes it from the
+index, the link and the payload, and checks the signature against that. The
+digests themselves are pinned in the conformance vectors every binding checks
+itself against, so this page follows what an auditor does with a log rather than
+restating the bytes one produces.
 
 It proves:
 
-- Each record carries the digest of the one before it, which is the link an
-  auditor follows, so the chain fixes the order as well as the contents.
-- Editing a stored record breaks verification, and so does dropping one, so a
-  record removed from a log is as visible as one that was altered.
+- The two records verify in order against nothing but the public half of the
+  device's key.
+- The second record's link is the digest of the first, so the chain fixes the
+  order as well as the contents.
+- A record edited in storage still parses and still carries the device's
+  signature, but the digest recomputed from its fields no longer matches it, so
+  verification fails.
+- A log missing its first record is rejected as well: the survivor's index and
+  its link both say a record came before it.
 
 ## Rust
 

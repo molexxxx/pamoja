@@ -193,6 +193,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(gpio::i2c_address_frame, m)?)?;
         m.add_function(wrap_pyfunction!(gpio::i2c_address_frame_len, m)?)?;
         m.add_function(wrap_pyfunction!(gpio::i2c_address_is_reserved, m)?)?;
+        m.add("I2C_RESERVED_FROM", pamoja_gpio::i2c::RESERVED_FROM)?;
+        m.add("I2C_RESERVED_BELOW", pamoja_gpio::i2c::RESERVED_BELOW)?;
         m.add_function(wrap_pyfunction!(gpio::i2c_address_is_general_call, m)?)?;
         m.add_function(wrap_pyfunction!(gpio::spi_mode_clock, m)?)?;
         m.add_function(wrap_pyfunction!(gpio::spi_mode_from_clock, m)?)?;

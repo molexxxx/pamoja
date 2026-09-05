@@ -8,20 +8,29 @@ tool can speak the graph's language with no ROS 2 installation anywhere near it.
 
 ## What the example does
 
-It checks a node name against the token rules, maps a topic and both halves of a
-service to the DDS names they carry on the wire, and maps a message type to its
-DDS type name.
+It runs a camera topic and a malformed name past the token rules, asks whether a
+name is fully qualified, maps a topic and both halves of a service to the names
+they carry on the wire, then maps a message type to its DDS type name.
+
+The DDS names are derived rather than written out. Each one comes from the ROS
+name plus the kind of endpoint carrying it, so a reader sees which part of a
+wire name the library supplies. The request and the response start from one
+name, `/robot1/add`, and only the `EntityKind` separates them.
 
 It proves:
 
-- A name is slash-separated tokens that may hold letters, digits, and
-  underscores and may not begin with a digit, which is the rule that catches
-  most generated names.
-- A leading slash is what makes a name fully qualified.
-- A topic goes out under `rt`, a service request under `rq`, and its response
-  under `rr`, so the three never collide in one DDS partition.
-- A message type maps to the DDS type name the graph expects, and a malformed
-  type has none rather than a plausible-looking one.
+- A token may hold letters, digits and underscores but may not begin with a
+  digit, so `/2foo` is rejected where `/robot1/camera_left/image_raw` passes.
+- A leading slash is what makes a name fully qualified, and `chatter` without
+  one is relative.
+- A topic goes out under `rt`, a service request under `rq` and its response
+  under `rr`, so a request and its response keep one ROS name and still never
+  collide in a DDS partition.
+- `std_msgs/msg/String` becomes `std_msgs::msg::dds_::String_`, the `dds_`
+  namespace and the trailing underscore included, since a peer matches the whole
+  string.
+- A malformed type name maps to nothing rather than to something that looks
+  plausible.
 
 ## Rust
 

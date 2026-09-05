@@ -26,7 +26,7 @@ From [`bindings/python/guides/mesh.py`](https://github.com/molexxxx/pamoja/blob/
 
 ```python
 from pamoja.core import PamojaError
-from pamoja.mesh import BROADCAST, SeenPackets, broadcast, parse, relayed
+from pamoja.mesh import BROADCAST, HEADER_LEN, SeenPackets, broadcast, parse, relayed
 
 # A river gauge floods a level reading to every node in range. The header is fixed and
 # big-endian: version, source, destination, sequence id, hop limit, then the payload and a
@@ -61,9 +61,10 @@ else:
     print("a spent frame was relayed, which should never happen")
 
 # A payload byte the air mangled fails the checksum rather than reaching the application
-# as a plausible reading.
+# as a plausible reading. The header is a fixed width, so the first byte past it is the
+# first byte of the reading itself.
 mangled = bytearray(reading.bytes)
-mangled[12] ^= 0xFF
+mangled[HEADER_LEN] ^= 0xFF
 try:
     parse(bytes(mangled))
     print("a mangled frame was accepted, which should never happen")

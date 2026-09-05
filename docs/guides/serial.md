@@ -10,21 +10,30 @@ microcontroller hanging off the bus.
 
 ## What the example does
 
-It frames a payload with SLIP, frames a second payload with COBS, and feeds a
-decoder one chunk holding two frames with a truncated one between them.
+It frames a payload with SLIP and decodes it back, frames a second payload with
+COBS, then runs one read's worth of bytes through the streaming decoder: a chunk
+holding two whole frames with a truncated one between them.
 
-The reserved bytes are named rather than typed: the package exports the SLIP end
-and escape bytes and the COBS delimiter, so a payload built to contain them says
-so. The frames are checked against the ones RFC 1055 and the COBS paper fix.
+Each payload carries the byte that would otherwise end a frame, which is the
+case a framing has to get right. The reserved values are named rather than
+typed, since the package exports the SLIP end and escape bytes and the COBS
+delimiter, so a payload built to hold them says so. The Rust frame buffers are
+sized by `max_encoded_len` rather than by a guessed constant. The exact frames
+RFC 1055 and the COBS paper fix are pinned in the serial crate's own tests, so
+the example checks the round trip and the framing cost instead of repeating
+them.
 
 It proves:
 
-- A payload carrying the delimiter or the escape byte is stuffed rather than
-  mistaken for a frame boundary. The exact stuffing RFC 1055 fixes, and the COBS
-  paper's run-length codes, are pinned in the serial crate's own tests.
-- Both framings cost bytes, and both give the original payload back.
-- The streaming decoder splits a chunk into whole frames, drops the truncated one
-  rather than the chunk around it, and counts what it dropped.
+- A payload carrying the end byte or the escape byte is stuffed rather than taken
+  for a frame boundary, and it decodes back byte for byte with both values still
+  in it.
+- Both framings cost bytes: each frame comes out longer than the payload that
+  went into it.
+- A frame that ends inside an escape pair is discarded on its own, and the whole
+  frames before and after it come out of the same chunk intact.
+- The mangled frame is counted once, not once per byte still in the decoder, so a
+  read loop can measure how noisy a link is.
 
 ## Rust
 

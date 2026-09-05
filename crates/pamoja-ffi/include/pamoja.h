@@ -42,6 +42,12 @@
 // The largest I2C address frame, in bytes: the two a 10-bit address needs.
 #define PAMOJA_I2C_FRAME_MAX 2
 
+// The lowest 7-bit address the I2C specification keeps for itself.
+#define PAMOJA_I2C_RESERVED_FROM 120
+
+// The first 7-bit address above the reserved block at the bottom of the range.
+#define PAMOJA_I2C_RESERVED_BELOW 8
+
 // The number of readings a windowed helper keeps.
 //
 // The Rust helpers are generic over their capacity, which cannot cross a C ABI,

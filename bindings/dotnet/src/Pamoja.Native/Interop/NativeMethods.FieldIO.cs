@@ -407,6 +407,12 @@ public static partial class NativeMethods
         nuint at,
         out ushort outValue);
 
+    /// <summary>The lowest 7-bit address the I2C specification keeps for itself.</summary>
+    public const byte I2cReservedFrom = 0x78;
+
+    /// <summary>The first 7-bit address above the reserved block at the bottom.</summary>
+    public const byte I2cReservedBelow = 0x08;
+
     /// <summary>Validates a 7-bit I2C address.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_i2c_address_seven_bit(

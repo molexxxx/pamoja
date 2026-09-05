@@ -21,6 +21,7 @@ __all__ = [
     "DEFAULT_HOP_LIMIT",
     "MAX_FRAME",
     "MAX_PAYLOAD",
+    "HEADER_LEN",
     "SEEN_DEFAULT_CAPACITY",
     "MeshFrame",
     "SeenPackets",
@@ -31,8 +32,10 @@ __all__ = [
     "relayed",
 ]
 
-_MAX_FRAME, _MAX_PAYLOAD, _BROADCAST, _HOP_LIMIT, _SEEN = _limits()
+_MAX_FRAME, _MAX_PAYLOAD, _BROADCAST, _HOP_LIMIT, _SEEN, _HEADER = _limits()
 
+#: How many bytes of a frame are header, so where its payload starts.
+HEADER_LEN = _HEADER
 #: The largest frame, in bytes, including its header and checksum.
 MAX_FRAME = _MAX_FRAME
 #: The largest payload a single frame can carry, in bytes.

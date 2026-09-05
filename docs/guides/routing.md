@@ -12,25 +12,28 @@ with nothing on the air.
 ## What the example does
 
 It builds the table for a gateway, feeds it four packets of overheard traffic,
-and checks which route it settles on and what it decides for a packet bound for
+reads back the route it settles on, and asks what to do with a packet bound for
 three different places. Then it forgets a node and confirms that node's traffic
 falls back to flooding.
 
 An address on a mesh is just a number. The example names the ones it uses, so
 the table reads as a map of the site: a gateway, a pump and a tank, three relays
-between them, and a silo nothing has been heard from yet.
+between them, and a silo nothing has been heard from yet. No route is written
+down anywhere; the hop and cost printed for the pump are the table's own pick
+out of three competing reports about it.
 
 It proves:
 
-- A packet from the pump that arrived through the north relay makes that relay
-  the way back to the pump, learned with no exchange of routing messages.
-- A report of cost 1 replaces that route and a later report of cost 4 is refused,
-  so the table holds the cheapest way it has heard and says which observations
-  changed it.
+- One packet heard from the pump through the north relay teaches the way back to
+  it, with no routing messages exchanged.
+- A cost-1 report through the east relay takes that route over and a cost-4
+  report through the south relay is refused, so the table holds the cheapest way
+  it has heard and each observation says whether it changed anything.
 - Four observations of two nodes leave two routes, not four.
 - A packet for the gateway is delivered, one for the pump relays to the east
   relay, and one for the silo floods.
-- Forgetting the pump drops that one route and returns its traffic to flooding.
+- Forgetting the pump drops its route and leaves the tank's; packets for the
+  pump flood again.
 
 ## Rust
 

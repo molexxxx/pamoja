@@ -10,22 +10,28 @@ peripheral signs its own telemetry without a source of randomness to get wrong.
 ## What the example does
 
 It provisions a device with a seed, signs a meter reading, and verifies it the
-way a gateway would, holding nothing but the public key. Finally it changes one
-digit of the reading and offers the signature under a second device's key, and
-confirms both are rejected.
+way a gateway would, holding nothing but the 32-byte public key. The fingerprint
+it prints is the short label an operator reads off a screen to tell one device
+from another. Finally it changes one digit of the reading and offers the
+signature under a second device's key, and confirms both are rejected.
 
 A real seed comes from the factory or a secure element and never leaves the
-device. Any 32 bytes stand in for one here. The signing itself is pinned to
-RFC 8032 test vector 2 in `pamoja-security`'s own tests, which is where a
-published constant belongs; this page shows the shape of the code instead.
+device. Any 32 bytes stand in for one here. Everything else is built by the
+library: the key pair falls out of the seed, the gateway's copy is that public
+key in its 32-byte wire form, and the fingerprint is derived from the key rather
+than assigned. Key derivation and signing are pinned to RFC 8032 test vector 2
+in `pamoja-security`'s own tests, which is where a published constant belongs.
 
 It proves:
 
-- The fingerprint is the first eight bytes of the public key in hex, a label for
-  logs and displays rather than a substitute for the key itself.
-- Signing is deterministic: the same reading signed twice gives the same bytes.
-- A reading altered after signing does not verify, and neither does a signature
-  checked against a different device's key.
+- A public key taken as 32 bytes verifies the reading the device signed, so a
+  gateway needs nothing else from a device to check what it sends.
+- Signing is deterministic: the same reading signed twice gives the identical
+  signature, so signing needs no entropy.
+- A reading altered after signing does not verify, which is what catches a value
+  edited between the meter and the bill.
+- The same reading and signature offered under a second device's key do not
+  verify either, so a signature does not carry over to another identity.
 
 ## Rust
 

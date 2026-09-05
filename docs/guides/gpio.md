@@ -11,25 +11,32 @@ microcontroller, or in a test with nothing plugged in.
 
 ## What the example does
 
-It builds the address bytes for a sensor at 7-bit address `0x76`, checks that
-address against the ranges the I2C specification reserves, and frames the 10-bit
-address UM10204 works through. It then reads back the clock polarity and phase
-of SPI mode 3, and switches an active-low relay.
+It builds the byte a sensor at 7-bit address `0x76` is written to and the byte
+it is read from, checks that address against the ranges the I2C specification
+keeps back, then asks how many bytes a 10-bit address puts on the wire. It
+reads the clock polarity and phase back out of SPI mode 3, and works out which
+level energises an active-low relay and which edge releasing it raises.
+
+The only numbers typed in are the ones a datasheet prints: the address `0x76`
+and the mode number 3. The bytes that reach the bus, the polarity and phase
+pair, and the level that drives the relay all come back from the library, so no
+call site shifts an address or reads a mode table itself.
 
 It proves:
 
-- The 7-bit frame is `(address << 1) | r/w`, so a device at `0x76` is addressed
-  as `0xEC` to write and `0xED` to read, which is why a datasheet and a bus
-  capture rarely print the same number.
-- `0x76` is a usable address and `0x78` is not: UM10204 keeps `0x00` to `0x07`
-  and `0x78` to `0x7F` for itself.
-- The 10-bit address `0x2A5` frames as `0xF4 0xA5`, the worked example in the
-  specification, so the prefix and the split of the address bits are pinned
-  rather than round-tripped against themselves.
-- Mode 3 is CPOL 1 with CPHA 1, and CPOL 1 with CPHA 0 is mode 2, the relation
-  `mode = (CPOL << 1) | CPHA` that every datasheet quotes as one number.
-- An active-low relay is energised by a low level, and releasing it is a rising
-  edge that a falling-edge trigger ignores.
+- A device at `0x76` is written to as `0xEC` and read from as `0xED`, one byte
+  either way, which is why a datasheet and a bus capture rarely print the same
+  number.
+- `0x76` is a device address and `0x78` is not, because `0x78` opens the block
+  the specification keeps back for itself.
+- A 10-bit address takes two bytes on the wire where a 7-bit one takes a single
+  byte, so a bus driver sends a different number of bytes depending on the
+  address it holds.
+- Mode 3 is CPOL 1 with CPHA 1, and the pair maps back the other way: CPOL 1
+  with CPHA 0 is mode 2, not mode 3 again.
+- An active-low relay is energised by a low level, which that polarity reads
+  back as asserted, and releasing it is a rising edge that a falling-edge
+  trigger ignores.
 
 ## Rust
 
@@ -37,7 +44,7 @@ It proves:
 From [`examples/tests/guides/gpio.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/gpio.rs):
 
 ```rust
-use pamoja_gpio::i2c::{Address, Direction};
+use pamoja_gpio::i2c::{Address, Direction, RESERVED_FROM};
 use pamoja_gpio::pin::{Edge, Level, Polarity};
 use pamoja_gpio::spi::Mode;
 
@@ -53,15 +60,16 @@ println!("read from {:#04X}", to_read.as_bytes()[0]);
 
 // The I2C specification keeps two ranges of addresses for itself, so a part answering
 // in either is a wiring mistake rather than a device.
-const TEN_BIT_PREFIX: u8 = 0x78; // the first address the specification keeps back
 let sensor_reserved = sensor.is_reserved();
-let prefix = Address::seven_bit(TEN_BIT_PREFIX).expect("in range");
+let prefix = Address::seven_bit(RESERVED_FROM).expect("in range");
 println!("{BME280:#04X} reserved: {sensor_reserved}");
-println!("{TEN_BIT_PREFIX:#04X} reserved: {}", prefix.is_reserved());
+println!("{RESERVED_FROM:#04X} reserved: {}", prefix.is_reserved());
 
 // A 10-bit address spends a reserved prefix over two bytes rather than one, so a bus
 // driver has to send a different number of bytes depending on the address it holds.
-let wide = Address::ten_bit(0x2A5).expect("a 10-bit address");
+// This is the worked example UM10204 itself prints.
+const TEN_BIT_DEVICE: u16 = 0x2A5;
+let wide = Address::ten_bit(TEN_BIT_DEVICE).expect("a 10-bit address");
 let wide_frame = wide.frame(Direction::Write);
 println!("a 10-bit address takes {} bytes", wide_frame.len());
 
@@ -101,12 +109,15 @@ console.log(`read from ${hex(i2c.addressFrame(BME280, { read: true })[0]!)}`)
 // The I2C specification keeps two ranges of addresses for itself, so a part answering in
 // either is a wiring mistake rather than a device.
 console.log(
-  `${hex(BME280)} reserved: ${i2c.isReserved(BME280)}, 0x78 reserved: ${i2c.isReserved(0x78)}`,
+  `${hex(BME280)} reserved: ${i2c.isReserved(BME280)}, ` +
+    `${hex(i2c.RESERVED_FROM)} reserved: ${i2c.isReserved(i2c.RESERVED_FROM)}`,
 )
 
 // A 10-bit address spends a reserved prefix over two bytes rather than one, so a bus
 // driver has to send a different number of bytes depending on the address it holds.
-console.log(`a 10-bit address takes ${i2c.frameLen(0x2a5, true)} bytes`)
+// This is the worked example UM10204 itself prints.
+const TEN_BIT_DEVICE = 0x2a5
+console.log(`a 10-bit address takes ${i2c.frameLen(TEN_BIT_DEVICE, true)} bytes`)
 
 // Datasheets quote clock polarity and phase as one mode number. Mode 3 idles the clock
 // high and samples on the trailing edge.
@@ -142,11 +153,15 @@ print(f"read from 0x{i2c.address_frame(BME280, read=True)[0]:02X}")
 
 # The I2C specification keeps two ranges of addresses for itself, so a part answering in
 # either is a wiring mistake rather than a device.
-print(f"0x{BME280:02X} reserved: {i2c.is_reserved(BME280)}, 0x78 reserved: {i2c.is_reserved(0x78)}")
+reserved = i2c.RESERVED_FROM
+print(f"0x{BME280:02X} reserved: {i2c.is_reserved(BME280)}, "
+      f"0x{reserved:02X} reserved: {i2c.is_reserved(reserved)}")
 
 # A 10-bit address spends a reserved prefix over two bytes rather than one, so a bus
 # driver has to send a different number of bytes depending on the address it holds.
-print(f"a 10-bit address takes {i2c.frame_len(0x2A5, ten_bit=True)} bytes")
+# This is the worked example UM10204 itself prints.
+TEN_BIT_DEVICE = 0x2A5
+print(f"a 10-bit address takes {i2c.frame_len(TEN_BIT_DEVICE, ten_bit=True)} bytes")
 
 # Datasheets quote clock polarity and phase as one mode number. Mode 3 idles the clock
 # high and samples on the trailing edge.
@@ -182,11 +197,13 @@ Console.WriteLine($"read from 0x{I2c.AddressFrame(Bme280, read: true)[0]:X2}");
 // answering in either is a wiring mistake rather than a device.
 Console.WriteLine(
     $"0x{Bme280:X2} reserved: {I2c.IsReserved(Bme280)}, "
-    + $"0x78 reserved: {I2c.IsReserved(0x78)}");
+    + $"0x{I2c.ReservedFrom:X2} reserved: {I2c.IsReserved(I2c.ReservedFrom)}");
 
 // A 10-bit address spends a reserved prefix over two bytes rather than one, so a
 // bus driver sends a different number of bytes depending on the address it holds.
-Console.WriteLine($"a 10-bit address takes {I2c.FrameLen(0x2A5, tenBit: true)} bytes");
+// This is the worked example UM10204 itself prints.
+const ushort TenBitDevice = 0x2A5;
+Console.WriteLine($"a 10-bit address takes {I2c.FrameLen(TenBitDevice, tenBit: true)} bytes");
 
 // Datasheets quote clock polarity and phase as one mode number. Mode 3 idles the
 // clock high and samples on the trailing edge.

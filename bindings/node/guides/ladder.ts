@@ -22,8 +22,8 @@ async function main() {
   // Rungs are tried in the order they are added, cheapest first. The mesh hop loses every
   // packet here; the backhaul carries one send, then drops the next two.
   const ladder = new Ladder(Store.memory())
-  await ladder.rung(Transport.degraded(mesh.rung(), 1, 0, 0))
-  await ladder.rung(Transport.degraded(backhaul.rung(), 0, 1, 2))
+  await ladder.rung(Transport.degraded(mesh.rung(), { dropEvery: 1 }))
+  await ladder.rung(Transport.degraded(backhaul.rung(), { up: 1, down: 2 }))
   await ladder.connect()
 
   // The mesh hop refuses, so the reading goes out over the backhaul and arrives on the

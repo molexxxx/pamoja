@@ -9,23 +9,30 @@ both of which turn a slow-moving series into about a byte a sample.
 
 ## What the example does
 
-It encodes a small reading as CBOR and reads it back, then packs a batch of
-integer samples and a batch of float readings, reporting what each costs on the
-wire.
+It moves one reading from JSON to CBOR and back, then packs five integer samples
+and four temperature readings, printing what each form costs on the wire.
+
+Neither the CBOR nor the packed batches are written out by hand; every byte count
+comes off the length of what the library returned. The scale of `100` handed to
+the quantizer is the caller's choice of precision, and nothing in the packed
+bytes records it, so a receiver has to be told the same scale to read the
+readings back.
 
 The exact bytes are not on this page. The CBOR encoding is pinned against RFC
 8949 in the codec crate's own tests, and the packed batches are pinned in the
 conformance vectors every binding checks itself against. A guide that restated
-them would be a fourth copy of the same table.
+them would be one more copy of the same table.
 
 It proves:
 
-- A document survives the trip to CBOR and back with its content intact, and
-  arrives smaller.
-- Five samples travel in a handful of bytes rather than forty, the differences
-  zigzagged and written as LEB128 varints.
-- Quantized readings decode to within the precision their scale sets, which is
-  the loss the packing trades for the bytes.
+- A reading transcoded to CBOR comes back unchanged, and the CBOR is shorter
+  than the JSON it came from.
+- Five samples that rise, fall, then jump to 900 pack into fewer bytes than the
+  forty the raw values cost, so a negative difference and a large one both stay
+  small.
+- The packed batch unpacks to the same five numbers, the jump included.
+- Quantized readings decode to within `0.01`, the precision a scale of `100`
+  sets, and that error is what the packing trades for the bytes.
 
 ## Rust
 

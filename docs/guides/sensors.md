@@ -14,7 +14,9 @@ runs on a microcontroller, on a gateway, and in a test with nothing plugged in.
 It reads a DS18B20 thermometer and an INA219 power monitor, the two parts a
 battery node usually has on it. The thermometer's scratchpad is checked against
 the CRC the part appends before any temperature is taken from it, and the
-monitor's registers are the ones its datasheet's worked design example fixes.
+monitor is calibrated for the shunt it sits across, since it computes nothing
+until it has been. The shunt, the current resolution and the load are the ones
+its datasheet's worked design example describes.
 
 On a running node those bytes arrive from the bus, so there is nothing to type.
 The example builds them instead, with the same library that decodes them:
@@ -27,18 +29,18 @@ and does not care where the bytes came from.
 
 It proves:
 
-- The 1-Wire checksum is CRC-8/MAXIM-DOW, which over the ASCII digits 1 to 9
-  produces the published check value `0xA1`.
-- Register `0x0191` is +25.0625 degrees Celsius, the row the DS18B20
-  temperature table publishes, decoded exactly in integer arithmetic rather
-  than through a float.
-- The same scratchpad reports the resolution its configuration byte selects and
-  the alarm thresholds written into it.
+- 25.0625 degrees Celsius at 12-bit resolution builds register `0x0191`, the
+  row the DS18B20 temperature table publishes, and that register decodes back
+  to the same temperature, exact in integer micro-degrees.
+- The same nine bytes report the resolution the configuration byte selects and
+  both alarm thresholds, 75 and -10 degrees, written into them.
 - One flipped bit fails the CRC, so a read corrupted on a long 1-Wire run is
   repeated instead of logged as a temperature a couple of degrees off.
-- The INA219 lands on the datasheet's own numbers: calibration `0x5000` for 1 mA
-  per count across a 2 milliohm shunt, and 11.98 V, 10 A, and 119.8 W out of the
-  registers that design produces.
+- The 1-Wire checksum is CRC-8/MAXIM-DOW, which over the ASCII digits 1 to 9
+  produces the published check value `0xA1`.
+- 1 mA per count across a 2 milliohm shunt calibrates to `0x5000`, the number
+  the INA219 datasheet's design example works out, and the registers a monitor
+  across that load reports decode back to 11.98 V, 10 A, and 119.8 W.
 
 ## Rust
 

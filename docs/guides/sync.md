@@ -21,16 +21,26 @@ is not told cannot.
 
 ## What the example does
 
-It queues three readings in memory, reads the oldest without taking it, drains
-the queue, and then fills a two-record store and appends one more.
+It queues three readings on a node with no link, peeks at the oldest without
+taking it, drains the queue when the link comes back, then fills a two-record
+store and offers it a third reading, printing what the queue does at each
+stage.
+
+The three readings do not rise in value order, so the drain catches a queue
+that sorted them or handed the newest back first. The store here is the
+in-memory one; the file-backed store takes the same calls against a directory,
+which is what a node uses to hold a backlog across a reboot.
 
 It proves:
 
-- Appending queues a record and the count reflects it.
-- Peeking returns the oldest record and leaves it in the queue.
-- Draining returns records oldest first, in the order they were appended.
-- A bounded store raises on the append that would overflow it and keeps what it
-  already holds.
+- Peek returns the oldest record, `20.1`, and leaves all three readings queued,
+  so a send that fails part-way loses nothing.
+- The queue drains oldest first, `20.1` then `20.4` then `20.2`, the order the
+  readings were taken.
+- Popping until it returns nothing leaves the queue empty.
+- A full store refuses the third append and still holds two records, so the
+  caller is told to back off rather than have the oldest reading dropped to
+  make room.
 
 ## Rust
 

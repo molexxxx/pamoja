@@ -58,9 +58,10 @@ Console.WriteLine(spent is null
     : "a spent frame was relayed, which should never happen");
 
 // A payload byte the air mangled fails the checksum rather than reaching the
-// application as a plausible reading.
+// application as a plausible reading. The header is a fixed width, so the first
+// byte past it is the first byte of the reading itself.
 byte[] mangled = [.. reading.Bytes];
-mangled[12] ^= 0xFF;
+mangled[Mesh.HeaderLen] ^= 0xFF;
 try
 {
     Mesh.Parse(mangled);

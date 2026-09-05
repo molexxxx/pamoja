@@ -14,6 +14,7 @@ import {
   MESH_DEFAULT_HOP_LIMIT,
   MESH_MAX_FRAME,
   MESH_MAX_PAYLOAD,
+  MESH_HEADER_LEN,
   MESH_SEEN_DEFAULT_CAPACITY,
   type MeshFrame,
   SeenPackets,
@@ -39,6 +40,9 @@ export const MAX_PAYLOAD = MESH_MAX_PAYLOAD
 export const MAX_FRAME = MESH_MAX_FRAME
 
 /** A duplicate-cache size for a caller with no reason to choose one. */
+/** How many bytes of a frame are header, so where its payload starts. */
+export const HEADER_LEN = MESH_HEADER_LEN
+
 export const SEEN_DEFAULT_CAPACITY = MESH_SEEN_DEFAULT_CAPACITY
 
 /**

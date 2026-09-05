@@ -17,6 +17,10 @@ use pamoja_mesh::{crc16, DynamicSeenCache, Frame, MeshError};
 #[napi]
 pub const MESH_MAX_PAYLOAD: u32 = Frame::MAX_PAYLOAD as u32;
 
+/// How many bytes of a frame are header, so where its payload starts.
+#[napi]
+pub const MESH_HEADER_LEN: u32 = Frame::HEADER_LEN as u32;
+
 /// The largest mesh frame, in bytes, including its header and checksum.
 #[napi]
 pub const MESH_MAX_FRAME: u32 = Frame::MAX_LEN as u32;

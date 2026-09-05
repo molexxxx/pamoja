@@ -13,35 +13,38 @@ message to the network and forgets it, at least once is acknowledged and may
 arrive twice, and exactly once costs a four-step handshake. The client carries one
 default and applies it to what it publishes and what it subscribes to.
 
-None of this needs a broker to exercise. A refused connection is an ordinary
-outcome with a defined result, which is what the example below checks. When you
-want messages to actually flow with nothing installed, the in-process transport in
-the [Loopback](loopback.md) guide implements the topic and wildcard rules and
-delivers between clients in the same process.
+A connection that cannot be made is an ordinary outcome with a defined result,
+not a client left looking connected, so a retry loop has something to test. When
+messages need to flow with no broker installed at all, the in-process transport
+in the [Loopback](loopback.md) guide implements the same topic and wildcard rules
+and delivers between clients in the same process.
 
 ## What the example does
 
-It runs a site's telemetry path over a real broker: a gateway subscribes to every
+It runs a site's telemetry path over a broker: a gateway subscribes to every
 node's temperature with a single-level wildcard, a node publishes a reading under
-that pattern, and the gateway receives it with the topic attached. Then the node
-disconnects, and a client pointed at a port with nothing on it is refused.
+that pattern, and the gateway reads it back. Then the node disconnects, and a
+client aimed at a port with nothing listening on it is refused.
 
-The Rust example starts an in-process broker, so it needs nothing running. The
-binding examples talk to a broker on localhost, which CI starts and `just broker`
-starts locally.
+The Rust example starts an in-process broker on whatever spare port the machine
+hands out, which is where the `port` in the snippet comes from, so it needs
+nothing running. The binding examples talk to a broker on localhost, which CI
+starts and `just broker` starts locally. The client that gets refused aims at
+port 1, where nothing listens.
 
 It proves:
 
-- A `+` matches exactly one level, so a gateway takes every node's temperature
-  without naming them and without catching anything deeper.
-- At-least-once delivery is acknowledged by the broker, so a node knows its
-  reading was taken rather than hoping.
-- A message arrives with the topic it was published to, which is how a gateway
-  tells which node sent a reading the payload does not name.
-- Disconnecting leaves the client reusable, so a node that loses its link can
-  reconnect the same object.
-- An unreachable broker is reported rather than leaving a client that looks
-  connected, which is what a retry loop needs.
+- A subscription with a `+` in it takes a reading published under a concrete
+  name, so a gateway follows every node's temperature without naming one.
+- What arrives is the topic the node published to, `sensors/1/temperature`,
+  rather than the `sensors/+/temperature` filter that matched it, and the payload
+  is the bytes the node sent.
+- An at-least-once publish returns once the broker has acknowledged it, so a node
+  knows its reading was taken rather than hoping.
+- A client that has disconnected reports itself disconnected, so code deciding
+  whether to reconnect is not reading a stale flag.
+- A broker that is not there fails the connect and leaves the client not
+  connected, which is what a retry loop tests.
 
 ## Rust
 

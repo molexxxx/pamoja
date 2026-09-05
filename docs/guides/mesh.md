@@ -11,23 +11,29 @@ test with none.
 ## What the example does
 
 It builds the frame a river gauge floods into the mesh, then takes the part of
-the node that hears it: drop the second copy, spend a hop, and stop once the
-hops run out. Finally it flips one payload bit and confirms the checksum rejects
-the frame.
+the node that hears it: parse the frame, drop the second copy, spend a hop, and
+stop once the hops run out. Finally it inverts a payload byte and confirms the
+checksum rejects the frame.
 
 The header layout is fixed and big-endian, and the byte-for-byte frame is pinned
 in the conformance vectors every binding checks itself against, so this page
-shows what a node does with a frame rather than restating one.
+shows what a node does with a frame rather than restating one. Nothing about the
+frame is typed out in hex: the destination is checked against the exported
+`BROADCAST` address, the hop limit a new frame starts with comes from the
+crate's default, and the size on the air is measured off the frame that was
+built.
 
 It proves:
 
-- A packet is identified as it floods by its source and sequence number, so the
+- A broadcast frame parses back out of the bytes that go on the air with its
+  payload intact and its destination equal to `BROADCAST`.
+- A packet is identified as it floods by its source and sequence id, so the
   second copy to arrive is dropped instead of relayed again.
-- Relaying spends one hop and leaves the frame valid, because the checksum
-  covers every byte except the hop limit.
+- Relaying spends exactly one hop, and the forwarded bytes still parse and carry
+  the same payload, because the checksum covers every byte except the hop limit.
 - A packet whose hops have run out is not relayed, which is what keeps a flood
   finite.
-- A flipped payload bit fails the checksum instead of arriving as a plausible
+- An inverted payload byte fails the checksum instead of arriving as a plausible
   reading.
 
 ## Rust
@@ -72,9 +78,10 @@ match received.with_hop_limit(0).relayed() {
 }
 
 // A payload byte the air mangled fails the checksum rather than reaching the
-// application as a plausible reading.
+// application as a plausible reading. The header is a fixed width, so the first
+// byte past it is the first byte of the reading itself.
 let mut mangled = reading.as_bytes().to_vec();
-mangled[12] ^= 0xFF;
+mangled[Frame::HEADER_LEN] ^= 0xFF;
 match Frame::parse(&mangled) {
     Ok(_) => println!("a mangled frame was accepted, which should never happen"),
     Err(error) => println!("mangled   rejected: {error}"),
@@ -88,7 +95,7 @@ match Frame::parse(&mangled) {
 From [`bindings/node/guides/mesh.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/mesh.ts):
 
 ```typescript
-import { BROADCAST, SeenPackets, broadcast, parse, relayed } from '@pamoja/mesh'
+import { BROADCAST, HEADER_LEN, SeenPackets, broadcast, parse, relayed } from '@pamoja/mesh'
 
 // A river gauge floods a level reading to every node in range. The header is fixed and
 // big-endian: version, source, destination, sequence id, hop limit, then the payload and
@@ -124,9 +131,10 @@ if (spent === null) {
 }
 
 // A payload byte the air mangled fails the checksum rather than reaching the application
-// as a plausible reading.
+// as a plausible reading. The header is a fixed width, so the first byte past it is the
+// first byte of the reading itself.
 const mangled = Buffer.from(reading.bytes)
-mangled[12] ^= 0xff
+mangled[HEADER_LEN] ^= 0xff
 try {
   parse(mangled)
   console.log('a mangled frame was accepted, which should never happen')
@@ -143,7 +151,7 @@ From [`bindings/python/guides/mesh.py`](https://github.com/molexxxx/pamoja/blob/
 
 ```python
 from pamoja.core import PamojaError
-from pamoja.mesh import BROADCAST, SeenPackets, broadcast, parse, relayed
+from pamoja.mesh import BROADCAST, HEADER_LEN, SeenPackets, broadcast, parse, relayed
 
 # A river gauge floods a level reading to every node in range. The header is fixed and
 # big-endian: version, source, destination, sequence id, hop limit, then the payload and a
@@ -178,9 +186,10 @@ else:
     print("a spent frame was relayed, which should never happen")
 
 # A payload byte the air mangled fails the checksum rather than reaching the application
-# as a plausible reading.
+# as a plausible reading. The header is a fixed width, so the first byte past it is the
+# first byte of the reading itself.
 mangled = bytearray(reading.bytes)
-mangled[12] ^= 0xFF
+mangled[HEADER_LEN] ^= 0xFF
 try:
     parse(bytes(mangled))
     print("a mangled frame was accepted, which should never happen")
@@ -228,9 +237,10 @@ Console.WriteLine(spent is null
     : "a spent frame was relayed, which should never happen");
 
 // A payload byte the air mangled fails the checksum rather than reaching the
-// application as a plausible reading.
+// application as a plausible reading. The header is a fixed width, so the first
+// byte past it is the first byte of the reading itself.
 byte[] mangled = [.. reading.Bytes];
-mangled[12] ^= 0xFF;
+mangled[Mesh.HeaderLen] ^= 0xFF;
 try
 {
     Mesh.Parse(mangled);

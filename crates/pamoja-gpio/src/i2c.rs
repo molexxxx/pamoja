@@ -10,6 +10,20 @@
 
 use crate::GpioError;
 
+/// The lowest 7-bit address the specification keeps for itself.
+///
+/// Addresses from here up are reserved: `0x78` to `0x7B` introduce a 10-bit address and
+/// the rest are held back, so a part answering in this range is a bus feature rather than
+/// a device a driver talks to. [`Address::is_reserved`] covers this range and
+/// [`RESERVED_BELOW`].
+pub const RESERVED_FROM: u8 = 0x78;
+
+/// The first 7-bit address above the reserved block at the bottom of the range.
+///
+/// Everything below this, `0x00` to `0x07`, is reserved: `0x00` is the general call every
+/// device listens to, and the rest carry bus functions.
+pub const RESERVED_BELOW: u8 = 0x08;
+
 /// Largest valid 7-bit address (inclusive).
 const MAX_SEVEN_BIT: u16 = 0x7F;
 /// Largest valid 10-bit address (inclusive).
@@ -163,7 +177,8 @@ impl Address {
     ///
     /// `true` if this is a 7-bit address in `0x00..=0x07` or `0x78..=0x7F`.
     pub fn is_reserved(self) -> bool {
-        !self.ten_bit && (self.value <= 0x07 || self.value >= 0x78)
+        !self.ten_bit
+            && (self.value < u16::from(RESERVED_BELOW) || self.value >= u16::from(RESERVED_FROM))
     }
 
     /// Returns `true` if this is the general call address `0x00`, the broadcast every

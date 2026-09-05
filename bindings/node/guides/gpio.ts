@@ -16,12 +16,15 @@ console.log(`read from ${hex(i2c.addressFrame(BME280, { read: true })[0]!)}`)
 // The I2C specification keeps two ranges of addresses for itself, so a part answering in
 // either is a wiring mistake rather than a device.
 console.log(
-  `${hex(BME280)} reserved: ${i2c.isReserved(BME280)}, 0x78 reserved: ${i2c.isReserved(0x78)}`,
+  `${hex(BME280)} reserved: ${i2c.isReserved(BME280)}, ` +
+    `${hex(i2c.RESERVED_FROM)} reserved: ${i2c.isReserved(i2c.RESERVED_FROM)}`,
 )
 
 // A 10-bit address spends a reserved prefix over two bytes rather than one, so a bus
 // driver has to send a different number of bytes depending on the address it holds.
-console.log(`a 10-bit address takes ${i2c.frameLen(0x2a5, true)} bytes`)
+// This is the worked example UM10204 itself prints.
+const TEN_BIT_DEVICE = 0x2a5
+console.log(`a 10-bit address takes ${i2c.frameLen(TEN_BIT_DEVICE, true)} bytes`)
 
 // Datasheets quote clock polarity and phase as one mode number. Mode 3 idles the clock
 // high and samples on the trailing edge.
@@ -41,8 +44,8 @@ console.log(`release seen by a rising trigger: ${rising}, by a falling trigger: 
 
 assert.deepEqual([...i2c.addressFrame(BME280, { read: true })], [0xed])
 assert.equal(i2c.isReserved(BME280), false)
-assert.equal(i2c.isReserved(0x78), true)
-assert.equal(i2c.frameLen(0x2a5, true), 2)
+assert.equal(i2c.isReserved(i2c.RESERVED_FROM), true)
+assert.equal(i2c.frameLen(TEN_BIT_DEVICE, true), 2)
 assert.ok(clock.cpol && clock.cpha)
 assert.equal(spi.modeFor(true, false), 2)
 assert.equal(energise, PinLevel.Low)

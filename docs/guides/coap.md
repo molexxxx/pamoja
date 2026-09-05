@@ -19,18 +19,31 @@ confirmable request is a defined outcome the example below checks.
 
 ## What the example does
 
-It reports a reading non-confirmably to an address with nothing listening, then
-sends a command confirmably to the same address with the retransmission budget cut
-to a few milliseconds, and checks what comes back.
+It stands up two endpoints pointed at `127.0.0.1:5683`, the plaintext CoAP
+port, one non-confirmable and one confirmable. The first reports a temperature
+reading, the second sends a valve command, and each prints how its send ends.
+Nothing is listening on that port, so the reading leaves unacknowledged and the
+command retransmits until its attempts run out.
+
+Reliability is a property of the client, not an argument to the send, so a node
+that reports readings and also takes commands holds an endpoint for each
+guarantee. Neither send writes a CoAP header: the transport allocates the
+message id and the token, and splits `sensors/1/temperature` into one path
+option per segment. The 20-millisecond wait and the single retransmission are
+overrides. A fresh config starts with the RFC defaults above, which would spend
+over a minute retransmitting before reporting the command unacknowledged.
 
 It proves:
 
 - Connecting a CoAP endpoint binds a local socket and nothing else: it reports
-  itself connected with no peer anywhere.
+  itself connected with nothing on the far side.
 - A non-confirmable send succeeds without an acknowledgement, which is the mode
   for a reading whose loss costs nothing.
-- A confirmable send that is never acknowledged raises rather than passing
-  silently, so a command is not assumed to have landed.
+- A confirmable send to that same address fails once its retransmissions run
+  out. Only the mode differs between the two sends, so the guarantee decides the
+  outcome rather than the destination.
+- The failure leaves the endpoint usable: the command sends again and fails
+  again, rather than wedging the client.
 - Disconnecting releases the socket and the endpoint reports itself closed.
 
 ## Rust

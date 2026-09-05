@@ -10,22 +10,30 @@ involved.
 
 ## What the example does
 
-It reads the European channel plan, takes the radio settings its slowest data
-rate selects, and checks the time on air of a ten-byte frame against the value
-the LoRa formula fixes for those settings. It then looks up what the 868.1 MHz
-sub-band allows and turns that limit into the silence each frame costs and the
-number of readings an hour it leaves.
+It works out what one reading costs a node on the European band: the time a
+ten-byte frame holds the channel, the silence the duty cycle then requires, and
+how many readings an hour that leaves. It ends by asking about a frequency the
+plan does not cover.
+
+Four things are typed in: the region, the data-rate number, the payload length
+and the frequencies to look up. SF12 and the 125 kHz bandwidth come out of the
+plan's data-rate table, and coding rate 4/5, an eight-symbol preamble, an
+explicit header and CRC on are the defaults those settings carry, so the airtime
+rests on the published regional parameters rather than on radio constants a
+caller picked. The 1% cap and the 16 dBm ceiling are read out of the sub-band
+that contains 868.1 MHz, not supplied alongside it.
 
 It proves:
 
-- DR0 in EU863-870 is SF12 at 125 kHz, the slowest rate the band defines and the
-  one that reaches furthest.
-- A ten-byte frame at that rate takes 991,232 microseconds on air, the published
-  figure for these settings, so an implementation that is wrong but
-  self-consistent still fails.
-- The 868.1 MHz sub-band is capped at 1% of the time and 16 dBm, so every frame
-  buys ninety-nine times its own length in silence.
-- What is left is thirty-six readings an hour at the longest-reaching rate.
+- Data rate 0 in EU863-870 selects SF12, the slowest rate the band defines and
+  the one that reaches furthest.
+- A ten-byte frame at those settings takes 991,232 microseconds on air, the
+  published time on air for SF12 at 125 kHz, so a plan carrying the wrong
+  bandwidth fails here rather than passing a round-trip against itself.
+- 868.1 MHz sits in a sub-band capped at 1% of the time and 16 dBm, both read
+  from the plan by frequency.
+- One percent of the time buys ninety-nine times the frame's own length in
+  silence after it, which leaves thirty-six readings an hour.
 - A frequency inside no sub-band the plan describes reports no duty cycle rather
   than an unlimited one, because the limit on it is published elsewhere.
 

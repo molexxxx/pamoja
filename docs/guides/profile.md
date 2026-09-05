@@ -19,20 +19,28 @@ leaves nothing for the next reader to infer.
 
 ## What the example does
 
-It loads a heater profile from a JSON manifest that leaves the two power
-thresholds out, feeds one cold reading to the controller the manifest describes,
-and writes the profile back out.
+It loads a brooder-heater profile from a JSON manifest, runs two temperatures
+through the controller that manifest describes, and writes the profile back out
+as text.
+
+The manifest sets the three sampling intervals but neither battery threshold, so
+the 50% saver figure printed comes from the library's default rather than from
+the file. The two readings sit either side of the 32 C target: 27.5 C is below
+the deadband and further off target than the 4 C safe band allows, while 32.2 C
+is inside both.
 
 It proves:
 
-- A manifest parses into the name, topic, control policy, and power schedule the
-  node runs on.
-- Fields the manifest omits come back as the documented defaults rather than as
-  nothing.
-- The controller the manifest describes switches the output and raises the alert
-  the policy calls for, carrying the reading that caused it.
-- Serializing writes the defaults out in full, and the result reloads to the same
-  profile.
+- A manifest parses into the name, topic, setpoint policy and sampling schedule
+  the node runs on, with `cooling` set false marking the output a heater.
+- `saver_below` never appears in the manifest and still reads `0.5`, the
+  documented default, rather than nothing.
+- A reading below the deadband switches the lamp on and raises `OutOfRange`
+  carrying the `27.5` that caused it, so what tripped the alert travels with it.
+- A reading inside the safe band raises nothing, so an alert tracks the band
+  rather than firing on every sample.
+- Serializing writes the defaulted threshold out by name, and reloading that
+  text gives back an equal profile.
 
 ## Rust
 

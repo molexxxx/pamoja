@@ -36,11 +36,15 @@ print(f"read from 0x{i2c.address_frame(BME280, read=True)[0]:02X}")
 
 # The I2C specification keeps two ranges of addresses for itself, so a part answering in
 # either is a wiring mistake rather than a device.
-print(f"0x{BME280:02X} reserved: {i2c.is_reserved(BME280)}, 0x78 reserved: {i2c.is_reserved(0x78)}")
+reserved = i2c.RESERVED_FROM
+print(f"0x{BME280:02X} reserved: {i2c.is_reserved(BME280)}, "
+      f"0x{reserved:02X} reserved: {i2c.is_reserved(reserved)}")
 
 # A 10-bit address spends a reserved prefix over two bytes rather than one, so a bus
 # driver has to send a different number of bytes depending on the address it holds.
-print(f"a 10-bit address takes {i2c.frame_len(0x2A5, ten_bit=True)} bytes")
+# This is the worked example UM10204 itself prints.
+TEN_BIT_DEVICE = 0x2A5
+print(f"a 10-bit address takes {i2c.frame_len(TEN_BIT_DEVICE, ten_bit=True)} bytes")
 
 # Datasheets quote clock polarity and phase as one mode number. Mode 3 idles the clock
 # high and samples on the trailing edge.
