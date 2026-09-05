@@ -782,18 +782,16 @@ function trustAndOperation() {
     Buffer.from(opened.digest),
     "each record carries the hash of the one before it",
   );
-  assert.ok(
-    audit.verifyChain(keeper.publicKey(), [opened, shut]),
-    "an untouched chain verifies",
-  );
+  audit.verifyChain(keeper.publicKey(), [opened, shut]);
 
   const edited = Buffer.from(shut.toBytes());
   edited[edited.length - 1] ^= 0xff;
-  assert.ok(
-    !audit.verifyChain(keeper.publicKey(), [
-      opened,
-      audit.AuditEntry.fromBytes(edited),
-    ]),
+  assert.throws(
+    () =>
+      audit.verifyChain(keeper.publicKey(), [
+        opened,
+        audit.AuditEntry.fromBytes(edited),
+      ]),
     "and an altered record breaks it",
   );
 

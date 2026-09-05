@@ -198,6 +198,7 @@ jobs:
   ros-bridge:
     name: ros2 + zenoh bridge
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     # The live r2r/Zenoh bridge needs a ROS 2 install, so this job builds and tests the
     # opt-in `bridge`/`runtime` features inside the official ROS 2 image, with the Rust
     # toolchain layered on. The pure-logic halves are already covered by the `rust` job.
@@ -208,7 +209,11 @@ jobs:
 
       - name: Install Rust and bridge dependencies
         run: |
-          apt-get update
+          for attempt in 1 2 3; do
+            apt-get update && break
+            echo "apt-get update failed, retrying"
+            sleep $((attempt * 15))
+          done
           apt-get install -y --no-install-recommends \
             ros-jazzy-rmw-zenoh-cpp ros-jazzy-example-interfaces build-essential pkg-config libclang-dev clang curl ca-certificates
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
@@ -236,6 +241,7 @@ jobs:
   sitl:
     name: mavlink SITL interop (${{ matrix.autopilot }})
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:

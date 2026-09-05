@@ -160,7 +160,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
             modbus::modbus_read_holding_registers_reply,
             m
         )?)?;
-        m.add_function(wrap_pyfunction!(modbus::modbus_read_input_registers_reply, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            modbus::modbus_read_input_registers_reply,
+            m
+        )?)?;
         m.add_function(wrap_pyfunction!(modbus::modbus_read_input_registers, m)?)?;
         m.add_function(wrap_pyfunction!(modbus::modbus_write_single_coil, m)?)?;
         m.add_function(wrap_pyfunction!(modbus::modbus_write_single_register, m)?)?;

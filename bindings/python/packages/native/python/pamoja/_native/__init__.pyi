@@ -94,6 +94,7 @@ __all__ = [
     "SeenPackets",
     "SenderStep",
     "Session",
+    "Signals",
     "SimulatedRobot",
     "SimulatedSensor",
     "SlipDecoder",
@@ -128,6 +129,7 @@ __all__ = [
     "decode_delta_samples",
     "decode_manifest",
     "distance_between",
+    "ds18b20_build_scratchpad",
     "ds18b20_celsius",
     "ds18b20_config_byte",
     "ds18b20_crc8",
@@ -146,16 +148,23 @@ __all__ = [
     "i2c_address_frame_len",
     "i2c_address_is_general_call",
     "i2c_address_is_reserved",
+    "image_digest",
     "ina219_bus_millivolts",
+    "ina219_bus_register",
     "ina219_calibration",
     "ina219_conversion_ready",
     "ina219_current_microamps",
+    "ina219_current_register",
     "ina219_math_overflow",
     "ina219_minimum_current_lsb_microamps",
     "ina219_power_microwatts",
+    "ina219_power_register",
     "ina219_shunt_microvolts",
+    "ina219_shunt_register",
+    "j1939_broadcast",
     "j1939_compose",
     "j1939_decode",
+    "j1939_limits",
     "json_to_cbor_bytes",
     "keyexpr_canonize",
     "keyexpr_is_canon",
@@ -185,7 +194,9 @@ __all__ = [
     "modbus_read_coils",
     "modbus_read_discrete_inputs",
     "modbus_read_holding_registers",
+    "modbus_read_holding_registers_reply",
     "modbus_read_input_registers",
+    "modbus_read_input_registers_reply",
     "modbus_write_multiple_coils",
     "modbus_write_multiple_registers",
     "modbus_write_single_coil",
@@ -200,6 +211,7 @@ __all__ = [
     "pin_level_inverted",
     "pin_polarity_is_asserted",
     "pin_polarity_level",
+    "pwm_counts",
     "pwm_duty",
     "pwm_from_counts",
     "pwm_full_off",
@@ -216,6 +228,7 @@ __all__ = [
     "ros2_twist_to_cdr",
     "ros2_type_hash_digest",
     "routing_default_capacity",
+    "serial_framing_bytes",
     "sign_delegation",
     "sign_manifest",
     "slip_decode",
@@ -230,6 +243,7 @@ __all__ = [
     "verify",
     "verify_audit_chain",
     "verify_envelope",
+    "verify_message",
     "version",
     "window_capacity",
 ]
@@ -1125,6 +1139,10 @@ class DeviceIdentity:
     def sign(self, payload: typing.Sequence[builtins.int]) -> bytes:
         r"""
         Signs a payload, returning the 64-byte detached signature.
+        """
+    def sign_message(self, payload: typing.Sequence[builtins.int]) -> bytes:
+        r"""
+        Signs a payload and returns the signature followed by the payload, as one message.
         """
     def __repr__(self) -> builtins.str: ...
 
@@ -3344,6 +3362,47 @@ class Session:
         """
 
 @typing.final
+class Signals:
+    r"""
+    The eight data bytes of a J1939 frame, addressed by the signals inside them.
+    
+    A parameter group places each signal at a fixed byte offset, little-endian. A
+    payload starts with every signal marked not available, so a controller writes
+    only the signals it actually reports.
+    """
+    @property
+    def bytes(self) -> bytes:
+        r"""
+        The eight data bytes, ready to put in a frame.
+        """
+    def __new__(cls) -> Signals:
+        r"""
+        Builds a payload with every signal marked not available.
+        """
+    @staticmethod
+    def from_bytes(bytes: typing.Sequence[builtins.int]) -> Signals:
+        r"""
+        Reads the eight data bytes of a frame that arrived off the bus.
+        """
+    def set_u8(self, at: builtins.int, value: builtins.int) -> None:
+        r"""
+        Writes a one-byte signal at the offset its parameter group defines.
+        """
+    def set_u16(self, at: builtins.int, value: builtins.int) -> None:
+        r"""
+        Writes a two-byte little-endian signal at the offset its group defines.
+        """
+    def u8(self, at: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        Reads a one-byte signal, or `None` if the offset is past the payload.
+        """
+    def u16(self, at: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        Reads a two-byte little-endian signal, or `None` if it would run past the
+        payload.
+        """
+
+@typing.final
 class SimulatedRobot:
     r"""
     A robot that moves only in arithmetic.
@@ -3881,6 +3940,11 @@ def distance_between(from_latitude: builtins.float, from_longitude: builtins.flo
     Returns the great-circle distance between two coordinates, in metres.
     """
 
+def ds18b20_build_scratchpad(celsius: builtins.float, bits: builtins.int, alarm_high: builtins.int, alarm_low: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Builds the nine bytes a DS18B20 in the given state puts on the bus, CRC last.
+    """
+
 def ds18b20_celsius(raw: builtins.int) -> builtins.float:
     r"""
     Converts a raw DS18B20 temperature register to degrees Celsius.
@@ -3976,9 +4040,19 @@ def i2c_address_is_reserved(address: builtins.int, ten_bit: builtins.bool) -> bu
     Reports whether a 7-bit address falls in a range the I2C specification reserves.
     """
 
+def image_digest(image: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Hashes a complete image, for a publisher filling in a manifest.
+    """
+
 def ina219_bus_millivolts(raw: builtins.int) -> builtins.int:
     r"""
     Converts a raw INA219 bus-voltage register to millivolts.
+    """
+
+def ina219_bus_register(millivolts: builtins.int) -> builtins.int:
+    r"""
+    Builds the INA219 bus-voltage register a monitor reports for a bus voltage.
     """
 
 def ina219_calibration(current_lsb_microamps: builtins.int, shunt_milliohms: builtins.int) -> builtins.int:
@@ -3996,6 +4070,11 @@ def ina219_current_microamps(raw: builtins.int, current_lsb_microamps: builtins.
     Converts a raw INA219 current register to microamps.
     """
 
+def ina219_current_register(microamps: builtins.int, current_lsb_microamps: builtins.int) -> builtins.int:
+    r"""
+    Builds the INA219 current register a monitor reports for a current.
+    """
+
 def ina219_math_overflow(raw: builtins.int) -> builtins.bool:
     r"""
     Reports whether an INA219 bus-voltage register flags a math overflow.
@@ -4011,9 +4090,27 @@ def ina219_power_microwatts(raw: builtins.int, current_lsb_microamps: builtins.i
     Converts a raw INA219 power register to microwatts.
     """
 
+def ina219_power_register(microwatts: builtins.int, current_lsb_microamps: builtins.int) -> builtins.int:
+    r"""
+    Builds the INA219 power register a monitor reports for a power.
+    """
+
 def ina219_shunt_microvolts(raw: builtins.int) -> builtins.int:
     r"""
     Converts a raw INA219 shunt-voltage register to microvolts.
+    """
+
+def ina219_shunt_register(microvolts: builtins.int) -> builtins.int:
+    r"""
+    Builds the INA219 shunt-voltage register a monitor reports for a shunt voltage.
+    """
+
+def j1939_broadcast(priority: builtins.int, pgn: builtins.int, source: builtins.int) -> builtins.int:
+    r"""
+    Composes the identifier of a J1939 broadcast, which every node on the bus reads.
+    
+    Most parameter groups are broadcast, so this is the common case; it saves a
+    caller knowing that a broadcast is addressed to `0xFF`.
     """
 
 def j1939_compose(priority: builtins.int, pgn: builtins.int, source: builtins.int, destination: builtins.int) -> builtins.int:
@@ -4029,6 +4126,14 @@ def j1939_decode(id: builtins.int, extended: builtins.bool) -> typing.Optional[J
     Decodes the J1939 fields out of an extended CAN identifier.
     
     Returns `None` for a standard 11-bit identifier, which J1939 does not use.
+    """
+
+def j1939_limits() -> tuple[builtins.int, builtins.int, builtins.int, builtins.int, builtins.int]:
+    r"""
+    Returns the named values J1939 publishes.
+    
+    The order is the not-available byte, the broadcast address, and the control,
+    default, and lowest priorities.
     """
 
 def json_to_cbor_bytes(json: typing.Sequence[builtins.int]) -> bytes:
@@ -4153,12 +4258,13 @@ def mesh_frame(src: builtins.int, dst: builtins.int, id: builtins.int, payload: 
     Builds a mesh frame addressed to one node.
     """
 
-def mesh_limits() -> tuple[builtins.int, builtins.int, builtins.int, builtins.int, builtins.int]:
+def mesh_limits() -> tuple[builtins.int, builtins.int, builtins.int, builtins.int, builtins.int, builtins.int]:
     r"""
     Returns the frame, payload, and cache sizes a mesh node works within.
     
     The order is the maximum frame length, the maximum payload, the broadcast
-    address, the default hop limit, and the duplicate-cache capacity.
+    address, the default hop limit, the duplicate-cache capacity, and the header
+    length.
     """
 
 def mesh_parse_frame(bytes: typing.Sequence[builtins.int]) -> MeshFrame:
@@ -4203,9 +4309,19 @@ def modbus_read_holding_registers(address: builtins.int, start: builtins.int, co
     Builds a read-holding-registers request frame (function `0x03`).
     """
 
+def modbus_read_holding_registers_reply(address: builtins.int, values: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Builds the reply a device sends to a read-holding-registers request.
+    """
+
 def modbus_read_input_registers(address: builtins.int, start: builtins.int, count: builtins.int) -> bytes:
     r"""
     Builds a read-input-registers request frame (function `0x04`).
+    """
+
+def modbus_read_input_registers_reply(address: builtins.int, values: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Builds the reply a device sends to a read-input-registers request.
     """
 
 def modbus_write_multiple_coils(address: builtins.int, start: builtins.int, values: typing.Sequence[builtins.bool]) -> bytes:
@@ -4279,6 +4395,11 @@ def pin_polarity_is_asserted(polarity: builtins.str, level: builtins.str) -> bui
 def pin_polarity_level(polarity: builtins.str, asserted: builtins.bool) -> builtins.str:
     r"""
     Returns the physical level that represents a logical state under a polarity.
+    """
+
+def pwm_counts(data: typing.Sequence[builtins.int]) -> tuple[builtins.int, builtins.int]:
+    r"""
+    Reads a PCA9685 setting back from the four register bytes a channel holds.
     """
 
 def pwm_duty(off: builtins.int) -> bytes:
@@ -4370,6 +4491,12 @@ def routing_default_capacity() -> builtins.int:
     Returns a routing table size for a caller with no reason to choose one.
     """
 
+def serial_framing_bytes() -> tuple[builtins.int, builtins.int, builtins.int, builtins.int, builtins.int]:
+    r"""
+    Returns the reserved framing bytes: SLIP end, escape, the two escape codes, and
+    the COBS delimiter.
+    """
+
 def sign_delegation(delegation: Delegation, anchor: DeviceIdentity) -> builtins.list[builtins.int]:
     r"""
     Signs a delegation, naming a release key the anchor stands behind.
@@ -4433,12 +4560,12 @@ def verify(public_key: typing.Sequence[builtins.int], payload: typing.Sequence[b
     device, and raises only when an argument is the wrong length.
     """
 
-def verify_audit_chain(public_key: typing.Sequence[builtins.int], entries: typing.Sequence[AuditEntry]) -> builtins.bool:
+def verify_audit_chain(public_key: typing.Sequence[builtins.int], entries: typing.Sequence[AuditEntry]) -> None:
     r"""
     Checks a whole chain that has already arrived.
     
-    Returns `False` if any entry fails to follow the one before it or carries a
-    signature that does not hold.
+    Raises with the reason if any entry fails to follow the one before it or
+    carries a signature that does not hold.
     """
 
 def verify_envelope(data: typing.Sequence[builtins.int], public_key: typing.Sequence[builtins.int]) -> Manifest:
@@ -4446,6 +4573,14 @@ def verify_envelope(data: typing.Sequence[builtins.int], public_key: typing.Sequ
     Verifies an envelope against a key and reads the manifest inside it.
     
     Raises when the signature is not from that key.
+    """
+
+def verify_message(public_key: typing.Sequence[builtins.int], message: typing.Sequence[builtins.int]) -> typing.Optional[bytes]:
+    r"""
+    Verifies a signed message and returns the payload it carries.
+    
+    Returns `None` when the message is too short to hold a signature, was altered,
+    or was signed by a different device.
     """
 
 def version() -> builtins.str:
