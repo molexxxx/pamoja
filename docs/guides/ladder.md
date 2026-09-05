@@ -50,37 +50,41 @@ use pamoja_sync::MemoryStore;
 // own broker, so which rung carried a reading is visible from its subscriber.
 let mesh = LoopbackBroker::new();
 let backhaul = LoopbackBroker::new();
+let topic = "sensors/1/temperature";
 let mut gateway = LoopbackTransport::new(backhaul.clone());
-gateway.connect().await.unwrap();
-gateway.subscribe("sensors/1/temperature").await.unwrap();
+gateway.connect().await.expect("the gateway connects");
+gateway.subscribe(topic).await.expect("subscribe");
 
 // Rungs are tried in the order they are added, cheapest first. The mesh hop loses
 // every packet here; the backhaul carries one send, then drops the next two.
 let mut ladder = TransportLadder::new(MemoryStore::new())
     .rung(DegradedLink::new(LoopbackTransport::new(mesh)).drop_every(1))
     .rung(DegradedLink::new(LoopbackTransport::new(backhaul)).intermittent(1, 2));
-ladder.connect().await.unwrap();
+ladder.connect().await.expect("the ladder connects");
 
 // The mesh hop refuses, so the reading goes out over the backhaul and arrives on the
 // broker only that rung publishes to.
-let topic = "sensors/1/temperature";
-assert_eq!(ladder.send(topic, b"21.5").await.unwrap(), Delivery::Sent);
-assert_eq!(gateway.recv().await.unwrap().unwrap().payload, b"21.5");
+let first = ladder.send(topic, b"21.5").await.expect("a delivery");
+let arrived = gateway.recv().await.expect("recv").expect("a message");
+let reading = String::from_utf8_lossy(&arrived.payload);
+println!("first reading: {first:?}, gateway got {reading}");
 
 // Now nothing will take a send, so the next reading is buffered rather than lost.
-let delivery = ladder.send(topic, b"21.6").await.unwrap();
-assert_eq!(delivery, Delivery::Buffered);
-assert_eq!(ladder.buffered().await.unwrap(), 1);
+let second = ladder.send(topic, b"21.6").await.expect("a delivery");
+let waiting = ladder.buffered().await.expect("a count");
+println!("second reading: {second:?}, {waiting} waiting in the queue");
 
 // A flush while the links are still down forwards nothing and leaves the backlog
 // intact, because a record is removed only once a rung has accepted it.
-assert_eq!(ladder.flush().await.unwrap(), 0);
-assert_eq!(ladder.buffered().await.unwrap(), 1);
+let while_down = ladder.flush().await.expect("a flush");
+let still_queued = ladder.buffered().await.expect("a count");
+println!("flush while down forwarded {while_down}, queue still {still_queued}");
 
 // The backhaul is reachable again, so the buffered reading goes out exactly once.
-assert_eq!(ladder.flush().await.unwrap(), 1);
-assert_eq!(ladder.buffered().await.unwrap(), 0);
-assert_eq!(gateway.recv().await.unwrap().unwrap().payload, b"21.6");
+let when_up = ladder.flush().await.expect("a flush");
+let late = gateway.recv().await.expect("recv").expect("a message");
+let buffered_reading = String::from_utf8_lossy(&late.payload);
+println!("flush when up forwarded {when_up}, gateway got {buffered_reading}");
 ```
 <!-- end -->
 
@@ -90,12 +94,12 @@ assert_eq!(gateway.recv().await.unwrap().unwrap().payload, b"21.6");
 From [`bindings/node/guides/ladder.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/ladder.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { Transport } from '@pamoja/core'
 import { Delivery, Ladder } from '@pamoja/ladder'
 import { LoopbackBroker } from '@pamoja/loopback'
 import { Store } from '@pamoja/sync'
+
+const TOPIC = 'sensors/1/temperature'
 
 async function main() {
   // Two links off the same node: a near mesh hop and a metered backhaul. Each is a
@@ -104,7 +108,7 @@ async function main() {
   const backhaul = new LoopbackBroker()
   const gateway = backhaul.link()
   await gateway.connect()
-  await gateway.subscribe('sensors/1/temperature')
+  await gateway.subscribe(TOPIC)
 
   // Rungs are tried in the order they are added, cheapest first. The mesh hop loses every
   // packet here; the backhaul carries one send, then drops the next two.
@@ -115,23 +119,26 @@ async function main() {
 
   // The mesh hop refuses, so the reading goes out over the backhaul and arrives on the
   // broker only that rung publishes to.
-  const topic = 'sensors/1/temperature'
-  assert.equal(await ladder.send(topic, Buffer.from('21.5')), Delivery.Sent)
-  assert.equal((await gateway.recv())?.payload.toString(), '21.5')
+  const first = await ladder.send(TOPIC, Buffer.from('21.5'))
+  const arrived = (await gateway.recv())!
+  console.log(`first reading: ${first}, gateway got ${arrived.payload.toString()}`)
 
   // Now nothing will take a send, so the next reading is buffered rather than lost.
-  assert.equal(await ladder.send(topic, Buffer.from('21.6')), Delivery.Buffered)
-  assert.equal(await ladder.buffered(), 1)
+  const second = await ladder.send(TOPIC, Buffer.from('21.6'))
+  const waiting = await ladder.buffered()
+  console.log(`second reading: ${second}, ${waiting} waiting in the queue`)
 
   // A flush while the links are still down forwards nothing and leaves the backlog
   // intact, because a record is removed only once a rung has accepted it.
-  assert.equal(await ladder.flush(), 0)
-  assert.equal(await ladder.buffered(), 1)
+  const whileDown = await ladder.flush()
+  console.log(`flush while down forwarded ${whileDown}, queue still ${await ladder.buffered()}`)
 
   // The backhaul is reachable again, so the buffered reading goes out exactly once.
-  assert.equal(await ladder.flush(), 1)
-  assert.equal(await ladder.buffered(), 0)
-  assert.equal((await gateway.recv())?.payload.toString(), '21.6')
+  const whenUp = await ladder.flush()
+  const late = (await gateway.recv())!
+  console.log(`flush when up forwarded ${whenUp}, gateway got ${late.payload.toString()}`)
+
+  return { first, second, waiting, whileDown, whenUp, left: await ladder.buffered(), late }
 }
 
 main()
@@ -151,15 +158,17 @@ from pamoja.ladder import Delivery, Ladder
 from pamoja.loopback import LoopbackBroker
 from pamoja.sync import Store
 
+TOPIC = "sensors/1/temperature"
+
 
 async def main() -> None:
-    # Two links off the same node: a near mesh hop and a metered backhaul. Each is a
-    # separate broker, so which one carried a reading is visible from its subscriber.
+    # Two links off the same node: a near mesh hop and a metered backhaul. Each has its
+    # own broker, so which rung carried a reading is visible from its subscriber.
     mesh = LoopbackBroker()
     backhaul = LoopbackBroker()
     gateway = backhaul.link()
     await gateway.connect()
-    await gateway.subscribe("sensors/1/temperature")
+    await gateway.subscribe(TOPIC)
 
     # Rungs are tried in the order they are added, cheapest first. The mesh hop loses
     # every packet here; the backhaul carries one send, then drops the next two.
@@ -168,27 +177,31 @@ async def main() -> None:
     await ladder.rung(Transport.degraded(backhaul.rung(), up=1, down=2))
     await ladder.connect()
 
-    # The mesh hop refuses, so the reading goes out over the backhaul and arrives on
-    # the broker only that rung publishes to.
-    assert await ladder.send("sensors/1/temperature", b"21.5") == Delivery.SENT
-    assert (await gateway.recv()).payload == b"21.5"
+    # The mesh hop refuses, so the reading goes out over the backhaul and arrives on the
+    # broker only that rung publishes to.
+    first = await ladder.send(TOPIC, b"21.5")
+    arrived = await gateway.recv()
+    print(f"first reading: {first}, gateway got {arrived.payload.decode()}")
 
     # Now nothing will take a send, so the next reading is buffered rather than lost.
-    assert await ladder.send("sensors/1/temperature", b"21.6") == Delivery.BUFFERED
-    assert await ladder.buffered() == 1
+    second = await ladder.send(TOPIC, b"21.6")
+    waiting = await ladder.buffered()
+    print(f"second reading: {second}, {waiting} waiting in the queue")
 
     # A flush while the links are still down forwards nothing and leaves the backlog
     # intact, because a record is removed only once a rung has accepted it.
-    assert await ladder.flush() == 0
-    assert await ladder.buffered() == 1
+    while_down = await ladder.flush()
+    print(f"flush while down forwarded {while_down}, queue still {await ladder.buffered()}")
 
     # The backhaul is reachable again, so the buffered reading goes out exactly once.
-    assert await ladder.flush() == 1
-    assert await ladder.buffered() == 0
-    assert (await gateway.recv()).payload == b"21.6"
+    when_up = await ladder.flush()
+    late = await gateway.recv()
+    print(f"flush when up forwarded {when_up}, gateway got {late.payload.decode()}")
+
+    return first, second, waiting, while_down, when_up, await ladder.buffered(), late
 
 
-asyncio.run(main())
+first, second, waiting, while_down, when_up, left, late = asyncio.run(main())
 ```
 <!-- end -->
 
@@ -198,13 +211,15 @@ asyncio.run(main())
 From [`bindings/dotnet/samples/Pamoja.Guides/LadderGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/LadderGuide.cs):
 
 ```csharp
+const string Topic = "sensors/1/temperature";
+
 // Two links off the same node: a near mesh hop and a metered backhaul. Each is a
 // separate broker, so which one carried a reading is visible from its subscriber.
 using var mesh = new LoopbackBroker();
 using var backhaul = new LoopbackBroker();
 using var gateway = backhaul.Link();
 await gateway.ConnectAsync();
-await gateway.SubscribeAsync("sensors/1/temperature");
+await gateway.SubscribeAsync(Topic);
 
 // Rungs are tried in the order they are added, cheapest first. The mesh hop loses
 // every packet here; the backhaul carries one send, then drops the next two.
@@ -215,31 +230,29 @@ await ladder.ConnectAsync();
 
 // The mesh hop refuses, so the reading goes out over the backhaul and arrives on
 // the broker only that rung publishes to.
-const string topic = "sensors/1/temperature";
-Expect(
-    await ladder.SendAsync(topic, "21.5"u8.ToArray()) == Delivery.Sent,
-    "a dead rung falls through to the next one");
-Expect(
-    (await gateway.ReceiveAsync())?.Payload.AsSpan().SequenceEqual("21.5"u8) == true,
-    "and the reading arrives over the rung that took it");
+Delivery first = await ladder.SendAsync(Topic, "21.5"u8.ToArray());
+TransportMessage arrived = (await gateway.ReceiveAsync())!;
+Console.WriteLine(
+    $"first reading: {first}, gateway got"
+    + $" {System.Text.Encoding.UTF8.GetString(arrived.Payload)}");
 
 // Now nothing will take a send, so the next reading is buffered rather than lost.
-Expect(
-    await ladder.SendAsync(topic, "21.6"u8.ToArray()) == Delivery.Buffered,
-    "with every rung down the reading is buffered");
-Expect(await ladder.BufferedAsync() == 1, "and the backlog holds it");
+Delivery second = await ladder.SendAsync(Topic, "21.6"u8.ToArray());
+int waiting = await ladder.BufferedAsync();
+Console.WriteLine($"second reading: {second}, {waiting} waiting in the queue");
 
 // A flush while the links are still down forwards nothing and leaves the backlog
 // intact, because a record is removed only once a rung has accepted it.
-Expect(await ladder.FlushAsync() == 0, "a flush with no link forwards nothing");
-Expect(await ladder.BufferedAsync() == 1, "and loses nothing");
+int whileDown = await ladder.FlushAsync();
+Console.WriteLine(
+    $"flush while down forwarded {whileDown}, queue still {await ladder.BufferedAsync()}");
 
 // The backhaul is reachable again, so the buffered reading goes out exactly once.
-Expect(await ladder.FlushAsync() == 1, "the reading goes out once a link returns");
-Expect(await ladder.BufferedAsync() == 0, "leaving nothing queued");
-Expect(
-    (await gateway.ReceiveAsync())?.Payload.AsSpan().SequenceEqual("21.6"u8) == true,
-    "and it arrives exactly once");
+int whenUp = await ladder.FlushAsync();
+TransportMessage late = (await gateway.ReceiveAsync())!;
+Console.WriteLine(
+    $"flush when up forwarded {whenUp}, gateway got"
+    + $" {System.Text.Encoding.UTF8.GetString(late.Payload)}");
 ```
 <!-- end -->
 

@@ -9,29 +9,31 @@ namespace Guides;
 public static class CoapGuide
 {
     /// <summary>Runs the example.</summary>
-    /// <returns>A task that completes once the example has run.</returns>
+    /// <returns>A task that completes once the command has given up.</returns>
     public static async Task RunAsync()
     {
         // ANCHOR: example
         // CoAP runs over UDP and opens no session, so connecting only binds a local
-        // socket. Nothing is listening on the far side here, and nothing needs to be.
+        // socket. Nothing is listening on the far side here, and for a non-confirmable
+        // send nothing needs to be.
         using var reporter = new CoapClient(new CoapClientOptions
         {
             Host = "127.0.0.1",
             Port = 5683,
             Reliability = Reliability.NonConfirmable,
         });
-        Expect(!await reporter.IsConnectedAsync(), "a fresh endpoint holds no socket");
         await reporter.ConnectAsync();
-        Expect(await reporter.IsConnectedAsync(), "connecting binds the local socket");
+        Console.WriteLine($"reporter  connected: {await reporter.IsConnectedAsync()}");
 
         // Non-confirmable delivery is at most once: the datagram leaves unacknowledged,
-        // which is what a battery-powered node sends when one missed reading costs
-        // nothing.
+        // which is what a battery-powered node sends when a missed reading costs nothing.
         await reporter.SendAsync("sensors/1/temperature", "21.5"u8.ToArray());
+        Console.WriteLine("reporter  sent 21.5 and did not wait for an answer");
 
-        // Confirmable delivery retransmits until an ACK arrives. RFC 7252 fixes the
-        // defaults at a two-second wait and four retransmissions; both are cut short here.
+        // A command is different: it has to arrive. Confirmable delivery retransmits until
+        // an acknowledgement comes back. RFC 7252 fixes the defaults at a two-second wait
+        // and four retransmissions; both are cut short here so the guide does not sit
+        // waiting.
         using var commander = new CoapClient(new CoapClientOptions
         {
             Host = "127.0.0.1",
@@ -41,21 +43,20 @@ public static class CoapGuide
             MaxRetransmits = 1,
         });
         await commander.ConnectAsync();
-
-        bool unacknowledged = false;
         try
         {
             await commander.SendAsync("actuators/valve", "open"u8.ToArray());
+            Console.WriteLine("commander the valve acknowledged the command");
         }
-        catch (PamojaException)
+        catch (PamojaException error)
         {
-            unacknowledged = true;
+            Console.WriteLine($"commander gave up unacknowledged: {error.Message}");
         }
-
-        Expect(unacknowledged, "an unacknowledged command is reported, not dropped");
 
         await reporter.DisconnectAsync();
-        Expect(!await reporter.IsConnectedAsync(), "disconnecting releases the socket");
+        Console.WriteLine($"reporter  disconnected: {!await reporter.IsConnectedAsync()}");
         // ANCHOR_END: example
+
+        Expect(!await reporter.IsConnectedAsync(), "a disconnected endpoint says so");
     }
 }

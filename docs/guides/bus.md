@@ -39,22 +39,23 @@ From [`examples/tests/guides/bus.rs`](https://github.com/molexxxx/pamoja/blob/ma
 use pamoja_bus::BroadcastBus;
 use pamoja_core::EventBus;
 
-// A sampler announces a reading and whatever cares about readings picks it up, with
-// neither side holding a reference to the other.
+// A sampler announces something and whatever cares picks it up, with neither side
+// holding a reference to the other. This is how the parts of one node are wired.
 let hub: BroadcastBus<&str> = BroadcastBus::new(8);
-let mut sampler = hub.subscribe();
+let mut control = hub.subscribe();
 let mut logger = hub.subscribe();
 
-hub.publish("battery.low").await.unwrap();
-assert_eq!(sampler.next_event().await.unwrap(), Some("battery.low"));
-assert_eq!(logger.next_event().await.unwrap(), Some("battery.low"));
+hub.publish("battery.low").await.expect("published");
+let to_control = control.next_event().await.expect("an event");
+let to_logger = logger.next_event().await.expect("an event");
+println!("control saw {to_control:?}, the logger saw {to_logger:?}");
 
 // A subscriber taken later starts from the next event, so it never sees what went out
 // before it existed.
 let mut late = hub.subscribe();
-hub.publish("link.up").await.unwrap();
-assert_eq!(late.next_event().await.unwrap(), Some("link.up"));
-assert_eq!(sampler.next_event().await.unwrap(), Some("link.up"));
+hub.publish("link.up").await.expect("published");
+let first_seen = late.next_event().await.expect("an event");
+println!("the late subscriber's first event is {first_seen:?}");
 
 // The buffer is per subscriber and bounded, so one further behind than the capacity
 // drops what it missed and resumes with the most recent events. A slow reader costs
@@ -62,10 +63,10 @@ assert_eq!(sampler.next_event().await.unwrap(), Some("link.up"));
 let slow: BroadcastBus<u8> = BroadcastBus::new(2);
 let mut reader = slow.subscribe();
 for count in 0..5u8 {
-    slow.publish(count).await.unwrap();
+    slow.publish(count).await.expect("published");
 }
-assert_eq!(reader.next_event().await.unwrap(), Some(3));
-assert_eq!(reader.next_event().await.unwrap(), Some(4));
+let resumed = reader.next_event().await.expect("an event");
+println!("after five events into a buffer of two, the reader resumes at {resumed:?}");
 ```
 <!-- end -->
 
@@ -75,37 +76,39 @@ assert_eq!(reader.next_event().await.unwrap(), Some(4));
 From [`bindings/node/guides/bus.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/bus.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { EventBus } from '@pamoja/bus'
 
-async function main(): Promise<void> {
-  // A sampler announces a reading and whatever cares about readings picks it up, with
-  // neither side holding a reference to the other.
+async function main() {
+  // A sampler announces something and whatever cares picks it up, with neither side
+  // holding a reference to the other. This is how the parts of one node are wired.
   const hub = new EventBus(8)
-  const sampler = await hub.subscribe()
+  const control = await hub.subscribe()
   const logger = await hub.subscribe()
 
   await hub.publish(Buffer.from('battery.low'))
-  assert.equal((await sampler.next())!.toString(), 'battery.low')
-  assert.equal((await logger.next())!.toString(), 'battery.low')
+  const toControl = (await control.next())!
+  const toLogger = (await logger.next())!
+  console.log(`control saw ${toControl.toString()}, the logger saw ${toLogger.toString()}`)
 
-  // An endpoint taken later starts from the next event, so it never sees what went out
+  // A subscriber taken later starts from the next event, so it never sees what went out
   // before it existed.
   const late = await hub.subscribe()
   await hub.publish(Buffer.from('link.up'))
-  assert.equal((await late.next())!.toString(), 'link.up')
-  assert.equal((await sampler.next())!.toString(), 'link.up')
+  const firstSeen = (await late.next())!
+  console.log(`the late subscriber's first event is ${firstSeen.toString()}`)
 
-  // The buffer is per endpoint and bounded, so an endpoint further behind than the
-  // capacity drops what it missed and resumes with the most recent events.
+  // The buffer is per subscriber and bounded, so one further behind than the capacity
+  // drops what it missed and resumes with the most recent events. A slow reader costs
+  // itself, not the publisher.
   const slow = new EventBus(2)
   const reader = await slow.subscribe()
   for (let count = 0; count < 5; count += 1) {
     await slow.publish(Buffer.from([count]))
   }
-  assert.equal((await reader.next())![0], 3)
-  assert.equal((await reader.next())![0], 4)
+  const resumed = (await reader.next())!
+  console.log(`after five events into a buffer of two, the reader resumes at ${resumed[0]}`)
+
+  return { toControl, toLogger, firstSeen, resumed }
 }
 
 main()
@@ -124,34 +127,38 @@ from pamoja.bus import EventBus
 
 
 async def main() -> None:
-    # A sampler announces a reading and whatever cares about readings picks it up,
-    # with neither side holding a reference to the other.
+    # A sampler announces something and whatever cares picks it up, with neither side
+    # holding a reference to the other. This is how the parts of one node are wired.
     hub = EventBus(8)
-    sampler = await hub.subscribe()
+    control = await hub.subscribe()
     logger = await hub.subscribe()
 
     await hub.publish(b"battery.low")
-    assert await sampler.next_event() == b"battery.low"
-    assert await logger.next_event() == b"battery.low"
+    to_control = await control.next_event()
+    to_logger = await logger.next_event()
+    print(f"control saw {to_control.decode()}, the logger saw {to_logger.decode()}")
 
-    # An endpoint taken later starts from the next event, so it never sees what went
-    # out before it existed.
+    # A subscriber taken later starts from the next event, so it never sees what went out
+    # before it existed.
     late = await hub.subscribe()
     await hub.publish(b"link.up")
-    assert await late.next_event() == b"link.up"
-    assert await sampler.next_event() == b"link.up"
+    first_seen = await late.next_event()
+    print(f"the late subscriber's first event is {first_seen.decode()}")
 
-    # The buffer is per endpoint and bounded, so an endpoint further behind than the
-    # capacity drops what it missed and resumes with the most recent events.
+    # The buffer is per subscriber and bounded, so one further behind than the capacity
+    # drops what it missed and resumes with the most recent events. A slow reader costs
+    # itself, not the publisher.
     slow = EventBus(2)
     reader = await slow.subscribe()
     for count in range(5):
         await slow.publish(bytes([count]))
-    assert await reader.next_event() == b"\x03"
-    assert await reader.next_event() == b"\x04"
+    resumed = await reader.next_event()
+    print(f"after five events into a buffer of two, the reader resumes at {resumed[0]}")
+
+    return to_control, to_logger, first_seen, resumed
 
 
-asyncio.run(main())
+to_control, to_logger, first_seen, resumed = asyncio.run(main())
 ```
 <!-- end -->
 
@@ -161,33 +168,31 @@ asyncio.run(main())
 From [`bindings/dotnet/samples/Pamoja.Guides/BusGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/BusGuide.cs):
 
 ```csharp
-// A sampler announces a reading and whatever cares about readings picks it up,
-// with neither side holding a reference to the other.
+// A sampler announces something and whatever cares picks it up, with neither side
+// holding a reference to the other. This is how the parts of one node are wired.
 using EventBus hub = new EventBus(8);
-using EventBus sampler = hub.Subscribe();
+using EventBus control = hub.Subscribe();
 using EventBus logger = hub.Subscribe();
 
 await hub.PublishAsync("battery.low"u8.ToArray());
-Expect(
-    (await sampler.NextAsync())!.AsSpan().SequenceEqual("battery.low"u8),
-    "the sampler's endpoint received the event");
-Expect(
-    (await logger.NextAsync())!.AsSpan().SequenceEqual("battery.low"u8),
-    "and so did the logger's");
+byte[] toControl = (await control.NextAsync())!;
+byte[] toLogger = (await logger.NextAsync())!;
+Console.WriteLine(
+    $"control saw {System.Text.Encoding.UTF8.GetString(toControl)},"
+    + $" the logger saw {System.Text.Encoding.UTF8.GetString(toLogger)}");
 
-// An endpoint taken later starts from the next event, so it never sees what went
+// A subscriber taken later starts from the next event, so it never sees what went
 // out before it existed.
 using EventBus late = hub.Subscribe();
 await hub.PublishAsync("link.up"u8.ToArray());
-Expect(
-    (await late.NextAsync())!.AsSpan().SequenceEqual("link.up"u8),
-    "the endpoint taken last begins at the event after it");
-Expect(
-    (await sampler.NextAsync())!.AsSpan().SequenceEqual("link.up"u8),
-    "an endpoint that was already there follows on in order");
+byte[] firstSeen = (await late.NextAsync())!;
+Console.WriteLine(
+    $"the late subscriber's first event is"
+    + $" {System.Text.Encoding.UTF8.GetString(firstSeen)}");
 
-// The buffer is per endpoint and bounded, so an endpoint further behind than the
-// capacity drops what it missed and resumes with the most recent events.
+// The buffer is per subscriber and bounded, so one further behind than the
+// capacity drops what it missed and resumes with the most recent events. A slow
+// reader costs itself, not the publisher.
 using EventBus slow = new EventBus(2);
 using EventBus reader = slow.Subscribe();
 for (byte count = 0; count < 5; count++)
@@ -195,8 +200,9 @@ for (byte count = 0; count < 5; count++)
     await slow.PublishAsync(new byte[] { count });
 }
 
-Expect((await reader.NextAsync())![0] == 3, "the events it fell behind on were dropped");
-Expect((await reader.NextAsync())![0] == 4, "and it resumes with the most recent");
+byte[] resumed = (await reader.NextAsync())!;
+Console.WriteLine(
+    $"after five events into a buffer of two, the reader resumes at {resumed[0]}");
 ```
 <!-- end -->
 

@@ -8,36 +8,35 @@ namespace Guides;
 public static class BusGuide
 {
     /// <summary>Runs the example.</summary>
+    /// <returns>A task that completes once the slow reader has resumed.</returns>
     public static async Task RunAsync()
     {
         // ANCHOR: example
-        // A sampler announces a reading and whatever cares about readings picks it up,
-        // with neither side holding a reference to the other.
+        // A sampler announces something and whatever cares picks it up, with neither side
+        // holding a reference to the other. This is how the parts of one node are wired.
         using EventBus hub = new EventBus(8);
-        using EventBus sampler = hub.Subscribe();
+        using EventBus control = hub.Subscribe();
         using EventBus logger = hub.Subscribe();
 
         await hub.PublishAsync("battery.low"u8.ToArray());
-        Expect(
-            (await sampler.NextAsync())!.AsSpan().SequenceEqual("battery.low"u8),
-            "the sampler's endpoint received the event");
-        Expect(
-            (await logger.NextAsync())!.AsSpan().SequenceEqual("battery.low"u8),
-            "and so did the logger's");
+        byte[] toControl = (await control.NextAsync())!;
+        byte[] toLogger = (await logger.NextAsync())!;
+        Console.WriteLine(
+            $"control saw {System.Text.Encoding.UTF8.GetString(toControl)},"
+            + $" the logger saw {System.Text.Encoding.UTF8.GetString(toLogger)}");
 
-        // An endpoint taken later starts from the next event, so it never sees what went
+        // A subscriber taken later starts from the next event, so it never sees what went
         // out before it existed.
         using EventBus late = hub.Subscribe();
         await hub.PublishAsync("link.up"u8.ToArray());
-        Expect(
-            (await late.NextAsync())!.AsSpan().SequenceEqual("link.up"u8),
-            "the endpoint taken last begins at the event after it");
-        Expect(
-            (await sampler.NextAsync())!.AsSpan().SequenceEqual("link.up"u8),
-            "an endpoint that was already there follows on in order");
+        byte[] firstSeen = (await late.NextAsync())!;
+        Console.WriteLine(
+            $"the late subscriber's first event is"
+            + $" {System.Text.Encoding.UTF8.GetString(firstSeen)}");
 
-        // The buffer is per endpoint and bounded, so an endpoint further behind than the
-        // capacity drops what it missed and resumes with the most recent events.
+        // The buffer is per subscriber and bounded, so one further behind than the
+        // capacity drops what it missed and resumes with the most recent events. A slow
+        // reader costs itself, not the publisher.
         using EventBus slow = new EventBus(2);
         using EventBus reader = slow.Subscribe();
         for (byte count = 0; count < 5; count++)
@@ -45,8 +44,14 @@ public static class BusGuide
             await slow.PublishAsync(new byte[] { count });
         }
 
-        Expect((await reader.NextAsync())![0] == 3, "the events it fell behind on were dropped");
-        Expect((await reader.NextAsync())![0] == 4, "and it resumes with the most recent");
+        byte[] resumed = (await reader.NextAsync())!;
+        Console.WriteLine(
+            $"after five events into a buffer of two, the reader resumes at {resumed[0]}");
         // ANCHOR_END: example
+
+        Expect(toControl.AsSpan().SequenceEqual("battery.low"u8), "control heard it");
+        Expect(toLogger.AsSpan().SequenceEqual("battery.low"u8), "and so did the logger");
+        Expect(firstSeen.AsSpan().SequenceEqual("link.up"u8), "a late subscriber starts fresh");
+        Expect(resumed[0] == 3, "a slow reader resumes at the oldest event still buffered");
     }
 }

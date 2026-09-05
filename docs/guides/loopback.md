@@ -38,15 +38,16 @@ use pamoja_core::Transport;
 use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 
 // One broker and two links off it, all in this process. Nothing binds a port and
-// nothing has to be running for the traffic below to flow.
+// nothing has to be running for the traffic below to flow, which is what makes this
+// the link to develop a node against before it has a real one.
 let broker = LoopbackBroker::new();
 let mut publisher = LoopbackTransport::new(broker.clone());
 let mut subscriber = LoopbackTransport::new(broker.clone());
-publisher.connect().await.expect("connect");
-subscriber.connect().await.expect("connect");
+publisher.connect().await.expect("the publisher connects");
+subscriber.connect().await.expect("the subscriber connects");
 
-// A `+` stands for exactly one level, so the deeper topic is not delivered here and
-// the first message this subscriber sees is the second publish.
+// A `+` stands for exactly one level, so this takes the mixer's temperature but not
+// the raw reading a level below it.
 subscriber
     .subscribe("line/+/temp")
     .await
@@ -61,13 +62,13 @@ publisher
     .expect("send");
 
 let message = subscriber.recv().await.expect("recv").expect("a message");
-assert_eq!(message.topic, "line/mixer/temp");
-assert_eq!(message.payload, b"21.5");
+let reading = String::from_utf8_lossy(&message.payload);
+println!("line/+/temp took {reading} from {}", message.topic);
 
-// A `#` covers the levels that remain, so a second link takes the whole subtree,
+// A `#` covers every level that remains, so a second link takes the whole subtree,
 // including the reading the single-level filter passed over.
 let mut watcher = LoopbackTransport::new(broker);
-watcher.connect().await.expect("connect");
+watcher.connect().await.expect("the watcher connects");
 watcher.subscribe("line/#").await.expect("subscribe");
 publisher
     .send("line/mixer/temp/raw", b"2150")
@@ -75,13 +76,16 @@ publisher
     .expect("send");
 
 let deep = watcher.recv().await.expect("recv").expect("a message");
-assert_eq!(deep.topic, "line/mixer/temp/raw");
-assert_eq!(deep.payload, b"2150");
+let raw = String::from_utf8_lossy(&deep.payload);
+println!("line/#     took {raw} from {}", deep.topic);
 
 // A link that has been disconnected reports the failure instead of dropping the
 // reading, which is the case a test wants to reach without unplugging anything.
 publisher.disconnect();
-assert!(publisher.send("line/mixer/temp", b"21.6").await.is_err());
+match publisher.send("line/mixer/temp", b"21.6").await {
+    Ok(_) => println!("a disconnected link took a reading, which should never happen"),
+    Err(error) => println!("disconnected refused the reading: {error}"),
+}
 ```
 <!-- end -->
 
@@ -91,44 +95,48 @@ assert!(publisher.send("line/mixer/temp", b"21.6").await.is_err());
 From [`bindings/node/guides/loopback.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/loopback.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { LoopbackBroker } from '@pamoja/loopback'
 
 async function main() {
-  // One broker and two links off it, all in this process. Nothing binds a port and
-  // nothing has to be running for the traffic below to flow.
+  // One broker and two links off it, all in this process. Nothing binds a port and nothing
+  // has to be running for the traffic below to flow, which is what makes this the link to
+  // develop a node against before it has a real one.
   const broker = new LoopbackBroker()
   const publisher = broker.link()
   const subscriber = broker.link()
   await publisher.connect()
   await subscriber.connect()
 
-  // A `+` stands for exactly one level, so the deeper topic is not delivered here and
-  // the first message this subscriber sees is the second publish.
-  await subscriber.subscribe('line/+/temp')
-  await publisher.send('line/mixer/temp/raw', Buffer.from('2150'))
-  await publisher.send('line/mixer/temp', Buffer.from('21.5'))
+  // A `+` stands for exactly one level, so this takes the node's temperature but not the
+  // raw reading a level below it.
+  await subscriber.subscribe('sensors/+/temperature')
+  await publisher.send('sensors/8/temperature/raw', Buffer.from('2150'))
+  await publisher.send('sensors/8/temperature', Buffer.from('21.5'))
 
-  const message = await subscriber.recv()
-  assert.equal(message?.topic, 'line/mixer/temp')
-  assert.equal(message?.payload.toString(), '21.5')
+  const message = (await subscriber.recv())!
+  console.log(`sensors/+/temperature took ${message.payload.toString()} from ${message.topic}`)
 
-  // A `#` covers the levels that remain, so a second link takes the whole subtree,
+  // A `#` covers every level that remains, so a second link takes the whole subtree,
   // including the reading the single-level filter passed over.
   const watcher = broker.link()
   await watcher.connect()
-  await watcher.subscribe('line/#')
-  await publisher.send('line/mixer/temp/raw', Buffer.from('2150'))
+  await watcher.subscribe('sensors/#')
+  await publisher.send('sensors/8/temperature/raw', Buffer.from('2150'))
 
-  const deep = await watcher.recv()
-  assert.equal(deep?.topic, 'line/mixer/temp/raw')
-  assert.equal(deep?.payload.toString(), '2150')
+  const deep = (await watcher.recv())!
+  console.log(`sensors/#             took ${deep.payload.toString()} from ${deep.topic}`)
 
-  // A link that has been disconnected reports the failure instead of dropping the
-  // reading, which is the case a test wants to reach without unplugging anything.
+  // A link that has been disconnected reports the failure instead of dropping the reading,
+  // which is the case a test wants to reach without unplugging anything.
   await publisher.disconnect()
-  await assert.rejects(() => publisher.send('line/mixer/temp', Buffer.from('21.6')))
+  try {
+    await publisher.send('sensors/8/temperature', Buffer.from('21.6'))
+    console.log('a disconnected link took a reading, which should never happen')
+  } catch (error) {
+    console.log(`disconnected refused the reading: ${(error as Error).message}`)
+  }
+
+  return { message, deep }
 }
 
 main()
@@ -149,24 +157,24 @@ from pamoja.loopback import LoopbackBroker
 
 async def main() -> None:
     # One broker and two links off it, all in this process. Nothing binds a port and
-    # nothing has to be running for the traffic below to flow.
+    # nothing has to be running for the traffic below to flow, which is what makes this
+    # the link to develop a node against before it has a real one.
     broker = LoopbackBroker()
     publisher = broker.link()
     subscriber = broker.link()
     await publisher.connect()
     await subscriber.connect()
 
-    # A `+` stands for exactly one level, so the deeper topic is not delivered here and
-    # the first message this subscriber sees is the second publish.
+    # A `+` stands for exactly one level, so this takes the node's temperature but not the
+    # raw reading a level below it.
     await subscriber.subscribe("sensors/+/temperature")
     await publisher.send("sensors/8/temperature/raw", b"2150")
     await publisher.send("sensors/8/temperature", b"21.5")
 
     message = await subscriber.recv()
-    assert message.topic == "sensors/8/temperature"
-    assert message.payload == b"21.5"
+    print(f"sensors/+/temperature took {message.payload.decode()} from {message.topic}")
 
-    # A `#` covers the levels that remain, so a second link takes the whole subtree,
+    # A `#` covers every level that remains, so a second link takes the whole subtree,
     # including the reading the single-level filter passed over.
     watcher = broker.link()
     await watcher.connect()
@@ -174,21 +182,21 @@ async def main() -> None:
     await publisher.send("sensors/8/temperature/raw", b"2150")
 
     deep = await watcher.recv()
-    assert deep.topic == "sensors/8/temperature/raw"
-    assert deep.payload == b"2150"
+    print(f"sensors/#             took {deep.payload.decode()} from {deep.topic}")
 
     # A link that has been disconnected reports the failure instead of dropping the
     # reading, which is the case a test wants to reach without unplugging anything.
     await publisher.disconnect()
     try:
         await publisher.send("sensors/8/temperature", b"21.6")
-    except PamojaError:
-        pass
-    else:
-        raise AssertionError("a disconnected link should refuse to publish")
+        print("a disconnected link took a reading, which should never happen")
+    except PamojaError as error:
+        print(f"disconnected refused the reading: {error}")
+
+    return message, deep
 
 
-asyncio.run(main())
+message, deep = asyncio.run(main())
 ```
 <!-- end -->
 
@@ -198,50 +206,50 @@ asyncio.run(main())
 From [`bindings/dotnet/samples/Pamoja.Guides/LoopbackGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/LoopbackGuide.cs):
 
 ```csharp
-// One broker and two links off it, all in this process. Nothing binds a port
-// and nothing has to be running for the traffic below to flow.
+// One broker and two links off it, all in this process. Nothing binds a port and
+// nothing has to be running for the traffic below to flow, which is what makes
+// this the link to develop a node against before it has a real one.
 using var broker = new LoopbackBroker();
 using LoopbackTransport publisher = broker.Link();
 using LoopbackTransport subscriber = broker.Link();
 await publisher.ConnectAsync();
 await subscriber.ConnectAsync();
 
-// A `+` stands for exactly one level, so the deeper topic is not delivered
-// here and the first message this subscriber sees is the second publish.
-await subscriber.SubscribeAsync("line/+/temp");
-await publisher.SendAsync("line/mixer/temp/raw", "2150"u8.ToArray());
-await publisher.SendAsync("line/mixer/temp", "21.5"u8.ToArray());
+// A `+` stands for exactly one level, so this takes the node's temperature but
+// not the raw reading a level below it.
+await subscriber.SubscribeAsync("sensors/+/temperature");
+await publisher.SendAsync("sensors/8/temperature/raw", "2150"u8.ToArray());
+await publisher.SendAsync("sensors/8/temperature", "21.5"u8.ToArray());
 
-TransportMessage? message = await subscriber.ReceiveAsync();
-Expect(message?.Topic == "line/mixer/temp", "the topic survives the trip");
-Expect(
-    message!.Payload.AsSpan().SequenceEqual("21.5"u8),
-    "and so does the reading");
+TransportMessage message = (await subscriber.ReceiveAsync())!;
+Console.WriteLine(
+    $"sensors/+/temperature took {System.Text.Encoding.UTF8.GetString(message.Payload)}"
+    + $" from {message.Topic}");
 
-// A `#` covers the levels that remain, so a second link takes the whole
-// subtree, including the reading the single-level filter passed over.
+// A `#` covers every level that remains, so a second link takes the whole subtree,
+// including the reading the single-level filter passed over.
 using LoopbackTransport watcher = broker.Link();
 await watcher.ConnectAsync();
-await watcher.SubscribeAsync("line/#");
-await publisher.SendAsync("line/mixer/temp/raw", "2150"u8.ToArray());
+await watcher.SubscribeAsync("sensors/#");
+await publisher.SendAsync("sensors/8/temperature/raw", "2150"u8.ToArray());
 
-TransportMessage? deep = await watcher.ReceiveAsync();
-Expect(deep?.Topic == "line/mixer/temp/raw", "the deeper topic arrives here");
-Expect(deep!.Payload.AsSpan().SequenceEqual("2150"u8), "with its own payload");
+TransportMessage deep = (await watcher.ReceiveAsync())!;
+Console.WriteLine(
+    $"sensors/#             took {System.Text.Encoding.UTF8.GetString(deep.Payload)}"
+    + $" from {deep.Topic}");
 
-// A link that has been disconnected reports the failure instead of dropping
-// the reading, which is the case a test wants to reach without unplugging.
+// A link that has been disconnected reports the failure instead of dropping the
+// reading, which is the case a test wants to reach without unplugging anything.
 await publisher.DisconnectAsync();
-bool refused = false;
 try
 {
-    await publisher.SendAsync("line/mixer/temp", "21.6"u8.ToArray());
+    await publisher.SendAsync("sensors/8/temperature", "21.6"u8.ToArray());
+    Console.WriteLine("a disconnected link took a reading, which should never happen");
 }
-catch (PamojaException)
+catch (PamojaException error)
 {
-    refused = true;
+    Console.WriteLine($"disconnected refused the reading: {error.Message}");
 }
-Expect(refused, "a disconnected link refuses to publish");
 ```
 <!-- end -->
 

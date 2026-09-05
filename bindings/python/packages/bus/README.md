@@ -31,34 +31,38 @@ from pamoja.bus import EventBus
 
 
 async def main() -> None:
-    # A sampler announces a reading and whatever cares about readings picks it up,
-    # with neither side holding a reference to the other.
+    # A sampler announces something and whatever cares picks it up, with neither side
+    # holding a reference to the other. This is how the parts of one node are wired.
     hub = EventBus(8)
-    sampler = await hub.subscribe()
+    control = await hub.subscribe()
     logger = await hub.subscribe()
 
     await hub.publish(b"battery.low")
-    assert await sampler.next_event() == b"battery.low"
-    assert await logger.next_event() == b"battery.low"
+    to_control = await control.next_event()
+    to_logger = await logger.next_event()
+    print(f"control saw {to_control.decode()}, the logger saw {to_logger.decode()}")
 
-    # An endpoint taken later starts from the next event, so it never sees what went
-    # out before it existed.
+    # A subscriber taken later starts from the next event, so it never sees what went out
+    # before it existed.
     late = await hub.subscribe()
     await hub.publish(b"link.up")
-    assert await late.next_event() == b"link.up"
-    assert await sampler.next_event() == b"link.up"
+    first_seen = await late.next_event()
+    print(f"the late subscriber's first event is {first_seen.decode()}")
 
-    # The buffer is per endpoint and bounded, so an endpoint further behind than the
-    # capacity drops what it missed and resumes with the most recent events.
+    # The buffer is per subscriber and bounded, so one further behind than the capacity
+    # drops what it missed and resumes with the most recent events. A slow reader costs
+    # itself, not the publisher.
     slow = EventBus(2)
     reader = await slow.subscribe()
     for count in range(5):
         await slow.publish(bytes([count]))
-    assert await reader.next_event() == b"\x03"
-    assert await reader.next_event() == b"\x04"
+    resumed = await reader.next_event()
+    print(f"after five events into a buffer of two, the reader resumes at {resumed[0]}")
+
+    return to_control, to_logger, first_seen, resumed
 
 
-asyncio.run(main())
+to_control, to_logger, first_seen, resumed = asyncio.run(main())
 ```
 
 ## The same capability in every language

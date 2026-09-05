@@ -1,12 +1,14 @@
 // The transport ladder guide example; see docs/guides/ladder.md.
 
-// ANCHOR: example
 import assert from 'node:assert/strict'
 
+// ANCHOR: example
 import { Transport } from '@pamoja/core'
 import { Delivery, Ladder } from '@pamoja/ladder'
 import { LoopbackBroker } from '@pamoja/loopback'
 import { Store } from '@pamoja/sync'
+
+const TOPIC = 'sensors/1/temperature'
 
 async function main() {
   // Two links off the same node: a near mesh hop and a metered backhaul. Each is a
@@ -15,7 +17,7 @@ async function main() {
   const backhaul = new LoopbackBroker()
   const gateway = backhaul.link()
   await gateway.connect()
-  await gateway.subscribe('sensors/1/temperature')
+  await gateway.subscribe(TOPIC)
 
   // Rungs are tried in the order they are added, cheapest first. The mesh hop loses every
   // packet here; the backhaul carries one send, then drops the next two.
@@ -26,24 +28,46 @@ async function main() {
 
   // The mesh hop refuses, so the reading goes out over the backhaul and arrives on the
   // broker only that rung publishes to.
-  const topic = 'sensors/1/temperature'
-  assert.equal(await ladder.send(topic, Buffer.from('21.5')), Delivery.Sent)
-  assert.equal((await gateway.recv())?.payload.toString(), '21.5')
+  const first = await ladder.send(TOPIC, Buffer.from('21.5'))
+  const arrived = (await gateway.recv())!
+  console.log(`first reading: ${first}, gateway got ${arrived.payload.toString()}`)
 
   // Now nothing will take a send, so the next reading is buffered rather than lost.
-  assert.equal(await ladder.send(topic, Buffer.from('21.6')), Delivery.Buffered)
-  assert.equal(await ladder.buffered(), 1)
+  const second = await ladder.send(TOPIC, Buffer.from('21.6'))
+  const waiting = await ladder.buffered()
+  console.log(`second reading: ${second}, ${waiting} waiting in the queue`)
 
   // A flush while the links are still down forwards nothing and leaves the backlog
   // intact, because a record is removed only once a rung has accepted it.
-  assert.equal(await ladder.flush(), 0)
-  assert.equal(await ladder.buffered(), 1)
+  const whileDown = await ladder.flush()
+  console.log(`flush while down forwarded ${whileDown}, queue still ${await ladder.buffered()}`)
 
   // The backhaul is reachable again, so the buffered reading goes out exactly once.
-  assert.equal(await ladder.flush(), 1)
-  assert.equal(await ladder.buffered(), 0)
-  assert.equal((await gateway.recv())?.payload.toString(), '21.6')
+  const whenUp = await ladder.flush()
+  const late = (await gateway.recv())!
+  console.log(`flush when up forwarded ${whenUp}, gateway got ${late.payload.toString()}`)
+
+  return { first, second, waiting, whileDown, whenUp, left: await ladder.buffered(), late }
 }
 
 main()
 // ANCHOR_END: example
+  .then(check)
+
+function check(seen: {
+  first: Delivery
+  second: Delivery
+  waiting: number
+  whileDown: number
+  whenUp: number
+  left: number
+  late: { payload: Buffer }
+}): void {
+  assert.equal(seen.first, Delivery.Sent)
+  assert.equal(seen.second, Delivery.Buffered)
+  assert.equal(seen.waiting, 1)
+  assert.equal(seen.whileDown, 0)
+  assert.equal(seen.whenUp, 1)
+  assert.equal(seen.left, 0)
+  assert.equal(seen.late.payload.toString(), '21.6')
+}

@@ -45,34 +45,39 @@ use pamoja_coap::{CoapConfig, CoapTransport, Reliability};
 use pamoja_core::Transport;
 
 // CoAP runs over UDP and opens no session, so connecting only binds a local socket.
-// Nothing is listening on the far side here, and nothing needs to be.
+// Nothing is listening on the far side here, and for a non-confirmable send nothing
+// needs to be.
 let mut reporter = CoapTransport::new(
     CoapConfig::new("127.0.0.1", 5683).reliability(Reliability::NonConfirmable),
 );
-assert!(!reporter.is_connected());
-reporter.connect().await.unwrap();
-assert!(reporter.is_connected());
+reporter.connect().await.expect("a local socket");
+println!("reporter  connected: {}", reporter.is_connected());
 
 // Non-confirmable delivery is at most once: the datagram leaves unacknowledged, which
 // is what a battery-powered node sends when one missed reading costs nothing.
 reporter
     .send("sensors/1/temperature", b"21.5")
     .await
-    .unwrap();
+    .expect("the datagram leaves");
+println!("reporter  sent 21.5 and did not wait for an answer");
 
-// Confirmable delivery retransmits until an ACK arrives. RFC 7252 fixes the defaults
-// at a two-second wait and four retransmissions; both are cut short here.
+// A command is different: it has to arrive. Confirmable delivery retransmits until an
+// acknowledgement comes back. RFC 7252 fixes the defaults at a two-second wait and
+// four retransmissions; both are cut short here so the guide does not sit waiting.
 let mut commander = CoapTransport::new(
     CoapConfig::new("127.0.0.1", 5683)
         .reliability(Reliability::Confirmable)
         .ack_timeout(Duration::from_millis(20))
         .max_retransmits(1),
 );
-commander.connect().await.unwrap();
-assert!(commander.send("actuators/valve", b"open").await.is_err());
+commander.connect().await.expect("a local socket");
+match commander.send("actuators/valve", b"open").await {
+    Ok(()) => println!("commander the valve acknowledged the command"),
+    Err(error) => println!("commander gave up unacknowledged: {error}"),
+}
 
-reporter.disconnect().await.unwrap();
-assert!(!reporter.is_connected());
+reporter.disconnect().await.expect("a clean close");
+println!("reporter  disconnected: {}", !reporter.is_connected());
 ```
 <!-- end -->
 
@@ -82,28 +87,28 @@ assert!(!reporter.is_connected());
 From [`bindings/node/guides/coap.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/coap.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { CoapClient, Reliability } from '@pamoja/coap'
 
-async function main() {
+async function main(): Promise<void> {
   // CoAP runs over UDP and opens no session, so connecting only binds a local socket.
-  // Nothing is listening on the far side here, and nothing needs to be.
+  // Nothing is listening on the far side here, and for a non-confirmable send nothing
+  // needs to be.
   const reporter = new CoapClient({
     host: '127.0.0.1',
     port: 5683,
     reliability: Reliability.NonConfirmable,
   })
-  assert.equal(await reporter.isConnected(), false)
   await reporter.connect()
-  assert.equal(await reporter.isConnected(), true)
+  console.log(`reporter  connected: ${await reporter.isConnected()}`)
 
   // Non-confirmable delivery is at most once: the datagram leaves unacknowledged, which is
   // what a battery-powered node sends when one missed reading costs nothing.
   await reporter.send('sensors/1/temperature', Buffer.from('21.5'))
+  console.log('reporter  sent 21.5 and did not wait for an answer')
 
-  // Confirmable delivery retransmits until an ACK arrives. RFC 7252 fixes the defaults at a
-  // two-second wait and four retransmissions; both are cut short here.
+  // A command is different: it has to arrive. Confirmable delivery retransmits until an
+  // acknowledgement comes back. RFC 7252 fixes the defaults at a two-second wait and four
+  // retransmissions; both are cut short here so the guide does not sit waiting.
   const commander = new CoapClient({
     host: '127.0.0.1',
     port: 5683,
@@ -112,10 +117,15 @@ async function main() {
     maxRetransmits: 1,
   })
   await commander.connect()
-  await assert.rejects(() => commander.send('actuators/valve', Buffer.from('open')))
+  try {
+    await commander.send('actuators/valve', Buffer.from('open'))
+    console.log('commander the valve acknowledged the command')
+  } catch (error) {
+    console.log(`commander gave up unacknowledged: ${(error as Error).message}`)
+  }
 
   await reporter.disconnect()
-  assert.equal(await reporter.isConnected(), false)
+  console.log(`reporter  disconnected: ${!(await reporter.isConnected())}`)
 }
 
 main()
@@ -136,20 +146,22 @@ from pamoja.core import PamojaError
 
 async def main() -> None:
     # CoAP runs over UDP and opens no session, so connecting only binds a local socket.
-    # Nothing is listening on the far side here, and nothing needs to be.
+    # Nothing is listening on the far side here, and for a non-confirmable send nothing
+    # needs to be.
     reporter = CoapClient(
         host="127.0.0.1", port=5683, reliability=Reliability.NON_CONFIRMABLE
     )
-    assert not await reporter.is_connected()
     await reporter.connect()
-    assert await reporter.is_connected()
+    print(f"reporter  connected: {await reporter.is_connected()}")
 
     # Non-confirmable delivery is at most once: the datagram leaves unacknowledged, which
     # is what a battery-powered node sends when one missed reading costs nothing.
     await reporter.send("sensors/1/temperature", b"21.5")
+    print("reporter  sent 21.5 and did not wait for an answer")
 
-    # Confirmable delivery retransmits until an ACK arrives. RFC 7252 fixes the defaults
-    # at a two-second wait and four retransmissions; both are cut short here.
+    # A command is different: it has to arrive. Confirmable delivery retransmits until an
+    # acknowledgement comes back. RFC 7252 fixes the defaults at a two-second wait and
+    # four retransmissions; both are cut short here so the guide does not sit waiting.
     commander = CoapClient(
         host="127.0.0.1",
         port=5683,
@@ -160,13 +172,12 @@ async def main() -> None:
     await commander.connect()
     try:
         await commander.send("actuators/valve", b"open")
-    except PamojaError:
-        pass
-    else:
-        raise AssertionError("an unacknowledged command should be reported, not dropped")
+        print("commander the valve acknowledged the command")
+    except PamojaError as error:
+        print(f"commander gave up unacknowledged: {error}")
 
     await reporter.disconnect()
-    assert not await reporter.is_connected()
+    print(f"reporter  disconnected: {not await reporter.is_connected()}")
 
 
 asyncio.run(main())
@@ -180,24 +191,26 @@ From [`bindings/dotnet/samples/Pamoja.Guides/CoapGuide.cs`](https://github.com/m
 
 ```csharp
 // CoAP runs over UDP and opens no session, so connecting only binds a local
-// socket. Nothing is listening on the far side here, and nothing needs to be.
+// socket. Nothing is listening on the far side here, and for a non-confirmable
+// send nothing needs to be.
 using var reporter = new CoapClient(new CoapClientOptions
 {
     Host = "127.0.0.1",
     Port = 5683,
     Reliability = Reliability.NonConfirmable,
 });
-Expect(!await reporter.IsConnectedAsync(), "a fresh endpoint holds no socket");
 await reporter.ConnectAsync();
-Expect(await reporter.IsConnectedAsync(), "connecting binds the local socket");
+Console.WriteLine($"reporter  connected: {await reporter.IsConnectedAsync()}");
 
 // Non-confirmable delivery is at most once: the datagram leaves unacknowledged,
-// which is what a battery-powered node sends when one missed reading costs
-// nothing.
+// which is what a battery-powered node sends when a missed reading costs nothing.
 await reporter.SendAsync("sensors/1/temperature", "21.5"u8.ToArray());
+Console.WriteLine("reporter  sent 21.5 and did not wait for an answer");
 
-// Confirmable delivery retransmits until an ACK arrives. RFC 7252 fixes the
-// defaults at a two-second wait and four retransmissions; both are cut short here.
+// A command is different: it has to arrive. Confirmable delivery retransmits until
+// an acknowledgement comes back. RFC 7252 fixes the defaults at a two-second wait
+// and four retransmissions; both are cut short here so the guide does not sit
+// waiting.
 using var commander = new CoapClient(new CoapClientOptions
 {
     Host = "127.0.0.1",
@@ -207,21 +220,18 @@ using var commander = new CoapClient(new CoapClientOptions
     MaxRetransmits = 1,
 });
 await commander.ConnectAsync();
-
-bool unacknowledged = false;
 try
 {
     await commander.SendAsync("actuators/valve", "open"u8.ToArray());
+    Console.WriteLine("commander the valve acknowledged the command");
 }
-catch (PamojaException)
+catch (PamojaException error)
 {
-    unacknowledged = true;
+    Console.WriteLine($"commander gave up unacknowledged: {error.Message}");
 }
-
-Expect(unacknowledged, "an unacknowledged command is reported, not dropped");
 
 await reporter.DisconnectAsync();
-Expect(!await reporter.IsConnectedAsync(), "disconnecting releases the socket");
+Console.WriteLine($"reporter  disconnected: {!await reporter.IsConnectedAsync()}");
 ```
 <!-- end -->
 

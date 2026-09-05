@@ -1,8 +1,7 @@
-//! The loopback transport guide example; see docs/guides/loopback.md.
+//! The in-process broker guide example; see docs/guides/loopback.md.
 
-/// A publish-and-subscribe round trip with no broker process behind it: what a topic
-/// filter selects, where the two wildcards differ, and what a link that has gone away
-/// does with a message rather than dropping it.
+/// Two links off one in-process broker, showing what each topic filter catches and what a
+/// disconnected link does with a reading, all without binding a port.
 #[tokio::test]
 async fn a_round_trip_through_an_in_process_broker() {
     // ANCHOR: example
@@ -10,15 +9,16 @@ async fn a_round_trip_through_an_in_process_broker() {
     use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 
     // One broker and two links off it, all in this process. Nothing binds a port and
-    // nothing has to be running for the traffic below to flow.
+    // nothing has to be running for the traffic below to flow, which is what makes this
+    // the link to develop a node against before it has a real one.
     let broker = LoopbackBroker::new();
     let mut publisher = LoopbackTransport::new(broker.clone());
     let mut subscriber = LoopbackTransport::new(broker.clone());
-    publisher.connect().await.expect("connect");
-    subscriber.connect().await.expect("connect");
+    publisher.connect().await.expect("the publisher connects");
+    subscriber.connect().await.expect("the subscriber connects");
 
-    // A `+` stands for exactly one level, so the deeper topic is not delivered here and
-    // the first message this subscriber sees is the second publish.
+    // A `+` stands for exactly one level, so this takes the mixer's temperature but not
+    // the raw reading a level below it.
     subscriber
         .subscribe("line/+/temp")
         .await
@@ -33,13 +33,13 @@ async fn a_round_trip_through_an_in_process_broker() {
         .expect("send");
 
     let message = subscriber.recv().await.expect("recv").expect("a message");
-    assert_eq!(message.topic, "line/mixer/temp");
-    assert_eq!(message.payload, b"21.5");
+    let reading = String::from_utf8_lossy(&message.payload);
+    println!("line/+/temp took {reading} from {}", message.topic);
 
-    // A `#` covers the levels that remain, so a second link takes the whole subtree,
+    // A `#` covers every level that remains, so a second link takes the whole subtree,
     // including the reading the single-level filter passed over.
     let mut watcher = LoopbackTransport::new(broker);
-    watcher.connect().await.expect("connect");
+    watcher.connect().await.expect("the watcher connects");
     watcher.subscribe("line/#").await.expect("subscribe");
     publisher
         .send("line/mixer/temp/raw", b"2150")
@@ -47,12 +47,21 @@ async fn a_round_trip_through_an_in_process_broker() {
         .expect("send");
 
     let deep = watcher.recv().await.expect("recv").expect("a message");
-    assert_eq!(deep.topic, "line/mixer/temp/raw");
-    assert_eq!(deep.payload, b"2150");
+    let raw = String::from_utf8_lossy(&deep.payload);
+    println!("line/#     took {raw} from {}", deep.topic);
 
     // A link that has been disconnected reports the failure instead of dropping the
     // reading, which is the case a test wants to reach without unplugging anything.
     publisher.disconnect();
-    assert!(publisher.send("line/mixer/temp", b"21.6").await.is_err());
+    match publisher.send("line/mixer/temp", b"21.6").await {
+        Ok(_) => println!("a disconnected link took a reading, which should never happen"),
+        Err(error) => println!("disconnected refused the reading: {error}"),
+    }
     // ANCHOR_END: example
+
+    assert_eq!(message.topic, "line/mixer/temp");
+    assert_eq!(message.payload, b"21.5");
+    assert_eq!(deep.topic, "line/mixer/temp/raw");
+    assert_eq!(deep.payload, b"2150");
+    assert!(publisher.send("line/mixer/temp", b"21.6").await.is_err());
 }
