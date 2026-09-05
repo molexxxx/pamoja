@@ -150,6 +150,22 @@ public static partial class NativeMethods
         ushort count,
         out IntPtr outBuffer);
 
+    /// <summary>Builds the reply to a read-holding-registers request.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_modbus_read_holding_registers_reply(
+        byte address,
+        ReadOnlySpan<ushort> values,
+        nuint valuesLen,
+        out IntPtr outBuffer);
+
+    /// <summary>Builds the reply to a read-input-registers request.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_modbus_read_input_registers_reply(
+        byte address,
+        ReadOnlySpan<ushort> values,
+        nuint valuesLen,
+        out IntPtr outBuffer);
+
     /// <summary>Builds a write-single-coil request frame (function 0x05).</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_modbus_write_single_coil(

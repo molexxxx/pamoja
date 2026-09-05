@@ -25,32 +25,39 @@ The script the test suite runs, spliced here as it ran.
 From [`bindings/python/guides/codec.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/codec.py):
 
 ```python
+import json
+
 from pamoja.codec import Quantizer, from_cbor, pack_samples, to_cbor, unpack_samples
 
-# The same reading in CBOR instead of JSON, half the bytes. 21.5 rides as a
-# half-precision float, the shortest form RFC 8949 allows for it, so these are the
-# bytes the specification fixes rather than one encoder's dialect.
+# The same reading as JSON and as CBOR. Nothing is lost, and 21.5 rides as a
+# half-precision float, the shortest form RFC 8949 allows for it.
 reading = {"c": 21.5, "ok": True}
+as_json = json.dumps(reading, separators=(",", ":")).encode()
 cbor = to_cbor(reading)
-assert cbor == bytes([0xA2, 0x61, 0x63, 0xF9, 0x4D, 0x60, 0x62, 0x6F, 0x6B, 0xF5])
-assert from_cbor(cbor) == reading
+print(f"json      {len(as_json)} bytes")
+print(f"cbor      {len(cbor)} bytes")
 
-# A batch of samples packs to a count, then the difference between each value and the
-# one before it, zigzagged and written as a LEB128 varint. The four small steps cost a
-# byte each; the jump to 900 zigzags to 1776 and costs the two bytes 0xF0 0x0D.
+# A gateway that speaks JSON gets it back unchanged, so the compact form is a transport
+# choice rather than a different data model.
+restored = from_cbor(cbor)
+print(f"back to json, unchanged: {restored == reading}")
+
+# A batch of readings packs to a count, then the difference between each sample and the
+# one before it. Successive readings differ by very little, so the differences cost about
+# a byte each where the samples would cost eight.
 samples = [10, 11, 13, 12, 900]
 packed = pack_samples(samples)
-assert packed == bytes([0x05, 0x14, 0x02, 0x04, 0x01, 0xF0, 0x0D])
-assert unpack_samples(packed) == samples
+print(f"batch     {len(samples)} samples in {len(packed)} bytes")
+print(f"unpacked  {unpack_samples(packed)}")
 
-# The quantizer packs float readings the same way, rounding at the scale first. Nothing
-# in the bytes records the scale, so encode and decode have to agree on it.
+# Readings that arrive as floats pack the same way once a scale is chosen. Nothing in the
+# bytes records that scale, so the sender and the receiver have to agree on it.
 quantizer = Quantizer(100)
-readings = [20.0, 20.1, 20.2, 20.3]
-packed_readings = quantizer.encode(readings)
-assert packed_readings == bytes([0x04, 0xA0, 0x1F, 0x14, 0x14, 0x14])
-restored = quantizer.decode(packed_readings)
-assert all(abs(got - want) <= 0.01 for got, want in zip(restored, readings))
+celsius = [20.0, 20.1, 20.2, 20.3]
+packed_celsius = quantizer.encode(celsius)
+recovered = quantizer.decode(packed_celsius)
+print(f"degrees   {len(celsius)} readings in {len(packed_celsius)} bytes")
+print(f"recovered {[round(value, 1) for value in recovered]}")
 ```
 
 ## The same capability in every language

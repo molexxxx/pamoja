@@ -57,6 +57,20 @@ pub fn cobs_decode<'py>(py: Python<'py>, frame: Vec<u8>) -> PyResult<Bound<'py, 
     Ok(PyBytes::new(py, &out[..written]))
 }
 
+/// Returns the reserved framing bytes: SLIP end, escape, the two escape codes, and
+/// the COBS delimiter.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn serial_framing_bytes() -> (u8, u8, u8, u8, u8) {
+    (
+        slip::END,
+        slip::ESC,
+        slip::ESC_END,
+        slip::ESC_ESC,
+        cobs::DELIMITER,
+    )
+}
+
 /// Returns the largest SLIP frame a payload of this length can produce.
 #[gen_stub_pyfunction]
 #[pyfunction]

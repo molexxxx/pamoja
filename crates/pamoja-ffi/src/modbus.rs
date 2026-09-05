@@ -130,6 +130,72 @@ pub unsafe extern "C" fn pamoja_modbus_read_holding_registers(
     })
 }
 
+/// Builds the reply a device sends to a read-holding-registers request.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+/// holding the frame.
+///
+/// # Safety
+///
+/// `values` must point to at least `values_len` readable `uint16_t`, and `out_buffer`
+/// to a writable `*mut PamojaBuffer`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_modbus_read_holding_registers_reply(
+    address: u8,
+    values: *const u16,
+    values_len: usize,
+    out_buffer: *mut *mut PamojaBuffer,
+) -> PamojaStatus {
+    registers_reply(address, values, values_len, out_buffer, true)
+}
+
+/// Builds the reply a device sends to a read-input-registers request.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+/// holding the frame.
+///
+/// # Safety
+///
+/// `values` must point to at least `values_len` readable `uint16_t`, and `out_buffer`
+/// to a writable `*mut PamojaBuffer`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_modbus_read_input_registers_reply(
+    address: u8,
+    values: *const u16,
+    values_len: usize,
+    out_buffer: *mut *mut PamojaBuffer,
+) -> PamojaStatus {
+    registers_reply(address, values, values_len, out_buffer, false)
+}
+
+unsafe fn registers_reply(
+    address: u8,
+    values: *const u16,
+    values_len: usize,
+    out_buffer: *mut *mut PamojaBuffer,
+    holding: bool,
+) -> PamojaStatus {
+    let out_buffer = match out_slot(out_buffer, "out_buffer") {
+        Ok(slot) => slot,
+        Err(status) => return status,
+    };
+    let values = match read_values(values, values_len, "values") {
+        Ok(values) => values,
+        Err(status) => return status,
+    };
+    request(out_buffer, address, || {
+        if holding {
+            Pdu::read_holding_registers_reply(&values)
+        } else {
+            Pdu::read_input_registers_reply(&values)
+        }
+    })
+}
+
 /// Builds a read-input-registers request frame (function `0x04`).
 ///
 /// # Returns

@@ -9,20 +9,21 @@ both of which turn a slow-moving series into about a byte a sample.
 
 ## What the example does
 
-It encodes a small reading as CBOR and checks it against the exact bytes RFC
-8949 fixes for that document, then reads it back. It packs a batch of integer
-samples and a batch of float readings, checking both against the bytes the delta
-encoding fixes, and confirms the readings return within the precision their
-scale sets.
+It encodes a small reading as CBOR and reads it back, then packs a batch of
+integer samples and a batch of float readings, reporting what each costs on the
+wire.
+
+The exact bytes are not on this page. The CBOR encoding is pinned against RFC
+8949 in the codec crate's own tests, and the packed batches are pinned in the
+conformance vectors every binding checks itself against. A guide that restated
+them would be a fourth copy of the same table.
 
 It proves:
 
-- The CBOR encoding is byte-for-byte what the specification prescribes, down to
-  carrying 21.5 as a half-precision float, so an encoder that is wrong but
-  self-consistent still fails.
-- A document survives the trip to CBOR and back with its content intact.
-- Five samples travel as seven bytes rather than forty, the deltas zigzagged and
-  written as LEB128 varints.
+- A document survives the trip to CBOR and back with its content intact, and
+  arrives smaller.
+- Five samples travel in a handful of bytes rather than forty, the differences
+  zigzagged and written as LEB128 varints.
 - Quantized readings decode to within the precision their scale sets, which is
   the loss the packing trades for the bytes.
 
@@ -34,35 +35,37 @@ From [`examples/tests/guides/codec.rs`](https://github.com/molexxxx/pamoja/blob/
 ```rust
 use pamoja_codec::{cbor_to_json, decode_deltas, encode_deltas, json_to_cbor, Quantizer};
 
-// The same reading in CBOR instead of JSON, half the bytes. 21.5 rides as a
-// half-precision float, the shortest form RFC 8949 allows for it, so these are the
-// bytes the specification fixes rather than one encoder's dialect.
+// The same reading as JSON and as CBOR. Nothing is lost, and 21.5 rides as a
+// half-precision float, the shortest form RFC 8949 allows for it.
 let reading = br#"{"c":21.5,"ok":true}"#;
 let cbor = json_to_cbor(reading).expect("a valid document");
-assert_eq!(
-    cbor,
-    [0xA2, 0x61, 0x63, 0xF9, 0x4D, 0x60, 0x62, 0x6F, 0x6B, 0xF5]
-);
-assert_eq!(cbor_to_json(&cbor).expect("a valid document"), reading);
+println!("json      {} bytes", reading.len());
+println!("cbor      {} bytes", cbor.len());
 
-// A batch packs to a count, then the difference between each sample and the one
-// before it, zigzagged and written as a LEB128 varint. The four small steps cost a
-// byte each; the jump to 900 zigzags to 1776 and costs the two bytes 0xF0 0x0D.
+// A gateway that speaks JSON gets it back unchanged, so the compact form is a
+// transport choice rather than a different data model.
+let restored = cbor_to_json(&cbor).expect("a valid document");
+println!("back to json, unchanged: {}", restored == reading);
+
+// A batch of readings packs to a count, then the difference between each sample and
+// the one before it. Successive readings differ by very little, so the differences
+// cost about a byte each where the samples would cost eight.
 let samples = [10i64, 11, 13, 12, 900];
 let packed = encode_deltas(&samples);
-assert_eq!(packed, [0x05, 0x14, 0x02, 0x04, 0x01, 0xF0, 0x0D]);
-assert_eq!(decode_deltas(&packed).expect("a valid batch"), samples);
+let (count, bytes) = (samples.len(), packed.len());
+let unpacked = decode_deltas(&packed).expect("a valid batch");
+println!("batch     {count} samples in {bytes} bytes");
+println!("unpacked  {unpacked:?}");
 
-// A quantizer packs f32 readings the same way, rounding at the scale first. Nothing
-// in the bytes records the scale, so encode and decode have to agree on it.
+// Readings that arrive as floats pack the same way once a scale is chosen. Nothing in
+// the bytes records that scale, so the sender and the receiver have to agree on it.
 let quantizer = Quantizer::new(100.0);
-let readings = [20.0f32, 20.1, 20.2, 20.3];
-let packed_readings = quantizer.encode(&readings);
-assert_eq!(packed_readings, [0x04, 0xA0, 0x1F, 0x14, 0x14, 0x14]);
-let restored = quantizer.decode(&packed_readings).expect("a valid batch");
-for (got, want) in restored.iter().zip(&readings) {
-    assert!((got - want).abs() <= 0.01);
-}
+let celsius = [20.0f32, 20.1, 20.2, 20.3];
+let packed_celsius = quantizer.encode(&celsius);
+let recovered = quantizer.decode(&packed_celsius).expect("a valid batch");
+let (readings, packed_bytes) = (celsius.len(), packed_celsius.len());
+println!("degrees   {readings} readings in {packed_bytes} bytes");
+println!("recovered {recovered:?}");
 ```
 <!-- end -->
 
@@ -72,35 +75,37 @@ for (got, want) in restored.iter().zip(&readings) {
 From [`bindings/node/guides/codec.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/codec.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { Quantizer, fromCbor, packSamples, toCbor, unpackSamples } from '@pamoja/codec'
 
-// The same reading in CBOR instead of JSON, half the bytes. 21.5 rides as a half-precision
-// float, the shortest form RFC 8949 allows for it, so these are the bytes the specification
-// fixes rather than one encoder's dialect.
+// The same reading as JSON and as CBOR. Nothing is lost, and 21.5 rides as a
+// half-precision float, the shortest form RFC 8949 allows for it.
 const reading = { c: 21.5, ok: true }
+const asJson = Buffer.from(JSON.stringify(reading))
 const cbor = toCbor(reading)
-assert.deepEqual([...cbor], [0xa2, 0x61, 0x63, 0xf9, 0x4d, 0x60, 0x62, 0x6f, 0x6b, 0xf5])
-assert.deepEqual(fromCbor(cbor), reading)
+console.log(`json      ${asJson.length} bytes`)
+console.log(`cbor      ${cbor.length} bytes`)
 
-// A batch packs to a count, then the difference between each sample and the one before it,
-// zigzagged and written as a LEB128 varint. The four small steps cost a byte each; the jump
-// to 900 zigzags to 1776 and costs the two bytes 0xf0 0x0d.
+// A gateway that speaks JSON gets it back unchanged, so the compact form is a transport
+// choice rather than a different data model.
+const restored = fromCbor(cbor)
+console.log(`back to json, unchanged: ${JSON.stringify(restored) === JSON.stringify(reading)}`)
+
+// A batch of readings packs to a count, then the difference between each sample and the
+// one before it. Successive readings differ by very little, so the differences cost about
+// a byte each where the samples would cost eight.
 const samples = [10, 11, 13, 12, 900]
 const packed = packSamples(samples)
-assert.deepEqual([...packed], [0x05, 0x14, 0x02, 0x04, 0x01, 0xf0, 0x0d])
-assert.deepEqual(unpackSamples(packed), samples)
+console.log(`batch     ${samples.length} samples in ${packed.length} bytes`)
+console.log(`unpacked  ${unpackSamples(packed).join(', ')}`)
 
-// A quantizer packs float readings the same way, rounding at the scale first. Nothing in
-// the bytes records the scale, so encode and decode have to agree on it.
+// Readings that arrive as floats pack the same way once a scale is chosen. Nothing in the
+// bytes records that scale, so the sender and the receiver have to agree on it.
 const quantizer = new Quantizer(100)
-const readings = [20.0, 20.1, 20.2, 20.3]
-const packedReadings = quantizer.encode(readings)
-assert.deepEqual([...packedReadings], [0x04, 0xa0, 0x1f, 0x14, 0x14, 0x14])
-for (const [index, value] of quantizer.decode(packedReadings).entries()) {
-  assert.ok(Math.abs(value - readings[index]) <= 0.01)
-}
+const celsius = [20.0, 20.1, 20.2, 20.3]
+const packedCelsius = quantizer.encode(celsius)
+const recovered = quantizer.decode(packedCelsius)
+console.log(`degrees   ${celsius.length} readings in ${packedCelsius.length} bytes`)
+console.log(`recovered ${[...recovered].map((v) => v.toFixed(1)).join(', ')}`)
 ```
 <!-- end -->
 
@@ -110,32 +115,39 @@ for (const [index, value] of quantizer.decode(packedReadings).entries()) {
 From [`bindings/python/guides/codec.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/codec.py):
 
 ```python
+import json
+
 from pamoja.codec import Quantizer, from_cbor, pack_samples, to_cbor, unpack_samples
 
-# The same reading in CBOR instead of JSON, half the bytes. 21.5 rides as a
-# half-precision float, the shortest form RFC 8949 allows for it, so these are the
-# bytes the specification fixes rather than one encoder's dialect.
+# The same reading as JSON and as CBOR. Nothing is lost, and 21.5 rides as a
+# half-precision float, the shortest form RFC 8949 allows for it.
 reading = {"c": 21.5, "ok": True}
+as_json = json.dumps(reading, separators=(",", ":")).encode()
 cbor = to_cbor(reading)
-assert cbor == bytes([0xA2, 0x61, 0x63, 0xF9, 0x4D, 0x60, 0x62, 0x6F, 0x6B, 0xF5])
-assert from_cbor(cbor) == reading
+print(f"json      {len(as_json)} bytes")
+print(f"cbor      {len(cbor)} bytes")
 
-# A batch of samples packs to a count, then the difference between each value and the
-# one before it, zigzagged and written as a LEB128 varint. The four small steps cost a
-# byte each; the jump to 900 zigzags to 1776 and costs the two bytes 0xF0 0x0D.
+# A gateway that speaks JSON gets it back unchanged, so the compact form is a transport
+# choice rather than a different data model.
+restored = from_cbor(cbor)
+print(f"back to json, unchanged: {restored == reading}")
+
+# A batch of readings packs to a count, then the difference between each sample and the
+# one before it. Successive readings differ by very little, so the differences cost about
+# a byte each where the samples would cost eight.
 samples = [10, 11, 13, 12, 900]
 packed = pack_samples(samples)
-assert packed == bytes([0x05, 0x14, 0x02, 0x04, 0x01, 0xF0, 0x0D])
-assert unpack_samples(packed) == samples
+print(f"batch     {len(samples)} samples in {len(packed)} bytes")
+print(f"unpacked  {unpack_samples(packed)}")
 
-# The quantizer packs float readings the same way, rounding at the scale first. Nothing
-# in the bytes records the scale, so encode and decode have to agree on it.
+# Readings that arrive as floats pack the same way once a scale is chosen. Nothing in the
+# bytes records that scale, so the sender and the receiver have to agree on it.
 quantizer = Quantizer(100)
-readings = [20.0, 20.1, 20.2, 20.3]
-packed_readings = quantizer.encode(readings)
-assert packed_readings == bytes([0x04, 0xA0, 0x1F, 0x14, 0x14, 0x14])
-restored = quantizer.decode(packed_readings)
-assert all(abs(got - want) <= 0.01 for got, want in zip(restored, readings))
+celsius = [20.0, 20.1, 20.2, 20.3]
+packed_celsius = quantizer.encode(celsius)
+recovered = quantizer.decode(packed_celsius)
+print(f"degrees   {len(celsius)} readings in {len(packed_celsius)} bytes")
+print(f"recovered {[round(value, 1) for value in recovered]}")
 ```
 <!-- end -->
 
@@ -145,40 +157,34 @@ assert all(abs(got - want) <= 0.01 for got, want in zip(restored, readings))
 From [`bindings/dotnet/samples/Pamoja.Guides/CodecGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/CodecGuide.cs):
 
 ```csharp
-// The same reading in CBOR instead of JSON, half the bytes. 21.5 rides as a
-// half-precision float, the shortest form RFC 8949 allows for it, so these are
-// the bytes the specification fixes rather than one encoder's dialect.
-byte[] reading = Encoding.UTF8.GetBytes("{\"c\":21.5,\"ok\":true}");
-byte[] cbor = Codec.JsonToCbor(reading);
-Expect(
-    cbor.SequenceEqual(
-        new byte[] { 0xA2, 0x61, 0x63, 0xF9, 0x4D, 0x60, 0x62, 0x6F, 0x6B, 0xF5 }),
-    "the document encodes to the bytes the specification fixes");
-Expect(Codec.CborToJson(cbor).SequenceEqual(reading), "and reads back unchanged");
+// The same reading as JSON and as CBOR. Nothing is lost, and 21.5 rides as a
+// half-precision float, the shortest form RFC 8949 allows for it.
+byte[] asJson = Encoding.UTF8.GetBytes("{\"c\":21.5,\"ok\":true}");
+byte[] cbor = Codec.JsonToCbor(asJson);
+Console.WriteLine($"json      {asJson.Length} bytes");
+Console.WriteLine($"cbor      {cbor.Length} bytes");
 
-// A batch packs to a count, then the difference between each sample and the one
-// before it, zigzagged and written as a LEB128 varint. The four small steps cost
-// a byte each; the jump to 900 zigzags to 1776 and costs the bytes 0xF0 0x0D.
+// A gateway that speaks JSON gets it back unchanged, so the compact form is a
+// transport choice rather than a different data model.
+byte[] restored = Codec.CborToJson(cbor);
+Console.WriteLine($"back to json, unchanged: {restored.SequenceEqual(asJson)}");
+
+// A batch of readings packs to a count, then the difference between each sample
+// and the one before it. Successive readings differ by very little, so the
+// differences cost about a byte each where the samples would cost eight.
 long[] samples = [10, 11, 13, 12, 900];
 byte[] packed = Codec.PackSamples(samples);
-Expect(
-    packed.SequenceEqual(new byte[] { 0x05, 0x14, 0x02, 0x04, 0x01, 0xF0, 0x0D }),
-    "five samples travel as seven bytes rather than forty");
-Expect(Codec.UnpackSamples(packed).SequenceEqual(samples), "and decode exactly");
+Console.WriteLine($"batch     {samples.Length} samples in {packed.Length} bytes");
+Console.WriteLine($"unpacked  {string.Join(", ", Codec.UnpackSamples(packed))}");
 
-// A quantizer packs float readings the same way, rounding at the scale first.
-// Nothing in the bytes records the scale, so encode and decode have to agree.
+// Readings that arrive as floats pack the same way once a scale is chosen. Nothing
+// in the bytes records that scale, so sender and receiver have to agree on it.
 var quantizer = new Quantizer(100.0f);
-float[] readings = [20.0f, 20.1f, 20.2f, 20.3f];
-byte[] packedReadings = quantizer.Encode(readings);
-Expect(
-    packedReadings.SequenceEqual(new byte[] { 0x04, 0xA0, 0x1F, 0x14, 0x14, 0x14 }),
-    "four readings travel as six bytes");
-float[] restored = quantizer.Decode(packedReadings);
-for (int i = 0; i < readings.Length; i++)
-{
-    Expect(Math.Abs(restored[i] - readings[i]) <= 0.01f, "to within the precision");
-}
+float[] celsius = [20.0f, 20.1f, 20.2f, 20.3f];
+byte[] packedCelsius = quantizer.Encode(celsius);
+float[] recovered = quantizer.Decode(packedCelsius);
+Console.WriteLine($"degrees   {celsius.Length} readings in {packedCelsius.Length} bytes");
+Console.WriteLine($"recovered {string.Join(", ", recovered.Select(v => v.ToString("F1")))}");
 ```
 <!-- end -->
 

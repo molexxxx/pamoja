@@ -144,6 +144,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(serial::slip_decode, m)?)?;
         m.add_function(wrap_pyfunction!(serial::cobs_encode, m)?)?;
         m.add_function(wrap_pyfunction!(serial::cobs_decode, m)?)?;
+        m.add_function(wrap_pyfunction!(serial::serial_framing_bytes, m)?)?;
         m.add_function(wrap_pyfunction!(serial::slip_max_encoded_len, m)?)?;
         m.add_function(wrap_pyfunction!(serial::cobs_max_encoded_len, m)?)?;
     }
@@ -154,6 +155,11 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(modbus::modbus_read_coils, m)?)?;
         m.add_function(wrap_pyfunction!(modbus::modbus_read_discrete_inputs, m)?)?;
         m.add_function(wrap_pyfunction!(modbus::modbus_read_holding_registers, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            modbus::modbus_read_holding_registers_reply,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(modbus::modbus_read_input_registers_reply, m)?)?;
         m.add_function(wrap_pyfunction!(modbus::modbus_read_input_registers, m)?)?;
         m.add_function(wrap_pyfunction!(modbus::modbus_write_single_coil, m)?)?;
         m.add_function(wrap_pyfunction!(modbus::modbus_write_single_register, m)?)?;

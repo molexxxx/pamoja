@@ -58,6 +58,34 @@ public static class Modbus
         return Pamoja.Codec.Codec.TakeBytes(buffer);
     }
 
+    /// <summary>Builds the reply a device sends to a read-holding-registers request.</summary>
+    /// <remarks>
+    /// This is the answering half of <see cref="ReadHoldingRegisters"/>, so a client can be
+    /// written and tested against what a device sends without a device on the line.
+    /// </remarks>
+    /// <param name="address">The unit address the reply comes from.</param>
+    /// <param name="values">The register values the device reports, in address order.</param>
+    /// <returns>The frame the device would send.</returns>
+    /// <exception cref="PamojaException">There are no values, or too many for one frame.</exception>
+    public static byte[] ReadHoldingRegistersReply(byte address, ReadOnlySpan<ushort> values)
+    {
+        Status.ThrowIfError(NativeMethods.pamoja_modbus_read_holding_registers_reply(
+            address, values, (nuint)values.Length, out IntPtr buffer));
+        return Pamoja.Codec.Codec.TakeBytes(buffer);
+    }
+
+    /// <summary>Builds the reply a device sends to a read-input-registers request.</summary>
+    /// <param name="address">The unit address the reply comes from.</param>
+    /// <param name="values">The register values the device reports, in address order.</param>
+    /// <returns>The frame the device would send.</returns>
+    /// <exception cref="PamojaException">There are no values, or too many for one frame.</exception>
+    public static byte[] ReadInputRegistersReply(byte address, ReadOnlySpan<ushort> values)
+    {
+        Status.ThrowIfError(NativeMethods.pamoja_modbus_read_input_registers_reply(
+            address, values, (nuint)values.Length, out IntPtr buffer));
+        return Pamoja.Codec.Codec.TakeBytes(buffer);
+    }
+
     /// <summary>Builds a read-input-registers request (function 0x04).</summary>
     /// <param name="address">The unit address to ask.</param>
     /// <param name="start">The address of the first register.</param>

@@ -18,7 +18,13 @@ from pamoja._native import modbus_raw as _raw
 from pamoja._native import modbus_read_coils as _read_coils
 from pamoja._native import modbus_read_discrete_inputs as _read_discrete_inputs
 from pamoja._native import modbus_read_holding_registers as _read_holding_registers
+from pamoja._native import (
+    modbus_read_holding_registers_reply as _read_holding_registers_reply,
+)
 from pamoja._native import modbus_read_input_registers as _read_input_registers
+from pamoja._native import (
+    modbus_read_input_registers_reply as _read_input_registers_reply,
+)
 from pamoja._native import modbus_write_multiple_coils as _write_multiple_coils
 from pamoja._native import modbus_write_multiple_registers as _write_multiple_registers
 from pamoja._native import modbus_write_single_coil as _write_single_coil
@@ -34,7 +40,9 @@ __all__ = [
     "read_coils",
     "read_discrete_inputs",
     "read_holding_registers",
+    "read_holding_registers_reply",
     "read_input_registers",
+    "read_input_registers_reply",
     "write_multiple_coils",
     "write_multiple_registers",
     "write_single_coil",
@@ -118,6 +126,31 @@ def read_discrete_inputs(address: int, start: int, count: int) -> bytes:
     :returns: The frame to send.
     """
     return _read_discrete_inputs(address, start, count)
+
+
+def read_holding_registers_reply(address: int, values: list[int]) -> bytes:
+    """Build the reply a device sends to a read-holding-registers request.
+
+    This is the answering half of :func:`read_holding_registers`, so a client can be
+    written and tested against what a device sends without a device on the line.
+
+    :param address: The unit address the reply comes from.
+    :param values: The register values the device reports, in address order.
+    :returns: The frame the device would send.
+    :raises PamojaError: If there are no values, or more than one frame can carry.
+    """
+    return _read_holding_registers_reply(address, values)
+
+
+def read_input_registers_reply(address: int, values: list[int]) -> bytes:
+    """Build the reply a device sends to a read-input-registers request.
+
+    :param address: The unit address the reply comes from.
+    :param values: The register values the device reports, in address order.
+    :returns: The frame the device would send.
+    :raises PamojaError: If there are no values, or more than one frame can carry.
+    """
+    return _read_input_registers_reply(address, values)
 
 
 def read_holding_registers(address: int, start: int, count: int) -> bytes:

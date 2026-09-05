@@ -106,6 +106,30 @@ pub fn modbus_read_holding_registers<'py>(
     frame(py, Pdu::read_holding_registers(start, count), address)
 }
 
+/// Builds the reply a device sends to a read-holding-registers request.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn modbus_read_holding_registers_reply<'py>(
+    py: Python<'py>,
+    address: u8,
+    values: Vec<u16>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let pdu = Pdu::read_holding_registers_reply(&values).map_err(to_py)?;
+    Ok(frame(py, pdu, address))
+}
+
+/// Builds the reply a device sends to a read-input-registers request.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn modbus_read_input_registers_reply<'py>(
+    py: Python<'py>,
+    address: u8,
+    values: Vec<u16>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let pdu = Pdu::read_input_registers_reply(&values).map_err(to_py)?;
+    Ok(frame(py, pdu, address))
+}
+
 /// Builds a read-input-registers request frame (function `0x04`).
 #[gen_stub_pyfunction]
 #[pyfunction]

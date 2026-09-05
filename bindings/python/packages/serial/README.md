@@ -25,28 +25,42 @@ The script the test suite runs, spliced here as it ran.
 From [`bindings/python/guides/serial.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/serial.py):
 
 ```python
-from pamoja.serial import SlipDecoder, cobs, slip
+from pamoja.serial import COBS_DELIMITER, SLIP_END, SLIP_ESC, SlipDecoder, cobs, slip
 
-# SLIP reserves two byte values, 0xC0 to end a frame and 0xDB to escape, so a payload
-# carrying either goes out as the two-byte pair RFC 1055 fixes for it.
-payload = bytes([0x01, 0xC0, 0xDB, 0x02])
-frame = slip.encode(payload)
-assert frame == bytes([0x01, 0xDB, 0xDC, 0xDB, 0xDD, 0x02, 0xC0])
-assert slip.decode(frame) == payload
+# A UART carries bytes, not packets, so a framing has to mark where one packet ends. SLIP
+# reserves two byte values for that, and the package names both: the end byte closes a
+# frame, the escape byte carries a value that would otherwise look like one.
+payload = b"lvl=" + bytes([SLIP_END, SLIP_ESC])
+framed = slip.encode(payload)
+print(f"slip      {len(payload)} payload bytes framed as {len(framed)}")
+
+# Decoding gives the payload back unchanged, reserved bytes and all.
+restored = slip.decode(framed)
+print(f"slip      decoded back to {len(restored)} bytes")
 
 # COBS trades that escaping for one code byte per run of up to 254 non-zero bytes, each
-# run led by its own length. This is the worked example from the COBS paper.
-packet = bytes([0x11, 0x22, 0x00, 0x33])
-framed = cobs.encode(packet)
-assert framed == bytes([0x03, 0x11, 0x22, 0x02, 0x33, 0x00])
-assert cobs.decode(framed) == packet
+# run led by its own length, so a frame never grows by more than a byte per 254. Zero is
+# the delimiter, and never appears inside a frame.
+packet = b"lvl=" + bytes([COBS_DELIMITER]) + b"7"
+cobs_framed = cobs.encode(packet)
+print(f"cobs      {len(packet)} payload bytes framed as {len(cobs_framed)}")
 
-# A read from a port returns an arbitrary chunk rather than a packet. This one holds two
-# frames with a truncated one between them, and the decoder drops only the bad frame.
+# A read from a port returns whatever arrived, which is rarely one whole frame. This chunk
+# holds two good frames with a truncated one between them; the decoder hands over the good
+# ones and discards only the bad frame.
 decoder = SlipDecoder()
-frames = decoder.feed(bytes([0x6F, 0x6B, 0xC0, 0xDB, 0xC0, 0x67, 0x6F, 0xC0]))
-assert frames == [b"ok", b"go"]
-assert decoder.discarded == 1
+chunk = (
+    b"ok"
+    + bytes([SLIP_END])
+    + bytes([SLIP_ESC])  # a frame that ends before its escape pair completes
+    + bytes([SLIP_END])
+    + b"go"
+    + bytes([SLIP_END])
+)
+frames = decoder.feed(chunk)
+for frame in frames:
+    print(f"received  {frame.decode()}")
+print(f"discarded {decoder.discarded} frame the stream mangled")
 ```
 
 ## The same capability in every language

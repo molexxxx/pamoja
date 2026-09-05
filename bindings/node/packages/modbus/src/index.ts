@@ -17,7 +17,9 @@ import {
   modbusReadCoils,
   modbusReadDiscreteInputs,
   modbusReadHoldingRegisters,
+  modbusReadHoldingRegistersReply,
   modbusReadInputRegisters,
+  modbusReadInputRegistersReply,
   modbusRegisters,
   modbusWriteMultipleCoils,
   modbusWriteMultipleRegisters,
@@ -69,6 +71,33 @@ export function readDiscreteInputs(address: number, start: number, count: number
  */
 export function readHoldingRegisters(address: number, start: number, count: number): Buffer {
   return modbusReadHoldingRegisters(address, start, count)
+}
+
+/**
+ * Builds the reply a device sends to a read-holding-registers request.
+ *
+ * This is the answering half of {@link readHoldingRegisters}, so a client can be
+ * written and tested against what a device sends without a device on the line.
+ *
+ * @param address - The unit address the reply comes from.
+ * @param values - The register values the device reports, in address order.
+ * @returns The frame the device would send.
+ * @throws If there are no values, or more than one frame can carry.
+ */
+export function readHoldingRegistersReply(address: number, values: number[]): Buffer {
+  return modbusReadHoldingRegistersReply(address, values)
+}
+
+/**
+ * Builds the reply a device sends to a read-input-registers request.
+ *
+ * @param address - The unit address the reply comes from.
+ * @param values - The register values the device reports, in address order.
+ * @returns The frame the device would send.
+ * @throws If there are no values, or more than one frame can carry.
+ */
+export function readInputRegistersReply(address: number, values: number[]): Buffer {
+  return modbusReadInputRegistersReply(address, values)
 }
 
 /**

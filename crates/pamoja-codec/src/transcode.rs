@@ -138,4 +138,18 @@ mod tests {
         ciborium::into_writer(&value, &mut cbor).expect("write cbor");
         assert!(matches!(cbor_to_json(&cbor), Err(Error::Codec(_))));
     }
+
+    #[test]
+    fn a_document_transcodes_to_the_bytes_rfc_8949_fixes() {
+        // RFC 8949 encodes this document as a two-entry map with text keys, and 21.5 in
+        // the shortest form it allows, which is a half-precision float. Pinning the bytes
+        // catches an encoder that is wrong but self-consistent.
+        let json = br#"{"c":21.5,"ok":true}"#;
+        let cbor = json_to_cbor(json).expect("a valid document");
+        assert_eq!(
+            cbor,
+            [0xA2, 0x61, 0x63, 0xF9, 0x4D, 0x60, 0x62, 0x6F, 0x6B, 0xF5]
+        );
+        assert_eq!(cbor_to_json(&cbor).expect("a valid document"), json);
+    }
 }

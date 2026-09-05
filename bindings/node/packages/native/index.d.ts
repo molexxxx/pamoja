@@ -1779,6 +1779,9 @@ export interface CoapClientOptions {
   maxRetransmits?: number
 }
 
+/** The byte that delimits a COBS frame, which never appears inside one. */
+export const COBS_DELIMITER: number
+
 /** Reads the payload back out of a COBS frame. */
 export declare function cobsDecode(frame: Buffer): Buffer
 
@@ -2839,8 +2842,14 @@ export declare function modbusReadDiscreteInputs(address: number, start: number,
 /** Builds a read-holding-registers request frame (function `0x03`). */
 export declare function modbusReadHoldingRegisters(address: number, start: number, count: number): Buffer
 
+/** Builds the reply a device sends to a read-holding-registers request. */
+export declare function modbusReadHoldingRegistersReply(address: number, values: Array<number>): Buffer
+
 /** Builds a read-input-registers request frame (function `0x04`). */
 export declare function modbusReadInputRegisters(address: number, start: number, count: number): Buffer
+
+/** Builds the reply a device sends to a read-input-registers request. */
+export declare function modbusReadInputRegistersReply(address: number, values: Array<number>): Buffer
 
 /** Reads the 16-bit registers out of a read-registers response PDU. */
 export declare function modbusRegisters(pdu: Buffer): Array<number>
@@ -3149,10 +3158,24 @@ export declare function signDelegation(delegation: Delegation, anchor: DeviceIde
 /** Signs a manifest into the envelope that is offered to a device. */
 export declare function signManifest(manifest: Manifest, author: DeviceIdentity): Buffer
 
+/**
+ * Frames a payload as a SLIP packet (RFC 1055).
+ * The SLIP byte that ends a frame (RFC 1055).
+ */
+export const SLIP_END: number
+
+/** The SLIP byte that escapes a reserved value inside a frame (RFC 1055). */
+export const SLIP_ESC: number
+
+/** The byte that follows SLIP_ESC to stand for a literal end byte. */
+export const SLIP_ESC_END: number
+
+/** The byte that follows SLIP_ESC to stand for a literal escape byte. */
+export const SLIP_ESC_ESC: number
+
 /** Reads the payload back out of a SLIP frame. */
 export declare function slipDecode(frame: Buffer): Buffer
 
-/** Frames a payload as a SLIP packet (RFC 1055). */
 export declare function slipEncode(payload: Buffer): Buffer
 
 /** Returns the largest SLIP frame a payload of this length can produce. */

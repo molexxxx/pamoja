@@ -9,18 +9,18 @@ peripheral signs its own telemetry without a source of randomness to get wrong.
 
 ## What the example does
 
-It provisions a device with the seed from RFC 8032 test vector 2 and checks the
-signature it produces over that vector's message against the one the RFC
-publishes. It then signs a meter reading and verifies it the way a gateway would,
-holding nothing but the public key. Finally it changes one digit of the reading
-and offers the signature under a second device's key, and confirms both are
-rejected.
+It provisions a device with a seed, signs a meter reading, and verifies it the
+way a gateway would, holding nothing but the public key. Finally it changes one
+digit of the reading and offers the signature under a second device's key, and
+confirms both are rejected.
+
+A real seed comes from the factory or a secure element and never leaves the
+device. Any 32 bytes stand in for one here. The signing itself is pinned to
+RFC 8032 test vector 2 in `pamoja-security`'s own tests, which is where a
+published constant belongs; this page shows the shape of the code instead.
 
 It proves:
 
-- The seed derives the key pair the specification fixes and signs to the exact 64
-  bytes RFC 8032 publishes, so an implementation that is wrong but self-consistent
-  still fails.
 - The fingerprint is the first eight bytes of the public key in hex, a label for
   logs and displays rather than a substitute for the key itself.
 - Signing is deterministic: the same reading signed twice gives the same bytes.

@@ -62,6 +62,23 @@ pub fn modbus_read_holding_registers(address: u8, start: u16, count: u16) -> Buf
         .into()
 }
 
+/// Builds the reply a device sends to a read-holding-registers request.
+#[napi]
+pub fn modbus_read_holding_registers_reply(
+    address: u8,
+    values: Vec<u16>,
+) -> napi::Result<Buffer> {
+    let pdu = Pdu::read_holding_registers_reply(&values).map_err(to_napi)?;
+    Ok(pdu.to_adu(address).as_bytes().into())
+}
+
+/// Builds the reply a device sends to a read-input-registers request.
+#[napi]
+pub fn modbus_read_input_registers_reply(address: u8, values: Vec<u16>) -> napi::Result<Buffer> {
+    let pdu = Pdu::read_input_registers_reply(&values).map_err(to_napi)?;
+    Ok(pdu.to_adu(address).as_bytes().into())
+}
+
 /// Builds a read-input-registers request frame (function `0x04`).
 #[napi]
 pub fn modbus_read_input_registers(address: u8, start: u16, count: u16) -> Buffer {

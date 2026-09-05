@@ -431,4 +431,18 @@ mod tests {
         assert!(decoder.push(b'z').unwrap().is_none());
         assert_eq!(decoder.push(END).unwrap(), Some(&b"z"[..]));
     }
+
+    #[test]
+    fn a_payload_carrying_reserved_bytes_is_stuffed_as_rfc_1055_fixes() {
+        // RFC 1055 replaces an END byte inside a payload with ESC ESC_END, and an ESC byte
+        // with ESC ESC_ESC, then ends the frame with END.
+        let payload = [0x01, END, ESC, 0x02];
+        let mut frame = [0u8; max_encoded_len(4)];
+        let n = encode(&payload, &mut frame).expect("room for the frame");
+        assert_eq!(&frame[..n], &[0x01, ESC, ESC_END, ESC, ESC_ESC, 0x02, END]);
+
+        let mut restored = [0u8; 4];
+        let m = decode(&frame[..n], &mut restored).expect("a well-formed frame");
+        assert_eq!(&restored[..m], &payload);
+    }
 }

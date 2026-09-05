@@ -1,42 +1,71 @@
 //! The serial framing guide example; see docs/guides/serial.md.
 
-/// The two byte-stuffing framings a UART stream carries packets with, checked against the
-/// frames RFC 1055 and the COBS paper fix, and the streaming decoder a read loop uses.
+/// The two byte-stuffing framings a UART stream carries packets with, and the streaming
+/// decoder a read loop uses when a read returns an arbitrary chunk rather than a packet.
 #[test]
 fn slip_and_cobs_frames_on_a_byte_stream() {
     // ANCHOR: example
     use pamoja_serial::{cobs, slip};
 
-    // SLIP reserves two byte values, 0xC0 to end a frame and 0xDB to escape, so a payload
-    // carrying either goes out as the two-byte pair RFC 1055 fixes for it.
-    let payload = [0x01, 0xC0, 0xDB, 0x02];
-    let mut frame = [0u8; slip::max_encoded_len(4)];
-    let n = slip::encode(&payload, &mut frame).expect("room for the frame");
-    assert_eq!(&frame[..n], &[0x01, 0xDB, 0xDC, 0xDB, 0xDD, 0x02, 0xC0]);
-    let mut restored = [0u8; 4];
-    let m = slip::decode(&frame[..n], &mut restored).expect("a well-formed frame");
-    assert_eq!(&restored[..m], &payload);
+    // A UART carries bytes, not packets, so a framing has to mark where one packet ends.
+    // SLIP reserves two byte values for that, and the crate names both: END closes a
+    // frame, ESC carries a byte that would otherwise look like one. The hard case is a
+    // payload that already contains them, so this one does.
+    let mut payload = b"lvl=".to_vec();
+    payload.push(slip::END);
+    payload.push(slip::ESC);
+    let mut framed = [0u8; slip::max_encoded_len(8)];
+    let n = slip::encode(&payload, &mut framed).expect("room for the frame");
+    println!("slip      {} payload bytes framed as {n}", payload.len());
+
+    // Decoding gives the payload back unchanged, reserved bytes and all.
+    let mut restored = [0u8; 8];
+    let m = slip::decode(&framed[..n], &mut restored).expect("a well-formed frame");
+    println!("slip      decoded back to {m} bytes");
 
     // COBS trades that escaping for one code byte per run of up to 254 non-zero bytes,
-    // each run led by its own length. This is the worked example from the COBS paper.
-    let packet = [0x11, 0x22, 0x00, 0x33];
-    let mut framed = [0u8; cobs::max_encoded_len(4)];
-    let n = cobs::encode(&packet, &mut framed).expect("room for the frame");
-    assert_eq!(&framed[..n], &[0x03, 0x11, 0x22, 0x02, 0x33, 0x00]);
+    // each run led by its own length, so a frame never grows by more than a byte per 254.
+    // Zero is the delimiter, and COBS is what takes it out of the data.
+    let mut packet = b"lvl=".to_vec();
+    packet.push(cobs::DELIMITER);
+    packet.extend_from_slice(b"7");
+    let mut cobs_framed = [0u8; cobs::max_encoded_len(8)];
+    let framed_len = cobs::encode(&packet, &mut cobs_framed).expect("room for the frame");
+    let packet_len = packet.len();
+    println!("cobs      {packet_len} payload bytes framed as {framed_len}");
 
-    // A serial read returns an arbitrary chunk rather than a packet. This one holds two
-    // frames with a truncated one between them, and the decoder drops only the bad frame.
+    // A serial read returns whatever arrived, which is rarely one whole frame. This chunk
+    // holds two good frames with a truncated one between them; the decoder hands over the
+    // good ones and discards only the bad frame.
+    let mut chunk = Vec::new();
+    chunk.extend_from_slice(b"ok");
+    chunk.push(slip::END);
+    chunk.push(slip::ESC); // a frame that ends before its escape pair completes
+    chunk.push(slip::END);
+    chunk.extend_from_slice(b"go");
+    chunk.push(slip::END);
+
     let mut decoder: slip::SlipDecoder<16> = slip::SlipDecoder::new();
     let mut frames: Vec<Vec<u8>> = Vec::new();
     let mut discarded = 0;
-    for &byte in &[b'o', b'k', 0xC0, 0xDB, 0xC0, b'g', b'o', 0xC0] {
+    for &byte in &chunk {
         match decoder.push(byte) {
             Ok(Some(complete)) => frames.push(complete.to_vec()),
             Ok(None) => {}
             Err(_) => discarded += 1,
         }
     }
+    for frame in &frames {
+        println!("received  {}", String::from_utf8_lossy(frame));
+    }
+    println!("discarded {discarded} frame the stream mangled");
+    // ANCHOR_END: example
+
+    // The frames RFC 1055 and the COBS paper fix are pinned in the crate's own tests, so
+    // a guide asserts behaviour instead.
+    assert!(n > payload.len());
+    assert!(framed_len > packet.len());
+    assert_eq!(&restored[..m], &payload[..]);
     assert_eq!(frames, [b"ok".to_vec(), b"go".to_vec()]);
     assert_eq!(discarded, 1);
-    // ANCHOR_END: example
 }

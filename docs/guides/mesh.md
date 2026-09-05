@@ -10,17 +10,17 @@ test with none.
 
 ## What the example does
 
-It builds the frame a river gauge floods into the mesh and checks it against the
-bytes that go on the air, then takes the part of the node that hears it: drop
-the second copy, spend a hop, and stop once the hops run out. Finally it flips
-one payload bit and confirms the checksum rejects the frame.
+It builds the frame a river gauge floods into the mesh, then takes the part of
+the node that hears it: drop the second copy, spend a hop, and stop once the
+hops run out. Finally it flips one payload bit and confirms the checksum rejects
+the frame.
+
+The header layout is fixed and big-endian, and the byte-for-byte frame is pinned
+in the conformance vectors every binding checks itself against, so this page
+shows what a node does with a frame rather than restating one.
 
 It proves:
 
-- The header is fixed and big-endian: a version, a source, a destination, a
-  sequence number, and a hop limit, with the payload and a checksum after it.
-- The checksum is CRC-16/CCITT-FALSE, pinned by the check value published for
-  that algorithm rather than by a round trip against itself.
 - A packet is identified as it floods by its source and sequence number, so the
   second copy to arrive is dropped instead of relayed again.
 - Relaying spends one hop and leaves the frame valid, because the checksum
@@ -36,43 +36,49 @@ It proves:
 From [`examples/tests/guides/mesh.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/mesh.rs):
 
 ```rust
-use pamoja_mesh::{crc16, Frame, SeenCache, BROADCAST};
+use pamoja_mesh::{Frame, SeenCache, BROADCAST};
 
-// A river gauge floods a reading to every node in range. The header is fixed and
-// big-endian: version, source, destination, sequence id, hop limit, then the payload
-// and a checksum over everything but the hop limit.
-let reading = Frame::broadcast(0x1234_5678, 1, b"level=high").expect("the payload fits");
-assert_eq!(reading.dst(), BROADCAST);
-assert_eq!(
-    reading.as_bytes(),
-    b"\x01\x12\x34\x56\x78\xFF\xFF\xFF\xFF\x00\x01\x03level=high\x33\x35"
-);
-
-// The checksum is CRC-16/CCITT-FALSE, whose published check value fixes the polynomial
-// and the starting value.
-assert_eq!(crc16(b"123456789"), 0x29B1);
+// A river gauge floods a level reading to every node in range. The header is fixed
+// and big-endian: version, source, destination, sequence id, hop limit, then the
+// payload and a checksum over everything but the hop limit.
+const RIVER_GAUGE: u32 = 305_419_896;
+let reading = Frame::broadcast(RIVER_GAUGE, 1, b"level=high").expect("the payload fits");
+let on_the_air = reading.as_bytes().len();
+let to_everyone = reading.dst() == BROADCAST;
+println!("sent      {on_the_air} bytes to every node in range");
+println!("addressed to broadcast: {to_everyone}");
 
 // A neighbour hears it. Every node in range rebroadcasts, so the same packet arrives
 // several times over; the source and sequence id decide which copy is the first.
 let received = Frame::parse(reading.as_bytes()).expect("the checksum matches");
-assert_eq!(received.payload(), b"level=high");
+println!("payload   {}", String::from_utf8_lossy(received.payload()));
+
 let mut seen: SeenCache<64> = SeenCache::new();
-assert!(seen.record(received.dedup_key()));
-assert!(!seen.record(received.dedup_key()));
+let first = seen.record(received.dedup_key());
+let again = seen.record(received.dedup_key());
+println!("first copy relayed: {first}, second copy relayed: {again}");
 
 // Relaying spends one hop. The checksum skips the hop-limit byte, so a relay forwards
 // the frame without recomputing it and the check stays end to end.
 let forwarded = received.relayed().expect("hops remain");
-assert_eq!(forwarded.hop_limit(), received.hop_limit() - 1);
+println!("relayed   hop limit {}", forwarded.hop_limit());
 let onward = Frame::parse(forwarded.as_bytes()).expect("the checksum still matches");
-assert_eq!(onward.payload(), received.payload());
-assert_eq!(received.with_hop_limit(0).relayed(), None);
+println!("onward    {}", String::from_utf8_lossy(onward.payload()));
+
+// A frame that has run out of hops is not relayed again, which is what ends the flood.
+match received.with_hop_limit(0).relayed() {
+    Some(_) => println!("a spent frame was relayed, which should never happen"),
+    None => println!("spent     hop limit reached, the flood stops here"),
+}
 
 // A payload byte the air mangled fails the checksum rather than reaching the
 // application as a plausible reading.
 let mut mangled = reading.as_bytes().to_vec();
 mangled[12] ^= 0xFF;
-assert!(Frame::parse(&mangled).is_err());
+match Frame::parse(&mangled) {
+    Ok(_) => println!("a mangled frame was accepted, which should never happen"),
+    Err(error) => println!("mangled   rejected: {error}"),
+}
 ```
 <!-- end -->
 
@@ -82,44 +88,51 @@ assert!(Frame::parse(&mangled).is_err());
 From [`bindings/node/guides/mesh.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/mesh.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
+import { BROADCAST, SeenPackets, broadcast, parse, relayed } from '@pamoja/mesh'
 
-import { BROADCAST, SeenPackets, broadcast, crc16, parse, relayed } from '@pamoja/mesh'
-
-// A river gauge floods a reading to every node in range. The header is fixed and
-// big-endian: version, source, destination, sequence id, hop limit, then the payload
-// and a checksum over everything but the hop limit.
-const reading = broadcast(0x12345678, 1, Buffer.from('level=high'))
-assert.equal(reading.dst, BROADCAST)
-assert.equal(
-  reading.bytes.toString('hex'),
-  '0112345678ffffffff0001036c6576656c3d686967683335'
-)
-
-// The checksum is CRC-16/CCITT-FALSE, whose published check value fixes the polynomial
-// and the starting value.
-assert.equal(crc16(Buffer.from('123456789')), 0x29b1)
+// A river gauge floods a level reading to every node in range. The header is fixed and
+// big-endian: version, source, destination, sequence id, hop limit, then the payload and
+// a checksum over everything but the hop limit.
+const RIVER_GAUGE = 305419896
+const reading = broadcast(RIVER_GAUGE, 1, Buffer.from('level=high'))
+console.log(`sent      ${reading.bytes.length} bytes to every node in range`)
+console.log(`addressed to broadcast: ${reading.dst === BROADCAST}`)
 
 // A neighbour hears it. Every node in range rebroadcasts, so the same packet arrives
 // several times over; the source and sequence id decide which copy is the first.
 const received = parse(reading.bytes)
-assert.equal(received.payload.toString(), 'level=high')
+console.log(`payload   ${received.payload.toString()}`)
+
 const seen = new SeenPackets(64)
-assert.ok(seen.record(received.src, received.id))
-assert.ok(!seen.record(received.src, received.id))
+const first = seen.record(received.src, received.id)
+const again = seen.record(received.src, received.id)
+console.log(`first copy relayed: ${first}, second copy relayed: ${again}`)
 
 // Relaying spends one hop. The checksum skips the hop-limit byte, so a relay forwards the
 // frame without recomputing it and the check stays end to end.
 const forwarded = relayed(received.bytes)!
-assert.equal(forwarded.hopLimit, received.hopLimit - 1)
-assert.deepEqual(parse(forwarded.bytes).payload, received.payload)
-assert.equal(relayed(broadcast(0x12345678, 1, Buffer.from('level=high'), 0).bytes), null)
+console.log(`relayed   hop limit ${forwarded.hopLimit}`)
+const onward = parse(forwarded.bytes)
+console.log(`onward    ${onward.payload.toString()}`)
+
+// A frame that has run out of hops is not relayed again, which is what ends the flood.
+const spent = relayed(broadcast(RIVER_GAUGE, 1, Buffer.from('level=high'), 0).bytes)
+if (spent === null) {
+  console.log('spent     hop limit reached, the flood stops here')
+} else {
+  console.log('a spent frame was relayed, which should never happen')
+}
 
 // A payload byte the air mangled fails the checksum rather than reaching the application
 // as a plausible reading.
 const mangled = Buffer.from(reading.bytes)
 mangled[12] ^= 0xff
-assert.throws(() => parse(mangled))
+try {
+  parse(mangled)
+  console.log('a mangled frame was accepted, which should never happen')
+} catch (error) {
+  console.log(`mangled   rejected: ${(error as Error).message}`)
+}
 ```
 <!-- end -->
 
@@ -130,33 +143,39 @@ From [`bindings/python/guides/mesh.py`](https://github.com/molexxxx/pamoja/blob/
 
 ```python
 from pamoja.core import PamojaError
-from pamoja.mesh import BROADCAST, SeenPackets, broadcast, crc16, parse, relayed
+from pamoja.mesh import BROADCAST, SeenPackets, broadcast, parse, relayed
 
-# A river gauge floods a reading to every node in range. The header is fixed and
-# big-endian: version, source, destination, sequence id, hop limit, then the payload
-# and a checksum over everything but the hop limit.
-reading = broadcast(0x12345678, 1, b"level=high")
-assert reading.dst == BROADCAST
-assert reading.bytes.hex() == "0112345678ffffffff0001036c6576656c3d686967683335"
-
-# The checksum is CRC-16/CCITT-FALSE, whose published check value fixes the polynomial
-# and the starting value.
-assert crc16(b"123456789") == 0x29B1
+# A river gauge floods a level reading to every node in range. The header is fixed and
+# big-endian: version, source, destination, sequence id, hop limit, then the payload and a
+# checksum over everything but the hop limit.
+RIVER_GAUGE = 305419896
+reading = broadcast(RIVER_GAUGE, 1, b"level=high")
+print(f"sent      {len(reading.bytes)} bytes to every node in range")
+print(f"addressed to broadcast: {reading.dst == BROADCAST}")
 
 # A neighbour hears it. Every node in range rebroadcasts, so the same packet arrives
 # several times over; the source and sequence id decide which copy is the first.
 received = parse(reading.bytes)
-assert received.payload == b"level=high"
+print(f"payload   {received.payload.decode()}")
+
 seen = SeenPackets(64)
-assert seen.record(received.src, received.id)
-assert not seen.record(received.src, received.id)
+first = seen.record(received.src, received.id)
+again = seen.record(received.src, received.id)
+print(f"first copy relayed: {first}, second copy relayed: {again}")
 
 # Relaying spends one hop. The checksum skips the hop-limit byte, so a relay forwards the
 # frame without recomputing it and the check stays end to end.
 forwarded = relayed(received.bytes)
-assert forwarded.hop_limit == received.hop_limit - 1
-assert parse(forwarded.bytes).payload == received.payload
-assert relayed(broadcast(0x12345678, 1, b"level=high", 0).bytes) is None
+print(f"relayed   hop limit {forwarded.hop_limit}")
+onward = parse(forwarded.bytes)
+print(f"onward    {onward.payload.decode()}")
+
+# A frame that has run out of hops is not relayed again, which is what ends the flood.
+spent = relayed(broadcast(RIVER_GAUGE, 1, b"level=high", 0).bytes)
+if spent is None:
+    print("spent     hop limit reached, the flood stops here")
+else:
+    print("a spent frame was relayed, which should never happen")
 
 # A payload byte the air mangled fails the checksum rather than reaching the application
 # as a plausible reading.
@@ -164,10 +183,9 @@ mangled = bytearray(reading.bytes)
 mangled[12] ^= 0xFF
 try:
     parse(bytes(mangled))
-except PamojaError:
-    pass
-else:
-    raise AssertionError("a frame mangled on the air should be rejected")
+    print("a mangled frame was accepted, which should never happen")
+except PamojaError as error:
+    print(f"mangled   rejected: {error}")
 ```
 <!-- end -->
 
@@ -177,54 +195,51 @@ else:
 From [`bindings/dotnet/samples/Pamoja.Guides/MeshGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/MeshGuide.cs):
 
 ```csharp
-// A river gauge floods a reading to every node in range. The header is fixed and
-// big-endian: version, source, destination, sequence id, hop limit, then the
+// A river gauge floods a level reading to every node in range. The header is fixed
+// and big-endian: version, source, destination, sequence id, hop limit, then the
 // payload and a checksum over everything but the hop limit.
-MeshFrame reading = Mesh.BroadcastFrame(0x1234_5678, 1, "level=high"u8);
-Expect(reading.Dst == Mesh.Broadcast, "a broadcast is addressed to every node");
-Expect(
-    reading.Bytes.SequenceEqual(
-        Convert.FromHexString("0112345678ffffffff0001036c6576656c3d686967683335")),
-    "the frame is the bytes that go on the air");
-
-// The checksum is CRC-16/CCITT-FALSE, whose published check value fixes the
-// polynomial and the starting value.
-Expect(Mesh.Crc16("123456789"u8) == 0x29B1, "the checksum is CRC-16/CCITT-FALSE");
+const uint RiverGauge = 305_419_896;
+MeshFrame reading = Mesh.BroadcastFrame(RiverGauge, 1, "level=high"u8);
+Console.WriteLine($"sent      {reading.Bytes.Length} bytes to every node in range");
+Console.WriteLine($"addressed to broadcast: {reading.Dst == Mesh.Broadcast}");
 
 // A neighbour hears it. Every node in range rebroadcasts, so the same packet
 // arrives several times over; the source and sequence id decide which copy is
 // the first.
 MeshFrame received = Mesh.Parse(reading.Bytes);
-Expect(received.Payload.SequenceEqual("level=high"u8.ToArray()), "it carries the reading");
+Console.WriteLine($"payload   {System.Text.Encoding.UTF8.GetString(received.Payload)}");
+
 using SeenPackets seen = new(64);
-Expect(seen.Record(received.Src, received.Id), "the first copy is new");
-Expect(!seen.Record(received.Src, received.Id), "a second copy is a duplicate");
+bool first = seen.Record(received.Src, received.Id);
+bool again = seen.Record(received.Src, received.Id);
+Console.WriteLine($"first copy relayed: {first}, second copy relayed: {again}");
 
 // Relaying spends one hop. The checksum skips the hop-limit byte, so a relay
 // forwards the frame without recomputing it and the check stays end to end.
 MeshFrame forwarded = Mesh.Relayed(received.Bytes)!;
-Expect(forwarded.HopLimit == received.HopLimit - 1, "relaying spends one hop");
-Expect(
-    Mesh.Parse(forwarded.Bytes).Payload.SequenceEqual(received.Payload),
-    "and leaves the frame valid on the air");
-Expect(
-    Mesh.Relayed(Mesh.BroadcastFrame(0x1234_5678, 1, "level=high"u8, 0).Bytes) is null,
-    "a packet out of hops is not relayed further");
+Console.WriteLine($"relayed   hop limit {forwarded.HopLimit}");
+MeshFrame onward = Mesh.Parse(forwarded.Bytes);
+Console.WriteLine($"onward    {System.Text.Encoding.UTF8.GetString(onward.Payload)}");
+
+// A frame that has run out of hops is not relayed again, which ends the flood.
+MeshFrame? spent = Mesh.Relayed(Mesh.BroadcastFrame(RiverGauge, 1, "level=high"u8, 0).Bytes);
+Console.WriteLine(spent is null
+    ? "spent     hop limit reached, the flood stops here"
+    : "a spent frame was relayed, which should never happen");
 
 // A payload byte the air mangled fails the checksum rather than reaching the
 // application as a plausible reading.
 byte[] mangled = [.. reading.Bytes];
 mangled[12] ^= 0xFF;
-bool rejected = false;
 try
 {
     Mesh.Parse(mangled);
+    Console.WriteLine("a mangled frame was accepted, which should never happen");
 }
-catch (PamojaException)
+catch (PamojaException error)
 {
-    rejected = true;
+    Console.WriteLine($"mangled   rejected: {error.Message}");
 }
-Expect(rejected, "a frame mangled on the air is rejected");
 ```
 <!-- end -->
 

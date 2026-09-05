@@ -8,17 +8,25 @@ test that never touches hardware.
 
 ## What the example does
 
-It builds a read-holding-registers request for unit `0x11` and checks it against
-the exact bytes the specification fixes, then parses the reply that request
-draws and reads the three registers out of it. Finally it flips one bit in the
-frame and confirms the checksum rejects it.
+It polls a power meter: build the request for three holding registers, read the
+reply, and turn the registers into a voltage, a current, and a fault word.
+Finally it flips one bit in the frame and confirms the checksum rejects it.
+
+On a running gateway the reply arrives over RS485, so there is nothing to type.
+The example builds it instead, with the same library that parses it:
+`read_holding_registers_reply` returns exactly what a meter reporting those
+values would send. It is the answering half of the request builder, which is
+what lets a polling loop be written and tested with nothing on the line.
+Everything after it is the gateway's own code.
 
 It proves:
 
 - The request is byte-for-byte the frame in the specification, checksum
   included, so an implementation that is wrong but self-consistent still fails.
+  Unit 17 asking for three registers from 107 is the specification's own worked
+  example.
 - A reply validates its own checksum before any value is read from it.
-- The three 16-bit registers decode to `0x022B`, `0x0000`, and `0x0064`.
+- The three 16-bit registers come back in the order the meter reported them.
 - A single flipped bit is caught rather than passed on as a plausible reading.
 
 ## Rust
@@ -29,31 +37,45 @@ From [`examples/tests/guides/modbus.rs`](https://github.com/molexxxx/pamoja/blob
 ```rust
 use pamoja_modbus::{Adu, Pdu};
 
-// Ask unit 0x11 for three holding registers starting at 0x006B. The last two bytes are
-// the CRC-16/MODBUS, so this is the frame exactly as it goes out on the wire.
-let request = Pdu::read_holding_registers(0x006B, 3).to_adu(0x11);
-assert_eq!(
-    request.as_bytes(),
-    &[0x11, 0x03, 0x00, 0x6B, 0x00, 0x03, 0x76, 0x87]
-);
+// The device this gateway polls: a power meter at unit 17, whose manual says the
+// three registers holding voltage, current and a fault word start at address 107.
+const METER: u8 = 17;
+const FIRST_REGISTER: u16 = 107;
 
-// The device answers with three 16-bit registers. A reply carries its own checksum, so
-// the receiver validates the frame before reading any value out of it.
-let reply = Adu::from_pdu(0x11, &[0x03, 0x06, 0x02, 0x2B, 0x00, 0x00, 0x00, 0x64])
-    .expect("a well-formed reply");
-let parsed = Adu::parse(reply.as_bytes()).expect("the checksum matches");
-let registers: Vec<u16> = parsed
+// Ask it for those three registers. The frame is complete, checksum included, exactly
+// as it goes out on the wire.
+let request = Pdu::read_holding_registers(FIRST_REGISTER, 3).to_adu(METER);
+let sent = request.as_bytes().len();
+println!("polling unit {METER}, {sent} bytes out");
+
+// A stand-in for the meter. On a running gateway this frame arrives over RS485; here
+// the library builds what a meter reporting those three values would send back.
+let from_the_meter = Pdu::read_holding_registers_reply(&[2301, 418, 0])
+    .expect("three registers fit one reply")
+    .to_adu(METER);
+
+// Everything below is the gateway's own code. A reply carries its own checksum, so
+// the frame is validated before any value is read out of it.
+let reply = Adu::parse(from_the_meter.as_bytes()).expect("the checksum matches");
+let registers: Vec<u16> = reply
     .response()
     .registers()
     .expect("a register reply")
     .collect();
-assert_eq!(registers, [0x022B, 0x0000, 0x0064]);
+let volts = f32::from(registers[0]) / 10.0;
+let amps = f32::from(registers[1]) / 100.0;
+println!("voltage   {volts:.1} V");
+println!("current   {amps:.2} A");
+println!("faults    {}", registers[2]);
 
-// One flipped bit anywhere in the frame fails the checksum, which is the whole point of
-// carrying one over a long RS485 run.
-let mut corrupt = reply.as_bytes().to_vec();
-corrupt[2] ^= 0xFF;
-assert!(Adu::parse(&corrupt).is_err());
+// One flipped bit anywhere in the frame fails the checksum, which is the whole point
+// of carrying one over a long RS485 run.
+let mut mangled = from_the_meter.as_bytes().to_vec();
+mangled[2] ^= 0xFF;
+match Adu::parse(&mangled) {
+    Ok(_) => println!("mangled frame accepted, which should never happen"),
+    Err(error) => println!("mangled frame rejected: {error}"),
+}
 ```
 <!-- end -->
 
@@ -63,30 +85,40 @@ assert!(Adu::parse(&corrupt).is_err());
 From [`bindings/node/guides/modbus.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/modbus.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
+import { parseFrame, readHoldingRegisters, readHoldingRegistersReply } from '@pamoja/modbus'
 
-import { crc16, parseFrame, readHoldingRegisters } from '@pamoja/modbus'
+// The device this gateway polls: a power meter at unit 17, whose manual says the three
+// registers holding voltage, current and a fault word start at address 107.
+const METER = 17
+const FIRST_REGISTER = 107
 
-// Ask unit 0x11 for three holding registers starting at 0x006B. The last two bytes are
-// the CRC-16/MODBUS, so this is the frame exactly as it goes out on the wire.
-const request = readHoldingRegisters(0x11, 0x006b, 3)
-assert.deepEqual([...request], [0x11, 0x03, 0x00, 0x6b, 0x00, 0x03, 0x76, 0x87])
+// Ask it for those three registers. The frame is complete, checksum included, exactly as
+// it goes out on the wire.
+const request = readHoldingRegisters(METER, FIRST_REGISTER, 3)
+console.log(`polling unit ${METER}, ${request.length} bytes out`)
 
-// The device answers with three 16-bit registers. A reply carries its own checksum, so
-// the receiver validates the frame before reading any value out of it.
-const body = Buffer.from([0x11, 0x03, 0x06, 0x02, 0x2b, 0x00, 0x00, 0x00, 0x64])
-const checksum = Buffer.alloc(2)
-checksum.writeUInt16LE(crc16(body))
-const reply = parseFrame(Buffer.concat([body, checksum]))
-assert.equal(reply.address, 0x11)
-assert.equal(reply.exception, null)
-assert.deepEqual(reply.registers(), [0x022b, 0x0000, 0x0064])
+// A stand-in for the meter. On a running gateway this frame arrives over RS485; here the
+// library builds what a meter reporting those three values would send back.
+const fromTheMeter = readHoldingRegistersReply(METER, [2301, 418, 0])
+
+// Everything below is the gateway's own code. A reply carries its own checksum, so the
+// frame is validated before any value is read out of it.
+const reply = parseFrame(fromTheMeter)
+const registers = reply.registers()
+console.log(`voltage   ${(registers[0] / 10).toFixed(1)} V`)
+console.log(`current   ${(registers[1] / 100).toFixed(2)} A`)
+console.log(`faults    ${registers[2]}`)
 
 // One flipped bit anywhere in the frame fails the checksum, which is the whole point of
 // carrying one over a long RS485 run.
-const corrupt = Buffer.concat([body, checksum])
-corrupt[2] ^= 0xff
-assert.throws(() => parseFrame(corrupt))
+const mangled = Buffer.from(fromTheMeter)
+mangled[2] ^= 0xff
+try {
+  parseFrame(mangled)
+  console.log('mangled frame accepted, which should never happen')
+} catch (error) {
+  console.log(`mangled frame rejected: ${(error as Error).message}`)
+}
 ```
 <!-- end -->
 
@@ -97,31 +129,39 @@ From [`bindings/python/guides/modbus.py`](https://github.com/molexxxx/pamoja/blo
 
 ```python
 from pamoja.core import PamojaError
-from pamoja.modbus import crc16, parse_frame, read_holding_registers
+from pamoja.modbus import parse_frame, read_holding_registers, read_holding_registers_reply
 
-# Ask unit 0x11 for three holding registers starting at 0x006B. The last two bytes are
-# the CRC-16/MODBUS, so this is the frame exactly as it goes out on the wire.
-request = read_holding_registers(0x11, 0x006B, 3)
-assert request == bytes([0x11, 0x03, 0x00, 0x6B, 0x00, 0x03, 0x76, 0x87])
+# The device this gateway polls: a power meter at unit 17, whose manual says the three
+# registers holding voltage, current and a fault word start at address 107.
+METER = 17
+FIRST_REGISTER = 107
 
-# The device answers with three 16-bit registers. A reply carries its own checksum, so
-# the receiver validates the frame before reading any value out of it.
-body = bytes([0x11, 0x03, 0x06, 0x02, 0x2B, 0x00, 0x00, 0x00, 0x64])
-reply = parse_frame(body + crc16(body).to_bytes(2, "little"))
-assert reply.address == 0x11
-assert reply.exception is None
-assert reply.registers() == [0x022B, 0x0000, 0x0064]
+# Ask it for those three registers. The frame is complete, checksum included, exactly as
+# it goes out on the wire.
+request = read_holding_registers(METER, FIRST_REGISTER, 3)
+print(f"polling unit {METER}, {len(request)} bytes out")
+
+# A stand-in for the meter. On a running gateway this frame arrives over RS485; here the
+# library builds what a meter reporting those three values would send back.
+from_the_meter = read_holding_registers_reply(METER, [2301, 418, 0])
+
+# Everything below is the gateway's own code. A reply carries its own checksum, so the
+# frame is validated before any value is read out of it.
+reply = parse_frame(from_the_meter)
+registers = reply.registers()
+print(f"voltage   {registers[0] / 10:.1f} V")
+print(f"current   {registers[1] / 100:.2f} A")
+print(f"faults    {registers[2]}")
 
 # One flipped bit anywhere in the frame fails the checksum, which is the whole point of
 # carrying one over a long RS485 run.
-corrupt = bytearray(body + crc16(body).to_bytes(2, "little"))
-corrupt[2] ^= 0xFF
+mangled = bytearray(from_the_meter)
+mangled[2] ^= 0xFF
 try:
-    parse_frame(bytes(corrupt))
-except PamojaError:
-    pass
-else:
-    raise AssertionError("a frame mangled on the wire should be rejected")
+    parse_frame(bytes(mangled))
+    print("mangled frame accepted, which should never happen")
+except PamojaError as error:
+    print(f"mangled frame rejected: {error}")
 ```
 <!-- end -->
 
@@ -131,39 +171,41 @@ else:
 From [`bindings/dotnet/samples/Pamoja.Guides/ModbusGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/ModbusGuide.cs):
 
 ```csharp
-// Ask unit 0x11 for three holding registers starting at 0x006B. The last two bytes
-// are the CRC-16/MODBUS, so this is the frame exactly as it goes out on the wire.
-byte[] request = Modbus.ReadHoldingRegisters(0x11, 0x006B, 3);
-Expect(
-    request.SequenceEqual(new byte[] { 0x11, 0x03, 0x00, 0x6B, 0x00, 0x03, 0x76, 0x87 }),
-    "the request is the frame the specification fixes");
+// The device this gateway polls: a power meter at unit 17, whose manual says the
+// three registers holding voltage, current and a fault word start at address 107.
+const byte Meter = 17;
+const ushort FirstRegister = 107;
 
-// The device answers with three 16-bit registers. A reply carries its own checksum,
-// so the receiver validates the frame before reading any value out of it.
-byte[] body = [0x11, 0x03, 0x06, 0x02, 0x2B, 0x00, 0x00, 0x00, 0x64];
-ushort checksum = Modbus.Crc16(body);
-byte[] wire = [.. body, (byte)(checksum & 0xFF), (byte)(checksum >> 8)];
-using ModbusFrame reply = Modbus.ParseFrame(wire);
-Expect(reply.Address == 0x11, "the reply comes from the unit that was asked");
-Expect(reply.Exception is null, "a served request reports no exception");
-Expect(
-    reply.Registers().SequenceEqual(new ushort[] { 0x022B, 0x0000, 0x0064 }),
-    "the three registers read back");
+// Ask it for those three registers. The frame is complete, checksum included,
+// exactly as it goes out on the wire.
+byte[] request = Modbus.ReadHoldingRegisters(Meter, FirstRegister, 3);
+Console.WriteLine($"polling unit {Meter}, {request.Length} bytes out");
+
+// A stand-in for the meter. On a running gateway this frame arrives over RS485;
+// here the library builds what a meter reporting those values would send back.
+byte[] fromTheMeter = Modbus.ReadHoldingRegistersReply(Meter, [2301, 418, 0]);
+
+// Everything below is the gateway's own code. A reply carries its own checksum,
+// so the frame is validated before any value is read out of it.
+ModbusFrame reply = Modbus.ParseFrame(fromTheMeter);
+ushort[] registers = reply.Registers();
+Console.WriteLine($"voltage   {registers[0] / 10.0:F1} V");
+Console.WriteLine($"current   {registers[1] / 100.0:F2} A");
+Console.WriteLine($"faults    {registers[2]}");
 
 // One flipped bit anywhere in the frame fails the checksum, which is the whole
 // point of carrying one over a long RS485 run.
-byte[] corrupt = [.. wire];
-corrupt[2] ^= 0xFF;
-bool rejected = false;
+byte[] mangled = [.. fromTheMeter];
+mangled[2] ^= 0xFF;
 try
 {
-    using ModbusFrame _ = Modbus.ParseFrame(corrupt);
+    Modbus.ParseFrame(mangled);
+    Console.WriteLine("mangled frame accepted, which should never happen");
 }
-catch (PamojaException)
+catch (PamojaException error)
 {
-    rejected = true;
+    Console.WriteLine($"mangled frame rejected: {error.Message}");
 }
-Expect(rejected, "a frame mangled on the wire is rejected");
 ```
 <!-- end -->
 

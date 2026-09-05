@@ -1,28 +1,59 @@
 // The serial framing guide example; see docs/guides/serial.md.
 
-// ANCHOR: example
 import assert from 'node:assert/strict'
 
-import { SlipDecoder, cobs, slip } from '@pamoja/serial'
+// ANCHOR: example
+import {
+  COBS_DELIMITER_BYTE,
+  SLIP_END_BYTE,
+  SLIP_ESC_BYTE,
+  SlipDecoder,
+  cobs,
+  slip,
+} from '@pamoja/serial'
 
-// SLIP reserves two byte values, 0xC0 to end a frame and 0xDB to escape, so a payload
-// carrying either goes out as the two-byte pair RFC 1055 fixes for it.
-const payload = Buffer.from([0x01, 0xc0, 0xdb, 0x02])
-const frame = slip.encode(payload)
-assert.deepEqual([...frame], [0x01, 0xdb, 0xdc, 0xdb, 0xdd, 0x02, 0xc0])
-assert.deepEqual(slip.decode(frame), payload)
+// A UART carries bytes, not packets, so a framing has to mark where one packet ends.
+// SLIP reserves two byte values for that, and the package names both: the end byte closes
+// a frame, the escape byte carries a value that would otherwise look like one.
+const payload = Buffer.concat([Buffer.from('lvl='), Buffer.from([SLIP_END_BYTE, SLIP_ESC_BYTE])])
+const framed = slip.encode(payload)
+console.log(`slip      ${payload.length} payload bytes framed as ${framed.length}`)
+
+// Decoding gives the payload back unchanged, reserved bytes and all.
+const restored = slip.decode(framed)
+console.log(`slip      decoded back to ${restored.length} bytes`)
 
 // COBS trades that escaping for one code byte per run of up to 254 non-zero bytes, each
-// run led by its own length. This is the worked example from the COBS paper.
-const packet = Buffer.from([0x11, 0x22, 0x00, 0x33])
-const framed = cobs.encode(packet)
-assert.deepEqual([...framed], [0x03, 0x11, 0x22, 0x02, 0x33, 0x00])
-assert.deepEqual(cobs.decode(framed), packet)
+// run led by its own length, so a frame never grows by more than a byte per 254. Zero is
+// the delimiter, and never appears inside a frame.
+const packet = Buffer.concat([Buffer.from('lvl='), Buffer.from([COBS_DELIMITER_BYTE]), Buffer.from('7')])
+const cobsFramed = cobs.encode(packet)
+console.log(`cobs      ${packet.length} payload bytes framed as ${cobsFramed.length}`)
 
-// A serial read returns an arbitrary chunk rather than a packet. This one holds two
-// frames with a truncated one between them, and the decoder drops only the bad frame.
+// A read from a port returns whatever arrived, which is rarely one whole frame. This
+// chunk holds two good frames with a truncated one between them; the decoder hands over
+// the good ones and discards only the bad frame.
 const decoder = new SlipDecoder()
-const frames = decoder.feed(Buffer.from([0x6f, 0x6b, 0xc0, 0xdb, 0xc0, 0x67, 0x6f, 0xc0]))
+const chunk = Buffer.concat([
+  Buffer.from('ok'),
+  Buffer.from([SLIP_END_BYTE]),
+  Buffer.from([SLIP_ESC_BYTE]), // a frame that ends before its escape pair completes
+  Buffer.from([SLIP_END_BYTE]),
+  Buffer.from('go'),
+  Buffer.from([SLIP_END_BYTE]),
+])
+const frames = decoder.feed(chunk)
+for (const frame of frames) {
+  console.log(`received  ${frame.toString()}`)
+}
+console.log(`discarded ${decoder.discarded} frame the stream mangled`)
+// ANCHOR_END: example
+
+// The bytes each specification fixes are pinned once, in the crate tests and the
+// generated conformance vectors, so a guide asserts behaviour instead.
+assert.ok(framed.length > payload.length)
+assert.ok(cobsFramed.length > packet.length)
+assert.deepEqual([...restored], [...payload])
+assert.deepEqual(cobs.decode(cobsFramed), packet)
 assert.deepEqual(frames, [Buffer.from('ok'), Buffer.from('go')])
 assert.equal(decoder.discarded, 1)
-// ANCHOR_END: example

@@ -19,11 +19,23 @@ from pamoja._native import SlipDecoder as _NativeSlipDecoder
 from pamoja._native import cobs_decode as _cobs_decode
 from pamoja._native import cobs_encode as _cobs_encode
 from pamoja._native import cobs_max_encoded_len as _cobs_max_encoded_len
+from pamoja._native import serial_framing_bytes as _serial_framing_bytes
 from pamoja._native import slip_decode as _slip_decode
 from pamoja._native import slip_encode as _slip_encode
 from pamoja._native import slip_max_encoded_len as _slip_max_encoded_len
 
-__all__ = ["CobsDecoder", "Framing", "SlipDecoder", "cobs", "slip"]
+__all__ = [
+    "COBS_DELIMITER",
+    "CobsDecoder",
+    "Framing",
+    "SLIP_END",
+    "SLIP_ESC",
+    "SLIP_ESC_END",
+    "SLIP_ESC_ESC",
+    "SlipDecoder",
+    "cobs",
+    "slip",
+]
 
 
 class Framing(Protocol):
@@ -50,6 +62,20 @@ class Framing(Protocol):
         :param payload_len: The payload length in bytes.
         :returns: The worst-case frame length.
         """
+
+
+_END, _ESC, _ESC_END, _ESC_ESC, _DELIMITER = _serial_framing_bytes()
+
+#: The SLIP byte that ends a frame (RFC 1055).
+SLIP_END = _END
+#: The SLIP byte that escapes a reserved value inside a frame (RFC 1055).
+SLIP_ESC = _ESC
+#: The byte that follows an escape to stand for a literal end byte.
+SLIP_ESC_END = _ESC_END
+#: The byte that follows an escape to stand for a literal escape byte.
+SLIP_ESC_ESC = _ESC_ESC
+#: The byte that delimits a COBS frame, which never appears inside one.
+COBS_DELIMITER = _DELIMITER
 
 
 class _Slip:

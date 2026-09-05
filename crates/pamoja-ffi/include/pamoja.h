@@ -7519,6 +7519,38 @@ PamojaStatus pamoja_modbus_read_holding_registers(uint8_t address,
                                                   uint16_t count,
                                                   PamojaBuffer **out_buffer);
 
+// Builds the reply a device sends to a read-holding-registers request.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding the frame.
+//
+// # Safety
+//
+// `values` must point to at least `values_len` readable `uint16_t`, and `out_buffer`
+// to a writable `*mut PamojaBuffer`.
+PamojaStatus pamoja_modbus_read_holding_registers_reply(uint8_t address,
+                                                        const uint16_t *values,
+                                                        uintptr_t values_len,
+                                                        PamojaBuffer **out_buffer);
+
+// Builds the reply a device sends to a read-input-registers request.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding the frame.
+//
+// # Safety
+//
+// `values` must point to at least `values_len` readable `uint16_t`, and `out_buffer`
+// to a writable `*mut PamojaBuffer`.
+PamojaStatus pamoja_modbus_read_input_registers_reply(uint8_t address,
+                                                      const uint16_t *values,
+                                                      uintptr_t values_len,
+                                                      PamojaBuffer **out_buffer);
+
 // Builds a read-input-registers request frame (function `0x04`).
 //
 // # Returns

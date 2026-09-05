@@ -14,6 +14,7 @@
  */
 
 import {
+  COBS_DELIMITER,
   cobsDecode,
   CobsDecoder as NativeCobsDecoder,
   cobsEncode,
@@ -21,6 +22,10 @@ import {
   slipDecode,
   SlipDecoder as NativeSlipDecoder,
   slipEncode,
+  SLIP_END,
+  SLIP_ESC,
+  SLIP_ESC_END,
+  SLIP_ESC_ESC,
   slipMaxEncodedLen,
 } from '@pamoja/native'
 
@@ -51,6 +56,21 @@ export interface Framing {
    */
   maxEncodedLen(payloadLen: number): number
 }
+
+/** The SLIP byte that ends a frame (RFC 1055). */
+export const SLIP_END_BYTE = SLIP_END
+
+/** The SLIP byte that escapes a reserved value inside a frame (RFC 1055). */
+export const SLIP_ESC_BYTE = SLIP_ESC
+
+/** The byte that follows an escape to stand for a literal end byte. */
+export const SLIP_ESC_END_BYTE = SLIP_ESC_END
+
+/** The byte that follows an escape to stand for a literal escape byte. */
+export const SLIP_ESC_ESC_BYTE = SLIP_ESC_ESC
+
+/** The byte that delimits a COBS frame, which never appears inside one. */
+export const COBS_DELIMITER_BYTE = COBS_DELIMITER
 
 /** SLIP (RFC 1055): an `END` byte ends a packet, and an escape pair carries it in the data. */
 export const slip: Framing = {
