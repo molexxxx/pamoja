@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-mavlink"
-version = "0.1.15"
+version = "0.1.16"
 description = "MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,7 +19,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-native==0.1.15",
+    "pamoja-native==0.1.16",
 ]
 
 [project.urls]

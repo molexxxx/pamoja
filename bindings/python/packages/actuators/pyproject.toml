@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-actuators"
-version = "0.1.15"
+version = "0.1.16"
 description = "PCA9685 PWM and servo pulses, and stepper coil sequencing."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,7 +19,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-native==0.1.15",
+    "pamoja-native==0.1.16",
 ]
 
 [project.urls]

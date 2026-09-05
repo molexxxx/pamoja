@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/ladder",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Cheapest reachable link first, buffering to a store when every link is down.",
   "license": "MIT",
   "publishConfig": {
@@ -34,6 +34,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.15"
+    "@pamoja/native": "0.1.16"
   }
 }

@@ -7,6 +7,35 @@ released together, so one entry covers all of them.
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-09-05
+
+Publishing fixes. 0.1.15 reached crates.io and NuGet intact, and both are
+unchanged here; its npm packages carried no code and its PyPI upload stopped a
+tenth of the way through. Anyone who installed 0.1.15 from npm should move to
+this version, and the 0.1.15 npm packages are deprecated.
+
+### Fixed
+
+- The npm packages published for 0.1.15 contained no JavaScript. Each facade
+  names `dist/index.js` as its entry and lists `dist/` in `files`; `dist/` is
+  built by `tsc` and is not in the repository, and the publish job went from
+  `npm install` to `npm publish` without building it. npm omits a `files` entry
+  that is not on disk rather than failing, so all thirty tarballs shipped
+  holding a manifest, a README and a licence. They installed without complaint
+  and threw `MODULE_NOT_FOUND` on the first `require`. The publish job builds the
+  facades now, and a check that runs before publishing and on every pull request
+  confirms every package carries the files its `main` and `types` name.
+- The PyPI upload for 0.1.15 stopped after four of thirty-eight distributions.
+  PyPI caps how many new projects an account may create in a window, which a
+  release introducing a project per capability was always going to reach, but
+  uploading the whole directory in one call stops at the first refusal and
+  stranded the thirty-four files behind it, including a project that already
+  existed and was never capped. Each file uploads on its own now, and a refusal
+  is treated as a wait rather than a failure: the upload retries what was
+  refused until the cap refills, the way the crates.io publisher already handles
+  the new-crate limit.
+
+
 ## [0.1.15] - 2026-09-05
 
 ### Added

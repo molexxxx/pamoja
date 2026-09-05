@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/field-io",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Field I/O: The wires a gateway actually has: framed serial packets, an RS485 request and the reply it draws, a CAN frame, and the address a chip answers on.",
   "license": "MIT",
   "publishConfig": {
@@ -34,9 +34,9 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/can": "0.1.15",
-    "@pamoja/gpio": "0.1.15",
-    "@pamoja/modbus": "0.1.15",
-    "@pamoja/serial": "0.1.15"
+    "@pamoja/can": "0.1.16",
+    "@pamoja/gpio": "0.1.16",
+    "@pamoja/modbus": "0.1.16",
+    "@pamoja/serial": "0.1.16"
   }
 }

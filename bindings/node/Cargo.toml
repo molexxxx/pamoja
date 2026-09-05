@@ -1,6 +1,6 @@
 [package]
 name = "pamoja-node"
-version = "0.1.15"
+version = "0.1.16"
 edition = "2021"
 # napi-rs sets the real minimum supported Rust version for this binding.
 rust-version = "1.88"

@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/routing",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Reverse-path routing that learns the cheapest route from overheard traffic.",
   "license": "MIT",
   "publishConfig": {
@@ -34,6 +34,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.15"
+    "@pamoja/native": "0.1.16"
   }
 }

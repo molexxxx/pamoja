@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/sensing",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Sensing and actuation: The parts wired to a board: a thermometer that checks its own bytes, a servo pulse, and a stepper walking its coils.",
   "license": "MIT",
   "publishConfig": {
@@ -34,7 +34,7 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/actuators": "0.1.15",
-    "@pamoja/sensors": "0.1.15"
+    "@pamoja/actuators": "0.1.16",
+    "@pamoja/sensors": "0.1.16"
   }
 }

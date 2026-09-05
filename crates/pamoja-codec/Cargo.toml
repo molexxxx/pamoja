@@ -23,7 +23,7 @@ json = ["dep:serde_json"]
 # This crate is `no_std`, so it takes the core without its default `std` feature. The
 # dependency is declared directly rather than inherited, because `default-features`
 # cannot be overridden through workspace inheritance.
-pamoja-core = { path = "../pamoja-core", version = "0.1.15", default-features = false }
+pamoja-core = { path = "../pamoja-core", version = "0.1.16", default-features = false }
 # `alloc` (not `std`) keeps the door open for the no_std core; the serde traits and
 # the Vec/String impls the codecs need are available without pulling in std here.
 serde = { version = "1", default-features = false, features = ["alloc"] }

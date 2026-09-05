@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-audit"
-version = "0.1.15"
+version = "0.1.16"
 description = "A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,8 +19,8 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-native==0.1.15",
-    "pamoja-security==0.1.15",
+    "pamoja-native==0.1.16",
+    "pamoja-security==0.1.16",
 ]
 
 [project.urls]

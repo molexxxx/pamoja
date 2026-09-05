@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/kit",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo.",
   "license": "MIT",
   "publishConfig": {
@@ -34,6 +34,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.15"
+    "@pamoja/native": "0.1.16"
   }
 }
