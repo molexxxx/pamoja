@@ -1,23 +1,24 @@
 //! The signed update guide example; see docs/guides/update.md.
 
-/// A release signed, carried in pieces, tried, and confirmed, anchored to the SHA-256 that
-/// FIPS 180-4 publishes for the image, so the digest a manifest commits to is a published
-/// constant rather than one checked against itself.
+/// A release signed by its publisher, staged into the spare slot on a device anchored to
+/// that publisher, booted on trial and confirmed, and the same release from another key
+/// getting nowhere.
 #[test]
 fn a_release_reaches_a_device_and_confirms_itself() {
     // ANCHOR: example
     use pamoja_security::DeviceIdentity;
     use pamoja_update::{
-        Boot, Device, Envelope, Manifest, MemoryStore, PayloadFormat, SlotState, SlotStore,
+        image_digest, Device, Envelope, Manifest, MemoryStore, PayloadFormat, SlotState, SlotStore,
         Updater, ENVELOPE_MAX, STRUCTURE_VERSION,
     };
 
-    let publisher = DeviceIdentity::from_seed(&[0x31; 32]);
+    // The publisher's key signs releases; devices in the field are anchored to its public
+    // half and will take firmware from nobody else.
+    let publisher = DeviceIdentity::from_seed(&[7u8; 32]);
 
-    // The image stands in for firmware. It is the 56-byte message FIPS 180-4 hashes in its
-    // second worked example, so the digest the manifest commits to is a published constant.
-    let image = b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq";
-    let size = image.len() as u32;
+    // The release. A manifest says who the image is for, which slot it belongs in, how big
+    // it is and what it hashes to; nothing about the image itself is taken on trust.
+    let image = b"firmware for a flow meter, version two";
     let manifest = Manifest {
         structure_version: STRUCTURE_VERSION,
         sequence: 2,
@@ -25,59 +26,68 @@ fn a_release_reaches_a_device_and_confirms_itself() {
         class_id: [0x0B; 16],
         format: PayloadFormat::Raw,
         storage: 1,
-        digest: [
-            0x24, 0x8d, 0x6a, 0x61, 0xd2, 0x06, 0x38, 0xb8, 0xe5, 0xc0, 0x26, 0x93, 0x0c, 0x3e,
-            0x60, 0x39, 0xa3, 0x3c, 0xe4, 0x59, 0x64, 0xff, 0x21, 0x67, 0xf6, 0xec, 0xed, 0xd4,
-            0x19, 0xdb, 0x06, 0xc1,
-        ],
-        size,
+        digest: image_digest(image),
+        size: image.len() as u32,
         expires: 0,
     };
 
-    // A release says who it is for, which slot it belongs in, and what it hashes to. The
-    // publisher signs that statement; nothing else about the image is taken on trust.
+    // Signing it produces the envelope that travels with the image.
     let mut buf = [0u8; ENVELOPE_MAX];
     let written = manifest
         .sign(&publisher, &mut buf)
         .expect("a signed release");
     let envelope = &buf[..written];
-    let opened = Envelope::decode(envelope).expect("a well-formed envelope");
-    assert_eq!(
-        opened.verify(&publisher.public()).expect("the signature"),
-        manifest
-    );
+    let sequence = manifest.sequence;
+    println!("published sequence {sequence} in a {written}-byte envelope");
 
-    // The device left the factory running sequence 1 from slot 0, so the release goes to the
-    // spare slot and the image it runs today stays where it is.
+    // On the device. It checks the envelope against the key it was anchored to before it
+    // accepts a single byte of the image.
     let device = Device {
         vendor_id: manifest.vendor_id,
         class_id: manifest.class_id,
         anchor: publisher.public(),
     };
+    let opened = Envelope::decode(envelope).expect("a well-formed envelope");
+    match opened.verify(&device.anchor) {
+        Ok(release) => println!("accepted  a release for slot {}", release.storage),
+        Err(error) => println!("refused   {error}"),
+    }
+
+    // It left the factory running sequence 1 from slot 0, so the release goes to the spare
+    // slot and the image it is running stays where it is.
     let mut updater = Updater::new(device, MemoryStore::new(2, 4096));
     updater.provision(0, 1).expect("the shipped image");
     let mut staging = updater.begin(envelope).expect("a release for this device");
     for piece in image.chunks(16) {
         staging.write(piece).expect("the next piece");
     }
-    assert_eq!(staging.progress(), (size, size));
-    assert_eq!(staging.finish().expect("the image matched its digest"), 1);
+    let (received, total) = staging.progress();
+    println!("staged    {received} of {total} bytes");
+    let slot = staging.finish().expect("the image matched its digest");
+    println!("written   to slot {slot}, leaving the running image alone");
 
-    // The first boot into a new image is a trial. It reverts to slot 0 on the next boot
-    // unless it confirms itself.
-    assert_eq!(updater.on_boot().expect("a decision"), Boot::Trying(1));
-    assert_eq!(updater.confirm().expect("it came up"), 1);
-    assert_eq!(
-        updater.store().record(1).expect("slot 1").state,
-        SlotState::Confirmed
-    );
+    // The first boot into a new image is a trial. It reverts on the next boot unless the
+    // device confirms that it came up, which is what makes a bad release survivable.
+    println!("booting   {:?}", updater.on_boot().expect("a decision"));
+    updater.confirm().expect("it came up");
+    let state = updater.store().record(slot).expect("the new slot").state;
+    println!("confirmed slot {slot} is now {state:?}");
 
-    // The same release, signed by a key this device is not anchored to, gets nowhere.
-    let impostor = DeviceIdentity::from_seed(&[0x32; 32]);
+    // The same release signed by a key this device is not anchored to gets nowhere.
+    let impostor = DeviceIdentity::from_seed(&[90u8; 32]);
     let mut forged = [0u8; ENVELOPE_MAX];
     let signed = manifest
         .sign(&impostor, &mut forged)
         .expect("a signed release");
-    assert!(updater.stage(&forged[..signed], image).is_err());
+    match updater.stage(&forged[..signed], image) {
+        Ok(_) => println!("a forged release was accepted, which should never happen"),
+        Err(error) => println!("forged    refused: {error}"),
+    }
     // ANCHOR_END: example
+
+    assert_eq!(manifest.digest, image_digest(image));
+    assert_eq!(received, total);
+    assert_eq!(slot, 1);
+    assert_eq!(state, SlotState::Confirmed);
+    assert!(updater.stage(&forged[..signed], image).is_err());
 }

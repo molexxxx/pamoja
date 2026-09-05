@@ -42,6 +42,12 @@ pub enum Refusal {
     NothingToRevert,
 }
 
+impl core::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.reason())
+    }
+}
+
 impl Refusal {
     /// Returns a human-readable description of the refusal.
     ///

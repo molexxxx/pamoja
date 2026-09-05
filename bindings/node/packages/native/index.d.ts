@@ -2003,6 +2003,9 @@ export declare function i2cAddressIsGeneralCall(address: number, tenBit: boolean
  */
 export declare function i2cAddressIsReserved(address: number, tenBit: boolean): boolean
 
+/** Hashes a complete image, for a publisher filling in a manifest. */
+export declare function imageDigest(image: Buffer): Buffer
+
 /** Converts a raw INA219 bus-voltage register to millivolts. */
 export declare function ina219BusMillivolts(raw: number): number
 

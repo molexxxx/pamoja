@@ -19,9 +19,14 @@ import {
   type Delegation,
   type Manifest,
   signDelegation as nativeSignDelegation,
+  imageDigest as nativeImageDigest,
   signManifest as nativeSignManifest,
 } from '@pamoja/native'
 import { DeviceIdentity } from '@pamoja/security'
+import {
+  UPDATE_FORMAT_RAW,
+  UPDATE_STRUCTURE_VERSION,
+} from '@pamoja/native'
 
 export {
   decodeManifest,
@@ -44,8 +49,41 @@ export type { Boot, Delegation, Manifest, Progress, SlotRecord } from '@pamoja/n
  * @param author - The identity signing the release.
  * @returns The signed envelope.
  */
-export function signManifest(manifest: Manifest, author: DeviceIdentity): Buffer {
-  return nativeSignManifest(manifest, DeviceIdentity.native(author))
+/**
+ * Hashes a complete image, for a publisher filling in a manifest.
+ *
+ * The manifest commits to a SHA-256 over the image, and this is that hash, so a
+ * publisher does not need a hashing library of its own just to name the image it is
+ * releasing.
+ *
+ * @param image - The complete image the release carries.
+ * @returns The 32-byte digest to put in a {@link Manifest}.
+ */
+export function imageDigest(image: Uint8Array): Buffer {
+  return nativeImageDigest(Buffer.from(image))
+}
+
+export function signManifest(manifest: ManifestFields, author: DeviceIdentity): Buffer {
+  return nativeSignManifest(completeManifest(manifest), DeviceIdentity.native(author))
+}
+
+/**
+ * A manifest as a publisher writes one.
+ *
+ * The structure version, the payload format and the expiry have one sensible value each,
+ * so they may be left out rather than restated on every release.
+ */
+export type ManifestFields = Omit<Manifest, 'structureVersion' | 'format' | 'expires'> &
+  Partial<Pick<Manifest, 'structureVersion' | 'format' | 'expires'>>
+
+/** Fills in the fields a publisher may leave out. */
+function completeManifest(manifest: ManifestFields): Manifest {
+  return {
+    structureVersion: UPDATE_STRUCTURE_VERSION,
+    format: UPDATE_FORMAT_RAW,
+    expires: 0,
+    ...manifest,
+  }
 }
 
 /**

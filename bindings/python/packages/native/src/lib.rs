@@ -314,6 +314,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<update::Updater>()?;
         m.add_function(wrap_pyfunction!(update::encode_manifest, m)?)?;
         m.add_function(wrap_pyfunction!(update::decode_manifest, m)?)?;
+        m.add_function(wrap_pyfunction!(update::image_digest, m)?)?;
         m.add_function(wrap_pyfunction!(update::sign_manifest, m)?)?;
         m.add_function(wrap_pyfunction!(update::verify_envelope, m)?)?;
         m.add_function(wrap_pyfunction!(update::envelope_body, m)?)?;

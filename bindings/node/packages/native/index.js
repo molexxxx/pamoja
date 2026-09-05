@@ -813,6 +813,7 @@ module.exports.i2cAddressFrame = nativeBinding.i2cAddressFrame
 module.exports.i2cAddressFrameLen = nativeBinding.i2cAddressFrameLen
 module.exports.i2cAddressIsGeneralCall = nativeBinding.i2cAddressIsGeneralCall
 module.exports.i2cAddressIsReserved = nativeBinding.i2cAddressIsReserved
+module.exports.imageDigest = nativeBinding.imageDigest
 module.exports.ina219BusMillivolts = nativeBinding.ina219BusMillivolts
 module.exports.ina219BusRegister = nativeBinding.ina219BusRegister
 module.exports.ina219Calibration = nativeBinding.ina219Calibration

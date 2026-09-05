@@ -16,16 +16,17 @@ a man in the middle.
 
 ## What the example does
 
-It provisions a node and its gateway with the X25519 key pair RFC 7748 section 6.1
-publishes, and checks the public key the seed derives against the one the
-specification fixes. Both sides then establish a session from a salt that travels in
-the clear, the node seals a flow reading with the pump id as associated data, and the
-gateway opens it. Finally the same frame is offered a second time.
+It provisions a node and its gateway, establishes a session from a salt that
+travels in the clear, seals a flow reading with the pump id as associated data,
+and opens it at the far end. Finally the same frame is offered a second time.
+
+A real seed comes from the factory or a secure element and never leaves the
+device; any 32 bytes stand in here. The key agreement is pinned to the X25519
+vector RFC 7748 publishes in `pamoja-session`'s own tests, which is where a
+published constant belongs.
 
 It proves:
 
-- The seed derives the public key the specification publishes, so an implementation
-  that is wrong but self-consistent still fails.
 - Both sides reach the same key from opposite roles, neither of them having sent it.
 - The reading is encrypted: what leaves the node is not the plaintext, and the
   gateway recovers it exactly.
@@ -40,54 +41,42 @@ From [`examples/tests/guides/session.rs`](https://github.com/molexxxx/pamoja/blo
 ```rust
 use pamoja_session::{AgreementKey, Role, Session};
 
-// Each device is provisioned with a 32-byte seed and publishes the key it derives. These
-// are the X25519 pair RFC 7748 section 6.1 publishes, so the derivation is pinned to the
-// specification rather than checked against itself.
-let node = AgreementKey::from_seed(&[
-    0x77, 0x07, 0x6D, 0x0A, 0x73, 0x18, 0xA5, 0x7D, 0x3C, 0x16, 0xC1, 0x72, 0x51, 0xB2, 0x66,
-    0x45, 0xDF, 0x4C, 0x2F, 0x87, 0xEB, 0xC0, 0x99, 0x2A, 0xB1, 0x77, 0xFB, 0xA5, 0x1D, 0xB9,
-    0x2C, 0x2A,
-]);
-let gateway = AgreementKey::from_seed(&[
-    0x5D, 0xAB, 0x08, 0x7E, 0x62, 0x4A, 0x8A, 0x4B, 0x79, 0xE1, 0x7F, 0x8B, 0x83, 0x80, 0x0E,
-    0xE6, 0x6F, 0x3B, 0xB1, 0x29, 0x26, 0x18, 0xB6, 0xFD, 0x1C, 0x2F, 0x8B, 0x27, 0xFF, 0x88,
-    0xE0, 0xEB,
-]);
-assert_eq!(
-    node.public().to_bytes(),
-    [
-        0x85, 0x20, 0xF0, 0x09, 0x89, 0x30, 0xA7, 0x54, 0x74, 0x8B, 0x7D, 0xDC, 0xB4, 0x3E,
-        0xF7, 0x5A, 0x0D, 0xBF, 0x3A, 0x0D, 0x26, 0x38, 0x1A, 0xF4, 0xEB, 0xA4, 0xA9, 0x8E,
-        0xAA, 0x9B, 0x4E, 0x6A,
-    ]
-);
+// Each device is provisioned with a 32-byte seed and publishes the key it derives. A
+// real seed comes from the factory or a secure element; any 32 bytes stand in here.
+let node = AgreementKey::from_seed(&[7u8; 32]);
+let gateway = AgreementKey::from_seed(&[9u8; 32]);
 
-// Neither side sends the session key. Both derive it from the shared secret, a salt that
-// travels in the clear, and both public keys. The roles have to be opposite.
+// Neither side sends the session key. Both derive it from the shared secret, a salt
+// that travels in the clear, and both public keys, with opposite roles.
 //
 // The salt must be fresh for every session: reusing one derives the same key from the
 // same pair of devices twice. The initiator draws it and sends it in the clear, so the
-// responder here uses the salt it received rather than one of its own.
+// responder uses the salt it received rather than one of its own.
 let mut salt = [0u8; 16];
 getrandom::fill(&mut salt).expect("the system random source");
 let mut uplink = Session::establish(&node, &gateway.public(), &salt, Role::Initiator);
 let mut downlink = Session::establish(&gateway, &node.public(), &salt, Role::Responder);
+println!("both sides derived a key without sending one");
 
 // The pump id is authenticated but not encrypted, so a router still reads it while any
 // change to it fails the tag. Sealing replaces the plaintext in the buffer it is given.
 let mut frame = *b"flow=41.2";
 let sealed = uplink.seal(&mut frame, b"pump-3");
-assert_ne!(&frame, b"flow=41.2");
+println!("sealed    the reading is no longer readable in the buffer");
 
-let mut captured = frame;
+// The gateway opens it back into the same buffer.
+let mut replayed = frame;
 downlink
     .open(&sealed, &mut frame, b"pump-3")
     .expect("authentic and fresh");
-assert_eq!(&frame, b"flow=41.2");
+println!("opened    {}", String::from_utf8_lossy(&frame));
 
-// The anti-replay window refuses a counter it has already accepted, so a frame captured
-// off the air and sent again is not delivered a second time.
-assert!(downlink.open(&sealed, &mut captured, b"pump-3").is_err());
+// The anti-replay window refuses a counter it has already accepted, so a frame
+// captured off the air and sent again is not delivered a second time.
+match downlink.open(&sealed, &mut replayed, b"pump-3") {
+    Ok(()) => println!("a replayed frame was accepted, which should never happen"),
+    Err(error) => println!("replay    refused: {error}"),
+}
 ```
 <!-- end -->
 
@@ -97,44 +86,39 @@ assert!(downlink.open(&sealed, &mut captured, b"pump-3").is_err());
 From [`bindings/node/guides/session.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/session.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-import { randomBytes } from 'node:crypto'
-
 import { AgreementKey, Role, Session } from '@pamoja/session'
 
-// Each device is provisioned with a 32-byte seed and publishes the key it derives. These are
-// the X25519 pair RFC 7748 section 6.1 publishes, so the derivation is pinned to the
-// specification rather than checked against itself.
-const node = new AgreementKey(
-  Buffer.from('77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a', 'hex')
-)
-const gateway = new AgreementKey(
-  Buffer.from('5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb', 'hex')
-)
-assert.equal(
-  node.publicKey().toString('hex'),
-  '8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a'
-)
+// Each device is provisioned with a 32-byte seed and publishes the key it derives. A real
+// seed comes from the factory or a secure element; any 32 bytes stand in here.
+const node = new AgreementKey(Buffer.alloc(32, 7))
+const gateway = new AgreementKey(Buffer.alloc(32, 9))
 
 // Neither side sends the session key. Both derive it from the shared secret, a salt that
-// travels in the clear, and both public keys. The roles have to be opposite.
-// The salt must be fresh for every session: reusing one derives the same key from the
-// same pair of devices twice. The initiator draws it and sends it in the clear, so the
-// responder here uses the salt it received rather than one of its own.
+// travels in the clear, and both public keys, with opposite roles.
+//
+// The salt must be fresh for every session: reusing one derives the same key from the same
+// pair of devices twice. The initiator draws it and sends it in the clear, so the responder
+// uses the salt it received rather than one of its own.
 const salt = randomBytes(16)
 const uplink = new Session(node, gateway.publicKey(), salt, Role.Initiator)
 const downlink = new Session(gateway, node.publicKey(), salt, Role.Responder)
+console.log('both sides derived a key without sending one')
 
-// The pump id is authenticated but not encrypted, so a router still reads it while any change
-// to it fails the tag.
-const label = Buffer.from('pump-3')
-const sealed = uplink.seal(Buffer.from('flow=41.2'), label)
-assert.notEqual(sealed.ciphertext.toString(), 'flow=41.2')
-assert.equal(downlink.open(sealed, label).toString(), 'flow=41.2')
+// The pump id is authenticated but not encrypted, so a router still reads it while any
+// change to it fails the tag.
+const reading = Buffer.from('flow=41.2')
+const sealed = uplink.seal(reading, Buffer.from('pump-3'))
+console.log(`sealed    the reading is no longer readable: ${!sealed.ciphertext.equals(reading)}`)
+console.log(`opened    ${downlink.open(sealed, Buffer.from('pump-3')).toString()}`)
 
-// The anti-replay window refuses a counter it has already accepted, so a frame captured off
-// the air and sent again is not delivered a second time.
-assert.throws(() => downlink.open(sealed, label))
+// The anti-replay window refuses a counter it has already accepted, so a frame captured
+// off the air and sent again is not delivered a second time.
+try {
+  downlink.open(sealed, Buffer.from('pump-3'))
+  console.log('a replayed frame was accepted, which should never happen')
+} catch (error) {
+  console.log(`replay    refused: ${(error as Error).message}`)
+}
 ```
 <!-- end -->
 
@@ -149,42 +133,35 @@ import os
 from pamoja.core import PamojaError
 from pamoja.session import AgreementKey, Role, Session
 
-# Each device is provisioned with a 32-byte seed and publishes the key it derives. These
-# are the X25519 pair RFC 7748 section 6.1 publishes, so the derivation is pinned to the
-# specification rather than checked against itself.
-node = AgreementKey(
-    bytes.fromhex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a")
-)
-gateway = AgreementKey(
-    bytes.fromhex("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb")
-)
-assert node.public_key.hex() == (
-    "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a"
-)
+# Each device is provisioned with a 32-byte seed and publishes the key it derives. A real
+# seed comes from the factory or a secure element; any 32 bytes stand in here.
+node = AgreementKey(bytes([7]) * 32)
+gateway = AgreementKey(bytes([9]) * 32)
 
 # Neither side sends the session key. Both derive it from the shared secret, a salt that
-# travels in the clear, and both public keys. The roles have to be opposite.
-# The salt must be fresh for every session: reusing one derives the same key from the
-# same pair of devices twice. The initiator draws it and sends it in the clear, so the
-# responder here uses the salt it received rather than one of its own.
+# travels in the clear, and both public keys, with opposite roles.
+#
+# The salt must be fresh for every session: reusing one derives the same key from the same
+# pair of devices twice. The initiator draws it and sends it in the clear, so the responder
+# uses the salt it received rather than one of its own.
 salt = os.urandom(16)
 uplink = Session(node, gateway.public_key, salt, Role.INITIATOR)
 downlink = Session(gateway, node.public_key, salt, Role.RESPONDER)
+print("both sides derived a key without sending one")
 
 # The pump id is authenticated but not encrypted, so a router still reads it while any
 # change to it fails the tag.
 sealed = uplink.seal(b"flow=41.2", b"pump-3")
-assert sealed.ciphertext != b"flow=41.2"
-assert downlink.open(sealed, b"pump-3") == b"flow=41.2"
+print(f"sealed    the reading is no longer readable: {sealed.ciphertext != b'flow=41.2'}")
+print(f"opened    {downlink.open(sealed, b'pump-3').decode()}")
 
 # The anti-replay window refuses a counter it has already accepted, so a frame captured
 # off the air and sent again is not delivered a second time.
 try:
     downlink.open(sealed, b"pump-3")
-except PamojaError:
-    pass
-else:
-    raise AssertionError("a replayed message should be refused")
+    print("a replayed frame was accepted, which should never happen")
+except PamojaError as error:
+    print(f"replay    refused: {error}")
 ```
 <!-- end -->
 
@@ -194,49 +171,45 @@ else:
 From [`bindings/dotnet/samples/Pamoja.Guides/SessionGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/SessionGuide.cs):
 
 ```csharp
-// Each device is provisioned with a 32-byte seed and publishes the key it
-// derives. These are the X25519 pair RFC 7748 section 6.1 publishes, so the
-// derivation is pinned to the specification rather than checked against itself.
-using var node = new AgreementKey(Convert.FromHexString(
-    "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"));
-using var gateway = new AgreementKey(Convert.FromHexString(
-    "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb"));
-Expect(
-    Convert.ToHexString(node.PublicKey).ToLowerInvariant()
-        == "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a",
-    "the public key is the one the vector publishes");
+// Each device is provisioned with a 32-byte seed and publishes the key it derives.
+// A real seed comes from the factory or a secure element; any 32 bytes stand in.
+byte[] nodeSeed = new byte[32];
+Array.Fill(nodeSeed, (byte)7);
+byte[] gatewaySeed = new byte[32];
+Array.Fill(gatewaySeed, (byte)9);
+using var node = new AgreementKey(nodeSeed);
+using var gateway = new AgreementKey(gatewaySeed);
 
 // Neither side sends the session key. Both derive it from the shared secret, a
-// salt that travels in the clear, and both public keys. The roles are opposite.
+// salt that travels in the clear, and both public keys, with opposite roles.
+//
 // The salt must be fresh for every session: reusing one derives the same key from
-// the same pair of devices twice. The initiator draws it and sends it in the clear,
-// so the responder here uses the salt it received rather than one of its own.
+// the same pair of devices twice. The initiator draws it and sends it in the
+// clear, so the responder uses the salt it received rather than one of its own.
 byte[] salt = RandomNumberGenerator.GetBytes(16);
 using var uplink = new Session(node, gateway.PublicKey, salt, SessionRole.Initiator);
 using var downlink = new Session(gateway, node.PublicKey, salt, SessionRole.Responder);
+Console.WriteLine("both sides derived a key without sending one");
 
-// The pump id is authenticated but not encrypted, so a router still reads it
-// while any change to it fails the tag.
+// The pump id is authenticated but not encrypted, so a router still reads it while
+// any change to it fails the tag.
 SealedMessage reading = uplink.Seal("flow=41.2"u8, "pump-3"u8);
-Expect(
-    !reading.Ciphertext.SequenceEqual("flow=41.2"u8.ToArray()),
-    "the reading does not travel in the clear");
-Expect(
-    downlink.Open(reading, "pump-3"u8).SequenceEqual("flow=41.2"u8.ToArray()),
-    "the gateway recovers the reading");
+bool hidden = !reading.Ciphertext.SequenceEqual("flow=41.2"u8.ToArray());
+Console.WriteLine($"sealed    the reading is no longer readable: {hidden}");
+byte[] opened = downlink.Open(reading, "pump-3"u8);
+Console.WriteLine($"opened    {System.Text.Encoding.UTF8.GetString(opened)}");
 
 // The anti-replay window refuses a counter it has already accepted, so a frame
 // captured off the air and sent again is not delivered a second time.
-bool refused = false;
 try
 {
     downlink.Open(reading, "pump-3"u8);
+    Console.WriteLine("a replayed frame was accepted, which should never happen");
 }
-catch (PamojaException)
+catch (PamojaException error)
 {
-    refused = true;
+    Console.WriteLine($"replay    refused: {error.Message}");
 }
-Expect(refused, "the same message is refused a second time");
 ```
 <!-- end -->
 

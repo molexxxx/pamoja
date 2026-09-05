@@ -41,6 +41,33 @@ impl Verified {
     }
 }
 
+/// Hashes a complete image, for a publisher filling in a manifest.
+///
+/// The manifest commits to a SHA-256 over the image, and this is that hash, so a
+/// publisher does not have to add a hashing crate of its own just to name the image it
+/// is releasing. A device receiving the image checks the same hash through
+/// [`ImageVerifier`], which streams it rather than holding the whole image.
+///
+/// # Arguments
+///
+/// * `image` - the complete image the release carries.
+///
+/// # Returns
+///
+/// The SHA-256 of `image`, ready to put in a [`Manifest`](crate::Manifest).
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_update::image_digest;
+///
+/// let digest = image_digest(b"firmware");
+/// assert_eq!(digest.len(), 32);
+/// ```
+pub fn image_digest(image: &[u8]) -> [u8; DIGEST_LEN] {
+    Sha256::digest(image).into()
+}
+
 /// Hashes an image as it arrives and checks it against a manifest.
 ///
 /// # Examples

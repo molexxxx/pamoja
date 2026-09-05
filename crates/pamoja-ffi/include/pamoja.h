@@ -10672,6 +10672,18 @@ PamojaStatus pamoja_delegation_open(const uint8_t *bytes,
 //
 // A handle the caller must settle with [`pamoja_image_verifier_finish`] or
 // abandon with [`pamoja_image_verifier_free`], or null if the manifest carries
+// Hashes a complete image, for a publisher filling in a manifest.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the 32-byte SHA-256 written to `out_digest`.
+//
+// # Safety
+//
+// `image` must point to at least `image_len` readable bytes, or be null when
+// `image_len` is 0, and `out_digest` must point to at least 32 writable bytes.
+PamojaStatus pamoja_image_digest(const uint8_t *image, uintptr_t image_len, uint8_t *out_digest);
+
 // a payload format this build cannot apply.
 PamojaImageVerifier *pamoja_image_verifier_new(PamojaManifest manifest);
 

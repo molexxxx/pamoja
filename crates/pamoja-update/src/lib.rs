@@ -191,4 +191,4 @@ pub use manifest::{
 pub use slots::{MemoryStore, SlotRecord, SlotState, SlotStore};
 pub use trust::{Delegation, DELEGATION_MAX};
 pub use update::{Boot, Device, Staging, Updater};
-pub use verify::{ImageVerifier, Verified};
+pub use verify::{image_digest, ImageVerifier, Verified};
