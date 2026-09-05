@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/power",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "Duty cycling and an energy-aware governor that stretches work as the battery drains.",
   "license": "MIT",
   "publishConfig": {
@@ -34,6 +34,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.14"
+    "@pamoja/native": "0.1.15"
   }
 }

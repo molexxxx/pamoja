@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "pamoja-native"
-version = "0.1.14"
+version = "0.1.15"
 description = "The compiled pamoja engine for Python and the generated contract every pamoja package builds on. Installed as a dependency, not directly."
 readme = "README.md"
 license = { text = "MIT" }

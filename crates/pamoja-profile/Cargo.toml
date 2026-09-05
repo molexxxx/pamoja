@@ -21,11 +21,11 @@ json = ["dep:serde_json"]
 pamoja-core = { workspace = true }
 # Only the Codec trait is used in the node's signatures, so the concrete codecs
 # (and their serde backends) stay out of this crate's own dependency tree.
-pamoja-codec = { path = "../pamoja-codec", version = "0.1.14", default-features = false }
+pamoja-codec = { path = "../pamoja-codec", version = "0.1.15", default-features = false }
 # Only the always-on control helpers (Thermostat, Depletion) are used here, so the
 # kit's default `geo` feature and its libm dependency stay out of this crate's tree.
-pamoja-kit = { path = "../pamoja-kit", version = "0.1.14", default-features = false }
-pamoja-power = { path = "../pamoja-power", version = "0.1.14" }
+pamoja-kit = { path = "../pamoja-kit", version = "0.1.15", default-features = false }
+pamoja-power = { path = "../pamoja-power", version = "0.1.15" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", optional = true }
 

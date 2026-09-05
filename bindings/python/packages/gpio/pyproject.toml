@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-gpio"
-version = "0.1.14"
+version = "0.1.15"
 description = "I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,7 +19,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-native==0.1.14",
+    "pamoja-native==0.1.15",
 ]
 
 [project.urls]

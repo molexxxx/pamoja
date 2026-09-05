@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/native",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "The compiled pamoja engine for Node and the generated napi-rs contract every @pamoja package builds on. Installed as a dependency, not directly.",
   "license": "MIT",
   "publishConfig": {

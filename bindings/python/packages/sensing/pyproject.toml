@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-sensing"
-version = "0.1.14"
+version = "0.1.15"
 description = "Sensing and actuation: The parts wired to a board: a thermometer that checks its own bytes, a servo pulse, and a stepper walking its coils."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,8 +19,8 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-actuators==0.1.14",
-    "pamoja-sensors==0.1.14",
+    "pamoja-actuators==0.1.15",
+    "pamoja-sensors==0.1.15",
 ]
 
 [project.urls]

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-session"
-version = "0.1.14"
+version = "0.1.15"
 description = "X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,7 +19,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-native==0.1.14",
+    "pamoja-native==0.1.15",
 ]
 
 [project.urls]

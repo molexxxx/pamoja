@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-field-io"
-version = "0.1.14"
+version = "0.1.15"
 description = "Field I/O: The wires a gateway actually has: framed serial packets, an RS485 request and the reply it draws, a CAN frame, and the address a chip answers on."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,10 +19,10 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-can==0.1.14",
-    "pamoja-gpio==0.1.14",
-    "pamoja-modbus==0.1.14",
-    "pamoja-serial==0.1.14",
+    "pamoja-can==0.1.15",
+    "pamoja-gpio==0.1.15",
+    "pamoja-modbus==0.1.15",
+    "pamoja-serial==0.1.15",
 ]
 
 [project.urls]
