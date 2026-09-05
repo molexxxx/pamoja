@@ -7,6 +7,16 @@ released together, so one entry covers all of them.
 
 ## [Unreleased]
 
+### Changed
+
+- The documentation site is rendered by `cargo xtask site` rather than mdBook: the
+  same Markdown pages, with a guide's four languages as tabs that remember the
+  choice, search, syntax highlighting done when the site is built, and a link
+  check that fails the build on a broken link or anchor, the generated references
+  included. The reference pages list each capability with its install line, its
+  module, its worked example, and the same capability on the other three
+  registries.
+
 ## [0.1.16] - 2026-09-05
 
 Publishing fixes. 0.1.15 reached crates.io and NuGet intact, and both are

@@ -538,11 +538,16 @@ impl Catalog {
 
     /// Render one generated table for a `<!-- table: <kind> [arg] -->` region.
     ///
-    /// The kinds are `chapters` (the capability map by chapter), `guides` (the guide
-    /// list for the site's front page), `crates` (every crate with its reference
-    /// links), `reference <capability>` (the per-language reference links of one
-    /// guide), and `binding <node|python|dotnet>` (the capability table of one
-    /// binding README).
+    /// The Markdown kinds render anywhere, the registries included: `chapters` (the
+    /// capability map by chapter), `crates` (every crate with its reference links, or
+    /// `crates engine` for the engine and the bundle alone), `reference <capability>`
+    /// (the per-language reference links of one guide), `binding <node|python|dotnet>`
+    /// (the capability table of one binding README), `domains <language>` (the install
+    /// line per domain), and `references` (the four bindings). The HTML kinds are for the
+    /// site's own pages: `packages <language>` (one row per capability with its install
+    /// line, its reference, its worked example, and the other registries), `install
+    /// <language>` (the same for the six domains), and `reference-link <language>` (the
+    /// door into a generated reference).
     ///
     /// # Errors
     ///
@@ -557,8 +562,14 @@ impl Catalog {
         let arg = words.next();
         match (kind, arg) {
             ("chapters", None) => Ok(self.chapters_table()),
-            ("guides", None) => Ok(self.guide_list()),
-            ("crates", None) => Ok(self.crates_table(crate_descriptions)),
+            ("crates", None) => Ok(self.crates_table(crate_descriptions, false)),
+            ("crates", Some("engine")) => Ok(self.crates_table(crate_descriptions, true)),
+            ("packages", Some(language @ ("rust" | "node" | "python" | "dotnet"))) => {
+                Ok(self.packages_block(language))
+            }
+            ("install", Some(language @ ("rust" | "node" | "python" | "dotnet"))) => {
+                Ok(self.install_block(language))
+            }
             ("reference", Some(key)) => self
                 .capability(key)
                 .map(|capability| self.reference_links(capability))
@@ -614,28 +625,7 @@ impl Catalog {
         out
     }
 
-    fn guide_list(&self) -> String {
-        let mut sections = Vec::new();
-        for chapter in &self.chapters {
-            let mut section = format!("### {}\n\n{}\n\n", chapter.title, chapter.intent);
-            for capability in self.in_chapter(&chapter.key) {
-                match &capability.guide {
-                    Some(guide) => section.push_str(&format!(
-                        "- [{}]({guide}) - {}\n",
-                        capability.title, capability.summary
-                    )),
-                    None => section.push_str(&format!(
-                        "- {} - {}\n",
-                        capability.title, capability.summary
-                    )),
-                }
-            }
-            sections.push(section.trim_end().to_owned());
-        }
-        sections.join("\n\n")
-    }
-
-    fn crates_table(&self, descriptions: &BTreeMap<String, String>) -> String {
+    fn crates_table(&self, descriptions: &BTreeMap<String, String>, engine_only: bool) -> String {
         let mut out = String::from(
             "| Chapter | Crate | What it does |
 | --- | --- | --- |
@@ -648,10 +638,12 @@ impl Catalog {
         for krate in &self.engine {
             rows.push(("Engine".to_owned(), krate.clone()));
         }
-        for chapter in &self.chapters {
-            for capability in self.in_chapter(&chapter.key) {
-                for krate in &capability.crates {
-                    rows.push((chapter.title.clone(), krate.clone()));
+        if !engine_only {
+            for chapter in &self.chapters {
+                for capability in self.in_chapter(&chapter.key) {
+                    for krate in &capability.crates {
+                        rows.push((chapter.title.clone(), krate.clone()));
+                    }
                 }
             }
         }
@@ -809,42 +801,279 @@ impl Catalog {
         out.trim_end().to_owned()
     }
 
-    /// Render `docs/SUMMARY.md`, the site's navigation: the front page and install
-    /// page, a part per chapter holding its guides, then the references and the
-    /// pages about the project.
-    pub fn summary(&self) -> String {
-        let mut out =
-            String::from("# Summary\n\n[Introduction](README.md)\n[Install](install.md)\n[Hardware](hardware.md)\n");
-        for chapter in &self.chapters {
-            let guides: Vec<&Capability> = self
-                .in_chapter(&chapter.key)
-                .filter(|capability| capability.guide.is_some())
-                .collect();
-            if guides.is_empty() {
-                continue;
-            }
-            out.push_str(&format!("\n# {}\n\n", chapter.title));
-            for capability in guides {
-                if let Some(guide) = &capability.guide {
-                    out.push_str(&format!("- [{}]({guide})\n", capability.title));
+    /// One row per capability for the site's reference and install pages: the title linking
+    /// the guide, the install line with a copy button, the name a program uses and where its
+    /// reference is, the worked example, the registry page, and the same capability on the
+    /// other three registries. Grouped under a heading per chapter, the engine's own surface
+    /// first, so the page reads the way the guides are arranged.
+    fn packages_block(&self, language: &str) -> String {
+        let lang = Language::by_key(language);
+        let mut out = String::new();
+        let mut last = String::new();
+        for capability in self.ordered() {
+            let chapter = if capability.node == "core" {
+                "Engine".to_owned()
+            } else {
+                self.chapter_title(&capability.chapter)
+            };
+            if chapter != last {
+                if !last.is_empty() {
+                    out.push_str("</div>\n\n");
                 }
+                out.push_str(&format!("### {chapter}\n\n<div class=\"pkgs\">\n"));
+                last = chapter;
             }
+            out.push_str(&package_row(lang, capability));
         }
-        out.push_str(
-            "\n# Reference\n\n\
-             - [Rust](reference/rust.md)\n\
-             - [TypeScript](reference/node.md)\n\
-             - [Python](reference/python.md)\n\
-             - [C#](reference/dotnet.md)\n\
-             \n# About\n\n\
-             - [Why it exists](about/why.md)\n\
-             - [Architecture](about/architecture.md)\n\
-             - [Standards and conformance](about/standards.md)\n\
-             - [Building](about/building.md)\n\
-             - [Releasing](about/releasing.md)\n",
-        );
+        out.push_str("</div>");
         out
     }
+
+    /// The six domains as install rows for the site: the install line with a copy button,
+    /// the domain linked to its registry page where it is a package, and the capabilities
+    /// it brings in, each linking its guide.
+    fn install_block(&self, language: &str) -> String {
+        let lang = Language::by_key(language);
+        let mut out = String::from("<div class=\"domains\">\n");
+        for (chapter, members) in self.domains() {
+            let title = match lang.domain_package(&chapter.key) {
+                Some(package) => format!(
+                    "<a href=\"{}\">{}</a>",
+                    lang.registry_url(&package),
+                    escape(&chapter.title)
+                ),
+                None => escape(&chapter.title),
+            };
+            let names: Vec<String> = members
+                .iter()
+                .map(|member| match guide_url(member) {
+                    Some(url) => format!(
+                        "<a href=\"{}\">{}</a>",
+                        site_relative(&url),
+                        escape(&member.title)
+                    ),
+                    None => escape(&member.title),
+                })
+                .collect();
+            out.push_str(&format!(
+                "<div class=\"domain\">\n<div class=\"domain-what\"><strong>{title}</strong><p>{}</p></div>\n{}\n</div>\n",
+                names.join(", "),
+                command(&lang.domain_install(&chapter.key))
+            ));
+        }
+        out.push_str("</div>");
+        out
+    }
+
+    fn chapter_title(&self, key: &str) -> String {
+        self.chapters
+            .iter()
+            .find(|chapter| chapter.key == key)
+            .map(|chapter| chapter.title.clone())
+            .unwrap_or_default()
+    }
+}
+
+/// One language's packaging: how a capability is named and installed there, and which
+/// registry holds it.
+struct Language {
+    key: &'static str,
+    name: &'static str,
+    registry: &'static str,
+    /// The fragment of the guide section that shows the language's example.
+    anchor: &'static str,
+}
+
+const LANGUAGES: [Language; 4] = [
+    Language {
+        key: "rust",
+        name: "Rust",
+        registry: "crates.io",
+        anchor: "rust",
+    },
+    Language {
+        key: "node",
+        name: "TypeScript",
+        registry: "npm",
+        anchor: "typescript",
+    },
+    Language {
+        key: "python",
+        name: "Python",
+        registry: "PyPI",
+        anchor: "python",
+    },
+    Language {
+        key: "dotnet",
+        name: "C#",
+        registry: "NuGet",
+        anchor: "c",
+    },
+];
+
+impl Language {
+    fn by_key(key: &str) -> &'static Language {
+        LANGUAGES
+            .iter()
+            .find(|language| language.key == key)
+            .expect("one of the four languages")
+    }
+
+    /// The package a capability is in this language.
+    fn package(&self, capability: &Capability) -> String {
+        match self.key {
+            "rust" => capability
+                .crates
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "pamoja-core".to_owned()),
+            "node" => node_package(capability),
+            "python" => format!("pamoja-{}", capability.python),
+            _ => capability.dotnet_package(),
+        }
+    }
+
+    /// What a reader types to install `package`.
+    fn install(&self, package: &str) -> String {
+        match self.key {
+            "rust" => format!("cargo add {package}"),
+            "node" => format!("npm install {package}"),
+            "python" => format!("pip install {package}"),
+            _ => format!("dotnet add package {package}"),
+        }
+    }
+
+    /// The registry page of `package`.
+    fn registry_url(&self, package: &str) -> String {
+        match self.key {
+            "rust" => format!("https://crates.io/crates/{package}"),
+            "node" => format!("https://www.npmjs.com/package/{package}"),
+            "python" => format!("https://pypi.org/project/{package}/"),
+            _ => format!("https://www.nuget.org/packages/{package}"),
+        }
+    }
+
+    /// The name a program uses for the capability, and its page in the generated
+    /// reference, site-relative.
+    fn import(&self, capability: &Capability) -> (String, String) {
+        match self.key {
+            "rust" => {
+                let krate = self.package(capability);
+                (krate.clone(), site_relative(&rustdoc_url(&krate)))
+            }
+            "node" => (
+                node_package(capability),
+                site_relative(&node_reference_url(&capability.node)),
+            ),
+            "python" => (
+                format!("pamoja.{}", capability.python),
+                site_relative(&python_reference_url(&capability.python)),
+            ),
+            _ => {
+                let package = capability.dotnet_package();
+                let href = site_relative(&dotnet_reference_url(&package));
+                (package, href)
+            }
+        }
+    }
+
+    /// The package a domain is in this language, or none where it is a feature instead.
+    fn domain_package(&self, chapter: &str) -> Option<String> {
+        match self.key {
+            "rust" => None,
+            "node" => Some(format!("@pamoja/{chapter}")),
+            "python" => Some(format!("pamoja-{chapter}")),
+            _ => Some(format!(
+                "Pamoja.{}",
+                chapter
+                    .split('-')
+                    .map(dotnet_name)
+                    .collect::<Vec<_>>()
+                    .concat()
+            )),
+        }
+    }
+
+    /// What a reader types to install a domain.
+    fn domain_install(&self, chapter: &str) -> String {
+        match self.domain_package(chapter) {
+            Some(package) => self.install(&package),
+            None => format!("cargo add pamoja --features {chapter}"),
+        }
+    }
+}
+
+// One capability's row: what it is, how to install it, where to read about it, and where
+// else it lives.
+fn package_row(lang: &Language, capability: &Capability) -> String {
+    let package = lang.package(capability);
+    let (import, reference) = lang.import(capability);
+    let example =
+        guide_url(capability).map(|url| format!("{}#{}", site_relative(&url), lang.anchor));
+    let title = match &example {
+        Some(href) => format!("<a href=\"{href}\">{}</a>", escape(&capability.title)),
+        None => escape(&capability.title),
+    };
+    let mut links = vec![format!(
+        "<li><a href=\"{reference}\"><code>{}</code></a></li>",
+        escape(&import)
+    )];
+    if lang.key == "rust" {
+        links.push(format!(
+            "<li><a href=\"https://docs.rs/{package}\">docs.rs</a></li>"
+        ));
+    }
+    if let Some(href) = &example {
+        links.push(format!("<li><a href=\"{href}\">worked example</a></li>"));
+    }
+    links.push(format!(
+        "<li><a href=\"{}\">{}</a></li>",
+        lang.registry_url(&package),
+        lang.registry
+    ));
+    let others: Vec<String> = LANGUAGES
+        .iter()
+        .filter(|other| other.key != lang.key)
+        .map(|other| {
+            let package = other.package(capability);
+            format!(
+                "<a href=\"{}\" title=\"{}\">{}</a>",
+                other.registry_url(&package),
+                escape(&package),
+                other.name
+            )
+        })
+        .collect();
+    format!(
+        "<div class=\"pkg\">\n<div class=\"pkg-what\">{title}<p>{}</p></div>\n{}\n<ul class=\"pkg-links\">{}</ul>\n<p class=\"pkg-else\"><span>Also in</span> {}</p>\n</div>\n",
+        escape(&capability.summary),
+        command(&lang.install(&package)),
+        links.join(""),
+        others.join(" ")
+    )
+}
+
+// An install line with the button that copies it.
+fn command(text: &str) -> String {
+    let text = escape(text);
+    format!(
+        "<div class=\"pkg-get\"><code class=\"cmd\">{text}</code><button class=\"copy\" type=\"button\" data-copy=\"{text}\" aria-label=\"Copy the install command\">copy</button></div>"
+    )
+}
+
+/// A site URL as the site's own pages link it, so the link check covers it and a local copy
+/// of the site resolves it too.
+fn site_relative(url: &str) -> String {
+    url.strip_prefix("https://pamoja.molex.cloud")
+        .map_or_else(|| url.to_owned(), str::to_owned)
+}
+
+/// Escape text for an HTML text node or a double-quoted attribute.
+pub(crate) fn escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 /// The absolute URL of a capability's guide on the site, when it has one.
@@ -915,48 +1144,43 @@ fn references(absolute: bool) -> String {
     out.trim_end().to_owned()
 }
 
-/// The button that opens one language's generated reference, the same shape on all four
-/// pages. Each generator lands its output at a different entry point, and rustdoc emits no
-/// index above the crates, so the Rust button opens the bundle crate, which re-exports
-/// every other.
+/// The door into one language's generated reference, the same shape on all four landing
+/// pages: a button, what lies behind it, and the other three languages. Each generator
+/// lands its output at a different entry point, and rustdoc emits no index above the
+/// crates, so the Rust button opens the bundle crate, which re-exports every other.
 fn reference_link(language: &str) -> String {
-    let (href, binding, subtitle, what) = match language {
+    let (href, what) = match language {
         "rust" => (
             "rust/pamoja/index.html",
-            "Rust",
-            "Rust API reference",
-            "Every crate, generated by rustdoc from this commit",
+            "Every crate, generated by rustdoc from this commit.",
         ),
         "node" => (
             "node/index.html",
-            "TypeScript",
-            "TypeScript binding reference",
-            "Every <code>@pamoja</code> package, generated by typedoc",
+            "Every <code>@pamoja</code> package, generated by typedoc.",
         ),
         "python" => (
             "python/pamoja.html",
-            "Python",
-            "Python binding reference",
-            "Every <code>pamoja</code> module, generated by pdoc",
+            "Every <code>pamoja</code> module, generated by pdoc.",
         ),
         _ => (
             "dotnet/index.html",
-            "C#",
-            "C# binding reference",
-            "Every <code>Pamoja</code> package, generated by DocFX",
+            "Every <code>Pamoja</code> package, generated by DocFX.",
         ),
     };
+    let name = Language::by_key(language).name;
+    let switcher: Vec<String> = LANGUAGES
+        .iter()
+        .map(|other| {
+            if other.key == language {
+                format!("<span aria-current=\"page\">{}</span>", other.name)
+            } else {
+                format!("<a href=\"{}.html\">{}</a>", other.key, other.name)
+            }
+        })
+        .collect();
     format!(
-        "<p align=\"center\"><strong>{subtitle}</strong></p>
-
-<p align=\"center\">
-  <a href=\"{href}\"><img height=\"38\" alt=\"Open the {binding} API reference\" src=\"https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg\"></a>
-</p>
-
-<p align=\"center\">
-  {what}. It is a site of its own; the tables on this page name what it documents,
-  and every name below opens its page there.
-</p>"
+        "<div class=\"door\">\n<a class=\"btn btn-warm\" href=\"{href}\">Open the {name} reference</a>\n<p>{what} It is a site of its own; the tables on this page name what it documents, and every name below opens its page there.</p>\n<nav class=\"door-langs\" aria-label=\"The other languages\">{}</nav>\n</div>",
+        switcher.join("\n")
     )
 }
 
@@ -972,7 +1196,7 @@ pub fn dotnet_reference_url(package: &str) -> String {
 }
 
 /// The URL of a crate's rustdoc on the site.
-fn rustdoc_url(krate: &str) -> String {
+pub fn rustdoc_url(krate: &str) -> String {
     format!(
         "{SITE}/reference/rust/{}/index.html",
         krate.replace('-', "_")
@@ -1217,9 +1441,6 @@ crate = "pamoja"
         assert!(chapters.contains("| Engine |"));
         assert!(chapters.ends_with("| Everything | `cargo add pamoja`: every capability above, behind a feature each | [`pamoja`](https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html) |"));
 
-        let guides = catalog.render("guides", &descriptions).unwrap();
-        assert!(guides.starts_with("### Field I/O\n\nThe wires a gateway has.\n\n- [Modbus RTU](guides/modbus.md) - Modbus RTU requests and replies\n- Transports - The transport surface"));
-
         let crates = catalog.render("crates", &descriptions).unwrap();
         assert!(crates.contains("| **Engine** | [`pamoja-core`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html) | The device model |"));
         assert!(crates.starts_with("| Chapter | Crate | What it does |\n| --- | --- | --- |\n| **Everything** | [`pamoja`](https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html) | Everything in one crate |"));
@@ -1238,12 +1459,72 @@ crate = "pamoja"
     }
 
     #[test]
-    fn renders_the_summary_with_a_part_per_chapter_that_has_guides() {
+    fn renders_the_package_rows_for_the_site() {
         let catalog = Catalog::parse(SAMPLE).unwrap();
-        let summary = catalog.summary();
-        assert!(summary.contains("\n# Field I/O\n\n- [Modbus RTU](guides/modbus.md)\n"));
-        assert!(!summary.contains("Transports"));
-        assert!(summary.contains("- [Releasing](about/releasing.md)\n"));
+        let descriptions = BTreeMap::new();
+
+        let python = catalog.render("packages python", &descriptions).unwrap();
+        assert!(python.starts_with("### Engine\n\n<div class=\"pkgs\">\n<div class=\"pkg\">\n<div class=\"pkg-what\">Transports<p>The transport surface</p></div>"), "{python}");
+        assert!(python.contains("### Field I/O\n\n<div class=\"pkgs\">\n<div class=\"pkg\">\n<div class=\"pkg-what\"><a href=\"/docs/guides/modbus.html#python\">Modbus RTU</a>"));
+        assert!(python.contains("<code class=\"cmd\">pip install pamoja-modbus</code><button class=\"copy\" type=\"button\" data-copy=\"pip install pamoja-modbus\""));
+        assert!(python.contains("<li><a href=\"/docs/reference/python/pamoja/modbus.html\"><code>pamoja.modbus</code></a></li>"));
+        assert!(python.contains("<li><a href=\"/docs/guides/modbus.html#python\">worked example</a></li><li><a href=\"https://pypi.org/project/pamoja-modbus/\">PyPI</a></li>"));
+        assert!(python.contains("<span>Also in</span> <a href=\"https://crates.io/crates/pamoja-modbus\" title=\"pamoja-modbus\">Rust</a> <a href=\"https://www.npmjs.com/package/@pamoja/modbus\" title=\"@pamoja/modbus\">TypeScript</a> <a href=\"https://www.nuget.org/packages/Pamoja.Modbus\" title=\"Pamoja.Modbus\">C#</a>"));
+        assert!(python.ends_with("</div>\n</div>"));
+
+        let rust = catalog.render("packages rust", &descriptions).unwrap();
+        assert!(
+            rust.contains("<code class=\"cmd\">cargo add pamoja-core</code>"),
+            "the engine surface is the core crate"
+        );
+        assert!(rust.contains("<li><a href=\"/docs/reference/rust/pamoja_modbus/index.html\"><code>pamoja-modbus</code></a></li><li><a href=\"https://docs.rs/pamoja-modbus\">docs.rs</a></li>"));
+
+        let dotnet = catalog.render("packages dotnet", &descriptions).unwrap();
+        assert!(dotnet.contains("<code class=\"cmd\">dotnet add package Pamoja.Modbus</code>"));
+        assert!(dotnet.contains("<a href=\"/docs/guides/modbus.html#c\">Modbus RTU</a>"));
+    }
+
+    #[test]
+    fn renders_the_domain_install_rows_and_the_reference_door() {
+        let two = format!(
+            "{SAMPLE}\n[[capability]]\nkey = \"can\"\nchapter = \"field-io\"\ntitle = \"CAN\"\nsummary = \"CAN frames\"\ncrates = [\"pamoja-can\"]\nnode = \"can\"\npython = \"can\"\ndotnet = [\"Can\"]\nguide = \"guides/can.md\"\n"
+        );
+        let catalog = Catalog::parse(&two).unwrap();
+        let descriptions = BTreeMap::new();
+
+        let node = catalog.render("install node", &descriptions).unwrap();
+        assert!(node.starts_with("<div class=\"domains\">\n<div class=\"domain\">\n<div class=\"domain-what\"><strong>"), "{node}");
+        assert!(
+            node.contains(
+                "<div class=\"pkg-get\"><code class=\"cmd\">npm install @pamoja/field-io</code>"
+            ),
+            "{node}"
+        );
+        assert!(node.contains("<strong><a href=\"https://www.npmjs.com/package/@pamoja/field-io\">Field I/O</a></strong><p><a href=\"/docs/guides/modbus.html\">Modbus RTU</a>, Transports, <a href=\"/docs/guides/can.html\">CAN</a></p>"));
+
+        let rust = catalog.render("install rust", &descriptions).unwrap();
+        assert!(rust.contains("<code class=\"cmd\">cargo add pamoja --features field-io</code>"));
+        assert!(
+            rust.contains("<strong>Field I/O</strong>"),
+            "a feature has no registry page"
+        );
+
+        let dotnet = catalog.render("install dotnet", &descriptions).unwrap();
+        assert!(dotnet.contains("dotnet add package Pamoja.FieldIo"));
+
+        let door = catalog
+            .render("reference-link python", &descriptions)
+            .unwrap();
+        assert!(door.starts_with("<div class=\"door\">\n<a class=\"btn btn-warm\" href=\"python/pamoja.html\">Open the Python reference</a>"));
+        assert!(door.contains("<a href=\"rust.html\">Rust</a>\n<a href=\"node.html\">TypeScript</a>\n<span aria-current=\"page\">Python</span>\n<a href=\"dotnet.html\">C#</a>"));
+
+        let engine = catalog
+            .render(
+                "crates engine",
+                &BTreeMap::from([("pamoja-core".to_owned(), "The device model".to_owned())]),
+            )
+            .unwrap();
+        assert!(engine.contains("pamoja-core") && !engine.contains("pamoja-modbus"));
     }
 
     #[test]

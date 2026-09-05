@@ -31,7 +31,7 @@
         "src": "../../../web/assets"
       }
     ],
-    "output": "../../../target/docs/site/reference/dotnet",
+    "output": "../../../target/site/docs/reference/dotnet",
     "template": ["default", "modern", "templates/pamoja"],
     "globalMetadata": {
       "_appName": "Pamoja",

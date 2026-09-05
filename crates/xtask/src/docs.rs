@@ -1,16 +1,17 @@
 //! Generate the documentation that is derived from the code, and check it is current.
 //!
-//! Three things are generated. Each crate's `README.md` comes from its lib.rs rustdoc, with
+//! Two things are generated. Each crate's `README.md` comes from its lib.rs rustdoc, with
 //! registry buttons at the top, and is the crates.io page and the crate's landing doc; the
-//! source is parsed with `syn`, so no nightly toolchain is needed. `docs/SUMMARY.md`, the
-//! site's navigation, comes from the capability map in `docs/capabilities.toml`. And the
-//! generated regions inside hand-written Markdown (the capability tables in the READMEs and
-//! the site, and the code snippets spliced from test files) are re-rendered in place; see
+//! source is parsed with `syn`, so no nightly toolchain is needed. And the generated regions
+//! inside hand-written Markdown (the capability tables in the READMEs and the site's pages,
+//! and the code snippets spliced from test files) are re-rendered in place; see
 //! [`regions`](crate::regions). `cargo xtask docs` writes all of it; `cargo xtask docs --check`
 //! renders in memory, fails if any committed file is stale, and checks the capability map
 //! against the crates, the Node packages, the Python modules, and the .NET types. It also renders
 //! the Node packages' manifests and READMEs from that map. A hand-written crate README
 //! (the dashboard's) is detected by the absence of the generated marker and left untouched.
+//! The pages themselves are rendered into HTML by the `site` task, which reads them as
+//! committed.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -172,7 +173,7 @@ fn crate_readme(krate: &str, catalog: &Catalog, overview: &str, items: &str) -> 
     out
 }
 
-fn repo_root() -> PathBuf {
+pub(crate) fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(2)
@@ -225,8 +226,6 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
         ));
     }
 
-    files.push(("docs/SUMMARY.md".to_owned(), catalog.summary()));
-
     let descriptions: BTreeMap<String, String> = crates
         .iter()
         .filter_map(|krate| crate_description(krate).map(|desc| (krate.clone(), desc)))
@@ -278,7 +277,7 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
 }
 
 // The hand-written Markdown files that may hold generated regions: the root README, every
-// page of the site except the generated navigation, and the three binding READMEs.
+// page of the site, and the three binding READMEs.
 fn region_files(root: &Path) -> Result<Vec<String>, String> {
     let mut paths = vec!["README.md".to_owned()];
     let mut pages = Vec::new();
@@ -289,9 +288,7 @@ fn region_files(root: &Path) -> Result<Vec<String>, String> {
             .unwrap_or(&page)
             .to_string_lossy()
             .replace('\\', "/");
-        if relative != "docs/SUMMARY.md" {
-            paths.push(relative);
-        }
+        paths.push(relative);
     }
     paths.extend(
         [
@@ -308,8 +305,8 @@ fn region_files(root: &Path) -> Result<Vec<String>, String> {
         .collect())
 }
 
-// Every `.md` file under `dir`, recursively, sorted.
-fn collect_markdown(dir: &Path, into: &mut Vec<PathBuf>) -> Result<(), String> {
+/// Every `.md` file under `dir`, recursively, sorted.
+pub(crate) fn collect_markdown(dir: &Path, into: &mut Vec<PathBuf>) -> Result<(), String> {
     if !dir.is_dir() {
         return Ok(());
     }
@@ -683,9 +680,7 @@ fn write_files(readmes: &[(String, String)]) -> bool {
         }
         written += 1;
     }
-    println!(
-        "docs: wrote {written} files (crate READMEs, the site navigation, and the generated regions)"
-    );
+    println!("docs: wrote {written} files (crate READMEs and the generated regions)");
     true
 }
 
@@ -704,9 +699,7 @@ fn verify_files(readmes: &[(String, String)]) -> bool {
         }
     }
     if stale.is_empty() {
-        println!(
-            "docs: the crate READMEs, the site navigation, and the generated regions are in sync"
-        );
+        println!("docs: the crate READMEs and the generated regions are in sync");
         true
     } else {
         eprintln!(

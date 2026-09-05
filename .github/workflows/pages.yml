@@ -1,11 +1,12 @@
 name: Deploy showcase to Pages
 
 # Publishes the static showcase in web/ to GitHub Pages, bundles the local-first
-# dashboard demo at /dashboard, and the documentation site at /docs. The dashboard is
-# a serverless build: when no device answers GET /state it loads the mock snapshots
-# generated here (state.<scenario>.json), so the whole UI runs with no backend. Set the
-# Pages source to "GitHub Actions" once (Settings -> Pages -> Build and deployment ->
-# Source).
+# dashboard demo at /dashboard, and the documentation site rendered by the docs
+# workflow, whose pages live under /docs and whose stylesheets, script, and marks sit
+# beside the showcase at the root. The dashboard is a serverless build: when no device
+# answers GET /state it loads the mock snapshots generated here (state.<scenario>.json),
+# so the whole UI runs with no backend. Set the Pages source to "GitHub Actions" once
+# (Settings -> Pages -> Build and deployment -> Source).
 on:
   push:
     branches: [main]
@@ -52,11 +53,11 @@ jobs:
           cp -r web/. dist/
           cp -r crates/pamoja-dashboard/web/. dist/dashboard/
           cargo run -p pamoja-dashboard --features mock --example snapshot -- dist/dashboard
-      - name: Add the documentation site at /docs
+      - name: Add the documentation site
         uses: actions/download-artifact@v8
         with:
-          name: docs-site
-          path: dist/docs
+          name: site
+          path: dist
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
