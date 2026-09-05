@@ -103,6 +103,16 @@ jobs:
       - name: Move addons into the platform packages
         run: npx napi artifacts --output-dir artifacts --package-json-path packages/native/package.json --npm-dir packages/native/npm
 
+      # The facades are TypeScript and dist/ is not in the repository, so without this the
+      # tarballs carry package.json, a README and a licence and no code at all.
+      - name: Build the facades
+        run: npm run build:facade
+
+      # npm drops a `files` entry that is not on disk rather than failing, so an unbuilt
+      # facade publishes as a three-file package that installs and then cannot be required.
+      - name: Every package carries the entry point it declares
+        run: npm run check:packaging
+
       # pre-publish publishes @pamoja/native platform packages and pins them in its
       # manifest; the workspace publish then covers @pamoja/native, @pamoja/core, every capability
       # package, and the pamoja bundle.

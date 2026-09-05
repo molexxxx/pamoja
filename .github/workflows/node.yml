@@ -29,6 +29,11 @@ jobs:
       - name: Build native addon and facade
         run: npm run build
 
+      # A facade whose dist/ is missing publishes as a package that installs and then
+      # cannot be required, and npm reports no error while doing it.
+      - name: Every package carries the entry point it declares
+        run: npm run check:packaging
+
       - name: Check generated bindings are in sync with the Rust source
         run: |
           if ! git diff --exit-code -- packages/native/index.js packages/native/index.d.ts; then

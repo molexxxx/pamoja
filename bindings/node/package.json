@@ -12,6 +12,7 @@
     "build:native": "napi build --platform --release --package-json-path packages/native/package.json --output-dir packages/native",
     "build:debug": "napi build --platform --package-json-path packages/native/package.json --output-dir packages/native && npm run build:facade",
     "build:facade": "tsc -b",
+    "check:packaging": "node scripts/check-packaging.mjs",
     "test": "node test.js && node conformance.js && npm run test:guides",
     "test:guides": "tsc -p guides/tsconfig.json && node guides/run.js"
   },
