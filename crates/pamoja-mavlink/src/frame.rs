@@ -2,6 +2,7 @@
 //! verified on the way in so a corrupt frame never reaches the application.
 
 use crate::crc::checksum;
+use crate::dialect::Message;
 use crate::error::{MavlinkError, Result};
 
 /// The start marker of a MAVLink v1 frame.
@@ -116,6 +117,44 @@ impl Frame {
     /// [`MAX_PAYLOAD`].
     pub fn encode_v2(header: Header, msgid: u32, payload: &[u8], crc_extra: u8) -> Result<Frame> {
         Self::assemble_v2(header, msgid, payload, crc_extra, 0)
+    }
+
+    /// Builds a v2 frame carrying a typed message.
+    ///
+    /// The message knows its own id and `CRC_EXTRA` and serializes itself, so a caller
+    /// hands over the message rather than a payload buffer and two constants that have to
+    /// agree with it. The payload is built on the stack, so this allocates nothing.
+    ///
+    /// # Arguments
+    ///
+    /// * `header` - the addressing fields to stamp on the frame.
+    /// * `message` - the message to carry.
+    ///
+    /// # Returns
+    ///
+    /// The frame ready to send.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MavlinkError::PayloadTooLong`] if the message does not fit a frame.
+    pub fn encode_message<M: Message>(header: Header, message: &M) -> Result<Frame> {
+        let mut payload = [0u8; MAX_PAYLOAD];
+        let len = message.encode(&mut payload);
+        Self::encode_v2(header, M::ID, &payload[..len], M::CRC_EXTRA)
+    }
+
+    /// Reads the payload back as a typed message.
+    ///
+    /// # Returns
+    ///
+    /// The decoded message.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MavlinkError::PayloadTooLong`] if the payload is longer than the message
+    /// describes.
+    pub fn decode_message<M: Message>(&self) -> Result<M> {
+        M::decode(self.payload())
     }
 
     // Builds a v2 frame with the given incompatibility flags. Signing sets IFLAG_SIGNED
