@@ -1,6 +1,6 @@
 {
   "name": "pamoja-node-workspace",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "private": true,
   "description": "The Node binding workspace: the napi-rs crate at this directory, @pamoja/core with the compiled engine under packages/core, one @pamoja package per capability, and the pamoja bundle.",
   "license": "MIT",

@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/ros2",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed.",
   "license": "MIT",
   "publishConfig": {
@@ -34,6 +34,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.15"
+    "@pamoja/native": "0.1.16"
   }
 }

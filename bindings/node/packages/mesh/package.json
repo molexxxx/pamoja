@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/mesh",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once.",
   "license": "MIT",
   "publishConfig": {
@@ -34,6 +34,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.15"
+    "@pamoja/native": "0.1.16"
   }
 }

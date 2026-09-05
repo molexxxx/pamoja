@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-sync"
-version = "0.1.15"
+version = "0.1.16"
 description = "Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,7 +19,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-native==0.1.15",
+    "pamoja-native==0.1.16",
 ]
 
 [project.urls]
