@@ -134,9 +134,11 @@ released together, so one entry covers all of them.
   test", so a pull request showed three identical checks, none of which could be
   required and none of which said which binding had failed. Each names its
   language now.
-- Three binding workflows started an MQTT broker that nothing connected to,
-  pulling an image from Docker Hub on every run; one such pull failed and took
-  the build with it. No example needs a broker.
+- The MQTT guide proved only that an unreachable broker is refused, which is the
+  one thing a reader does not need shown. It runs a real round trip now: a
+  gateway subscribes to a wildcard, a node publishes under it, and the reading
+  arrives with its topic. The Rust example starts an in-process broker, and the
+  three binding workflows start one, which `just broker` also starts locally.
 - The gateway pairing code no longer appears in a captured dashboard log (#67).
 - Broken intra-doc links in the rustdoc of nine crates, which docs.rs rendered
   as dead links; `cargo doc` now runs with warnings denied.
