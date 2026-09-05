@@ -118,6 +118,7 @@ jobs:
     name: publish to PyPI
     needs: [build, sdist, pure]
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     steps:
       - name: Download wheel and sdist artifacts
         uses: actions/download-artifact@v8
@@ -126,10 +127,82 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Publish to PyPI
-        uses: PyO3/maturin-action@v1
+      - uses: actions/setup-python@v7
         with:
-          command: upload
-          args: --non-interactive --skip-existing dist/*
+          python-version: "3.13"
+
+      # PyPI caps how many new projects an account may create in a window, and a release
+      # that introduces a package per capability runs into it. Two things follow.
+      #
+      # Uploading the whole directory in one call stops at the first refusal, which
+      # strands every file behind it, including existing projects that were never
+      # rate-limited, so each file goes on its own.
+      #
+      # And a refusal is a wait, not a failure: the cap refills. This rides it out the
+      # same way `cargo xtask release` rides out the crates.io new-crate limit, retrying
+      # what was refused until the window reopens.
+      - name: Publish to PyPI
         env:
-          MATURIN_PYPI_TOKEN: ${{ secrets.PIP_TOKEN }}
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PIP_TOKEN }}
+          RETRY_SECS: "660"
+          MAX_ROUNDS: "8"
+        run: |
+          python -m pip install --quiet twine
+
+          remaining=(dist/*)
+          for round in $(seq 1 "$MAX_ROUNDS"); do
+            refused=()
+            for file in "${remaining[@]}"; do
+              if ! twine upload --skip-existing --non-interactive "$file"; then
+                refused+=("$file")
+              fi
+            done
+
+            if [ "${#refused[@]}" -eq 0 ]; then
+              echo "every distribution uploaded, after $round round(s)"
+              break
+            fi
+
+            if [ "$round" -eq "$MAX_ROUNDS" ]; then
+              echo "::warning::${#refused[@]} file(s) still refused after $MAX_ROUNDS rounds"
+              break
+            fi
+
+            echo "round $round: ${#refused[@]} file(s) refused, waiting ${RETRY_SECS}s for the cap to refill"
+            sleep "$RETRY_SECS"
+            remaining=("${refused[@]}")
+          done
+
+      - name: Every distribution is on PyPI at this version
+        env:
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
+        run: |
+          python - "${VERSION#v}" <<'CHECK'
+          import json, pathlib, sys, urllib.error, urllib.request
+
+          version = sys.argv[1]
+          names = set()
+          for path in pathlib.Path("dist").iterdir():
+              stem = path.name.split("-0.")[0] if "-0." in path.name else path.stem
+              names.add(stem.replace("_", "-"))
+
+          missing = []
+          for name in sorted(names):
+              url = f"https://pypi.org/pypi/{name}/{version}/json"
+              try:
+                  with urllib.request.urlopen(url, timeout=30) as response:
+                      json.load(response)
+              except urllib.error.HTTPError:
+                  missing.append(name)
+
+          print(f"on PyPI at {version}: {len(names) - len(missing)} of {len(names)}")
+          for name in missing:
+              print(f"  missing: {name}")
+          if missing:
+              print(
+                  "::error::PyPI is rate-limiting new projects. Re-run this job; "
+                  "uploads already made are skipped."
+              )
+              sys.exit(1)
+          CHECK
