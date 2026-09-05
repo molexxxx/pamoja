@@ -64,6 +64,12 @@ public sealed class SpiClock
 /// </remarks>
 public static class I2c
 {
+    /// <summary>The lowest 7-bit address the specification keeps for itself.</summary>
+    public const byte ReservedFrom = NativeMethods.I2cReservedFrom;
+
+    /// <summary>The first 7-bit address above the reserved block at the bottom.</summary>
+    public const byte ReservedBelow = NativeMethods.I2cReservedBelow;
+
     /// <summary>Returns the address bytes a controller puts on the bus for a transfer.</summary>
     /// <param name="address">The device address.</param>
     /// <param name="read">Whether the transfer reads rather than writes.</param>

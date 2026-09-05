@@ -25,46 +25,49 @@ The guide project's example, spliced here as it ran in CI.
 From [`bindings/dotnet/samples/Pamoja.Guides/AuditGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/AuditGuide.cs):
 
 ```csharp
-// The controller signs its own log with a provisioned seed. This one is RFC 8032
-// test vector 1, so the key the records are checked against is a published
-// constant rather than a value checked against itself.
-using var keeper = new DeviceIdentity(Convert.FromHexString(
-    "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"));
-Expect(
-    Convert.ToHexString(keeper.PublicKey).ToLowerInvariant()
-        == "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
-    "the key a chain is checked against is the one the vector publishes");
+// The controller signs its own log with a provisioned seed and an auditor holds
+// only the public half, so a log can be checked anywhere without the device.
+byte[] seed = new byte[32];
+Array.Fill(seed, (byte)7);
+using var keeper = new DeviceIdentity(seed);
+byte[] auditor = keeper.PublicKey;
 
 using var log = new AuditLog(keeper);
 using AuditEntry lit = log.Append("burner=on"u8);
 using AuditEntry stopped = log.Append("burner=off"u8);
+Console.WriteLine($"recorded  {lit.Index} then {stopped.Index}");
 
-// A record's digest is SHA-256 over its little-endian index, the digest of the
-// record before it, and its payload, so the first record hashes forty zero bytes
-// and then what it carries.
-Expect(lit.Index == 0, "the first record sits at index zero");
-Expect(
-    Convert.ToHexString(lit.Digest).ToLowerInvariant()
-        == "e50c6a7a944fab6dd13ffdb760ca190e14ea00c168ba7c948745ba0af146c159",
-    "the digest is the one the chain construction fixes");
-Expect(
-    stopped.Previous.SequenceEqual(lit.Digest),
-    "each record carries the hash of the one before it");
-Expect(Audit.VerifyChain(keeper.PublicKey, [lit, stopped]), "an untouched chain verifies");
+// Each record hashes its own index, the digest of the record before it, and what
+// it carries, so the chain fixes the order as well as the contents.
+Console.WriteLine($"chained   {stopped.Previous.SequenceEqual(lit.Digest)}");
+Audit.VerifyChain(auditor, [lit, stopped]);
+Console.WriteLine("verified  the whole log is authentic and in order");
 
 // Editing a stored record changes the digest its signature covers.
 byte[] edited = stopped.ToBytes();
 edited[^1] ^= 0xFF;
 using AuditEntry tampered = AuditEntry.FromBytes(edited);
-Expect(
-    !Audit.VerifyChain(keeper.PublicKey, [lit, tampered]),
-    "and an edited record does not");
+try
+{
+    Audit.VerifyChain(auditor, [lit, tampered]);
+    Console.WriteLine("an edited record verified, which should never happen");
+}
+catch (PamojaException error)
+{
+    Console.WriteLine($"edited    caught: {error.Message}");
+}
 
-// Dropping the record before it leaves the survivor chained to a link that is no
+// Dropping the first record leaves the survivor chained to a link that is no
 // longer there, so a shortened log is caught as readily as an edited one.
-Expect(
-    !Audit.VerifyChain(keeper.PublicKey, [stopped]),
-    "a log with its first record removed does not verify either");
+try
+{
+    Audit.VerifyChain(auditor, [stopped]);
+    Console.WriteLine("a shortened log verified, which should never happen");
+}
+catch (PamojaException error)
+{
+    Console.WriteLine($"shortened caught: {error.Message}");
+}
 ```
 
 ## The same capability in every language

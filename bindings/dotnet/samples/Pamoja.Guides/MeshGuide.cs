@@ -12,54 +12,61 @@ public static class MeshGuide
     public static void Run()
     {
         // ANCHOR: example
-        // A river gauge floods a reading to every node in range. The header is fixed and
-        // big-endian: version, source, destination, sequence id, hop limit, then the
+        // A river gauge floods a level reading to every node in range. The header is fixed
+        // and big-endian: version, source, destination, sequence id, hop limit, then the
         // payload and a checksum over everything but the hop limit.
-        MeshFrame reading = Mesh.BroadcastFrame(0x1234_5678, 1, "level=high"u8);
-        Expect(reading.Dst == Mesh.Broadcast, "a broadcast is addressed to every node");
-        Expect(
-            reading.Bytes.SequenceEqual(
-                Convert.FromHexString("0112345678ffffffff0001036c6576656c3d686967683335")),
-            "the frame is the bytes that go on the air");
-
-        // The checksum is CRC-16/CCITT-FALSE, whose published check value fixes the
-        // polynomial and the starting value.
-        Expect(Mesh.Crc16("123456789"u8) == 0x29B1, "the checksum is CRC-16/CCITT-FALSE");
+        const uint RiverGauge = 305_419_896;
+        MeshFrame reading = Mesh.BroadcastFrame(RiverGauge, 1, "level=high"u8);
+        Console.WriteLine($"sent      {reading.Bytes.Length} bytes to every node in range");
+        Console.WriteLine($"addressed to broadcast: {reading.Dst == Mesh.Broadcast}");
 
         // A neighbour hears it. Every node in range rebroadcasts, so the same packet
         // arrives several times over; the source and sequence id decide which copy is
         // the first.
         MeshFrame received = Mesh.Parse(reading.Bytes);
-        Expect(received.Payload.SequenceEqual("level=high"u8.ToArray()), "it carries the reading");
+        Console.WriteLine($"payload   {System.Text.Encoding.UTF8.GetString(received.Payload)}");
+
         using SeenPackets seen = new(64);
-        Expect(seen.Record(received.Src, received.Id), "the first copy is new");
-        Expect(!seen.Record(received.Src, received.Id), "a second copy is a duplicate");
+        bool first = seen.Record(received.Src, received.Id);
+        bool again = seen.Record(received.Src, received.Id);
+        Console.WriteLine($"first copy relayed: {first}, second copy relayed: {again}");
 
         // Relaying spends one hop. The checksum skips the hop-limit byte, so a relay
         // forwards the frame without recomputing it and the check stays end to end.
         MeshFrame forwarded = Mesh.Relayed(received.Bytes)!;
-        Expect(forwarded.HopLimit == received.HopLimit - 1, "relaying spends one hop");
-        Expect(
-            Mesh.Parse(forwarded.Bytes).Payload.SequenceEqual(received.Payload),
-            "and leaves the frame valid on the air");
-        Expect(
-            Mesh.Relayed(Mesh.BroadcastFrame(0x1234_5678, 1, "level=high"u8, 0).Bytes) is null,
-            "a packet out of hops is not relayed further");
+        Console.WriteLine($"relayed   hop limit {forwarded.HopLimit}");
+        MeshFrame onward = Mesh.Parse(forwarded.Bytes);
+        Console.WriteLine($"onward    {System.Text.Encoding.UTF8.GetString(onward.Payload)}");
+
+        // A frame that has run out of hops is not relayed again, which ends the flood.
+        MeshFrame? spent = Mesh.Relayed(Mesh.BroadcastFrame(RiverGauge, 1, "level=high"u8, 0).Bytes);
+        Console.WriteLine(spent is null
+            ? "spent     hop limit reached, the flood stops here"
+            : "a spent frame was relayed, which should never happen");
 
         // A payload byte the air mangled fails the checksum rather than reaching the
-        // application as a plausible reading.
+        // application as a plausible reading. The header is a fixed width, so the first
+        // byte past it is the first byte of the reading itself.
         byte[] mangled = [.. reading.Bytes];
-        mangled[12] ^= 0xFF;
-        bool rejected = false;
+        mangled[Mesh.HeaderLen] ^= 0xFF;
         try
         {
             Mesh.Parse(mangled);
+            Console.WriteLine("a mangled frame was accepted, which should never happen");
         }
-        catch (PamojaException)
+        catch (PamojaException error)
         {
-            rejected = true;
+            Console.WriteLine($"mangled   rejected: {error.Message}");
         }
-        Expect(rejected, "a frame mangled on the air is rejected");
         // ANCHOR_END: example
+
+        // The frame layout is pinned once, in the generated conformance vectors, so a
+        // guide asserts behaviour instead.
+        Expect(received.Payload.SequenceEqual("level=high"u8.ToArray()), "it carries the reading");
+        Expect(first, "the first copy is new");
+        Expect(!again, "a second copy is a duplicate");
+        Expect(forwarded.HopLimit == received.HopLimit - 1, "relaying spends one hop");
+        Expect(onward.Payload.SequenceEqual(received.Payload), "and the payload survives it");
+        Expect(spent is null, "a frame with no hops left is not relayed");
     }
 }

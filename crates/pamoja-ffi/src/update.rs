@@ -461,6 +461,35 @@ pub unsafe extern "C" fn pamoja_delegation_open(
 ///
 /// A handle the caller must settle with [`pamoja_image_verifier_finish`] or
 /// abandon with [`pamoja_image_verifier_free`], or null if the manifest carries
+/// Hashes a complete image, for a publisher filling in a manifest.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success, with the 32-byte SHA-256 written to `out_digest`.
+///
+/// # Safety
+///
+/// `image` must point to at least `image_len` readable bytes, or be null when
+/// `image_len` is 0, and `out_digest` must point to at least 32 writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_image_digest(
+    image: *const u8,
+    image_len: usize,
+    out_digest: *mut u8,
+) -> PamojaStatus {
+    if out_digest.is_null() {
+        set_last_error("out_digest must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let image = match read_bytes(image, image_len) {
+        Ok(image) => image,
+        Err(status) => return status,
+    };
+    let digest = pamoja_update::image_digest(&image);
+    core::ptr::copy_nonoverlapping(digest.as_ptr(), out_digest, digest.len());
+    PamojaStatus::Ok
+}
+
 /// a payload format this build cannot apply.
 #[no_mangle]
 pub extern "C" fn pamoja_image_verifier_new(manifest: PamojaManifest) -> *mut PamojaImageVerifier {

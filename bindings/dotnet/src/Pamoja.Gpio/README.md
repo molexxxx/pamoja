@@ -25,53 +25,41 @@ The guide project's example, spliced here as it ran in CI.
 From [`bindings/dotnet/samples/Pamoja.Guides/GpioGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/GpioGuide.cs):
 
 ```csharp
-// A BME280 answers at 7-bit address 0x76, which is not the byte that goes on the
-// wire: the address shifts up one and the read/write bit fills the low bit.
-Expect(
-    I2c.AddressFrame(0x76).SequenceEqual(new byte[] { 0xEC }),
-    "the write frame carries the address shifted up");
-Expect(
-    I2c.AddressFrame(0x76, read: true).SequenceEqual(new byte[] { 0xED }),
-    "and the read frame sets the low bit");
+// A BME280 answers at the 7-bit address its datasheet gives. That is not the byte
+// that goes on the wire: the address shifts up one and the low bit says whether
+// this transaction reads or writes, which is easiest to get wrong by hand.
+const byte Bme280 = 0x76;
+Console.WriteLine($"write to  0x{I2c.AddressFrame(Bme280)[0]:X2}");
+Console.WriteLine($"read from 0x{I2c.AddressFrame(Bme280, read: true)[0]:X2}");
 
-// UM10204 keeps 0x00..0x07 and 0x78..0x7F for itself, so an address in either
-// range is a wiring mistake rather than a device.
-Expect(!I2c.IsReserved(0x76), "the sensor sits in the usable range");
-Expect(I2c.IsReserved(0x78), "0x78 is the 10-bit prefix, not a device");
+// The I2C specification keeps two ranges of addresses for itself, so a part
+// answering in either is a wiring mistake rather than a device.
+Console.WriteLine(
+    $"0x{Bme280:X2} reserved: {I2c.IsReserved(Bme280)}, "
+    + $"0x{I2c.ReservedFrom:X2} reserved: {I2c.IsReserved(I2c.ReservedFrom)}");
 
-// A 10-bit address spends the reserved 11110 prefix over two bytes: the prefix,
-// the top two address bits, and the read/write bit, then the low eight bits.
-Expect(I2c.FrameLen(0x2A5, tenBit: true) == 2, "a 10-bit address takes two bytes");
-Expect(
-    I2c.AddressFrame(0x2A5, tenBit: true).SequenceEqual(new byte[] { 0xF4, 0xA5 }),
-    "the two bytes the specification works through");
-Expect(
-    I2c.AddressFrame(0x2A5, read: true, tenBit: true)
-        .SequenceEqual(new byte[] { 0xF5, 0xA5 }),
-    "which differ only in the read/write bit");
+// A 10-bit address spends a reserved prefix over two bytes rather than one, so a
+// bus driver sends a different number of bytes depending on the address it holds.
+// This is the worked example UM10204 itself prints.
+const ushort TenBitDevice = 0x2A5;
+Console.WriteLine($"a 10-bit address takes {I2c.FrameLen(TenBitDevice, tenBit: true)} bytes");
 
-// Datasheets quote clock polarity and phase as one mode number, (CPOL << 1) |
-// CPHA, so mode 3 idles the clock high and samples on the trailing edge.
+// Datasheets quote clock polarity and phase as one mode number. Mode 3 idles the
+// clock high and samples on the trailing edge.
 SpiClock clock = Spi.ClockFor(3);
-Expect(clock.Cpol && clock.Cpha, "mode 3 idles high and samples late");
-Expect(Spi.ModeFor(cpol: true, cpha: false) == 2, "that pair is mode 2");
+Console.WriteLine(
+    $"spi mode 3: idles high {clock.Cpol}, samples on the trailing edge {clock.Cpha}");
 
 // A relay board sold as active low energises when its pin is driven low. The
-// polarity carries that inversion so no call site has to remember it.
-PinLevel energised = Pin.LevelFor(PinPolarity.ActiveLow, asserted: true);
-Expect(energised == PinLevel.Low, "an active-low relay switches on at a low level");
-Expect(
-    Pin.IsAsserted(PinPolarity.ActiveLow, energised),
-    "and that level reads back as asserted");
+// polarity carries that inversion, so no call site has to remember it.
+PinLevel energise = Pin.LevelFor(PinPolarity.ActiveLow, true);
+Console.WriteLine($"to energise an active-low relay, drive the pin {energise}");
 
-// Releasing the relay drives the line back high, an edge a falling trigger ignores.
-PinLevel released = Pin.Invert(energised);
-Expect(
-    Pin.Triggers(PinEdge.Rising, energised, released),
-    "releasing it is a low-to-high transition");
-Expect(
-    !Pin.Triggers(PinEdge.Falling, energised, released),
-    "which a falling trigger ignores");
+// Releasing it drives the line back high, an edge a falling trigger ignores.
+bool rising = Pin.Triggers(PinEdge.Rising, PinLevel.Low, PinLevel.High);
+bool falling = Pin.Triggers(PinEdge.Falling, PinLevel.Low, PinLevel.High);
+Console.WriteLine(
+    $"release seen by a rising trigger: {rising}, by a falling trigger: {falling}");
 ```
 
 ## The same capability in every language

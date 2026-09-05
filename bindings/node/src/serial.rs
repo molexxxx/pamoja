@@ -22,6 +22,26 @@ use pamoja_serial::{cobs, slip, SerialError};
 pub const FRAME_MAX: usize = 2048;
 
 /// Frames a payload as a SLIP packet (RFC 1055).
+/// The SLIP byte that ends a frame (RFC 1055).
+#[napi]
+pub const SLIP_END: u8 = slip::END;
+
+/// The SLIP byte that escapes a reserved value inside a frame (RFC 1055).
+#[napi]
+pub const SLIP_ESC: u8 = slip::ESC;
+
+/// The byte that follows SLIP_ESC to stand for a literal end byte.
+#[napi]
+pub const SLIP_ESC_END: u8 = slip::ESC_END;
+
+/// The byte that follows SLIP_ESC to stand for a literal escape byte.
+#[napi]
+pub const SLIP_ESC_ESC: u8 = slip::ESC_ESC;
+
+/// The byte that delimits a COBS frame, which never appears inside one.
+#[napi]
+pub const COBS_DELIMITER: u8 = cobs::DELIMITER;
+
 #[napi]
 pub fn slip_encode(payload: Buffer) -> napi::Result<Buffer> {
     let mut out = vec![0u8; slip::max_encoded_len(payload.len())];

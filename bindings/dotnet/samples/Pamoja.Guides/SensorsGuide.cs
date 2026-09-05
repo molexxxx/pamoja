@@ -12,46 +12,61 @@ public static class SensorsGuide
     public static void Run()
     {
         // ANCHOR: example
-        // Every Maxim 1-Wire part checks itself with CRC-8/MAXIM-DOW, whose published
-        // check value over the ASCII digits 1 to 9 is 0xA1.
-        Expect(Ds18b20.Crc8("123456789"u8) == 0xA1, "the published CRC check value");
+        // Stand-ins for the two parts. On a running node the thermometer's nine bytes
+        // come off the 1-Wire bus and the monitor's registers off I2C; here the library
+        // builds what each would send, so the program runs with nothing plugged in.
+        byte[] thermometer = Ds18b20.BuildScratchpad(25.0625f, 12, 75, -10);
 
-        // A DS18B20 answers a read with nine scratchpad bytes, the ninth that CRC over
-        // the other eight, so a reading is verified before it is believed.
-        byte[] scratchpad = [0x91, 0x01, 0x4B, 0xF6, 0x7F, 0xFF, 0x0C, 0x10, 0x00];
-        scratchpad[8] = Ds18b20.Crc8(scratchpad.AsSpan(0, 8));
-        Ds18b20Reading reading = Ds18b20.ParseScratchpad(scratchpad);
+        // The monitor is set up for 1 mA per count across a 2 milliohm shunt, the load
+        // its datasheet's worked design example describes: 11.98 V, 10 A, and 119.8 W.
+        const uint CurrentLsb = 1_000;
+        ushort bus = Ina219.BusRegister(11_980);
+        short current = Ina219.CurrentRegister(10_000_000, CurrentLsb);
+        ushort power = Ina219.PowerRegister(119_800_000, CurrentLsb);
 
-        // Register 0x0191 is the +25.0625 degree row of the datasheet's temperature
-        // table, each count a sixteenth of a degree, so micro-degrees stay exact.
+        // Everything below is the node's own code. The thermometer checksums every read,
+        // so a reading is verified before it is believed.
+        Ds18b20Reading reading = Ds18b20.ParseScratchpad(thermometer);
+        Console.WriteLine($"temperature  {reading.Celsius:F4} C");
+        Console.WriteLine($"resolution   {reading.ResolutionBits} bits");
+        Console.WriteLine($"alarms       {reading.AlarmHigh} / {reading.AlarmLow} C");
+
+        // The monitor computes nothing until it has been told what shunt it is across.
+        Console.WriteLine($"calibration  0x{Ina219.Calibration(CurrentLsb, 2):X4}");
+        Console.WriteLine($"bus          {Ina219.BusMillivolts(bus)} mV");
+        Console.WriteLine($"current      {Ina219.CurrentMicroamps(current, CurrentLsb) / 1_000} mA");
+        Console.WriteLine($"power        {Ina219.PowerMicrowatts(power, CurrentLsb) / 1_000} mW");
+
+        // A bit flipped on a long 1-Wire run fails the checksum, so the node repeats the
+        // read instead of logging a temperature a couple of degrees off.
+        byte[] corrupted = [.. thermometer];
+        corrupted[0] ^= 1;
+        try
+        {
+            Ds18b20.ParseScratchpad(corrupted);
+            Console.WriteLine("corrupt read accepted, which should never happen");
+        }
+        catch (PamojaException error)
+        {
+            Console.WriteLine($"corrupt read rejected: {error.Message}");
+        }
+        // ANCHOR_END: example
+
         Expect(reading.RawTemperature == 0x0191, "the temperature register reads back");
         Expect(reading.MicroCelsius == 25_062_500, "the datasheet's temperature row");
         Expect(reading.ResolutionBits == 12, "the configuration byte selects 12 bits");
-        Expect(reading.AlarmHigh == 75, "and the scratchpad carries its alarm threshold");
+        Expect(reading.AlarmHigh == 75, "the scratchpad carries its high threshold");
+        Expect(reading.AlarmLow == -10, "and its low one");
 
-        // A bit flipped on a long 1-Wire run fails the CRC instead of arriving as a
-        // plausible temperature a few degrees off.
-        byte[] corrupt = [.. scratchpad];
-        corrupt[0] ^= 0x01;
-        bool rejected = false;
-        try
-        {
-            Ds18b20.ParseScratchpad(corrupt);
-        }
-        catch (PamojaException)
-        {
-            rejected = true;
-        }
-        Expect(rejected, "a scratchpad corrupted on the bus is rejected");
+        // The datasheet's own figures for that design: calibration 0x5000, and registers
+        // that read back 11.98 V, 10 A, and 119.8 W.
+        Expect(Ina219.Calibration(CurrentLsb, 2) == 0x5000, "the datasheet's calibration");
+        Expect(Ina219.BusMillivolts(bus) == 11_980, "11.98 V across the load");
+        Expect(Ina219.CurrentMicroamps(current, CurrentLsb) == 10_000_000, "10 A through it");
+        Expect(Ina219.PowerMicrowatts(power, CurrentLsb) == 119_800_000, "and 119.8 W");
 
-        // The INA219 datasheet's worked design example: 1 mA per count across a 2
-        // milliohm shunt calibrates to 0x5000, and its registers then read 11.98 V,
-        // 10 A, and 119.8 W.
-        const uint currentLsb = 1_000;
-        Expect(Ina219.Calibration(currentLsb, 2) == 0x5000, "the calibration register");
-        Expect(Ina219.BusMillivolts(0x5D98) == 11_980, "the bus sits at 11.98 V");
-        Expect(Ina219.CurrentMicroamps(0x2710, currentLsb) == 10_000_000, "10 A in the shunt");
-        Expect(Ina219.PowerMicrowatts(0x1766, currentLsb) == 119_800_000, "drawing 119.8 W");
-        // ANCHOR_END: example
+        // The published check value for CRC-8/MAXIM-DOW, the checksum every 1-Wire part
+        // appends to what it sends.
+        Expect(Ds18b20.Crc8("123456789"u8) == 0xA1, "the published CRC check value");
     }
 }

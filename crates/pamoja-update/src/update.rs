@@ -32,6 +32,25 @@ pub enum Boot {
     },
 }
 
+impl Boot {
+    /// Returns the name of the decision, without the slots it names.
+    ///
+    /// The bindings carry a boot decision as an action and its slots, so this is the same
+    /// word in every language, which is what lets one boot be logged the same way
+    /// wherever a device's code is written.
+    ///
+    /// # Returns
+    ///
+    /// One of `"Confirmed"`, `"Trying"`, or `"Reverted"`.
+    pub fn action(self) -> &'static str {
+        match self {
+            Boot::Confirmed(_) => "Confirmed",
+            Boot::Trying(_) => "Trying",
+            Boot::Reverted { .. } => "Reverted",
+        }
+    }
+}
+
 /// Who this device is, and who it trusts to update it.
 #[derive(Clone, Copy, Debug)]
 pub struct Device {

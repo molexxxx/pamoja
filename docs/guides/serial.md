@@ -10,21 +10,31 @@ microcontroller hanging off the bus.
 
 ## What the example does
 
-It frames a payload with SLIP and checks it against the escape pairs RFC 1055
-fixes, frames a second payload with COBS and checks it against the worked example
-in the COBS paper, then feeds a decoder one chunk holding two frames with a
-truncated one between them.
+It frames a payload with SLIP and decodes it back, frames a second payload with
+COBS, then runs one read's worth of bytes through the streaming decoder: a chunk
+holding two whole frames with a truncated one between them.
+
+Each payload carries the byte that would otherwise end a frame, which is the
+case a framing has to get right. The reserved values are named rather than
+typed, since the package exports the SLIP end and escape bytes and the COBS
+delimiter, so a payload built to hold them says so. The Rust frame buffers are
+sized by `max_encoded_len` rather than by a guessed constant. The exact frames
+RFC 1055 and the COBS paper fix are pinned in the serial crate's own tests, so
+the example checks the round trip and the framing cost instead of repeating
+them.
 
 It proves:
 
-- A payload carrying the delimiter or the escape byte is stuffed exactly as
-  RFC 1055 specifies, so an implementation that is wrong but self-consistent
-  still fails.
-- COBS encodes `11 22 00 33` as `03 11 22 02 33 00`, the run-length codes the
-  specification works through.
-- Both framings give the original payload back.
-- The streaming decoder splits a chunk into whole frames, drops the truncated one
-  rather than the chunk around it, and counts what it dropped.
+- A payload carrying the end byte or the escape byte is stuffed rather than taken
+  for a frame boundary, and it decodes back byte for byte with both values still
+  in it.
+- Both framings cost bytes: each frame comes out longer than the payload that
+  went into it.
+- A frame that ends inside an escape pair is discarded on its own, and the whole
+  frames before and after it come out of the same chunk intact.
+- The dropped frame is counted, and the count stays at one for the rest of the
+  chunk rather than climbing as the good bytes after it arrive, so a read loop
+  can measure how noisy a link is.
 
 ## Rust
 
@@ -34,37 +44,58 @@ From [`examples/tests/guides/serial.rs`](https://github.com/molexxxx/pamoja/blob
 ```rust
 use pamoja_serial::{cobs, slip};
 
-// SLIP reserves two byte values, 0xC0 to end a frame and 0xDB to escape, so a payload
-// carrying either goes out as the two-byte pair RFC 1055 fixes for it.
-let payload = [0x01, 0xC0, 0xDB, 0x02];
-let mut frame = [0u8; slip::max_encoded_len(4)];
-let n = slip::encode(&payload, &mut frame).expect("room for the frame");
-assert_eq!(&frame[..n], &[0x01, 0xDB, 0xDC, 0xDB, 0xDD, 0x02, 0xC0]);
-let mut restored = [0u8; 4];
-let m = slip::decode(&frame[..n], &mut restored).expect("a well-formed frame");
-assert_eq!(&restored[..m], &payload);
+// A UART carries bytes, not packets, so a framing has to mark where one packet ends.
+// SLIP reserves two byte values for that, and the crate names both: END closes a
+// frame, ESC carries a byte that would otherwise look like one. The hard case is a
+// payload that already contains them, so this one does.
+let mut payload = b"lvl=".to_vec();
+payload.push(slip::END);
+payload.push(slip::ESC);
+let mut framed = [0u8; slip::max_encoded_len(8)];
+let n = slip::encode(&payload, &mut framed).expect("room for the frame");
+println!("slip      {} payload bytes framed as {n}", payload.len());
+
+// Decoding gives the payload back unchanged, reserved bytes and all.
+let mut restored = [0u8; 8];
+let m = slip::decode(&framed[..n], &mut restored).expect("a well-formed frame");
+println!("slip      decoded back to {m} bytes");
 
 // COBS trades that escaping for one code byte per run of up to 254 non-zero bytes,
-// each run led by its own length. This is the worked example from the COBS paper.
-let packet = [0x11, 0x22, 0x00, 0x33];
-let mut framed = [0u8; cobs::max_encoded_len(4)];
-let n = cobs::encode(&packet, &mut framed).expect("room for the frame");
-assert_eq!(&framed[..n], &[0x03, 0x11, 0x22, 0x02, 0x33, 0x00]);
+// each run led by its own length, so a frame never grows by more than a byte per 254.
+// Zero is the delimiter, and COBS is what takes it out of the data.
+let mut packet = b"lvl=".to_vec();
+packet.push(cobs::DELIMITER);
+packet.extend_from_slice(b"7");
+let mut cobs_framed = [0u8; cobs::max_encoded_len(8)];
+let framed_len = cobs::encode(&packet, &mut cobs_framed).expect("room for the frame");
+let packet_len = packet.len();
+println!("cobs      {packet_len} payload bytes framed as {framed_len}");
 
-// A serial read returns an arbitrary chunk rather than a packet. This one holds two
-// frames with a truncated one between them, and the decoder drops only the bad frame.
+// A serial read returns whatever arrived, which is rarely one whole frame. This chunk
+// holds two good frames with a truncated one between them; the decoder hands over the
+// good ones and discards only the bad frame.
+let mut chunk = Vec::new();
+chunk.extend_from_slice(b"ok");
+chunk.push(slip::END);
+chunk.push(slip::ESC); // a frame that ends before its escape pair completes
+chunk.push(slip::END);
+chunk.extend_from_slice(b"go");
+chunk.push(slip::END);
+
 let mut decoder: slip::SlipDecoder<16> = slip::SlipDecoder::new();
 let mut frames: Vec<Vec<u8>> = Vec::new();
 let mut discarded = 0;
-for &byte in &[b'o', b'k', 0xC0, 0xDB, 0xC0, b'g', b'o', 0xC0] {
+for &byte in &chunk {
     match decoder.push(byte) {
         Ok(Some(complete)) => frames.push(complete.to_vec()),
         Ok(None) => {}
         Err(_) => discarded += 1,
     }
 }
-assert_eq!(frames, [b"ok".to_vec(), b"go".to_vec()]);
-assert_eq!(discarded, 1);
+for frame in &frames {
+    println!("received  {}", String::from_utf8_lossy(frame));
+}
+println!("discarded {discarded} frame the stream mangled");
 ```
 <!-- end -->
 
@@ -74,30 +105,50 @@ assert_eq!(discarded, 1);
 From [`bindings/node/guides/serial.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/serial.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
+import {
+  COBS_DELIMITER_BYTE,
+  SLIP_END_BYTE,
+  SLIP_ESC_BYTE,
+  SlipDecoder,
+  cobs,
+  slip,
+} from '@pamoja/serial'
 
-import { SlipDecoder, cobs, slip } from '@pamoja/serial'
+// A UART carries bytes, not packets, so a framing has to mark where one packet ends.
+// SLIP reserves two byte values for that, and the package names both: the end byte closes
+// a frame, the escape byte carries a value that would otherwise look like one.
+const payload = Buffer.concat([Buffer.from('lvl='), Buffer.from([SLIP_END_BYTE, SLIP_ESC_BYTE])])
+const framed = slip.encode(payload)
+console.log(`slip      ${payload.length} payload bytes framed as ${framed.length}`)
 
-// SLIP reserves two byte values, 0xC0 to end a frame and 0xDB to escape, so a payload
-// carrying either goes out as the two-byte pair RFC 1055 fixes for it.
-const payload = Buffer.from([0x01, 0xc0, 0xdb, 0x02])
-const frame = slip.encode(payload)
-assert.deepEqual([...frame], [0x01, 0xdb, 0xdc, 0xdb, 0xdd, 0x02, 0xc0])
-assert.deepEqual(slip.decode(frame), payload)
+// Decoding gives the payload back unchanged, reserved bytes and all.
+const restored = slip.decode(framed)
+console.log(`slip      decoded back to ${restored.length} bytes`)
 
 // COBS trades that escaping for one code byte per run of up to 254 non-zero bytes, each
-// run led by its own length. This is the worked example from the COBS paper.
-const packet = Buffer.from([0x11, 0x22, 0x00, 0x33])
-const framed = cobs.encode(packet)
-assert.deepEqual([...framed], [0x03, 0x11, 0x22, 0x02, 0x33, 0x00])
-assert.deepEqual(cobs.decode(framed), packet)
+// run led by its own length, so a frame never grows by more than a byte per 254. Zero is
+// the delimiter, and never appears inside a frame.
+const packet = Buffer.concat([Buffer.from('lvl='), Buffer.from([COBS_DELIMITER_BYTE]), Buffer.from('7')])
+const cobsFramed = cobs.encode(packet)
+console.log(`cobs      ${packet.length} payload bytes framed as ${cobsFramed.length}`)
 
-// A serial read returns an arbitrary chunk rather than a packet. This one holds two
-// frames with a truncated one between them, and the decoder drops only the bad frame.
+// A read from a port returns whatever arrived, which is rarely one whole frame. This
+// chunk holds two good frames with a truncated one between them; the decoder hands over
+// the good ones and discards only the bad frame.
 const decoder = new SlipDecoder()
-const frames = decoder.feed(Buffer.from([0x6f, 0x6b, 0xc0, 0xdb, 0xc0, 0x67, 0x6f, 0xc0]))
-assert.deepEqual(frames, [Buffer.from('ok'), Buffer.from('go')])
-assert.equal(decoder.discarded, 1)
+const chunk = Buffer.concat([
+  Buffer.from('ok'),
+  Buffer.from([SLIP_END_BYTE]),
+  Buffer.from([SLIP_ESC_BYTE]), // a frame that ends before its escape pair completes
+  Buffer.from([SLIP_END_BYTE]),
+  Buffer.from('go'),
+  Buffer.from([SLIP_END_BYTE]),
+])
+const frames = decoder.feed(chunk)
+for (const frame of frames) {
+  console.log(`received  ${frame.toString()}`)
+}
+console.log(`discarded ${decoder.discarded} frame the stream mangled`)
 ```
 <!-- end -->
 
@@ -107,28 +158,42 @@ assert.equal(decoder.discarded, 1)
 From [`bindings/python/guides/serial.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/serial.py):
 
 ```python
-from pamoja.serial import SlipDecoder, cobs, slip
+from pamoja.serial import COBS_DELIMITER, SLIP_END, SLIP_ESC, SlipDecoder, cobs, slip
 
-# SLIP reserves two byte values, 0xC0 to end a frame and 0xDB to escape, so a payload
-# carrying either goes out as the two-byte pair RFC 1055 fixes for it.
-payload = bytes([0x01, 0xC0, 0xDB, 0x02])
-frame = slip.encode(payload)
-assert frame == bytes([0x01, 0xDB, 0xDC, 0xDB, 0xDD, 0x02, 0xC0])
-assert slip.decode(frame) == payload
+# A UART carries bytes, not packets, so a framing has to mark where one packet ends. SLIP
+# reserves two byte values for that, and the package names both: the end byte closes a
+# frame, the escape byte carries a value that would otherwise look like one.
+payload = b"lvl=" + bytes([SLIP_END, SLIP_ESC])
+framed = slip.encode(payload)
+print(f"slip      {len(payload)} payload bytes framed as {len(framed)}")
+
+# Decoding gives the payload back unchanged, reserved bytes and all.
+restored = slip.decode(framed)
+print(f"slip      decoded back to {len(restored)} bytes")
 
 # COBS trades that escaping for one code byte per run of up to 254 non-zero bytes, each
-# run led by its own length. This is the worked example from the COBS paper.
-packet = bytes([0x11, 0x22, 0x00, 0x33])
-framed = cobs.encode(packet)
-assert framed == bytes([0x03, 0x11, 0x22, 0x02, 0x33, 0x00])
-assert cobs.decode(framed) == packet
+# run led by its own length, so a frame never grows by more than a byte per 254. Zero is
+# the delimiter, and never appears inside a frame.
+packet = b"lvl=" + bytes([COBS_DELIMITER]) + b"7"
+cobs_framed = cobs.encode(packet)
+print(f"cobs      {len(packet)} payload bytes framed as {len(cobs_framed)}")
 
-# A read from a port returns an arbitrary chunk rather than a packet. This one holds two
-# frames with a truncated one between them, and the decoder drops only the bad frame.
+# A read from a port returns whatever arrived, which is rarely one whole frame. This chunk
+# holds two good frames with a truncated one between them; the decoder hands over the good
+# ones and discards only the bad frame.
 decoder = SlipDecoder()
-frames = decoder.feed(bytes([0x6F, 0x6B, 0xC0, 0xDB, 0xC0, 0x67, 0x6F, 0xC0]))
-assert frames == [b"ok", b"go"]
-assert decoder.discarded == 1
+chunk = (
+    b"ok"
+    + bytes([SLIP_END])
+    + bytes([SLIP_ESC])  # a frame that ends before its escape pair completes
+    + bytes([SLIP_END])
+    + b"go"
+    + bytes([SLIP_END])
+)
+frames = decoder.feed(chunk)
+for frame in frames:
+    print(f"received  {frame.decode()}")
+print(f"discarded {decoder.discarded} frame the stream mangled")
 ```
 <!-- end -->
 
@@ -138,32 +203,45 @@ assert decoder.discarded == 1
 From [`bindings/dotnet/samples/Pamoja.Guides/SerialGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/SerialGuide.cs):
 
 ```csharp
-// SLIP reserves two byte values, 0xC0 to end a frame and 0xDB to escape, so a
-// payload carrying either goes out as the two-byte pair RFC 1055 fixes for it.
-byte[] payload = [0x01, 0xC0, 0xDB, 0x02];
-byte[] frame = Serial.SlipEncode(payload);
-Expect(
-    frame.SequenceEqual(new byte[] { 0x01, 0xDB, 0xDC, 0xDB, 0xDD, 0x02, 0xC0 }),
-    "the frame is the escaping RFC 1055 fixes");
-Expect(Serial.SlipDecode(frame).SequenceEqual(payload), "the payload comes back");
+// A UART carries bytes, not packets, so a framing has to mark where one packet
+// ends. SLIP reserves two byte values for that, and the package names both: the
+// end byte closes a frame, the escape byte carries a value that would otherwise
+// look like one.
+byte[] payload = [.. "lvl="u8, Serial.SlipEnd, Serial.SlipEsc];
+byte[] framed = Serial.SlipEncode(payload);
+Console.WriteLine($"slip      {payload.Length} payload bytes framed as {framed.Length}");
 
-// COBS trades that escaping for one code byte per run of up to 254 non-zero
-// bytes, each run led by its own length. This is the COBS paper's worked example.
-byte[] packet = [0x11, 0x22, 0x00, 0x33];
-byte[] framed = Serial.CobsEncode(packet);
-Expect(
-    framed.SequenceEqual(new byte[] { 0x03, 0x11, 0x22, 0x02, 0x33, 0x00 }),
-    "the frame is the one the COBS paper works through");
-Expect(Serial.CobsDecode(framed).SequenceEqual(packet), "the packet comes back");
+// Decoding gives the payload back unchanged, reserved bytes and all.
+byte[] restored = Serial.SlipDecode(framed);
+Console.WriteLine($"slip      decoded back to {restored.Length} bytes");
 
-// A serial read returns an arbitrary chunk rather than a packet. This one holds
-// two frames with a truncated one between them, and only the bad frame is dropped.
+// COBS trades that escaping for one code byte per run of up to 254 non-zero bytes,
+// each run led by its own length, so a frame never grows by more than a byte per
+// 254. Zero is the delimiter, and never appears inside a frame.
+byte[] packet = [.. "lvl="u8, Serial.CobsDelimiter, .. "7"u8];
+byte[] cobsFramed = Serial.CobsEncode(packet);
+Console.WriteLine($"cobs      {packet.Length} payload bytes framed as {cobsFramed.Length}");
+
+// A read from a port returns whatever arrived, which is rarely one whole frame.
+// This chunk holds two good frames with a truncated one between them; the decoder
+// hands over the good ones and discards only the bad frame.
 using SlipDecoder decoder = new();
-byte[][] frames = decoder.Feed([0x6F, 0x6B, 0xC0, 0xDB, 0xC0, 0x67, 0x6F, 0xC0]);
-Expect(frames.Length == 2, "the frames either side of the bad one survive");
-Expect(frames[0].SequenceEqual("ok"u8.ToArray()), "the first frame reassembles");
-Expect(frames[1].SequenceEqual("go"u8.ToArray()), "the second frame reassembles");
-Expect(decoder.Discarded == 1, "the truncated frame is counted, not raised");
+byte[] chunk =
+[
+    .. "ok"u8,
+    Serial.SlipEnd,
+    Serial.SlipEsc, // a frame that ends before its escape pair completes
+    Serial.SlipEnd,
+    .. "go"u8,
+    Serial.SlipEnd,
+];
+IReadOnlyList<byte[]> frames = decoder.Feed(chunk);
+foreach (byte[] frame in frames)
+{
+    Console.WriteLine($"received  {System.Text.Encoding.UTF8.GetString(frame)}");
+}
+
+Console.WriteLine($"discarded {decoder.Discarded} frame the stream mangled");
 ```
 <!-- end -->
 

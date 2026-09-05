@@ -14,6 +14,21 @@ namespace Pamoja.Serial;
 /// </remarks>
 public static class Serial
 {
+    /// <summary>The SLIP byte that ends a frame (RFC 1055).</summary>
+    public const byte SlipEnd = 0xC0;
+
+    /// <summary>The SLIP byte that escapes a reserved value inside a frame (RFC 1055).</summary>
+    public const byte SlipEsc = 0xDB;
+
+    /// <summary>The byte that follows an escape to stand for a literal end byte.</summary>
+    public const byte SlipEscEnd = 0xDC;
+
+    /// <summary>The byte that follows an escape to stand for a literal escape byte.</summary>
+    public const byte SlipEscEsc = 0xDD;
+
+    /// <summary>The byte that delimits a COBS frame, which never appears inside one.</summary>
+    public const byte CobsDelimiter = 0x00;
+
     /// <summary>Frames a payload as a SLIP packet (RFC 1055).</summary>
     /// <param name="payload">The bytes to send.</param>
     /// <returns>The frame, delimiter included.</returns>

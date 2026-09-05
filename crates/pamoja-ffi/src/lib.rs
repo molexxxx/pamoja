@@ -258,6 +258,7 @@ pub(crate) unsafe fn read_bytes(ptr: *const u8, len: usize) -> Result<Vec<u8>, P
     feature = "lorawan",
     feature = "modbus",
     feature = "ros2",
+    feature = "security",
     feature = "serial",
     feature = "sync",
     feature = "update"
@@ -273,6 +274,7 @@ pub struct PamojaBuffer {
     feature = "lorawan",
     feature = "modbus",
     feature = "ros2",
+    feature = "security",
     feature = "serial",
     feature = "sync",
     feature = "update"
@@ -311,6 +313,7 @@ impl PamojaBuffer {
     feature = "lorawan",
     feature = "modbus",
     feature = "ros2",
+    feature = "security",
     feature = "serial",
     feature = "sync",
     feature = "update"
@@ -339,6 +342,7 @@ pub unsafe extern "C" fn pamoja_buffer_data(buffer: *const PamojaBuffer) -> *con
     feature = "lorawan",
     feature = "modbus",
     feature = "ros2",
+    feature = "security",
     feature = "serial",
     feature = "sync",
     feature = "update"
@@ -366,6 +370,7 @@ pub unsafe extern "C" fn pamoja_buffer_len(buffer: *const PamojaBuffer) -> usize
     feature = "lorawan",
     feature = "modbus",
     feature = "ros2",
+    feature = "security",
     feature = "serial",
     feature = "sync",
     feature = "update"

@@ -43,6 +43,29 @@ public static partial class NativeMethods
         nuint payloadLen,
         Span<byte> outSignature);
 
+    /// <summary>Signs a payload, returning the signature followed by the payload.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_device_identity_sign_message(
+        IntPtr identity,
+        ReadOnlySpan<byte> payload,
+        nuint payloadLen,
+        out IntPtr outBuffer);
+
+    /// <summary>Verifies a signed message, returning the payload it carries.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_public_identity_verify_message(
+        ReadOnlySpan<byte> publicKey,
+        ReadOnlySpan<byte> message,
+        nuint messageLen,
+        out IntPtr outBuffer);
+
+    /// <summary>Reads the counts back out of a channel's four register bytes.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_pwm_counts(
+        PamojaPwm pwm,
+        out ushort outOn,
+        out ushort outOff);
+
     /// <summary>Releases a device identity handle. Passing null is a no-op.</summary>
     [LibraryImport(Library)]
     public static partial void pamoja_device_identity_free(IntPtr identity);

@@ -20,19 +20,31 @@ It reads a tank level off a 4-20 mA current loop. A two-point calibration conver
 the loop current into a percentage, a median window discards a momentary dropout,
 and a hysteresis controller decides whether the refill pump runs.
 
+The calibration is built from the two ends of the loop, 4 mA empty and 20 mA
+full, rather than from a slope and an offset worked out by hand, so a reader
+sees the currents the loop is specified by. The first level the pump sees is
+not typed in either; it is the filtered, calibrated reading carried down from
+the stage above. The three that follow are typed in, to walk the controller
+below the deadband, back inside it, and out the top.
+
 It proves:
 
-- 12 mA is exactly half of the 4-20 mA span, and 4 mA is empty rather than an
-  absent signal, so a calibration that is wrong but self-consistent still fails.
-- 0 mA maps to -25 on that scale, which is what makes a broken loop distinguishable
-  from an empty tank.
-- One dropout among five samples does not move the filtered reading at all.
-- The controller holds its state inside the deadband instead of switching on every
-  sample that crosses the setpoint.
+- 12 mA reads 50% and 4 mA reads 0%, because the span starts at 4 mA and not at
+  zero; a map scaled from zero would put mid-scale at 60% and still be
+  self-consistent.
+- 0 mA reads -25%, off the bottom of the scale, which is what separates a broken
+  loop from an empty tank.
+- One dropout among five samples leaves the filtered level at 50%, where a mean
+  over the same window would be dragged down by it.
+- At the setpoint the pump stays off, and it starts only once the level falls below
+  the deadband.
+- Once running it keeps running at a level back inside the deadband, and stops only
+  above the top of it.
 
 The windowed helpers keep the most recent readings and nothing older. In Rust the
 window length is a const generic chosen at the call site; the bindings fix it at 32
-readings, so the same five samples give the same median in all four languages.
+readings. Five readings fit in either window, so the same samples give the same
+median in all four languages.
 
 ## Rust
 
@@ -45,28 +57,31 @@ use pamoja_kit::{Calibration, Median, Thermostat};
 // A 4-20 mA process loop carries the level as a current: 4 mA is empty and 20 mA is
 // full, so the span is 16 mA and mid-scale is 12 mA, not 10.
 let level = Calibration::two_point(4.0, 0.0, 20.0, 100.0);
-assert_eq!(level.apply(12.0), 50.0);
-assert_eq!(level.apply(4.0), 0.0);
+let (mid, empty) = (level.apply(12.0), level.apply(4.0));
+println!("12 mA is {mid}% full, 4 mA is {empty}%");
 
 // The live zero is what makes a broken loop detectable: 0 mA is off the bottom of the
-// scale rather than an empty tank. A median window drops that sample outright, where
-// an average would blend a quarter of the range into every reading after it.
-assert_eq!(level.apply(0.0), -25.0);
+// scale rather than an empty tank.
+let broken = level.apply(0.0);
+println!("a dead loop reads {broken}%, which is not a level at all");
+
+// A median window drops that sample outright, where an average would blend a quarter
+// of the range into every reading after it.
 let mut filtered = Median::<5>::new();
 let mut percent = 0.0;
 for milliamps in [12.0, 12.0, 0.0, 12.0, 12.0] {
     percent = level.apply(filtered.update(milliamps));
-    assert_eq!(percent, 50.0);
 }
+println!("through the dropout, the level held at {percent}%");
 
 // A refill pump runs when the level falls below the deadband, which is the direction
 // `heating` names; nothing about it is specific to temperature. The deadband stops a
 // level sitting on the threshold from chattering the contactor.
 let mut pump = Thermostat::heating(50.0, 10.0);
-assert!(!pump.update(percent));
-assert!(pump.update(38.0));
-assert!(pump.update(45.0));
-assert!(!pump.update(62.0));
+for reading in [percent, 38.0, 45.0, 62.0] {
+    let running = if pump.update(reading) { "on" } else { "off" };
+    println!("at {reading}% the pump is {running}");
+}
 ```
 <!-- end -->
 
@@ -76,35 +91,34 @@ assert!(!pump.update(62.0));
 From [`bindings/node/guides/kit.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/kit.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { Calibration, Median, Thermostat } from '@pamoja/kit'
 
-// A 4-20 mA process loop carries the level as a current: 4 mA is empty and 20 mA is
-// full, so the span is 16 mA and mid-scale is 12 mA, not 10.
+// A 4-20 mA process loop carries the level as a current: 4 mA is empty and 20 mA is full,
+// so the span is 16 mA and mid-scale is 12 mA, not 10.
 const level = Calibration.twoPoint(4, 0, 20, 100)
-assert.equal(level.apply(12), 50)
-assert.equal(level.apply(4), 0)
+console.log(`12 mA is ${level.apply(12)}% full, 4 mA is ${level.apply(4)}%`)
 
 // The live zero is what makes a broken loop detectable: 0 mA is off the bottom of the
-// scale rather than an empty tank. A median window drops that sample outright, where an
-// average would blend a quarter of the range into every reading after it.
-assert.equal(level.apply(0), -25)
+// scale rather than an empty tank.
+const broken = level.apply(0)
+console.log(`a dead loop reads ${broken}%, which is not a level at all`)
+
+// A median window drops that sample outright, where an average would blend a quarter of
+// the range into every reading after it.
 const filtered = new Median()
 let percent = 0
 for (const milliamps of [12, 12, 0, 12, 12]) {
   percent = level.apply(filtered.update(milliamps))
-  assert.equal(percent, 50)
 }
+console.log(`through the dropout, the level held at ${percent}%`)
 
 // A refill pump runs when the level falls below the deadband, which is the direction
 // heating names; nothing about it is specific to temperature. The deadband stops a level
 // sitting on the threshold from chattering the contactor.
 const pump = Thermostat.heating(50, 10)
-assert.equal(pump.update(percent), false)
-assert.equal(pump.update(38), true)
-assert.equal(pump.update(45), true)
-assert.equal(pump.update(62), false)
+for (const reading of [percent, 38, 45, 62]) {
+  console.log(`at ${reading}% the pump is ${pump.update(reading) ? 'on' : 'off'}`)
+}
 ```
 <!-- end -->
 
@@ -116,30 +130,31 @@ From [`bindings/python/guides/kit.py`](https://github.com/molexxxx/pamoja/blob/m
 ```python
 from pamoja.kit import Calibration, Median, Thermostat
 
-# A 4-20 mA process loop carries the level as a current: 4 mA is empty and 20 mA is
-# full, so the span is 16 mA and mid-scale is 12 mA, not 10.
+# A 4-20 mA process loop carries the level as a current: 4 mA is empty and 20 mA is full,
+# so the span is 16 mA and mid-scale is 12 mA, not 10.
 level = Calibration.two_point(4.0, 0.0, 20.0, 100.0)
-assert level.apply(12.0) == 50.0
-assert level.apply(4.0) == 0.0
+print(f"12 mA is {level.apply(12.0)}% full, 4 mA is {level.apply(4.0)}%")
 
 # The live zero is what makes a broken loop detectable: 0 mA is off the bottom of the
-# scale rather than an empty tank. A median window drops that sample outright, where an
-# average would blend a quarter of the range into every reading after it.
-assert level.apply(0.0) == -25.0
+# scale rather than an empty tank.
+broken = level.apply(0.0)
+print(f"a dead loop reads {broken}%, which is not a level at all")
+
+# A median window drops that sample outright, where an average would blend a quarter of
+# the range into every reading after it.
 filtered = Median()
 percent = 0.0
 for milliamps in (12.0, 12.0, 0.0, 12.0, 12.0):
     percent = level.apply(filtered.update(milliamps))
-    assert percent == 50.0
+print(f"through the dropout, the level held at {percent}%")
 
 # A refill pump runs when the level falls below the deadband, which is the direction
 # heating names; nothing about it is specific to temperature. The deadband stops a level
 # sitting on the threshold from chattering the contactor.
 pump = Thermostat.heating(50.0, 10.0)
-assert pump.update(percent) is False
-assert pump.update(38.0) is True
-assert pump.update(45.0) is True
-assert pump.update(62.0) is False
+for reading in (percent, 38.0, 45.0, 62.0):
+    running = "on" if pump.update(reading) else "off"
+    print(f"at {reading}% the pump is {running}")
 ```
 <!-- end -->
 
@@ -151,31 +166,33 @@ From [`bindings/dotnet/samples/Pamoja.Guides/KitGuide.cs`](https://github.com/mo
 ```csharp
 // A 4-20 mA process loop carries the level as a current: 4 mA is empty and 20 mA
 // is full, so the span is 16 mA and mid-scale is 12 mA, not 10.
-using var level = Calibration.TwoPoint(4.0f, 0.0f, 20.0f, 100.0f);
-Expect(level.Apply(12.0f) == 50.0f, "mid-scale current is half of the span");
-Expect(level.Apply(4.0f) == 0.0f, "the live zero reads empty");
+Calibration level = Calibration.TwoPoint(4.0f, 0.0f, 20.0f, 100.0f);
+Console.WriteLine($"12 mA is {level.Apply(12.0f)}% full, 4 mA is {level.Apply(4.0f)}%");
 
 // The live zero is what makes a broken loop detectable: 0 mA is off the bottom of
-// the scale rather than an empty tank. A median window drops that sample outright,
-// where an average would blend a quarter of the range into every reading after it.
-Expect(level.Apply(0.0f) == -25.0f, "a dead loop reads below the scale");
+// the scale rather than an empty tank.
+float broken = level.Apply(0.0f);
+Console.WriteLine($"a dead loop reads {broken}%, which is not a level at all");
+
+// A median window drops that sample outright, where an average would blend a
+// quarter of the range into every reading after it.
 using var filtered = new Median();
-float[] loop = [12.0f, 12.0f, 0.0f, 12.0f, 12.0f];
 float percent = 0.0f;
-foreach (float milliamps in loop)
+foreach (float milliamps in new[] { 12.0f, 12.0f, 0.0f, 12.0f, 12.0f })
 {
     percent = level.Apply(filtered.Update(milliamps));
-    Expect(percent == 50.0f, "the dropout never reaches the pump");
 }
 
+Console.WriteLine($"through the dropout, the level held at {percent}%");
+
 // A refill pump runs when the level falls below the deadband, which is the
-// direction Heating names; nothing about it is specific to temperature. The
+// direction heating names; nothing about it is specific to temperature. The
 // deadband stops a level sitting on the threshold from chattering the contactor.
 using var pump = Thermostat.Heating(50.0f, 10.0f);
-Expect(!pump.Update(percent), "a half-full tank leaves the pump off");
-Expect(pump.Update(38.0f), "below the deadband the pump runs");
-Expect(pump.Update(45.0f), "inside the deadband it holds its state");
-Expect(!pump.Update(62.0f), "above the deadband it stops");
+foreach (float reading in new[] { percent, 38.0f, 45.0f, 62.0f })
+{
+    Console.WriteLine($"at {reading}% the pump is {(pump.Update(reading) ? "on" : "off")}");
+}
 ```
 <!-- end -->
 

@@ -13,7 +13,10 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::ptr;
 
-use pamoja_can::{dlc_to_len, len_to_dlc, CanError, CanId, Frame, J1939Id};
+use pamoja_can::{
+    dlc_to_len, len_to_dlc, priority, CanError, CanId, Frame, J1939Id, Signals, BROADCAST_ADDRESS,
+    NOT_AVAILABLE,
+};
 
 use crate::{read_bytes, set_last_error, PamojaStatus};
 
@@ -46,6 +49,41 @@ pub struct PamojaJ1939Id {
     /// `1` for an addressed (PDU1) message, `0` for a broadcast (PDU2) one.
     pub addressed: u8,
 }
+
+/// The eight data bytes of a J1939 frame, addressed by the signals inside them.
+///
+/// A parameter group places each signal at a fixed byte offset, little-endian. The
+/// payload is only bytes, so it crosses the boundary by value, which keeps reading
+/// and writing a signal free of any allocation.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PamojaJ1939Signals {
+    /// The eight data bytes, in wire order.
+    pub bytes: [u8; 8],
+}
+
+/// The byte a J1939 sender writes for a signal it is not reporting.
+pub const PAMOJA_J1939_NOT_AVAILABLE: u8 = 0xFF;
+
+/// The destination address every node on the bus reads.
+pub const PAMOJA_J1939_BROADCAST_ADDRESS: u8 = 0xFF;
+
+/// The priority a control message takes, ahead of ordinary traffic.
+pub const PAMOJA_J1939_PRIORITY_CONTROL: u8 = 3;
+
+/// The priority ordinary traffic takes.
+pub const PAMOJA_J1939_PRIORITY_DEFAULT: u8 = 6;
+
+/// The priority that yields to everything else on the bus.
+pub const PAMOJA_J1939_PRIORITY_LOWEST: u8 = 7;
+
+// The header generator does not read the crates this one depends on, so these
+// carry their value rather than the name of the constant that defines it.
+const _: () = assert!(PAMOJA_J1939_NOT_AVAILABLE == NOT_AVAILABLE);
+const _: () = assert!(PAMOJA_J1939_BROADCAST_ADDRESS == BROADCAST_ADDRESS);
+const _: () = assert!(PAMOJA_J1939_PRIORITY_CONTROL == priority::CONTROL);
+const _: () = assert!(PAMOJA_J1939_PRIORITY_DEFAULT == priority::DEFAULT);
+const _: () = assert!(PAMOJA_J1939_PRIORITY_LOWEST == priority::LOWEST);
 
 /// Builds a classic CAN 2.0 frame.
 ///
@@ -358,6 +396,122 @@ pub extern "C" fn pamoja_can_j1939_compose(
         .raw()
 }
 
+/// Composes the identifier of a J1939 broadcast, which every node on the bus reads.
+///
+/// # Returns
+///
+/// The 29-bit identifier. Most parameter groups are broadcast, so this is the
+/// common case, and it saves a caller knowing the broadcast address.
+#[no_mangle]
+pub extern "C" fn pamoja_can_j1939_broadcast(priority: u8, pgn: u32, source: u8) -> u32 {
+    J1939Id::broadcast(priority, pgn, source).to_id().raw()
+}
+
+/// Builds a J1939 payload with every signal marked not available.
+///
+/// # Returns
+///
+/// Eight bytes of [`PAMOJA_J1939_NOT_AVAILABLE`], ready for a sender to write only
+/// the signals it has.
+#[no_mangle]
+pub extern "C" fn pamoja_can_signals_new() -> PamojaJ1939Signals {
+    PamojaJ1939Signals {
+        bytes: *Signals::new().as_bytes(),
+    }
+}
+
+/// Writes a one-byte signal at the offset its parameter group defines.
+///
+/// # Returns
+///
+/// The payload with the signal written, or unchanged if `at` is past its end.
+#[no_mangle]
+pub extern "C" fn pamoja_can_signals_set_u8(
+    signals: PamojaJ1939Signals,
+    at: usize,
+    value: u8,
+) -> PamojaJ1939Signals {
+    let mut payload = Signals::from_bytes(signals.bytes);
+    payload.set_u8(at, value);
+    PamojaJ1939Signals {
+        bytes: *payload.as_bytes(),
+    }
+}
+
+/// Writes a two-byte little-endian signal at the offset its group defines.
+///
+/// # Returns
+///
+/// The payload with the signal written, or unchanged if the signal would run past
+/// its end.
+#[no_mangle]
+pub extern "C" fn pamoja_can_signals_set_u16(
+    signals: PamojaJ1939Signals,
+    at: usize,
+    value: u16,
+) -> PamojaJ1939Signals {
+    let mut payload = Signals::from_bytes(signals.bytes);
+    payload.set_u16(at, value);
+    PamojaJ1939Signals {
+        bytes: *payload.as_bytes(),
+    }
+}
+
+/// Reads a one-byte signal at the offset its parameter group defines.
+///
+/// # Returns
+///
+/// `true` with `*out_value` set, or `false` if `at` is past the payload.
+///
+/// # Safety
+///
+/// `out_value` must point to a writable `uint8_t`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_can_signals_u8(
+    signals: PamojaJ1939Signals,
+    at: usize,
+    out_value: *mut u8,
+) -> bool {
+    if out_value.is_null() {
+        return false;
+    }
+    match Signals::from_bytes(signals.bytes).u8(at) {
+        Some(value) => {
+            ptr::write(out_value, value);
+            true
+        }
+        None => false,
+    }
+}
+
+/// Reads a two-byte little-endian signal at the offset its group defines.
+///
+/// # Returns
+///
+/// `true` with `*out_value` set, or `false` if the signal would run past the
+/// payload.
+///
+/// # Safety
+///
+/// `out_value` must point to a writable `uint16_t`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_can_signals_u16(
+    signals: PamojaJ1939Signals,
+    at: usize,
+    out_value: *mut u16,
+) -> bool {
+    if out_value.is_null() {
+        return false;
+    }
+    match Signals::from_bytes(signals.bytes).u16(at) {
+        Some(value) => {
+            ptr::write(out_value, value);
+            true
+        }
+        None => false,
+    }
+}
+
 /// Builds a frame with one of the constructors and hands back a handle.
 ///
 /// # Safety
@@ -573,5 +727,46 @@ mod tests {
         for len in [0usize, 8, 12, 16, 20, 24, 32, 48, 64] {
             assert_eq!(pamoja_can_dlc_to_len(pamoja_can_len_to_dlc(len)), len);
         }
+    }
+
+    #[test]
+    fn a_payload_starts_with_every_signal_not_available() {
+        let payload = pamoja_can_signals_new();
+        assert_eq!(payload.bytes, [PAMOJA_J1939_NOT_AVAILABLE; 8]);
+    }
+
+    #[test]
+    fn a_signal_reads_back_from_where_it_was_written() {
+        // Engine speed sits at byte offset three of EEC1, at 0.125 rpm per bit.
+        let payload = pamoja_can_signals_set_u16(pamoja_can_signals_new(), 3, 8_000);
+        let mut speed = 0u16;
+        // Safety: the out-pointer is writable.
+        assert!(unsafe { pamoja_can_signals_u16(payload, 3, &mut speed) });
+        assert_eq!(speed, 8_000);
+
+        let mut untouched = 0u8;
+        // Safety: the out-pointer is writable.
+        assert!(unsafe { pamoja_can_signals_u8(payload, 0, &mut untouched) });
+        assert_eq!(untouched, PAMOJA_J1939_NOT_AVAILABLE);
+    }
+
+    #[test]
+    fn a_signal_past_the_payload_is_refused_rather_than_wrapped() {
+        let payload = pamoja_can_signals_set_u8(pamoja_can_signals_new(), 8, 1);
+        assert_eq!(payload.bytes, [PAMOJA_J1939_NOT_AVAILABLE; 8]);
+
+        let mut value = 0u16;
+        // Safety: the out-pointer is writable.
+        assert!(!unsafe { pamoja_can_signals_u16(payload, 7, &mut value) });
+    }
+
+    #[test]
+    fn a_broadcast_carries_no_destination() {
+        let id = pamoja_can_j1939_broadcast(PAMOJA_J1939_PRIORITY_CONTROL, 61_444, 0);
+        let mut message = blank();
+        // Safety: the out-pointer is writable.
+        assert!(unsafe { pamoja_can_j1939_decode(id, true, &mut message) });
+        assert_eq!(message.priority, PAMOJA_J1939_PRIORITY_CONTROL);
+        assert_eq!(message.addressed, 0);
     }
 }

@@ -42,7 +42,16 @@ released together, so one entry covers all of them.
   only the `no_std` capabilities builds for bare metal.
 - Guide examples that run as tests in all four languages, spliced into the
   documentation from the test files, and the Python facade's doctests now run
-  with its test suite.
+  with its test suite. Each is a program somebody would actually
+  write, end to end, rather than a set of assertions: it builds its own fixtures
+  from the library, prints what it learned, and keeps its checks below the region
+  the page shows. A guide's own wire bytes live in the crate's tests or in the
+  generated conformance vectors, so no page asks a reader to decode a constant.
+- Reading a value the library can produce, wherever it could only produce one:
+  a DS18B20 scratchpad and an INA219 register set can be built as well as
+  decoded, Modbus can build the replies it could already parse, a PCA9685 setting
+  and a J1939 payload can be read back out, and an identity signs and verifies a
+  message without a caller splitting the signature off by hand.
 - `cargo xtask builds` measures what each named feature set of the `pamoja`
   crate compiles, resolved for a fixed target so the counts are the same on
   every machine. The install page carries the table, regenerated and
@@ -60,6 +69,18 @@ released together, so one entry covers all of them.
 
 - `pamoja-ffi` exposes every capability behind a default-on feature and now
   depends on the whole workspace.
+- Verifying an audit chain reports why it failed in every language, not only in
+  Rust. The three bindings collapsed the engine's reason to a bare true or
+  false, so a caller could tell that a log had been altered but not which record
+  broke it or whether the log had instead been shortened. They now raise the
+  reason, the way every other fallible call in them already does.
+- A J1939 payload is a value with named signals rather than eight bytes to
+  slice, in every language: `Signals` starts filled with the byte the standard
+  reserves for a signal a controller is not reporting, the priorities and the
+  broadcast address are named, and a broadcast identifier has its own
+  constructor. The mesh header length and the two I2C address ranges the
+  specification reserves are exported from the bindings as well, since both were
+  known to the engine and to no caller.
 - The Node binding is split into packages the way the crates are. `pamoja` is
   the whole framework in one package; each capability is its own `@pamoja/<name>`
   for installing only what you use; `@pamoja/core` is the engine's surface, the
@@ -86,6 +107,12 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- Two blocks of constants were missing or broken in the generated C header.
+  `cbindgen` does not read the crates `pamoja-ffi` depends on, so a constant
+  defined as another crate's constant was emitted as a bare identifier declared
+  nowhere in the header, and the three PCA9685 values were dropped from it
+  entirely. Each now carries its value with a compile-time assertion tying it to
+  the crate that defines it.
 - The capability tables in the install page and every binding README are grouped
   by chapter, so thirty rows read as a handful of domains.
 - `Pamoja.Core` was two things at once, the engine's surface and the marshalling
@@ -107,9 +134,11 @@ released together, so one entry covers all of them.
   test", so a pull request showed three identical checks, none of which could be
   required and none of which said which binding had failed. Each names its
   language now.
-- Three binding workflows started an MQTT broker that nothing connected to,
-  pulling an image from Docker Hub on every run; one such pull failed and took
-  the build with it. No example needs a broker.
+- The MQTT guide proved only that an unreachable broker is refused, which is the
+  one thing a reader does not need shown. It runs a real round trip now: a
+  gateway subscribes to a wildcard, a node publishes under it, and the reading
+  arrives with its topic. The Rust example starts an in-process broker, and the
+  three binding workflows start one, which `just broker` also starts locally.
 - The gateway pairing code no longer appears in a captured dashboard log (#67).
 - Broken intra-doc links in the rustdoc of nine crates, which docs.rs rendered
   as dead links; `cargo doc` now runs with warnings denied.

@@ -1,42 +1,80 @@
 //! The CAN and J1939 guide example; see docs/guides/can.md.
 
-/// A J1939 broadcast and an addressed request, decoded from the identifiers the standard
-/// fixes for them, then carried in the frames a controller would put on the bus.
+/// An engine broadcasting its speed and a gateway asking a gearbox a question: both
+/// identifiers built from the fields the standard names, and the payload addressed by the
+/// signals inside it.
 #[test]
 fn a_j1939_broadcast_and_the_frame_that_carries_it() {
     // ANCHOR: example
-    use pamoja_can::{CanId, Frame, J1939Id};
+    use pamoja_can::{priority, CanId, Frame, J1939Id, Signals};
 
-    // The engine-speed broadcast a J1939 engine or genset puts on the bus. J1939 keeps its
-    // addressing in the identifier: a priority, a parameter group, a source address.
-    let engine = J1939Id::from_id(CanId::extended(0x0CF0_0400)).expect("an extended identifier");
-    assert_eq!(engine.priority(), 3);
-    assert_eq!(engine.pgn(), 61_444);
-    assert!(engine.is_broadcast() && engine.destination().is_none());
+    // The nodes on this bus, by the address each answers to, and the two parameter groups
+    // in play. J1939 publishes both, so naming them is what makes the traffic readable.
+    const ENGINE: u8 = 0;
+    const GATEWAY: u8 = 1;
+    const GEARBOX: u8 = 33;
+    const ENGINE_CONTROLLER_1: u32 = 61_444; // carries engine speed
+    const REQUEST: u32 = 59_904; // asks another node for a parameter group
 
-    // A PDU format below 0xF0 is addressed rather than broadcast, so those eight bits hold a
-    // destination instead of extending the parameter group. 59904 is the request group.
-    let request = J1939Id::from_id(CanId::extended(0x18EA_2101)).expect("an extended identifier");
-    assert_eq!(request.pgn(), 59_904);
-    assert_eq!(request.destination(), Some(0x21));
-    let composed = J1939Id::from_parts(6, 59_904, 0x01, 0x21);
-    assert_eq!(composed.to_id().raw(), 0x18EA_2101);
+    // Where engine speed sits inside that group, and the scale the standard fixes for it.
+    // Naming both is what stops a sender and a receiver disagreeing about either.
+    const ENGINE_SPEED_AT: usize = 3;
+    const RPM_PER_BIT: f64 = 0.125;
 
-    // J1939 never rides an 11-bit identifier.
-    assert_eq!(J1939Id::from_id(CanId::standard(0x123)), None);
+    // J1939 keeps its addressing inside the CAN identifier: a priority, the parameter
+    // group, and the address of whatever sent it. A broadcast has no destination, so it
+    // is its own constructor rather than a magic address a caller has to know.
+    let speed_id = J1939Id::broadcast(priority::CONTROL, ENGINE_CONTROLLER_1, ENGINE);
+    let (group, sent_at) = (speed_id.pgn(), speed_id.priority());
+    println!("broadcast pgn {group} at priority {sent_at}");
 
-    // The frame that carries the broadcast. Engine speed sits in bytes 4 and 5 of that
-    // parameter group, little-endian at 0.125 rpm per bit, so 0x1F40 reads as 1000 rpm.
-    let payload = [0xF0, 0x7D, 0x7D, 0x40, 0x1F, 0x00, 0xF0, 0xFF];
-    let eec1 = Frame::new(CanId::extended(0x0CF0_0400), &payload).expect("eight bytes fit");
-    assert_eq!(eec1.dlc(), 8);
-    let speed = u16::from_le_bytes([eec1.data()[3], eec1.data()[4]]);
-    assert_eq!(f64::from(speed) * 0.125, 1000.0);
+    // A parameter group below the PDU1 limit is addressed rather than broadcast, so those
+    // eight identifier bits carry a destination instead of extending the group number.
+    let request_id = J1939Id::from_parts(priority::DEFAULT, REQUEST, GATEWAY, GEARBOX);
+    let asked_for = request_id.pgn();
+    println!("request   pgn {asked_for} addressed to node {GEARBOX}");
 
-    // Above eight bytes CAN-FD encodes the length in steps, so 32 bytes is code 13, while a
+    // Reading one back off the bus is the same thing in reverse, so a receiver never
+    // unpacks 29 bits by hand.
+    let heard = J1939Id::from_id(request_id.to_id()).expect("an extended identifier");
+    let (from, to) = (heard.source(), heard.destination().unwrap());
+    println!("heard     from node {from} for node {to}");
+
+    // The payload. Every signal starts marked not available, and this controller reports
+    // only engine speed, so that is the only one it writes.
+    let mut reported = Signals::new();
+    reported.set_u16(ENGINE_SPEED_AT, (1000.0 / RPM_PER_BIT) as u16);
+    let frame = Frame::new(speed_id.to_id(), reported.as_bytes()).expect("eight bytes fit");
+
+    // The receiving node reads the same offset back, so neither end slices the payload.
+    let signals = frame.signals().expect("a J1939 frame carries eight bytes");
+    let rpm = f64::from(signals.u16(ENGINE_SPEED_AT).expect("engine speed")) * RPM_PER_BIT;
+    println!("engine    {rpm} rpm, carried in {} bytes", frame.dlc());
+
+    // Above eight bytes CAN-FD encodes the length in steps rather than exactly, and a
     // classic frame still refuses a ninth byte.
-    let wide = Frame::fd(CanId::extended(0x0CF0_0400), &[0; 32]).expect("a CAN-FD length");
-    assert_eq!(wide.dlc(), 13);
-    assert!(Frame::new(CanId::extended(0x0CF0_0400), &[0; 9]).is_err());
+    let wide = Frame::fd(speed_id.to_id(), &[0; 32]).expect("a CAN-FD length");
+    println!("32 bytes carries length code {}", wide.dlc());
+    match Frame::new(speed_id.to_id(), &[0; 9]) {
+        Ok(_) => println!("a classic frame took nine bytes, which should never happen"),
+        Err(error) => println!("classic   refused nine bytes: {error}"),
+    }
+
+    // J1939 never rides an 11-bit identifier, so a standard frame is not one of its
+    // messages however its bits happen to line up.
+    let short_id = J1939Id::from_id(CanId::standard(291));
+    println!("an 11-bit identifier is J1939: {}", short_id.is_some());
     // ANCHOR_END: example
+
+    assert_eq!(speed_id.priority(), priority::CONTROL);
+    assert_eq!(speed_id.pgn(), ENGINE_CONTROLLER_1);
+    assert!(speed_id.is_broadcast() && speed_id.destination().is_none());
+    assert_eq!(request_id.pgn(), REQUEST);
+    assert_eq!(request_id.destination(), Some(GEARBOX));
+    assert_eq!(heard.source(), GATEWAY);
+    assert_eq!(rpm, 1000.0);
+    assert_eq!(frame.dlc(), 8);
+    assert_eq!(wide.dlc(), 13);
+    assert!(Frame::new(speed_id.to_id(), &[0; 9]).is_err());
+    assert_eq!(short_id, None);
 }

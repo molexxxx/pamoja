@@ -3,31 +3,40 @@
 # ANCHOR: example
 from pamoja.security import DeviceIdentity, fingerprint, verify
 
-# The seed is provisioned into the device and never leaves it. This one is RFC 8032 test
-# vector 2, so the key it derives and the signature below are published constants rather
-# than values checked against themselves.
-device = DeviceIdentity.from_seed(
-    bytes.fromhex("4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb")
-)
-assert device.sign(bytes([0x72])) == bytes.fromhex(
-    "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da"
-    "085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00"
-)
+# The seed is provisioned into the device once and never leaves it. A real one comes from
+# the factory or a secure element; any 32 bytes stand in here.
+device = DeviceIdentity.from_seed(bytes([7]) * 32)
 
-# Only the 32-byte public key travels to the gateway.
+# Only the 32-byte public key travels to the gateway. Its fingerprint is the short form an
+# operator reads off a screen to tell one device from another.
 gateway_key = device.public_key
-assert fingerprint(gateway_key) == "3d4017c3e843895a"
+print(f"device     {fingerprint(gateway_key)}")
 
-# Signing is deterministic, so the same reading always yields the same 64 bytes; there is
-# no randomness to get wrong on a microcontroller.
+# Signing is deterministic, so the same reading always produces the same 64 bytes and there
+# is no randomness to get wrong on a microcontroller.
 reading = "meter-4 1182.750 kWh"
 signature = device.sign(reading)
+if verify(gateway_key, reading, signature):
+    print(f"accepted   {reading}")
+else:
+    print("rejected   a reading the device really did sign, which should never happen")
+
+# A digit changed in transit no longer matches what was signed.
+edited = "meter-4 1082.750 kWh"
+if verify(gateway_key, edited, signature):
+    print("accepted   an edited reading, which should never happen")
+else:
+    print(f"rejected   {edited}")
+
+# Nor does the same reading offered under another device's key.
+impostor = DeviceIdentity.from_seed(bytes([90]) * 32)
+if verify(impostor.public_key, reading, signature):
+    print("accepted   an impostor, which should never happen")
+else:
+    print("rejected   a signature offered under another device's key")
+# ANCHOR_END: example
+
 assert device.sign(reading) == signature
 assert verify(gateway_key, reading, signature) is True
-
-# A digit changed in transit fails, and so does a signature offered under another device's
-# key.
-assert verify(gateway_key, "meter-4 1082.750 kWh", signature) is False
-impostor = DeviceIdentity.from_seed(bytes([0x5A]) * 32)
+assert verify(gateway_key, edited, signature) is False
 assert verify(impostor.public_key, reading, signature) is False
-# ANCHOR_END: example

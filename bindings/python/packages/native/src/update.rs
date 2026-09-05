@@ -10,6 +10,7 @@
 //! right.
 
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 
 use pamoja_update::{
@@ -208,6 +209,13 @@ pub fn decode_manifest(data: Vec<u8>) -> PyResult<Manifest> {
     CoreManifest::decode(&data)
         .map(|manifest| py_manifest(&manifest))
         .map_err(refusal)
+}
+
+/// Hashes a complete image, for a publisher filling in a manifest.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn image_digest<'py>(py: Python<'py>, image: Vec<u8>) -> Bound<'py, PyBytes> {
+    PyBytes::new(py, &pamoja_update::image_digest(&image))
 }
 
 /// Signs a manifest into the envelope that is offered to a device.

@@ -303,12 +303,13 @@ def test_a_signed_chain_records_what_a_node_did():
     assert opened.index == 0
     assert shut.previous == opened.digest
     assert opened.payload == b"valve=open"
-    assert audit.verify_chain(keeper.public_key, [opened, shut])
+    audit.verify_chain(keeper.public_key, [opened, shut])
 
     edited = bytearray(shut.to_bytes())
     edited[-1] ^= 0xFF
     tampered = audit.AuditEntry.from_bytes(bytes(edited))
-    assert not audit.verify_chain(keeper.public_key, [opened, tampered])
+    with pytest.raises(PamojaError):
+        audit.verify_chain(keeper.public_key, [opened, tampered])
 
     resumed = audit.AuditLog.resume(keeper, shut)
     assert resumed.append(b"valve=open").index == 2

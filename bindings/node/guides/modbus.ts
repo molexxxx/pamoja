@@ -1,28 +1,48 @@
 // The Modbus RTU guide example; see docs/guides/modbus.md.
 
-// ANCHOR: example
 import assert from 'node:assert/strict'
 
-import { crc16, parseFrame, readHoldingRegisters } from '@pamoja/modbus'
+// ANCHOR: example
+import { parseFrame, readHoldingRegisters, readHoldingRegistersReply } from '@pamoja/modbus'
 
-// Ask unit 0x11 for three holding registers starting at 0x006B. The last two bytes are
-// the CRC-16/MODBUS, so this is the frame exactly as it goes out on the wire.
-const request = readHoldingRegisters(0x11, 0x006b, 3)
-assert.deepEqual([...request], [0x11, 0x03, 0x00, 0x6b, 0x00, 0x03, 0x76, 0x87])
+// The device this gateway polls: a power meter at unit 17, whose manual says the three
+// registers holding voltage, current and a fault word start at address 107.
+const METER = 17
+const FIRST_REGISTER = 107
 
-// The device answers with three 16-bit registers. A reply carries its own checksum, so
-// the receiver validates the frame before reading any value out of it.
-const body = Buffer.from([0x11, 0x03, 0x06, 0x02, 0x2b, 0x00, 0x00, 0x00, 0x64])
-const checksum = Buffer.alloc(2)
-checksum.writeUInt16LE(crc16(body))
-const reply = parseFrame(Buffer.concat([body, checksum]))
-assert.equal(reply.address, 0x11)
-assert.equal(reply.exception, null)
-assert.deepEqual(reply.registers(), [0x022b, 0x0000, 0x0064])
+// Ask it for those three registers. The frame is complete, checksum included, exactly as
+// it goes out on the wire.
+const request = readHoldingRegisters(METER, FIRST_REGISTER, 3)
+console.log(`polling unit ${METER}, ${request.length} bytes out`)
+
+// A stand-in for the meter. On a running gateway this frame arrives over RS485; here the
+// library builds what a meter reporting those three values would send back.
+const fromTheMeter = readHoldingRegistersReply(METER, [2301, 418, 0])
+
+// Everything below is the gateway's own code. A reply carries its own checksum, so the
+// frame is validated before any value is read out of it.
+const reply = parseFrame(fromTheMeter)
+const registers = reply.registers()
+console.log(`voltage   ${(registers[0] / 10).toFixed(1)} V`)
+console.log(`current   ${(registers[1] / 100).toFixed(2)} A`)
+console.log(`faults    ${registers[2]}`)
 
 // One flipped bit anywhere in the frame fails the checksum, which is the whole point of
 // carrying one over a long RS485 run.
-const corrupt = Buffer.concat([body, checksum])
-corrupt[2] ^= 0xff
-assert.throws(() => parseFrame(corrupt))
+const mangled = Buffer.from(fromTheMeter)
+mangled[2] ^= 0xff
+try {
+  parseFrame(mangled)
+  console.log('mangled frame accepted, which should never happen')
+} catch (error) {
+  console.log(`mangled frame rejected: ${(error as Error).message}`)
+}
 // ANCHOR_END: example
+
+// The bytes each specification fixes are pinned once, in the crate tests and the
+// generated conformance vectors, so a guide asserts behaviour instead.
+assert.equal(request.length, 8)
+assert.equal(reply.address, METER)
+assert.equal(reply.exception, null)
+assert.deepEqual(registers, [2301, 418, 0])
+assert.throws(() => parseFrame(mangled))

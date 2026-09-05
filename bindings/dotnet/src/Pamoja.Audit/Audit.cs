@@ -196,11 +196,11 @@ public static class Audit
     /// <summary>Checks a whole chain that has already arrived.</summary>
     /// <param name="publicKey">The 32-byte key the records were signed with.</param>
     /// <param name="entries">The records, in the order they were written.</param>
-    /// <returns>
-    /// <c>true</c> when every record follows the one before it and carries a
-    /// signature that holds.
-    /// </returns>
-    public static bool VerifyChain(ReadOnlySpan<byte> publicKey, IReadOnlyList<AuditEntry> entries)
+    /// <exception cref="PamojaException">
+    /// The chain does not hold: a record whose signature fails, or one that does
+    /// not follow the record before it. The message says which.
+    /// </exception>
+    public static void VerifyChain(ReadOnlySpan<byte> publicKey, IReadOnlyList<AuditEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
 
@@ -210,9 +210,9 @@ public static class Audit
             handles[at] = entries[at].Use(handle => handle);
         }
 
-        bool holds = NativeMethods.pamoja_audit_verify_chain(
-            publicKey, handles, (nuint)handles.Length) == PamojaStatus.Ok;
+        PamojaStatus status = NativeMethods.pamoja_audit_verify_chain(
+            publicKey, handles, (nuint)handles.Length);
         GC.KeepAlive(entries);
-        return holds;
+        Status.ThrowIfError(status);
     }
 }

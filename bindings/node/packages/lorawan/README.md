@@ -21,52 +21,46 @@ The test that runs in CI, spliced here as it ran.
 From [`bindings/node/guides/lorawan.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/lorawan.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
+import { device, grantAccept, grantSession } from '@pamoja/lorawan'
 
-import { device, grantAccept, session } from '@pamoja/lorawan'
+// The root key is provisioned into the device at the factory and known to the network
+// server. It is the only secret either side starts with; any 16 bytes stand in here.
+const appKey = Buffer.alloc(16, 7)
 
-// A join accept captured off a live EU868 network, the root key it was signed under, and
-// the session keys an independent implementation derived from it. Published at
-// https://github.com/anthonykirby/lora-packet/issues/10
-const captured = Buffer.from(
-  '204dd85ae608b87fc4889970b7d2042c9e72959b0057aed6094b16003df12de145',
-  'hex'
-)
-const appKey = Buffer.from('b6b53f4a168a7a88bdf7ea135ce9cfca', 'hex')
-const devNonce = 0xcc85
-
-// The network half: the address and radio settings this network grants, encrypted and
-// signed under the root key, are the frame that was captured.
-const offer = {
-  appNonce: 0x00e5063a,
-  netId: 0x13,
-  devAddr: 0x26012e43,
-  dlSettings: 0x03,
-  rxDelay: 0x01,
-  cflist: Buffer.from('184f84e85684b85e84886684586e8400', 'hex'),
-}
-assert.deepEqual(grantAccept(offer, appKey, devNonce), captured)
-
-// The device half. A join accept carries no EUI, so only the root key decides whether it
-// verifies.
+// The device asks to join with a nonce it has not used before, which is what stops an old
+// accept being replayed at it.
+const devNonce = 1
 const node = device(Buffer.alloc(8), Buffer.alloc(8), appKey)
-const accepted = node.acceptJoin(captured, devNonce)
-assert.equal(accepted.devAddr, 0x26012e43)
 
-// Neither side transmits a session key; both derive it from the two nonces. What the
-// device derived is read back by a session holding the keys published with the capture.
-const keys = Buffer.from(
-  '2c96f7028184bb0be8aa49275290d4fcf3a5c8f0232a38c144029c165865802c',
-  'hex'
-)
-const gateway = session(0x26012e43, keys.subarray(0, 16), keys.subarray(16))
-const uplink = accepted.session().encodeUplink(1, 1, Buffer.from('real'))
-assert.equal(gateway.decode(uplink, 1).payload.toString(), 'real')
+// The network grants the join. It draws its own nonce, names the network the device is
+// joining, and assigns the address the device will answer to from then on.
+const devAddr = 0x26012e43
+const offer = { appNonce: 2, netId: 19, devAddr }
+const accept = grantAccept(offer, appKey, devNonce)
+console.log(`granted   address 0x${devAddr.toString(16).toUpperCase()} in a ${accept.length}-byte accept`)
 
-// A single byte changed in the air fails the MIC, so no one else can admit the device.
-const forged = Buffer.from(captured)
+// The device verifies it against the root key. A join accept carries no device identifier,
+// so only that key decides whether it is for this device.
+const joined = node.acceptJoin(accept, devNonce)
+console.log(`joined    the device took address 0x${joined.devAddr.toString(16).toUpperCase()}`)
+
+// Neither side transmits a session key. Both derive the same pair from the root key and the
+// two nonces, so the network reads what the device sends without ever having been told how.
+const network = grantSession(offer, appKey, devNonce)
+const uplink = joined.session().encodeUplink(1, 1, Buffer.from('level=high'))
+const received = network.decode(uplink, 1)
+console.log(`uplink    the network read ${received.payload.toString()}`)
+
+// A single byte changed in the air fails that check, so no one else can admit the device or
+// put words in its mouth.
+const forged = Buffer.from(accept)
 forged[1] ^= 0xff
-assert.throws(() => node.acceptJoin(forged, devNonce))
+try {
+  node.acceptJoin(forged, devNonce)
+  console.log('a forged accept was taken, which should never happen')
+} catch (error) {
+  console.log(`forged    accept refused: ${(error as Error).message}`)
+}
 ```
 
 ## The same capability in every language

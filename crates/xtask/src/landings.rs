@@ -186,9 +186,10 @@ fn markdown(root: &Path, catalog: &Catalog, landing: &Landing) -> Result<String,
     }
     out.push_str(
         "\nEach capability is also its own package, so an application that needs one \
-         thing depends on one thing.\n\n## A first example\n\nA reading off a wire, \
-         smoothed, signed, and packed for a metered link, with nothing plugged in. This \
-         runs in CI, and is spliced here from the test that runs it.\n\n",
+         thing depends on one thing.\n\n## A first example\n\nA reading taken off a wire \
+         on a field node, sent over a link, and checked on the gateway that receives it, \
+         with nothing plugged in and nothing running. This runs in CI, and is spliced \
+         here from the test that runs it.\n\n",
     );
     out.push_str(&regions::snippet(root, landing.example)?);
     out.push_str("\n\n## Every package\n\n");
@@ -240,8 +241,9 @@ fn html(root: &Path, catalog: &Catalog, landing: &Landing) -> Result<String, Str
     out.push_str(
         "\n<p>Each capability is also its own distribution, so an application that needs \
          one thing depends on one thing.</p>\n\n<h2>A first example</h2>\n\n<p>A reading \
-         off a wire, smoothed, signed, and packed for a metered link, with nothing plugged \
-         in. This runs in CI, and is spliced here from the test that runs it.</p>\n\n",
+         taken off a wire on a field node, sent over a link, and checked on the gateway \
+         that receives it, with nothing plugged in and nothing running. This runs in CI, \
+         and is spliced here from the test that runs it.</p>\n\n",
     );
     out.push_str(&format!(
         "<pre><code>{code}</code></pre>\n\n<h2>Every package</h2>\n\n"

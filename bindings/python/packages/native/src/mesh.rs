@@ -159,16 +159,18 @@ pub fn mesh_crc16(data: Vec<u8>) -> u16 {
 /// Returns the frame, payload, and cache sizes a mesh node works within.
 ///
 /// The order is the maximum frame length, the maximum payload, the broadcast
-/// address, the default hop limit, and the duplicate-cache capacity.
+/// address, the default hop limit, the duplicate-cache capacity, and the header
+/// length.
 #[gen_stub_pyfunction]
 #[pyfunction]
-pub fn mesh_limits() -> (usize, usize, u32, u8, usize) {
+pub fn mesh_limits() -> (usize, usize, u32, u8, usize, usize) {
     (
         Frame::MAX_LEN,
         Frame::MAX_PAYLOAD,
         pamoja_mesh::BROADCAST,
         Frame::DEFAULT_HOP_LIMIT,
         SEEN_DEFAULT_CAPACITY,
+        Frame::HEADER_LEN,
     )
 }
 

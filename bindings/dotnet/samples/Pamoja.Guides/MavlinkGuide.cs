@@ -11,40 +11,101 @@ public static class MavlinkGuide
     public static void Run()
     {
         // ANCHOR: example
-        // 0x6F91 over "123456789" is the catalogue check value for CRC-16/MCRF4XX, and 50
-        // is the CRC_EXTRA the common dialect publishes for HEARTBEAT.
-        Expect(Mavlink.Crc16("123456789"u8) == 0x6F91, "the checksum is CRC-16/MCRF4XX");
-        Expect(Mavlink.KnownCrcExtra(0) == 50, "HEARTBEAT's published seed");
+        const byte Vehicle = 1;
+        const byte Autopilot = 1;
+        const byte Station = 255;
 
-        // A HEARTBEAT announcing an onboard controller in an active state. The v2 frame
-        // around it is the 0xFD marker, the payload length, two flag bytes, the sequence,
-        // the sending system and component, a 24-bit message id, the payload, then the
-        // checksum.
-        byte[] heartbeat = [0, 0, 0, 0, 18, 0, 0, 4, 3];
-        using MavlinkFrame sent = Mavlink.Frame(new MavlinkHeader(1, 1, 7), 0, heartbeat);
-        byte[] wire =
-        [
-            0xFD, 0x09, 0x00, 0x00, 0x07, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x12, 0x00, 0x00, 0x04, 0x03, 0x75, 0x3A,
-        ];
-        Expect(sent.Bytes.SequenceEqual(wire), "the frame is the layout v2 fixes");
+        // The values the MAVLink common dialect gives these fields.
+        const byte MavTypeGcs = 6;
+        const byte MavTypeQuadrotor = 2;
+        const byte MavAutopilotInvalid = 8;
+        const byte MavAutopilotArdupilotmega = 3;
+        const byte MavStateActive = 4;
+        const byte MavStateStandby = 3;
+        const ushort MavCmdComponentArmDisarm = 400;
+        const ushort MavCmdNavTakeoff = 22;
+        const byte MavResultAccepted = 0;
 
-        // A link delivers bytes, not frames. The parser skips whatever does not start one
-        // and drops a frame whose checksum fails rather than passing it on.
-        byte[] mangled = sent.Bytes;
-        mangled[14] ^= 0xFF;
+        // Every MAVLink node broadcasts a heartbeat to say what it is and that it is
+        // alive. The fields are set by name rather than by writing the payload out byte
+        // by byte.
+        using MavlinkSchema heartbeatShape = MavlinkSchema.ForName("HEARTBEAT");
+        using MavlinkMessage announce = heartbeatShape.CreateMessage();
+        announce.Set("type", MavTypeGcs);
+        announce.Set("autopilot", MavAutopilotInvalid);
+        announce.Set("system_status", MavStateActive);
+        announce.Set("mavlink_version", 3);
+        using MavlinkFrame sent = announce.ToFrame(new MavlinkHeader(Station, 190, 0));
+        Console.WriteLine($"sent      HEARTBEAT in {sent.Bytes.Length} bytes");
+
+        // The vehicle answers with its own heartbeat. This copy arrives after some bytes
+        // that were already on the wire, and after a copy with one bit flipped in flight.
+        using MavlinkMessage vehicle = heartbeatShape.CreateMessage();
+        vehicle.Set("type", MavTypeQuadrotor);
+        vehicle.Set("autopilot", MavAutopilotArdupilotmega);
+        vehicle.Set("system_status", MavStateStandby);
+        vehicle.Set("mavlink_version", 3);
+        using MavlinkFrame good = vehicle.ToFrame(new MavlinkHeader(Vehicle, Autopilot, 0));
+        byte[] garbled = [.. good.Bytes];
+        garbled[^1] ^= 0xFF;
+        byte[] delivered = [.. "???"u8, .. garbled, .. good.Bytes];
+
+        // The parser skips whatever does not start a frame and drops one whose checksum
+        // fails, so the frame it hands back is the good copy rather than the garbled one.
         using MavlinkParser parser = new();
-        byte[] noisy = [0x11, 0x22, 0x33, .. mangled];
-        Expect(parser.Push(noisy).Count == 0, "neither noise nor a failed checksum is reported");
+        using MavlinkFrame received = parser.Push(delivered)[0];
+        using MavlinkMessage heard = heartbeatShape.Decode(received.Payload);
+        Console.WriteLine(
+            $"heard     a type-{heard.Get("type")} vehicle in state {heard.Get("system_status")}");
 
-        // The same frame, split across two reads, still arrives whole.
-        Expect(parser.Push(sent.Bytes.AsSpan(0, 5)).Count == 0, "half a frame is not a frame");
-        IReadOnlyList<MavlinkFrame> found = parser.Push(sent.Bytes.AsSpan(5));
-        Expect(found.Count == 1, "the rest of it completes one");
-        using MavlinkFrame received = found[0];
-        Expect(received.Version == MavlinkVersion.V2, "v2 is the current wire format");
-        Expect(received.MessageId == 0, "and it is the heartbeat that was sent");
-        Expect(received.Payload.SequenceEqual(heartbeat), "with its payload intact");
+        // Arming it is a command, not a message a sender fires and forgets: the vehicle
+        // has to answer, and the sender keeps asking until it does. The protocol numbers
+        // each resend, which is how a vehicle tells a retry from a deliberate second one.
+        using MavlinkCommand arming = new(MavCmdComponentArmDisarm, 3);
+        using MavlinkSchema commandShape = MavlinkSchema.ForName("COMMAND_LONG");
+        using MavlinkMessage arm = commandShape.CreateMessage();
+        arm.Set("param1", 1.0); // 1 arms, 0 disarms
+        arm.Set("target_system", Vehicle);
+        arm.Set("target_component", Autopilot);
+        arm.Set("command", arming.Command);
+        arm.Set("confirmation", arming.Confirmation);
+        Console.WriteLine($"sent      arm request, confirmation {arming.Confirmation}");
+        arm.ToFrame(new MavlinkHeader(Station, 190, 1)).Dispose();
+
+        // Nothing comes back in time, so it goes again with the next confirmation number.
+        byte? resend = arming.OnTimeout();
+        Console.WriteLine($"silence, resending with confirmation {resend}");
+
+        // An acknowledgement names the command it answers, so one for a different command
+        // is not this exchange finishing.
+        using MavlinkSchema ackShape = MavlinkSchema.ForName("COMMAND_ACK");
+        MavlinkAckOutcome? stray = Acknowledge(ackShape, arming, MavCmdNavTakeoff);
+        Console.WriteLine($"an ack for another command: {stray?.Kind}");
+
+        MavlinkAckOutcome? outcome = Acknowledge(ackShape, arming, MavCmdComponentArmDisarm);
+        Console.WriteLine(
+            outcome?.Kind == MavlinkAckKind.Final && outcome?.Value == MavResultAccepted
+                ? "armed     the vehicle is ready"
+                : $"the vehicle answered {outcome?.Kind} {outcome?.Value}");
+
+        static MavlinkAckOutcome? Acknowledge(
+            MavlinkSchema shape,
+            MavlinkCommand tracked,
+            ushort command)
+        {
+            using MavlinkMessage ack = shape.CreateMessage();
+            ack.Set("command", command);
+            ack.Set("result", 0);
+            using MavlinkFrame frame = ack.ToFrame(new MavlinkHeader(1, 1, 0));
+            return tracked.OnFrame(frame);
+        }
         // ANCHOR_END: example
+
+        Expect(heard.Get("type") == MavTypeQuadrotor, "the vehicle says what it is");
+        Expect(received.MessageId == 0, "and it is a heartbeat");
+        Expect(resend == 1, "a timeout numbers the resend");
+        Expect(stray?.Kind == MavlinkAckKind.Unrelated, "another command's ack is not this one");
+        Expect(outcome?.Kind == MavlinkAckKind.Final, "this one finishes the exchange");
+        Expect(outcome?.Value == MavResultAccepted, "with the vehicle accepting");
     }
 }

@@ -11,32 +11,54 @@ public static class SerialGuide
     public static void Run()
     {
         // ANCHOR: example
-        // SLIP reserves two byte values, 0xC0 to end a frame and 0xDB to escape, so a
-        // payload carrying either goes out as the two-byte pair RFC 1055 fixes for it.
-        byte[] payload = [0x01, 0xC0, 0xDB, 0x02];
-        byte[] frame = Serial.SlipEncode(payload);
-        Expect(
-            frame.SequenceEqual(new byte[] { 0x01, 0xDB, 0xDC, 0xDB, 0xDD, 0x02, 0xC0 }),
-            "the frame is the escaping RFC 1055 fixes");
-        Expect(Serial.SlipDecode(frame).SequenceEqual(payload), "the payload comes back");
+        // A UART carries bytes, not packets, so a framing has to mark where one packet
+        // ends. SLIP reserves two byte values for that, and the package names both: the
+        // end byte closes a frame, the escape byte carries a value that would otherwise
+        // look like one.
+        byte[] payload = [.. "lvl="u8, Serial.SlipEnd, Serial.SlipEsc];
+        byte[] framed = Serial.SlipEncode(payload);
+        Console.WriteLine($"slip      {payload.Length} payload bytes framed as {framed.Length}");
 
-        // COBS trades that escaping for one code byte per run of up to 254 non-zero
-        // bytes, each run led by its own length. This is the COBS paper's worked example.
-        byte[] packet = [0x11, 0x22, 0x00, 0x33];
-        byte[] framed = Serial.CobsEncode(packet);
-        Expect(
-            framed.SequenceEqual(new byte[] { 0x03, 0x11, 0x22, 0x02, 0x33, 0x00 }),
-            "the frame is the one the COBS paper works through");
-        Expect(Serial.CobsDecode(framed).SequenceEqual(packet), "the packet comes back");
+        // Decoding gives the payload back unchanged, reserved bytes and all.
+        byte[] restored = Serial.SlipDecode(framed);
+        Console.WriteLine($"slip      decoded back to {restored.Length} bytes");
 
-        // A serial read returns an arbitrary chunk rather than a packet. This one holds
-        // two frames with a truncated one between them, and only the bad frame is dropped.
+        // COBS trades that escaping for one code byte per run of up to 254 non-zero bytes,
+        // each run led by its own length, so a frame never grows by more than a byte per
+        // 254. Zero is the delimiter, and never appears inside a frame.
+        byte[] packet = [.. "lvl="u8, Serial.CobsDelimiter, .. "7"u8];
+        byte[] cobsFramed = Serial.CobsEncode(packet);
+        Console.WriteLine($"cobs      {packet.Length} payload bytes framed as {cobsFramed.Length}");
+
+        // A read from a port returns whatever arrived, which is rarely one whole frame.
+        // This chunk holds two good frames with a truncated one between them; the decoder
+        // hands over the good ones and discards only the bad frame.
         using SlipDecoder decoder = new();
-        byte[][] frames = decoder.Feed([0x6F, 0x6B, 0xC0, 0xDB, 0xC0, 0x67, 0x6F, 0xC0]);
-        Expect(frames.Length == 2, "the frames either side of the bad one survive");
-        Expect(frames[0].SequenceEqual("ok"u8.ToArray()), "the first frame reassembles");
-        Expect(frames[1].SequenceEqual("go"u8.ToArray()), "the second frame reassembles");
-        Expect(decoder.Discarded == 1, "the truncated frame is counted, not raised");
+        byte[] chunk =
+        [
+            .. "ok"u8,
+            Serial.SlipEnd,
+            Serial.SlipEsc, // a frame that ends before its escape pair completes
+            Serial.SlipEnd,
+            .. "go"u8,
+            Serial.SlipEnd,
+        ];
+        IReadOnlyList<byte[]> frames = decoder.Feed(chunk);
+        foreach (byte[] frame in frames)
+        {
+            Console.WriteLine($"received  {System.Text.Encoding.UTF8.GetString(frame)}");
+        }
+
+        Console.WriteLine($"discarded {decoder.Discarded} frame the stream mangled");
         // ANCHOR_END: example
+
+        // The frames each specification fixes are pinned once, in the crate tests and the
+        // generated conformance vectors, so a guide asserts behaviour instead.
+        Expect(framed.Length > payload.Length, "stuffing costs bytes");
+        Expect(cobsFramed.Length > packet.Length, "and so does the COBS code byte");
+        Expect(restored.SequenceEqual(payload), "and it decodes back to the payload");
+        Expect(Serial.CobsDecode(cobsFramed).SequenceEqual(packet), "COBS round-trips too");
+        Expect(frames.Count == 2, "two whole frames came out of the chunk");
+        Expect(decoder.Discarded == 1, "and only the truncated one was dropped");
     }
 }

@@ -12,6 +12,7 @@ import {
   DeviceIdentity as NativeDeviceIdentity,
   fingerprint as nativeFingerprint,
   verify as nativeVerify,
+  verifyMessage as nativeVerifyMessage,
 } from '@pamoja/native'
 
 /** A payload to sign or verify; strings are encoded as UTF-8. */
@@ -103,6 +104,34 @@ export class DeviceIdentity {
   sign(payload: Payload): Buffer {
     return this.#native.sign(bytes(payload))
   }
+
+  /**
+   * Signs a payload and returns one message carrying both.
+   *
+   * The message is the signature followed by the payload, which is usually what goes
+   * on a link: one blob to send, rather than a payload and a detached signature to
+   * keep together and split correctly at the far end. {@link verifyMessage} reverses
+   * it.
+   *
+   * @param payload - The bytes to cover; strings are encoded as UTF-8.
+   * @returns The signature followed by the payload.
+   */
+  signMessage(payload: Payload): Buffer {
+    return this.#native.signMessage(bytes(payload))
+  }
+}
+
+/**
+ * Verifies a signed message and returns the payload it carries.
+ *
+ * @param publicKey - The 32-byte public key of the claimed signer.
+ * @param message - The signature followed by the payload, as `signMessage` wrote it.
+ * @returns The payload if the message is authentic, and `null` if it is too short to
+ * hold a signature, was altered, or was signed by a different device.
+ * @throws If the key is not the expected length.
+ */
+export function verifyMessage(publicKey: Uint8Array, message: Uint8Array): Buffer | null {
+  return nativeVerifyMessage(Buffer.from(publicKey), Buffer.from(message))
 }
 
 /**

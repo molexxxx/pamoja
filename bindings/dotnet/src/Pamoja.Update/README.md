@@ -25,62 +25,66 @@ The guide project's example, spliced here as it ran in CI.
 From [`bindings/dotnet/samples/Pamoja.Guides/UpdateGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/UpdateGuide.cs):
 
 ```csharp
+// The publisher's key signs releases; devices in the field are anchored to its
+// public half and will take firmware from nobody else.
+byte[] seed = new byte[32];
+Array.Fill(seed, (byte)7);
+using var publisher = new DeviceIdentity(seed);
 byte[] vendor = Enumerable.Repeat((byte)0x0A, 16).ToArray();
 byte[] deviceClass = Enumerable.Repeat((byte)0x0B, 16).ToArray();
-using var publisher = new DeviceIdentity(Enumerable.Repeat((byte)0x31, 32).ToArray());
 
-// The image stands in for firmware. It is the 56-byte message FIPS 180-4 hashes in
-// its second worked example, so the digest the manifest commits to is a published
-// constant rather than a value checked against itself.
-byte[] image = Encoding.ASCII.GetBytes(
-    "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq");
-byte[] digest = Convert.FromHexString(
-    "248D6A61D20638B8E5C026930C3E6039A33CE45964FF2167F6ECEDD419DB06C1");
-
-// A release says who it is for, which slot it belongs in, and what it hashes to. The
-// publisher signs that statement; nothing else about the image is taken on trust.
+// The release. A manifest says who the image is for, which slot it belongs in, how
+// big it is and what it hashes to; nothing about the image is taken on trust.
+byte[] image = Encoding.ASCII.GetBytes("firmware for a flow meter, version two");
 var manifest = new Manifest(
     Sequence: 2,
     VendorId: vendor,
     ClassId: deviceClass,
     Storage: 1,
-    Digest: digest,
+    Digest: Update.ImageDigest(image),
     Size: (uint)image.Length);
 byte[] envelope = Update.SignManifest(manifest, publisher);
-Expect(
-    Update.VerifyEnvelope(envelope, publisher.PublicKey).Digest.SequenceEqual(digest),
-    "the release verifies against the key that signed it");
+Console.WriteLine(
+    $"published sequence {manifest.Sequence} in a {envelope.Length}-byte envelope");
 
-// The device left the factory running sequence 1 from slot 0, so the release goes to
-// the spare slot and the image it runs today stays where it is.
+// On the device. It checks the envelope against the key it was anchored to before
+// it accepts a single byte of the image.
+Manifest opened = Update.VerifyEnvelope(envelope, publisher.PublicKey);
+Console.WriteLine($"accepted  a release for slot {opened.Storage}");
+
+// It left the factory running sequence 1 from slot 0, so the release goes to the
+// spare slot and the image it is running stays where it is.
 using var fleet = new Updater(vendor, deviceClass, publisher.PublicKey, 2, 4096);
 fleet.Provision(0, 1);
-Expect(fleet.Begin(envelope) == 1, "the release names the spare slot");
+fleet.Begin(envelope);
 for (int at = 0; at < image.Length; at += 16)
 {
     fleet.Write(image.AsSpan(at, Math.Min(16, image.Length - at)));
 }
-Expect(fleet.CurrentProgress().Written == image.Length, "every byte arrived");
-Expect(fleet.Finish() == 1, "and the image matched what was promised");
 
-// The first boot into a new image is a trial. It reverts to slot 0 on the next boot
-// unless it confirms itself.
-Expect(fleet.OnBoot().Action == BootAction.Trying, "a new image is on trial");
-Expect(fleet.Confirm() == 1, "and confirms once it has run");
-Expect(fleet.Record(1).State == SlotState.Confirmed, "so the slot holds it from now on");
+Console.WriteLine($"staged    {fleet.CurrentProgress().Written} of {image.Length} bytes");
+byte slot = fleet.Finish();
+Console.WriteLine($"written   to slot {slot}, leaving the running image alone");
 
-// The same release, signed by a key this device is not anchored to, gets nowhere.
-using var impostor = new DeviceIdentity(Enumerable.Repeat((byte)0x32, 32).ToArray());
-bool refused = false;
+// The first boot into a new image is a trial. It reverts on the next boot unless
+// the device confirms it came up, which is what makes a bad release survivable.
+Console.WriteLine($"booting   {fleet.OnBoot().Action}");
+fleet.Confirm();
+Console.WriteLine($"confirmed slot {slot} is now {fleet.Record(slot).State}");
+
+// The same release signed by a key this device is not anchored to gets nowhere.
+byte[] impostorSeed = new byte[32];
+Array.Fill(impostorSeed, (byte)90);
+using var impostor = new DeviceIdentity(impostorSeed);
 try
 {
-    fleet.Stage(Update.SignManifest(manifest with { Sequence = 3 }, impostor), image);
+    fleet.Stage(Update.SignManifest(manifest, impostor), image);
+    Console.WriteLine("a forged release was accepted, which should never happen");
 }
-catch (PamojaException)
+catch (PamojaException error)
 {
-    refused = true;
+    Console.WriteLine($"forged    refused: {error.Message}");
 }
-Expect(refused, "a release signed by an untrusted key is refused");
 ```
 
 ## The same capability in every language

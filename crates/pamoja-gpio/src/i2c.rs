@@ -10,6 +10,20 @@
 
 use crate::GpioError;
 
+/// The lowest 7-bit address the specification keeps for itself.
+///
+/// Addresses from here up are reserved: `0x78` to `0x7B` introduce a 10-bit address and
+/// the rest are held back, so a part answering in this range is a bus feature rather than
+/// a device a driver talks to. [`Address::is_reserved`] covers this range and
+/// [`RESERVED_BELOW`].
+pub const RESERVED_FROM: u8 = 0x78;
+
+/// The first 7-bit address above the reserved block at the bottom of the range.
+///
+/// Everything below this, `0x00` to `0x07`, is reserved: `0x00` is the general call every
+/// device listens to, and the rest carry bus functions.
+pub const RESERVED_BELOW: u8 = 0x08;
+
 /// Largest valid 7-bit address (inclusive).
 const MAX_SEVEN_BIT: u16 = 0x7F;
 /// Largest valid 10-bit address (inclusive).
@@ -163,13 +177,33 @@ impl Address {
     ///
     /// `true` if this is a 7-bit address in `0x00..=0x07` or `0x78..=0x7F`.
     pub fn is_reserved(self) -> bool {
-        !self.ten_bit && (self.value <= 0x07 || self.value >= 0x78)
+        !self.ten_bit
+            && (self.value < u16::from(RESERVED_BELOW) || self.value >= u16::from(RESERVED_FROM))
     }
 
     /// Returns `true` if this is the general call address `0x00`, the broadcast every
     /// device on the bus listens to.
     pub fn is_general_call(self) -> bool {
         !self.ten_bit && self.value == 0x00
+    }
+
+    /// Returns the addressing frame this address puts on the bus.
+    ///
+    /// The same bytes [`write_frame`](Address::write_frame) produces, as a value, so a
+    /// caller does not have to size and pass a scratch buffer to find out what an address
+    /// looks like on the wire.
+    ///
+    /// # Arguments
+    ///
+    /// * `direction` - whether the transfer reads or writes, which sets the R/W bit.
+    ///
+    /// # Returns
+    ///
+    /// The frame, one byte for a 7-bit address and two for a 10-bit one.
+    pub fn frame(self, direction: Direction) -> AddressFrame {
+        let mut bytes = [0u8; 2];
+        let len = self.write_frame(direction, &mut bytes).unwrap_or_default();
+        AddressFrame { bytes, len }
     }
 
     /// Writes the address byte(s) a controller puts on the bus for a transfer.
@@ -211,6 +245,45 @@ impl Address {
             out[0] = ((self.value as u8) << 1) | rw;
             Ok(1)
         }
+    }
+}
+
+/// The bytes an [`Address`] puts on the bus to address a device.
+///
+/// One byte for a 7-bit address and two for a 10-bit one, held inline so producing one
+/// allocates nothing and needs no caller-supplied buffer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AddressFrame {
+    bytes: [u8; 2],
+    len: usize,
+}
+
+impl AddressFrame {
+    /// Returns the frame bytes, in the order they go on the bus.
+    ///
+    /// # Returns
+    ///
+    /// One byte for a 7-bit address, two for a 10-bit one.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..self.len]
+    }
+
+    /// Returns how many bytes the frame occupies.
+    ///
+    /// # Returns
+    ///
+    /// `1` for a 7-bit address, `2` for a 10-bit one.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Returns whether the frame is empty, which it never is.
+    ///
+    /// # Returns
+    ///
+    /// Always `false`; an address always addresses something.
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
     }
 }
 

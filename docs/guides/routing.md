@@ -11,22 +11,29 @@ with nothing on the air.
 
 ## What the example does
 
-It builds the table for the node at `0x01`, feeds it four packets of overheard
-traffic, and checks which route it settles on and what it decides for a packet
-bound for three different places. Then it forgets a node and confirms that node's
-traffic falls back to flooding.
+It builds the table for a gateway, feeds it four packets of overheard traffic,
+reads back the route it settles on, and asks what to do with a packet bound for
+three different places. Then it forgets a node and confirms that node's traffic
+falls back to flooding.
+
+An address on a mesh is just a number. The example names the ones it uses, so
+the table reads as a map of the site: a gateway, a pump and a tank, three relays
+between them, and a silo nothing has been heard from yet. No route is written
+down anywhere; the hop and cost printed for the pump are the table's own pick
+out of three competing reports about it.
 
 It proves:
 
-- A packet from `0x09` that arrived through neighbour `0x05` makes `0x05` the way
-  back to `0x09`, learned with no exchange of routing messages.
-- A report of cost 1 replaces that route and a later report of cost 4 is refused,
-  so the table holds the cheapest way it has heard and says which observations
-  changed it.
+- One packet heard from the pump through the north relay teaches the way back to
+  it, with no routing messages exchanged.
+- A cost-1 report through the east relay takes that route over and a cost-4
+  report through the south relay is refused, so the table holds the cheapest way
+  it has heard and each observation says whether it changed anything.
 - Four observations of two nodes leave two routes, not four.
-- A packet for `0x01` is delivered, one for `0x09` relays to `0x07`, and one for
-  the unknown `0x20` floods.
-- Forgetting `0x09` drops that one route and returns its traffic to flooding.
+- A packet for the gateway is delivered, one for the pump relays to the east
+  relay, and one for the silo floods.
+- Forgetting the pump drops its route and leaves the tank's; packets for the
+  pump flood again.
 
 ## Rust
 
@@ -36,33 +43,49 @@ From [`examples/tests/guides/routing.rs`](https://github.com/molexxxx/pamoja/blo
 ```rust
 use pamoja_routing::{Forward, Router};
 
-// A node learns the way to another from traffic it already hears: a packet from 0x09
-// that arrived through neighbour 0x05 proves 0x05 is the way back, at the cost the
-// packet reports.
-let mut router: Router<4> = Router::new(0x01);
-assert!(router.observe(0x09, 0x05, 2));
+// The nodes on this mesh. An address is just a number; naming them is what makes the
+// table below read as a map of the site rather than a list of numbers.
+const GATEWAY: u32 = 1;
+const PUMP: u32 = 9;
+const TANK: u32 = 10;
+const NORTH_RELAY: u32 = 5;
+const EAST_RELAY: u32 = 7;
+const SOUTH_RELAY: u32 = 3;
+const SILO: u32 = 32;
 
-// The table keeps the cheapest way it knows to each node, so the report of cost 1
-// takes over and the later cost-4 report changes nothing.
-assert!(router.observe(0x09, 0x07, 1));
-assert!(!router.observe(0x09, 0x03, 4));
-assert!(router.observe(0x0A, 0x05, 3));
-let route = router.route(0x09).expect("a route to 0x09");
-assert_eq!(route.next_hop(), 0x07);
-assert_eq!(route.cost(), 1);
-assert_eq!(router.len(), 2);
+// A node learns the way to another from traffic it already hears: a packet from the
+// pump that arrived through the north relay proves that relay is a way back, at the
+// cost the packet reports.
+let mut router: Router<4> = Router::new(GATEWAY);
+router.observe(PUMP, NORTH_RELAY, 2);
 
-// A packet gets one of three answers: deliver it here, relay it to the neighbour on
-// the way, or flood it because no route is known yet.
-assert_eq!(router.forward(0x01), Forward::Deliver);
-assert_eq!(router.forward(0x09), Forward::Relay(0x07));
-assert_eq!(router.forward(0x20), Forward::Flood);
+// The table keeps only the cheapest way it knows to each node, so a cost-1 report
+// through the east relay takes over and the later cost-4 report changes nothing.
+router.observe(PUMP, EAST_RELAY, 1);
+router.observe(PUMP, SOUTH_RELAY, 4);
+router.observe(TANK, NORTH_RELAY, 3);
+
+let route = router.route(PUMP).expect("a route to the pump");
+let (hop, cost) = (route.next_hop(), route.cost());
+println!("to the pump   via {hop} at cost {cost}");
+println!("routes held   {}", router.len());
+
+// Every packet gets one of three answers: deliver it here, relay it to the neighbour
+// on the way, or flood it because no route is known yet.
+for (name, address) in [("gateway", GATEWAY), ("pump", PUMP), ("silo", SILO)] {
+    match router.forward(address) {
+        Forward::Deliver => println!("for the {name:<8} deliver here"),
+        Forward::Relay(next) => println!("for the {name:<8} relay via {next}"),
+        Forward::Flood => println!("for the {name:<8} flood, no route known"),
+    }
+}
 
 // Forgetting a node that has gone quiet returns its traffic to flooding, so routing
 // is an optimisation over flooding rather than a second thing that can fail.
-router.forget(0x09);
-assert_eq!(router.forward(0x09), Forward::Flood);
-assert_eq!(router.len(), 1);
+router.forget(PUMP);
+let after = router.forward(PUMP);
+let floods_again = after == Forward::Flood;
+println!("pump forgotten, so it floods again: {floods_again}");
 ```
 <!-- end -->
 
@@ -72,38 +95,56 @@ assert_eq!(router.len(), 1);
 From [`bindings/node/guides/routing.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/routing.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { ForwardAction, Router } from '@pamoja/routing'
 
-// A node learns the way to another from traffic it already hears: a packet from 0x09
-// that arrived through neighbour 0x05 proves 0x05 is the way back, at the cost the
+// The nodes on this mesh. An address is just a number; naming them is what makes the
+// table below read as a map of the site rather than a list of numbers.
+const GATEWAY = 1
+const PUMP = 9
+const TANK = 10
+const NORTH_RELAY = 5
+const EAST_RELAY = 7
+const SOUTH_RELAY = 3
+const SILO = 32
+
+// A node learns the way to another from traffic it already hears: a packet from the pump
+// that arrived through the north relay proves that relay is a way back, at the cost the
 // packet reports.
-const router = new Router(0x01, 4)
-assert.equal(router.observe(0x09, 0x05, 2), true)
+const router = new Router(GATEWAY, 4)
+router.observe(PUMP, NORTH_RELAY, 2)
 
-// The table keeps the cheapest way it knows to each node, so the report of cost 1 takes
-// over and the later cost-4 report changes nothing.
-assert.equal(router.observe(0x09, 0x07, 1), true)
-assert.equal(router.observe(0x09, 0x03, 4), false)
-assert.equal(router.observe(0x0a, 0x05, 3), true)
-const route = router.route(0x09)
-assert.equal(route?.nextHop, 0x07)
-assert.equal(route?.cost, 1)
-assert.equal(router.size, 2)
+// The table keeps only the cheapest way it knows to each node, so a cost-1 report through
+// the east relay takes over and the later cost-4 report changes nothing.
+router.observe(PUMP, EAST_RELAY, 1)
+router.observe(PUMP, SOUTH_RELAY, 4)
+router.observe(TANK, NORTH_RELAY, 3)
 
-// A packet gets one of three answers: deliver it here, relay it to the neighbour on the
-// way, or flood it because no route is known yet.
-assert.equal(router.forward(0x01).action, ForwardAction.Deliver)
-assert.equal(router.forward(0x09).action, ForwardAction.Relay)
-assert.equal(router.forward(0x09).nextHop, 0x07)
-assert.equal(router.forward(0x20).action, ForwardAction.Flood)
+const route = router.route(PUMP)
+console.log(`to the pump   via ${route?.nextHop} at cost ${route?.cost}`)
+console.log(`routes held   ${router.size}`)
 
-// Forgetting a node that has gone quiet returns its traffic to flooding, so routing is
-// an optimisation over flooding rather than a second thing that can fail.
-router.forget(0x09)
-assert.equal(router.forward(0x09).action, ForwardAction.Flood)
-assert.equal(router.size, 1)
+// Every packet gets one of three answers: deliver it here, relay it to the neighbour on
+// the way, or flood it because no route is known yet.
+for (const [name, address] of [
+  ['gateway', GATEWAY],
+  ['pump', PUMP],
+  ['silo', SILO],
+] as const) {
+  const decision = router.forward(address)
+  if (decision.action === ForwardAction.Deliver) {
+    console.log(`for the ${name.padEnd(8)} deliver here`)
+  } else if (decision.action === ForwardAction.Relay) {
+    console.log(`for the ${name.padEnd(8)} relay via ${decision.nextHop}`)
+  } else {
+    console.log(`for the ${name.padEnd(8)} flood, no route known`)
+  }
+}
+
+// Forgetting a node that has gone quiet returns its traffic to flooding, so routing is an
+// optimisation over flooding rather than a second thing that can fail.
+router.forget(PUMP)
+const after = router.forward(PUMP)
+console.log(`pump forgotten, so it floods again: ${after.action === ForwardAction.Flood}`)
 ```
 <!-- end -->
 
@@ -115,34 +156,48 @@ From [`bindings/python/guides/routing.py`](https://github.com/molexxxx/pamoja/bl
 ```python
 from pamoja.routing import ForwardAction, Router
 
-# A node learns the way to another from traffic it already hears: a packet from 0x09
-# that arrived through neighbour 0x05 proves 0x05 is the way back, at the cost the
+# The nodes on this mesh. An address is just a number; naming them is what makes the
+# table below read as a map of the site rather than a list of numbers.
+GATEWAY = 1
+PUMP = 9
+TANK = 10
+NORTH_RELAY = 5
+EAST_RELAY = 7
+SOUTH_RELAY = 3
+SILO = 32
+
+# A node learns the way to another from traffic it already hears: a packet from the pump
+# that arrived through the north relay proves that relay is a way back, at the cost the
 # packet reports.
-router = Router(0x01, 4)
-assert router.observe(0x09, 0x05, 2)
+router = Router(GATEWAY, 4)
+router.observe(PUMP, NORTH_RELAY, 2)
 
-# The table keeps the cheapest way it knows to each node, so the report of cost 1 takes
-# over and the later cost-4 report changes nothing.
-assert router.observe(0x09, 0x07, 1)
-assert not router.observe(0x09, 0x03, 4)
-assert router.observe(0x0A, 0x05, 3)
-route = router.route(0x09)
-assert route.next_hop == 0x07
-assert route.cost == 1
-assert len(router) == 2
+# The table keeps only the cheapest way it knows to each node, so a cost-1 report through
+# the east relay takes over and the later cost-4 report changes nothing.
+router.observe(PUMP, EAST_RELAY, 1)
+router.observe(PUMP, SOUTH_RELAY, 4)
+router.observe(TANK, NORTH_RELAY, 3)
 
-# A packet gets one of three answers: deliver it here, relay it to the neighbour on the
-# way, or flood it because no route is known yet.
-assert router.forward(0x01).action == ForwardAction.DELIVER
-assert router.forward(0x09).action == ForwardAction.RELAY
-assert router.forward(0x09).next_hop == 0x07
-assert router.forward(0x20).action == ForwardAction.FLOOD
+route = router.route(PUMP)
+print(f"to the pump   via {route.next_hop} at cost {route.cost}")
+print(f"routes held   {len(router)}")
 
-# Forgetting a node that has gone quiet returns its traffic to flooding, so routing is
-# an optimisation over flooding rather than a second thing that can fail.
-router.forget(0x09)
-assert router.forward(0x09).action == ForwardAction.FLOOD
-assert len(router) == 1
+# Every packet gets one of three answers: deliver it here, relay it to the neighbour on
+# the way, or flood it because no route is known yet.
+for name, address in [("gateway", GATEWAY), ("pump", PUMP), ("silo", SILO)]:
+    decision = router.forward(address)
+    if decision.action == ForwardAction.DELIVER:
+        print(f"for the {name:<8} deliver here")
+    elif decision.action == ForwardAction.RELAY:
+        print(f"for the {name:<8} relay via {decision.next_hop}")
+    else:
+        print(f"for the {name:<8} flood, no route known")
+
+# Forgetting a node that has gone quiet returns its traffic to flooding, so routing is an
+# optimisation over flooding rather than a second thing that can fail.
+router.forget(PUMP)
+after = router.forward(PUMP)
+print(f"pump forgotten, so it floods again: {after.action == ForwardAction.FLOOD}")
 ```
 <!-- end -->
 
@@ -152,36 +207,53 @@ assert len(router) == 1
 From [`bindings/dotnet/samples/Pamoja.Guides/RoutingGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/RoutingGuide.cs):
 
 ```csharp
+// The nodes on this mesh. An address is just a number; naming them is what makes
+// the table below read as a map of the site rather than a list of numbers.
+const byte Gateway = 1;
+const byte Pump = 9;
+const byte Tank = 10;
+const byte NorthRelay = 5;
+const byte EastRelay = 7;
+const byte SouthRelay = 3;
+const byte Silo = 32;
+
 // A node learns the way to another from traffic it already hears: a packet from
-// 0x09 that arrived through neighbour 0x05 proves 0x05 is the way back, at the
-// cost the packet reports.
-using Router router = new(0x01, 4);
-Expect(router.Observe(0x09, 0x05, 2), "the first packet heard from 0x09 teaches a route");
+// the pump that arrived through the north relay proves that relay is a way back,
+// at the cost the packet reports.
+using Router router = new(Gateway, 4);
+router.Observe(Pump, NorthRelay, 2);
 
-// The table keeps the cheapest way it knows to each node, so the report of cost 1
-// takes over and the later cost-4 report changes nothing.
-Expect(router.Observe(0x09, 0x07, 1), "a cheaper neighbour redirects the route");
-Expect(!router.Observe(0x09, 0x03, 4), "a costlier way is not worth taking");
-Expect(router.Observe(0x0A, 0x05, 3), "a second node is learned");
-Route? route = router.RouteTo(0x09);
-Expect(route?.NextHop == 0x07, "0x09 is reached through the cheaper neighbour");
-Expect(route?.Cost == 1, "at the cost that neighbour reported");
-Expect(router.Count == 2, "two nodes are known, not four observations");
+// The table keeps only the cheapest way it knows to each node, so a cost-1 report
+// through the east relay takes over and the later cost-4 report changes nothing.
+router.Observe(Pump, EastRelay, 1);
+router.Observe(Pump, SouthRelay, 4);
+router.Observe(Tank, NorthRelay, 3);
 
-// A packet gets one of three answers: deliver it here, relay it to the neighbour
-// on the way, or flood it because no route is known yet.
-Expect(router.Forward(0x01).Action == ForwardAction.Deliver, "a packet for this node");
-ForwardDecision relayed = router.Forward(0x09);
-Expect(relayed.Action == ForwardAction.Relay, "a packet for a node we can reach");
-Expect(relayed.NextHop == 0x07, "goes to the neighbour on the way");
-Expect(router.Forward(0x20).Action == ForwardAction.Flood, "an unknown node still floods");
+Route? route = router.RouteTo(Pump);
+Console.WriteLine($"to the pump   via {route?.NextHop} at cost {route?.Cost}");
+Console.WriteLine($"routes held   {router.Count}");
+
+// Every packet gets one of three answers: deliver it here, relay it to the
+// neighbour on the way, or flood it because no route is known yet.
+foreach ((string name, byte address) in
+    new[] { ("gateway", Gateway), ("pump", Pump), ("silo", Silo) })
+{
+    ForwardDecision decision = router.Forward(address);
+    Console.WriteLine(decision.Action switch
+    {
+        ForwardAction.Deliver => $"for the {name,-8} deliver here",
+        ForwardAction.Relay => $"for the {name,-8} relay via {decision.NextHop}",
+        _ => $"for the {name,-8} flood, no route known",
+    });
+}
 
 // Forgetting a node that has gone quiet returns its traffic to flooding, so
 // routing is an optimisation over flooding rather than a second thing that can
 // fail.
-router.Forget(0x09);
-Expect(router.Forward(0x09).Action == ForwardAction.Flood, "the way to 0x09 is gone");
-Expect(router.Count == 1, "forgetting drops exactly one route");
+router.Forget(Pump);
+ForwardDecision after = router.Forward(Pump);
+Console.WriteLine(
+    $"pump forgotten, so it floods again: {after.Action == ForwardAction.Flood}");
 ```
 <!-- end -->
 

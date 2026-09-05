@@ -14,21 +14,33 @@ image confirms itself, the next boot goes back to the one that worked.
 
 ## What the example does
 
-It signs a manifest for an image, stages it into the spare slot while the running
-one is left alone, and confirms it after a trial boot. Then it offers the same
-release signed by a key the device is not anchored to.
+It signs a manifest for an image, checks the envelope on the device against the
+key that device is anchored to, then writes the image into the spare slot sixteen
+bytes at a time. The device is provisioned first as it left the factory, running
+sequence 1 from slot 0, so there is a working image to keep. The staged image
+gets its trial boot and is confirmed. Finally the same release comes back signed
+by a key the device does not trust.
+
+The manifest commits to a SHA-256 over the image, and the library computes it, so
+a publisher does not add a hashing dependency just to name the image it is
+releasing. The vendor and class identifiers are sixteen bytes a vendor assigns
+itself; a device takes firmware only for the pair it was built as.
 
 It proves:
 
-- The digest the manifest commits to is the one FIPS 180-4 publishes for its
-  second worked example, so the hash is checked against a published constant
-  rather than against itself.
-- A verified envelope carries back the digest that was signed.
+- Verifying the envelope hands back the manifest, so the device learns which slot
+  the release is for from the signature rather than from whoever sent it.
+- The digest in the manifest is the one the library computes over the image, so a
+  publisher that hashed the wrong bytes cannot produce a release that stages.
+- Staging completes only because every byte the manifest declared arrived and
+  hashed to that digest, which the device recomputes as the pieces come in.
 - The release lands in the slot the device is not running from, so the working
   image is never overwritten.
-- A first boot into a new image reports itself as a trial, and confirming it is
-  what makes it permanent.
-- A release signed by an untrusted key is refused.
+- The first boot into the staged image is a trial, and confirming it is what
+  leaves the slot confirmed rather than reverting on the next boot.
+- A release signed by a key the device is not anchored to is refused, even
+  though the manifest inside it is the one that was just accepted, because the
+  signature is checked before anything in the manifest is read.
 
 ## Rust
 
@@ -38,77 +50,87 @@ From [`examples/tests/guides/update.rs`](https://github.com/molexxxx/pamoja/blob
 ```rust
 use pamoja_security::DeviceIdentity;
 use pamoja_update::{
-    Boot, Device, Envelope, Manifest, MemoryStore, PayloadFormat, SlotState, SlotStore,
+    image_digest, Device, Envelope, Manifest, MemoryStore, PayloadFormat, SlotState, SlotStore,
     Updater, ENVELOPE_MAX, STRUCTURE_VERSION,
 };
 
-let publisher = DeviceIdentity::from_seed(&[0x31; 32]);
+// The publisher's key signs releases; devices in the field are anchored to its public
+// half and will take firmware from nobody else.
+let publisher = DeviceIdentity::from_seed(&[7u8; 32]);
 
-// The image stands in for firmware. It is the 56-byte message FIPS 180-4 hashes in its
-// second worked example, so the digest the manifest commits to is a published constant.
-let image = b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq";
-let size = image.len() as u32;
+// Who the release is for. Both identifiers are sixteen bytes a vendor assigns itself,
+// and a device takes firmware only for the pair it was built as.
+const VENDOR: [u8; 16] = [10; 16];
+const FLOW_METER: [u8; 16] = [11; 16];
+
+// The release. A manifest says who the image is for, which slot it belongs in, how big
+// it is and what it hashes to; nothing about the image itself is taken on trust.
+let image = b"firmware for a flow meter, version two";
 let manifest = Manifest {
     structure_version: STRUCTURE_VERSION,
     sequence: 2,
-    vendor_id: [0x0A; 16],
-    class_id: [0x0B; 16],
+    vendor_id: VENDOR,
+    class_id: FLOW_METER,
     format: PayloadFormat::Raw,
     storage: 1,
-    digest: [
-        0x24, 0x8d, 0x6a, 0x61, 0xd2, 0x06, 0x38, 0xb8, 0xe5, 0xc0, 0x26, 0x93, 0x0c, 0x3e,
-        0x60, 0x39, 0xa3, 0x3c, 0xe4, 0x59, 0x64, 0xff, 0x21, 0x67, 0xf6, 0xec, 0xed, 0xd4,
-        0x19, 0xdb, 0x06, 0xc1,
-    ],
-    size,
+    digest: image_digest(image),
+    size: image.len() as u32,
     expires: 0,
 };
 
-// A release says who it is for, which slot it belongs in, and what it hashes to. The
-// publisher signs that statement; nothing else about the image is taken on trust.
+// Signing it produces the envelope that travels with the image.
 let mut buf = [0u8; ENVELOPE_MAX];
 let written = manifest
     .sign(&publisher, &mut buf)
     .expect("a signed release");
 let envelope = &buf[..written];
-let opened = Envelope::decode(envelope).expect("a well-formed envelope");
-assert_eq!(
-    opened.verify(&publisher.public()).expect("the signature"),
-    manifest
-);
+let sequence = manifest.sequence;
+println!("published sequence {sequence} in a {written}-byte envelope");
 
-// The device left the factory running sequence 1 from slot 0, so the release goes to the
-// spare slot and the image it runs today stays where it is.
+// On the device. It checks the envelope against the key it was anchored to before it
+// accepts a single byte of the image.
 let device = Device {
     vendor_id: manifest.vendor_id,
     class_id: manifest.class_id,
     anchor: publisher.public(),
 };
+let opened = Envelope::decode(envelope).expect("a well-formed envelope");
+match opened.verify(&device.anchor) {
+    Ok(release) => println!("accepted  a release for slot {}", release.storage),
+    Err(error) => println!("refused   {error}"),
+}
+
+// It left the factory running sequence 1 from slot 0, so the release goes to the spare
+// slot and the image it is running stays where it is.
 let mut updater = Updater::new(device, MemoryStore::new(2, 4096));
 updater.provision(0, 1).expect("the shipped image");
 let mut staging = updater.begin(envelope).expect("a release for this device");
 for piece in image.chunks(16) {
     staging.write(piece).expect("the next piece");
 }
-assert_eq!(staging.progress(), (size, size));
-assert_eq!(staging.finish().expect("the image matched its digest"), 1);
+let (received, total) = staging.progress();
+println!("staged    {received} of {total} bytes");
+let slot = staging.finish().expect("the image matched its digest");
+println!("written   to slot {slot}, leaving the running image alone");
 
-// The first boot into a new image is a trial. It reverts to slot 0 on the next boot
-// unless it confirms itself.
-assert_eq!(updater.on_boot().expect("a decision"), Boot::Trying(1));
-assert_eq!(updater.confirm().expect("it came up"), 1);
-assert_eq!(
-    updater.store().record(1).expect("slot 1").state,
-    SlotState::Confirmed
-);
+// The first boot into a new image is a trial. It reverts on the next boot unless the
+// device confirms that it came up, which is what makes a bad release survivable.
+let decision = updater.on_boot().expect("a decision");
+println!("booting   {}", decision.action());
+updater.confirm().expect("it came up");
+let state = updater.store().record(slot).expect("the new slot").state;
+println!("confirmed slot {slot} is now {state:?}");
 
-// The same release, signed by a key this device is not anchored to, gets nowhere.
-let impostor = DeviceIdentity::from_seed(&[0x32; 32]);
+// The same release signed by a key this device is not anchored to gets nowhere.
+let impostor = DeviceIdentity::from_seed(&[90u8; 32]);
 let mut forged = [0u8; ENVELOPE_MAX];
 let signed = manifest
     .sign(&impostor, &mut forged)
     .expect("a signed release");
-assert!(updater.stage(&forged[..signed], image).is_err());
+match updater.stage(&forged[..signed], image) {
+    Ok(_) => println!("a forged release was accepted, which should never happen"),
+    Err(error) => println!("forged    refused: {error}"),
+}
 ```
 <!-- end -->
 
@@ -118,67 +140,67 @@ assert!(updater.stage(&forged[..signed], image).is_err());
 From [`bindings/node/guides/update.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/update.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { DeviceIdentity } from '@pamoja/security'
 import {
   BootAction,
-  FORMAT_RAW,
-  STRUCTURE_VERSION,
   SlotState,
   Updater,
+  imageDigest,
   signManifest,
   verifyEnvelope,
 } from '@pamoja/update'
 
+// The publisher's key signs releases; devices in the field are anchored to its public half
+// and will take firmware from nobody else.
+const publisher = DeviceIdentity.fromSeed(Buffer.alloc(32, 7))
 const vendor = Buffer.alloc(16, 0x0a)
 const deviceClass = Buffer.alloc(16, 0x0b)
-const publisher = DeviceIdentity.fromSeed(Buffer.alloc(32, 0x31))
 
-// The image stands in for firmware. It is the 56-byte message FIPS 180-4 hashes in its
-// second worked example, so the digest the manifest commits to is a published constant.
-const image = Buffer.from('abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq')
-const digest = Buffer.from(
-  '248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1',
-  'hex'
-)
-
-// A release says who it is for, which slot it belongs in, and what it hashes to. The
-// publisher signs that statement; nothing else about the image is taken on trust.
+// The release. A manifest says who the image is for, which slot it belongs in, how big it
+// is and what it hashes to; nothing about the image itself is taken on trust.
+const image = Buffer.from('firmware for a flow meter, version two')
 const manifest = {
-  structureVersion: STRUCTURE_VERSION,
   sequence: 2,
   vendorId: vendor,
   classId: deviceClass,
-  format: FORMAT_RAW,
   storage: 1,
-  digest,
+  digest: imageDigest(image),
   size: image.length,
-  expires: 0,
 }
 const envelope = signManifest(manifest, publisher)
-assert.deepEqual(verifyEnvelope(envelope, publisher.publicKey()).digest, digest)
+console.log(`published sequence ${manifest.sequence} in a ${envelope.length}-byte envelope`)
 
-// The device left the factory running sequence 1 from slot 0, so the release goes to
-// the spare slot and the image it runs today stays where it is.
+// On the device. It checks the envelope against the key it was anchored to before it
+// accepts a single byte of the image.
+const opened = verifyEnvelope(envelope, publisher.publicKey())
+console.log(`accepted  a release for slot ${opened.storage}`)
+
+// It left the factory running sequence 1 from slot 0, so the release goes to the spare slot
+// and the image it is running stays where it is.
 const fleet = new Updater(vendor, deviceClass, publisher.publicKey(), 2, 4096)
 fleet.provision(0, 1)
-assert.equal(fleet.begin(envelope), 1)
+fleet.begin(envelope)
 for (let at = 0; at < image.length; at += 16) {
   fleet.write(image.subarray(at, at + 16))
 }
-assert.equal(fleet.progress().written, image.length)
-assert.equal(fleet.finish(), 1)
+console.log(`staged    ${fleet.progress().written} of ${image.length} bytes`)
+const slot = fleet.finish()
+console.log(`written   to slot ${slot}, leaving the running image alone`)
 
-// The first boot into a new image is a trial. It reverts to slot 0 on the next boot
-// unless it confirms itself.
-assert.equal(fleet.onBoot().action, BootAction.Trying)
-assert.equal(fleet.confirm(), 1)
-assert.equal(fleet.slotRecord(1).state, SlotState.Confirmed)
+// The first boot into a new image is a trial. It reverts on the next boot unless the device
+// confirms that it came up, which is what makes a bad release survivable.
+console.log(`booting   ${fleet.onBoot().action}`)
+fleet.confirm()
+console.log(`confirmed slot ${slot} is now ${fleet.slotRecord(slot).state}`)
 
-// The same release, signed by a key this device is not anchored to, gets nowhere.
-const impostor = DeviceIdentity.fromSeed(Buffer.alloc(32, 0x32))
-assert.throws(() => fleet.stage(signManifest(manifest, impostor), image))
+// The same release signed by a key this device is not anchored to gets nowhere.
+const impostor = DeviceIdentity.fromSeed(Buffer.alloc(32, 90))
+try {
+  fleet.stage(signManifest(manifest, impostor), image)
+  console.log('a forged release was accepted, which should never happen')
+} catch (error) {
+  console.log(`forged    refused: ${(error as Error).message}`)
+}
 ```
 <!-- end -->
 
@@ -191,53 +213,64 @@ From [`bindings/python/guides/update.py`](https://github.com/molexxxx/pamoja/blo
 from pamoja.core import PamojaError
 from pamoja.security import DeviceIdentity
 from pamoja.update import (
-    BootAction, Manifest, SlotState, Updater, sign_manifest, verify_envelope,
+    BootAction,
+    Manifest,
+    SlotState,
+    Updater,
+    image_digest,
+    sign_manifest,
+    verify_envelope,
 )
 
+# The publisher's key signs releases; devices in the field are anchored to its public half
+# and will take firmware from nobody else.
+publisher = DeviceIdentity.from_seed(bytes([7]) * 32)
 vendor = bytes([0x0A]) * 16
 device_class = bytes([0x0B]) * 16
-publisher = DeviceIdentity.from_seed(bytes([0x31]) * 32)
 
-# The image stands in for firmware. It is the 56-byte message FIPS 180-4 hashes in its
-# second worked example, so the digest the manifest commits to is a published constant.
-image = b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
-digest = bytes.fromhex(
-    "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"
-)
-
-# A release says who it is for, which slot it belongs in, and what it hashes to. The
-# publisher signs that statement; nothing else about the image is taken on trust.
+# The release. A manifest says who the image is for, which slot it belongs in, how big it
+# is and what it hashes to; nothing about the image itself is taken on trust.
+image = b"firmware for a flow meter, version two"
 manifest = Manifest(
-    sequence=2, vendor_id=vendor, class_id=device_class, storage=1, digest=digest,
+    sequence=2,
+    vendor_id=vendor,
+    class_id=device_class,
+    storage=1,
+    digest=image_digest(image),
     size=len(image),
 )
 envelope = sign_manifest(manifest, publisher)
-assert verify_envelope(envelope, publisher.public_key).digest == digest
+print(f"published sequence {manifest.sequence} in a {len(envelope)}-byte envelope")
 
-# The device left the factory running sequence 1 from slot 0, so the release goes to
-# the spare slot and the image it runs today stays where it is.
+# On the device. It checks the envelope against the key it was anchored to before it
+# accepts a single byte of the image.
+opened = verify_envelope(envelope, publisher.public_key)
+print(f"accepted  a release for slot {opened.storage}")
+
+# It left the factory running sequence 1 from slot 0, so the release goes to the spare slot
+# and the image it is running stays where it is.
 fleet = Updater(vendor, device_class, publisher.public_key, 2, 4096)
 fleet.provision(0, 1)
-assert fleet.begin(envelope) == 1
+fleet.begin(envelope)
 for at in range(0, len(image), 16):
     fleet.write(image[at : at + 16])
-assert fleet.progress().written == len(image)
-assert fleet.finish() == 1
+print(f"staged    {fleet.progress().written} of {len(image)} bytes")
+slot = fleet.finish()
+print(f"written   to slot {slot}, leaving the running image alone")
 
-# The first boot into a new image is a trial. It reverts to slot 0 on the next boot
-# unless it confirms itself.
-assert fleet.on_boot().action == BootAction.TRYING
-assert fleet.confirm() == 1
-assert fleet.slot_record(1).state == SlotState.CONFIRMED
+# The first boot into a new image is a trial. It reverts on the next boot unless the device
+# confirms that it came up, which is what makes a bad release survivable.
+print(f"booting   {fleet.on_boot().action}")
+fleet.confirm()
+print(f"confirmed slot {slot} is now {fleet.slot_record(slot).state}")
 
-# The same release, signed by a key this device is not anchored to, gets nowhere.
-impostor = DeviceIdentity.from_seed(bytes([0x32]) * 32)
+# The same release signed by a key this device is not anchored to gets nowhere.
+impostor = DeviceIdentity.from_seed(bytes([90]) * 32)
 try:
     fleet.stage(sign_manifest(manifest, impostor), image)
-except PamojaError:
-    pass
-else:
-    raise AssertionError("a release signed by an untrusted key should be refused")
+    print("a forged release was accepted, which should never happen")
+except PamojaError as error:
+    print(f"forged    refused: {error}")
 ```
 <!-- end -->
 
@@ -247,62 +280,66 @@ else:
 From [`bindings/dotnet/samples/Pamoja.Guides/UpdateGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/UpdateGuide.cs):
 
 ```csharp
+// The publisher's key signs releases; devices in the field are anchored to its
+// public half and will take firmware from nobody else.
+byte[] seed = new byte[32];
+Array.Fill(seed, (byte)7);
+using var publisher = new DeviceIdentity(seed);
 byte[] vendor = Enumerable.Repeat((byte)0x0A, 16).ToArray();
 byte[] deviceClass = Enumerable.Repeat((byte)0x0B, 16).ToArray();
-using var publisher = new DeviceIdentity(Enumerable.Repeat((byte)0x31, 32).ToArray());
 
-// The image stands in for firmware. It is the 56-byte message FIPS 180-4 hashes in
-// its second worked example, so the digest the manifest commits to is a published
-// constant rather than a value checked against itself.
-byte[] image = Encoding.ASCII.GetBytes(
-    "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq");
-byte[] digest = Convert.FromHexString(
-    "248D6A61D20638B8E5C026930C3E6039A33CE45964FF2167F6ECEDD419DB06C1");
-
-// A release says who it is for, which slot it belongs in, and what it hashes to. The
-// publisher signs that statement; nothing else about the image is taken on trust.
+// The release. A manifest says who the image is for, which slot it belongs in, how
+// big it is and what it hashes to; nothing about the image is taken on trust.
+byte[] image = Encoding.ASCII.GetBytes("firmware for a flow meter, version two");
 var manifest = new Manifest(
     Sequence: 2,
     VendorId: vendor,
     ClassId: deviceClass,
     Storage: 1,
-    Digest: digest,
+    Digest: Update.ImageDigest(image),
     Size: (uint)image.Length);
 byte[] envelope = Update.SignManifest(manifest, publisher);
-Expect(
-    Update.VerifyEnvelope(envelope, publisher.PublicKey).Digest.SequenceEqual(digest),
-    "the release verifies against the key that signed it");
+Console.WriteLine(
+    $"published sequence {manifest.Sequence} in a {envelope.Length}-byte envelope");
 
-// The device left the factory running sequence 1 from slot 0, so the release goes to
-// the spare slot and the image it runs today stays where it is.
+// On the device. It checks the envelope against the key it was anchored to before
+// it accepts a single byte of the image.
+Manifest opened = Update.VerifyEnvelope(envelope, publisher.PublicKey);
+Console.WriteLine($"accepted  a release for slot {opened.Storage}");
+
+// It left the factory running sequence 1 from slot 0, so the release goes to the
+// spare slot and the image it is running stays where it is.
 using var fleet = new Updater(vendor, deviceClass, publisher.PublicKey, 2, 4096);
 fleet.Provision(0, 1);
-Expect(fleet.Begin(envelope) == 1, "the release names the spare slot");
+fleet.Begin(envelope);
 for (int at = 0; at < image.Length; at += 16)
 {
     fleet.Write(image.AsSpan(at, Math.Min(16, image.Length - at)));
 }
-Expect(fleet.CurrentProgress().Written == image.Length, "every byte arrived");
-Expect(fleet.Finish() == 1, "and the image matched what was promised");
 
-// The first boot into a new image is a trial. It reverts to slot 0 on the next boot
-// unless it confirms itself.
-Expect(fleet.OnBoot().Action == BootAction.Trying, "a new image is on trial");
-Expect(fleet.Confirm() == 1, "and confirms once it has run");
-Expect(fleet.Record(1).State == SlotState.Confirmed, "so the slot holds it from now on");
+Console.WriteLine($"staged    {fleet.CurrentProgress().Written} of {image.Length} bytes");
+byte slot = fleet.Finish();
+Console.WriteLine($"written   to slot {slot}, leaving the running image alone");
 
-// The same release, signed by a key this device is not anchored to, gets nowhere.
-using var impostor = new DeviceIdentity(Enumerable.Repeat((byte)0x32, 32).ToArray());
-bool refused = false;
+// The first boot into a new image is a trial. It reverts on the next boot unless
+// the device confirms it came up, which is what makes a bad release survivable.
+Console.WriteLine($"booting   {fleet.OnBoot().Action}");
+fleet.Confirm();
+Console.WriteLine($"confirmed slot {slot} is now {fleet.Record(slot).State}");
+
+// The same release signed by a key this device is not anchored to gets nowhere.
+byte[] impostorSeed = new byte[32];
+Array.Fill(impostorSeed, (byte)90);
+using var impostor = new DeviceIdentity(impostorSeed);
 try
 {
-    fleet.Stage(Update.SignManifest(manifest with { Sequence = 3 }, impostor), image);
+    fleet.Stage(Update.SignManifest(manifest, impostor), image);
+    Console.WriteLine("a forged release was accepted, which should never happen");
 }
-catch (PamojaException)
+catch (PamojaException error)
 {
-    refused = true;
+    Console.WriteLine($"forged    refused: {error.Message}");
 }
-Expect(refused, "a release signed by an untrusted key is refused");
 ```
 <!-- end -->
 

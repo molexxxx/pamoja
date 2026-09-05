@@ -155,6 +155,77 @@ pub fn power_microwatts(raw: u16, current_lsb_microamps: u32) -> u32 {
     raw as u32 * (20 * current_lsb_microamps)
 }
 
+/// Builds the shunt voltage register a monitor reports for a shunt voltage.
+///
+/// The inverse of [`shunt_microvolts`], so a node can be written and tested against
+/// what a monitor sends without one attached.
+///
+/// # Arguments
+///
+/// * `microvolts` - the shunt voltage in microvolts.
+///
+/// # Returns
+///
+/// The signed shunt voltage register, at 10 µV per count.
+pub fn shunt_register(microvolts: i32) -> i16 {
+    (microvolts / 10) as i16
+}
+
+/// Builds the bus voltage register a monitor reports for a bus voltage.
+///
+/// The inverse of [`bus_millivolts`], with the conversion-ready flag set and the
+/// overflow flag clear, which is what a completed conversion reads as.
+///
+/// # Arguments
+///
+/// * `millivolts` - the bus voltage in millivolts.
+///
+/// # Returns
+///
+/// The bus voltage register, the voltage in bits 15:3 at 4 mV per count.
+pub fn bus_register(millivolts: u32) -> u16 {
+    (((millivolts / 4) as u16) << 3) | 0x0002
+}
+
+/// Builds the current register a monitor reports for a current.
+///
+/// The inverse of [`current_microamps`].
+///
+/// # Arguments
+///
+/// * `microamps` - the current in microamps.
+/// * `current_lsb_microamps` - the current LSB the calibration register was set for.
+///
+/// # Returns
+///
+/// The signed current register, or zero if `current_lsb_microamps` is zero.
+pub fn current_register(microamps: i32, current_lsb_microamps: u32) -> i16 {
+    if current_lsb_microamps == 0 {
+        return 0;
+    }
+    (microamps / current_lsb_microamps as i32) as i16
+}
+
+/// Builds the power register a monitor reports for a power.
+///
+/// The inverse of [`power_microwatts`]; the power LSB is fixed by the datasheet at
+/// twenty times the current LSB.
+///
+/// # Arguments
+///
+/// * `microwatts` - the power in microwatts.
+/// * `current_lsb_microamps` - the current LSB the calibration register was set for.
+///
+/// # Returns
+///
+/// The power register, or zero if `current_lsb_microamps` is zero.
+pub fn power_register(microwatts: u32, current_lsb_microamps: u32) -> u16 {
+    if current_lsb_microamps == 0 {
+        return 0;
+    }
+    (microwatts / (20 * current_lsb_microamps)) as u16
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,6 +233,29 @@ mod tests {
     // The datasheet's worked design example (Table 8): max expected current 15 A,
     // shunt 2 mΩ, current LSB rounded to 1 mA/bit, bus range 16 V.
     const CURRENT_LSB: u32 = 1_000; // 1 mA in microamps
+
+    #[test]
+    fn every_register_survives_a_round_trip_through_its_builder() {
+        // The datasheet's worked design example reads 11.98 V, 10 A, and 119.8 W, and
+        // each builder reproduces the register that decodes back to it.
+        assert_eq!(bus_millivolts(bus_register(11_980)), 11_980);
+        assert_eq!(bus_register(11_980) >> 3, 0x5D98 >> 3);
+        assert!(conversion_ready(bus_register(11_980)));
+        assert!(!math_overflow(bus_register(11_980)));
+        assert_eq!(current_register(10_000_000, CURRENT_LSB), 0x2710);
+        assert_eq!(
+            current_microamps(current_register(10_000_000, CURRENT_LSB), CURRENT_LSB),
+            10_000_000
+        );
+        assert_eq!(power_register(119_800_000, CURRENT_LSB), 0x1766);
+        assert_eq!(
+            power_microwatts(power_register(119_800_000, CURRENT_LSB), CURRENT_LSB),
+            119_800_000
+        );
+        assert_eq!(shunt_microvolts(shunt_register(20_000)), 20_000);
+        assert_eq!(current_register(1, 0), 0);
+        assert_eq!(power_register(1, 0), 0);
+    }
 
     #[test]
     fn calibration_matches_the_datasheet_example() {

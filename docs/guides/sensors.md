@@ -14,22 +14,34 @@ runs on a microcontroller, on a gateway, and in a test with nothing plugged in.
 It reads a DS18B20 thermometer and an INA219 power monitor, the two parts a
 battery node usually has on it. The thermometer's scratchpad is checked against
 the CRC the part appends before any temperature is taken from it, and the
-monitor's registers are the ones its datasheet's worked design example fixes.
+monitor is calibrated for the shunt it sits across, since it computes nothing
+until it has been. The shunt, the current resolution and the load are the ones
+its datasheet's worked design example describes.
+
+On a running node those bytes arrive from the bus, so there is nothing to type.
+The example builds them instead, with the same library that decodes them: the
+scratchpad builder returns exactly what a thermometer at that temperature sends
+(`Scratchpad::new(..).to_bytes()` in Rust, `build_scratchpad` in the three
+bindings), and `bus_register`, `current_register`, and `power_register` return
+what a monitor across that load reports. Every builder is the inverse of the
+decode beside it, which is what lets a node be written and tested with nothing
+wired up. Everything after those first few lines is the node's own code and
+does not care where the bytes came from.
 
 It proves:
 
-- The 1-Wire checksum is CRC-8/MAXIM-DOW, which over the ASCII digits 1 to 9
-  produces the published check value `0xA1`.
-- Register `0x0191` is +25.0625 degrees Celsius, the row the DS18B20
-  temperature table publishes, decoded exactly in integer arithmetic rather
-  than through a float.
-- The same scratchpad reports the resolution its configuration byte selects and
-  the alarm thresholds written into it.
+- 25.0625 degrees Celsius at 12-bit resolution builds register `0x0191`, the
+  row the DS18B20 temperature table publishes, and that register decodes back
+  to the same temperature, exact in integer micro-degrees.
+- The same nine bytes report the resolution the configuration byte selects and
+  both alarm thresholds, 75 and -10 degrees, written into them.
 - One flipped bit fails the CRC, so a read corrupted on a long 1-Wire run is
   repeated instead of logged as a temperature a couple of degrees off.
-- The INA219 lands on the datasheet's own numbers: calibration `0x5000` for 1 mA
-  per count across a 2 milliohm shunt, and 11.98 V, 10 A, and 119.8 W out of the
-  registers that design produces.
+- The 1-Wire checksum is CRC-8/MAXIM-DOW, which over the ASCII digits 1 to 9
+  produces the published check value `0xA1`.
+- 1 mA per count across a 2 milliohm shunt calibrates to `0x5000`, the number
+  the INA219 datasheet's design example works out, and the registers a monitor
+  across that load reports decode back to 11.98 V, 10 A, and 119.8 W.
 
 ## Rust
 
@@ -37,39 +49,55 @@ It proves:
 From [`examples/tests/guides/sensors.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/sensors.rs):
 
 ```rust
-use pamoja_sensors::ds18b20::{self, Scratchpad};
+use pamoja_sensors::ds18b20::{self, Resolution, Scratchpad};
 use pamoja_sensors::ina219;
 
-// Every Maxim 1-Wire part checks itself with CRC-8/MAXIM-DOW, whose published check
-// value over the ASCII digits 1 to 9 is 0xA1.
-assert_eq!(ds18b20::crc8(b"123456789"), 0xA1);
+// Stand-ins for the two parts. On a running node the thermometer's nine bytes come
+// off the 1-Wire bus and the monitor's registers off I2C; here the library builds
+// what each would send, so the program runs with nothing plugged in.
+let thermometer = Scratchpad::new(
+    ds18b20::temperature_from_celsius(25.0625, Resolution::Bits12),
+    Resolution::Bits12,
+    75,
+    -10,
+)
+.to_bytes();
 
-// A DS18B20 answers a read with nine scratchpad bytes, the ninth that CRC over the
-// other eight, so a reading is verified before it is believed.
-let mut scratchpad = [0x91, 0x01, 0x4B, 0xF6, 0x7F, 0xFF, 0x0C, 0x10, 0x00];
-scratchpad[8] = ds18b20::crc8(&scratchpad[..8]);
-let reading = Scratchpad::parse(&scratchpad).expect("the CRC matches");
-
-// Register 0x0191 is the +25.0625 degree row of the datasheet's temperature table, each
-// count a sixteenth of a degree, so micro-degrees stay exact in integer arithmetic.
-assert_eq!(reading.raw_temperature(), 0x0191);
-assert_eq!(reading.temperature_micro_celsius(), 25_062_500);
-assert_eq!(reading.resolution().bits(), 12);
-assert_eq!(reading.alarm_high(), 75);
-
-// A bit flipped on a long 1-Wire run fails the CRC instead of arriving as a plausible
-// temperature a few degrees off.
-let mut corrupt = scratchpad;
-corrupt[0] ^= 0x01;
-assert!(Scratchpad::parse(&corrupt).is_err());
-
-// The INA219 datasheet's worked design example: 1 mA per count across a 2 milliohm
-// shunt calibrates to 0x5000, and its registers then read 11.98 V, 10 A, and 119.8 W.
+// The monitor is set up for 1 mA per count across a 2 milliohm shunt, the load its
+// datasheet's worked design example describes: 11.98 V, 10 A, and 119.8 W.
 const CURRENT_LSB: u32 = 1_000;
-assert_eq!(ina219::calibration(CURRENT_LSB, 2), 0x5000);
-assert_eq!(ina219::bus_millivolts(0x5D98), 11_980);
-assert_eq!(ina219::current_microamps(0x2710, CURRENT_LSB), 10_000_000);
-assert_eq!(ina219::power_microwatts(0x1766, CURRENT_LSB), 119_800_000);
+let bus = ina219::bus_register(11_980);
+let current = ina219::current_register(10_000_000, CURRENT_LSB);
+let power = ina219::power_register(119_800_000, CURRENT_LSB);
+
+// Everything below is the node's own code. The thermometer checksums every read, so
+// a reading is verified before it is believed.
+let reading = Scratchpad::parse(&thermometer).expect("the checksum matches");
+let celsius = reading.temperature_celsius();
+let bits = reading.resolution().bits();
+let (high, low) = (reading.alarm_high(), reading.alarm_low());
+println!("temperature  {celsius:.4} C");
+println!("resolution   {bits} bits");
+println!("alarms       {high} / {low} C");
+
+// The monitor computes nothing until it has been told what shunt it is across.
+let calibration = ina219::calibration(CURRENT_LSB, 2);
+let millivolts = ina219::bus_millivolts(bus);
+let milliamps = ina219::current_microamps(current, CURRENT_LSB) / 1_000;
+let milliwatts = ina219::power_microwatts(power, CURRENT_LSB) / 1_000;
+println!("calibration  {calibration:#06X}");
+println!("bus          {millivolts} mV");
+println!("current      {milliamps} mA");
+println!("power        {milliwatts} mW");
+
+// A bit flipped on a long 1-Wire run fails the checksum, so the node repeats the read
+// instead of logging a temperature a couple of degrees off.
+let mut corrupted = thermometer;
+corrupted[0] ^= 1;
+match Scratchpad::parse(&corrupted) {
+    Ok(_) => println!("corrupt read accepted, which should never happen"),
+    Err(error) => println!("corrupt read rejected: {error}"),
+}
 ```
 <!-- end -->
 
@@ -79,40 +107,43 @@ assert_eq!(ina219::power_microwatts(0x1766, CURRENT_LSB), 119_800_000);
 From [`bindings/node/guides/sensors.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/sensors.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { ds18b20, ina219 } from '@pamoja/sensors'
 
-// Every Maxim 1-Wire part checks itself with CRC-8/MAXIM-DOW, whose published check value
-// over the ASCII digits 1 to 9 is 0xA1.
-assert.equal(ds18b20.crc8(Buffer.from('123456789')), 0xa1)
+// Stand-ins for the two parts. On a running node the thermometer's nine bytes come off
+// the 1-Wire bus and the monitor's registers off I2C; here the library builds what each
+// would send, so the program runs with nothing plugged in.
+const thermometer = ds18b20.buildScratchpad(25.0625, 12, 75, -10)
 
-// A DS18B20 answers a read with nine scratchpad bytes, the ninth that CRC over the other
-// eight, so a reading is verified before it is believed.
-const scratchpad = Buffer.from([0x91, 0x01, 0x4b, 0xf6, 0x7f, 0xff, 0x0c, 0x10, 0x00])
-scratchpad[8] = ds18b20.crc8(scratchpad.subarray(0, 8))
-const reading = ds18b20.parseScratchpad(scratchpad)
-
-// Register 0x0191 is the +25.0625 degree row of the datasheet's temperature table, each
-// count a sixteenth of a degree, so micro-degrees stay exact in integer arithmetic.
-assert.equal(reading.rawTemperature, 0x0191)
-assert.equal(reading.microCelsius, 25_062_500)
-assert.equal(reading.resolutionBits, 12)
-assert.equal(reading.alarmHigh, 75)
-
-// A bit flipped on a long 1-Wire run fails the CRC instead of arriving as a plausible
-// temperature a few degrees off.
-const corrupt = Buffer.from(scratchpad)
-corrupt[0] ^= 0x01
-assert.throws(() => ds18b20.parseScratchpad(corrupt))
-
-// The INA219 datasheet's worked design example: 1 mA per count across a 2 milliohm shunt
-// calibrates to 0x5000, and its registers then read 11.98 V, 10 A, and 119.8 W.
+// The monitor is set up for 1 mA per count across a 2 milliohm shunt, the load its
+// datasheet's worked design example describes: 11.98 V, 10 A, and 119.8 W.
 const currentLsb = 1_000
-assert.equal(ina219.calibration(currentLsb, 2), 0x5000)
-assert.equal(ina219.busMillivolts(0x5d98), 11_980)
-assert.equal(ina219.currentMicroamps(0x2710, currentLsb), 10_000_000)
-assert.equal(ina219.powerMicrowatts(0x1766, currentLsb), 119_800_000)
+const bus = ina219.busRegister(11_980)
+const current = ina219.currentRegister(10_000_000, currentLsb)
+const power = ina219.powerRegister(119_800_000, currentLsb)
+
+// Everything below is the node's own code. The thermometer checksums every read, so a
+// reading is verified before it is believed.
+const reading = ds18b20.parseScratchpad(thermometer)
+console.log(`temperature  ${reading.celsius.toFixed(4)} C`)
+console.log(`resolution   ${reading.resolutionBits} bits`)
+console.log(`alarms       ${reading.alarmHigh} / ${reading.alarmLow} C`)
+
+// The monitor computes nothing until it has been told what shunt it is across.
+console.log(`calibration  0x${ina219.calibration(currentLsb, 2).toString(16).toUpperCase()}`)
+console.log(`bus          ${ina219.busMillivolts(bus)} mV`)
+console.log(`current      ${ina219.currentMicroamps(current, currentLsb) / 1_000} mA`)
+console.log(`power        ${ina219.powerMicrowatts(power, currentLsb) / 1_000} mW`)
+
+// A bit flipped on a long 1-Wire run fails the checksum, so the node repeats the read
+// instead of logging a temperature a couple of degrees off.
+const corrupted = Buffer.from(thermometer)
+corrupted[0] ^= 1
+try {
+  ds18b20.parseScratchpad(corrupted)
+  console.log('corrupt read accepted, which should never happen')
+} catch (error) {
+  console.log(`corrupt read rejected: ${(error as Error).message}`)
+}
 ```
 <!-- end -->
 
@@ -125,41 +156,40 @@ From [`bindings/python/guides/sensors.py`](https://github.com/molexxxx/pamoja/bl
 from pamoja.core import PamojaError
 from pamoja.sensors import ds18b20, ina219
 
-# Every Maxim 1-Wire part checks itself with CRC-8/MAXIM-DOW, whose published check
-# value over the ASCII digits 1 to 9 is 0xA1.
-assert ds18b20.crc8(b"123456789") == 0xA1
+# Stand-ins for the two parts. On a running node the thermometer's nine bytes come off
+# the 1-Wire bus and the monitor's registers off I2C; here the library builds what each
+# would send, so the program runs with nothing plugged in.
+thermometer = ds18b20.build_scratchpad(25.0625, 12, 75, -10)
 
-# A DS18B20 answers a read with nine scratchpad bytes, the ninth that CRC over the
-# other eight, so a reading is verified before it is believed.
-scratchpad = bytearray([0x91, 0x01, 0x4B, 0xF6, 0x7F, 0xFF, 0x0C, 0x10, 0x00])
-scratchpad[8] = ds18b20.crc8(bytes(scratchpad[:8]))
-reading = ds18b20.parse_scratchpad(bytes(scratchpad))
+# The monitor is set up for 1 mA per count across a 2 milliohm shunt, the load its
+# datasheet's worked design example describes: 11.98 V, 10 A, and 119.8 W.
+CURRENT_LSB = 1_000
+bus = ina219.bus_register(11_980)
+current = ina219.current_register(10_000_000, CURRENT_LSB)
+power = ina219.power_register(119_800_000, CURRENT_LSB)
 
-# Register 0x0191 is the +25.0625 degree row of the datasheet's temperature table, each
-# count a sixteenth of a degree, so micro-degrees stay exact in integer arithmetic.
-assert reading.raw_temperature == 0x0191
-assert reading.micro_celsius == 25_062_500
-assert reading.resolution_bits == 12
-assert reading.alarm_high == 75
+# Everything below is the node's own code. The thermometer checksums every read, so a
+# reading is verified before it is believed.
+reading = ds18b20.parse_scratchpad(thermometer)
+print(f"temperature  {reading.celsius:.4f} C")
+print(f"resolution   {reading.resolution_bits} bits")
+print(f"alarms       {reading.alarm_high} / {reading.alarm_low} C")
 
-# A bit flipped on a long 1-Wire run fails the CRC instead of arriving as a plausible
-# temperature a few degrees off.
-corrupt = bytearray(scratchpad)
-corrupt[0] ^= 0x01
+# The monitor computes nothing until it has been told what shunt it is across.
+print(f"calibration  0x{ina219.calibration(CURRENT_LSB, 2):04X}")
+print(f"bus          {ina219.bus_millivolts(bus)} mV")
+print(f"current      {ina219.current_microamps(current, CURRENT_LSB) // 1_000} mA")
+print(f"power        {ina219.power_microwatts(power, CURRENT_LSB) // 1_000} mW")
+
+# A bit flipped on a long 1-Wire run fails the checksum, so the node repeats the read
+# instead of logging a temperature a couple of degrees off.
+corrupted = bytearray(thermometer)
+corrupted[0] ^= 1
 try:
-    ds18b20.parse_scratchpad(bytes(corrupt))
-except PamojaError:
-    pass
-else:
-    raise AssertionError("a scratchpad corrupted on the bus should be rejected")
-
-# The INA219 datasheet's worked design example: 1 mA per count across a 2 milliohm
-# shunt calibrates to 0x5000, and its registers then read 11.98 V, 10 A, and 119.8 W.
-current_lsb = 1_000
-assert ina219.calibration(current_lsb, 2) == 0x5000
-assert ina219.bus_millivolts(0x5D98) == 11_980
-assert ina219.current_microamps(0x2710, current_lsb) == 10_000_000
-assert ina219.power_microwatts(0x1766, current_lsb) == 119_800_000
+    ds18b20.parse_scratchpad(bytes(corrupted))
+    print("corrupt read accepted, which should never happen")
+except PamojaError as error:
+    print(f"corrupt read rejected: {error}")
 ```
 <!-- end -->
 
@@ -169,46 +199,44 @@ assert ina219.power_microwatts(0x1766, current_lsb) == 119_800_000
 From [`bindings/dotnet/samples/Pamoja.Guides/SensorsGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/SensorsGuide.cs):
 
 ```csharp
-// Every Maxim 1-Wire part checks itself with CRC-8/MAXIM-DOW, whose published
-// check value over the ASCII digits 1 to 9 is 0xA1.
-Expect(Ds18b20.Crc8("123456789"u8) == 0xA1, "the published CRC check value");
+// Stand-ins for the two parts. On a running node the thermometer's nine bytes
+// come off the 1-Wire bus and the monitor's registers off I2C; here the library
+// builds what each would send, so the program runs with nothing plugged in.
+byte[] thermometer = Ds18b20.BuildScratchpad(25.0625f, 12, 75, -10);
 
-// A DS18B20 answers a read with nine scratchpad bytes, the ninth that CRC over
-// the other eight, so a reading is verified before it is believed.
-byte[] scratchpad = [0x91, 0x01, 0x4B, 0xF6, 0x7F, 0xFF, 0x0C, 0x10, 0x00];
-scratchpad[8] = Ds18b20.Crc8(scratchpad.AsSpan(0, 8));
-Ds18b20Reading reading = Ds18b20.ParseScratchpad(scratchpad);
+// The monitor is set up for 1 mA per count across a 2 milliohm shunt, the load
+// its datasheet's worked design example describes: 11.98 V, 10 A, and 119.8 W.
+const uint CurrentLsb = 1_000;
+ushort bus = Ina219.BusRegister(11_980);
+short current = Ina219.CurrentRegister(10_000_000, CurrentLsb);
+ushort power = Ina219.PowerRegister(119_800_000, CurrentLsb);
 
-// Register 0x0191 is the +25.0625 degree row of the datasheet's temperature
-// table, each count a sixteenth of a degree, so micro-degrees stay exact.
-Expect(reading.RawTemperature == 0x0191, "the temperature register reads back");
-Expect(reading.MicroCelsius == 25_062_500, "the datasheet's temperature row");
-Expect(reading.ResolutionBits == 12, "the configuration byte selects 12 bits");
-Expect(reading.AlarmHigh == 75, "and the scratchpad carries its alarm threshold");
+// Everything below is the node's own code. The thermometer checksums every read,
+// so a reading is verified before it is believed.
+Ds18b20Reading reading = Ds18b20.ParseScratchpad(thermometer);
+Console.WriteLine($"temperature  {reading.Celsius:F4} C");
+Console.WriteLine($"resolution   {reading.ResolutionBits} bits");
+Console.WriteLine($"alarms       {reading.AlarmHigh} / {reading.AlarmLow} C");
 
-// A bit flipped on a long 1-Wire run fails the CRC instead of arriving as a
-// plausible temperature a few degrees off.
-byte[] corrupt = [.. scratchpad];
-corrupt[0] ^= 0x01;
-bool rejected = false;
+// The monitor computes nothing until it has been told what shunt it is across.
+Console.WriteLine($"calibration  0x{Ina219.Calibration(CurrentLsb, 2):X4}");
+Console.WriteLine($"bus          {Ina219.BusMillivolts(bus)} mV");
+Console.WriteLine($"current      {Ina219.CurrentMicroamps(current, CurrentLsb) / 1_000} mA");
+Console.WriteLine($"power        {Ina219.PowerMicrowatts(power, CurrentLsb) / 1_000} mW");
+
+// A bit flipped on a long 1-Wire run fails the checksum, so the node repeats the
+// read instead of logging a temperature a couple of degrees off.
+byte[] corrupted = [.. thermometer];
+corrupted[0] ^= 1;
 try
 {
-    Ds18b20.ParseScratchpad(corrupt);
+    Ds18b20.ParseScratchpad(corrupted);
+    Console.WriteLine("corrupt read accepted, which should never happen");
 }
-catch (PamojaException)
+catch (PamojaException error)
 {
-    rejected = true;
+    Console.WriteLine($"corrupt read rejected: {error.Message}");
 }
-Expect(rejected, "a scratchpad corrupted on the bus is rejected");
-
-// The INA219 datasheet's worked design example: 1 mA per count across a 2
-// milliohm shunt calibrates to 0x5000, and its registers then read 11.98 V,
-// 10 A, and 119.8 W.
-const uint currentLsb = 1_000;
-Expect(Ina219.Calibration(currentLsb, 2) == 0x5000, "the calibration register");
-Expect(Ina219.BusMillivolts(0x5D98) == 11_980, "the bus sits at 11.98 V");
-Expect(Ina219.CurrentMicroamps(0x2710, currentLsb) == 10_000_000, "10 A in the shunt");
-Expect(Ina219.PowerMicrowatts(0x1766, currentLsb) == 119_800_000, "drawing 119.8 W");
 ```
 <!-- end -->
 

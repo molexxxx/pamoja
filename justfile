@@ -86,3 +86,15 @@ release:
 # package and verify every crate without uploading
 release-dry:
     cargo xtask release --dry-run
+
+# start a local MQTT broker for the binding guide examples, on the port they expect
+broker:
+    printf 'listener 1883 0.0.0.0\nallow_anonymous true\n' > /tmp/pamoja-mosquitto.conf
+    docker rm -f pamoja-broker 2>/dev/null || true
+    docker run -d --name pamoja-broker -p 1883:1883 \
+        -v /tmp/pamoja-mosquitto.conf:/mosquitto/config/mosquitto.conf \
+        eclipse-mosquitto:2
+
+# stop the local MQTT broker
+broker-stop:
+    docker rm -f pamoja-broker

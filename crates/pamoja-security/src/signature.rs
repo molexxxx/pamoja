@@ -11,6 +11,9 @@ use ed25519_dalek::Signature as Ed25519Signature;
 pub struct Signature(pub(crate) Ed25519Signature);
 
 impl Signature {
+    /// The length of a signature on the wire, in bytes.
+    pub const LEN: usize = 64;
+
     /// Returns the 64-byte wire form of the signature.
     ///
     /// # Returns

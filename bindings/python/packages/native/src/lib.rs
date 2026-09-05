@@ -105,6 +105,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     {
         m.add_class::<security::DeviceIdentity>()?;
         m.add_function(wrap_pyfunction!(security::verify, m)?)?;
+        m.add_function(wrap_pyfunction!(security::verify_message, m)?)?;
         m.add_function(wrap_pyfunction!(security::fingerprint, m)?)?;
     }
     #[cfg(feature = "codec")]
@@ -144,6 +145,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(serial::slip_decode, m)?)?;
         m.add_function(wrap_pyfunction!(serial::cobs_encode, m)?)?;
         m.add_function(wrap_pyfunction!(serial::cobs_decode, m)?)?;
+        m.add_function(wrap_pyfunction!(serial::serial_framing_bytes, m)?)?;
         m.add_function(wrap_pyfunction!(serial::slip_max_encoded_len, m)?)?;
         m.add_function(wrap_pyfunction!(serial::cobs_max_encoded_len, m)?)?;
     }
@@ -154,6 +156,14 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(modbus::modbus_read_coils, m)?)?;
         m.add_function(wrap_pyfunction!(modbus::modbus_read_discrete_inputs, m)?)?;
         m.add_function(wrap_pyfunction!(modbus::modbus_read_holding_registers, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            modbus::modbus_read_holding_registers_reply,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            modbus::modbus_read_input_registers_reply,
+            m
+        )?)?;
         m.add_function(wrap_pyfunction!(modbus::modbus_read_input_registers, m)?)?;
         m.add_function(wrap_pyfunction!(modbus::modbus_write_single_coil, m)?)?;
         m.add_function(wrap_pyfunction!(modbus::modbus_write_single_register, m)?)?;
@@ -168,6 +178,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(feature = "can")]
     {
         m.add_class::<can::CanFrame>()?;
+        m.add_class::<can::CanSignals>()?;
         m.add_class::<can::J1939Message>()?;
         m.add_function(wrap_pyfunction!(can::can_frame, m)?)?;
         m.add_function(wrap_pyfunction!(can::can_fd_frame, m)?)?;
@@ -176,6 +187,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(can::can_dlc_to_len, m)?)?;
         m.add_function(wrap_pyfunction!(can::j1939_decode, m)?)?;
         m.add_function(wrap_pyfunction!(can::j1939_compose, m)?)?;
+        m.add_function(wrap_pyfunction!(can::j1939_broadcast, m)?)?;
+        m.add_function(wrap_pyfunction!(can::j1939_limits, m)?)?;
     }
     #[cfg(feature = "gpio")]
     {
@@ -183,6 +196,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(gpio::i2c_address_frame, m)?)?;
         m.add_function(wrap_pyfunction!(gpio::i2c_address_frame_len, m)?)?;
         m.add_function(wrap_pyfunction!(gpio::i2c_address_is_reserved, m)?)?;
+        m.add("I2C_RESERVED_FROM", pamoja_gpio::i2c::RESERVED_FROM)?;
+        m.add("I2C_RESERVED_BELOW", pamoja_gpio::i2c::RESERVED_BELOW)?;
         m.add_function(wrap_pyfunction!(gpio::i2c_address_is_general_call, m)?)?;
         m.add_function(wrap_pyfunction!(gpio::spi_mode_clock, m)?)?;
         m.add_function(wrap_pyfunction!(gpio::spi_mode_from_clock, m)?)?;
@@ -199,6 +214,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<sensors::Ds18b20Reading>()?;
         m.add_class::<sensors::Ads1115Config>()?;
         m.add_function(wrap_pyfunction!(sensors::ds18b20_parse_scratchpad, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ds18b20_build_scratchpad, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ds18b20_crc8, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ds18b20_micro_celsius, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ds18b20_celsius, m)?)?;
@@ -211,6 +227,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
             sensors::ina219_minimum_current_lsb_microamps,
             m
         )?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_shunt_register, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_bus_register, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_current_register, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_power_register, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ina219_shunt_microvolts, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ina219_bus_millivolts, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ina219_conversion_ready, m)?)?;
@@ -240,6 +260,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(actuators::pwm_from_counts, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::pwm_duty, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::pwm_servo, m)?)?;
+        m.add_function(wrap_pyfunction!(actuators::pwm_counts, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::pwm_full_on, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::pwm_full_off, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::stepper_step_count, m)?)?;
@@ -301,6 +322,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<update::Updater>()?;
         m.add_function(wrap_pyfunction!(update::encode_manifest, m)?)?;
         m.add_function(wrap_pyfunction!(update::decode_manifest, m)?)?;
+        m.add_function(wrap_pyfunction!(update::image_digest, m)?)?;
         m.add_function(wrap_pyfunction!(update::sign_manifest, m)?)?;
         m.add_function(wrap_pyfunction!(update::verify_envelope, m)?)?;
         m.add_function(wrap_pyfunction!(update::envelope_body, m)?)?;

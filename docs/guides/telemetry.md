@@ -11,21 +11,35 @@ it hands back actually go is the caller's business.
 
 ## What the example does
 
-It takes one node through two changes of link cost, records five events across
-the range of levels, and checks which of them come back to be shipped and what
-the counters say once the dust settles.
+A node willing to record everything adapts to a metered link, then records a
+loop tick, a sensor reading and the low-battery warning that follows it. It
+falls back to satellite, records the same reading again and a lost-link
+failure, and prints which of the five come back to be shipped. It ends on the
+snapshot, the few integers a node ships in place of the events themselves.
+
+The only level typed in is the `Trace` the reporter starts at, and it decides
+nothing: the bar is the link's before the first event is recorded. `adapt_to`
+takes a link cost and the library derives the level from it, so what a reader
+sees is the price of the link rather than a number someone picked. The same
+`reading.ok` is recorded under both costs, so what decides whether it travels
+is the link and not the event.
 
 It proves:
 
-- A metered link sets the bar at `Info` and an expensive one at `Warn`, so how
-  much a node says follows what the link costs rather than a build-time setting.
-- An event that clears the bar comes back with its code and its measurement
-  intact, ready to hand to a transport.
-- A dropped event is still counted: two readings were recorded at `Info` even
+- A link cost sets the bar: `Metered` puts it at `Info` and `Expensive` raises
+  it to `Warn`, so how much a node says follows what the link costs and not the
+  level it was built with.
+- The same `reading.ok` is handed back on the metered link and held back on the
+  satellite one, so each event is judged against the bar in force when it is
+  recorded.
+- A shipped event comes back with its code and its measurement, `battery.low`
+  at `0.18`, so a transport has the number that triggered it.
+- A held-back event is still counted: two readings were recorded at `Info` even
   though only the first one went out.
-- Five events recorded, three shipped and two dropped, so the totals reconcile
-  and the snapshot of them is what the node sends in place of the stream.
-- `Offline` is the last rung, holding back everything below `Error`.
+- Five events recorded reconcile as three shipped and two dropped, so thinning
+  the stream loses nothing from the totals.
+- `Offline` is the last rung, holding back everything below `Error`, so a node
+  with no link keeps its failures and nothing else.
 
 ## Rust
 
@@ -39,36 +53,34 @@ use pamoja_telemetry::{Event, Level, LinkCost, Reporter};
 // metered link, which puts the bar at Info.
 let mut reporter = Reporter::new(Level::Trace);
 reporter.adapt_to(LinkCost::Metered);
-assert_eq!(reporter.threshold(), Level::Info);
+let bar = reporter.threshold();
+println!("on a metered link, nothing below {bar:?} is sent");
 
 // Routine detail stops going out. A reading and the warning that follows it still do,
 // and a shipped event comes back with the measurement that triggered it.
-assert!(reporter.record(Event::debug("loop.tick")).is_none());
-let reading = Event::info("reading.ok").with_value(4.8);
-assert!(reporter.record(reading).is_some());
+let tick = reporter.record(Event::debug("loop.tick"));
+println!("loop.tick sent: {}", tick.is_some());
+let reading = reporter.record(Event::info("reading.ok").with_value(4.8));
+println!("reading.ok sent: {}", reading.is_some());
 let warned = reporter
     .record(Event::warn("battery.low").with_value(0.18))
     .expect("a warning is worth a metered link");
-assert_eq!(warned.code, "battery.low");
-assert_eq!(warned.value, Some(0.18));
+let measured = warned.value.expect("the measurement that triggered it");
+println!("sent      {} carrying {measured}", warned.code);
 
 // The node falls back to satellite, which raises the bar to Warn. The same reading is
 // no longer worth its bytes; a failure still is.
 reporter.adapt_to(LinkCost::Expensive);
-let reading = Event::info("reading.ok").with_value(4.9);
-assert!(reporter.record(reading).is_none());
-assert!(reporter.record(Event::error("link.lost")).is_some());
+let dearer = reporter.record(Event::info("reading.ok").with_value(4.9));
+let lost = reporter.record(Event::error("link.lost"));
+println!("on satellite, reading.ok sent: {}", dearer.is_some());
+println!("on satellite, link.lost sent: {}", lost.is_some());
 
-// Only the stream was thinned, not the counts, so all five events are still accounted
-// for and the snapshot is what the node ships in place of them.
+// Only the stream was thinned, not the counts, so every event is still accounted for
+// and the snapshot is what the node ships in place of them.
 let counts = reporter.snapshot();
-assert_eq!(counts.by_level[Level::Info as usize], 2);
-assert_eq!(counts.emitted, 3);
-assert_eq!(counts.dropped, 2);
-assert_eq!(reporter.total(), 5);
-
-// Offline is the last rung: a node with no link at all still keeps its failures.
-assert_eq!(LinkCost::Offline.threshold(), Level::Error);
+let (seen, sent, only_counted) = (reporter.total(), counts.emitted, counts.dropped);
+println!("of {seen} events, {sent} went out and {only_counted} were counted only");
 ```
 <!-- end -->
 
@@ -78,40 +90,37 @@ assert_eq!(LinkCost::Offline.threshold(), Level::Error);
 From [`bindings/node/guides/telemetry.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/telemetry.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { Level, LinkCost, Reporter, linkCostThreshold } from '@pamoja/telemetry'
 
 // The node is willing to record everything, then finds out it is reporting over a metered
 // link, which puts the bar at Info.
 const reporter = new Reporter(Level.Trace)
 reporter.adaptTo(LinkCost.Metered)
-assert.equal(reporter.threshold, Level.Info)
+console.log(`on a metered link, nothing below ${reporter.threshold} is sent`)
 
 // Routine detail stops going out. A reading and the warning that follows it still do, and
 // a shipped event comes back with the measurement that triggered it.
-assert.equal(reporter.record({ level: Level.Debug, code: 'loop.tick' }), null)
-assert.notEqual(reporter.record({ level: Level.Info, code: 'reading.ok', value: 4.8 }), null)
-const warned = reporter.record({ level: Level.Warn, code: 'battery.low', value: 0.18 })
-assert.equal(warned?.code, 'battery.low')
-assert.equal(warned?.value, 0.18)
+const tick = reporter.record({ level: Level.Debug, code: 'loop.tick' })
+const reading = reporter.record({ level: Level.Info, code: 'reading.ok', value: 4.8 })
+console.log(`loop.tick sent: ${tick !== null}`)
+console.log(`reading.ok sent: ${reading !== null}`)
+const warned = reporter.record({ level: Level.Warn, code: 'battery.low', value: 0.18 })!
+console.log(`sent      ${warned.code} carrying ${warned.value}`)
 
 // The node falls back to satellite, which raises the bar to Warn. The same reading is no
 // longer worth its bytes; a failure still is.
 reporter.adaptTo(LinkCost.Expensive)
-assert.equal(reporter.record({ level: Level.Info, code: 'reading.ok', value: 4.9 }), null)
-assert.notEqual(reporter.record({ level: Level.Error, code: 'link.lost' }), null)
+const dearer = reporter.record({ level: Level.Info, code: 'reading.ok', value: 4.9 })
+const lost = reporter.record({ level: Level.Error, code: 'link.lost' })
+console.log(`on satellite, reading.ok sent: ${dearer !== null}`)
+console.log(`on satellite, link.lost sent: ${lost !== null}`)
 
-// Only the stream was thinned, not the counts, so all five events are still accounted for
-// and the snapshot is what the node ships in place of them.
+// Only the stream was thinned, not the counts, so every event is still accounted for and
+// the snapshot is what the node ships in place of them.
 const counts = reporter.snapshot()
-assert.equal(counts.info, 2)
-assert.equal(counts.emitted, 3)
-assert.equal(counts.dropped, 2)
-assert.equal(reporter.total, 5)
-
-// Offline is the last rung: a node with no link at all still keeps its failures.
-assert.equal(linkCostThreshold(LinkCost.Offline), Level.Error)
+console.log(
+  `of ${reporter.total} events, ${counts.emitted} went out and ${counts.dropped} were counted only`,
+)
 ```
 <!-- end -->
 
@@ -123,37 +132,33 @@ From [`bindings/python/guides/telemetry.py`](https://github.com/molexxxx/pamoja/
 ```python
 from pamoja.telemetry import Event, Level, LinkCost, Reporter, link_cost_threshold
 
-# The node is willing to record everything, then finds out it is reporting over a
-# metered link, which puts the bar at INFO.
+# The node is willing to record everything, then finds out it is reporting over a metered
+# link, which puts the bar at INFO.
 reporter = Reporter(Level.TRACE)
 reporter.adapt_to(LinkCost.METERED)
-assert reporter.threshold == Level.INFO
+print(f"on a metered link, nothing below {reporter.threshold.value} is sent")
 
-# Routine detail stops going out. A reading and the warning that follows it still do,
-# and a shipped event comes back with the measurement that triggered it.
-assert reporter.record(Event(Level.DEBUG, "loop.tick")) is None
-assert reporter.record(Event(Level.INFO, "reading.ok", 4.8)) is not None
+# Routine detail stops going out. A reading and the warning that follows it still do, and
+# a shipped event comes back with the measurement that triggered it.
+tick = reporter.record(Event(Level.DEBUG, "loop.tick"))
+reading = reporter.record(Event(Level.INFO, "reading.ok", 4.8))
+print(f"loop.tick sent: {tick is not None}")
+print(f"reading.ok sent: {reading is not None}")
 warned = reporter.record(Event(Level.WARN, "battery.low", 0.18))
-assert warned is not None
-assert warned.code == "battery.low"
-assert warned.value == 0.18
+print(f"sent      {warned.code} carrying {warned.value}")
 
-# The node falls back to satellite, which raises the bar to WARN. The same reading is
-# no longer worth its bytes; a failure still is.
+# The node falls back to satellite, which raises the bar to WARN. The same reading is no
+# longer worth its bytes; a failure still is.
 reporter.adapt_to(LinkCost.EXPENSIVE)
-assert reporter.record(Event(Level.INFO, "reading.ok", 4.9)) is None
-assert reporter.record(Event(Level.ERROR, "link.lost")) is not None
+dearer = reporter.record(Event(Level.INFO, "reading.ok", 4.9))
+lost = reporter.record(Event(Level.ERROR, "link.lost"))
+print(f"on satellite, reading.ok sent: {dearer is not None}")
+print(f"on satellite, link.lost sent: {lost is not None}")
 
-# Only the stream was thinned, not the counts, so all five events are still accounted
-# for and the snapshot is what the node ships in place of them.
+# Only the stream was thinned, not the counts, so every event is still accounted for and
+# the snapshot is what the node ships in place of them.
 counts = reporter.snapshot()
-assert counts.info == 2
-assert counts.emitted == 3
-assert counts.dropped == 2
-assert reporter.total == 5
-
-# Offline is the last rung: a node with no link at all still keeps its failures.
-assert link_cost_threshold(LinkCost.OFFLINE) == Level.ERROR
+print(f"of {reporter.total} events, {counts.emitted} went out and {counts.dropped} were counted only")
 ```
 <!-- end -->
 
@@ -163,48 +168,40 @@ assert link_cost_threshold(LinkCost.OFFLINE) == Level.ERROR
 From [`bindings/dotnet/samples/Pamoja.Guides/TelemetryGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/TelemetryGuide.cs):
 
 ```csharp
-// The node is willing to record everything, then finds out it is reporting
-// over a metered link, which puts the bar at Info.
+// The node is willing to record everything, then finds out it is reporting over a
+// metered link, which puts the bar at Info.
 using var reporter = new Reporter(TelemetryLevel.Trace);
 reporter.AdaptTo(LinkCost.Metered);
-Expect(reporter.Threshold == TelemetryLevel.Info, "a metered link ships from Info up");
+Console.WriteLine($"on a metered link, nothing below {reporter.Threshold} is sent");
 
-// Routine detail stops going out. A reading and the warning that follows it
-// still do, and a shipped event comes back with the measurement that
-// triggered it.
-Expect(
-    reporter.Record(new TelemetryEvent(TelemetryLevel.Debug, "loop.tick")) is null,
-    "routine detail is not worth a metered link");
-Expect(
-    reporter.Record(new TelemetryEvent(TelemetryLevel.Info, "reading.ok", 4.8f)) is not null,
-    "a reading still goes out");
-TelemetryEvent? warned =
-    reporter.Record(new TelemetryEvent(TelemetryLevel.Warn, "battery.low", 0.18f));
-Expect(warned?.Code == "battery.low", "and so does the warning that follows it");
-Expect(warned?.Value == 0.18f, "carrying the measurement that triggered it");
+// Routine detail stops going out. A reading and the warning that follows it still
+// do, and a shipped event comes back with the measurement that triggered it.
+TelemetryEvent? tick =
+    reporter.Record(new TelemetryEvent(TelemetryLevel.Debug, "loop.tick"));
+TelemetryEvent? reading =
+    reporter.Record(new TelemetryEvent(TelemetryLevel.Info, "reading.ok", 4.8f));
+Console.WriteLine($"loop.tick sent: {tick is not null}");
+Console.WriteLine($"reading.ok sent: {reading is not null}");
+TelemetryEvent warned =
+    reporter.Record(new TelemetryEvent(TelemetryLevel.Warn, "battery.low", 0.18f))!.Value;
+Console.WriteLine($"sent      {warned.Code} carrying {warned.Value}");
 
-// The node falls back to satellite, which raises the bar to Warn. The same
-// reading is no longer worth its bytes; a failure still is.
+// The node falls back to satellite, which raises the bar to Warn. The same reading
+// is no longer worth its bytes; a failure still is.
 reporter.AdaptTo(LinkCost.Expensive);
-Expect(
-    reporter.Record(new TelemetryEvent(TelemetryLevel.Info, "reading.ok", 4.9f)) is null,
-    "the same reading is dropped on a satellite link");
-Expect(
-    reporter.Record(new TelemetryEvent(TelemetryLevel.Error, "link.lost")) is not null,
-    "a failure is worth the bytes at any cost short of offline");
+TelemetryEvent? dearer =
+    reporter.Record(new TelemetryEvent(TelemetryLevel.Info, "reading.ok", 4.9f));
+TelemetryEvent? lost =
+    reporter.Record(new TelemetryEvent(TelemetryLevel.Error, "link.lost"));
+Console.WriteLine($"on satellite, reading.ok sent: {dearer is not null}");
+Console.WriteLine($"on satellite, link.lost sent: {lost is not null}");
 
-// Only the stream was thinned, not the counts, so all five events are still
-// accounted for and the snapshot is what the node ships in place of them.
+// Only the stream was thinned, not the counts, so every event is still accounted
+// for and the snapshot is what the node ships in place of them.
 TelemetrySnapshot counts = reporter.Snapshot();
-Expect(counts.Info == 2, "both readings were counted, though one never shipped");
-Expect(counts.Emitted == 3, "three events went out");
-Expect(counts.Dropped == 2, "two were held back");
-Expect(reporter.Total == 5, "and every one of the five is accounted for");
-
-// Offline is the last rung: a node with no link at all still keeps its failures.
-Expect(
-    Reporter.ThresholdFor(LinkCost.Offline) == TelemetryLevel.Error,
-    "an offline node records only failures");
+Console.WriteLine(
+    $"of {reporter.Total} events, {counts.Emitted} went out and {counts.Dropped}"
+    + " were counted only");
 ```
 <!-- end -->
 

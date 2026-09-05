@@ -264,6 +264,8 @@ export declare class DeviceIdentity {
   fingerprint(): string
   /** Signs a payload, returning the 64-byte detached signature. */
   sign(payload: Buffer): Buffer
+  /** Signs a payload and returns the signature followed by the payload, as one message. */
+  signMessage(payload: Buffer): Buffer
 }
 
 /**
@@ -1334,6 +1336,34 @@ export declare class Session {
   open(sealed: SealedMessage, aad?: Buffer | undefined | null): Buffer
 }
 
+/**
+ * The eight data bytes of a J1939 frame, addressed by the signals inside them.
+ *
+ * A parameter group places each signal at a fixed byte offset, little-endian. A
+ * payload starts with every signal marked not available, so a controller writes
+ * only the signals it actually reports.
+ */
+export declare class Signals {
+  /** Builds a payload with every signal marked not available. */
+  constructor()
+  /** Reads the eight data bytes of a frame that arrived off the bus. */
+  static fromBytes(bytes: Buffer): Signals
+  /** Writes a one-byte signal at the offset its parameter group defines. */
+  setU8(at: number, value: number): void
+  /** Writes a two-byte little-endian signal at the offset its group defines. */
+  setU16(at: number, value: number): void
+  /** Reads a one-byte signal, or `null` if the offset is past the payload. */
+  u8(at: number): number | null
+  /**
+   * Reads a two-byte little-endian signal, or `null` if it would run past the
+   * payload.
+   */
+  u16(at: number): number | null
+  /** The eight data bytes, ready to put in a frame. */
+  get bytes(): Buffer
+}
+export type CanSignals = Signals
+
 /** A robot that moves only in arithmetic. */
 export declare class SimulatedRobot {
   /**
@@ -1460,12 +1490,6 @@ export declare class Thermostat {
   isOn(): boolean
 }
 
-/**
- * One transport, ready to compose into a ladder or a wrapper.
- *
- * Build one with the static factories, then hand it to whatever should own it.
- * A transport handed on is spent: calling anything on it afterwards throws.
- */
 export declare class Transport {
   /** Creates an MQTT transport from broker settings. */
   static mqtt(options: MqttClientOptions): Transport
@@ -1482,14 +1506,14 @@ export declare class Transport {
   /**
    * Wraps a transport in a link that loses packets and goes down.
    *
-   * The wrapped transport is consumed.
+   * The wrapped transport is consumed. Every fault is off unless the options
+   * name it, so a link that only drops packets says only that.
    *
    * @param inner - the transport to degrade.
-   * @param dropEvery - lose one send in every this many, or 0 to lose none.
-   * @param up - how many sends the link stays up for, or 0 to never go down.
-   * @param down - how many sends it then stays down for.
+   * @param faults - `dropEvery` loses one send in every this many; `up` and
+   * `down` alternate that many sends of reachable and unreachable.
    */
-  static degraded(inner: Transport, dropEvery: number, up: number, down: number): Transport
+  static degraded(inner: Transport, faults?: Faults | undefined | null): Transport
   /** Whether this transport is still holdable, or has been handed on. */
   get isAvailable(): boolean
 }
@@ -1779,6 +1803,9 @@ export interface CoapClientOptions {
   maxRetransmits?: number
 }
 
+/** The byte that delimits a COBS frame, which never appears inside one. */
+export const COBS_DELIMITER: number
+
 /** Reads the payload back out of a COBS frame. */
 export declare function cobsDecode(frame: Buffer): Buffer
 
@@ -1871,6 +1898,9 @@ export declare const enum Delivery {
 /** Returns the great-circle distance between two coordinates, in metres. */
 export declare function distanceBetween(from: Coord, to: Coord): number
 
+/** Builds the nine bytes a DS18B20 in the given state puts on the bus, CRC last. */
+export declare function ds18b20BuildScratchpad(celsius: number, bits: number, alarmHigh: number, alarmLow: number): Buffer
+
 /** Converts a raw DS18B20 temperature register to degrees Celsius. */
 export declare function ds18b20Celsius(raw: number): number
 
@@ -1934,6 +1964,22 @@ export declare const enum EntityKindName {
  */
 export declare function envelopeBody(bytes: Buffer): Buffer
 
+/**
+ * One transport, ready to compose into a ladder or a wrapper.
+ *
+ * Build one with the static factories, then hand it to whatever should own it.
+ * A transport handed on is spent: calling anything on it afterwards throws.
+ * Which faults a degraded link injects, each off unless named.
+ */
+export interface Faults {
+  /** Lose one send in every this many. */
+  dropEvery?: number
+  /** How many sends the link stays reachable for before it goes down. */
+  up?: number
+  /** How many sends it then stays unreachable for. */
+  down?: number
+}
+
 /** Returns the short hex fingerprint of a public key. */
 export declare function fingerprint(publicKey: Buffer): string
 
@@ -1966,6 +2012,12 @@ export declare function hkdfSha256Expand(salt: Buffer, ikm: Buffer, info: Buffer
  */
 export declare function hmacSha256Digest(key: Buffer, message: Buffer): Buffer
 
+/** The first 7-bit address above the reserved block at the bottom of the range. */
+export const I2C_RESERVED_BELOW: number
+
+/** The lowest 7-bit address the I2C specification keeps for itself. */
+export const I2C_RESERVED_FROM: number
+
 /**
  * Returns the address bytes a controller puts on the bus for a transfer.
  *
@@ -1995,8 +2047,14 @@ export declare function i2cAddressIsGeneralCall(address: number, tenBit: boolean
  */
 export declare function i2cAddressIsReserved(address: number, tenBit: boolean): boolean
 
+/** Hashes a complete image, for a publisher filling in a manifest. */
+export declare function imageDigest(image: Buffer): Buffer
+
 /** Converts a raw INA219 bus-voltage register to millivolts. */
 export declare function ina219BusMillivolts(raw: number): number
+
+/** Builds the INA219 bus-voltage register a monitor reports for a bus voltage. */
+export declare function ina219BusRegister(millivolts: number): number
 
 /** Computes the INA219 calibration register for a shunt and current resolution. */
 export declare function ina219Calibration(currentLsbMicroamps: number, shuntMilliohms: number): number
@@ -2007,6 +2065,9 @@ export declare function ina219ConversionReady(raw: number): boolean
 /** Converts a raw INA219 current register to microamps. */
 export declare function ina219CurrentMicroamps(raw: number, currentLsbMicroamps: number): number
 
+/** Builds the INA219 current register a monitor reports for a current. */
+export declare function ina219CurrentRegister(microamps: number, currentLsbMicroamps: number): number
+
 /** Reports whether an INA219 bus-voltage register flags a math overflow. */
 export declare function ina219MathOverflow(raw: number): boolean
 
@@ -2016,8 +2077,37 @@ export declare function ina219MinimumCurrentLsbMicroamps(maxExpectedMicroamps: n
 /** Converts a raw INA219 power register to microwatts. */
 export declare function ina219PowerMicrowatts(raw: number, currentLsbMicroamps: number): number
 
+/** Builds the INA219 power register a monitor reports for a power. */
+export declare function ina219PowerRegister(microwatts: number, currentLsbMicroamps: number): number
+
 /** Converts a raw INA219 shunt-voltage register to microvolts. */
 export declare function ina219ShuntMicrovolts(raw: number): number
+
+/** Builds the INA219 shunt-voltage register a monitor reports for a shunt voltage. */
+export declare function ina219ShuntRegister(microvolts: number): number
+
+/** The destination address every node on the bus reads. */
+export const J1939_BROADCAST_ADDRESS: number
+
+/** The byte a J1939 sender writes for a signal it is not reporting. */
+export const J1939_NOT_AVAILABLE: number
+
+/** The priority a control message takes, ahead of ordinary traffic. */
+export const J1939_PRIORITY_CONTROL: number
+
+/** The priority ordinary traffic takes. */
+export const J1939_PRIORITY_DEFAULT: number
+
+/** The priority that yields to everything else on the bus. */
+export const J1939_PRIORITY_LOWEST: number
+
+/**
+ * Composes the identifier of a J1939 broadcast, which every node on the bus reads.
+ *
+ * This is the ordinary case: most parameter groups are broadcast, and a caller
+ * should not have to know that a broadcast is addressed to `0xFF`.
+ */
+export declare function j1939Broadcast(priority: number, pgn: number, source: number): number
 
 /**
  * Composes the extended CAN identifier a set of J1939 fields describes.
@@ -2721,6 +2811,9 @@ export const MESH_BROADCAST: number
 /** The hop limit a frame starts with unless one is given. */
 export const MESH_DEFAULT_HOP_LIMIT: number
 
+/** How many bytes of a frame are header, so where its payload starts. */
+export const MESH_HEADER_LEN: number
+
 /** The largest mesh frame, in bytes, including its header and checksum. */
 export const MESH_MAX_FRAME: number
 
@@ -2824,8 +2917,14 @@ export declare function modbusReadDiscreteInputs(address: number, start: number,
 /** Builds a read-holding-registers request frame (function `0x03`). */
 export declare function modbusReadHoldingRegisters(address: number, start: number, count: number): Buffer
 
+/** Builds the reply a device sends to a read-holding-registers request. */
+export declare function modbusReadHoldingRegistersReply(address: number, values: Array<number>): Buffer
+
 /** Builds a read-input-registers request frame (function `0x04`). */
 export declare function modbusReadInputRegisters(address: number, start: number, count: number): Buffer
+
+/** Builds the reply a device sends to a read-input-registers request. */
+export declare function modbusReadInputRegistersReply(address: number, values: Array<number>): Buffer
 
 /** Reads the 16-bit registers out of a read-registers response PDU. */
 export declare function modbusRegisters(pdu: Buffer): Array<number>
@@ -2968,6 +3067,17 @@ export interface Progress {
   written: number
   /** The total the manifest declares. */
   total: number
+}
+
+/** Reads a PCA9685 setting back from the four register bytes a channel holds. */
+export declare function pwmCounts(bytes: Buffer): PwmCounts
+
+/** A PCA9685 channel setting read back from its registers. */
+export interface PwmCounts {
+  /** The count at which the output goes high; bit 12 is the full-on flag. */
+  on: number
+  /** The count at which it goes low; bit 12 is the full-off flag. */
+  off: number
 }
 
 /** Builds a channel's register bytes with no phase delay: on at 0, off at `off`. */
@@ -3134,10 +3244,24 @@ export declare function signDelegation(delegation: Delegation, anchor: DeviceIde
 /** Signs a manifest into the envelope that is offered to a device. */
 export declare function signManifest(manifest: Manifest, author: DeviceIdentity): Buffer
 
+/**
+ * Frames a payload as a SLIP packet (RFC 1055).
+ * The SLIP byte that ends a frame (RFC 1055).
+ */
+export const SLIP_END: number
+
+/** The SLIP byte that escapes a reserved value inside a frame (RFC 1055). */
+export const SLIP_ESC: number
+
+/** The byte that follows SLIP_ESC to stand for a literal end byte. */
+export const SLIP_ESC_END: number
+
+/** The byte that follows SLIP_ESC to stand for a literal escape byte. */
+export const SLIP_ESC_ESC: number
+
 /** Reads the payload back out of a SLIP frame. */
 export declare function slipDecode(frame: Buffer): Buffer
 
-/** Frames a payload as a SLIP packet (RFC 1055). */
 export declare function slipEncode(payload: Buffer): Buffer
 
 /** Returns the largest SLIP frame a payload of this length can produce. */
@@ -3267,10 +3391,10 @@ export declare function verify(publicKey: Buffer, payload: Buffer, signature: Bu
 /**
  * Checks a whole chain that has already arrived.
  *
- * Returns `false` if any entry fails to follow the one before it or carries a
- * signature that does not hold.
+ * Throws with the reason if any entry fails to follow the one before it or
+ * carries a signature that does not hold.
  */
-export declare function verifyAuditChain(publicKey: Buffer, entries: Array<AuditEntry>): boolean
+export declare function verifyAuditChain(publicKey: Buffer, entries: Array<AuditEntry>): void
 
 /**
  * Verifies an envelope against a key and reads the manifest inside it.
@@ -3278,6 +3402,15 @@ export declare function verifyAuditChain(publicKey: Buffer, entries: Array<Audit
  * Throws when the signature is not from that key.
  */
 export declare function verifyEnvelope(bytes: Buffer, publicKey: Buffer): Manifest
+
+/**
+ * Verifies a signed message and returns the payload it carries.
+ *
+ * Returns `null` when the message is too short to hold a signature, was altered,
+ * or was signed by a different device, and throws only when the key is the wrong
+ * length.
+ */
+export declare function verifyMessage(publicKey: Buffer, message: Buffer): Buffer | null
 
 /** Returns the version of the native pamoja module. */
 export declare function version(): string

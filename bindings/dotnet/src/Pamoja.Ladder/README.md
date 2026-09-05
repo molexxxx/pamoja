@@ -25,13 +25,15 @@ The guide project's example, spliced here as it ran in CI.
 From [`bindings/dotnet/samples/Pamoja.Guides/LadderGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/LadderGuide.cs):
 
 ```csharp
+const string Topic = "sensors/1/temperature";
+
 // Two links off the same node: a near mesh hop and a metered backhaul. Each is a
 // separate broker, so which one carried a reading is visible from its subscriber.
 using var mesh = new LoopbackBroker();
 using var backhaul = new LoopbackBroker();
 using var gateway = backhaul.Link();
 await gateway.ConnectAsync();
-await gateway.SubscribeAsync("sensors/1/temperature");
+await gateway.SubscribeAsync(Topic);
 
 // Rungs are tried in the order they are added, cheapest first. The mesh hop loses
 // every packet here; the backhaul carries one send, then drops the next two.
@@ -42,31 +44,29 @@ await ladder.ConnectAsync();
 
 // The mesh hop refuses, so the reading goes out over the backhaul and arrives on
 // the broker only that rung publishes to.
-const string topic = "sensors/1/temperature";
-Expect(
-    await ladder.SendAsync(topic, "21.5"u8.ToArray()) == Delivery.Sent,
-    "a dead rung falls through to the next one");
-Expect(
-    (await gateway.ReceiveAsync())?.Payload.AsSpan().SequenceEqual("21.5"u8) == true,
-    "and the reading arrives over the rung that took it");
+Delivery first = await ladder.SendAsync(Topic, "21.5"u8.ToArray());
+TransportMessage arrived = (await gateway.ReceiveAsync())!;
+Console.WriteLine(
+    $"first reading: {first}, gateway got"
+    + $" {System.Text.Encoding.UTF8.GetString(arrived.Payload)}");
 
 // Now nothing will take a send, so the next reading is buffered rather than lost.
-Expect(
-    await ladder.SendAsync(topic, "21.6"u8.ToArray()) == Delivery.Buffered,
-    "with every rung down the reading is buffered");
-Expect(await ladder.BufferedAsync() == 1, "and the backlog holds it");
+Delivery second = await ladder.SendAsync(Topic, "21.6"u8.ToArray());
+int waiting = await ladder.BufferedAsync();
+Console.WriteLine($"second reading: {second}, {waiting} waiting in the queue");
 
 // A flush while the links are still down forwards nothing and leaves the backlog
 // intact, because a record is removed only once a rung has accepted it.
-Expect(await ladder.FlushAsync() == 0, "a flush with no link forwards nothing");
-Expect(await ladder.BufferedAsync() == 1, "and loses nothing");
+int whileDown = await ladder.FlushAsync();
+Console.WriteLine(
+    $"flush while down forwarded {whileDown}, queue still {await ladder.BufferedAsync()}");
 
 // The backhaul is reachable again, so the buffered reading goes out exactly once.
-Expect(await ladder.FlushAsync() == 1, "the reading goes out once a link returns");
-Expect(await ladder.BufferedAsync() == 0, "leaving nothing queued");
-Expect(
-    (await gateway.ReceiveAsync())?.Payload.AsSpan().SequenceEqual("21.6"u8) == true,
-    "and it arrives exactly once");
+int whenUp = await ladder.FlushAsync();
+TransportMessage late = (await gateway.ReceiveAsync())!;
+Console.WriteLine(
+    $"flush when up forwarded {whenUp}, gateway got"
+    + $" {System.Text.Encoding.UTF8.GetString(late.Payload)}");
 ```
 
 ## The same capability in every language

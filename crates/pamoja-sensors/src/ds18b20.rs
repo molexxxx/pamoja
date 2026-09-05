@@ -142,6 +142,39 @@ pub fn temperature_to_celsius(raw: i16) -> f32 {
     raw as f32 / 16.0
 }
 
+/// Converts micro-degrees Celsius to a raw temperature register value.
+///
+/// The result is truncated to the step `resolution` resolves, since the datasheet
+/// specifies that the bits below a selected resolution read as zero.
+///
+/// # Arguments
+///
+/// * `micro_celsius` - the temperature in millionths of a degree Celsius.
+/// * `resolution` - the resolution the part is configured for.
+///
+/// # Returns
+///
+/// The 16-bit two's-complement temperature register, as a signed value.
+pub fn temperature_from_micro_celsius(micro_celsius: i32, resolution: Resolution) -> i16 {
+    let counts = micro_celsius.div_euclid(62_500) as i16;
+    let unused = 12 - resolution.bits();
+    (counts >> unused) << unused
+}
+
+/// Converts degrees Celsius to a raw temperature register value.
+///
+/// # Arguments
+///
+/// * `celsius` - the temperature in degrees Celsius.
+/// * `resolution` - the resolution the part is configured for.
+///
+/// # Returns
+///
+/// The 16-bit two's-complement temperature register, as a signed value.
+pub fn temperature_from_celsius(celsius: f32, resolution: Resolution) -> i16 {
+    temperature_from_micro_celsius((celsius * 1_000_000.0) as i32, resolution)
+}
+
 /// Computes the Maxim 1-Wire CRC-8 over `data`.
 ///
 /// This is the CRC the DS18B20 (and every Maxim 1-Wire device) appends to its ROM
@@ -184,12 +217,17 @@ pub fn crc8(data: &[u8]) -> u8 {
 /// # Examples
 ///
 /// ```
-/// use pamoja_sensors::ds18b20::{crc8, Scratchpad, Resolution};
+/// use pamoja_sensors::ds18b20::{temperature_from_celsius, Resolution, Scratchpad};
 ///
-/// // A +25.0625 °C reading at 12-bit resolution (register 0x0191), thresholds
-/// // +75/-10 °C, and the CRC the device would append.
-/// let mut bytes = [0x91, 0x01, 75, 0xF6, 0x7F, 0xFF, 0x00, 0x10, 0x00];
-/// bytes[8] = crc8(&bytes[..8]);
+/// // What a part sitting at +25.0625 °C, set to 12-bit steps with its thresholds at
+/// // +75/-10 °C, puts on the bus. A driver reads these nine bytes off the wire.
+/// let bytes = Scratchpad::new(
+///     temperature_from_celsius(25.0625, Resolution::Bits12),
+///     Resolution::Bits12,
+///     75,
+///     -10,
+/// )
+/// .to_bytes();
 ///
 /// let scratchpad = Scratchpad::parse(&bytes)?;
 /// assert_eq!(scratchpad.temperature_micro_celsius(), 25_062_500);
@@ -231,6 +269,63 @@ impl Scratchpad {
             alarm_low: bytes[3] as i8,
             resolution: Resolution::from_config_byte(bytes[4]),
         })
+    }
+
+    /// Builds the scratchpad a part in the given state reports.
+    ///
+    /// This is the inverse of [`parse`](Self::parse), so a node can be developed and
+    /// tested against the bytes a thermometer would send without one attached.
+    ///
+    /// # Arguments
+    ///
+    /// * `raw_temperature` - the 16-bit two's-complement temperature register, as a
+    ///   signed value; [`temperature_from_celsius`] builds one from a temperature.
+    /// * `resolution` - the resolution the part is configured for.
+    /// * `alarm_high` - the high alarm threshold in whole degrees Celsius (TH).
+    /// * `alarm_low` - the low alarm threshold in whole degrees Celsius (TL).
+    ///
+    /// # Returns
+    ///
+    /// The scratchpad holding those values.
+    pub fn new(
+        raw_temperature: i16,
+        resolution: Resolution,
+        alarm_high: i8,
+        alarm_low: i8,
+    ) -> Scratchpad {
+        Scratchpad {
+            raw_temperature,
+            alarm_high,
+            alarm_low,
+            resolution,
+        }
+    }
+
+    /// Returns the nine bytes a part holding this scratchpad puts on the bus.
+    ///
+    /// Bytes 5 to 7 are the reserved bytes, which a part reports but which carry no
+    /// reading; they are filled with the values its scratchpad figure shows so the
+    /// frame is the one a device would actually send. The ninth byte is the CRC over
+    /// the other eight, so the result parses.
+    ///
+    /// # Returns
+    ///
+    /// The nine scratchpad bytes in transmission order, CRC last.
+    pub fn to_bytes(&self) -> [u8; 9] {
+        let temperature = self.raw_temperature.to_le_bytes();
+        let mut bytes = [
+            temperature[0],
+            temperature[1],
+            self.alarm_high as u8,
+            self.alarm_low as u8,
+            self.resolution.config_byte(),
+            0xFF,
+            0x0C,
+            0x10,
+            0x00,
+        ];
+        bytes[8] = crc8(&bytes[..8]);
+        bytes
     }
 
     /// Returns the raw temperature register value.
@@ -353,6 +448,57 @@ mod tests {
             assert_eq!(
                 Resolution::from_config_byte(resolution.config_byte()),
                 resolution
+            );
+        }
+    }
+    #[test]
+    fn a_built_scratchpad_parses_back_to_what_it_was_built_from() {
+        let built = Scratchpad::new(
+            temperature_from_celsius(25.0625, Resolution::Bits12),
+            Resolution::Bits12,
+            75,
+            -10,
+        );
+        let parsed = Scratchpad::parse(&built.to_bytes()).expect("a built scratchpad is valid");
+        assert_eq!(parsed, built);
+        assert_eq!(parsed.raw_temperature(), 0x0191);
+        assert_eq!(parsed.temperature_micro_celsius(), 25_062_500);
+        assert_eq!(parsed.alarm_high(), 75);
+        assert_eq!(parsed.alarm_low(), -10);
+    }
+
+    #[test]
+    fn a_built_scratchpad_carries_the_datasheet_temperature_bytes() {
+        // The +25.0625 °C row of the datasheet's temperature/data table is 0x0191, sent
+        // least-significant byte first, and byte 4 selects 12-bit resolution.
+        let bytes = Scratchpad::new(0x0191, Resolution::Bits12, 75, -10).to_bytes();
+        assert_eq!(bytes[0], 0x91);
+        assert_eq!(bytes[1], 0x01);
+        assert_eq!(bytes[4], 0x7F);
+        assert_eq!(bytes[8], crc8(&bytes[..8]));
+    }
+
+    #[test]
+    fn a_temperature_truncates_to_the_step_the_resolution_resolves() {
+        // 12-bit resolves a sixteenth of a degree; the coarser settings read the bits
+        // below their step as zero, so the same temperature lands on a lower count.
+        assert_eq!(temperature_from_celsius(25.0625, Resolution::Bits12), 401);
+        assert_eq!(temperature_from_celsius(25.0625, Resolution::Bits11), 400);
+        assert_eq!(temperature_from_celsius(25.0625, Resolution::Bits10), 400);
+        assert_eq!(temperature_from_celsius(25.0625, Resolution::Bits9), 400);
+        assert_eq!(
+            temperature_from_micro_celsius(-10_062_500, Resolution::Bits12),
+            -161
+        );
+    }
+
+    #[test]
+    fn every_temperature_register_survives_a_round_trip() {
+        for raw in [-880i16, -161, -1, 0, 1, 401, 1250] {
+            let micro = temperature_to_micro_celsius(raw);
+            assert_eq!(
+                temperature_from_micro_celsius(micro, Resolution::Bits12),
+                raw
             );
         }
     }

@@ -15,6 +15,7 @@ from pamoja._native import ads1115_full_scale_microvolts as _ads1115_full_scale_
 from pamoja._native import ads1115_samples_per_second as _ads1115_samples_per_second
 from pamoja._native import ads1115_to_nanovolts as _ads1115_to_nanovolts
 from pamoja._native import ads1115_to_volts as _ads1115_to_volts
+from pamoja._native import ds18b20_build_scratchpad as _ds18b20_build_scratchpad
 from pamoja._native import ds18b20_celsius as _ds18b20_celsius
 from pamoja._native import ds18b20_config_byte as _ds18b20_config_byte
 from pamoja._native import ds18b20_crc8 as _ds18b20_crc8
@@ -23,6 +24,10 @@ from pamoja._native import ds18b20_micro_celsius as _ds18b20_micro_celsius
 from pamoja._native import ds18b20_parse_scratchpad as _ds18b20_parse_scratchpad
 from pamoja._native import ds18b20_resolution_bits as _ds18b20_resolution_bits
 from pamoja._native import ds18b20_step_micro_celsius as _ds18b20_step_micro_celsius
+from pamoja._native import ina219_bus_register as _ina219_bus_register
+from pamoja._native import ina219_current_register as _ina219_current_register
+from pamoja._native import ina219_power_register as _ina219_power_register
+from pamoja._native import ina219_shunt_register as _ina219_shunt_register
 from pamoja._native import ina219_bus_millivolts as _ina219_bus_millivolts
 from pamoja._native import ina219_calibration as _ina219_calibration
 from pamoja._native import ina219_conversion_ready as _ina219_conversion_ready
@@ -86,6 +91,25 @@ class _Ds18b20:
             corrupted on the bus and should be repeated.
         """
         return _ds18b20_parse_scratchpad(bytes(data))
+
+    def build_scratchpad(
+        self, celsius: float, resolution_bits: int, alarm_high: int, alarm_low: int
+    ) -> bytes:
+        """Build the nine bytes a part in the given state puts on the bus.
+
+        This is the inverse of :meth:`parse_scratchpad`, so a node can be written and
+        tested against what a thermometer sends without one attached.
+
+        :param celsius: The temperature the part is reading.
+        :param resolution_bits: The resolution it is configured for, 9 to 12.
+        :param alarm_high: The high alarm threshold in whole degrees Celsius.
+        :param alarm_low: The low alarm threshold in whole degrees Celsius.
+        :returns: The nine scratchpad bytes in transmission order, CRC last.
+        :raises PamojaError: If the resolution is not 9, 10, 11, or 12 bits.
+        """
+        return bytes(
+            _ds18b20_build_scratchpad(celsius, resolution_bits, alarm_high, alarm_low)
+        )
 
     def crc8(self, data: bytes) -> int:
         """Compute the Maxim CRC-8 a 1-Wire device checks its own bytes with.
@@ -169,6 +193,43 @@ class _Ina219:
         :returns: The minimum current LSB in microamps.
         """
         return _ina219_minimum_current_lsb_microamps(max_expected_microamps)
+
+    def shunt_register(self, microvolts: int) -> int:
+        """Build the shunt-voltage register a monitor reports for a shunt voltage.
+
+        The inverse of :meth:`shunt_microvolts`, so a node can be written and tested
+        against what a monitor sends without one attached.
+
+        :param microvolts: The shunt voltage in microvolts.
+        :returns: The signed register value, at 10 uV per count.
+        """
+        return _ina219_shunt_register(microvolts)
+
+    def bus_register(self, millivolts: int) -> int:
+        """Build the bus-voltage register a monitor reports for a bus voltage.
+
+        :param millivolts: The bus voltage in millivolts.
+        :returns: The register value, with the conversion-ready flag set.
+        """
+        return _ina219_bus_register(millivolts)
+
+    def current_register(self, microamps: int, current_lsb_microamps: int) -> int:
+        """Build the current register a monitor reports for a current.
+
+        :param microamps: The current in microamps.
+        :param current_lsb_microamps: The current LSB the calibration was set for.
+        :returns: The signed register value.
+        """
+        return _ina219_current_register(microamps, current_lsb_microamps)
+
+    def power_register(self, microwatts: int, current_lsb_microamps: int) -> int:
+        """Build the power register a monitor reports for a power.
+
+        :param microwatts: The power in microwatts.
+        :param current_lsb_microamps: The current LSB the calibration was set for.
+        :returns: The register value.
+        """
+        return _ina219_power_register(microwatts, current_lsb_microamps)
 
     def shunt_microvolts(self, raw: int) -> int:
         """Convert a raw shunt-voltage register to microvolts.

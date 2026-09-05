@@ -174,6 +174,19 @@ pub struct TransportMessage {
 ///
 /// Build one with the static factories, then hand it to whatever should own it.
 /// A transport handed on is spent: calling anything on it afterwards throws.
+/// Which faults a degraded link injects, each off unless named.
+#[cfg(feature = "sim")]
+#[napi(object)]
+#[derive(Default)]
+pub struct Faults {
+    /// Lose one send in every this many.
+    pub drop_every: Option<u32>,
+    /// How many sends the link stays reachable for before it goes down.
+    pub up: Option<u32>,
+    /// How many sends it then stays unreachable for.
+    pub down: Option<u32>,
+}
+
 #[napi]
 pub struct Transport {
     inner: std::sync::Mutex<Option<Kind>>,
@@ -237,21 +250,22 @@ impl Transport {
 
     /// Wraps a transport in a link that loses packets and goes down.
     ///
-    /// The wrapped transport is consumed.
+    /// The wrapped transport is consumed. Every fault is off unless the options
+    /// name it, so a link that only drops packets says only that.
     ///
     /// @param inner - the transport to degrade.
-    /// @param dropEvery - lose one send in every this many, or 0 to lose none.
-    /// @param up - how many sends the link stays up for, or 0 to never go down.
-    /// @param down - how many sends it then stays down for.
+    /// @param faults - `dropEvery` loses one send in every this many; `up` and
+    /// `down` alternate that many sends of reachable and unreachable.
     #[cfg(feature = "sim")]
     #[napi(factory)]
-    pub fn degraded(inner: &Transport, drop_every: u32, up: u32, down: u32) -> napi::Result<Self> {
+    pub fn degraded(inner: &Transport, faults: Option<Faults>) -> napi::Result<Self> {
+        let faults = faults.unwrap_or_default();
         let mut link = pamoja_sim::DegradedLink::new(AnyTransport::new(inner.take()?));
-        if drop_every != 0 {
+        if let Some(drop_every) = faults.drop_every.filter(|every| *every != 0) {
             link = link.drop_every(drop_every);
         }
-        if up != 0 {
-            link = link.intermittent(up, down);
+        if let Some(up) = faults.up.filter(|up| *up != 0) {
+            link = link.intermittent(up, faults.down.unwrap_or(0));
         }
         Ok(Self::wrap(Kind::Degraded(link)))
     }

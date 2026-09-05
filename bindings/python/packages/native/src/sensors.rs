@@ -201,6 +201,21 @@ pub fn ds18b20_parse_scratchpad(data: Vec<u8>) -> PyResult<Ds18b20Reading> {
     })
 }
 
+/// Builds the nine bytes a DS18B20 in the given state puts on the bus, CRC last.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ds18b20_build_scratchpad(
+    celsius: f32,
+    bits: u8,
+    alarm_high: i8,
+    alarm_low: i8,
+) -> PyResult<Vec<u8>> {
+    let resolution = resolution(bits)?;
+    let raw = ds18b20::temperature_from_celsius(celsius, resolution);
+    let scratchpad = ds18b20::Scratchpad::new(raw, resolution, alarm_high, alarm_low);
+    Ok(scratchpad.to_bytes().to_vec())
+}
+
 /// Computes the Maxim CRC-8 a 1-Wire device checks its own bytes with.
 #[gen_stub_pyfunction]
 #[pyfunction]
@@ -262,6 +277,34 @@ pub fn ina219_calibration(current_lsb_microamps: u32, shunt_milliohms: u32) -> u
 #[pyfunction]
 pub fn ina219_minimum_current_lsb_microamps(max_expected_microamps: u32) -> u32 {
     ina219::minimum_current_lsb_microamps(max_expected_microamps)
+}
+
+/// Builds the INA219 shunt-voltage register a monitor reports for a shunt voltage.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ina219_shunt_register(microvolts: i32) -> i16 {
+    ina219::shunt_register(microvolts)
+}
+
+/// Builds the INA219 bus-voltage register a monitor reports for a bus voltage.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ina219_bus_register(millivolts: u32) -> u16 {
+    ina219::bus_register(millivolts)
+}
+
+/// Builds the INA219 current register a monitor reports for a current.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ina219_current_register(microamps: i32, current_lsb_microamps: u32) -> i16 {
+    ina219::current_register(microamps, current_lsb_microamps)
+}
+
+/// Builds the INA219 power register a monitor reports for a power.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ina219_power_register(microwatts: u32, current_lsb_microamps: u32) -> u16 {
+    ina219::power_register(microwatts, current_lsb_microamps)
 }
 
 /// Converts a raw INA219 shunt-voltage register to microvolts.

@@ -40,26 +40,23 @@ manifest = """{
 }"""
 
 profile = Profile.from_json(manifest)
-assert profile.name == "brooder-heater"
-assert profile.topic == "poultry/brooder/temperature"
-assert profile.control.kind == ControlKind.SETPOINT
-assert profile.control.setpoint == 32.0
-assert profile.control.cooling is False
-assert profile.power.active_secs == 120
-assert profile.power.saver_below == 0.5
+print(f"{profile.name} reports on {profile.topic}")
+print(f"wakes every {profile.power.active_secs}s while the battery is healthy")
+print(f"saver mode below {profile.power.saver_below * 100:.0f}% charge")
 
-# The manifest is the whole control loop. At 27.5 C the reading is below the deadband,
-# so the lamp switches on, and it is more than 4 C from target, so the chicks are cold.
-reaction = profile.controller().evaluate(27.5)
-assert reaction.actuator is True
-assert reaction.alert.kind == AlertKind.OUT_OF_RANGE
-assert reaction.alert.reading == 27.5
+# The manifest is the whole control loop. At 27.5 C the reading is below the deadband, so
+# the lamp switches on, and it is more than 4 C from target, so the chicks are cold.
+cold = profile.controller().evaluate(27.5)
+print(f"at 27.5 C: lamp {cold.actuator}, alert {cold.alert.kind if cold.alert else None}")
 
-# Serializing writes the defaulted fields out in full, so a profile edited on a device
-# and shared back carries no value the next reader has to infer.
+# Back inside the deadband the lamp is left as it was, and nothing is raised.
+settled = profile.controller().evaluate(32.2)
+print(f"at 32.2 C: lamp {settled.actuator}, alert {settled.alert}")
+
+# Serializing writes the defaulted fields out in full, so a profile edited on a device and
+# shared back carries no value the next reader has to infer.
 shared = profile.to_json()
-assert '"saver_below"' in shared
-assert Profile.from_json(shared).control.setpoint == 32.0
+print(f"shared form names its defaults: {'saver_below' in shared}")
 ```
 
 ## The same capability in every language

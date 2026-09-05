@@ -132,13 +132,13 @@ impl AuditVerifier {
 
 /// Checks a whole chain that has already arrived.
 ///
-/// Returns `false` if any entry fails to follow the one before it or carries a
-/// signature that does not hold.
+/// Throws with the reason if any entry fails to follow the one before it or
+/// carries a signature that does not hold.
 #[napi]
-pub fn verify_audit_chain(public_key: Buffer, entries: Vec<&AuditEntry>) -> napi::Result<bool> {
+pub fn verify_audit_chain(public_key: Buffer, entries: Vec<&AuditEntry>) -> napi::Result<()> {
     let key = public(public_key.as_ref())?;
     let owned: Vec<Entry> = entries.iter().map(|entry| entry.inner.clone()).collect();
-    Ok(verify_chain(&key, &owned).is_ok())
+    verify_chain(&key, &owned).map_err(|error| napi::Error::from_reason(error.to_string()))
 }
 
 /// Reads a 32-byte public key, rejecting one that is not a valid key.

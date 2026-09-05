@@ -9,12 +9,14 @@ is this layer's.
 from __future__ import annotations
 
 import enum
+from typing import NamedTuple
 
 from pamoja._native import Stepper as _NativeStepper
 from pamoja._native import pca9685_channel_register as _channel_register
 from pamoja._native import pca9685_frequency_for_prescale as _frequency_for_prescale
 from pamoja._native import pca9685_limits as _limits
 from pamoja._native import pca9685_prescale_for_frequency as _prescale_for_frequency
+from pamoja._native import pwm_counts as _pwm_counts
 from pamoja._native import pwm_duty as _pwm_duty
 from pamoja._native import pwm_from_counts as _pwm_from_counts
 from pamoja._native import pwm_full_off as _pwm_full_off
@@ -23,7 +25,7 @@ from pamoja._native import pwm_servo as _pwm_servo
 from pamoja._native import stepper_step_count as _step_count
 from pamoja._native import stepper_steps_for_degrees as _steps_for_degrees
 
-__all__ = ["Direction", "Drive", "Stepper", "pca9685", "pwm", "steps_for_degrees"]
+__all__ = ["Direction", "Drive", "Pwm", "Stepper", "pca9685", "pwm", "steps_for_degrees"]
 
 _INTERNAL_OSC_HZ, _CHANNELS, _COUNTS = _limits()
 
@@ -90,6 +92,16 @@ class Stepper:
     def steps(self) -> int:
         """How many steps have been taken, signed by direction."""
         return self._native.steps
+
+
+class Pwm(NamedTuple):
+    """When in a period a PWM output goes high and low, in counts."""
+
+    on: int
+    """The count at which the output goes high."""
+
+    off: int
+    """The count at which it goes low, or the full-off flag."""
 
 
 class _Pca9685:
@@ -171,6 +183,19 @@ class _Pwm:
         :returns: The four register bytes.
         """
         return _pwm_servo(pulse_micros, update_rate_hz)
+
+    def counts(self, data: bytes) -> Pwm:
+        """Read a setting back from the four register bytes a channel holds.
+
+        The inverse of the builders above, so a caller can read a channel off the bus
+        and see what it is set to rather than decoding the registers by hand.
+
+        :param data: The four channel registers.
+        :returns: The counts at which the output goes high and low, named.
+        :raises ValueError: If ``data`` is not four bytes.
+        """
+        on, off = _pwm_counts(bytes(data))
+        return Pwm(on, off)
 
     def full_on(self) -> bytes:
         """Return the setting that holds a channel continuously high.

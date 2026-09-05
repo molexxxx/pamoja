@@ -19,20 +19,28 @@ leaves nothing for the next reader to infer.
 
 ## What the example does
 
-It loads a heater profile from a JSON manifest that leaves the two power
-thresholds out, feeds one cold reading to the controller the manifest describes,
-and writes the profile back out.
+It loads a brooder-heater profile from a JSON manifest, runs two temperatures
+through the controller that manifest describes, and writes the profile back out
+as text.
+
+The manifest sets the three sampling intervals but neither battery threshold, so
+the 50% saver figure printed comes from the library's default rather than from
+the file. The two readings sit either side of the 32 C target: 27.5 C is below
+the deadband and further off target than the 4 C safe band allows, while 32.2 C
+is inside both.
 
 It proves:
 
-- A manifest parses into the name, topic, control policy, and power schedule the
-  node runs on.
-- Fields the manifest omits come back as the documented defaults rather than as
-  nothing.
-- The controller the manifest describes switches the output and raises the alert
-  the policy calls for, carrying the reading that caused it.
-- Serializing writes the defaults out in full, and the result reloads to the same
-  profile.
+- A manifest parses into the name, topic, setpoint policy and sampling schedule
+  the node runs on, with `cooling` set false marking the output a heater.
+- `saver_below` never appears in the manifest and still reads `0.5`, the
+  documented default, rather than nothing.
+- A reading below the deadband switches the lamp on and raises `OutOfRange`, so
+  the excursion is reported as well as acted on.
+- A reading inside the safe band raises nothing, so an alert tracks the band
+  rather than firing on every sample.
+- Serializing writes the defaulted threshold out by name, so the shared text
+  names `saver_below` even though the manifest never did.
 
 ## Rust
 
@@ -40,7 +48,7 @@ It proves:
 From [`examples/tests/guides/profile.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/profile.rs):
 
 ```rust
-use pamoja_profile::{Alert, ControlSpec, Profile};
+use pamoja_profile::{Alert, Profile};
 
 // A profile is plain data, so a fleet ships one as a file rather than as code. The two
 // power thresholds are optional and fall back to the documented defaults.
@@ -55,31 +63,36 @@ let manifest = r#"{
 }"#;
 
 let profile = Profile::from_json(manifest).expect("a well-formed manifest");
-assert_eq!(profile.name, "brooder-heater");
-assert_eq!(profile.topic, "poultry/brooder/temperature");
-assert_eq!(
-    profile.control,
-    ControlSpec::Setpoint {
-        setpoint: 32.0,
-        hysteresis: 0.5,
-        cooling: false,
-        safe_band: 4.0
-    }
+println!("{} reports on {}", profile.name, profile.topic);
+println!(
+    "wakes every {}s while the battery is healthy",
+    profile.power.active_secs
 );
-assert_eq!(profile.power.active_secs, 120);
-assert_eq!(profile.power.saver_below, 0.5);
+println!(
+    "saver mode below {:.0}% charge",
+    profile.power.saver_below * 100.0
+);
 
 // The manifest is the whole control loop. At 27.5 C the reading is below the deadband,
 // so the lamp switches on, and it is more than 4 C from target, so the chicks are cold.
-let reaction = profile.controller().evaluate(27.5);
-assert_eq!(reaction.actuator, Some(true));
-assert_eq!(reaction.alert, Some(Alert::OutOfRange { reading: 27.5 }));
+let cold = profile.controller().evaluate(27.5);
+let switched_on = cold.actuator.expect("this profile drives an output");
+let raised = cold.alert.expect("a reading outside the safe band");
+println!("at 27.5 C: lamp {switched_on}, alert {}", raised.kind());
+
+// Back inside the deadband the lamp is left as it was, and nothing is raised.
+let settled = profile.controller().evaluate(32.2);
+let still_on = settled.actuator.expect("this profile drives an output");
+let quiet = settled.alert.map_or("none", Alert::kind);
+println!("at 32.2 C: lamp {still_on}, alert {quiet}");
 
 // Serializing writes the defaulted fields out in full, so a profile edited on a device
 // and shared back carries no value the next reader has to infer.
 let shared = profile.to_json().expect("a serializable profile");
-assert!(shared.contains("\"saver_below\""));
-assert_eq!(Profile::from_json(&shared).expect("valid JSON"), profile);
+println!(
+    "shared form names its defaults: {}",
+    shared.contains("saver_below")
+);
 ```
 <!-- end -->
 
@@ -89,43 +102,38 @@ assert_eq!(Profile::from_json(&shared).expect("valid JSON"), profile);
 From [`bindings/node/guides/profile.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/profile.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { AlertKind, ControlKind, Profile } from '@pamoja/profile'
 
 // A profile is plain data, so a fleet ships one as a file rather than as code. The two
 // power thresholds are optional and fall back to the documented defaults.
 const manifest = `{
-    "name": "brooder-heater",
-    "topic": "poultry/brooder/temperature",
-    "control": {
-        "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
-        "cooling": false, "safe_band": 4.0
-    },
-    "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
+  "name": "brooder-heater",
+  "topic": "poultry/brooder/temperature",
+  "control": {
+    "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
+    "cooling": false, "safe_band": 4.0
+  },
+  "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
 }`
 
 const profile = Profile.fromJson(manifest)
-assert.equal(profile.name, 'brooder-heater')
-assert.equal(profile.topic, 'poultry/brooder/temperature')
-assert.equal(profile.control.kind, ControlKind.Setpoint)
-assert.equal(profile.control.setpoint, 32.0)
-assert.equal(profile.control.cooling, false)
-assert.equal(profile.power.activeSecs, 120)
-assert.equal(profile.power.saverBelow, 0.5)
+console.log(`${profile.name} reports on ${profile.topic}`)
+console.log(`wakes every ${profile.power.activeSecs}s while the battery is healthy`)
+console.log(`saver mode below ${(profile.power.saverBelow * 100).toFixed(0)}% charge`)
 
 // The manifest is the whole control loop. At 27.5 C the reading is below the deadband, so
 // the lamp switches on, and it is more than 4 C from target, so the chicks are cold.
-const reaction = profile.controller().evaluate(27.5)
-assert.equal(reaction.actuator, true)
-assert.equal(reaction.alert?.kind, AlertKind.OutOfRange)
-assert.equal(reaction.alert?.reading, 27.5)
+const cold = profile.controller().evaluate(27.5)
+console.log(`at 27.5 C: lamp ${cold.actuator}, alert ${cold.alert?.kind}`)
+
+// Back inside the deadband the lamp is left as it was, and nothing is raised.
+const settled = profile.controller().evaluate(32.2)
+console.log(`at 32.2 C: lamp ${settled.actuator}, alert ${settled.alert}`)
 
 // Serializing writes the defaulted fields out in full, so a profile edited on a device and
 // shared back carries no value the next reader has to infer.
 const shared = profile.toJson()
-assert.ok(shared.includes('"saver_below"'))
-assert.equal(Profile.fromJson(shared).control.setpoint, 32.0)
+console.log(`shared form names its defaults: ${shared.includes('saver_below')}`)
 ```
 <!-- end -->
 
@@ -150,26 +158,23 @@ manifest = """{
 }"""
 
 profile = Profile.from_json(manifest)
-assert profile.name == "brooder-heater"
-assert profile.topic == "poultry/brooder/temperature"
-assert profile.control.kind == ControlKind.SETPOINT
-assert profile.control.setpoint == 32.0
-assert profile.control.cooling is False
-assert profile.power.active_secs == 120
-assert profile.power.saver_below == 0.5
+print(f"{profile.name} reports on {profile.topic}")
+print(f"wakes every {profile.power.active_secs}s while the battery is healthy")
+print(f"saver mode below {profile.power.saver_below * 100:.0f}% charge")
 
-# The manifest is the whole control loop. At 27.5 C the reading is below the deadband,
-# so the lamp switches on, and it is more than 4 C from target, so the chicks are cold.
-reaction = profile.controller().evaluate(27.5)
-assert reaction.actuator is True
-assert reaction.alert.kind == AlertKind.OUT_OF_RANGE
-assert reaction.alert.reading == 27.5
+# The manifest is the whole control loop. At 27.5 C the reading is below the deadband, so
+# the lamp switches on, and it is more than 4 C from target, so the chicks are cold.
+cold = profile.controller().evaluate(27.5)
+print(f"at 27.5 C: lamp {cold.actuator}, alert {cold.alert.kind if cold.alert else None}")
 
-# Serializing writes the defaulted fields out in full, so a profile edited on a device
-# and shared back carries no value the next reader has to infer.
+# Back inside the deadband the lamp is left as it was, and nothing is raised.
+settled = profile.controller().evaluate(32.2)
+print(f"at 32.2 C: lamp {settled.actuator}, alert {settled.alert}")
+
+# Serializing writes the defaulted fields out in full, so a profile edited on a device and
+# shared back carries no value the next reader has to infer.
 shared = profile.to_json()
-assert '"saver_below"' in shared
-assert Profile.from_json(shared).control.setpoint == 32.0
+print(f"shared form names its defaults: {'saver_below' in shared}")
 ```
 <!-- end -->
 
@@ -182,41 +187,38 @@ From [`bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs`](https://github.co
 // A profile is plain data, so a fleet ships one as a file rather than as code. The
 // two power thresholds are optional and fall back to the documented defaults.
 const string manifest = """
-    {
-        "name": "brooder-heater",
-        "topic": "poultry/brooder/temperature",
-        "control": {
-            "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
-            "cooling": false, "safe_band": 4.0
-        },
-        "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
-    }
-    """;
+{
+    "name": "brooder-heater",
+    "topic": "poultry/brooder/temperature",
+    "control": {
+        "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
+        "cooling": false, "safe_band": 4.0
+    },
+    "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
+}
+""";
 
 using var profile = Profile.FromJson(manifest);
-Expect(profile.Name == "brooder-heater", "the manifest names the profile");
-Expect(profile.Topic == "poultry/brooder/temperature", "and the topic it publishes on");
-Expect(profile.Control.Kind == ControlKind.Setpoint, "the control policy is a setpoint");
-Expect(profile.Control.Setpoint == 32.0f, "held at 32 C");
-Expect(profile.Control.Cooling == false, "by heating rather than cooling");
-Expect(profile.Power.ActiveSecs == 120, "and it samples every two minutes at charge");
-Expect(profile.Power.SaverBelow == 0.5f, "with the default saver threshold filled in");
+Console.WriteLine($"{profile.Name} reports on {profile.Topic}");
+Console.WriteLine(
+    $"wakes every {profile.Power.ActiveSecs}s while the battery is healthy");
+Console.WriteLine($"saver mode below {profile.Power.SaverBelow * 100:F0}% charge");
 
 // The manifest is the whole control loop. At 27.5 C the reading is below the
 // deadband, so the lamp switches on, and it is more than 4 C from target, so the
 // chicks are cold.
-using var controller = profile.Controller();
-var reaction = controller.Evaluate(27.5f);
-Expect(reaction.Actuator == true, "the lamp is switched on");
-Expect(reaction.Alert?.Kind == AlertKind.OutOfRange, "and the drift is reported");
-Expect(reaction.Alert?.Reading == 27.5f, "carrying the reading that raised it");
+Reaction cold = profile.Controller().Evaluate(27.5f);
+Console.WriteLine($"at 27.5 C: lamp {cold.Actuator}, alert {cold.Alert?.Kind}");
+
+// Back inside the deadband the lamp is left as it was, and nothing is raised.
+Reaction settled = profile.Controller().Evaluate(32.2f);
+string quiet = settled.Alert?.Kind.ToString() ?? "none";
+Console.WriteLine($"at 32.2 C: lamp {settled.Actuator}, alert {quiet}");
 
 // Serializing writes the defaulted fields out in full, so a profile edited on a
 // device and shared back carries no value the next reader has to infer.
-var shared = profile.ToJson();
-Expect(shared.Contains("\"saver_below\"", StringComparison.Ordinal), "defaults are written out");
-using var reloaded = Profile.FromJson(shared);
-Expect(reloaded.Control.Setpoint == 32.0f, "and it reloads to the same profile");
+string shared = profile.ToJson();
+Console.WriteLine($"shared form names its defaults: {shared.Contains("saver_below")}");
 ```
 <!-- end -->
 

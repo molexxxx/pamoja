@@ -57,6 +57,15 @@ public static partial class NativeMethods
         nuint bytesLen,
         out PamojaDs18b20Reading outReading);
 
+    /// <summary>Builds the nine bytes a DS18B20 in the given state puts on the bus.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_ds18b20_build_scratchpad(
+        float celsius,
+        byte bits,
+        sbyte alarmHigh,
+        sbyte alarmLow,
+        Span<byte> outBytes);
+
     /// <summary>Computes the Maxim CRC-8 a 1-Wire device checks its bytes with.</summary>
     [LibraryImport(Library)]
     public static partial byte pamoja_ds18b20_crc8(ReadOnlySpan<byte> data, nuint dataLen);
@@ -99,6 +108,26 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial uint pamoja_ina219_minimum_current_lsb_microamps(
         uint maxExpectedMicroamps);
+
+    /// <summary>Builds the INA219 shunt-voltage register for a shunt voltage.</summary>
+    [LibraryImport(Library)]
+    public static partial short pamoja_ina219_shunt_register(int microvolts);
+
+    /// <summary>Builds the INA219 bus-voltage register for a bus voltage.</summary>
+    [LibraryImport(Library)]
+    public static partial ushort pamoja_ina219_bus_register(uint millivolts);
+
+    /// <summary>Builds the INA219 current register for a current.</summary>
+    [LibraryImport(Library)]
+    public static partial short pamoja_ina219_current_register(
+        int microamps,
+        uint currentLsbMicroamps);
+
+    /// <summary>Builds the INA219 power register for a power.</summary>
+    [LibraryImport(Library)]
+    public static partial ushort pamoja_ina219_power_register(
+        uint microwatts,
+        uint currentLsbMicroamps);
 
     /// <summary>Converts a raw INA219 shunt-voltage register to microvolts.</summary>
     [LibraryImport(Library)]

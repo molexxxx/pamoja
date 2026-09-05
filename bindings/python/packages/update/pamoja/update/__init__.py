@@ -26,6 +26,7 @@ from pamoja._native import (
     verify_envelope,
 )
 from pamoja._native import sign_delegation as _sign_delegation
+from pamoja._native import image_digest as _image_digest
 from pamoja._native import sign_manifest as _sign_manifest
 from pamoja._native import update_format_raw as _format_raw
 from pamoja._native import update_structure_version as _structure_version
@@ -48,6 +49,7 @@ __all__ = [
     "envelope_body",
     "open_delegation",
     "sign_delegation",
+    "image_digest",
     "sign_manifest",
     "verify_envelope",
 ]
@@ -85,6 +87,19 @@ class BootAction(str, enum.Enum):
     TRYING = "Trying"
     #: A pending image never confirmed, so it was failed.
     REVERTED = "Reverted"
+
+
+def image_digest(image: bytes) -> bytes:
+    """Hash a complete image, for a publisher filling in a manifest.
+
+    The manifest commits to a SHA-256 over the image, and this is that hash, so a
+    publisher does not need a hashing library of its own just to name the image it
+    is releasing.
+
+    :param image: The complete image the release carries.
+    :returns: The 32-byte digest to put in a :class:`Manifest`.
+    """
+    return _image_digest(bytes(image))
 
 
 def sign_manifest(manifest: Manifest, author: DeviceIdentity) -> bytes:

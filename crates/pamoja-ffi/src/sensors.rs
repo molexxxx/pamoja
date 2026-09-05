@@ -252,6 +252,40 @@ pub unsafe extern "C" fn pamoja_ds18b20_parse_scratchpad(
     }
 }
 
+/// Builds the nine bytes a DS18B20 in the given state puts on the bus, CRC last.
+///
+/// This is the inverse of [`pamoja_ds18b20_parse_scratchpad`], so a node can be
+/// written and tested against what a thermometer sends without one attached.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success, with the nine bytes written to `out_bytes`, or
+/// [`PamojaStatus::InvalidArgument`] if `bits` is not 9, 10, 11, or 12.
+///
+/// # Safety
+///
+/// `out_bytes` must point to at least nine writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_ds18b20_build_scratchpad(
+    celsius: f32,
+    bits: u8,
+    alarm_high: i8,
+    alarm_low: i8,
+    out_bytes: *mut u8,
+) -> PamojaStatus {
+    if out_bytes.is_null() {
+        set_last_error("out_bytes must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let Some(resolution) = resolution(bits) else {
+        return bad_resolution();
+    };
+    let raw = ds18b20::temperature_from_celsius(celsius, resolution);
+    let scratchpad = ds18b20::Scratchpad::new(raw, resolution, alarm_high, alarm_low);
+    core::ptr::copy_nonoverlapping(scratchpad.to_bytes().as_ptr(), out_bytes, 9);
+    PamojaStatus::Ok
+}
+
 /// Computes the Maxim CRC-8 a 1-Wire device checks its own bytes with.
 ///
 /// # Returns
@@ -404,6 +438,49 @@ pub extern "C" fn pamoja_ina219_calibration(
 #[no_mangle]
 pub extern "C" fn pamoja_ina219_minimum_current_lsb_microamps(max_expected_microamps: u32) -> u32 {
     ina219::minimum_current_lsb_microamps(max_expected_microamps)
+}
+
+/// Builds the INA219 shunt-voltage register a monitor reports for a shunt voltage.
+///
+/// # Returns
+///
+/// The signed shunt-voltage register, at 10 uV per count.
+#[no_mangle]
+pub extern "C" fn pamoja_ina219_shunt_register(microvolts: i32) -> i16 {
+    ina219::shunt_register(microvolts)
+}
+
+/// Builds the INA219 bus-voltage register a monitor reports for a bus voltage.
+///
+/// # Returns
+///
+/// The bus-voltage register, with the conversion-ready flag set.
+#[no_mangle]
+pub extern "C" fn pamoja_ina219_bus_register(millivolts: u32) -> u16 {
+    ina219::bus_register(millivolts)
+}
+
+/// Builds the INA219 current register a monitor reports for a current.
+///
+/// # Returns
+///
+/// The signed current register, or zero if `current_lsb_microamps` is zero.
+#[no_mangle]
+pub extern "C" fn pamoja_ina219_current_register(
+    microamps: i32,
+    current_lsb_microamps: u32,
+) -> i16 {
+    ina219::current_register(microamps, current_lsb_microamps)
+}
+
+/// Builds the INA219 power register a monitor reports for a power.
+///
+/// # Returns
+///
+/// The power register, or zero if `current_lsb_microamps` is zero.
+#[no_mangle]
+pub extern "C" fn pamoja_ina219_power_register(microwatts: u32, current_lsb_microamps: u32) -> u16 {
+    ina219::power_register(microwatts, current_lsb_microamps)
 }
 
 /// Converts a raw INA219 shunt-voltage register to microvolts.

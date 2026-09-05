@@ -462,6 +462,22 @@ public static class Update
         return FromNative(manifest);
     }
 
+    /// <summary>Hashes a complete image, for a publisher filling in a manifest.</summary>
+    /// <remarks>
+    /// The manifest commits to a SHA-256 over the image, and this is that hash, so a
+    /// publisher does not need a hashing library of its own just to name the image it is
+    /// releasing.
+    /// </remarks>
+    /// <param name="image">The complete image the release carries.</param>
+    /// <returns>The 32-byte digest to put in a <see cref="Manifest"/>.</returns>
+    /// <exception cref="PamojaException">The native call failed.</exception>
+    public static byte[] ImageDigest(ReadOnlySpan<byte> image)
+    {
+        byte[] digest = new byte[32];
+        Status.ThrowIfError(NativeMethods.pamoja_image_digest(image, (nuint)image.Length, digest));
+        return digest;
+    }
+
     /// <summary>Signs a manifest into the envelope offered to a device.</summary>
     /// <param name="manifest">What the release says about itself.</param>
     /// <param name="author">The identity signing the release.</param>

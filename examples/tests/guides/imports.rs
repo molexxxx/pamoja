@@ -10,9 +10,9 @@ fn the_umbrella_crate_and_the_capability_crate_are_the_same_types() {
     use pamoja_codec::CborCodec;
     // ANCHOR_END: rust
 
-    let frame = Adu::from_pdu(0x11, &[0x03, 0x00, 0x6b, 0x00, 0x03]).expect("a valid request");
-    let same: pamoja_modbus::Adu = frame;
-    assert_eq!(same.address(), 0x11);
+    let frame = pamoja_modbus::Pdu::read_holding_registers(107, 3).to_adu(17);
+    let same: Adu = frame;
+    assert_eq!(same.address(), 17);
 
     let _codec = CborCodec;
 }

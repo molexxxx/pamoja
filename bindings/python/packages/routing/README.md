@@ -27,34 +27,48 @@ From [`bindings/python/guides/routing.py`](https://github.com/molexxxx/pamoja/bl
 ```python
 from pamoja.routing import ForwardAction, Router
 
-# A node learns the way to another from traffic it already hears: a packet from 0x09
-# that arrived through neighbour 0x05 proves 0x05 is the way back, at the cost the
+# The nodes on this mesh. An address is just a number; naming them is what makes the
+# table below read as a map of the site rather than a list of numbers.
+GATEWAY = 1
+PUMP = 9
+TANK = 10
+NORTH_RELAY = 5
+EAST_RELAY = 7
+SOUTH_RELAY = 3
+SILO = 32
+
+# A node learns the way to another from traffic it already hears: a packet from the pump
+# that arrived through the north relay proves that relay is a way back, at the cost the
 # packet reports.
-router = Router(0x01, 4)
-assert router.observe(0x09, 0x05, 2)
+router = Router(GATEWAY, 4)
+router.observe(PUMP, NORTH_RELAY, 2)
 
-# The table keeps the cheapest way it knows to each node, so the report of cost 1 takes
-# over and the later cost-4 report changes nothing.
-assert router.observe(0x09, 0x07, 1)
-assert not router.observe(0x09, 0x03, 4)
-assert router.observe(0x0A, 0x05, 3)
-route = router.route(0x09)
-assert route.next_hop == 0x07
-assert route.cost == 1
-assert len(router) == 2
+# The table keeps only the cheapest way it knows to each node, so a cost-1 report through
+# the east relay takes over and the later cost-4 report changes nothing.
+router.observe(PUMP, EAST_RELAY, 1)
+router.observe(PUMP, SOUTH_RELAY, 4)
+router.observe(TANK, NORTH_RELAY, 3)
 
-# A packet gets one of three answers: deliver it here, relay it to the neighbour on the
-# way, or flood it because no route is known yet.
-assert router.forward(0x01).action == ForwardAction.DELIVER
-assert router.forward(0x09).action == ForwardAction.RELAY
-assert router.forward(0x09).next_hop == 0x07
-assert router.forward(0x20).action == ForwardAction.FLOOD
+route = router.route(PUMP)
+print(f"to the pump   via {route.next_hop} at cost {route.cost}")
+print(f"routes held   {len(router)}")
 
-# Forgetting a node that has gone quiet returns its traffic to flooding, so routing is
-# an optimisation over flooding rather than a second thing that can fail.
-router.forget(0x09)
-assert router.forward(0x09).action == ForwardAction.FLOOD
-assert len(router) == 1
+# Every packet gets one of three answers: deliver it here, relay it to the neighbour on
+# the way, or flood it because no route is known yet.
+for name, address in [("gateway", GATEWAY), ("pump", PUMP), ("silo", SILO)]:
+    decision = router.forward(address)
+    if decision.action == ForwardAction.DELIVER:
+        print(f"for the {name:<8} deliver here")
+    elif decision.action == ForwardAction.RELAY:
+        print(f"for the {name:<8} relay via {decision.next_hop}")
+    else:
+        print(f"for the {name:<8} flood, no route known")
+
+# Forgetting a node that has gone quiet returns its traffic to flooding, so routing is an
+# optimisation over flooding rather than a second thing that can fail.
+router.forget(PUMP)
+after = router.forward(PUMP)
+print(f"pump forgotten, so it floods again: {after.action == ForwardAction.FLOOD}")
 ```
 
 ## The same capability in every language

@@ -193,6 +193,13 @@ public static partial class NativeMethods
         nuint len,
         out PamojaManifest outManifest);
 
+    /// <summary>Hashes a complete image, for a publisher filling in a manifest.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_image_digest(
+        ReadOnlySpan<byte> image,
+        nuint imageLen,
+        Span<byte> outDigest);
+
     /// <summary>Signs a manifest into the envelope offered to a device.</summary>
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_manifest_sign(PamojaManifest manifest, IntPtr author);

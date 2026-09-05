@@ -18,6 +18,17 @@ use crate::{set_last_error, PamojaStatus};
 /// The largest I2C address frame, in bytes: the two a 10-bit address needs.
 pub const PAMOJA_I2C_FRAME_MAX: usize = 2;
 
+/// The lowest 7-bit address the I2C specification keeps for itself.
+pub const PAMOJA_I2C_RESERVED_FROM: u8 = 0x78;
+
+/// The first 7-bit address above the reserved block at the bottom of the range.
+pub const PAMOJA_I2C_RESERVED_BELOW: u8 = 0x08;
+
+// The header generator does not read the crates this one depends on, so these
+// carry their value rather than the name of the constant that defines it.
+const _: () = assert!(PAMOJA_I2C_RESERVED_FROM == pamoja_gpio::i2c::RESERVED_FROM);
+const _: () = assert!(PAMOJA_I2C_RESERVED_BELOW == pamoja_gpio::i2c::RESERVED_BELOW);
+
 /// A validated I2C device address.
 ///
 /// Build one with [`pamoja_i2c_address_seven_bit`] or

@@ -7,9 +7,9 @@ from pamoja.sim import RecordingActuator, Replay, SimulatedRobot
 
 
 async def main() -> None:
-    # The clear distance ahead, in metres, taken from an earlier survey run. A replay
-    # hands it back one reading at a time, so the loop below sees the same input on
-    # every run.
+    # The clear distance ahead, in metres, taken from an earlier survey run. A replay hands
+    # it back one reading at a time, so the loop below sees the same input on every run: the
+    # same rover code, driven by a recording rather than a range finder.
     capture = [4.0, 3.0, 1.5, 0.5]
     ahead = Replay(capture)
     throttle = RecordingActuator()
@@ -19,23 +19,33 @@ async def main() -> None:
     for _ in capture:
         reading = await ahead.read()
         seen.append(reading)
+
         # Drive on while there is room ahead, otherwise stop and turn on the spot.
         clear = reading > 1.0
         speed = 1.0 if clear else 0.0
         turn = 0.0 if clear else 1.0
         await throttle.apply(speed)
         await rover.apply(vx=speed, omega=turn)
+        print(f"{reading} m ahead, so drive at {speed} and turn at {turn}")
 
-    assert seen == capture
-    assert await throttle.commands() == [1.0, 1.0, 1.0, 0.0]
+    # The recording actuator kept every command, which is how a test says what the control
+    # loop decided rather than only what it ended up doing.
+    commands = await throttle.commands()
+    print(f"commands  {commands}")
 
     # Three half-second commands at 1 m/s reach 1.5 m along x. The last one turns on the
     # spot at 1 rad/s for half a second, which moves the rover nowhere.
     pose = await rover.pose()
-    assert abs(pose.x - 1.5) < 1e-6
-    assert abs(pose.y) < 1e-6
-    assert abs(pose.theta - 0.5) < 1e-6
+    print(f"pose      x {pose.x:.1f} m, y {pose.y:.1f} m, heading {pose.theta:.1f} rad")
+
+    return seen, commands, pose
 
 
-asyncio.run(main())
+seen, commands, pose = asyncio.run(main())
 # ANCHOR_END: example
+
+assert seen == [4.0, 3.0, 1.5, 0.5]
+assert commands == [1.0, 1.0, 1.0, 0.0]
+assert abs(pose.x - 1.5) < 1e-6
+assert abs(pose.y) < 1e-6
+assert abs(pose.theta - 0.5) < 1e-6

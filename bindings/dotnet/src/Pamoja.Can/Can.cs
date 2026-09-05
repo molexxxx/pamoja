@@ -92,6 +92,20 @@ public static class Can
             message.Addressed == 0);
     }
 
+    /// <summary>Composes the identifier of a J1939 broadcast, which every node reads.</summary>
+    /// <remarks>
+    /// Most parameter groups are broadcast, so this is the common case; it saves a
+    /// caller knowing that a broadcast is addressed to <c>0xFF</c>.
+    /// </remarks>
+    /// <param name="priority">The message priority, 0 (highest) to 7.</param>
+    /// <param name="pgn">The parameter group number.</param>
+    /// <param name="source">The address of the sending node.</param>
+    /// <returns>The 29-bit identifier.</returns>
+    public static uint BroadcastJ1939(J1939Priority priority, uint pgn, byte source)
+    {
+        return NativeMethods.pamoja_can_j1939_broadcast((byte)priority, pgn, source);
+    }
+
     /// <summary>Composes the extended CAN identifier a set of J1939 fields describes.</summary>
     /// <param name="priority">The message priority, 0 (highest) to 7.</param>
     /// <param name="pgn">The parameter group number.</param>

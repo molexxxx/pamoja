@@ -7,7 +7,7 @@
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
-use pamoja_gpio::i2c::{Address, Direction};
+use pamoja_gpio::i2c::{self, Address, Direction};
 use pamoja_gpio::pin::{Edge, Level, Polarity};
 use pamoja_gpio::spi::Mode;
 use pamoja_gpio::GpioError;
@@ -67,6 +67,14 @@ pub fn i2c_address_frame(address: u16, ten_bit: bool, read: bool) -> napi::Resul
     let written = address.write_frame(direction, &mut out).map_err(to_napi)?;
     Ok(out[..written].into())
 }
+
+/// The lowest 7-bit address the I2C specification keeps for itself.
+#[napi]
+pub const I2C_RESERVED_FROM: u8 = i2c::RESERVED_FROM;
+
+/// The first 7-bit address above the reserved block at the bottom of the range.
+#[napi]
+pub const I2C_RESERVED_BELOW: u8 = i2c::RESERVED_BELOW;
 
 /// Reports whether a 7-bit address falls in a range the I2C specification reserves.
 ///

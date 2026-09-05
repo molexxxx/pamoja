@@ -9,11 +9,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+// The PCA9685's internal oscillator frequency, in hertz.
+#define PAMOJA_PCA9685_INTERNAL_OSC_HZ 25000000
 
+// How many PWM channels a PCA9685 drives.
+#define PAMOJA_PCA9685_CHANNELS 16
 
-
-
-
+// How many counts a PCA9685 period is divided into.
+#define PAMOJA_PCA9685_COUNTS 4096
 
 // The length in bytes of an entry hash.
 #define PAMOJA_AUDIT_DIGEST_LEN 32
@@ -21,8 +24,29 @@
 // The length in bytes of an entry signature.
 #define PAMOJA_AUDIT_SIGNATURE_LEN 64
 
+// The byte a J1939 sender writes for a signal it is not reporting.
+#define PAMOJA_J1939_NOT_AVAILABLE 255
+
+// The destination address every node on the bus reads.
+#define PAMOJA_J1939_BROADCAST_ADDRESS 255
+
+// The priority a control message takes, ahead of ordinary traffic.
+#define PAMOJA_J1939_PRIORITY_CONTROL 3
+
+// The priority ordinary traffic takes.
+#define PAMOJA_J1939_PRIORITY_DEFAULT 6
+
+// The priority that yields to everything else on the bus.
+#define PAMOJA_J1939_PRIORITY_LOWEST 7
+
 // The largest I2C address frame, in bytes: the two a 10-bit address needs.
 #define PAMOJA_I2C_FRAME_MAX 2
+
+// The lowest 7-bit address the I2C specification keeps for itself.
+#define PAMOJA_I2C_RESERVED_FROM 120
+
+// The first 7-bit address above the reserved block at the bottom of the range.
+#define PAMOJA_I2C_RESERVED_BELOW 8
 
 // The number of readings a windowed helper keeps.
 //
@@ -953,6 +977,16 @@ typedef struct {
   uint8_t addressed;
 } PamojaJ1939Id;
 
+// The eight data bytes of a J1939 frame, addressed by the signals inside them.
+//
+// A parameter group places each signal at a fixed byte offset, little-endian. The
+// payload is only bytes, so it crosses the boundary by value, which keeps reading
+// and writing a signal free of any allocation.
+typedef struct {
+  // The eight data bytes, in wire order.
+  uint8_t bytes[8];
+} PamojaJ1939Signals;
+
 // The settings a CoAP endpoint is built from.
 typedef struct {
   // The peer hostname or IP address, as null-terminated UTF-8.
@@ -1688,6 +1722,18 @@ PamojaPwm pamoja_pwm_duty(uint16_t off);
 // The four register bytes for that pulse width.
 PamojaPwm pamoja_pwm_servo(uint32_t pulse_micros, uint32_t update_rate_hz);
 
+// Reads a PCA9685 setting back from the four register bytes a channel holds.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_on` and `*out_off` set to the counts
+// the registers hold, the full-on and full-off flags included.
+//
+// # Safety
+//
+// `out_on` and `out_off` must each point to a writable `uint16_t`.
+PamojaStatus pamoja_pwm_counts(PamojaPwm pwm, uint16_t *out_on, uint16_t *out_off);
+
 // The setting that holds a channel continuously high.
 //
 // # Returns
@@ -2322,6 +2368,64 @@ uint32_t pamoja_can_j1939_compose(uint8_t priority,
                                   uint32_t pgn,
                                   uint8_t source,
                                   uint8_t destination);
+
+// Composes the identifier of a J1939 broadcast, which every node on the bus reads.
+//
+// # Returns
+//
+// The 29-bit identifier. Most parameter groups are broadcast, so this is the
+// common case, and it saves a caller knowing the broadcast address.
+uint32_t pamoja_can_j1939_broadcast(uint8_t priority, uint32_t pgn, uint8_t source);
+
+// Builds a J1939 payload with every signal marked not available.
+//
+// # Returns
+//
+// Eight bytes of [`PAMOJA_J1939_NOT_AVAILABLE`], ready for a sender to write only
+// the signals it has.
+PamojaJ1939Signals pamoja_can_signals_new(void);
+
+// Writes a one-byte signal at the offset its parameter group defines.
+//
+// # Returns
+//
+// The payload with the signal written, or unchanged if `at` is past its end.
+PamojaJ1939Signals pamoja_can_signals_set_u8(PamojaJ1939Signals signals,
+                                             uintptr_t at,
+                                             uint8_t value);
+
+// Writes a two-byte little-endian signal at the offset its group defines.
+//
+// # Returns
+//
+// The payload with the signal written, or unchanged if the signal would run past
+// its end.
+PamojaJ1939Signals pamoja_can_signals_set_u16(PamojaJ1939Signals signals,
+                                              uintptr_t at,
+                                              uint16_t value);
+
+// Reads a one-byte signal at the offset its parameter group defines.
+//
+// # Returns
+//
+// `true` with `*out_value` set, or `false` if `at` is past the payload.
+//
+// # Safety
+//
+// `out_value` must point to a writable `uint8_t`.
+bool pamoja_can_signals_u8(PamojaJ1939Signals signals, uintptr_t at, uint8_t *out_value);
+
+// Reads a two-byte little-endian signal at the offset its group defines.
+//
+// # Returns
+//
+// `true` with `*out_value` set, or `false` if the signal would run past the
+// payload.
+//
+// # Safety
+//
+// `out_value` must point to a writable `uint16_t`.
+bool pamoja_can_signals_u16(PamojaJ1939Signals signals, uintptr_t at, uint16_t *out_value);
 
 // Creates a disconnected CoAP endpoint from the given settings.
 //
@@ -7519,6 +7623,38 @@ PamojaStatus pamoja_modbus_read_holding_registers(uint8_t address,
                                                   uint16_t count,
                                                   PamojaBuffer **out_buffer);
 
+// Builds the reply a device sends to a read-holding-registers request.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding the frame.
+//
+// # Safety
+//
+// `values` must point to at least `values_len` readable `uint16_t`, and `out_buffer`
+// to a writable `*mut PamojaBuffer`.
+PamojaStatus pamoja_modbus_read_holding_registers_reply(uint8_t address,
+                                                        const uint16_t *values,
+                                                        uintptr_t values_len,
+                                                        PamojaBuffer **out_buffer);
+
+// Builds the reply a device sends to a read-input-registers request.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding the frame.
+//
+// # Safety
+//
+// `values` must point to at least `values_len` readable `uint16_t`, and `out_buffer`
+// to a writable `*mut PamojaBuffer`.
+PamojaStatus pamoja_modbus_read_input_registers_reply(uint8_t address,
+                                                      const uint16_t *values,
+                                                      uintptr_t values_len,
+                                                      PamojaBuffer **out_buffer);
+
 // Builds a read-input-registers request frame (function `0x04`).
 //
 // # Returns
@@ -8940,6 +9076,48 @@ PamojaStatus pamoja_device_identity_sign(const PamojaDeviceIdentity *identity,
                                          uintptr_t payload_len,
                                          uint8_t *out_signature);
 
+// Signs a payload and returns one buffer holding the signature and the payload.
+//
+// This is the answering half of [`pamoja_public_identity_verify_message`]: the
+// caller sends one blob instead of keeping a payload and a detached signature
+// together and splitting them correctly at the far end.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// the caller must release with `pamoja_buffer_free`.
+//
+// # Safety
+//
+// `identity` must be a live handle from [`pamoja_device_identity_new`];
+// `payload` must point to at least `payload_len` readable bytes, or be null when
+// `payload_len` is 0; and `out_buffer` must point to a writable
+// `*mut PamojaBuffer`.
+PamojaStatus pamoja_device_identity_sign_message(const PamojaDeviceIdentity *identity,
+                                                 const uint8_t *payload,
+                                                 uintptr_t payload_len,
+                                                 PamojaBuffer **out_buffer);
+
+// Verifies a signed message and returns the payload it carries.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
+// holding the payload, which the caller must release with `pamoja_buffer_free`.
+// Returns [`PamojaStatus::Auth`] if the message is shorter than a signature, was
+// altered, or was signed by a different device.
+//
+// # Safety
+//
+// `public_key` must point to at least [`PAMOJA_KEY_LEN`] readable bytes;
+// `message` must point to at least `message_len` readable bytes, or be null when
+// `message_len` is 0; and `out_buffer` must point to a writable
+// `*mut PamojaBuffer`.
+PamojaStatus pamoja_public_identity_verify_message(const uint8_t *public_key,
+                                                   const uint8_t *message,
+                                                   uintptr_t message_len,
+                                                   PamojaBuffer **out_buffer);
+
 // Releases a device identity handle.
 //
 // Passing null is a no-op.
@@ -9050,6 +9228,25 @@ PamojaStatus pamoja_ds18b20_parse_scratchpad(const uint8_t *bytes,
                                              uintptr_t bytes_len,
                                              PamojaDs18b20Reading *out_reading);
 
+// Builds the nine bytes a DS18B20 in the given state puts on the bus, CRC last.
+//
+// This is the inverse of [`pamoja_ds18b20_parse_scratchpad`], so a node can be
+// written and tested against what a thermometer sends without one attached.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the nine bytes written to `out_bytes`, or
+// [`PamojaStatus::InvalidArgument`] if `bits` is not 9, 10, 11, or 12.
+//
+// # Safety
+//
+// `out_bytes` must point to at least nine writable bytes.
+PamojaStatus pamoja_ds18b20_build_scratchpad(float celsius,
+                                             uint8_t bits,
+                                             int8_t alarm_high,
+                                             int8_t alarm_low,
+                                             uint8_t *out_bytes);
+
 // Computes the Maxim CRC-8 a 1-Wire device checks its own bytes with.
 //
 // # Returns
@@ -9134,6 +9331,34 @@ uint16_t pamoja_ina219_calibration(uint32_t current_lsb_microamps, uint32_t shun
 //
 // The current LSB in microamps.
 uint32_t pamoja_ina219_minimum_current_lsb_microamps(uint32_t max_expected_microamps);
+
+// Builds the INA219 shunt-voltage register a monitor reports for a shunt voltage.
+//
+// # Returns
+//
+// The signed shunt-voltage register, at 10 uV per count.
+int16_t pamoja_ina219_shunt_register(int32_t microvolts);
+
+// Builds the INA219 bus-voltage register a monitor reports for a bus voltage.
+//
+// # Returns
+//
+// The bus-voltage register, with the conversion-ready flag set.
+uint16_t pamoja_ina219_bus_register(uint32_t millivolts);
+
+// Builds the INA219 current register a monitor reports for a current.
+//
+// # Returns
+//
+// The signed current register, or zero if `current_lsb_microamps` is zero.
+int16_t pamoja_ina219_current_register(int32_t microamps, uint32_t current_lsb_microamps);
+
+// Builds the INA219 power register a monitor reports for a power.
+//
+// # Returns
+//
+// The power register, or zero if `current_lsb_microamps` is zero.
+uint16_t pamoja_ina219_power_register(uint32_t microwatts, uint32_t current_lsb_microamps);
 
 // Converts a raw INA219 shunt-voltage register to microvolts.
 //
@@ -10539,6 +10764,18 @@ PamojaStatus pamoja_delegation_open(const uint8_t *bytes,
 //
 // A handle the caller must settle with [`pamoja_image_verifier_finish`] or
 // abandon with [`pamoja_image_verifier_free`], or null if the manifest carries
+// Hashes a complete image, for a publisher filling in a manifest.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the 32-byte SHA-256 written to `out_digest`.
+//
+// # Safety
+//
+// `image` must point to at least `image_len` readable bytes, or be null when
+// `image_len` is 0, and `out_digest` must point to at least 32 writable bytes.
+PamojaStatus pamoja_image_digest(const uint8_t *image, uintptr_t image_len, uint8_t *out_digest);
+
 // a payload format this build cannot apply.
 PamojaImageVerifier *pamoja_image_verifier_new(PamojaManifest manifest);
 

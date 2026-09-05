@@ -153,6 +153,12 @@ pub fn decode_manifest(bytes: Buffer) -> napi::Result<Manifest> {
         .map_err(refusal)
 }
 
+/// Hashes a complete image, for a publisher filling in a manifest.
+#[napi]
+pub fn image_digest(image: Buffer) -> Buffer {
+    pamoja_update::image_digest(image.as_ref()).to_vec().into()
+}
+
 /// Signs a manifest into the envelope that is offered to a device.
 #[napi]
 pub fn sign_manifest(manifest: Manifest, author: &DeviceIdentity) -> napi::Result<Buffer> {

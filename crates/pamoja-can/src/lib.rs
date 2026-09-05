@@ -40,8 +40,10 @@ mod error;
 mod frame;
 mod id;
 mod j1939;
+mod signals;
 
 pub use error::CanError;
 pub use frame::{dlc_to_len, len_to_dlc, Frame};
 pub use id::CanId;
-pub use j1939::J1939Id;
+pub use j1939::{priority, J1939Id, BROADCAST_ADDRESS};
+pub use signals::{Signals, NOT_AVAILABLE};

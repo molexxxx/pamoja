@@ -32,15 +32,17 @@ from pamoja.ladder import Delivery, Ladder
 from pamoja.loopback import LoopbackBroker
 from pamoja.sync import Store
 
+TOPIC = "sensors/1/temperature"
+
 
 async def main() -> None:
-    # Two links off the same node: a near mesh hop and a metered backhaul. Each is a
-    # separate broker, so which one carried a reading is visible from its subscriber.
+    # Two links off the same node: a near mesh hop and a metered backhaul. Each has its
+    # own broker, so which rung carried a reading is visible from its subscriber.
     mesh = LoopbackBroker()
     backhaul = LoopbackBroker()
     gateway = backhaul.link()
     await gateway.connect()
-    await gateway.subscribe("sensors/1/temperature")
+    await gateway.subscribe(TOPIC)
 
     # Rungs are tried in the order they are added, cheapest first. The mesh hop loses
     # every packet here; the backhaul carries one send, then drops the next two.
@@ -49,27 +51,31 @@ async def main() -> None:
     await ladder.rung(Transport.degraded(backhaul.rung(), up=1, down=2))
     await ladder.connect()
 
-    # The mesh hop refuses, so the reading goes out over the backhaul and arrives on
-    # the broker only that rung publishes to.
-    assert await ladder.send("sensors/1/temperature", b"21.5") == Delivery.SENT
-    assert (await gateway.recv()).payload == b"21.5"
+    # The mesh hop refuses, so the reading goes out over the backhaul and arrives on the
+    # broker only that rung publishes to.
+    first = await ladder.send(TOPIC, b"21.5")
+    arrived = await gateway.recv()
+    print(f"first reading: {first}, gateway got {arrived.payload.decode()}")
 
     # Now nothing will take a send, so the next reading is buffered rather than lost.
-    assert await ladder.send("sensors/1/temperature", b"21.6") == Delivery.BUFFERED
-    assert await ladder.buffered() == 1
+    second = await ladder.send(TOPIC, b"21.6")
+    waiting = await ladder.buffered()
+    print(f"second reading: {second}, {waiting} waiting in the queue")
 
     # A flush while the links are still down forwards nothing and leaves the backlog
     # intact, because a record is removed only once a rung has accepted it.
-    assert await ladder.flush() == 0
-    assert await ladder.buffered() == 1
+    while_down = await ladder.flush()
+    print(f"flush while down forwarded {while_down}, queue still {await ladder.buffered()}")
 
     # The backhaul is reachable again, so the buffered reading goes out exactly once.
-    assert await ladder.flush() == 1
-    assert await ladder.buffered() == 0
-    assert (await gateway.recv()).payload == b"21.6"
+    when_up = await ladder.flush()
+    late = await gateway.recv()
+    print(f"flush when up forwarded {when_up}, gateway got {late.payload.decode()}")
+
+    return first, second, waiting, while_down, when_up, await ladder.buffered(), late
 
 
-asyncio.run(main())
+first, second, waiting, while_down, when_up, left, late = asyncio.run(main())
 ```
 
 ## The same capability in every language

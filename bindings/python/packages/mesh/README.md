@@ -26,44 +26,50 @@ From [`bindings/python/guides/mesh.py`](https://github.com/molexxxx/pamoja/blob/
 
 ```python
 from pamoja.core import PamojaError
-from pamoja.mesh import BROADCAST, SeenPackets, broadcast, crc16, parse, relayed
+from pamoja.mesh import BROADCAST, HEADER_LEN, SeenPackets, broadcast, parse, relayed
 
-# A river gauge floods a reading to every node in range. The header is fixed and
-# big-endian: version, source, destination, sequence id, hop limit, then the payload
-# and a checksum over everything but the hop limit.
-reading = broadcast(0x12345678, 1, b"level=high")
-assert reading.dst == BROADCAST
-assert reading.bytes.hex() == "0112345678ffffffff0001036c6576656c3d686967683335"
-
-# The checksum is CRC-16/CCITT-FALSE, whose published check value fixes the polynomial
-# and the starting value.
-assert crc16(b"123456789") == 0x29B1
+# A river gauge floods a level reading to every node in range. The header is fixed and
+# big-endian: version, source, destination, sequence id, hop limit, then the payload and a
+# checksum over everything but the hop limit.
+RIVER_GAUGE = 305419896
+reading = broadcast(RIVER_GAUGE, 1, b"level=high")
+print(f"sent      {len(reading.bytes)} bytes to every node in range")
+print(f"addressed to broadcast: {reading.dst == BROADCAST}")
 
 # A neighbour hears it. Every node in range rebroadcasts, so the same packet arrives
 # several times over; the source and sequence id decide which copy is the first.
 received = parse(reading.bytes)
-assert received.payload == b"level=high"
+print(f"payload   {received.payload.decode()}")
+
 seen = SeenPackets(64)
-assert seen.record(received.src, received.id)
-assert not seen.record(received.src, received.id)
+first = seen.record(received.src, received.id)
+again = seen.record(received.src, received.id)
+print(f"first copy relayed: {first}, second copy relayed: {again}")
 
 # Relaying spends one hop. The checksum skips the hop-limit byte, so a relay forwards the
 # frame without recomputing it and the check stays end to end.
 forwarded = relayed(received.bytes)
-assert forwarded.hop_limit == received.hop_limit - 1
-assert parse(forwarded.bytes).payload == received.payload
-assert relayed(broadcast(0x12345678, 1, b"level=high", 0).bytes) is None
+print(f"relayed   hop limit {forwarded.hop_limit}")
+onward = parse(forwarded.bytes)
+print(f"onward    {onward.payload.decode()}")
+
+# A frame that has run out of hops is not relayed again, which is what ends the flood.
+spent = relayed(broadcast(RIVER_GAUGE, 1, b"level=high", 0).bytes)
+if spent is None:
+    print("spent     hop limit reached, the flood stops here")
+else:
+    print("a spent frame was relayed, which should never happen")
 
 # A payload byte the air mangled fails the checksum rather than reaching the application
-# as a plausible reading.
+# as a plausible reading. The header is a fixed width, so the first byte past it is the
+# first byte of the reading itself.
 mangled = bytearray(reading.bytes)
-mangled[12] ^= 0xFF
+mangled[HEADER_LEN] ^= 0xFF
 try:
     parse(bytes(mangled))
-except PamojaError:
-    pass
-else:
-    raise AssertionError("a frame mangled on the air should be rejected")
+    print("a mangled frame was accepted, which should never happen")
+except PamojaError as error:
+    print(f"mangled   rejected: {error}")
 ```
 
 ## The same capability in every language

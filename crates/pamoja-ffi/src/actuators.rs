@@ -15,13 +15,19 @@ use pamoja_actuators::{pca9685, stepper};
 use crate::{set_last_error, PamojaStatus};
 
 /// The PCA9685's internal oscillator frequency, in hertz.
-pub const PAMOJA_PCA9685_INTERNAL_OSC_HZ: u32 = pca9685::INTERNAL_OSC_HZ;
+pub const PAMOJA_PCA9685_INTERNAL_OSC_HZ: u32 = 25_000_000;
 
 /// How many PWM channels a PCA9685 drives.
-pub const PAMOJA_PCA9685_CHANNELS: u8 = pca9685::CHANNELS;
+pub const PAMOJA_PCA9685_CHANNELS: u8 = 16;
 
 /// How many counts a PCA9685 period is divided into.
-pub const PAMOJA_PCA9685_COUNTS: u16 = pca9685::COUNTS;
+pub const PAMOJA_PCA9685_COUNTS: u16 = 4096;
+
+// The header generator does not read the crates this one depends on, so these
+// carry their value rather than the name of the constant that defines it.
+const _: () = assert!(PAMOJA_PCA9685_INTERNAL_OSC_HZ == pca9685::INTERNAL_OSC_HZ);
+const _: () = assert!(PAMOJA_PCA9685_CHANNELS == pca9685::CHANNELS);
+const _: () = assert!(PAMOJA_PCA9685_COUNTS == pca9685::COUNTS);
 
 /// A PCA9685 channel's four register bytes.
 ///
@@ -147,6 +153,32 @@ pub extern "C" fn pamoja_pwm_duty(off: u16) -> PamojaPwm {
 #[no_mangle]
 pub extern "C" fn pamoja_pwm_servo(pulse_micros: u32, update_rate_hz: u32) -> PamojaPwm {
     pca9685::Pwm::servo(pulse_micros, update_rate_hz).into()
+}
+
+/// Reads a PCA9685 setting back from the four register bytes a channel holds.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success, with `*out_on` and `*out_off` set to the counts
+/// the registers hold, the full-on and full-off flags included.
+///
+/// # Safety
+///
+/// `out_on` and `out_off` must each point to a writable `uint16_t`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_pwm_counts(
+    pwm: PamojaPwm,
+    out_on: *mut u16,
+    out_off: *mut u16,
+) -> PamojaStatus {
+    if out_on.is_null() || out_off.is_null() {
+        set_last_error("out_on and out_off must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let setting = pca9685::Pwm::from_bytes(&[pwm.on_low, pwm.on_high, pwm.off_low, pwm.off_high]);
+    *out_on = setting.on();
+    *out_off = setting.off();
+    PamojaStatus::Ok
 }
 
 /// The setting that holds a channel continuously high.

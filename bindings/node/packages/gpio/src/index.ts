@@ -11,6 +11,8 @@
  */
 
 import {
+  I2C_RESERVED_BELOW,
+  I2C_RESERVED_FROM,
   i2cAddressFrame,
   i2cAddressFrameLen,
   i2cAddressIsGeneralCall,
@@ -67,6 +69,12 @@ export type PinPolarity = PinPolarityName
 
 /** I2C addressing per the NXP I2C-bus specification (UM10204). */
 export const i2c = {
+  /** The lowest 7-bit address the specification keeps for itself. */
+  RESERVED_FROM: I2C_RESERVED_FROM,
+
+  /** The first 7-bit address above the reserved block at the bottom of the range. */
+  RESERVED_BELOW: I2C_RESERVED_BELOW,
+
   /**
    * Returns the address bytes a controller puts on the bus for a transfer.
    *

@@ -1,5 +1,3 @@
-using System.Buffers.Binary;
-
 using Pamoja;
 using Pamoja.Can;
 
@@ -14,46 +12,75 @@ public static class CanGuide
     public static void Run()
     {
         // ANCHOR: example
-        // The engine-speed broadcast a J1939 engine or genset puts on the bus. J1939 keeps
-        // its addressing in the identifier: a priority, a parameter group, a source address.
-        J1939Message engine = Can.DecodeJ1939(0x0CF00400)!;
-        Expect(engine.Priority == 3, "the broadcast carries priority 3");
-        Expect(engine.Pgn == 61444, "engine speed is parameter group 61444");
-        Expect(engine.Broadcast && engine.Destination is null, "a broadcast has no destination");
+        // The nodes on this bus, by the address each answers to, and the two parameter
+        // groups in play. J1939 publishes both, so naming them makes the traffic readable.
+        const byte Engine = 0;
+        const byte Gateway = 1;
+        const byte Gearbox = 33;
+        const uint EngineController1 = 61_444; // carries engine speed
+        const uint Request = 59_904; // asks another node for a parameter group
 
-        // A PDU format below 0xF0 is addressed rather than broadcast, so those eight bits
-        // hold a destination instead of extending the parameter group. 59904 is the
-        // request group.
-        J1939Message request = Can.DecodeJ1939(0x18EA2101)!;
-        Expect(request.Pgn == 59904, "the request group decodes");
-        Expect(request.Destination == 0x21 && !request.Broadcast, "addressed to node 0x21");
-        Expect(Can.ComposeJ1939(6, 59904, 0x01, 0x21) == 0x18EA2101, "the fields compose back");
+        // Where engine speed sits inside that group, and the scale the standard fixes for
+        // it. Naming both is what stops a sender and a receiver disagreeing about either.
+        const int EngineSpeedAt = 3;
+        const double RpmPerBit = 0.125;
 
-        // J1939 never rides an 11-bit identifier.
-        Expect(Can.DecodeJ1939(0x123, extended: false) is null, "J1939 needs 29 bits");
+        // J1939 keeps its addressing inside the CAN identifier: a priority, the parameter
+        // group, and the address of whatever sent it. A broadcast has no destination, so
+        // it is its own constructor rather than a magic address a caller has to know.
+        uint speedId = Can.BroadcastJ1939(J1939Priority.Control, EngineController1, Engine);
+        J1939Message speed = Can.DecodeJ1939(speedId)!;
+        Console.WriteLine($"broadcast pgn {speed.Pgn} at priority {speed.Priority}");
 
-        // The frame that carries the broadcast. Engine speed sits in bytes 4 and 5 of that
-        // parameter group, little-endian at 0.125 rpm per bit, so 0x1F40 reads as 1000 rpm.
-        byte[] payload = [0xF0, 0x7D, 0x7D, 0x40, 0x1F, 0x00, 0xF0, 0xFF];
-        CanFrame eec1 = Can.Frame(0x0CF00400, payload, extended: true);
-        Expect(eec1.Dlc == 8, "eight bytes is data length code 8");
-        double rpm = BinaryPrimitives.ReadUInt16LittleEndian(eec1.Data.AsSpan(3, 2)) * 0.125;
-        Expect(rpm == 1000.0, "the payload reads as 1000 rpm");
+        // A parameter group below the PDU1 limit is addressed rather than broadcast, so
+        // those eight identifier bits carry a destination instead of extending the group.
+        uint requestId = Can.ComposeJ1939((byte)J1939Priority.Normal, Request, Gateway, Gearbox);
+        Console.WriteLine($"request   pgn {Request} addressed to node {Gearbox}");
 
-        // Above eight bytes CAN-FD encodes the length in steps, so 32 bytes is code 13,
-        // while a classic frame still refuses a ninth byte.
-        CanFrame wide = Can.FdFrame(0x0CF00400, new byte[32], extended: true);
-        Expect(wide.Dlc == 13, "32 bytes is data length code 13");
-        bool rejected = false;
+        // Reading one back off the bus is the same thing in reverse, so a receiver never
+        // unpacks 29 bits by hand.
+        J1939Message heard = Can.DecodeJ1939(requestId)!;
+        Console.WriteLine($"heard     from node {heard.Source} for node {heard.Destination}");
+
+        // The payload. Every signal starts marked not available, and this controller
+        // reports only engine speed, so that is the only one it writes.
+        Signals reported = Signals.New();
+        reported.SetU16(EngineSpeedAt, (ushort)(1000 / RpmPerBit));
+        CanFrame eec1 = Can.Frame(speedId, reported.ToArray(), extended: true);
+
+        // The receiving node reads the same offset back, so neither end slices the payload.
+        double rpm = Signals.From(eec1.Data).U16(EngineSpeedAt)!.Value * RpmPerBit;
+        Console.WriteLine($"engine    {rpm} rpm, carried in {eec1.Dlc} bytes");
+
+        // Above eight bytes CAN-FD encodes the length in steps rather than exactly, and a
+        // classic frame still refuses a ninth byte.
+        CanFrame wide = Can.FdFrame(speedId, new byte[32], extended: true);
+        Console.WriteLine($"32 bytes carries length code {wide.Dlc}");
         try
         {
-            Can.Frame(0x0CF00400, new byte[9], extended: true);
+            Can.Frame(speedId, new byte[9], extended: true);
+            Console.WriteLine("a classic frame took nine bytes, which should never happen");
         }
-        catch (PamojaException)
+        catch (PamojaException error)
         {
-            rejected = true;
+            Console.WriteLine($"classic   refused nine bytes: {error.Message}");
         }
-        Expect(rejected, "classic CAN carries at most eight bytes");
+
+        // J1939 never rides an 11-bit identifier, so a standard frame is not one of its
+        // messages however its bits happen to line up.
+        Console.WriteLine($"an 11-bit identifier is J1939: {Can.DecodeJ1939(291, false) is not null}");
         // ANCHOR_END: example
+
+        Expect(speed.Priority == (byte)J1939Priority.Control, "a control priority");
+        Expect(speed.Pgn == EngineController1, "the engine controller group");
+        Expect(speed.Broadcast && speed.Destination is null, "a broadcast has no destination");
+        Expect(heard.Pgn == Request, "the request group");
+        Expect(heard.Destination == Gearbox, "addressed to the gearbox");
+        Expect(heard.Source == Gateway, "sent by the gateway");
+        Expect(rpm == 1000.0, "a thousand rpm");
+        Expect(eec1.Dlc == 8, "eight bytes");
+        Expect(wide.Dlc == 13, "32 bytes is length code 13");
+        Expect(Can.DecodeJ1939(291, false) is null, "J1939 does not ride an 11-bit identifier");
+        Expect(reported.U8(0) == Signals.NotAvailable, "every signal it does not report");
     }
 }

@@ -10,21 +10,30 @@ against a USB adapter, a socket on a gateway, or a bus that is not there.
 
 ## What the example does
 
-It decodes the two identifiers the standard fixes for an engine-speed broadcast
-and for an addressed request, composes the second one back out of its fields,
-then builds the classic and CAN-FD frames that carry that traffic.
+It builds the engine-speed broadcast an engine controller puts on the bus and the
+addressed request a gateway sends a gearbox, reads the request back out of the
+identifier it packs into, then carries the broadcast in the classic frame that
+would go on the wire. A wider frame on that same identifier shows how CAN-FD
+encodes a length above eight bytes.
+
+The identifiers are composed from their fields rather than written out as packed
+29-bit constants, so a reader sees the priority, the parameter group and the node
+addresses that make one up. A broadcast is composed without a destination rather
+than with an address that stands for nobody. The payload starts as eight
+not-available bytes, the value the standard reserves for a signal a controller is
+not reporting, and only the two that carry engine speed are written.
 
 It proves:
 
-- The 29 bits of `0x0CF00400` split into priority 3, parameter group 61444, and
-  a broadcast with no destination.
-- A PDU format below `0xF0` is addressed, so `0x18EA2101` names destination
-  `0x21` instead of extending the parameter group, and those same fields compose
-  that identifier back.
+- A priority, a parameter group and a source address compose an identifier and
+  decode back out of it unchanged.
+- The broadcast carries no destination, while a parameter group below the PDU1
+  limit is addressed, so those eight bits name a node instead of extending the
+  group number.
 - A standard 11-bit identifier decodes to nothing, because J1939 does not use
   one.
-- Engine speed sits in bytes 4 and 5 of that parameter group at 0.125 rpm per
-  bit, so the payload reads as 1000 rpm.
+- Engine speed sits in bytes 4 and 5 of that group at 0.125 rpm per bit, so the
+  eight-byte payload reads back as a thousand rpm.
 - The CAN-FD length encoding puts 32 bytes at data length code 13, while a
   classic frame still refuses a ninth byte.
 
@@ -34,39 +43,64 @@ It proves:
 From [`examples/tests/guides/can.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/can.rs):
 
 ```rust
-use pamoja_can::{CanId, Frame, J1939Id};
+use pamoja_can::{priority, CanId, Frame, J1939Id, Signals};
 
-// The engine-speed broadcast a J1939 engine or genset puts on the bus. J1939 keeps its
-// addressing in the identifier: a priority, a parameter group, a source address.
-let engine = J1939Id::from_id(CanId::extended(0x0CF0_0400)).expect("an extended identifier");
-assert_eq!(engine.priority(), 3);
-assert_eq!(engine.pgn(), 61_444);
-assert!(engine.is_broadcast() && engine.destination().is_none());
+// The nodes on this bus, by the address each answers to, and the two parameter groups
+// in play. J1939 publishes both, so naming them is what makes the traffic readable.
+const ENGINE: u8 = 0;
+const GATEWAY: u8 = 1;
+const GEARBOX: u8 = 33;
+const ENGINE_CONTROLLER_1: u32 = 61_444; // carries engine speed
+const REQUEST: u32 = 59_904; // asks another node for a parameter group
 
-// A PDU format below 0xF0 is addressed rather than broadcast, so those eight bits hold a
-// destination instead of extending the parameter group. 59904 is the request group.
-let request = J1939Id::from_id(CanId::extended(0x18EA_2101)).expect("an extended identifier");
-assert_eq!(request.pgn(), 59_904);
-assert_eq!(request.destination(), Some(0x21));
-let composed = J1939Id::from_parts(6, 59_904, 0x01, 0x21);
-assert_eq!(composed.to_id().raw(), 0x18EA_2101);
+// Where engine speed sits inside that group, and the scale the standard fixes for it.
+// Naming both is what stops a sender and a receiver disagreeing about either.
+const ENGINE_SPEED_AT: usize = 3;
+const RPM_PER_BIT: f64 = 0.125;
 
-// J1939 never rides an 11-bit identifier.
-assert_eq!(J1939Id::from_id(CanId::standard(0x123)), None);
+// J1939 keeps its addressing inside the CAN identifier: a priority, the parameter
+// group, and the address of whatever sent it. A broadcast has no destination, so it
+// is its own constructor rather than a magic address a caller has to know.
+let speed_id = J1939Id::broadcast(priority::CONTROL, ENGINE_CONTROLLER_1, ENGINE);
+let (group, sent_at) = (speed_id.pgn(), speed_id.priority());
+println!("broadcast pgn {group} at priority {sent_at}");
 
-// The frame that carries the broadcast. Engine speed sits in bytes 4 and 5 of that
-// parameter group, little-endian at 0.125 rpm per bit, so 0x1F40 reads as 1000 rpm.
-let payload = [0xF0, 0x7D, 0x7D, 0x40, 0x1F, 0x00, 0xF0, 0xFF];
-let eec1 = Frame::new(CanId::extended(0x0CF0_0400), &payload).expect("eight bytes fit");
-assert_eq!(eec1.dlc(), 8);
-let speed = u16::from_le_bytes([eec1.data()[3], eec1.data()[4]]);
-assert_eq!(f64::from(speed) * 0.125, 1000.0);
+// A parameter group below the PDU1 limit is addressed rather than broadcast, so those
+// eight identifier bits carry a destination instead of extending the group number.
+let request_id = J1939Id::from_parts(priority::DEFAULT, REQUEST, GATEWAY, GEARBOX);
+let asked_for = request_id.pgn();
+println!("request   pgn {asked_for} addressed to node {GEARBOX}");
 
-// Above eight bytes CAN-FD encodes the length in steps, so 32 bytes is code 13, while a
+// Reading one back off the bus is the same thing in reverse, so a receiver never
+// unpacks 29 bits by hand.
+let heard = J1939Id::from_id(request_id.to_id()).expect("an extended identifier");
+let (from, to) = (heard.source(), heard.destination().unwrap());
+println!("heard     from node {from} for node {to}");
+
+// The payload. Every signal starts marked not available, and this controller reports
+// only engine speed, so that is the only one it writes.
+let mut reported = Signals::new();
+reported.set_u16(ENGINE_SPEED_AT, (1000.0 / RPM_PER_BIT) as u16);
+let frame = Frame::new(speed_id.to_id(), reported.as_bytes()).expect("eight bytes fit");
+
+// The receiving node reads the same offset back, so neither end slices the payload.
+let signals = frame.signals().expect("a J1939 frame carries eight bytes");
+let rpm = f64::from(signals.u16(ENGINE_SPEED_AT).expect("engine speed")) * RPM_PER_BIT;
+println!("engine    {rpm} rpm, carried in {} bytes", frame.dlc());
+
+// Above eight bytes CAN-FD encodes the length in steps rather than exactly, and a
 // classic frame still refuses a ninth byte.
-let wide = Frame::fd(CanId::extended(0x0CF0_0400), &[0; 32]).expect("a CAN-FD length");
-assert_eq!(wide.dlc(), 13);
-assert!(Frame::new(CanId::extended(0x0CF0_0400), &[0; 9]).is_err());
+let wide = Frame::fd(speed_id.to_id(), &[0; 32]).expect("a CAN-FD length");
+println!("32 bytes carries length code {}", wide.dlc());
+match Frame::new(speed_id.to_id(), &[0; 9]) {
+    Ok(_) => println!("a classic frame took nine bytes, which should never happen"),
+    Err(error) => println!("classic   refused nine bytes: {error}"),
+}
+
+// J1939 never rides an 11-bit identifier, so a standard frame is not one of its
+// messages however its bits happen to line up.
+let short_id = J1939Id::from_id(CanId::standard(291));
+println!("an 11-bit identifier is J1939: {}", short_id.is_some());
 ```
 <!-- end -->
 
@@ -76,38 +110,71 @@ assert!(Frame::new(CanId::extended(0x0CF0_0400), &[0; 9]).is_err());
 From [`bindings/node/guides/can.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/can.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
+import {
+  NOT_AVAILABLE,
+  broadcastJ1939,
+  composeJ1939,
+  decodeJ1939,
+  fdFrame,
+  frame,
+  priority,
+  signals,
+  signalsFrom,
+} from '@pamoja/can'
 
-import { composeJ1939, decodeJ1939, fdFrame, frame } from '@pamoja/can'
+// The nodes on this bus, by the address each answers to, and the two parameter groups
+// in play. J1939 publishes both, so naming them is what makes the traffic readable.
+const ENGINE = 0
+const GATEWAY = 1
+const GEARBOX = 33
+const ENGINE_CONTROLLER_1 = 61_444 // carries engine speed
+const REQUEST = 59_904 // asks another node for a parameter group
 
-// The engine-speed broadcast a J1939 engine or genset puts on the bus. J1939 keeps its
-// addressing in the identifier: a priority, a parameter group, a source address.
-const engine = decodeJ1939(0x0cf00400)!
-assert.equal(engine.priority, 3)
-assert.equal(engine.pgn, 61444)
-assert.ok(engine.broadcast && engine.destination === null)
+// Where engine speed sits inside that group, and the scale the standard fixes for it.
+// Naming both is what stops a sender and a receiver disagreeing about either.
+const ENGINE_SPEED_AT = 3
+const RPM_PER_BIT = 0.125
 
-// A PDU format below 0xF0 is addressed rather than broadcast, so those eight bits hold a
-// destination instead of extending the parameter group. 59904 is the request group.
-const request = decodeJ1939(0x18ea2101)!
-assert.equal(request.pgn, 59904)
-assert.ok(request.destination === 0x21 && !request.broadcast)
-assert.equal(composeJ1939(6, 59904, 0x01, 0x21), 0x18ea2101)
+// J1939 keeps its addressing inside the CAN identifier: a priority, the parameter
+// group, and the address of whatever sent it. A broadcast has no destination, so it is
+// its own constructor rather than a magic address a caller has to know.
+const speedId = broadcastJ1939(priority.control, ENGINE_CONTROLLER_1, ENGINE)
+const speed = decodeJ1939(speedId)!
+console.log(`broadcast pgn ${speed.pgn} at priority ${speed.priority}`)
 
-// J1939 never rides an 11-bit identifier.
-assert.equal(decodeJ1939(0x123, false), null)
+// A parameter group below the PDU1 limit is addressed rather than broadcast, so those
+// eight identifier bits carry a destination instead of extending the group number.
+const requestId = composeJ1939(priority.default, REQUEST, GATEWAY, GEARBOX)
+console.log(`request   pgn ${decodeJ1939(requestId)!.pgn} addressed to node ${GEARBOX}`)
 
-// The frame that carries the broadcast. Engine speed sits in bytes 4 and 5 of that
-// parameter group, little-endian at 0.125 rpm per bit, so 0x1F40 reads as 1000 rpm.
-const payload = Buffer.from([0xf0, 0x7d, 0x7d, 0x40, 0x1f, 0x00, 0xf0, 0xff])
-const eec1 = frame(0x0cf00400, payload, true)
-assert.equal(eec1.dlc, 8)
-assert.equal(eec1.data.readUInt16LE(3) * 0.125, 1000)
+// Reading one back off the bus is the same thing in reverse, so a receiver never
+// unpacks 29 bits by hand.
+const heard = decodeJ1939(requestId)!
+console.log(`heard     from node ${heard.source} for node ${heard.destination}`)
 
-// Above eight bytes CAN-FD encodes the length in steps, so 32 bytes is code 13, while a
+// The payload. Every signal starts marked not available, and this controller reports
+// only engine speed, so that is the only one it writes.
+const reported = signals()
+reported.setU16(ENGINE_SPEED_AT, 1000 / RPM_PER_BIT)
+const eec1 = frame(speedId, reported.bytes, true)
+
+// The receiving node reads the same offset back, so neither end slices the payload.
+const rpm = signalsFrom(eec1.data).u16(ENGINE_SPEED_AT)! * RPM_PER_BIT
+console.log(`engine    ${rpm} rpm, carried in ${eec1.dlc} bytes`)
+
+// Above eight bytes CAN-FD encodes the length in steps rather than exactly, and a
 // classic frame still refuses a ninth byte.
-assert.equal(fdFrame(0x0cf00400, Buffer.alloc(32), true).dlc, 13)
-assert.throws(() => frame(0x0cf00400, Buffer.alloc(9), true))
+console.log(`32 bytes carries length code ${fdFrame(speedId, new Uint8Array(32), true).dlc}`)
+try {
+  frame(speedId, new Uint8Array(9), true)
+  console.log('a classic frame took nine bytes, which should never happen')
+} catch (error) {
+  console.log(`classic   refused nine bytes: ${(error as Error).message}`)
+}
+
+// J1939 never rides an 11-bit identifier, so a standard frame is not one of its
+// messages however its bits happen to line up.
+console.log(`an 11-bit identifier is J1939: ${decodeJ1939(291, false) !== null}`)
 ```
 <!-- end -->
 
@@ -117,42 +184,71 @@ assert.throws(() => frame(0x0cf00400, Buffer.alloc(9), true))
 From [`bindings/python/guides/can.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/can.py):
 
 ```python
-from pamoja.can import compose_j1939, decode_j1939, fd_frame, frame
+from pamoja.can import (
+    NOT_AVAILABLE,
+    Priority,
+    broadcast_j1939,
+    compose_j1939,
+    decode_j1939,
+    fd_frame,
+    frame,
+    signals,
+    signals_from,
+)
 from pamoja.core import PamojaError
 
-# The engine-speed broadcast a J1939 engine or genset puts on the bus. J1939 keeps its
-# addressing in the identifier: a priority, a parameter group, a source address.
-engine = decode_j1939(0x0CF00400)
-assert engine.priority == 3
-assert engine.pgn == 61444
-assert engine.broadcast and engine.destination is None
+# The nodes on this bus, by the address each answers to, and the two parameter groups
+# in play. J1939 publishes both, so naming them is what makes the traffic readable.
+ENGINE = 0
+GATEWAY = 1
+GEARBOX = 33
+ENGINE_CONTROLLER_1 = 61_444  # carries engine speed
+REQUEST = 59_904  # asks another node for a parameter group
 
-# A PDU format below 0xF0 is addressed rather than broadcast, so those eight bits hold a
-# destination instead of extending the parameter group. 59904 is the request group.
-request = decode_j1939(0x18EA2101)
-assert request.pgn == 59904
-assert request.destination == 0x21 and not request.broadcast
-assert compose_j1939(6, 59904, 0x01, 0x21) == 0x18EA2101
+# Where engine speed sits inside that group, and the scale the standard fixes for it.
+# Naming both is what stops a sender and a receiver disagreeing about either.
+ENGINE_SPEED_AT = 3
+RPM_PER_BIT = 0.125
 
-# J1939 never rides an 11-bit identifier.
-assert decode_j1939(0x123, extended=False) is None
+# J1939 keeps its addressing inside the CAN identifier: a priority, the parameter
+# group, and the address of whatever sent it. A broadcast has no destination, so it is
+# its own constructor rather than a magic address a caller has to know.
+speed_id = broadcast_j1939(Priority.CONTROL, ENGINE_CONTROLLER_1, ENGINE)
+speed = decode_j1939(speed_id)
+print(f"broadcast pgn {speed.pgn} at priority {speed.priority}")
 
-# The frame that carries the broadcast. Engine speed sits in bytes 4 and 5 of that
-# parameter group, little-endian at 0.125 rpm per bit, so 0x1F40 reads as 1000 rpm.
-payload = bytes([0xF0, 0x7D, 0x7D, 0x40, 0x1F, 0x00, 0xF0, 0xFF])
-eec1 = frame(0x0CF00400, payload, extended=True)
-assert eec1.dlc == 8
-assert int.from_bytes(eec1.data[3:5], "little") * 0.125 == 1000.0
+# A parameter group below the PDU1 limit is addressed rather than broadcast, so those
+# eight identifier bits carry a destination instead of extending the group number.
+request_id = compose_j1939(Priority.DEFAULT, REQUEST, GATEWAY, GEARBOX)
+print(f"request   pgn {decode_j1939(request_id).pgn} addressed to node {GEARBOX}")
 
-# Above eight bytes CAN-FD encodes the length in steps, so 32 bytes is code 13, while a
+# Reading one back off the bus is the same thing in reverse, so a receiver never
+# unpacks 29 bits by hand.
+heard = decode_j1939(request_id)
+print(f"heard     from node {heard.source} for node {heard.destination}")
+
+# The payload. Every signal starts marked not available, and this controller reports
+# only engine speed, so that is the only one it writes.
+reported = signals()
+reported.set_u16(ENGINE_SPEED_AT, int(1000 / RPM_PER_BIT))
+eec1 = frame(speed_id, reported.bytes, extended=True)
+
+# The receiving node reads the same offset back, so neither end slices the payload.
+rpm = signals_from(eec1.data).u16(ENGINE_SPEED_AT) * RPM_PER_BIT
+print(f"engine    {rpm} rpm, carried in {eec1.dlc} bytes")
+
+# Above eight bytes CAN-FD encodes the length in steps rather than exactly, and a
 # classic frame still refuses a ninth byte.
-assert fd_frame(0x0CF00400, bytes(32), extended=True).dlc == 13
+print(f"32 bytes carries length code {fd_frame(speed_id, bytes(32), extended=True).dlc}")
 try:
-    frame(0x0CF00400, bytes(9), extended=True)
-except PamojaError:
-    pass
-else:
-    raise AssertionError("classic CAN carries at most eight bytes")
+    frame(speed_id, bytes(9), extended=True)
+    print("a classic frame took nine bytes, which should never happen")
+except PamojaError as error:
+    print(f"classic   refused nine bytes: {error}")
+
+# J1939 never rides an 11-bit identifier, so a standard frame is not one of its
+# messages however its bits happen to line up.
+print(f"an 11-bit identifier is J1939: {decode_j1939(291, extended=False) is not None}")
 ```
 <!-- end -->
 
@@ -162,46 +258,63 @@ else:
 From [`bindings/dotnet/samples/Pamoja.Guides/CanGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/CanGuide.cs):
 
 ```csharp
-// The engine-speed broadcast a J1939 engine or genset puts on the bus. J1939 keeps
-// its addressing in the identifier: a priority, a parameter group, a source address.
-J1939Message engine = Can.DecodeJ1939(0x0CF00400)!;
-Expect(engine.Priority == 3, "the broadcast carries priority 3");
-Expect(engine.Pgn == 61444, "engine speed is parameter group 61444");
-Expect(engine.Broadcast && engine.Destination is null, "a broadcast has no destination");
+// The nodes on this bus, by the address each answers to, and the two parameter
+// groups in play. J1939 publishes both, so naming them makes the traffic readable.
+const byte Engine = 0;
+const byte Gateway = 1;
+const byte Gearbox = 33;
+const uint EngineController1 = 61_444; // carries engine speed
+const uint Request = 59_904; // asks another node for a parameter group
 
-// A PDU format below 0xF0 is addressed rather than broadcast, so those eight bits
-// hold a destination instead of extending the parameter group. 59904 is the
-// request group.
-J1939Message request = Can.DecodeJ1939(0x18EA2101)!;
-Expect(request.Pgn == 59904, "the request group decodes");
-Expect(request.Destination == 0x21 && !request.Broadcast, "addressed to node 0x21");
-Expect(Can.ComposeJ1939(6, 59904, 0x01, 0x21) == 0x18EA2101, "the fields compose back");
+// Where engine speed sits inside that group, and the scale the standard fixes for
+// it. Naming both is what stops a sender and a receiver disagreeing about either.
+const int EngineSpeedAt = 3;
+const double RpmPerBit = 0.125;
 
-// J1939 never rides an 11-bit identifier.
-Expect(Can.DecodeJ1939(0x123, extended: false) is null, "J1939 needs 29 bits");
+// J1939 keeps its addressing inside the CAN identifier: a priority, the parameter
+// group, and the address of whatever sent it. A broadcast has no destination, so
+// it is its own constructor rather than a magic address a caller has to know.
+uint speedId = Can.BroadcastJ1939(J1939Priority.Control, EngineController1, Engine);
+J1939Message speed = Can.DecodeJ1939(speedId)!;
+Console.WriteLine($"broadcast pgn {speed.Pgn} at priority {speed.Priority}");
 
-// The frame that carries the broadcast. Engine speed sits in bytes 4 and 5 of that
-// parameter group, little-endian at 0.125 rpm per bit, so 0x1F40 reads as 1000 rpm.
-byte[] payload = [0xF0, 0x7D, 0x7D, 0x40, 0x1F, 0x00, 0xF0, 0xFF];
-CanFrame eec1 = Can.Frame(0x0CF00400, payload, extended: true);
-Expect(eec1.Dlc == 8, "eight bytes is data length code 8");
-double rpm = BinaryPrimitives.ReadUInt16LittleEndian(eec1.Data.AsSpan(3, 2)) * 0.125;
-Expect(rpm == 1000.0, "the payload reads as 1000 rpm");
+// A parameter group below the PDU1 limit is addressed rather than broadcast, so
+// those eight identifier bits carry a destination instead of extending the group.
+uint requestId = Can.ComposeJ1939((byte)J1939Priority.Normal, Request, Gateway, Gearbox);
+Console.WriteLine($"request   pgn {Request} addressed to node {Gearbox}");
 
-// Above eight bytes CAN-FD encodes the length in steps, so 32 bytes is code 13,
-// while a classic frame still refuses a ninth byte.
-CanFrame wide = Can.FdFrame(0x0CF00400, new byte[32], extended: true);
-Expect(wide.Dlc == 13, "32 bytes is data length code 13");
-bool rejected = false;
+// Reading one back off the bus is the same thing in reverse, so a receiver never
+// unpacks 29 bits by hand.
+J1939Message heard = Can.DecodeJ1939(requestId)!;
+Console.WriteLine($"heard     from node {heard.Source} for node {heard.Destination}");
+
+// The payload. Every signal starts marked not available, and this controller
+// reports only engine speed, so that is the only one it writes.
+Signals reported = Signals.New();
+reported.SetU16(EngineSpeedAt, (ushort)(1000 / RpmPerBit));
+CanFrame eec1 = Can.Frame(speedId, reported.ToArray(), extended: true);
+
+// The receiving node reads the same offset back, so neither end slices the payload.
+double rpm = Signals.From(eec1.Data).U16(EngineSpeedAt)!.Value * RpmPerBit;
+Console.WriteLine($"engine    {rpm} rpm, carried in {eec1.Dlc} bytes");
+
+// Above eight bytes CAN-FD encodes the length in steps rather than exactly, and a
+// classic frame still refuses a ninth byte.
+CanFrame wide = Can.FdFrame(speedId, new byte[32], extended: true);
+Console.WriteLine($"32 bytes carries length code {wide.Dlc}");
 try
 {
-    Can.Frame(0x0CF00400, new byte[9], extended: true);
+    Can.Frame(speedId, new byte[9], extended: true);
+    Console.WriteLine("a classic frame took nine bytes, which should never happen");
 }
-catch (PamojaException)
+catch (PamojaException error)
 {
-    rejected = true;
+    Console.WriteLine($"classic   refused nine bytes: {error.Message}");
 }
-Expect(rejected, "classic CAN carries at most eight bytes");
+
+// J1939 never rides an 11-bit identifier, so a standard frame is not one of its
+// messages however its bits happen to line up.
+Console.WriteLine($"an 11-bit identifier is J1939: {Can.DecodeJ1939(291, false) is not null}");
 ```
 <!-- end -->
 

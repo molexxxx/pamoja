@@ -170,6 +170,66 @@ impl Pdu {
         })
     }
 
+    /// Builds the reply a device sends to a read-holding-registers request.
+    ///
+    /// This is the answering half of [`read_holding_registers`](Pdu::read_holding_registers):
+    /// the function code, the byte count, then the registers big-endian. It lets a client
+    /// be written and tested against what a device sends without a device on the line.
+    ///
+    /// # Arguments
+    ///
+    /// * `values` - the register values the device reports, in address order.
+    ///
+    /// # Returns
+    ///
+    /// The reply PDU.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModbusError::InvalidValueCount`] if `values` is empty or holds more than
+    /// [`MAX_WRITE_REGISTERS`](Pdu::MAX_WRITE_REGISTERS) values.
+    pub fn read_holding_registers_reply(values: &[u16]) -> Result<Pdu, ModbusError> {
+        Self::registers_reply(0x03, values)
+    }
+
+    /// Builds the reply a device sends to a read-input-registers request.
+    ///
+    /// This is the answering half of [`read_input_registers`](Pdu::read_input_registers).
+    ///
+    /// # Arguments
+    ///
+    /// * `values` - the register values the device reports, in address order.
+    ///
+    /// # Returns
+    ///
+    /// The reply PDU.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModbusError::InvalidValueCount`] if `values` is empty or holds more than
+    /// [`MAX_WRITE_REGISTERS`](Pdu::MAX_WRITE_REGISTERS) values.
+    pub fn read_input_registers_reply(values: &[u16]) -> Result<Pdu, ModbusError> {
+        Self::registers_reply(0x04, values)
+    }
+
+    fn registers_reply(function: u8, values: &[u16]) -> Result<Pdu, ModbusError> {
+        let quantity = values.len();
+        if quantity == 0 || quantity > Self::MAX_WRITE_REGISTERS {
+            return Err(ModbusError::InvalidValueCount);
+        }
+        let byte_count = quantity * 2;
+        let mut bytes = [0u8; Self::MAX_LEN];
+        bytes[0] = function;
+        bytes[1] = byte_count as u8;
+        for (i, &value) in values.iter().enumerate() {
+            bytes[2 + i * 2..4 + i * 2].copy_from_slice(&value.to_be_bytes());
+        }
+        Ok(Pdu {
+            bytes,
+            len: 2 + byte_count,
+        })
+    }
+
     /// Builds a write-multiple-coils request (function `0x0F`).
     ///
     /// The coils are packed into bytes least-significant bit first, the order Modbus
@@ -373,6 +433,33 @@ mod tests {
         assert_eq!(
             frame.as_bytes(),
             &[0x11, 0x03, 0x00, 0x6B, 0x00, 0x03, 0x76, 0x87]
+        );
+    }
+    #[test]
+    fn a_read_registers_reply_is_the_frame_the_specification_shows() {
+        // The specification's worked example: three holding registers answered as the
+        // function code, a byte count of six, then the values big-endian.
+        let reply = Pdu::read_holding_registers_reply(&[0x022B, 0x0000, 0x0064])
+            .expect("three registers fit a reply");
+        assert_eq!(
+            reply.as_bytes(),
+            &[0x03, 0x06, 0x02, 0x2B, 0x00, 0x00, 0x00, 0x64]
+        );
+
+        let inputs = Pdu::read_input_registers_reply(&[1]).expect("one register fits");
+        assert_eq!(inputs.as_bytes(), &[0x04, 0x02, 0x00, 0x01]);
+    }
+
+    #[test]
+    fn a_reply_refuses_a_register_count_it_cannot_carry() {
+        assert_eq!(
+            Pdu::read_holding_registers_reply(&[]),
+            Err(ModbusError::InvalidValueCount)
+        );
+        let too_many = [0u16; Pdu::MAX_WRITE_REGISTERS + 1];
+        assert_eq!(
+            Pdu::read_holding_registers_reply(&too_many),
+            Err(ModbusError::InvalidValueCount)
         );
     }
 }

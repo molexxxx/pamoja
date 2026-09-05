@@ -62,9 +62,9 @@ export class AuditLog {
  *
  * @param publicKey - The 32-byte key the records were signed with.
  * @param entries - The records, in the order they were written.
- * @returns `true` when every record follows the one before it and carries a
- *   signature that holds.
+ * @throws With the reason the chain does not hold: a record whose signature
+ *   fails, or one that does not follow the record before it.
  */
-export function verifyChain(publicKey: Uint8Array, entries: AuditEntry[]): boolean {
-  return verifyAuditChain(Buffer.from(publicKey), entries)
+export function verifyChain(publicKey: Uint8Array, entries: AuditEntry[]): void {
+  verifyAuditChain(Buffer.from(publicKey), entries)
 }

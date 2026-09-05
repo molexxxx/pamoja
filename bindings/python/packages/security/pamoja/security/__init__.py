@@ -13,8 +13,9 @@ from typing import Union
 from pamoja._native import DeviceIdentity as _NativeDeviceIdentity
 from pamoja._native import fingerprint as _native_fingerprint
 from pamoja._native import verify as _native_verify
+from pamoja._native import verify_message as _native_verify_message
 
-__all__ = ["DeviceIdentity", "Payload", "fingerprint", "verify"]
+__all__ = ["DeviceIdentity", "Payload", "fingerprint", "verify", "verify_message"]
 
 #: A payload to sign or verify; ``str`` is encoded as UTF-8.
 Payload = Union[str, bytes, bytearray, memoryview]
@@ -97,6 +98,19 @@ class DeviceIdentity:
         """
         return self._native.sign(_to_bytes(payload))
 
+    def sign_message(self, payload: Payload) -> bytes:
+        """Sign a payload and return one message carrying both.
+
+        The message is the signature followed by the payload, which is usually what
+        goes on a link: one blob to send, rather than a payload and a detached
+        signature to keep together and split correctly at the far end.
+        :func:`verify_message` reverses it.
+
+        :param payload: The bytes to cover; ``str`` is encoded as UTF-8.
+        :returns: The signature followed by the payload.
+        """
+        return self._native.sign_message(_to_bytes(payload))
+
     def __repr__(self) -> str:
         return f"DeviceIdentity(fingerprint={self.fingerprint!r})"
 
@@ -112,6 +126,19 @@ def verify(public_key: bytes, payload: Payload, signature: bytes) -> bool:
     :raises ValueError: If an argument is not the expected length.
     """
     return _native_verify(bytes(public_key), _to_bytes(payload), bytes(signature))
+
+
+def verify_message(public_key: bytes, message: bytes) -> bytes | None:
+    """Verify a signed message and return the payload it carries.
+
+    :param public_key: The 32-byte public key of the claimed signer.
+    :param message: The signature followed by the payload, as
+        :meth:`DeviceIdentity.sign_message` wrote it.
+    :returns: The payload if the message is authentic, and ``None`` if it is too
+        short to hold a signature, was altered, or was signed by a different device.
+    :raises ValueError: If the key is not the expected length.
+    """
+    return _native_verify_message(bytes(public_key), bytes(message))
 
 
 def fingerprint(public_key: bytes) -> str:
