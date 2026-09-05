@@ -15,7 +15,15 @@
     <PackageProjectUrl>https://github.com/molexxxx/pamoja</PackageProjectUrl>
     <RepositoryUrl>https://github.com/molexxxx/pamoja</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <PackageIcon>pamoja-icon.png</PackageIcon>
   </PropertyGroup>
+
+  <!-- NuGet renders a package with no icon as a blank placeholder, which across a
+       family this size reads as unmaintained. It takes a raster image, so this is the
+       repository icon rasterised rather than the SVG the README uses. -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)../../assets/pamoja-icon.png" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
 
   <!-- MIT asks that the notice travel with the copies, so the text is packed beside the
        expression that names it. `cargo xtask docs` writes one copy per package. -->

@@ -7,6 +7,26 @@ released together, so one entry covers all of them.
 
 ## [Unreleased]
 
+### Fixed
+
+- Eight capability crates gave their error type a `Display` implementation and
+  no `Error` one, so `fn main() -> Result<(), Box<dyn Error>>`, which is the
+  first thing most people write, failed to compile the moment it touched mesh,
+  Modbus, CAN, GPIO, sensors, serial, session, or LoRaWAN. Every one implements
+  `core::error::Error` now, which needs no `std` and so reaches a caller on a
+  microcontroller too, and a test carries an error from each of them through `?`
+  into one boxed error.
+- The .NET packages declared no icon, so all thirty-eight rendered as a blank
+  placeholder in the gallery and in Visual Studio.
+
+### Changed
+
+- The install page says what happens on a platform the compiled engine was not
+  built for. The .NET packages restore and compile and then fail on the first
+  call, since there is no native library and, unlike Python, no source build to
+  fall back on; Alpine and Windows on ARM are the two that catch people out.
+
+
 ## [0.1.16] - 2026-09-05
 
 Publishing fixes. 0.1.15 reached crates.io and NuGet intact, and both are
