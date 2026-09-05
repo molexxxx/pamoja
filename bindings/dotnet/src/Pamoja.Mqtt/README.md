@@ -25,39 +25,67 @@ The guide project's example, spliced here as it ran in CI.
 From [`bindings/dotnet/samples/Pamoja.Guides/MqttGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/MqttGuide.cs):
 
 ```csharp
-// MQTT numbers its three delivery guarantees 0, 1 and 2 on the wire.
-Expect((int)Qos.AtMostOnce == 0, "at most once is level 0");
-Expect((int)Qos.AtLeastOnce == 1, "at least once is level 1");
-Expect((int)Qos.ExactlyOnce == 2, "exactly once is level 2");
+// The broker on the site. The guide's CI runs one on localhost; point these at
+// yours and nothing else changes.
+const string Broker = "127.0.0.1";
+const ushort Port = 1883;
 
-// Nothing listens on this port, so the broker is unreachable. Constructing the
-// client touches nothing; only connecting does.
-await using var client = new MqttClient(new MqttClientOptions
+// The gateway takes every temperature on the site. A `+` stands for exactly one
+// level, so this matches every node's temperature and nothing deeper.
+await using var gateway = new MqttClient(new MqttClientOptions
 {
-    ClientId = "guide-node",
-    Host = "127.0.0.1",
-    Port = 47811,
-    KeepAliveSecs = 1,
-    Qos = Qos.ExactlyOnce,
+    ClientId = "site-gateway",
+    Host = Broker,
+    Port = Port,
+    Qos = Qos.AtLeastOnce,
 });
-Expect(!await client.IsConnectedAsync(), "a fresh client holds no connection");
+await gateway.ConnectAsync();
+await gateway.SubscribeAsync("sensors/+/temperature");
+Console.WriteLine("gateway   subscribed to sensors/+/temperature");
 
-// A refused connection surfaces as a transport error and leaves the client as it
-// was, so the same object can be retried once the broker is back.
-bool refused = false;
+// A node publishes under that pattern. At-least-once means the broker
+// acknowledges the message, so a node knows its reading was taken.
+await using var node = new MqttClient(new MqttClientOptions
+{
+    ClientId = "node-1",
+    Host = Broker,
+    Port = Port,
+    Qos = Qos.AtLeastOnce,
+});
+await node.ConnectAsync();
+await node.PublishAsync("sensors/1/temperature", "21.5");
+Console.WriteLine("node      published 21.5 to sensors/1/temperature");
+
+// The gateway receives it with the topic attached, which is how it knows which
+// node sent the reading without the payload having to repeat it.
+MqttMessage received = (await gateway.RecvAsync())!;
+Console.WriteLine(
+    $"gateway   got {System.Text.Encoding.UTF8.GetString(received.Payload.Span)}"
+    + $" on {received.Topic}");
+
+// Disconnecting leaves the client reusable, so a node that loses its link can
+// reconnect the same object when the broker comes back.
+await node.DisconnectAsync();
+Console.WriteLine($"node      disconnected, still connected: {await node.IsConnectedAsync()}");
+
+// A broker that is not there is reported rather than leaving a client that looks
+// connected, so a retry loop has something to test.
+await using var nowhere = new MqttClient(new MqttClientOptions
+{
+    ClientId = "node-2",
+    Host = Broker,
+    Port = 1,
+    KeepAliveSecs = 1,
+});
 try
 {
-    await client.ConnectAsync();
+    await nowhere.ConnectAsync();
+    Console.WriteLine("an unreachable broker accepted a connection, which cannot be");
 }
 catch (PamojaException error)
 {
-    refused = error.Message.StartsWith("transport error", StringComparison.Ordinal);
+    Console.WriteLine($"unreachable broker refused: {error.Message}");
 }
-
-Expect(refused, "an unreachable broker is reported, not swallowed");
-Expect(
-    !await client.IsConnectedAsync(),
-    "a failed connect leaves the client disconnected");
 ```
 
 ## The same capability in every language

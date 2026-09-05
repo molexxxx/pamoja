@@ -21,20 +21,27 @@ delivers between clients in the same process.
 
 ## What the example does
 
-It checks the delivery guarantees against the levels the protocol numbers, then
-configures a client for a broker on a port nothing is listening on and connects.
-The connection is refused, and the example checks what the binding does with that.
+It runs a site's telemetry path over a real broker: a gateway subscribes to every
+node's temperature with a single-level wildcard, a node publishes a reading under
+that pattern, and the gateway receives it with the topic attached. Then the node
+disconnects, and a client pointed at a port with nothing on it is refused.
+
+The Rust example starts an in-process broker, so it needs nothing running. The
+binding examples talk to a broker on localhost, which CI starts and `just broker`
+starts locally.
 
 It proves:
 
-- The three delivery guarantees are the protocol's, in the order MQTT numbers them
-  0, 1 and 2.
-- Constructing a client reaches no network: it reports itself disconnected before
-  any call is made.
-- An unreachable broker raises the binding's own error type rather than handing
-  back a client that looks connected.
-- A failed connect leaves the client disconnected, so the same object can be
-  retried once the broker is back.
+- A `+` matches exactly one level, so a gateway takes every node's temperature
+  without naming them and without catching anything deeper.
+- At-least-once delivery is acknowledged by the broker, so a node knows its
+  reading was taken rather than hoping.
+- A message arrives with the topic it was published to, which is how a gateway
+  tells which node sent a reading the payload does not name.
+- Disconnecting leaves the client reusable, so a node that loses its link can
+  reconnect the same object.
+- An unreachable broker is reported rather than leaving a client that looks
+  connected, which is what a retry loop needs.
 
 ## Rust
 
@@ -42,29 +49,48 @@ It proves:
 From [`examples/tests/guides/mqtt.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/mqtt.rs):
 
 ```rust
-use std::time::Duration;
-
-use pamoja_core::{Error, Transport};
+use pamoja_core::Transport;
 use pamoja_mqtt::{MqttConfig, MqttTransport, QualityOfService};
 
-// MQTT numbers its three delivery guarantees 0, 1 and 2 on the wire.
-assert_eq!(QualityOfService::AtMostOnce as u8, 0);
-assert_eq!(QualityOfService::AtLeastOnce as u8, 1);
-assert_eq!(QualityOfService::ExactlyOnce as u8, 2);
+// The gateway takes every temperature on the site. A `+` stands for exactly one level,
+// so this matches every node's temperature and nothing deeper.
+let gateway_config = MqttConfig::new("site-gateway", "127.0.0.1", port)
+    .keep_alive(Duration::from_secs(5))
+    .qos(QualityOfService::AtLeastOnce);
+let mut gateway = connect(gateway_config).await;
+gateway
+    .subscribe("sensors/+/temperature")
+    .await
+    .expect("the broker accepts the subscription");
+println!("gateway   subscribed to sensors/+/temperature");
 
-// Nothing listens on this port, so the broker is unreachable. Building the transport
-// touches nothing; only connecting does.
-let config = MqttConfig::new("guide-node", "127.0.0.1", 47811)
-    .keep_alive(Duration::from_secs(1))
-    .qos(QualityOfService::ExactlyOnce);
-let mut transport = MqttTransport::new(config);
-assert!(!transport.is_connected());
+// A node publishes under that pattern. At-least-once means the broker acknowledges
+// the message, so a node knows its reading was taken rather than hoping.
+let node_config = MqttConfig::new("node-1", "127.0.0.1", port)
+    .keep_alive(Duration::from_secs(5))
+    .qos(QualityOfService::AtLeastOnce);
+let mut node = connect(node_config).await;
+node.send("sensors/1/temperature", b"21.5")
+    .await
+    .expect("the broker takes the reading");
+println!("node      published 21.5 to sensors/1/temperature");
 
-// A refused connection surfaces as a transport error and leaves the transport as it was,
-// so the same object can be retried once the broker is back.
-let outcome = transport.connect().await;
-assert!(matches!(outcome, Err(Error::Transport(_))));
-assert!(!transport.is_connected());
+// The gateway receives it with the topic attached, which is how it knows which node
+// sent the reading without the payload having to repeat it.
+let received = gateway
+    .recv()
+    .await
+    .expect("the link is up")
+    .expect("a message arrives");
+let reading = String::from_utf8_lossy(&received.payload);
+let topic = &received.topic;
+println!("gateway   got {reading} on {topic}");
+
+// Disconnecting leaves the transport reusable, so a node that loses its link can
+// reconnect the same object when the broker comes back.
+node.disconnect().await.expect("a clean disconnect");
+let still_up = node.is_connected();
+println!("node      disconnected, still connected: {still_up}");
 ```
 <!-- end -->
 
@@ -74,30 +100,60 @@ assert!(!transport.is_connected());
 From [`bindings/node/guides/mqtt.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/mqtt.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { MqttClient, Qos } from '@pamoja/mqtt'
 
-async function main() {
-  // MQTT numbers its three delivery guarantees 0, 1 and 2 on the wire; the binding names
-  // them, in that order.
-  assert.deepEqual(Object.values(Qos), ['AtMostOnce', 'AtLeastOnce', 'ExactlyOnce'])
+// The broker on the site. The guide's CI runs one on localhost; point these at yours and
+// nothing else changes.
+const BROKER = '127.0.0.1'
+const PORT = 1883
 
-  // Nothing listens on this port, so the broker is unreachable. Constructing the client
-  // touches nothing; only connecting does.
-  const client = new MqttClient({
-    clientId: 'guide-node',
-    host: '127.0.0.1',
-    port: 47811,
-    keepAliveSecs: 1,
-    qos: Qos.ExactlyOnce,
+async function main(): Promise<{ topic: string; payload: Buffer }> {
+  // The gateway takes every temperature on the site. A `+` stands for exactly one level,
+  // so this matches every node's temperature and nothing deeper.
+  const gateway = new MqttClient({
+    clientId: 'site-gateway',
+    host: BROKER,
+    port: PORT,
+    qos: Qos.AtLeastOnce,
   })
-  assert.equal(await client.isConnected(), false)
+  await gateway.connect()
+  await gateway.subscribe('sensors/+/temperature')
+  console.log('gateway   subscribed to sensors/+/temperature')
 
-  // A refused connection surfaces as a transport error and leaves the client as it was, so
-  // the same object can be retried once the broker is back.
-  await assert.rejects(() => client.connect(), /transport error/)
-  assert.equal(await client.isConnected(), false)
+  // A node publishes under that pattern. At-least-once means the broker acknowledges the
+  // message, so a node knows its reading was taken rather than hoping.
+  const node = new MqttClient({
+    clientId: 'node-1',
+    host: BROKER,
+    port: PORT,
+    qos: Qos.AtLeastOnce,
+  })
+  await node.connect()
+  await node.publish('sensors/1/temperature', '21.5')
+  console.log('node      published 21.5 to sensors/1/temperature')
+
+  // The gateway receives it with the topic attached, which is how it knows which node
+  // sent the reading without the payload having to repeat it.
+  const received = (await gateway.recv())!
+  console.log(`gateway   got ${received.payload.toString()} on ${received.topic}`)
+
+  // Disconnecting leaves the client reusable, so a node that loses its link can reconnect
+  // the same object when the broker comes back.
+  await node.disconnect()
+  console.log(`node      disconnected, still connected: ${await node.isConnected()}`)
+  await gateway.disconnect()
+
+  // A broker that is not there is reported rather than leaving a client that looks
+  // connected, so a retry loop has something to test.
+  const nowhere = new MqttClient({ clientId: 'node-2', host: BROKER, port: 1, keepAliveSecs: 1 })
+  try {
+    await nowhere.connect()
+    console.log('an unreachable broker accepted a connection, which should never happen')
+  } catch (error) {
+    console.log(`unreachable broker refused: ${(error as Error).message}`)
+  }
+
+  return received
 }
 
 main()
@@ -115,36 +171,53 @@ import asyncio
 from pamoja.core import PamojaError
 from pamoja.mqtt import MqttClient, Qos
 
+# The broker on the site. The guide's CI runs one on localhost; point these at yours and
+# nothing else changes.
+BROKER = "127.0.0.1"
+PORT = 1883
+
 
 async def main() -> None:
-    # MQTT numbers its three delivery guarantees 0, 1 and 2 on the wire; the binding
-    # names them, in that order.
-    assert [level.value for level in Qos] == ["AtMostOnce", "AtLeastOnce", "ExactlyOnce"]
-
-    # Nothing listens on this port, so the broker is unreachable. Constructing the client
-    # touches nothing; only connecting does.
-    client = MqttClient(
-        client_id="guide-node",
-        host="127.0.0.1",
-        port=47811,
-        keep_alive_secs=1,
-        qos=Qos.EXACTLY_ONCE,
+    # The gateway takes every temperature on the site. A `+` stands for exactly one level,
+    # so this matches every node's temperature and nothing deeper.
+    gateway = MqttClient(
+        client_id="site-gateway", host=BROKER, port=PORT, qos=Qos.AT_LEAST_ONCE
     )
-    assert await client.is_connected() is False
+    await gateway.connect()
+    await gateway.subscribe("sensors/+/temperature")
+    print("gateway   subscribed to sensors/+/temperature")
 
-    # A refused connection surfaces as a transport error and leaves the client as it was,
-    # so the same object can be retried once the broker is back.
+    # A node publishes under that pattern. At-least-once means the broker acknowledges the
+    # message, so a node knows its reading was taken rather than hoping.
+    node = MqttClient(client_id="node-1", host=BROKER, port=PORT, qos=Qos.AT_LEAST_ONCE)
+    await node.connect()
+    await node.publish("sensors/1/temperature", "21.5")
+    print("node      published 21.5 to sensors/1/temperature")
+
+    # The gateway receives it with the topic attached, which is how it knows which node
+    # sent the reading without the payload having to repeat it.
+    received = await gateway.recv()
+    print(f"gateway   got {received.payload.decode()} on {received.topic}")
+
+    # Disconnecting leaves the client reusable, so a node that loses its link can
+    # reconnect the same object when the broker comes back.
+    await node.disconnect()
+    print(f"node      disconnected, still connected: {await node.is_connected()}")
+    await gateway.disconnect()
+
+    # A broker that is not there is reported rather than leaving a client that looks
+    # connected, so a retry loop has something to test.
+    nowhere = MqttClient(client_id="node-2", host=BROKER, port=1, keep_alive_secs=1)
     try:
-        await client.connect()
+        await nowhere.connect()
+        print("an unreachable broker accepted a connection, which should never happen")
     except PamojaError as error:
-        assert str(error).startswith("transport error")
-    else:
-        raise AssertionError("connecting to a closed port should raise")
+        print(f"unreachable broker refused: {error}")
 
-    assert await client.is_connected() is False
+    return received
 
 
-asyncio.run(main())
+received = asyncio.run(main())
 ```
 <!-- end -->
 
@@ -154,39 +227,67 @@ asyncio.run(main())
 From [`bindings/dotnet/samples/Pamoja.Guides/MqttGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/MqttGuide.cs):
 
 ```csharp
-// MQTT numbers its three delivery guarantees 0, 1 and 2 on the wire.
-Expect((int)Qos.AtMostOnce == 0, "at most once is level 0");
-Expect((int)Qos.AtLeastOnce == 1, "at least once is level 1");
-Expect((int)Qos.ExactlyOnce == 2, "exactly once is level 2");
+// The broker on the site. The guide's CI runs one on localhost; point these at
+// yours and nothing else changes.
+const string Broker = "127.0.0.1";
+const ushort Port = 1883;
 
-// Nothing listens on this port, so the broker is unreachable. Constructing the
-// client touches nothing; only connecting does.
-await using var client = new MqttClient(new MqttClientOptions
+// The gateway takes every temperature on the site. A `+` stands for exactly one
+// level, so this matches every node's temperature and nothing deeper.
+await using var gateway = new MqttClient(new MqttClientOptions
 {
-    ClientId = "guide-node",
-    Host = "127.0.0.1",
-    Port = 47811,
-    KeepAliveSecs = 1,
-    Qos = Qos.ExactlyOnce,
+    ClientId = "site-gateway",
+    Host = Broker,
+    Port = Port,
+    Qos = Qos.AtLeastOnce,
 });
-Expect(!await client.IsConnectedAsync(), "a fresh client holds no connection");
+await gateway.ConnectAsync();
+await gateway.SubscribeAsync("sensors/+/temperature");
+Console.WriteLine("gateway   subscribed to sensors/+/temperature");
 
-// A refused connection surfaces as a transport error and leaves the client as it
-// was, so the same object can be retried once the broker is back.
-bool refused = false;
+// A node publishes under that pattern. At-least-once means the broker
+// acknowledges the message, so a node knows its reading was taken.
+await using var node = new MqttClient(new MqttClientOptions
+{
+    ClientId = "node-1",
+    Host = Broker,
+    Port = Port,
+    Qos = Qos.AtLeastOnce,
+});
+await node.ConnectAsync();
+await node.PublishAsync("sensors/1/temperature", "21.5");
+Console.WriteLine("node      published 21.5 to sensors/1/temperature");
+
+// The gateway receives it with the topic attached, which is how it knows which
+// node sent the reading without the payload having to repeat it.
+MqttMessage received = (await gateway.RecvAsync())!;
+Console.WriteLine(
+    $"gateway   got {System.Text.Encoding.UTF8.GetString(received.Payload.Span)}"
+    + $" on {received.Topic}");
+
+// Disconnecting leaves the client reusable, so a node that loses its link can
+// reconnect the same object when the broker comes back.
+await node.DisconnectAsync();
+Console.WriteLine($"node      disconnected, still connected: {await node.IsConnectedAsync()}");
+
+// A broker that is not there is reported rather than leaving a client that looks
+// connected, so a retry loop has something to test.
+await using var nowhere = new MqttClient(new MqttClientOptions
+{
+    ClientId = "node-2",
+    Host = Broker,
+    Port = 1,
+    KeepAliveSecs = 1,
+});
 try
 {
-    await client.ConnectAsync();
+    await nowhere.ConnectAsync();
+    Console.WriteLine("an unreachable broker accepted a connection, which cannot be");
 }
 catch (PamojaException error)
 {
-    refused = error.Message.StartsWith("transport error", StringComparison.Ordinal);
+    Console.WriteLine($"unreachable broker refused: {error.Message}");
 }
-
-Expect(refused, "an unreachable broker is reported, not swallowed");
-Expect(
-    !await client.IsConnectedAsync(),
-    "a failed connect leaves the client disconnected");
 ```
 <!-- end -->
 

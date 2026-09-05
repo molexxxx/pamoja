@@ -45,6 +45,19 @@ jobs:
       - name: Build the .NET binding
         run: dotnet build bindings/dotnet/Pamoja.sln -c Release
 
+      - name: Start an MQTT broker for the guide examples
+        run: |
+          printf 'listener 1883 0.0.0.0\nallow_anonymous true\n' > /tmp/mosquitto.conf
+          docker run -d --name pamoja-broker -p 1883:1883 \
+            -v /tmp/mosquitto.conf:/mosquitto/config/mosquitto.conf \
+            eclipse-mosquitto:2
+          for _ in $(seq 1 30); do
+            if (echo > /dev/tcp/127.0.0.1/1883) 2>/dev/null; then exit 0; fi
+            sleep 1
+          done
+          echo "the broker never came up" >&2
+          exit 1
+
       - name: Smoke test
         run: dotnet run --project bindings/dotnet/tests/Pamoja.Smoke -c Release
 
