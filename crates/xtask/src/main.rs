@@ -12,9 +12,11 @@ mod buttons;
 mod catalog;
 mod docs;
 mod footprint;
+mod hardware;
 mod i18n;
 mod landings;
 mod licenses;
+mod links;
 mod packages;
 mod regions;
 mod release;
@@ -50,6 +52,10 @@ const TASKS: &[(&str, &str)] = &[
     (
         "docs",
         "regenerate the crate READMEs, the site navigation, and the generated regions (docs [--check])",
+    ),
+    (
+        "links",
+        "fetch every source the hardware reference cites and fail on anything that is not 200",
     ),
 ];
 
@@ -103,6 +109,15 @@ fn main() -> ExitCode {
 
     if task == "docs" {
         return docs::run(&args.collect::<Vec<_>>());
+    }
+
+    if task == "links" {
+        return links::run(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .ancestors()
+                .nth(2)
+                .expect("repo root is two levels above the xtask crate"),
+        );
     }
 
     eprintln!("unknown task: {task}\n");

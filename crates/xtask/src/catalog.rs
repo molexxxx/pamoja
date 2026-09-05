@@ -814,7 +814,7 @@ impl Catalog {
     /// pages about the project.
     pub fn summary(&self) -> String {
         let mut out =
-            String::from("# Summary\n\n[Introduction](README.md)\n[Install](install.md)\n");
+            String::from("# Summary\n\n[Introduction](README.md)\n[Install](install.md)\n[Hardware](hardware.md)\n");
         for chapter in &self.chapters {
             let guides: Vec<&Capability> = self
                 .in_chapter(&chapter.key)

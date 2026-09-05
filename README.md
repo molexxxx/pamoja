@@ -252,6 +252,9 @@ page on any registry links to the same capability on the other three.
 <!-- end -->
 
 - [The guides and the install page](https://pamoja.molex.cloud/docs/).
+- [The hardware](https://pamoja.molex.cloud/docs/hardware.html) the drivers were
+  written against, the buses and radios the crates implement, and the boards this
+  is built and tested on.
 - [Why it exists](https://pamoja.molex.cloud/docs/about/why.html),
   [how it is put together](https://pamoja.molex.cloud/docs/about/architecture.html),
   and [which standards it is held to](https://pamoja.molex.cloud/docs/about/standards.html).

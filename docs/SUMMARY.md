@@ -2,6 +2,7 @@
 
 [Introduction](README.md)
 [Install](install.md)
+[Hardware](hardware.md)
 
 # Identity
 
