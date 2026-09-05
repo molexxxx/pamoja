@@ -19,6 +19,7 @@ import {
   type Ads1115Config,
   Bme280Calibration,
   type Bme280Measurement,
+  ds18b20BuildScratchpad,
   ds18b20Celsius,
   ds18b20ConfigByte,
   ds18b20Crc8,
@@ -28,6 +29,9 @@ import {
   ds18b20ResolutionBits,
   ds18b20StepMicroCelsius,
   type Ds18b20Reading,
+  ina219BusRegister,
+  ina219CurrentRegister,
+  ina219PowerRegister,
   ina219BusMillivolts,
   ina219Calibration,
   ina219ConversionReady,
@@ -36,6 +40,7 @@ import {
   ina219MinimumCurrentLsbMicroamps,
   ina219PowerMicrowatts,
   ina219ShuntMicrovolts,
+  ina219ShuntRegister,
 } from '@pamoja/native'
 
 export { Bme280Calibration, type Ads1115Config, type Bme280Measurement, type Ds18b20Reading }
@@ -77,6 +82,28 @@ export const ds18b20 = {
    */
   parseScratchpad(bytes: Uint8Array): Ds18b20Reading {
     return ds18b20ParseScratchpad(Buffer.from(bytes))
+  },
+
+  /**
+   * Builds the nine bytes a part in the given state puts on the bus.
+   *
+   * This is the inverse of {@link parseScratchpad}, so a node can be written and
+   * tested against what a thermometer sends without one attached.
+   *
+   * @param celsius - The temperature the part is reading.
+   * @param resolutionBits - The resolution it is configured for, 9 to 12.
+   * @param alarmHigh - The high alarm threshold in whole degrees Celsius.
+   * @param alarmLow - The low alarm threshold in whole degrees Celsius.
+   * @returns The nine scratchpad bytes in transmission order, CRC last.
+   * @throws If the resolution is not 9, 10, 11, or 12 bits.
+   */
+  buildScratchpad(
+    celsius: number,
+    resolutionBits: number,
+    alarmHigh: number,
+    alarmLow: number,
+  ): Buffer {
+    return ds18b20BuildScratchpad(celsius, resolutionBits, alarmHigh, alarmLow)
   },
 
   /**
@@ -183,6 +210,51 @@ export const ina219 = {
    * @param raw - The signed register value.
    * @returns The shunt voltage.
    */
+  /**
+   * Builds the shunt-voltage register a monitor reports for a shunt voltage.
+   *
+   * The inverse of {@link shuntMicrovolts}, so a node can be written and tested
+   * against what a monitor sends without one attached.
+   *
+   * @param microvolts - The shunt voltage in microvolts.
+   * @returns The signed register value, at 10 uV per count.
+   */
+  shuntRegister(microvolts: number): number {
+    return ina219ShuntRegister(microvolts)
+  },
+
+  /**
+   * Builds the bus-voltage register a monitor reports for a bus voltage.
+   *
+   * @param millivolts - The bus voltage in millivolts.
+   * @returns The register value, with the conversion-ready flag set.
+   */
+  busRegister(millivolts: number): number {
+    return ina219BusRegister(millivolts)
+  },
+
+  /**
+   * Builds the current register a monitor reports for a current.
+   *
+   * @param microamps - The current in microamps.
+   * @param currentLsbMicroamps - The current LSB the calibration was set for.
+   * @returns The signed register value.
+   */
+  currentRegister(microamps: number, currentLsbMicroamps: number): number {
+    return ina219CurrentRegister(microamps, currentLsbMicroamps)
+  },
+
+  /**
+   * Builds the power register a monitor reports for a power.
+   *
+   * @param microwatts - The power in microwatts.
+   * @param currentLsbMicroamps - The current LSB the calibration was set for.
+   * @returns The register value.
+   */
+  powerRegister(microwatts: number, currentLsbMicroamps: number): number {
+    return ina219PowerRegister(microwatts, currentLsbMicroamps)
+  },
+
   shuntMicrovolts(raw: number): number {
     return ina219ShuntMicrovolts(raw)
   },

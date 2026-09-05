@@ -1871,6 +1871,9 @@ export declare const enum Delivery {
 /** Returns the great-circle distance between two coordinates, in metres. */
 export declare function distanceBetween(from: Coord, to: Coord): number
 
+/** Builds the nine bytes a DS18B20 in the given state puts on the bus, CRC last. */
+export declare function ds18b20BuildScratchpad(celsius: number, bits: number, alarmHigh: number, alarmLow: number): Buffer
+
 /** Converts a raw DS18B20 temperature register to degrees Celsius. */
 export declare function ds18b20Celsius(raw: number): number
 
@@ -1998,6 +2001,9 @@ export declare function i2cAddressIsReserved(address: number, tenBit: boolean): 
 /** Converts a raw INA219 bus-voltage register to millivolts. */
 export declare function ina219BusMillivolts(raw: number): number
 
+/** Builds the INA219 bus-voltage register a monitor reports for a bus voltage. */
+export declare function ina219BusRegister(millivolts: number): number
+
 /** Computes the INA219 calibration register for a shunt and current resolution. */
 export declare function ina219Calibration(currentLsbMicroamps: number, shuntMilliohms: number): number
 
@@ -2006,6 +2012,9 @@ export declare function ina219ConversionReady(raw: number): boolean
 
 /** Converts a raw INA219 current register to microamps. */
 export declare function ina219CurrentMicroamps(raw: number, currentLsbMicroamps: number): number
+
+/** Builds the INA219 current register a monitor reports for a current. */
+export declare function ina219CurrentRegister(microamps: number, currentLsbMicroamps: number): number
 
 /** Reports whether an INA219 bus-voltage register flags a math overflow. */
 export declare function ina219MathOverflow(raw: number): boolean
@@ -2016,8 +2025,14 @@ export declare function ina219MinimumCurrentLsbMicroamps(maxExpectedMicroamps: n
 /** Converts a raw INA219 power register to microwatts. */
 export declare function ina219PowerMicrowatts(raw: number, currentLsbMicroamps: number): number
 
+/** Builds the INA219 power register a monitor reports for a power. */
+export declare function ina219PowerRegister(microwatts: number, currentLsbMicroamps: number): number
+
 /** Converts a raw INA219 shunt-voltage register to microvolts. */
 export declare function ina219ShuntMicrovolts(raw: number): number
+
+/** Builds the INA219 shunt-voltage register a monitor reports for a shunt voltage. */
+export declare function ina219ShuntRegister(microvolts: number): number
 
 /**
  * Composes the extended CAN identifier a set of J1939 fields describes.

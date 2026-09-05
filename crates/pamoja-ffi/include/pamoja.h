@@ -9050,6 +9050,25 @@ PamojaStatus pamoja_ds18b20_parse_scratchpad(const uint8_t *bytes,
                                              uintptr_t bytes_len,
                                              PamojaDs18b20Reading *out_reading);
 
+// Builds the nine bytes a DS18B20 in the given state puts on the bus, CRC last.
+//
+// This is the inverse of [`pamoja_ds18b20_parse_scratchpad`], so a node can be
+// written and tested against what a thermometer sends without one attached.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the nine bytes written to `out_bytes`, or
+// [`PamojaStatus::InvalidArgument`] if `bits` is not 9, 10, 11, or 12.
+//
+// # Safety
+//
+// `out_bytes` must point to at least nine writable bytes.
+PamojaStatus pamoja_ds18b20_build_scratchpad(float celsius,
+                                             uint8_t bits,
+                                             int8_t alarm_high,
+                                             int8_t alarm_low,
+                                             uint8_t *out_bytes);
+
 // Computes the Maxim CRC-8 a 1-Wire device checks its own bytes with.
 //
 // # Returns
@@ -9134,6 +9153,34 @@ uint16_t pamoja_ina219_calibration(uint32_t current_lsb_microamps, uint32_t shun
 //
 // The current LSB in microamps.
 uint32_t pamoja_ina219_minimum_current_lsb_microamps(uint32_t max_expected_microamps);
+
+// Builds the INA219 shunt-voltage register a monitor reports for a shunt voltage.
+//
+// # Returns
+//
+// The signed shunt-voltage register, at 10 uV per count.
+int16_t pamoja_ina219_shunt_register(int32_t microvolts);
+
+// Builds the INA219 bus-voltage register a monitor reports for a bus voltage.
+//
+// # Returns
+//
+// The bus-voltage register, with the conversion-ready flag set.
+uint16_t pamoja_ina219_bus_register(uint32_t millivolts);
+
+// Builds the INA219 current register a monitor reports for a current.
+//
+// # Returns
+//
+// The signed current register, or zero if `current_lsb_microamps` is zero.
+int16_t pamoja_ina219_current_register(int32_t microamps, uint32_t current_lsb_microamps);
+
+// Builds the INA219 power register a monitor reports for a power.
+//
+// # Returns
+//
+// The power register, or zero if `current_lsb_microamps` is zero.
+uint16_t pamoja_ina219_power_register(uint32_t microwatts, uint32_t current_lsb_microamps);
 
 // Converts a raw INA219 shunt-voltage register to microvolts.
 //

@@ -199,6 +199,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<sensors::Ds18b20Reading>()?;
         m.add_class::<sensors::Ads1115Config>()?;
         m.add_function(wrap_pyfunction!(sensors::ds18b20_parse_scratchpad, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ds18b20_build_scratchpad, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ds18b20_crc8, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ds18b20_micro_celsius, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ds18b20_celsius, m)?)?;
@@ -211,6 +212,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
             sensors::ina219_minimum_current_lsb_microamps,
             m
         )?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_shunt_register, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_bus_register, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_current_register, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_power_register, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ina219_shunt_microvolts, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ina219_bus_millivolts, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ina219_conversion_ready, m)?)?;

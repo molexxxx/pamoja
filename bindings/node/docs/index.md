@@ -17,36 +17,43 @@ A reading off a wire, smoothed, signed, and packed for a metered link, with noth
 From [`bindings/node/guides/quickstart.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/quickstart.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { packSamples, unpackSamples } from '@pamoja/codec'
 import { Smoother } from '@pamoja/kit'
 import { DeviceIdentity, verify } from '@pamoja/security'
 import { ds18b20 } from '@pamoja/sensors'
 
-// The nine bytes a DS18B20 sends, CRC last; a bad CRC is a rejected read.
-const scratchpad = Buffer.from([0x91, 0x01, 0x4b, 0x46, 0x7f, 0xff, 0x0c, 0x10, 0x00])
-scratchpad[8] = ds18b20.crc8(scratchpad.subarray(0, 8))
-const celsius = ds18b20.parseScratchpad(scratchpad).microCelsius / 1e6
-assert.equal(celsius, 25.0625)
+// A stand-in for the thermometer. On a running node these nine bytes arrive from the
+// 1-Wire bus; here the library builds what a part sitting at 25.0625 C would send, so the
+// program runs with nothing plugged in.
+const offTheBus = ds18b20.buildScratchpad(25.0625, 12, 75, -10)
 
-// Smooth the noise out of successive readings.
+// Everything below is the node's own code, and none of it cares where the bytes came from.
+// The part checksums every read, so a value mangled on a long run comes back as an error
+// instead of a plausible temperature a couple of degrees off.
+const celsius = ds18b20.parseScratchpad(offTheBus).microCelsius / 1e6
+console.log(`read      ${celsius.toFixed(4)} C`) // read      25.0625 C
+
+// Readings jitter. A smoother follows the trend without keeping a history to do it, which
+// matters on a part with kilobytes of RAM.
 const smoother = new Smoother(0.5)
 smoother.update(celsius)
 const smoothed = smoother.update(celsius + 1)
-assert.ok(smoothed > celsius && smoothed < celsius + 1)
+console.log(`smoothed  ${smoothed.toFixed(4)} C`) // smoothed  25.5625 C
 
-// Sign the reading so a gateway can prove which device sent it.
+// Sign it, so the gateway can tell this device's readings from anyone else's.
 const device = DeviceIdentity.fromSeed(Buffer.alloc(32, 7))
-const payload = smoothed.toFixed(2)
-const signature = device.sign(payload)
-assert.ok(verify(device.publicKey(), payload, signature))
+const reading = smoothed.toFixed(2)
+const signature = device.sign(reading)
+if (!verify(device.publicKey(), reading, signature)) {
+  throw new Error('the gateway would reject this reading')
+}
+console.log(`signed    ${reading} C, and the signature checks out`)
 
-// Pack a batch of readings for a link where every byte costs money.
-const samples = [2506, 2507, 2509, 2508, 2510]
-const packed = packSamples(samples)
-assert.ok(packed.length < samples.length * 8)
-assert.deepEqual(unpackSamples(packed), samples)
+// Send a batch rather than a reading at a time. Successive samples differ by very little,
+// so writing down the differences costs a fraction of eight bytes each.
+const batch = [2506, 2507, 2509, 2508, 2510]
+const packed = packSamples(batch)
+console.log(`packed    ${batch.length} readings into ${packed.length} bytes`)
 ```
 
 ## Every package

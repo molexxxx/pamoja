@@ -23,29 +23,38 @@ from pamoja.codec import pack_samples, unpack_samples
 from pamoja.kit import Smoother
 from pamoja.security import DeviceIdentity, verify
 
-# The nine bytes a DS18B20 sends, CRC last; a bad CRC is a rejected read.
-scratchpad = bytearray([0x91, 0x01, 0x4B, 0x46, 0x7F, 0xFF, 0x0C, 0x10, 0x00])
-scratchpad[8] = sensors.ds18b20.crc8(bytes(scratchpad[:8]))
-celsius = sensors.ds18b20.parse_scratchpad(bytes(scratchpad)).micro_celsius / 1e6
-assert celsius == 25.0625
+# A stand-in for the thermometer. On a running node these nine bytes arrive from the
+# 1-Wire bus; here the library builds what a part sitting at 25.0625 C would send, so the
+# program runs with nothing plugged in.
+off_the_bus = sensors.ds18b20.build_scratchpad(25.0625, 12, 75, -10)
 
-# Smooth the noise out of successive readings.
+# Everything below is the node's own code, and none of it cares where the bytes came from.
+# The part checksums every read, so a value mangled on a long run comes back as an error
+# instead of a plausible temperature a couple of degrees off.
+scratchpad = sensors.ds18b20.parse_scratchpad(off_the_bus)
+celsius = scratchpad.micro_celsius / 1e6
+print(f"read      {celsius:.4f} C")  # read      25.0625 C
+
+# Readings jitter. A smoother follows the trend without keeping a history to do it, which
+# matters on a part with kilobytes of RAM.
 smoother = Smoother(0.5)
 smoother.update(celsius)
 smoothed = smoother.update(celsius + 1.0)
-assert celsius &lt; smoothed &lt; celsius + 1.0
+print(f"smoothed  {smoothed:.4f} C")  # smoothed  25.5625 C
 
-# Sign the reading so a gateway can prove which device sent it.
+# Sign it, so the gateway can tell this device's readings from anyone else's.
 device = DeviceIdentity.from_seed(bytes([7]) * 32)
-payload = f"{smoothed:.2f}"
-signature = device.sign(payload)
-assert verify(device.public_key, payload, signature)
+reading = f"{smoothed:.2f}"
+signature = device.sign(reading)
+if not verify(device.public_key, reading, signature):
+    raise SystemExit("the gateway would reject this reading")
+print(f"signed    {reading} C, and the signature checks out")
 
-# Pack a batch of readings for a link where every byte costs money.
-samples = [2506, 2507, 2509, 2508, 2510]
-packed = pack_samples(samples)
-assert len(packed) &lt; len(samples) * 8
-assert unpack_samples(packed) == samples</code></pre>
+# Send a batch rather than a reading at a time. Successive samples differ by very little,
+# so writing down the differences costs a fraction of eight bytes each.
+batch = [2506, 2507, 2509, 2508, 2510]
+packed = pack_samples(batch)
+print(f"packed    {len(batch)} readings into {len(packed)} bytes")</code></pre>
 
 <h2>Every package</h2>
 

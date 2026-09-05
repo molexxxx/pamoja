@@ -23,31 +23,42 @@ A reading off a wire, smoothed, signed, and packed for a metered link, with noth
 From [`bindings/dotnet/samples/Pamoja.Guides/Quickstart.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/Quickstart.cs):
 
 ```csharp
-// The nine bytes a DS18B20 sends, CRC last; a bad CRC is a rejected read.
-byte[] scratchpad = [0x91, 0x01, 0x4B, 0x46, 0x7F, 0xFF, 0x0C, 0x10, 0x00];
-scratchpad[8] = Ds18b20.Crc8(scratchpad.AsSpan(0, 8));
-float celsius = Ds18b20.ParseScratchpad(scratchpad).MicroCelsius / 1e6f;
-Expect(celsius == 25.0625f, "the register decodes to 25.0625 C");
+// A stand-in for the thermometer. On a running node these nine bytes arrive from
+// the 1-Wire bus; here the library builds what a part sitting at 25.0625 C would
+// send, so the program runs with nothing plugged in.
+byte[] offTheBus = Ds18b20.BuildScratchpad(25.0625f, 12, 75, -10);
 
-// Smooth the noise out of successive readings.
+// Everything below is the node's own code, and none of it cares where the bytes
+// came from. The part checksums every read, so a value mangled on a long run comes
+// back as an error instead of a plausible temperature a couple of degrees off.
+float celsius = Ds18b20.ParseScratchpad(offTheBus).MicroCelsius / 1e6f;
+Console.WriteLine($"read      {celsius:F4} C"); // read      25.0625 C
+
+// Readings jitter. A smoother follows the trend without keeping a history to do
+// it, which matters on a part with kilobytes of RAM.
 using var smoother = new Smoother(0.5f);
 smoother.Update(celsius);
 float smoothed = smoother.Update(celsius + 1.0f);
-Expect(smoothed > celsius && smoothed < celsius + 1.0f, "smoothing lags the step");
+Console.WriteLine($"smoothed  {smoothed:F4} C"); // smoothed  25.5625 C
 
-// Sign the reading so a gateway can prove which device sent it.
+// Sign it, so the gateway can tell this device's readings from anyone else's.
 byte[] seed = new byte[DeviceIdentity.KeyLength];
 Array.Fill(seed, (byte)7);
 using var device = new DeviceIdentity(seed);
-string payload = smoothed.ToString("F2", CultureInfo.InvariantCulture);
-byte[] signature = device.Sign(payload);
-Expect(DeviceIdentity.Verify(device.PublicKey, payload, signature), "the signature verifies");
+string reading = smoothed.ToString("F2", CultureInfo.InvariantCulture);
+byte[] signature = device.Sign(reading);
+if (!DeviceIdentity.Verify(device.PublicKey, reading, signature))
+{
+    throw new InvalidOperationException("the gateway would reject this reading");
+}
 
-// Pack a batch of readings for a link where every byte costs money.
-long[] samples = [2506, 2507, 2509, 2508, 2510];
-byte[] packed = Codec.PackSamples(samples);
-Expect(packed.Length < samples.Length * 8, "packing beats eight bytes a sample");
-Expect(Codec.UnpackSamples(packed).SequenceEqual(samples), "and the batch round-trips");
+Console.WriteLine($"signed    {reading} C, and the signature checks out");
+
+// Send a batch rather than a reading at a time. Successive samples differ by very
+// little, so writing down the differences costs a fraction of eight bytes each.
+long[] batch = [2506, 2507, 2509, 2508, 2510];
+byte[] packed = Codec.PackSamples(batch);
+Console.WriteLine($"packed    {batch.Length} readings into {packed.Length} bytes");
 ```
 
 ## Every package

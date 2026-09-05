@@ -224,6 +224,29 @@ public static class Ds18b20
             reading.ResolutionBits);
     }
 
+    /// <summary>Builds the nine bytes a part in the given state puts on the bus.</summary>
+    /// <remarks>
+    /// This is the inverse of <see cref="ParseScratchpad"/>, so a node can be written and
+    /// tested against what a thermometer sends without one attached.
+    /// </remarks>
+    /// <param name="celsius">The temperature the part is reading.</param>
+    /// <param name="resolutionBits">The resolution it is configured for, 9 to 12.</param>
+    /// <param name="alarmHigh">The high alarm threshold in whole degrees Celsius.</param>
+    /// <param name="alarmLow">The low alarm threshold in whole degrees Celsius.</param>
+    /// <returns>The nine scratchpad bytes in transmission order, CRC last.</returns>
+    /// <exception cref="PamojaException">The resolution is not one the part offers.</exception>
+    public static byte[] BuildScratchpad(
+        float celsius,
+        byte resolutionBits,
+        sbyte alarmHigh,
+        sbyte alarmLow)
+    {
+        byte[] bytes = new byte[9];
+        Status.ThrowIfError(NativeMethods.pamoja_ds18b20_build_scratchpad(
+            celsius, resolutionBits, alarmHigh, alarmLow, bytes));
+        return bytes;
+    }
+
     /// <summary>Computes the Maxim CRC-8 a 1-Wire device checks its bytes with.</summary>
     /// <param name="data">The bytes the checksum covers.</param>
     /// <returns>The checksum.</returns>
@@ -294,6 +317,36 @@ public static class Ina219
     /// <returns>The minimum current LSB in microamps.</returns>
     public static uint MinimumCurrentLsbMicroamps(uint maxExpectedMicroamps) =>
         NativeMethods.pamoja_ina219_minimum_current_lsb_microamps(maxExpectedMicroamps);
+
+    /// <summary>Builds the shunt-voltage register a monitor reports for a shunt voltage.</summary>
+    /// <remarks>
+    /// The inverse of <see cref="ShuntMicrovolts"/>, so a node can be written and tested
+    /// against what a monitor sends without one attached.
+    /// </remarks>
+    /// <param name="microvolts">The shunt voltage in microvolts.</param>
+    /// <returns>The signed register value, at 10 uV per count.</returns>
+    public static short ShuntRegister(int microvolts) =>
+        NativeMethods.pamoja_ina219_shunt_register(microvolts);
+
+    /// <summary>Builds the bus-voltage register a monitor reports for a bus voltage.</summary>
+    /// <param name="millivolts">The bus voltage in millivolts.</param>
+    /// <returns>The register value, with the conversion-ready flag set.</returns>
+    public static ushort BusRegister(uint millivolts) =>
+        NativeMethods.pamoja_ina219_bus_register(millivolts);
+
+    /// <summary>Builds the current register a monitor reports for a current.</summary>
+    /// <param name="microamps">The current in microamps.</param>
+    /// <param name="currentLsbMicroamps">The current LSB the calibration was set for.</param>
+    /// <returns>The signed register value.</returns>
+    public static short CurrentRegister(int microamps, uint currentLsbMicroamps) =>
+        NativeMethods.pamoja_ina219_current_register(microamps, currentLsbMicroamps);
+
+    /// <summary>Builds the power register a monitor reports for a power.</summary>
+    /// <param name="microwatts">The power in microwatts.</param>
+    /// <param name="currentLsbMicroamps">The current LSB the calibration was set for.</param>
+    /// <returns>The register value.</returns>
+    public static ushort PowerRegister(uint microwatts, uint currentLsbMicroamps) =>
+        NativeMethods.pamoja_ina219_power_register(microwatts, currentLsbMicroamps);
 
     /// <summary>Converts a raw shunt-voltage register to microvolts.</summary>
     /// <param name="raw">The signed register value.</param>

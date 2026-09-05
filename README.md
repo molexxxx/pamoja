@@ -66,34 +66,49 @@ From [`examples/tests/guides/quickstart.rs`](https://github.com/molexxxx/pamoja/
 use pamoja_codec::{decode_deltas, encode_deltas};
 use pamoja_kit::Smoother;
 use pamoja_security::DeviceIdentity;
-use pamoja_sensors::ds18b20::{crc8, Scratchpad};
+use pamoja_sensors::ds18b20::{temperature_from_celsius, Resolution, Scratchpad};
 
-// The nine bytes a DS18B20 sends, CRC last; a bad CRC is a rejected read.
-let mut scratchpad = [0x91, 0x01, 0x4b, 0x46, 0x7f, 0xff, 0x0c, 0x10, 0x00];
-scratchpad[8] = crc8(&scratchpad[..8]);
-let celsius = Scratchpad::parse(&scratchpad)
-    .expect("the CRC matches")
+// A stand-in for the thermometer. On a running node these nine bytes arrive from the
+// 1-Wire bus; here the library builds what a part sitting at 25.0625 C would send, so
+// the program runs with nothing plugged in.
+let off_the_bus = Scratchpad::new(
+    temperature_from_celsius(25.0625, Resolution::Bits12),
+    Resolution::Bits12,
+    75,
+    -10,
+)
+.to_bytes();
+
+// Everything below is the node's own code, and none of it cares where the bytes came
+// from. The part checksums every read, so a value mangled on a long run comes back as
+// an error instead of a plausible temperature a couple of degrees off.
+let celsius = Scratchpad::parse(&off_the_bus)
+    .expect("the thermometer's checksum matches")
     .temperature_celsius();
-assert_eq!(celsius, 25.0625);
+println!("read      {celsius:.4} C");
 
-// Smooth the noise out of successive readings.
+// Readings jitter. A smoother follows the trend without keeping a history to do it,
+// which matters on a part with kilobytes of RAM.
 let mut smoother = Smoother::new(0.5);
 smoother.update(celsius);
 let smoothed = smoother.update(celsius + 1.0);
-assert!(smoothed > celsius && smoothed < celsius + 1.0);
+println!("smoothed  {smoothed:.4} C");
 
-// Sign the reading so a gateway can prove which device sent it.
+// Sign it, so the gateway can tell this device's readings from anyone else's.
 let device = DeviceIdentity::from_seed(&[7u8; 32]);
-let payload = format!("{smoothed:.2}");
-let signature = device.sign(payload.as_bytes());
-let verified = device.public().verify(payload.as_bytes(), &signature);
-assert!(verified.is_ok());
+let reading = format!("{smoothed:.2}");
+let signature = device.sign(reading.as_bytes());
+match device.public().verify(reading.as_bytes(), &signature) {
+    Ok(()) => println!("signed    {reading} C, and the signature checks out"),
+    Err(error) => println!("rejected  {error}"),
+}
 
-// Pack a batch of readings for a link where every byte costs money.
-let samples = [2506i64, 2507, 2509, 2508, 2510];
-let packed = encode_deltas(&samples);
-assert!(packed.len() < samples.len() * 8);
-assert_eq!(decode_deltas(&packed).expect("a valid batch"), samples);
+// Send a batch rather than a reading at a time. Successive samples differ by very
+// little, so writing down the differences costs a fraction of eight bytes each.
+let batch = [2506i64, 2507, 2509, 2508, 2510];
+let packed = encode_deltas(&batch);
+let (readings, bytes) = (batch.len(), packed.len());
+println!("packed    {readings} readings into {bytes} bytes");
 ```
 <!-- end -->
 
@@ -106,36 +121,43 @@ assert_eq!(decode_deltas(&packed).expect("a valid batch"), samples);
 From [`bindings/node/guides/quickstart.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/quickstart.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { packSamples, unpackSamples } from '@pamoja/codec'
 import { Smoother } from '@pamoja/kit'
 import { DeviceIdentity, verify } from '@pamoja/security'
 import { ds18b20 } from '@pamoja/sensors'
 
-// The nine bytes a DS18B20 sends, CRC last; a bad CRC is a rejected read.
-const scratchpad = Buffer.from([0x91, 0x01, 0x4b, 0x46, 0x7f, 0xff, 0x0c, 0x10, 0x00])
-scratchpad[8] = ds18b20.crc8(scratchpad.subarray(0, 8))
-const celsius = ds18b20.parseScratchpad(scratchpad).microCelsius / 1e6
-assert.equal(celsius, 25.0625)
+// A stand-in for the thermometer. On a running node these nine bytes arrive from the
+// 1-Wire bus; here the library builds what a part sitting at 25.0625 C would send, so the
+// program runs with nothing plugged in.
+const offTheBus = ds18b20.buildScratchpad(25.0625, 12, 75, -10)
 
-// Smooth the noise out of successive readings.
+// Everything below is the node's own code, and none of it cares where the bytes came from.
+// The part checksums every read, so a value mangled on a long run comes back as an error
+// instead of a plausible temperature a couple of degrees off.
+const celsius = ds18b20.parseScratchpad(offTheBus).microCelsius / 1e6
+console.log(`read      ${celsius.toFixed(4)} C`) // read      25.0625 C
+
+// Readings jitter. A smoother follows the trend without keeping a history to do it, which
+// matters on a part with kilobytes of RAM.
 const smoother = new Smoother(0.5)
 smoother.update(celsius)
 const smoothed = smoother.update(celsius + 1)
-assert.ok(smoothed > celsius && smoothed < celsius + 1)
+console.log(`smoothed  ${smoothed.toFixed(4)} C`) // smoothed  25.5625 C
 
-// Sign the reading so a gateway can prove which device sent it.
+// Sign it, so the gateway can tell this device's readings from anyone else's.
 const device = DeviceIdentity.fromSeed(Buffer.alloc(32, 7))
-const payload = smoothed.toFixed(2)
-const signature = device.sign(payload)
-assert.ok(verify(device.publicKey(), payload, signature))
+const reading = smoothed.toFixed(2)
+const signature = device.sign(reading)
+if (!verify(device.publicKey(), reading, signature)) {
+  throw new Error('the gateway would reject this reading')
+}
+console.log(`signed    ${reading} C, and the signature checks out`)
 
-// Pack a batch of readings for a link where every byte costs money.
-const samples = [2506, 2507, 2509, 2508, 2510]
-const packed = packSamples(samples)
-assert.ok(packed.length < samples.length * 8)
-assert.deepEqual(unpackSamples(packed), samples)
+// Send a batch rather than a reading at a time. Successive samples differ by very little,
+// so writing down the differences costs a fraction of eight bytes each.
+const batch = [2506, 2507, 2509, 2508, 2510]
+const packed = packSamples(batch)
+console.log(`packed    ${batch.length} readings into ${packed.length} bytes`)
 ```
 <!-- end -->
 
@@ -153,29 +175,38 @@ from pamoja.codec import pack_samples, unpack_samples
 from pamoja.kit import Smoother
 from pamoja.security import DeviceIdentity, verify
 
-# The nine bytes a DS18B20 sends, CRC last; a bad CRC is a rejected read.
-scratchpad = bytearray([0x91, 0x01, 0x4B, 0x46, 0x7F, 0xFF, 0x0C, 0x10, 0x00])
-scratchpad[8] = sensors.ds18b20.crc8(bytes(scratchpad[:8]))
-celsius = sensors.ds18b20.parse_scratchpad(bytes(scratchpad)).micro_celsius / 1e6
-assert celsius == 25.0625
+# A stand-in for the thermometer. On a running node these nine bytes arrive from the
+# 1-Wire bus; here the library builds what a part sitting at 25.0625 C would send, so the
+# program runs with nothing plugged in.
+off_the_bus = sensors.ds18b20.build_scratchpad(25.0625, 12, 75, -10)
 
-# Smooth the noise out of successive readings.
+# Everything below is the node's own code, and none of it cares where the bytes came from.
+# The part checksums every read, so a value mangled on a long run comes back as an error
+# instead of a plausible temperature a couple of degrees off.
+scratchpad = sensors.ds18b20.parse_scratchpad(off_the_bus)
+celsius = scratchpad.micro_celsius / 1e6
+print(f"read      {celsius:.4f} C")  # read      25.0625 C
+
+# Readings jitter. A smoother follows the trend without keeping a history to do it, which
+# matters on a part with kilobytes of RAM.
 smoother = Smoother(0.5)
 smoother.update(celsius)
 smoothed = smoother.update(celsius + 1.0)
-assert celsius < smoothed < celsius + 1.0
+print(f"smoothed  {smoothed:.4f} C")  # smoothed  25.5625 C
 
-# Sign the reading so a gateway can prove which device sent it.
+# Sign it, so the gateway can tell this device's readings from anyone else's.
 device = DeviceIdentity.from_seed(bytes([7]) * 32)
-payload = f"{smoothed:.2f}"
-signature = device.sign(payload)
-assert verify(device.public_key, payload, signature)
+reading = f"{smoothed:.2f}"
+signature = device.sign(reading)
+if not verify(device.public_key, reading, signature):
+    raise SystemExit("the gateway would reject this reading")
+print(f"signed    {reading} C, and the signature checks out")
 
-# Pack a batch of readings for a link where every byte costs money.
-samples = [2506, 2507, 2509, 2508, 2510]
-packed = pack_samples(samples)
-assert len(packed) < len(samples) * 8
-assert unpack_samples(packed) == samples
+# Send a batch rather than a reading at a time. Successive samples differ by very little,
+# so writing down the differences costs a fraction of eight bytes each.
+batch = [2506, 2507, 2509, 2508, 2510]
+packed = pack_samples(batch)
+print(f"packed    {len(batch)} readings into {len(packed)} bytes")
 ```
 <!-- end -->
 
@@ -188,31 +219,42 @@ assert unpack_samples(packed) == samples
 From [`bindings/dotnet/samples/Pamoja.Guides/Quickstart.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/Quickstart.cs):
 
 ```csharp
-// The nine bytes a DS18B20 sends, CRC last; a bad CRC is a rejected read.
-byte[] scratchpad = [0x91, 0x01, 0x4B, 0x46, 0x7F, 0xFF, 0x0C, 0x10, 0x00];
-scratchpad[8] = Ds18b20.Crc8(scratchpad.AsSpan(0, 8));
-float celsius = Ds18b20.ParseScratchpad(scratchpad).MicroCelsius / 1e6f;
-Expect(celsius == 25.0625f, "the register decodes to 25.0625 C");
+// A stand-in for the thermometer. On a running node these nine bytes arrive from
+// the 1-Wire bus; here the library builds what a part sitting at 25.0625 C would
+// send, so the program runs with nothing plugged in.
+byte[] offTheBus = Ds18b20.BuildScratchpad(25.0625f, 12, 75, -10);
 
-// Smooth the noise out of successive readings.
+// Everything below is the node's own code, and none of it cares where the bytes
+// came from. The part checksums every read, so a value mangled on a long run comes
+// back as an error instead of a plausible temperature a couple of degrees off.
+float celsius = Ds18b20.ParseScratchpad(offTheBus).MicroCelsius / 1e6f;
+Console.WriteLine($"read      {celsius:F4} C"); // read      25.0625 C
+
+// Readings jitter. A smoother follows the trend without keeping a history to do
+// it, which matters on a part with kilobytes of RAM.
 using var smoother = new Smoother(0.5f);
 smoother.Update(celsius);
 float smoothed = smoother.Update(celsius + 1.0f);
-Expect(smoothed > celsius && smoothed < celsius + 1.0f, "smoothing lags the step");
+Console.WriteLine($"smoothed  {smoothed:F4} C"); // smoothed  25.5625 C
 
-// Sign the reading so a gateway can prove which device sent it.
+// Sign it, so the gateway can tell this device's readings from anyone else's.
 byte[] seed = new byte[DeviceIdentity.KeyLength];
 Array.Fill(seed, (byte)7);
 using var device = new DeviceIdentity(seed);
-string payload = smoothed.ToString("F2", CultureInfo.InvariantCulture);
-byte[] signature = device.Sign(payload);
-Expect(DeviceIdentity.Verify(device.PublicKey, payload, signature), "the signature verifies");
+string reading = smoothed.ToString("F2", CultureInfo.InvariantCulture);
+byte[] signature = device.Sign(reading);
+if (!DeviceIdentity.Verify(device.PublicKey, reading, signature))
+{
+    throw new InvalidOperationException("the gateway would reject this reading");
+}
 
-// Pack a batch of readings for a link where every byte costs money.
-long[] samples = [2506, 2507, 2509, 2508, 2510];
-byte[] packed = Codec.PackSamples(samples);
-Expect(packed.Length < samples.Length * 8, "packing beats eight bytes a sample");
-Expect(Codec.UnpackSamples(packed).SequenceEqual(samples), "and the batch round-trips");
+Console.WriteLine($"signed    {reading} C, and the signature checks out");
+
+// Send a batch rather than a reading at a time. Successive samples differ by very
+// little, so writing down the differences costs a fraction of eight bytes each.
+long[] batch = [2506, 2507, 2509, 2508, 2510];
+byte[] packed = Codec.PackSamples(batch);
+Console.WriteLine($"packed    {batch.Length} readings into {packed.Length} bytes");
 ```
 <!-- end -->
 
