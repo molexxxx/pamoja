@@ -7,8 +7,24 @@ released together, so one entry covers all of them.
 
 ## [Unreleased]
 
+### Fixed
+
+- Eight capability crates gave their error type a `Display` implementation and
+  no `Error` one, so `fn main() -> Result<(), Box<dyn Error>>`, which is the
+  first thing most people write, failed to compile the moment it touched mesh,
+  Modbus, CAN, GPIO, sensors, serial, session, or LoRaWAN. Every one implements
+  `core::error::Error` now, which needs no `std` and so reaches a caller on a
+  microcontroller too, and a test carries an error from each of them through `?`
+  into one boxed error.
+- The .NET packages declared no icon, so all thirty-eight rendered as a blank
+  placeholder in the gallery and in Visual Studio.
+
 ### Changed
 
+- The install page says what happens on a platform the compiled engine was not
+  built for. The .NET packages restore and compile and then fail on the first
+  call, since there is no native library and, unlike Python, no source build to
+  fall back on; Alpine and Windows on ARM are the two that catch people out.
 - The documentation site is rendered by `cargo xtask site` rather than mdBook: the
   same Markdown pages, with a guide's four languages as tabs that remember the
   choice, search, syntax highlighting done when the site is built, and a link
@@ -44,7 +60,6 @@ this version, and the 0.1.15 npm packages are deprecated.
   is treated as a wait rather than a failure: the upload retries what was
   refused until the cap refills, the way the crates.io publisher already handles
   the new-crate limit.
-
 
 ## [0.1.15] - 2026-09-05
 

@@ -37,3 +37,7 @@ impl core::fmt::Display for LorawanError {
         }
     }
 }
+
+// `core::error::Error` rather than `std::error::Error`, so a caller on a
+// microcontroller gets the same trait a caller on a gateway does.
+impl core::error::Error for LorawanError {}
