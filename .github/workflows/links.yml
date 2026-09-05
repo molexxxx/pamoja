@@ -1,0 +1,28 @@
+name: links
+
+on:
+  pull_request:
+    paths:
+      - docs/hardware.toml
+      - crates/xtask/src/links.rs
+      - .github/workflows/links.yml
+  schedule:
+    # Weekly, so a vendor moving a datasheet is caught here rather than by a reader.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hardware:
+    name: hardware sources resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The hardware page attributes every figure to one manufacturer document or standard.
+      # A link that has rotted takes that attribution with it, so this fails on anything
+      # that does not answer 200.
+      - name: Fetch every cited source
+        run: cargo run -p xtask -- links

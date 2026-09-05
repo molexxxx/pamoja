@@ -1,0 +1,514 @@
+# The hardware reference: the parts the drivers were written against, the buses and
+# protocols the crates implement, the radios they budget airtime for, and the boards this is
+# built and tested on. `cargo xtask docs` renders docs/hardware.md from this file and fails
+# if a driver module or a LoRaWAN channel plan has no entry here. `cargo xtask links` fetches
+# every `source`.
+#
+# Every figure in `specs` comes from the one document in `source`, which is the
+# manufacturer's own datasheet or the standard that defines the thing. No distributor
+# listings, no datasheet mirrors, no tutorial sites. `cost` is one of five coarse bands for a
+# typical breakout module or board in USD, or "not applicable" for a bus or a specification;
+# it is not a quote.
+
+[[group]]
+key = "sensors"
+title = "Sensors"
+intent = "Parts pamoja decodes byte for byte, each with a driver written from the datasheet linked beside it."
+
+[[group]]
+key = "actuators"
+title = "Actuators"
+intent = "Parts pamoja drives: a PWM generator for servos, and the step-and-direction carriers a stepper sequence walks."
+
+[[group]]
+key = "buses"
+title = "Buses and field protocols"
+intent = "The wires between a gateway and the parts above, and the framing each one carries."
+
+[[group]]
+key = "radios"
+title = "Radios and long-range links"
+intent = "Reaching a network that is not there: the transceivers, the channel plans they must obey, and the short-range meshes."
+
+[[group]]
+key = "targets"
+title = "Boards, targets and autopilots"
+intent = "Where pamoja itself runs, and what it has been built and tested against."
+
+[[entry]]
+key = "bme280"
+group = "sensors"
+name = "BME280"
+vendor = "Bosch Sensortec"
+interface = "I2C up to 3.4 MHz, or SPI up to 10 MHz"
+summary = "Reports humidity, pressure and temperature as raw counts plus per-chip calibration coefficients, which the driver compensates."
+specs = [
+  "Ranges: 0 to 100 %RH, 300 to 1100 hPa, -40 to +85 °C",
+  "Accuracy: ±3 %RH from 20 to 80 %RH at 25 °C, ±1.0 hPa, ±0.5 °C from 0 to 65 °C",
+  "Addresses: 0x76 with SDO to ground, 0x77 with SDO to VDDIO; SDO must not float",
+  "Supply: 1.71 to 3.6 V main, 1.2 to 3.6 V interface",
+  "Current: 3.6 µA at 1 Hz for all three, 0.1 µA asleep",
+]
+cost = "$5 to $20"
+crates = ["pamoja-sensors"]
+modules = ["pamoja-sensors/src/bme280.rs"]
+source_name = "BME280 combined humidity and pressure sensor data sheet, BST-BME280-DS002"
+source_label = "Bosch BST-BME280-DS002"
+source = "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf"
+
+[[entry]]
+key = "ds18b20"
+group = "sensors"
+name = "DS18B20"
+vendor = "Analog Devices, originally Maxim Integrated"
+interface = "1-Wire, many devices on one pin"
+summary = "A digital thermometer that returns Celsius over a single data line, each part carrying its own 64-bit serial code so a bus can hold many."
+specs = [
+  "Range: -55 °C to +125 °C",
+  "Accuracy: ±0.5 °C from -10 °C to +85 °C",
+  "Resolution: 9 to 12 bits, user programmable",
+  "Conversion: 750 ms maximum at 12 bits, halving with each bit dropped",
+  "Supply: 3.0 to 5.5 V, or parasite power from the data line",
+]
+cost = "under $5"
+crates = ["pamoja-sensors"]
+modules = ["pamoja-sensors/src/ds18b20.rs"]
+source_name = "DS18B20 Programmable Resolution 1-Wire Digital Thermometer data sheet, 19-7487 Rev 6"
+source_label = "ADI 19-7487 Rev 6"
+source = "https://www.analog.com/media/en/technical-documentation/data-sheets/ds18b20.pdf"
+manual_check = "analog.com accepts a scripted connection and then never answers it, from every network tried; Analog Devices' legacy Maxim host redirects to exactly this URL"
+
+[[entry]]
+key = "ina219"
+group = "sensors"
+name = "INA219"
+vendor = "Texas Instruments"
+interface = "I2C, 16 addresses from two pins"
+summary = "Measures the drop across an external shunt and the bus voltage, and reports current and power once its calibration register is set."
+specs = [
+  "Bus voltage: senses 0 to 26 V",
+  "Shunt full scale: ±40, ±80, ±160 or ±320 mV by PGA setting",
+  "ADC: 12-bit, selectable down to 9-bit or averaged",
+  "Registers: 10 µV per shunt count, 4 mV per bus count",
+  "Supply: 3 to 5.5 V, 0.7 mA typical",
+]
+cost = "$5 to $20"
+crates = ["pamoja-sensors"]
+modules = ["pamoja-sensors/src/ina219.rs"]
+source_name = "INA219 Zero-Drift, Bidirectional Current/Power Monitor With I2C Interface, SBOS448G"
+source_label = "TI SBOS448G"
+source = "https://www.ti.com/lit/ds/symlink/ina219.pdf"
+
+[[entry]]
+key = "ads1115"
+group = "sensors"
+name = "ADS1115"
+vendor = "Texas Instruments"
+interface = "I2C, four addresses from one pin"
+summary = "A 16-bit delta-sigma ADC that digitises four single-ended or two differential inputs through a programmable gain amplifier."
+specs = [
+  "Resolution: 16 bits",
+  "Inputs: four single-ended or two differential",
+  "Full scale: ±0.256 V to ±6.144 V in six PGA steps",
+  "Rate: 8 to 860 samples per second",
+  "Supply: 2.0 to 5.5 V, 150 µA in continuous conversion",
+]
+cost = "$5 to $20"
+crates = ["pamoja-sensors"]
+modules = ["pamoja-sensors/src/ads1115.rs"]
+source_name = "ADS111x Ultra-Small, Low-Power, I2C-Compatible, 860SPS, 16-Bit ADCs, SBAS444E"
+source_label = "TI SBAS444E"
+source = "https://www.ti.com/lit/ds/symlink/ads1115.pdf"
+
+[[entry]]
+key = "pca9685"
+group = "actuators"
+name = "PCA9685"
+vendor = "NXP Semiconductors"
+interface = "I2C, up to 62 devices per bus"
+summary = "A 16-channel PWM generator that produces servo and dimming pulses; each output sinks 25 mA, so load current is switched by an external driver."
+specs = [
+  "Channels: 16, all sharing one frequency",
+  "Resolution: 12-bit, 4096 steps per output",
+  "Frequency: typically 24 Hz to 1526 Hz, 200 Hz at reset",
+  "Supply: 2.3 to 5.5 V, inputs and outputs 5.5 V tolerant",
+  "Drive: sinks 25 mA, sources 10 mA at 5 V; larger loads need external drivers",
+]
+cost = "$5 to $20"
+crates = ["pamoja-actuators"]
+modules = ["pamoja-actuators/src/pca9685.rs"]
+source_name = "PCA9685 16-channel, 12-bit PWM Fm+ I2C-bus LED controller, Rev. 4"
+source_label = "NXP PCA9685 Rev. 4"
+source = "https://www.nxp.com/docs/en/data-sheet/PCA9685.pdf"
+
+[[entry]]
+key = "uln2003"
+group = "actuators"
+name = "ULN2003A"
+vendor = "Texas Instruments"
+interface = "seven logic inputs, one per channel"
+summary = "A Darlington array that switches the coil current directly, for the four-wire steppers the coil sequencer walks a pattern across."
+specs = [
+  "Channels: seven NPN Darlington pairs",
+  "Collector current: 500 mA rated, single output",
+  "Output voltage: 50 V maximum",
+  "Inductive loads: common-cathode output clamp diodes included",
+]
+cost = "under $5"
+crates = ["pamoja-actuators"]
+modules = ["pamoja-actuators/src/stepper.rs"]
+source_name = "ULN2003A product page, high-voltage high-current Darlington transistor array"
+source_label = "TI ULN2003A"
+source = "https://www.ti.com/product/ULN2003A"
+
+[[entry]]
+key = "a4988"
+group = "actuators"
+name = "A4988"
+vendor = "Allegro MicroSystems"
+interface = "step and direction, with three mode pins"
+summary = "A bipolar stepper driver that turns one pulse on STEP into one microstep, sequencing the coils and regulating current in hardware."
+specs = [
+  "Motor supply: 8 to 35 V",
+  "Output current: ±2 A maximum",
+  "Steps: full, 1/2, 1/4, 1/8 and 1/16",
+  "Logic supply: 3 to 5.5 V",
+  "The datasheet states no continuous per-phase current against a cooling condition",
+]
+cost = "under $5"
+crates = ["pamoja-actuators"]
+modules = ["pamoja-actuators/src/stepper.rs"]
+source_name = "A4988 DMOS Microstepping Driver with Translator and Overcurrent Protection, Rev. 8"
+source_label = "Allegro A4988 Rev. 8"
+source = "https://www.allegromicro.com/-/media/files/datasheets/a4988-datasheet.pdf"
+
+[[entry]]
+key = "drv8825"
+group = "actuators"
+name = "DRV8825"
+vendor = "Texas Instruments"
+interface = "step and direction, with three mode pins"
+summary = "A bipolar stepper driver with two H-bridges and an indexer, taking step and direction down to 1/32 step."
+specs = [
+  "Motor supply: 8.2 to 45 V",
+  "Output current: up to 2.5 A per output at 24 V and 25 °C, with heat sinking",
+  "Steps: full, 1/2, 1/4, 1/8, 1/16 and 1/32",
+  "Decay: slow, fast or mixed",
+  "Protection: overcurrent, thermal shutdown and undervoltage lockout, reported on nFAULT",
+]
+cost = "$5 to $20"
+crates = ["pamoja-actuators"]
+modules = ["pamoja-actuators/src/stepper.rs"]
+source_name = "DRV8825 Stepper Motor Controller IC, SLVSA73F"
+source_label = "TI SLVSA73F"
+source = "https://www.ti.com/lit/ds/symlink/drv8825.pdf"
+
+[[entry]]
+key = "sx1276"
+group = "radios"
+name = "SX1276"
+vendor = "Semtech"
+interface = "SPI"
+summary = "The sub-GHz LoRa and FSK transceiver on most 137 to 1020 MHz end devices, and the radio a pamoja airtime budget is computed for."
+specs = [
+  "Coverage: 137 MHz to 1020 MHz",
+  "Modulation: LoRa, FSK, GFSK, MSK, GMSK and OOK",
+  "Transmit power: +20 dBm at 100 mW, with a separate +14 dBm high efficiency amplifier",
+  "Sensitivity: down to -148 dBm, for a maximum link budget of 168 dB",
+  "Receive current: 9.9 mA, with 200 nA register retention",
+]
+cost = "$5 to $20"
+crates = ["pamoja-lora"]
+source_name = "SX1276 product page, Semtech LoRa Connect"
+source_label = "Semtech SX1276"
+source = "https://www.semtech.com/products/wireless-rf/lora-connect/sx1276"
+
+[[entry]]
+key = "sx1262"
+group = "radios"
+name = "SX1262"
+vendor = "Semtech"
+interface = "SPI"
+summary = "The later sub-GHz LoRa transceiver, covering 150 to 960 MHz with a higher power amplifier and a much lower receive current."
+specs = [
+  "Coverage: 150 MHz to 960 MHz, continuous",
+  "Modulation: LoRa, LR-FHSS, FSK, GFSK, MSK and GMSK",
+  "Transmit power: +22 dBm high efficiency amplifier",
+  "Sensitivity: down to -148 dBm, for a maximum link budget of 170 dB",
+  "Receive current: 4.6 mA, with an integrated DC-DC converter and LDO",
+]
+cost = "$5 to $20"
+crates = ["pamoja-lora"]
+source_name = "SX1262 product page, Semtech LoRa Connect"
+source_label = "Semtech SX1262"
+source = "https://www.semtech.com/products/wireless-rf/lora-connect/sx1262"
+
+[[entry]]
+key = "lorawan-rp002"
+group = "radios"
+name = "LoRaWAN Regional Parameters"
+vendor = "LoRa Alliance"
+interface = "LoRaWAN over sub-GHz LoRa"
+summary = "The document that fixes the channel plan, data rates, transmit limits and maximum payload a LoRaWAN device must obey in each regulatory region."
+specs = [
+  "Revision cited: RP002-1.0.5, October 2025, Final",
+  "Fixes per region: channel frequencies, data rates, output power encoding, join CFList, receive windows and maximum payload",
+  "Limits: duty cycle in the dynamic-plan regions, dwell time where frequency-hopping rules apply",
+  "EU863-870: at least 24 stored channels, with 868.1, 868.3 and 868.5 MHz at DR0 to DR5 mandatory",
+  "pamoja implements nine of its plans: EU863-870, US902-928, EU433, AU915-928, CN470-510, AS923, KR920-923, IN865-867 and RU864-870",
+]
+cost = "not applicable"
+crates = ["pamoja-lora", "pamoja-lorawan"]
+regions = ["EU868", "US915", "EU433", "AU915", "CN470", "AS923", "KR920", "IN865", "RU864"]
+source_name = "RP002-1.0.5 LoRaWAN Regional Parameters, LoRa Alliance Technical Committee, October 2025"
+source_label = "LoRa Alliance RP002-1.0.5"
+source = "https://resources.lora-alliance.org/technical-specifications/rp002-1-0-5-lorawan-regional-parameters"
+
+[[entry]]
+key = "esp-now"
+group = "radios"
+name = "ESP-NOW"
+vendor = "Espressif Systems"
+interface = "Wi-Fi PHY, vendor-specific action frames"
+summary = "Espressif's connectionless protocol: short packets straight between Wi-Fi devices with no access point and no association step."
+specs = [
+  "Payload: 250 bytes on v1.0 devices, 1470 bytes on v2.0",
+  "Default bit rate: 1 Mbps",
+  "Peers: 20 paired devices, of which at most 17 encrypted, 7 by default",
+  "Security: CCMP per IEEE 802.11-2012, with a 16-byte primary master key and per-peer local keys",
+  "Interfaces: sends over either the station or the SoftAP interface",
+]
+cost = "$5 to $20"
+crates = ["pamoja-mesh"]
+source_name = "ESP-NOW, ESP-IDF Programming Guide, stable, ESP32"
+source_label = "Espressif ESP-IDF"
+source = "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_now.html"
+
+[[entry]]
+key = "i2c"
+group = "buses"
+name = "I2C"
+vendor = "NXP Semiconductors"
+interface = "two open-drain lines, SDA and SCL"
+summary = "The two-wire addressable bus that hangs sensors and peripherals off one controller; the address a chip answers on is what the gpio crate carries."
+specs = [
+  "Rates: 100 kbit/s standard, 400 kbit/s fast, 1 Mbit/s fast-mode plus, 3.4 Mbit/s high speed",
+  "Addressing: 7-bit and 10-bit targets, which may share a bus in every speed mode",
+  "Lines: SDA and SCL, both bidirectional, pulled up and driven open-drain for wired-AND",
+  "Loading: bus capacitance, not a device count, limits how many hang on it",
+]
+cost = "not applicable"
+crates = ["pamoja-gpio", "pamoja-sensors", "pamoja-actuators"]
+source_name = "UM10204 I2C-bus specification and user manual, Rev. 7.0"
+source_label = "NXP UM10204"
+source = "https://www.nxp.com/docs/en/user-guide/UM10204.pdf"
+
+[[entry]]
+key = "spi"
+group = "buses"
+name = "SPI"
+vendor = "No standards body; described from Microchip's reference manual"
+interface = "four wires: data in, data out, clock, select"
+summary = "A full-duplex synchronous link between a controller and one selected peripheral at a time; no standard defines it, so pin names, timing and rate come from each device's own datasheet."
+specs = [
+  "Signals: serial data in, serial data out, a shift clock, and an active-low select",
+  "Clock: driven by the controller, and only while there is data to move",
+  "Modes: four combinations of clock polarity and clock edge, any of which may be chosen",
+  "Rate: set by the controller's clock prescalers; no standard fixes one",
+  "Words: 8 or 16 bits per transfer",
+]
+cost = "not applicable"
+crates = ["pamoja-gpio"]
+source_name = "Serial Peripheral Interface (SPI), dsPIC33/PIC24 Family Reference Manual, DS70005185A"
+source_label = "Microchip DS70005185A"
+source = "https://ww1.microchip.com/downloads/en/DeviceDoc/70005185a.pdf"
+
+[[entry]]
+key = "modbus-rtu"
+group = "buses"
+name = "Modbus RTU over RS-485"
+vendor = "Modbus Organization"
+interface = "RS-485 balanced pair, half duplex"
+summary = "Request and reply in binary frames over a two-wire trunk, the way meters, drives and PLCs are wired along one cable."
+specs = [
+  "Physical layer: a two-wire EIA/TIA-485 interface, terminated at both ends of the trunk",
+  "Devices: 32 on a segment without a repeater",
+  "Addresses: 1 to 247, with 0 as broadcast",
+  "Rates: 9600 and 19200 bit/s required, 19200 the default; 1200 to 115200 optional",
+  "Length: 1000 m at 9600 baud on AWG26 or heavier; drops no more than 20 m",
+  "Framing: address, function, data and a 16-bit CRC in at most 256 bytes; frames separated by 3.5 character times, and a gap over 1.5 discards one",
+]
+cost = "not applicable"
+crates = ["pamoja-modbus", "pamoja-serial"]
+source_name = "MODBUS over Serial Line Specification and Implementation Guide V1.02"
+source_label = "Modbus.org V1.02"
+source = "https://www.modbus.org/file/secure/modbusoverserial.pdf"
+
+[[entry]]
+key = "can"
+group = "buses"
+name = "CAN 2.0 and CAN FD"
+vendor = "ISO"
+interface = "differential bus"
+summary = "The multi-master vehicle bus whose identifier both labels a message and arbitrates access. The standard itself is paid, so the figures below are what its catalogue page states and what the crate implements."
+specs = [
+  "Document: ISO 11898-1:2024, edition 3, published May 2024",
+  "Scope: the data link layer and the physical coding sublayer",
+  "pamoja-can: standard 11-bit and extended 29-bit identifiers, always masked to their width",
+  "pamoja-can: classic frames up to 8 bytes, and CAN FD frames up to 64 bytes at the discrete FD lengths",
+]
+cost = "not applicable"
+crates = ["pamoja-can"]
+source_name = "ISO 11898-1:2024 Road vehicles, Controller area network (CAN), Part 1: Data link layer and physical coding sublayer"
+source_label = "ISO 11898-1:2024"
+source = "https://www.iso.org/standard/86384.html"
+manual_check = "iso.org answers 403 to scripted clients most of the time; the catalogue page renders in a browser"
+
+[[entry]]
+key = "j1939"
+group = "buses"
+name = "SAE J1939"
+vendor = "SAE International"
+interface = "CAN"
+summary = "The higher-layer protocol trucks, buses and off-highway machines run over CAN, defined as a set of SAE documents under one top-level recommended practice."
+specs = [
+  "Top-level document: J1939_202603, revised March 2026, first issued April 2000",
+  "Structure: the top-level document describes the subordinate documents and defines the terms they share",
+  "Committee: Truck and Bus Control and Communications Network",
+]
+cost = "not applicable"
+crates = ["pamoja-can"]
+source_name = "SAE J1939 document set, top-level document J1939_202603"
+source_label = "SAE J1939"
+source = "https://www.sae.org/standards/content/j1939_202603/"
+manual_check = "sae.org serves its standards pages as a JavaScript shell that answers 202 to any scripted client; the page renders in a browser"
+
+[[entry]]
+key = "raspberry-pi-5"
+group = "targets"
+name = "Raspberry Pi 5"
+vendor = "Raspberry Pi Ltd"
+summary = "The gateway-class Linux board: the full std build, every transport, and the dashboard."
+specs = [
+  "SoC: Broadcom BCM2712, quad-core 64-bit Arm Cortex-A76 at 2.4 GHz",
+  "Memory: LPDDR4X, in 1, 2, 4, 8 and 16 GB",
+  "Connectivity: gigabit Ethernet with PoE+ via a HAT, dual-band 802.11ac, Bluetooth 5.0",
+  "I/O: the standard 40-pin header, two USB 3.0 and two USB 2.0 ports, a UART debug port",
+  "The page lists the 16 GB model at $305, above the band for the smaller ones",
+]
+cost = "$60 to $200"
+source_name = "Raspberry Pi 5 product page"
+source_label = "Raspberry Pi 5"
+source = "https://www.raspberrypi.com/products/raspberry-pi-5/"
+manual_check = "raspberrypi.com answers 403 to curl whatever agent string it carries, keyed on the TLS handshake"
+
+[[entry]]
+key = "raspberry-pi-zero-2-w"
+group = "targets"
+name = "Raspberry Pi Zero 2 W"
+vendor = "Raspberry Pi Ltd"
+summary = "The small, low-cost Linux board, running the same std build as the Pi 5 on the same 40-pin footprint."
+specs = [
+  "SoC: RP3A0, quad-core 64-bit Arm Cortex-A53 at 1 GHz",
+  "Memory: 512 MB",
+  "Wireless: 2.4 GHz 802.11 b/g/n, Bluetooth 4.2 and BLE, onboard antenna",
+  "I/O: HAT-compatible 40-pin header footprint, unpopulated; micro USB OTG",
+]
+cost = "$5 to $20"
+source_name = "Raspberry Pi Zero 2 W product page"
+source_label = "Raspberry Pi Zero 2 W"
+source = "https://www.raspberrypi.com/products/raspberry-pi-zero-2-w/"
+manual_check = "raspberrypi.com answers 403 to curl whatever agent string it carries, keyed on the TLS handshake"
+
+[[entry]]
+key = "esp32"
+group = "targets"
+name = "ESP32"
+vendor = "Espressif Systems"
+summary = "The Wi-Fi and Bluetooth microcontroller behind most small sensor nodes, with the buses above and a CAN controller on chip."
+specs = [
+  "CPU: Xtensa 32-bit LX6, single or dual core, up to 240 MHz",
+  "Memory: 448 KB ROM, 520 KB SRAM, 16 KB RTC SRAM",
+  "Wireless: 802.11 b/g/n up to 150 Mbit/s, Bluetooth 4.2 BR/EDR and LE",
+  "Peripherals: four SPI, two I2C, three UART, 34 GPIO",
+  "CAN: a TWAI controller compatible with ISO 11898-1",
+  "pamoja: not a CI target; Xtensa needs Espressif's own Rust toolchain",
+]
+cost = "$5 to $20"
+source_name = "ESP32 Series Datasheet, version 5.3"
+source_label = "Espressif ESP32 datasheet"
+source = "https://documentation.espressif.com/esp32_datasheet_en.pdf"
+
+[[entry]]
+key = "ardupilot"
+group = "targets"
+name = "ArduPilot"
+vendor = "ArduPilot Dev Team"
+interface = "MAVLink"
+summary = "Open autopilot firmware for copters, planes, rovers and submarines; the firmware is free, and the flight controller it runs on is what costs money."
+specs = [
+  "Vehicles: multicopters, helicopters, fixed wing, rovers, submarines and antenna trackers",
+  "Protocol: MAVLink between ground station, flight controller and peripherals",
+  "Licence: GPL v3 or later",
+  "Verified: the SITL interop job in CI flies it in simulation against pamoja-mavlink",
+]
+cost = "$60 to $200"
+crates = ["pamoja-mavlink"]
+source_name = "ArduPilot development site"
+source_label = "ArduPilot"
+source = "https://ardupilot.org/dev/index.html"
+
+[[entry]]
+key = "px4"
+group = "targets"
+name = "PX4 Autopilot"
+vendor = "Dronecode Foundation"
+interface = "MAVLink"
+summary = "Open autopilot firmware for multirotors, fixed wing, VTOL, helicopters and rovers, under a permissive licence; again, the board is the cost."
+specs = [
+  "Vehicles: multirotors, fixed wing, VTOL, helicopters and rovers",
+  "Protocol: MAVLink for the ground station link",
+  "Licence: BSD 3-clause",
+  "Verified: the SITL interop job in CI flies it in simulation against pamoja-mavlink",
+]
+cost = "$60 to $200"
+crates = ["pamoja-mavlink"]
+source_name = "PX4 Autopilot User Guide"
+source_label = "PX4"
+source = "https://docs.px4.io/main/en/"
+
+[[entry]]
+key = "pixhawk"
+group = "targets"
+name = "Pixhawk standard"
+vendor = "Dronecode Foundation"
+interface = "standardised connectors and pin-outs"
+summary = "The open hardware standard that fixes flight controller pin-outs, connectors and layout so boards from different vendors interchange; a board built to it is what costs money."
+specs = [
+  "Autopilot standards listed: v5X (DS-011), v6X (DS-012), v6U (DS-016) and v6C (DS-018)",
+  "Also: the connector standard (DS-009), the autopilot bus standard (DS-010) and the payload bus standard (DS-014); a smart battery standard is in draft",
+  "Each fixes pin-outs, block diagrams, PCB layout guidelines and connector specifications",
+]
+cost = "$60 to $200"
+crates = ["pamoja-mavlink"]
+source_name = "Pixhawk Reference Standards"
+source_label = "Pixhawk standards"
+source = "https://pixhawk.org/standards/"
+
+[[entry]]
+key = "cortex-m4f"
+group = "targets"
+name = "Cortex-M4 with FPU, bare metal"
+vendor = "Arm"
+summary = "The bare-metal target: CI cross-compiles every no_std crate for thumbv7em-none-eabihf, which is this core with its floating-point unit and no operating system."
+specs = [
+  "Architecture: Armv7-M",
+  "Floating point: a built-in single-precision FPU, credited with 10x on single-precision operations",
+  "DSP: integrated DSP, SIMD and MAC instructions",
+  "Use cases the page names: industrial control, IoT sensors, AI and ML, audio",
+  "pamoja: the bare-metal job in CI builds pamoja-core, security, audit, update, zenoh, ros2 and mavlink for this target",
+]
+cost = "$5 to $20"
+source_name = "Cortex-M4 product page, Arm"
+source_label = "Arm Cortex-M4"
+source = "https://www.arm.com/products/silicon-ip-cpu/cortex-m/cortex-m4"

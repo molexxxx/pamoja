@@ -21,6 +21,7 @@ use quote::ToTokens;
 use syn::{Fields, ImplItem, Item, TraitItem, Visibility};
 
 use crate::catalog::{Catalog, SITE};
+use crate::hardware::Hardware;
 use crate::{builds, buttons, landings, licenses, packages, regions, theme, version};
 
 /// Run the `docs` task: regenerate every derived file, or `--check` to verify they are in sync.
@@ -205,6 +206,11 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
     // than a capability quietly dropping out of the navigation.
     catalog.check(&root, &crates, true)?;
 
+    // The hardware reference names the parts the drivers target; the check fails when a
+    // driver module or a LoRaWAN channel plan has no entry beside it.
+    let hardware = Hardware::load(&root)?;
+    hardware.check(&root)?;
+
     let mut files = Vec::new();
     for krate in &crates {
         let lib = fs::read_to_string(crates_root.join(krate).join("src/lib.rs"))
@@ -237,6 +243,7 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
             } else if let Some(table) = directive.strip_prefix("table:") {
                 match table.trim() {
                     "builds" => builds::table(&root),
+                    "hardware" => Ok(hardware.table()),
                     other => catalog.render(other, &descriptions),
                 }
             } else {

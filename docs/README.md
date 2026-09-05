@@ -21,6 +21,10 @@ dotnet add package Pamoja        # C# and .NET
 That is the whole framework. To take less than all of it, and to see what a
 narrow build actually costs, read [Install](install.md).
 
+If you are here with a part in hand rather than a language in mind,
+[Hardware](hardware.md) lists what the drivers were written against, the buses
+and radios the crates implement, and the boards this is built and tested on.
+
 ## What it covers
 
 <!-- table: chapters -->
