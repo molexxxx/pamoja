@@ -40,8 +40,9 @@ use pamoja_core::{Actuator, Sensor};
 use pamoja_kit::Twist;
 use pamoja_sim::{RecordingActuator, Replay, SimRobot};
 
-// The clear distance ahead, in metres, taken from an earlier survey run. A replay hands
-// it back one reading at a time, so the loop below sees the same input on every run.
+// The clear distance ahead, in metres, taken from an earlier survey run. A replay
+// hands it back one reading at a time, so the loop below sees the same input on every
+// run: the same rover code, driven by a recording rather than a range finder.
 let capture = vec![4.0, 3.0, 1.5, 0.5];
 let mut ahead = Replay::new(capture.clone());
 let mut throttle = RecordingActuator::new();
@@ -52,23 +53,28 @@ let mut seen = Vec::new();
 for _ in &capture {
     let reading = ahead.read().await.expect("a reading from the capture");
     seen.push(reading);
+
     // Drive on while there is room ahead, otherwise stop and turn on the spot.
     let clear = reading > 1.0;
     let speed = if clear { 1.0 } else { 0.0 };
     let turn = if clear { 0.0 } else { 1.0 };
-    throttle.apply(speed).await.unwrap();
-    rover.apply(Twist::planar(speed, turn)).await.unwrap();
+    throttle.apply(speed).await.expect("the throttle takes it");
+    rover
+        .apply(Twist::planar(speed, turn))
+        .await
+        .expect("the rover takes it");
+    println!("{reading} m ahead, so drive at {speed} and turn at {turn}");
 }
 
-assert_eq!(seen, capture);
-assert_eq!(log.commands(), vec![1.0, 1.0, 1.0, 0.0]);
+// The recording actuator kept every command, which is how a test says what the control
+// loop decided rather than only what it ended up doing.
+println!("commands  {:?}", log.commands());
 
 // Three half-second commands at 1 m/s reach 1.5 m along x. The last one turns on the
 // spot at 1 rad/s for half a second, which moves the rover nowhere.
 let pose = rover.pose();
-assert!((pose.x - 1.5).abs() < 1e-6);
-assert!(pose.y.abs() < 1e-6);
-assert!((pose.theta - 0.5).abs() < 1e-6);
+let (x, y, heading) = (pose.x, pose.y, pose.theta);
+println!("pose      x {x:.1} m, y {y:.1} m, heading {heading:.1} rad");
 ```
 <!-- end -->
 
@@ -78,39 +84,45 @@ assert!((pose.theta - 0.5).abs() < 1e-6);
 From [`bindings/node/guides/sim.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/sim.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { RecordingActuator, Replay, SimulatedRobot } from '@pamoja/sim'
 
 async function main() {
   // The clear distance ahead, in metres, taken from an earlier survey run. A replay hands
-  // it back one reading at a time, so the loop below sees the same input on every run.
-  const capture = [4.0, 3.0, 1.5, 0.5]
+  // it back one reading at a time, so the loop below sees the same input on every run: the
+  // same rover code, driven by a recording rather than a range finder.
+  const capture = [4, 3, 1.5, 0.5]
   const ahead = new Replay(capture)
   const throttle = new RecordingActuator()
   const rover = new SimulatedRobot(0.5) // each command advances the rover half a second
 
   const seen: number[] = []
   for (let step = 0; step < capture.length; step += 1) {
-    const reading = await ahead.read()
+    const reading = (await ahead.read())!
     seen.push(reading)
+
     // Drive on while there is room ahead, otherwise stop and turn on the spot.
-    const clear = reading > 1.0
-    const vx = clear ? 1.0 : 0.0
-    const omega = clear ? 0.0 : 1.0
-    await throttle.apply(vx)
-    await rover.apply({ vx, vy: 0, omega })
+    const clear = reading > 1
+    const speed = clear ? 1 : 0
+    const turn = clear ? 0 : 1
+    await throttle.apply(speed)
+    await rover.apply({ vx: speed, vy: 0, omega: turn })
+    console.log(`${reading} m ahead, so drive at ${speed} and turn at ${turn}`)
   }
 
-  assert.deepEqual(seen, capture)
-  assert.deepEqual(await throttle.commands(), [1.0, 1.0, 1.0, 0.0])
+  // The recording actuator kept every command, which is how a test says what the control
+  // loop decided rather than only what it ended up doing.
+  const commands = await throttle.commands()
+  console.log(`commands  ${commands.join(', ')}`)
 
-  // Three half-second commands at 1 m/s reach 1.5 m along x. The last one turns on the
-  // spot at 1 rad/s for half a second, which moves the rover nowhere.
+  // Three half-second commands at 1 m/s reach 1.5 m along x. The last one turns on the spot
+  // at 1 rad/s for half a second, which moves the rover nowhere.
   const pose = await rover.pose()
-  assert.ok(Math.abs(pose.x - 1.5) < 1e-6)
-  assert.ok(Math.abs(pose.y) < 1e-6)
-  assert.ok(Math.abs(pose.theta - 0.5) < 1e-6)
+  console.log(
+    `pose      x ${pose.x.toFixed(1)} m, y ${pose.y.toFixed(1)} m,` +
+      ` heading ${pose.theta.toFixed(1)} rad`,
+  )
+
+  return { seen, commands, pose }
 }
 
 main()
@@ -129,9 +141,9 @@ from pamoja.sim import RecordingActuator, Replay, SimulatedRobot
 
 
 async def main() -> None:
-    # The clear distance ahead, in metres, taken from an earlier survey run. A replay
-    # hands it back one reading at a time, so the loop below sees the same input on
-    # every run.
+    # The clear distance ahead, in metres, taken from an earlier survey run. A replay hands
+    # it back one reading at a time, so the loop below sees the same input on every run: the
+    # same rover code, driven by a recording rather than a range finder.
     capture = [4.0, 3.0, 1.5, 0.5]
     ahead = Replay(capture)
     throttle = RecordingActuator()
@@ -141,25 +153,29 @@ async def main() -> None:
     for _ in capture:
         reading = await ahead.read()
         seen.append(reading)
+
         # Drive on while there is room ahead, otherwise stop and turn on the spot.
         clear = reading > 1.0
         speed = 1.0 if clear else 0.0
         turn = 0.0 if clear else 1.0
         await throttle.apply(speed)
         await rover.apply(vx=speed, omega=turn)
+        print(f"{reading} m ahead, so drive at {speed} and turn at {turn}")
 
-    assert seen == capture
-    assert await throttle.commands() == [1.0, 1.0, 1.0, 0.0]
+    # The recording actuator kept every command, which is how a test says what the control
+    # loop decided rather than only what it ended up doing.
+    commands = await throttle.commands()
+    print(f"commands  {commands}")
 
     # Three half-second commands at 1 m/s reach 1.5 m along x. The last one turns on the
     # spot at 1 rad/s for half a second, which moves the rover nowhere.
     pose = await rover.pose()
-    assert abs(pose.x - 1.5) < 1e-6
-    assert abs(pose.y) < 1e-6
-    assert abs(pose.theta - 0.5) < 1e-6
+    print(f"pose      x {pose.x:.1f} m, y {pose.y:.1f} m, heading {pose.theta:.1f} rad")
+
+    return seen, commands, pose
 
 
-asyncio.run(main())
+seen, commands, pose = asyncio.run(main())
 ```
 <!-- end -->
 
@@ -171,37 +187,36 @@ From [`bindings/dotnet/samples/Pamoja.Guides/SimGuide.cs`](https://github.com/mo
 ```csharp
 // The clear distance ahead, in metres, taken from an earlier survey run. A replay
 // hands it back one reading at a time, so the loop below sees the same input on
-// every run.
+// every run: the same rover code, driven by a recording rather than a range finder.
 float[] capture = [4.0f, 3.0f, 1.5f, 0.5f];
 using var ahead = new Replay(capture);
 using var throttle = new RecordingActuator();
 using var rover = new SimulatedRobot(0.5f); // each command advances half a second
 
-var seen = new List<float>();
-foreach (var _ in capture)
+List<float> seen = [];
+for (int step = 0; step < capture.Length; step++)
 {
-    var reading = await ahead.ReadAsync();
+    float reading = await ahead.ReadAsync();
     seen.Add(reading);
 
     // Drive on while there is room ahead, otherwise stop and turn on the spot.
-    var clear = reading > 1.0f;
-    var vx = clear ? 1.0f : 0.0f;
-    var omega = clear ? 0.0f : 1.0f;
+    bool clear = reading > 1.0f;
+    float vx = clear ? 1.0f : 0.0f;
+    float omega = clear ? 0.0f : 1.0f;
     await throttle.ApplyAsync(vx);
     await rover.ApplyAsync(new Twist(vx, Omega: omega));
+    Console.WriteLine($"{reading} m ahead, so drive at {vx} and turn at {omega}");
 }
 
-Expect(seen.SequenceEqual(capture), "the replay hands back the captured series");
-Expect(
-    throttle.Commands.SequenceEqual([1.0f, 1.0f, 1.0f, 0.0f]),
-    "and the actuator recorded what it was told to do");
+// The recording actuator kept every command, which is how a test says what the
+// control loop decided rather than only what it ended up doing.
+Console.WriteLine($"commands  {string.Join(", ", throttle.Commands)}");
 
 // Three half-second commands at 1 m/s reach 1.5 m along x. The last one turns on
 // the spot at 1 rad/s for half a second, which moves the rover nowhere.
-var pose = rover.Pose;
-Expect(Math.Abs(pose.X - 1.5f) < 1e-6f, "1.5 m travelled along x");
-Expect(Math.Abs(pose.Y) < 1e-6f, "with no sideways drift");
-Expect(Math.Abs(pose.Theta - 0.5f) < 1e-6f, "and half a radian turned in place");
+Pose pose = rover.Pose;
+Console.WriteLine(
+    $"pose      x {pose.X:F1} m, y {pose.Y:F1} m, heading {pose.Theta:F1} rad");
 ```
 <!-- end -->
 

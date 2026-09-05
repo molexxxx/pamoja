@@ -52,37 +52,35 @@ use pamoja_sync::MemoryStore;
 // the rest of the framework through one trait. Anything that takes a link is generic
 // over it, so a node is written once and pointed at whichever link it has.
 let broker = LoopbackBroker::new();
+let topic = "sensors/1/temperature";
 let mut gateway = LoopbackTransport::new(broker.clone());
-gateway.connect().await.unwrap();
-gateway.subscribe("sensors/1/temperature").await.unwrap();
+gateway.connect().await.expect("the gateway connects");
+gateway.subscribe(topic).await.expect("subscribe");
 
 // The fault injector is itself a transport wrapping a transport, so it composes
 // anywhere a link does. This one fails its next send and passes the rest through.
 let mut ladder = TransportLadder::new(MemoryStore::new())
     .rung(Faulty::new(LoopbackTransport::new(broker), 1));
-ladder.connect().await.unwrap();
+ladder.connect().await.expect("the ladder connects");
 
 // The injected failure lands, so the reading is buffered rather than lost.
-let topic = "sensors/1/temperature";
-assert_eq!(
-    ladder.send(topic, b"20.1").await.unwrap(),
-    Delivery::Buffered
-);
-assert_eq!(ladder.buffered().await.unwrap(), 1);
+let first = ladder.send(topic, b"20.1").await.expect("a delivery");
+let after_first = ladder.buffered().await.expect("a count");
+println!("first reading: {first:?}, {after_first} queued");
 
 // The next reading joins the back of the queue instead of overtaking it, even though
 // the link would take it now. Order on the wire is the order the readings were taken.
-assert_eq!(
-    ladder.send(topic, b"20.4").await.unwrap(),
-    Delivery::Buffered
-);
-assert_eq!(ladder.buffered().await.unwrap(), 2);
+let second = ladder.send(topic, b"20.4").await.expect("a delivery");
+let queued = ladder.buffered().await.expect("a count");
+println!("second reading: {second:?}, {queued} queued");
 
 // Flushing forwards the backlog oldest first, and the subscriber sees it in order.
-assert_eq!(ladder.flush().await.unwrap(), 2);
-assert_eq!(ladder.buffered().await.unwrap(), 0);
-assert_eq!(gateway.recv().await.unwrap().unwrap().payload, b"20.1");
-assert_eq!(gateway.recv().await.unwrap().unwrap().payload, b"20.4");
+let forwarded = ladder.flush().await.expect("a flush");
+let first_out = gateway.recv().await.expect("recv").expect("a message");
+let second_out = gateway.recv().await.expect("recv").expect("a message");
+let earlier = String::from_utf8_lossy(&first_out.payload);
+let later = String::from_utf8_lossy(&second_out.payload);
+println!("flush forwarded {forwarded}, gateway saw {earlier} then {later}");
 ```
 <!-- end -->
 
@@ -92,49 +90,45 @@ assert_eq!(gateway.recv().await.unwrap().unwrap().payload, b"20.4");
 From [`bindings/node/guides/transport.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/transport.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import { Transport } from '@pamoja/core'
 import { Delivery, Ladder } from '@pamoja/ladder'
 import { LoopbackBroker } from '@pamoja/loopback'
 import { Store } from '@pamoja/sync'
 
+const TOPIC = 'sensors/1/temperature'
+
 async function main() {
-  // Whatever a link is underneath, MQTT, CoAP, or the in-process broker below, it reaches
-  // the rest of the framework as one Transport. Anything that takes a link takes that, so
-  // a node is written once and pointed at whichever link it has.
+  // Whatever a link is underneath, MQTT, CoAP, or the in-process broker here, it reaches
+  // the rest of the framework through one contract. Anything that takes a link works with
+  // any of them, so a node is written once and pointed at whichever link it has.
   const broker = new LoopbackBroker()
   const gateway = broker.link()
   await gateway.connect()
-  await gateway.subscribe('sensors/1/temperature')
+  await gateway.subscribe(TOPIC)
 
-  // The fault injector is a Transport wrapping a Transport, so it composes anywhere a link
-  // does. This one fails its next send and passes everything after through.
-  const flaky = Transport.faulty(broker.rung(), 1)
-  assert.equal(flaky.isAvailable, true)
-
-  // Composing consumes the transport, because whatever it was composed into owns it from
-  // here. The handle is emptied rather than left aliasing what now belongs to something
-  // else, so it cannot be sent on twice.
+  // The fault injector is itself a link wrapping a link, so it composes anywhere one does.
+  // This one fails its next send and passes the rest through.
   const ladder = new Ladder(Store.memory())
-  await ladder.rung(flaky)
-  assert.equal(flaky.isAvailable, false)
+  await ladder.rung(Transport.faulty(broker.rung(), 1))
   await ladder.connect()
 
   // The injected failure lands, so the reading is buffered rather than lost.
-  assert.equal(await ladder.send('sensors/1/temperature', Buffer.from('20.1')), Delivery.Buffered)
-  assert.equal(await ladder.buffered(), 1)
+  const first = await ladder.send(TOPIC, Buffer.from('20.1'))
+  console.log(`first reading: ${first}, ${await ladder.buffered()} queued`)
 
   // The next reading joins the back of the queue instead of overtaking it, even though the
   // link would take it now. Order on the wire is the order the readings were taken.
-  assert.equal(await ladder.send('sensors/1/temperature', Buffer.from('20.4')), Delivery.Buffered)
-  assert.equal(await ladder.buffered(), 2)
+  const second = await ladder.send(TOPIC, Buffer.from('20.4'))
+  const queued = await ladder.buffered()
+  console.log(`second reading: ${second}, ${queued} queued`)
 
   // Flushing forwards the backlog oldest first, and the subscriber sees it in order.
-  assert.equal(await ladder.flush(), 2)
-  assert.equal(await ladder.buffered(), 0)
-  assert.equal((await gateway.recv())?.payload.toString(), '20.1')
-  assert.equal((await gateway.recv())?.payload.toString(), '20.4')
+  const forwarded = await ladder.flush()
+  const earlier = (await gateway.recv())!.payload.toString()
+  const later = (await gateway.recv())!.payload.toString()
+  console.log(`flush forwarded ${forwarded}, gateway saw ${earlier} then ${later}`)
+
+  return { first, second, queued, forwarded, left: await ladder.buffered(), earlier, later }
 }
 
 main()
@@ -154,46 +148,44 @@ from pamoja.ladder import Delivery, Ladder
 from pamoja.loopback import LoopbackBroker
 from pamoja.sync import Store
 
+TOPIC = "sensors/1/temperature"
+
 
 async def main() -> None:
-    # Whatever a link is underneath, MQTT, CoAP, or the in-process broker below, it
-    # reaches the rest of the framework as one Transport. Anything that takes a link
-    # takes that, so a node is written once and pointed at whichever link it has.
+    # Whatever a link is underneath, MQTT, CoAP, or the in-process broker here, it reaches
+    # the rest of the framework through one contract. Anything that takes a link works with
+    # any of them, so a node is written once and pointed at whichever link it has.
     broker = LoopbackBroker()
     gateway = broker.link()
     await gateway.connect()
-    await gateway.subscribe("sensors/1/temperature")
+    await gateway.subscribe(TOPIC)
 
-    # The fault injector is a Transport wrapping a Transport, so it composes anywhere a
-    # link does. This one fails its next send and passes everything after through.
-    flaky = Transport.faulty(broker.rung(), 1)
-    assert flaky.is_available
-
-    # Composing consumes the transport, because whatever it was composed into owns it
-    # from here. The handle is emptied rather than left aliasing what now belongs to
-    # something else, so it cannot be sent on twice.
+    # The fault injector is itself a link wrapping a link, so it composes anywhere one
+    # does. This one fails its next send and passes the rest through.
     ladder = Ladder(Store.memory())
-    await ladder.rung(flaky)
-    assert not flaky.is_available
+    await ladder.rung(Transport.faulty(broker.rung(), 1))
     await ladder.connect()
 
     # The injected failure lands, so the reading is buffered rather than lost.
-    assert await ladder.send("sensors/1/temperature", b"20.1") == Delivery.BUFFERED
-    assert await ladder.buffered() == 1
+    first = await ladder.send(TOPIC, b"20.1")
+    print(f"first reading: {first}, {await ladder.buffered()} queued")
 
     # The next reading joins the back of the queue instead of overtaking it, even though
     # the link would take it now. Order on the wire is the order the readings were taken.
-    assert await ladder.send("sensors/1/temperature", b"20.4") == Delivery.BUFFERED
-    assert await ladder.buffered() == 2
+    second = await ladder.send(TOPIC, b"20.4")
+    queued = await ladder.buffered()
+    print(f"second reading: {second}, {queued} queued")
 
     # Flushing forwards the backlog oldest first, and the subscriber sees it in order.
-    assert await ladder.flush() == 2
-    assert await ladder.buffered() == 0
-    assert (await gateway.recv()).payload == b"20.1"
-    assert (await gateway.recv()).payload == b"20.4"
+    forwarded = await ladder.flush()
+    earlier = (await gateway.recv()).payload.decode()
+    later = (await gateway.recv()).payload.decode()
+    print(f"flush forwarded {forwarded}, gateway saw {earlier} then {later}")
+
+    return first, second, queued, forwarded, await ladder.buffered(), earlier, later
 
 
-asyncio.run(main())
+first, second, queued, forwarded, left, earlier, later = asyncio.run(main())
 ```
 <!-- end -->
 
@@ -203,50 +195,42 @@ asyncio.run(main())
 From [`bindings/dotnet/samples/Pamoja.Guides/TransportGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/TransportGuide.cs):
 
 ```csharp
-// Whatever a link is underneath, MQTT, CoAP, or the in-process broker below, it
-// reaches the rest of the framework as one Transport. Anything that takes a link
-// takes that, so a node is written once and pointed at whichever link it has.
+const string Topic = "sensors/1/temperature";
+
+// Whatever a link is underneath, MQTT, CoAP, or the in-process broker here, it
+// reaches the rest of the framework through one contract. Anything that takes a
+// link works with any of them, so a node is written once and pointed at whichever
+// link it has.
 using var broker = new LoopbackBroker();
 using var gateway = broker.Link();
 await gateway.ConnectAsync();
-await gateway.SubscribeAsync("sensors/1/temperature");
+await gateway.SubscribeAsync(Topic);
 
-// The fault injector is a Transport wrapping a Transport, so it composes anywhere
-// a link does. This one fails its next send and passes everything after through.
-var flaky = Transport.Faulty(broker.Rung(), 1);
-Expect(flaky.IsAvailable, "a transport not yet composed is holdable");
-
-// Composing consumes the transport, because whatever it was composed into owns it
-// from here. The handle is emptied rather than left aliasing what now belongs to
-// something else, so it cannot be sent on twice.
+// The fault injector is itself a link wrapping a link, so it composes anywhere one
+// does. This one fails its next send and passes the rest through.
 using var ladder = new Ladder(Store.Memory());
-ladder.Rung(flaky);
-Expect(!flaky.IsAvailable, "and it is spent once something else owns it");
+ladder.Rung(Transport.Faulty(broker.Rung(), 1));
 await ladder.ConnectAsync();
 
 // The injected failure lands, so the reading is buffered rather than lost.
-Expect(
-    await ladder.SendAsync("sensors/1/temperature", "20.1"u8.ToArray()) == Delivery.Buffered,
-    "a refused send is buffered");
-Expect(await ladder.BufferedAsync() == 1, "and the backlog holds it");
+Delivery first = await ladder.SendAsync(Topic, "20.1"u8.ToArray());
+Console.WriteLine($"first reading: {first}, {await ladder.BufferedAsync()} queued");
 
 // The next reading joins the back of the queue instead of overtaking it, even
-// though the link would take it now. Order on the wire is the order the readings
-// were taken.
-Expect(
-    await ladder.SendAsync("sensors/1/temperature", "20.4"u8.ToArray()) == Delivery.Buffered,
-    "the next reading joins the backlog rather than passing it");
-Expect(await ladder.BufferedAsync() == 2, "so both are queued");
+// though the link would take it now. Order on the wire is the order they were
+// taken.
+Delivery second = await ladder.SendAsync(Topic, "20.4"u8.ToArray());
+int queued = await ladder.BufferedAsync();
+Console.WriteLine($"second reading: {second}, {queued} queued");
 
 // Flushing forwards the backlog oldest first, and the subscriber sees it in order.
-Expect(await ladder.FlushAsync() == 2, "a flush forwards the whole backlog");
-Expect(await ladder.BufferedAsync() == 0, "leaving nothing queued");
-Expect(
-    (await gateway.ReceiveAsync())?.Payload.AsSpan().SequenceEqual("20.1"u8) == true,
-    "the oldest reading arrives first");
-Expect(
-    (await gateway.ReceiveAsync())?.Payload.AsSpan().SequenceEqual("20.4"u8) == true,
-    "then the one taken after it");
+int forwarded = await ladder.FlushAsync();
+TransportMessage earlier = (await gateway.ReceiveAsync())!;
+TransportMessage later = (await gateway.ReceiveAsync())!;
+Console.WriteLine(
+    $"flush forwarded {forwarded}, gateway saw"
+    + $" {System.Text.Encoding.UTF8.GetString(earlier.Payload)} then"
+    + $" {System.Text.Encoding.UTF8.GetString(later.Payload)}");
 ```
 <!-- end -->
 

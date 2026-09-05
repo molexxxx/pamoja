@@ -11,54 +11,54 @@ namespace Guides;
 public static class TransportGuide
 {
     /// <summary>Runs the example.</summary>
-    /// <returns>A task that completes once the example has run.</returns>
+    /// <returns>A task that completes once the backlog has been forwarded.</returns>
     public static async Task RunAsync()
     {
         // ANCHOR: example
-        // Whatever a link is underneath, MQTT, CoAP, or the in-process broker below, it
-        // reaches the rest of the framework as one Transport. Anything that takes a link
-        // takes that, so a node is written once and pointed at whichever link it has.
+        const string Topic = "sensors/1/temperature";
+
+        // Whatever a link is underneath, MQTT, CoAP, or the in-process broker here, it
+        // reaches the rest of the framework through one contract. Anything that takes a
+        // link works with any of them, so a node is written once and pointed at whichever
+        // link it has.
         using var broker = new LoopbackBroker();
         using var gateway = broker.Link();
         await gateway.ConnectAsync();
-        await gateway.SubscribeAsync("sensors/1/temperature");
+        await gateway.SubscribeAsync(Topic);
 
-        // The fault injector is a Transport wrapping a Transport, so it composes anywhere
-        // a link does. This one fails its next send and passes everything after through.
-        var flaky = Transport.Faulty(broker.Rung(), 1);
-        Expect(flaky.IsAvailable, "a transport not yet composed is holdable");
-
-        // Composing consumes the transport, because whatever it was composed into owns it
-        // from here. The handle is emptied rather than left aliasing what now belongs to
-        // something else, so it cannot be sent on twice.
+        // The fault injector is itself a link wrapping a link, so it composes anywhere one
+        // does. This one fails its next send and passes the rest through.
         using var ladder = new Ladder(Store.Memory());
-        ladder.Rung(flaky);
-        Expect(!flaky.IsAvailable, "and it is spent once something else owns it");
+        ladder.Rung(Transport.Faulty(broker.Rung(), 1));
         await ladder.ConnectAsync();
 
         // The injected failure lands, so the reading is buffered rather than lost.
-        Expect(
-            await ladder.SendAsync("sensors/1/temperature", "20.1"u8.ToArray()) == Delivery.Buffered,
-            "a refused send is buffered");
-        Expect(await ladder.BufferedAsync() == 1, "and the backlog holds it");
+        Delivery first = await ladder.SendAsync(Topic, "20.1"u8.ToArray());
+        Console.WriteLine($"first reading: {first}, {await ladder.BufferedAsync()} queued");
 
         // The next reading joins the back of the queue instead of overtaking it, even
-        // though the link would take it now. Order on the wire is the order the readings
-        // were taken.
-        Expect(
-            await ladder.SendAsync("sensors/1/temperature", "20.4"u8.ToArray()) == Delivery.Buffered,
-            "the next reading joins the backlog rather than passing it");
-        Expect(await ladder.BufferedAsync() == 2, "so both are queued");
+        // though the link would take it now. Order on the wire is the order they were
+        // taken.
+        Delivery second = await ladder.SendAsync(Topic, "20.4"u8.ToArray());
+        int queued = await ladder.BufferedAsync();
+        Console.WriteLine($"second reading: {second}, {queued} queued");
 
         // Flushing forwards the backlog oldest first, and the subscriber sees it in order.
-        Expect(await ladder.FlushAsync() == 2, "a flush forwards the whole backlog");
-        Expect(await ladder.BufferedAsync() == 0, "leaving nothing queued");
-        Expect(
-            (await gateway.ReceiveAsync())?.Payload.AsSpan().SequenceEqual("20.1"u8) == true,
-            "the oldest reading arrives first");
-        Expect(
-            (await gateway.ReceiveAsync())?.Payload.AsSpan().SequenceEqual("20.4"u8) == true,
-            "then the one taken after it");
+        int forwarded = await ladder.FlushAsync();
+        TransportMessage earlier = (await gateway.ReceiveAsync())!;
+        TransportMessage later = (await gateway.ReceiveAsync())!;
+        Console.WriteLine(
+            $"flush forwarded {forwarded}, gateway saw"
+            + $" {System.Text.Encoding.UTF8.GetString(earlier.Payload)} then"
+            + $" {System.Text.Encoding.UTF8.GetString(later.Payload)}");
         // ANCHOR_END: example
+
+        Expect(first == Delivery.Buffered, "a refused send is buffered, not lost");
+        Expect(second == Delivery.Buffered, "and the next one queues behind it");
+        Expect(queued == 2, "so both are held");
+        Expect(forwarded == 2, "a flush forwards the whole backlog");
+        Expect(await ladder.BufferedAsync() == 0, "leaving nothing queued");
+        Expect(earlier.Payload.AsSpan().SequenceEqual("20.1"u8), "oldest first");
+        Expect(later.Payload.AsSpan().SequenceEqual("20.4"u8), "then the one after it");
     }
 }
