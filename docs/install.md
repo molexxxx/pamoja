@@ -118,7 +118,8 @@ import { toCbor, fromCbor } from '@pamoja/codec'
 
 Every package depends on `@pamoja/native`, the compiled engine, prebuilt for
 Linux (x64, arm64), macOS (x64, arm64), and Windows (x64); npm picks the right
-one. It is one binary carrying every capability whichever packages you install,
+one, and installs on anything else without a binary to load. Alpine and Windows
+on ARM are the two that catch people out. It is one binary carrying every capability whichever packages you install,
 so the choice is about the API surface and your dependency manifest, not the
 download. Node 16 or later.
 
@@ -258,7 +259,11 @@ is when its package is referenced directly.
 
 Each package is one namespace of the same name. Every package depends on
 `Pamoja.Native`, which carries the native library for `win-x64`, `linux-x64`,
-`linux-arm64`, `osx-x64`, and `osx-arm64`, and targets .NET 8.
+`linux-arm64`, `osx-x64`, and `osx-arm64`, and targets .NET 8. Those five are the
+whole list: on any other runtime identifier, `win-arm64` and the musl-based
+distributions among them, the packages restore and compile and then throw
+`DllNotFoundException` on the first call, because there is no native library to
+load and, unlike Python, no source build to fall back on.
 
 The same six domains, one package each. A domain package brings in its
 capabilities and re-exports each under its own name, so a name two of them share
