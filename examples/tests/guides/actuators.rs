@@ -17,10 +17,8 @@ fn a_servo_pulse_and_a_stepper_cycle() {
 
     // Each channel owns four consecutive registers, so a whole channel is written in one
     // bus transaction rather than four.
-    println!(
-        "channel 3 starts at register {:#04X}",
-        pca9685::channel_register(3)
-    );
+    let first_register = pca9685::channel_register(3);
+    println!("channel 3 starts at register {first_register:#04X}");
 
     // A centred hobby servo holds its output high for 1500 us of the 20 ms period. The
     // part counts in 4096 steps per period, so that is where the pulse ends.
@@ -29,20 +27,17 @@ fn a_servo_pulse_and_a_stepper_cycle() {
 
     // Fully off carries its own flag rather than a zero duty, which would still hold the
     // output high for the first count of every period.
-    println!(
-        "full off flag set: {}",
-        Pwm::full_off().off() != Pwm::duty(0).off()
-    );
+    let flagged = Pwm::full_off().off() != Pwm::duty(0).off();
+    println!("full off flag set: {flagged}");
 
     // A stepper is driven by walking a pattern of coil states. Half-step drive
     // interleaves the one-coil and two-coil patterns, so it has twice as many.
     let mut motor = Sequencer::new(Drive::HalfStep);
-    println!("coils     {:04b} at rest", motor.coils());
+    let at_rest = motor.coils();
+    println!("coils     {at_rest:04b} at rest");
     for _ in 0..2 {
-        println!(
-            "coils     {:04b} after a step",
-            motor.step(Direction::Forward)
-        );
+        let coils = motor.step(Direction::Forward);
+        println!("coils     {coils:04b} after a step");
     }
 
     // The patterns wrap, so the motor runs indefinitely either way, and an angle converts
@@ -50,15 +45,14 @@ fn a_servo_pulse_and_a_stepper_cycle() {
     for _ in 2..Drive::HalfStep.step_count() {
         motor.step(Direction::Forward);
     }
-    println!(
-        "coils     {:04b} back at the start of the cycle",
-        motor.coils()
-    );
-    println!("a quarter turn is {} steps", steps_for_degrees(90.0, 200));
+    let wrapped = motor.coils();
+    let quarter_turn = steps_for_degrees(90.0, 200);
+    println!("coils     {wrapped:04b} back at the start of the cycle");
+    println!("a quarter turn is {quarter_turn} steps");
     // ANCHOR_END: example
 
     assert_eq!(prescale, 0x79);
-    assert_eq!(pca9685::channel_register(3), 0x12);
+    assert_eq!(first_register, 0x12);
     assert_eq!(centred.off(), 307);
     assert_eq!(Pwm::full_off().bytes(), [0x00, 0x00, 0x00, 0x10]);
     assert_eq!(Pwm::duty(0).bytes(), [0x00, 0x00, 0x00, 0x00]);
