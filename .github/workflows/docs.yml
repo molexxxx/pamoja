@@ -1,9 +1,10 @@
 name: docs
 
-# Builds the documentation site into one tree: the guides with mdBook and the four
-# generated API references beside them. Runs on every pull request, so a stale
-# generated region, a capability map that disagrees with the code, or a rustdoc
-# warning fails before merge; pages.yml calls it to publish the same tree at /docs.
+# Builds the documentation site into one tree: the pages rendered by `cargo xtask site`
+# and the four generated API references beside them. Runs on every pull request, so a
+# stale generated region, a capability map that disagrees with the code, a rustdoc
+# warning, or a broken link fails before merge; pages.yml calls it to publish the same
+# tree.
 
 on:
   pull_request:
@@ -43,26 +44,22 @@ jobs:
             target
           key: ${{ runner.os }}-docs-cargo-${{ hashFiles('**/Cargo.toml') }}
 
-      - name: Install mdBook
-        uses: taiki-e/install-action@v2.87.4
-        with:
-          tool: mdbook@0.5.4
-
-      # The crate READMEs, the site navigation, the capability tables, and every spliced
-      # example must match the code they are generated from.
+      # The crate READMEs, the capability tables, and every spliced example must match the
+      # code they are generated from.
       - name: Generated docs in sync with the code
         run: cargo run -p xtask -- docs --check
 
-      - name: Build the guides
-        run: mdbook build
+      # The pages, the navigation, the search index, and the stylesheets, with every link
+      # between them checked; links into the four references are checked once they exist.
+      - name: Render the pages
+        run: cargo run -p xtask -- site
 
       - name: Rust reference
         env:
           RUSTDOCFLAGS: -D warnings --html-in-header ${{ github.workspace }}/docs/theme/rustdoc.html
         run: |
           cargo doc --workspace --no-deps --exclude xtask --exclude pamoja-examples
-          mkdir -p target/docs/site/reference
-          cp -r target/doc target/docs/site/reference/rust
+          cp -r target/doc target/site/docs/reference/rust
 
       # typedoc documents each package against the committed napi-rs contract, so no
       # native build is needed, only the facade build that gives the packages their
@@ -85,16 +82,21 @@ jobs:
           pip install maturin pdoc==16.0
           maturin develop -m packages/native/Cargo.toml
           pip install $(find packages -mindepth 1 -maxdepth 1 -type d ! -name native)
-          pdoc pamoja '!pamoja._native' -o ../../target/docs/site/reference/python --docformat restructuredtext --template-directory ../../docs/theme/pdoc --logo https://pamoja.molex.cloud/docs/assets/pamoja-logo.svg --logo-link https://pamoja.molex.cloud/docs/
+          pdoc pamoja '!pamoja._native' -o ../../target/site/docs/reference/python --docformat restructuredtext --template-directory ../../docs/theme/pdoc --logo https://pamoja.molex.cloud/docs/assets/pamoja-logo.svg --logo-link https://pamoja.molex.cloud/docs/
 
       - name: .NET reference
         run: |
           dotnet tool install -g docfx --version 2.78.5
           docfx bindings/dotnet/docs/docfx.json
 
+      # Nothing is taken on trust now that the references are in place: every link from a
+      # page into them must land on a file, and every anchor on an id.
+      - name: Every link resolves
+        run: cargo run -p xtask -- site --verify
+
       - name: Upload the site
         uses: actions/upload-artifact@v7
         with:
-          name: docs-site
-          path: target/docs/site
+          name: site
+          path: target/site
           if-no-files-found: error

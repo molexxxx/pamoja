@@ -20,6 +20,7 @@ mod links;
 mod packages;
 mod regions;
 mod release;
+mod site;
 mod theme;
 mod version;
 
@@ -51,7 +52,11 @@ const TASKS: &[(&str, &str)] = &[
     ),
     (
         "docs",
-        "regenerate the crate READMEs, the site navigation, and the generated regions (docs [--check])",
+        "regenerate the crate READMEs and the generated regions in the Markdown pages (docs [--check])",
+    ),
+    (
+        "site",
+        "render the documentation site into target/site (site [--out <dir>] | site --verify [<dir>])",
     ),
     (
         "links",
@@ -109,6 +114,10 @@ fn main() -> ExitCode {
 
     if task == "docs" {
         return docs::run(&args.collect::<Vec<_>>());
+    }
+
+    if task == "site" {
+        return site::run(&args.collect::<Vec<_>>());
     }
 
     if task == "links" {

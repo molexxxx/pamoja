@@ -1,16 +1,20 @@
-//   node serve.mjs            -> http://localhost:8099 (auto-opens browser)
-//   node serve.mjs 5050       -> custom port
-//   node serve.mjs --no-open  -> do not open a browser
+//   node serve.mjs                       -> http://localhost:8099 (auto-opens browser)
+//   node serve.mjs 5050                  -> custom port
+//   node serve.mjs --no-open             -> do not open a browser
+//   node serve.mjs --root target/site    -> serve a rendered site instead of this directory
 
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { watch } from 'node:fs';
-import { extname, join, normalize } from 'node:path';
+import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
-const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const args = process.argv.slice(2);
+const rootArg = args.indexOf('--root');
+const ROOT = rootArg >= 0 && args[rootArg + 1]
+  ? resolve(args[rootArg + 1]) + sep
+  : fileURLToPath(new URL('.', import.meta.url));
 const PORT = Number(args.find((a) => /^\d+$/.test(a))) || 8099;
 const OPEN = !args.includes('--no-open');
 

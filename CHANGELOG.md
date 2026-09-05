@@ -25,7 +25,13 @@ released together, so one entry covers all of them.
   built for. The .NET packages restore and compile and then fail on the first
   call, since there is no native library and, unlike Python, no source build to
   fall back on; Alpine and Windows on ARM are the two that catch people out.
-
+- The documentation site is rendered by `cargo xtask site` rather than mdBook: the
+  same Markdown pages, with a guide's four languages as tabs that remember the
+  choice, search, syntax highlighting done when the site is built, and a link
+  check that fails the build on a broken link or anchor, the generated references
+  included. The reference pages list each capability with its install line, its
+  module, its worked example, and the same capability on the other three
+  registries.
 
 ## [0.1.16] - 2026-09-05
 
@@ -54,7 +60,6 @@ this version, and the 0.1.15 npm packages are deprecated.
   is treated as a wait rather than a failure: the upload retries what was
   refused until the cap refills, the way the crates.io publisher already handles
   the new-crate limit.
-
 
 ## [0.1.15] - 2026-09-05
 

@@ -90,20 +90,23 @@ way an application does.
 
 ## This site
 
-The guides are rendered by [mdBook](https://rust-lang.github.io/mdBook/) from
-`docs/`, and the four references are generated beside them: rustdoc for the
-crates, typedoc for the Node facade, pdoc for the Python facade, and DocFX for
-the .NET facade. The docs workflow builds all of it on every pull request and
-the Pages workflow publishes the same tree under `/docs`. Locally:
+The pages are rendered from `docs/` by `cargo xtask site`, a static-site generator
+in the workspace task runner, and the four references are generated beside them:
+rustdoc for the crates, typedoc for the Node packages, pdoc for the Python
+packages, and DocFX for the .NET packages. Every code block is highlighted when
+the site is rendered, every link is checked (references included, once they are
+in place), and the docs workflow does all of it on every pull request; the Pages
+workflow publishes the same tree under `/docs`. Locally:
 
 ```sh
-cargo install mdbook --version 0.5.4 --locked
-cargo xtask docs && mdbook build          # the guides, into target/docs/site
+cargo xtask docs && cargo xtask site       # the pages, into target/site
+node web/serve.mjs --root target/site      # serve them at localhost:8099 with live reload
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --exclude xtask --exclude pamoja-examples
-cp -r target/doc target/docs/site/reference/rust
-cd bindings/node/docs && npm ci && npx typedoc     # target/docs/site/reference/node
-cd bindings/python && pip install pdoc==16.0 && pdoc pamoja '!pamoja._native' -o ../../target/docs/site/reference/python --docformat restructuredtext
+cp -r target/doc target/site/docs/reference/rust
+cd bindings/node/docs && npm ci && npx typedoc     # target/site/docs/reference/node
+cd bindings/python && pip install pdoc==16.0 && pdoc pamoja '!pamoja._native' -o ../../target/site/docs/reference/python --docformat restructuredtext
 dotnet tool install -g docfx --version 2.78.5 && docfx bindings/dotnet/docs/docfx.json
+cargo xtask site --verify                  # every link resolves, the references included
 ```
 
 ## Formatting and lints

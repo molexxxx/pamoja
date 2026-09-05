@@ -9,7 +9,7 @@
     "excludePrivate": true,
     "excludeInternal": true
   },
-  "out": "../../../target/docs/site/reference/node",
+  "out": "../../../target/site/docs/reference/node",
   "readme": "index.md",
   "includeVersion": true,
   "navigation": {

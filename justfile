@@ -49,9 +49,17 @@ dashboard-checks:
 builds:
     cargo run -p xtask -- builds
 
-# verify the generated crate READMEs, the site navigation, and the doc regions are in sync
+# verify the generated crate READMEs and the doc regions are in sync
 docs-check:
     cargo run -p xtask -- docs --check
+
+# render the documentation site into target/site (the four references are generated separately)
+site:
+    cargo run -p xtask -- site
+
+# check every link of the finished site in target/site, the references included
+site-verify:
+    cargo run -p xtask -- site --verify
 
 # run the guide examples in every language (the code the documentation site shows)
 guides:
