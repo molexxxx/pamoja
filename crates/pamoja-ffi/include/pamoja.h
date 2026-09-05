@@ -1688,6 +1688,18 @@ PamojaPwm pamoja_pwm_duty(uint16_t off);
 // The four register bytes for that pulse width.
 PamojaPwm pamoja_pwm_servo(uint32_t pulse_micros, uint32_t update_rate_hz);
 
+// Reads a PCA9685 setting back from the four register bytes a channel holds.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_on` and `*out_off` set to the counts
+// the registers hold, the full-on and full-off flags included.
+//
+// # Safety
+//
+// `out_on` and `out_off` must each point to a writable `uint16_t`.
+PamojaStatus pamoja_pwm_counts(PamojaPwm pwm, uint16_t *out_on, uint16_t *out_off);
+
 // The setting that holds a channel continuously high.
 //
 // # Returns

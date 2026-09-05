@@ -25,48 +25,48 @@ The guide project's example, spliced here as it ran in CI.
 From [`bindings/dotnet/samples/Pamoja.Guides/ActuatorsGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/ActuatorsGuide.cs):
 
 ```csharp
-// The datasheet's worked example: 200 Hz off the 25 MHz internal oscillator is
-// prescale 0x1E, the value the part powers up holding. A servo bank wants 50 Hz.
-Expect(Pca9685.PrescaleForFrequency(200) == 0x1E, "the datasheet's worked example");
-Expect(Pca9685.PrescaleForFrequency(50) == 0x79, "and the usual servo rate");
+// A servo bank wants 50 Hz. The prescale register that produces it is derived
+// from the part's 25 MHz internal oscillator, so a caller names the rate it wants
+// rather than working the divider out.
+byte prescale = Pca9685.PrescaleForFrequency(50);
+Console.WriteLine(
+    $"prescale  {prescale} gives {Pca9685.FrequencyForPrescale(prescale):F1} Hz");
 
-// Each channel owns four consecutive registers from 0x06, so channel 3 starts at
-// 0x12 and its four bytes go out in one bus transaction.
-Expect(Pca9685.ChannelRegister(3) == 0x12, "the fourth channel's register block");
+// Each channel owns four consecutive registers, so a whole channel is written in
+// one bus transaction rather than four.
+Console.WriteLine($"channel 3 starts at register 0x{Pca9685.ChannelRegister(3):X2}");
 
-// A centred hobby servo holds its output high for 1500 us, 7.5 % of the 20 ms
-// period, which is 307 of the 4096 counts. The bytes are on-low, on-high,
-// off-low, off-high.
-Expect(
-    Pwm.Servo(1500, 50).SequenceEqual(new byte[] { 0x00, 0x00, 0x33, 0x01 }),
-    "a centred pulse is 307 counts of the period");
+// A centred hobby servo holds its output high for 1500 us of the 20 ms period.
+// The part counts in 4096 steps per period, so that is where the pulse ends.
+byte[] centred = Pwm.Servo(1500, 50);
+Console.WriteLine($"centred servo goes low at count {Pwm.Counts(centred).Off} of 4096");
 
-// Fully off carries its own bit rather than a zero duty, which still holds the
-// output high for the first count of every period.
-Expect(
-    Pwm.FullOff().SequenceEqual(new byte[] { 0x00, 0x00, 0x00, 0x10 }),
-    "fully off is its own encoding");
-Expect(
-    Pwm.Duty(0).SequenceEqual(new byte[] { 0x00, 0x00, 0x00, 0x00 }),
-    "which a zero duty is not");
+// Fully off carries its own flag rather than a zero duty, which would still hold
+// the output high for the first count of every period.
+bool flagged = Pwm.Counts(Pwm.FullOff()).Off != Pwm.Counts(Pwm.Duty(0)).Off;
+Console.WriteLine($"full off flag set: {flagged}");
 
-// Half-step drive interleaves the one-coil and two-coil patterns; the most
-// significant of the four bits is the first coil.
+// A stepper is driven by walking a pattern of coil states. Half-step drive
+// interleaves the one-coil and two-coil patterns, so it has twice as many.
 using var motor = new Stepper(StepDrive.HalfStep);
-Expect(motor.Coils == 0b1000, "the cycle opens on one coil");
-Expect(motor.Step(StepDirection.Forward) == 0b1100, "then a pair of them");
-Expect(motor.Step(StepDirection.Forward) == 0b0100, "then the next coil alone");
+Console.WriteLine($"coils     {Convert.ToString(motor.Coils, 2).PadLeft(4, '0')} at rest");
+for (int step = 0; step < 2; step++)
+{
+    byte coils = motor.Step(StepDirection.Forward);
+    Console.WriteLine(
+        $"coils     {Convert.ToString(coils, 2).PadLeft(4, '0')} after a step");
+}
 
-// The eight patterns of a cycle wrap, so the motor runs indefinitely either way,
-// and an angle converts to whole steps: a quarter turn of a 1.8-degree motor is
-// 50 of them.
+// The patterns wrap, so the motor runs indefinitely either way, and an angle
+// converts to whole steps: a quarter turn of a 1.8-degree motor is fifty of them.
 for (int step = 2; step < Stepper.StepCount(StepDrive.HalfStep); step++)
 {
     motor.Step(StepDirection.Forward);
 }
 
-Expect(motor.Coils == 0b1000, "a full cycle returns to its first pattern");
-Expect(Stepper.StepsForDegrees(90.0f, 200) == 50, "a quarter turn is fifty steps");
+Console.WriteLine(
+    $"coils     {Convert.ToString(motor.Coils, 2).PadLeft(4, '0')} back at the start");
+Console.WriteLine($"a quarter turn is {Stepper.StepsForDegrees(90.0f, 200)} steps");
 ```
 
 ## The same capability in every language

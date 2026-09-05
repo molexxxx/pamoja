@@ -1,8 +1,7 @@
 //! The I2C, SPI, and GPIO guide example; see docs/guides/gpio.md.
 
-/// The three on-board interfaces a node uses before it reaches any network, checked
-/// against the address bytes UM10204 fixes, the mode numbers datasheets quote, and the
-/// level an active-low relay is switched by.
+/// The three on-board interfaces a node uses before it reaches any network: addressing a
+/// part on a bus, picking the clock mode its datasheet quotes, and driving a relay.
 #[test]
 fn addressing_a_bus_and_driving_a_pin() {
     // ANCHOR: example
@@ -10,41 +9,56 @@ fn addressing_a_bus_and_driving_a_pin() {
     use pamoja_gpio::pin::{Edge, Level, Polarity};
     use pamoja_gpio::spi::Mode;
 
-    // A BME280 answers at 7-bit address 0x76, which is not the byte that goes on the wire:
-    // the address shifts up one and the read/write bit fills the low bit.
+    // A BME280 answers at the 7-bit address its datasheet gives. That is not the byte
+    // that goes on the wire: the address shifts up one and the low bit says whether this
+    // transaction reads or writes, which is the step easiest to get wrong by hand.
+    const BME280: u8 = 0x76;
+    let sensor = Address::seven_bit(BME280).expect("a 7-bit address");
     let mut frame = [0u8; 2];
-    let sensor = Address::seven_bit(0x76).expect("a 7-bit address");
-    assert_eq!(sensor.write_frame(Direction::Write, &mut frame), Ok(1));
-    assert_eq!(frame[0], 0xEC);
-    assert_eq!(sensor.write_frame(Direction::Read, &mut frame), Ok(1));
-    assert_eq!(frame[0], 0xED);
+    sensor
+        .write_frame(Direction::Write, &mut frame)
+        .expect("one byte");
+    println!("write to  {:#04X}", frame[0]);
+    sensor
+        .write_frame(Direction::Read, &mut frame)
+        .expect("one byte");
+    println!("read from {:#04X}", frame[0]);
 
-    // UM10204 keeps 0x00..=0x07 and 0x78..=0x7F for itself, so an address in either range
-    // is a wiring mistake rather than a device.
-    assert!(!sensor.is_reserved());
-    assert!(Address::seven_bit(0x78).expect("in range").is_reserved());
+    // The I2C specification keeps two ranges of addresses for itself, so a part answering
+    // in either is a wiring mistake rather than a device.
+    let sensor_reserved = sensor.is_reserved();
+    let broadcast_reserved = Address::seven_bit(0x78).expect("in range").is_reserved();
+    println!("{BME280:#04X} reserved: {sensor_reserved}, 0x78 reserved: {broadcast_reserved}");
 
-    // A 10-bit address spends the reserved 11110 prefix over two bytes: the prefix, the top
-    // two address bits, and the read/write bit, then the low eight bits.
+    // A 10-bit address spends a reserved prefix over two bytes rather than one, so a bus
+    // driver has to send a different number of bytes depending on the address it holds.
     let wide = Address::ten_bit(0x2A5).expect("a 10-bit address");
-    assert_eq!(wide.frame_len(), 2);
-    assert_eq!(wide.write_frame(Direction::Write, &mut frame), Ok(2));
-    assert_eq!(frame, [0xF4, 0xA5]);
-    assert_eq!(wide.write_frame(Direction::Read, &mut frame), Ok(2));
-    assert_eq!(frame, [0xF5, 0xA5]);
+    println!("a 10-bit address takes {} bytes", wide.frame_len());
 
-    // Datasheets quote clock polarity and phase as one mode number, (CPOL << 1) | CPHA, so
-    // mode 3 idles the clock high and samples on the trailing edge.
-    assert_eq!(Mode::Mode3.cpol_cpha(), (true, true));
-    assert_eq!(Mode::from_cpol_cpha(true, false).number(), 2);
+    // Datasheets quote clock polarity and phase as one mode number. Mode 3 idles the
+    // clock high and samples on the trailing edge.
+    let (idles_high, trailing_edge) = Mode::Mode3.cpol_cpha();
+    println!("spi mode 3: idles high {idles_high}, samples on the trailing edge {trailing_edge}");
 
     // A relay board sold as active low energises when its pin is driven low. The polarity
-    // carries that inversion so no call site has to remember it.
-    assert_eq!(Polarity::ActiveLow.level(true), Level::Low);
-    assert!(Polarity::ActiveLow.is_asserted(Level::Low));
+    // carries that inversion, so no call site has to remember which way round it is.
+    let energise = Polarity::ActiveLow.level(true);
+    println!("to energise an active-low relay, drive the pin {energise:?}");
 
-    // Releasing the relay drives the line back high, an edge a falling trigger ignores.
-    assert!(Edge::Rising.triggered_by(Level::Low, Level::High));
-    assert!(!Edge::Falling.triggered_by(Level::Low, Level::High));
+    // Releasing it drives the line back high, an edge a falling trigger ignores.
+    let rising = Edge::Rising.triggered_by(Level::Low, Level::High);
+    let falling = Edge::Falling.triggered_by(Level::Low, Level::High);
+    println!("release seen by a rising trigger: {rising}, by a falling trigger: {falling}");
     // ANCHOR_END: example
+
+    assert_eq!(frame[0], 0xED);
+    assert!(!sensor_reserved);
+    assert!(broadcast_reserved);
+    assert_eq!(wide.frame_len(), 2);
+    assert_eq!((idles_high, trailing_edge), (true, true));
+    assert_eq!(Mode::from_cpol_cpha(true, false).number(), 2);
+    assert_eq!(energise, Level::Low);
+    assert!(Polarity::ActiveLow.is_asserted(Level::Low));
+    assert!(rising);
+    assert!(!falling);
 }

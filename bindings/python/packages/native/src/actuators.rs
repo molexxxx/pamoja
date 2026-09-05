@@ -127,6 +127,18 @@ pub fn pwm_servo<'py>(
     )
 }
 
+/// Reads a PCA9685 setting back from the four register bytes a channel holds.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn pwm_counts(data: Vec<u8>) -> PyResult<(u16, u16)> {
+    let registers: [u8; 4] = data
+        .as_slice()
+        .try_into()
+        .map_err(|_| pyo3::exceptions::PyValueError::new_err("pwm must be exactly 4 bytes"))?;
+    let pwm = pca9685::Pwm::from_bytes(&registers);
+    Ok((pwm.on(), pwm.off()))
+}
+
 /// The register bytes that hold a channel continuously high.
 #[gen_stub_pyfunction]
 #[pyfunction]

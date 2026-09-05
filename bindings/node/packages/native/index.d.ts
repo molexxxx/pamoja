@@ -2996,6 +2996,17 @@ export interface Progress {
   total: number
 }
 
+/** Reads a PCA9685 setting back from the four register bytes a channel holds. */
+export declare function pwmCounts(bytes: Buffer): PwmCounts
+
+/** A PCA9685 channel setting read back from its registers. */
+export interface PwmCounts {
+  /** The count at which the output goes high; bit 12 is the full-on flag. */
+  on: number
+  /** The count at which it goes low; bit 12 is the full-off flag. */
+  off: number
+}
+
 /** Builds a channel's register bytes with no phase delay: on at 0, off at `off`. */
 export declare function pwmDuty(off: number): Buffer
 

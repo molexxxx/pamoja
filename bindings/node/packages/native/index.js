@@ -926,6 +926,7 @@ module.exports.PinPolarity = nativeBinding.PinPolarity
 module.exports.pinPolarityIsAsserted = nativeBinding.pinPolarityIsAsserted
 module.exports.pinPolarityLevel = nativeBinding.pinPolarityLevel
 module.exports.PowerMode = nativeBinding.PowerMode
+module.exports.pwmCounts = nativeBinding.pwmCounts
 module.exports.pwmDuty = nativeBinding.pwmDuty
 module.exports.pwmFromCounts = nativeBinding.pwmFromCounts
 module.exports.pwmFullOff = nativeBinding.pwmFullOff

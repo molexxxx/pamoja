@@ -149,6 +149,32 @@ pub extern "C" fn pamoja_pwm_servo(pulse_micros: u32, update_rate_hz: u32) -> Pa
     pca9685::Pwm::servo(pulse_micros, update_rate_hz).into()
 }
 
+/// Reads a PCA9685 setting back from the four register bytes a channel holds.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success, with `*out_on` and `*out_off` set to the counts
+/// the registers hold, the full-on and full-off flags included.
+///
+/// # Safety
+///
+/// `out_on` and `out_off` must each point to a writable `uint16_t`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_pwm_counts(
+    pwm: PamojaPwm,
+    out_on: *mut u16,
+    out_off: *mut u16,
+) -> PamojaStatus {
+    if out_on.is_null() || out_off.is_null() {
+        set_last_error("out_on and out_off must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let setting = pca9685::Pwm::from_bytes(&[pwm.on_low, pwm.on_high, pwm.off_low, pwm.off_high]);
+    *out_on = setting.on();
+    *out_off = setting.off();
+    PamojaStatus::Ok
+}
+
 /// The setting that holds a channel continuously high.
 ///
 /// # Returns

@@ -237,6 +237,25 @@ impl Pwm {
         ]
     }
 
+    /// Reads a setting back from the four register bytes a channel holds.
+    ///
+    /// The inverse of [`bytes`](Pwm::bytes), so a caller can read a channel back off the
+    /// bus and see what it is set to rather than decoding the registers by hand.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - the four channel registers, `[on_low, on_high, off_low, off_high]`.
+    ///
+    /// # Returns
+    ///
+    /// The PWM setting those registers hold, full-on and full-off flags included.
+    pub fn from_bytes(bytes: &[u8; 4]) -> Pwm {
+        Pwm {
+            on: u16::from_le_bytes([bytes[0], bytes[1]]),
+            off: u16::from_le_bytes([bytes[2], bytes[3]]),
+        }
+    }
+
     /// Returns the count at which the output goes high.
     ///
     /// # Returns
@@ -316,5 +335,23 @@ mod tests {
         // The travel extremes.
         assert_eq!(Pwm::servo(1000, 50), Pwm::duty(204));
         assert_eq!(Pwm::servo(2000, 50), Pwm::duty(409));
+    }
+    #[test]
+    fn a_setting_reads_back_from_the_registers_it_writes() {
+        for setting in [
+            Pwm::servo(1500, 50),
+            Pwm::duty(0),
+            Pwm::duty(2048),
+            Pwm::full_on(),
+            Pwm::full_off(),
+            Pwm::from_counts(410, 1229),
+        ] {
+            assert_eq!(Pwm::from_bytes(&setting.bytes()), setting);
+        }
+
+        // A centred servo holds its output high for 1500 us of a 20 ms period, which is
+        // 307 of the part's 4096 counts.
+        assert_eq!(Pwm::servo(1500, 50).off(), 307);
+        assert_eq!(Pwm::servo(1500, 50).on(), 0);
     }
 }

@@ -18,6 +18,7 @@ from pamoja._native import pca9685_prescale_for_frequency as _prescale_for_frequ
 from pamoja._native import pwm_duty as _pwm_duty
 from pamoja._native import pwm_from_counts as _pwm_from_counts
 from pamoja._native import pwm_full_off as _pwm_full_off
+from pamoja._native import pwm_counts as _pwm_counts
 from pamoja._native import pwm_full_on as _pwm_full_on
 from pamoja._native import pwm_servo as _pwm_servo
 from pamoja._native import stepper_step_count as _step_count
@@ -171,6 +172,18 @@ class _Pwm:
         :returns: The four register bytes.
         """
         return _pwm_servo(pulse_micros, update_rate_hz)
+
+    def counts(self, data: bytes) -> tuple[int, int]:
+        """Read a setting back from the four register bytes a channel holds.
+
+        The inverse of the builders above, so a caller can read a channel off the bus
+        and see what it is set to rather than decoding the registers by hand.
+
+        :param data: The four channel registers.
+        :returns: The counts at which the output goes high and low.
+        :raises ValueError: If ``data`` is not four bytes.
+        """
+        return _pwm_counts(bytes(data))
 
     def full_on(self) -> bytes:
         """Return the setting that holds a channel continuously high.

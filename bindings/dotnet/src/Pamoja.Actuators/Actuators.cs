@@ -102,6 +102,32 @@ public static class Pwm
     /// </returns>
     public static byte[] FullOff() => Bytes(NativeMethods.pamoja_pwm_full_off());
 
+    /// <summary>Reads a setting back from the four register bytes a channel holds.</summary>
+    /// <remarks>
+    /// The inverse of the builders above, so a caller can read a channel off the bus and
+    /// see what it is set to rather than decoding the registers by hand.
+    /// </remarks>
+    /// <param name="bytes">The four channel registers.</param>
+    /// <returns>The counts at which the output goes high and low.</returns>
+    /// <exception cref="PamojaException">The registers are not four bytes.</exception>
+    public static (ushort On, ushort Off) Counts(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length != 4)
+        {
+            throw new PamojaException("pwm must be exactly 4 bytes");
+        }
+
+        PamojaPwm pwm = new()
+        {
+            OnLow = bytes[0],
+            OnHigh = bytes[1],
+            OffLow = bytes[2],
+            OffHigh = bytes[3],
+        };
+        Status.ThrowIfError(NativeMethods.pamoja_pwm_counts(pwm, out ushort on, out ushort off));
+        return (on, off);
+    }
+
     /// <summary>Lays a native setting out in register order.</summary>
     /// <param name="pwm">The setting the native call produced.</param>
     /// <returns>The four bytes.</returns>

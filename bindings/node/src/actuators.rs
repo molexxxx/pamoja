@@ -91,6 +91,29 @@ pub fn pwm_servo(pulse_micros: u32, update_rate_hz: u32) -> Buffer {
         .into()
 }
 
+/// A PCA9685 channel setting read back from its registers.
+#[napi(object)]
+pub struct PwmCounts {
+    /// The count at which the output goes high; bit 12 is the full-on flag.
+    pub on: u16,
+    /// The count at which it goes low; bit 12 is the full-off flag.
+    pub off: u16,
+}
+
+/// Reads a PCA9685 setting back from the four register bytes a channel holds.
+#[napi]
+pub fn pwm_counts(bytes: Buffer) -> napi::Result<PwmCounts> {
+    let registers: [u8; 4] = bytes
+        .as_ref()
+        .try_into()
+        .map_err(|_| napi::Error::from_reason("pwm must be exactly 4 bytes"))?;
+    let pwm = pca9685::Pwm::from_bytes(&registers);
+    Ok(PwmCounts {
+        on: pwm.on(),
+        off: pwm.off(),
+    })
+}
+
 /// The register bytes that hold a channel continuously high.
 #[napi]
 pub fn pwm_full_on() -> Buffer {

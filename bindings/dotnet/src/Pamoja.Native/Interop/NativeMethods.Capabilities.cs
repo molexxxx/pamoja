@@ -59,6 +59,13 @@ public static partial class NativeMethods
         nuint messageLen,
         out IntPtr outBuffer);
 
+    /// <summary>Reads the counts back out of a channel's four register bytes.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_pwm_counts(
+        PamojaPwm pwm,
+        out ushort outOn,
+        out ushort outOff);
+
     /// <summary>Releases a device identity handle. Passing null is a no-op.</summary>
     [LibraryImport(Library)]
     public static partial void pamoja_device_identity_free(IntPtr identity);

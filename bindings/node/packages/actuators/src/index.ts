@@ -19,6 +19,7 @@ import {
   pwmDuty,
   pwmFromCounts,
   pwmFullOff,
+  pwmCounts,
   pwmFullOn,
   pwmServo,
   type StepDirection as StepDirectionName,
@@ -163,6 +164,20 @@ export const pwm = {
    *
    * @returns The four register bytes.
    */
+  /**
+   * Reads a setting back from the four register bytes a channel holds.
+   *
+   * The inverse of the builders above, so a caller can read a channel off the bus and
+   * see what it is set to rather than decoding the registers by hand.
+   *
+   * @param bytes - The four channel registers.
+   * @returns The counts at which the output goes high and low.
+   * @throws If the buffer is not four bytes.
+   */
+  counts(bytes: Uint8Array): { on: number; off: number } {
+    return pwmCounts(Buffer.from(bytes))
+  },
+
   fullOn(): Buffer {
     return pwmFullOn()
   },

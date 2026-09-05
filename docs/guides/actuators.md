@@ -39,38 +39,53 @@ From [`examples/tests/guides/actuators.rs`](https://github.com/molexxxx/pamoja/b
 use pamoja_actuators::pca9685::{self, Pwm, INTERNAL_OSC_HZ};
 use pamoja_actuators::stepper::{steps_for_degrees, Direction, Drive, Sequencer};
 
-// The datasheet's worked example: 200 Hz off the 25 MHz internal oscillator is prescale
-// 0x1E, the value the part powers up holding. A servo bank wants 50 Hz instead.
-assert_eq!(pca9685::prescale_for_frequency(200, INTERNAL_OSC_HZ), 0x1E);
-assert_eq!(pca9685::prescale_for_frequency(50, INTERNAL_OSC_HZ), 0x79);
+// A servo bank wants 50 Hz. The prescale register that produces it is derived from
+// the part's 25 MHz internal oscillator, so a caller names the rate it wants rather
+// than working the divider out.
+let prescale = pca9685::prescale_for_frequency(50, INTERNAL_OSC_HZ);
+let rate = pca9685::frequency_for_prescale(prescale, INTERNAL_OSC_HZ);
+println!("prescale  {prescale} gives {rate:.1} Hz");
 
-// Each channel owns four consecutive registers from 0x06, so channel 3 starts at 0x12
-// and its four bytes go out in one bus transaction.
-assert_eq!(pca9685::channel_register(3), 0x12);
+// Each channel owns four consecutive registers, so a whole channel is written in one
+// bus transaction rather than four.
+println!(
+    "channel 3 starts at register {:#04X}",
+    pca9685::channel_register(3)
+);
 
-// A centred hobby servo holds its output high for 1500 us, 7.5 % of the 20 ms period,
-// which is 307 of the 4096 counts. The bytes are on-low, on-high, off-low, off-high.
-assert_eq!(Pwm::servo(1500, 50).bytes(), [0x00, 0x00, 0x33, 0x01]);
+// A centred hobby servo holds its output high for 1500 us of the 20 ms period. The
+// part counts in 4096 steps per period, so that is where the pulse ends.
+let centred = Pwm::servo(1500, 50);
+println!("centred servo goes low at count {} of 4096", centred.off());
 
-// Fully off carries its own bit rather than a zero duty, which still holds the output
-// high for the first count of every period.
-assert_eq!(Pwm::full_off().bytes(), [0x00, 0x00, 0x00, 0x10]);
-assert_eq!(Pwm::duty(0).bytes(), [0x00, 0x00, 0x00, 0x00]);
+// Fully off carries its own flag rather than a zero duty, which would still hold the
+// output high for the first count of every period.
+println!(
+    "full off flag set: {}",
+    Pwm::full_off().off() != Pwm::duty(0).off()
+);
 
-// Half-step drive interleaves the one-coil and two-coil patterns; the most significant
-// of the four bits is the first coil.
+// A stepper is driven by walking a pattern of coil states. Half-step drive
+// interleaves the one-coil and two-coil patterns, so it has twice as many.
 let mut motor = Sequencer::new(Drive::HalfStep);
-assert_eq!(motor.coils(), 0b1000);
-assert_eq!(motor.step(Direction::Forward), 0b1100);
-assert_eq!(motor.step(Direction::Forward), 0b0100);
+println!("coils     {:04b} at rest", motor.coils());
+for _ in 0..2 {
+    println!(
+        "coils     {:04b} after a step",
+        motor.step(Direction::Forward)
+    );
+}
 
-// The eight patterns of a cycle wrap, so the motor runs indefinitely either way, and an
-// angle converts to whole steps: a quarter turn of a 1.8-degree motor is 50 of them.
+// The patterns wrap, so the motor runs indefinitely either way, and an angle converts
+// to whole steps: a quarter turn of a 1.8-degree motor is fifty of them.
 for _ in 2..Drive::HalfStep.step_count() {
     motor.step(Direction::Forward);
 }
-assert_eq!(motor.coils(), 0b1000);
-assert_eq!(steps_for_degrees(90.0, 200), 50);
+println!(
+    "coils     {:04b} back at the start of the cycle",
+    motor.coils()
+);
+println!("a quarter turn is {} steps", steps_for_degrees(90.0, 200));
 ```
 <!-- end -->
 
@@ -80,8 +95,6 @@ assert_eq!(steps_for_degrees(90.0, 200), 50);
 From [`bindings/node/guides/actuators.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/actuators.ts):
 
 ```typescript
-import assert from 'node:assert/strict'
-
 import {
   StepDirection,
   StepDrive,
@@ -92,40 +105,42 @@ import {
   stepsForDegrees,
 } from '@pamoja/actuators'
 
-// The datasheet's worked example: 200 Hz off the 25 MHz internal oscillator is prescale
-// 0x1E, the value the part powers up holding. A servo bank wants 50 Hz instead.
-assert.equal(pca9685.prescaleForFrequency(200), 0x1e)
-assert.equal(pca9685.prescaleForFrequency(50), 0x79)
+// A servo bank wants 50 Hz. The prescale register that produces it is derived from the
+// part's 25 MHz internal oscillator, so a caller names the rate it wants rather than
+// working the divider out.
+const prescale = pca9685.prescaleForFrequency(50)
+console.log(`prescale  ${prescale} gives ${pca9685.frequencyForPrescale(prescale).toFixed(1)} Hz`)
 
-// Each channel owns four consecutive registers from 0x06, so channel 3 starts at 0x12
-// and its four bytes go out in one bus transaction.
-assert.equal(pca9685.channelRegister(3), 0x12)
+// Each channel owns four consecutive registers, so a whole channel is written in one bus
+// transaction rather than four.
+const register = pca9685.channelRegister(3)
+console.log(`channel 3 starts at register 0x${register.toString(16).toUpperCase()}`)
 
-// A centred hobby servo holds its output high for 1500 us, 7.5 % of the 20 ms period,
-// which is 307 of the 4096 counts. The bytes are on-low, on-high, off-low, off-high.
-assert.deepEqual([...pwm.servo(1500, 50)], [0x00, 0x00, 0x33, 0x01])
+// A centred hobby servo holds its output high for 1500 us of the 20 ms period. The part
+// counts in 4096 steps per period, so that is where the pulse ends.
+const centred = pwm.servo(1500, 50)
+console.log(`centred servo goes low at count ${pwm.counts(centred).off} of 4096`)
 
-// Fully off carries its own bit rather than a zero duty, which still holds the output
-// high for the first count of every period.
-assert.deepEqual([...pwm.fullOff()], [0x00, 0x00, 0x00, 0x10])
-assert.deepEqual([...pwm.duty(0)], [0x00, 0x00, 0x00, 0x00])
+// Fully off carries its own flag rather than a zero duty, which would still hold the
+// output high for the first count of every period.
+console.log(`full off flag set: ${pwm.counts(pwm.fullOff()).off !== pwm.counts(pwm.duty(0)).off}`)
 
-// Half-step drive interleaves the one-coil and two-coil patterns; the most significant
-// of the four bits is the first coil.
-const halfStep = StepDrive.HalfStep as StepDrive
-const forward = StepDirection.Forward as StepDirection
-const motor = new Stepper(halfStep)
-assert.equal(motor.coils, 0b1000)
-assert.equal(motor.step(forward), 0b1100)
-assert.equal(motor.step(forward), 0b0100)
-
-// The eight patterns of a cycle wrap, so the motor runs indefinitely either way, and an
-// angle converts to whole steps: a quarter turn of a 1.8-degree motor is 50 of them.
-for (let step = 2; step < stepCount(halfStep); step += 1) {
-  motor.step(forward)
+// A stepper is driven by walking a pattern of coil states. Half-step drive interleaves
+// the one-coil and two-coil patterns, so it has twice as many.
+const motor = new Stepper(StepDrive.HalfStep)
+const bits = (coils: number) => coils.toString(2).padStart(4, '0')
+console.log(`coils     ${bits(motor.coils)} at rest`)
+for (let step = 0; step < 2; step += 1) {
+  console.log(`coils     ${bits(motor.step(StepDirection.Forward))} after a step`)
 }
-assert.equal(motor.coils, 0b1000)
-assert.equal(stepsForDegrees(90, 200), 50)
+
+// The patterns wrap, so the motor runs indefinitely either way, and an angle converts to
+// whole steps: a quarter turn of a 1.8-degree motor is fifty of them.
+for (let step = 2; step < stepCount(StepDrive.HalfStep); step += 1) {
+  motor.step(StepDirection.Forward)
+}
+console.log(`coils     ${bits(motor.coils)} back at the start of the cycle`)
+console.log(`a quarter turn is ${stepsForDegrees(90, 200)} steps`)
 ```
 <!-- end -->
 
@@ -137,37 +152,38 @@ From [`bindings/python/guides/actuators.py`](https://github.com/molexxxx/pamoja/
 ```python
 from pamoja.actuators import Direction, Drive, Stepper, pca9685, pwm, steps_for_degrees
 
-# The datasheet's worked example: 200 Hz off the 25 MHz internal oscillator is prescale
-# 0x1E, the value the part powers up holding. A servo bank wants 50 Hz instead.
-assert pca9685.prescale_for_frequency(200) == 0x1E
-assert pca9685.prescale_for_frequency(50) == 0x79
+# A servo bank wants 50 Hz. The prescale register that produces it is derived from the
+# part's 25 MHz internal oscillator, so a caller names the rate it wants rather than
+# working the divider out.
+prescale = pca9685.prescale_for_frequency(50)
+print(f"prescale  {prescale} gives {pca9685.frequency_for_prescale(prescale):.1f} Hz")
 
-# Each channel owns four consecutive registers from 0x06, so channel 3 starts at 0x12
-# and its four bytes go out in one bus transaction.
-assert pca9685.channel_register(3) == 0x12
+# Each channel owns four consecutive registers, so a whole channel is written in one bus
+# transaction rather than four.
+print(f"channel 3 starts at register 0x{pca9685.channel_register(3):02X}")
 
-# A centred hobby servo holds its output high for 1500 us, 7.5 % of the 20 ms period,
-# which is 307 of the 4096 counts. The bytes are on-low, on-high, off-low, off-high.
-assert pwm.servo(1500, 50) == bytes([0x00, 0x00, 0x33, 0x01])
+# A centred hobby servo holds its output high for 1500 us of the 20 ms period. The part
+# counts in 4096 steps per period, so that is where the pulse ends.
+centred = pwm.servo(1500, 50)
+print(f"centred servo goes low at count {pwm.counts(centred)[1]} of 4096")
 
-# Fully off carries its own bit rather than a zero duty, which still holds the output
-# high for the first count of every period.
-assert pwm.full_off() == bytes([0x00, 0x00, 0x00, 0x10])
-assert pwm.duty(0) == bytes([0x00, 0x00, 0x00, 0x00])
+# Fully off carries its own flag rather than a zero duty, which would still hold the
+# output high for the first count of every period.
+print(f"full off flag set: {pwm.counts(pwm.full_off())[1] != pwm.counts(pwm.duty(0))[1]}")
 
-# Half-step drive interleaves the one-coil and two-coil patterns; the most significant
-# of the four bits is the first coil.
+# A stepper is driven by walking a pattern of coil states. Half-step drive interleaves
+# the one-coil and two-coil patterns, so it has twice as many.
 motor = Stepper(Drive.HALF_STEP)
-assert motor.coils == 0b1000
-assert motor.step(Direction.FORWARD) == 0b1100
-assert motor.step(Direction.FORWARD) == 0b0100
+print(f"coils     {motor.coils:04b} at rest")
+for _ in range(2):
+    print(f"coils     {motor.step(Direction.FORWARD):04b} after a step")
 
-# The eight patterns of a cycle wrap, so the motor runs indefinitely either way, and an
-# angle converts to whole steps: a quarter turn of a 1.8-degree motor is 50 of them.
+# The patterns wrap, so the motor runs indefinitely either way, and an angle converts to
+# whole steps: a quarter turn of a 1.8-degree motor is fifty of them.
 for _ in range(2, Drive.HALF_STEP.step_count):
     motor.step(Direction.FORWARD)
-assert motor.coils == 0b1000
-assert steps_for_degrees(90.0, 200) == 50
+print(f"coils     {motor.coils:04b} back at the start of the cycle")
+print(f"a quarter turn is {steps_for_degrees(90.0, 200)} steps")
 ```
 <!-- end -->
 
@@ -177,48 +193,48 @@ assert steps_for_degrees(90.0, 200) == 50
 From [`bindings/dotnet/samples/Pamoja.Guides/ActuatorsGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/ActuatorsGuide.cs):
 
 ```csharp
-// The datasheet's worked example: 200 Hz off the 25 MHz internal oscillator is
-// prescale 0x1E, the value the part powers up holding. A servo bank wants 50 Hz.
-Expect(Pca9685.PrescaleForFrequency(200) == 0x1E, "the datasheet's worked example");
-Expect(Pca9685.PrescaleForFrequency(50) == 0x79, "and the usual servo rate");
+// A servo bank wants 50 Hz. The prescale register that produces it is derived
+// from the part's 25 MHz internal oscillator, so a caller names the rate it wants
+// rather than working the divider out.
+byte prescale = Pca9685.PrescaleForFrequency(50);
+Console.WriteLine(
+    $"prescale  {prescale} gives {Pca9685.FrequencyForPrescale(prescale):F1} Hz");
 
-// Each channel owns four consecutive registers from 0x06, so channel 3 starts at
-// 0x12 and its four bytes go out in one bus transaction.
-Expect(Pca9685.ChannelRegister(3) == 0x12, "the fourth channel's register block");
+// Each channel owns four consecutive registers, so a whole channel is written in
+// one bus transaction rather than four.
+Console.WriteLine($"channel 3 starts at register 0x{Pca9685.ChannelRegister(3):X2}");
 
-// A centred hobby servo holds its output high for 1500 us, 7.5 % of the 20 ms
-// period, which is 307 of the 4096 counts. The bytes are on-low, on-high,
-// off-low, off-high.
-Expect(
-    Pwm.Servo(1500, 50).SequenceEqual(new byte[] { 0x00, 0x00, 0x33, 0x01 }),
-    "a centred pulse is 307 counts of the period");
+// A centred hobby servo holds its output high for 1500 us of the 20 ms period.
+// The part counts in 4096 steps per period, so that is where the pulse ends.
+byte[] centred = Pwm.Servo(1500, 50);
+Console.WriteLine($"centred servo goes low at count {Pwm.Counts(centred).Off} of 4096");
 
-// Fully off carries its own bit rather than a zero duty, which still holds the
-// output high for the first count of every period.
-Expect(
-    Pwm.FullOff().SequenceEqual(new byte[] { 0x00, 0x00, 0x00, 0x10 }),
-    "fully off is its own encoding");
-Expect(
-    Pwm.Duty(0).SequenceEqual(new byte[] { 0x00, 0x00, 0x00, 0x00 }),
-    "which a zero duty is not");
+// Fully off carries its own flag rather than a zero duty, which would still hold
+// the output high for the first count of every period.
+bool flagged = Pwm.Counts(Pwm.FullOff()).Off != Pwm.Counts(Pwm.Duty(0)).Off;
+Console.WriteLine($"full off flag set: {flagged}");
 
-// Half-step drive interleaves the one-coil and two-coil patterns; the most
-// significant of the four bits is the first coil.
+// A stepper is driven by walking a pattern of coil states. Half-step drive
+// interleaves the one-coil and two-coil patterns, so it has twice as many.
 using var motor = new Stepper(StepDrive.HalfStep);
-Expect(motor.Coils == 0b1000, "the cycle opens on one coil");
-Expect(motor.Step(StepDirection.Forward) == 0b1100, "then a pair of them");
-Expect(motor.Step(StepDirection.Forward) == 0b0100, "then the next coil alone");
+Console.WriteLine($"coils     {Convert.ToString(motor.Coils, 2).PadLeft(4, '0')} at rest");
+for (int step = 0; step < 2; step++)
+{
+    byte coils = motor.Step(StepDirection.Forward);
+    Console.WriteLine(
+        $"coils     {Convert.ToString(coils, 2).PadLeft(4, '0')} after a step");
+}
 
-// The eight patterns of a cycle wrap, so the motor runs indefinitely either way,
-// and an angle converts to whole steps: a quarter turn of a 1.8-degree motor is
-// 50 of them.
+// The patterns wrap, so the motor runs indefinitely either way, and an angle
+// converts to whole steps: a quarter turn of a 1.8-degree motor is fifty of them.
 for (int step = 2; step < Stepper.StepCount(StepDrive.HalfStep); step++)
 {
     motor.Step(StepDirection.Forward);
 }
 
-Expect(motor.Coils == 0b1000, "a full cycle returns to its first pattern");
-Expect(Stepper.StepsForDegrees(90.0f, 200) == 50, "a quarter turn is fifty steps");
+Console.WriteLine(
+    $"coils     {Convert.ToString(motor.Coils, 2).PadLeft(4, '0')} back at the start");
+Console.WriteLine($"a quarter turn is {Stepper.StepsForDegrees(90.0f, 200)} steps");
 ```
 <!-- end -->
 

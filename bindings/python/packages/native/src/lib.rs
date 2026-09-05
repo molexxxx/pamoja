@@ -252,6 +252,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(actuators::pwm_from_counts, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::pwm_duty, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::pwm_servo, m)?)?;
+        m.add_function(wrap_pyfunction!(actuators::pwm_counts, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::pwm_full_on, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::pwm_full_off, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::stepper_step_count, m)?)?;
