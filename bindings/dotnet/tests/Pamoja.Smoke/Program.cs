@@ -95,15 +95,13 @@ static void TrustAndOperation()
     Assert(
         shut.Previous.AsSpan().SequenceEqual(opened.Digest),
         "each record carries the hash of the one before it");
-    Assert(
-        Audit.VerifyChain(keeper.PublicKey, [opened, shut]),
-        "an untouched chain verifies");
+    Audit.VerifyChain(keeper.PublicKey, [opened, shut]);
 
     byte[] edited = shut.ToBytes();
     edited[^1] ^= 0xFF;
     using AuditEntry tampered = AuditEntry.FromBytes(edited);
-    Assert(
-        !Audit.VerifyChain(keeper.PublicKey, [opened, tampered]),
+    Refuses(
+        () => Audit.VerifyChain(keeper.PublicKey, [opened, tampered]),
         "and an altered record breaks it");
 
     using AuditLog resumed = AuditLog.Resume(keeper, shut);
@@ -952,6 +950,20 @@ static void Assert(bool condition, string message)
     {
         Fail(message);
     }
+}
+
+static void Refuses(Action call, string message)
+{
+    try
+    {
+        call();
+    }
+    catch (PamojaException)
+    {
+        return;
+    }
+
+    Fail(message);
 }
 
 static void Fail(string message)
@@ -3418,12 +3430,12 @@ static void ConformAudit(JsonElement vector)
         entries.Add(entry);
     }
 
-    Assert(Audit.VerifyChain(keeper.PublicKey, entries), "an untouched chain verifies");
+    Audit.VerifyChain(keeper.PublicKey, entries);
 
     using AuditEntry tampered = AuditEntry.FromBytes(
         Convert.FromHexString(vector.GetProperty("tampered").GetString()!));
-    Assert(
-        !Audit.VerifyChain(keeper.PublicKey, [entries[0], entries[1], tampered]),
+    Refuses(
+        () => Audit.VerifyChain(keeper.PublicKey, [entries[0], entries[1], tampered]),
         "and an altered record breaks it");
 
     JsonElement resumedWant = vector.GetProperty("resumed");

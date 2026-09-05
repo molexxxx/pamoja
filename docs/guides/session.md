@@ -21,8 +21,11 @@ salt that travels in the clear, seals a flow reading with the pump id as
 associated data, and opens it at the far end. Then the same frame is offered a
 second time.
 
-The seeds are the only bytes written out on the page. A real one comes from the
-factory or a secure element and never leaves the device; any 32 stand in here.
+The seeds are the only key material written out on the page. A real one comes
+
+from the factory or a secure element and never leaves the device; any 32 bytes
+
+stand in here.
 The public keys are derived from them, the salt is drawn from the system random
 source at run time rather than fixed here, and the counter and tag that
 authenticate the frame come back from `seal`, so a caller never composes a
@@ -30,10 +33,11 @@ nonce. The key agreement itself is pinned to the X25519 vector RFC 7748
 publishes in `pamoja-session`'s own tests, which is where a published constant
 belongs.
 
-Sealing rewrites the buffer it is given, so the Rust example copies the
-ciphertext before the gateway opens it and replays that copy. The refusal comes
-from the counter window rather than from a buffer that has already been
-overwritten.
+Sealing in Rust rewrites the buffer it is given, so that example copies the
+ciphertext before the gateway opens it and replays that copy; the bindings
+return the ciphertext beside the counter and tag and leave the plaintext they
+were given untouched. The refusal comes from the counter window rather than
+from a buffer that has already been overwritten.
 
 It proves:
 
@@ -75,7 +79,10 @@ println!("both sides derived a key without sending one");
 // change to it fails the tag. Sealing replaces the plaintext in the buffer it is given.
 let mut frame = *b"flow=41.2";
 let sealed = uplink.seal(&mut frame, b"pump-3");
-println!("sealed    the reading is no longer readable in the buffer");
+println!(
+    "sealed    the reading is no longer readable: {}",
+    frame != *b"flow=41.2"
+);
 
 // The gateway opens it back into the same buffer.
 let mut replayed = frame;

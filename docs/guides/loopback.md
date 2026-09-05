@@ -32,8 +32,8 @@ It proves:
   first.
 - `#` matches the levels that remain, so the second filter takes the deeper
   topic the single-level one passed over.
-- A link that subscribes late gets only what is published after it, not the
-  traffic the broker has already routed.
+- A link can join a broker that has already routed traffic, take a filter of
+  its own, and receive a reading published after it connects.
 - A disconnected link fails the send rather than accepting a reading it has no
   way to deliver.
 
@@ -116,30 +116,30 @@ async function main() {
   await publisher.connect()
   await subscriber.connect()
 
-  // A `+` stands for exactly one level, so this takes the node's temperature but not the
+  // A `+` stands for exactly one level, so this takes the mixer's temperature but not the
   // raw reading a level below it.
-  await subscriber.subscribe('sensors/+/temperature')
-  await publisher.send('sensors/8/temperature/raw', Buffer.from('2150'))
-  await publisher.send('sensors/8/temperature', Buffer.from('21.5'))
+  await subscriber.subscribe('line/+/temp')
+  await publisher.send('line/mixer/temp/raw', Buffer.from('2150'))
+  await publisher.send('line/mixer/temp', Buffer.from('21.5'))
 
   const message = (await subscriber.recv())!
-  console.log(`sensors/+/temperature took ${message.payload.toString()} from ${message.topic}`)
+  console.log(`line/+/temp took ${message.payload.toString()} from ${message.topic}`)
 
   // A `#` covers every level that remains, so a second link takes the whole subtree,
   // including the reading the single-level filter passed over.
   const watcher = broker.link()
   await watcher.connect()
-  await watcher.subscribe('sensors/#')
-  await publisher.send('sensors/8/temperature/raw', Buffer.from('2150'))
+  await watcher.subscribe('line/#')
+  await publisher.send('line/mixer/temp/raw', Buffer.from('2150'))
 
   const deep = (await watcher.recv())!
-  console.log(`sensors/#             took ${deep.payload.toString()} from ${deep.topic}`)
+  console.log(`line/#     took ${deep.payload.toString()} from ${deep.topic}`)
 
   // A link that has been disconnected reports the failure instead of dropping the reading,
   // which is the case a test wants to reach without unplugging anything.
   await publisher.disconnect()
   try {
-    await publisher.send('sensors/8/temperature', Buffer.from('21.6'))
+    await publisher.send('line/mixer/temp', Buffer.from('21.6'))
     console.log('a disconnected link took a reading, which should never happen')
   } catch (error) {
     console.log(`disconnected refused the reading: ${(error as Error).message}`)
@@ -174,30 +174,30 @@ async def main() -> None:
     await publisher.connect()
     await subscriber.connect()
 
-    # A `+` stands for exactly one level, so this takes the node's temperature but not the
+    # A `+` stands for exactly one level, so this takes the mixer's temperature but not the
     # raw reading a level below it.
-    await subscriber.subscribe("sensors/+/temperature")
-    await publisher.send("sensors/8/temperature/raw", b"2150")
-    await publisher.send("sensors/8/temperature", b"21.5")
+    await subscriber.subscribe("line/+/temp")
+    await publisher.send("line/mixer/temp/raw", b"2150")
+    await publisher.send("line/mixer/temp", b"21.5")
 
     message = await subscriber.recv()
-    print(f"sensors/+/temperature took {message.payload.decode()} from {message.topic}")
+    print(f"line/+/temp took {message.payload.decode()} from {message.topic}")
 
     # A `#` covers every level that remains, so a second link takes the whole subtree,
     # including the reading the single-level filter passed over.
     watcher = broker.link()
     await watcher.connect()
-    await watcher.subscribe("sensors/#")
-    await publisher.send("sensors/8/temperature/raw", b"2150")
+    await watcher.subscribe("line/#")
+    await publisher.send("line/mixer/temp/raw", b"2150")
 
     deep = await watcher.recv()
-    print(f"sensors/#             took {deep.payload.decode()} from {deep.topic}")
+    print(f"line/#     took {deep.payload.decode()} from {deep.topic}")
 
     # A link that has been disconnected reports the failure instead of dropping the
     # reading, which is the case a test wants to reach without unplugging anything.
     await publisher.disconnect()
     try:
-        await publisher.send("sensors/8/temperature", b"21.6")
+        await publisher.send("line/mixer/temp", b"21.6")
         print("a disconnected link took a reading, which should never happen")
     except PamojaError as error:
         print(f"disconnected refused the reading: {error}")
@@ -224,27 +224,27 @@ using LoopbackTransport subscriber = broker.Link();
 await publisher.ConnectAsync();
 await subscriber.ConnectAsync();
 
-// A `+` stands for exactly one level, so this takes the node's temperature but
+// A `+` stands for exactly one level, so this takes the mixer's temperature but
 // not the raw reading a level below it.
-await subscriber.SubscribeAsync("sensors/+/temperature");
-await publisher.SendAsync("sensors/8/temperature/raw", "2150"u8.ToArray());
-await publisher.SendAsync("sensors/8/temperature", "21.5"u8.ToArray());
+await subscriber.SubscribeAsync("line/+/temp");
+await publisher.SendAsync("line/mixer/temp/raw", "2150"u8.ToArray());
+await publisher.SendAsync("line/mixer/temp", "21.5"u8.ToArray());
 
 TransportMessage message = (await subscriber.ReceiveAsync())!;
 Console.WriteLine(
-    $"sensors/+/temperature took {System.Text.Encoding.UTF8.GetString(message.Payload)}"
+    $"line/+/temp took {System.Text.Encoding.UTF8.GetString(message.Payload)}"
     + $" from {message.Topic}");
 
 // A `#` covers every level that remains, so a second link takes the whole subtree,
 // including the reading the single-level filter passed over.
 using LoopbackTransport watcher = broker.Link();
 await watcher.ConnectAsync();
-await watcher.SubscribeAsync("sensors/#");
-await publisher.SendAsync("sensors/8/temperature/raw", "2150"u8.ToArray());
+await watcher.SubscribeAsync("line/#");
+await publisher.SendAsync("line/mixer/temp/raw", "2150"u8.ToArray());
 
 TransportMessage deep = (await watcher.ReceiveAsync())!;
 Console.WriteLine(
-    $"sensors/#             took {System.Text.Encoding.UTF8.GetString(deep.Payload)}"
+    $"line/#     took {System.Text.Encoding.UTF8.GetString(deep.Payload)}"
     + $" from {deep.Topic}");
 
 // A link that has been disconnected reports the failure instead of dropping the
@@ -252,7 +252,7 @@ Console.WriteLine(
 await publisher.DisconnectAsync();
 try
 {
-    await publisher.SendAsync("sensors/8/temperature", "21.6"u8.ToArray());
+    await publisher.SendAsync("line/mixer/temp", "21.6"u8.ToArray());
     Console.WriteLine("a disconnected link took a reading, which should never happen");
 }
 catch (PamojaException error)

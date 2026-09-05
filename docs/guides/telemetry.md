@@ -17,10 +17,12 @@ falls back to satellite, records the same reading again and a lost-link
 failure, and prints which of the five come back to be shipped. It ends on the
 snapshot, the few integers a node ships in place of the events themselves.
 
-No threshold is typed in. `adapt_to` takes a link cost and the library derives
-the level from it, so what a reader sees is the price of the link rather than a
-number someone picked. The same `reading.ok` is recorded under both costs, so
-what decides whether it travels is the link and not the event.
+The only level typed in is the `Trace` the reporter starts at, and it decides
+nothing: the bar is the link's before the first event is recorded. `adapt_to`
+takes a link cost and the library derives the level from it, so what a reader
+sees is the price of the link rather than a number someone picked. The same
+`reading.ok` is recorded under both costs, so what decides whether it travels
+is the link and not the event.
 
 It proves:
 
@@ -63,7 +65,8 @@ println!("reading.ok sent: {}", reading.is_some());
 let warned = reporter
     .record(Event::warn("battery.low").with_value(0.18))
     .expect("a warning is worth a metered link");
-println!("sent      {} carrying {:?}", warned.code, warned.value);
+let measured = warned.value.expect("the measurement that triggered it");
+println!("sent      {} carrying {measured}", warned.code);
 
 // The node falls back to satellite, which raises the bar to Warn. The same reading is
 // no longer worth its bytes; a failure still is.
@@ -133,7 +136,7 @@ from pamoja.telemetry import Event, Level, LinkCost, Reporter, link_cost_thresho
 # link, which puts the bar at INFO.
 reporter = Reporter(Level.TRACE)
 reporter.adapt_to(LinkCost.METERED)
-print(f"on a metered link, nothing below {reporter.threshold} is sent")
+print(f"on a metered link, nothing below {reporter.threshold.value} is sent")
 
 # Routine detail stops going out. A reading and the warning that follows it still do, and
 # a shipped event comes back with the measurement that triggered it.

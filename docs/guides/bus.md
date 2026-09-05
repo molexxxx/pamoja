@@ -34,10 +34,10 @@ It proves:
   `battery.low` off its own queue.
 - A subscriber taken later starts at the next event, so its first read is
   `link.up` and what went out before it existed is gone for good.
-- The subscriber that was already there still has `link.up` waiting after the
-  late one has read it, so an event is not consumed by whoever reads first.
-- Five events into a buffer of two leave the reader at `3` and then `4`, so a
-  reader that falls behind loses the oldest events, not the newest.
+- The logger still has `battery.low` waiting after control has read it, so an
+  event is not consumed by whoever reads first.
+- Five events into a buffer of two leave the reader at `3`, so a reader that
+  falls behind loses the oldest events, not the newest.
 - All five publishes return with nothing draining the buffer, so a slow
   subscriber costs itself rather than the publisher.
 
@@ -57,16 +57,28 @@ let mut control = hub.subscribe();
 let mut logger = hub.subscribe();
 
 hub.publish("battery.low").await.expect("published");
-let to_control = control.next_event().await.expect("an event");
-let to_logger = logger.next_event().await.expect("an event");
-println!("control saw {to_control:?}, the logger saw {to_logger:?}");
+let to_control = control
+    .next_event()
+    .await
+    .expect("a live bus")
+    .expect("an event");
+let to_logger = logger
+    .next_event()
+    .await
+    .expect("a live bus")
+    .expect("an event");
+println!("control saw {to_control}, the logger saw {to_logger}");
 
 // A subscriber taken later starts from the next event, so it never sees what went out
 // before it existed.
 let mut late = hub.subscribe();
 hub.publish("link.up").await.expect("published");
-let first_seen = late.next_event().await.expect("an event");
-println!("the late subscriber's first event is {first_seen:?}");
+let first_seen = late
+    .next_event()
+    .await
+    .expect("a live bus")
+    .expect("an event");
+println!("the late subscriber's first event is {first_seen}");
 
 // The buffer is per subscriber and bounded, so one further behind than the capacity
 // drops what it missed and resumes with the most recent events. A slow reader costs
@@ -76,8 +88,12 @@ let mut reader = slow.subscribe();
 for count in 0..5u8 {
     slow.publish(count).await.expect("published");
 }
-let resumed = reader.next_event().await.expect("an event");
-println!("after five events into a buffer of two, the reader resumes at {resumed:?}");
+let resumed = reader
+    .next_event()
+    .await
+    .expect("a live bus")
+    .expect("an event");
+println!("after five events into a buffer of two, the reader resumes at {resumed}");
 ```
 <!-- end -->
 

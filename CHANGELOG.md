@@ -69,6 +69,11 @@ released together, so one entry covers all of them.
 
 - `pamoja-ffi` exposes every capability behind a default-on feature and now
   depends on the whole workspace.
+- Verifying an audit chain reports why it failed in every language, not only in
+  Rust. The three bindings collapsed the engine's reason to a bare true or
+  false, so a caller could tell that a log had been altered but not which record
+  broke it or whether the log had instead been shortened. They now raise the
+  reason, the way every other fallible call in them already does.
 - A J1939 payload is a value with named signals rather than eight bytes to
   slice, in every language: `Signals` starts filled with the byte the standard
   reserves for a signal a controller is not reporting, the priorities and the

@@ -73,7 +73,8 @@ fn a_release_reaches_a_device_and_confirms_itself() {
 
     // The first boot into a new image is a trial. It reverts on the next boot unless the
     // device confirms that it came up, which is what makes a bad release survivable.
-    println!("booting   {:?}", updater.on_boot().expect("a decision"));
+    let decision = updater.on_boot().expect("a decision");
+    println!("booting   {}", decision.action());
     updater.confirm().expect("it came up");
     let state = updater.store().record(slot).expect("the new slot").state;
     println!("confirmed slot {slot} is now {state:?}");

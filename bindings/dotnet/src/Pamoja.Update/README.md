@@ -78,7 +78,7 @@ Array.Fill(impostorSeed, (byte)90);
 using var impostor = new DeviceIdentity(impostorSeed);
 try
 {
-    fleet.Stage(Update.SignManifest(manifest with { Sequence = 3 }, impostor), image);
+    fleet.Stage(Update.SignManifest(manifest, impostor), image);
     Console.WriteLine("a forged release was accepted, which should never happen");
 }
 catch (PamojaException error)

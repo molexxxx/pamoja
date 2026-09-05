@@ -3391,10 +3391,10 @@ export declare function verify(publicKey: Buffer, payload: Buffer, signature: Bu
 /**
  * Checks a whole chain that has already arrived.
  *
- * Returns `false` if any entry fails to follow the one before it or carries a
- * signature that does not hold.
+ * Throws with the reason if any entry fails to follow the one before it or
+ * carries a signature that does not hold.
  */
-export declare function verifyAuditChain(publicKey: Buffer, entries: Array<AuditEntry>): boolean
+export declare function verifyAuditChain(publicKey: Buffer, entries: Array<AuditEntry>): void
 
 /**
  * Verifies an envelope against a key and reads the manifest inside it.

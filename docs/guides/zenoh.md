@@ -13,9 +13,10 @@ It asks what each wildcard selects, using keys under a fleet subtree as the
 subject, then canonizes an expression written with a repeated wildcard, and
 finally offers a malformed one.
 
-The canonical form is not written out. `canonize` derives `fleet/**/battery`
-from the redundant `fleet/**/**/battery`, and the example asks the library
-whether what comes back is canonical rather than assuming it.
+`canonize` reduces the redundant `fleet/**/**/battery` to `fleet/**/battery`,
+which is the same spelling the `**` line above already used as a pattern. The
+example checks what comes back against it, and asks the library separately
+whether that spelling is the canonical one.
 
 It proves:
 
@@ -25,8 +26,8 @@ It proves:
   `fleet/n7/rack/battery`, and `fleet/**/battery` covers `fleet/battery`, where
   it stands for none at all.
 - A repeated wildcard is not canonical. `fleet/**/**/battery` canonizes to
-  `fleet/**/battery`, and that form is canonical, so a router compares
-  subscriptions in it rather than as written.
+  `fleet/**/battery`, so a router compares subscriptions in that form rather
+  than as written.
 - An empty chunk makes `fleet//battery` invalid, and canonizing it yields
   nothing rather than a repaired expression.
 
@@ -59,18 +60,19 @@ println!(
 // Two expressions that select the same keys have one canonical form. Comparing or
 // routing on the written form would treat these as different subscriptions.
 let written = "fleet/**/**/battery";
-let canonical = canonize(written);
+let canonical = canonize(written).expect("a canonical form");
 println!(
-    "{written} is canonical: {}, and canonizes to {canonical:?}",
+    "{written} is canonical: {}, and canonizes to {canonical}",
     is_canon(written)
 );
 
 // A malformed expression is rejected rather than canonized into something plausible.
 let malformed = "fleet//battery";
+let refused = canonize(malformed);
 println!(
-    "{malformed} is valid: {}, canonizes to {:?}",
+    "{malformed} is valid: {}, canonizes to {}",
     is_valid(malformed),
-    canonize(malformed)
+    refused.as_deref().unwrap_or("nothing")
 );
 ```
 <!-- end -->

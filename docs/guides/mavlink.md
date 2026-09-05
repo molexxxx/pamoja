@@ -24,9 +24,9 @@ exact v1 and v2 frame bytes are pinned in the conformance vectors every binding
 checks itself against, so this page shows the exchange instead.
 
 It proves:
-
 - Fed noise and a copy whose checksum fails, the parser still recovers the
-  frame behind them, and it decodes to the vehicle's heartbeat field for field.
+  frame behind them, and it decodes back to the vehicle's heartbeat: Rust
+  compares every field, the other three the type it reports.
 - The recovered frame carries the message id the dialect gives `HEARTBEAT`, so
   the header agrees with the payload it wraps.
 - The first arm request goes out with confirmation `0`, and a timeout hands back

@@ -140,14 +140,14 @@ impl AuditVerifier {
 
 /// Checks a whole chain that has already arrived.
 ///
-/// Returns `False` if any entry fails to follow the one before it or carries a
-/// signature that does not hold.
+/// Raises with the reason if any entry fails to follow the one before it or
+/// carries a signature that does not hold.
 #[gen_stub_pyfunction]
 #[pyfunction]
-pub fn verify_audit_chain(public_key: Vec<u8>, entries: Vec<AuditEntry>) -> PyResult<bool> {
+pub fn verify_audit_chain(public_key: Vec<u8>, entries: Vec<AuditEntry>) -> PyResult<()> {
     let key = public(&public_key)?;
     let owned: Vec<Entry> = entries.into_iter().map(|entry| entry.inner).collect();
-    Ok(verify_chain(&key, &owned).is_ok())
+    verify_chain(&key, &owned).map_err(|error| PamojaError::new_err(error.to_string()))
 }
 
 /// Reads a 32-byte public key, rejecting one that is not a valid key.

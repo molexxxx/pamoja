@@ -24,22 +24,22 @@ fn a_ros2_name_maps_to_the_dds_topic_and_type_the_graph_expects() {
 
     // On the wire a topic carries a prefix that says what kind of endpoint it is, so a
     // subscription and a service request never collide in the same DDS partition.
-    let published = dds_topic("/robot1/cmd_vel", EntityKind::Topic);
-    let asked = dds_topic("/robot1/add", EntityKind::ServiceRequest);
-    let answered = dds_topic("/robot1/add", EntityKind::ServiceResponse);
-    println!("a topic    becomes {published:?}");
-    println!("a request  becomes {asked:?}");
-    println!("a response becomes {answered:?}");
+    let published = dds_topic("/robot1/cmd_vel", EntityKind::Topic).expect("a valid name");
+    let asked = dds_topic("/robot1/add", EntityKind::ServiceRequest).expect("a valid name");
+    let answered = dds_topic("/robot1/add", EntityKind::ServiceResponse).expect("a valid name");
+    println!("a topic    becomes {published}");
+    println!("a request  becomes {asked}");
+    println!("a response becomes {answered}");
 
     // A message type maps to a DDS type name the same way, so both ends agree on what is
-    // being carried before a byte is exchanged.
+    // being carried before a byte is exchanged. A name that is not well formed maps to
+    // nothing rather than to something plausible.
+    let carried = dds_type_name("std_msgs/msg/String").expect("a well-formed type name");
+    let malformed = dds_type_name("not a type");
+    println!("std_msgs/msg/String becomes {carried}");
     println!(
-        "std_msgs/msg/String becomes {:?}",
-        dds_type_name("std_msgs/msg/String")
-    );
-    println!(
-        "a malformed type name becomes {:?}",
-        dds_type_name("not a type")
+        "a malformed type name becomes {}",
+        malformed.as_deref().unwrap_or("nothing")
     );
     // ANCHOR_END: example
 
@@ -47,12 +47,9 @@ fn a_ros2_name_maps_to_the_dds_topic_and_type_the_graph_expects() {
     assert!(!is_valid_name("/2foo"));
     assert!(is_fully_qualified("/chatter"));
     assert!(!is_fully_qualified("chatter"));
-    assert_eq!(published.as_deref(), Some("rt/robot1/cmd_vel"));
-    assert_eq!(asked.as_deref(), Some("rq/robot1/add"));
-    assert_eq!(answered.as_deref(), Some("rr/robot1/add"));
-    assert_eq!(
-        dds_type_name("std_msgs/msg/String").as_deref(),
-        Some("std_msgs::msg::dds_::String_")
-    );
-    assert_eq!(dds_type_name("not a type"), None);
+    assert_eq!(published, "rt/robot1/cmd_vel");
+    assert_eq!(asked, "rq/robot1/add");
+    assert_eq!(answered, "rr/robot1/add");
+    assert_eq!(carried, "std_msgs::msg::dds_::String_");
+    assert_eq!(malformed, None);
 }

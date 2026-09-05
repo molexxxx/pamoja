@@ -41,13 +41,13 @@ fn what_one_reading_costs_on_a_european_band() {
     // The airtime plus that silence is what one reading really costs, which is the budget
     // a deployment plans against.
     let per_hour = 3_600_000_000 / (airtime + off_time);
-    println!("budget    {per_hour} readings an hour at this data rate");
+    println!("budget    {per_hour} readings an hour");
 
     // A frequency in no sub-band the plan describes has no duty cycle to budget against.
     // That is a limit published elsewhere, not permission to transmit.
     match plan.duty_cycle_permille(700_000_000) {
         Some(limit) => println!("700 MHz reported a {limit} per mille limit, which it has none of"),
-        None => println!("700 MHz  is outside this plan, so it budgets nothing"),
+        None => println!("700 MHz  is outside this plan, so it budgets nothing: true"),
     }
     // ANCHOR_END: example
 

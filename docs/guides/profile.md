@@ -35,12 +35,12 @@ It proves:
   the node runs on, with `cooling` set false marking the output a heater.
 - `saver_below` never appears in the manifest and still reads `0.5`, the
   documented default, rather than nothing.
-- A reading below the deadband switches the lamp on and raises `OutOfRange`
-  carrying the `27.5` that caused it, so what tripped the alert travels with it.
+- A reading below the deadband switches the lamp on and raises `OutOfRange`, so
+  the excursion is reported as well as acted on.
 - A reading inside the safe band raises nothing, so an alert tracks the band
   rather than firing on every sample.
-- Serializing writes the defaulted threshold out by name, and reloading that
-  text gives back an equal profile.
+- Serializing writes the defaulted threshold out by name, so the shared text
+  names `saver_below` even though the manifest never did.
 
 ## Rust
 
@@ -76,17 +76,15 @@ println!(
 // The manifest is the whole control loop. At 27.5 C the reading is below the deadband,
 // so the lamp switches on, and it is more than 4 C from target, so the chicks are cold.
 let cold = profile.controller().evaluate(27.5);
-println!(
-    "at 27.5 C: lamp {:?}, alert {:?}",
-    cold.actuator, cold.alert
-);
+let switched_on = cold.actuator.expect("this profile drives an output");
+let raised = cold.alert.expect("a reading outside the safe band");
+println!("at 27.5 C: lamp {switched_on}, alert {}", raised.kind());
 
 // Back inside the deadband the lamp is left as it was, and nothing is raised.
 let settled = profile.controller().evaluate(32.2);
-println!(
-    "at 32.2 C: lamp {:?}, alert {:?}",
-    settled.actuator, settled.alert
-);
+let still_on = settled.actuator.expect("this profile drives an output");
+let quiet = settled.alert.map_or("none", Alert::kind);
+println!("at 32.2 C: lamp {still_on}, alert {quiet}");
 
 // Serializing writes the defaulted fields out in full, so a profile edited on a device
 // and shared back carries no value the next reader has to infer.
@@ -214,7 +212,8 @@ Console.WriteLine($"at 27.5 C: lamp {cold.Actuator}, alert {cold.Alert?.Kind}");
 
 // Back inside the deadband the lamp is left as it was, and nothing is raised.
 Reaction settled = profile.Controller().Evaluate(32.2f);
-Console.WriteLine($"at 32.2 C: lamp {settled.Actuator}, alert {settled.Alert?.Kind}");
+string quiet = settled.Alert?.Kind.ToString() ?? "none";
+Console.WriteLine($"at 32.2 C: lamp {settled.Actuator}, alert {quiet}");
 
 // Serializing writes the defaulted fields out in full, so a profile edited on a
 // device and shared back carries no value the next reader has to infer.

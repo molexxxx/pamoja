@@ -17,10 +17,17 @@ keeps back, then asks how many bytes a 10-bit address puts on the wire. It
 reads the clock polarity and phase back out of SPI mode 3, and works out which
 level energises an active-low relay and which edge releasing it raises.
 
-The only numbers typed in are the ones a datasheet prints: the address `0x76`
-and the mode number 3. The bytes that reach the bus, the polarity and phase
-pair, and the level that drives the relay all come back from the library, so no
-call site shifts an address or reads a mode table itself.
+The numbers typed in are the ones a datasheet or the specification prints: the
+
+address `0x76`, the 10-bit address `0x2A5` that UM10204 works through, and the
+
+mode number 3. The reserved address the check runs against, the bytes that
+
+reach the bus, the polarity and phase pair, and the level that drives the
+
+relay all come back from the library, so no call site shifts an address or
+
+reads a mode table itself.
 
 It proves:
 
@@ -62,8 +69,8 @@ println!("read from {:#04X}", to_read.as_bytes()[0]);
 // in either is a wiring mistake rather than a device.
 let sensor_reserved = sensor.is_reserved();
 let prefix = Address::seven_bit(RESERVED_FROM).expect("in range");
-println!("{BME280:#04X} reserved: {sensor_reserved}");
-println!("{RESERVED_FROM:#04X} reserved: {}", prefix.is_reserved());
+let prefix_reserved = prefix.is_reserved();
+println!("{BME280:#04X} reserved: {sensor_reserved}, {RESERVED_FROM:#04X} reserved: {prefix_reserved}");
 
 // A 10-bit address spends a reserved prefix over two bytes rather than one, so a bus
 // driver has to send a different number of bytes depending on the address it holds.

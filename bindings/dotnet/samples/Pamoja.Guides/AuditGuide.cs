@@ -1,3 +1,4 @@
+using Pamoja;
 using Pamoja.Audit;
 using Pamoja.Security;
 
@@ -27,21 +28,38 @@ public static class AuditGuide
         // Each record hashes its own index, the digest of the record before it, and what
         // it carries, so the chain fixes the order as well as the contents.
         Console.WriteLine($"chained   {stopped.Previous.SequenceEqual(lit.Digest)}");
-        Console.WriteLine($"verified  {Audit.VerifyChain(auditor, [lit, stopped])}");
+        Audit.VerifyChain(auditor, [lit, stopped]);
+        Console.WriteLine("verified  the whole log is authentic and in order");
 
         // Editing a stored record changes the digest its signature covers.
         byte[] edited = stopped.ToBytes();
         edited[^1] ^= 0xFF;
         using AuditEntry tampered = AuditEntry.FromBytes(edited);
-        Console.WriteLine($"edited    caught: {!Audit.VerifyChain(auditor, [lit, tampered])}");
+        try
+        {
+            Audit.VerifyChain(auditor, [lit, tampered]);
+            Console.WriteLine("an edited record verified, which should never happen");
+        }
+        catch (PamojaException error)
+        {
+            Console.WriteLine($"edited    caught: {error.Message}");
+        }
 
         // Dropping the first record leaves the survivor chained to a link that is no
         // longer there, so a shortened log is caught as readily as an edited one.
-        Console.WriteLine($"shortened caught: {!Audit.VerifyChain(auditor, [stopped])}");
+        try
+        {
+            Audit.VerifyChain(auditor, [stopped]);
+            Console.WriteLine("a shortened log verified, which should never happen");
+        }
+        catch (PamojaException error)
+        {
+            Console.WriteLine($"shortened caught: {error.Message}");
+        }
         // ANCHOR_END: example
 
-        Expect(Audit.VerifyChain(auditor, [lit, stopped]), "an untouched chain verifies");
-        Expect(!Audit.VerifyChain(auditor, [lit, tampered]), "an edited record does not");
-        Expect(!Audit.VerifyChain(auditor, [stopped]), "nor does a shortened log");
+        Audit.VerifyChain(auditor, [lit, stopped]);
+        Expect(Refused(() => Audit.VerifyChain(auditor, [lit, tampered])), "an edited record does not");
+        Expect(Refused(() => Audit.VerifyChain(auditor, [stopped])), "nor does a shortened log");
     }
 }

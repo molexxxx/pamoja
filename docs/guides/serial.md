@@ -32,8 +32,9 @@ It proves:
   went into it.
 - A frame that ends inside an escape pair is discarded on its own, and the whole
   frames before and after it come out of the same chunk intact.
-- The mangled frame is counted once, not once per byte still in the decoder, so a
-  read loop can measure how noisy a link is.
+- The dropped frame is counted, and the count stays at one for the rest of the
+  chunk rather than climbing as the good bytes after it arrive, so a read loop
+  can measure how noisy a link is.
 
 ## Rust
 

@@ -28,6 +28,25 @@ pub enum Alert {
     },
 }
 
+impl Alert {
+    /// Returns the name of the condition, without the measurement that triggered it.
+    ///
+    /// The bindings carry an alert as a kind and a value, so this is the same word in
+    /// every language, which is what lets one reading be logged or compared the same way
+    /// wherever the node's code is written.
+    ///
+    /// # Returns
+    ///
+    /// One of `"OutOfRange"`, `"RunningOut"`, or `"ChangingFast"`.
+    pub fn kind(self) -> &'static str {
+        match self {
+            Alert::OutOfRange { .. } => "OutOfRange",
+            Alert::RunningOut { .. } => "RunningOut",
+            Alert::ChangingFast { .. } => "ChangingFast",
+        }
+    }
+}
+
 /// The outcome of evaluating one reading against a profile's control policy.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Reaction {

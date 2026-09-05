@@ -15,13 +15,16 @@ ten-byte frame holds the channel, the silence the duty cycle then requires, and
 how many readings an hour that leaves. It ends by asking about a frequency the
 plan does not cover.
 
-Four things are typed in: the region, the data-rate number, the payload length
-and the frequencies to look up. SF12 and the 125 kHz bandwidth come out of the
-plan's data-rate table, and coding rate 4/5, an eight-symbol preamble, an
-explicit header and CRC on are the defaults those settings carry, so the airtime
-rests on the published regional parameters rather than on radio constants a
-caller picked. The 1% cap and the 16 dBm ceiling are read out of the sub-band
-that contains 868.1 MHz, not supplied alongside it.
+Four things are typed into the calls: the region, the data-rate number, the
+payload length and the frequencies to look up. The Rust version types in one
+more, the microseconds in an hour, because it divides the budget out by hand
+where the bindings call their messages-per-hour helper. SF12 and the 125 kHz
+bandwidth come out of the plan's data-rate table, and coding rate 4/5, an
+eight-symbol preamble, an explicit header and CRC on are the defaults those
+settings carry, so the airtime rests on the published regional parameters
+rather than on radio constants a caller picked. The 1% cap and the 16 dBm
+ceiling are read out of the sub-band that contains 868.1 MHz, not supplied
+alongside it.
 
 It proves:
 
@@ -78,13 +81,13 @@ println!(
 // The airtime plus that silence is what one reading really costs, which is the budget
 // a deployment plans against.
 let per_hour = 3_600_000_000 / (airtime + off_time);
-println!("budget    {per_hour} readings an hour at this data rate");
+println!("budget    {per_hour} readings an hour");
 
 // A frequency in no sub-band the plan describes has no duty cycle to budget against.
 // That is a limit published elsewhere, not permission to transmit.
 match plan.duty_cycle_permille(700_000_000) {
     Some(limit) => println!("700 MHz reported a {limit} per mille limit, which it has none of"),
-    None => println!("700 MHz  is outside this plan, so it budgets nothing"),
+    None => println!("700 MHz  is outside this plan, so it budgets nothing: true"),
 }
 ```
 <!-- end -->

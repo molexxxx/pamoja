@@ -33,17 +33,15 @@ fn a_profile_carried_as_a_manifest() {
     // The manifest is the whole control loop. At 27.5 C the reading is below the deadband,
     // so the lamp switches on, and it is more than 4 C from target, so the chicks are cold.
     let cold = profile.controller().evaluate(27.5);
-    println!(
-        "at 27.5 C: lamp {:?}, alert {:?}",
-        cold.actuator, cold.alert
-    );
+    let switched_on = cold.actuator.expect("this profile drives an output");
+    let raised = cold.alert.expect("a reading outside the safe band");
+    println!("at 27.5 C: lamp {switched_on}, alert {}", raised.kind());
 
     // Back inside the deadband the lamp is left as it was, and nothing is raised.
     let settled = profile.controller().evaluate(32.2);
-    println!(
-        "at 32.2 C: lamp {:?}, alert {:?}",
-        settled.actuator, settled.alert
-    );
+    let still_on = settled.actuator.expect("this profile drives an output");
+    let quiet = settled.alert.map_or("none", Alert::kind);
+    println!("at 32.2 C: lamp {still_on}, alert {quiet}");
 
     // Serializing writes the defaulted fields out in full, so a profile edited on a device
     // and shared back carries no value the next reader has to infer.

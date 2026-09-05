@@ -20,10 +20,12 @@ It reads a tank level off a 4-20 mA current loop. A two-point calibration conver
 the loop current into a percentage, a median window discards a momentary dropout,
 and a hysteresis controller decides whether the refill pump runs.
 
-The calibration is built from the two ends of the loop, 4 mA empty and 20 mA full,
-rather than from a slope and an offset worked out by hand, so a reader sees the
-currents the loop is specified by. The level the pump acts on is not typed in
-either; it is the filtered, calibrated reading carried down from the stage above.
+The calibration is built from the two ends of the loop, 4 mA empty and 20 mA
+full, rather than from a slope and an offset worked out by hand, so a reader
+sees the currents the loop is specified by. The first level the pump sees is
+not typed in either; it is the filtered, calibrated reading carried down from
+the stage above. The three that follow are typed in, to walk the controller
+below the deadband, back inside it, and out the top.
 
 It proves:
 

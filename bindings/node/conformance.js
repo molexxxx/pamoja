@@ -1600,16 +1600,14 @@ function auditVectors() {
     entries.push(entry);
   }
 
-  assert.ok(
-    audit.verifyChain(keeper.publicKey(), entries),
-    "an untouched chain verifies",
-  );
-  assert.ok(
-    !audit.verifyChain(keeper.publicKey(), [
-      entries[0],
-      entries[1],
-      audit.AuditEntry.fromBytes(unhex(vector.tampered)),
-    ]),
+  audit.verifyChain(keeper.publicKey(), entries);
+  assert.throws(
+    () =>
+      audit.verifyChain(keeper.publicKey(), [
+        entries[0],
+        entries[1],
+        audit.AuditEntry.fromBytes(unhex(vector.tampered)),
+      ]),
     "and an altered record breaks it",
   );
 

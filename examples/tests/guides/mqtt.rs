@@ -55,18 +55,23 @@ async fn a_reading_reaches_a_gateway_over_a_broker() {
     node.disconnect().await.expect("a clean disconnect");
     let still_up = node.is_connected();
     println!("node      disconnected, still connected: {still_up}");
+
+    // A broker that is not there is reported rather than leaving a client that looks
+    // connected, so a retry loop has something to test. Nothing listens on port 1.
+    let mut nowhere = MqttTransport::new(
+        MqttConfig::new("node-2", "127.0.0.1", 1).qos(QualityOfService::ExactlyOnce),
+    );
+    match nowhere.connect().await {
+        Ok(()) => {
+            println!("an unreachable broker accepted a connection, which should never happen")
+        }
+        Err(error) => println!("unreachable broker refused: {error}"),
+    }
     // ANCHOR_END: example
 
     assert_eq!(received.topic, "sensors/1/temperature");
     assert_eq!(received.payload, b"21.5");
     assert!(!node.is_connected());
-
-    // A broker that is not there is reported rather than leaving a client that looks
-    // connected, so a retry loop has something to test.
-    let mut nowhere = MqttTransport::new(
-        MqttConfig::new("node-2", "127.0.0.1", 1).qos(QualityOfService::ExactlyOnce),
-    );
-    assert!(nowhere.connect().await.is_err());
     assert!(!nowhere.is_connected());
 }
 

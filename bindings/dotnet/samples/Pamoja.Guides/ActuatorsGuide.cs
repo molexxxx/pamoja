@@ -51,7 +51,8 @@ public static class ActuatorsGuide
         }
 
         Console.WriteLine(
-            $"coils     {Convert.ToString(motor.Coils, 2).PadLeft(4, '0')} back at the start");
+            $"coils     {Convert.ToString(motor.Coils, 2).PadLeft(4, '0')} back at the start "
+            + "of the cycle");
         Console.WriteLine($"a quarter turn is {Stepper.StepsForDegrees(90.0f, 200)} steps");
         // ANCHOR_END: example
 

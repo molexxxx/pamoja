@@ -14,7 +14,7 @@ use std::ptr;
 use std::slice;
 
 use pamoja_session::{
-    hkdf_sha256, hmac_sha256, AgreementKey, AgreementPublicKey, Role, Sealed, Session, SessionError,
+    hkdf_sha256, hmac_sha256, AgreementKey, AgreementPublicKey, Role, Sealed, Session,
 };
 
 use crate::{read_bytes, set_last_error, PamojaStatus};
@@ -344,10 +344,7 @@ pub unsafe extern "C" fn pamoja_session_open(
     match (*session).session.open(&header, message, &aad) {
         Ok(()) => PamojaStatus::Ok,
         Err(error) => {
-            set_last_error(match error {
-                SessionError::Replayed => "the message repeats a counter".to_owned(),
-                SessionError::Inauthentic => "the message failed authentication".to_owned(),
-            });
+            set_last_error(error.to_string());
             PamojaStatus::Auth
         }
     }

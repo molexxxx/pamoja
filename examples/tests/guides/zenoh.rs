@@ -28,18 +28,19 @@ fn a_pattern_selects_a_subtree_and_canonizes_before_it_is_compared() {
     // Two expressions that select the same keys have one canonical form. Comparing or
     // routing on the written form would treat these as different subscriptions.
     let written = "fleet/**/**/battery";
-    let canonical = canonize(written);
+    let canonical = canonize(written).expect("a canonical form");
     println!(
-        "{written} is canonical: {}, and canonizes to {canonical:?}",
+        "{written} is canonical: {}, and canonizes to {canonical}",
         is_canon(written)
     );
 
     // A malformed expression is rejected rather than canonized into something plausible.
     let malformed = "fleet//battery";
+    let refused = canonize(malformed);
     println!(
-        "{malformed} is valid: {}, canonizes to {:?}",
+        "{malformed} is valid: {}, canonizes to {}",
         is_valid(malformed),
-        canonize(malformed)
+        refused.as_deref().unwrap_or("nothing")
     );
     // ANCHOR_END: example
 
@@ -49,8 +50,8 @@ fn a_pattern_selects_a_subtree_and_canonizes_before_it_is_compared() {
     assert!(matches("fleet/**", "fleet/n7/rack/battery"));
     assert!(matches("fleet/**/battery", "fleet/battery"));
     assert!(!is_canon(written));
-    assert_eq!(canonical.as_deref(), Some("fleet/**/battery"));
+    assert_eq!(canonical, "fleet/**/battery");
     assert!(is_canon("fleet/**/battery"));
     assert!(!is_valid(malformed));
-    assert_eq!(canonize(malformed), None);
+    assert_eq!(refused, None);
 }

@@ -12,11 +12,12 @@ both of which turn a slow-moving series into about a byte a sample.
 It moves one reading from JSON to CBOR and back, then packs five integer samples
 and four temperature readings, printing what each form costs on the wire.
 
-Neither the CBOR nor the packed batches are written out by hand; every byte count
-comes off the length of what the library returned. The scale of `100` handed to
-the quantizer is the caller's choice of precision, and nothing in the packed
-bytes records it, so a receiver has to be told the same scale to read the
-readings back.
+Neither the CBOR nor the packed batches are written out by hand; their byte
+counts come off the length of what the library returned, and the JSON they are
+measured against is the document the example starts from. The scale of `100`
+handed to the quantizer is the caller's choice of precision, and nothing in the
+packed bytes records it, so a receiver has to be told the same scale to read
+the readings back.
 
 The exact bytes are not on this page. The CBOR encoding is pinned against RFC
 8949 in the codec crate's own tests, and the packed batches are pinned in the

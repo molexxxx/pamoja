@@ -1108,11 +1108,12 @@ def test_audit_vectors_match():
         assert entry.to_bytes() == unhex(want["bytes"])
         entries.append(entry)
 
-    assert audit.verify_chain(keeper.public_key, entries)
-    assert not audit.verify_chain(
-        keeper.public_key,
-        [entries[0], entries[1], audit.AuditEntry.from_bytes(unhex(vector["tampered"]))],
-    )
+    audit.verify_chain(keeper.public_key, entries)
+    with pytest.raises(PamojaError):
+        audit.verify_chain(
+            keeper.public_key,
+            [entries[0], entries[1], audit.AuditEntry.from_bytes(unhex(vector["tampered"]))],
+        )
 
     resumed = audit.AuditLog.resume(keeper, entries[2])
     after_reboot = resumed.append(vector["resumed"]["payload"].encode())

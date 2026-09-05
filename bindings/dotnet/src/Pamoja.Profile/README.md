@@ -53,7 +53,8 @@ Console.WriteLine($"at 27.5 C: lamp {cold.Actuator}, alert {cold.Alert?.Kind}");
 
 // Back inside the deadband the lamp is left as it was, and nothing is raised.
 Reaction settled = profile.Controller().Evaluate(32.2f);
-Console.WriteLine($"at 32.2 C: lamp {settled.Actuator}, alert {settled.Alert?.Kind}");
+string quiet = settled.Alert?.Kind.ToString() ?? "none";
+Console.WriteLine($"at 32.2 C: lamp {settled.Actuator}, alert {quiet}");
 
 // Serializing writes the defaulted fields out in full, so a profile edited on a
 // device and shared back carries no value the next reader has to infer.

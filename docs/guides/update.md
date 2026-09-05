@@ -38,8 +38,9 @@ It proves:
   image is never overwritten.
 - The first boot into the staged image is a trial, and confirming it is what
   leaves the slot confirmed rather than reverting on the next boot.
-- A release signed by a key the device is not anchored to is refused, even though
-  the manifest inside it is the same one that was just accepted.
+- A release signed by a key the device is not anchored to is refused, even
+  though the manifest inside it is the one that was just accepted, because the
+  signature is checked before anything in the manifest is read.
 
 ## Rust
 
@@ -114,7 +115,8 @@ println!("written   to slot {slot}, leaving the running image alone");
 
 // The first boot into a new image is a trial. It reverts on the next boot unless the
 // device confirms that it came up, which is what makes a bad release survivable.
-println!("booting   {:?}", updater.on_boot().expect("a decision"));
+let decision = updater.on_boot().expect("a decision");
+println!("booting   {}", decision.action());
 updater.confirm().expect("it came up");
 let state = updater.store().record(slot).expect("the new slot").state;
 println!("confirmed slot {slot} is now {state:?}");
@@ -331,7 +333,7 @@ Array.Fill(impostorSeed, (byte)90);
 using var impostor = new DeviceIdentity(impostorSeed);
 try
 {
-    fleet.Stage(Update.SignManifest(manifest with { Sequence = 3 }, impostor), image);
+    fleet.Stage(Update.SignManifest(manifest, impostor), image);
     Console.WriteLine("a forged release was accepted, which should never happen");
 }
 catch (PamojaException error)

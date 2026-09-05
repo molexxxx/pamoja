@@ -10,7 +10,7 @@ test that never touches hardware.
 
 It polls a power meter: builds the request for three holding registers, reads
 the reply back, and turns the registers into a voltage, a current, and a fault
-word. Then it flips one bit in the frame and confirms the checksum rejects it.
+word. Then it corrupts a byte of the frame and confirms the checksum rejects it.
 Modbus moves bare 16-bit registers and says nothing about what they hold, so the
 unit address, the starting register and the scale on each value all come from
 the meter's manual.
@@ -27,10 +27,10 @@ It proves:
 - A request for three holding registers is eight bytes on the wire: the unit
   address, the function code, the two 16-bit fields and the checksum.
 - A reply validates its own checksum before any value is read out of it.
-- The reply carries the unit address it was sent to and reports no exception, so
-  a served request is not read as a refused one.
+- In TypeScript, Python and C# the reply reports the unit address it was sent
+  to and no exception, so a served request is not read as a refused one.
 - The three 16-bit registers come back in the order the meter reported them.
-- A single flipped bit is caught rather than passed on as a plausible reading.
+- A corrupted byte is caught rather than passed on as a plausible reading.
 
 ## Rust
 

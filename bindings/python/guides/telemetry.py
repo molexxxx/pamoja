@@ -7,7 +7,7 @@ from pamoja.telemetry import Event, Level, LinkCost, Reporter, link_cost_thresho
 # link, which puts the bar at INFO.
 reporter = Reporter(Level.TRACE)
 reporter.adapt_to(LinkCost.METERED)
-print(f"on a metered link, nothing below {reporter.threshold} is sent")
+print(f"on a metered link, nothing below {reporter.threshold.value} is sent")
 
 # Routine detail stops going out. A reading and the warning that follows it still do, and
 # a shipped event comes back with the measurement that triggered it.

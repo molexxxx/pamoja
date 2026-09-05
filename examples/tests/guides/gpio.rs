@@ -23,8 +23,8 @@ fn addressing_a_bus_and_driving_a_pin() {
     // in either is a wiring mistake rather than a device.
     let sensor_reserved = sensor.is_reserved();
     let prefix = Address::seven_bit(RESERVED_FROM).expect("in range");
-    println!("{BME280:#04X} reserved: {sensor_reserved}");
-    println!("{RESERVED_FROM:#04X} reserved: {}", prefix.is_reserved());
+    let prefix_reserved = prefix.is_reserved();
+    println!("{BME280:#04X} reserved: {sensor_reserved}, {RESERVED_FROM:#04X} reserved: {prefix_reserved}");
 
     // A 10-bit address spends a reserved prefix over two bytes rather than one, so a bus
     // driver has to send a different number of bytes depending on the address it holds.

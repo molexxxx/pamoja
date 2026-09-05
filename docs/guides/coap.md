@@ -40,10 +40,11 @@ It proves:
 - A non-confirmable send succeeds without an acknowledgement, which is the mode
   for a reading whose loss costs nothing.
 - A confirmable send to that same address fails once its retransmissions run
-  out. Only the mode differs between the two sends, so the guarantee decides the
-  outcome rather than the destination.
-- The failure leaves the endpoint usable: the command sends again and fails
-  again, rather than wedging the client.
+  out. Both endpoints point at the same dead port, so the delivery guarantee,
+  not the destination, decides the outcome.
+- The failure arrives as an error the caller handles rather than a silent
+  success: each example catches it and prints why the command gave up, so a
+  command is never assumed to have landed.
 - Disconnecting releases the socket and the endpoint reports itself closed.
 
 ## Rust

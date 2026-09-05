@@ -39,8 +39,9 @@ It proves:
 - What arrives is the topic the node published to, `sensors/1/temperature`,
   rather than the `sensors/+/temperature` filter that matched it, and the payload
   is the bytes the node sent.
-- An at-least-once publish returns once the broker has acknowledged it, so a node
-  knows its reading was taken rather than hoping.
+- Both clients default to at least once, and the one setting covers the
+  subscription and the publish alike, so a reading travels under a guarantee
+  the broker acknowledges rather than fire and forget.
 - A client that has disconnected reports itself disconnected, so code deciding
   whether to reconnect is not reading a stale flag.
 - A broker that is not there fails the connect and leaves the client not
@@ -94,6 +95,18 @@ println!("gateway   got {reading} on {topic}");
 node.disconnect().await.expect("a clean disconnect");
 let still_up = node.is_connected();
 println!("node      disconnected, still connected: {still_up}");
+
+// A broker that is not there is reported rather than leaving a client that looks
+// connected, so a retry loop has something to test. Nothing listens on port 1.
+let mut nowhere = MqttTransport::new(
+    MqttConfig::new("node-2", "127.0.0.1", 1).qos(QualityOfService::ExactlyOnce),
+);
+match nowhere.connect().await {
+    Ok(()) => {
+        println!("an unreachable broker accepted a connection, which should never happen")
+    }
+    Err(error) => println!("unreachable broker refused: {error}"),
+}
 ```
 <!-- end -->
 

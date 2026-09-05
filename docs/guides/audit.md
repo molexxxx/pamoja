@@ -106,17 +106,28 @@ console.log(`recorded  ${lit.index} then ${stopped.index}`)
 // Each record hashes its own index, the digest of the record before it, and what it
 // carries, so the chain fixes the order as well as the contents.
 console.log(`chained   ${stopped.previous.equals(lit.digest)}`)
-console.log(`verified  ${verifyChain(auditor, [lit, stopped])}`)
+verifyChain(auditor, [lit, stopped])
+console.log('verified  the whole log is authentic and in order')
 
 // Editing a stored record changes the digest its signature covers.
 const edited = Buffer.from(stopped.toBytes())
 edited[edited.length - 1] ^= 0xff
 const tampered = AuditEntry.fromBytes(edited)
-console.log(`edited    caught: ${!verifyChain(auditor, [lit, tampered])}`)
+try {
+  verifyChain(auditor, [lit, tampered])
+  console.log('an edited record verified, which should never happen')
+} catch (error) {
+  console.log(`edited    caught: ${(error as Error).message}`)
+}
 
 // Dropping the first record leaves the survivor chained to a link that is no longer there,
 // so a shortened log is caught as readily as an edited one.
-console.log(`shortened caught: ${!verifyChain(auditor, [stopped])}`)
+try {
+  verifyChain(auditor, [stopped])
+  console.log('a shortened log verified, which should never happen')
+} catch (error) {
+  console.log(`shortened caught: ${(error as Error).message}`)
+}
 ```
 <!-- end -->
 
@@ -127,6 +138,7 @@ From [`bindings/python/guides/audit.py`](https://github.com/molexxxx/pamoja/blob
 
 ```python
 from pamoja.audit import AuditEntry, AuditLog, verify_chain
+from pamoja.core import PamojaError
 from pamoja.security import DeviceIdentity
 
 # The controller signs its own log with a provisioned seed and an auditor holds only the
@@ -142,17 +154,26 @@ print(f"recorded  {lit.index} then {stopped.index}")
 # Each record hashes its own index, the digest of the record before it, and what it
 # carries, so the chain fixes the order as well as the contents.
 print(f"chained   {stopped.previous == lit.digest}")
-print(f"verified  {verify_chain(auditor, [lit, stopped])}")
+verify_chain(auditor, [lit, stopped])
+print("verified  the whole log is authentic and in order")
 
 # Editing a stored record changes the digest its signature covers.
 edited = bytearray(stopped.to_bytes())
 edited[-1] ^= 0xFF
 tampered = AuditEntry.from_bytes(bytes(edited))
-print(f"edited    caught: {not verify_chain(auditor, [lit, tampered])}")
+try:
+    verify_chain(auditor, [lit, tampered])
+    print("an edited record verified, which should never happen")
+except PamojaError as error:
+    print(f"edited    caught: {error}")
 
 # Dropping the first record leaves the survivor chained to a link that is no longer there,
 # so a shortened log is caught as readily as an edited one.
-print(f"shortened caught: {not verify_chain(auditor, [stopped])}")
+try:
+    verify_chain(auditor, [stopped])
+    print("a shortened log verified, which should never happen")
+except PamojaError as error:
+    print(f"shortened caught: {error}")
 ```
 <!-- end -->
 
@@ -177,17 +198,34 @@ Console.WriteLine($"recorded  {lit.Index} then {stopped.Index}");
 // Each record hashes its own index, the digest of the record before it, and what
 // it carries, so the chain fixes the order as well as the contents.
 Console.WriteLine($"chained   {stopped.Previous.SequenceEqual(lit.Digest)}");
-Console.WriteLine($"verified  {Audit.VerifyChain(auditor, [lit, stopped])}");
+Audit.VerifyChain(auditor, [lit, stopped]);
+Console.WriteLine("verified  the whole log is authentic and in order");
 
 // Editing a stored record changes the digest its signature covers.
 byte[] edited = stopped.ToBytes();
 edited[^1] ^= 0xFF;
 using AuditEntry tampered = AuditEntry.FromBytes(edited);
-Console.WriteLine($"edited    caught: {!Audit.VerifyChain(auditor, [lit, tampered])}");
+try
+{
+    Audit.VerifyChain(auditor, [lit, tampered]);
+    Console.WriteLine("an edited record verified, which should never happen");
+}
+catch (PamojaException error)
+{
+    Console.WriteLine($"edited    caught: {error.Message}");
+}
 
 // Dropping the first record leaves the survivor chained to a link that is no
 // longer there, so a shortened log is caught as readily as an edited one.
-Console.WriteLine($"shortened caught: {!Audit.VerifyChain(auditor, [stopped])}");
+try
+{
+    Audit.VerifyChain(auditor, [stopped]);
+    Console.WriteLine("a shortened log verified, which should never happen");
+}
+catch (PamojaException error)
+{
+    Console.WriteLine($"shortened caught: {error.Message}");
+}
 ```
 <!-- end -->
 

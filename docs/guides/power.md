@@ -109,7 +109,9 @@ const plan = new PowerPlan(60_000_000, 600_000_000, 3_600_000_000)
 // The default thresholds enter saver mode below 50% charge and critical below 20%.
 for (const charge of [0.8, 0.35, 0.12]) {
   const every = plan.intervalUs(charge) / 1_000_000
-  console.log(`at ${(charge * 100).toFixed(0)}% charge: ${plan.mode(charge)}, every ${every}s`)
+  console.log(
+    `at ${(charge * 100).toFixed(0)}% charge: ${plan.mode(charge)}, sampling every ${every}s`,
+  )
 }
 
 // A panel that is delivering buys back one mode, so the same flat battery keeps reporting

@@ -28,7 +28,10 @@ fn two_devices_agree_a_key_and_the_gateway_refuses_a_replay() {
     // change to it fails the tag. Sealing replaces the plaintext in the buffer it is given.
     let mut frame = *b"flow=41.2";
     let sealed = uplink.seal(&mut frame, b"pump-3");
-    println!("sealed    the reading is no longer readable in the buffer");
+    println!(
+        "sealed    the reading is no longer readable: {}",
+        frame != *b"flow=41.2"
+    );
 
     // The gateway opens it back into the same buffer.
     let mut replayed = frame;

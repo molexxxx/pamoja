@@ -23,27 +23,27 @@ public static class LoopbackGuide
         await publisher.ConnectAsync();
         await subscriber.ConnectAsync();
 
-        // A `+` stands for exactly one level, so this takes the node's temperature but
+        // A `+` stands for exactly one level, so this takes the mixer's temperature but
         // not the raw reading a level below it.
-        await subscriber.SubscribeAsync("sensors/+/temperature");
-        await publisher.SendAsync("sensors/8/temperature/raw", "2150"u8.ToArray());
-        await publisher.SendAsync("sensors/8/temperature", "21.5"u8.ToArray());
+        await subscriber.SubscribeAsync("line/+/temp");
+        await publisher.SendAsync("line/mixer/temp/raw", "2150"u8.ToArray());
+        await publisher.SendAsync("line/mixer/temp", "21.5"u8.ToArray());
 
         TransportMessage message = (await subscriber.ReceiveAsync())!;
         Console.WriteLine(
-            $"sensors/+/temperature took {System.Text.Encoding.UTF8.GetString(message.Payload)}"
+            $"line/+/temp took {System.Text.Encoding.UTF8.GetString(message.Payload)}"
             + $" from {message.Topic}");
 
         // A `#` covers every level that remains, so a second link takes the whole subtree,
         // including the reading the single-level filter passed over.
         using LoopbackTransport watcher = broker.Link();
         await watcher.ConnectAsync();
-        await watcher.SubscribeAsync("sensors/#");
-        await publisher.SendAsync("sensors/8/temperature/raw", "2150"u8.ToArray());
+        await watcher.SubscribeAsync("line/#");
+        await publisher.SendAsync("line/mixer/temp/raw", "2150"u8.ToArray());
 
         TransportMessage deep = (await watcher.ReceiveAsync())!;
         Console.WriteLine(
-            $"sensors/#             took {System.Text.Encoding.UTF8.GetString(deep.Payload)}"
+            $"line/#     took {System.Text.Encoding.UTF8.GetString(deep.Payload)}"
             + $" from {deep.Topic}");
 
         // A link that has been disconnected reports the failure instead of dropping the
@@ -51,7 +51,7 @@ public static class LoopbackGuide
         await publisher.DisconnectAsync();
         try
         {
-            await publisher.SendAsync("sensors/8/temperature", "21.6"u8.ToArray());
+            await publisher.SendAsync("line/mixer/temp", "21.6"u8.ToArray());
             Console.WriteLine("a disconnected link took a reading, which should never happen");
         }
         catch (PamojaException error)
@@ -60,9 +60,9 @@ public static class LoopbackGuide
         }
         // ANCHOR_END: example
 
-        Expect(message.Topic == "sensors/8/temperature", "the single-level filter matched");
+        Expect(message.Topic == "line/mixer/temp", "the single-level filter matched");
         Expect(message.Payload.AsSpan().SequenceEqual("21.5"u8), "and carried the reading");
-        Expect(deep.Topic == "sensors/8/temperature/raw", "the multi-level filter went deeper");
+        Expect(deep.Topic == "line/mixer/temp/raw", "the multi-level filter went deeper");
         Expect(deep.Payload.AsSpan().SequenceEqual("2150"u8), "and carried the raw value");
     }
 }

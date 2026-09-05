@@ -64,12 +64,12 @@ class AuditLog:
         return self._inner.append(payload)
 
 
-def verify_chain(public_key: bytes, entries: Sequence[AuditEntry]) -> bool:
+def verify_chain(public_key: bytes, entries: Sequence[AuditEntry]) -> None:
     """Check a whole chain that has already arrived.
 
     :param public_key: The 32-byte key the records were signed with.
     :param entries: The records, in the order they were written.
-    :returns: ``True`` when every record follows the one before it and carries a
-        signature that holds.
+    :raises PamojaError: With the reason the chain does not hold: a record whose
+        signature fails, or one that does not follow the record before it.
     """
-    return _verify_audit_chain(public_key, list(entries))
+    _verify_audit_chain(public_key, list(entries))

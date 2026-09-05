@@ -19,13 +19,14 @@ until it has been. The shunt, the current resolution and the load are the ones
 its datasheet's worked design example describes.
 
 On a running node those bytes arrive from the bus, so there is nothing to type.
-The example builds them instead, with the same library that decodes them:
-`Scratchpad::new(..).to_bytes()` returns exactly what a thermometer at that
-temperature sends, and `bus_register`, `current_register`, and `power_register`
-return what a monitor across that load reports. Every builder is the inverse of
-the decode beside it, which is what lets a node be written and tested with
-nothing wired up. Everything after those first few lines is the node's own code
-and does not care where the bytes came from.
+The example builds them instead, with the same library that decodes them: the
+scratchpad builder returns exactly what a thermometer at that temperature sends
+(`Scratchpad::new(..).to_bytes()` in Rust, `build_scratchpad` in the three
+bindings), and `bus_register`, `current_register`, and `power_register` return
+what a monitor across that load reports. Every builder is the inverse of the
+decode beside it, which is what lets a node be written and tested with nothing
+wired up. Everything after those first few lines is the node's own code and
+does not care where the bytes came from.
 
 It proves:
 

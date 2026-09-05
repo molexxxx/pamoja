@@ -23,7 +23,8 @@ fn a_costlier_link_thins_the_stream_but_not_the_counts() {
     let warned = reporter
         .record(Event::warn("battery.low").with_value(0.18))
         .expect("a warning is worth a metered link");
-    println!("sent      {} carrying {:?}", warned.code, warned.value);
+    let measured = warned.value.expect("the measurement that triggered it");
+    println!("sent      {} carrying {measured}", warned.code);
 
     // The node falls back to satellite, which raises the bar to Warn. The same reading is
     // no longer worth its bytes; a failure still is.
