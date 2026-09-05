@@ -45,10 +45,12 @@ jobs:
           set -euo pipefail
           version="${TAG#v}"
 
-          # The section for this version, from its heading to the next one.
-          awk -v v="$version" '
-            $0 ~ "^## \\[" v "\\]" { printing = 1; next }
-            printing && /^## \[/ { exit }
+          # The section for this version, from its heading to the next one. Matched
+          # as a literal prefix: a version is full of dots, and an escaped bracket
+          # inside an awk string is read differently by different awks.
+          awk -v head="## [$version]" '
+            index($0, head) == 1 { printing = 1; next }
+            printing && index($0, "## [") == 1 { exit }
             printing { print }
           ' CHANGELOG.md > notes.md
 
