@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-core"
-version = "0.1.14"
+version = "0.1.15"
 description = "The pamoja engine's surface for Python: the runtime version, the error every native call raises, and the transport every link shares, the counterpart of the pamoja-core crate."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,7 +19,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-native==0.1.14",
+    "pamoja-native==0.1.15",
 ]
 
 [project.urls]

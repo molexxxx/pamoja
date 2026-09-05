@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/loopback",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "An in-process transport with topic matching and a fault injector, for testing with no broker.",
   "license": "MIT",
   "publishConfig": {
@@ -34,6 +34,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.14"
+    "@pamoja/native": "0.1.15"
   }
 }

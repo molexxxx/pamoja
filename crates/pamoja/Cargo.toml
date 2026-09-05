@@ -106,37 +106,37 @@ dashboard = ["dep:pamoja-dashboard"]
 # The core and MAVLink take their std layer from this crate's `std` feature, so a
 # bare-metal build can leave it off; every other crate is no_std as published or
 # needs std regardless.
-pamoja-core = { path = "../pamoja-core", version = "0.1.14", default-features = false }
-pamoja-security = { path = "../pamoja-security", version = "0.1.14", optional = true }
-pamoja-codec = { path = "../pamoja-codec", version = "0.1.14", optional = true }
-pamoja-kit = { path = "../pamoja-kit", version = "0.1.14", optional = true }
-pamoja-serial = { path = "../pamoja-serial", version = "0.1.14", optional = true }
-pamoja-modbus = { path = "../pamoja-modbus", version = "0.1.14", optional = true }
-pamoja-can = { path = "../pamoja-can", version = "0.1.14", optional = true }
-pamoja-gpio = { path = "../pamoja-gpio", version = "0.1.14", optional = true }
-pamoja-sensors = { path = "../pamoja-sensors", version = "0.1.14", optional = true }
-pamoja-actuators = { path = "../pamoja-actuators", version = "0.1.14", optional = true }
-pamoja-lora = { path = "../pamoja-lora", version = "0.1.14", optional = true }
-pamoja-lorawan = { path = "../pamoja-lorawan", version = "0.1.14", optional = true }
-pamoja-mesh = { path = "../pamoja-mesh", version = "0.1.14", optional = true }
-pamoja-routing = { path = "../pamoja-routing", version = "0.1.14", optional = true }
-pamoja-mavlink = { path = "../pamoja-mavlink", version = "0.1.14", default-features = false, optional = true }
-pamoja-audit = { path = "../pamoja-audit", version = "0.1.14", optional = true }
-pamoja-session = { path = "../pamoja-session", version = "0.1.14", optional = true }
-pamoja-update = { path = "../pamoja-update", version = "0.1.14", optional = true }
-pamoja-power = { path = "../pamoja-power", version = "0.1.14", optional = true }
-pamoja-telemetry = { path = "../pamoja-telemetry", version = "0.1.14", optional = true }
-pamoja-mqtt = { path = "../pamoja-mqtt", version = "0.1.14", optional = true }
-pamoja-coap = { path = "../pamoja-coap", version = "0.1.14", optional = true }
-pamoja-loopback = { path = "../pamoja-loopback", version = "0.1.14", optional = true }
-pamoja-sync = { path = "../pamoja-sync", version = "0.1.14", optional = true }
-pamoja-ladder = { path = "../pamoja-ladder", version = "0.1.14", optional = true }
-pamoja-bus = { path = "../pamoja-bus", version = "0.1.14", optional = true }
-pamoja-sim = { path = "../pamoja-sim", version = "0.1.14", optional = true }
-pamoja-profile = { path = "../pamoja-profile", version = "0.1.14", optional = true }
-pamoja-ros2 = { path = "../pamoja-ros2", version = "0.1.14", optional = true }
-pamoja-zenoh = { path = "../pamoja-zenoh", version = "0.1.14", optional = true }
-pamoja-dashboard = { path = "../pamoja-dashboard", version = "0.1.14", optional = true }
+pamoja-core = { path = "../pamoja-core", version = "0.1.15", default-features = false }
+pamoja-security = { path = "../pamoja-security", version = "0.1.15", optional = true }
+pamoja-codec = { path = "../pamoja-codec", version = "0.1.15", optional = true }
+pamoja-kit = { path = "../pamoja-kit", version = "0.1.15", optional = true }
+pamoja-serial = { path = "../pamoja-serial", version = "0.1.15", optional = true }
+pamoja-modbus = { path = "../pamoja-modbus", version = "0.1.15", optional = true }
+pamoja-can = { path = "../pamoja-can", version = "0.1.15", optional = true }
+pamoja-gpio = { path = "../pamoja-gpio", version = "0.1.15", optional = true }
+pamoja-sensors = { path = "../pamoja-sensors", version = "0.1.15", optional = true }
+pamoja-actuators = { path = "../pamoja-actuators", version = "0.1.15", optional = true }
+pamoja-lora = { path = "../pamoja-lora", version = "0.1.15", optional = true }
+pamoja-lorawan = { path = "../pamoja-lorawan", version = "0.1.15", optional = true }
+pamoja-mesh = { path = "../pamoja-mesh", version = "0.1.15", optional = true }
+pamoja-routing = { path = "../pamoja-routing", version = "0.1.15", optional = true }
+pamoja-mavlink = { path = "../pamoja-mavlink", version = "0.1.15", default-features = false, optional = true }
+pamoja-audit = { path = "../pamoja-audit", version = "0.1.15", optional = true }
+pamoja-session = { path = "../pamoja-session", version = "0.1.15", optional = true }
+pamoja-update = { path = "../pamoja-update", version = "0.1.15", optional = true }
+pamoja-power = { path = "../pamoja-power", version = "0.1.15", optional = true }
+pamoja-telemetry = { path = "../pamoja-telemetry", version = "0.1.15", optional = true }
+pamoja-mqtt = { path = "../pamoja-mqtt", version = "0.1.15", optional = true }
+pamoja-coap = { path = "../pamoja-coap", version = "0.1.15", optional = true }
+pamoja-loopback = { path = "../pamoja-loopback", version = "0.1.15", optional = true }
+pamoja-sync = { path = "../pamoja-sync", version = "0.1.15", optional = true }
+pamoja-ladder = { path = "../pamoja-ladder", version = "0.1.15", optional = true }
+pamoja-bus = { path = "../pamoja-bus", version = "0.1.15", optional = true }
+pamoja-sim = { path = "../pamoja-sim", version = "0.1.15", optional = true }
+pamoja-profile = { path = "../pamoja-profile", version = "0.1.15", optional = true }
+pamoja-ros2 = { path = "../pamoja-ros2", version = "0.1.15", optional = true }
+pamoja-zenoh = { path = "../pamoja-zenoh", version = "0.1.15", optional = true }
+pamoja-dashboard = { path = "../pamoja-dashboard", version = "0.1.15", optional = true }
 
 [lints]
 workspace = true

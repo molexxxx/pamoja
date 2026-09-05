@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/can",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose.",
   "license": "MIT",
   "publishConfig": {
@@ -34,6 +34,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.14"
+    "@pamoja/native": "0.1.15"
   }
 }

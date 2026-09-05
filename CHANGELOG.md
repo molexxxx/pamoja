@@ -7,6 +7,8 @@ released together, so one entry covers all of them.
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-09-05
+
 ### Added
 
 - Signed firmware updates with verified rollback in `pamoja-update` (#62).

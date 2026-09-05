@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-sim"
-version = "0.1.14"
+version = "0.1.15"
 description = "Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,7 +19,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-native==0.1.14",
+    "pamoja-native==0.1.15",
 ]
 
 [project.urls]
