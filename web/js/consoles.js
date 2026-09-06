@@ -1,8 +1,14 @@
-import { prefersReducedMotion } from './config.js';
+// consoles.js - the front page's dioramas: nine nodes doing their jobs, each drawn as a
+// small console of live tiles and a log, driven by a script that plays the scenario on a
+// loop. A console is mounted into a `figure[data-diorama=<key>]` whose key names a spec
+// below; `cargo xtask site` fails when web/home.toml names a scenario with no spec here.
+// DOM and SVG only, paused off-screen and under reduced motion.
 
-const ACCENT = { farm: '#1fa995', clinic: '#ffb627', water: '#36b6dd', conservation: '#46c97e', village: '#33c9a6', storm: '#f26a4b', robot: '#f26a4b', arm: '#ffb627', fleet: '#36b6dd' };
+const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const NS = 'http://www.w3.org/2000/svg';
+// Each console's accent, a token from theme.css so the palette lives in one place.
+const ACCENT = { farm: 'var(--teal)', clinic: 'var(--amber)', water: 'var(--sky)', conservation: 'var(--forest)', village: 'var(--teal)', storm: 'var(--coral)', robot: 'var(--coral)', arm: 'var(--amber)', fleet: 'var(--sky)' };
+
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const lerp = (a, b, k) => a + (b - a) * k;
 const pad = (n) => (n < 10 ? '0' + n : '' + n);

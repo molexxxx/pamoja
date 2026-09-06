@@ -17,6 +17,8 @@ pub(crate) struct Palette {
     pub amber: &'static str,
     pub coral: &'static str,
     pub teal: &'static str,
+    pub sky: &'static str,
+    pub forest: &'static str,
     pub cream: &'static str,
     pub text: &'static str,
     pub muted: &'static str,
@@ -29,13 +31,16 @@ pub(crate) const PALETTE: Palette = Palette {
     amber: "#ffb627",
     coral: "#f26a4b",
     teal: "#1fa995",
+    sky: "#36b6dd",
+    forest: "#46c97e",
     cream: "#fbf3e4",
     text: "#e7eef8",
     muted: "#95a7be",
 };
 
-/// The showcase's typefaces, loaded from the one font host every site can reach.
-pub(crate) const FONTS: &str = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap";
+/// The site's typefaces, served from the site itself (`web/fonts/`), so no page reaches
+/// a font host. Absolute, since the generated references load it from any depth.
+pub(crate) const FONTS: &str = "/fonts/fonts.css";
 const SANS: &str = "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 const DISPLAY: &str = "'Sora', 'Inter', system-ui, sans-serif";
 const MONO: &str = "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
@@ -109,6 +114,8 @@ fn tokens() -> String {
   --amber: {amber};
   --coral: {coral};
   --teal: {teal};
+  --sky: {sky};
+  --forest: {forest};
   --cream: {cream};
   --text: {text};
   --muted: {muted};
@@ -127,6 +134,8 @@ fn tokens() -> String {
         amber = p.amber,
         coral = p.coral,
         teal = p.teal,
+        sky = p.sky,
+        forest = p.forest,
         cream = p.cream,
         text = p.text,
         muted = p.muted,
@@ -374,8 +383,8 @@ mod tests {
             .filter(|(p, _)| p.ends_with(".css") && p != "web/theme.css")
         {
             assert!(
-                body.contains("fonts.googleapis.com"),
-                "{path} lacks the typefaces"
+                body.contains("/fonts/fonts.css") && !body.contains("googleapis"),
+                "{path} does not load the typefaces from the site"
             );
         }
     }
@@ -416,7 +425,8 @@ mod tests {
                 "theme.css lacks {name}"
             );
         }
-        assert!(!tokens.1.contains("fonts.googleapis.com"));
+        assert!(!tokens.1.contains("fonts.css"));
+        assert!(tokens.1.contains("--sky: #36b6dd;") && tokens.1.contains("--forest: #46c97e;"));
         assert_eq!(rgba("#fbf3e4", 0.1), "rgba(251, 243, 228, 0.1)");
         assert_eq!(rgba(PALETTE.navy_0, 0.5), "rgba(10, 19, 34, 0.5)");
     }

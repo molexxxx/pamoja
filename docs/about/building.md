@@ -9,7 +9,7 @@ examples/    runnable end-to-end scenarios and the cross-language conformance ge
 conformance/ the vectors every binding asserts, so the languages cannot disagree
 docs/        this site: the guides, the capability map, and the pages about the project
 sitl/        ArduPilot and PX4 SITL images for the MAVLink interop job
-web/         the showcase site and the hosted dashboard demo
+web/         the stylesheets, scripts, typefaces, and front-page data the site is rendered from
 assets/      brand and logo
 ```
 

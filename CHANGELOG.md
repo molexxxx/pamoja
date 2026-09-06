@@ -41,6 +41,13 @@ released together, so one entry covers all of them.
   front page link it rather than the generated root, and the generated landing
   pages that duplicated it are gone. A guide opens on its reader's language
   before first paint, and scrollbars everywhere on the site follow the palette.
+- The front page is rendered by `cargo xtask site` from the capability map and
+  `web/home.toml`, in the same shell as the documentation: the four install
+  lines, the first example in four languages spliced from the tests that run it,
+  every capability as a card with its four package pages and its guide, nine
+  scenarios played by the consoles, the four languages, the roadmap, and the
+  backing preview. The Three.js showcase, its data file, and the font host are
+  gone; the typefaces are served from the site.
 
 ## [0.1.16] - 2026-09-05
 

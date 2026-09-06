@@ -1,8 +1,8 @@
 //! The documentation site, rendered from `docs/`.
 //!
-//! `cargo xtask site` renders every Markdown page under `docs/` into `target/site`, with the
-//! navigation, the search index, the stylesheets and the marks beside them, and checks every
-//! link before writing anything. The four API references are generated into the same tree
+//! `cargo xtask site` renders the front page and every Markdown page under `docs/` into
+//! `target/site`, with the navigation, the search index, the stylesheets, the typefaces and
+//! the marks beside them, and checks every link before writing anything. The four API references are generated into the same tree
 //! by their own tools afterwards, and `cargo xtask site --verify` then checks the finished
 //! directory with nothing taken on trust. The pages are the committed Markdown, generated
 //! regions included, so `cargo xtask docs --check` still gates what they say; this only
@@ -11,12 +11,14 @@
 mod assets;
 mod check;
 mod highlight;
+mod home;
 mod layout;
 mod markdown;
 mod nav;
 mod pages;
 mod search;
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -24,6 +26,7 @@ use std::process::ExitCode;
 use crate::catalog::Catalog;
 use crate::{docs, version};
 
+use home::Home;
 use nav::Nav;
 
 /// What a page is, which decides how its body is shaped.
@@ -70,6 +73,10 @@ const HANDOFFS: [(&str, &str, &str); 5] = [
 pub struct Site {
     root: PathBuf,
     version: String,
+    catalog: Catalog,
+    lib_crates: Vec<String>,
+    descriptions: BTreeMap<String, String>,
+    home: Home,
     nav: Nav,
     pages: Vec<Page>,
 }
@@ -125,14 +132,28 @@ impl Site {
     ///
     /// # Errors
     ///
-    /// When the map or a page cannot be read, or a page is missing from the navigation.
+    /// When the map, the front page's data, or a page cannot be read, when a page is missing
+    /// from the navigation, or when the front page's data disagrees with the workspace.
     pub fn load(root: &Path) -> Result<Site, String> {
         let catalog = Catalog::load(root)?;
+        let lib_crates = docs::lib_crates()?;
+        let descriptions = lib_crates
+            .iter()
+            .filter_map(|krate| docs::crate_description(krate).map(|text| (krate.clone(), text)))
+            .collect();
+        let home = Home::load(root)?;
+        let consoles = fs::read_to_string(root.join("web/js/consoles.js"))
+            .map_err(|err| format!("reading web/js/consoles.js: {err}"))?;
+        home.check(&lib_crates, &consoles)?;
         let nav = Nav::from(&catalog);
         let pages = pages::load(root, &nav)?;
         Ok(Site {
             root: root.to_path_buf(),
             version: version::current()?,
+            catalog,
+            lib_crates,
+            descriptions,
+            home,
             nav,
             pages,
         })
@@ -163,6 +184,16 @@ impl Site {
                 )
             })
             .collect();
+        let body = self.home.render(
+            &self.root,
+            &self.catalog,
+            &self.lib_crates,
+            &self.descriptions,
+        )?;
+        files.push((
+            "index.html".to_owned(),
+            layout::home(&chrome, &body).into_bytes(),
+        ));
         files.push((
             "404.html".to_owned(),
             layout::not_found(&chrome).into_bytes(),
@@ -253,7 +284,8 @@ mod tests {
     }
 
     /// The URLs the site has published; each keeps resolving.
-    const PUBLISHED: [&str; 12] = [
+    const PUBLISHED: [&str; 13] = [
+        "index.html",
         "docs/index.html",
         "docs/install.html",
         "docs/hardware.html",
@@ -292,10 +324,16 @@ mod tests {
             "docs/assets/pamoja-icon.svg",
             "assets/pamoja-logo.svg",
             "site.css",
+            "home.css",
             "theme.css",
+            "fonts/fonts.css",
+            "fonts/Inter.woff2",
             "js/site.js",
+            "js/home.js",
+            "js/consoles.js",
             "search.json",
             "404.html",
+            ".nojekyll",
         ] {
             assert!(paths.contains(asset), "{asset} is no longer produced");
         }
@@ -367,11 +405,13 @@ mod tests {
 
     #[test]
     fn the_token_sheet_is_the_only_place_colours_live() {
-        let css = fs::read_to_string(docs::repo_root().join("web/site.css")).unwrap();
-        assert!(
-            !has_colour_literal(&css),
-            "web/site.css names a colour instead of a token from theme.css"
-        );
+        for sheet in ["web/site.css", "web/home.css"] {
+            let css = fs::read_to_string(docs::repo_root().join(sheet)).unwrap();
+            assert!(
+                !has_colour_literal(&css),
+                "{sheet} names a colour instead of a token from theme.css"
+            );
+        }
         assert!(has_colour_literal("color: #fff;"));
         assert!(has_colour_literal("border: 1px solid #16263f"));
         assert!(!has_colour_literal(
@@ -393,6 +433,65 @@ mod tests {
                 "{path} does not hand off to {key}.html"
             );
         }
+    }
+
+    /// The front page and everything a browser fetches to show it, without the typefaces,
+    /// gzipped as a server would send it, must fit a slow link.
+    #[test]
+    fn the_front_page_fits_its_budget() {
+        use std::io::Write as _;
+        let files = site().render().unwrap();
+        let mut total = 0usize;
+        for path in [
+            "index.html",
+            "site.css",
+            "home.css",
+            "theme.css",
+            "fonts/fonts.css",
+            "js/site.js",
+            "js/home.js",
+            "js/consoles.js",
+            "assets/pamoja-icon.svg",
+        ] {
+            let body = &files
+                .iter()
+                .find(|(produced, _)| produced == path)
+                .unwrap_or_else(|| panic!("{path} is not produced"))
+                .1;
+            let mut encoder =
+                flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::best());
+            encoder.write_all(body).unwrap();
+            total += encoder.finish().unwrap().len();
+        }
+        assert!(
+            total < 200 * 1024,
+            "the front page costs {total} bytes gzipped"
+        );
+    }
+
+    #[test]
+    fn every_scenario_has_a_console_and_the_front_page_shows_them_all() {
+        let site = site();
+        let files = site.render().unwrap();
+        let index = String::from_utf8_lossy(
+            &files
+                .iter()
+                .find(|(path, _)| path == "index.html")
+                .unwrap()
+                .1,
+        )
+        .into_owned();
+        for key in site.home.scenario_keys() {
+            assert!(
+                index.contains(&format!("data-diorama=\"{key}\"")),
+                "the front page has no stage for {key}"
+            );
+        }
+        assert!(index.contains("class=\"bento-card span-big\""));
+        assert!(
+            index.contains("id=\"quick-python\""),
+            "the first example is spliced"
+        );
     }
 
     #[test]
