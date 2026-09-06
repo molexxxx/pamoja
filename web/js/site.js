@@ -241,6 +241,48 @@
     }
   };
 
+  const lightbox = (a) =>
+  {
+    const source = a.querySelector('picture source');
+    const img = a.querySelector('img');
+    const src = source && matchMedia(source.media).matches ? source.srcset : a.href;
+    const view = document.createElement('div');
+    view.className = 'lightbox-view';
+    view.setAttribute('role', 'dialog');
+    view.setAttribute('aria-modal', 'true');
+    view.setAttribute('aria-label', img ? img.alt : 'Drawing');
+    const full = new Image();
+    full.src = src;
+    full.alt = img ? img.alt : '';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'lightbox-close';
+    close.textContent = 'Close';
+    close.setAttribute('aria-label', 'Close the drawing');
+    const shut = () =>
+    {
+      view.remove();
+      document.body.classList.remove('lightbox-open');
+      removeEventListener('keydown', onKey);
+      a.focus();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') shut(); };
+    view.addEventListener('click', (e) => { if (e.target === view || e.target === close) shut(); });
+    addEventListener('keydown', onKey);
+    view.append(full, close);
+    document.body.append(view);
+    document.body.classList.add('lightbox-open');
+    close.focus();
+  };
+
+  document.addEventListener('click', (e) =>
+  {
+    const a = e.target.closest('a.lightbox');
+    if (!a || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    lightbox(a);
+  });
+
   document.addEventListener('click', (e) =>
   {
     const a = e.target.closest('a[href]');
