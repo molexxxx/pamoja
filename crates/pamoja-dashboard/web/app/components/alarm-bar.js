@@ -1,9 +1,3 @@
-// alarm-bar.js - a slide-in panel listing everything that needs attention.
-//
-// Toggled by the bell in the top bar. Lists every warning/alarm sensor across the
-// fleet, newest concern first, grouped by org and group, each row jumping straight to
-// that sensor's detail modal - so you triage alarms instead of hunting for them.
-
 import { store } from '../store.js';
 import { currentFleet } from '../lib/edits.js';
 import { open, back } from '../nav.js';

@@ -14,6 +14,7 @@ mod highlight;
 mod home;
 mod layout;
 mod markdown;
+mod minify;
 mod nav;
 mod pages;
 mod search;
@@ -445,6 +446,61 @@ mod tests {
 
     /// The front page and everything a browser fetches to show it, without the typefaces,
     /// gzipped as a server would send it, must fit a slow link.
+    #[test]
+    fn the_published_stylesheets_and_scripts_are_minified() {
+        let root = docs::repo_root();
+        let files = site().render().unwrap();
+        let published = |path: &str| {
+            String::from_utf8(
+                files
+                    .iter()
+                    .find(|(produced, _)| produced == path)
+                    .unwrap_or_else(|| panic!("{path} is not produced"))
+                    .1
+                    .clone(),
+            )
+            .unwrap()
+        };
+        for (source, path) in [
+            ("web/site.css", "site.css"),
+            ("web/home.css", "home.css"),
+            ("web/reference.css", "reference.css"),
+            ("web/js/site.js", "js/site.js"),
+            ("web/js/home.js", "js/home.js"),
+            ("web/js/consoles.js", "js/consoles.js"),
+            ("web/js/reference.js", "js/reference.js"),
+        ] {
+            let body = published(path);
+            let original = fs::read_to_string(root.join(source)).unwrap();
+            assert!(
+                body.len() < original.len(),
+                "{path} is {} bytes against {} in the source",
+                body.len(),
+                original.len()
+            );
+            if path.ends_with(".css") {
+                assert!(
+                    !body.contains("/*") && !body.contains('\n'),
+                    "{path} keeps its comments or line breaks"
+                );
+            } else {
+                assert!(!body.starts_with("//"), "{path} keeps its header comment");
+            }
+        }
+        assert!(
+            published("js/home.js").contains("export"),
+            "the module keeps its exports"
+        );
+        assert!(
+            published("js/home.js").contains("consoles.js"),
+            "the module keeps its import"
+        );
+        assert!(
+            published("site.css").contains("color-mix(in srgb,var(--cream)"),
+            "the palette maths survives"
+        );
+    }
+
     #[test]
     fn the_front_page_fits_its_budget() {
         use std::io::Write as _;

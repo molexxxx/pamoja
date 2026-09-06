@@ -155,8 +155,6 @@ h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: 600; letter-sp
 }
 .seg:hover { border-color: var(--cyan); transform: translateY(-1px); box-shadow: var(--glow) color-mix(in srgb, var(--cyan) 40%, transparent); }
 
-/* Control deck - one cohesive glass bar of icon-first segments. Labels collapse to icons
-   on narrow viewports (below) so the deck stays a single row from phone to desktop. */
 .deck
 {
   display: inline-flex; align-items: center; gap: 1px; padding: 4px; flex: none;
@@ -683,8 +681,6 @@ h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: 600; letter-sp
 
 .deck-seg.control.is-unlocked { color: var(--teal); }
 
-/* Live-discovery cue: a group or sensor that just arrived in the fleet gets a brief ring and
-   a badge, so an auto-discovered node reads as an event rather than appearing silently. */
 .new-badge { display: inline-block; margin-inline-start: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 999px; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; vertical-align: middle; color: var(--bg-1); background: var(--cyan); }
 .gcard.is-new, .stile.is-new, .statcard.is-new { border-color: color-mix(in srgb, var(--cyan) 55%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--cyan) 38%, transparent), 0 0 18px color-mix(in srgb, var(--cyan) 20%, transparent); }
 @media (prefers-reduced-motion: no-preference) { .gcard.is-new, .stile.is-new, .statcard.is-new { animation: discover-pulse 1.9s var(--ease) 3; } }

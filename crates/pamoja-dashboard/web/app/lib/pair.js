@@ -1,17 +1,3 @@
-// pair.js - unlocking and sending authenticated control commands.
-//
-// Reading the dashboard is anonymous; control is not. The device shows a pairing code
-// out of band; the user enters it here. The code is normalized, mixed with a server
-// nonce through HKDF into a session key, and proven to the device with an HMAC - the
-// code itself never leaves the browser. Each command then carries a monotonic counter
-// and an HMAC over (counter, command), so an eavesdropper on the open hotspot can
-// neither forge a command nor replay a captured one.
-//
-// The derived key and counter live in sessionStorage (per tab); a refresh keeps the
-// unlocked session, closing the tab drops it. "Trust this device" instead persists the
-// session in localStorage, so it survives a browser restart (until the device's session
-// expires). The pairing code is never stored either way.
-
 import { hkdfSha256 } from './crypto/hkdf.js';
 import { hmacSha256 } from './crypto/hmac.js';
 import { utf8, toHex } from './crypto/bytes.js';

@@ -1,10 +1,3 @@
-// detail.js - the shared sensor detail body.
-//
-// Rendered both in the full-screen sensor modal (opened from the grid) and as a docked
-// side panel inside the network view (opened from a node), so the two never drift. It
-// is just the body - the big visualization, history graph, stat grid, and a fuller
-// scrollable event log; each caller wraps it with its own header.
-
 import { t, nf, fmt, ago } from './i18n.js';
 import { tileViz, detailGraph, trendArrow, isDiscrete, vizOf, esc } from './viz/index.js';
 

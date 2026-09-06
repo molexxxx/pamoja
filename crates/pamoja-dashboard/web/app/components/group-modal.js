@@ -1,12 +1,3 @@
-// group-modal.js - the advanced group view.
-//
-// A full-screen modal showing a whole group's sensors at once, larger and cleaner than
-// the dashboard tiles. A labelled tab strip switches between groups across the fleet; a
-// sensor card opens that sensor's detail modal on top. Big groups paginate their sensor
-// grid (a numbered pager) so the cards stay a comfortable size instead of one long
-// scroll. Opened from the dashboard group card, the network inspect panel, and the alarm
-// drawer's "Group" button. Driven by store.group; built from currentFleet().
-
 import { store } from '../store.js';
 import { currentFleet } from '../lib/edits.js';
 import { open, back } from '../nav.js';

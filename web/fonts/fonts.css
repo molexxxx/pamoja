@@ -1,7 +1,3 @@
-/* The site's typefaces, served from here rather than a font host: Inter and Sora by
-   their designers and JetBrains Mono by JetBrains, all under the SIL Open Font License,
-   whose texts sit beside the files. One variable file per family, latin subset only. */
-
 @font-face {
   font-family: 'Inter';
   font-style: normal;

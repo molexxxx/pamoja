@@ -1,12 +1,3 @@
-// discovery.js - flags nodes and sensors that have just appeared, so live auto-discovery
-// reads as an event rather than a card silently materializing.
-//
-// The device surfaces a new group or sensor by including it in the next GET /state frame
-// (its sampling loop calls Fleet::add_group / add_sensor). This watches the raw fleet
-// signal, seeds the known set from the first frame (so the initial fleet is never "new"),
-// and marks any id that appears later as new for a short window. The dashboard reads
-// isNew() to add a highlight and a badge.
-
 import { fleet } from './feed.js';
 
 /** How long a freshly discovered group or sensor keeps its "new" highlight, in ms. */

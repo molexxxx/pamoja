@@ -24,12 +24,13 @@ released together, so one entry covers all of them.
   waits on it and never meets it once every project exists.
 - The site's bar over the generated references was drawn but not visible on the
   Python pages, since pdoc's stylesheet fixes every bare `nav` element to the
-  viewport as its sidebar, and never reached the Rust pages at all, since the
-  build cache kept the last run's rustdoc output and cargo had no reason to
-  rebuild it for a changed header fragment. The bar is built from elements no
-  generator styles, and rustdoc runs afresh on every deploy.
+  viewport as its sidebar. The bar is built from elements no generator styles.
 - The hardware page linked the `Sensor` and `Actuator` traits at a rustdoc path
   that does not exist.
+- The Rust reference on the site was weeks stale: the build cache kept the last
+  run's site tree, and copying the fresh rustdoc output into a directory that
+  already existed nested it under the old pages, which then shipped again. The
+  site tree starts empty on every build.
 
 ### Changed
 
@@ -70,6 +71,10 @@ released together, so one entry covers all of them.
   border without a seam, the front page's install lines and buttons sit on one
   grid at every width, and every page has the menu on a phone, the front page
   included. The header over the generated references is the site's own header.
+- The site's stylesheets and scripts are published minified: the sources under
+  `web/` stay readable, and the copies the site serves carry no comments and no
+  indentation. A script goes through a real parser on the way, so one that does
+  not parse fails the build rather than reaching a browser.
 - The front page is rendered by `cargo xtask site` from the capability map and
   `web/home.toml`, in the same shell as the documentation: the four install
   lines, the first example in four languages spliced from the tests that run it,

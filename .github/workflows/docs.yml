@@ -44,6 +44,11 @@ jobs:
             target
           key: ${{ runner.os }}-docs-cargo-${{ hashFiles('**/Cargo.toml') }}
 
+      # The cached target keeps the last run's site tree, and copying a fresh reference
+      # into a directory that exists nests it under the old one, so the tree starts empty.
+      - name: Start from an empty site tree
+        run: rm -rf target/site
+
       # The crate READMEs, the capability tables, and every spliced example must match the
       # code they are generated from.
       - name: Generated docs in sync with the code

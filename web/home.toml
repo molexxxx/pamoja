@@ -1,9 +1,3 @@
-# The front page's data: what the hero says, the nine scenarios the consoles play, the
-# backing tiers and uplinks, and the roadmap tracks. `cargo xtask site` renders it and
-# fails when a scenario names a crate that is not a library crate, when a scenario has no
-# console to play it, or when a roadmap tag marked as shipping names a crate that does not
-# exist or one marked as planned names a crate that does. A body may carry inline HTML.
-
 [hero]
 eyebrow = "an open SDK for IoT, robotics, and drones"
 title = ["One core.", "Every language.", "For the devices that", "change lives."]

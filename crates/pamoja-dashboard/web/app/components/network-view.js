@@ -1,15 +1,3 @@
-// network-view.js - a live mesh topology of the fleet, with a geo map and node debug.
-//
-// A full-screen overlay (toggled from the top bar) with two tabs:
-//   - Topology: the gateway at the hub, groups around it on their links, sensors as
-//     leaves; edges coloured by link type with travelling packets; offline groups go
-//     dashed/dim; alarming nodes pulse.
-//   - Map: the same fleet placed by (mocked) geo coordinates over a graticule.
-// Both pan and zoom. Clicking a group node opens an inspection panel with link debug
-// (signal, throughput, latency, uptime, issues); clicking a sensor leaf opens its
-// detail modal. Built from currentFleet(), so edits and scenarios are reflected. The
-// site map and per-link debug specs come from the layout catalog (see lib/catalog.js).
-
 import { store } from '../store.js';
 import { currentFleet } from '../lib/edits.js';
 import { open, back } from '../nav.js';
@@ -20,9 +8,6 @@ import { LINK_NAMES, LINK_COLORS, realSensors, esc } from '../lib/viz/index.js';
 
 const SR = 60;
 
-// The topology turns portrait on a phone so the graph fills a tall narrow screen instead of
-// being squeezed to the width. The map keeps its wide canvas (its backdrop art is drawn for
-// that aspect), and the topology ring becomes an ellipse to fill whichever shape is in use.
 function dims(map)
 {
   const phone = !map && typeof matchMedia === 'function' && matchMedia('(max-width: 560px)').matches;

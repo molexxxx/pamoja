@@ -1,10 +1,3 @@
-// sensor-modal.js - the full-screen sensor detail (opened from the grid or an alarm).
-//
-// Mounted at the body level, above everything. Driven by store.selected. Opening from
-// the network map instead uses a docked panel (see network-view); this modal is for the
-// grid and the alarm list. Closes via the ✕, backdrop, Back, or Escape - all through
-// nav so history stays balanced. The body is the shared sensor detail.
-
 import { store } from '../store.js';
 import { currentFleet } from '../lib/edits.js';
 import { back, open } from '../nav.js';

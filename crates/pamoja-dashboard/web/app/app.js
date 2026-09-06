@@ -1,11 +1,3 @@
-// app.js - application entry point.
-//
-// Bootstraps the dashboard: applies the saved theme, loads localization, registers the
-// components, mounts the router (hash mode, org-addressable), opens the live fleet
-// stream, and starts the boot reveal and pointer parallax. The page is a multi-file
-// zQuery app - the core files (this entry, the store, the routes, and the overlay nav)
-// live in app/; feature and helper modules live under app/lib/.
-
 import { store } from './store.js';
 import { initI18n, t, registerLabels, registerMessages } from './lib/i18n.js';
 import { initNav, back } from './nav.js';

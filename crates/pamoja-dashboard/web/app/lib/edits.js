@@ -1,12 +1,3 @@
-// edits.js - client-side group/sensor management (demo).
-//
-// The device owns the real fleet; this overlays user edits (added/removed groups and
-// sensors) on top of the live snapshot so the management UX exists without touching
-// device provisioning. Edits persist in localStorage via the store. A real build would
-// send these as authenticated provisioning commands; here they are applied in-browser.
-// The sensor types and link kinds a user can add come from the layout catalog (see
-// lib/catalog.js), so a device-supplied manifest changes what can be created.
-
 import { fleet, live } from './feed.js';
 import { store } from '../store.js';
 import { catalog } from './catalog.js';

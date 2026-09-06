@@ -1,15 +1,3 @@
-// parallax.js - pointer-driven tilt on the group cards and modals.
-//
-// A subtle 3D tilt that follows the pointer, with a moving highlight on the group cards.
-// The tilt is written as CSS custom properties on the hovered element and re-applied on a
-// requestAnimationFrame loop while a card or modal is under the pointer, so it stays
-// smooth without thrashing layout. Driven by a single document pointermove listener.
-//
-// It is a hover affordance, so it runs only on a device with a hovering, fine pointer
-// (desktop, laptop, a tablet or 2-in-1 with a mouse/trackpad/stylus). On a phone or a
-// pure-touch tablet pointermove fires only mid-touch, fighting tap and scroll, so the
-// tilt is left off there. The gate re-evaluates if the pointer kind changes.
-
 let hoverEl = null;
 let amt = 5;
 let glow = false;

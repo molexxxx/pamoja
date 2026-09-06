@@ -1,12 +1,3 @@
-// home.js - the front page's islands, over markup the site renders.
-//
-// The page reads without any of this: every scenario's caption, every card's links, and
-// the first example in all four languages are in the HTML. This adds the stage that plays
-// one console at a time, the wall of cards that opens on a click and filters by chapter,
-// and the notice that backing is a preview. The consoles themselves are in consoles.js.
-// `init` binds the page in front of it and can run again after site.js swaps the front
-// page in without a reload.
-
 import { mountConsoles } from './consoles.js';
 
 let toast = null;
