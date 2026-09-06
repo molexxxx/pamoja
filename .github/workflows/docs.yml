@@ -52,7 +52,10 @@ jobs:
       - name: Rust reference
         env:
           RUSTDOCFLAGS: -D warnings --html-in-header ${{ github.workspace }}/docs/theme/rustdoc.html
+        # The cached target keeps the last run's rustdoc output, and cargo does not know
+        # that the header fragment changed, so the reference is always built afresh.
         run: |
+          cargo clean --doc
           cargo doc --workspace --no-deps --exclude xtask --exclude pamoja-examples
           mkdir -p target/site/docs/reference
           cp -r target/doc target/site/docs/reference/rust

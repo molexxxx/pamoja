@@ -232,8 +232,8 @@ catch (PamojaException error)
 ## Reference
 
 <!-- table: reference audit -->
-- Rust: [`pamoja-audit`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_audit/index.html)
-- TypeScript: [`@pamoja/audit`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_audit.html)
-- Python: [`pamoja.audit`](https://pamoja.molex.cloud/docs/reference/python/pamoja/audit.html)
-- C#: [`Pamoja.Audit`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Audit.html)
+- Rust: [`pamoja-audit`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_audit/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-audit)
+- TypeScript: [`@pamoja/audit`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_audit.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-audit)
+- Python: [`pamoja.audit`](https://pamoja.molex.cloud/docs/reference/python/pamoja/audit.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-audit)
+- C#: [`Pamoja.Audit`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Audit.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-audit)
 <!-- end -->

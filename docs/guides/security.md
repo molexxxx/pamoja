@@ -206,8 +206,8 @@ Console.WriteLine(DeviceIdentity.Verify(impostor.PublicKey, reading, signature)
 ## Reference
 
 <!-- table: reference security -->
-- Rust: [`pamoja-security`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_security/index.html)
-- TypeScript: [`@pamoja/security`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_security.html)
-- Python: [`pamoja.security`](https://pamoja.molex.cloud/docs/reference/python/pamoja/security.html)
-- C#: [`Pamoja.Security`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Security.html)
+- Rust: [`pamoja-security`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_security/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-security)
+- TypeScript: [`@pamoja/security`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_security.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-security)
+- Python: [`pamoja.security`](https://pamoja.molex.cloud/docs/reference/python/pamoja/security.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-security)
+- C#: [`Pamoja.Security`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Security.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-security)
 <!-- end -->

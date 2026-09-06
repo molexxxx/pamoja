@@ -61,11 +61,8 @@ pub struct Page {
 /// that lists that language's packages, so a tree has no front door of its own. `site`
 /// runs after the generators and overwrites what they put at these paths; pdoc names its
 /// root after the package and also writes an index that points at it.
-const HANDOFFS: [(&str, &str, &str); 5] = [
+const HANDOFFS: [(&str, &str, &str); 2] = [
     ("docs/reference/rust/index.html", "rust", "Rust"),
-    ("docs/reference/node/index.html", "node", "TypeScript"),
-    ("docs/reference/python/index.html", "python", "Python"),
-    ("docs/reference/python/pamoja.html", "python", "Python"),
     ("docs/reference/dotnet/index.html", "dotnet", "C#"),
 ];
 

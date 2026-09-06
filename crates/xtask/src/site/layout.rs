@@ -27,7 +27,7 @@ const REPO: &str = "https://github.com/molexxxx/pamoja";
 const ROOT: &str = "/";
 
 /// The site's origin, for the canonical URL and the card each page carries.
-const ORIGIN: &str = "https://pamoja.molex.cloud";
+pub(crate) const ORIGIN: &str = "https://pamoja.molex.cloud";
 
 /// What every page's shell needs beyond the page itself.
 pub struct Chrome<'a> {
@@ -74,7 +74,7 @@ pub fn document(chrome: &Chrome, page: &Page) -> String {
     });
     out.push_str("<body>\n");
     out.push_str("<a class=\"skip\" href=\"#content\">Skip to content</a>\n");
-    out.push_str(&header(true));
+    out.push_str(&header());
     out.push_str("<div id=\"page\">\n<div class=\"docs\">\n<aside class=\"side\" id=\"side\">\n");
     out.push_str(&chrome.nav.sidebar(&page.url, ROOT));
     out.push_str("</aside>\n<main class=\"content\" id=\"content\">\n");
@@ -126,8 +126,27 @@ pub fn home(chrome: &Chrome, body: &str) -> String {
     );
     out.push_str("<body class=\"is-home\">\n");
     out.push_str("<a class=\"skip\" href=\"#content\">Skip to content</a>\n");
-    out.push_str(&header(false));
+    out.push_str(&header());
     out.push_str("<div id=\"page\">\n");
+    out.push_str(&format!(
+        "<nav class=\"side home-menu\" id=\"side\" aria-label=\"Site\">\n\
+         <div class=\"side-nav\">\n\
+         <ul>\n\
+         <li><a href=\"/docs/index.html\">Docs</a></li>\n\
+         <li><a href=\"/docs/install.html\">Install</a></li>\n\
+         <li><a href=\"/docs/hardware.html\">Hardware</a></li>\n\
+         <li><a href=\"/docs/reference/rust.html\">API reference</a></li>\n\
+         <li><a href=\"https://pamoja.molex.cloud/dashboard/\">Dashboard demo</a></li>\n\
+         </ul>\n\
+         <details class=\"side-group\" open><summary>Project</summary><ul>\n\
+         <li><a href=\"{REPO}\">Source on GitHub</a></li>\n\
+         <li><a href=\"{REPO}/issues/new?labels=bug\">Report a bug</a></li>\n\
+         <li><a href=\"{REPO}/issues/new?labels=enhancement\">Suggest a change</a></li>\n\
+         <li><a href=\"{REPO}/releases\">Releases</a></li>\n\
+         </ul></details>\n\
+         </div>\n\
+         </nav>\n"
+    ));
     out.push_str(body);
     out.push_str("</div>\n");
     out.push_str(&footer(chrome.version));
@@ -159,7 +178,7 @@ pub fn not_found(chrome: &Chrome) -> String {
         kind: "website",
     });
     out.push_str("<body>\n");
-    out.push_str(&header(false));
+    out.push_str(&header());
     out.push_str(
         "<div id=\"page\">\n<main class=\"content lone\" id=\"content\">\n<article class=\"article\">\n\
          <h1>There is no page here</h1>\n\
@@ -262,13 +281,11 @@ try{{var h=location.hash.slice(1);document.documentElement.dataset.lang=/^(rust|
 // The header every page shares: the mark, the site's doors, the search box, and the icon
 // bar to the project on GitHub. The menu button opens the sidebar on a narrow screen and is
 // only rendered where there is one.
-fn header(with_menu: bool) -> String {
-    let menu = if with_menu {
-        "<button class=\"menu-toggle\" type=\"button\" aria-controls=\"side\" aria-expanded=\"false\">\
-         <span class=\"menu-bars\" aria-hidden=\"true\"></span>Menu</button>\n"
-    } else {
-        ""
-    };
+// Every page gets the menu toggle: it opens the sidebar on a documentation page and the
+// drawer of site links on the front page, and site.js hides it where there is neither.
+fn header() -> String {
+    let menu = "<button class=\"menu-toggle\" type=\"button\" aria-controls=\"side\" aria-expanded=\"false\">\
+         <span class=\"menu-bars\" aria-hidden=\"true\"></span>Menu</button>\n";
     format!(
         "<header class=\"top\">\n\
          {menu}\

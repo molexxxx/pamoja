@@ -22,6 +22,14 @@ released together, so one entry covers all of them.
   at the first refusal to create a project rather than retrying into the cap; a
   scheduled workflow finishes the set as the cap allows, so a release never
   waits on it and never meets it once every project exists.
+- The site's bar over the generated references was drawn but not visible on the
+  Python pages, since pdoc's stylesheet fixes every bare `nav` element to the
+  viewport as its sidebar, and never reached the Rust pages at all, since the
+  build cache kept the last run's rustdoc output and cargo had no reason to
+  rebuild it for a changed header fragment. The bar is built from elements no
+  generator styles, and rustdoc runs afresh on every deploy.
+- The hardware page linked the `Sensor` and `Actuator` traits at a rustdoc path
+  that does not exist.
 
 ### Changed
 
@@ -36,11 +44,32 @@ released together, so one entry covers all of them.
   included. The reference pages list each capability with its install line, its
   module, its worked example, and the same capability on the other three
   registries.
-- The reference page for each language is the one way into its generated API
-  pages: the root of every generated tree redirects to it, the README and the
-  front page link it rather than the generated root, and the generated landing
-  pages that duplicated it are gone. A guide opens on its reader's language
-  before first paint, and scrollbars everywhere on the site follow the palette.
+- The reference page for each language opens its generated API pages. A button
+  at the top browses the whole reference (the umbrella crate's rustdoc, which
+  lists every crate beside it, typedoc's package list, pdoc's package page, and
+  the root namespace in DocFX), and every capability row carries a button for its
+  API pages, its guide, its worked example, and its registry page, with the same
+  capability on the other three reference pages one step away. The generated
+  landing pages that duplicated the reference page are gone, and each generated
+  tree carries the site's bar. A guide opens on its reader's language before
+  first paint, and scrollbars everywhere on the site follow the palette.
+- Every link in a committed page is absolute, so the reference and install
+  tables render and resolve on GitHub as well as on the site; the site's link
+  check follows them like its own. A guide's reference section and a crate's
+  README link the capability's row on each language's reference page, which is
+  where the install line and the registry are.
+- The hardware page says where to buy each part: two or three product pages
+  per part from the makers' own stores and the larger distributors, the
+  cheapest reputable option first, each with the price the page listed on the
+  day it was read, and the lowest price in the summary table. The pages are
+  read by hand, so the date is part of the record.
+- The reference rows, the domain rows, and the front page's capability cards
+  share one card anatomy: what the thing is and its name in code, the install
+  line beside it, and under a hairline one row of equal buttons for its API
+  pages, guide, worked example, and registry. A card's drawer continues its
+  border without a seam, the front page's install lines and buttons sit on one
+  grid at every width, and every page has the menu on a phone, the front page
+  included. The header over the generated references is the site's own header.
 - The front page is rendered by `cargo xtask site` from the capability map and
   `web/home.toml`, in the same shell as the documentation: the four install
   lines, the first example in four languages spliced from the tests that run it,

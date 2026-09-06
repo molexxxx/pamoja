@@ -17,8 +17,13 @@
 /* Hero */
 .hero { position: relative; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: clamp(2rem, 5vw, 4.5rem); align-items: center; padding-top: clamp(2.5rem, 8vh, 6rem); }
 .hero-copy { display: grid; gap: 1.4rem; max-width: 40rem; }
-.hero-stage { align-self: center; }
+.hero-side { display: grid; gap: 0.8rem; align-self: center; }
+.hero-stage { margin: 0; }
 .hero-stage .cons-body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.hero-stage .cons-body > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.stage-note { margin: 0; padding: 0 0.4rem; font-size: 0.82rem; line-height: 1.5; color: var(--muted); text-align: center; }
+.stage-note a { color: var(--teal); border-bottom: 1px solid color-mix(in srgb, var(--teal) 35%, transparent); transition: color 0.15s ease, border-color 0.15s ease; }
+.stage-note a:hover { color: var(--amber); border-bottom-color: currentColor; }
 .hero::before { content: ""; position: absolute; z-index: -1; left: -10vw; top: -4rem; width: 70vw; height: 32rem; pointer-events: none; background: radial-gradient(closest-side, color-mix(in srgb, var(--teal) 16%, transparent), transparent); filter: blur(24px); }
 .home > section + section { position: relative; }
 .home > section + section::before { content: ""; position: absolute; left: 10%; right: 10%; top: calc(-1 * clamp(2.25rem, 4.5vw, 3.75rem)); height: 1px; background: linear-gradient(90deg, transparent, var(--line-strong), transparent); }
@@ -26,21 +31,21 @@
 .grad { background: linear-gradient(100deg, var(--teal), color-mix(in srgb, var(--teal) 45%, var(--cream)) 55%, var(--cream)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .grad-warm { background: linear-gradient(100deg, var(--amber), var(--coral)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .hero-lead { margin: 0; max-width: 38rem; font-size: clamp(1rem, 1.5vw, 1.2rem); color: var(--text); }
-.installs { list-style: none; margin: 0; padding: 0.35rem; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.15rem; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--navy-0) 55%, transparent); }
-.installs li { display: flex; align-items: center; gap: 0.7rem; padding: 0.3rem 0.6rem; border-radius: 10px; }
+.installs { list-style: none; margin: 0; padding: 0.35rem; display: grid; grid-template-columns: minmax(0, 1fr); border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--navy-0) 55%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--cream) 4%, transparent); }
+.installs li { display: grid; grid-template-columns: 5.6rem minmax(0, 1fr); align-items: center; gap: 0.6rem; padding: 0.25rem 0.5rem 0.25rem 0.75rem; border-radius: 10px; }
 .installs li + li { border-top: 1px solid var(--line); border-radius: 0; }
 .installs li:hover { background: color-mix(in srgb, var(--cream) 4%, transparent); }
-.installs .pkg-get { min-width: 0; flex: 1; }
-.installs .cmd { background: transparent; border-color: transparent; padding-left: 0; }
-.install-lang { flex: none; width: 5.6rem; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--teal); }
+.installs .pkg-get { min-width: 0; }
+.installs .cmd { flex: 1; background: transparent; border-color: transparent; padding-left: 0; }
+.installs .copy { flex: none; }
+.install-lang { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--teal); }
 .installs li:nth-child(2) .install-lang { color: var(--coral); }
 .installs li:nth-child(3) .install-lang { color: var(--sky); }
 .installs li:nth-child(4) .install-lang { color: var(--forest); }
-.hero-facts { display: flex; flex-wrap: wrap; gap: 0.35rem 0; margin: 0; font: 500 0.78rem var(--mono); color: var(--muted); }
-.hero-facts span + span::before { content: "·"; margin: 0 0.7rem; color: var(--line-strong); }
+.hero-facts { list-style: none; display: flex; flex-wrap: wrap; gap: 0.45rem 1.5rem; margin: 0; padding: 0; font: 500 0.78rem var(--mono); color: var(--muted); }
+.hero-facts li { display: inline-flex; align-items: center; gap: 0.5rem; white-space: nowrap; }
+.hero-facts li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 6px color-mix(in srgb, var(--teal) 70%, transparent); }
 .hero-doors { display: flex; flex-wrap: wrap; gap: 0.7rem; }
-.btn-ghost { color: var(--cream); background: color-mix(in srgb, var(--cream) 4%, transparent); border: 1px solid var(--line-strong); }
-.btn-ghost:hover { background: color-mix(in srgb, var(--cream) 10%, transparent); transform: translateY(-2px); }
 
 /* The first example: capped to a screen of code until asked for the rest */
 .quick .langs { max-width: 58rem; min-width: 0; margin: 0 auto; }
@@ -64,7 +69,7 @@
   position: relative; display: flex; flex-direction: column; justify-content: flex-start; min-height: 8.6rem;
   padding: 1.05rem 1.15rem; border-radius: 15px; cursor: pointer;
   background: color-mix(in srgb, var(--navy-1) 88%, var(--navy-0));
-  border: 1.5px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
   transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
 .bento-card[data-accent="teal"] { --accent: var(--teal); }
@@ -76,35 +81,31 @@
 .bento-card.span-big { grid-column: span 2; grid-row: span 2; justify-content: center; background: linear-gradient(160deg, color-mix(in srgb, var(--amber) 16%, var(--navy-1)), var(--navy-1)); }
 .bento-card:hover, .bento-card.pinned { border-color: var(--accent); border-bottom-color: transparent; border-bottom-left-radius: 0; border-bottom-right-radius: 0; transform: translateY(-4px); box-shadow: 0 24px 60px -28px var(--navy-0); z-index: 5; }
 .bento:has(.bento-card.pinned) .bento-card:not(.pinned):not(:hover) { opacity: 0.45; }
-.bc-face { display: flex; flex-direction: column; gap: 0.5rem; }
+.bc-face { display: flex; flex: 1; flex-direction: column; gap: 0.5rem; }
+.bc-face .crate-chips { margin-top: auto; padding-top: 0.3rem; }
 .bc-role { margin: 0; font-size: 0.62rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.13em; color: var(--accent); }
 .bc-name { margin: 0; font-family: var(--display); font-weight: 600; font-size: 1.05rem; line-height: 1.2; color: var(--cream); }
 .span-big .bc-name { font-family: var(--mono); font-weight: 500; font-size: 1.8rem; }
-.bc-summary { margin: 0; font-size: 0.86rem; line-height: 1.45; color: var(--muted); }
+.bc-summary { margin: 0; font-size: 0.86rem; line-height: 1.45; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .span-big .bc-summary { font-size: 0.95rem; color: var(--text); }
 .crate-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .crate-chip { font-family: var(--mono); font-size: 0.72rem; padding: 0.25rem 0.55rem; border-radius: 7px; background: color-mix(in srgb, var(--cream) 5%, transparent); border: 1px solid var(--line); color: var(--cream); text-decoration: none; }
 .crate-chip b { color: var(--accent, var(--teal)); font-weight: 500; }
 a.crate-chip:hover { border-color: var(--accent, var(--teal)); }
 .bc-pop {
-  position: absolute; left: -1.5px; right: -1.5px; top: 100%; z-index: 6;
-  display: grid; gap: 0.7rem; padding: 0.2rem 1.15rem 1.05rem;
-  border-radius: 0 0 15px 15px; background: color-mix(in srgb, var(--navy-1) 88%, var(--navy-0)); border: 1.5px solid var(--accent); border-top: 0;
+  position: absolute; left: -1px; right: -1px; top: calc(100% - 1px); z-index: 6;
+  display: grid; gap: 0.7rem; padding: 0.35rem 1.15rem 1rem;
+  border-radius: 0 0 15px 15px; background: color-mix(in srgb, var(--navy-1) 88%, var(--navy-0)); border: 1px solid var(--accent); border-top: 0;
   box-shadow: 0 26px 50px -26px var(--navy-0);
   opacity: 0; transform: translateY(-6px); pointer-events: none;
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 .bento-card:hover .bc-pop, .bento-card.pinned .bc-pop { opacity: 1; transform: none; pointer-events: auto; }
 .bento:has(.bento-card.pinned) .bento-card:not(.pinned):hover .bc-pop { opacity: 0; pointer-events: none; }
-.pkg-btns { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.pkg-btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.32rem 0.65rem; border-radius: 8px; font: 500 0.72rem var(--mono); color: var(--cream); background: color-mix(in srgb, var(--cream) 5%, transparent); border: 1px solid var(--line); text-decoration: none; transition: border-color 0.15s ease, background 0.15s ease; }
-.pkg-btn::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--muted)); }
-.pkg-btn:hover { background: color-mix(in srgb, var(--cream) 9%, transparent); border-color: var(--line-strong); }
-.pkg-btn.rust, .pkg-btn.crates { --dot: var(--amber); }
-.pkg-btn.node { --dot: var(--coral); }
-.pkg-btn.python { --dot: var(--sky); }
-.pkg-btn.dotnet { --dot: var(--forest); }
-.pkg-btn.guide { --dot: var(--cream); }
+/* The engine tile is big enough to show its install line and its buttons outright. */
+.span-big .bc-pop { position: static; opacity: 1; transform: none; pointer-events: auto; padding: 0.9rem 0 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.span-big .pkg-get { margin-top: 0.4rem; max-width: 22rem; }
+.span-big:hover, .span-big.pinned { border-bottom-color: var(--accent); border-radius: 15px; }
 
 /* Where it runs */
 .stage-tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.45rem; max-width: 70rem; margin: 0 auto 1.4rem; }
@@ -351,7 +352,7 @@ a.crate-chip:hover { border-color: var(--accent, var(--teal)); }
 }
 @media (max-width: 1000px) {
   .hero { grid-template-columns: minmax(0, 1fr); }
-  .hero-stage { max-width: 36rem; }
+  .hero-side { max-width: 36rem; }
   .milestones { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 960px) {
@@ -370,8 +371,12 @@ a.crate-chip:hover { border-color: var(--accent, var(--teal)); }
 }
 @media (max-width: 620px) {
   .hero-title { font-size: clamp(2rem, 9vw, 2.6rem); }
-  .hero-doors .btn { flex: 1 1 auto; justify-content: center; }
-  .install-lang { width: 4.2rem; }
+  .hero-doors .btn { flex: 1 1 auto; }
+  .installs li { grid-template-columns: minmax(0, 1fr); gap: 0.1rem; padding: 0.5rem 0.5rem 0.45rem 0.75rem; }
+  .installs .cmd { padding-left: 0; }
+  .hero-facts { gap: 0.4rem 1.1rem; }
+  .hero-stage .cons-body { grid-template-columns: minmax(0, 1fr); }
+  .stage-note { text-align: left; padding: 0; }
   .bento { grid-template-columns: minmax(0, 1fr); }
   .bento-card.span-big { grid-column: auto; grid-row: auto; }
   .span-big .bc-name { font-size: 1.2rem; }
