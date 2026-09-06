@@ -66,6 +66,10 @@ const TASKS: &[(&str, &str)] = &[
         "prices",
         "read every product page the hardware reference lists and refresh its prices (prices [--report <file>])",
     ),
+    (
+        "minify",
+        "minify every stylesheet and script under a directory in place (minify <dir>)",
+    ),
 ];
 
 /// The tag for the ROS 2 + Zenoh dev image built from `.devcontainer/Dockerfile`.
@@ -131,6 +135,27 @@ fn main() -> ExitCode {
                 .nth(2)
                 .expect("repo root is two levels above the xtask crate"),
         );
+    }
+
+    if task == "minify" {
+        let rest: Vec<String> = args.collect();
+        let [dir] = rest.as_slice() else {
+            eprintln!("usage: cargo xtask minify <dir>");
+            return ExitCode::FAILURE;
+        };
+        return match site::minify::directory(Path::new(dir)) {
+            Ok(done) => {
+                for (path, before, after) in &done {
+                    println!("minify: {path} {before} -> {after} bytes");
+                }
+                println!("minify: {} file(s) under {dir}", done.len());
+                ExitCode::SUCCESS
+            }
+            Err(message) => {
+                eprintln!("xtask minify: {message}");
+                ExitCode::FAILURE
+            }
+        };
     }
 
     if task == "prices" {

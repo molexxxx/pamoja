@@ -74,7 +74,9 @@ released together, so one entry covers all of them.
 - The site's stylesheets and scripts are published minified: the sources under
   `web/` stay readable, and the copies the site serves carry no comments and no
   indentation. A script goes through a real parser on the way, so one that does
-  not parse fails the build rather than reaching a browser.
+  not parse fails the build rather than reaching a browser. The dashboard demo
+  at `/dashboard` is minified the same way as it is copied in, by
+  `cargo xtask minify <dir>`.
 - The hardware page is a set of cards rather than tables and bullet lists. A
   card breaks a part down into labelled facts (interface, each figure from its
   document, and its price band with the lowest listed price), says where to buy
