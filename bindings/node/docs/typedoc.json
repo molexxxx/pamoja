@@ -17,6 +17,7 @@
     "includeGroups": false
   },
   "customCss": "../../../docs/theme/typedoc.css",
+  "customJs": "../../../web/js/reference.js",
   "githubPages": false,
   "hideGenerator": true
 }

@@ -6,13 +6,15 @@ use std::path::Path;
 
 /// The files copied into the site as they are, as (source under the repository root,
 /// destination under the site root).
-const COPIED: [(&str, &str); 6] = [
+const COPIED: [(&str, &str); 8] = [
     ("web/theme.css", "theme.css"),
     ("web/site.css", "site.css"),
     ("web/home.css", "home.css"),
+    ("web/reference.css", "reference.css"),
     ("web/js/site.js", "js/site.js"),
     ("web/js/home.js", "js/home.js"),
     ("web/js/consoles.js", "js/consoles.js"),
+    ("web/js/reference.js", "js/reference.js"),
 ];
 
 /// The directories copied whole, as (source, destination, the extensions taken, or none
