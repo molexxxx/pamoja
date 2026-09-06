@@ -8,6 +8,7 @@ version = "0.1.17"
 description = "The compiled pamoja engine for Python and the generated contract every pamoja package builds on. Installed as a dependency, not directly."
 readme = "README.md"
 license = { text = "MIT" }
+license-files = ["LICENSE-MIT"]
 requires-python = ">=3.10"
 authors = [{ name = "molexxxx" }]
 keywords = ["iot", "robotics", "drones", "mqtt", "embedded"]

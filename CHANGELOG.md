@@ -7,6 +7,16 @@ released together, so one entry covers all of them.
 
 ## [Unreleased]
 
+### Fixed
+
+- PyPI refused the compiled engine's source distribution: its metadata named
+  `LICENSE-MIT`, which maturin had placed beside the vendored crate rather than
+  at the archive's root once the package carried path dependencies, and PyPI
+  checks that a named licence file is in the archive. The package declares the
+  file explicitly, which puts it at the root, and the upload pass no longer
+  stops at a file PyPI refuses: it prints PyPI's full answer, carries on with
+  the rest, and fails at the end naming what it could not place.
+
 ### Changed
 
 - The architecture drawing opens over the page at full size when clicked, the

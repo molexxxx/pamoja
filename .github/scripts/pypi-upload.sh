@@ -8,7 +8,9 @@
 # file to a project is never capped; then the projects that do not exist yet, most
 # important first, so `pip install pamoja` works as early as possible; and the first
 # "too many new projects" answer ends the pass. Whatever is left is printed for the
-# scheduled backfill, which runs this again until nothing is left.
+# scheduled backfill, which runs this again until nothing is left. A file PyPI refuses
+# for any other reason is reported with PyPI's full answer and skipped, so one bad file
+# does not hold back the projects behind it; the pass still fails at the end.
 #
 #   pypi-upload.sh <dist directory> <version>
 #
@@ -63,6 +65,7 @@ if [ "${#fresh[@]}" -gt 0 ]; then
 fi
 
 capped=()
+refused=()
 for file in "${ordered[@]}"; do
   project=$(project_of "$file")
   if [ "${#capped[@]}" -gt 0 ] && ! exists "$project"; then
@@ -70,7 +73,7 @@ for file in "${ordered[@]}"; do
     continue
   fi
   echo "uploading $(basename "$file")"
-  if output=$(twine upload --skip-existing --non-interactive "$file" 2>&1); then
+  if output=$(twine upload --skip-existing --non-interactive --verbose "$file" 2>&1); then
     continue
   fi
   echo "$output"
@@ -79,7 +82,7 @@ for file in "${ordered[@]}"; do
     capped+=("$project")
   else
     echo "::error::uploading $(basename "$file") failed for a reason other than the cap"
-    exit 1
+    refused+=("$(basename "$file")")
   fi
 done
 
@@ -97,4 +100,8 @@ echo "on PyPI at $version: $((total - ${#missing[@]})) of $total projects"
 if [ "${#missing[@]}" -gt 0 ]; then
   printf '  missing: %s\n' "${missing[@]}"
   echo "::warning::${#missing[@]} project(s) are not on PyPI yet because PyPI caps new projects; the pypi-backfill workflow uploads them as the cap allows"
+fi
+if [ "${#refused[@]}" -gt 0 ]; then
+  printf '  refused: %s\n' "${refused[@]}"
+  exit 1
 fi
