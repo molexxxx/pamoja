@@ -101,6 +101,12 @@ released together, so one entry covers all of them.
   states no price that way, or refuses a scripted reader, keeps its last record
   and is named in the report. A weekly workflow runs it and opens a pull
   request with what moved.
+- Every hardware card's foot has two panels. A part with offers keeps "Where
+  to buy"; a bus lists the parts on the page that speak it, each a jump to its
+  card; a protocol, a specification, or a part no store lists gets "Find parts",
+  searches at Adafruit, SparkFun, Digi-Key, and Mouser for its name, under the
+  note that says no reputable store lists it and since when. No card shows a
+  lone panel stretched across the foot.
 - The front page is rendered by `cargo xtask site` from the capability map and
   `web/home.toml`, in the same shell as the documentation: the four install
   lines, the first example in four languages spliced from the tests that run it,
