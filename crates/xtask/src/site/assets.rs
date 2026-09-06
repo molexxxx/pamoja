@@ -1,18 +1,27 @@
-//! The static files the pages load: the stylesheets, the script, and the marks.
+//! The static files the pages load: the stylesheets, the scripts, the typefaces, and the
+//! marks, plus the file that tells Pages not to run Jekyll over the tree.
 
 use std::fs;
 use std::path::Path;
 
 /// The files copied into the site as they are, as (source under the repository root,
 /// destination under the site root).
-const COPIED: [(&str, &str); 3] = [
+const COPIED: [(&str, &str); 6] = [
     ("web/theme.css", "theme.css"),
     ("web/site.css", "site.css"),
+    ("web/home.css", "home.css"),
     ("web/js/site.js", "js/site.js"),
+    ("web/js/home.js", "js/home.js"),
+    ("web/js/consoles.js", "js/consoles.js"),
 ];
 
-/// The directories whose SVGs are copied whole.
-const MARKS: [(&str, &str); 2] = [("web/assets", "assets"), ("docs/assets", "docs/assets")];
+/// The directories copied whole, as (source, destination, the extensions taken, or none
+/// for every file).
+const DIRECTORIES: [(&str, &str, &[&str]); 3] = [
+    ("web/assets", "assets", &["svg"]),
+    ("docs/assets", "docs/assets", &["svg"]),
+    ("web/fonts", "fonts", &[]),
+];
 
 /// Read every static file.
 ///
@@ -32,12 +41,20 @@ pub fn files(root: &Path) -> Result<Vec<(String, Vec<u8>)>, String> {
     for (source, destination) in COPIED {
         out.push((destination.to_owned(), read(&root.join(source))?));
     }
-    for (source, destination) in MARKS {
+    out.push((".nojekyll".to_owned(), read(&root.join("web/.nojekyll"))?));
+    for (source, destination, extensions) in DIRECTORIES {
         let dir = root.join(source);
         let mut entries: Vec<_> = fs::read_dir(&dir)
             .map_err(|err| format!("reading {}: {err}", dir.display()))?
             .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-            .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("svg"))
+            .filter(|path| path.is_file())
+            .filter(|path| {
+                extensions.is_empty()
+                    || path
+                        .extension()
+                        .and_then(|ext| ext.to_str())
+                        .is_some_and(|ext| extensions.contains(&ext))
+            })
             .collect();
         entries.sort();
         for path in entries {

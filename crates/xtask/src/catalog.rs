@@ -877,15 +877,19 @@ impl Catalog {
 
 /// One language's packaging: how a capability is named and installed there, and which
 /// registry holds it.
-struct Language {
-    key: &'static str,
-    name: &'static str,
-    registry: &'static str,
+pub(crate) struct Language {
+    /// The key the reference page and the binding directory use (`node` for TypeScript).
+    pub key: &'static str,
+    /// The language as a reader names it.
+    pub name: &'static str,
+    /// The registry that holds its packages.
+    pub registry: &'static str,
     /// The fragment of the guide section that shows the language's example.
-    anchor: &'static str,
+    pub anchor: &'static str,
 }
 
-const LANGUAGES: [Language; 4] = [
+/// The four languages, in the order the site presents them.
+pub(crate) const LANGUAGES: [Language; 4] = [
     Language {
         key: "rust",
         name: "Rust",
@@ -913,7 +917,7 @@ const LANGUAGES: [Language; 4] = [
 ];
 
 impl Language {
-    fn by_key(key: &str) -> &'static Language {
+    pub(crate) fn by_key(key: &str) -> &'static Language {
         LANGUAGES
             .iter()
             .find(|language| language.key == key)
@@ -921,7 +925,7 @@ impl Language {
     }
 
     /// The package that carries every capability in this language.
-    fn bundle(&self) -> &'static str {
+    pub(crate) fn bundle(&self) -> &'static str {
         match self.key {
             "dotnet" => "Pamoja",
             _ => "pamoja",
@@ -929,7 +933,7 @@ impl Language {
     }
 
     /// What one unit of the generated reference is called in this language.
-    fn unit(&self) -> &'static str {
+    pub(crate) fn unit(&self) -> &'static str {
         match self.key {
             "rust" => "crate",
             "python" => "module",
@@ -938,7 +942,7 @@ impl Language {
     }
 
     /// The tool that generates this language's reference.
-    fn generator(&self) -> &'static str {
+    pub(crate) fn generator(&self) -> &'static str {
         match self.key {
             "rust" => "rustdoc",
             "node" => "typedoc",
@@ -948,7 +952,7 @@ impl Language {
     }
 
     /// The package a capability is in this language.
-    fn package(&self, capability: &Capability) -> String {
+    pub(crate) fn package(&self, capability: &Capability) -> String {
         match self.key {
             "rust" => capability
                 .crates
@@ -962,7 +966,7 @@ impl Language {
     }
 
     /// What a reader types to install `package`.
-    fn install(&self, package: &str) -> String {
+    pub(crate) fn install(&self, package: &str) -> String {
         match self.key {
             "rust" => format!("cargo add {package}"),
             "node" => format!("npm install {package}"),
@@ -972,7 +976,7 @@ impl Language {
     }
 
     /// The registry page of `package`.
-    fn registry_url(&self, package: &str) -> String {
+    pub(crate) fn registry_url(&self, package: &str) -> String {
         match self.key {
             "rust" => format!("https://crates.io/crates/{package}"),
             "node" => format!("https://www.npmjs.com/package/{package}"),

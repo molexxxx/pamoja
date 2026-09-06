@@ -48,7 +48,12 @@ pub fn document(chrome: &Chrome, page: &Page) -> String {
         .unwrap_or("Documentation");
     let (previous, next) = chrome.nav.neighbours(&page.url);
 
-    let mut out = head(&root, &page.title, &page.description);
+    let full = if page.title == "pamoja" {
+        "pamoja documentation".to_owned()
+    } else {
+        format!("{} - pamoja", page.title)
+    };
+    let mut out = head(&root, &full, &page.description);
     out.push_str("<body>\n");
     out.push_str("<a class=\"skip\" href=\"#content\">Skip to content</a>\n");
     out.push_str(&header(&root, true));
@@ -80,6 +85,39 @@ pub fn document(chrome: &Chrome, page: &Page) -> String {
     out
 }
 
+/// The front page as a complete document: the shared header and footer around the body
+/// `home.rs` renders, with the front page's own stylesheet and the scripts its consoles
+/// and wall of cards need.
+///
+/// # Arguments
+///
+/// * `chrome` - the version and navigation the shell carries.
+/// * `body` - the `<main>` element, rendered by the front page.
+///
+/// # Returns
+///
+/// The complete document.
+pub fn home(chrome: &Chrome, body: &str) -> String {
+    let mut out = head(
+        "",
+        "pamoja",
+        "One memory-safe Rust core with bindings for TypeScript, Python, and C#, for IoT, robotics, and drones, built to run on cheap hardware with weak or no connectivity.",
+    );
+    out = out.replace(
+        "<link rel=\"stylesheet\" href=\"site.css\">\n",
+        "<link rel=\"stylesheet\" href=\"site.css\">\n<link rel=\"stylesheet\" href=\"home.css\">\n",
+    );
+    out.push_str("<body class=\"is-home\">\n");
+    out.push_str("<a class=\"skip\" href=\"#content\">Skip to content</a>\n");
+    out.push_str(&header("", false));
+    out.push_str(body);
+    out.push_str(&footer("", chrome.version));
+    out.push_str(
+        "<script src=\"js/site.js\" defer></script>\n<script type=\"module\" src=\"js/home.js\"></script>\n</body>\n</html>\n",
+    );
+    out
+}
+
 /// The page served for a URL that does not exist.
 ///
 /// Pages serves it for any missing path, so its links are absolute rather than relative to
@@ -93,7 +131,11 @@ pub fn document(chrome: &Chrome, page: &Page) -> String {
 ///
 /// The complete document.
 pub fn not_found(chrome: &Chrome) -> String {
-    let mut out = head("/", "Not found", "There is no page at this address.");
+    let mut out = head(
+        "/",
+        "Not found - pamoja",
+        "There is no page at this address.",
+    );
     out.push_str("<body>\n");
     out.push_str(&header("/", false));
     out.push_str(
@@ -147,12 +189,7 @@ pub fn redirect(url: &str, target: &str, name: &str) -> String {
     )
 }
 
-fn head(root: &str, title: &str, description: &str) -> String {
-    let full = if title == "pamoja" {
-        "pamoja documentation".to_owned()
-    } else {
-        format!("{title} - pamoja")
-    };
+fn head(root: &str, full: &str, description: &str) -> String {
     format!(
         "<!doctype html>\n<html lang=\"en\" class=\"no-js\" data-root=\"{root}\">\n<head>\n\
          <meta charset=\"utf-8\">\n\
@@ -161,25 +198,22 @@ fn head(root: &str, title: &str, description: &str) -> String {
          <meta name=\"description\" content=\"{}\">\n\
          <meta name=\"theme-color\" content=\"{}\">\n\
          <link rel=\"icon\" href=\"{root}assets/pamoja-icon.svg\">\n\
-         <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n\
-         <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n\
-         <link rel=\"stylesheet\" href=\"{}\">\n\
+         <link rel=\"preload\" href=\"{root}fonts/Sora.woff2\" as=\"font\" type=\"font/woff2\" crossorigin>\n\
+         <link rel=\"preload\" href=\"{root}fonts/Inter.woff2\" as=\"font\" type=\"font/woff2\" crossorigin>\n\
+         <link rel=\"stylesheet\" href=\"{root}fonts/fonts.css\">\n\
          <link rel=\"stylesheet\" href=\"{root}theme.css\">\n\
          <link rel=\"stylesheet\" href=\"{root}site.css\">\n\
          <script>document.documentElement.classList.replace('no-js','js');\
 try{{var h=location.hash.slice(1);document.documentElement.dataset.lang=/^(rust|typescript|python|c)$/.test(h)?h:(localStorage.getItem('pamoja:lang')||'rust')}}catch(e){{document.documentElement.dataset.lang='rust'}}</script>\n\
          </head>\n",
-        escape(&full),
+        escape(full),
         escape(description),
         theme::PALETTE.navy_1,
-        theme::FONTS,
     )
 }
 
 // The header every page shares: the mark, the site's doors, and the search box. The menu
-// button opens the sidebar on a narrow screen and is only rendered where there is one. The
-// mark leads to the documentation's front page; the site root is still the showcase, which
-// is not rendered here.
+// button opens the sidebar on a narrow screen and is only rendered where there is one.
 fn header(root: &str, with_menu: bool) -> String {
     let menu = if with_menu {
         "<button class=\"menu-toggle\" type=\"button\" aria-controls=\"side\" aria-expanded=\"false\">\
@@ -190,7 +224,7 @@ fn header(root: &str, with_menu: bool) -> String {
     format!(
         "<header class=\"top\">\n\
          {menu}\
-         <a class=\"brand\" href=\"{root}docs/index.html\" aria-label=\"pamoja documentation\">{}<span class=\"brand-word\">pamoja</span></a>\n\
+         <a class=\"brand\" href=\"{home}\" aria-label=\"pamoja home\">{}<span class=\"brand-word\">pamoja</span></a>\n\
          <nav class=\"top-nav\" aria-label=\"Site\">\n\
          <a href=\"{root}docs/index.html\">Docs</a>\n\
          <a href=\"{root}docs/hardware.html\">Hardware</a>\n\
@@ -203,7 +237,8 @@ fn header(root: &str, with_menu: bool) -> String {
          <div class=\"search-results\" role=\"listbox\" aria-label=\"Search results\" hidden></div>\n\
          </div>\n\
          </header>\n",
-        mark()
+        mark(),
+        home = if root.is_empty() { "./" } else { root },
     )
 }
 
@@ -285,7 +320,7 @@ fn pager(
 fn footer(root: &str, version: &str) -> String {
     format!(
         "<footer class=\"foot\">\n\
-         <div class=\"foot-brand\"><a href=\"{root}docs/index.html\" class=\"brand-word\">pamoja</a>\
+         <div class=\"foot-brand\"><a href=\"{home}\" class=\"brand-word\">pamoja</a>\
          <p>One memory-safe Rust core with bindings for TypeScript, Python, and C#, for IoT, robotics, and drones.</p></div>\n\
          <nav class=\"foot-links\" aria-label=\"Registries\">\n\
          <a href=\"{REPO}\">GitHub</a>\n\
@@ -296,7 +331,8 @@ fn footer(root: &str, version: &str) -> String {
          </nav>\n\
          <p class=\"foot-fine\">Version {} · MIT licensed</p>\n\
          </footer>\n",
-        escape(version)
+        escape(version),
+        home = if root.is_empty() { "./" } else { root },
     )
 }
 
