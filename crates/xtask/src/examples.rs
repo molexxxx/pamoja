@@ -202,9 +202,7 @@ pub fn proves(text: &str) -> Vec<String> {
             let last = out.last_mut().expect("a bullet to continue");
             last.push(' ');
             last.push_str(line.trim());
-        } else if line.trim().is_empty() && !out.is_empty() {
-            break;
-        } else if !line.trim().is_empty() {
+        } else if !line.trim().is_empty() || !out.is_empty() {
             break;
         }
     }
