@@ -247,7 +247,7 @@ impl Hardware {
                 group.title, group.intent
             );
             for entry in &entries {
-                section.push_str(&card(entry, group, catalog));
+                section.push_str(&card(entry, group, catalog, &self.entries));
             }
             section.push_str("</div>");
             out.push(section);
@@ -419,7 +419,7 @@ impl Hardware {
 // One entry as a card: the head, the facts down one column, and a foot with where to buy
 // it beside what to read and build with, each a list of rows of one shape. Nothing inside
 // the card is separated by a blank line, so Markdown takes it as one block of HTML.
-fn card(entry: &Entry, group: &Group, catalog: &Catalog) -> String {
+fn card(entry: &Entry, group: &Group, catalog: &Catalog, all: &[Entry]) -> String {
     let mut facts: Vec<(String, String)> = Vec::new();
     if !entry.interface.is_empty() {
         facts.push(("Interface".to_owned(), escape(&entry.interface)));
@@ -494,18 +494,9 @@ fn card(entry: &Entry, group: &Group, catalog: &Catalog) -> String {
         }
     }
 
-    let buy = if entry.buy.is_empty() && entry.cost != "not applicable" {
-        let since = if entry.buy_checked.is_empty() {
-            String::new()
-        } else {
-            format!(" as of {}", escape(&entry.buy_checked))
-        };
-        format!(
-            "<section class=\"hw-buy\"><h5>Where to buy</h5><p class=\"hw-none\">No reputable store lists this part{since}. The makers' stores and the larger distributors are searched as the page is maintained, and a listing that appears is added here with its price.</p></section>\n"
-        )
-    } else if entry.buy.is_empty() {
-        String::new()
-    } else {
+    // The left panel: the offers, else the parts on this page that speak the bus, else
+    // where to search for the part; a part with a price band and no store says so first.
+    let left = if !entry.buy.is_empty() {
         let same_day = entry.buy.iter().all(|b| b.checked == entry.buy[0].checked);
         let heading = if same_day {
             format!(
@@ -537,17 +528,102 @@ fn card(entry: &Entry, group: &Group, catalog: &Catalog) -> String {
             })
             .collect();
         format!("<section class=\"hw-buy\"><h5>{heading}</h5><ul class=\"hw-rows\">{offers}</ul></section>\n")
+    } else if entry.cost == "not applicable" && !speakers(entry, all).is_empty() {
+        let parts: String = speakers(entry, all)
+            .iter()
+            .map(|part| {
+                row(
+                    &format!("#{}", part.key),
+                    "",
+                    &escape(&part.name),
+                    &format!("<small>{}</small>", escape(&part.interface)),
+                    "&#8595;",
+                )
+            })
+            .collect();
+        format!("<section class=\"hw-buy\"><h5>Parts on this bus</h5><ul class=\"hw-rows\">{parts}</ul></section>\n")
+    } else {
+        let note = if entry.cost == "not applicable" {
+            String::new()
+        } else {
+            let since = if entry.buy_checked.is_empty() {
+                String::new()
+            } else {
+                format!(" as of {}", escape(&entry.buy_checked))
+            };
+            format!("<p class=\"hw-none\">No reputable store lists this part{since}. The makers' stores and the larger distributors are searched as the page is maintained, and a listing that appears is added here with its price.</p>")
+        };
+        let searches: String = SEARCHES
+            .iter()
+            .map(|(store, url)| {
+                row(
+                    &format!("{url}{}", query(&entry.name)),
+                    "",
+                    &format!("Search {store}"),
+                    &format!("<small>for {}</small>", escape(&entry.name)),
+                    "&#8599;",
+                )
+            })
+            .collect();
+        format!("<section class=\"hw-buy\"><h5>Find parts</h5>{note}<ul class=\"hw-rows\">{searches}</ul></section>\n")
     };
-    let solo = if buy.is_empty() { " solo" } else { "" };
 
     format!(
-        "<article class=\"hw-card\" id=\"{}\">\n<header class=\"hw-head\"><div class=\"hw-name\"><h4>{}</h4><span class=\"hw-by\">{}</span></div><p class=\"hw-summary\">{}</p></header>\n<dl class=\"hw-facts\">{facts}</dl>\n<div class=\"hw-foot{solo}\">\n{buy}<section class=\"hw-learn\"><h5>Read and build</h5><ul class=\"hw-rows\">{}</ul></section>\n</div>\n</article>\n",
+        "<article class=\"hw-card\" id=\"{}\">\n<header class=\"hw-head\"><div class=\"hw-name\"><h4>{}</h4><span class=\"hw-by\">{}</span></div><p class=\"hw-summary\">{}</p></header>\n<dl class=\"hw-facts\">{facts}</dl>\n<div class=\"hw-foot\">\n{left}<section class=\"hw-learn\"><h5>Read and build</h5><ul class=\"hw-rows\">{}</ul></section>\n</div>\n</article>\n",
         entry.key,
         escape(&entry.name),
         escape(&entry.vendor),
         escape(&entry.summary),
         links.join("")
     )
+}
+
+/// Where a reader can search for a part by name, when no store on this page lists it.
+const SEARCHES: [(&str, &str); 4] = [
+    ("Adafruit", "https://www.adafruit.com/search?q="),
+    ("SparkFun", "https://www.sparkfun.com/search/results?term="),
+    (
+        "Digi-Key",
+        "https://www.digikey.com/en/products/result?keywords=",
+    ),
+    ("Mouser", "https://www.mouser.com/c/?q="),
+];
+
+// The parts on the page whose interface names this bus, sensors and actuators and radios,
+// so a bus card leads to what hangs off it.
+fn speakers<'a>(bus: &Entry, all: &'a [Entry]) -> Vec<&'a Entry> {
+    let name = bus.name.to_ascii_lowercase();
+    let token = name.split_whitespace().next().unwrap_or_default();
+    if token.is_empty() {
+        return Vec::new();
+    }
+    all.iter()
+        .filter(|part| part.cost != "not applicable" && part.key != bus.key)
+        .filter(|part| {
+            part.interface
+                .to_ascii_lowercase()
+                .split(|c: char| !c.is_ascii_alphanumeric() && c != '-')
+                .any(|word| word == token)
+        })
+        .collect()
+}
+
+// A part name as a search query.
+fn query(name: &str) -> String {
+    name.split_whitespace()
+        .map(|word| {
+            word.chars()
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() || c == '-' || c == '.' {
+                        c.to_string()
+                    } else {
+                        format!("%{:02X}", c as u32)
+                    }
+                })
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("+")
 }
 
 // One row of a card's foot: what it is and a detail on the left, the way out on the right.
@@ -773,8 +849,8 @@ crates = ["pamoja-core"]
         assert!(rendered.contains("<a class=\"hw-row\" href=\"https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html\"><span class=\"hw-main\"><b>Crate</b><small><code>pamoja-sensors</code></small></span>"));
         assert!(rendered.contains("<a class=\"hw-row guide\" href=\"https://pamoja.molex.cloud/docs/guides/sensors.html\"><span class=\"hw-main\"><b>Sensor drivers guide</b><small>the worked example, in four languages</small></span><span class=\"hw-go\" aria-hidden=\"true\">&#8594;</span></a>"));
         assert!(
-            rendered.contains("hw-none") && rendered.contains("<div class=\"hw-foot\">"),
-            "a part no store lists says so beside what to read"
+            rendered.contains("<section class=\"hw-buy\"><h5>Find parts</h5><p class=\"hw-none\">No reputable store lists this part.") && rendered.contains("<b>Search Adafruit</b><small>for BME280</small>"),
+            "a part no store lists says so and offers searches: {rendered}"
         );
         assert!(rendered.ends_with("</article>\n</div>"), "{rendered}");
     }
@@ -802,6 +878,27 @@ crates = ["pamoja-core"]
             "\n- Hardware: [BME280](https://pamoja.molex.cloud/docs/hardware.html#i2c)"
         );
         assert_eq!(hardware.for_guide("mqtt", &catalog()), "");
+        let lonely = bus.replace("interface = \"I2C or SPI\"", "interface = \"none\"");
+        let lonely = Hardware::parse(&lonely).expect("parses").table(&catalog());
+        assert!(
+            lonely.contains("<h5>Find parts</h5><ul class=\"hw-rows\">")
+                && !lonely.contains("hw-none"),
+            "{lonely}"
+        );
+        assert!(lonely.contains("<a class=\"hw-row\" href=\"https://www.adafruit.com/search?q=BME280\"><span class=\"hw-main\"><b>Search Adafruit</b><small>for BME280</small></span>"), "{lonely}");
+        assert_eq!(query("Modbus RTU over RS-485"), "Modbus+RTU+over+RS-485");
+        assert_eq!(query("CAN 2.0 & FD"), "CAN+2.0+%26+FD");
+        let with_probe = format!(
+            "{}\n[[entry]]\nkey = \"probe\"\ngroup = \"sensors\"\nname = \"Probe\"\nvendor = \"X\"\ninterface = \"I2C at 400 kHz\"\nsummary = \"A probe.\"\nspecs = [\"Range: 1\"]\ncost = \"under $5\"\nsource_name = \"d\"\nsource_label = \"d\"\nsource = \"https://example.invalid/p\"\n",
+            bus.replace("name = \"BME280\"", "name = \"I2C\"")
+        );
+        let with_probe = Hardware::parse(&with_probe)
+            .expect("parses")
+            .table(&catalog());
+        assert!(
+            with_probe.contains("<h5>Parts on this bus</h5><ul class=\"hw-rows\"><li><a class=\"hw-row\" href=\"#probe\"><span class=\"hw-main\"><b>Probe</b><small>I2C at 400 kHz</small></span>"),
+            "a bus leads to the parts that speak it: {with_probe}"
+        );
     }
 
     const BUY: &str = r#"
@@ -838,7 +935,7 @@ verified = false
         let rendered = Hardware::parse(&searched)
             .expect("parses")
             .table(&catalog());
-        assert!(rendered.contains("<div class=\"hw-foot\">\n<section class=\"hw-buy\"><h5>Where to buy</h5><p class=\"hw-none\">No reputable store lists this part as of 2026-09-06."), "{rendered}");
+        assert!(rendered.contains("<div class=\"hw-foot\">\n<section class=\"hw-buy\"><h5>Find parts</h5><p class=\"hw-none\">No reputable store lists this part as of 2026-09-06."), "{rendered}");
         let plain = Hardware::parse(MINIMAL).expect("parses").table(&catalog());
         assert!(
             plain.contains("<p class=\"hw-none\">No reputable store lists this part. The makers"),
