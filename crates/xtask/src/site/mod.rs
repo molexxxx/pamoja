@@ -14,7 +14,7 @@ mod highlight;
 mod home;
 mod layout;
 mod markdown;
-mod minify;
+pub(crate) mod minify;
 mod nav;
 mod pages;
 mod search;

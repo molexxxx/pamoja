@@ -50,6 +50,7 @@ jobs:
         run: |
           mkdir -p dist/dashboard
           cp -r crates/pamoja-dashboard/web/. dist/dashboard/
+          cargo run -p xtask -- minify dist/dashboard
           cargo run -p pamoja-dashboard --features mock --example snapshot -- dist/dashboard
       - name: Add the documentation site
         uses: actions/download-artifact@v8

@@ -5,11 +5,73 @@
 //! A script goes through oxc, a real parser, so a construct it does not understand fails
 //! the build rather than reaching a browser.
 
+use std::fs;
+use std::path::Path;
+
 use oxc::allocator::Allocator;
 use oxc::codegen::{Codegen, CodegenOptions};
 use oxc::minifier::{Minifier, MinifierOptions};
 use oxc::parser::Parser;
 use oxc::span::SourceType;
+
+/// Minify every stylesheet and script under `dir` in place: a `.css` file by [`css`], a
+/// `.js` file by [`js`] as a module, since the dashboard's scripts all are. A file already
+/// named `.min.js` is left as it is, and so is everything else.
+///
+/// # Arguments
+///
+/// * `dir` - the directory, walked recursively.
+///
+/// # Returns
+///
+/// The files rewritten, as (path, bytes before, bytes after).
+///
+/// # Errors
+///
+/// When a file cannot be read or written, or a script does not parse.
+pub fn directory(dir: &Path) -> Result<Vec<(String, usize, usize)>, String> {
+    let mut done = Vec::new();
+    let mut pending = vec![dir.to_path_buf()];
+    while let Some(next) = pending.pop() {
+        let entries =
+            fs::read_dir(&next).map_err(|err| format!("reading {}: {err}", next.display()))?;
+        for entry in entries {
+            let path = entry
+                .map_err(|err| format!("reading {}: {err}", next.display()))?
+                .path();
+            if path.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            let name = path.to_string_lossy().replace('\\', "/");
+            let minified = if name.ends_with(".css") {
+                Some(css(&read(&path)?))
+            } else if name.ends_with(".js") && !name.ends_with(".min.js") {
+                Some(js(&read(&path)?, true).map_err(|err| format!("{name}: {err}"))?)
+            } else {
+                None
+            };
+            if let Some(body) = minified {
+                let before = fs::metadata(&path)
+                    .map(|meta| usize::try_from(meta.len()).unwrap_or(usize::MAX))
+                    .unwrap_or(0);
+                fs::write(&path, &body).map_err(|err| format!("writing {name}: {err}"))?;
+                let shown = name
+                    .strip_prefix(&dir.to_string_lossy().replace('\\', "/"))
+                    .unwrap_or(&name)
+                    .trim_start_matches('/')
+                    .to_owned();
+                done.push((shown, before, body.len()));
+            }
+        }
+    }
+    done.sort();
+    Ok(done)
+}
+
+fn read(path: &Path) -> Result<String, String> {
+    fs::read_to_string(path).map_err(|err| format!("reading {}: {err}", path.display()))
+}
 
 /// Minify a script: parse it, compress and mangle it, and print it without whitespace.
 ///
@@ -161,5 +223,42 @@ mod tests {
     #[test]
     fn a_script_that_does_not_parse_fails_the_build() {
         assert!(js("const = ;", false).is_err());
+    }
+
+    #[test]
+    fn a_directory_is_minified_in_place_and_the_rest_is_left_alone() {
+        let dir = std::env::temp_dir().join(format!("pamoja-minify-{}", std::process::id()));
+        fs::create_dir_all(dir.join("app")).unwrap();
+        fs::write(dir.join("global.css"), "/* c */\n.a {\n  color: red;\n}\n").unwrap();
+        fs::write(
+            dir.join("app/app.js"),
+            "import { x } from './x.js';\n// c\nexport const y = x + 1;\n",
+        )
+        .unwrap();
+        fs::write(dir.join("zquery.min.js"), "const  a=1;\n").unwrap();
+        fs::write(dir.join("state.json"), "{ \"a\": 1 }\n").unwrap();
+        let done = directory(&dir).unwrap();
+        assert_eq!(
+            done.iter().map(|(p, _, _)| p.as_str()).collect::<Vec<_>>(),
+            ["app/app.js", "global.css"]
+        );
+        assert_eq!(
+            fs::read_to_string(dir.join("global.css")).unwrap(),
+            ".a{color:red}"
+        );
+        let app = fs::read_to_string(dir.join("app/app.js")).unwrap();
+        assert!(
+            app.contains("export") && app.contains("./x.js") && !app.contains("// c"),
+            "{app}"
+        );
+        assert_eq!(
+            fs::read_to_string(dir.join("zquery.min.js")).unwrap(),
+            "const  a=1;\n"
+        );
+        assert_eq!(
+            fs::read_to_string(dir.join("state.json")).unwrap(),
+            "{ \"a\": 1 }\n"
+        );
+        fs::remove_dir_all(&dir).unwrap();
     }
 }
