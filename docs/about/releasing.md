@@ -54,6 +54,15 @@ partway can be restarted without inventing a new tag. crates.io publishes new
 crates at one per ten minutes, and `cargo xtask release` waits that out and skips
 what is already published, so a rerun continues rather than starting over.
 
+PyPI caps how many new projects an account may create in a window, and a release
+that introduces a project per capability runs past it; retrying inside the window
+creates nothing. So the upload goes in dependency order, the compiled engine
+first, and stops at the first refusal, and the `pypi-backfill` workflow runs
+every six hours, builds only what the latest release still lacks, and uploads it
+until the cap answers again. It can also be dispatched by hand. Once every project
+exists a release only adds files to existing projects, which the cap never
+touches.
+
 ## The notes
 
 `release-github` puts the changelog's entry for the version first, then the pull
