@@ -7,7 +7,13 @@ released together, so one entry covers all of them.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- The architecture drawing opens over the page at full size when clicked, the
+  phone layout on a phone, closed by the button, a click outside it, or Escape,
+  rather than leaving the page for the file; on a wide screen it also runs a
+  little past the text column. The site's background is a faint grain over the
+  colour washes rather than a grid of dots.
 
 ## [0.1.17] - 2026-09-06
 
