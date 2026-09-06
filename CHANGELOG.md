@@ -123,6 +123,12 @@ released together, so one entry covers all of them.
   reports, feature requests, and releases as icons in place of the dashboard
   link, and the front page's hero, first example, capability cards, and backing
   preview were reworked.
+- The architecture page opens with a drawing of how a call reaches a crate: the
+  three bindings over the compiled engine, Rust straight to the crates it names,
+  and every capability crate over `pamoja-core`. It is rendered from the
+  capability map by `cargo xtask docs`, so it names every chapter and crate the
+  map does and is checked like the tables. The link buttons take their colours
+  from the same palette as the site's theme.
 
 ## [0.1.16] - 2026-09-05
 

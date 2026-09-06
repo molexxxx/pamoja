@@ -10,6 +10,7 @@ use std::process::{Command, ExitCode};
 mod builds;
 mod buttons;
 mod catalog;
+mod diagram;
 mod docs;
 mod footprint;
 mod hardware;

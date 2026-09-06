@@ -8,6 +8,8 @@ what they do not use, and on a microcontroller you compile in two crates and
 nothing else. The [install page](../install.md) measures that claim per feature
 set, down to a single-capability build that carries no third-party code at all.
 
+[![How a call reaches a crate: the three bindings over the compiled engine, Rust straight to the crates, and every capability crate over pamoja-core](../assets/architecture.svg)](../assets/architecture.svg)
+
 This separation is literal in Rust: `pamoja-core` defines the traits, and each
 transport (`pamoja-mqtt`, `pamoja-coap`) is its own crate, so Rust code pulls
 `MqttTransport` from `pamoja-mqtt`, not from the core. Every registry offers the
