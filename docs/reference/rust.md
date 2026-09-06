@@ -77,7 +77,7 @@ Naming features is what makes a Rust build small, and the
 
 One row per capability: the crate to add, its reference here and on docs.rs, the
 guide with the worked example, and the same capability on the other three
-registries.
+reference pages, one step away.
 
 <!-- table: packages rust -->
 ### Engine
