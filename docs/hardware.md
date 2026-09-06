@@ -30,12 +30,12 @@ and so does adding a LoRaWAN channel plan the page does not list.
 
 Parts pamoja decodes byte for byte, each with a driver written from the datasheet linked beside it.
 
-| Part | Interface | Cost | Source |
-| --- | --- | --- | --- |
-| [BME280](#bme280) | I2C up to 3.4 MHz, or SPI up to 10 MHz | $5 to $20 | [Bosch BST-BME280-DS002](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf) |
-| [DS18B20](#ds18b20) | 1-Wire, many devices on one pin | under $5 | [ADI 19-7487 Rev 6](https://www.analog.com/media/en/technical-documentation/data-sheets/ds18b20.pdf) |
-| [INA219](#ina219) | I2C, 16 addresses from two pins | $5 to $20 | [TI SBOS448G](https://www.ti.com/lit/ds/symlink/ina219.pdf) |
-| [ADS1115](#ads1115) | I2C, four addresses from one pin | $5 to $20 | [TI SBAS444E](https://www.ti.com/lit/ds/symlink/ads1115.pdf) |
+| Part | Interface | Cost | From | Source |
+| --- | --- | --- | --- | --- |
+| [BME280](#bme280) | I2C up to 3.4 MHz, or SPI up to 10 MHz | $5 to $20 | [US$14.95](https://www.adafruit.com/product/2652) | [Bosch BST-BME280-DS002](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf) |
+| [DS18B20](#ds18b20) | 1-Wire, many devices on one pin | under $5 | [US$3.95](https://www.adafruit.com/product/374) | [ADI 19-7487 Rev 6](https://www.analog.com/media/en/technical-documentation/data-sheets/ds18b20.pdf) |
+| [INA219](#ina219) | I2C, 16 addresses from two pins | $5 to $20 | [US$6.90](https://www.dfrobot.com/product-1827.html) | [TI SBOS448G](https://www.ti.com/lit/ds/symlink/ina219.pdf) |
+| [ADS1115](#ads1115) | I2C, four addresses from one pin | $5 to $20 | [US$8.90](https://www.dfrobot.com/product-1730.html) | [TI SBAS444E](https://www.ti.com/lit/ds/symlink/ads1115.pdf) |
 
 #### BME280 {#bme280}
 
@@ -49,6 +49,12 @@ Parts pamoja decodes byte for byte, each with a driver written from the datashee
 
 From [BME280 combined humidity and pressure sensor data sheet, BST-BME280-DS002](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf).
 
+Where to buy, prices as listed on 2026-09-06:
+
+- [Adafruit](https://www.adafruit.com/product/2652): Adafruit BME280 I2C or SPI Temperature Humidity Pressure Sensor - STEMMA QT, US$14.95
+- [Pimoroni](https://shop.pimoroni.com/products/bme280-breakout): BME280 Breakout - Temperature, Pressure, Humidity Sensor, £11.50
+- [SparkFun](https://www.sparkfun.com/sparkfun-atmospheric-sensor-breakout-bme280-qwiic.html): SparkFun Atmospheric Sensor Breakout - BME280 (Qwiic), US$16.95
+
 #### DS18B20 {#ds18b20}
 
 **Analog Devices, originally Maxim Integrated.** A digital thermometer that returns Celsius over a single data line, each part carrying its own 64-bit serial code so a bus can hold many.
@@ -60,6 +66,12 @@ From [BME280 combined humidity and pressure sensor data sheet, BST-BME280-DS002]
 - Supply: 3.0 to 5.5 V, or parasite power from the data line
 
 From [DS18B20 Programmable Resolution 1-Wire Digital Thermometer data sheet, 19-7487 Rev 6](https://www.analog.com/media/en/technical-documentation/data-sheets/ds18b20.pdf).
+
+Where to buy, prices as listed on 2026-09-06:
+
+- [Adafruit](https://www.adafruit.com/product/374): DS18B20 Digital temperature sensor + extras, US$3.95
+- [The Pi Hut](https://thepihut.com/products/ds18b20-one-wire-digital-temperature-sensor): DS18B20+ One Wire Digital Temperature Sensor, £7.00
+- [SparkFun](https://www.sparkfun.com/temperature-sensor-waterproof-ds18b20.html): Temperature Sensor - Waterproof (DS18B20), US$10.95
 
 #### INA219 {#ina219}
 
@@ -73,6 +85,12 @@ From [DS18B20 Programmable Resolution 1-Wire Digital Thermometer data sheet, 19-
 
 From [INA219 Zero-Drift, Bidirectional Current/Power Monitor With I2C Interface, SBOS448G](https://www.ti.com/lit/ds/symlink/ina219.pdf).
 
+Where to buy, prices as listed on 2026-09-06:
+
+- [DFRobot](https://www.dfrobot.com/product-1827.html): Gravity: I2C Digital Wattmeter, US$6.90
+- [Adafruit](https://www.adafruit.com/product/904): INA219 High Side DC Current Sensor Breakout - 26V ±3.2A Max - STEMMA QT, US$9.95
+- [The Pi Hut](https://thepihut.com/products/adafruit-ina219-high-side-dc-current-sensor-breakout-26v-3-2a-max): INA219 High Side DC Current Sensor Breakout - 26V ±3.2A Max (STEMMA QT), £9.60
+
 #### ADS1115 {#ads1115}
 
 **Texas Instruments.** A 16-bit delta-sigma ADC that digitises four single-ended or two differential inputs through a programmable gain amplifier.
@@ -85,16 +103,22 @@ From [INA219 Zero-Drift, Bidirectional Current/Power Monitor With I2C Interface,
 
 From [ADS111x Ultra-Small, Low-Power, I2C-Compatible, 860SPS, 16-Bit ADCs, SBAS444E](https://www.ti.com/lit/ds/symlink/ads1115.pdf).
 
+Where to buy, prices as listed on 2026-09-06:
+
+- [DFRobot](https://www.dfrobot.com/product-1730.html): Gravity: I2C ADS1115 16-Bit ADC Module, US$8.90
+- [Seeed Studio](https://www.seeedstudio.com/Grove-ADS1115-16-bit-ADC-p-4599.html): Grove - 4 Channel 16-bit ADC (ADS1115) with Programmable Amplifier Gain, US$12.00
+- [Adafruit](https://www.adafruit.com/product/1085): ADS1115 16-Bit ADC - 4 Channel with Programmable Gain Amplifier - STEMMA QT / Qwiic, US$14.95
+
 ### Actuators
 
 Parts pamoja drives: a PWM generator for servos, and the step-and-direction carriers a stepper sequence walks.
 
-| Part | Interface | Cost | Source |
-| --- | --- | --- | --- |
-| [PCA9685](#pca9685) | I2C, up to 62 devices per bus | $5 to $20 | [NXP PCA9685 Rev. 4](https://www.nxp.com/docs/en/data-sheet/PCA9685.pdf) |
-| [ULN2003A](#uln2003) | seven logic inputs, one per channel | under $5 | [TI ULN2003A](https://www.ti.com/product/ULN2003A) |
-| [A4988](#a4988) | step and direction, with three mode pins | under $5 | [Allegro A4988 Rev. 8](https://www.allegromicro.com/-/media/files/datasheets/a4988-datasheet.pdf) |
-| [DRV8825](#drv8825) | step and direction, with three mode pins | $5 to $20 | [TI SLVSA73F](https://www.ti.com/lit/ds/symlink/drv8825.pdf) |
+| Part | Interface | Cost | From | Source |
+| --- | --- | --- | --- | --- |
+| [PCA9685](#pca9685) | I2C, up to 62 devices per bus | $5 to $20 | [US$13.95](https://www.sparkfun.com/sparkfun-servo-phat-for-raspberry-pi.html) | [NXP PCA9685 Rev. 4](https://www.nxp.com/docs/en/data-sheet/PCA9685.pdf) |
+| [ULN2003A](#uln2003) | seven logic inputs, one per channel | under $5 | [US$6.90](https://www.seeedstudio.com/Gear-Stepper-Motor-Driver-Pack-p-3200.html) | [TI ULN2003A](https://www.ti.com/product/ULN2003A) |
+| [A4988](#a4988) | step and direction, with three mode pins | under $5 | [US$6.95](https://www.adafruit.com/product/6109) | [Allegro A4988 Rev. 8](https://www.allegromicro.com/-/media/files/datasheets/a4988-datasheet.pdf) |
+| [DRV8825](#drv8825) | step and direction, with three mode pins | $5 to $20 | [US$8.95](https://shop.m5stack.com/products/atomic-stepmotor-base-drv8825) | [TI SLVSA73F](https://www.ti.com/lit/ds/symlink/drv8825.pdf) |
 
 #### PCA9685 {#pca9685}
 
@@ -108,6 +132,12 @@ Parts pamoja drives: a PWM generator for servos, and the step-and-direction carr
 
 From [PCA9685 16-channel, 12-bit PWM Fm+ I2C-bus LED controller, Rev. 4](https://www.nxp.com/docs/en/data-sheet/PCA9685.pdf).
 
+Where to buy, prices as listed on 2026-09-06:
+
+- [SparkFun](https://www.sparkfun.com/sparkfun-servo-phat-for-raspberry-pi.html): SparkFun Servo pHAT for Raspberry Pi (DEV-15316), US$13.95
+- [Seeed Studio](https://www.seeedstudio.com/Grove-16-Channel-PWM-Driver-PCA9685.html): Grove - 16-Channel PWM Driver (PCA9685), US$14.20
+- [Adafruit](https://www.adafruit.com/product/815): Adafruit 16-Channel 12-bit PWM/Servo Driver - I2C interface, US$14.95
+
 #### ULN2003A {#uln2003}
 
 **Texas Instruments.** A Darlington array that switches the coil current directly, for the four-wire steppers the coil sequencer walks a pattern across.
@@ -118,6 +148,12 @@ From [PCA9685 16-channel, 12-bit PWM Fm+ I2C-bus LED controller, Rev. 4](https:/
 - Inductive loads: common-cathode output clamp diodes included
 
 From [ULN2003A product page, high-voltage high-current Darlington transistor array](https://www.ti.com/product/ULN2003A).
+
+Where to buy, prices as listed on 2026-09-06:
+
+- [Seeed Studio](https://www.seeedstudio.com/Gear-Stepper-Motor-Driver-Pack-p-3200.html): Gear Stepper Motor Driver Pack (ULN2003 driver board with 28BYJ-48 motor), US$6.90
+- [The Pi Hut](https://thepihut.com/products/stepper-motor-driver-pack): Stepper Motor Driver Pack (Seeed 105990072), £6.70
+- [Digi-Key](https://www.digikey.com/en/products/detail/texas-instruments/ULN2003AN/277624): ULN2003AN, 16-DIP (bare chip), US$0.97 (from a listing of the page, which refuses scripted readers)
 
 #### A4988 {#a4988}
 
@@ -131,6 +167,12 @@ From [ULN2003A product page, high-voltage high-current Darlington transistor arr
 
 From [A4988 DMOS Microstepping Driver with Translator and Overcurrent Protection, Rev. 8](https://www.allegromicro.com/-/media/files/datasheets/a4988-datasheet.pdf).
 
+Where to buy, prices as listed on 2026-09-06:
+
+- [Adafruit](https://www.adafruit.com/product/6109): Adafruit A4988 Stepper Motor Driver Breakout Board, US$6.95
+- [The Pi Hut](https://thepihut.com/products/adafruit-a4988-stepper-motor-driver-breakout-board): Adafruit A4988 Stepper Motor Driver Breakout Board, £6.70
+- [Pololu](https://www.pololu.com/product/1182): A4988 Stepper Motor Driver Carrier, US$8.95
+
 #### DRV8825 {#drv8825}
 
 **Texas Instruments.** A bipolar stepper driver with two H-bridges and an indexer, taking step and direction down to 1/32 step.
@@ -143,17 +185,23 @@ From [A4988 DMOS Microstepping Driver with Translator and Overcurrent Protection
 
 From [DRV8825 Stepper Motor Controller IC, SLVSA73F](https://www.ti.com/lit/ds/symlink/drv8825.pdf).
 
+Where to buy, prices as listed on 2026-09-06:
+
+- [M5Stack](https://shop.m5stack.com/products/atomic-stepmotor-base-drv8825): ATOMIC Stepmotor Base (DRV8825), US$8.95
+- [The Pi Hut](https://thepihut.com/products/atomic-stepmotor-base-drv8825): ATOMIC Stepmotor Base (DRV8825), £8.70
+- [Pololu](https://www.pololu.com/product/2133): DRV8825 Stepper Motor Driver Carrier, High Current, US$15.95
+
 ### Buses and field protocols
 
 The wires between a gateway and the parts above, and the framing each one carries.
 
-| Part | Interface | Cost | Source |
-| --- | --- | --- | --- |
-| [I2C](#i2c) | two open-drain lines, SDA and SCL | not applicable | [NXP UM10204](https://www.nxp.com/docs/en/user-guide/UM10204.pdf) |
-| [SPI](#spi) | four wires: data in, data out, clock, select | not applicable | [Microchip DS70005185A](https://ww1.microchip.com/downloads/en/DeviceDoc/70005185a.pdf) |
-| [Modbus RTU over RS-485](#modbus-rtu) | RS-485 balanced pair, half duplex | not applicable | [Modbus.org V1.02](https://www.modbus.org/file/secure/modbusoverserial.pdf) |
-| [CAN 2.0 and CAN FD](#can) | differential bus | not applicable | [ISO 11898-1:2024](https://www.iso.org/standard/86384.html) |
-| [SAE J1939](#j1939) | CAN | not applicable | [SAE J1939](https://www.sae.org/standards/content/j1939_202603/) |
+| Part | Interface | Cost | From | Source |
+| --- | --- | --- | --- | --- |
+| [I2C](#i2c) | two open-drain lines, SDA and SCL | not applicable | - | [NXP UM10204](https://www.nxp.com/docs/en/user-guide/UM10204.pdf) |
+| [SPI](#spi) | four wires: data in, data out, clock, select | not applicable | - | [Microchip DS70005185A](https://ww1.microchip.com/downloads/en/DeviceDoc/70005185a.pdf) |
+| [Modbus RTU over RS-485](#modbus-rtu) | RS-485 balanced pair, half duplex | not applicable | - | [Modbus.org V1.02](https://www.modbus.org/file/secure/modbusoverserial.pdf) |
+| [CAN 2.0 and CAN FD](#can) | differential bus | not applicable | - | [ISO 11898-1:2024](https://www.iso.org/standard/86384.html) |
+| [SAE J1939](#j1939) | CAN | not applicable | - | [SAE J1939](https://www.sae.org/standards/content/j1939_202603/) |
 
 #### I2C {#i2c}
 
@@ -216,12 +264,12 @@ From [SAE J1939 document set, top-level document J1939_202603](https://www.sae.o
 
 Reaching a network that is not there: the transceivers, the channel plans they must obey, and the short-range meshes.
 
-| Part | Interface | Cost | Source |
-| --- | --- | --- | --- |
-| [SX1276](#sx1276) | SPI | $5 to $20 | [Semtech SX1276](https://www.semtech.com/products/wireless-rf/lora-connect/sx1276) |
-| [SX1262](#sx1262) | SPI | $5 to $20 | [Semtech SX1262](https://www.semtech.com/products/wireless-rf/lora-connect/sx1262) |
-| [LoRaWAN Regional Parameters](#lorawan-rp002) | LoRaWAN over sub-GHz LoRa | not applicable | [LoRa Alliance RP002-1.0.5](https://resources.lora-alliance.org/technical-specifications/rp002-1-0-5-lorawan-regional-parameters) |
-| [ESP-NOW](#esp-now) | Wi-Fi PHY, vendor-specific action frames | $5 to $20 | [Espressif ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_now.html) |
+| Part | Interface | Cost | From | Source |
+| --- | --- | --- | --- | --- |
+| [SX1276](#sx1276) | SPI | $5 to $20 | [US$14.95](https://sparkfun.com/products/18085) | [Semtech SX1276](https://www.semtech.com/products/wireless-rf/lora-connect/sx1276) |
+| [SX1262](#sx1262) | SPI | $5 to $20 | [US$4.99](https://www.seeedstudio.com/Wio-SX1262-for-XIAO-p-6379.html) | [Semtech SX1262](https://www.semtech.com/products/wireless-rf/lora-connect/sx1262) |
+| [LoRaWAN Regional Parameters](#lorawan-rp002) | LoRaWAN over sub-GHz LoRa | not applicable | - | [LoRa Alliance RP002-1.0.5](https://resources.lora-alliance.org/technical-specifications/rp002-1-0-5-lorawan-regional-parameters) |
+| [ESP-NOW](#esp-now) | Wi-Fi PHY, vendor-specific action frames | $5 to $20 | [US$4.99](https://www.seeedstudio.com/Seeed-XIAO-ESP32C3-p-5431.html) | [Espressif ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_now.html) |
 
 #### SX1276 {#sx1276}
 
@@ -235,6 +283,12 @@ Reaching a network that is not there: the transceivers, the channel plans they m
 
 From [SX1276 product page, Semtech LoRa Connect](https://www.semtech.com/products/wireless-rf/lora-connect/sx1276).
 
+Where to buy, prices as listed on 2026-09-06:
+
+- [SparkFun](https://sparkfun.com/products/18085): LoRa Transceiver Module (RFM95CW), 137 to 1020 MHz, SX1276 based, US$14.95
+- [Adafruit](https://www.adafruit.com/product/3072): Adafruit RFM95W LoRa Radio Transceiver Breakout - 868 or 915 MHz, US$19.95
+- [Pimoroni](https://shop.pimoroni.com/products/adafruit-rfm95w-lora-radio-transceiver-breakout): Adafruit RFM95W LoRa Radio Transceiver Breakout - 868 or 915 MHz (ADA3072), £16.25
+
 #### SX1262 {#sx1262}
 
 **Semtech.** The later sub-GHz LoRa transceiver, covering 150 to 960 MHz with a higher power amplifier and a much lower receive current.
@@ -246,6 +300,12 @@ From [SX1276 product page, Semtech LoRa Connect](https://www.semtech.com/product
 - Receive current: 4.6 mA, with an integrated DC-DC converter and LDO
 
 From [SX1262 product page, Semtech LoRa Connect](https://www.semtech.com/products/wireless-rf/lora-connect/sx1262).
+
+Where to buy, prices as listed on 2026-09-06:
+
+- [Seeed Studio](https://www.seeedstudio.com/Wio-SX1262-for-XIAO-p-6379.html): Wio-SX1262 for XIAO, 862 to 930 MHz, US$4.99
+- [The Pi Hut](https://thepihut.com/products/wio-sx1262-for-xiao): Wio-SX1262 for XIAO, 862 to 930 MHz, £4.80
+- [Heltec Automation](https://heltec.org/project/wifi-lora-32-v3/): WiFi LoRa 32 (V3), ESP32-S3 + SX1262 LoRa node, 863 to 870 or 902 to 928 MHz variants, US$17.90 to US$19.90
 
 #### LoRaWAN Regional Parameters {#lorawan-rp002}
 
@@ -271,19 +331,25 @@ From [RP002-1.0.5 LoRaWAN Regional Parameters, LoRa Alliance Technical Committee
 
 From [ESP-NOW, ESP-IDF Programming Guide, stable, ESP32](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_now.html).
 
+Where to buy, prices as listed on 2026-09-06:
+
+- [Seeed Studio](https://www.seeedstudio.com/Seeed-XIAO-ESP32C3-p-5431.html): Seeed Studio XIAO ESP32-C3, US$4.99
+- [The Pi Hut](https://thepihut.com/products/seeed-xiao-esp32c3): Seeed XIAO ESP32C3 (board with loose headers), £5.10
+- [Adafruit](https://www.adafruit.com/product/5337): ESP32-C3 DevKitM-01 - 4 MB SPI Flash (Espressif ESP32-C3-MINI-1), US$9.95
+
 ### Boards, targets and autopilots
 
 Where pamoja itself runs, and what it has been built and tested against.
 
-| Part | Interface | Cost | Source |
-| --- | --- | --- | --- |
-| [Raspberry Pi 5](#raspberry-pi-5) | - | $60 to $200 | [Raspberry Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/) |
-| [Raspberry Pi Zero 2 W](#raspberry-pi-zero-2-w) | - | $5 to $20 | [Raspberry Pi Zero 2 W](https://www.raspberrypi.com/products/raspberry-pi-zero-2-w/) |
-| [ESP32](#esp32) | - | $5 to $20 | [Espressif ESP32 datasheet](https://documentation.espressif.com/esp32_datasheet_en.pdf) |
-| [ArduPilot](#ardupilot) | MAVLink | $60 to $200 | [ArduPilot](https://ardupilot.org/dev/index.html) |
-| [PX4 Autopilot](#px4) | MAVLink | $60 to $200 | [PX4](https://docs.px4.io/main/en/) |
-| [Pixhawk standard](#pixhawk) | standardised connectors and pin-outs | $60 to $200 | [Pixhawk standards](https://pixhawk.org/standards/) |
-| [Cortex-M4 with FPU, bare metal](#cortex-m4f) | - | $5 to $20 | [Arm Cortex-M4](https://www.arm.com/products/silicon-ip-cpu/cortex-m/cortex-m4) |
+| Part | Interface | Cost | From | Source |
+| --- | --- | --- | --- | --- |
+| [Raspberry Pi 5](#raspberry-pi-5) | - | $60 to $200 | [US$110.00](https://www.pishop.us/product/raspberry-pi-5-4gb/) | [Raspberry Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/) |
+| [Raspberry Pi Zero 2 W](#raspberry-pi-zero-2-w) | - | $5 to $20 | [£12.00](https://shop.pimoroni.com/products/raspberry-pi-zero-2-w) | [Raspberry Pi Zero 2 W](https://www.raspberrypi.com/products/raspberry-pi-zero-2-w/) |
+| [ESP32](#esp32) | - | $5 to $20 | [US$15.00](https://www.adafruit.com/product/3269) | [Espressif ESP32 datasheet](https://documentation.espressif.com/esp32_datasheet_en.pdf) |
+| [ArduPilot](#ardupilot) | MAVLink | $60 to $200 | [US$130.99](https://holybro.com/products/pixhawk-6c-mini) | [ArduPilot](https://ardupilot.org/dev/index.html) |
+| [PX4 Autopilot](#px4) | MAVLink | $60 to $200 | [US$130.99](https://holybro.com/products/pixhawk-6c-mini) | [PX4](https://docs.px4.io/main/en/) |
+| [Pixhawk standard](#pixhawk) | standardised connectors and pin-outs | $60 to $200 | [US$130.99](https://holybro.com/products/pixhawk-6c-mini) | [Pixhawk standards](https://pixhawk.org/standards/) |
+| [Cortex-M4 with FPU, bare metal](#cortex-m4f) | - | $5 to $20 | [US$9.99](https://www.seeedstudio.com/Seeed-XIAO-BLE-nRF52840-p-5201.html) | [Arm Cortex-M4](https://www.arm.com/products/silicon-ip-cpu/cortex-m/cortex-m4) |
 
 #### Raspberry Pi 5 {#raspberry-pi-5}
 
@@ -297,6 +363,12 @@ Where pamoja itself runs, and what it has been built and tested against.
 
 From [Raspberry Pi 5 product page](https://www.raspberrypi.com/products/raspberry-pi-5/).
 
+Where to buy, prices as listed on 2026-09-06:
+
+- [PiShop.us](https://www.pishop.us/product/raspberry-pi-5-4gb/): Raspberry Pi 5, 4 GB, US$110.00
+- [Pimoroni](https://shop.pimoroni.com/products/raspberry-pi-5): Raspberry Pi 5, 4 GB (SC1111), £88.00
+- [The Pi Hut](https://thepihut.com/products/raspberry-pi-5): Raspberry Pi 5, 4 GB, £105.60
+
 #### Raspberry Pi Zero 2 W {#raspberry-pi-zero-2-w}
 
 **Raspberry Pi Ltd.** The small, low-cost Linux board, running the same std build as the Pi 5 on the same 40-pin footprint.
@@ -307,6 +379,12 @@ From [Raspberry Pi 5 product page](https://www.raspberrypi.com/products/raspberr
 - I/O: HAT-compatible 40-pin header footprint, unpopulated; micro USB OTG
 
 From [Raspberry Pi Zero 2 W product page](https://www.raspberrypi.com/products/raspberry-pi-zero-2-w/).
+
+Where to buy, prices as listed on 2026-09-06:
+
+- [Pimoroni](https://shop.pimoroni.com/products/raspberry-pi-zero-2-w): Raspberry Pi Zero 2 W (SC1176), £12.00
+- [The Pi Hut](https://thepihut.com/products/raspberry-pi-zero-2): Raspberry Pi Zero 2 W, £14.40
+- [PiShop.us](https://www.pishop.us/product/raspberry-pi-zero-2-w/): Raspberry Pi Zero 2 W (SC1146), US$17.25
 
 #### ESP32 {#esp32}
 
@@ -321,6 +399,12 @@ From [Raspberry Pi Zero 2 W product page](https://www.raspberrypi.com/products/r
 
 From [ESP32 Series Datasheet, version 5.3](https://documentation.espressif.com/esp32_datasheet_en.pdf).
 
+Where to buy, prices as listed on 2026-09-06:
+
+- [Adafruit](https://www.adafruit.com/product/3269): Espressif ESP32 Development Board - Developer Edition, US$15.00
+- [The Pi Hut](https://thepihut.com/products/espressif-esp32-development-board-developer-edition): Espressif ESP32 Development Board - Developer Edition, £14.40
+- [Digi-Key](https://www.digikey.com/en/products/detail/espressif-systems/ESP32-DEVKITC-32E/12091810): ESP32-DEVKITC-32E (Espressif ESP32-DevKitC with ESP32-WROOM-32E), US$10.00 (from a listing of the page, which refuses scripted readers)
+
 #### ArduPilot {#ardupilot}
 
 **ArduPilot Dev Team.** Open autopilot firmware for copters, planes, rovers and submarines; the firmware is free, and the flight controller it runs on is what costs money.
@@ -331,6 +415,11 @@ From [ESP32 Series Datasheet, version 5.3](https://documentation.espressif.com/e
 - Verified: the SITL interop job in CI flies it in simulation against pamoja-mavlink
 
 From [ArduPilot development site](https://ardupilot.org/dev/index.html).
+
+Where to buy, prices as listed on 2026-09-06:
+
+- [Holybro](https://holybro.com/products/pixhawk-6c-mini): Pixhawk 6C Mini, Model-B, no power module, US$130.99
+- [Holybro](https://holybro.com/products/pixhawk-6c): Pixhawk 6C, plastic case, no power module, US$165.99
 
 #### PX4 Autopilot {#px4}
 
@@ -343,6 +432,11 @@ From [ArduPilot development site](https://ardupilot.org/dev/index.html).
 
 From [PX4 Autopilot User Guide](https://docs.px4.io/main/en/).
 
+Where to buy, prices as listed on 2026-09-06:
+
+- [Holybro](https://holybro.com/products/pixhawk-6c-mini): Pixhawk 6C Mini, Model-B, no power module, US$130.99
+- [Holybro](https://holybro.com/products/pixhawk-6c): Pixhawk 6C, plastic case, no power module, US$165.99
+
 #### Pixhawk standard {#pixhawk}
 
 **Dronecode Foundation.** The open hardware standard that fixes flight controller pin-outs, connectors and layout so boards from different vendors interchange; a board built to it is what costs money.
@@ -352,6 +446,12 @@ From [PX4 Autopilot User Guide](https://docs.px4.io/main/en/).
 - Each fixes pin-outs, block diagrams, PCB layout guidelines and connector specifications
 
 From [Pixhawk Reference Standards](https://pixhawk.org/standards/).
+
+Where to buy, prices as listed on 2026-09-06:
+
+- [Holybro](https://holybro.com/products/pixhawk-6c-mini): Pixhawk 6C Mini, Model-B, no power module, US$130.99
+- [Holybro](https://holybro.com/products/pix32-v6): Pix32 v6, FC module only, US$146.99
+- [Holybro](https://holybro.com/products/pixhawk-6c): Pixhawk 6C, plastic case, no power module, US$165.99
 
 #### Cortex-M4 with FPU, bare metal {#cortex-m4f}
 
@@ -364,6 +464,12 @@ From [Pixhawk Reference Standards](https://pixhawk.org/standards/).
 - pamoja: the bare-metal job in CI builds pamoja-core, security, audit, update, zenoh, ros2 and mavlink for this target
 
 From [Cortex-M4 product page, Arm](https://www.arm.com/products/silicon-ip-cpu/cortex-m/cortex-m4).
+
+Where to buy, prices as listed on 2026-09-06:
+
+- [Seeed Studio](https://www.seeedstudio.com/Seeed-XIAO-BLE-nRF52840-p-5201.html): Seeed Studio XIAO nRF52840 (XIAO BLE), US$9.99
+- [Adafruit](https://www.adafruit.com/product/3800): Adafruit ItsyBitsy M4 Express featuring ATSAMD51, US$14.95
+- [The Pi Hut](https://thepihut.com/products/stm32f411-blackpill-development-board): STM32F411 BlackPill Development Board (DFRobot DFR0864), £15.90
 <!-- end -->
 
 ## Anything else with a driver

@@ -30,28 +30,46 @@ each under its own name:
 <!-- table: install dotnet -->
 <div class="domains">
 <div class="domain">
-<div class="domain-what"><strong><a href="https://www.nuget.org/packages/Pamoja.FieldIo">Field I/O</a></strong><p><a href="https://pamoja.molex.cloud/docs/guides/serial.html">Serial framing</a>, <a href="https://pamoja.molex.cloud/docs/guides/modbus.html">Modbus RTU</a>, <a href="https://pamoja.molex.cloud/docs/guides/can.html">CAN and J1939</a>, <a href="https://pamoja.molex.cloud/docs/guides/gpio.html">I2C, SPI, and GPIO</a></p><div class="pkg-btns"><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.FieldIo">NuGet</a></div></div>
+<div class="pkg-head">
+<div class="pkg-what"><span class="pkg-title">Field I/O</span><p><a href="https://pamoja.molex.cloud/docs/guides/serial.html">Serial framing</a>, <a href="https://pamoja.molex.cloud/docs/guides/modbus.html">Modbus RTU</a>, <a href="https://pamoja.molex.cloud/docs/guides/can.html">CAN and J1939</a>, <a href="https://pamoja.molex.cloud/docs/guides/gpio.html">I2C, SPI, and GPIO</a></p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.FieldIo</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.FieldIo" aria-label="Copy the install command">copy</button></div>
 </div>
+<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.FieldIo">NuGet</a></div></div>
+</div>
 <div class="domain">
-<div class="domain-what"><strong><a href="https://www.nuget.org/packages/Pamoja.Sensing">Sensing and actuation</a></strong><p><a href="https://pamoja.molex.cloud/docs/guides/sensors.html">Sensor drivers</a>, <a href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a></p><div class="pkg-btns"><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Sensing">NuGet</a></div></div>
+<div class="pkg-head">
+<div class="pkg-what"><span class="pkg-title">Sensing and actuation</span><p><a href="https://pamoja.molex.cloud/docs/guides/sensors.html">Sensor drivers</a>, <a href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a></p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Sensing</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Sensing" aria-label="Copy the install command">copy</button></div>
 </div>
+<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Sensing">NuGet</a></div></div>
+</div>
 <div class="domain">
-<div class="domain-what"><strong><a href="https://www.nuget.org/packages/Pamoja.Radio">Radio and reach</a></strong><p><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a>, <a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a>, <a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a>, <a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></p><div class="pkg-btns"><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Radio">NuGet</a></div></div>
+<div class="pkg-head">
+<div class="pkg-what"><span class="pkg-title">Radio and reach</span><p><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a>, <a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a>, <a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a>, <a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Radio</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Radio" aria-label="Copy the install command">copy</button></div>
 </div>
+<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Radio">NuGet</a></div></div>
+</div>
 <div class="domain">
-<div class="domain-what"><strong><a href="https://www.nuget.org/packages/Pamoja.Trust">Trust and operation</a></strong><p><a href="https://pamoja.molex.cloud/docs/guides/audit.html">Audit log</a>, <a href="https://pamoja.molex.cloud/docs/guides/session.html">Secured session</a>, <a href="https://pamoja.molex.cloud/docs/guides/update.html">Signed updates</a>, <a href="https://pamoja.molex.cloud/docs/guides/power.html">Power</a>, <a href="https://pamoja.molex.cloud/docs/guides/telemetry.html">Telemetry</a></p><div class="pkg-btns"><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Trust">NuGet</a></div></div>
+<div class="pkg-head">
+<div class="pkg-what"><span class="pkg-title">Trust and operation</span><p><a href="https://pamoja.molex.cloud/docs/guides/audit.html">Audit log</a>, <a href="https://pamoja.molex.cloud/docs/guides/session.html">Secured session</a>, <a href="https://pamoja.molex.cloud/docs/guides/update.html">Signed updates</a>, <a href="https://pamoja.molex.cloud/docs/guides/power.html">Power</a>, <a href="https://pamoja.molex.cloud/docs/guides/telemetry.html">Telemetry</a></p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Trust</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Trust" aria-label="Copy the install command">copy</button></div>
 </div>
-<div class="domain">
-<div class="domain-what"><strong><a href="https://www.nuget.org/packages/Pamoja.Transports">Transports and testing</a></strong><p><a href="https://pamoja.molex.cloud/docs/guides/mqtt.html">MQTT</a>, <a href="https://pamoja.molex.cloud/docs/guides/coap.html">CoAP</a>, <a href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a>, <a href="https://pamoja.molex.cloud/docs/guides/sync.html">Store and forward</a>, <a href="https://pamoja.molex.cloud/docs/guides/ladder.html">Transport ladder</a>, <a href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a>, <a href="https://pamoja.molex.cloud/docs/guides/transport.html">Engine surface</a>, <a href="https://pamoja.molex.cloud/docs/guides/sim.html">Simulators</a></p><div class="pkg-btns"><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Transports">NuGet</a></div></div>
-<div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Transports</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Transports" aria-label="Copy the install command">copy</button></div>
+<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Trust">NuGet</a></div></div>
 </div>
 <div class="domain">
-<div class="domain-what"><strong><a href="https://www.nuget.org/packages/Pamoja.Profiles">Profiles and robotics</a></strong><p><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a>, <a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a>, <a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></p><div class="pkg-btns"><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Profiles">NuGet</a></div></div>
+<div class="pkg-head">
+<div class="pkg-what"><span class="pkg-title">Transports and testing</span><p><a href="https://pamoja.molex.cloud/docs/guides/mqtt.html">MQTT</a>, <a href="https://pamoja.molex.cloud/docs/guides/coap.html">CoAP</a>, <a href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a>, <a href="https://pamoja.molex.cloud/docs/guides/sync.html">Store and forward</a>, <a href="https://pamoja.molex.cloud/docs/guides/ladder.html">Transport ladder</a>, <a href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a>, <a href="https://pamoja.molex.cloud/docs/guides/transport.html">Engine surface</a>, <a href="https://pamoja.molex.cloud/docs/guides/sim.html">Simulators</a></p></div>
+<div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Transports</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Transports" aria-label="Copy the install command">copy</button></div>
+</div>
+<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Transports">NuGet</a></div></div>
+</div>
+<div class="domain">
+<div class="pkg-head">
+<div class="pkg-what"><span class="pkg-title">Profiles and robotics</span><p><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a>, <a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a>, <a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Profiles</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Profiles" aria-label="Copy the install command">copy</button></div>
+</div>
+<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Profiles">NuGet</a></div></div>
 </div>
 </div>
 <!-- end -->
@@ -67,10 +85,14 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="dotnet-transport">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/transport.html">Engine surface</a><p>The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/transport.html">Engine surface</a><code class="pkg-import">Pamoja.Core</code><p>The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Core</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Core" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.html">API <code>Pamoja.Core</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/transport.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/transport.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Core">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/transport.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/transport.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Core">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-transport" title="pamoja-core">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-transport" title="@pamoja/core">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-transport" title="pamoja-core">Python</a></p>
+</div>
 </div>
 </div>
 
@@ -78,10 +100,14 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="dotnet-security">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/security.html">Device identity</a><p>ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/security.html">Device identity</a><code class="pkg-import">Pamoja.Security</code><p>ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Security</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Security" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Security.html">API <code>Pamoja.Security</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/security.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/security.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Security">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Security.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/security.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/security.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Security">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-security" title="pamoja-security">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-security" title="@pamoja/security">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-security" title="pamoja-security">Python</a></p>
+</div>
 </div>
 </div>
 
@@ -89,10 +115,14 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="dotnet-codec">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/codec.html">Codecs</a><p>CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/codec.html">Codecs</a><code class="pkg-import">Pamoja.Codec</code><p>CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Codec</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Codec" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Codec.html">API <code>Pamoja.Codec</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/codec.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/codec.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Codec">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Codec.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/codec.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/codec.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Codec">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-codec" title="pamoja-codec">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-codec" title="@pamoja/codec">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-codec" title="pamoja-codec">Python</a></p>
+</div>
 </div>
 </div>
 
@@ -100,10 +130,14 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="dotnet-kit">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/kit.html">Helpers</a><p>Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/kit.html">Helpers</a><code class="pkg-import">Pamoja.Kit</code><p>Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Kit</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Kit" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Kit.html">API <code>Pamoja.Kit</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/kit.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/kit.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Kit">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Kit.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/kit.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/kit.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Kit">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-kit" title="pamoja-kit">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-kit" title="@pamoja/kit">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-kit" title="pamoja-kit">Python</a></p>
+</div>
 </div>
 </div>
 
@@ -111,28 +145,44 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="dotnet-serial">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/serial.html">Serial framing</a><p>SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/serial.html">Serial framing</a><code class="pkg-import">Pamoja.Serial</code><p>SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Serial</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Serial" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Serial.html">API <code>Pamoja.Serial</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/serial.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/serial.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Serial">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Serial.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/serial.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/serial.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Serial">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-serial" title="pamoja-serial">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-serial" title="@pamoja/serial">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-serial" title="pamoja-serial">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-modbus">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/modbus.html">Modbus RTU</a><p>Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/modbus.html">Modbus RTU</a><code class="pkg-import">Pamoja.Modbus</code><p>Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Modbus</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Modbus" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Modbus.html">API <code>Pamoja.Modbus</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/modbus.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/modbus.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Modbus">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Modbus.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/modbus.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/modbus.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Modbus">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-modbus" title="pamoja-modbus">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-modbus" title="@pamoja/modbus">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-modbus" title="pamoja-modbus">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-can">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/can.html">CAN and J1939</a><p>CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/can.html">CAN and J1939</a><code class="pkg-import">Pamoja.Can</code><p>CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Can</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Can" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Can.html">API <code>Pamoja.Can</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/can.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/can.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Can">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Can.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/can.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/can.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Can">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-can" title="pamoja-can">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-can" title="@pamoja/can">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-can" title="pamoja-can">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-gpio">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/gpio.html">I2C, SPI, and GPIO</a><p>I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/gpio.html">I2C, SPI, and GPIO</a><code class="pkg-import">Pamoja.Gpio</code><p>I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Gpio</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Gpio" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Gpio.html">API <code>Pamoja.Gpio</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/gpio.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/gpio.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Gpio">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Gpio.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/gpio.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/gpio.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Gpio">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-gpio" title="pamoja-gpio">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-gpio" title="@pamoja/gpio">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-gpio" title="pamoja-gpio">Python</a></p>
+</div>
 </div>
 </div>
 
@@ -140,16 +190,24 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="dotnet-sensors">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/sensors.html">Sensor drivers</a><p>Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/sensors.html">Sensor drivers</a><code class="pkg-import">Pamoja.Sensors</code><p>Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Sensors</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Sensors" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sensors.html">API <code>Pamoja.Sensors</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/sensors.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/sensors.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Sensors">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sensors.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/sensors.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/sensors.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Sensors">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-sensors" title="pamoja-sensors">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-sensors" title="@pamoja/sensors">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-sensors" title="pamoja-sensors">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-actuators">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a><p>PCA9685 PWM and servo pulses, and stepper coil sequencing</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a><code class="pkg-import">Pamoja.Actuators</code><p>PCA9685 PWM and servo pulses, and stepper coil sequencing</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Actuators</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Actuators" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Actuators.html">API <code>Pamoja.Actuators</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/actuators.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/actuators.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Actuators">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Actuators.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/actuators.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/actuators.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Actuators">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-actuators" title="pamoja-actuators">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-actuators" title="@pamoja/actuators">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-actuators" title="pamoja-actuators">Python</a></p>
+</div>
 </div>
 </div>
 
@@ -157,28 +215,44 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="dotnet-lora">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a><p>Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a><code class="pkg-import">Pamoja.Lora</code><p>Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Lora</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Lora" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lora.html">API <code>Pamoja.Lora</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/lora.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/lora.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Lora">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lora.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/lora.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/lora.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Lora">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-lora" title="pamoja-lora">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-lora" title="@pamoja/lora">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-lora" title="pamoja-lora">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-lorawan">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a><p>LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a><code class="pkg-import">Pamoja.Lorawan</code><p>LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Lorawan</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Lorawan" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.html">API <code>Pamoja.Lorawan</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/lorawan.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/lorawan.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Lorawan">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lorawan.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/lorawan.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/lorawan.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Lorawan">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-lorawan" title="pamoja-lorawan">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-lorawan" title="@pamoja/lorawan">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-lorawan" title="pamoja-lorawan">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-mesh">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a><p>Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a><code class="pkg-import">Pamoja.Mesh</code><p>Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Mesh</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Mesh" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mesh.html">API <code>Pamoja.Mesh</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/mesh.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/mesh.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Mesh">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mesh.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/mesh.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/mesh.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Mesh">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-mesh" title="pamoja-mesh">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-mesh" title="@pamoja/mesh">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-mesh" title="pamoja-mesh">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-routing">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a><p>Reverse-path routing that learns the cheapest route from overheard traffic</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a><code class="pkg-import">Pamoja.Routing</code><p>Reverse-path routing that learns the cheapest route from overheard traffic</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Routing</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Routing" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Routing.html">API <code>Pamoja.Routing</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/routing.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/routing.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Routing">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Routing.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/routing.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/routing.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Routing">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-routing" title="pamoja-routing">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-routing" title="@pamoja/routing">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-routing" title="pamoja-routing">Python</a></p>
+</div>
 </div>
 </div>
 
@@ -186,10 +260,14 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="dotnet-mavlink">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/mavlink.html">MAVLink</a><p>MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/mavlink.html">MAVLink</a><code class="pkg-import">Pamoja.Mavlink</code><p>MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Mavlink</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Mavlink" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mavlink.html">API <code>Pamoja.Mavlink</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/mavlink.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/mavlink.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Mavlink">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mavlink.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/mavlink.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/mavlink.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Mavlink">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-mavlink" title="pamoja-mavlink">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-mavlink" title="@pamoja/mavlink">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-mavlink" title="pamoja-mavlink">Python</a></p>
+</div>
 </div>
 </div>
 
@@ -197,34 +275,54 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="dotnet-audit">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/audit.html">Audit log</a><p>A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/audit.html">Audit log</a><code class="pkg-import">Pamoja.Audit</code><p>A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Audit</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Audit" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Audit.html">API <code>Pamoja.Audit</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/audit.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/audit.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Audit">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Audit.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/audit.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/audit.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Audit">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-audit" title="pamoja-audit">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-audit" title="@pamoja/audit">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-audit" title="pamoja-audit">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-session">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/session.html">Secured session</a><p>X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/session.html">Secured session</a><code class="pkg-import">Pamoja.Session</code><p>X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Session</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Session" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Session.html">API <code>Pamoja.Session</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/session.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/session.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Session">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Session.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/session.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/session.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Session">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-session" title="pamoja-session">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-session" title="@pamoja/session">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-session" title="pamoja-session">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-update">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/update.html">Signed updates</a><p>Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/update.html">Signed updates</a><code class="pkg-import">Pamoja.Update</code><p>Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Update</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Update" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.html">API <code>Pamoja.Update</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/update.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/update.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Update">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/update.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/update.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Update">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-update" title="pamoja-update">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-update" title="@pamoja/update">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-update" title="pamoja-update">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-power">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/power.html">Power</a><p>Duty cycling and an energy-aware governor that stretches work as the battery drains</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/power.html">Power</a><code class="pkg-import">Pamoja.Power</code><p>Duty cycling and an energy-aware governor that stretches work as the battery drains</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Power</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Power" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Power.html">API <code>Pamoja.Power</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/power.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/power.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Power">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Power.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/power.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/power.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Power">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-power" title="pamoja-power">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-power" title="@pamoja/power">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-power" title="pamoja-power">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-telemetry">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/telemetry.html">Telemetry</a><p>Observability that ships only what is worth the bytes as link cost rises, while counting everything</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/telemetry.html">Telemetry</a><code class="pkg-import">Pamoja.Telemetry</code><p>Observability that ships only what is worth the bytes as link cost rises, while counting everything</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Telemetry</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Telemetry" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Telemetry.html">API <code>Pamoja.Telemetry</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/telemetry.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/telemetry.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Telemetry">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Telemetry.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/telemetry.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/telemetry.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Telemetry">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-telemetry" title="pamoja-telemetry">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-telemetry" title="@pamoja/telemetry">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-telemetry" title="pamoja-telemetry">Python</a></p>
+</div>
 </div>
 </div>
 
@@ -232,46 +330,74 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="dotnet-mqtt">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/mqtt.html">MQTT</a><p>An MQTT client with the topic and wildcard rules, as the core transport</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/mqtt.html">MQTT</a><code class="pkg-import">Pamoja.Mqtt</code><p>An MQTT client with the topic and wildcard rules, as the core transport</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Mqtt</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Mqtt" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mqtt.html">API <code>Pamoja.Mqtt</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/mqtt.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/mqtt.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Mqtt">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mqtt.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/mqtt.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/mqtt.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Mqtt">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-mqtt" title="pamoja-mqtt">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-mqtt" title="@pamoja/mqtt">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-mqtt" title="pamoja-mqtt">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-coap">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/coap.html">CoAP</a><p>A CoAP client over UDP with confirmable delivery and observe</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/coap.html">CoAP</a><code class="pkg-import">Pamoja.Coap</code><p>A CoAP client over UDP with confirmable delivery and observe</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Coap</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Coap" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Coap.html">API <code>Pamoja.Coap</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/coap.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/coap.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Coap">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Coap.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/coap.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/coap.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Coap">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-coap" title="pamoja-coap">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-coap" title="@pamoja/coap">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-coap" title="pamoja-coap">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-loopback">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a><p>An in-process transport with topic matching and a fault injector, for testing with no broker</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a><code class="pkg-import">Pamoja.Loopback</code><p>An in-process transport with topic matching and a fault injector, for testing with no broker</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Loopback</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Loopback" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Loopback.html">API <code>Pamoja.Loopback</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/loopback.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/loopback.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Loopback">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Loopback.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/loopback.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/loopback.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Loopback">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-loopback" title="pamoja-loopback">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-loopback" title="@pamoja/loopback">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-loopback" title="pamoja-loopback">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-sync">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/sync.html">Store and forward</a><p>Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/sync.html">Store and forward</a><code class="pkg-import">Pamoja.Sync</code><p>Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Sync</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Sync" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sync.html">API <code>Pamoja.Sync</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/sync.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/sync.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Sync">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sync.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/sync.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/sync.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Sync">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-sync" title="pamoja-sync">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-sync" title="@pamoja/sync">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-sync" title="pamoja-sync">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-ladder">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/ladder.html">Transport ladder</a><p>Cheapest reachable link first, buffering to a store when every link is down</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/ladder.html">Transport ladder</a><code class="pkg-import">Pamoja.Ladder</code><p>Cheapest reachable link first, buffering to a store when every link is down</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Ladder</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Ladder" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ladder.html">API <code>Pamoja.Ladder</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/ladder.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/ladder.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Ladder">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ladder.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/ladder.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/ladder.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Ladder">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-ladder" title="pamoja-ladder">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-ladder" title="@pamoja/ladder">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-ladder" title="pamoja-ladder">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-bus">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a><p>An in-memory typed publish and subscribe event bus</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a><code class="pkg-import">Pamoja.Bus</code><p>An in-memory typed publish and subscribe event bus</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Bus</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Bus" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Bus.html">API <code>Pamoja.Bus</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/bus.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/bus.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Bus">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Bus.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/bus.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/bus.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Bus">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-bus" title="pamoja-bus">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-bus" title="@pamoja/bus">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-bus" title="pamoja-bus">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-sim">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/sim.html">Simulators</a><p>Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/sim.html">Simulators</a><code class="pkg-import">Pamoja.Sim</code><p>Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Sim</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Sim" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sim.html">API <code>Pamoja.Sim</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/sim.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/sim.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Sim">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sim.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/sim.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/sim.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Sim">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-sim" title="pamoja-sim">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-sim" title="@pamoja/sim">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-sim" title="pamoja-sim">Python</a></p>
+</div>
 </div>
 </div>
 
@@ -279,22 +405,34 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="dotnet-profile">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a><p>Named, ready-to-run device profiles from plain data or a JSON manifest</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a><code class="pkg-import">Pamoja.Profile</code><p>Named, ready-to-run device profiles from plain data or a JSON manifest</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Profile</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Profile" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Profile.html">API <code>Pamoja.Profile</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/profile.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/profile.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Profile">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Profile.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/profile.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/profile.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Profile">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-profile" title="pamoja-profile">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-profile" title="@pamoja/profile">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-profile" title="pamoja-profile">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-ros2">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a><p>ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a><code class="pkg-import">Pamoja.Ros2</code><p>ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Ros2</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Ros2" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ros2.html">API <code>Pamoja.Ros2</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/ros2.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/ros2.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Ros2">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ros2.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/ros2.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/ros2.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Ros2">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-ros2" title="pamoja-ros2">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-ros2" title="@pamoja/ros2">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-ros2" title="pamoja-ros2">Python</a></p>
 </div>
+</div>
 <div class="pkg" id="dotnet-zenoh">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a><p>Zenoh key expressions: validity, canonical form, and wildcard matching</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a><code class="pkg-import">Pamoja.Zenoh</code><p>Zenoh key expressions: validity, canonical form, and wildcard matching</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Zenoh</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Zenoh" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Zenoh.html">API <code>Pamoja.Zenoh</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/zenoh.html#c">Worked example</a><a class="pkg-btn registry" href="https://www.nuget.org/packages/Pamoja.Zenoh">NuGet</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Zenoh.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/zenoh.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Zenoh">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-zenoh" title="pamoja-zenoh">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-zenoh" title="@pamoja/zenoh">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-zenoh" title="pamoja-zenoh">Python</a></p>
+</div>
 </div>
 </div>
 <!-- end -->

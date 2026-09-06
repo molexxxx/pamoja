@@ -854,14 +854,6 @@ impl Catalog {
         let lang = Language::by_key(language);
         let mut out = String::from("<div class=\"domains\">\n");
         for (chapter, members) in self.domains() {
-            let title = match lang.domain_package(&chapter.key) {
-                Some(package) => format!(
-                    "<a href=\"{}\">{}</a>",
-                    lang.registry_url(&package),
-                    escape(&chapter.title)
-                ),
-                None => escape(&chapter.title),
-            };
             let names: Vec<String> = members
                 .iter()
                 .map(|member| match guide_url(member) {
@@ -870,25 +862,33 @@ impl Catalog {
                 })
                 .collect();
             let mut actions = Vec::new();
-            if let Some((import, href)) = lang.domain_reference(&chapter.key) {
-                actions.push(format!(
-                    "<a class=\"pkg-btn api {}\" href=\"{href}\">API <code>{}</code></a>",
-                    lang.key,
-                    escape(&import)
-                ));
-            }
+            let import = match lang.domain_reference(&chapter.key) {
+                Some((import, href)) => {
+                    actions.push(format!(
+                        "<a class=\"pkg-btn api {}\" href=\"{href}\">API reference</a>",
+                        lang.key
+                    ));
+                    if lang.key == "rust" {
+                        String::new()
+                    } else {
+                        format!("<code class=\"pkg-import\">{}</code>", escape(&import))
+                    }
+                }
+                None => String::new(),
+            };
             if let Some(package) = lang.domain_package(&chapter.key) {
                 actions.push(format!(
-                    "<a class=\"pkg-btn registry\" href=\"{}\">{}</a>",
+                    "<a class=\"pkg-btn ext\" href=\"{}\">{}</a>",
                     lang.registry_url(&package),
                     lang.registry
                 ));
             }
             out.push_str(&format!(
-                "<div class=\"domain\">\n<div class=\"domain-what\"><strong>{title}</strong><p>{}</p><div class=\"pkg-btns\">{}</div></div>\n{}\n</div>\n",
+                "<div class=\"domain\">\n<div class=\"pkg-head\">\n<div class=\"pkg-what\"><span class=\"pkg-title\">{}</span>{import}<p>{}</p></div>\n{}\n</div>\n<div class=\"pkg-foot\"><div class=\"pkg-btns\">{}</div></div>\n</div>\n",
+                escape(&chapter.title),
                 names.join(", "),
-                actions.join(""),
-                command(&lang.domain_install(&chapter.key))
+                command(&lang.domain_install(&chapter.key)),
+                actions.join("")
             ));
         }
         out.push_str("</div>");
@@ -1110,31 +1110,34 @@ fn package_row(lang: &Language, capability: &Capability) -> String {
     let (import, reference) = lang.import(capability);
     let guide = guide_url(capability);
     let title = match &guide {
-        Some(href) => format!("<a href=\"{href}\">{}</a>", escape(&capability.title)),
-        None => escape(&capability.title),
+        Some(href) => format!(
+            "<a class=\"pkg-title\" href=\"{href}\">{}</a>",
+            escape(&capability.title)
+        ),
+        None => format!(
+            "<span class=\"pkg-title\">{}</span>",
+            escape(&capability.title)
+        ),
     };
     let mut actions = vec![format!(
-        "<a class=\"pkg-btn api {}\" href=\"{reference}\">API <code>{}</code></a>",
-        lang.key,
-        escape(&import)
+        "<a class=\"pkg-btn api {}\" href=\"{reference}\">API reference</a>",
+        lang.key
     )];
     if let Some(href) = &guide {
+        actions.push(format!("<a class=\"pkg-btn\" href=\"{href}\">Guide</a>"));
         actions.push(format!(
-            "<a class=\"pkg-btn guide\" href=\"{href}\">Guide</a>"
-        ));
-        actions.push(format!(
-            "<a class=\"pkg-btn example\" href=\"{href}#{}\">Worked example</a>",
+            "<a class=\"pkg-btn\" href=\"{href}#{}\">Worked example</a>",
             lang.anchor
         ));
     }
     actions.push(format!(
-        "<a class=\"pkg-btn registry\" href=\"{}\">{}</a>",
+        "<a class=\"pkg-btn ext\" href=\"{}\">{}</a>",
         lang.registry_url(&package),
         lang.registry
     ));
     if lang.key == "rust" {
         actions.push(format!(
-            "<a class=\"pkg-btn registry\" href=\"https://docs.rs/{package}\">docs.rs</a>"
+            "<a class=\"pkg-btn ext\" href=\"https://docs.rs/{package}\">docs.rs</a>"
         ));
     }
     let others: Vec<String> = LANGUAGES
@@ -1150,9 +1153,10 @@ fn package_row(lang: &Language, capability: &Capability) -> String {
         })
         .collect();
     format!(
-        "<div class=\"pkg\" id=\"{}-{}\">\n<div class=\"pkg-what\">{title}<p>{}</p></div>\n{}\n<div class=\"pkg-btns\">{}</div>\n<p class=\"pkg-else\"><span>Also in</span> {}</p>\n</div>\n",
+        "<div class=\"pkg\" id=\"{}-{}\">\n<div class=\"pkg-head\">\n<div class=\"pkg-what\">{title}<code class=\"pkg-import\">{}</code><p>{}</p></div>\n{}\n</div>\n<div class=\"pkg-foot\">\n<div class=\"pkg-btns\">{}</div>\n<p class=\"pkg-else\"><span>Also in</span> {}</p>\n</div>\n</div>\n",
         lang.key,
         escape(&capability.key),
+        escape(&import),
         escape(&capability.summary),
         command(&lang.install(&package)),
         actions.join(""),
@@ -1529,26 +1533,27 @@ crate = "pamoja"
         let descriptions = BTreeMap::new();
 
         let python = catalog.render("packages python", &descriptions).unwrap();
-        assert!(python.starts_with("### Engine\n\n<div class=\"pkgs\">\n<div class=\"pkg\" id=\"python-transport\">\n<div class=\"pkg-what\">Transports<p>The transport surface</p></div>"), "{python}");
-        assert!(python.contains("### Field I/O\n\n<div class=\"pkgs\">\n<div class=\"pkg\" id=\"python-modbus\">\n<div class=\"pkg-what\"><a href=\"https://pamoja.molex.cloud/docs/guides/modbus.html\">Modbus RTU</a>"));
+        assert!(python.starts_with("### Engine\n\n<div class=\"pkgs\">\n<div class=\"pkg\" id=\"python-transport\">\n<div class=\"pkg-head\">\n<div class=\"pkg-what\"><span class=\"pkg-title\">Transports</span><code class=\"pkg-import\">pamoja.core</code><p>The transport surface</p></div>"), "{python}");
+        assert!(python.contains("### Field I/O\n\n<div class=\"pkgs\">\n<div class=\"pkg\" id=\"python-modbus\">\n<div class=\"pkg-head\">\n<div class=\"pkg-what\"><a class=\"pkg-title\" href=\"https://pamoja.molex.cloud/docs/guides/modbus.html\">Modbus RTU</a><code class=\"pkg-import\">pamoja.modbus</code>"));
         assert!(python.contains("<code class=\"cmd\">pip install pamoja-modbus</code><button class=\"copy\" type=\"button\" data-copy=\"pip install pamoja-modbus\""));
-        assert!(python.contains("<div class=\"pkg-btns\"><a class=\"pkg-btn api python\" href=\"https://pamoja.molex.cloud/docs/reference/python/pamoja/modbus.html\">API <code>pamoja.modbus</code></a>"));
-        assert!(python.contains("<a class=\"pkg-btn guide\" href=\"https://pamoja.molex.cloud/docs/guides/modbus.html\">Guide</a><a class=\"pkg-btn example\" href=\"https://pamoja.molex.cloud/docs/guides/modbus.html#python\">Worked example</a><a class=\"pkg-btn registry\" href=\"https://pypi.org/project/pamoja-modbus/\">PyPI</a></div>"));
+        assert!(python.contains("<div class=\"pkg-foot\">\n<div class=\"pkg-btns\"><a class=\"pkg-btn api python\" href=\"https://pamoja.molex.cloud/docs/reference/python/pamoja/modbus.html\">API reference</a>"));
+        assert!(python.contains("<a class=\"pkg-btn\" href=\"https://pamoja.molex.cloud/docs/guides/modbus.html\">Guide</a><a class=\"pkg-btn\" href=\"https://pamoja.molex.cloud/docs/guides/modbus.html#python\">Worked example</a><a class=\"pkg-btn ext\" href=\"https://pypi.org/project/pamoja-modbus/\">PyPI</a></div>"));
         assert!(python.contains("<span>Also in</span> <a href=\"https://pamoja.molex.cloud/docs/reference/rust.html#rust-modbus\" title=\"pamoja-modbus\">Rust</a> <a href=\"https://pamoja.molex.cloud/docs/reference/node.html#node-modbus\" title=\"@pamoja/modbus\">TypeScript</a> <a href=\"https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-modbus\" title=\"Pamoja.Modbus\">C#</a>"), "the other languages lead to the same row on their own pages");
-        assert!(python.ends_with("</div>\n</div>"));
+        assert!(python.ends_with("</p>\n</div>\n</div>\n</div>"));
 
         let rust = catalog.render("packages rust", &descriptions).unwrap();
         assert!(
             rust.contains("<code class=\"cmd\">cargo add pamoja-core</code>"),
             "the engine surface is the core crate"
         );
-        assert!(rust.contains("<a class=\"pkg-btn api rust\" href=\"https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html\">API <code>pamoja-modbus</code></a>"));
-        assert!(rust.contains("<a class=\"pkg-btn registry\" href=\"https://crates.io/crates/pamoja-modbus\">crates.io</a><a class=\"pkg-btn registry\" href=\"https://docs.rs/pamoja-modbus\">docs.rs</a>"));
+        assert!(rust.contains("<code class=\"pkg-import\">pamoja-modbus</code>"));
+        assert!(rust.contains("<a class=\"pkg-btn api rust\" href=\"https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html\">API reference</a>"));
+        assert!(rust.contains("<a class=\"pkg-btn ext\" href=\"https://crates.io/crates/pamoja-modbus\">crates.io</a><a class=\"pkg-btn ext\" href=\"https://docs.rs/pamoja-modbus\">docs.rs</a>"));
 
         let dotnet = catalog.render("packages dotnet", &descriptions).unwrap();
         assert!(dotnet.contains("<code class=\"cmd\">dotnet add package Pamoja.Modbus</code>"));
         assert!(dotnet.contains("<div class=\"pkg\" id=\"dotnet-modbus\">"));
-        assert!(dotnet.contains("<a class=\"pkg-btn example\" href=\"https://pamoja.molex.cloud/docs/guides/modbus.html#c\">Worked example</a>"));
+        assert!(dotnet.contains("<a class=\"pkg-btn\" href=\"https://pamoja.molex.cloud/docs/guides/modbus.html#c\">Worked example</a>"));
     }
 
     #[test]
@@ -1560,28 +1565,30 @@ crate = "pamoja"
         let descriptions = BTreeMap::new();
 
         let node = catalog.render("install node", &descriptions).unwrap();
-        assert!(node.starts_with("<div class=\"domains\">\n<div class=\"domain\">\n<div class=\"domain-what\"><strong>"), "{node}");
+        assert!(node.starts_with("<div class=\"domains\">\n<div class=\"domain\">\n<div class=\"pkg-head\">\n<div class=\"pkg-what\"><span class=\"pkg-title\">Field I/O</span><code class=\"pkg-import\">@pamoja/field-io</code><p>"), "{node}");
         assert!(
             node.contains(
                 "<div class=\"pkg-get\"><code class=\"cmd\">npm install @pamoja/field-io</code>"
             ),
             "{node}"
         );
-        assert!(node.contains("<strong><a href=\"https://www.npmjs.com/package/@pamoja/field-io\">Field I/O</a></strong><p><a href=\"https://pamoja.molex.cloud/docs/guides/modbus.html\">Modbus RTU</a>, Transports, <a href=\"https://pamoja.molex.cloud/docs/guides/can.html\">CAN</a></p><div class=\"pkg-btns\"><a class=\"pkg-btn api node\" href=\"https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_field-io.html\">API <code>@pamoja/field-io</code></a><a class=\"pkg-btn registry\" href=\"https://www.npmjs.com/package/@pamoja/field-io\">npm</a></div>"), "{node}");
+        assert!(node.contains("<p><a href=\"https://pamoja.molex.cloud/docs/guides/modbus.html\">Modbus RTU</a>, Transports, <a href=\"https://pamoja.molex.cloud/docs/guides/can.html\">CAN</a></p></div>\n<div class=\"pkg-get\">"), "{node}");
+        assert!(node.contains("<div class=\"pkg-foot\"><div class=\"pkg-btns\"><a class=\"pkg-btn api node\" href=\"https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_field-io.html\">API reference</a><a class=\"pkg-btn ext\" href=\"https://www.npmjs.com/package/@pamoja/field-io\">npm</a></div></div>"), "{node}");
 
         let rust = catalog.render("install rust", &descriptions).unwrap();
         assert!(rust.contains("<code class=\"cmd\">cargo add pamoja --features field-io</code>"));
         assert!(
-            rust.contains("<strong>Field I/O</strong>"),
-            "a feature has no registry page"
+            rust.contains("<span class=\"pkg-title\">Field I/O</span><p>"),
+            "a feature has no registry page and no import of its own"
         );
-        assert!(rust.contains("<div class=\"pkg-btns\"><a class=\"pkg-btn api rust\" href=\"https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html\">API <code>pamoja</code></a></div>"), "a Rust domain is a feature of the umbrella crate");
+        assert!(rust.contains("<div class=\"pkg-btns\"><a class=\"pkg-btn api rust\" href=\"https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html\">API reference</a></div>"), "a Rust domain is a feature of the umbrella crate");
 
         let dotnet = catalog.render("install dotnet", &descriptions).unwrap();
         assert!(dotnet.contains("dotnet add package Pamoja.FieldIo"));
-        assert!(dotnet.contains("<div class=\"pkg-btns\"><a class=\"pkg-btn registry\" href=\"https://www.nuget.org/packages/Pamoja.FieldIo\">NuGet</a></div>"), "a NuGet domain package holds no code of its own");
+        assert!(dotnet.contains("<div class=\"pkg-btns\"><a class=\"pkg-btn ext\" href=\"https://www.nuget.org/packages/Pamoja.FieldIo\">NuGet</a></div>"), "a NuGet domain package holds no code of its own");
         let python = catalog.render("install python", &descriptions).unwrap();
-        assert!(python.contains("<a class=\"pkg-btn api python\" href=\"https://pamoja.molex.cloud/docs/reference/python/pamoja/field_io.html\">API <code>pamoja.field_io</code></a>"));
+        assert!(python.contains("<code class=\"pkg-import\">pamoja.field_io</code>"));
+        assert!(python.contains("<a class=\"pkg-btn api python\" href=\"https://pamoja.molex.cloud/docs/reference/python/pamoja/field_io.html\">API reference</a>"));
 
         let door = catalog
             .render("reference-link python", &descriptions)

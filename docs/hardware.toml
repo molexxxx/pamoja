@@ -8,7 +8,10 @@
 # manufacturer's own datasheet or the standard that defines the thing. No distributor
 # listings, no datasheet mirrors, no tutorial sites. `cost` is one of five coarse bands for a
 # typical breakout module or board in USD, or "not applicable" for a bus or a specification;
-# it is not a quote.
+# it is not a quote. `buy` lists a few product pages for a part, the cheapest reputable
+# option first, each with the price the page listed on the day in `checked`; a line with
+# `verified = false` took its price from a listing of the page, since that vendor refuses
+# scripted readers. Those pages are checked by hand, not by `cargo xtask links`.
 
 [[group]]
 key = "sensors"
@@ -56,6 +59,30 @@ source_name = "BME280 combined humidity and pressure sensor data sheet, BST-BME2
 source_label = "Bosch BST-BME280-DS002"
 source = "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf"
 
+[[entry.buy]]
+vendor = "Adafruit"
+name = "Adafruit BME280 I2C or SPI Temperature Humidity Pressure Sensor - STEMMA QT"
+url = "https://www.adafruit.com/product/2652"
+price = "US$14.95"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Pimoroni"
+name = "BME280 Breakout - Temperature, Pressure, Humidity Sensor"
+url = "https://shop.pimoroni.com/products/bme280-breakout"
+price = "£11.50"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "SparkFun"
+name = "SparkFun Atmospheric Sensor Breakout - BME280 (Qwiic)"
+url = "https://www.sparkfun.com/sparkfun-atmospheric-sensor-breakout-bme280-qwiic.html"
+price = "US$16.95"
+checked = "2026-09-06"
+verified = true
+
 [[entry]]
 key = "ds18b20"
 group = "sensors"
@@ -78,6 +105,30 @@ source_label = "ADI 19-7487 Rev 6"
 source = "https://www.analog.com/media/en/technical-documentation/data-sheets/ds18b20.pdf"
 manual_check = "analog.com accepts a scripted connection and then never answers it, from every network tried; Analog Devices' legacy Maxim host redirects to exactly this URL"
 
+[[entry.buy]]
+vendor = "Adafruit"
+name = "DS18B20 Digital temperature sensor + extras"
+url = "https://www.adafruit.com/product/374"
+price = "US$3.95"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "The Pi Hut"
+name = "DS18B20+ One Wire Digital Temperature Sensor"
+url = "https://thepihut.com/products/ds18b20-one-wire-digital-temperature-sensor"
+price = "£7.00"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "SparkFun"
+name = "Temperature Sensor - Waterproof (DS18B20)"
+url = "https://www.sparkfun.com/temperature-sensor-waterproof-ds18b20.html"
+price = "US$10.95"
+checked = "2026-09-06"
+verified = true
+
 [[entry]]
 key = "ina219"
 group = "sensors"
@@ -98,6 +149,30 @@ modules = ["pamoja-sensors/src/ina219.rs"]
 source_name = "INA219 Zero-Drift, Bidirectional Current/Power Monitor With I2C Interface, SBOS448G"
 source_label = "TI SBOS448G"
 source = "https://www.ti.com/lit/ds/symlink/ina219.pdf"
+
+[[entry.buy]]
+vendor = "DFRobot"
+name = "Gravity: I2C Digital Wattmeter"
+url = "https://www.dfrobot.com/product-1827.html"
+price = "US$6.90"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Adafruit"
+name = "INA219 High Side DC Current Sensor Breakout - 26V ±3.2A Max - STEMMA QT"
+url = "https://www.adafruit.com/product/904"
+price = "US$9.95"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "The Pi Hut"
+name = "INA219 High Side DC Current Sensor Breakout - 26V ±3.2A Max (STEMMA QT)"
+url = "https://thepihut.com/products/adafruit-ina219-high-side-dc-current-sensor-breakout-26v-3-2a-max"
+price = "£9.60"
+checked = "2026-09-06"
+verified = true
 
 [[entry]]
 key = "ads1115"
@@ -120,6 +195,30 @@ source_name = "ADS111x Ultra-Small, Low-Power, I2C-Compatible, 860SPS, 16-Bit AD
 source_label = "TI SBAS444E"
 source = "https://www.ti.com/lit/ds/symlink/ads1115.pdf"
 
+[[entry.buy]]
+vendor = "DFRobot"
+name = "Gravity: I2C ADS1115 16-Bit ADC Module"
+url = "https://www.dfrobot.com/product-1730.html"
+price = "US$8.90"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Seeed Studio"
+name = "Grove - 4 Channel 16-bit ADC (ADS1115) with Programmable Amplifier Gain"
+url = "https://www.seeedstudio.com/Grove-ADS1115-16-bit-ADC-p-4599.html"
+price = "US$12.00"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Adafruit"
+name = "ADS1115 16-Bit ADC - 4 Channel with Programmable Gain Amplifier - STEMMA QT / Qwiic"
+url = "https://www.adafruit.com/product/1085"
+price = "US$14.95"
+checked = "2026-09-06"
+verified = true
+
 [[entry]]
 key = "pca9685"
 group = "actuators"
@@ -141,6 +240,30 @@ source_name = "PCA9685 16-channel, 12-bit PWM Fm+ I2C-bus LED controller, Rev. 4
 source_label = "NXP PCA9685 Rev. 4"
 source = "https://www.nxp.com/docs/en/data-sheet/PCA9685.pdf"
 
+[[entry.buy]]
+vendor = "SparkFun"
+name = "SparkFun Servo pHAT for Raspberry Pi (DEV-15316)"
+url = "https://www.sparkfun.com/sparkfun-servo-phat-for-raspberry-pi.html"
+price = "US$13.95"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Seeed Studio"
+name = "Grove - 16-Channel PWM Driver (PCA9685)"
+url = "https://www.seeedstudio.com/Grove-16-Channel-PWM-Driver-PCA9685.html"
+price = "US$14.20"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Adafruit"
+name = "Adafruit 16-Channel 12-bit PWM/Servo Driver - I2C interface"
+url = "https://www.adafruit.com/product/815"
+price = "US$14.95"
+checked = "2026-09-06"
+verified = true
+
 [[entry]]
 key = "uln2003"
 group = "actuators"
@@ -160,6 +283,30 @@ modules = ["pamoja-actuators/src/stepper.rs"]
 source_name = "ULN2003A product page, high-voltage high-current Darlington transistor array"
 source_label = "TI ULN2003A"
 source = "https://www.ti.com/product/ULN2003A"
+
+[[entry.buy]]
+vendor = "Seeed Studio"
+name = "Gear Stepper Motor Driver Pack (ULN2003 driver board with 28BYJ-48 motor)"
+url = "https://www.seeedstudio.com/Gear-Stepper-Motor-Driver-Pack-p-3200.html"
+price = "US$6.90"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "The Pi Hut"
+name = "Stepper Motor Driver Pack (Seeed 105990072)"
+url = "https://thepihut.com/products/stepper-motor-driver-pack"
+price = "£6.70"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Digi-Key"
+name = "ULN2003AN, 16-DIP (bare chip)"
+url = "https://www.digikey.com/en/products/detail/texas-instruments/ULN2003AN/277624"
+price = "US$0.97"
+checked = "2026-09-06"
+verified = false
 
 [[entry]]
 key = "a4988"
@@ -182,6 +329,30 @@ source_name = "A4988 DMOS Microstepping Driver with Translator and Overcurrent P
 source_label = "Allegro A4988 Rev. 8"
 source = "https://www.allegromicro.com/-/media/files/datasheets/a4988-datasheet.pdf"
 
+[[entry.buy]]
+vendor = "Adafruit"
+name = "Adafruit A4988 Stepper Motor Driver Breakout Board"
+url = "https://www.adafruit.com/product/6109"
+price = "US$6.95"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "The Pi Hut"
+name = "Adafruit A4988 Stepper Motor Driver Breakout Board"
+url = "https://thepihut.com/products/adafruit-a4988-stepper-motor-driver-breakout-board"
+price = "£6.70"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Pololu"
+name = "A4988 Stepper Motor Driver Carrier"
+url = "https://www.pololu.com/product/1182"
+price = "US$8.95"
+checked = "2026-09-06"
+verified = true
+
 [[entry]]
 key = "drv8825"
 group = "actuators"
@@ -203,6 +374,30 @@ source_name = "DRV8825 Stepper Motor Controller IC, SLVSA73F"
 source_label = "TI SLVSA73F"
 source = "https://www.ti.com/lit/ds/symlink/drv8825.pdf"
 
+[[entry.buy]]
+vendor = "M5Stack"
+name = "ATOMIC Stepmotor Base (DRV8825)"
+url = "https://shop.m5stack.com/products/atomic-stepmotor-base-drv8825"
+price = "US$8.95"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "The Pi Hut"
+name = "ATOMIC Stepmotor Base (DRV8825)"
+url = "https://thepihut.com/products/atomic-stepmotor-base-drv8825"
+price = "£8.70"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Pololu"
+name = "DRV8825 Stepper Motor Driver Carrier, High Current"
+url = "https://www.pololu.com/product/2133"
+price = "US$15.95"
+checked = "2026-09-06"
+verified = true
+
 [[entry]]
 key = "sx1276"
 group = "radios"
@@ -223,6 +418,30 @@ source_name = "SX1276 product page, Semtech LoRa Connect"
 source_label = "Semtech SX1276"
 source = "https://www.semtech.com/products/wireless-rf/lora-connect/sx1276"
 
+[[entry.buy]]
+vendor = "SparkFun"
+name = "LoRa Transceiver Module (RFM95CW), 137 to 1020 MHz, SX1276 based"
+url = "https://sparkfun.com/products/18085"
+price = "US$14.95"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Adafruit"
+name = "Adafruit RFM95W LoRa Radio Transceiver Breakout - 868 or 915 MHz"
+url = "https://www.adafruit.com/product/3072"
+price = "US$19.95"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Pimoroni"
+name = "Adafruit RFM95W LoRa Radio Transceiver Breakout - 868 or 915 MHz (ADA3072)"
+url = "https://shop.pimoroni.com/products/adafruit-rfm95w-lora-radio-transceiver-breakout"
+price = "£16.25"
+checked = "2026-09-06"
+verified = true
+
 [[entry]]
 key = "sx1262"
 group = "radios"
@@ -242,6 +461,30 @@ crates = ["pamoja-lora"]
 source_name = "SX1262 product page, Semtech LoRa Connect"
 source_label = "Semtech SX1262"
 source = "https://www.semtech.com/products/wireless-rf/lora-connect/sx1262"
+
+[[entry.buy]]
+vendor = "Seeed Studio"
+name = "Wio-SX1262 for XIAO, 862 to 930 MHz"
+url = "https://www.seeedstudio.com/Wio-SX1262-for-XIAO-p-6379.html"
+price = "US$4.99"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "The Pi Hut"
+name = "Wio-SX1262 for XIAO, 862 to 930 MHz"
+url = "https://thepihut.com/products/wio-sx1262-for-xiao"
+price = "£4.80"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Heltec Automation"
+name = "WiFi LoRa 32 (V3), ESP32-S3 + SX1262 LoRa node, 863 to 870 or 902 to 928 MHz variants"
+url = "https://heltec.org/project/wifi-lora-32-v3/"
+price = "US$17.90 to US$19.90"
+checked = "2026-09-06"
+verified = true
 
 [[entry]]
 key = "lorawan-rp002"
@@ -283,6 +526,30 @@ crates = ["pamoja-mesh"]
 source_name = "ESP-NOW, ESP-IDF Programming Guide, stable, ESP32"
 source_label = "Espressif ESP-IDF"
 source = "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_now.html"
+
+[[entry.buy]]
+vendor = "Seeed Studio"
+name = "Seeed Studio XIAO ESP32-C3"
+url = "https://www.seeedstudio.com/Seeed-XIAO-ESP32C3-p-5431.html"
+price = "US$4.99"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "The Pi Hut"
+name = "Seeed XIAO ESP32C3 (board with loose headers)"
+url = "https://thepihut.com/products/seeed-xiao-esp32c3"
+price = "£5.10"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Adafruit"
+name = "ESP32-C3 DevKitM-01 - 4 MB SPI Flash (Espressif ESP32-C3-MINI-1)"
+url = "https://www.adafruit.com/product/5337"
+price = "US$9.95"
+checked = "2026-09-06"
+verified = true
 
 [[entry]]
 key = "i2c"
@@ -402,6 +669,30 @@ source_label = "Raspberry Pi 5"
 source = "https://www.raspberrypi.com/products/raspberry-pi-5/"
 manual_check = "raspberrypi.com answers 403 to curl whatever agent string it carries, keyed on the TLS handshake"
 
+[[entry.buy]]
+vendor = "PiShop.us"
+name = "Raspberry Pi 5, 4 GB"
+url = "https://www.pishop.us/product/raspberry-pi-5-4gb/"
+price = "US$110.00"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Pimoroni"
+name = "Raspberry Pi 5, 4 GB (SC1111)"
+url = "https://shop.pimoroni.com/products/raspberry-pi-5"
+price = "£88.00"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "The Pi Hut"
+name = "Raspberry Pi 5, 4 GB"
+url = "https://thepihut.com/products/raspberry-pi-5"
+price = "£105.60"
+checked = "2026-09-06"
+verified = true
+
 [[entry]]
 key = "raspberry-pi-zero-2-w"
 group = "targets"
@@ -419,6 +710,30 @@ source_name = "Raspberry Pi Zero 2 W product page"
 source_label = "Raspberry Pi Zero 2 W"
 source = "https://www.raspberrypi.com/products/raspberry-pi-zero-2-w/"
 manual_check = "raspberrypi.com answers 403 to curl whatever agent string it carries, keyed on the TLS handshake"
+
+[[entry.buy]]
+vendor = "Pimoroni"
+name = "Raspberry Pi Zero 2 W (SC1176)"
+url = "https://shop.pimoroni.com/products/raspberry-pi-zero-2-w"
+price = "£12.00"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "The Pi Hut"
+name = "Raspberry Pi Zero 2 W"
+url = "https://thepihut.com/products/raspberry-pi-zero-2"
+price = "£14.40"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "PiShop.us"
+name = "Raspberry Pi Zero 2 W (SC1146)"
+url = "https://www.pishop.us/product/raspberry-pi-zero-2-w/"
+price = "US$17.25"
+checked = "2026-09-06"
+verified = true
 
 [[entry]]
 key = "esp32"
@@ -439,6 +754,30 @@ source_name = "ESP32 Series Datasheet, version 5.3"
 source_label = "Espressif ESP32 datasheet"
 source = "https://documentation.espressif.com/esp32_datasheet_en.pdf"
 
+[[entry.buy]]
+vendor = "Adafruit"
+name = "Espressif ESP32 Development Board - Developer Edition"
+url = "https://www.adafruit.com/product/3269"
+price = "US$15.00"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "The Pi Hut"
+name = "Espressif ESP32 Development Board - Developer Edition"
+url = "https://thepihut.com/products/espressif-esp32-development-board-developer-edition"
+price = "£14.40"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Digi-Key"
+name = "ESP32-DEVKITC-32E (Espressif ESP32-DevKitC with ESP32-WROOM-32E)"
+url = "https://www.digikey.com/en/products/detail/espressif-systems/ESP32-DEVKITC-32E/12091810"
+price = "US$10.00"
+checked = "2026-09-06"
+verified = false
+
 [[entry]]
 key = "ardupilot"
 group = "targets"
@@ -457,6 +796,22 @@ crates = ["pamoja-mavlink"]
 source_name = "ArduPilot development site"
 source_label = "ArduPilot"
 source = "https://ardupilot.org/dev/index.html"
+
+[[entry.buy]]
+vendor = "Holybro"
+name = "Pixhawk 6C Mini, Model-B, no power module"
+url = "https://holybro.com/products/pixhawk-6c-mini"
+price = "US$130.99"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Holybro"
+name = "Pixhawk 6C, plastic case, no power module"
+url = "https://holybro.com/products/pixhawk-6c"
+price = "US$165.99"
+checked = "2026-09-06"
+verified = true
 
 [[entry]]
 key = "px4"
@@ -477,6 +832,22 @@ source_name = "PX4 Autopilot User Guide"
 source_label = "PX4"
 source = "https://docs.px4.io/main/en/"
 
+[[entry.buy]]
+vendor = "Holybro"
+name = "Pixhawk 6C Mini, Model-B, no power module"
+url = "https://holybro.com/products/pixhawk-6c-mini"
+price = "US$130.99"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Holybro"
+name = "Pixhawk 6C, plastic case, no power module"
+url = "https://holybro.com/products/pixhawk-6c"
+price = "US$165.99"
+checked = "2026-09-06"
+verified = true
+
 [[entry]]
 key = "pixhawk"
 group = "targets"
@@ -495,6 +866,30 @@ source_name = "Pixhawk Reference Standards"
 source_label = "Pixhawk standards"
 source = "https://pixhawk.org/standards/"
 
+[[entry.buy]]
+vendor = "Holybro"
+name = "Pixhawk 6C Mini, Model-B, no power module"
+url = "https://holybro.com/products/pixhawk-6c-mini"
+price = "US$130.99"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Holybro"
+name = "Pix32 v6, FC module only"
+url = "https://holybro.com/products/pix32-v6"
+price = "US$146.99"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Holybro"
+name = "Pixhawk 6C, plastic case, no power module"
+url = "https://holybro.com/products/pixhawk-6c"
+price = "US$165.99"
+checked = "2026-09-06"
+verified = true
+
 [[entry]]
 key = "cortex-m4f"
 group = "targets"
@@ -512,3 +907,28 @@ cost = "$5 to $20"
 source_name = "Cortex-M4 product page, Arm"
 source_label = "Arm Cortex-M4"
 source = "https://www.arm.com/products/silicon-ip-cpu/cortex-m/cortex-m4"
+
+[[entry.buy]]
+vendor = "Seeed Studio"
+name = "Seeed Studio XIAO nRF52840 (XIAO BLE)"
+url = "https://www.seeedstudio.com/Seeed-XIAO-BLE-nRF52840-p-5201.html"
+price = "US$9.99"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Adafruit"
+name = "Adafruit ItsyBitsy M4 Express featuring ATSAMD51"
+url = "https://www.adafruit.com/product/3800"
+price = "US$14.95"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "The Pi Hut"
+name = "STM32F411 BlackPill Development Board (DFRobot DFR0864)"
+url = "https://thepihut.com/products/stm32f411-blackpill-development-board"
+price = "£15.90"
+checked = "2026-09-06"
+verified = true
+

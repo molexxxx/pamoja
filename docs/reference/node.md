@@ -28,28 +28,46 @@ each under its own name:
 <!-- table: install node -->
 <div class="domains">
 <div class="domain">
-<div class="domain-what"><strong><a href="https://www.npmjs.com/package/@pamoja/field-io">Field I/O</a></strong><p><a href="https://pamoja.molex.cloud/docs/guides/serial.html">Serial framing</a>, <a href="https://pamoja.molex.cloud/docs/guides/modbus.html">Modbus RTU</a>, <a href="https://pamoja.molex.cloud/docs/guides/can.html">CAN and J1939</a>, <a href="https://pamoja.molex.cloud/docs/guides/gpio.html">I2C, SPI, and GPIO</a></p><div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_field-io.html">API <code>@pamoja/field-io</code></a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/field-io">npm</a></div></div>
+<div class="pkg-head">
+<div class="pkg-what"><span class="pkg-title">Field I/O</span><code class="pkg-import">@pamoja/field-io</code><p><a href="https://pamoja.molex.cloud/docs/guides/serial.html">Serial framing</a>, <a href="https://pamoja.molex.cloud/docs/guides/modbus.html">Modbus RTU</a>, <a href="https://pamoja.molex.cloud/docs/guides/can.html">CAN and J1939</a>, <a href="https://pamoja.molex.cloud/docs/guides/gpio.html">I2C, SPI, and GPIO</a></p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/field-io</code><button class="copy" type="button" data-copy="npm install @pamoja/field-io" aria-label="Copy the install command">copy</button></div>
 </div>
+<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_field-io.html">API reference</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/field-io">npm</a></div></div>
+</div>
 <div class="domain">
-<div class="domain-what"><strong><a href="https://www.npmjs.com/package/@pamoja/sensing">Sensing and actuation</a></strong><p><a href="https://pamoja.molex.cloud/docs/guides/sensors.html">Sensor drivers</a>, <a href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a></p><div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sensing.html">API <code>@pamoja/sensing</code></a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/sensing">npm</a></div></div>
+<div class="pkg-head">
+<div class="pkg-what"><span class="pkg-title">Sensing and actuation</span><code class="pkg-import">@pamoja/sensing</code><p><a href="https://pamoja.molex.cloud/docs/guides/sensors.html">Sensor drivers</a>, <a href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a></p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/sensing</code><button class="copy" type="button" data-copy="npm install @pamoja/sensing" aria-label="Copy the install command">copy</button></div>
 </div>
+<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sensing.html">API reference</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/sensing">npm</a></div></div>
+</div>
 <div class="domain">
-<div class="domain-what"><strong><a href="https://www.npmjs.com/package/@pamoja/radio">Radio and reach</a></strong><p><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a>, <a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a>, <a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a>, <a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></p><div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_radio.html">API <code>@pamoja/radio</code></a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/radio">npm</a></div></div>
+<div class="pkg-head">
+<div class="pkg-what"><span class="pkg-title">Radio and reach</span><code class="pkg-import">@pamoja/radio</code><p><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a>, <a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a>, <a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a>, <a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/radio</code><button class="copy" type="button" data-copy="npm install @pamoja/radio" aria-label="Copy the install command">copy</button></div>
 </div>
+<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_radio.html">API reference</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/radio">npm</a></div></div>
+</div>
 <div class="domain">
-<div class="domain-what"><strong><a href="https://www.npmjs.com/package/@pamoja/trust">Trust and operation</a></strong><p><a href="https://pamoja.molex.cloud/docs/guides/audit.html">Audit log</a>, <a href="https://pamoja.molex.cloud/docs/guides/session.html">Secured session</a>, <a href="https://pamoja.molex.cloud/docs/guides/update.html">Signed updates</a>, <a href="https://pamoja.molex.cloud/docs/guides/power.html">Power</a>, <a href="https://pamoja.molex.cloud/docs/guides/telemetry.html">Telemetry</a></p><div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_trust.html">API <code>@pamoja/trust</code></a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/trust">npm</a></div></div>
+<div class="pkg-head">
+<div class="pkg-what"><span class="pkg-title">Trust and operation</span><code class="pkg-import">@pamoja/trust</code><p><a href="https://pamoja.molex.cloud/docs/guides/audit.html">Audit log</a>, <a href="https://pamoja.molex.cloud/docs/guides/session.html">Secured session</a>, <a href="https://pamoja.molex.cloud/docs/guides/update.html">Signed updates</a>, <a href="https://pamoja.molex.cloud/docs/guides/power.html">Power</a>, <a href="https://pamoja.molex.cloud/docs/guides/telemetry.html">Telemetry</a></p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/trust</code><button class="copy" type="button" data-copy="npm install @pamoja/trust" aria-label="Copy the install command">copy</button></div>
 </div>
-<div class="domain">
-<div class="domain-what"><strong><a href="https://www.npmjs.com/package/@pamoja/transports">Transports and testing</a></strong><p><a href="https://pamoja.molex.cloud/docs/guides/mqtt.html">MQTT</a>, <a href="https://pamoja.molex.cloud/docs/guides/coap.html">CoAP</a>, <a href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a>, <a href="https://pamoja.molex.cloud/docs/guides/sync.html">Store and forward</a>, <a href="https://pamoja.molex.cloud/docs/guides/ladder.html">Transport ladder</a>, <a href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a>, <a href="https://pamoja.molex.cloud/docs/guides/transport.html">Engine surface</a>, <a href="https://pamoja.molex.cloud/docs/guides/sim.html">Simulators</a></p><div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_transports.html">API <code>@pamoja/transports</code></a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/transports">npm</a></div></div>
-<div class="pkg-get"><code class="cmd">npm install @pamoja/transports</code><button class="copy" type="button" data-copy="npm install @pamoja/transports" aria-label="Copy the install command">copy</button></div>
+<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_trust.html">API reference</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/trust">npm</a></div></div>
 </div>
 <div class="domain">
-<div class="domain-what"><strong><a href="https://www.npmjs.com/package/@pamoja/profiles">Profiles and robotics</a></strong><p><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a>, <a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a>, <a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></p><div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_profiles.html">API <code>@pamoja/profiles</code></a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/profiles">npm</a></div></div>
+<div class="pkg-head">
+<div class="pkg-what"><span class="pkg-title">Transports and testing</span><code class="pkg-import">@pamoja/transports</code><p><a href="https://pamoja.molex.cloud/docs/guides/mqtt.html">MQTT</a>, <a href="https://pamoja.molex.cloud/docs/guides/coap.html">CoAP</a>, <a href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a>, <a href="https://pamoja.molex.cloud/docs/guides/sync.html">Store and forward</a>, <a href="https://pamoja.molex.cloud/docs/guides/ladder.html">Transport ladder</a>, <a href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a>, <a href="https://pamoja.molex.cloud/docs/guides/transport.html">Engine surface</a>, <a href="https://pamoja.molex.cloud/docs/guides/sim.html">Simulators</a></p></div>
+<div class="pkg-get"><code class="cmd">npm install @pamoja/transports</code><button class="copy" type="button" data-copy="npm install @pamoja/transports" aria-label="Copy the install command">copy</button></div>
+</div>
+<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_transports.html">API reference</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/transports">npm</a></div></div>
+</div>
+<div class="domain">
+<div class="pkg-head">
+<div class="pkg-what"><span class="pkg-title">Profiles and robotics</span><code class="pkg-import">@pamoja/profiles</code><p><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a>, <a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a>, <a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/profiles</code><button class="copy" type="button" data-copy="npm install @pamoja/profiles" aria-label="Copy the install command">copy</button></div>
+</div>
+<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_profiles.html">API reference</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/profiles">npm</a></div></div>
 </div>
 </div>
 <!-- end -->
@@ -65,10 +83,14 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="node-transport">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/transport.html">Engine surface</a><p>The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/transport.html">Engine surface</a><code class="pkg-import">@pamoja/core</code><p>The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/core</code><button class="copy" type="button" data-copy="npm install @pamoja/core" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_core.html">API <code>@pamoja/core</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/transport.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/transport.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/core">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_core.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/transport.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/transport.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/core">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-transport" title="pamoja-core">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-transport" title="pamoja-core">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-transport" title="Pamoja.Core">C#</a></p>
+</div>
 </div>
 </div>
 
@@ -76,10 +98,14 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="node-security">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/security.html">Device identity</a><p>ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/security.html">Device identity</a><code class="pkg-import">@pamoja/security</code><p>ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/security</code><button class="copy" type="button" data-copy="npm install @pamoja/security" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_security.html">API <code>@pamoja/security</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/security.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/security.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/security">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_security.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/security.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/security.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/security">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-security" title="pamoja-security">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-security" title="pamoja-security">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-security" title="Pamoja.Security">C#</a></p>
+</div>
 </div>
 </div>
 
@@ -87,10 +113,14 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="node-codec">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/codec.html">Codecs</a><p>CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/codec.html">Codecs</a><code class="pkg-import">@pamoja/codec</code><p>CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/codec</code><button class="copy" type="button" data-copy="npm install @pamoja/codec" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_codec.html">API <code>@pamoja/codec</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/codec.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/codec.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/codec">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_codec.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/codec.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/codec.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/codec">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-codec" title="pamoja-codec">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-codec" title="pamoja-codec">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-codec" title="Pamoja.Codec">C#</a></p>
+</div>
 </div>
 </div>
 
@@ -98,10 +128,14 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="node-kit">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/kit.html">Helpers</a><p>Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/kit.html">Helpers</a><code class="pkg-import">@pamoja/kit</code><p>Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/kit</code><button class="copy" type="button" data-copy="npm install @pamoja/kit" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_kit.html">API <code>@pamoja/kit</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/kit.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/kit.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/kit">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_kit.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/kit.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/kit.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/kit">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-kit" title="pamoja-kit">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-kit" title="pamoja-kit">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-kit" title="Pamoja.Kit">C#</a></p>
+</div>
 </div>
 </div>
 
@@ -109,28 +143,44 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="node-serial">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/serial.html">Serial framing</a><p>SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/serial.html">Serial framing</a><code class="pkg-import">@pamoja/serial</code><p>SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/serial</code><button class="copy" type="button" data-copy="npm install @pamoja/serial" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_serial.html">API <code>@pamoja/serial</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/serial.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/serial.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/serial">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_serial.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/serial.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/serial.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/serial">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-serial" title="pamoja-serial">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-serial" title="pamoja-serial">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-serial" title="Pamoja.Serial">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-modbus">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/modbus.html">Modbus RTU</a><p>Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/modbus.html">Modbus RTU</a><code class="pkg-import">@pamoja/modbus</code><p>Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/modbus</code><button class="copy" type="button" data-copy="npm install @pamoja/modbus" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_modbus.html">API <code>@pamoja/modbus</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/modbus.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/modbus.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/modbus">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_modbus.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/modbus.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/modbus.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/modbus">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-modbus" title="pamoja-modbus">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-modbus" title="pamoja-modbus">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-modbus" title="Pamoja.Modbus">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-can">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/can.html">CAN and J1939</a><p>CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/can.html">CAN and J1939</a><code class="pkg-import">@pamoja/can</code><p>CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/can</code><button class="copy" type="button" data-copy="npm install @pamoja/can" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_can.html">API <code>@pamoja/can</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/can.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/can.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/can">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_can.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/can.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/can.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/can">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-can" title="pamoja-can">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-can" title="pamoja-can">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-can" title="Pamoja.Can">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-gpio">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/gpio.html">I2C, SPI, and GPIO</a><p>I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/gpio.html">I2C, SPI, and GPIO</a><code class="pkg-import">@pamoja/gpio</code><p>I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/gpio</code><button class="copy" type="button" data-copy="npm install @pamoja/gpio" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_gpio.html">API <code>@pamoja/gpio</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/gpio.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/gpio.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/gpio">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_gpio.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/gpio.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/gpio.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/gpio">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-gpio" title="pamoja-gpio">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-gpio" title="pamoja-gpio">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-gpio" title="Pamoja.Gpio">C#</a></p>
+</div>
 </div>
 </div>
 
@@ -138,16 +188,24 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="node-sensors">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/sensors.html">Sensor drivers</a><p>Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/sensors.html">Sensor drivers</a><code class="pkg-import">@pamoja/sensors</code><p>Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/sensors</code><button class="copy" type="button" data-copy="npm install @pamoja/sensors" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sensors.html">API <code>@pamoja/sensors</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/sensors.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/sensors.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/sensors">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sensors.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/sensors.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/sensors.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/sensors">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-sensors" title="pamoja-sensors">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-sensors" title="pamoja-sensors">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-sensors" title="Pamoja.Sensors">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-actuators">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a><p>PCA9685 PWM and servo pulses, and stepper coil sequencing</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a><code class="pkg-import">@pamoja/actuators</code><p>PCA9685 PWM and servo pulses, and stepper coil sequencing</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/actuators</code><button class="copy" type="button" data-copy="npm install @pamoja/actuators" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_actuators.html">API <code>@pamoja/actuators</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/actuators.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/actuators.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/actuators">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_actuators.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/actuators.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/actuators.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/actuators">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-actuators" title="pamoja-actuators">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-actuators" title="pamoja-actuators">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-actuators" title="Pamoja.Actuators">C#</a></p>
+</div>
 </div>
 </div>
 
@@ -155,28 +213,44 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="node-lora">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a><p>Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a><code class="pkg-import">@pamoja/lora</code><p>Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/lora</code><button class="copy" type="button" data-copy="npm install @pamoja/lora" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_lora.html">API <code>@pamoja/lora</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/lora.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/lora.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/lora">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_lora.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/lora.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/lora.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/lora">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-lora" title="pamoja-lora">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-lora" title="pamoja-lora">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-lora" title="Pamoja.Lora">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-lorawan">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a><p>LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a><code class="pkg-import">@pamoja/lorawan</code><p>LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/lorawan</code><button class="copy" type="button" data-copy="npm install @pamoja/lorawan" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_lorawan.html">API <code>@pamoja/lorawan</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/lorawan.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/lorawan.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/lorawan">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_lorawan.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/lorawan.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/lorawan.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/lorawan">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-lorawan" title="pamoja-lorawan">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-lorawan" title="pamoja-lorawan">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-lorawan" title="Pamoja.Lorawan">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-mesh">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a><p>Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a><code class="pkg-import">@pamoja/mesh</code><p>Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/mesh</code><button class="copy" type="button" data-copy="npm install @pamoja/mesh" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mesh.html">API <code>@pamoja/mesh</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/mesh.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/mesh.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/mesh">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mesh.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/mesh.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/mesh.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/mesh">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-mesh" title="pamoja-mesh">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-mesh" title="pamoja-mesh">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-mesh" title="Pamoja.Mesh">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-routing">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a><p>Reverse-path routing that learns the cheapest route from overheard traffic</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a><code class="pkg-import">@pamoja/routing</code><p>Reverse-path routing that learns the cheapest route from overheard traffic</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/routing</code><button class="copy" type="button" data-copy="npm install @pamoja/routing" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_routing.html">API <code>@pamoja/routing</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/routing.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/routing.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/routing">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_routing.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/routing.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/routing.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/routing">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-routing" title="pamoja-routing">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-routing" title="pamoja-routing">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-routing" title="Pamoja.Routing">C#</a></p>
+</div>
 </div>
 </div>
 
@@ -184,10 +258,14 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="node-mavlink">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/mavlink.html">MAVLink</a><p>MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/mavlink.html">MAVLink</a><code class="pkg-import">@pamoja/mavlink</code><p>MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/mavlink</code><button class="copy" type="button" data-copy="npm install @pamoja/mavlink" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mavlink.html">API <code>@pamoja/mavlink</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/mavlink.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/mavlink.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/mavlink">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mavlink.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/mavlink.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/mavlink.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/mavlink">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-mavlink" title="pamoja-mavlink">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-mavlink" title="pamoja-mavlink">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-mavlink" title="Pamoja.Mavlink">C#</a></p>
+</div>
 </div>
 </div>
 
@@ -195,34 +273,54 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="node-audit">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/audit.html">Audit log</a><p>A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/audit.html">Audit log</a><code class="pkg-import">@pamoja/audit</code><p>A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/audit</code><button class="copy" type="button" data-copy="npm install @pamoja/audit" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_audit.html">API <code>@pamoja/audit</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/audit.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/audit.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/audit">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_audit.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/audit.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/audit.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/audit">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-audit" title="pamoja-audit">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-audit" title="pamoja-audit">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-audit" title="Pamoja.Audit">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-session">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/session.html">Secured session</a><p>X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/session.html">Secured session</a><code class="pkg-import">@pamoja/session</code><p>X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/session</code><button class="copy" type="button" data-copy="npm install @pamoja/session" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_session.html">API <code>@pamoja/session</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/session.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/session.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/session">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_session.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/session.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/session.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/session">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-session" title="pamoja-session">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-session" title="pamoja-session">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-session" title="Pamoja.Session">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-update">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/update.html">Signed updates</a><p>Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/update.html">Signed updates</a><code class="pkg-import">@pamoja/update</code><p>Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/update</code><button class="copy" type="button" data-copy="npm install @pamoja/update" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_update.html">API <code>@pamoja/update</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/update.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/update.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/update">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_update.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/update.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/update.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/update">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-update" title="pamoja-update">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-update" title="pamoja-update">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-update" title="Pamoja.Update">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-power">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/power.html">Power</a><p>Duty cycling and an energy-aware governor that stretches work as the battery drains</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/power.html">Power</a><code class="pkg-import">@pamoja/power</code><p>Duty cycling and an energy-aware governor that stretches work as the battery drains</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/power</code><button class="copy" type="button" data-copy="npm install @pamoja/power" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_power.html">API <code>@pamoja/power</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/power.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/power.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/power">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_power.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/power.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/power.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/power">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-power" title="pamoja-power">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-power" title="pamoja-power">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-power" title="Pamoja.Power">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-telemetry">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/telemetry.html">Telemetry</a><p>Observability that ships only what is worth the bytes as link cost rises, while counting everything</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/telemetry.html">Telemetry</a><code class="pkg-import">@pamoja/telemetry</code><p>Observability that ships only what is worth the bytes as link cost rises, while counting everything</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/telemetry</code><button class="copy" type="button" data-copy="npm install @pamoja/telemetry" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_telemetry.html">API <code>@pamoja/telemetry</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/telemetry.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/telemetry.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/telemetry">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_telemetry.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/telemetry.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/telemetry.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/telemetry">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-telemetry" title="pamoja-telemetry">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-telemetry" title="pamoja-telemetry">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-telemetry" title="Pamoja.Telemetry">C#</a></p>
+</div>
 </div>
 </div>
 
@@ -230,46 +328,74 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="node-mqtt">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/mqtt.html">MQTT</a><p>An MQTT client with the topic and wildcard rules, as the core transport</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/mqtt.html">MQTT</a><code class="pkg-import">@pamoja/mqtt</code><p>An MQTT client with the topic and wildcard rules, as the core transport</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/mqtt</code><button class="copy" type="button" data-copy="npm install @pamoja/mqtt" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mqtt.html">API <code>@pamoja/mqtt</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/mqtt.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/mqtt.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/mqtt">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mqtt.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/mqtt.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/mqtt.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/mqtt">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-mqtt" title="pamoja-mqtt">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-mqtt" title="pamoja-mqtt">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-mqtt" title="Pamoja.Mqtt">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-coap">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/coap.html">CoAP</a><p>A CoAP client over UDP with confirmable delivery and observe</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/coap.html">CoAP</a><code class="pkg-import">@pamoja/coap</code><p>A CoAP client over UDP with confirmable delivery and observe</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/coap</code><button class="copy" type="button" data-copy="npm install @pamoja/coap" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_coap.html">API <code>@pamoja/coap</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/coap.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/coap.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/coap">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_coap.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/coap.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/coap.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/coap">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-coap" title="pamoja-coap">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-coap" title="pamoja-coap">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-coap" title="Pamoja.Coap">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-loopback">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a><p>An in-process transport with topic matching and a fault injector, for testing with no broker</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a><code class="pkg-import">@pamoja/loopback</code><p>An in-process transport with topic matching and a fault injector, for testing with no broker</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/loopback</code><button class="copy" type="button" data-copy="npm install @pamoja/loopback" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_loopback.html">API <code>@pamoja/loopback</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/loopback.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/loopback.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/loopback">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_loopback.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/loopback.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/loopback.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/loopback">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-loopback" title="pamoja-loopback">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-loopback" title="pamoja-loopback">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-loopback" title="Pamoja.Loopback">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-sync">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/sync.html">Store and forward</a><p>Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/sync.html">Store and forward</a><code class="pkg-import">@pamoja/sync</code><p>Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/sync</code><button class="copy" type="button" data-copy="npm install @pamoja/sync" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sync.html">API <code>@pamoja/sync</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/sync.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/sync.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/sync">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sync.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/sync.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/sync.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/sync">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-sync" title="pamoja-sync">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-sync" title="pamoja-sync">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-sync" title="Pamoja.Sync">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-ladder">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/ladder.html">Transport ladder</a><p>Cheapest reachable link first, buffering to a store when every link is down</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/ladder.html">Transport ladder</a><code class="pkg-import">@pamoja/ladder</code><p>Cheapest reachable link first, buffering to a store when every link is down</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/ladder</code><button class="copy" type="button" data-copy="npm install @pamoja/ladder" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ladder.html">API <code>@pamoja/ladder</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/ladder.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/ladder.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/ladder">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ladder.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/ladder.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/ladder.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/ladder">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-ladder" title="pamoja-ladder">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-ladder" title="pamoja-ladder">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-ladder" title="Pamoja.Ladder">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-bus">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a><p>An in-memory typed publish and subscribe event bus</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a><code class="pkg-import">@pamoja/bus</code><p>An in-memory typed publish and subscribe event bus</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/bus</code><button class="copy" type="button" data-copy="npm install @pamoja/bus" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_bus.html">API <code>@pamoja/bus</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/bus.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/bus.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/bus">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_bus.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/bus.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/bus.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/bus">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-bus" title="pamoja-bus">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-bus" title="pamoja-bus">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-bus" title="Pamoja.Bus">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-sim">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/sim.html">Simulators</a><p>Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/sim.html">Simulators</a><code class="pkg-import">@pamoja/sim</code><p>Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/sim</code><button class="copy" type="button" data-copy="npm install @pamoja/sim" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sim.html">API <code>@pamoja/sim</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/sim.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/sim.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/sim">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sim.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/sim.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/sim.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/sim">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-sim" title="pamoja-sim">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-sim" title="pamoja-sim">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-sim" title="Pamoja.Sim">C#</a></p>
+</div>
 </div>
 </div>
 
@@ -277,22 +403,34 @@ registries.
 
 <div class="pkgs">
 <div class="pkg" id="node-profile">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a><p>Named, ready-to-run device profiles from plain data or a JSON manifest</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a><code class="pkg-import">@pamoja/profile</code><p>Named, ready-to-run device profiles from plain data or a JSON manifest</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/profile</code><button class="copy" type="button" data-copy="npm install @pamoja/profile" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_profile.html">API <code>@pamoja/profile</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/profile.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/profile.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/profile">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_profile.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/profile.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/profile.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/profile">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-profile" title="pamoja-profile">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-profile" title="pamoja-profile">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-profile" title="Pamoja.Profile">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-ros2">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a><p>ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a><code class="pkg-import">@pamoja/ros2</code><p>ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/ros2</code><button class="copy" type="button" data-copy="npm install @pamoja/ros2" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ros2.html">API <code>@pamoja/ros2</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/ros2.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/ros2.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/ros2">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ros2.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/ros2.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/ros2.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/ros2">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-ros2" title="pamoja-ros2">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-ros2" title="pamoja-ros2">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-ros2" title="Pamoja.Ros2">C#</a></p>
 </div>
+</div>
 <div class="pkg" id="node-zenoh">
-<div class="pkg-what"><a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a><p>Zenoh key expressions: validity, canonical form, and wildcard matching</p></div>
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a><code class="pkg-import">@pamoja/zenoh</code><p>Zenoh key expressions: validity, canonical form, and wildcard matching</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/zenoh</code><button class="copy" type="button" data-copy="npm install @pamoja/zenoh" aria-label="Copy the install command">copy</button></div>
-<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_zenoh.html">API <code>@pamoja/zenoh</code></a><a class="pkg-btn guide" href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Guide</a><a class="pkg-btn example" href="https://pamoja.molex.cloud/docs/guides/zenoh.html#typescript">Worked example</a><a class="pkg-btn registry" href="https://www.npmjs.com/package/@pamoja/zenoh">npm</a></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_zenoh.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/zenoh.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/zenoh">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-zenoh" title="pamoja-zenoh">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-zenoh" title="pamoja-zenoh">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-zenoh" title="Pamoja.Zenoh">C#</a></p>
+</div>
 </div>
 </div>
 <!-- end -->

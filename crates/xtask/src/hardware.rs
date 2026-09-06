@@ -72,6 +72,27 @@ pub struct Entry {
     /// Why `cargo xtask links` cannot fetch the source and a person checks it instead:
     /// a few vendors' sites refuse every scripted client. Empty for the rest.
     pub manual_check: String,
+    /// Where to buy it: a few product pages, the cheapest reputable option first, each with
+    /// the price the page listed on the day it was read. Empty for a bus, a protocol, or a
+    /// specification, which cost nothing to speak.
+    pub buy: Vec<Buy>,
+}
+
+/// One place to buy a part, and what it cost there on the day the page was read.
+pub struct Buy {
+    /// The vendor, as a reader knows it.
+    pub vendor: String,
+    /// The product, as the vendor's page names it.
+    pub name: String,
+    /// The product page.
+    pub url: String,
+    /// The price as listed, with its currency.
+    pub price: String,
+    /// The day the page was read, as YYYY-MM-DD.
+    pub checked: String,
+    /// Whether the price was read from the page itself; a vendor that refuses scripted
+    /// clients is priced from a listing of the page instead, and the page says so.
+    pub verified: bool,
 }
 
 /// The whole reference: groups in page order, entries in file order.
@@ -149,6 +170,7 @@ impl Hardware {
                 source_label: string(table, "source_label", &context)?,
                 source: string(table, "source", &context)?,
                 manual_check: optional(table, "manual_check"),
+                buy: buys(table, &context)?,
                 key,
             });
         }
@@ -190,8 +212,9 @@ impl Hardware {
     }
 
     /// Render the page body. Each group gets a heading, its line of intent, a compact table
-    /// for scanning (part, interface, cost, source), and then one block per part carrying
-    /// the summary and the figures from its document.
+    /// for scanning (part, interface, cost band, the lowest listed price, source), and then
+    /// one block per part carrying the summary, the figures from its document, and where to
+    /// buy it.
     ///
     /// # Returns
     ///
@@ -204,10 +227,16 @@ impl Hardware {
                 continue;
             }
             let mut section = format!("### {}\n\n{}\n\n", group.title, group.intent);
-            section.push_str("| Part | Interface | Cost | Source |\n| --- | --- | --- | --- |\n");
+            section.push_str(
+                "| Part | Interface | Cost | From | Source |\n| --- | --- | --- | --- | --- |\n",
+            );
             for entry in &entries {
+                let from = match entry.buy.first() {
+                    Some(buy) => format!("[{}]({})", buy.price, buy.url),
+                    None => "-".to_owned(),
+                };
                 section.push_str(&format!(
-                    "| [{}](#{}) | {} | {} | [{}]({}) |\n",
+                    "| [{}](#{}) | {} | {} | {from} | [{}]({}) |\n",
                     entry.name,
                     entry.key,
                     if entry.interface.is_empty() {
@@ -232,6 +261,7 @@ impl Hardware {
                     "\nFrom [{}]({}).\n",
                     entry.source_name, entry.source
                 ));
+                section.push_str(&where_to_buy(&entry.buy));
             }
             out.push(section.trim_end().to_owned());
         }
@@ -278,6 +308,32 @@ impl Hardware {
             }
             if entry.specs.is_empty() {
                 return Err(format!("{at}: needs at least one figure from its source"));
+            }
+            if !entry.buy.is_empty() && entry.cost == "not applicable" {
+                return Err(format!(
+                    "{at}: lists where to buy a thing that has no price"
+                ));
+            }
+            let mut pages = BTreeSet::new();
+            for buy in &entry.buy {
+                if !buy.url.starts_with("https://") {
+                    return Err(format!(
+                        "{at}: the {} page must be an https URL",
+                        buy.vendor
+                    ));
+                }
+                if !pages.insert(buy.url.as_str()) {
+                    return Err(format!("{at}: lists {} twice", buy.url));
+                }
+                if buy.price.trim().is_empty() {
+                    return Err(format!("{at}: the {} line has no price", buy.vendor));
+                }
+                if !is_date(&buy.checked) {
+                    return Err(format!(
+                        "{at}: the {} line's `checked` must be a YYYY-MM-DD date",
+                        buy.vendor
+                    ));
+                }
             }
             for krate in &entry.crates {
                 if !root.join("crates").join(krate).join("Cargo.toml").is_file() {
@@ -329,6 +385,51 @@ impl Hardware {
         }
         Ok(())
     }
+}
+
+// The "where to buy" block under a part: one line per vendor with the product and the
+// price, the date the pages were read named once when they agree and per line otherwise,
+// and a note on a price that came from a listing rather than the page.
+fn where_to_buy(buy: &[Buy]) -> String {
+    if buy.is_empty() {
+        return String::new();
+    }
+    let same_day = buy.iter().all(|b| b.checked == buy[0].checked);
+    let mut out = if same_day {
+        format!(
+            "\nWhere to buy, prices as listed on {}:\n\n",
+            buy[0].checked
+        )
+    } else {
+        String::from("\nWhere to buy, each price as listed on the day named:\n\n")
+    };
+    for b in buy {
+        out.push_str(&format!(
+            "- [{}]({}): {}, {}",
+            b.vendor, b.url, b.name, b.price
+        ));
+        if !same_day {
+            out.push_str(&format!(" on {}", b.checked));
+        }
+        if !b.verified {
+            out.push_str(" (from a listing of the page, which refuses scripted readers)");
+        }
+        out.push('\n');
+    }
+    out
+}
+
+// A YYYY-MM-DD date, checked by shape.
+fn is_date(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    bytes.len() == 10
+        && bytes.iter().enumerate().all(|(i, b)| {
+            if i == 4 || i == 7 {
+                *b == b'-'
+            } else {
+                b.is_ascii_digit()
+            }
+        })
 }
 
 // The driver module files under the crates whose modules each target a real part.
@@ -438,6 +539,30 @@ fn optional_strings(
     strings(table, key, context)
 }
 
+// The `[[entry.buy]]` tables of an entry, in file order.
+fn buys(table: &dyn toml_edit::TableLike, context: &str) -> Result<Vec<Buy>, String> {
+    let Some(item) = table.get("buy") else {
+        return Ok(Vec::new());
+    };
+    let array = item
+        .as_array_of_tables()
+        .ok_or_else(|| format!("{context}: `buy` must be an array of tables"))?;
+    array
+        .iter()
+        .map(|buy| {
+            let buy = buy as &dyn toml_edit::TableLike;
+            Ok(Buy {
+                vendor: string(buy, "vendor", context)?,
+                name: string(buy, "name", context)?,
+                url: string(buy, "url", context)?,
+                price: string(buy, "price", context)?,
+                checked: string(buy, "checked", context)?,
+                verified: buy.get("verified").and_then(Item::as_bool).unwrap_or(true),
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -478,10 +603,70 @@ source = "https://example.invalid/bme280"
     fn the_table_links_the_source_and_lists_the_figures() {
         let rendered = Hardware::parse(MINIMAL).expect("parses").table();
         assert!(rendered.contains("### Sensors"));
-        assert!(rendered.contains("| [BME280](#bme280) | I2C or SPI | $5 to $20 | [datasheet](https://example.invalid/bme280) |"));
+        assert!(rendered.contains("| [BME280](#bme280) | I2C or SPI | $5 to $20 | - | [datasheet](https://example.invalid/bme280) |"));
         assert!(rendered.contains("#### BME280 {#bme280}"));
         assert!(rendered.contains("- Temperature: -40 to 85 C"));
         assert!(rendered.contains("From [BME280 datasheet](https://example.invalid/bme280)."));
+    }
+
+    const BUY: &str = r#"
+[[entry.buy]]
+vendor = "Adafruit"
+name = "Adafruit BME280 breakout"
+url = "https://www.adafruit.com/product/2652"
+price = "US$14.95"
+checked = "2026-09-06"
+
+[[entry.buy]]
+vendor = "Digi-Key"
+name = "BME280 bare sensor"
+url = "https://www.digikey.com/en/products/detail/bosch/BME280/5341156"
+price = "US$5.34"
+checked = "2026-09-06"
+verified = false
+"#;
+
+    #[test]
+    fn where_to_buy_is_listed_with_the_lowest_price_up_front() {
+        let hardware = Hardware::parse(&format!("{MINIMAL}{BUY}")).expect("parses");
+        let entry = &hardware.entries[0];
+        assert_eq!(entry.buy.len(), 2);
+        assert!(entry.buy[0].verified && !entry.buy[1].verified);
+        let table = hardware.table();
+        assert!(table.contains("| Part | Interface | Cost | From | Source |"));
+        assert!(table.contains(
+            "| $5 to $20 | [US$14.95](https://www.adafruit.com/product/2652) | [datasheet]"
+        ));
+        assert!(table.contains("Where to buy, prices as listed on 2026-09-06:\n\n- [Adafruit](https://www.adafruit.com/product/2652): Adafruit BME280 breakout, US$14.95\n- [Digi-Key](https://www.digikey.com/en/products/detail/bosch/BME280/5341156): BME280 bare sensor, US$5.34 (from a listing of the page, which refuses scripted readers)"), "{table}");
+        assert!(Hardware::parse(MINIMAL)
+            .expect("parses")
+            .table()
+            .contains("| $5 to $20 | - | [datasheet]"));
+    }
+
+    #[test]
+    fn a_buy_line_needs_an_https_page_a_price_and_a_date() {
+        let root = std::env::temp_dir();
+        for (bad, message) in [
+            (BUY.replace("https://www.adafruit.com", "http://www.adafruit.com"), "must be an https URL"),
+            (BUY.replace("price = \"US$14.95\"", "price = \"\""), "has no price"),
+            (BUY.replace("checked = \"2026-09-06\"\n\n", "checked = \"6 Sep 2026\"\n\n"), "YYYY-MM-DD"),
+            (format!("{BUY}\n[[entry.buy]]\nvendor = \"Again\"\nname = \"Same page\"\nurl = \"https://www.adafruit.com/product/2652\"\nprice = \"US$1\"\nchecked = \"2026-09-06\"\n"), "twice"),
+        ] {
+            let hardware = Hardware::parse(&format!("{MINIMAL}{bad}")).expect("parses");
+            let err = hardware.check(&root).expect_err("refused");
+            assert!(err.contains(message), "{err}");
+        }
+        let priceless = format!(
+            "{}{BUY}",
+            MINIMAL.replace("cost = \"$5 to $20\"", "cost = \"not applicable\"")
+        );
+        let err = Hardware::parse(&priceless)
+            .expect("parses")
+            .check(&root)
+            .expect_err("refused");
+        assert!(err.contains("has no price"), "{err}");
+        assert!(is_date("2026-09-06") && !is_date("2026-9-6") && !is_date("2026-09-06x"));
     }
 
     #[test]

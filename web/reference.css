@@ -1,38 +1,52 @@
-/* The site's bar over the generated references, drawn by web/js/reference.js, and the room
-   each generator's layout makes for it. Scoped to its own class names so it lays over
+/* The site's header over the generated references, drawn by web/js/reference.js: the same
+   64px glass bar as every rendered page, with the mark, the doors, the way back to the
+   language's reference page, and GitHub. Scoped to its own class names so it lays over
    rustdoc, typedoc, pdoc, and DocFX without touching theirs; the colours are tokens from
-   theme.css, which every reference loads beside this file. Every box and link in the bar
-   states its own position, size, and display, since each generator styles bare elements
-   (pdoc fixes every nav to the viewport, rustdoc and DocFX size links and headers). */
+   theme.css, which every reference loads beside this file. Every box and link states its
+   own position, size, and display, since each generator styles bare elements (pdoc fixes
+   every nav to the viewport, rustdoc and DocFX size links and headers). */
 
 .pamoja-bar {
-  box-sizing: border-box; position: relative; z-index: 50; display: flex; align-items: center; gap: 1.2rem;
-  width: 100%; height: 44px; margin: 0; padding: 0 1.25rem;
-  background: var(--navy-0); border-bottom: 1px solid var(--line);
-  font: 500 0.85rem var(--sans); color: var(--muted); line-height: 1;
+  box-sizing: border-box; position: sticky; top: 0; z-index: 1040;
+  display: flex; align-items: center; gap: 1.4rem;
+  width: 100%; height: 64px; margin: 0; padding: 0 clamp(1rem, 3vw, 2rem);
+  background: var(--glass); border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  font: 500 0.9rem var(--sans); color: var(--muted); line-height: 1;
+  -webkit-font-smoothing: antialiased;
 }
-.pamoja-bar a { display: inline-flex; align-items: center; position: static; width: auto; height: auto; margin: 0; padding: 0; color: var(--muted); text-decoration: none; border: 0; background: none; }
-.pamoja-bar a:hover { color: var(--cream); text-decoration: none; background: none; }
-.pamoja-bar-brand { gap: 0.5rem; color: var(--cream); font: 800 1rem var(--display); letter-spacing: -0.02em; }
-.pamoja-bar-brand svg { width: 22px; height: 22px; }
-.pamoja-bar-brand:hover span { color: var(--cream); }
-.pamoja-bar-nav { display: flex; gap: 1rem; position: static; width: auto; height: auto; margin: 0; padding: 0; overflow: visible; background: none; }
-.pamoja-bar-end { display: flex; align-items: center; gap: 1rem; margin-left: auto; }
-.pamoja-bar-back { color: var(--teal); white-space: nowrap; }
-.pamoja-bar-back:hover { color: var(--amber); }
-.pamoja-bar-icon { color: var(--muted); }
-.pamoja-bar-icon svg { width: 16px; height: 16px; }
+.pamoja-bar a { display: inline-flex; align-items: center; position: static; width: auto; height: auto; margin: 0; padding: 0; color: var(--muted); text-decoration: none; border: 0; background: none; box-shadow: none; }
+.pamoja-bar a:hover { color: var(--cream); text-decoration: none; }
+.pamoja-bar-brand { gap: 0.6rem; flex: none; }
+.pamoja-bar-mark { width: 30px; height: 30px; }
+.pamoja-bar-word { font-family: var(--display); font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; color: var(--cream); }
+.pamoja-bar-nav { display: flex; gap: 0.2rem; position: static; width: auto; height: auto; margin: 0 0 0 0.4rem; padding: 0; overflow: visible; background: none; }
+.pamoja-bar-nav a { padding: 0.4rem 0.75rem; border-radius: 8px; transition: color 0.2s ease, background 0.2s ease; }
+.pamoja-bar-nav a:hover { background: color-mix(in srgb, var(--cream) 6%, transparent); }
+.pamoja-bar-end { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+.pamoja-bar-back { gap: 0.4rem; height: 36px; padding: 0 0.9rem 0 0.65rem; border-radius: 999px; font-weight: 600; font-size: 0.84rem; color: var(--cream); background: color-mix(in srgb, var(--cream) 4%, transparent); box-shadow: inset 0 0 0 1px var(--line-strong); white-space: nowrap; transition: background 0.2s ease, box-shadow 0.2s ease; }
+.pamoja-bar-back:hover { color: var(--cream); background: color-mix(in srgb, var(--cream) 10%, transparent); box-shadow: inset 0 0 0 1px var(--cream); }
+.pamoja-bar-back svg { color: var(--teal); }
+.pamoja-bar-icon { justify-content: center; width: 36px; height: 36px; border-radius: 9px; transition: color 0.2s ease, background 0.2s ease; }
+.pamoja-bar-icon:hover { background: color-mix(in srgb, var(--cream) 6%, transparent); }
 
 /* rustdoc lays the sidebar and the page out as one flex row and fixes the sidebar to the
-   viewport; the bar takes a row above and the sidebar starts under it. */
+   viewport; the header takes a row above and the sidebar starts under it. */
 body.rustdoc { flex-wrap: wrap; }
 body.rustdoc > .pamoja-bar { flex: 0 0 100%; }
-.has-pamoja-bar body.rustdoc .sidebar { top: 44px; height: calc(100vh - 44px); }
+.has-pamoja-bar body.rustdoc .sidebar { top: 64px; height: calc(100vh - 64px); }
 
-/* pdoc fixes its navigation to the viewport, so it starts under the bar. */
-.has-pamoja-bar nav.pdoc { top: 44px; height: calc(100vh - 44px); }
+/* pdoc fixes its navigation to the viewport, so it starts under the header. */
+.has-pamoja-bar nav.pdoc { top: 64px; height: calc(100vh - 64px); }
+
+/* typedoc and DocFX stick their own toolbars to the top; they stick under the header.
+   DocFX's is a bare header element with a sticky rule of its own, hence the shape. */
+.has-pamoja-bar .tsd-page-toolbar { top: 64px; }
+.has-pamoja-bar body > header:not(.pamoja-bar) { top: 64px; }
 
 @media (max-width: 700px) {
+  .pamoja-bar { gap: 0.8rem; }
   .pamoja-bar-nav { display: none; }
-  .pamoja-bar-back { font-size: 0.78rem; }
+  .pamoja-bar-word { display: none; }
+  .pamoja-bar-back { font-size: 0.8rem; }
 }

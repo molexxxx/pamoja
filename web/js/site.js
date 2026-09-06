@@ -126,6 +126,8 @@
   // The sidebar is a drawer on a narrow screen. The button lives in the header and the
   // sidebar in the page, so the sidebar is looked up on each click.
   const toggle = document.querySelector('.menu-toggle');
+  const syncToggle = () => { if (toggle) toggle.hidden = !document.getElementById('side'); };
+  syncToggle();
   if (toggle)
   {
     const setOpen = (open) =>
@@ -205,6 +207,7 @@
     document.body.className = doc.body.className;
     page.replaceWith(document.adoptNode(next));
     bind(next);
+    syncToggle();
     if (next.querySelector('.home'))
     {
       import('/js/home.js').then((home) => home.init()).catch(() => {});

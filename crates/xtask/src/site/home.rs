@@ -424,13 +424,15 @@ impl Home {
              <ul class=\"installs\" aria-label=\"Install\">\n{installs}</ul>\n\
              <div class=\"hero-doors\">\n\
              <a class=\"btn btn-warm\" href=\"/docs/index.html\">Read the docs</a>\n\
-             <a class=\"btn btn-ghost\" href=\"/docs/hardware.html\">Hardware</a>\n\
              <a class=\"btn btn-ghost\" href=\"/docs/reference/rust.html\">API reference</a>\n\
-             <a class=\"btn btn-ghost\" href=\"https://pamoja.molex.cloud/dashboard/\">Dashboard demo</a>\n\
+             <a class=\"btn btn-ghost\" href=\"/docs/hardware.html\">Hardware</a>\n\
              </div>\n\
-             <p class=\"hero-facts\"><span>{} capabilities</span><span>{} crates</span><span>{} languages</span><span>{guides} guides, every example run in CI</span><span>MIT, forever</span></p>\n\
+             <ul class=\"hero-facts\"><li>{} capabilities</li><li>{} crates</li><li>{} languages</li><li>{guides} guides, every example run in CI</li><li>MIT, forever</li></ul>\n\
              </div>\n\
+             <div class=\"hero-side\">\n\
              <figure class=\"hero-stage diorama\" data-diorama=\"{stage}\"><p class=\"diorama-still\">A node at work plays here in a browser that runs scripts.</p></figure>\n\
+             <p class=\"stage-note\">Played from the same crates a real node runs. <a href=\"https://pamoja.molex.cloud/dashboard/\">Open the dashboard demo</a></p>\n\
+             </div>\n\
              </section>\n",
             escape(&self.hero.eyebrow),
             escape(&a),
@@ -707,11 +709,16 @@ fn covers(catalog: &Catalog, descriptions: &BTreeMap<String, String>) -> String 
         let description = descriptions.get(krate).cloned().unwrap_or_default();
         out.push_str(&format!(
             "<article class=\"bento-card{}\" data-chapter=\"engine\" data-accent=\"amber\" tabindex=\"0\">\n\
-             <div class=\"bc-face\"><p class=\"bc-role\">Engine</p><h3 class=\"bc-name\">{krate}</h3><p class=\"bc-summary\">{}</p></div>\n\
-             <div class=\"bc-pop\"><div class=\"pkg-btns\"><a class=\"pkg-btn crates\" href=\"https://crates.io/crates/{krate}\">crates.io</a><a class=\"pkg-btn guide\" href=\"docs/reference/rust/{}/index.html\">API reference</a></div></div>\n\
+             <div class=\"bc-face\"><p class=\"bc-role\">Engine</p><h3 class=\"bc-name\">{krate}</h3><p class=\"bc-summary\">{}</p>{}</div>\n\
+             <div class=\"bc-pop\"><div class=\"pkg-btns\"><a class=\"pkg-btn crates\" href=\"https://crates.io/crates/{krate}\">crates.io</a><a class=\"pkg-btn api rust\" href=\"docs/reference/rust/{}/index.html\">API reference</a></div></div>\n\
              </article>\n",
             if big { " span-big" } else { "" },
             escape(&description),
+            if big {
+                command(&format!("cargo add {krate}"))
+            } else {
+                String::new()
+            },
             krate.replace('-', "_")
         ));
     }
@@ -758,8 +765,8 @@ fn card(capability: &Capability, chapter: &crate::catalog::Chapter, accent: &str
     }
     format!(
         "<article class=\"bento-card\" data-chapter=\"{}\" data-accent=\"{accent}\" tabindex=\"0\">\n\
-         <div class=\"bc-face\"><p class=\"bc-role\">{}</p><h3 class=\"bc-name\">{}</h3><div class=\"crate-chips\">{crates}</div></div>\n\
-         <div class=\"bc-pop\"><p class=\"bc-summary\">{}</p><div class=\"pkg-btns\">{}</div></div>\n\
+         <div class=\"bc-face\"><p class=\"bc-role\">{}</p><h3 class=\"bc-name\">{}</h3><p class=\"bc-summary\">{}</p><div class=\"crate-chips\">{crates}</div></div>\n\
+         <div class=\"bc-pop\"><div class=\"pkg-btns\">{}</div></div>\n\
          </article>\n",
         escape(&chapter.key),
         escape(&chapter.title),

@@ -58,6 +58,18 @@ released together, so one entry covers all of them.
   check follows them like its own. A guide's reference section and a crate's
   README link the capability's row on each language's reference page, which is
   where the install line and the registry are.
+- The hardware page says where to buy each part: two or three product pages
+  per part from the makers' own stores and the larger distributors, the
+  cheapest reputable option first, each with the price the page listed on the
+  day it was read, and the lowest price in the summary table. The pages are
+  read by hand, so the date is part of the record.
+- The reference rows, the domain rows, and the front page's capability cards
+  share one card anatomy: what the thing is and its name in code, the install
+  line beside it, and under a hairline one row of equal buttons for its API
+  pages, guide, worked example, and registry. A card's drawer continues its
+  border without a seam, the front page's install lines and buttons sit on one
+  grid at every width, and every page has the menu on a phone, the front page
+  included. The header over the generated references is the site's own header.
 - The front page is rendered by `cargo xtask site` from the capability map and
   `web/home.toml`, in the same shell as the documentation: the four install
   lines, the first example in four languages spliced from the tests that run it,
