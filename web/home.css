@@ -39,8 +39,6 @@
 .hero-facts { display: flex; flex-wrap: wrap; gap: 0.35rem 0; margin: 0; font: 500 0.78rem var(--mono); color: var(--muted); }
 .hero-facts span + span::before { content: "·"; margin: 0 0.7rem; color: var(--line-strong); }
 .hero-doors { display: flex; flex-wrap: wrap; gap: 0.7rem; }
-.btn-ghost { color: var(--cream); background: color-mix(in srgb, var(--cream) 4%, transparent); border: 1px solid var(--line-strong); }
-.btn-ghost:hover { background: color-mix(in srgb, var(--cream) 10%, transparent); transform: translateY(-2px); }
 
 /* The first example: capped to a screen of code until asked for the rest */
 .quick .langs { max-width: 58rem; min-width: 0; margin: 0 auto; }
@@ -96,15 +94,6 @@ a.crate-chip:hover { border-color: var(--accent, var(--teal)); }
 }
 .bento-card:hover .bc-pop, .bento-card.pinned .bc-pop { opacity: 1; transform: none; pointer-events: auto; }
 .bento:has(.bento-card.pinned) .bento-card:not(.pinned):hover .bc-pop { opacity: 0; pointer-events: none; }
-.pkg-btns { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.pkg-btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.32rem 0.65rem; border-radius: 8px; font: 500 0.72rem var(--mono); color: var(--cream); background: color-mix(in srgb, var(--cream) 5%, transparent); border: 1px solid var(--line); text-decoration: none; transition: border-color 0.15s ease, background 0.15s ease; }
-.pkg-btn::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--muted)); }
-.pkg-btn:hover { background: color-mix(in srgb, var(--cream) 9%, transparent); border-color: var(--line-strong); }
-.pkg-btn.rust, .pkg-btn.crates { --dot: var(--amber); }
-.pkg-btn.node { --dot: var(--coral); }
-.pkg-btn.python { --dot: var(--sky); }
-.pkg-btn.dotnet { --dot: var(--forest); }
-.pkg-btn.guide { --dot: var(--cream); }
 
 /* Where it runs */
 .stage-tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.45rem; max-width: 70rem; margin: 0 auto 1.4rem; }

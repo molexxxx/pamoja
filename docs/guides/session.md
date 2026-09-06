@@ -236,8 +236,8 @@ catch (PamojaException error)
 ## Reference
 
 <!-- table: reference session -->
-- Rust: [`pamoja-session`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_session/index.html)
-- TypeScript: [`@pamoja/session`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_session.html)
-- Python: [`pamoja.session`](https://pamoja.molex.cloud/docs/reference/python/pamoja/session.html)
-- C#: [`Pamoja.Session`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Session.html)
+- Rust: [`pamoja-session`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_session/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-session)
+- TypeScript: [`@pamoja/session`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_session.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-session)
+- Python: [`pamoja.session`](https://pamoja.molex.cloud/docs/reference/python/pamoja/session.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-session)
+- C#: [`Pamoja.Session`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Session.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-session)
 <!-- end -->

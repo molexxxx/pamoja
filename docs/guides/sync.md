@@ -243,8 +243,8 @@ catch (PamojaException error)
 ## Reference
 
 <!-- table: reference sync -->
-- Rust: [`pamoja-sync`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sync/index.html)
-- TypeScript: [`@pamoja/sync`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sync.html)
-- Python: [`pamoja.sync`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sync.html)
-- C#: [`Pamoja.Sync`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sync.html)
+- Rust: [`pamoja-sync`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sync/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-sync)
+- TypeScript: [`@pamoja/sync`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sync.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-sync)
+- Python: [`pamoja.sync`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sync.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-sync)
+- C#: [`Pamoja.Sync`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sync.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-sync)
 <!-- end -->

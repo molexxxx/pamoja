@@ -73,10 +73,10 @@ try {
 
 | Language | Package | Reference |
 | --- | --- | --- |
-| Rust | [`pamoja-mesh`](https://crates.io/crates/pamoja-mesh) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mesh/index.html), [docs.rs](https://docs.rs/pamoja-mesh) |
-| TypeScript | [`@pamoja/mesh`](https://www.npmjs.com/package/@pamoja/mesh) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mesh.html) |
-| Python | [`pamoja-mesh`](https://pypi.org/project/pamoja-mesh/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/mesh.html) |
-| C# | [`Pamoja.Mesh`](https://www.nuget.org/packages/Pamoja.Mesh) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mesh.html) |
+| Rust | [`pamoja-mesh`](https://crates.io/crates/pamoja-mesh) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_mesh/index.html), [docs.rs](https://docs.rs/pamoja-mesh), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-mesh) |
+| TypeScript | [`@pamoja/mesh`](https://www.npmjs.com/package/@pamoja/mesh) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mesh.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-mesh) |
+| Python | [`pamoja-mesh`](https://pypi.org/project/pamoja-mesh/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/mesh.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-mesh) |
+| C# | [`Pamoja.Mesh`](https://www.nuget.org/packages/Pamoja.Mesh) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mesh.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-mesh) |
 
 ## Documentation
 

@@ -12,6 +12,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use super::layout;
+
 /// Where a link points, site-relative.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Target {
@@ -134,6 +136,10 @@ pub const GENERATED: [&str; 4] = [
     "docs/reference/dotnet",
 ];
 
+/// What is deployed beside the site rather than rendered with it: the dashboard, which
+/// pages.yml builds from its own crate and copies in.
+const BESIDE: [&str; 1] = ["dashboard"];
+
 /// Check every link of every page in `corpus`.
 ///
 /// # Arguments
@@ -162,6 +168,7 @@ pub fn check(corpus: &dyn Corpus, trusted: &[&str]) -> Result<(), String> {
             };
             if trusted
                 .iter()
+                .chain(BESIDE.iter())
                 .any(|prefix| target.path.starts_with(&format!("{prefix}/")))
             {
                 continue;
@@ -229,6 +236,8 @@ pub fn ids_in(html: &str) -> BTreeSet<String> {
 }
 
 /// Where a link on the page at `from` points, or `None` for a link that leaves the site.
+/// An absolute link to the site's own origin is followed like a root-relative one, since
+/// the committed regions that GitHub renders too are written that way.
 ///
 /// # Arguments
 ///
@@ -239,6 +248,11 @@ pub fn ids_in(html: &str) -> BTreeSet<String> {
 ///
 /// The site-relative target, a directory link resolved to its `index.html`.
 pub fn resolve(from: &str, link: &str) -> Option<Target> {
+    let link = match link.strip_prefix(layout::ORIGIN) {
+        Some("") => "/",
+        Some(rest) if rest.starts_with('/') || rest.starts_with('#') => rest,
+        _ => link,
+    };
     if link.contains("://")
         || link.starts_with("//")
         || link.starts_with("mailto:")
@@ -320,6 +334,19 @@ mod tests {
             target("docs/guides/can.html", Some("rust"))
         );
         assert_eq!(resolve(from, "https://docs.rs/pamoja"), None);
+        assert_eq!(
+            resolve(from, "https://pamoja.molex.cloud/docs/install.html#node"),
+            target("docs/install.html", Some("node"))
+        );
+        assert_eq!(
+            resolve(from, "https://pamoja.molex.cloud"),
+            target("index.html", None)
+        );
+        assert_eq!(
+            resolve(from, "https://pamoja.molex.cloud/dashboard/"),
+            target("dashboard/index.html", None)
+        );
+        assert_eq!(resolve(from, "https://pamoja.molex.cloud.example/"), None);
         assert_eq!(resolve(from, "mailto:x@y.z"), None);
     }
 

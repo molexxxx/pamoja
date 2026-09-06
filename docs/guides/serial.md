@@ -248,8 +248,8 @@ Console.WriteLine($"discarded {decoder.Discarded} frame the stream mangled");
 ## Reference
 
 <!-- table: reference serial -->
-- Rust: [`pamoja-serial`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_serial/index.html)
-- TypeScript: [`@pamoja/serial`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_serial.html)
-- Python: [`pamoja.serial`](https://pamoja.molex.cloud/docs/reference/python/pamoja/serial.html)
-- C#: [`Pamoja.Serial`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Serial.html)
+- Rust: [`pamoja-serial`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_serial/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-serial)
+- TypeScript: [`@pamoja/serial`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_serial.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-serial)
+- Python: [`pamoja.serial`](https://pamoja.molex.cloud/docs/reference/python/pamoja/serial.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-serial)
+- C#: [`Pamoja.Serial`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Serial.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-serial)
 <!-- end -->

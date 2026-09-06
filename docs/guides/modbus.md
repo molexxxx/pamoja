@@ -215,8 +215,8 @@ catch (PamojaException error)
 ## Reference
 
 <!-- table: reference modbus -->
-- Rust: [`pamoja-modbus`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html)
-- TypeScript: [`@pamoja/modbus`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_modbus.html)
-- Python: [`pamoja.modbus`](https://pamoja.molex.cloud/docs/reference/python/pamoja/modbus.html)
-- C#: [`Pamoja.Modbus`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Modbus.html)
+- Rust: [`pamoja-modbus`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-modbus)
+- TypeScript: [`@pamoja/modbus`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_modbus.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-modbus)
+- Python: [`pamoja.modbus`](https://pamoja.molex.cloud/docs/reference/python/pamoja/modbus.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-modbus)
+- C#: [`Pamoja.Modbus`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Modbus.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-modbus)
 <!-- end -->

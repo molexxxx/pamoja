@@ -236,8 +236,8 @@ Console.WriteLine(
 ## Reference
 
 <!-- table: reference bus -->
-- Rust: [`pamoja-bus`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_bus/index.html)
-- TypeScript: [`@pamoja/bus`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_bus.html)
-- Python: [`pamoja.bus`](https://pamoja.molex.cloud/docs/reference/python/pamoja/bus.html)
-- C#: [`Pamoja.Bus`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Bus.html)
+- Rust: [`pamoja-bus`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_bus/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-bus)
+- TypeScript: [`@pamoja/bus`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_bus.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-bus)
+- Python: [`pamoja.bus`](https://pamoja.molex.cloud/docs/reference/python/pamoja/bus.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-bus)
+- C#: [`Pamoja.Bus`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Bus.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-bus)
 <!-- end -->

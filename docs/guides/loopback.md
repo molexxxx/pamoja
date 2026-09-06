@@ -265,8 +265,8 @@ catch (PamojaException error)
 ## Reference
 
 <!-- table: reference loopback -->
-- Rust: [`pamoja-loopback`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_loopback/index.html)
-- TypeScript: [`@pamoja/loopback`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_loopback.html)
-- Python: [`pamoja.loopback`](https://pamoja.molex.cloud/docs/reference/python/pamoja/loopback.html)
-- C#: [`Pamoja.Loopback`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Loopback.html)
+- Rust: [`pamoja-loopback`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_loopback/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-loopback)
+- TypeScript: [`@pamoja/loopback`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_loopback.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-loopback)
+- Python: [`pamoja.loopback`](https://pamoja.molex.cloud/docs/reference/python/pamoja/loopback.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-loopback)
+- C#: [`Pamoja.Loopback`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Loopback.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-loopback)
 <!-- end -->

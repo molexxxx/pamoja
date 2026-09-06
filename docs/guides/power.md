@@ -214,8 +214,8 @@ Console.WriteLine($"a quarter-duty second is {quarter.ActiveUs / 1000}ms awake")
 ## Reference
 
 <!-- table: reference power -->
-- Rust: [`pamoja-power`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_power/index.html)
-- TypeScript: [`@pamoja/power`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_power.html)
-- Python: [`pamoja.power`](https://pamoja.molex.cloud/docs/reference/python/pamoja/power.html)
-- C#: [`Pamoja.Power`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Power.html)
+- Rust: [`pamoja-power`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_power/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-power)
+- TypeScript: [`@pamoja/power`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_power.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-power)
+- Python: [`pamoja.power`](https://pamoja.molex.cloud/docs/reference/python/pamoja/power.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-power)
+- C#: [`Pamoja.Power`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Power.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-power)
 <!-- end -->

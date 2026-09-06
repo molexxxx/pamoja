@@ -199,8 +199,8 @@ Console.WriteLine($"recovered {string.Join(", ", recovered.Select(v => v.ToStrin
 ## Reference
 
 <!-- table: reference codec -->
-- Rust: [`pamoja-codec`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_codec/index.html)
-- TypeScript: [`@pamoja/codec`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_codec.html)
-- Python: [`pamoja.codec`](https://pamoja.molex.cloud/docs/reference/python/pamoja/codec.html)
-- C#: [`Pamoja.Codec`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Codec.html)
+- Rust: [`pamoja-codec`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_codec/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-codec)
+- TypeScript: [`@pamoja/codec`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_codec.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-codec)
+- Python: [`pamoja.codec`](https://pamoja.molex.cloud/docs/reference/python/pamoja/codec.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-codec)
+- C#: [`Pamoja.Codec`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Codec.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-codec)
 <!-- end -->

@@ -346,8 +346,8 @@ catch (PamojaException error)
 ## Reference
 
 <!-- table: reference update -->
-- Rust: [`pamoja-update`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_update/index.html)
-- TypeScript: [`@pamoja/update`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_update.html)
-- Python: [`pamoja.update`](https://pamoja.molex.cloud/docs/reference/python/pamoja/update.html)
-- C#: [`Pamoja.Update`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.html)
+- Rust: [`pamoja-update`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_update/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-update)
+- TypeScript: [`@pamoja/update`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_update.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-update)
+- Python: [`pamoja.update`](https://pamoja.molex.cloud/docs/reference/python/pamoja/update.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-update)
+- C#: [`Pamoja.Update`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Update.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-update)
 <!-- end -->

@@ -243,8 +243,8 @@ Console.WriteLine(
 ## Reference
 
 <!-- table: reference transport -->
-- Rust: the `Transport` trait in [`pamoja-core`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html)
-- TypeScript: [`@pamoja/core`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_core.html)
-- Python: [`pamoja.core`](https://pamoja.molex.cloud/docs/reference/python/pamoja/core.html)
-- C#: [`Pamoja.Core`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.html)
+- Rust: the `Transport` trait in [`pamoja-core`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-transport)
+- TypeScript: [`@pamoja/core`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_core.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-transport)
+- Python: [`pamoja.core`](https://pamoja.molex.cloud/docs/reference/python/pamoja/core.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-transport)
+- C#: [`Pamoja.Core`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-transport)
 <!-- end -->

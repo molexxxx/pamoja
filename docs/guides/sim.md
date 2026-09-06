@@ -235,8 +235,8 @@ Console.WriteLine(
 ## Reference
 
 <!-- table: reference sim -->
-- Rust: [`pamoja-sim`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sim/index.html)
-- TypeScript: [`@pamoja/sim`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sim.html)
-- Python: [`pamoja.sim`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sim.html)
-- C#: [`Pamoja.Sim`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sim.html)
+- Rust: [`pamoja-sim`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_sim/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-sim)
+- TypeScript: [`@pamoja/sim`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sim.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-sim)
+- Python: [`pamoja.sim`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sim.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-sim)
+- C#: [`Pamoja.Sim`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sim.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-sim)
 <!-- end -->

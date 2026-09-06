@@ -220,20 +220,23 @@ p.source + figure.code { margin-top: 0.5rem; }
 .lang-panel { padding-top: 0.5rem; }
 .lang-panel:focus { outline: none; }
 
-/* Package rows */
+/* Package rows: what a capability is, its install line, and a button for each place to go
+   next. A row has an id, so it is linked from guides and READMEs and lights up on arrival. */
 .pkgs { display: grid; gap: 0.7rem; margin: 1rem 0 2rem; }
 .pkg {
   display: grid; grid-template-columns: minmax(0, 1fr) max-content; grid-template-areas: "what get" "links else";
-  gap: 0.5rem 1.5rem; align-items: start;
+  gap: 0.7rem 1.5rem; align-items: start;
   padding: 1rem 1.2rem; border: 1px solid var(--line); border-radius: 14px;
   background: color-mix(in srgb, var(--navy-0) 55%, transparent);
-  transition: border-color 0.2s ease;
+  scroll-margin-top: 5.5rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .pkg:hover { border-color: var(--line-strong); }
+.pkg:target { border-color: var(--amber); box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 20%, transparent); }
 .pkg .pkg-what { grid-area: what; }
 .pkg .pkg-get { grid-area: get; justify-content: flex-end; }
-.pkg .pkg-links { grid-area: links; }
-.pkg .pkg-else { grid-area: else; }
+.pkg .pkg-btns { grid-area: links; }
+.pkg .pkg-else { grid-area: else; align-self: end; }
 .pkg-what > a, .pkg-what > a:hover { font-family: var(--display); font-weight: 600; font-size: 1.05rem; color: var(--cream); text-decoration: none; }
 .pkg-what > a:hover { color: var(--amber); }
 .pkg-what p { margin: 0.25rem 0 0; font-size: 0.9rem; color: var(--muted); }
@@ -244,13 +247,31 @@ p.source + figure.code { margin-top: 0.5rem; }
   font: 500 0.84rem var(--mono); color: var(--cream);
   background: var(--navy-0); border: 1px solid var(--line-strong);
 }
-.pkg-links { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem; font-size: 0.86rem; }
-.pkg-links a { color: var(--teal); }
-.pkg-links a:hover { color: var(--amber); }
-.pkg-links code { font-size: 0.86em; }
 .pkg-else { margin: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.7rem; font-size: 0.82rem; color: var(--muted); }
 .pkg-else a { color: var(--text); text-decoration: none; border-bottom: 1px solid var(--line-strong); }
 .pkg-else a:hover { color: var(--amber); border-bottom-color: var(--amber); }
+
+/* Package buttons: the generated API pages first, coloured by language, then the guide,
+   the worked example, and the registry. Shared with the front page's capability cards. */
+.pkg-btns { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.pkg-btn, .article .pkg-btn {
+  display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.36rem 0.72rem; border-radius: 8px;
+  font: 500 0.74rem var(--mono); color: var(--cream); text-decoration: none;
+  background: color-mix(in srgb, var(--cream) 5%, transparent); border: 1px solid var(--line);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.pkg-btn::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--muted)); }
+.pkg-btn:hover, .article .pkg-btn:hover { color: var(--cream); background: color-mix(in srgb, var(--cream) 9%, transparent); border-color: var(--line-strong); text-decoration: none; }
+.pkg-btn code, .article .pkg-btn code { font: inherit; color: inherit; background: none; border: 0; padding: 0; white-space: nowrap; }
+.pkg-btn.rust, .pkg-btn.crates { --dot: var(--amber); }
+.pkg-btn.node { --dot: var(--coral); }
+.pkg-btn.python { --dot: var(--sky); }
+.pkg-btn.dotnet { --dot: var(--forest); }
+.pkg-btn.guide { --dot: var(--cream); }
+.pkg-btn.example { --dot: var(--teal); }
+.pkg-btn.registry { --dot: var(--muted); }
+.pkg-btn.api, .article .pkg-btn.api { background: color-mix(in srgb, var(--dot) 16%, transparent); border-color: color-mix(in srgb, var(--dot) 50%, transparent); }
+.pkg-btn.api:hover, .article .pkg-btn.api:hover { background: color-mix(in srgb, var(--dot) 26%, transparent); border-color: var(--dot); }
 
 /* Domain rows */
 .domains { display: grid; gap: 0.6rem; margin: 1rem 0 1.6rem; }
@@ -265,14 +286,20 @@ p.source + figure.code { margin-top: 0.5rem; }
 .domain-what p { margin: 0.15rem 0 0; font-size: 0.86rem; color: var(--muted); }
 .domain-what p a { color: var(--muted); text-decoration-color: var(--line-strong); }
 .domain-what p a:hover { color: var(--amber); }
+.domain-what .pkg-btns { margin-top: 0.55rem; }
+.domain-what .pkg-btns:empty { display: none; }
 
-/* The door into a generated reference */
+/* The door into a generated reference: what it holds, the button into the whole of it,
+   the install page and the guides, and the other three languages. */
 .door {
-  display: grid; gap: 0.9rem; justify-items: start; margin: 1.5rem 0 2rem;
+  display: grid; gap: 1rem; justify-items: start; margin: 1.5rem 0 2rem;
   padding: 1.5rem 1.6rem; border: 1px solid var(--line); border-radius: 16px;
   background: linear-gradient(160deg, color-mix(in srgb, var(--amber) 9%, transparent), transparent 60%), color-mix(in srgb, var(--navy-0) 60%, transparent);
 }
 .door p { margin: 0; color: var(--muted); }
+.door-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.door-actions .btn { padding: 0.6rem 1.1rem; font-size: 0.9rem; }
+.door-actions .btn small { font: 500 0.7rem var(--mono); opacity: 0.85; }
 .door-langs { display: flex; flex-wrap: wrap; gap: 0.4rem; font-size: 0.82rem; }
 .door-langs a, .door-langs span { padding: 0.3rem 0.75rem; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); text-decoration: none; }
 .door-langs a:hover { color: var(--cream); border-color: var(--line-strong); text-decoration: none; }
@@ -287,6 +314,9 @@ p.source + figure.code { margin-top: 0.5rem; }
 .btn-warm, .article .btn-warm, .article .btn-warm:hover { color: var(--on-warm); }
 .btn-warm { background: linear-gradient(135deg, var(--amber), var(--coral)); box-shadow: 0 12px 30px -12px color-mix(in srgb, var(--coral) 70%, transparent); }
 .btn-warm:hover { transform: translateY(-2px); box-shadow: 0 18px 38px -14px color-mix(in srgb, var(--coral) 85%, transparent); }
+.btn-ghost, .article .btn-ghost, .article .btn-ghost:hover { color: var(--cream); }
+.btn-ghost { background: color-mix(in srgb, var(--cream) 4%, transparent); border: 1px solid var(--line-strong); }
+.btn-ghost:hover { background: color-mix(in srgb, var(--cream) 10%, transparent); transform: translateY(-2px); }
 
 /* Pager, edit link */
 .pager { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 3.5rem; }

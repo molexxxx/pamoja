@@ -252,8 +252,8 @@ Console.WriteLine($"reporter  disconnected: {!await reporter.IsConnectedAsync()}
 ## Reference
 
 <!-- table: reference coap -->
-- Rust: [`pamoja-coap`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_coap/index.html)
-- TypeScript: [`@pamoja/coap`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_coap.html)
-- Python: [`pamoja.coap`](https://pamoja.molex.cloud/docs/reference/python/pamoja/coap.html)
-- C#: [`Pamoja.Coap`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Coap.html)
+- Rust: [`pamoja-coap`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_coap/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-coap)
+- TypeScript: [`@pamoja/coap`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_coap.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-coap)
+- Python: [`pamoja.coap`](https://pamoja.molex.cloud/docs/reference/python/pamoja/coap.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-coap)
+- C#: [`Pamoja.Coap`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Coap.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-coap)
 <!-- end -->

@@ -269,8 +269,8 @@ Console.WriteLine(
 ## Reference
 
 <!-- table: reference ladder -->
-- Rust: [`pamoja-ladder`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ladder/index.html)
-- TypeScript: [`@pamoja/ladder`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ladder.html)
-- Python: [`pamoja.ladder`](https://pamoja.molex.cloud/docs/reference/python/pamoja/ladder.html)
-- C#: [`Pamoja.Ladder`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ladder.html)
+- Rust: [`pamoja-ladder`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ladder/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-ladder)
+- TypeScript: [`@pamoja/ladder`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ladder.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-ladder)
+- Python: [`pamoja.ladder`](https://pamoja.molex.cloud/docs/reference/python/pamoja/ladder.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-ladder)
+- C#: [`Pamoja.Ladder`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ladder.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-ladder)
 <!-- end -->

@@ -260,8 +260,8 @@ Console.WriteLine(
 ## Reference
 
 <!-- table: reference routing -->
-- Rust: [`pamoja-routing`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_routing/index.html)
-- TypeScript: [`@pamoja/routing`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_routing.html)
-- Python: [`pamoja.routing`](https://pamoja.molex.cloud/docs/reference/python/pamoja/routing.html)
-- C#: [`Pamoja.Routing`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Routing.html)
+- Rust: [`pamoja-routing`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_routing/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-routing)
+- TypeScript: [`@pamoja/routing`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_routing.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-routing)
+- Python: [`pamoja.routing`](https://pamoja.molex.cloud/docs/reference/python/pamoja/routing.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-routing)
+- C#: [`Pamoja.Routing`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Routing.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-routing)
 <!-- end -->

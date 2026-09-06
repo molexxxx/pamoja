@@ -27,7 +27,7 @@ const REPO: &str = "https://github.com/molexxxx/pamoja";
 const ROOT: &str = "/";
 
 /// The site's origin, for the canonical URL and the card each page carries.
-const ORIGIN: &str = "https://pamoja.molex.cloud";
+pub(crate) const ORIGIN: &str = "https://pamoja.molex.cloud";
 
 /// What every page's shell needs beyond the page itself.
 pub struct Chrome<'a> {

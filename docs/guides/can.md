@@ -321,8 +321,8 @@ Console.WriteLine($"an 11-bit identifier is J1939: {Can.DecodeJ1939(291, false) 
 ## Reference
 
 <!-- table: reference can -->
-- Rust: [`pamoja-can`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_can/index.html)
-- TypeScript: [`@pamoja/can`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_can.html)
-- Python: [`pamoja.can`](https://pamoja.molex.cloud/docs/reference/python/pamoja/can.html)
-- C#: [`Pamoja.Can`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Can.html)
+- Rust: [`pamoja-can`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_can/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-can)
+- TypeScript: [`@pamoja/can`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_can.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-can)
+- Python: [`pamoja.can`](https://pamoja.molex.cloud/docs/reference/python/pamoja/can.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-can)
+- C#: [`Pamoja.Can`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Can.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-can)
 <!-- end -->

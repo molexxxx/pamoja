@@ -370,8 +370,8 @@ From [Cortex-M4 product page, Arm](https://www.arm.com/products/silicon-ip-cpu/c
 
 The four sensors and two actuator families above are the parts pamoja decodes itself. They are
 not the limit of what it can talk to. Everything below the driver is a trait: implement
-[`Sensor`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/trait.Sensor.html) or
-[`Actuator`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/trait.Actuator.html) for
+[`Sensor`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/device/trait.Sensor.html) or
+[`Actuator`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/device/trait.Actuator.html) for
 your own part and the rest of the library, the profiles, the ladder, the dashboard, treats it
 exactly like the ones here. The [sensor drivers guide](guides/sensors.md) and the
 [actuator drivers guide](guides/actuators.md) show what that takes.

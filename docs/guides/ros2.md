@@ -178,8 +178,8 @@ Console.WriteLine(
 ## Reference
 
 <!-- table: reference ros2 -->
-- Rust: [`pamoja-ros2`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ros2/index.html)
-- TypeScript: [`@pamoja/ros2`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ros2.html)
-- Python: [`pamoja.ros2`](https://pamoja.molex.cloud/docs/reference/python/pamoja/ros2.html)
-- C#: [`Pamoja.Ros2`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ros2.html)
+- Rust: [`pamoja-ros2`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ros2/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-ros2)
+- TypeScript: [`@pamoja/ros2`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ros2.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-ros2)
+- Python: [`pamoja.ros2`](https://pamoja.molex.cloud/docs/reference/python/pamoja/ros2.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-ros2)
+- C#: [`Pamoja.Ros2`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Ros2.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-ros2)
 <!-- end -->
