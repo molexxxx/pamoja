@@ -8,7 +8,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
-    <Version>0.1.16</Version>
+    <Version>0.1.17</Version>
     <Authors>Tony Wiedman</Authors>
     <Product>pamoja</Product>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

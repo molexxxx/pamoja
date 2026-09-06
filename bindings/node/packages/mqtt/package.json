@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/mqtt",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "An MQTT client with the topic and wildcard rules, as the core transport.",
   "license": "MIT",
   "publishConfig": {
@@ -34,6 +34,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.16"
+    "@pamoja/native": "0.1.17"
   }
 }

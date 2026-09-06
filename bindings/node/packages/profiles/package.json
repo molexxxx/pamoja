@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/profiles",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "Profiles and robotics: A node instantiated by name with its policy and schedule, and the naming and encoding rules a robot's topics follow, with no ROS 2 or Zenoh installed.",
   "license": "MIT",
   "publishConfig": {
@@ -34,8 +34,8 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/profile": "0.1.16",
-    "@pamoja/ros2": "0.1.16",
-    "@pamoja/zenoh": "0.1.16"
+    "@pamoja/profile": "0.1.17",
+    "@pamoja/ros2": "0.1.17",
+    "@pamoja/zenoh": "0.1.17"
   }
 }

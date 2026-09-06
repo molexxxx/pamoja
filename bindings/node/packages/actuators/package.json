@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/actuators",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "PCA9685 PWM and servo pulses, and stepper coil sequencing.",
   "license": "MIT",
   "publishConfig": {
@@ -34,6 +34,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.16"
+    "@pamoja/native": "0.1.17"
   }
 }

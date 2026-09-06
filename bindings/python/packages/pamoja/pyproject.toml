@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja"
-version = "0.1.16"
+version = "0.1.17"
 description = "The whole pamoja framework in one package: every capability of one memory-safe Rust core, behind an idiomatic Python facade, for IoT, robotics, and drones."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,37 +19,37 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-actuators==0.1.16",
-    "pamoja-audit==0.1.16",
-    "pamoja-bus==0.1.16",
-    "pamoja-can==0.1.16",
-    "pamoja-coap==0.1.16",
-    "pamoja-codec==0.1.16",
-    "pamoja-core==0.1.16",
-    "pamoja-gpio==0.1.16",
-    "pamoja-kit==0.1.16",
-    "pamoja-ladder==0.1.16",
-    "pamoja-loopback==0.1.16",
-    "pamoja-lora==0.1.16",
-    "pamoja-lorawan==0.1.16",
-    "pamoja-mavlink==0.1.16",
-    "pamoja-mesh==0.1.16",
-    "pamoja-modbus==0.1.16",
-    "pamoja-mqtt==0.1.16",
-    "pamoja-native==0.1.16",
-    "pamoja-power==0.1.16",
-    "pamoja-profile==0.1.16",
-    "pamoja-ros2==0.1.16",
-    "pamoja-routing==0.1.16",
-    "pamoja-security==0.1.16",
-    "pamoja-sensors==0.1.16",
-    "pamoja-serial==0.1.16",
-    "pamoja-session==0.1.16",
-    "pamoja-sim==0.1.16",
-    "pamoja-sync==0.1.16",
-    "pamoja-telemetry==0.1.16",
-    "pamoja-update==0.1.16",
-    "pamoja-zenoh==0.1.16",
+    "pamoja-actuators==0.1.17",
+    "pamoja-audit==0.1.17",
+    "pamoja-bus==0.1.17",
+    "pamoja-can==0.1.17",
+    "pamoja-coap==0.1.17",
+    "pamoja-codec==0.1.17",
+    "pamoja-core==0.1.17",
+    "pamoja-gpio==0.1.17",
+    "pamoja-kit==0.1.17",
+    "pamoja-ladder==0.1.17",
+    "pamoja-loopback==0.1.17",
+    "pamoja-lora==0.1.17",
+    "pamoja-lorawan==0.1.17",
+    "pamoja-mavlink==0.1.17",
+    "pamoja-mesh==0.1.17",
+    "pamoja-modbus==0.1.17",
+    "pamoja-mqtt==0.1.17",
+    "pamoja-native==0.1.17",
+    "pamoja-power==0.1.17",
+    "pamoja-profile==0.1.17",
+    "pamoja-ros2==0.1.17",
+    "pamoja-routing==0.1.17",
+    "pamoja-security==0.1.17",
+    "pamoja-sensors==0.1.17",
+    "pamoja-serial==0.1.17",
+    "pamoja-session==0.1.17",
+    "pamoja-sim==0.1.17",
+    "pamoja-sync==0.1.17",
+    "pamoja-telemetry==0.1.17",
+    "pamoja-update==0.1.17",
+    "pamoja-zenoh==0.1.17",
 ]
 
 [project.urls]

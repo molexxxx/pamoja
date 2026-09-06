@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/sim",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose.",
   "license": "MIT",
   "publishConfig": {
@@ -34,6 +34,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.16"
+    "@pamoja/native": "0.1.17"
   }
 }
