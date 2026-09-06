@@ -32,6 +32,11 @@ released together, so one entry covers all of them.
   included. The reference pages list each capability with its install line, its
   module, its worked example, and the same capability on the other three
   registries.
+- The reference page for each language is the one way into its generated API
+  pages: the root of every generated tree redirects to it, the README and the
+  front page link it rather than the generated root, and the generated landing
+  pages that duplicated it are gone. A guide opens on its reader's language
+  before first paint, and scrollbars everywhere on the site follow the palette.
 
 ## [0.1.16] - 2026-09-05
 

@@ -5,7 +5,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
-html { scroll-behavior: smooth; scroll-padding-top: 5rem; -webkit-text-size-adjust: 100%; }
+html { scroll-padding-top: 5rem; -webkit-text-size-adjust: 100%; }
 
 body {
   margin: 0;
@@ -15,6 +15,15 @@ body {
   background: radial-gradient(120% 90% at 50% -10%, var(--navy-2) 0%, var(--navy-1) 42%, var(--navy-0) 100%) fixed var(--navy-1);
   -webkit-font-smoothing: antialiased;
 }
+
+/* Scrollbars: thin, and the cream at a fraction of its strength, on the page and in every
+   overflow container. A browser with the standard properties ignores the WebKit ones. */
+* { scrollbar-width: thin; }
+html { scrollbar-color: color-mix(in srgb, var(--cream) 18%, transparent) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--cream) 18%, transparent); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--cream) 32%, transparent); }
 
 a { color: inherit; text-decoration: none; }
 a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
@@ -30,11 +39,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: 1.4rem;
   height: 64px; padding: 0 clamp(1rem, 3vw, 2rem);
-  background: linear-gradient(180deg, var(--glass), transparent);
-  border-bottom: 1px solid transparent;
-  transition: background 0.25s ease, border-color 0.25s ease;
+  background: var(--glass);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
-.top.scrolled { background: var(--glass); border-bottom-color: var(--line); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 .brand { display: inline-flex; align-items: center; gap: 0.6rem; flex: none; }
 .brand-mark { width: 30px; height: 30px; }
 .brand-word { font-family: var(--display); font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; color: var(--cream); }
@@ -176,9 +184,17 @@ p.source + figure.code { margin-top: 0.5rem; }
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 .lang-tab:hover { color: var(--cream); }
-.lang-tab[aria-selected="true"] { color: var(--amber); border-bottom-color: var(--amber); }
-.js .langs.ready .lang-panel:not(.active) { display: none; }
-.js .langs.ready .lang-heading { display: none; }
+/* The chosen language is an attribute on the root, set before first paint, so the other
+   three panels are never drawn and then hidden. */
+.js .lang-heading { display: none; }
+.js[data-lang="rust"] .lang-panel:not([data-lang="rust"]),
+.js[data-lang="typescript"] .lang-panel:not([data-lang="typescript"]),
+.js[data-lang="python"] .lang-panel:not([data-lang="python"]),
+.js[data-lang="c"] .lang-panel:not([data-lang="c"]) { display: none; }
+.js[data-lang="rust"] .lang-tab[data-lang="rust"],
+.js[data-lang="typescript"] .lang-tab[data-lang="typescript"],
+.js[data-lang="python"] .lang-tab[data-lang="python"],
+.js[data-lang="c"] .lang-tab[data-lang="c"] { color: var(--amber); border-bottom-color: var(--amber); }
 .no-js .lang-tabs { display: none; }
 .lang-panel { padding-top: 0.5rem; }
 .lang-panel:focus { outline: none; }

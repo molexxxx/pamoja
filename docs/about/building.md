@@ -91,22 +91,26 @@ way an application does.
 ## This site
 
 The pages are rendered from `docs/` by `cargo xtask site`, a static-site generator
-in the workspace task runner, and the four references are generated beside them:
-rustdoc for the crates, typedoc for the Node packages, pdoc for the Python
-packages, and DocFX for the .NET packages. Every code block is highlighted when
-the site is rendered, every link is checked (references included, once they are
-in place), and the docs workflow does all of it on every pull request; the Pages
-workflow publishes the same tree under `/docs`. Locally:
+in the workspace task runner, and the four references are generated into the same
+tree: rustdoc for the crates, typedoc for the Node packages, pdoc for the Python
+packages, and DocFX for the .NET packages. The reference page for each language
+is the way into its generated tree, whose own root pages redirect to it. Every
+code block is highlighted when the site is rendered, every link is checked
+(references included, once they are in place), and the docs workflow does all of
+it on every pull request; the Pages workflow publishes the same tree under
+`/docs`. Locally, the generators run first so the pages can overwrite their roots:
 
 ```sh
-cargo xtask docs && cargo xtask site       # the pages, into target/site
-node web/serve.mjs --root target/site      # serve them at localhost:8099 with live reload
+cargo xtask docs                           # the generated regions, checked in
+mkdir -p target/site/docs/reference
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --exclude xtask --exclude pamoja-examples
 cp -r target/doc target/site/docs/reference/rust
 cd bindings/node/docs && npm ci && npx typedoc     # target/site/docs/reference/node
 cd bindings/python && pip install pdoc==16.0 && pdoc pamoja '!pamoja._native' -o ../../target/site/docs/reference/python --docformat restructuredtext
 dotnet tool install -g docfx --version 2.78.5 && docfx bindings/dotnet/docs/docfx.json
+cargo xtask site                           # the pages, into target/site
 cargo xtask site --verify                  # every link resolves, the references included
+node web/serve.mjs --root target/site      # serve it at localhost:8099 with live reload
 ```
 
 ## Formatting and lints

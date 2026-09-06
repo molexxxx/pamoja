@@ -10,7 +10,7 @@
     "excludeInternal": true
   },
   "out": "../../../target/site/docs/reference/node",
-  "readme": "index.md",
+  "readme": "none",
   "includeVersion": true,
   "navigation": {
     "includeCategories": false,

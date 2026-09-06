@@ -14,7 +14,6 @@ mod docs;
 mod footprint;
 mod hardware;
 mod i18n;
-mod landings;
 mod licenses;
 mod links;
 mod packages;

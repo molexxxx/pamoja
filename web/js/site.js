@@ -25,18 +25,14 @@
    */
   const esc = (text) => text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
-  // The header turns solid once the page has scrolled under it.
-  const top = document.querySelector('.top');
-  if (top)
-  {
-    const onScroll = () => top.classList.toggle('scrolled', scrollY > 8);
-    addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-  }
-
-  // The sidebar is a drawer on a narrow screen.
+  // The sidebar keeps the current page in view, and is a drawer on a narrow screen.
   const toggle = document.querySelector('.menu-toggle');
   const side = document.getElementById('side');
+  const current = side && side.querySelector('a.current');
+  if (side && current && side.scrollHeight > side.clientHeight)
+  {
+    side.scrollTop = Math.max(0, current.offsetTop - side.clientHeight / 2);
+  }
   if (toggle && side)
   {
     const setOpen = (open) =>
@@ -51,26 +47,21 @@
     });
   }
 
-  // Language tabs: the hash wins, then the remembered language, then Rust.
+  // Language tabs. The page head already chose the language (the hash, then the remembered
+  // choice, then Rust) and the stylesheet shows that panel alone, so this only keeps the
+  // tabs' state in step and answers clicks and hash changes.
   const LANG_KEY = 'pamoja:lang';
   const remember = (lang) => { try { localStorage.setItem(LANG_KEY, lang); } catch { /* private mode */ } };
-  const remembered = () => { try { return localStorage.getItem(LANG_KEY); } catch { return null; } };
-  document.querySelectorAll('.langs').forEach((block) =>
+  const tabs = [...document.querySelectorAll('.lang-tab')];
+  if (tabs.length)
   {
-    const tabs = [...block.querySelectorAll('.lang-tab')];
-    const panels = [...block.querySelectorAll('.lang-panel')];
-    const has = (lang) => panels.some((panel) => panel.dataset.lang === lang);
+    const known = new Set(tabs.map((tab) => tab.dataset.lang));
     const select = (lang) =>
     {
+      root.dataset.lang = lang;
       tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.lang === lang)));
-      panels.forEach((panel) => panel.classList.toggle('active', panel.dataset.lang === lang));
     };
-    const fromHash = location.hash.slice(1);
-    let initial = has(fromHash) ? fromHash : remembered();
-    if (!has(initial)) initial = 'rust';
-    select(initial);
-    block.classList.add('ready');
-    if (has(fromHash)) block.scrollIntoView({ block: 'start' });
+    select(known.has(root.dataset.lang) ? root.dataset.lang : 'rust');
     tabs.forEach((tab) => tab.addEventListener('click', () =>
     {
       select(tab.dataset.lang);
@@ -80,9 +71,9 @@
     addEventListener('hashchange', () =>
     {
       const lang = location.hash.slice(1);
-      if (has(lang)) { select(lang); remember(lang); }
+      if (known.has(lang)) { select(lang); remember(lang); }
     });
-  });
+  }
 
   // Copy buttons: an install line carries its text; a code figure copies its code.
   document.querySelectorAll('.copy').forEach((button) =>

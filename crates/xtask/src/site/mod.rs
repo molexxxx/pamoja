@@ -54,6 +54,18 @@ pub struct Page {
     pub sections: Vec<markdown::Section>,
 }
 
+/// The root pages of the four generated reference trees, each handed off to the page here
+/// that lists that language's packages, so a tree has no front door of its own. `site`
+/// runs after the generators and overwrites what they put at these paths; pdoc names its
+/// root after the package and also writes an index that points at it.
+const HANDOFFS: [(&str, &str, &str); 5] = [
+    ("docs/reference/rust/index.html", "rust", "Rust"),
+    ("docs/reference/node/index.html", "node", "TypeScript"),
+    ("docs/reference/python/index.html", "python", "Python"),
+    ("docs/reference/python/pamoja.html", "python", "Python"),
+    ("docs/reference/dotnet/index.html", "dotnet", "C#"),
+];
+
 /// The whole site, loaded and ready to render.
 pub struct Site {
     root: PathBuf,
@@ -155,6 +167,12 @@ impl Site {
             "404.html".to_owned(),
             layout::not_found(&chrome).into_bytes(),
         ));
+        for (path, key, name) in HANDOFFS {
+            files.push((
+                path.to_owned(),
+                layout::redirect(path, &format!("../{key}.html"), name).into_bytes(),
+            ));
+        }
         files.push((
             "search.json".to_owned(),
             search::index(&self.pages, &self.nav).into_bytes(),
@@ -359,6 +377,22 @@ mod tests {
         assert!(!has_colour_literal(
             "a[href^=\"#\"] { color: var(--teal); }"
         ));
+    }
+
+    #[test]
+    fn the_generated_trees_hand_off_to_the_reference_pages() {
+        let files = site().render().unwrap();
+        for (path, key, _) in HANDOFFS {
+            let body = files
+                .iter()
+                .find(|(produced, _)| produced == path)
+                .map(|(_, body)| String::from_utf8_lossy(body).into_owned())
+                .unwrap_or_else(|| panic!("{path} is not produced"));
+            assert!(
+                body.contains(&format!("content=\"0; url=../{key}.html\"")),
+                "{path} does not hand off to {key}.html"
+            );
+        }
     }
 
     #[test]

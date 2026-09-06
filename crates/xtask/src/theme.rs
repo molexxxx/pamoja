@@ -49,12 +49,21 @@ const MONO: &str = "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Conso
 pub fn render() -> Vec<(String, String)> {
     vec![
         ("web/theme.css".to_owned(), tokens()),
-        ("docs/theme/rustdoc.html".to_owned(), rustdoc()),
-        ("docs/theme/typedoc.css".to_owned(), typedoc()),
-        ("docs/theme/pdoc/custom.css".to_owned(), pdoc()),
+        (
+            "docs/theme/rustdoc.html".to_owned(),
+            format!("{}<style>\n{}</style>\n", rustdoc(), scrollbars()),
+        ),
+        (
+            "docs/theme/typedoc.css".to_owned(),
+            typedoc() + &scrollbars(),
+        ),
+        (
+            "docs/theme/pdoc/custom.css".to_owned(),
+            pdoc() + &scrollbars(),
+        ),
         (
             "bindings/dotnet/docs/templates/pamoja/public/main.css".to_owned(),
-            docfx(),
+            docfx() + &scrollbars(),
         ),
     ]
 }
@@ -127,6 +136,18 @@ fn tokens() -> String {
         sans = SANS,
         display = DISPLAY,
         mono = MONO,
+    )
+}
+
+// Thin scrollbars in the palette, on every page and in every generated reference, so the
+// browser's default bar does not sit on the dark ground like a strip of daylight. The
+// standard properties are set for the browsers that have them and the WebKit pseudo
+// elements for the rest; a browser that has both uses the standard ones.
+fn scrollbars() -> String {
+    let thumb = rgba(PALETTE.cream, 0.18);
+    let hover = rgba(PALETTE.cream, 0.32);
+    format!(
+        "\n* {{ scrollbar-width: thin; }}\nhtml {{ scrollbar-color: {thumb} transparent; }}\n::-webkit-scrollbar {{ width: 8px; height: 8px; }}\n::-webkit-scrollbar-track {{ background: transparent; }}\n::-webkit-scrollbar-thumb {{ background: {thumb}; border-radius: 8px; }}\n::-webkit-scrollbar-thumb:hover {{ background: {hover}; }}\n"
     )
 }
 
@@ -355,6 +376,17 @@ mod tests {
             assert!(
                 body.contains("fonts.googleapis.com"),
                 "{path} lacks the typefaces"
+            );
+        }
+    }
+
+    #[test]
+    fn every_generator_gets_thin_scrollbars_in_the_palette() {
+        for (path, body) in render().iter().filter(|(p, _)| p != "web/theme.css") {
+            assert!(
+                body.contains("scrollbar-width: thin")
+                    && body.contains("::-webkit-scrollbar-thumb"),
+                "{path} keeps the default scrollbars"
             );
         }
     }

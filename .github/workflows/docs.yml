@@ -1,10 +1,10 @@
 name: docs
 
-# Builds the documentation site into one tree: the pages rendered by `cargo xtask site`
-# and the four generated API references beside them. Runs on every pull request, so a
-# stale generated region, a capability map that disagrees with the code, a rustdoc
-# warning, or a broken link fails before merge; pages.yml calls it to publish the same
-# tree.
+# Builds the documentation site into one tree: the four generated API references first,
+# then the pages rendered by `cargo xtask site` over them, which also puts a hand-off at
+# each reference tree's root. Runs on every pull request, so a stale generated region, a
+# capability map that disagrees with the code, a rustdoc warning, or a broken link fails
+# before merge; pages.yml calls it to publish the same tree.
 
 on:
   pull_request:
@@ -49,16 +49,12 @@ jobs:
       - name: Generated docs in sync with the code
         run: cargo run -p xtask -- docs --check
 
-      # The pages, the navigation, the search index, and the stylesheets, with every link
-      # between them checked; links into the four references are checked once they exist.
-      - name: Render the pages
-        run: cargo run -p xtask -- site
-
       - name: Rust reference
         env:
           RUSTDOCFLAGS: -D warnings --html-in-header ${{ github.workspace }}/docs/theme/rustdoc.html
         run: |
           cargo doc --workspace --no-deps --exclude xtask --exclude pamoja-examples
+          mkdir -p target/site/docs/reference
           cp -r target/doc target/site/docs/reference/rust
 
       # typedoc documents each package against the committed napi-rs contract, so no
@@ -88,6 +84,11 @@ jobs:
         run: |
           dotnet tool install -g docfx --version 2.78.5
           docfx bindings/dotnet/docs/docfx.json
+
+      # The pages, the navigation, the search index, and the stylesheets, with every link
+      # between them checked, and a hand-off page at the root of each reference tree.
+      - name: Render the pages
+        run: cargo run -p xtask -- site
 
       # Nothing is taken on trust now that the references are in place: every link from a
       # page into them must land on a file, and every anchor on an id.

@@ -113,6 +113,40 @@ pub fn not_found(chrome: &Chrome) -> String {
     out
 }
 
+/// A page that hands a reader on to another: the root of a generated reference tree, whose
+/// index is the reference page on this site.
+///
+/// # Arguments
+///
+/// * `url` - where the page sits, site-relative, so its stylesheets resolve.
+/// * `target` - where it sends the reader, relative to itself.
+/// * `name` - the language, for the title and the one line of text.
+///
+/// # Returns
+///
+/// The complete document, which redirects at once and still reads as a page.
+pub fn redirect(url: &str, target: &str, name: &str) -> String {
+    let root = root_of(url);
+    let target = escape(target);
+    format!(
+        "<!doctype html>\n<html lang=\"en\">\n<head>\n\
+         <meta charset=\"utf-8\">\n\
+         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
+         <meta http-equiv=\"refresh\" content=\"0; url={target}\">\n\
+         <meta name=\"robots\" content=\"noindex\">\n\
+         <link rel=\"canonical\" href=\"{target}\">\n\
+         <title>{name} reference - pamoja</title>\n\
+         <link rel=\"stylesheet\" href=\"{root}theme.css\">\n\
+         <link rel=\"stylesheet\" href=\"{root}site.css\">\n\
+         </head>\n<body>\n\
+         <main class=\"content lone\">\n<article class=\"article\">\n\
+         <h1>{name} reference</h1>\n\
+         <p>The {name} reference is listed <a href=\"{target}\">one page up</a>: every package with its install line and its API pages.</p>\n\
+         </article>\n</main>\n</body>\n</html>\n",
+        name = escape(name),
+    )
+}
+
 fn head(root: &str, title: &str, description: &str) -> String {
     let full = if title == "pamoja" {
         "pamoja documentation".to_owned()
@@ -132,7 +166,8 @@ fn head(root: &str, title: &str, description: &str) -> String {
          <link rel=\"stylesheet\" href=\"{}\">\n\
          <link rel=\"stylesheet\" href=\"{root}theme.css\">\n\
          <link rel=\"stylesheet\" href=\"{root}site.css\">\n\
-         <script>document.documentElement.classList.replace('no-js','js')</script>\n\
+         <script>document.documentElement.classList.replace('no-js','js');\
+try{{var h=location.hash.slice(1);document.documentElement.dataset.lang=/^(rust|typescript|python|c)$/.test(h)?h:(localStorage.getItem('pamoja:lang')||'rust')}}catch(e){{document.documentElement.dataset.lang='rust'}}</script>\n\
          </head>\n",
         escape(&full),
         escape(description),
