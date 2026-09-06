@@ -18,6 +18,10 @@ released together, so one entry covers all of them.
   into one boxed error.
 - The .NET packages declared no icon, so all thirty-eight rendered as a blank
   placeholder in the gallery and in Visual Studio.
+- The PyPI upload goes in dependency order, the compiled engine first, and stops
+  at the first refusal to create a project rather than retrying into the cap; a
+  scheduled workflow finishes the set as the cap allows, so a release never
+  waits on it and never meets it once every project exists.
 
 ### Changed
 

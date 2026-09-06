@@ -1,0 +1,191 @@
+name: pypi-backfill
+
+# PyPI caps how many new projects an account may create in a window, so a release that
+# introduces a project per capability leaves most of them uncreated, and retrying inside
+# the window creates nothing. This runs every six hours, finds what the latest release
+# still lacks on PyPI, builds only that, and uploads it in dependency order until the cap
+# answers again. Once every project exists it finds nothing to do, and a release only ever
+# adds files to existing projects, which the cap does not touch.
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version to backfill; the latest tag when empty.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  missing:
+    name: what PyPI lacks
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.find.outputs.version }}
+      missing: ${{ steps.find.outputs.missing }}
+      native: ${{ steps.find.outputs.native }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - id: find
+        env:
+          REQUESTED: ${{ inputs.version }}
+        run: |
+          version="${REQUESTED#v}"
+          if [ -z "$version" ]; then
+            version=$(git tag --list 'v*' --sort=-v:refname | head -1 | sed 's/^v//')
+          fi
+          git checkout --quiet "v$version"
+          missing=""
+          for pyproject in bindings/python/packages/*/pyproject.toml; do
+            name=$(sed -n 's/^name = "\(.*\)"/\1/p' "$pyproject" | head -1)
+            if ! curl -fs -o /dev/null "https://pypi.org/pypi/$name/$version/json"; then
+              missing="$missing $name"
+            fi
+          done
+          missing="${missing# }"
+          native=false
+          case " $missing " in *" pamoja-native "*) native=true ;; esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "missing=$missing" >> "$GITHUB_OUTPUT"
+          echo "native=$native" >> "$GITHUB_OUTPUT"
+          if [ -z "$missing" ]; then
+            echo "every project is on PyPI at $version; nothing to do"
+          else
+            echo "missing at $version: $missing"
+          fi
+
+  build:
+    name: wheels ${{ matrix.target }}
+    needs: missing
+    if: needs.missing.outputs.native == 'true'
+    runs-on: ${{ matrix.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - host: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - host: macos-latest
+            target: x86_64-apple-darwin
+          - host: macos-latest
+            target: aarch64-apple-darwin
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: v${{ needs.missing.outputs.version }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --manifest-path bindings/python/packages/native/Cargo.toml
+          manylinux: auto
+          sccache: "true"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: backfill-${{ matrix.target }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  sdist:
+    name: sdist
+    needs: missing
+    if: needs.missing.outputs.native == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: v${{ needs.missing.outputs.version }}
+
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist --manifest-path bindings/python/packages/native/Cargo.toml
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: backfill-sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  pure:
+    name: pure packages
+    needs: missing
+    if: needs.missing.outputs.missing != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: v${{ needs.missing.outputs.version }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      # Only the pure packages PyPI lacks; the native one is built above when it is missing.
+      - name: Build the missing pure packages
+        working-directory: bindings/python
+        env:
+          MISSING: ${{ needs.missing.outputs.missing }}
+        run: |
+          pip install build
+          for pyproject in packages/*/pyproject.toml; do
+            name=$(sed -n 's/^name = "\(.*\)"/\1/p' "$pyproject" | head -1)
+            case " $MISSING " in
+              *" $name "*) [ "$name" != pamoja-native ] && python -m build --outdir dist "$(dirname "$pyproject")" ;;
+            esac
+          done
+          ls dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: backfill-pure
+          path: |
+            bindings/python/dist/*.whl
+            bindings/python/dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: publish what is missing
+    needs: [missing, build, sdist, pure]
+    if: ${{ !cancelled() && needs.missing.outputs.missing != '' && needs.pure.result == 'success' && (needs.missing.outputs.native != 'true' || (needs.build.result == 'success' && needs.sdist.result == 'success')) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: v${{ needs.missing.outputs.version }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: backfill-*
+          path: dist
+          merge-multiple: true
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Upload in dependency order until the cap answers
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PIP_TOKEN }}
+        run: |
+          python -m pip install --quiet twine
+          bash .github/scripts/pypi-upload.sh dist "${{ needs.missing.outputs.version }}"
