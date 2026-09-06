@@ -731,8 +731,17 @@ class Console
   }
 }
 
+let stop = null;
+
+/**
+ * Mounts a console into every `figure[data-diorama]` on the page and runs them while they
+ * are in view. Calling it again, after the page has been swapped, stops the previous run.
+ *
+ * @returns {void}
+ */
 export function mountConsoles()
 {
+  if (stop) { stop(); stop = null; }
   const items = [];
   document.querySelectorAll('[data-diorama]').forEach((fig) =>
   {
@@ -748,12 +757,14 @@ export function mountConsoles()
   items.forEach((i) => io.observe(i.fig));
 
   let last = performance.now();
+  let frame = 0;
   const loop = (now) =>
   {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     const t = now / 1000;
     for (const it of items) if (it.active) it.update(t, dt);
-    requestAnimationFrame(loop);
+    frame = requestAnimationFrame(loop);
   };
-  requestAnimationFrame(loop);
+  frame = requestAnimationFrame(loop);
+  stop = () => { cancelAnimationFrame(frame); io.disconnect(); };
 }

@@ -26,6 +26,7 @@ pub struct Home {
     scenarios: Vec<Scenario>,
     tracks: Vec<Track>,
     backing: Backing,
+    milestones: Vec<Milestone>,
     tiers: Vec<Tier>,
     uplinks: Vec<Uplink>,
 }
@@ -69,6 +70,12 @@ struct Backing {
     note_title: String,
     note: String,
     form_note: String,
+}
+
+struct Milestone {
+    state: String,
+    title: String,
+    detail: String,
 }
 
 struct Tier {
@@ -199,6 +206,21 @@ impl Home {
             });
         }
 
+        let mut milestones = Vec::new();
+        for table in tables(&doc, "milestone")? {
+            let title = string(table, "title", "milestone")?;
+            let at = format!("milestone {title}");
+            let state = string(table, "state", &at)?;
+            if !matches!(state.as_str(), "now" | "next" | "later") {
+                return Err(format!("{at}: `state` must be now, next, or later"));
+            }
+            milestones.push(Milestone {
+                state,
+                detail: string(table, "detail", &at)?,
+                title,
+            });
+        }
+
         let mut tiers = Vec::new();
         for table in tables(&doc, "tier")? {
             let name = string(table, "name", "tier")?;
@@ -239,6 +261,7 @@ impl Home {
             },
             scenarios,
             tracks,
+            milestones,
             backing: Backing {
                 lead: string(backing, "lead", "backing")?,
                 preview: string(backing, "preview", "backing")?,
@@ -375,9 +398,9 @@ impl Home {
             .iter()
             .map(|language| {
                 format!(
-                    "<li>{}<span class=\"install-lang\">{}</span></li>\n",
-                    command(&language.install(language.bundle())),
-                    language.name
+                    "<li><span class=\"install-lang\">{}</span>{}</li>\n",
+                    language.name,
+                    command(&language.install(language.bundle()))
                 )
             })
             .collect();
@@ -386,24 +409,28 @@ impl Home {
             .iter()
             .filter(|capability| capability.guide.is_some())
             .count();
+        // The hero plays the first scenario, so the page opens on a node at work.
+        let stage = self
+            .scenarios
+            .first()
+            .map(|scenario| scenario.key.as_str())
+            .unwrap_or("farm");
         format!(
             "<section class=\"hero\" aria-labelledby=\"hero-title\">\n\
+             <div class=\"hero-copy\">\n\
              <p class=\"eyebrow\">{}</p>\n\
              <h1 class=\"hero-title\" id=\"hero-title\">{} <span class=\"grad\">{}</span><br>{} <span class=\"grad-warm\">{}</span></h1>\n\
              <p class=\"hero-lead\">{}</p>\n\
              <ul class=\"installs\" aria-label=\"Install\">\n{installs}</ul>\n\
              <div class=\"hero-doors\">\n\
-             <a class=\"btn btn-warm\" href=\"docs/index.html\">Read the docs</a>\n\
-             <a class=\"btn btn-ghost\" href=\"docs/hardware.html\">Hardware</a>\n\
-             <a class=\"btn btn-ghost\" href=\"docs/reference/rust.html\">API reference</a>\n\
+             <a class=\"btn btn-warm\" href=\"/docs/index.html\">Read the docs</a>\n\
+             <a class=\"btn btn-ghost\" href=\"/docs/hardware.html\">Hardware</a>\n\
+             <a class=\"btn btn-ghost\" href=\"/docs/reference/rust.html\">API reference</a>\n\
              <a class=\"btn btn-ghost\" href=\"https://pamoja.molex.cloud/dashboard/\">Dashboard demo</a>\n\
              </div>\n\
-             <ul class=\"numbers\" aria-label=\"At a glance\">\n\
-             <li><b>{}</b><span>capabilities</span></li>\n\
-             <li><b>{}</b><span>crates</span></li>\n\
-             <li><b>{}</b><span>languages</span></li>\n\
-             <li><b>{guides}</b><span>guides, one example each, run in CI</span></li>\n\
-             </ul>\n\
+             <p class=\"hero-facts\"><span>{} capabilities</span><span>{} crates</span><span>{} languages</span><span>{guides} guides, every example run in CI</span><span>MIT, forever</span></p>\n\
+             </div>\n\
+             <figure class=\"hero-stage diorama\" data-diorama=\"{stage}\"><p class=\"diorama-still\">A node at work plays here in a browser that runs scripts.</p></figure>\n\
              </section>\n",
             escape(&self.hero.eyebrow),
             escape(&a),
@@ -416,7 +443,6 @@ impl Home {
             LANGUAGES.len(),
         )
     }
-
     fn runs(&self) -> String {
         let mut out = String::from(
             "<section class=\"runs\" aria-labelledby=\"runs-title\">\n\
@@ -508,6 +534,19 @@ impl Home {
 
     fn backing(&self) -> String {
         let b = &self.backing;
+        let milestones: String = self
+            .milestones
+            .iter()
+            .map(|milestone| {
+                format!(
+                    "<li class=\"milestone\" data-state=\"{}\"><span class=\"ms-state\">{}</span><h3>{}</h3><p>{}</p></li>\n",
+                    escape(&milestone.state),
+                    escape(&milestone.state),
+                    escape(&milestone.title),
+                    escape(&milestone.detail)
+                )
+            })
+            .collect();
         let mut out = format!(
             "<section class=\"back\" id=\"back\" aria-labelledby=\"back-title\">\n\
              <div class=\"section-head\">\n\
@@ -516,7 +555,8 @@ impl Home {
              <p class=\"section-lead\">{}</p>\n\
              </div>\n\
              <aside class=\"preview-banner\"><span class=\"preview-pill\">Preview</span><p>{}</p></aside>\n\
-             <div class=\"goal\"><div class=\"goal-meta\"><span>Planned first campaign: <strong>{}</strong></span><span>opens later</span></div><div class=\"goal-bar\"><i style=\"width:0%\"></i></div></div>\n\
+             <ol class=\"milestones\" aria-label=\"How backing will open\">\n{milestones}</ol>\n\
+             <div class=\"goal\"><div class=\"goal-meta\"><span>Planned first campaign: <strong>{}</strong></span><span class=\"goal-count\">0 of 100 · opens later</span></div><div class=\"goal-bar\"><i style=\"width:0%\"></i></div></div>\n\
              <div class=\"tiers\">\n",
             escape(&b.lead),
             escape(&b.preview),
@@ -600,7 +640,8 @@ impl Home {
 }
 
 // The first example in four languages, spliced from the tests that run it, in the same
-// tab block the guides use, so the language a reader chose there is chosen here too.
+// tab block the guides use, so the language a reader chose there is chosen here too. Each
+// panel opens capped to a screen or so of code, with the whole example one click away.
 fn quickstart(root: &Path) -> Result<String, String> {
     let mut tabs = String::new();
     let mut panels = String::new();
@@ -619,9 +660,10 @@ fn quickstart(root: &Path) -> Result<String, String> {
             "<button class=\"lang-tab\" role=\"tab\" type=\"button\" id=\"quick-tab-{id}\" aria-controls=\"quick-{id}\" aria-selected=\"false\" data-lang=\"{id}\">{label}</button>\n"
         ));
         panels.push_str(&format!(
-            "<section class=\"lang-panel\" id=\"quick-{id}\" role=\"tabpanel\" aria-labelledby=\"quick-tab-{id}\" data-lang=\"{id}\" tabindex=\"0\">\n\
-             <p class=\"source\">From <a href=\"https://github.com/molexxxx/pamoja/blob/main/{path}\"><code>{path}</code></a>:</p>\n\
+            "<section class=\"lang-panel capped\" id=\"quick-{id}\" role=\"tabpanel\" aria-labelledby=\"quick-tab-{id}\" data-lang=\"{id}\" tabindex=\"0\">\n\
+             <p class=\"source\">From <a href=\"https://github.com/molexxxx/pamoja/blob/main/{path}\"><code>{path}</code></a>, which runs in CI:</p>\n\
              <figure class=\"code\" data-lang=\"{lang}\"><figcaption><span class=\"code-lang\">{label}</span><button class=\"copy\" type=\"button\" aria-label=\"Copy this code\">copy</button></figcaption><pre><code>{}</code></pre></figure>\n\
+             <button class=\"reveal\" type=\"button\">Show the whole example</button>\n\
              </section>\n",
             highlight::highlight(&code, lang)
         ));
@@ -631,7 +673,7 @@ fn quickstart(root: &Path) -> Result<String, String> {
          <div class=\"section-head\">\n\
          <p class=\"eyebrow\">A first example</p>\n\
          <h2 class=\"section-title\" id=\"quick-title\">The same program, in the language you already work in.</h2>\n\
-         <p class=\"section-lead\">A reading taken off a wire on a field node, sent over a link, and checked on the gateway that receives it, with nothing plugged in and nothing running. Each version runs in CI, and is spliced here from the test that runs it.</p>\n\
+         <p class=\"section-lead\">A reading taken off a wire on a field node, sent over a link, and checked on the gateway that receives it, with nothing plugged in and nothing running.</p>\n\
          </div>\n\
          <div class=\"langs\">\n<div class=\"lang-tabs\" role=\"tablist\" aria-label=\"Language\">\n{tabs}</div>\n{panels}</div>\n\
          </section>\n"
@@ -666,7 +708,7 @@ fn covers(catalog: &Catalog, descriptions: &BTreeMap<String, String>) -> String 
         out.push_str(&format!(
             "<article class=\"bento-card{}\" data-chapter=\"engine\" data-accent=\"amber\" tabindex=\"0\">\n\
              <div class=\"bc-face\"><p class=\"bc-role\">Engine</p><h3 class=\"bc-name\">{krate}</h3><p class=\"bc-summary\">{}</p></div>\n\
-             <div class=\"bc-pop\"><div class=\"pkg-btns\"><a class=\"pkg-btn crates\" href=\"https://crates.io/crates/{krate}\">crates.io</a><a class=\"pkg-btn docs\" href=\"docs/reference/rust/{}/index.html\">API reference</a></div></div>\n\
+             <div class=\"bc-pop\"><div class=\"pkg-btns\"><a class=\"pkg-btn crates\" href=\"https://crates.io/crates/{krate}\">crates.io</a><a class=\"pkg-btn guide\" href=\"docs/reference/rust/{}/index.html\">API reference</a></div></div>\n\
              </article>\n",
             if big { " span-big" } else { "" },
             escape(&description),
@@ -710,7 +752,7 @@ fn card(capability: &Capability, chapter: &crate::catalog::Chapter, accent: &str
         .collect();
     if let Some(guide) = &capability.guide {
         links.push(format!(
-            "<a class=\"pkg-btn docs\" href=\"docs/{}.html\">Guide</a>",
+            "<a class=\"pkg-btn guide\" href=\"docs/{}.html\">Guide</a>",
             guide.trim_end_matches(".md")
         ));
     }
@@ -854,6 +896,11 @@ note_title = "How the link gets paid for"
 note = "By an NGO, <em>never</em> the family."
 form_note = "A preview."
 
+[[milestone]]
+state = "now"
+title = "Design the kit"
+detail = "With partners."
+
 [[tier]]
 name = "Spark"
 amount = 15
@@ -877,6 +924,7 @@ items = ["Donate airtime"]
         let home = Home::parse(SAMPLE).unwrap();
         assert_eq!(home.scenario_keys(), ["farm"]);
         assert_eq!(home.tiers[0].amount, 15);
+        assert_eq!(home.milestones[0].state, "now");
         assert!(home.uplinks[0].amount.is_none());
         let crates = ["pamoja-modbus".to_owned(), "pamoja-mqtt".to_owned()];
         home.check(&crates, CONSOLES).unwrap();
@@ -896,6 +944,14 @@ items = ["Donate airtime"]
         ];
         let err = home.check(&shipped_satellite, CONSOLES).unwrap_err();
         assert!(err.contains("satellite is marked as planned but pamoja-satellite ships"));
+    }
+
+    #[test]
+    fn a_milestone_state_must_be_one_of_three() {
+        let err = Home::parse(&SAMPLE.replace("state = \"now\"", "state = \"soon\""))
+            .err()
+            .expect("an unknown state is an error");
+        assert!(err.contains("must be now, next, or later"), "{err}");
     }
 
     #[test]

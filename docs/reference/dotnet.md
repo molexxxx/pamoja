@@ -68,7 +68,7 @@ registries.
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/transport.html#c">Engine surface</a><p>The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Core</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Core" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Core.html"><code>Pamoja.Core</code></a></li><li><a href="/docs/guides/transport.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Core">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Core.html"><code>Pamoja.Core</code> API</a></li><li><a href="/docs/guides/transport.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Core">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-core" title="pamoja-core">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/core" title="@pamoja/core">TypeScript</a> <a href="https://pypi.org/project/pamoja-core/" title="pamoja-core">Python</a></p>
 </div>
 </div>
@@ -79,7 +79,7 @@ registries.
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/security.html#c">Device identity</a><p>ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Security</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Security" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Security.html"><code>Pamoja.Security</code></a></li><li><a href="/docs/guides/security.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Security">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Security.html"><code>Pamoja.Security</code> API</a></li><li><a href="/docs/guides/security.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Security">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-security" title="pamoja-security">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/security" title="@pamoja/security">TypeScript</a> <a href="https://pypi.org/project/pamoja-security/" title="pamoja-security">Python</a></p>
 </div>
 </div>
@@ -90,7 +90,7 @@ registries.
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/codec.html#c">Codecs</a><p>CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Codec</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Codec" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Codec.html"><code>Pamoja.Codec</code></a></li><li><a href="/docs/guides/codec.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Codec">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Codec.html"><code>Pamoja.Codec</code> API</a></li><li><a href="/docs/guides/codec.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Codec">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-codec" title="pamoja-codec">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/codec" title="@pamoja/codec">TypeScript</a> <a href="https://pypi.org/project/pamoja-codec/" title="pamoja-codec">Python</a></p>
 </div>
 </div>
@@ -101,7 +101,7 @@ registries.
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/kit.html#c">Helpers</a><p>Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Kit</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Kit" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Kit.html"><code>Pamoja.Kit</code></a></li><li><a href="/docs/guides/kit.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Kit">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Kit.html"><code>Pamoja.Kit</code> API</a></li><li><a href="/docs/guides/kit.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Kit">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-kit" title="pamoja-kit">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/kit" title="@pamoja/kit">TypeScript</a> <a href="https://pypi.org/project/pamoja-kit/" title="pamoja-kit">Python</a></p>
 </div>
 </div>
@@ -112,25 +112,25 @@ registries.
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/serial.html#c">Serial framing</a><p>SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Serial</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Serial" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Serial.html"><code>Pamoja.Serial</code></a></li><li><a href="/docs/guides/serial.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Serial">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Serial.html"><code>Pamoja.Serial</code> API</a></li><li><a href="/docs/guides/serial.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Serial">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-serial" title="pamoja-serial">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/serial" title="@pamoja/serial">TypeScript</a> <a href="https://pypi.org/project/pamoja-serial/" title="pamoja-serial">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/modbus.html#c">Modbus RTU</a><p>Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Modbus</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Modbus" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Modbus.html"><code>Pamoja.Modbus</code></a></li><li><a href="/docs/guides/modbus.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Modbus">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Modbus.html"><code>Pamoja.Modbus</code> API</a></li><li><a href="/docs/guides/modbus.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Modbus">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-modbus" title="pamoja-modbus">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/modbus" title="@pamoja/modbus">TypeScript</a> <a href="https://pypi.org/project/pamoja-modbus/" title="pamoja-modbus">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/can.html#c">CAN and J1939</a><p>CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Can</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Can" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Can.html"><code>Pamoja.Can</code></a></li><li><a href="/docs/guides/can.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Can">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Can.html"><code>Pamoja.Can</code> API</a></li><li><a href="/docs/guides/can.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Can">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-can" title="pamoja-can">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/can" title="@pamoja/can">TypeScript</a> <a href="https://pypi.org/project/pamoja-can/" title="pamoja-can">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/gpio.html#c">I2C, SPI, and GPIO</a><p>I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Gpio</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Gpio" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Gpio.html"><code>Pamoja.Gpio</code></a></li><li><a href="/docs/guides/gpio.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Gpio">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Gpio.html"><code>Pamoja.Gpio</code> API</a></li><li><a href="/docs/guides/gpio.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Gpio">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-gpio" title="pamoja-gpio">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/gpio" title="@pamoja/gpio">TypeScript</a> <a href="https://pypi.org/project/pamoja-gpio/" title="pamoja-gpio">Python</a></p>
 </div>
 </div>
@@ -141,13 +141,13 @@ registries.
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/sensors.html#c">Sensor drivers</a><p>Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Sensors</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Sensors" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Sensors.html"><code>Pamoja.Sensors</code></a></li><li><a href="/docs/guides/sensors.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Sensors">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Sensors.html"><code>Pamoja.Sensors</code> API</a></li><li><a href="/docs/guides/sensors.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Sensors">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-sensors" title="pamoja-sensors">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/sensors" title="@pamoja/sensors">TypeScript</a> <a href="https://pypi.org/project/pamoja-sensors/" title="pamoja-sensors">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/actuators.html#c">Actuator drivers</a><p>PCA9685 PWM and servo pulses, and stepper coil sequencing</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Actuators</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Actuators" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Actuators.html"><code>Pamoja.Actuators</code></a></li><li><a href="/docs/guides/actuators.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Actuators">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Actuators.html"><code>Pamoja.Actuators</code> API</a></li><li><a href="/docs/guides/actuators.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Actuators">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-actuators" title="pamoja-actuators">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/actuators" title="@pamoja/actuators">TypeScript</a> <a href="https://pypi.org/project/pamoja-actuators/" title="pamoja-actuators">Python</a></p>
 </div>
 </div>
@@ -158,25 +158,25 @@ registries.
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/lora.html#c">LoRa airtime</a><p>Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Lora</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Lora" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Lora.html"><code>Pamoja.Lora</code></a></li><li><a href="/docs/guides/lora.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Lora">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Lora.html"><code>Pamoja.Lora</code> API</a></li><li><a href="/docs/guides/lora.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Lora">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-lora" title="pamoja-lora">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/lora" title="@pamoja/lora">TypeScript</a> <a href="https://pypi.org/project/pamoja-lora/" title="pamoja-lora">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/lorawan.html#c">LoRaWAN</a><p>LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Lorawan</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Lorawan" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Lorawan.html"><code>Pamoja.Lorawan</code></a></li><li><a href="/docs/guides/lorawan.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Lorawan">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Lorawan.html"><code>Pamoja.Lorawan</code> API</a></li><li><a href="/docs/guides/lorawan.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Lorawan">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-lorawan" title="pamoja-lorawan">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/lorawan" title="@pamoja/lorawan">TypeScript</a> <a href="https://pypi.org/project/pamoja-lorawan/" title="pamoja-lorawan">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/mesh.html#c">Mesh frames</a><p>Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Mesh</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Mesh" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Mesh.html"><code>Pamoja.Mesh</code></a></li><li><a href="/docs/guides/mesh.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Mesh">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Mesh.html"><code>Pamoja.Mesh</code> API</a></li><li><a href="/docs/guides/mesh.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Mesh">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-mesh" title="pamoja-mesh">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/mesh" title="@pamoja/mesh">TypeScript</a> <a href="https://pypi.org/project/pamoja-mesh/" title="pamoja-mesh">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/routing.html#c">Routing</a><p>Reverse-path routing that learns the cheapest route from overheard traffic</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Routing</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Routing" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Routing.html"><code>Pamoja.Routing</code></a></li><li><a href="/docs/guides/routing.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Routing">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Routing.html"><code>Pamoja.Routing</code> API</a></li><li><a href="/docs/guides/routing.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Routing">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-routing" title="pamoja-routing">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/routing" title="@pamoja/routing">TypeScript</a> <a href="https://pypi.org/project/pamoja-routing/" title="pamoja-routing">Python</a></p>
 </div>
 </div>
@@ -187,7 +187,7 @@ registries.
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/mavlink.html#c">MAVLink</a><p>MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Mavlink</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Mavlink" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Mavlink.html"><code>Pamoja.Mavlink</code></a></li><li><a href="/docs/guides/mavlink.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Mavlink">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Mavlink.html"><code>Pamoja.Mavlink</code> API</a></li><li><a href="/docs/guides/mavlink.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Mavlink">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-mavlink" title="pamoja-mavlink">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/mavlink" title="@pamoja/mavlink">TypeScript</a> <a href="https://pypi.org/project/pamoja-mavlink/" title="pamoja-mavlink">Python</a></p>
 </div>
 </div>
@@ -198,31 +198,31 @@ registries.
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/audit.html#c">Audit log</a><p>A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Audit</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Audit" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Audit.html"><code>Pamoja.Audit</code></a></li><li><a href="/docs/guides/audit.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Audit">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Audit.html"><code>Pamoja.Audit</code> API</a></li><li><a href="/docs/guides/audit.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Audit">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-audit" title="pamoja-audit">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/audit" title="@pamoja/audit">TypeScript</a> <a href="https://pypi.org/project/pamoja-audit/" title="pamoja-audit">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/session.html#c">Secured session</a><p>X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Session</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Session" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Session.html"><code>Pamoja.Session</code></a></li><li><a href="/docs/guides/session.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Session">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Session.html"><code>Pamoja.Session</code> API</a></li><li><a href="/docs/guides/session.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Session">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-session" title="pamoja-session">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/session" title="@pamoja/session">TypeScript</a> <a href="https://pypi.org/project/pamoja-session/" title="pamoja-session">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/update.html#c">Signed updates</a><p>Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Update</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Update" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Update.html"><code>Pamoja.Update</code></a></li><li><a href="/docs/guides/update.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Update">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Update.html"><code>Pamoja.Update</code> API</a></li><li><a href="/docs/guides/update.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Update">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-update" title="pamoja-update">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/update" title="@pamoja/update">TypeScript</a> <a href="https://pypi.org/project/pamoja-update/" title="pamoja-update">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/power.html#c">Power</a><p>Duty cycling and an energy-aware governor that stretches work as the battery drains</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Power</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Power" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Power.html"><code>Pamoja.Power</code></a></li><li><a href="/docs/guides/power.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Power">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Power.html"><code>Pamoja.Power</code> API</a></li><li><a href="/docs/guides/power.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Power">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-power" title="pamoja-power">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/power" title="@pamoja/power">TypeScript</a> <a href="https://pypi.org/project/pamoja-power/" title="pamoja-power">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/telemetry.html#c">Telemetry</a><p>Observability that ships only what is worth the bytes as link cost rises, while counting everything</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Telemetry</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Telemetry" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Telemetry.html"><code>Pamoja.Telemetry</code></a></li><li><a href="/docs/guides/telemetry.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Telemetry">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Telemetry.html"><code>Pamoja.Telemetry</code> API</a></li><li><a href="/docs/guides/telemetry.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Telemetry">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-telemetry" title="pamoja-telemetry">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/telemetry" title="@pamoja/telemetry">TypeScript</a> <a href="https://pypi.org/project/pamoja-telemetry/" title="pamoja-telemetry">Python</a></p>
 </div>
 </div>
@@ -233,43 +233,43 @@ registries.
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/mqtt.html#c">MQTT</a><p>An MQTT client with the topic and wildcard rules, as the core transport</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Mqtt</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Mqtt" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Mqtt.html"><code>Pamoja.Mqtt</code></a></li><li><a href="/docs/guides/mqtt.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Mqtt">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Mqtt.html"><code>Pamoja.Mqtt</code> API</a></li><li><a href="/docs/guides/mqtt.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Mqtt">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-mqtt" title="pamoja-mqtt">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/mqtt" title="@pamoja/mqtt">TypeScript</a> <a href="https://pypi.org/project/pamoja-mqtt/" title="pamoja-mqtt">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/coap.html#c">CoAP</a><p>A CoAP client over UDP with confirmable delivery and observe</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Coap</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Coap" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Coap.html"><code>Pamoja.Coap</code></a></li><li><a href="/docs/guides/coap.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Coap">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Coap.html"><code>Pamoja.Coap</code> API</a></li><li><a href="/docs/guides/coap.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Coap">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-coap" title="pamoja-coap">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/coap" title="@pamoja/coap">TypeScript</a> <a href="https://pypi.org/project/pamoja-coap/" title="pamoja-coap">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/loopback.html#c">Loopback</a><p>An in-process transport with topic matching and a fault injector, for testing with no broker</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Loopback</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Loopback" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Loopback.html"><code>Pamoja.Loopback</code></a></li><li><a href="/docs/guides/loopback.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Loopback">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Loopback.html"><code>Pamoja.Loopback</code> API</a></li><li><a href="/docs/guides/loopback.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Loopback">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-loopback" title="pamoja-loopback">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/loopback" title="@pamoja/loopback">TypeScript</a> <a href="https://pypi.org/project/pamoja-loopback/" title="pamoja-loopback">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/sync.html#c">Store and forward</a><p>Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Sync</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Sync" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Sync.html"><code>Pamoja.Sync</code></a></li><li><a href="/docs/guides/sync.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Sync">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Sync.html"><code>Pamoja.Sync</code> API</a></li><li><a href="/docs/guides/sync.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Sync">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-sync" title="pamoja-sync">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/sync" title="@pamoja/sync">TypeScript</a> <a href="https://pypi.org/project/pamoja-sync/" title="pamoja-sync">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/ladder.html#c">Transport ladder</a><p>Cheapest reachable link first, buffering to a store when every link is down</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Ladder</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Ladder" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Ladder.html"><code>Pamoja.Ladder</code></a></li><li><a href="/docs/guides/ladder.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Ladder">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Ladder.html"><code>Pamoja.Ladder</code> API</a></li><li><a href="/docs/guides/ladder.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Ladder">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-ladder" title="pamoja-ladder">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/ladder" title="@pamoja/ladder">TypeScript</a> <a href="https://pypi.org/project/pamoja-ladder/" title="pamoja-ladder">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/bus.html#c">Event bus</a><p>An in-memory typed publish and subscribe event bus</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Bus</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Bus" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Bus.html"><code>Pamoja.Bus</code></a></li><li><a href="/docs/guides/bus.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Bus">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Bus.html"><code>Pamoja.Bus</code> API</a></li><li><a href="/docs/guides/bus.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Bus">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-bus" title="pamoja-bus">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/bus" title="@pamoja/bus">TypeScript</a> <a href="https://pypi.org/project/pamoja-bus/" title="pamoja-bus">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/sim.html#c">Simulators</a><p>Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Sim</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Sim" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Sim.html"><code>Pamoja.Sim</code></a></li><li><a href="/docs/guides/sim.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Sim">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Sim.html"><code>Pamoja.Sim</code> API</a></li><li><a href="/docs/guides/sim.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Sim">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-sim" title="pamoja-sim">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/sim" title="@pamoja/sim">TypeScript</a> <a href="https://pypi.org/project/pamoja-sim/" title="pamoja-sim">Python</a></p>
 </div>
 </div>
@@ -280,19 +280,19 @@ registries.
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/profile.html#c">Device profiles</a><p>Named, ready-to-run device profiles from plain data or a JSON manifest</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Profile</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Profile" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Profile.html"><code>Pamoja.Profile</code></a></li><li><a href="/docs/guides/profile.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Profile">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Profile.html"><code>Pamoja.Profile</code> API</a></li><li><a href="/docs/guides/profile.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Profile">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-profile" title="pamoja-profile">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/profile" title="@pamoja/profile">TypeScript</a> <a href="https://pypi.org/project/pamoja-profile/" title="pamoja-profile">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/ros2.html#c">ROS 2 rules</a><p>ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Ros2</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Ros2" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Ros2.html"><code>Pamoja.Ros2</code></a></li><li><a href="/docs/guides/ros2.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Ros2">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Ros2.html"><code>Pamoja.Ros2</code> API</a></li><li><a href="/docs/guides/ros2.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Ros2">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-ros2" title="pamoja-ros2">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/ros2" title="@pamoja/ros2">TypeScript</a> <a href="https://pypi.org/project/pamoja-ros2/" title="pamoja-ros2">Python</a></p>
 </div>
 <div class="pkg">
 <div class="pkg-what"><a href="/docs/guides/zenoh.html#c">Zenoh keys</a><p>Zenoh key expressions: validity, canonical form, and wildcard matching</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Zenoh</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Zenoh" aria-label="Copy the install command">copy</button></div>
-<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Zenoh.html"><code>Pamoja.Zenoh</code></a></li><li><a href="/docs/guides/zenoh.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Zenoh">NuGet</a></li></ul>
+<ul class="pkg-links"><li><a href="/docs/reference/dotnet/api/Pamoja.Zenoh.html"><code>Pamoja.Zenoh</code> API</a></li><li><a href="/docs/guides/zenoh.html#c">worked example</a></li><li><a href="https://www.nuget.org/packages/Pamoja.Zenoh">NuGet</a></li></ul>
 <p class="pkg-else"><span>Also in</span> <a href="https://crates.io/crates/pamoja-zenoh" title="pamoja-zenoh">Rust</a> <a href="https://www.npmjs.com/package/@pamoja/zenoh" title="@pamoja/zenoh">TypeScript</a> <a href="https://pypi.org/project/pamoja-zenoh/" title="pamoja-zenoh">Python</a></p>
 </div>
 </div>
