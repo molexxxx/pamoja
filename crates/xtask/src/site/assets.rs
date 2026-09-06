@@ -96,6 +96,30 @@ fn published(at: &str, body: Vec<u8>) -> Result<Vec<u8>, String> {
     }
 }
 
+/// A short stamp of the stylesheets and scripts among `files`, for the query string that
+/// names each of them in a page. It changes whenever any of them does, so a browser that
+/// cached the last deploy's copy fetches the new one.
+///
+/// # Arguments
+///
+/// * `files` - the site's files, as (site path, contents).
+///
+/// # Returns
+///
+/// Eight hex digits.
+pub fn stamp(files: &[(String, Vec<u8>)]) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for (path, body) in files {
+        if path.ends_with(".css") || path.ends_with(".js") {
+            for byte in path.bytes().chain(body.iter().copied()) {
+                hash ^= u64::from(byte);
+                hash = hash.wrapping_mul(0x0100_0000_01b3);
+            }
+        }
+    }
+    format!("{:08x}", (hash >> 32) ^ (hash & 0xffff_ffff))
+}
+
 fn read(path: &Path) -> Result<Vec<u8>, String> {
     fs::read(path).map_err(|err| format!("reading {}: {err}", path.display()))
 }

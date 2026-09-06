@@ -260,7 +260,7 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
     }
 
     files.extend(buttons::render());
-    files.extend(theme::render());
+    files.extend(theme::render(&root)?);
     files.extend(licenses::render(&root)?);
 
     // The mark the showcase uses, carried into the site so every reference page opens with

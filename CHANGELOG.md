@@ -86,6 +86,15 @@ released together, so one entry covers all of them.
   the header rather than a dropdown that ran off the left edge. The search box
   shows the slash key that focuses it, a chosen result closes the panel, and the
   shortcut ignores a slash typed with a modifier or into a field.
+- Every stylesheet and script a page names carries a stamp of its contents in
+  its address, and so do the hooks the four generated references load, so a
+  deploy never leaves a browser on a cached copy of the last one; a page the
+  router swaps in replaces a stylesheet whose stamp changed.
+- A hardware card is a spec sheet: the facts run down one column behind a label
+  gutter, and the foot sets where to buy the part beside what to read and build
+  with, each a panel of rows of one shape (what it is and a detail on the left,
+  the price or the way out on the right), single-column where there is nothing
+  to buy. The cards share one padding with the reference rows.
 - The front page is rendered by `cargo xtask site` from the capability map and
   `web/home.toml`, in the same shell as the documentation: the four install
   lines, the first example in four languages spliced from the tests that run it,

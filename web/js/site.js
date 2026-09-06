@@ -180,10 +180,10 @@
     doc.head.querySelectorAll('link[rel="stylesheet"]').forEach((link) =>
     {
       const href = link.getAttribute('href');
-      if (!document.head.querySelector(`link[rel="stylesheet"][href="${href}"]`))
-      {
-        document.head.appendChild(document.adoptNode(link));
-      }
+      const path = href.split('?')[0];
+      const mine = [...document.head.querySelectorAll('link[rel="stylesheet"]')].find((l) => l.getAttribute('href').split('?')[0] === path);
+      if (!mine) document.head.appendChild(document.adoptNode(link));
+      else if (mine.getAttribute('href') !== href) mine.replaceWith(document.adoptNode(link));
     });
   };
 
@@ -199,7 +199,8 @@
     syncToggle();
     if (next.querySelector('.home'))
     {
-      import('/js/home.js').then((home) => home.init()).catch(() => {});
+      const stamp = doc.documentElement.dataset.stamp || root.dataset.stamp || '';
+      import(`/js/home.js?v=${stamp}`).then((home) => home.init()).catch(() => {});
     }
     const target = url.hash ? document.getElementById(decodeURIComponent(url.hash.slice(1))) : null;
     if (target) target.scrollIntoView();

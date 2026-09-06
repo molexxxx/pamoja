@@ -35,6 +35,8 @@ pub struct Chrome<'a> {
     pub version: &'a str,
     /// The navigation the sidebar renders.
     pub nav: &'a Nav,
+    /// The stamp of the stylesheets and scripts, which names each of them in a page.
+    pub stamp: &'a str,
 }
 
 /// The prefix that reaches the site root from a page (`../` for `docs/index.html`), for
@@ -66,12 +68,15 @@ pub fn document(chrome: &Chrome, page: &Page) -> String {
     } else {
         format!("{} - pamoja", page.title)
     };
-    let mut out = head(&Head {
-        title: &full,
-        description: &page.description,
-        url: &page.url,
-        kind: "article",
-    });
+    let mut out = head(
+        &Head {
+            title: &full,
+            description: &page.description,
+            url: &page.url,
+            kind: "article",
+        },
+        chrome.stamp,
+    );
     out.push_str("<body>\n");
     out.push_str("<a class=\"skip\" href=\"#content\">Skip to content</a>\n");
     out.push_str(&header());
@@ -97,7 +102,10 @@ pub fn document(chrome: &Chrome, page: &Page) -> String {
     out.push_str(&toc(&page.toc));
     out.push_str("</div>\n</div>\n");
     out.push_str(&footer(chrome.version));
-    out.push_str("<script src=\"/js/site.js\" defer></script>\n</body>\n</html>\n");
+    out.push_str(&format!(
+        "<script src=\"/js/site.js?v={}\" defer></script>\n</body>\n</html>\n",
+        chrome.stamp
+    ));
     out
 }
 
@@ -119,10 +127,13 @@ pub fn home(chrome: &Chrome, body: &str) -> String {
         description: "One memory-safe Rust core with bindings for TypeScript, Python, and C#, for IoT, robotics, and drones, built to run on cheap hardware with weak or no connectivity.",
         url: "index.html",
         kind: "website",
-    });
+    }, chrome.stamp);
     out = out.replace(
-        "<link rel=\"stylesheet\" href=\"/site.css\">\n",
-        "<link rel=\"stylesheet\" href=\"/site.css\">\n<link rel=\"stylesheet\" href=\"/home.css\">\n",
+        &format!("<link rel=\"stylesheet\" href=\"/site.css?v={}\">\n", chrome.stamp),
+        &format!(
+            "<link rel=\"stylesheet\" href=\"/site.css?v={0}\">\n<link rel=\"stylesheet\" href=\"/home.css?v={0}\">\n",
+            chrome.stamp
+        ),
     );
     out.push_str("<body class=\"is-home\">\n");
     out.push_str("<a class=\"skip\" href=\"#content\">Skip to content</a>\n");
@@ -150,11 +161,12 @@ pub fn home(chrome: &Chrome, body: &str) -> String {
     out.push_str(body);
     out.push_str("</div>\n");
     out.push_str(&footer(chrome.version));
-    out.push_str(
-        "<script src=\"/js/site.js\" defer></script>\n\
-         <script type=\"module\">import { init } from '/js/home.js'; init();</script>\n\
+    out.push_str(&format!(
+        "<script src=\"/js/site.js?v={0}\" defer></script>\n\
+         <script type=\"module\">import {{ init }} from '/js/home.js?v={0}'; init();</script>\n\
          </body>\n</html>\n",
-    );
+        chrome.stamp
+    ));
     out
 }
 
@@ -171,12 +183,15 @@ pub fn home(chrome: &Chrome, body: &str) -> String {
 ///
 /// The complete document.
 pub fn not_found(chrome: &Chrome) -> String {
-    let mut out = head(&Head {
-        title: "Not found - pamoja",
-        description: "There is no page at this address.",
-        url: "404.html",
-        kind: "website",
-    });
+    let mut out = head(
+        &Head {
+            title: "Not found - pamoja",
+            description: "There is no page at this address.",
+            url: "404.html",
+            kind: "website",
+        },
+        chrome.stamp,
+    );
     out.push_str("<body>\n");
     out.push_str(&header());
     out.push_str(
@@ -192,7 +207,10 @@ pub fn not_found(chrome: &Chrome) -> String {
          </ul>\n</article>\n</main>\n</div>\n",
     );
     out.push_str(&footer(chrome.version));
-    out.push_str("<script src=\"/js/site.js\" defer></script>\n</body>\n</html>\n");
+    out.push_str(&format!(
+        "<script src=\"/js/site.js?v={}\" defer></script>\n</body>\n</html>\n",
+        chrome.stamp
+    ));
     out
 }
 
@@ -204,11 +222,12 @@ pub fn not_found(chrome: &Chrome) -> String {
 /// * `url` - where the page sits, site-relative, so its stylesheets resolve.
 /// * `target` - where it sends the reader, relative to itself.
 /// * `name` - the language, for the title and the one line of text.
+/// * `stamp` - the stamp that names the stylesheets.
 ///
 /// # Returns
 ///
 /// The complete document, which redirects at once and still reads as a page.
-pub fn redirect(url: &str, target: &str, name: &str) -> String {
+pub fn redirect(url: &str, target: &str, name: &str, stamp: &str) -> String {
     let root = root_of(url);
     let target = escape(target);
     format!(
@@ -219,8 +238,8 @@ pub fn redirect(url: &str, target: &str, name: &str) -> String {
          <meta name=\"robots\" content=\"noindex\">\n\
          <link rel=\"canonical\" href=\"{target}\">\n\
          <title>{name} reference - pamoja</title>\n\
-         <link rel=\"stylesheet\" href=\"{root}theme.css\">\n\
-         <link rel=\"stylesheet\" href=\"{root}site.css\">\n\
+         <link rel=\"stylesheet\" href=\"{root}theme.css?v={stamp}\">\n\
+         <link rel=\"stylesheet\" href=\"{root}site.css?v={stamp}\">\n\
          </head>\n<body>\n\
          <main class=\"content lone\">\n<article class=\"article\">\n\
          <h1>{name} reference</h1>\n\
@@ -242,14 +261,14 @@ struct Head<'a> {
     kind: &'a str,
 }
 
-fn head(page: &Head) -> String {
+fn head(page: &Head, stamp: &str) -> String {
     let canonical = if page.url == "index.html" {
         format!("{ORIGIN}/")
     } else {
         format!("{ORIGIN}/{}", page.url)
     };
     format!(
-        "<!doctype html>\n<html lang=\"en\" class=\"no-js\" data-root=\"{ROOT}\">\n<head>\n\
+        "<!doctype html>\n<html lang=\"en\" class=\"no-js\" data-root=\"{ROOT}\" data-stamp=\"{stamp}\">\n<head>\n\
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{title}</title>\n\
@@ -265,9 +284,9 @@ fn head(page: &Head) -> String {
          <link rel=\"icon\" href=\"/assets/pamoja-icon.svg\">\n\
          <link rel=\"preload\" href=\"/fonts/Sora.woff2\" as=\"font\" type=\"font/woff2\" crossorigin>\n\
          <link rel=\"preload\" href=\"/fonts/Inter.woff2\" as=\"font\" type=\"font/woff2\" crossorigin>\n\
-         <link rel=\"stylesheet\" href=\"/fonts/fonts.css\">\n\
-         <link rel=\"stylesheet\" href=\"/theme.css\">\n\
-         <link rel=\"stylesheet\" href=\"/site.css\">\n\
+         <link rel=\"stylesheet\" href=\"/fonts/fonts.css?v={stamp}\">\n\
+         <link rel=\"stylesheet\" href=\"/theme.css?v={stamp}\">\n\
+         <link rel=\"stylesheet\" href=\"/site.css?v={stamp}\">\n\
          <script>document.documentElement.classList.replace('no-js','js');\
 try{{var h=location.hash.slice(1);document.documentElement.dataset.lang=/^(rust|typescript|python|c)$/.test(h)?h:(localStorage.getItem('pamoja:lang')||'rust')}}catch(e){{document.documentElement.dataset.lang='rust'}}</script>\n\
          </head>\n",
@@ -275,6 +294,7 @@ try{{var h=location.hash.slice(1);document.documentElement.dataset.lang=/^(rust|
         page.kind,
         title = escape(page.title),
         description = escape(page.description),
+        stamp = stamp,
     )
 }
 
@@ -459,12 +479,15 @@ mod tests {
 
     #[test]
     fn the_head_names_the_page_for_crawlers_and_cards() {
-        let html = head(&Head {
-            title: "Modbus RTU - pamoja",
-            description: "Frames & replies.",
-            url: "docs/guides/modbus.html",
-            kind: "article",
-        });
+        let html = head(
+            &Head {
+                title: "Modbus RTU - pamoja",
+                description: "Frames & replies.",
+                url: "docs/guides/modbus.html",
+                kind: "article",
+            },
+            "0123abcd",
+        );
         assert!(html.contains(
             "<link rel=\"canonical\" href=\"https://pamoja.molex.cloud/docs/guides/modbus.html\">"
         ));
@@ -474,12 +497,23 @@ mod tests {
         );
         assert!(html.contains("<meta property=\"og:type\" content=\"article\">"));
         assert!(html.contains("data-root=\"/\""));
-        let front = head(&Head {
-            title: "pamoja",
-            description: "x",
-            url: "index.html",
-            kind: "website",
-        });
+        assert!(
+            html.contains("data-stamp=\"0123abcd\""),
+            "the page carries the assets' stamp"
+        );
+        assert!(
+            html.contains("<link rel=\"stylesheet\" href=\"/site.css?v=0123abcd\">"),
+            "the stylesheet is named with the stamp"
+        );
+        let front = head(
+            &Head {
+                title: "pamoja",
+                description: "x",
+                url: "index.html",
+                kind: "website",
+            },
+            "0123abcd",
+        );
         assert!(front.contains("<link rel=\"canonical\" href=\"https://pamoja.molex.cloud/\">"));
     }
 
