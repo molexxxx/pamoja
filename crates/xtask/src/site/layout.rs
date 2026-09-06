@@ -296,7 +296,8 @@ fn header() -> String {
          <a href=\"/docs/reference/rust.html\">Reference</a>\n\
          </nav>\n\
          <div class=\"search\" role=\"search\">\n\
-         <input class=\"search-input\" type=\"search\" placeholder=\"Search\" aria-label=\"Search the documentation\" autocomplete=\"off\" spellcheck=\"false\">\n\
+         <input class=\"search-input\" type=\"search\" placeholder=\"Search\" aria-label=\"Search the documentation, or press slash\" autocomplete=\"off\" spellcheck=\"false\">\n\
+         <kbd class=\"search-key\" aria-hidden=\"true\">/</kbd>\n\
          <div class=\"search-results\" role=\"listbox\" aria-label=\"Search results\" hidden></div>\n\
          </div>\n\
          <nav class=\"top-icons\" aria-label=\"The project on GitHub\">\n\

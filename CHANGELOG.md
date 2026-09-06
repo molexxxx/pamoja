@@ -75,6 +75,17 @@ released together, so one entry covers all of them.
   `web/` stay readable, and the copies the site serves carry no comments and no
   indentation. A script goes through a real parser on the way, so one that does
   not parse fails the build rather than reaching a browser.
+- The hardware page is a set of cards rather than tables and bullet lists. A
+  card breaks a part down into labelled facts (interface, each figure from its
+  document, and its price band with the lowest listed price), says where to buy
+  it with the price each page listed, and keeps that apart from what to read
+  and build with: the datasheet, specification, or documentation it was written
+  from, the driver's source, its crates, and the guides that use it. Each guide
+  links the parts its crates drive.
+- The search results fit a phone: on a narrow screen they open as a panel under
+  the header rather than a dropdown that ran off the left edge. The search box
+  shows the slash key that focuses it, a chosen result closes the panel, and the
+  shortcut ignores a slash typed with a modifier or into a field.
 - The front page is rendered by `cargo xtask site` from the capability map and
   `web/home.toml`, in the same shell as the documentation: the four install
   lines, the first example in four languages spliced from the tests that run it,

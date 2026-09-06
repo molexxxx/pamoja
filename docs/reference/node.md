@@ -76,7 +76,7 @@ each under its own name:
 
 One row per capability: the install line, the package and its reference, the
 guide with the worked example, and the same capability on the other three
-registries.
+reference pages, one step away.
 
 <!-- table: packages node -->
 ### Engine

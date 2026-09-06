@@ -242,7 +242,13 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
             } else if let Some(table) = directive.strip_prefix("table:") {
                 match table.trim() {
                     "builds" => builds::table(&root),
-                    "hardware" => Ok(hardware.table()),
+                    "hardware" => Ok(hardware.table(&catalog)),
+                    reference if reference.starts_with("reference ") => {
+                        let key = reference.trim_start_matches("reference ").trim();
+                        catalog
+                            .render(reference, &descriptions)
+                            .map(|links| links + &hardware.for_guide(key, &catalog))
+                    }
                     other => catalog.render(other, &descriptions),
                 }
             } else {

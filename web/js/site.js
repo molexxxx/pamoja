@@ -370,12 +370,15 @@
       }
     });
     document.addEventListener('click', (e) => { if (!e.target.closest('.search')) results.hidden = true; });
+    results.addEventListener('click', (e) => { if (e.target.closest('.result')) results.hidden = true; });
     addEventListener('keydown', (e) =>
     {
-      if (e.key === '/' && !/^(input|textarea)$/i.test(document.activeElement.tagName))
+      const typing = /^(input|textarea|select)$/i.test(document.activeElement.tagName) || document.activeElement.isContentEditable;
+      if (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey)
       {
         e.preventDefault();
         input.focus();
+        input.select();
       }
     });
   }

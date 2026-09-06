@@ -247,4 +247,5 @@ catch (PamojaException error)
 - TypeScript: [`@pamoja/sensors`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_sensors.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-sensors)
 - Python: [`pamoja.sensors`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sensors.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-sensors)
 - C#: [`Pamoja.Sensors`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Sensors.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-sensors)
+- Hardware: [BME280](https://pamoja.molex.cloud/docs/hardware.html#bme280), [DS18B20](https://pamoja.molex.cloud/docs/hardware.html#ds18b20), [INA219](https://pamoja.molex.cloud/docs/hardware.html#ina219), [ADS1115](https://pamoja.molex.cloud/docs/hardware.html#ads1115), [I2C](https://pamoja.molex.cloud/docs/hardware.html#i2c)
 <!-- end -->

@@ -238,4 +238,5 @@ Console.WriteLine(
 - TypeScript: [`@pamoja/gpio`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_gpio.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-gpio)
 - Python: [`pamoja.gpio`](https://pamoja.molex.cloud/docs/reference/python/pamoja/gpio.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-gpio)
 - C#: [`Pamoja.Gpio`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Gpio.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-gpio)
+- Hardware: [I2C](https://pamoja.molex.cloud/docs/hardware.html#i2c), [SPI](https://pamoja.molex.cloud/docs/hardware.html#spi)
 <!-- end -->

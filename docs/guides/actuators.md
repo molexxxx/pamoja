@@ -248,4 +248,5 @@ Console.WriteLine($"a quarter turn is {Stepper.StepsForDegrees(90.0f, 200)} step
 - TypeScript: [`@pamoja/actuators`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_actuators.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-actuators)
 - Python: [`pamoja.actuators`](https://pamoja.molex.cloud/docs/reference/python/pamoja/actuators.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-actuators)
 - C#: [`Pamoja.Actuators`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Actuators.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-actuators)
+- Hardware: [PCA9685](https://pamoja.molex.cloud/docs/hardware.html#pca9685), [ULN2003A](https://pamoja.molex.cloud/docs/hardware.html#uln2003), [A4988](https://pamoja.molex.cloud/docs/hardware.html#a4988), [DRV8825](https://pamoja.molex.cloud/docs/hardware.html#drv8825), [I2C](https://pamoja.molex.cloud/docs/hardware.html#i2c)
 <!-- end -->

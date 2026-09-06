@@ -456,4 +456,5 @@ static MavlinkAckOutcome? Acknowledge(
 - TypeScript: [`@pamoja/mavlink`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mavlink.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-mavlink)
 - Python: [`pamoja.mavlink`](https://pamoja.molex.cloud/docs/reference/python/pamoja/mavlink.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-mavlink)
 - C#: [`Pamoja.Mavlink`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mavlink.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-mavlink)
+- Hardware: [ArduPilot](https://pamoja.molex.cloud/docs/hardware.html#ardupilot), [PX4 Autopilot](https://pamoja.molex.cloud/docs/hardware.html#px4), [Pixhawk standard](https://pamoja.molex.cloud/docs/hardware.html#pixhawk)
 <!-- end -->

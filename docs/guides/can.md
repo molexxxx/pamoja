@@ -325,4 +325,5 @@ Console.WriteLine($"an 11-bit identifier is J1939: {Can.DecodeJ1939(291, false) 
 - TypeScript: [`@pamoja/can`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_can.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-can)
 - Python: [`pamoja.can`](https://pamoja.molex.cloud/docs/reference/python/pamoja/can.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-can)
 - C#: [`Pamoja.Can`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Can.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-can)
+- Hardware: [CAN 2.0 and CAN FD](https://pamoja.molex.cloud/docs/hardware.html#can), [SAE J1939](https://pamoja.molex.cloud/docs/hardware.html#j1939)
 <!-- end -->

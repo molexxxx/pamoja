@@ -215,4 +215,5 @@ Console.WriteLine($"700 MHz  is outside this plan, so it budgets nothing: {outsi
 - TypeScript: [`@pamoja/lora`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_lora.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-lora)
 - Python: [`pamoja.lora`](https://pamoja.molex.cloud/docs/reference/python/pamoja/lora.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-lora)
 - C#: [`Pamoja.Lora`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Lora.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-lora)
+- Hardware: [SX1276](https://pamoja.molex.cloud/docs/hardware.html#sx1276), [SX1262](https://pamoja.molex.cloud/docs/hardware.html#sx1262), [LoRaWAN Regional Parameters](https://pamoja.molex.cloud/docs/hardware.html#lorawan-rp002)
 <!-- end -->
