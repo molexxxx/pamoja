@@ -1,0 +1,45 @@
+name: prices
+
+on:
+  schedule:
+    # Weekly, an hour after the link check, so no price on the hardware page is more
+    # than a week old.
+    - cron: "17 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    name: refresh the hardware prices
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Every product page the hardware page lists is read for the price it states as
+      # product data, and each part's offers are ordered cheapest first. A vendor that
+      # refuses a scripted reader keeps its last record and is named in the report.
+      - name: Read every product page
+        run: cargo run -p xtask -- prices --report "${{ runner.temp }}/prices.md"
+
+      - name: Regenerate the hardware page
+        run: cargo run -p xtask -- docs
+
+      # The changes go up as a pull request under the same token the badge refresh uses,
+      # so the usual checks run on it; the report is its description.
+      - name: Open a pull request with what changed
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          if git diff --quiet; then
+            echo "no price or date changed"
+            exit 0
+          fi
+          branch="prices/$(date -u +%Y-%m-%d)"
+          git config user.name "molexxxx"
+          git config user.email "$(git log -1 --format=%ae)"
+          git switch -c "$branch"
+          git commit -am "Refresh the hardware prices"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$branch"
+          gh pr create --base main --head "$branch" --title "Refresh the hardware prices" --body-file "${{ runner.temp }}/prices.md" --label documentation
