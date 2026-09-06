@@ -101,6 +101,12 @@ released together, so one entry covers all of them.
   states no price that way, or refuses a scripted reader, keeps its last record
   and is named in the report. A weekly workflow runs it and opens a pull
   request with what moved.
+- Every hardware card's foot has two panels. A part with offers keeps "Where
+  to buy"; a bus lists the parts on the page that speak it, each a jump to its
+  card; a protocol, a specification, or a part no store lists gets "Find parts",
+  searches at Adafruit, SparkFun, Digi-Key, and Mouser for its name, under the
+  note that says no reputable store lists it and since when. No card shows a
+  lone panel stretched across the foot.
 - An examples page lists every complete program under `examples/` with what
   it shows and the line that runs it, and every guide's example by chapter with
   what it proves and the four files that run it in CI, each a link to the file.
