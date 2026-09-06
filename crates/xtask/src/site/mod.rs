@@ -292,11 +292,13 @@ mod tests {
     }
 
     /// The URLs the site has published; each keeps resolving.
-    const PUBLISHED: [&str; 13] = [
+    const PUBLISHED: [&str; 15] = [
         "index.html",
         "docs/index.html",
         "docs/install.html",
         "docs/hardware.html",
+        "docs/examples.html",
+        "docs/reference/index.html",
         "docs/reference/rust.html",
         "docs/reference/node.html",
         "docs/reference/python.html",
@@ -572,13 +574,7 @@ mod tests {
         let files = site.render().unwrap();
         let mut pages = 0;
         for (path, body) in &files {
-            if !path.ends_with(".html")
-                || path.starts_with("docs/reference/")
-                    && !path.ends_with("rust.html")
-                    && !path.ends_with("node.html")
-                    && !path.ends_with("python.html")
-                    && !path.ends_with("dotnet.html")
-            {
+            if !path.ends_with(".html") || HANDOFFS.iter().any(|(handoff, _, _)| handoff == path) {
                 continue;
             }
             let html = String::from_utf8_lossy(body);

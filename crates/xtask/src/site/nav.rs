@@ -1,8 +1,8 @@
 //! The site's navigation, derived from the capability map.
 //!
-//! The pages come first (introduction, install, hardware), then a group per chapter holding
-//! its guides in the order the map gives them, then the four references and the pages about
-//! the project. The same order gives every page its previous and next neighbour.
+//! The pages come first (introduction, install, hardware, examples), then a group per
+//! chapter holding its guides in the order the map gives them, then the reference hub and
+//! the four references, and the pages about the project. The same order gives every page its previous and next neighbour.
 
 use crate::catalog::Catalog;
 
@@ -48,6 +48,7 @@ impl Nav {
                 item("Introduction", "docs/index.html"),
                 item("Install", "docs/install.html"),
                 item("Hardware", "docs/hardware.html"),
+                item("Examples", "docs/examples.html"),
             ],
         }];
         for chapter in &catalog.chapters {
@@ -70,6 +71,7 @@ impl Nav {
         groups.push(Group {
             title: Some("Reference".to_owned()),
             items: vec![
+                item("Overview", "docs/reference/index.html"),
                 item("Rust", "docs/reference/rust.html"),
                 item("TypeScript", "docs/reference/node.html"),
                 item("Python", "docs/reference/python.html"),
@@ -224,11 +226,12 @@ guide = "guides/can.md"
         );
         let urls: Vec<&str> = nav.items().map(|item| item.url.as_str()).collect();
         assert_eq!(
-            &urls[..5],
+            &urls[..6],
             [
                 "docs/index.html",
                 "docs/install.html",
                 "docs/hardware.html",
+                "docs/examples.html",
                 "docs/guides/modbus.html",
                 "docs/guides/can.html",
             ]
@@ -245,7 +248,7 @@ guide = "guides/can.md"
         );
         assert_eq!(
             next.map(|i| i.url.as_str()),
-            Some("docs/reference/rust.html")
+            Some("docs/reference/index.html")
         );
         assert!(nav.neighbours("docs/index.html").0.is_none());
         assert!(nav.neighbours("docs/about/releasing.html").1.is_none());

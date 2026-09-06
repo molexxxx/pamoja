@@ -146,7 +146,8 @@ pub fn home(chrome: &Chrome, body: &str) -> String {
          <li><a href=\"/docs/index.html\">Docs</a></li>\n\
          <li><a href=\"/docs/install.html\">Install</a></li>\n\
          <li><a href=\"/docs/hardware.html\">Hardware</a></li>\n\
-         <li><a href=\"/docs/reference/rust.html\">API reference</a></li>\n\
+         <li><a href=\"/docs/examples.html\">Examples</a></li>\n\
+         <li><a href=\"/docs/reference/index.html\">API reference</a></li>\n\
          <li><a href=\"https://pamoja.molex.cloud/dashboard/\">Dashboard demo</a></li>\n\
          </ul>\n\
          <details class=\"side-group\" open><summary>Project</summary><ul>\n\
@@ -203,7 +204,8 @@ pub fn not_found(chrome: &Chrome) -> String {
          <li><a href=\"/docs/index.html\">The documentation</a>, with a guide per capability</li>\n\
          <li><a href=\"/docs/install.html\">Install</a>, and what a narrow build costs</li>\n\
          <li><a href=\"/docs/hardware.html\">Hardware</a>, the parts the drivers were written against</li>\n\
-         <li><a href=\"/docs/reference/rust.html\">The API references</a> for every language</li>\n\
+         <li><a href=\"/docs/examples.html\">Examples</a>, every one run in CI</li>\n\
+         <li><a href=\"/docs/reference/index.html\">The API references</a> for every language</li>\n\
          </ul>\n</article>\n</main>\n</div>\n",
     );
     out.push_str(&footer(chrome.version));
@@ -313,7 +315,7 @@ fn header() -> String {
          <nav class=\"top-nav\" aria-label=\"Site\">\n\
          <a href=\"/docs/index.html\">Docs</a>\n\
          <a href=\"/docs/hardware.html\">Hardware</a>\n\
-         <a href=\"/docs/reference/rust.html\">Reference</a>\n\
+         <a href=\"/docs/reference/index.html\">Reference</a>\n\
          </nav>\n\
          <div class=\"search\" role=\"search\">\n\
          <input class=\"search-input\" type=\"search\" placeholder=\"Search\" aria-label=\"Search the documentation, or press slash\" autocomplete=\"off\" spellcheck=\"false\">\n\
