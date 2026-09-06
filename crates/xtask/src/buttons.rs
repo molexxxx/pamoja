@@ -11,12 +11,14 @@
 //! resolves to for the cool ones. `cargo xtask docs` writes them and `--check` fails when
 //! they drift, so the palette lives in exactly one place.
 
+use crate::theme::PALETTE;
+
 /// Amber, the logo's inner glow.
-const AMBER: &str = "#FFB627";
+const AMBER: &str = PALETTE.amber;
 /// Coral, the logo's outer glow.
-const CORAL: &str = "#F26A4B";
+const CORAL: &str = PALETTE.coral;
 /// Teal, where the logo's wordmark gradient resolves.
-const TEAL: &str = "#1FA995";
+const TEAL: &str = PALETTE.teal;
 /// A deeper teal, so the cool buttons have somewhere to travel.
 const DEEP_TEAL: &str = "#12736A";
 /// Near-black with the palette's warmth in it, for text on a warm fill.
@@ -48,6 +50,11 @@ const BUTTONS: &[Button] = &[
     Button {
         file: "btn-dashboard.svg",
         label: "dashboard demo",
+        warm: true,
+    },
+    Button {
+        file: "btn-examples.svg",
+        label: "examples",
         warm: true,
     },
     Button {

@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="102" height="34" viewBox="0 0 102 34" role="img" aria-label="crates.io ↗">
   <defs>
     <linearGradient id="fill" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1FA995"/>
-      <stop offset="0.55" stop-color="#1FA995"/>
+      <stop offset="0" stop-color="#1fa995"/>
+      <stop offset="0.55" stop-color="#1fa995"/>
       <stop offset="1" stop-color="#12736A"/>
     </linearGradient>
     <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">

@@ -24,7 +24,7 @@ use syn::{Fields, ImplItem, Item, TraitItem, Visibility};
 use crate::catalog::{Catalog, SITE};
 use crate::examples;
 use crate::hardware::Hardware;
-use crate::{builds, buttons, licenses, packages, regions, theme, version};
+use crate::{builds, buttons, diagram, licenses, packages, regions, theme, version};
 
 /// Run the `docs` task: regenerate every derived file, or `--check` to verify they are in sync.
 ///
@@ -262,6 +262,7 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
     }
 
     files.extend(buttons::render());
+    files.extend(diagram::render(&catalog, &root)?);
     files.extend(theme::render(&root)?);
     files.extend(licenses::render(&root)?);
 
