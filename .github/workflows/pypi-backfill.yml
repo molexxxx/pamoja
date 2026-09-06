@@ -168,9 +168,9 @@ jobs:
     if: ${{ !cancelled() && needs.missing.outputs.missing != '' && needs.pure.result == 'success' && (needs.missing.outputs.native != 'true' || (needs.build.result == 'success' && needs.sdist.result == 'success')) }}
     runs-on: ubuntu-latest
     steps:
+      # The distributions were built from the tag above; the upload script is this
+      # workflow's own, so it comes from the ref the workflow runs on, not the tag.
       - uses: actions/checkout@v7
-        with:
-          ref: v${{ needs.missing.outputs.version }}
 
       - uses: actions/download-artifact@v8
         with:
