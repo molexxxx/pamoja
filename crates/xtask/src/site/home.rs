@@ -424,7 +424,7 @@ impl Home {
              <ul class=\"installs\" aria-label=\"Install\">\n{installs}</ul>\n\
              <div class=\"hero-doors\">\n\
              <a class=\"btn btn-warm\" href=\"/docs/index.html\">Read the docs</a>\n\
-             <a class=\"btn btn-ghost\" href=\"/docs/reference/rust.html\">API reference</a>\n\
+             <a class=\"btn btn-ghost\" href=\"/docs/reference/index.html\">API reference</a>\n\
              <a class=\"btn btn-ghost\" href=\"/docs/hardware.html\">Hardware</a>\n\
              </div>\n\
              <ul class=\"hero-facts\"><li>{} capabilities</li><li>{} crates</li><li>{} languages</li><li>{guides} guides, every example run in CI</li><li>MIT, forever</li></ul>\n\

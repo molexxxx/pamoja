@@ -1165,7 +1165,7 @@ fn package_row(lang: &Language, capability: &Capability) -> String {
 }
 
 // An install line with the button that copies it.
-fn command(text: &str) -> String {
+pub(crate) fn command(text: &str) -> String {
     let text = escape(text);
     format!(
         "<div class=\"pkg-get\"><code class=\"cmd\">{text}</code><button class=\"copy\" type=\"button\" data-copy=\"{text}\" aria-label=\"Copy the install command\">copy</button></div>"

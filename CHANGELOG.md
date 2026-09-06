@@ -101,6 +101,12 @@ released together, so one entry covers all of them.
   states no price that way, or refuses a scripted reader, keeps its last record
   and is named in the report. A weekly workflow runs it and opens a pull
   request with what moved.
+- An examples page lists every complete program under `examples/` with what
+  it shows and the line that runs it, and every guide's example by chapter with
+  what it proves and the four files that run it in CI, each a link to the file.
+  A reference hub introduces the four generated references and how they are
+  made; "Reference" in the header, the front page, and the menus leads there.
+  Both are rendered from the code and the guides, so they cannot drift.
 - The front page is rendered by `cargo xtask site` from the capability map and
   `web/home.toml`, in the same shell as the documentation: the four install
   lines, the first example in four languages spliced from the tests that run it,

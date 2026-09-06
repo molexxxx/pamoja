@@ -22,6 +22,7 @@ use quote::ToTokens;
 use syn::{Fields, ImplItem, Item, TraitItem, Visibility};
 
 use crate::catalog::{Catalog, SITE};
+use crate::examples;
 use crate::hardware::Hardware;
 use crate::{builds, buttons, licenses, packages, regions, theme, version};
 
@@ -243,6 +244,7 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
                 match table.trim() {
                     "builds" => builds::table(&root),
                     "hardware" => Ok(hardware.table(&catalog)),
+                    "examples" => examples::table(&root, &catalog),
                     reference if reference.starts_with("reference ") => {
                         let key = reference.trim_start_matches("reference ").trim();
                         catalog
@@ -516,7 +518,7 @@ const SECTIONS: &[&str] = &[
 // Joins an item's `///`/`//!` doc lines (dropping the single leading space rustdoc adds) and
 // renders them as Markdown: rustdoc section headers become bold labels rather than H1s, and
 // hidden doctest lines (`#` inside a code fence) are dropped, with `##` unescaped to `#`.
-fn doc_of(attrs: &[syn::Attribute]) -> String {
+pub(crate) fn doc_of(attrs: &[syn::Attribute]) -> String {
     let mut raw = Vec::new();
     for attr in attrs {
         if attr.path().is_ident("doc") {

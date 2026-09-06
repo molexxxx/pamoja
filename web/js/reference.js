@@ -25,7 +25,7 @@
     + '<div class="pamoja-bar-nav" role="navigation" aria-label="Site">'
     + '<a href="/docs/index.html">Docs</a>'
     + '<a href="/docs/hardware.html">Hardware</a>'
-    + '<a href="/docs/reference/rust.html">Reference</a>'
+    + '<a href="/docs/reference/index.html">Reference</a>'
     + '</div>'
     + '<div class="pamoja-bar-end">'
     + (language ? `<a class="pamoja-bar-back" href="/docs/reference/${language}.html">${back}<span>${names[language]} reference</span></a>` : '')

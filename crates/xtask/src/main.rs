@@ -11,6 +11,7 @@ mod builds;
 mod buttons;
 mod catalog;
 mod docs;
+mod examples;
 mod footprint;
 mod hardware;
 mod i18n;

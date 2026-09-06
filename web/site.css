@@ -226,6 +226,10 @@ p.source + figure.code { margin-top: 0.5rem; }
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .pkg:hover, .domain:hover { border-color: var(--line-strong); }
+/* A card whose install line is long stacks it under the title instead of beside it. */
+.pkg.stack .pkg-head { grid-template-columns: minmax(0, 1fr); }
+.pkg.stack .pkg-get { justify-content: flex-start; }
+.pkg.stack .pkg-get .cmd { flex: 1; }
 .pkg:target { border-color: var(--amber); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--cream) 4%, transparent), 0 0 0 3px color-mix(in srgb, var(--amber) 18%, transparent); }
 .pkg-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.6rem 1.5rem; align-items: start; padding: 1rem var(--pad-card) 0.9rem; }
 .pkg-what { min-width: 0; }
@@ -234,6 +238,9 @@ p.source + figure.code { margin-top: 0.5rem; }
 .pkg-import, .article .pkg-import { display: inline-block; margin-left: 0.55rem; padding: 0.1rem 0.45rem; vertical-align: 0.12em; border-radius: 6px; font: 500 0.72rem var(--mono); color: var(--muted); background: color-mix(in srgb, var(--cream) 5%, transparent); border: 1px solid var(--line); }
 .pkg-what p { margin: 0.4rem 0 0; font-size: 0.9rem; line-height: 1.5; color: var(--muted); }
 .pkg-what p a { color: var(--muted); text-decoration-color: var(--line-strong); }
+.pkg-proves, .article .pkg-proves { margin: 0.5rem 0 0; padding-left: 1.1rem; font-size: 0.86rem; line-height: 1.5; color: var(--muted); }
+.article .pkg-proves li + li { margin-top: 0.25rem; }
+.pkg-proves code, .article .pkg-proves code { font-size: 0.9em; }
 .pkg-what p a:hover { color: var(--amber); }
 .pkg-get { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
 .cmd {
@@ -413,6 +420,7 @@ p.source + figure.code { margin-top: 0.5rem; }
   .pager-next { grid-column: auto; text-align: left; align-items: flex-start; }
   .article h1 { font-size: 2rem; }
   figure.code pre { padding: 0.8rem 0.9rem; font-size: 0.8rem; }
+  .pkg-get .cmd { height: auto; padding: 0.45rem 0.8rem; white-space: normal; overflow-wrap: anywhere; line-height: 1.45; }
 }
 
 .nav-progress { position: fixed; top: 0; left: 0; z-index: 60; height: 2px; width: 0; background: linear-gradient(90deg, var(--teal), var(--amber)); opacity: 0; transition: width 0.4s ease, opacity 0.2s ease; pointer-events: none; }

@@ -25,6 +25,10 @@ If you are here with a part in hand rather than a language in mind,
 [Hardware](hardware.md) lists what the drivers were written against, the buses
 and radios the crates implement, and the boards this is built and tested on.
 
+To see it run before reading anything, [Examples](examples.md) lists every
+complete program and every guide's example in the four languages, all of which
+run in CI on every change.
+
 ## What it covers
 
 <!-- table: chapters -->
