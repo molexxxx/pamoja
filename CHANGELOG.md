@@ -17,6 +17,14 @@ released together, so one entry covers all of them.
   stops at a file PyPI refuses: it prints PyPI's full answer, carries on with
   the rest, and fails at the end naming what it could not place.
 
+### Changed
+
+- The architecture drawing opens over the page at full size when clicked, the
+  phone layout on a phone, closed by the button, a click outside it, or Escape,
+  rather than leaving the page for the file; on a wide screen it also runs a
+  little past the text column. The site's background is a faint grain over the
+  colour washes rather than a grid of dots.
+
 ## [0.1.17] - 2026-09-06
 
 The website, rebuilt. The documentation site and the front page are rendered by
