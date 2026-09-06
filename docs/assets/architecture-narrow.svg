@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="1086" viewBox="0 0 440 1086" role="img" aria-labelledby="title">
+  <title id="title">How a call reaches a crate: the three bindings over the compiled engine, Rust straight to the crates, every capability crate over pamoja-core.</title>
+  <defs>
+    <linearGradient id="bridge" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1fa995" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#ffb627" stop-opacity="0.16"/>
+    </linearGradient>
+    <marker id="head" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0.5 L7,4 L0,7.5" fill="none" stroke="#95a7be" stroke-width="1.5"/>
+    </marker>
+  </defs>
+  <rect width="440" height="1086" rx="16" fill="#0a1322"/>
+  <rect x="20" y="20" width="126.66666666666667" height="74" rx="10" fill="rgba(31, 169, 149, 0.14)" stroke="rgba(31, 169, 149, 0.55)"/>
+  <text x="32" y="45" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#fbf3e4">TypeScript</text>
+  <text x="32" y="65" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#e7eef8">@pamoja/&lt;name&gt;</text>
+  <text x="32" y="82" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="10" font-weight="400" fill="#95a7be">napi-rs</text>
+  <rect x="156.66666666666669" y="20" width="126.66666666666667" height="74" rx="10" fill="rgba(31, 169, 149, 0.14)" stroke="rgba(31, 169, 149, 0.55)"/>
+  <text x="168.66666666666669" y="45" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#fbf3e4">Python</text>
+  <text x="168.66666666666669" y="65" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#e7eef8">pamoja-&lt;name&gt;</text>
+  <text x="168.66666666666669" y="82" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="10" font-weight="400" fill="#95a7be">PyO3</text>
+  <rect x="293.33333333333337" y="20" width="126.66666666666667" height="74" rx="10" fill="rgba(31, 169, 149, 0.14)" stroke="rgba(31, 169, 149, 0.55)"/>
+  <text x="305.33333333333337" y="45" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#fbf3e4">C#</text>
+  <text x="305.33333333333337" y="65" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#e7eef8">Pamoja.&lt;Name&gt;</text>
+  <text x="305.33333333333337" y="82" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="10" font-weight="400" fill="#95a7be">cbindgen, P/Invoke</text>
+  <rect x="170" y="270" width="250" height="74" rx="10" fill="rgba(255, 182, 39, 0.14)" stroke="rgba(255, 182, 39, 0.55)"/>
+  <text x="182" y="295" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#fbf3e4">Rust</text>
+  <text x="182" y="315" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#e7eef8">pamoja-&lt;name&gt;</text>
+  <text x="182" y="332" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="10" font-weight="400" fill="#95a7be">cargo, only the crates it names</text>
+  <line x1="83.33333333333334" y1="94" x2="83.33333333333334" y2="138" stroke="#95a7be" stroke-width="1.5" marker-end="url(#head)"/>
+  <line x1="220.00000000000003" y1="94" x2="220.00000000000003" y2="138" stroke="#95a7be" stroke-width="1.5" marker-end="url(#head)"/>
+  <line x1="356.6666666666667" y1="94" x2="356.6666666666667" y2="138" stroke="#95a7be" stroke-width="1.5" marker-end="url(#head)"/>
+  <line x1="295" y1="344" x2="295" y2="388" stroke="#95a7be" stroke-width="1.5" marker-end="url(#head)"/>
+  <rect x="20" y="138" width="400" height="88" rx="10" fill="url(#bridge)" stroke="rgba(251, 243, 228, 0.2)"/>
+  <text x="32" y="163" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#fbf3e4">Compiled engine</text>
+  <text x="32" y="184" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="11" font-weight="400" fill="#e7eef8">pamoja-ffi over the C ABI: one library carrying every capability</text>
+  <text x="32" y="202" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="10" font-weight="400" fill="#95a7be">@pamoja/native, pamoja-native, Pamoja.Native</text>
+  <text x="32" y="218" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="10" font-weight="400" fill="#95a7be">A package narrows the API, not the download.</text>
+  <line x1="90" y1="226" x2="90" y2="388" stroke="#95a7be" stroke-width="1.5" marker-end="url(#head)"/>
+  <rect x="20" y="388" width="400" height="636" rx="12" fill="rgba(251, 243, 228, 0.03)" stroke="rgba(251, 243, 228, 0.12)"/>
+  <text x="34" y="410" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#95a7be" letter-spacing="1.2">CAPABILITY CRATES</text>
+  <rect x="34" y="422" width="179" height="60" rx="10" fill="#16263f" stroke="rgba(251, 243, 228, 0.12)"/>
+  <text x="48" y="444" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#fbf3e4">Identity</text>
+  <circle cx="40" cy="460" r="2.5" fill="#ffb627"/>
+  <text x="48" y="464" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">security</text>
+  <rect x="227" y="422" width="179" height="60" rx="10" fill="#16263f" stroke="rgba(251, 243, 228, 0.12)"/>
+  <text x="241" y="444" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#fbf3e4">Codecs</text>
+  <circle cx="233" cy="460" r="2.5" fill="#ffb627"/>
+  <text x="241" y="464" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">codec</text>
+  <rect x="34" y="496" width="179" height="78" rx="10" fill="#16263f" stroke="rgba(251, 243, 228, 0.12)"/>
+  <text x="48" y="518" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#fbf3e4">Helpers</text>
+  <text x="48" y="538" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">kit</text>
+  <rect x="227" y="496" width="179" height="78" rx="10" fill="#16263f" stroke="rgba(251, 243, 228, 0.12)"/>
+  <text x="241" y="518" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#fbf3e4">Field I/O</text>
+  <text x="241" y="538" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">serial</text>
+  <text x="316.5" y="538" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">modbus</text>
+  <text x="241" y="556" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">can</text>
+  <text x="316.5" y="556" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">gpio</text>
+  <rect x="34" y="588" width="179" height="78" rx="10" fill="#16263f" stroke="rgba(251, 243, 228, 0.12)"/>
+  <text x="48" y="610" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#fbf3e4">Sensing and actuation</text>
+  <text x="48" y="630" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">sensors</text>
+  <text x="123.5" y="630" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">actuators</text>
+  <rect x="227" y="588" width="179" height="78" rx="10" fill="#16263f" stroke="rgba(251, 243, 228, 0.12)"/>
+  <text x="241" y="610" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#fbf3e4">Radio and reach</text>
+  <text x="241" y="630" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">lora</text>
+  <text x="316.5" y="630" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">lorawan</text>
+  <text x="241" y="648" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">mesh</text>
+  <text x="316.5" y="648" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">routing</text>
+  <rect x="34" y="680" width="179" height="96" rx="10" fill="#16263f" stroke="rgba(251, 243, 228, 0.12)"/>
+  <text x="48" y="702" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#fbf3e4">MAVLink</text>
+  <circle cx="40" cy="718" r="2.5" fill="#ffb627"/>
+  <text x="48" y="722" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">mavlink</text>
+  <rect x="227" y="680" width="179" height="96" rx="10" fill="#16263f" stroke="rgba(251, 243, 228, 0.12)"/>
+  <text x="241" y="702" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#fbf3e4">Trust and operation</text>
+  <circle cx="233" cy="718" r="2.5" fill="#ffb627"/>
+  <text x="241" y="722" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">audit</text>
+  <text x="316.5" y="722" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">session</text>
+  <circle cx="233" cy="736" r="2.5" fill="#ffb627"/>
+  <text x="241" y="740" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">update</text>
+  <text x="316.5" y="740" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">power</text>
+  <text x="241" y="758" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">telemetry</text>
+  <rect x="34" y="790" width="179" height="114" rx="10" fill="#16263f" stroke="rgba(251, 243, 228, 0.12)"/>
+  <text x="48" y="812" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#fbf3e4">Transports and testing</text>
+  <circle cx="40" cy="828" r="2.5" fill="#ffb627"/>
+  <text x="48" y="832" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">mqtt</text>
+  <circle cx="115.5" cy="828" r="2.5" fill="#ffb627"/>
+  <text x="123.5" y="832" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">coap</text>
+  <circle cx="40" cy="846" r="2.5" fill="#ffb627"/>
+  <text x="48" y="850" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">loopback</text>
+  <circle cx="115.5" cy="846" r="2.5" fill="#ffb627"/>
+  <text x="123.5" y="850" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">sync</text>
+  <circle cx="40" cy="864" r="2.5" fill="#ffb627"/>
+  <text x="48" y="868" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">ladder</text>
+  <circle cx="115.5" cy="864" r="2.5" fill="#ffb627"/>
+  <text x="123.5" y="868" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">bus</text>
+  <circle cx="40" cy="882" r="2.5" fill="#ffb627"/>
+  <text x="48" y="886" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">sim</text>
+  <rect x="227" y="790" width="179" height="114" rx="10" fill="#16263f" stroke="rgba(251, 243, 228, 0.12)"/>
+  <text x="241" y="812" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#fbf3e4">Profiles and robotics</text>
+  <circle cx="233" cy="828" r="2.5" fill="#ffb627"/>
+  <text x="241" y="832" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">profile</text>
+  <circle cx="308.5" cy="828" r="2.5" fill="#ffb627"/>
+  <text x="316.5" y="832" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">ros2</text>
+  <circle cx="233" cy="846" r="2.5" fill="#ffb627"/>
+  <text x="241" y="850" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11.5" font-weight="400" fill="#e7eef8">zenoh</text>
+  <rect x="34" y="918" width="372" height="92" rx="10" fill="rgba(255, 182, 39, 0.14)" stroke="rgba(255, 182, 39, 0.55)"/>
+  <circle cx="50" cy="992" r="2.5" fill="#ffb627"/>
+  <text x="60" y="996" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="10" font-weight="400" fill="#95a7be">marks a crate built on it; the rest depend on nothing at all.</text>
+  <text x="48" y="943" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="600" fill="#fbf3e4">pamoja-core</text>
+  <text x="48" y="964" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="11" font-weight="400" fill="#e7eef8">Transport, Device, Sensor, Actuator, Store, and the event bus</text>
+  <text x="48" y="981" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="10" font-weight="400" fill="#95a7be">no_std, so it runs on a microcontroller</text>
+  <text x="20" y="1050" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="10" font-weight="400" fill="#95a7be">Every name in a chapter is a crate, pamoja-&lt;name&gt;, and the same</text>
+  <text x="20" y="1066" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="10" font-weight="400" fill="#95a7be">capability is a package on npm, PyPI, and NuGet.</text>
+</svg>

@@ -260,7 +260,7 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
     }
 
     files.extend(buttons::render());
-    files.push(diagram::render(&catalog));
+    files.extend(diagram::render(&catalog, &root)?);
     files.extend(theme::render(&root)?);
     files.extend(licenses::render(&root)?);
 

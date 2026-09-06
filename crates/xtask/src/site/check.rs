@@ -203,10 +203,10 @@ pub fn check(corpus: &dyn Corpus, trusted: &[&str]) -> Result<(), String> {
     }
 }
 
-/// Every `href` and `src` value in `html`, in order.
+/// Every `href`, `src`, and `srcset` value in `html`, in order.
 pub fn links_in(html: &str) -> Vec<String> {
     let mut out = Vec::new();
-    for attribute in ["href=\"", "src=\""] {
+    for attribute in ["href=\"", "src=\"", "srcset=\""] {
         let mut rest = html;
         while let Some(at) = rest.find(attribute) {
             let value = &rest[at + attribute.len()..];

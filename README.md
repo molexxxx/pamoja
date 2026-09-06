@@ -369,7 +369,10 @@ Every capability is a crate over one core, and a package in each binding over
 one compiled engine. The [architecture page](https://pamoja.molex.cloud/docs/about/architecture.html)
 walks through the drawing.
 
-<a href="https://pamoja.molex.cloud/docs/about/architecture.html"><img alt="How a call reaches a crate: the three bindings over the compiled engine, Rust straight to the crates, and every capability crate over pamoja-core" src="docs/assets/architecture.svg" width="100%"></a>
+<a href="https://pamoja.molex.cloud/docs/about/architecture.html"><picture>
+<source media="(max-width: 640px)" srcset="docs/assets/architecture-narrow.svg">
+<img alt="How a call reaches a crate: the three bindings over the compiled engine, Rust straight to the crates, and every capability crate over pamoja-core" src="docs/assets/architecture.svg" width="100%">
+</picture></a>
 
 <!-- table: chapters -->
 | Chapter | Guides | Crates |
