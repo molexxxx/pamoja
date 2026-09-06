@@ -12,6 +12,8 @@
 &nbsp;<a href="LICENSE-MIT"><img height="22" alt="license MIT" src="https://raw.githubusercontent.com/molexxxx/molexxxx/main/.github/badges/pamoja-license-pamoja.svg?v=79a1d17d"></a>
 
 <a href="https://pamoja.molex.cloud/docs/"><img height="34" alt="documentation" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg"></a>
+&nbsp;<a href="https://pamoja.molex.cloud/docs/reference/index.html"><img height="34" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+&nbsp;<a href="https://pamoja.molex.cloud/docs/examples.html"><img height="34" alt="examples" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-examples.svg"></a>
 &nbsp;<a href="https://pamoja.molex.cloud"><img height="34" alt="website" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-website.svg"></a>
 &nbsp;<a href="https://pamoja.molex.cloud/dashboard"><img height="34" alt="dashboard demo" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-dashboard.svg"></a>
 
@@ -363,6 +365,12 @@ else
 
 ## What it covers
 
+Every capability is a crate over one core, and a package in each binding over
+one compiled engine. The [architecture page](https://pamoja.molex.cloud/docs/about/architecture.html)
+walks through the drawing.
+
+<a href="https://pamoja.molex.cloud/docs/about/architecture.html"><img alt="How a call reaches a crate: the three bindings over the compiled engine, Rust straight to the crates, and every capability crate over pamoja-core" src="docs/assets/architecture.svg" width="100%"></a>
+
 <!-- table: chapters -->
 | Chapter | Guides | Crates |
 | --- | --- | --- |
@@ -395,6 +403,11 @@ page on any registry links to the same capability on the other three.
 <!-- end -->
 
 - [The guides and the install page](https://pamoja.molex.cloud/docs/).
+- [Every example](https://pamoja.molex.cloud/docs/examples.html): each complete
+  program and each guide's example in the four languages, all run in CI, with
+  the file that runs it.
+- [The reference hub](https://pamoja.molex.cloud/docs/reference/index.html),
+  which opens the generated API pages for each language.
 - [The hardware](https://pamoja.molex.cloud/docs/hardware.html) the drivers were
   written against, the buses and radios the crates implement, and the boards this
   is built and tested on.

@@ -53,6 +53,11 @@ const BUTTONS: &[Button] = &[
         warm: true,
     },
     Button {
+        file: "btn-examples.svg",
+        label: "examples",
+        warm: true,
+    },
+    Button {
         file: "btn-reference.svg",
         label: "open the reference",
         warm: true,
