@@ -331,6 +331,8 @@ mod tests {
             "js/site.js",
             "js/home.js",
             "js/consoles.js",
+            "reference.css",
+            "js/reference.js",
             "search.json",
             "404.html",
             ".nojekyll",
@@ -405,7 +407,7 @@ mod tests {
 
     #[test]
     fn the_token_sheet_is_the_only_place_colours_live() {
-        for sheet in ["web/site.css", "web/home.css"] {
+        for sheet in ["web/site.css", "web/home.css", "web/reference.css"] {
             let css = fs::read_to_string(docs::repo_root().join(sheet)).unwrap();
             assert!(
                 !has_colour_literal(&css),

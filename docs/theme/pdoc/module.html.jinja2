@@ -1,0 +1,11 @@
+{# The default module page, with the site's bar and its stylesheet loaded from the site root
+   so a reader who followed a link in stays inside the site; custom.css beside this file
+   carries the palette. #}
+{% extends "default/module.html.jinja2" %}
+
+{% block head %}
+    {{ super() }}
+    <link rel="stylesheet" href="/theme.css">
+    <link rel="stylesheet" href="/reference.css">
+    <script src="/js/reference.js" defer></script>
+{% endblock %}
