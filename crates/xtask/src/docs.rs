@@ -23,7 +23,7 @@ use syn::{Fields, ImplItem, Item, TraitItem, Visibility};
 
 use crate::catalog::{Catalog, SITE};
 use crate::hardware::Hardware;
-use crate::{builds, buttons, landings, licenses, packages, regions, theme, version};
+use crate::{builds, buttons, licenses, packages, regions, theme, version};
 
 /// Run the `docs` task: regenerate every derived file, or `--check` to verify they are in sync.
 ///
@@ -255,7 +255,6 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
 
     files.extend(buttons::render());
     files.extend(theme::render());
-    files.extend(landings::render(&root, &catalog)?);
     files.extend(licenses::render(&root)?);
 
     // The mark the showcase uses, carried into the site so every reference page opens with
