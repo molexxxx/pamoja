@@ -1422,8 +1422,8 @@ fn dotnet_domain_files(chapter: &Chapter, members: &[&Capability]) -> Vec<(Strin
     ]
 }
 
-// A kebab-case key as a .NET package-name segment: `field-io` becomes `FieldIo`.
-fn pascal(key: &str) -> String {
+/// A kebab-case key as a .NET package-name segment: `field-io` becomes `FieldIo`.
+pub(crate) fn pascal(key: &str) -> String {
     key.split('-').map(dotnet_name).collect::<Vec<_>>().concat()
 }
 

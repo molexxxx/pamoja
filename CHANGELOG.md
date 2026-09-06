@@ -124,13 +124,14 @@ released together, so one entry covers all of them.
   link, and the front page's hero, first example, capability cards, and backing
   preview were reworked.
 - The architecture page opens with a drawing of how a call reaches a crate: the
-  three bindings over the compiled engine, Rust straight to the crates it names,
-  and every capability crate in one block on `pamoja-core`, with the crates whose
-  manifests depend on the core marked and the rest stated as depending on
-  nothing. It is rendered from the capability map and the manifests by `cargo
-  xtask docs`, in a wide layout and one for a phone, so it names every chapter
-  and crate the map does and is checked like the tables. The link buttons take
-  their colours from the same palette as the site's theme.
+  three bindings over the compiled engine, a Rust program straight to the
+  crates, and every capability by chapter, each box naming its crates, the ones
+  whose manifests build on `pamoja-core` in amber over the core itself, and the
+  package that installs the chapter on npm, PyPI, NuGet, and as a feature of
+  the `pamoja` crate. It is rendered from the capability map and the manifests
+  by `cargo xtask docs`, in a wide layout and one for a phone, so it names every
+  chapter and crate the map does and is checked like the tables. The link
+  buttons take their colours from the same palette as the site's theme.
 
 ## [0.1.16] - 2026-09-05
 
