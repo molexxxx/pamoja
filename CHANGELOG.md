@@ -95,6 +95,12 @@ released together, so one entry covers all of them.
   with, each a panel of rows of one shape (what it is and a detail on the left,
   the price or the way out on the right), single-column where there is nothing
   to buy. The cards share one padding with the reference rows.
+- `cargo xtask prices` reads every product page the hardware page lists, takes
+  the price the page states as Schema.org product data, writes it back with the
+  day it was read, and orders each part's offers cheapest first; a page that
+  states no price that way, or refuses a scripted reader, keeps its last record
+  and is named in the report. A weekly workflow runs it and opens a pull
+  request with what moved.
 - The front page is rendered by `cargo xtask site` from the capability map and
   `web/home.toml`, in the same shell as the documentation: the four install
   lines, the first example in four languages spliced from the tests that run it,

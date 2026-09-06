@@ -17,6 +17,7 @@ mod i18n;
 mod licenses;
 mod links;
 mod packages;
+mod prices;
 mod regions;
 mod release;
 mod site;
@@ -60,6 +61,10 @@ const TASKS: &[(&str, &str)] = &[
     (
         "links",
         "fetch every source the hardware reference cites and fail on anything that is not 200",
+    ),
+    (
+        "prices",
+        "read every product page the hardware reference lists and refresh its prices (prices [--report <file>])",
     ),
 ];
 
@@ -125,6 +130,25 @@ fn main() -> ExitCode {
                 .ancestors()
                 .nth(2)
                 .expect("repo root is two levels above the xtask crate"),
+        );
+    }
+
+    if task == "prices" {
+        let rest: Vec<String> = args.collect();
+        let report = match rest.as_slice() {
+            [] => None,
+            [flag, path] if flag == "--report" => Some(Path::new(path)),
+            _ => {
+                eprintln!("usage: cargo xtask prices [--report <file>]");
+                return ExitCode::FAILURE;
+            }
+        };
+        return prices::run(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .ancestors()
+                .nth(2)
+                .expect("repo root is two levels above the xtask crate"),
+            report,
         );
     }
 

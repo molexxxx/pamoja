@@ -71,7 +71,7 @@ verified = true
 vendor = "Pimoroni"
 name = "BME280 Breakout - Temperature, Pressure, Humidity Sensor"
 url = "https://shop.pimoroni.com/products/bme280-breakout"
-price = "£11.50"
+price = "£13.80"
 checked = "2026-09-06"
 verified = true
 
@@ -199,7 +199,7 @@ source = "https://www.ti.com/lit/ds/symlink/ads1115.pdf"
 vendor = "DFRobot"
 name = "Gravity: I2C ADS1115 16-Bit ADC Module"
 url = "https://www.dfrobot.com/product-1730.html"
-price = "US$8.90"
+price = "US$15.50"
 checked = "2026-09-06"
 verified = true
 
@@ -437,8 +437,8 @@ verified = true
 [[entry.buy]]
 vendor = "Pimoroni"
 name = "Adafruit RFM95W LoRa Radio Transceiver Breakout - 868 or 915 MHz (ADA3072)"
-url = "https://shop.pimoroni.com/products/adafruit-rfm95w-lora-radio-transceiver-breakout"
-price = "£16.25"
+url = "https://shop.pimoroni.com/products/adafruit-rfm95w-lora-radio-transceiver-breakout?variant=19595325639"
+price = "£19.50"
 checked = "2026-09-06"
 verified = true
 
@@ -538,7 +538,7 @@ verified = true
 [[entry.buy]]
 vendor = "The Pi Hut"
 name = "Seeed XIAO ESP32C3 (board with loose headers)"
-url = "https://thepihut.com/products/seeed-xiao-esp32c3"
+url = "https://thepihut.com/products/seeed-xiao-esp32c3?variant=53975115661697"
 price = "£5.10"
 checked = "2026-09-06"
 verified = true
@@ -680,15 +680,15 @@ verified = true
 [[entry.buy]]
 vendor = "Pimoroni"
 name = "Raspberry Pi 5, 4 GB (SC1111)"
-url = "https://shop.pimoroni.com/products/raspberry-pi-5"
-price = "£88.00"
+url = "https://shop.pimoroni.com/products/raspberry-pi-5?variant=41044580204627"
+price = "£105.60"
 checked = "2026-09-06"
 verified = true
 
 [[entry.buy]]
 vendor = "The Pi Hut"
 name = "Raspberry Pi 5, 4 GB"
-url = "https://thepihut.com/products/raspberry-pi-5"
+url = "https://thepihut.com/products/raspberry-pi-5?variant=42531604922563"
 price = "£105.60"
 checked = "2026-09-06"
 verified = true
@@ -714,15 +714,15 @@ manual_check = "raspberrypi.com answers 403 to curl whatever agent string it car
 [[entry.buy]]
 vendor = "Pimoroni"
 name = "Raspberry Pi Zero 2 W (SC1176)"
-url = "https://shop.pimoroni.com/products/raspberry-pi-zero-2-w"
-price = "£12.00"
+url = "https://shop.pimoroni.com/products/raspberry-pi-zero-2-w?variant=39493046075475"
+price = "£14.40"
 checked = "2026-09-06"
 verified = true
 
 [[entry.buy]]
 vendor = "The Pi Hut"
 name = "Raspberry Pi Zero 2 W"
-url = "https://thepihut.com/products/raspberry-pi-zero-2"
+url = "https://thepihut.com/products/raspberry-pi-zero-2?variant=41181426909379"
 price = "£14.40"
 checked = "2026-09-06"
 verified = true
@@ -800,7 +800,7 @@ source = "https://ardupilot.org/dev/index.html"
 [[entry.buy]]
 vendor = "Holybro"
 name = "Pixhawk 6C Mini, Model-B, no power module"
-url = "https://holybro.com/products/pixhawk-6c-mini"
+url = "https://holybro.com/products/pixhawk-6c-mini?variant=44511519637693"
 price = "US$130.99"
 checked = "2026-09-06"
 verified = true
@@ -808,7 +808,7 @@ verified = true
 [[entry.buy]]
 vendor = "Holybro"
 name = "Pixhawk 6C, plastic case, no power module"
-url = "https://holybro.com/products/pixhawk-6c"
+url = "https://holybro.com/products/pixhawk-6c?variant=42783569871037"
 price = "US$165.99"
 checked = "2026-09-06"
 verified = true
@@ -835,7 +835,7 @@ source = "https://docs.px4.io/main/en/"
 [[entry.buy]]
 vendor = "Holybro"
 name = "Pixhawk 6C Mini, Model-B, no power module"
-url = "https://holybro.com/products/pixhawk-6c-mini"
+url = "https://holybro.com/products/pixhawk-6c-mini?variant=44511519637693"
 price = "US$130.99"
 checked = "2026-09-06"
 verified = true
@@ -843,7 +843,7 @@ verified = true
 [[entry.buy]]
 vendor = "Holybro"
 name = "Pixhawk 6C, plastic case, no power module"
-url = "https://holybro.com/products/pixhawk-6c"
+url = "https://holybro.com/products/pixhawk-6c?variant=42783569871037"
 price = "US$165.99"
 checked = "2026-09-06"
 verified = true
@@ -869,7 +869,7 @@ source = "https://pixhawk.org/standards/"
 [[entry.buy]]
 vendor = "Holybro"
 name = "Pixhawk 6C Mini, Model-B, no power module"
-url = "https://holybro.com/products/pixhawk-6c-mini"
+url = "https://holybro.com/products/pixhawk-6c-mini?variant=44511519637693"
 price = "US$130.99"
 checked = "2026-09-06"
 verified = true
@@ -877,7 +877,7 @@ verified = true
 [[entry.buy]]
 vendor = "Holybro"
 name = "Pix32 v6, FC module only"
-url = "https://holybro.com/products/pix32-v6"
+url = "https://holybro.com/products/pix32-v6?variant=43020083527869"
 price = "US$146.99"
 checked = "2026-09-06"
 verified = true
@@ -885,7 +885,7 @@ verified = true
 [[entry.buy]]
 vendor = "Holybro"
 name = "Pixhawk 6C, plastic case, no power module"
-url = "https://holybro.com/products/pixhawk-6c"
+url = "https://holybro.com/products/pixhawk-6c?variant=42783569871037"
 price = "US$165.99"
 checked = "2026-09-06"
 verified = true

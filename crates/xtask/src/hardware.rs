@@ -81,8 +81,11 @@ pub struct Entry {
     pub manual_check: String,
     /// Where to buy it: a few product pages, the cheapest reputable option first, each with
     /// the price the page listed on the day it was read. Empty for a bus, a protocol, or a
-    /// specification, which cost nothing to speak.
+    /// specification, which cost nothing to speak, and for a part no reputable store lists.
     pub buy: Vec<Buy>,
+    /// For a part with a price band and no store: the day the stores were last searched, so
+    /// the card can say so. Empty otherwise.
+    pub buy_checked: String,
 }
 
 /// One place to buy a part, and what it cost there on the day the page was read.
@@ -178,6 +181,7 @@ impl Hardware {
                 source: string(table, "source", &context)?,
                 manual_check: optional(table, "manual_check"),
                 buy: buys(table, &context)?,
+                buy_checked: optional(table, "buy_checked"),
                 key,
             });
         }
@@ -331,6 +335,14 @@ impl Hardware {
                     "{at}: lists where to buy a thing that has no price"
                 ));
             }
+            if !entry.buy_checked.is_empty() {
+                if !is_date(&entry.buy_checked) {
+                    return Err(format!("{at}: `buy_checked` must be a YYYY-MM-DD date"));
+                }
+                if !entry.buy.is_empty() {
+                    return Err(format!("{at}: `buy_checked` goes with an empty buy list"));
+                }
+            }
             let mut pages = BTreeSet::new();
             for buy in &entry.buy {
                 if !buy.url.starts_with("https://") {
@@ -482,7 +494,16 @@ fn card(entry: &Entry, group: &Group, catalog: &Catalog) -> String {
         }
     }
 
-    let buy = if entry.buy.is_empty() {
+    let buy = if entry.buy.is_empty() && entry.cost != "not applicable" {
+        let since = if entry.buy_checked.is_empty() {
+            String::new()
+        } else {
+            format!(" as of {}", escape(&entry.buy_checked))
+        };
+        format!(
+            "<section class=\"hw-buy\"><h5>Where to buy</h5><p class=\"hw-none\">No reputable store lists this part{since}. The makers' stores and the larger distributors are searched as the page is maintained, and a listing that appears is added here with its price.</p></section>\n"
+        )
+    } else if entry.buy.is_empty() {
         String::new()
     } else {
         let same_day = entry.buy.iter().all(|b| b.checked == entry.buy[0].checked);
@@ -517,7 +538,7 @@ fn card(entry: &Entry, group: &Group, catalog: &Catalog) -> String {
             .collect();
         format!("<section class=\"hw-buy\"><h5>{heading}</h5><ul class=\"hw-rows\">{offers}</ul></section>\n")
     };
-    let solo = if entry.buy.is_empty() { " solo" } else { "" };
+    let solo = if buy.is_empty() { " solo" } else { "" };
 
     format!(
         "<article class=\"hw-card\" id=\"{}\">\n<header class=\"hw-head\"><div class=\"hw-name\"><h4>{}</h4><span class=\"hw-by\">{}</span></div><p class=\"hw-summary\">{}</p></header>\n<dl class=\"hw-facts\">{facts}</dl>\n<div class=\"hw-foot{solo}\">\n{buy}<section class=\"hw-learn\"><h5>Read and build</h5><ul class=\"hw-rows\">{}</ul></section>\n</div>\n</article>\n",
@@ -752,8 +773,8 @@ crates = ["pamoja-core"]
         assert!(rendered.contains("<a class=\"hw-row\" href=\"https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html\"><span class=\"hw-main\"><b>Crate</b><small><code>pamoja-sensors</code></small></span>"));
         assert!(rendered.contains("<a class=\"hw-row guide\" href=\"https://pamoja.molex.cloud/docs/guides/sensors.html\"><span class=\"hw-main\"><b>Sensor drivers guide</b><small>the worked example, in four languages</small></span><span class=\"hw-go\" aria-hidden=\"true\">&#8594;</span></a>"));
         assert!(
-            !rendered.contains("hw-buy") && rendered.contains("<div class=\"hw-foot solo\">"),
-            "nothing to buy is listed, and the foot is one column"
+            rendered.contains("hw-none") && rendered.contains("<div class=\"hw-foot\">"),
+            "a part no store lists says so beside what to read"
         );
         assert!(rendered.ends_with("</article>\n</div>"), "{rendered}");
     }
@@ -809,6 +830,33 @@ verified = false
         let rendered = hardware.table(&catalog());
         assert!(rendered.contains("<dt>Typical cost</dt><dd>$5 to $20 for a breakout module or a board; the lowest listed price is <a href=\"https://www.adafruit.com/product/2652\">US$14.95</a> at Adafruit</dd>"), "{rendered}");
         assert!(rendered.contains("<div class=\"hw-foot\">\n<section class=\"hw-buy\"><h5>Where to buy <small>prices as listed on 2026-09-06</small></h5><ul class=\"hw-rows\"><li><a class=\"hw-row\" href=\"https://www.adafruit.com/product/2652\"><span class=\"hw-main\"><b>Adafruit</b><small>Adafruit BME280 breakout</small></span><span class=\"hw-price\">US$14.95</span></a></li><li><a class=\"hw-row\" href=\"https://www.digikey.com/en/products/detail/bosch/BME280/5341156\"><span class=\"hw-main\"><b>Digi-Key</b><small>BME280 bare sensor</small><small class=\"hw-note\">listed price; the page refuses scripted readers</small></span><span class=\"hw-price\">US$5.34</span></a></li></ul></section>"), "{rendered}");
+    }
+
+    #[test]
+    fn a_part_no_store_lists_says_so_with_the_day_the_stores_were_searched() {
+        let searched = format!("{MINIMAL}buy_checked = \"2026-09-06\"\n");
+        let rendered = Hardware::parse(&searched)
+            .expect("parses")
+            .table(&catalog());
+        assert!(rendered.contains("<div class=\"hw-foot\">\n<section class=\"hw-buy\"><h5>Where to buy</h5><p class=\"hw-none\">No reputable store lists this part as of 2026-09-06."), "{rendered}");
+        let plain = Hardware::parse(MINIMAL).expect("parses").table(&catalog());
+        assert!(
+            plain.contains("<p class=\"hw-none\">No reputable store lists this part. The makers"),
+            "{plain}"
+        );
+        let root = std::env::temp_dir();
+        let bad_date = format!("{MINIMAL}buy_checked = \"soon\"\n");
+        assert!(Hardware::parse(&bad_date)
+            .unwrap()
+            .check(&root)
+            .unwrap_err()
+            .contains("YYYY-MM-DD"));
+        let both = format!("{MINIMAL}buy_checked = \"2026-09-06\"\n{BUY}");
+        assert!(Hardware::parse(&both)
+            .unwrap()
+            .check(&root)
+            .unwrap_err()
+            .contains("empty buy list"));
     }
 
     #[test]
