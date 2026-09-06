@@ -15,6 +15,24 @@ body {
   background: radial-gradient(120% 90% at 50% -10%, var(--navy-2) 0%, var(--navy-1) 42%, var(--navy-0) 100%) fixed var(--navy-1);
   -webkit-font-smoothing: antialiased;
 }
+/* The ground: a faint dot grid that fades out down the page, and two slow washes of the
+   palette's warm and cool ends behind everything. */
+body::before, body::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; }
+body::before {
+  background-image: radial-gradient(color-mix(in srgb, var(--cream) 9%, transparent) 1px, transparent 1.2px);
+  background-size: 26px 26px;
+  mask-image: linear-gradient(180deg, color-mix(in srgb, var(--navy-0) 100%, transparent) 0%, transparent 70%);
+  -webkit-mask-image: linear-gradient(180deg, var(--navy-0) 0%, transparent 70%);
+  opacity: 0.6;
+}
+body::after {
+  background:
+    radial-gradient(40% 35% at 15% 10%, color-mix(in srgb, var(--teal) 14%, transparent), transparent 70%),
+    radial-gradient(35% 30% at 85% 0%, color-mix(in srgb, var(--amber) 10%, transparent), transparent 70%),
+    radial-gradient(45% 40% at 60% 100%, color-mix(in srgb, var(--coral) 6%, transparent), transparent 70%);
+  animation: wash 40s ease-in-out infinite alternate;
+}
+@keyframes wash { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(-2%, 1.5%, 0) scale(1.06); } }
 
 /* Scrollbars: thin, and the cream at a fraction of its strength, on the page and in every
    overflow container. A browser with the standard properties ignores the WebKit ones. */
@@ -46,9 +64,12 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 .brand { display: inline-flex; align-items: center; gap: 0.6rem; flex: none; }
 .brand-mark { width: 30px; height: 30px; }
 .brand-word { font-family: var(--display); font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; color: var(--cream); }
-.top-nav { display: flex; gap: 1.4rem; margin-left: 0.6rem; font-size: 0.92rem; color: var(--muted); }
-.top-nav a { transition: color 0.2s ease; }
-.top-nav a:hover { color: var(--cream); }
+.top-nav { display: flex; gap: 0.2rem; margin-left: 0.4rem; font-size: 0.9rem; font-weight: 500; color: var(--muted); }
+.top-nav a { padding: 0.4rem 0.75rem; border-radius: 8px; transition: color 0.2s ease, background 0.2s ease; }
+.top-nav a:hover { color: var(--cream); background: color-mix(in srgb, var(--cream) 6%, transparent); }
+.top-icons { display: flex; gap: 0.15rem; }
+.top-icons a { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 9px; color: var(--muted); transition: color 0.2s ease, background 0.2s ease; }
+.top-icons a:hover { color: var(--cream); background: color-mix(in srgb, var(--cream) 6%, transparent); }
 .menu-toggle {
   display: none; align-items: center; gap: 0.5rem; flex: none;
   height: 36px; padding: 0 0.8rem; cursor: pointer;
@@ -323,16 +344,25 @@ p.source + figure.code { margin-top: 0.5rem; }
 }
 
 @media (max-width: 600px) {
-  .top { gap: 0.8rem; }
+  .top { gap: 0.6rem; }
   .brand-word { display: none; }
   .search { flex: 1 1 auto; }
+  .top-icons a:not(:first-child) { display: none; }
   .pager { grid-template-columns: 1fr; }
   .pager-next { grid-column: auto; text-align: left; align-items: flex-start; }
   .article h1 { font-size: 2rem; }
   figure.code pre { padding: 0.8rem 0.9rem; font-size: 0.8rem; }
 }
 
+/* Navigation without a reload: a thin bar while the next page loads, and a cross-fade
+   between pages where the browser can draw one. */
+.nav-progress { position: fixed; top: 0; left: 0; z-index: 60; height: 2px; width: 0; background: linear-gradient(90deg, var(--teal), var(--amber)); opacity: 0; transition: width 0.4s ease, opacity 0.2s ease; pointer-events: none; }
+.nav-progress.on { width: 70%; opacity: 1; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 160ms; }
+::view-transition { pointer-events: none; }
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  body::after { animation: none; }
   *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
 }

@@ -1,21 +1,20 @@
-// site.js - the behaviour behind the rendered documentation pages.
+// site.js - the behaviour behind the rendered pages.
 //
-// Everything a page does without this file, it still does: the four language sections of
-// a guide stack, the sidebar stays put, the code stays readable. This adds the language
-// tabs and remembers the choice, the search box over search.json, the copy buttons, the
-// sidebar drawer on a narrow screen, and the table of contents following the reader.
-// Dependency-free and a few kilobytes, so a documentation page costs a reader on a slow
-// link almost nothing beyond its text.
+// Everything a page does without this file, it still does: every page is a complete
+// document with its own title and description, the four language sections of a guide
+// stack, the sidebar stays put, the code stays readable. This adds the language tabs and
+// remembers the choice, the search box over search.json, the copy buttons, the sidebar
+// drawer on a narrow screen, the table of contents following the reader, and navigation
+// without a reload: a link to another page of the site fetches that page, swaps the part
+// between the header and the footer, and pushes the address, so the site reads as one
+// application while every address stays a real page. Dependency-free and a few kilobytes.
 
 (() =>
 {
   const root = document.documentElement;
-  const base = root.dataset.root || '';
+  const base = root.dataset.root || '/';
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reducedMotion)
-  {
-    document.querySelectorAll('svg').forEach((svg) => { if (svg.pauseAnimations) svg.pauseAnimations(); });
-  }
+  const LANG_KEY = 'pamoja:lang';
 
   /**
    * Escapes text for insertion as HTML.
@@ -25,95 +24,263 @@
    */
   const esc = (text) => text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
-  // The sidebar keeps the current page in view, and is a drawer on a narrow screen.
-  const toggle = document.querySelector('.menu-toggle');
-  const side = document.getElementById('side');
-  const current = side && side.querySelector('a.current');
-  if (side && current && side.scrollHeight > side.clientHeight)
+  const remember = (lang) => { try { localStorage.setItem(LANG_KEY, lang); } catch { /* private mode */ } };
+
+  let tocObserver = null;
+
+  /**
+   * Binds the per-page behaviour inside `scope`: everything that reads the page rather than
+   * the header, so it runs again after the page is swapped.
+   *
+   * @param {ParentNode} scope - the element holding the page, `document` at load.
+   * @returns {void}
+   */
+  const bind = (scope) =>
   {
-    side.scrollTop = Math.max(0, current.offsetTop - side.clientHeight / 2);
-  }
-  if (toggle && side)
+    if (reducedMotion)
+    {
+      scope.querySelectorAll('svg').forEach((svg) => { if (svg.pauseAnimations) svg.pauseAnimations(); });
+    }
+
+    // The sidebar keeps the current page in view.
+    const side = document.getElementById('side');
+    const current = side && side.querySelector('a.current');
+    if (side && current && side.scrollHeight > side.clientHeight)
+    {
+      side.scrollTop = Math.max(0, current.offsetTop - side.clientHeight / 2);
+    }
+
+    // Language tabs. The page head chose the language (the hash, then the remembered
+    // choice, then Rust) and the stylesheet shows that panel alone, so this only keeps the
+    // tabs' state in step and answers clicks.
+    const tabs = [...scope.querySelectorAll('.lang-tab')];
+    if (tabs.length)
+    {
+      const known = new Set(tabs.map((tab) => tab.dataset.lang));
+      const select = (lang) =>
+      {
+        root.dataset.lang = lang;
+        tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.lang === lang)));
+      };
+      select(known.has(root.dataset.lang) ? root.dataset.lang : 'rust');
+      tabs.forEach((tab) => tab.addEventListener('click', () =>
+      {
+        select(tab.dataset.lang);
+        remember(tab.dataset.lang);
+        history.replaceState(history.state, '', '#' + tab.dataset.lang);
+      }));
+    }
+
+    // Copy buttons: an install line carries its text; a code figure copies its code.
+    scope.querySelectorAll('.copy').forEach((button) =>
+    {
+      button.addEventListener('click', async () =>
+      {
+        const figure = button.closest('figure');
+        const text = button.dataset.copy ?? (figure ? figure.querySelector('code').textContent : '');
+        try
+        {
+          await navigator.clipboard.writeText(text);
+          button.textContent = 'copied';
+          button.classList.add('done');
+          setTimeout(() => { button.textContent = 'copy'; button.classList.remove('done'); }, 1400);
+        } catch
+        {
+          button.textContent = 'select and copy';
+        }
+      });
+    });
+
+    // The table of contents follows the heading in view.
+    if (tocObserver) tocObserver.disconnect();
+    const tocLinks = [...scope.querySelectorAll('.toc a[href^="#"]')];
+    if (tocLinks.length && 'IntersectionObserver' in window)
+    {
+      const byId = new Map(tocLinks.map((a) => [decodeURIComponent(a.hash.slice(1)), a]));
+      const headings = [...byId.keys()].map((id) => document.getElementById(id)).filter(Boolean);
+      tocObserver = new IntersectionObserver((entries) =>
+      {
+        entries.forEach((entry) =>
+        {
+          if (!entry.isIntersecting) return;
+          tocLinks.forEach((a) => a.classList.remove('active'));
+          byId.get(entry.target.id).classList.add('active');
+        });
+      }, { rootMargin: '-64px 0px -70% 0px' });
+      headings.forEach((heading) => tocObserver.observe(heading));
+    }
+  };
+
+  // A hash change selects the tab it names.
+  addEventListener('hashchange', () =>
+  {
+    const lang = location.hash.slice(1);
+    if (/^(rust|typescript|python|c)$/.test(lang))
+    {
+      root.dataset.lang = lang;
+      remember(lang);
+      document.querySelectorAll('.lang-tab').forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.lang === lang)));
+    }
+  });
+
+  // The sidebar is a drawer on a narrow screen. The button lives in the header and the
+  // sidebar in the page, so the sidebar is looked up on each click.
+  const toggle = document.querySelector('.menu-toggle');
+  if (toggle)
   {
     const setOpen = (open) =>
     {
+      const side = document.getElementById('side');
+      if (!side) return;
       side.classList.toggle('open', open);
       toggle.setAttribute('aria-expanded', String(open));
     };
-    toggle.addEventListener('click', () => setOpen(!side.classList.contains('open')));
+    toggle.addEventListener('click', () =>
+    {
+      const side = document.getElementById('side');
+      setOpen(!(side && side.classList.contains('open')));
+    });
     document.addEventListener('click', (e) =>
     {
-      if (side.classList.contains('open') && !side.contains(e.target) && !toggle.contains(e.target)) setOpen(false);
+      const side = document.getElementById('side');
+      if (side && side.classList.contains('open') && !side.contains(e.target) && !toggle.contains(e.target)) setOpen(false);
     });
   }
 
-  // Language tabs. The page head already chose the language (the hash, then the remembered
-  // choice, then Rust) and the stylesheet shows that panel alone, so this only keeps the
-  // tabs' state in step and answers clicks and hash changes.
-  const LANG_KEY = 'pamoja:lang';
-  const remember = (lang) => { try { localStorage.setItem(LANG_KEY, lang); } catch { /* private mode */ } };
-  const tabs = [...document.querySelectorAll('.lang-tab')];
-  if (tabs.length)
-  {
-    const known = new Set(tabs.map((tab) => tab.dataset.lang));
-    const select = (lang) =>
-    {
-      root.dataset.lang = lang;
-      tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.lang === lang)));
-    };
-    select(known.has(root.dataset.lang) ? root.dataset.lang : 'rust');
-    tabs.forEach((tab) => tab.addEventListener('click', () =>
-    {
-      select(tab.dataset.lang);
-      remember(tab.dataset.lang);
-      history.replaceState(null, '', '#' + tab.dataset.lang);
-    }));
-    addEventListener('hashchange', () =>
-    {
-      const lang = location.hash.slice(1);
-      if (known.has(lang)) { select(lang); remember(lang); }
-    });
-  }
+  // Navigation without a reload. A link to another page of this site is fetched, the part
+  // between the header and the footer is swapped for the fetched page's, the title, the
+  // description, and the card follow, and the address is pushed. Anything that is not one
+  // of this site's pages (another origin, a file, a generated reference tree, a link that
+  // opens elsewhere) is left to the browser, as is any fetch that fails.
+  const progress = document.createElement('div');
+  progress.className = 'nav-progress';
+  progress.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(progress);
+  const cache = new Map();
+  let inflight = null;
+  history.scrollRestoration = 'manual';
 
-  // Copy buttons: an install line carries its text; a code figure copies its code.
-  document.querySelectorAll('.copy').forEach((button) =>
+  const isPage = (url) =>
+    url.origin === location.origin
+    && (/\.html$/.test(url.pathname) || url.pathname.endsWith('/'))
+    && !/^\/docs\/reference\/(rust|node|python|dotnet)\//.test(url.pathname)
+    && url.pathname !== '/404.html';
+
+  const fetchPage = (href) =>
   {
-    button.addEventListener('click', async () =>
+    if (!cache.has(href))
     {
-      const figure = button.closest('figure');
-      const text = button.dataset.copy ?? (figure ? figure.querySelector('code').textContent : '');
-      try
+      cache.set(href, fetch(href, { headers: { 'X-Requested-With': 'pamoja' } })
+        .then((response) => { if (!response.ok) throw new Error(String(response.status)); return response.text(); })
+        .catch((err) => { cache.delete(href); throw err; }));
+    }
+    return cache.get(href);
+  };
+
+  const syncHead = (doc) =>
+  {
+    document.title = doc.title;
+    for (const selector of ['meta[name="description"]', 'link[rel="canonical"]', 'meta[property="og:title"]', 'meta[property="og:description"]', 'meta[property="og:url"]', 'meta[property="og:type"]'])
+    {
+      const fresh = doc.head.querySelector(selector);
+      const mine = document.head.querySelector(selector);
+      if (fresh && mine) mine.replaceWith(document.adoptNode(fresh));
+    }
+    doc.head.querySelectorAll('link[rel="stylesheet"]').forEach((link) =>
+    {
+      const href = link.getAttribute('href');
+      if (!document.head.querySelector(`link[rel="stylesheet"][href="${href}"]`))
       {
-        await navigator.clipboard.writeText(text);
-        button.textContent = 'copied';
-        button.classList.add('done');
-        setTimeout(() => { button.textContent = 'copy'; button.classList.remove('done'); }, 1400);
-      } catch
-      {
-        button.textContent = 'select and copy';
+        document.head.appendChild(document.adoptNode(link));
       }
     });
+  };
+
+  const swapTo = (doc, url, scrollY) =>
+  {
+    const next = doc.getElementById('page');
+    const page = document.getElementById('page');
+    if (!next || !page) return false;
+    syncHead(doc);
+    document.body.className = doc.body.className;
+    page.replaceWith(document.adoptNode(next));
+    bind(next);
+    if (next.querySelector('.home'))
+    {
+      import('/js/home.js').then((home) => home.init()).catch(() => {});
+    }
+    const target = url.hash ? document.getElementById(decodeURIComponent(url.hash.slice(1))) : null;
+    if (target) target.scrollIntoView();
+    else window.scrollTo(0, scrollY);
+    return true;
+  };
+
+  const navigate = async (href, { push = true, scrollY = 0 } = {}) =>
+  {
+    const url = new URL(href, location.href);
+    inflight = url.href;
+    progress.classList.add('on');
+    let html;
+    try { html = await fetchPage(url.href); }
+    catch { location.href = url.href; return; }
+    if (inflight !== url.href) return;
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    if (push)
+    {
+      history.replaceState({ scrollY: window.scrollY }, '', location.href);
+      history.pushState({ scrollY: 0 }, '', url.href);
+    }
+    const lang = url.hash.slice(1);
+    if (/^(rust|typescript|python|c)$/.test(lang)) root.dataset.lang = lang;
+    const swap = () => { if (!swapTo(doc, url, scrollY)) location.href = url.href; };
+    if (document.startViewTransition && !reducedMotion)
+    {
+      await document.startViewTransition(swap).finished.catch(() => {});
+    } else
+    {
+      swap();
+    }
+    // A newer navigation may have started during the fade; only the latest clears the marks.
+    if (inflight === url.href)
+    {
+      progress.classList.remove('on');
+      inflight = null;
+    }
+  };
+
+  document.addEventListener('click', (e) =>
+  {
+    const a = e.target.closest('a[href]');
+    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if ((a.target && a.target !== '_self') || a.hasAttribute('download')) return;
+    const url = new URL(a.href, location.href);
+    if (!isPage(url)) return;
+    if (url.pathname === location.pathname && url.search === location.search)
+    {
+      if (url.hash) return;
+      e.preventDefault();
+      window.scrollTo(0, 0);
+      return;
+    }
+    e.preventDefault();
+    navigate(url.href);
   });
 
-  // The table of contents follows the heading in view.
-  const tocLinks = [...document.querySelectorAll('.toc a[href^="#"]')];
-  if (tocLinks.length && 'IntersectionObserver' in window)
+  document.addEventListener('mouseover', (e) =>
   {
-    const byId = new Map(tocLinks.map((a) => [decodeURIComponent(a.hash.slice(1)), a]));
-    const headings = [...byId.keys()].map((id) => document.getElementById(id)).filter(Boolean);
-    const observer = new IntersectionObserver((entries) =>
-    {
-      entries.forEach((entry) =>
-      {
-        if (!entry.isIntersecting) return;
-        tocLinks.forEach((a) => a.classList.remove('active'));
-        byId.get(entry.target.id).classList.add('active');
-      });
-    }, { rootMargin: '-64px 0px -70% 0px' });
-    headings.forEach((heading) => observer.observe(heading));
-  }
+    const a = e.target.closest('a[href]');
+    if (!a) return;
+    const url = new URL(a.href, location.href);
+    if (isPage(url) && url.pathname !== location.pathname) fetchPage(url.href).catch(() => {});
+  });
 
-  // Search: the index loads on first focus and is ranked here, heading matches first.
+  addEventListener('popstate', (e) =>
+  {
+    navigate(location.href, { push: false, scrollY: (e.state && e.state.scrollY) || 0 });
+  });
+
+  // Search: the index loads on first focus and is ranked here, heading matches first. The
+  // header is never swapped, so this binds once.
   const input = document.querySelector('.search-input');
   const results = document.querySelector('.search-results');
   if (input && results)
@@ -206,7 +373,8 @@
         items[selected].scrollIntoView({ block: 'nearest' });
       } else if (e.key === 'Enter' && selected >= 0 && items[selected])
       {
-        location.href = items[selected].href;
+        results.hidden = true;
+        navigate(items[selected].href);
       }
     });
     document.addEventListener('click', (e) => { if (!e.target.closest('.search')) results.hidden = true; });
@@ -219,4 +387,6 @@
       }
     });
   }
+
+  bind(document);
 })();

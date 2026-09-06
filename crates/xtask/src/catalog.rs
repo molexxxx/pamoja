@@ -1047,7 +1047,7 @@ fn package_row(lang: &Language, capability: &Capability) -> String {
         None => escape(&capability.title),
     };
     let mut links = vec![format!(
-        "<li><a href=\"{reference}\"><code>{}</code></a></li>",
+        "<li><a href=\"{reference}\"><code>{}</code> API</a></li>",
         escape(&import)
     )];
     if lang.key == "rust" {
@@ -1459,7 +1459,7 @@ crate = "pamoja"
         assert!(python.starts_with("### Engine\n\n<div class=\"pkgs\">\n<div class=\"pkg\">\n<div class=\"pkg-what\">Transports<p>The transport surface</p></div>"), "{python}");
         assert!(python.contains("### Field I/O\n\n<div class=\"pkgs\">\n<div class=\"pkg\">\n<div class=\"pkg-what\"><a href=\"/docs/guides/modbus.html#python\">Modbus RTU</a>"));
         assert!(python.contains("<code class=\"cmd\">pip install pamoja-modbus</code><button class=\"copy\" type=\"button\" data-copy=\"pip install pamoja-modbus\""));
-        assert!(python.contains("<li><a href=\"/docs/reference/python/pamoja/modbus.html\"><code>pamoja.modbus</code></a></li>"));
+        assert!(python.contains("<li><a href=\"/docs/reference/python/pamoja/modbus.html\"><code>pamoja.modbus</code> API</a></li>"));
         assert!(python.contains("<li><a href=\"/docs/guides/modbus.html#python\">worked example</a></li><li><a href=\"https://pypi.org/project/pamoja-modbus/\">PyPI</a></li>"));
         assert!(python.contains("<span>Also in</span> <a href=\"https://crates.io/crates/pamoja-modbus\" title=\"pamoja-modbus\">Rust</a> <a href=\"https://www.npmjs.com/package/@pamoja/modbus\" title=\"@pamoja/modbus\">TypeScript</a> <a href=\"https://www.nuget.org/packages/Pamoja.Modbus\" title=\"Pamoja.Modbus\">C#</a>"));
         assert!(python.ends_with("</div>\n</div>"));
@@ -1469,7 +1469,7 @@ crate = "pamoja"
             rust.contains("<code class=\"cmd\">cargo add pamoja-core</code>"),
             "the engine surface is the core crate"
         );
-        assert!(rust.contains("<li><a href=\"/docs/reference/rust/pamoja_modbus/index.html\"><code>pamoja-modbus</code></a></li><li><a href=\"https://docs.rs/pamoja-modbus\">docs.rs</a></li>"));
+        assert!(rust.contains("<li><a href=\"/docs/reference/rust/pamoja_modbus/index.html\"><code>pamoja-modbus</code> API</a></li><li><a href=\"https://docs.rs/pamoja-modbus\">docs.rs</a></li>"));
 
         let dotnet = catalog.render("packages dotnet", &descriptions).unwrap();
         assert!(dotnet.contains("<code class=\"cmd\">dotnet add package Pamoja.Modbus</code>"));

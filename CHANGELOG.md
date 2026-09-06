@@ -48,6 +48,15 @@ released together, so one entry covers all of them.
   scenarios played by the consoles, the four languages, the roadmap, and the
   backing preview. The Three.js showcase, its data file, and the font host are
   gone; the typefaces are served from the site.
+- Moving between pages of the site no longer reloads the document. A link to
+  another page fetches it, swaps the article, sidebar, and page metadata in
+  place under a short cross-fade, and pushes the address; the back button
+  restores the scroll position and a hovered link is fetched ahead of the click.
+  Every page is still a complete document with a canonical address and an Open
+  Graph card, and the site publishes a sitemap. The header links GitHub, bug
+  reports, feature requests, and releases as icons in place of the dashboard
+  link, and the front page's hero, first example, capability cards, and backing
+  preview were reworked.
 
 ## [0.1.16] - 2026-09-05
 

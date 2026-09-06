@@ -198,6 +198,13 @@ impl Site {
             "404.html".to_owned(),
             layout::not_found(&chrome).into_bytes(),
         ));
+        let mut listed: Vec<&str> = vec!["index.html"];
+        listed.extend(self.pages.iter().map(|page| page.url.as_str()));
+        files.push((
+            "sitemap.xml".to_owned(),
+            layout::sitemap(&listed).into_bytes(),
+        ));
+        files.push(("robots.txt".to_owned(), layout::robots().into_bytes()));
         for (path, key, name) in HANDOFFS {
             files.push((
                 path.to_owned(),
@@ -334,6 +341,8 @@ mod tests {
             "reference.css",
             "js/reference.js",
             "search.json",
+            "sitemap.xml",
+            "robots.txt",
             "404.html",
             ".nojekyll",
         ] {
@@ -491,9 +500,78 @@ mod tests {
         }
         assert!(index.contains("class=\"bento-card span-big\""));
         assert!(
+            index.contains("class=\"hero-stage diorama\" data-diorama=\"farm\""),
+            "the hero plays a console"
+        );
+        assert!(index.contains("class=\"milestones\""));
+        assert!(
             index.contains("id=\"quick-python\""),
             "the first example is spliced"
         );
+    }
+
+    #[test]
+    fn every_page_is_a_complete_document_that_can_also_be_swapped_in() {
+        let site = site();
+        let files = site.render().unwrap();
+        let mut pages = 0;
+        for (path, body) in &files {
+            if !path.ends_with(".html")
+                || path.starts_with("docs/reference/")
+                    && !path.ends_with("rust.html")
+                    && !path.ends_with("node.html")
+                    && !path.ends_with("python.html")
+                    && !path.ends_with("dotnet.html")
+            {
+                continue;
+            }
+            let html = String::from_utf8_lossy(body);
+            pages += 1;
+            assert!(
+                html.contains("<div id=\"page\">"),
+                "{path} has no swap region"
+            );
+            assert!(
+                html.contains("<link rel=\"canonical\" href=\"https://pamoja.molex.cloud/"),
+                "{path} has no canonical URL"
+            );
+            assert!(
+                html.contains("<meta property=\"og:title\""),
+                "{path} has no card"
+            );
+            let shell_end = html.find("<div id=\"page\">").unwrap();
+            assert!(
+                !html[..shell_end].contains("href=\"../"),
+                "{path} links a relative path in its header"
+            );
+            if let Some(nav) = html.find("<nav class=\"side-nav\"") {
+                let end = nav + html[nav..].find("</nav>").unwrap();
+                assert!(
+                    !html[nav..end].contains("href=\"../"),
+                    "{path} links a relative path in its sidebar"
+                );
+            }
+            let footer = html.rfind("<footer").unwrap();
+            assert!(
+                !html[footer..].contains("href=\"../"),
+                "{path} links a relative path in its footer"
+            );
+        }
+        assert_eq!(
+            pages,
+            site.pages.len() + 2,
+            "every page, the front page, and the 404 page"
+        );
+        let sitemap = String::from_utf8_lossy(
+            &files
+                .iter()
+                .find(|(path, _)| path == "sitemap.xml")
+                .unwrap()
+                .1,
+        )
+        .into_owned();
+        assert_eq!(sitemap.matches("<url>").count(), site.pages.len() + 1);
+        assert!(sitemap.contains("<loc>https://pamoja.molex.cloud/docs/guides/modbus.html</loc>"));
     }
 
     #[test]

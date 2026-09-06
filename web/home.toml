@@ -213,6 +213,23 @@ note_title = "How the link gets paid for"
 note = "pamoja is free, MIT-licensed software. It does not run satellites, and satellite data is never free. What pamoja does is make connectivity <em>cheap enough to be free at the point of use</em>. Satellite and cellular are the last, most expensive rung of the ladder, reached only when local mesh and community gateways are gone. One sponsored gateway carries a whole area's traffic, and every message is kept to tens of bytes, so the cost is cents, and it is borne upstream by an NGO, an agency, or a donated kit, never by the family on the ground."
 form_note = "A preview, not a live campaign. Backing, payment, and partner onboarding are not open yet; the packages and amounts here are an early estimate of how supporting pamoja will work, not a commitment."
 
+# How backing will open, in order. Every entry is a preview until the first one is done.
+
+[[milestone]]
+state = "now"
+title = "Design the kit with the people who will run it"
+detail = "The bill of materials, the salvage-friendly boards, the radios, and the pre-flashed profiles, worked out with field partners rather than guessed at."
+
+[[milestone]]
+state = "next"
+title = "A first pilot in one place"
+detail = "Ten kits in one district for one season, with the dashboard on local phones, before anything is offered to anyone."
+
+[[milestone]]
+state = "later"
+title = "Backing opens"
+detail = "The tiers, the uplink sponsorship, and partner onboarding go live once the pilot has run and the numbers below are real."
+
 [[tier]]
 name = "Spark"
 amount = 15
