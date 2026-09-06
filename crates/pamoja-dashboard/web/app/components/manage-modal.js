@@ -1,10 +1,3 @@
-// manage-modal.js - create a group or add a sensor (demo provisioning).
-//
-// Driven by store.create ({ mode:'group', orgId } or { mode:'sensor', groupId }). The
-// type and link-kind choices come from the layout catalog (see lib/catalog.js). The
-// edits are client-side only (see lib/edits.js); a real build would post these to the
-// device as authenticated provisioning commands.
-
 import { store } from '../store.js';
 import { back } from '../nav.js';
 import { t } from '../lib/i18n.js';

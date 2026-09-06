@@ -1,9 +1,3 @@
-// pairing-modal.js - unlock control by entering the device's pairing code.
-//
-// Reading is anonymous; control is gated. The device shows a pairing code out of band;
-// entering it here derives the session key in the browser (the code never leaves it) and
-// proves it to the device. Driven by store.pairing; closes through the overlay nav.
-
 import { store } from '../store.js';
 import { back } from '../nav.js';
 import { t } from '../lib/i18n.js';

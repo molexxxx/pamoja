@@ -1,12 +1,6 @@
-/* The documentation site's stylesheet. Every colour is a token from theme.css, which
-   `cargo xtask docs` writes from the one palette the showcase and the four references
-   share; a test fails on a colour literal here. */
-
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
-/* The scale every component sits on: three radii, and two control heights that every
-   button, chip, command box, and copy button line up to. Colours are theme.css's alone. */
 :root { --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --control: 2.25rem; --control-sm: 1.9rem; }
 
 html { scroll-padding-top: 5rem; -webkit-text-size-adjust: 100%; }
@@ -19,8 +13,7 @@ body {
   background: radial-gradient(120% 90% at 50% -10%, var(--navy-2) 0%, var(--navy-1) 42%, var(--navy-0) 100%) fixed var(--navy-1);
   -webkit-font-smoothing: antialiased;
 }
-/* The ground: a faint dot grid that fades out down the page, and two slow washes of the
-   palette's warm and cool ends behind everything. */
+
 body::before, body::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; }
 body::before {
   background-image: radial-gradient(color-mix(in srgb, var(--cream) 9%, transparent) 1px, transparent 1.2px);
@@ -38,8 +31,6 @@ body::after {
 }
 @keyframes wash { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(-2%, 1.5%, 0) scale(1.06); } }
 
-/* Scrollbars: thin, and the cream at a fraction of its strength, on the page and in every
-   overflow container. A browser with the standard properties ignores the WebKit ones. */
 * { scrollbar-width: thin; }
 html { scrollbar-color: color-mix(in srgb, var(--cream) 18%, transparent) transparent; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -120,7 +111,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 .content { min-width: 0; }
 .content.lone { max-width: 44rem; margin: 3rem auto; padding: 0 clamp(1rem, 3vw, 2rem); }
 
-/* Sidebar; on the front page, a drawer of the site links that only a narrow screen shows */
+/* Sidebar */
 .home-menu { display: none; }
 .side-nav { font-size: 0.9rem; padding-right: 0.5rem; }
 .side-nav ul { list-style: none; margin: 0; padding: 0; }
@@ -210,8 +201,6 @@ p.source + figure.code { margin-top: 0.5rem; }
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 .lang-tab:hover { color: var(--cream); }
-/* The chosen language is an attribute on the root, set before first paint, so the other
-   three panels are never drawn and then hidden. */
 .js .lang-heading { display: none; }
 .js[data-lang="rust"] .lang-panel:not([data-lang="rust"]),
 .js[data-lang="typescript"] .lang-panel:not([data-lang="typescript"]),
@@ -225,10 +214,6 @@ p.source + figure.code { margin-top: 0.5rem; }
 .lang-panel { padding-top: 0.5rem; }
 .lang-panel:focus { outline: none; }
 
-/* Cards: one anatomy for a capability row and a domain row. The head holds what the thing
-   is, its name in code, and its install line; the foot, under a hairline, holds a button for
-   every place to go next, the generated API pages first. A row has an id, so a guide or a
-   README can point at it, and it lights up on arrival. */
 .pkgs { display: grid; gap: 0.85rem; margin: 1.1rem 0 2.2rem; }
 .domains { display: grid; gap: 0.75rem; margin: 1.1rem 0 1.8rem; }
 .pkg, .domain {
@@ -261,8 +246,6 @@ p.source + figure.code { margin-top: 0.5rem; }
 .pkg-else a, .article .pkg-else a { color: var(--text); text-decoration: none; border-bottom: 1px solid var(--line-strong); transition: color 0.15s ease, border-color 0.15s ease; }
 .pkg-else a:hover, .article .pkg-else a:hover { color: var(--amber); border-bottom-color: var(--amber); }
 
-/* Buttons in a foot: one height, one shape, a dot that names the language on the API one,
-   and a tint on it so it reads as the primary. Shared with the front page's cards. */
 .pkg-btns { display: flex; flex-wrap: wrap; gap: 0.45rem; }
 .pkg-btn, .article .pkg-btn {
   display: inline-flex; align-items: center; gap: 0.45rem; height: var(--control-sm); padding: 0 0.8rem; border-radius: var(--r-sm);
@@ -281,8 +264,6 @@ p.source + figure.code { margin-top: 0.5rem; }
 .pkg-btn.api, .article .pkg-btn.api { background: color-mix(in srgb, var(--dot, var(--teal)) 14%, transparent); border-color: color-mix(in srgb, var(--dot, var(--teal)) 45%, transparent); }
 .pkg-btn.api:hover, .article .pkg-btn.api:hover { background: color-mix(in srgb, var(--dot, var(--teal)) 24%, transparent); border-color: var(--dot, var(--teal)); }
 
-/* The door into a generated reference: what it holds, the button into the whole of it,
-   the install page and the guides, and the other three languages under a hairline. */
 .door {
   display: grid; gap: 1.1rem; margin: 1.5rem 0 2.2rem;
   padding: 1.5rem 1.6rem 1.3rem; border: 1px solid var(--line); border-radius: var(--r-lg);
@@ -383,8 +364,6 @@ p.source + figure.code { margin-top: 0.5rem; }
   figure.code pre { padding: 0.8rem 0.9rem; font-size: 0.8rem; }
 }
 
-/* Navigation without a reload: a thin bar while the next page loads, and a cross-fade
-   between pages where the browser can draw one. */
 .nav-progress { position: fixed; top: 0; left: 0; z-index: 60; height: 2px; width: 0; background: linear-gradient(90deg, var(--teal), var(--amber)); opacity: 0; transition: width 0.4s ease, opacity 0.2s ease; pointer-events: none; }
 .nav-progress.on { width: 70%; opacity: 1; }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 160ms; }

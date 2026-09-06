@@ -1,12 +1,3 @@
-// top-bar.js - brand + the global control deck (alarms, network, language, theme, scenario).
-//
-// Sits outside the router outlet so it persists across navigation. The controls are one
-// cohesive glass deck rather than scattered pills: each control is an icon-first segment,
-// and the text labels collapse to icons on narrow viewports so the deck stays a single row
-// from phone to desktop. Reads preferences from the app store and re-renders on change.
-// The dropdowns follow zQuery's own pattern - boolean state, z-show, @click.outside - so
-// they behave like the framework expects, with no custom z-index or document listeners.
-
 import { store } from '../store.js';
 import { t, nf, availableLocales, setLocale, localeName } from '../lib/i18n.js';
 import { SCENARIOS, demo, live } from '../lib/feed.js';

@@ -1,14 +1,3 @@
-// site.js - the behaviour behind the rendered pages.
-//
-// Everything a page does without this file, it still does: every page is a complete
-// document with its own title and description, the four language sections of a guide
-// stack, the sidebar stays put, the code stays readable. This adds the language tabs and
-// remembers the choice, the search box over search.json, the copy buttons, the sidebar
-// drawer on a narrow screen, the table of contents following the reader, and navigation
-// without a reload: a link to another page of the site fetches that page, swaps the part
-// between the header and the footer, and pushes the address, so the site reads as one
-// application while every address stays a real page. Dependency-free and a few kilobytes.
-
 (() =>
 {
   const root = document.documentElement;

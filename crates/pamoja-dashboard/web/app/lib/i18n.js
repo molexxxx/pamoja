@@ -1,14 +1,3 @@
-// i18n.js - localization for the dashboard.
-//
-// One JSON file per locale is the single source of translations: the device serves a
-// language-neutral snapshot, and this loads the active locale's JSON (fetched and cached)
-// and renders every label and all number, percent, plural, and relative-time formatting
-// from it plus the browser's Intl engine, which already carries CLDR. So non-Latin
-// numerals, plural forms, and right-to-left need nothing generated and nothing shipped
-// from the device beyond the messages themselves. A message is either a string or, for a
-// counted message, a plural map keyed by CLDR category ({ one, other, ... }); `{n}` and
-// other `{name}` placeholders are filled at render time.
-
 import { store } from '../store.js';
 
 /** Every locale the page knows how to offer, in menu order. */

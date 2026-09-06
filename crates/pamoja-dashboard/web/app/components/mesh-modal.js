@@ -1,13 +1,3 @@
-// mesh-modal.js - the interactive mesh-topology map for a mesh node.
-//
-// A full-screen, pan/zoom map of one node's mesh: the gateway at the top, this node (hub) in
-// the middle, the multi-hop route up to the gateway (its length is the node's `hops` stat),
-// and the node's mesh peers fanned below it (their count is the `neighbours` stat), with
-// packets travelling the route and peer -> hub. A peer that hosts one of the node's sensors
-// is labelled with it and opens its detail; a pure routing node has no sensor. So a relay
-// with sensor peers and a bare routing node draw different maps. Click a node to dock an
-// inspector. The dashboard/group tile stays the static preview; this is the "show more" view.
-
 import { store } from '../store.js';
 import { currentFleet } from '../lib/edits.js';
 import { open, back } from '../nav.js';

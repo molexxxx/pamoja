@@ -1,6 +1,3 @@
-/* The front page's stylesheet, loaded by index.html over site.css. Every colour is a token
-   from theme.css; a test fails on a colour literal here. */
-
 .home { display: grid; grid-template-columns: minmax(0, 1fr); gap: clamp(4.5rem, 9vw, 7.5rem); max-width: 78rem; margin: 0 auto; padding: 0 clamp(1rem, 4vw, 3rem) 5rem; }
 .home section { scroll-margin-top: 5rem; }
 

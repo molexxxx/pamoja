@@ -1,10 +1,3 @@
-// store.js - global UI state for the dashboard.
-//
-// Holds the user's preferences (theme, locale, dev scenario), the selected sensor (for
-// the detail modal), and the client-side fleet edits (added/removed groups & sensors,
-// a demo of management that persists in localStorage). The live fleet data is not kept
-// here - it streams through feed.js as a signal - so this store stays focused on UI.
-
 /**
  * Reads a persisted preference from localStorage, with a default.
  *

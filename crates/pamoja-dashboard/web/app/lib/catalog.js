@@ -1,17 +1,3 @@
-// catalog.js - the declarative layout catalog and its device-override seam.
-//
-// The dashboard renders a language-neutral fleet snapshot, but the *shape* of what it
-// can show - which sensor types a user may add, which link kinds exist, each link's
-// nominal characteristics, and the demo site map - is configuration, not data. It lives
-// here as one manifest-shaped object so a device or a published profile/recipe manifest
-// can later supply it without touching component code: fetch the manifest, hand it to
-// mergeCatalog(), and the create dialog, network panel, and mesh map follow.
-//
-// Today no device serves a catalog, so the defaults below stand in. Each preset carries
-// the canonical key/unit/band so the right visualization and localized label appear
-// automatically (see lib/viz). Keys, codes, and units stay language-neutral; the page
-// localizes them at the surface.
-
 /**
  * The live layout catalog. Mutated in place by {@link mergeCatalog} so existing imports
  * keep seeing the current configuration.

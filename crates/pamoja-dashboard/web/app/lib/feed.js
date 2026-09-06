@@ -1,19 +1,3 @@
-// feed.js - the live fleet data stream.
-//
-// The device serves the fleet snapshot at GET /state and a server-sent-event stream at
-// GET /events. This module keeps the latest snapshot in a signal so any component can
-// react to it with $.effect, and reconnects when the dev scenario changes. The
-// connection state is a second signal, used to show the offline indicator.
-//
-// On a plain static host (the GitHub Pages showcase) there is no device: GET /state does
-// not answer, so we fall back to a bundled snapshot shipped beside the page
-// (state.<scenario>.json, relative so it works under any base path). The same build runs
-// live against a real node or the dev server and serverless on Pages, with no flag.
-//
-// A snapshot may carry an optional `catalog` manifest; when present it is folded into the
-// layout catalog (see lib/catalog.js), so a device can supply its own sensor presets,
-// link kinds, and site map without a separate request.
-
 import { store } from '../store.js';
 import { extendCatalog } from './catalog.js';
 import { registerLabels, registerMessages } from './i18n.js';

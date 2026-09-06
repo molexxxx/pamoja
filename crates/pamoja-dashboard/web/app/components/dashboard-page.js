@@ -1,11 +1,3 @@
-// dashboard-page.js - the fleet view.
-//
-// Reads the live fleet (with the user's client-side edits applied) and the user's
-// preferences, and renders the status banner, organization tabs, and the selected
-// org's groups. Each group shows its link type and signal strength; each sensor gets
-// the visualization that suits it and opens a detail modal on click. In "Manage" mode
-// it also shows add/remove affordances for groups and sensors.
-
 import { store } from '../store.js';
 import { open } from '../nav.js';
 import { t, nf, fmt } from '../lib/i18n.js';

@@ -1,14 +1,3 @@
-// reference.js - the site's header over the four generated API references.
-//
-// rustdoc, typedoc, pdoc, and DocFX each draw their own chrome, and a reader who follows a
-// link into one of them leaves the site behind. This puts the site's own header above
-// whatever the generator drew, the same mark, doors, and icons as every other page, plus
-// the way back to the reference page for the language the tree documents. Each generator
-// loads it through its own hook, from the site root, so it works at any depth;
-// reference.css draws it and makes room for it in each layout. It is built from div
-// elements on purpose: pdoc styles every bare nav as its fixed sidebar, and the other
-// generators have element rules of their own.
-
 (() =>
 {
   const match = location.pathname.match(/\/docs\/reference\/(rust|node|python|dotnet)\//);
