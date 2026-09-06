@@ -404,9 +404,9 @@ impl Hardware {
     }
 }
 
-// One entry as a card: the head, the facts, and a foot with where to buy it on one side
-// and what to read and build with on the other. Nothing inside the card is separated by a
-// blank line, so Markdown takes it as one block of HTML.
+// One entry as a card: the head, the facts down one column, and a foot with where to buy
+// it beside what to read and build with, each a list of rows of one shape. Nothing inside
+// the card is separated by a blank line, so Markdown takes it as one block of HTML.
 fn card(entry: &Entry, group: &Group, catalog: &Catalog) -> String {
     let mut facts: Vec<(String, String)> = Vec::new();
     if !entry.interface.is_empty() {
@@ -440,22 +440,30 @@ fn card(entry: &Entry, group: &Group, catalog: &Catalog) -> String {
         "targets" => "Documentation",
         _ => "Datasheet",
     };
-    let mut links = vec![format!(
-        "<li><a class=\"hw-link\" href=\"{}\">{document} <small>{}</small></a></li>",
-        entry.source,
-        escape(&entry.source_label)
+    let mut links = vec![row(
+        &entry.source,
+        "",
+        document,
+        &format!("<small>{}</small>", escape(&entry.source_label)),
+        "&#8599;",
     )];
     for module in &entry.modules {
         let file = module.rsplit('/').next().unwrap_or(module);
-        links.push(format!(
-            "<li><a class=\"hw-link\" href=\"{REPO}/blob/main/crates/{module}\">Driver source <code>{}</code></a></li>",
-            escape(file)
+        links.push(row(
+            &format!("{REPO}/blob/main/crates/{module}"),
+            "",
+            "Driver source",
+            &format!("<small><code>{}</code></small>", escape(file)),
+            "&#8599;",
         ));
     }
     for krate in &entry.crates {
-        links.push(format!(
-            "<li><a class=\"hw-link\" href=\"{}\">Crate <code>{krate}</code></a></li>",
-            rustdoc_url(krate)
+        links.push(row(
+            &rustdoc_url(krate),
+            "",
+            "Crate",
+            &format!("<small><code>{krate}</code></small>"),
+            "&#8599;",
         ));
     }
     for capability in catalog.ordered() {
@@ -464,10 +472,12 @@ fn card(entry: &Entry, group: &Group, catalog: &Catalog) -> String {
             .iter()
             .any(|krate| entry.crates.contains(krate));
         if let (true, Some(guide)) = (drives, &capability.guide) {
-            links.push(format!(
-                "<li><a class=\"hw-link guide\" href=\"{SITE}/{}.html\">{} guide</a></li>",
-                guide.trim_end_matches(".md"),
-                escape(&capability.title)
+            links.push(row(
+                &format!("{SITE}/{}.html", guide.trim_end_matches(".md")),
+                " guide",
+                &format!("{} guide", escape(&capability.title)),
+                "<small>the worked example, in four languages</small>",
+                "&#8594;",
             ));
         }
     }
@@ -492,29 +502,37 @@ fn card(entry: &Entry, group: &Group, catalog: &Catalog) -> String {
                 if !same_day {
                     price.push_str(&format!(" on {}", b.checked));
                 }
-                let note = if b.verified {
-                    ""
-                } else {
-                    "<em>from a listing, since the page refuses scripted readers</em>"
-                };
+                let mut detail = format!("<small>{}</small>", escape(&b.name));
+                if !b.verified {
+                    detail.push_str(
+                        "<small class=\"hw-note\">listed price; the page refuses scripted readers</small>",
+                    );
+                }
                 format!(
-                    "<li><a class=\"hw-offer\" href=\"{}\"><b>{}</b><span class=\"hw-price\">{price}</span><small>{}</small>{note}</a></li>",
+                    "<li><a class=\"hw-row\" href=\"{}\"><span class=\"hw-main\"><b>{}</b>{detail}</span><span class=\"hw-price\">{price}</span></a></li>",
                     b.url,
-                    escape(&b.vendor),
-                    escape(&b.name)
+                    escape(&b.vendor)
                 )
             })
             .collect();
-        format!("<section class=\"hw-buy\"><h5>{heading}</h5><ul class=\"hw-offers\">{offers}</ul></section>\n")
+        format!("<section class=\"hw-buy\"><h5>{heading}</h5><ul class=\"hw-rows\">{offers}</ul></section>\n")
     };
+    let solo = if entry.buy.is_empty() { " solo" } else { "" };
 
     format!(
-        "<article class=\"hw-card\" id=\"{}\">\n<div class=\"hw-head\"><h4>{}</h4><p class=\"hw-by\">{}</p><p class=\"hw-summary\">{}</p></div>\n<dl class=\"hw-facts\">{facts}</dl>\n<div class=\"hw-foot\">\n{buy}<section class=\"hw-learn\"><h5>Read and build</h5><ul class=\"hw-links\">{}</ul></section>\n</div>\n</article>\n",
+        "<article class=\"hw-card\" id=\"{}\">\n<header class=\"hw-head\"><div class=\"hw-name\"><h4>{}</h4><span class=\"hw-by\">{}</span></div><p class=\"hw-summary\">{}</p></header>\n<dl class=\"hw-facts\">{facts}</dl>\n<div class=\"hw-foot{solo}\">\n{buy}<section class=\"hw-learn\"><h5>Read and build</h5><ul class=\"hw-rows\">{}</ul></section>\n</div>\n</article>\n",
         entry.key,
         escape(&entry.name),
         escape(&entry.vendor),
         escape(&entry.summary),
         links.join("")
+    )
+}
+
+// One row of a card's foot: what it is and a detail on the left, the way out on the right.
+fn row(href: &str, class: &str, title: &str, detail: &str, go: &str) -> String {
+    format!(
+        "<li><a class=\"hw-row{class}\" href=\"{href}\"><span class=\"hw-main\"><b>{title}</b>{detail}</span><span class=\"hw-go\" aria-hidden=\"true\">{go}</span></a></li>"
     )
 }
 
@@ -727,13 +745,16 @@ crates = ["pamoja-core"]
     fn a_card_breaks_the_part_down_and_points_at_the_document_the_driver_and_the_guide() {
         let rendered = Hardware::parse(MINIMAL).expect("parses").table(&catalog());
         assert!(rendered.starts_with("### Sensors\n\nParts a driver decodes.\n\n<div class=\"hw-cards\">\n<article class=\"hw-card\" id=\"bme280\">\n"), "{rendered}");
-        assert!(rendered.contains("<div class=\"hw-head\"><h4>BME280</h4><p class=\"hw-by\">Bosch Sensortec</p><p class=\"hw-summary\">Humidity, pressure and temperature on one die.</p></div>"));
+        assert!(rendered.contains("<header class=\"hw-head\"><div class=\"hw-name\"><h4>BME280</h4><span class=\"hw-by\">Bosch Sensortec</span></div><p class=\"hw-summary\">Humidity, pressure and temperature on one die.</p></header>"));
         assert!(rendered.contains("<dl class=\"hw-facts\"><div><dt>Interface</dt><dd>I2C or SPI</dd></div><div><dt>Temperature</dt><dd>-40 to 85 C</dd></div><div><dt>Typical cost</dt><dd>$5 to $20 for a breakout module or a board</dd></div></dl>"), "{rendered}");
-        assert!(rendered.contains("<a class=\"hw-link\" href=\"https://example.invalid/bme280\">Datasheet <small>datasheet</small></a>"));
-        assert!(rendered.contains("<a class=\"hw-link\" href=\"https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-sensors/src/bme280.rs\">Driver source <code>bme280.rs</code></a>"));
-        assert!(rendered.contains("<a class=\"hw-link\" href=\"https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html\">Crate <code>pamoja-sensors</code></a>"));
-        assert!(rendered.contains("<a class=\"hw-link guide\" href=\"https://pamoja.molex.cloud/docs/guides/sensors.html\">Sensor drivers guide</a>"));
-        assert!(!rendered.contains("hw-buy"), "nothing to buy is listed");
+        assert!(rendered.contains("<li><a class=\"hw-row\" href=\"https://example.invalid/bme280\"><span class=\"hw-main\"><b>Datasheet</b><small>datasheet</small></span><span class=\"hw-go\" aria-hidden=\"true\">&#8599;</span></a></li>"), "{rendered}");
+        assert!(rendered.contains("<a class=\"hw-row\" href=\"https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-sensors/src/bme280.rs\"><span class=\"hw-main\"><b>Driver source</b><small><code>bme280.rs</code></small></span>"));
+        assert!(rendered.contains("<a class=\"hw-row\" href=\"https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html\"><span class=\"hw-main\"><b>Crate</b><small><code>pamoja-sensors</code></small></span>"));
+        assert!(rendered.contains("<a class=\"hw-row guide\" href=\"https://pamoja.molex.cloud/docs/guides/sensors.html\"><span class=\"hw-main\"><b>Sensor drivers guide</b><small>the worked example, in four languages</small></span><span class=\"hw-go\" aria-hidden=\"true\">&#8594;</span></a>"));
+        assert!(
+            !rendered.contains("hw-buy") && rendered.contains("<div class=\"hw-foot solo\">"),
+            "nothing to buy is listed, and the foot is one column"
+        );
         assert!(rendered.ends_with("</article>\n</div>"), "{rendered}");
     }
 
@@ -748,7 +769,7 @@ crates = ["pamoja-core"]
         let hardware = Hardware::parse(&bus).expect("parses");
         let rendered = hardware.table(&catalog());
         assert!(
-            rendered.contains("Specification <small>datasheet</small>"),
+            rendered.contains("<b>Specification</b><small>datasheet</small>"),
             "{rendered}"
         );
         assert!(
@@ -787,7 +808,7 @@ verified = false
         assert!(entry.buy[0].verified && !entry.buy[1].verified);
         let rendered = hardware.table(&catalog());
         assert!(rendered.contains("<dt>Typical cost</dt><dd>$5 to $20 for a breakout module or a board; the lowest listed price is <a href=\"https://www.adafruit.com/product/2652\">US$14.95</a> at Adafruit</dd>"), "{rendered}");
-        assert!(rendered.contains("<section class=\"hw-buy\"><h5>Where to buy <small>prices as listed on 2026-09-06</small></h5><ul class=\"hw-offers\"><li><a class=\"hw-offer\" href=\"https://www.adafruit.com/product/2652\"><b>Adafruit</b><span class=\"hw-price\">US$14.95</span><small>Adafruit BME280 breakout</small></a></li><li><a class=\"hw-offer\" href=\"https://www.digikey.com/en/products/detail/bosch/BME280/5341156\"><b>Digi-Key</b><span class=\"hw-price\">US$5.34</span><small>BME280 bare sensor</small><em>from a listing, since the page refuses scripted readers</em></a></li></ul></section>"), "{rendered}");
+        assert!(rendered.contains("<div class=\"hw-foot\">\n<section class=\"hw-buy\"><h5>Where to buy <small>prices as listed on 2026-09-06</small></h5><ul class=\"hw-rows\"><li><a class=\"hw-row\" href=\"https://www.adafruit.com/product/2652\"><span class=\"hw-main\"><b>Adafruit</b><small>Adafruit BME280 breakout</small></span><span class=\"hw-price\">US$14.95</span></a></li><li><a class=\"hw-row\" href=\"https://www.digikey.com/en/products/detail/bosch/BME280/5341156\"><span class=\"hw-main\"><b>Digi-Key</b><small>BME280 bare sensor</small><small class=\"hw-note\">listed price; the page refuses scripted readers</small></span><span class=\"hw-price\">US$5.34</span></a></li></ul></section>"), "{rendered}");
     }
 
     #[test]

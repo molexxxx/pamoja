@@ -168,9 +168,12 @@ impl Site {
     /// When a static file is missing, or a link points at a page, file, or fragment that is
     /// not produced. Links into the four generated reference trees are taken on trust here.
     pub fn render(&self) -> Result<Vec<(String, Vec<u8>)>, String> {
+        let assets = assets::files(&self.root)?;
+        let stamp = assets::stamp(&assets);
         let chrome = layout::Chrome {
             version: &self.version,
             nav: &self.nav,
+            stamp: &stamp,
         };
         let mut files: Vec<(String, Vec<u8>)> = self
             .pages
@@ -206,14 +209,14 @@ impl Site {
         for (path, key, name) in HANDOFFS {
             files.push((
                 path.to_owned(),
-                layout::redirect(path, &format!("../{key}.html"), name).into_bytes(),
+                layout::redirect(path, &format!("../{key}.html"), name, &stamp).into_bytes(),
             ));
         }
         files.push((
             "search.json".to_owned(),
             search::index(&self.pages, &self.nav).into_bytes(),
         ));
-        files.extend(assets::files(&self.root)?);
+        files.extend(assets);
         files.sort_by(|a, b| a.0.cmp(&b.0));
         check::check(&check::Rendered::new(&files), &check::GENERATED)?;
         Ok(files)
