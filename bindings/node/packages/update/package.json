@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/update",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own.",
   "license": "MIT",
   "publishConfig": {
@@ -34,7 +34,7 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.16",
-    "@pamoja/security": "0.1.16"
+    "@pamoja/native": "0.1.17",
+    "@pamoja/security": "0.1.17"
   }
 }

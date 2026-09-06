@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/sensors",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115.",
   "license": "MIT",
   "publishConfig": {
@@ -34,6 +34,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.16"
+    "@pamoja/native": "0.1.17"
   }
 }

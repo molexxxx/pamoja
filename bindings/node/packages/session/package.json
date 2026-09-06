@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/session",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack.",
   "license": "MIT",
   "publishConfig": {
@@ -34,6 +34,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.16"
+    "@pamoja/native": "0.1.17"
   }
 }

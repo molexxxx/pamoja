@@ -16,7 +16,7 @@ authors.workspace = true
 # This crate is no_std, so it takes the core without its default `std` feature. The
 # dependency is declared directly rather than inherited, because `default-features`
 # cannot be overridden through workspace inheritance.
-pamoja-core = { path = "../pamoja-core", version = "0.1.16", default-features = false }
+pamoja-core = { path = "../pamoja-core", version = "0.1.17", default-features = false }
 # Signing and verifying are deterministic and need no randomness, so the crate
 # stays no_std with only the core ed25519 implementation.
 ed25519-dalek = { version = "3", default-features = false }

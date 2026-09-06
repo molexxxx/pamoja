@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-trust"
-version = "0.1.16"
+version = "0.1.17"
 description = "Trust and operation: Proving what a node did, saying it in confidence, fixing it in the field, and deciding how often it can afford to do any of that."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,11 +19,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-audit==0.1.16",
-    "pamoja-power==0.1.16",
-    "pamoja-session==0.1.16",
-    "pamoja-telemetry==0.1.16",
-    "pamoja-update==0.1.16",
+    "pamoja-audit==0.1.17",
+    "pamoja-power==0.1.17",
+    "pamoja-session==0.1.17",
+    "pamoja-telemetry==0.1.17",
+    "pamoja-update==0.1.17",
 ]
 
 [project.urls]

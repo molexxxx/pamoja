@@ -7,6 +7,19 @@ released together, so one entry covers all of them.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.17] - 2026-09-06
+
+The website, rebuilt. The documentation site and the front page are rendered by
+`cargo xtask site` from the same Markdown and the capability map, in one design:
+reference pages that open the generated API pages for each language, a hardware
+page of spec-sheet cards that says where to buy each part at prices read on a
+schedule, an examples page, a reference hub, an architecture drawing, stamped and
+minified assets, and navigation that swaps pages without a reload. In the code,
+eight capability crates' error types implement `core::error::Error`, so `?` into
+a boxed error compiles on the first try, and the .NET packages carry an icon.
+
 ### Fixed
 
 - Eight capability crates gave their error type a `Display` implementation and

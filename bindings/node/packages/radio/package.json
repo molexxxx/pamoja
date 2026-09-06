@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/radio",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "Radio and reach: Budgeting airtime, framing a mesh packet, routing it, and securing a LoRaWAN uplink: everything a node needs to reach a network it cannot see.",
   "license": "MIT",
   "publishConfig": {
@@ -34,9 +34,9 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/lora": "0.1.16",
-    "@pamoja/lorawan": "0.1.16",
-    "@pamoja/mesh": "0.1.16",
-    "@pamoja/routing": "0.1.16"
+    "@pamoja/lora": "0.1.17",
+    "@pamoja/lorawan": "0.1.17",
+    "@pamoja/mesh": "0.1.17",
+    "@pamoja/routing": "0.1.17"
   }
 }
