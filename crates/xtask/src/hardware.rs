@@ -4,12 +4,19 @@
 //! to the code: every driver module must be claimed by an entry, and the LoRaWAN
 //! entry must name every regional plan the crate implements, so a driver or a plan cannot be
 //! added without the page following it. `cargo xtask links` fetches every `source`.
+//! [`Hardware::for_guide`] gives a guide the parts its crates drive, so the two pages point
+//! at each other.
 
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
 use toml_edit::{DocumentMut, Item};
+
+use crate::catalog::{escape, rustdoc_url, Catalog, SITE};
+
+/// The repository, for the links to a driver's source.
+const REPO: &str = "https://github.com/molexxxx/pamoja";
 
 /// The price bands entries may use. They are indicative street prices in USD for a breakout
 /// module or board, deliberately coarse, and not quotes. A bus or a specification costs
@@ -211,61 +218,71 @@ impl Hardware {
             .collect()
     }
 
-    /// Render the page body. Each group gets a heading, its line of intent, a compact table
-    /// for scanning (part, interface, cost band, the lowest listed price, source), and then
-    /// one block per part carrying the summary, the figures from its document, and where to
-    /// buy it.
+    /// Render the page body. Each group gets a heading, its line of intent, and one card
+    /// per entry. A card breaks the entry down into labelled facts (its interface, each
+    /// figure from its document, and its price band with the lowest listed price), says
+    /// where to buy it with the price each page listed, and points at the document it was
+    /// written from, the driver's source, its crates, and the guides that use it.
+    ///
+    /// # Arguments
+    ///
+    /// * `catalog` - the capability map, for the guides a part's crates belong to.
     ///
     /// # Returns
     ///
     /// The Markdown that replaces the `<!-- table: hardware -->` region.
-    pub fn table(&self) -> String {
+    pub fn table(&self, catalog: &Catalog) -> String {
         let mut out = Vec::new();
         for group in &self.groups {
             let entries: Vec<&Entry> = self.in_group(&group.key).collect();
             if entries.is_empty() {
                 continue;
             }
-            let mut section = format!("### {}\n\n{}\n\n", group.title, group.intent);
-            section.push_str(
-                "| Part | Interface | Cost | From | Source |\n| --- | --- | --- | --- | --- |\n",
+            let mut section = format!(
+                "### {}\n\n{}\n\n<div class=\"hw-cards\">\n",
+                group.title, group.intent
             );
             for entry in &entries {
-                let from = match entry.buy.first() {
-                    Some(buy) => format!("[{}]({})", buy.price, buy.url),
-                    None => "-".to_owned(),
-                };
-                section.push_str(&format!(
-                    "| [{}](#{}) | {} | {} | {from} | [{}]({}) |\n",
-                    entry.name,
-                    entry.key,
-                    if entry.interface.is_empty() {
-                        "-"
-                    } else {
-                        entry.interface.as_str()
-                    },
-                    entry.cost,
-                    entry.source_label,
-                    entry.source,
-                ));
+                section.push_str(&card(entry, group, catalog));
             }
-            for entry in &entries {
-                section.push_str(&format!(
-                    "\n#### {} {{#{}}}\n\n**{}.** {}\n\n",
-                    entry.name, entry.key, entry.vendor, entry.summary
-                ));
-                for spec in &entry.specs {
-                    section.push_str(&format!("- {spec}\n"));
-                }
-                section.push_str(&format!(
-                    "\nFrom [{}]({}).\n",
-                    entry.source_name, entry.source
-                ));
-                section.push_str(&where_to_buy(&entry.buy));
-            }
-            out.push(section.trim_end().to_owned());
+            section.push_str("</div>");
+            out.push(section);
         }
         out.join("\n\n")
+    }
+
+    /// The parts a guide's crates drive, as one Markdown line for the guide's reference
+    /// section, or nothing when the capability has no part on the page.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - the capability key of the guide.
+    /// * `catalog` - the capability map.
+    ///
+    /// # Returns
+    ///
+    /// A `- Hardware: ...` line linking each part's card, with a leading newline, or an
+    /// empty string.
+    pub fn for_guide(&self, key: &str, catalog: &Catalog) -> String {
+        let Some(capability) = catalog.capability(key) else {
+            return String::new();
+        };
+        let parts: Vec<String> = self
+            .entries
+            .iter()
+            .filter(|entry| {
+                entry
+                    .crates
+                    .iter()
+                    .any(|krate| capability.crates.contains(krate))
+            })
+            .map(|entry| format!("[{}]({SITE}/hardware.html#{})", entry.name, entry.key))
+            .collect();
+        if parts.is_empty() {
+            String::new()
+        } else {
+            format!("\n- Hardware: {}", parts.join(", "))
+        }
     }
 
     /// Check the reference against the code and against its own rules.
@@ -387,36 +404,118 @@ impl Hardware {
     }
 }
 
-// The "where to buy" block under a part: one line per vendor with the product and the
-// price, the date the pages were read named once when they agree and per line otherwise,
-// and a note on a price that came from a listing rather than the page.
-fn where_to_buy(buy: &[Buy]) -> String {
-    if buy.is_empty() {
-        return String::new();
+// One entry as a card: the head, the facts, and a foot with where to buy it on one side
+// and what to read and build with on the other. Nothing inside the card is separated by a
+// blank line, so Markdown takes it as one block of HTML.
+fn card(entry: &Entry, group: &Group, catalog: &Catalog) -> String {
+    let mut facts: Vec<(String, String)> = Vec::new();
+    if !entry.interface.is_empty() {
+        facts.push(("Interface".to_owned(), escape(&entry.interface)));
     }
-    let same_day = buy.iter().all(|b| b.checked == buy[0].checked);
-    let mut out = if same_day {
-        format!(
-            "\nWhere to buy, prices as listed on {}:\n\n",
-            buy[0].checked
-        )
-    } else {
-        String::from("\nWhere to buy, each price as listed on the day named:\n\n")
+    for spec in &entry.specs {
+        match spec.split_once(": ") {
+            Some((label, value)) => facts.push((escape(label), escape(value))),
+            None => facts.push(("Note".to_owned(), escape(spec))),
+        }
+    }
+    if entry.cost != "not applicable" {
+        let mut cost = format!("{} for a breakout module or a board", escape(&entry.cost));
+        if let Some(buy) = entry.buy.first() {
+            cost.push_str(&format!(
+                "; the lowest listed price is <a href=\"{}\">{}</a> at {}",
+                buy.url,
+                escape(&buy.price),
+                escape(&buy.vendor)
+            ));
+        }
+        facts.push(("Typical cost".to_owned(), cost));
+    }
+    let facts: String = facts
+        .iter()
+        .map(|(label, value)| format!("<div><dt>{label}</dt><dd>{value}</dd></div>"))
+        .collect();
+
+    let document = match group.key.as_str() {
+        "buses" => "Specification",
+        "targets" => "Documentation",
+        _ => "Datasheet",
     };
-    for b in buy {
-        out.push_str(&format!(
-            "- [{}]({}): {}, {}",
-            b.vendor, b.url, b.name, b.price
+    let mut links = vec![format!(
+        "<li><a class=\"hw-link\" href=\"{}\">{document} <small>{}</small></a></li>",
+        entry.source,
+        escape(&entry.source_label)
+    )];
+    for module in &entry.modules {
+        let file = module.rsplit('/').next().unwrap_or(module);
+        links.push(format!(
+            "<li><a class=\"hw-link\" href=\"{REPO}/blob/main/crates/{module}\">Driver source <code>{}</code></a></li>",
+            escape(file)
         ));
-        if !same_day {
-            out.push_str(&format!(" on {}", b.checked));
-        }
-        if !b.verified {
-            out.push_str(" (from a listing of the page, which refuses scripted readers)");
-        }
-        out.push('\n');
     }
-    out
+    for krate in &entry.crates {
+        links.push(format!(
+            "<li><a class=\"hw-link\" href=\"{}\">Crate <code>{krate}</code></a></li>",
+            rustdoc_url(krate)
+        ));
+    }
+    for capability in catalog.ordered() {
+        let drives = capability
+            .crates
+            .iter()
+            .any(|krate| entry.crates.contains(krate));
+        if let (true, Some(guide)) = (drives, &capability.guide) {
+            links.push(format!(
+                "<li><a class=\"hw-link guide\" href=\"{SITE}/{}.html\">{} guide</a></li>",
+                guide.trim_end_matches(".md"),
+                escape(&capability.title)
+            ));
+        }
+    }
+
+    let buy = if entry.buy.is_empty() {
+        String::new()
+    } else {
+        let same_day = entry.buy.iter().all(|b| b.checked == entry.buy[0].checked);
+        let heading = if same_day {
+            format!(
+                "Where to buy <small>prices as listed on {}</small>",
+                entry.buy[0].checked
+            )
+        } else {
+            "Where to buy <small>prices as listed on the day named</small>".to_owned()
+        };
+        let offers: String = entry
+            .buy
+            .iter()
+            .map(|b| {
+                let mut price = escape(&b.price);
+                if !same_day {
+                    price.push_str(&format!(" on {}", b.checked));
+                }
+                let note = if b.verified {
+                    ""
+                } else {
+                    "<em>from a listing, since the page refuses scripted readers</em>"
+                };
+                format!(
+                    "<li><a class=\"hw-offer\" href=\"{}\"><b>{}</b><span class=\"hw-price\">{price}</span><small>{}</small>{note}</a></li>",
+                    b.url,
+                    escape(&b.vendor),
+                    escape(&b.name)
+                )
+            })
+            .collect();
+        format!("<section class=\"hw-buy\"><h5>{heading}</h5><ul class=\"hw-offers\">{offers}</ul></section>\n")
+    };
+
+    format!(
+        "<article class=\"hw-card\" id=\"{}\">\n<div class=\"hw-head\"><h4>{}</h4><p class=\"hw-by\">{}</p><p class=\"hw-summary\">{}</p></div>\n<dl class=\"hw-facts\">{facts}</dl>\n<div class=\"hw-foot\">\n{buy}<section class=\"hw-learn\"><h5>Read and build</h5><ul class=\"hw-links\">{}</ul></section>\n</div>\n</article>\n",
+        entry.key,
+        escape(&entry.name),
+        escape(&entry.vendor),
+        escape(&entry.summary),
+        links.join("")
+    )
 }
 
 // A YYYY-MM-DD date, checked by shape.
@@ -590,6 +689,31 @@ source_label = "datasheet"
 source = "https://example.invalid/bme280"
 "#;
 
+    const CATALOG: &str = r#"
+[[chapter]]
+key = "sensing"
+title = "Sensing and actuation"
+intent = "Parts."
+
+[[capability]]
+key = "sensors"
+chapter = "sensing"
+title = "Sensor drivers"
+summary = "Decoders."
+crates = ["pamoja-sensors"]
+node = "sensors"
+python = "sensors"
+dotnet = ["Bme280"]
+guide = "guides/sensors.md"
+
+[engine]
+crates = ["pamoja-core"]
+"#;
+
+    fn catalog() -> Catalog {
+        Catalog::parse(CATALOG).expect("the catalog parses")
+    }
+
     #[test]
     fn an_entry_carries_its_source_and_its_modules() {
         let hardware = Hardware::parse(MINIMAL).expect("parses");
@@ -600,13 +724,42 @@ source = "https://example.invalid/bme280"
     }
 
     #[test]
-    fn the_table_links_the_source_and_lists_the_figures() {
-        let rendered = Hardware::parse(MINIMAL).expect("parses").table();
-        assert!(rendered.contains("### Sensors"));
-        assert!(rendered.contains("| [BME280](#bme280) | I2C or SPI | $5 to $20 | - | [datasheet](https://example.invalid/bme280) |"));
-        assert!(rendered.contains("#### BME280 {#bme280}"));
-        assert!(rendered.contains("- Temperature: -40 to 85 C"));
-        assert!(rendered.contains("From [BME280 datasheet](https://example.invalid/bme280)."));
+    fn a_card_breaks_the_part_down_and_points_at_the_document_the_driver_and_the_guide() {
+        let rendered = Hardware::parse(MINIMAL).expect("parses").table(&catalog());
+        assert!(rendered.starts_with("### Sensors\n\nParts a driver decodes.\n\n<div class=\"hw-cards\">\n<article class=\"hw-card\" id=\"bme280\">\n"), "{rendered}");
+        assert!(rendered.contains("<div class=\"hw-head\"><h4>BME280</h4><p class=\"hw-by\">Bosch Sensortec</p><p class=\"hw-summary\">Humidity, pressure and temperature on one die.</p></div>"));
+        assert!(rendered.contains("<dl class=\"hw-facts\"><div><dt>Interface</dt><dd>I2C or SPI</dd></div><div><dt>Temperature</dt><dd>-40 to 85 C</dd></div><div><dt>Typical cost</dt><dd>$5 to $20 for a breakout module or a board</dd></div></dl>"), "{rendered}");
+        assert!(rendered.contains("<a class=\"hw-link\" href=\"https://example.invalid/bme280\">Datasheet <small>datasheet</small></a>"));
+        assert!(rendered.contains("<a class=\"hw-link\" href=\"https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-sensors/src/bme280.rs\">Driver source <code>bme280.rs</code></a>"));
+        assert!(rendered.contains("<a class=\"hw-link\" href=\"https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html\">Crate <code>pamoja-sensors</code></a>"));
+        assert!(rendered.contains("<a class=\"hw-link guide\" href=\"https://pamoja.molex.cloud/docs/guides/sensors.html\">Sensor drivers guide</a>"));
+        assert!(!rendered.contains("hw-buy"), "nothing to buy is listed");
+        assert!(rendered.ends_with("</article>\n</div>"), "{rendered}");
+    }
+
+    #[test]
+    fn a_bus_links_its_specification_and_a_guide_links_its_parts() {
+        let bus = MINIMAL
+            .replace("key = \"bme280\"", "key = \"i2c\"")
+            .replace("group = \"sensors\"", "group = \"buses\"")
+            .replace("cost = \"$5 to $20\"", "cost = \"not applicable\"")
+            .replace("modules = [\"pamoja-sensors/src/bme280.rs\"]\n", "")
+            + "\n[[group]]\nkey = \"buses\"\ntitle = \"Buses\"\nintent = \"Wires.\"\n";
+        let hardware = Hardware::parse(&bus).expect("parses");
+        let rendered = hardware.table(&catalog());
+        assert!(
+            rendered.contains("Specification <small>datasheet</small>"),
+            "{rendered}"
+        );
+        assert!(
+            !rendered.contains("Typical cost"),
+            "a bus has no price band"
+        );
+        assert_eq!(
+            hardware.for_guide("sensors", &catalog()),
+            "\n- Hardware: [BME280](https://pamoja.molex.cloud/docs/hardware.html#i2c)"
+        );
+        assert_eq!(hardware.for_guide("mqtt", &catalog()), "");
     }
 
     const BUY: &str = r#"
@@ -632,16 +785,9 @@ verified = false
         let entry = &hardware.entries[0];
         assert_eq!(entry.buy.len(), 2);
         assert!(entry.buy[0].verified && !entry.buy[1].verified);
-        let table = hardware.table();
-        assert!(table.contains("| Part | Interface | Cost | From | Source |"));
-        assert!(table.contains(
-            "| $5 to $20 | [US$14.95](https://www.adafruit.com/product/2652) | [datasheet]"
-        ));
-        assert!(table.contains("Where to buy, prices as listed on 2026-09-06:\n\n- [Adafruit](https://www.adafruit.com/product/2652): Adafruit BME280 breakout, US$14.95\n- [Digi-Key](https://www.digikey.com/en/products/detail/bosch/BME280/5341156): BME280 bare sensor, US$5.34 (from a listing of the page, which refuses scripted readers)"), "{table}");
-        assert!(Hardware::parse(MINIMAL)
-            .expect("parses")
-            .table()
-            .contains("| $5 to $20 | - | [datasheet]"));
+        let rendered = hardware.table(&catalog());
+        assert!(rendered.contains("<dt>Typical cost</dt><dd>$5 to $20 for a breakout module or a board; the lowest listed price is <a href=\"https://www.adafruit.com/product/2652\">US$14.95</a> at Adafruit</dd>"), "{rendered}");
+        assert!(rendered.contains("<section class=\"hw-buy\"><h5>Where to buy <small>prices as listed on 2026-09-06</small></h5><ul class=\"hw-offers\"><li><a class=\"hw-offer\" href=\"https://www.adafruit.com/product/2652\"><b>Adafruit</b><span class=\"hw-price\">US$14.95</span><small>Adafruit BME280 breakout</small></a></li><li><a class=\"hw-offer\" href=\"https://www.digikey.com/en/products/detail/bosch/BME280/5341156\"><b>Digi-Key</b><span class=\"hw-price\">US$5.34</span><small>BME280 bare sensor</small><em>from a listing, since the page refuses scripted readers</em></a></li></ul></section>"), "{rendered}");
     }
 
     #[test]

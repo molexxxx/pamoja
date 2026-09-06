@@ -252,4 +252,5 @@ Console.WriteLine($"discarded {decoder.Discarded} frame the stream mangled");
 - TypeScript: [`@pamoja/serial`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_serial.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-serial)
 - Python: [`pamoja.serial`](https://pamoja.molex.cloud/docs/reference/python/pamoja/serial.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-serial)
 - C#: [`Pamoja.Serial`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Serial.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-serial)
+- Hardware: [Modbus RTU over RS-485](https://pamoja.molex.cloud/docs/hardware.html#modbus-rtu)
 <!-- end -->

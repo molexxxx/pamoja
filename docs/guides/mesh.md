@@ -260,4 +260,5 @@ catch (PamojaException error)
 - TypeScript: [`@pamoja/mesh`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_mesh.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-mesh)
 - Python: [`pamoja.mesh`](https://pamoja.molex.cloud/docs/reference/python/pamoja/mesh.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-mesh)
 - C#: [`Pamoja.Mesh`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Mesh.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-mesh)
+- Hardware: [ESP-NOW](https://pamoja.molex.cloud/docs/hardware.html#esp-now)
 <!-- end -->
