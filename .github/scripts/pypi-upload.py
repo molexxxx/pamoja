@@ -57,5 +57,14 @@ def send(self, request, **kwargs):
 
 
 requests.adapters.HTTPAdapter.send = send
-sys.argv = ["twine", "upload", "--skip-existing", "--non-interactive", "--verbose"] + sys.argv[1:]
+# The progress bar writes a carriage return and an erase-line escape without a
+# newline, which prefixes whatever is printed next and splits it in the CI log.
+sys.argv = [
+    "twine",
+    "upload",
+    "--skip-existing",
+    "--non-interactive",
+    "--disable-progress-bar",
+    "--verbose",
+] + sys.argv[1:]
 sys.exit(main())
