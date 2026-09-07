@@ -49,7 +49,9 @@ use pamoja_ros2::name::{percent_mangle, EntityKind};
 use pamoja_ros2::typehash::TypeHash;
 use pamoja_routing::{DynamicRouter, Forward};
 use pamoja_security::DeviceIdentity;
-use pamoja_sensors::{ads1115, bme280, ds18b20, ina219};
+use pamoja_sensors::{
+    ads1115, bme280, bmp280, ds18b20, hdc1080, ina219, ina226, opt3001, scd4x, sht3x, tmp117,
+};
 use pamoja_serial::{cobs, slip};
 use pamoja_session::{AgreementKey, Role, Session as SecuredSession};
 use pamoja_sim::{Replay, SimSensor};
@@ -698,6 +700,90 @@ fn sensors() -> Value {
         .collect();
     let reset = ads1115::Config::from_bits(ads1115::CONFIG_RESET);
 
+    // The BMP280 shares the BME280's temperature and pressure compensation, so the same
+    // datasheet coefficients and the same raw codes drive both, which lets a reader
+    // compare the two blocks directly.
+    let bmp_calibration: [u8; 24] = temp_press[..24].try_into().expect("24 coefficient bytes");
+    let bmp_measurement: [u8; 6] = measurement[..6].try_into().expect("6 data bytes");
+    let bmp = bmp280::Calibration::parse(&bmp_calibration);
+    let bmp_reading = bmp.compensate(&bmp280::Measurement::parse(&bmp_measurement));
+
+    // An SHT3x reporting 25 C and 60 %RH: 0x6666 and 0x9999 are exactly 0.4 and 0.6 of
+    // full scale, so both conversions land on a round number.
+    let sht_measurement = sht3x::Measurement {
+        temperature_raw: 0x6666,
+        humidity_raw: 0x9999,
+    }
+    .to_bytes();
+    let mut sht_corrupt = sht_measurement;
+    sht_corrupt[1] ^= 0x01;
+    let sht_decoded = sht3x::Measurement::parse(&sht_measurement).expect("a whole frame");
+    let sht_status = sht3x::Status::from_bits(sht3x::Status::DEFAULT).to_bytes();
+
+    // The SCD4x datasheet's own read_measurement example: 500 ppm, 25 C, 37 %RH. Its
+    // printed checksum for the first word is the CRC of a word from another table, so
+    // the frame is built from the algorithm the same datasheet publishes a check value
+    // for.
+    let scd_measurement = scd4x::Measurement {
+        co2_ppm: 500,
+        temperature_raw: 0x6667,
+        humidity_raw: 0x5EB9,
+    }
+    .to_bytes();
+    let mut scd_corrupt = scd_measurement;
+    scd_corrupt[2] ^= 0xFF;
+    let scd_decoded = scd4x::Measurement::parse(&scd_measurement).expect("a whole frame");
+    let scd_serial = scd4x::serial_number_frame(273_325_796_834_238);
+
+    // A TMP117 at the rows its temperature table prints.
+    let tmp_readings: Vec<Value> = [
+        0x8000u16, 0xF380, 0xFFFF, 0x0000, 0x0001, 0x0C80, 0x3200, 0x7FFF,
+    ]
+    .iter()
+    .map(|&word| {
+        let raw = word as i16;
+        json!({
+            "register": word,
+            "microCelsius": tmp117::micro_celsius(raw),
+            "nanoCelsius": tmp117::nano_celsius(raw),
+            "roundTrip": tmp117::raw_from_micro_celsius(tmp117::micro_celsius(raw)),
+        })
+    })
+    .collect();
+
+    // An HDC1080 read in sequence mode: temperature then humidity, two bytes each.
+    let hdc_measurement = hdc1080::Measurement {
+        temperature: 0x6000,
+        humidity: 0x4000,
+    }
+    .to_bytes();
+    let hdc_decoded = hdc1080::Measurement::parse(&hdc_measurement);
+
+    // The OPT3001 result register rows its datasheet works through, and the full-scale
+    // range table beside them.
+    let lux_rows: Vec<Value> = [0x0001u16, 0x0FFF, 0x3456, 0x789A, 0x8800, 0xB001, 0xBFFF]
+        .iter()
+        .map(|&word| {
+            json!({
+                "register": word,
+                "milliLux": opt3001::milli_lux(word),
+                "roundTrip": opt3001::raw_from_milli_lux(opt3001::milli_lux(word)),
+            })
+        })
+        .collect();
+    let lux_ranges: Vec<Value> = (0u8..12)
+        .map(|range| {
+            json!({
+                "range": range,
+                "lsbMilliLux": opt3001::lsb_milli_lux(range).expect("a real range"),
+                "fullScaleMilliLux": opt3001::full_scale_milli_lux(range).expect("a real range"),
+            })
+        })
+        .collect();
+
+    // The INA226 datasheet's worked example: a 10 A load across a 2 milliohm shunt.
+    const INA226_LSB: u32 = 1_000;
+
     json!({
         "bme280": {
             "calibrationTempPress": hex(&temp_press),
@@ -760,6 +846,125 @@ fn sensors() -> Value {
             },
             "gains": gains,
             "rates": rates,
+        },
+        "bmp280": {
+            "calibration": hex(&bmp_calibration),
+            "measurement": hex(&bmp_measurement),
+            "chipId": bmp280::CHIP_ID,
+            "resetWord": bmp280::RESET_WORD,
+            "celsius": bmp_reading.celsius(),
+            "pascals": bmp_reading.pascals(),
+            "hectopascals": bmp_reading.hectopascals(),
+            "calibrationRoundTrip": hex(&bmp.to_bytes()),
+            "skippedOutput": bmp280::SKIPPED_OUTPUT,
+        },
+        "sht3x": {
+            "measurement": hex(&sht_measurement),
+            "corruptMeasurement": hex(&sht_corrupt),
+            "temperatureRaw": sht_decoded.temperature_raw,
+            "humidityRaw": sht_decoded.humidity_raw,
+            "milliCelsius": sht_decoded.temperature_milli_celsius(),
+            "celsius": sht_decoded.temperature_celsius(),
+            "milliFahrenheit": sht_decoded.temperature_milli_fahrenheit(),
+            "milliPercent": sht_decoded.humidity_milli_percent(),
+            "relativeHumidity": sht_decoded.relative_humidity(),
+            "crcInput": hex(&[0xBE, 0xEF]),
+            "crc": sht3x::crc(&[0xBE, 0xEF]),
+            "status": hex(&sht_status),
+            "statusBits": sht3x::Status::DEFAULT,
+            "alertPending": sht3x::Status::from_bits(sht3x::Status::DEFAULT).alert_pending(),
+            "resetDetected": sht3x::Status::from_bits(sht3x::Status::DEFAULT).reset_detected(),
+            "heaterOn": sht3x::Status::from_bits(sht3x::Status::DEFAULT).heater_on(),
+            "singleShotHighStretch": sht3x::single_shot(sht3x::Repeatability::High, true),
+            "periodicOneMpsHigh": sht3x::periodic(sht3x::Repeatability::High, sht3x::Rate::OneMps),
+        },
+        "scd4x": {
+            "measurement": hex(&scd_measurement),
+            "corruptMeasurement": hex(&scd_corrupt),
+            "co2Ppm": scd_decoded.co2_ppm,
+            "temperatureRaw": scd_decoded.temperature_raw,
+            "humidityRaw": scd_decoded.humidity_raw,
+            "milliCelsius": scd_decoded.milli_celsius(),
+            "celsius": scd_decoded.celsius(),
+            "humidityMilliPercent": scd_decoded.humidity_milli_percent(),
+            "relativeHumidityPercent": scd_decoded.relative_humidity_percent(),
+            "crcInput": hex(&[0xBE, 0xEF]),
+            "crc": scd4x::crc(&[0xBE, 0xEF]),
+            "temperatureOffsetMilliCelsius": 5_400,
+            "temperatureOffsetWord": scd4x::temperature_offset_word(5_400),
+            "temperatureOffsetFrame": hex(&scd4x::write_frame(
+                scd4x::command::SET_TEMPERATURE_OFFSET,
+                scd4x::temperature_offset_word(5_400),
+            )),
+            "ambientPressurePascals": 98_700,
+            "ambientPressureWord": scd4x::ambient_pressure_word(98_700),
+            "serialFrame": hex(&scd_serial),
+            "serialNumber": scd4x::serial_number(&scd_serial).expect("a whole frame"),
+            "dataReadyWords": [
+                json!({ "word": 0x8000, "ready": scd4x::data_ready(0x8000) }),
+                json!({ "word": 0x0001, "ready": scd4x::data_ready(0x0001) }),
+            ],
+            "readMeasurement": scd4x::command::READ_MEASUREMENT,
+            "readMeasurementDurationMs": scd4x::max_duration_ms(scd4x::command::READ_MEASUREMENT),
+        },
+        "tmp117": {
+            "deviceId": tmp117::DEVICE_ID,
+            "configReset": tmp117::CONFIG_RESET,
+            "readings": tmp_readings,
+            "flagConfig": 0xA220u16,
+            "highAlert": tmp117::high_alert(0xA220),
+            "lowAlert": tmp117::low_alert(0xA220),
+            "dataReady": tmp117::data_ready(0xA220),
+        },
+        "hdc1080": {
+            "measurement": hex(&hdc_measurement),
+            "temperatureRaw": hdc_decoded.temperature,
+            "humidityRaw": hdc_decoded.humidity,
+            "milliCelsius": hdc_decoded.milli_celsius(),
+            "celsius": hdc_decoded.celsius(),
+            "milliPercent": hdc_decoded.milli_percent(),
+            "relativeHumidity": hdc_decoded.relative_humidity(),
+            "manufacturerId": hdc1080::MANUFACTURER_ID,
+            "deviceId": hdc1080::DEVICE_ID,
+            "configurationReset": hdc1080::CONFIGURATION_RESET,
+            "invalidConfiguration": 0x1300u16,
+            "temperatureRegisterRoundTrip": hdc1080::temperature_register(
+                hdc_decoded.milli_celsius(),
+            ),
+            "humidityRegisterRoundTrip": hdc1080::humidity_register(hdc_decoded.milli_percent()),
+        },
+        "opt3001": {
+            "manufacturerId": opt3001::MANUFACTURER_ID,
+            "deviceId": opt3001::DEVICE_ID,
+            "configurationReset": opt3001::CONFIGURATION_RESET,
+            "results": lux_rows,
+            "ranges": lux_ranges,
+            "automaticRange": opt3001::RANGE_AUTOMATIC,
+            "invalidRange": 12,
+        },
+        "ina226": {
+            "manufacturerId": ina226::MANUFACTURER_ID,
+            "deviceId": ina226::DEVICE_ID,
+            "configReset": ina226::CONFIG_RESET,
+            "currentLsbMicroamps": INA226_LSB,
+            "shuntMilliohms": 2,
+            "calibration": ina226::calibration(INA226_LSB, 2),
+            "maxExpectedMicroamps": 15_000_000u32,
+            "minimumCurrentLsbMicroamps": ina226::minimum_current_lsb_microamps(15_000_000),
+            "rawShunt": 8_000,
+            "shuntNanovolts": ina226::shunt_nanovolts(8_000),
+            "rawBus": 9_584u16,
+            "busMicrovolts": ina226::bus_microvolts(9_584),
+            "rawCurrent": 10_000,
+            "currentMicroamps": ina226::current_microamps(10_000, INA226_LSB),
+            "rawPower": 4_792u16,
+            "powerMicrowatts": ina226::power_microwatts(4_792, INA226_LSB),
+            "currentFromShunt": ina226::current_register_from_shunt(
+                8_000,
+                ina226::calibration(INA226_LSB, 2),
+            ),
+            "powerFromCurrent": ina226::power_register_from_current(10_000, 9_584),
+            "badDieId": 0x2270u16,
         },
     })
 }

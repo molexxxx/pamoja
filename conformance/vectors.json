@@ -3528,6 +3528,17 @@
       "pascals": 100653,
       "relativeHumidityPercent": 62.2236328125
     },
+    "bmp280": {
+      "calibration": "706b436718fc7d8e43d6d00b270b8c00f9ff8c3cf8c67017",
+      "calibrationRoundTrip": "706b436718fc7d8e43d6d00b270b8c00f9ff8c3cf8c67017",
+      "celsius": 25.079999923706055,
+      "chipId": 88,
+      "hectopascals": 1006.5325317382812,
+      "measurement": "655ac07eed00",
+      "pascals": 100653,
+      "resetWord": 182,
+      "skippedOutput": 524288
+    },
     "ds18b20": {
       "alarmHigh": 75,
       "alarmLow": 70,
@@ -3567,6 +3578,21 @@
       ],
       "scratchpad": "91014b467fff0c1070"
     },
+    "hdc1080": {
+      "celsius": 21.875,
+      "configurationReset": 4096,
+      "deviceId": 4176,
+      "humidityRaw": 16384,
+      "humidityRegisterRoundTrip": 16384,
+      "invalidConfiguration": 4864,
+      "manufacturerId": 21577,
+      "measurement": "60004000",
+      "milliCelsius": 21875,
+      "milliPercent": 25000,
+      "relativeHumidity": 25.0,
+      "temperatureRaw": 24576,
+      "temperatureRegisterRoundTrip": 24576
+    },
     "ina219": {
       "busMillivolts": 4000,
       "calibration": 20480,
@@ -3583,6 +3609,243 @@
       "rawShunt": 1000,
       "shuntMicrovolts": 10000,
       "shuntMilliohms": 2
+    },
+    "ina226": {
+      "badDieId": 8816,
+      "busMicrovolts": 11980000,
+      "calibration": 2560,
+      "configReset": 16679,
+      "currentFromShunt": 10000,
+      "currentLsbMicroamps": 1000,
+      "currentMicroamps": 10000000,
+      "deviceId": 550,
+      "manufacturerId": 21577,
+      "maxExpectedMicroamps": 15000000,
+      "minimumCurrentLsbMicroamps": 458,
+      "powerFromCurrent": 4792,
+      "powerMicrowatts": 119800000,
+      "rawBus": 9584,
+      "rawCurrent": 10000,
+      "rawPower": 4792,
+      "rawShunt": 8000,
+      "shuntMilliohms": 2,
+      "shuntNanovolts": 20000000
+    },
+    "opt3001": {
+      "automaticRange": 12,
+      "configurationReset": 51216,
+      "deviceId": 12289,
+      "invalidRange": 12,
+      "manufacturerId": 21577,
+      "ranges": [
+        {
+          "fullScaleMilliLux": 40950,
+          "lsbMilliLux": 10,
+          "range": 0
+        },
+        {
+          "fullScaleMilliLux": 81900,
+          "lsbMilliLux": 20,
+          "range": 1
+        },
+        {
+          "fullScaleMilliLux": 163800,
+          "lsbMilliLux": 40,
+          "range": 2
+        },
+        {
+          "fullScaleMilliLux": 327600,
+          "lsbMilliLux": 80,
+          "range": 3
+        },
+        {
+          "fullScaleMilliLux": 655200,
+          "lsbMilliLux": 160,
+          "range": 4
+        },
+        {
+          "fullScaleMilliLux": 1310400,
+          "lsbMilliLux": 320,
+          "range": 5
+        },
+        {
+          "fullScaleMilliLux": 2620800,
+          "lsbMilliLux": 640,
+          "range": 6
+        },
+        {
+          "fullScaleMilliLux": 5241600,
+          "lsbMilliLux": 1280,
+          "range": 7
+        },
+        {
+          "fullScaleMilliLux": 10483200,
+          "lsbMilliLux": 2560,
+          "range": 8
+        },
+        {
+          "fullScaleMilliLux": 20966400,
+          "lsbMilliLux": 5120,
+          "range": 9
+        },
+        {
+          "fullScaleMilliLux": 41932800,
+          "lsbMilliLux": 10240,
+          "range": 10
+        },
+        {
+          "fullScaleMilliLux": 83865600,
+          "lsbMilliLux": 20480,
+          "range": 11
+        }
+      ],
+      "results": [
+        {
+          "milliLux": 10,
+          "register": 1,
+          "roundTrip": 1
+        },
+        {
+          "milliLux": 40950,
+          "register": 4095,
+          "roundTrip": 4095
+        },
+        {
+          "milliLux": 88800,
+          "register": 13398,
+          "roundTrip": 10412
+        },
+        {
+          "milliLux": 2818560,
+          "register": 30874,
+          "roundTrip": 30874
+        },
+        {
+          "milliLux": 5242880,
+          "register": 34816,
+          "roundTrip": 34816
+        },
+        {
+          "milliLux": 20480,
+          "register": 45057,
+          "roundTrip": 2048
+        },
+        {
+          "milliLux": 83865600,
+          "register": 49151,
+          "roundTrip": 49151
+        }
+      ]
+    },
+    "scd4x": {
+      "ambientPressurePascals": 98700,
+      "ambientPressureWord": 987,
+      "celsius": 25.002670288085938,
+      "co2Ppm": 500,
+      "corruptMeasurement": "01f4cc6667a25eb93c",
+      "crc": 146,
+      "crcInput": "beef",
+      "dataReadyWords": [
+        {
+          "ready": false,
+          "word": 32768
+        },
+        {
+          "ready": true,
+          "word": 1
+        }
+      ],
+      "humidityMilliPercent": 37002,
+      "humidityRaw": 24249,
+      "measurement": "01f4336667a25eb93c",
+      "milliCelsius": 25003,
+      "readMeasurement": 60421,
+      "readMeasurementDurationMs": 1,
+      "relativeHumidityPercent": 37.00160217285156,
+      "serialFrame": "f896319f07c23bbe89",
+      "serialNumber": 273325796834238,
+      "temperatureOffsetFrame": "241d07e648",
+      "temperatureOffsetMilliCelsius": 5400,
+      "temperatureOffsetWord": 2022,
+      "temperatureRaw": 26215
+    },
+    "sht3x": {
+      "alertPending": true,
+      "celsius": 25.0,
+      "corruptMeasurement": "6667939999be",
+      "crc": 146,
+      "crcInput": "beef",
+      "heaterOn": false,
+      "humidityRaw": 39321,
+      "measurement": "6666939999be",
+      "milliCelsius": 25000,
+      "milliFahrenheit": 77000,
+      "milliPercent": 60000,
+      "periodicOneMpsHigh": 8496,
+      "relativeHumidity": 60.0,
+      "resetDetected": true,
+      "singleShotHighStretch": 11270,
+      "status": "8010e1",
+      "statusBits": 32784,
+      "temperatureRaw": 26214
+    },
+    "tmp117": {
+      "configReset": 544,
+      "dataReady": true,
+      "deviceId": 279,
+      "flagConfig": 41504,
+      "highAlert": true,
+      "lowAlert": false,
+      "readings": [
+        {
+          "microCelsius": -256000000,
+          "nanoCelsius": -256000000000,
+          "register": 32768,
+          "roundTrip": -32768
+        },
+        {
+          "microCelsius": -25000000,
+          "nanoCelsius": -25000000000,
+          "register": 62336,
+          "roundTrip": -3200
+        },
+        {
+          "microCelsius": -7812,
+          "nanoCelsius": -7812500,
+          "register": 65535,
+          "roundTrip": -1
+        },
+        {
+          "microCelsius": 0,
+          "nanoCelsius": 0,
+          "register": 0,
+          "roundTrip": 0
+        },
+        {
+          "microCelsius": 7812,
+          "nanoCelsius": 7812500,
+          "register": 1,
+          "roundTrip": 1
+        },
+        {
+          "microCelsius": 25000000,
+          "nanoCelsius": 25000000000,
+          "register": 3200,
+          "roundTrip": 3200
+        },
+        {
+          "microCelsius": 100000000,
+          "nanoCelsius": 100000000000,
+          "register": 12800,
+          "roundTrip": 12800
+        },
+        {
+          "microCelsius": 255992187,
+          "nanoCelsius": 255992187500,
+          "register": 32767,
+          "roundTrip": 32767
+        }
+      ]
     }
   },
   "serial": {
