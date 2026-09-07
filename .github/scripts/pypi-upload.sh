@@ -80,7 +80,7 @@ for file in "${ordered[@]}"; do
   while :; do
     echo "uploading $(basename "$file")"
     if output=$(python "$upload" "$file" 2>&1); then
-      grep -E "^rate limit " <<<"$output" || true
+      grep -E "rate limit (policy|state): " <<<"$output" || true
       break
     fi
     echo "$output"
@@ -89,15 +89,15 @@ for file in "${ordered[@]}"; do
       refused+=("$(basename "$file")")
       break
     fi
-    resets=$(sed -n 's/^pypi-reset-seconds: \([0-9]\{1,\}\)$/\1/p' <<<"$output" | tail -1)
+    resets=$(sed -n 's/.*pypi-reset-seconds: \([0-9]\{1,\}\).*/\1/p' <<<"$output" | tail -1)
     resets="${resets:-0}"
     # A margin over PyPI's own figure, since the window has to have moved past the
     # oldest creation for the slot to be there when the retry lands.
-    wait=$((resets + 30))
-    if [ "$resets" -gt 0 ] && [ "$wait" -le "$budget" ]; then
+    pause=$((resets + 30))
+    if [ "$resets" -gt 0 ] && [ "$pause" -le "$budget" ]; then
       echo "PyPI's new-project cap resets in ${resets}s; waiting for it."
-      sleep "$wait"
-      budget=$((budget - wait))
+      sleep "$pause"
+      budget=$((budget - pause))
       continue
     fi
     if [ "$resets" -gt 0 ]; then
