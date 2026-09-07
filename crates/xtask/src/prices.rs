@@ -177,6 +177,12 @@ fn refresh(root: &Path) -> Result<String, String> {
 // Cheapest first, by the indicative rates; an offer whose price cannot be read as a
 // number keeps its place after the rest.
 fn order(buys: &mut toml_edit::ArrayOfTables) {
+    // A table remembers where in the document it was written, and that position, not the
+    // order of the array, is what decides where it is rendered. Sorting the array alone
+    // leaves the file exactly as it was, so the slots are collected here and handed back
+    // out in the sorted order.
+    let mut slots: Vec<Option<isize>> = buys.iter().map(Table::position).collect();
+    slots.sort_unstable();
     let mut tables: Vec<Table> = buys.iter().cloned().collect();
     tables.sort_by(|a, b| {
         let key = |t: &Table| {
@@ -190,7 +196,8 @@ fn order(buys: &mut toml_edit::ArrayOfTables) {
             .unwrap_or(std::cmp::Ordering::Equal)
     });
     buys.clear();
-    for table in tables {
+    for (mut table, slot) in tables.into_iter().zip(slots) {
+        table.set_position(slot);
         buys.push(table);
     }
 }
@@ -583,6 +590,16 @@ mod tests {
         assert_eq!(vendors, ["C", "B", "A"]);
         assert_eq!(usd("US$14.95"), Some(14.95));
         assert!(usd("£10.00").unwrap() > 12.9 && usd("free").is_none());
+
+        // The written file is what a reader sees, and a table is rendered where its
+        // recorded position says, so the order has to hold after the document is
+        // printed and not only in the array.
+        let rendered = doc.to_string();
+        let at = |vendor: &str| rendered.find(vendor).expect("the vendor is written");
+        assert!(
+            at("\"C\"") < at("\"B\"") && at("\"B\"") < at("\"A\""),
+            "cheapest first survives rendering:\n{rendered}"
+        );
     }
 
     #[test]

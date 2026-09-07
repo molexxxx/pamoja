@@ -384,6 +384,151 @@ function gpioVectors() {
   });
 }
 
+/** The seven parts added after the first four, against the same vectors Rust asserts. */
+function laterSensorVectors() {
+  const vector = VECTORS.sensors;
+
+  const bmp = vector.bmp280;
+  const calibration = sensors.bmp280.calibration(unhex(bmp.calibration));
+  const reading = calibration.compensate(unhex(bmp.measurement));
+  close(reading.celsius, bmp.celsius, "BMP280 temperature", 1e-3);
+  assert.strictEqual(reading.pascals, bmp.pascals, "BMP280 pressure");
+  assert.strictEqual(
+    Buffer.from(calibration.toBytes()).toString("hex"),
+    bmp.calibrationRoundTrip,
+    "the BMP280 coefficients round-trip through their registers",
+  );
+  assert.strictEqual(sensors.bmp280.chipId, bmp.chipId, "BMP280 chip id");
+
+  const sht = vector.sht3x;
+  const shtDecoded = sensors.sht3x.parseMeasurement(unhex(sht.measurement));
+  assert.strictEqual(shtDecoded.temperatureRaw, sht.temperatureRaw, "SHT3x temperature register");
+  assert.strictEqual(shtDecoded.milliCelsius, sht.milliCelsius, "SHT3x temperature");
+  assert.strictEqual(
+    sensors.sht3x.milliCelsius(shtDecoded.temperatureRaw),
+    sht.milliCelsius,
+    "the SHT3x decodes the same whether the frame or the register is handed over",
+  );
+  assert.strictEqual(
+    sensors.sht3x.milliFahrenheit(shtDecoded.temperatureRaw),
+    sht.milliFahrenheit,
+    "SHT3x temperature in Fahrenheit",
+  );
+  assert.strictEqual(
+    sensors.sht3x.milliPercent(shtDecoded.humidityRaw),
+    sht.milliPercent,
+    "SHT3x humidity",
+  );
+  assert.strictEqual(sensors.sht3x.crc(unhex(sht.crcInput)), sht.crc, "SHT3x checksum");
+  assert.throws(
+    () => sensors.sht3x.parseMeasurement(unhex(sht.corruptMeasurement)),
+    "a flipped bit fails the SHT3x checksum",
+  );
+  const status = sensors.sht3x.parseStatus(unhex(sht.status));
+  assert.strictEqual(status.bits, sht.statusBits, "SHT3x status word");
+  assert.strictEqual(status.alertPending, sht.alertPending, "SHT3x alert flag");
+  assert.strictEqual(status.heaterOn, sht.heaterOn, "SHT3x heater flag");
+
+  const scd = vector.scd4x;
+  const scdDecoded = sensors.scd4x.parseMeasurement(unhex(scd.measurement));
+  assert.strictEqual(scdDecoded.co2Ppm, scd.co2Ppm, "SCD4x carbon dioxide");
+  assert.strictEqual(
+    sensors.scd4x.milliCelsius(scdDecoded.temperatureRaw),
+    scd.milliCelsius,
+    "SCD4x temperature",
+  );
+  assert.strictEqual(
+    sensors.scd4x.humidityMilliPercent(scdDecoded.humidityRaw),
+    scd.humidityMilliPercent,
+    "SCD4x humidity",
+  );
+  assert.throws(
+    () => sensors.scd4x.parseMeasurement(unhex(scd.corruptMeasurement)),
+    "a flipped byte fails the SCD4x checksum",
+  );
+  assert.strictEqual(
+    sensors.scd4x.temperatureOffsetWord(scd.temperatureOffsetMilliCelsius),
+    scd.temperatureOffsetWord,
+    "the SCD4x offset scales by 2^16, not by the 2^16 - 1 its measurement uses",
+  );
+  assert.strictEqual(
+    Number(sensors.scd4x.serialNumber(unhex(scd.serialFrame))),
+    scd.serialNumber,
+    "SCD4x serial number",
+  );
+
+  const tmp = vector.tmp117;
+  for (const entry of tmp.readings) {
+    const raw = entry.register > 0x7fff ? entry.register - 0x10000 : entry.register;
+    assert.strictEqual(
+      sensors.tmp117.microCelsius(raw),
+      entry.microCelsius,
+      `TMP117 register ${entry.register}`,
+    );
+    assert.strictEqual(
+      Number(sensors.tmp117.nanoCelsius(raw)),
+      entry.nanoCelsius,
+      `TMP117 register ${entry.register} in nanodegrees`,
+    );
+  }
+  assert.strictEqual(sensors.tmp117.highAlert(tmp.flagConfig), tmp.highAlert, "TMP117 high alert");
+  assert.strictEqual(sensors.tmp117.dataReady(tmp.flagConfig), tmp.dataReady, "TMP117 data ready");
+
+  const hdc = vector.hdc1080;
+  const hdcDecoded = sensors.hdc1080.parseMeasurement(unhex(hdc.measurement));
+  assert.strictEqual(hdcDecoded.temperatureRaw, hdc.temperatureRaw, "HDC1080 temperature register");
+  assert.strictEqual(hdcDecoded.milliCelsius, hdc.milliCelsius, "HDC1080 temperature");
+  assert.strictEqual(hdcDecoded.milliPercent, hdc.milliPercent, "HDC1080 humidity");
+  assert.throws(
+    () => sensors.hdc1080.configFromRegister(hdc.invalidConfiguration),
+    "the humidity-resolution code the HDC1080 datasheet leaves undefined is refused",
+  );
+
+  const opt = vector.opt3001;
+  for (const entry of opt.results) {
+    assert.strictEqual(
+      sensors.opt3001.milliLux(entry.register),
+      entry.milliLux,
+      `OPT3001 register ${entry.register}`,
+    );
+  }
+  for (const entry of opt.ranges) {
+    assert.strictEqual(
+      sensors.opt3001.fullScaleMilliLux(entry.range),
+      entry.fullScaleMilliLux,
+      `OPT3001 full scale for range ${entry.range}`,
+    );
+  }
+  assert.strictEqual(
+    sensors.opt3001.fullScaleMilliLux(opt.invalidRange),
+    null,
+    "a reserved range number has no full scale",
+  );
+
+  const ina = vector.ina226;
+  assert.strictEqual(
+    sensors.ina226.calibration(ina.currentLsbMicroamps, ina.shuntMilliohms),
+    ina.calibration,
+    "the INA226 calibration its datasheet's worked example arrives at",
+  );
+  assert.strictEqual(sensors.ina226.shuntNanovolts(ina.rawShunt), ina.shuntNanovolts, "INA226 shunt");
+  assert.strictEqual(sensors.ina226.busMicrovolts(ina.rawBus), ina.busMicrovolts, "INA226 bus");
+  assert.strictEqual(
+    sensors.ina226.currentMicroamps(ina.rawCurrent, ina.currentLsbMicroamps),
+    ina.currentMicroamps,
+    "INA226 current",
+  );
+  assert.strictEqual(
+    sensors.ina226.powerMicrowatts(ina.rawPower, ina.currentLsbMicroamps),
+    ina.powerMicrowatts,
+    "INA226 power",
+  );
+  assert.throws(
+    () => sensors.ina226.identify(ina.manufacturerId, ina.badDieId),
+    "a die identifier that is not an INA226 is refused",
+  );
+}
+
 function sensorVectors() {
   const vector = VECTORS.sensors;
 
@@ -605,6 +750,7 @@ modbusVectors();
 canVectors();
 gpioVectors();
 sensorVectors();
+laterSensorVectors();
 actuatorVectors();
 
 // Regional channel plans: every binding must report the same facts about each
