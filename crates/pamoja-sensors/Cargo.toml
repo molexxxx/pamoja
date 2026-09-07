@@ -1,6 +1,6 @@
 [package]
 name = "pamoja-sensors"
-description = "Concrete sensor drivers for pamoja: the decode-and-configure half of common parts - BME280 temperature/pressure/humidity (Bosch compensation), DS18B20 1-Wire thermometer (datasheet temperature table + Maxim CRC-8), INA219 current/voltage/power monitor (TI calibration math), and ADS1115 ADC (config register and full-scale conversion) - each turning raw register bytes into physical readings exactly as the manufacturer datasheet specifies, no_std and allocation-free. The decode half ahead of the bus driver."
+description = "Concrete sensor drivers for pamoja: the decode-and-configure half of common parts - BME280 and BMP280 (Bosch compensation), DS18B20 1-Wire thermometer (datasheet temperature table + Maxim CRC-8), INA219 and INA226 current/voltage/power monitors (TI calibration math), ADS1115 ADC (config register and full-scale conversion), SHT3x and SCD4x (Sensirion linear formulas, command tables, and CRC-8), TMP117 and HDC1080 thermometers and hygrometers, and the OPT3001 ambient light sensor - each turning raw register bytes into physical readings exactly as the manufacturer datasheet specifies, no_std and allocation-free. The decode half ahead of the bus driver."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

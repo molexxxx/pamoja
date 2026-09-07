@@ -28,7 +28,7 @@ Each module name opens its reference.
 | `pamoja-modbus` | [`pamoja.modbus`](https://pamoja.molex.cloud/docs/reference/python/pamoja/modbus.html) | Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices |
 | `pamoja-can` | [`pamoja.can`](https://pamoja.molex.cloud/docs/reference/python/pamoja/can.html) | CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose |
 | `pamoja-gpio` | [`pamoja.gpio`](https://pamoja.molex.cloud/docs/reference/python/pamoja/gpio.html) | I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins |
-| `pamoja-sensors` | [`pamoja.sensors`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sensors.html) | Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115 |
+| `pamoja-sensors` | [`pamoja.sensors`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sensors.html) | Datasheet-anchored decoders for eleven parts: the BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, and TMP117 |
 | `pamoja-actuators` | [`pamoja.actuators`](https://pamoja.molex.cloud/docs/reference/python/pamoja/actuators.html) | PCA9685 PWM and servo pulses, and stepper coil sequencing |
 | `pamoja-lora` | [`pamoja.lora`](https://pamoja.molex.cloud/docs/reference/python/pamoja/lora.html) | Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to |
 | `pamoja-lorawan` | [`pamoja.lorawan`](https://pamoja.molex.cloud/docs/reference/python/pamoja/lorawan.html) | LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join |

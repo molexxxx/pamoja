@@ -189,7 +189,7 @@ reference pages, one step away.
 <div class="pkgs">
 <div class="pkg" id="node-sensors">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/sensors.html">Sensor drivers</a><code class="pkg-import">@pamoja/sensors</code><p>Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/sensors.html">Sensor drivers</a><code class="pkg-import">@pamoja/sensors</code><p>Datasheet-anchored decoders for eleven parts: the BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, and TMP117</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/sensors</code><button class="copy" type="button" data-copy="npm install @pamoja/sensors" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">
