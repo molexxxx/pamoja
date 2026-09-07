@@ -30,6 +30,13 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- The hardware page's purchase offers were never actually sorted cheapest first.
+  The sort ran, but on the array alone: a TOML table is written back where its
+  recorded position says, not where the array now puts it, so the file kept the
+  order it already had and the test that covered this only ever inspected the
+  array. Six parts listed a dearer offer above a cheaper one once the currencies
+  were converted. The positions travel with the sort now, and the test reads the
+  rendered document.
 - PyPI refused the compiled engine's source distribution: its metadata named
   `LICENSE-MIT`, which maturin had placed beside the vendored crate rather than
   at the archive's root once the package carried path dependencies, and PyPI
