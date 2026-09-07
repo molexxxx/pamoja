@@ -426,6 +426,26 @@ pub fn bmp280_parse_measurement(data: Buffer) -> napi::Result<Bmp280Measurement>
     Ok(bmp280::Measurement::parse(&registers).into())
 }
 
+/// Reports whether a raw pressure code says the channel's oversampling is off.
+#[napi]
+pub fn bmp280_pressure_skipped(pressure: u32) -> bool {
+    bmp280::Measurement {
+        pressure,
+        temperature: 0,
+    }
+    .pressure_skipped()
+}
+
+/// Reports whether a raw temperature code says the channel's oversampling is off.
+#[napi]
+pub fn bmp280_temperature_skipped(temperature: u32) -> bool {
+    bmp280::Measurement {
+        pressure: 0,
+        temperature,
+    }
+    .temperature_skipped()
+}
+
 /// Builds the six data bytes a BMP280 holding these codes would return.
 #[napi]
 pub fn bmp280_measurement_bytes(pressure: u32, temperature: u32) -> Buffer {
