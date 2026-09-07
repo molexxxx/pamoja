@@ -9,6 +9,13 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- The seven new sensor drivers reach TypeScript and Node. Each is a package-level
+  object beside the four that were already there, with the datasheet constants,
+  the frame parsers and their builders, the configuration registers, and every
+  conversion in both directions. The smoke suite checks a datasheet figure per
+  part and the input each one refuses, and the conformance runner asserts the
+  same vectors Rust does, so a part that decodes differently in one language
+  fails the build.
 - The seven new sensor drivers have cross-language conformance vectors: the
   generator writes 94 values for them, from the decoded frames and their physical
   readings to the register tables the datasheets print, each with the input the

@@ -91,6 +91,7 @@ async function main() {
   helpers();
   fieldIo();
   sensingAndActuation();
+laterSensors();
   radioAndReach();
   mavlinkWire();
   mavlinkShapes();
@@ -246,6 +247,68 @@ function fieldIo() {
     gpio.PinLevel.Low,
     "an active-low relay is energised by a low level",
   );
+}
+
+// The seven parts added after the first four: a datasheet figure each, and the
+// input each one is meant to refuse.
+function laterSensors() {
+  const measurement = sensors.sht3x.parseMeasurement(
+    sensors.sht3x.measurementBytes(0x6666, 0x9999),
+  );
+  assert.strictEqual(measurement.milliCelsius, 25000, "0x6666 is two fifths of full scale");
+  assert.strictEqual(measurement.milliPercent, 60000, "and 0x9999 is three fifths");
+  assert.strictEqual(sensors.sht3x.crc(Buffer.from([0xbe, 0xef])), 0x92, "Sensirion's check value");
+
+  const air500 = sensors.scd4x.measurementFromPhysical(500, 25000, 37000);
+  const frame = sensors.scd4x.measurementBytes(
+    air500.co2Ppm,
+    air500.temperatureRaw,
+    air500.humidityRaw,
+  );
+  const air = sensors.scd4x.parseMeasurement(frame);
+  assert.strictEqual(air.co2Ppm, 500, "the carbon dioxide word survives the frame");
+  const corruptFrame = Buffer.from(frame);
+  corruptFrame[2] ^= 0xff;
+  assert.throws(
+    () => sensors.scd4x.parseMeasurement(corruptFrame),
+    "a flipped checksum byte should throw",
+  );
+
+  assert.strictEqual(sensors.tmp117.microCelsius(0x0c80), 25000000, "the datasheet's 25 C row");
+  assert.strictEqual(sensors.tmp117.microCelsius(-1), -7812, "and one count below zero");
+
+  assert.strictEqual(sensors.hdc1080.milliCelsius(0x8000), 42500, "mid-scale on the HDC1080");
+  assert.throws(
+    () => sensors.hdc1080.configFromRegister(0x1300),
+    "the undefined humidity-resolution code should throw",
+  );
+
+  assert.strictEqual(sensors.opt3001.milliLux(0xbfff), 83865600, "the OPT3001 full scale");
+  assert.strictEqual(
+    sensors.opt3001.fullScaleMilliLux(12),
+    null,
+    "a reserved range number has no full scale",
+  );
+
+  assert.strictEqual(sensors.ina226.calibration(1000, 2), 2560, "the INA226 design example");
+  assert.strictEqual(
+    sensors.ina226.powerMicrowatts(4792, 1000),
+    119800000,
+    "which reads 119.8 W at the example's load",
+  );
+  assert.throws(
+    () => sensors.ina226.identify(0x5449, 0x2270),
+    "a die that is not an INA226 should throw",
+  );
+
+  const coefficients = sensors.bmp280.calibration(
+    Buffer.from(
+      "70 6b 43 67 18 fc 7d 8e 43 d6 d0 0b 27 0b 8c 00 f9 ff 8c 3c f8 c6 70 17".replace(/ /g, ""),
+      "hex",
+    ),
+  );
+  const air280 = coefficients.compensate(Buffer.from("655ac07eed00".replace(/ /g, ""), "hex"));
+  assert.ok(air280.pascals > 90000 && air280.pascals < 110000, "the BMP280 reads a sane pressure");
 }
 
 // The parts wired to a board: a thermometer that checks its own bytes, a servo
