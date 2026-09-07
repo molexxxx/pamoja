@@ -75,6 +75,16 @@ export declare class Bme280Calibration {
   compensate(measurement: Buffer): Bme280Measurement
 }
 
+/** A BMP280's factory calibration, read once and reused for every measurement. */
+export declare class Bmp280Calibration {
+  /** Builds a calibration from the 24-byte block read out of the device. */
+  constructor(bytes: Buffer)
+  /** Turns a six-byte burst read into a compensated reading. */
+  compensate(measurement: Buffer): Bmp280Reading
+  /** Rebuilds the register bytes the coefficients were read from. */
+  toBytes(): Buffer
+}
+
 /** Turns a raw sensor count into the units the reading is actually in. */
 export declare class Calibration {
   /** Creates a calibration applying `raw * scale + offset`. */
@@ -1716,6 +1726,82 @@ export interface Bme280Measurement {
   relativeHumidityPercent: number
 }
 
+/** A BMP280 `config` register, field by field. */
+export interface Bmp280Config {
+  /** The standby-time code, `0..=7`. */
+  standby: number
+  /** The IIR filter coefficient code, `0..=7`, where `0` disables the filter. */
+  filter: number
+  /** Whether the SPI interface runs in its three-wire mode. */
+  spi3Wire: boolean
+}
+
+/** Assembles the BMP280 `config` register value. */
+export declare function bmp280ConfigBits(config: Bmp280Config): number
+
+/** Parses the BMP280 `config` register value. */
+export declare function bmp280ConfigFromBits(bits: number): Bmp280Config
+
+/** A BMP280 `ctrl_meas` register, field by field. */
+export interface Bmp280CtrlMeas {
+  /** The temperature oversampling code, `0..=7`, where `0` skips the measurement. */
+  temperature: number
+  /** The pressure oversampling code, `0..=7`, where `0` skips the measurement. */
+  pressure: number
+  /** The power mode code: `0` sleep, `1` forced, `3` normal. */
+  mode: number
+}
+
+/** Assembles the BMP280 `ctrl_meas` register value. */
+export declare function bmp280CtrlMeasBits(ctrl: Bmp280CtrlMeas): number
+
+/** Parses the BMP280 `ctrl_meas` register value. */
+export declare function bmp280CtrlMeasFromBits(bits: number): Bmp280CtrlMeas
+
+/** Reports whether a BMP280 status register says the calibration is being copied. */
+export declare function bmp280ImageUpdating(status: number): boolean
+
+/** Builds the six data-register bytes a BMP280 reports for two raw outputs. */
+export declare function bmp280MeasurementBytes(pressure: number, temperature: number): Buffer
+
+/** Reports whether a BMP280 status register says a conversion is running. */
+export declare function bmp280Measuring(status: number): boolean
+
+/** Returns how many samples a BMP280 oversampling code averages. */
+export declare function bmp280OversamplingFactor(code: number): number
+
+/** Splits a six-byte BMP280 data read into its two uncompensated outputs. */
+export declare function bmp280ParseMeasurement(bytes: Buffer): Bmp280RawMeasurement
+
+/** Reports whether a raw BMP280 pressure says the measurement was skipped. */
+export declare function bmp280PressureSkipped(pressure: number): boolean
+
+/** The two uncompensated BMP280 outputs, as read from the data registers. */
+export interface Bmp280RawMeasurement {
+  /** The 20-bit uncompensated pressure. */
+  pressure: number
+  /** The 20-bit uncompensated temperature. */
+  temperature: number
+}
+
+/** A compensated BMP280 reading. */
+export interface Bmp280Reading {
+  /** The temperature in hundredths of a degree Celsius, exact in integer arithmetic. */
+  centiCelsius: number
+  /** The temperature in degrees Celsius. */
+  celsius: number
+  /** The pressure in pascals. */
+  pascals: number
+  /** The pressure in hectopascals, the unit a barometer is usually quoted in. */
+  hectopascals: number
+}
+
+/** Returns the standby time a BMP280 standby code selects, in microseconds. */
+export declare function bmp280StandbyMicros(code: number): number
+
+/** Reports whether a raw BMP280 temperature says the measurement was skipped. */
+export declare function bmp280TemperatureSkipped(temperature: number): boolean
+
 /** The decision a device made at boot, already recorded before it was returned. */
 export interface Boot {
   /** What the bootloader should do. */
@@ -2001,6 +2087,80 @@ export interface ForwardDecision {
   nextHop?: number
 }
 
+/** Converts a raw HDC1080 temperature register to degrees Celsius. */
+export declare function hdc1080Celsius(raw: number): number
+
+/** An HDC1080 configuration register, field by field. */
+export interface Hdc1080Config {
+  /** Whether writing this resets the part; the bit clears itself. */
+  softwareReset: boolean
+  /** Whether the on-die heater runs during measurements. */
+  heater: boolean
+  /** Whether one trigger acquires temperature and humidity in sequence. */
+  sequentialAcquisition: boolean
+  /** Read only: whether the supply is below 2.8 volts. */
+  batteryLow: boolean
+  /** The temperature resolution in bits: 14 or 11. */
+  temperatureResolutionBits: number
+  /** The humidity resolution in bits: 14, 11, or 8. */
+  humidityResolutionBits: number
+}
+
+/** Parses the HDC1080 configuration register. */
+export declare function hdc1080ConfigFromRegister(raw: number): Hdc1080Config
+
+/** Assembles the HDC1080 configuration register value. */
+export declare function hdc1080ConfigToRegister(config: Hdc1080Config): number
+
+/** Returns how long to wait after an HDC1080 trigger, in microseconds. */
+export declare function hdc1080ConversionTimeMicros(config: Hdc1080Config): number
+
+/** Builds the HDC1080 humidity register for a humidity in milli-percent. */
+export declare function hdc1080HumidityRegister(milliPercent: number): number
+
+/** A decoded HDC1080 measurement frame. */
+export interface Hdc1080Measurement {
+  /** The raw temperature word. */
+  temperatureRaw: number
+  /** The raw humidity word. */
+  humidityRaw: number
+  /** The temperature in milli-degrees Celsius. */
+  milliCelsius: number
+  /** The temperature in degrees Celsius. */
+  celsius: number
+  /** The relative humidity in milli-percent. */
+  milliPercent: number
+  /** The relative humidity as a percentage. */
+  relativeHumidity: number
+}
+
+/** Builds the four bytes an HDC1080 sends for a pair of raw registers. */
+export declare function hdc1080MeasurementBytes(temperature: number, humidity: number): Buffer
+
+/** Builds the HDC1080 measurement a part reporting these physical values would send. */
+export declare function hdc1080MeasurementFromPhysical(milliCelsius: number, milliPercent: number): Hdc1080Measurement
+
+/** Converts a raw HDC1080 temperature register to milli-degrees Celsius. */
+export declare function hdc1080MilliCelsius(raw: number): number
+
+/** Converts a raw HDC1080 humidity register to milli-percent relative humidity. */
+export declare function hdc1080MilliPercent(raw: number): number
+
+/** Parses a four-byte HDC1080 measurement frame. */
+export declare function hdc1080ParseMeasurement(bytes: Buffer): Hdc1080Measurement
+
+/** Converts a raw HDC1080 humidity register to a relative humidity percentage. */
+export declare function hdc1080RelativeHumidity(raw: number): number
+
+/** Joins the three HDC1080 serial-ID registers into the 41-bit serial number. */
+export declare function hdc1080SerialId(high: number, mid: number, low: number): number
+
+/** Splits an HDC1080 serial number back into its three registers. */
+export declare function hdc1080SerialIdRegisters(serial: number): Array<number>
+
+/** Builds the HDC1080 temperature register for a temperature in milli-degrees Celsius. */
+export declare function hdc1080TemperatureRegister(milliCelsius: number): number
+
 /** Expands input keying material into `length` bytes bound to `info`. */
 export declare function hkdfSha256Expand(salt: Buffer, ikm: Buffer, info: Buffer, length: number): Buffer
 
@@ -2085,6 +2245,158 @@ export declare function ina219ShuntMicrovolts(raw: number): number
 
 /** Builds the INA219 shunt-voltage register a monitor reports for a shunt voltage. */
 export declare function ina219ShuntRegister(microvolts: number): number
+
+/** Returns the limit comparison an INA226's alert pin actually responds to. */
+export declare function ina226ActiveAlertFunction(mask: Ina226MaskEnable): Ina226AlertFunction | null
+
+/** Returns the 7-bit I2C address an INA226's A1 and A0 pins select. */
+export declare function ina226Address(a1: number, a0: number): number
+
+/** The limit comparison an INA226's alert pin responds to. */
+export declare const enum Ina226AlertFunction {
+  /** The shunt voltage rose above the alert limit. */
+  ShuntOverLimit = 'ShuntOverLimit',
+  /** The shunt voltage fell below the alert limit. */
+  ShuntUnderLimit = 'ShuntUnderLimit',
+  /** The bus voltage rose above the alert limit. */
+  BusOverLimit = 'BusOverLimit',
+  /** The bus voltage fell below the alert limit. */
+  BusUnderLimit = 'BusUnderLimit',
+  /** The power rose above the alert limit. */
+  PowerOverLimit = 'PowerOverLimit'
+}
+
+/** Returns how many samples an INA226 averaging code folds into one result. */
+export declare function ina226AveragingSamples(averaging: number): number
+
+/** Converts a raw INA226 bus-voltage register to microvolts. */
+export declare function ina226BusMicrovolts(raw: number): number
+
+/** Builds the INA226 bus-voltage register a monitor reports for a bus voltage. */
+export declare function ina226BusRegister(microvolts: number): number
+
+/** Converts a raw INA226 bus-voltage register to volts. */
+export declare function ina226BusVolts(raw: number): number
+
+/** Computes the INA226 calibration register for a shunt and current resolution. */
+export declare function ina226Calibration(currentLsbMicroamps: number, shuntMilliohms: number): number
+
+/** An INA226 configuration register, field by field. */
+export interface Ina226Config {
+  /** Whether writing this triggers a reset; the bit self-clears. */
+  reset: boolean
+  /** The averaging code, `0..=7`, from one sample to 1024. */
+  averaging: number
+  /** The bus-voltage conversion-time code, `0..=7`. */
+  busConversionTime: number
+  /** The shunt-voltage conversion-time code, `0..=7`. */
+  shuntConversionTime: number
+  /** The mode code, `0..=7`: which inputs convert, and once or continuously. */
+  mode: number
+}
+
+/** Parses the INA226 configuration register. */
+export declare function ina226ConfigFromRegister(raw: number): Ina226Config
+
+/** Assembles the INA226 configuration register value. */
+export declare function ina226ConfigToRegister(config: Ina226Config): number
+
+/** Returns how long an INA226 conversion-time code takes, in microseconds. */
+export declare function ina226ConversionMicros(conversionTime: number): number
+
+/** Converts a raw INA226 current register to amps. */
+export declare function ina226CurrentAmps(raw: number, currentLsbMicroamps: number): number
+
+/** Converts a raw INA226 current register to microamps. */
+export declare function ina226CurrentMicroamps(raw: number, currentLsbMicroamps: number): number
+
+/** Builds the INA226 current register a monitor reports for a current. */
+export declare function ina226CurrentRegister(microamps: number, currentLsbMicroamps: number): number
+
+/** Computes the INA226 current register from a shunt reading and the calibration. */
+export declare function ina226CurrentRegisterFromShunt(shunt: number, calibration: number): number
+
+/** Splits an INA226 die-ID register into its device and revision fields. */
+export declare function ina226DieId(raw: number): Ina226DieId
+
+/** A split INA226 die-ID register. */
+export interface Ina226DieId {
+  /** The 12-bit device identifier. */
+  device: number
+  /** The 4-bit die revision. */
+  revision: number
+}
+
+/** Checks that a pair of identification registers belongs to an INA226. */
+export declare function ina226Identify(manufacturerId: number, dieId: number): Ina226DieId
+
+/** An INA226 Mask/Enable register, field by field. */
+export interface Ina226MaskEnable {
+  /** Alert when the shunt voltage rises above the alert limit. */
+  shuntOverLimit: boolean
+  /** Alert when the shunt voltage falls below the alert limit. */
+  shuntUnderLimit: boolean
+  /** Alert when the bus voltage rises above the alert limit. */
+  busOverLimit: boolean
+  /** Alert when the bus voltage falls below the alert limit. */
+  busUnderLimit: boolean
+  /** Alert when the power rises above the alert limit. */
+  powerOverLimit: boolean
+  /** Assert the pin when a conversion completes. */
+  conversionReady: boolean
+  /** Read only: an enabled limit function tripped. */
+  alertFunctionFlag: boolean
+  /** Read only: a conversion has completed. */
+  conversionReadyFlag: boolean
+  /** Read only: the power or current calculation overflowed. */
+  mathOverflow: boolean
+  /** Whether the ALERT pin is active high. */
+  alertActiveHigh: boolean
+  /** Whether the ALERT pin latches until the register is read. */
+  alertLatch: boolean
+}
+
+/** Parses the INA226 Mask/Enable register. */
+export declare function ina226MaskEnableFromRegister(raw: number): Ina226MaskEnable
+
+/** Assembles the INA226 Mask/Enable register value. */
+export declare function ina226MaskEnableToRegister(mask: Ina226MaskEnable): number
+
+/** Returns the smallest current resolution that still covers an expected maximum. */
+export declare function ina226MinimumCurrentLsbMicroamps(maxExpectedMicroamps: number): number
+
+/** Reports whether an INA226 mode code keeps converting after the first result. */
+export declare function ina226ModeIsContinuous(mode: number): boolean
+
+/** Reports whether an INA226 mode code converts the bus voltage. */
+export declare function ina226ModeMeasuresBus(mode: number): boolean
+
+/** Reports whether an INA226 mode code converts the shunt voltage. */
+export declare function ina226ModeMeasuresShunt(mode: number): boolean
+
+/** Converts a raw INA226 power register to microwatts. */
+export declare function ina226PowerMicrowatts(raw: number, currentLsbMicroamps: number): number
+
+/** Builds the INA226 power register a monitor reports for a power. */
+export declare function ina226PowerRegister(microwatts: number, currentLsbMicroamps: number): number
+
+/** Computes the INA226 power register from a current reading and the bus voltage. */
+export declare function ina226PowerRegisterFromCurrent(current: number, bus: number): number
+
+/** Converts a raw INA226 power register to watts. */
+export declare function ina226PowerWatts(raw: number, currentLsbMicroamps: number): number
+
+/** Converts a raw INA226 shunt-voltage register to millivolts. */
+export declare function ina226ShuntMillivolts(raw: number): number
+
+/** Converts a raw INA226 shunt-voltage register to nanovolts. */
+export declare function ina226ShuntNanovolts(raw: number): number
+
+/** Builds the INA226 shunt-voltage register a monitor reports for a shunt voltage. */
+export declare function ina226ShuntRegister(nanovolts: number): number
+
+/** Returns how often an INA226 with this configuration updates its results. */
+export declare function ina226UpdateMicroseconds(config: Ina226Config): number
 
 /** The destination address every node on the bus reads. */
 export const J1939_BROADCAST_ADDRESS: number
@@ -2968,6 +3280,62 @@ export interface MqttMessage {
 /** Opens a signed delegation against the anchor that should have signed it. */
 export declare function openDelegation(bytes: Buffer, anchorPublicKey: Buffer): Delegation
 
+/** An OPT3001 configuration register, field by field. */
+export interface Opt3001Config {
+  /** The range number, `0..=11` for a fixed full scale or `12` for automatic. */
+  rangeNumber: number
+  /** The conversion time in milliseconds: 100 or 800. */
+  conversionTimeMillis: number
+  /** The mode code: `0` shutdown, `1` single-shot, `2` continuous. */
+  mode: number
+  /** Read only: the last conversion overflowed its full-scale range. */
+  overflow: boolean
+  /** Read only: a conversion has completed. */
+  conversionReady: boolean
+  /** Read only: the result exceeded the high limit for the fault count. */
+  flagHigh: boolean
+  /** Read only: the result fell below the low limit for the fault count. */
+  flagLow: boolean
+  /** Whether the flags and INT pin latch until the register is read. */
+  latchedWindow: boolean
+  /** Whether the INT pin is active high. */
+  activeHigh: boolean
+  /** Whether the result's exponent is forced to zero on a fixed range. */
+  maskExponent: boolean
+  /** The consecutive faults a report takes: 1, 2, 4, or 8. */
+  faultCount: number
+}
+
+/** Assembles the 16-bit OPT3001 configuration register value. */
+export declare function opt3001ConfigBits(config: Opt3001Config): number
+
+/** Parses a 16-bit OPT3001 configuration register value. */
+export declare function opt3001ConfigFromBits(bits: number): Opt3001Config
+
+/** Returns the full scale an OPT3001 range number covers, in milli-lux. */
+export declare function opt3001FullScaleMilliLux(rangeNumber: number): number | null
+
+/** Reports whether an OPT3001 range number lets the part choose its own full scale. */
+export declare function opt3001IsAutomaticRange(rangeNumber: number): boolean
+
+/** Returns the illuminance one count carries at an OPT3001 exponent, in milli-lux. */
+export declare function opt3001LsbMilliLux(exponent: number): number | null
+
+/** Converts a raw OPT3001 result register to lux. */
+export declare function opt3001Lux(raw: number): number
+
+/** Converts a raw OPT3001 result register to milli-lux. */
+export declare function opt3001MilliLux(raw: number): number
+
+/** Builds the OPT3001 result register that reports an illuminance in milli-lux. */
+export declare function opt3001RawFromMilliLux(milliLux: number): number
+
+/** Reads an OPT3001 register out of the two bytes it sends. */
+export declare function opt3001WordFromBytes(bytes: Buffer): number
+
+/** Builds the two bytes an OPT3001 register is written as. */
+export declare function opt3001WordToBytes(word: number): Buffer
+
 /** How many PWM channels a PCA9685 drives. */
 export const PCA9685_CHANNELS: number
 
@@ -3228,6 +3596,108 @@ export interface Route {
 /** A reasonable routing table size for a caller with no reason to choose one. */
 export const ROUTING_DEFAULT_CAPACITY: number
 
+/** Reports whether an SCD4x accepts a command while it is measuring. */
+export declare function scd4xAllowedDuringMeasurement(command: number): boolean
+
+/** Converts an SCD4x ambient-pressure word to pascals. */
+export declare function scd4xAmbientPressurePascals(word: number): number
+
+/** Builds the SCD4x ambient-pressure word for a pressure in pascals. */
+export declare function scd4xAmbientPressureWord(pascals: number): number
+
+/** Reports whether an SCD4x self-calibration word says the feature is enabled. */
+export declare function scd4xAutomaticSelfCalibrationEnabled(word: number): boolean
+
+/** Builds the SCD4x word that turns automatic self-calibration on or off. */
+export declare function scd4xAutomaticSelfCalibrationWord(enabled: boolean): number
+
+/** Converts a raw SCD4x temperature word to degrees Celsius. */
+export declare function scd4xCelsius(raw: number): number
+
+/** Builds the two bytes that send a bare SCD4x command. */
+export declare function scd4xCommandFrame(command: number): Buffer
+
+/** Computes the Sensirion CRC-8 an SCD4x appends to every word. */
+export declare function scd4xCrc(data: Buffer): number
+
+/** Reports whether an SCD4x data-ready word says a measurement is waiting. */
+export declare function scd4xDataReady(word: number): boolean
+
+/** Reads the correction an SCD4x forced recalibration applied, in parts per million. */
+export declare function scd4xForcedRecalibrationCorrectionPpm(word: number): number | null
+
+/** Builds the word an SCD4x returns for a forced-recalibration outcome. */
+export declare function scd4xForcedRecalibrationWord(correctionPpm?: number | undefined | null): number
+
+/** Converts a raw SCD4x humidity word to milli-percent relative humidity. */
+export declare function scd4xHumidityMilliPercent(raw: number): number
+
+/** Builds the raw SCD4x humidity word for a humidity in milli-percent. */
+export declare function scd4xHumidityRaw(milliPercent: number): number
+
+/** Returns how long an SCD4x command may take, in milliseconds. */
+export declare function scd4xMaxDurationMs(command: number): number | null
+
+/** A decoded SCD4x measurement frame. */
+export interface Scd4xMeasurement {
+  /** The CO2 concentration in parts per million. */
+  co2Ppm: number
+  /** The raw temperature word. */
+  temperatureRaw: number
+  /** The raw humidity word. */
+  humidityRaw: number
+  /** The temperature in milli-degrees Celsius. */
+  milliCelsius: number
+  /** The temperature in degrees Celsius. */
+  celsius: number
+  /** The relative humidity in milli-percent. */
+  humidityMilliPercent: number
+  /** The relative humidity as a percentage. */
+  relativeHumidityPercent: number
+}
+
+/** Builds the nine bytes an SCD4x sends for three raw words, checksums included. */
+export declare function scd4xMeasurementBytes(co2Ppm: number, temperatureRaw: number, humidityRaw: number): Buffer
+
+/** Builds the SCD4x measurement a part reporting these physical values would send. */
+export declare function scd4xMeasurementFromPhysical(co2Ppm: number, milliCelsius: number, humidityMilliPercent: number): Scd4xMeasurement
+
+/** Converts a raw SCD4x temperature word to milli-degrees Celsius. */
+export declare function scd4xMilliCelsius(raw: number): number
+
+/** Parses and CRC-checks a nine-byte SCD4x measurement frame. */
+export declare function scd4xParseMeasurement(bytes: Buffer): Scd4xMeasurement
+
+/** Converts a raw SCD4x humidity word to a relative humidity percentage. */
+export declare function scd4xRelativeHumidityPercent(raw: number): number
+
+/** Reports whether an SCD4x self-test word says the part passed. */
+export declare function scd4xSelfTestPassed(word: number): boolean
+
+/** Reads an SCD4x serial number out of the nine bytes it sends. */
+export declare function scd4xSerialNumber(frame: Buffer): number
+
+/** Builds the nine bytes an SCD4x sends for a serial number, checksums included. */
+export declare function scd4xSerialNumberFrame(serial: number): Buffer
+
+/** Converts an SCD4x temperature-offset word to milli-degrees Celsius. */
+export declare function scd4xTemperatureOffsetMilliCelsius(word: number): number
+
+/** Builds the SCD4x temperature-offset word for an offset in milli-degrees Celsius. */
+export declare function scd4xTemperatureOffsetWord(milliCelsius: number): number
+
+/** Builds the raw SCD4x temperature word for a temperature in milli-degrees Celsius. */
+export declare function scd4xTemperatureRaw(milliCelsius: number): number
+
+/** Reads a CRC-checked SCD4x word off the bus. */
+export declare function scd4xWord(frame: Buffer): number
+
+/** Builds the three bytes an SCD4x sends for a word, its checksum last. */
+export declare function scd4xWordFrame(value: number): Buffer
+
+/** Builds the five bytes that send an SCD4x command with an argument. */
+export declare function scd4xWriteFrame(command: number, value: number): Buffer
+
 /** A message that has been sealed, with the header that travels beside it. */
 export interface SealedMessage {
   /** The counter naming this message within the session. */
@@ -3237,6 +3707,142 @@ export interface SealedMessage {
   /** The encrypted message. */
   ciphertext: Buffer
 }
+
+/** Converts a raw SHT3x temperature word to degrees Celsius. */
+export declare function sht3xCelsius(raw: number): number
+
+/** Computes the Sensirion CRC-8 an SHT3x appends to every word. */
+export declare function sht3xCrc(data: Buffer): number
+
+/** Converts a raw SHT3x temperature word to degrees Fahrenheit. */
+export declare function sht3xFahrenheit(raw: number): number
+
+/** Builds the raw SHT3x humidity word for a humidity in milli-percent. */
+export declare function sht3xHumidityRawFromMilliPercent(milliPercent: number): number
+
+/** Builds the raw SHT3x humidity word for a relative humidity percentage. */
+export declare function sht3xHumidityRawFromRelativeHumidity(percent: number): number
+
+/** Returns the interval between periodic SHT3x measurements, in microseconds. */
+export declare function sht3xIntervalMicros(rate: Sht3xRate): number
+
+/** Returns how long an SHT3x measurement may take, in microseconds. */
+export declare function sht3xMaxMeasurementMicros(repeatability: Sht3xRepeatability): number
+
+/** A decoded SHT3x measurement frame. */
+export interface Sht3xMeasurement {
+  /** The raw temperature word. */
+  temperatureRaw: number
+  /** The raw humidity word. */
+  humidityRaw: number
+  /** The temperature in milli-degrees Celsius. */
+  milliCelsius: number
+  /** The temperature in degrees Celsius. */
+  celsius: number
+  /** The temperature in milli-degrees Fahrenheit. */
+  milliFahrenheit: number
+  /** The temperature in degrees Fahrenheit. */
+  fahrenheit: number
+  /** The relative humidity in milli-percent. */
+  milliPercent: number
+  /** The relative humidity as a percentage. */
+  relativeHumidity: number
+}
+
+/** Builds the six bytes an SHT3x sends for a pair of raw words, checksums included. */
+export declare function sht3xMeasurementBytes(temperatureRaw: number, humidityRaw: number): Buffer
+
+/** Converts a raw SHT3x temperature word to milli-degrees Celsius. */
+export declare function sht3xMilliCelsius(raw: number): number
+
+/** Converts a raw SHT3x temperature word to milli-degrees Fahrenheit. */
+export declare function sht3xMilliFahrenheit(raw: number): number
+
+/** Converts a raw SHT3x humidity word to milli-percent relative humidity. */
+export declare function sht3xMilliPercent(raw: number): number
+
+/** Parses and CRC-checks a six-byte SHT3x measurement frame. */
+export declare function sht3xParseMeasurement(bytes: Buffer): Sht3xMeasurement
+
+/** Parses and CRC-checks a three-byte SHT3x status frame. */
+export declare function sht3xParseStatus(bytes: Buffer): Sht3xStatus
+
+/** Returns the SHT3x command word that starts periodic measurement. */
+export declare function sht3xPeriodic(repeatability: Sht3xRepeatability, rate: Sht3xRate): number
+
+/** How often an SHT3x in periodic mode takes a measurement. */
+export declare const enum Sht3xRate {
+  /** One measurement every two seconds. */
+  HalfMps = 'HalfMps',
+  /** One measurement per second. */
+  OneMps = 'OneMps',
+  /** Two measurements per second. */
+  TwoMps = 'TwoMps',
+  /** Four measurements per second. */
+  FourMps = 'FourMps',
+  /** Ten measurements per second. */
+  TenMps = 'TenMps'
+}
+
+/** Converts a raw SHT3x humidity word to a relative humidity percentage. */
+export declare function sht3xRelativeHumidity(raw: number): number
+
+/** The repeatability of an SHT3x measurement, traded against time and energy. */
+export declare const enum Sht3xRepeatability {
+  /** The quickest and noisiest setting. */
+  Low = 'Low',
+  /** The middle setting. */
+  Medium = 'Medium',
+  /** The slowest and quietest setting. */
+  High = 'High'
+}
+
+/** Returns the SHT3x command word for a single-shot measurement. */
+export declare function sht3xSingleShot(repeatability: Sht3xRepeatability, clockStretching: boolean): number
+
+/** A decoded SHT3x status register. */
+export interface Sht3xStatus {
+  /** The status word the flags were read from. */
+  bits: number
+  /** At least one alert condition is present. */
+  alertPending: boolean
+  /** The on-die heater is running. */
+  heaterOn: boolean
+  /** The humidity tracking alert is set. */
+  humidityTrackingAlert: boolean
+  /** The temperature tracking alert is set. */
+  temperatureTrackingAlert: boolean
+  /** A reset has been detected since the flag was last cleared. */
+  resetDetected: boolean
+  /** The last command was not processed. */
+  commandFailed: boolean
+  /** The last write failed its checksum. */
+  writeChecksumFailed: boolean
+}
+
+/** Builds the three bytes an SHT3x sends for a status word, its checksum last. */
+export declare function sht3xStatusBytes(bits: number): Buffer
+
+/** Splits an SHT3x status word into its flags. */
+export declare function sht3xStatusFromBits(bits: number): Sht3xStatus
+
+/** Builds the raw SHT3x temperature word for a temperature in degrees Celsius. */
+export declare function sht3xTemperatureRawFromCelsius(celsius: number): number
+
+/** Builds the raw SHT3x temperature word for a temperature in milli-degrees Celsius. */
+export declare function sht3xTemperatureRawFromMilliCelsius(milliCelsius: number): number
+
+/** Builds the raw SHT3x temperature word for a temperature in milli-degrees Fahrenheit. */
+export declare function sht3xTemperatureRawFromMilliFahrenheit(milliFahrenheit: number): number
+
+/** Returns how long an SHT3x measurement typically takes, in microseconds. */
+export declare function sht3xTypicalMeasurementMicros(repeatability: Sht3xRepeatability): number
+
+/** Reads a CRC-checked SHT3x word off the bus. */
+export declare function sht3xWord(frame: Buffer): number
+
+/** Builds the three bytes an SHT3x sends for a word, its checksum last. */
+export declare function sht3xWordBytes(value: number): Buffer
 
 /** Signs a delegation, naming a release key the anchor stands behind. */
 export declare function signDelegation(delegation: Delegation, anchor: DeviceIdentity): Buffer
@@ -3355,6 +3961,92 @@ export declare function stepperStepCount(drive: StepDrive): number
 
 /** Returns how many steps a rotation of `degrees` takes on a given motor. */
 export declare function stepperStepsForDegrees(degrees: number, stepsPerRevolution: number): number
+
+/** Converts a raw TMP117 temperature register to degrees Celsius. */
+export declare function tmp117Celsius(raw: number): number
+
+/** A TMP117 configuration register, field by field. */
+export interface Tmp117Config {
+  /** Read only: the result went above the high limit. */
+  highAlert: boolean
+  /** Read only: the result went below the low limit. */
+  lowAlert: boolean
+  /** Read only: a conversion has completed. */
+  dataReady: boolean
+  /** Read only: an EEPROM write is in progress. */
+  eepromBusy: boolean
+  /** The conversion-mode code: `0` continuous, `1` shutdown, `3` one-shot. */
+  mode: number
+  /** The conversion-cycle code, `0..=7`. */
+  cycle: number
+  /** The averaging code, `0..=3`. */
+  averaging: number
+  /** Whether the limits act as a hysteresis band rather than two alerts. */
+  thermMode: boolean
+  /** Whether the ALERT pin is active high. */
+  alertActiveHigh: boolean
+  /** Whether the ALERT pin reflects data ready rather than the alert flags. */
+  alertPinDataReady: boolean
+  /** Whether writing this triggers a soft reset; the bit always reads back clear. */
+  softReset: boolean
+}
+
+/** Assembles the 16-bit TMP117 configuration register value. */
+export declare function tmp117ConfigBits(config: Tmp117Config): number
+
+/** Parses a 16-bit TMP117 configuration register value. */
+export declare function tmp117ConfigFromBits(bits: number): Tmp117Config
+
+/** Returns how long a TMP117 averaging code takes to convert, in microseconds. */
+export declare function tmp117ConversionMicros(averaging: number): number
+
+/** Returns how many conversions a TMP117 averaging code folds into one result. */
+export declare function tmp117Conversions(averaging: number): number
+
+/** Returns the TMP117 result interval for a cycle and averaging pair, in microseconds. */
+export declare function tmp117CycleMicros(cycle: number, averaging: number): number
+
+/** Reports whether a TMP117 configuration register says a conversion is ready. */
+export declare function tmp117DataReady(config: number): boolean
+
+/** Returns the device identifier a TMP117 device-ID register carries. */
+export declare function tmp117DeviceId(raw: number): number
+
+/** Reports whether a TMP117 configuration register says an EEPROM write is running. */
+export declare function tmp117EepromBusy(config: number): boolean
+
+/** Reports whether a TMP117 EEPROM-unlock register says a write is running. */
+export declare function tmp117EepromUnlockBusy(unlock: number): boolean
+
+/** Reports whether a TMP117 configuration register flags a high alert. */
+export declare function tmp117HighAlert(config: number): boolean
+
+/** Reports whether a TMP117 configuration register flags a low alert. */
+export declare function tmp117LowAlert(config: number): boolean
+
+/** Converts a raw TMP117 temperature register to micro-degrees Celsius. */
+export declare function tmp117MicroCelsius(raw: number): number
+
+/** Converts a raw TMP117 temperature register to nano-degrees Celsius. */
+export declare function tmp117NanoCelsius(raw: number): number
+
+/** Returns the nominal cycle a TMP117 conversion-cycle code names, in microseconds. */
+export declare function tmp117NominalMicros(cycle: number): number
+
+/** Builds the raw TMP117 temperature register for a temperature in degrees Celsius. */
+export declare function tmp117RawFromCelsius(celsius: number): number
+
+/** Builds the raw TMP117 temperature register for a temperature in micro-degrees. */
+export declare function tmp117RawFromMicroCelsius(microCelsius: number): number
+
+/** Returns the die revision a TMP117 device-ID register carries. */
+export declare function tmp117Revision(raw: number): number
+
+/** Builds the two bytes a TMP117 sends for a temperature register. */
+export declare function tmp117TemperatureBytes(raw: number): Buffer
+
+/** Reads a TMP117 temperature register out of the two bytes it sends. */
+export declare function tmp117TemperatureFromBytes(bytes: Buffer): number
 
 /** A message that arrived on a subscribed topic. */
 export interface TransportMessage {
