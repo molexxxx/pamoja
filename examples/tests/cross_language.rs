@@ -51,7 +51,9 @@ use pamoja_ros2::name::{dds_topic, is_fully_qualified, is_valid_name, percent_ma
 use pamoja_ros2::typehash::{dds_type_name, TypeHash};
 use pamoja_routing::{DynamicRouter, Forward};
 use pamoja_security::{DeviceIdentity, PublicIdentity, Signature};
-use pamoja_sensors::{ads1115, bme280, ds18b20, ina219};
+use pamoja_sensors::{
+    ads1115, bme280, bmp280, ds18b20, hdc1080, ina219, ina226, opt3001, scd4x, sht3x, tmp117,
+};
 use pamoja_serial::{cobs, slip};
 use pamoja_session::{AgreementKey, Role, Sealed, Session as SecuredSession, SessionError};
 use pamoja_sim::{Replay, SimRobot, SimSensor};
@@ -753,6 +755,198 @@ fn sensor_vectors_match() {
             entry["samplesPerSecond"].as_u64().expect("a rate")
         );
     }
+}
+
+/// The parts added to `pamoja-sensors` after the first four decode the vectors the
+/// generator writes for them, and each rejects the input the vectors mark as bad.
+#[test]
+fn later_sensor_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["sensors"];
+
+    let bmp = &case["bmp280"];
+    let calibration: [u8; 24] = unhex(&bmp["calibration"]).try_into().expect("24 bytes");
+    let raw: [u8; 6] = unhex(&bmp["measurement"]).try_into().expect("6 bytes");
+    let parsed = bmp280::Calibration::parse(&calibration);
+    let reading = parsed.compensate(&bmp280::Measurement::parse(&raw));
+    assert!((reading.celsius() - float(&bmp["celsius"])).abs() < 1e-3);
+    assert_eq!(
+        u64::from(reading.pascals()),
+        bmp["pascals"].as_u64().expect("a pressure")
+    );
+    assert_eq!(
+        hex(&parsed.to_bytes()),
+        bmp["calibrationRoundTrip"].as_str().expect("a hex string"),
+        "the coefficients round-trip through their registers"
+    );
+
+    let sht = &case["sht3x"];
+    let frame: [u8; 6] = unhex(&sht["measurement"]).try_into().expect("6 bytes");
+    let decoded = sht3x::Measurement::parse(&frame).expect("a whole frame");
+    assert_eq!(
+        i64::from(decoded.temperature_milli_celsius()),
+        sht["milliCelsius"].as_i64().expect("a temperature")
+    );
+    assert_eq!(
+        i64::from(decoded.temperature_milli_fahrenheit()),
+        sht["milliFahrenheit"].as_i64().expect("a temperature")
+    );
+    assert_eq!(
+        u64::from(decoded.humidity_milli_percent()),
+        sht["milliPercent"].as_u64().expect("a humidity")
+    );
+    assert_eq!(
+        u64::from(sht3x::crc(&unhex(&sht["crcInput"]))),
+        sht["crc"].as_u64().expect("a checksum")
+    );
+    let corrupt: [u8; 6] = unhex(&sht["corruptMeasurement"])
+        .try_into()
+        .expect("6 bytes");
+    assert!(
+        sht3x::Measurement::parse(&corrupt).is_err(),
+        "a flipped bit fails the checksum"
+    );
+    let status: [u8; 3] = unhex(&sht["status"]).try_into().expect("3 bytes");
+    let status = sht3x::Status::parse(&status).expect("a whole word");
+    assert_eq!(
+        u64::from(status.bits()),
+        sht["statusBits"].as_u64().expect("a status word")
+    );
+    assert_eq!(status.alert_pending(), sht["alertPending"] == true);
+    assert_eq!(status.heater_on(), sht["heaterOn"] == true);
+
+    let scd = &case["scd4x"];
+    let frame: [u8; 9] = unhex(&scd["measurement"]).try_into().expect("9 bytes");
+    let decoded = scd4x::Measurement::parse(&frame).expect("a whole frame");
+    assert_eq!(
+        u64::from(decoded.co2_ppm),
+        scd["co2Ppm"].as_u64().expect("a concentration")
+    );
+    assert_eq!(
+        i64::from(decoded.milli_celsius()),
+        scd["milliCelsius"].as_i64().expect("a temperature")
+    );
+    assert_eq!(
+        u64::from(decoded.humidity_milli_percent()),
+        scd["humidityMilliPercent"].as_u64().expect("a humidity")
+    );
+    let corrupt: [u8; 9] = unhex(&scd["corruptMeasurement"])
+        .try_into()
+        .expect("9 bytes");
+    assert!(
+        scd4x::Measurement::parse(&corrupt).is_err(),
+        "a flipped byte fails the checksum"
+    );
+    let offset = scd["temperatureOffsetMilliCelsius"]
+        .as_u64()
+        .expect("an offset") as u32;
+    assert_eq!(
+        u64::from(scd4x::temperature_offset_word(offset)),
+        scd["temperatureOffsetWord"].as_u64().expect("a word"),
+        "the offset scales by 2^16, not by the 2^16 - 1 the measurement uses"
+    );
+    let serial: [u8; 9] = unhex(&scd["serialFrame"]).try_into().expect("9 bytes");
+    assert_eq!(
+        scd4x::serial_number(&serial).expect("a whole frame"),
+        scd["serialNumber"].as_u64().expect("a serial number")
+    );
+
+    let tmp = &case["tmp117"];
+    for entry in tmp["readings"].as_array().expect("the reading rows") {
+        let register = entry["register"].as_u64().expect("a register") as u16 as i16;
+        assert_eq!(
+            i64::from(tmp117::micro_celsius(register)),
+            entry["microCelsius"].as_i64().expect("a temperature")
+        );
+        assert_eq!(
+            tmp117::nano_celsius(register),
+            entry["nanoCelsius"].as_i64().expect("a temperature")
+        );
+    }
+    let flags = tmp["flagConfig"].as_u64().expect("a configuration") as u16;
+    assert_eq!(tmp117::high_alert(flags), tmp["highAlert"] == true);
+    assert_eq!(tmp117::low_alert(flags), tmp["lowAlert"] == true);
+    assert_eq!(tmp117::data_ready(flags), tmp["dataReady"] == true);
+
+    let hdc = &case["hdc1080"];
+    let frame: [u8; 4] = unhex(&hdc["measurement"]).try_into().expect("4 bytes");
+    let decoded = hdc1080::Measurement::parse(&frame);
+    assert_eq!(
+        i64::from(decoded.milli_celsius()),
+        hdc["milliCelsius"].as_i64().expect("a temperature")
+    );
+    assert_eq!(
+        u64::from(decoded.milli_percent()),
+        hdc["milliPercent"].as_u64().expect("a humidity")
+    );
+    let invalid = hdc["invalidConfiguration"].as_u64().expect("a register") as u16;
+    assert!(
+        hdc1080::Configuration::from_register(invalid).is_err(),
+        "the undefined humidity-resolution code is rejected"
+    );
+
+    let opt = &case["opt3001"];
+    for entry in opt["results"].as_array().expect("the result rows") {
+        let register = entry["register"].as_u64().expect("a register") as u16;
+        assert_eq!(
+            u64::from(opt3001::milli_lux(register)),
+            entry["milliLux"].as_u64().expect("an illuminance")
+        );
+    }
+    for entry in opt["ranges"].as_array().expect("the range rows") {
+        let range = entry["range"].as_u64().expect("a range") as u8;
+        assert_eq!(
+            u64::from(opt3001::full_scale_milli_lux(range).expect("a real range")),
+            entry["fullScaleMilliLux"].as_u64().expect("a full scale")
+        );
+    }
+    let invalid = opt["invalidRange"].as_u64().expect("a range") as u8;
+    assert!(
+        opt3001::full_scale_milli_lux(invalid).is_none(),
+        "a reserved range number has no full scale"
+    );
+
+    let ina = &case["ina226"];
+    let lsb = ina["currentLsbMicroamps"].as_u64().expect("a resolution") as u32;
+    let shunt = ina["shuntMilliohms"].as_u64().expect("a shunt") as u32;
+    assert_eq!(
+        u64::from(ina226::calibration(lsb, shunt)),
+        ina["calibration"].as_u64().expect("a calibration"),
+        "the datasheet's worked example"
+    );
+    let raw_shunt = ina["rawShunt"].as_i64().expect("a register") as i16;
+    assert_eq!(
+        i64::from(ina226::shunt_nanovolts(raw_shunt)),
+        ina["shuntNanovolts"].as_i64().expect("a voltage")
+    );
+    let raw_bus = ina["rawBus"].as_u64().expect("a register") as u16;
+    assert_eq!(
+        u64::from(ina226::bus_microvolts(raw_bus)),
+        ina["busMicrovolts"].as_u64().expect("a voltage")
+    );
+    let raw_current = ina["rawCurrent"].as_i64().expect("a register") as i16;
+    assert_eq!(
+        i64::from(ina226::current_microamps(raw_current, lsb)),
+        ina["currentMicroamps"].as_i64().expect("a current")
+    );
+    let raw_power = ina["rawPower"].as_u64().expect("a register") as u16;
+    assert_eq!(
+        u64::from(ina226::power_microwatts(raw_power, lsb)),
+        ina["powerMicrowatts"].as_u64().expect("a power")
+    );
+    assert_eq!(
+        i64::from(ina226::current_register_from_shunt(
+            raw_shunt,
+            ina226::calibration(lsb, shunt)
+        )),
+        ina["currentFromShunt"].as_i64().expect("a register")
+    );
+    let manufacturer = ina["manufacturerId"].as_u64().expect("an id") as u16;
+    let bad = ina["badDieId"].as_u64().expect("an id") as u16;
+    assert!(
+        ina226::identify(manufacturer, bad).is_err(),
+        "a die that is not an INA226 is refused"
+    );
 }
 
 #[test]

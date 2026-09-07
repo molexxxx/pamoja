@@ -9,6 +9,12 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- The seven new sensor drivers have cross-language conformance vectors: the
+  generator writes 94 values for them, from the decoded frames and their physical
+  readings to the register tables the datasheets print, each with the input the
+  vectors mark as bad, and the Rust runner asserts every one. The three bindings
+  assert the same file, so a part that decodes differently in one language fails
+  the build rather than the reader.
 - Seven more sensor drivers, taking `pamoja-sensors` from four parts to eleven: the
   BMP280 pressure sensor, the SHT3x and HDC1080 humidity and temperature sensors, the
   SCD4x carbon dioxide sensor, the TMP117 thermometer, the OPT3001 ambient light
