@@ -2,17 +2,25 @@
 
 A sensor does not report what it measures. It reports register bytes, and the
 reading only appears after the conversion its datasheet specifies: Bosch's
-compensation polynomials over a per-chip calibration for a BME280, a
+compensation polynomials over a per-chip calibration for a BME280 or BMP280, a
 two's-complement register worth a sixteenth of a degree for a DS18B20, a
-calibration value the INA219 needs before it computes current at all, a
-full-scale range for the ADS1115. pamoja carries that per-part arithmetic and
-none of the wiring. Driving the bus stays the caller's job, so the same decode
-runs on a microcontroller, on a gateway, and in a test with nothing plugged in.
+calibration value the INA219 and INA226 need before they compute current at all,
+an exponent and a mantissa for the OPT3001's lux, a CRC-checked word for a
+Sensirion SHT3x or SCD4x. pamoja carries that per-part arithmetic and none of
+the wiring. Driving the bus stays the caller's job, so the same decode runs on a
+microcontroller, on a gateway, and in a test with nothing plugged in.
+
+Eleven parts are covered: temperature and humidity from the BME280, SHT3x,
+HDC1080 and TMP117, pressure from the BMP280, carbon dioxide from the SCD40 and
+SCD41, illuminance from the OPT3001, current and power from the INA219 and
+INA226, a general-purpose converter in the ADS1115, and the 1-Wire DS18B20. Each
+decodes both ways, so a test can build the bytes a part would have sent and read
+them back without the part.
 
 ## What the example does
 
 It reads a DS18B20 thermometer and an INA219 power monitor, the two parts a
-battery node usually has on it. The thermometer's scratchpad is checked against
+battery node usually has on it, and the other nine decode the same way. The thermometer's scratchpad is checked against
 the CRC the part appends before any temperature is taken from it, and the
 monitor is calibrated for the shunt it sits across, since it computes nothing
 until it has been. The shunt, the current resolution and the load are the ones
