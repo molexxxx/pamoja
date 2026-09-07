@@ -71,6 +71,7 @@ Codecs();
 Helpers();
 FieldIo();
 SensingAndActuation();
+LaterSensors();
 RadioAndReach();
 TrustAndOperation();
 await AsyncTransports();
@@ -536,6 +537,70 @@ static void FieldIo()
 }
 
 // The parts wired to a board: a compensated environment reading, a thermometer
+// The seven parts added after the first four: a datasheet figure each, and the
+// input each one is meant to refuse.
+static void LaterSensors()
+{
+    PamojaSht3xMeasurement air = Sht3x.ParseMeasurement(Sht3x.MeasurementBytes(0x6666, 0x9999));
+    Assert(air.MilliCelsius == 25_000, "0x6666 is two fifths of full scale");
+    Assert(air.MilliPercent == 60_000, "and 0x9999 is three fifths");
+    Assert(Sht3x.Crc([0xBE, 0xEF]) == 0x92, "Sensirion's check value");
+
+    PamojaScd4xMeasurement measured = Scd4x.MeasurementFromPhysical(500, 25_000, 37_000);
+    byte[] frame = Scd4x.MeasurementBytes(
+        measured.Co2Ppm, measured.TemperatureRaw, measured.HumidityRaw);
+    Assert(
+        Scd4x.ParseMeasurement(frame).Co2Ppm == 500,
+        "the carbon dioxide word survives the frame");
+
+    byte[] corrupt = (byte[])frame.Clone();
+    corrupt[2] ^= 0xFF;
+    try
+    {
+        Scd4x.ParseMeasurement(corrupt);
+        Fail("a flipped checksum byte should throw");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    Assert(Tmp117.MicroCelsius(0x0C80) == 25_000_000, "the datasheet's 25 C row");
+    Assert(Tmp117.MicroCelsius(-1) == -7_812, "and one count below zero");
+
+    Assert(Hdc1080.MilliCelsius(0x8000) == 42_500, "mid-scale on the HDC1080");
+    try
+    {
+        Hdc1080.ConfigFromRegister(0x1300);
+        Fail("the undefined humidity-resolution code should throw");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    Assert(Opt3001.MilliLux(0xBFFF) == 83_865_600, "the OPT3001 full scale");
+    Assert(Opt3001.FullScaleMilliLux(12) is null, "a reserved range number has no full scale");
+
+    Assert(Ina226.Calibration(1_000, 2) == 2_560, "the INA226 design example");
+    Assert(
+        Ina226.PowerMicrowatts(4_792, 1_000) == 119_800_000,
+        "which reads 119.8 W at the example's load");
+    try
+    {
+        Ina226.Identify(0x5449, 0x2270);
+        Fail("a die that is not an INA226 should throw");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    using var coefficients = new Bmp280Calibration(
+        Convert.FromHexString("706b436718fc7d8e43d6d00b270b8c00f9ff8c3cf8c67017"));
+    Bmp280Reading reading = coefficients.Compensate(Convert.FromHexString("655ac07eed00"));
+    Assert(
+        reading.Pascals is > 90_000 and < 110_000,
+        "the BMP280 reads a sane pressure");
+}
+
 // that checks its own bytes, a servo pulse, and the stats over a rolling window.
 static void SensingAndActuation()
 {
@@ -994,6 +1059,7 @@ static void Conformance()
     ConformCan(vectors.GetProperty("can"));
     ConformGpio(vectors.GetProperty("gpio"));
     ConformSensors(vectors.GetProperty("sensors"));
+    ConformLaterSensors(vectors.GetProperty("sensors"));
     ConformActuators(vectors.GetProperty("actuators"));
     ConformWindows(vectors.GetProperty("windows"), tolerance);
     ConformLora(vectors.GetProperty("lora"));
@@ -1487,6 +1553,190 @@ static void ConformGpio(JsonElement vector)
         Assert(
             Pin.IsAsserted(polarity, level) == entry.GetProperty("isAsserted").GetBoolean(),
             "and maps it back");
+    }
+}
+
+// The parts added to pamoja-sensors after the first four, against the same vectors
+// the Rust, Node, and Python runners assert.
+static void ConformLaterSensors(JsonElement vector)
+{
+    JsonElement bmp = vector.GetProperty("bmp280");
+    using var calibration = new Bmp280Calibration(
+        Convert.FromHexString(bmp.GetProperty("calibration").GetString()!));
+    Bmp280Reading reading = calibration.Compensate(
+        Convert.FromHexString(bmp.GetProperty("measurement").GetString()!));
+    Assert(
+        Math.Abs(reading.Celsius - bmp.GetProperty("celsius").GetSingle()) < 1e-3f,
+        "BMP280 temperature matches");
+    Assert(reading.Pascals == bmp.GetProperty("pascals").GetUInt32(), "BMP280 pressure matches");
+    Assert(
+        Convert.ToHexString(calibration.ToBytes()).ToLowerInvariant()
+            == bmp.GetProperty("calibrationRoundTrip").GetString(),
+        "the BMP280 coefficients round-trip through their registers");
+
+    JsonElement sht = vector.GetProperty("sht3x");
+    PamojaSht3xMeasurement air = Sht3x.ParseMeasurement(
+        Convert.FromHexString(sht.GetProperty("measurement").GetString()!));
+    Assert(
+        air.TemperatureRaw == sht.GetProperty("temperatureRaw").GetUInt16(),
+        "SHT3x temperature register matches");
+    Assert(
+        air.MilliCelsius == sht.GetProperty("milliCelsius").GetInt32(),
+        "SHT3x temperature matches");
+    Assert(
+        air.MilliFahrenheit == sht.GetProperty("milliFahrenheit").GetInt32(),
+        "SHT3x temperature in Fahrenheit matches");
+    Assert(
+        air.MilliPercent == sht.GetProperty("milliPercent").GetUInt32(),
+        "SHT3x humidity matches");
+    Assert(
+        Sht3x.Crc(Convert.FromHexString(sht.GetProperty("crcInput").GetString()!))
+            == sht.GetProperty("crc").GetByte(),
+        "SHT3x checksum matches");
+    try
+    {
+        Sht3x.ParseMeasurement(
+            Convert.FromHexString(sht.GetProperty("corruptMeasurement").GetString()!));
+        Fail("a flipped bit must fail the SHT3x checksum");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    PamojaSht3xStatus status = Sht3x.ParseStatus(
+        Convert.FromHexString(sht.GetProperty("status").GetString()!));
+    Assert(status.Bits == sht.GetProperty("statusBits").GetUInt16(), "SHT3x status word matches");
+    Assert(
+        (status.AlertPending != 0) == sht.GetProperty("alertPending").GetBoolean(),
+        "SHT3x alert flag matches");
+    Assert(
+        (status.HeaterOn != 0) == sht.GetProperty("heaterOn").GetBoolean(),
+        "SHT3x heater flag matches");
+
+    JsonElement scd = vector.GetProperty("scd4x");
+    PamojaScd4xMeasurement gas = Scd4x.ParseMeasurement(
+        Convert.FromHexString(scd.GetProperty("measurement").GetString()!));
+    Assert(gas.Co2Ppm == scd.GetProperty("co2Ppm").GetUInt16(), "SCD4x carbon dioxide matches");
+    Assert(
+        gas.MilliCelsius == scd.GetProperty("milliCelsius").GetInt32(),
+        "SCD4x temperature matches");
+    Assert(
+        gas.HumidityMilliPercent == scd.GetProperty("humidityMilliPercent").GetUInt32(),
+        "SCD4x humidity matches");
+    try
+    {
+        Scd4x.ParseMeasurement(
+            Convert.FromHexString(scd.GetProperty("corruptMeasurement").GetString()!));
+        Fail("a flipped byte must fail the SCD4x checksum");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    // The offset scales by 2^16 where the measurement scales by 2^16 - 1, in the same
+    // datasheet, so it is pinned separately.
+    Assert(
+        Scd4x.TemperatureOffsetWord(scd.GetProperty("temperatureOffsetMilliCelsius").GetUInt32())
+            == scd.GetProperty("temperatureOffsetWord").GetUInt16(),
+        "the SCD4x temperature offset matches");
+    Assert(
+        Scd4x.SerialNumber(Convert.FromHexString(scd.GetProperty("serialFrame").GetString()!))
+            == scd.GetProperty("serialNumber").GetUInt64(),
+        "SCD4x serial number matches");
+
+    JsonElement tmp = vector.GetProperty("tmp117");
+    foreach (JsonElement entry in tmp.GetProperty("readings").EnumerateArray())
+    {
+        short raw = unchecked((short)entry.GetProperty("register").GetUInt16());
+        Assert(
+            Tmp117.MicroCelsius(raw) == entry.GetProperty("microCelsius").GetInt32(),
+            "TMP117 temperature matches");
+        Assert(
+            Tmp117.NanoCelsius(raw) == entry.GetProperty("nanoCelsius").GetInt64(),
+            "TMP117 temperature in nanodegrees matches");
+    }
+
+    ushort flags = tmp.GetProperty("flagConfig").GetUInt16();
+    Assert(
+        Tmp117.HighAlert(flags) == tmp.GetProperty("highAlert").GetBoolean(),
+        "TMP117 high alert matches");
+    Assert(
+        Tmp117.DataReady(flags) == tmp.GetProperty("dataReady").GetBoolean(),
+        "TMP117 data ready matches");
+
+    JsonElement hdc = vector.GetProperty("hdc1080");
+    PamojaHdc1080Measurement room = Hdc1080.ParseMeasurement(
+        Convert.FromHexString(hdc.GetProperty("measurement").GetString()!));
+    Assert(
+        room.TemperatureRaw == hdc.GetProperty("temperatureRaw").GetUInt16(),
+        "HDC1080 temperature register matches");
+    Assert(
+        room.MilliCelsius == hdc.GetProperty("milliCelsius").GetInt32(),
+        "HDC1080 temperature matches");
+    Assert(
+        room.MilliPercent == hdc.GetProperty("milliPercent").GetUInt32(),
+        "HDC1080 humidity matches");
+    try
+    {
+        Hdc1080.ConfigFromRegister(hdc.GetProperty("invalidConfiguration").GetUInt16());
+        Fail("the undefined humidity-resolution code must be refused");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    JsonElement opt = vector.GetProperty("opt3001");
+    foreach (JsonElement entry in opt.GetProperty("results").EnumerateArray())
+    {
+        Assert(
+            Opt3001.MilliLux(entry.GetProperty("register").GetUInt16())
+                == entry.GetProperty("milliLux").GetUInt32(),
+            "OPT3001 illuminance matches");
+    }
+
+    foreach (JsonElement entry in opt.GetProperty("ranges").EnumerateArray())
+    {
+        Assert(
+            Opt3001.FullScaleMilliLux(entry.GetProperty("range").GetByte())
+                == entry.GetProperty("fullScaleMilliLux").GetUInt32(),
+            "OPT3001 full scale matches");
+    }
+
+    Assert(
+        Opt3001.FullScaleMilliLux(opt.GetProperty("invalidRange").GetByte()) is null,
+        "a reserved range number has no full scale");
+
+    JsonElement ina = vector.GetProperty("ina226");
+    uint lsb = ina.GetProperty("currentLsbMicroamps").GetUInt32();
+    Assert(
+        Ina226.Calibration(lsb, ina.GetProperty("shuntMilliohms").GetUInt32())
+            == ina.GetProperty("calibration").GetUInt16(),
+        "the INA226 calibration its datasheet works out matches");
+    Assert(
+        Ina226.ShuntNanovolts(ina.GetProperty("rawShunt").GetInt16())
+            == ina.GetProperty("shuntNanovolts").GetInt32(),
+        "INA226 shunt voltage matches");
+    Assert(
+        Ina226.BusMicrovolts(ina.GetProperty("rawBus").GetUInt16())
+            == ina.GetProperty("busMicrovolts").GetUInt32(),
+        "INA226 bus voltage matches");
+    Assert(
+        Ina226.CurrentMicroamps(ina.GetProperty("rawCurrent").GetInt16(), lsb)
+            == ina.GetProperty("currentMicroamps").GetInt32(),
+        "INA226 current matches");
+    Assert(
+        Ina226.PowerMicrowatts(ina.GetProperty("rawPower").GetUInt16(), lsb)
+            == ina.GetProperty("powerMicrowatts").GetUInt32(),
+        "INA226 power matches");
+    try
+    {
+        Ina226.Identify(
+            ina.GetProperty("manufacturerId").GetUInt16(),
+            ina.GetProperty("badDieId").GetUInt16());
+        Fail("a die that is not an INA226 must be refused");
+    }
+    catch (PamojaException)
+    {
     }
 }
 

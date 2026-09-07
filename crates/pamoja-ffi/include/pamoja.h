@@ -291,6 +291,471 @@
 // The number of bytes in a DS18B20 scratchpad, the ninth being its CRC.
 #define PAMOJA_DS18B20_SCRATCHPAD_LEN 9
 
+// The number of calibration bytes a BMP280 reports.
+#define PAMOJA_BMP280_CALIBRATION_LEN 24
+
+// The number of measurement bytes a BMP280 burst read returns.
+#define PAMOJA_BMP280_DATA_LEN 6
+
+// The address a BMP280 answers on with its SDO pin low.
+#define PAMOJA_BMP280_I2C_ADDRESS_PRIMARY 118
+
+// The address it answers on with SDO high.
+#define PAMOJA_BMP280_I2C_ADDRESS_SECONDARY 119
+
+// The value a BMP280's chip-ID register reads, which confirms the part.
+#define PAMOJA_BMP280_CHIP_ID 88
+
+// The byte written to the reset register to restart a BMP280.
+#define PAMOJA_BMP280_RESET_WORD 182
+
+// The raw code a BMP280 reports when oversampling is off and nothing was measured.
+#define PAMOJA_BMP280_SKIPPED_OUTPUT 524288
+
+// The first of the 24 BMP280 calibration registers.
+#define PAMOJA_BMP280_REGISTER_CALIBRATION 136
+
+// The BMP280 chip-ID register.
+#define PAMOJA_BMP280_REGISTER_CHIP_ID 208
+
+// The BMP280 reset register.
+#define PAMOJA_BMP280_REGISTER_RESET 224
+
+// The BMP280 status register.
+#define PAMOJA_BMP280_REGISTER_STATUS 243
+
+// The BMP280 `ctrl_meas` register.
+#define PAMOJA_BMP280_REGISTER_CTRL_MEAS 244
+
+// The BMP280 `config` register.
+#define PAMOJA_BMP280_REGISTER_CONFIG 245
+
+// The first of the six BMP280 data registers.
+#define PAMOJA_BMP280_REGISTER_DATA 247
+
+// The number of bytes in an SHT3x measurement frame, each word followed by its CRC.
+#define PAMOJA_SHT3X_MEASUREMENT_LEN 6
+
+// The number of bytes in an SHT3x word frame: the word then its CRC.
+#define PAMOJA_SHT3X_WORD_LEN 3
+
+// The address an SHT3x answers on with its ADDR pin low.
+#define PAMOJA_SHT3X_I2C_ADDRESS_A 68
+
+// The address it answers on with ADDR high.
+#define PAMOJA_SHT3X_I2C_ADDRESS_B 69
+
+// The gap an SHT3x needs between two commands, in microseconds.
+#define PAMOJA_SHT3X_MIN_COMMAND_GAP_MICROS 1000
+
+// The status word an SHT3x reads after a reset.
+#define PAMOJA_SHT3X_STATUS_DEFAULT 32784
+
+// One high-repeatability measurement, holding the bus until it is ready.
+#define PAMOJA_SHT3X_COMMAND_SINGLE_SHOT_HIGH_STRETCH 11270
+
+// One medium-repeatability measurement, holding the bus.
+#define PAMOJA_SHT3X_COMMAND_SINGLE_SHOT_MEDIUM_STRETCH 11277
+
+// One low-repeatability measurement, holding the bus.
+#define PAMOJA_SHT3X_COMMAND_SINGLE_SHOT_LOW_STRETCH 11280
+
+// One high-repeatability measurement, released and fetched later.
+#define PAMOJA_SHT3X_COMMAND_SINGLE_SHOT_HIGH 9216
+
+// One medium-repeatability measurement, released and fetched later.
+#define PAMOJA_SHT3X_COMMAND_SINGLE_SHOT_MEDIUM 9227
+
+// One low-repeatability measurement, released and fetched later.
+#define PAMOJA_SHT3X_COMMAND_SINGLE_SHOT_LOW 9238
+
+// A measurement every two seconds at high repeatability.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_HALF_MPS_HIGH 8242
+
+// A measurement every two seconds at medium repeatability.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_HALF_MPS_MEDIUM 8228
+
+// A measurement every two seconds at low repeatability.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_HALF_MPS_LOW 8239
+
+// One measurement a second at high repeatability.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_ONE_MPS_HIGH 8496
+
+// One measurement a second at medium repeatability.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_ONE_MPS_MEDIUM 8486
+
+// One measurement a second at low repeatability.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_ONE_MPS_LOW 8493
+
+// Two measurements a second at high repeatability.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_TWO_MPS_HIGH 8758
+
+// Two measurements a second at medium repeatability.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_TWO_MPS_MEDIUM 8736
+
+// Two measurements a second at low repeatability.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_TWO_MPS_LOW 8747
+
+// Four measurements a second at high repeatability.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_FOUR_MPS_HIGH 9012
+
+// Four measurements a second at medium repeatability.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_FOUR_MPS_MEDIUM 8994
+
+// Four measurements a second at low repeatability.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_FOUR_MPS_LOW 9001
+
+// Ten measurements a second at high repeatability.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_TEN_MPS_HIGH 10039
+
+// Ten measurements a second at medium repeatability.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_TEN_MPS_MEDIUM 10017
+
+// Ten measurements a second at low repeatability.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_TEN_MPS_LOW 10026
+
+// Accelerated response time: four measurements a second with a faster filter.
+#define PAMOJA_SHT3X_COMMAND_PERIODIC_ART 11058
+
+// Fetches the last result of a periodic measurement.
+#define PAMOJA_SHT3X_COMMAND_FETCH_DATA 57344
+
+// Leaves periodic mode so another command can be accepted.
+#define PAMOJA_SHT3X_COMMAND_BREAK 12435
+
+// Restarts the part as if it had been power-cycled.
+#define PAMOJA_SHT3X_COMMAND_SOFT_RESET 12450
+
+// The general-call reset, addressed to 0x00.
+#define PAMOJA_SHT3X_COMMAND_GENERAL_CALL_RESET 6
+
+// Turns the on-die heater on.
+#define PAMOJA_SHT3X_COMMAND_HEATER_ENABLE 12397
+
+// Turns the on-die heater off.
+#define PAMOJA_SHT3X_COMMAND_HEATER_DISABLE 12390
+
+// Reads the status register.
+#define PAMOJA_SHT3X_COMMAND_READ_STATUS 62253
+
+// Clears the latched flags in the status register.
+#define PAMOJA_SHT3X_COMMAND_CLEAR_STATUS 12353
+
+// The number of bytes in an SCD4x measurement frame, three words with their CRCs.
+#define PAMOJA_SCD4X_MEASUREMENT_LEN 9
+
+// The number of bytes in an SCD4x word frame: the word then its CRC.
+#define PAMOJA_SCD4X_WORD_LEN 3
+
+// The number of bytes in an SCD4x command frame.
+#define PAMOJA_SCD4X_COMMAND_LEN 2
+
+// The number of bytes in an SCD4x write frame: a command, a word, and its CRC.
+#define PAMOJA_SCD4X_WRITE_LEN 5
+
+// The single address an SCD4x answers on.
+#define PAMOJA_SCD4X_I2C_ADDRESS 98
+
+// The highest carbon dioxide concentration an SCD4x reports, in parts per million.
+#define PAMOJA_SCD4X_CO2_MAX_PPM 40000
+
+// The temperature offset an SCD4x holds after a factory reset.
+#define PAMOJA_SCD4X_DEFAULT_TEMPERATURE_OFFSET_MILLI_CELSIUS 4000
+
+// How often an SCD4x in periodic mode produces a result, in milliseconds.
+#define PAMOJA_SCD4X_PERIODIC_MEASUREMENT_INTERVAL_MS 5000
+
+// How often it produces a result in low-power periodic mode, in milliseconds.
+#define PAMOJA_SCD4X_LOW_POWER_PERIODIC_MEASUREMENT_INTERVAL_MS 30000
+
+// How long an SCD4x takes to become responsive after power-up, in milliseconds.
+#define PAMOJA_SCD4X_POWER_UP_TIME_MS 1000
+
+// The word a forced recalibration returns when it did not take.
+#define PAMOJA_SCD4X_FORCED_RECALIBRATION_FAILED 65535
+
+// Starts periodic measurements at one result every five seconds.
+#define PAMOJA_SCD4X_COMMAND_START_PERIODIC_MEASUREMENT 8625
+
+// Reads the latest carbon dioxide, temperature, and humidity words.
+#define PAMOJA_SCD4X_COMMAND_READ_MEASUREMENT 60421
+
+// Stops periodic measurements so other commands are accepted again.
+#define PAMOJA_SCD4X_COMMAND_STOP_PERIODIC_MEASUREMENT 16262
+
+// Writes the temperature offset the part subtracts from its own reading.
+#define PAMOJA_SCD4X_COMMAND_SET_TEMPERATURE_OFFSET 9245
+
+// Reads the temperature offset back.
+#define PAMOJA_SCD4X_COMMAND_GET_TEMPERATURE_OFFSET 8984
+
+// Writes the altitude the part compensates its pressure for, in metres.
+#define PAMOJA_SCD4X_COMMAND_SET_SENSOR_ALTITUDE 9255
+
+// Reads the configured altitude back.
+#define PAMOJA_SCD4X_COMMAND_GET_SENSOR_ALTITUDE 8994
+
+// Writes the ambient pressure, which may be sent during a measurement.
+#define PAMOJA_SCD4X_COMMAND_SET_AMBIENT_PRESSURE 57344
+
+// Recalibrates against a known concentration and returns the correction applied.
+#define PAMOJA_SCD4X_COMMAND_PERFORM_FORCED_RECALIBRATION 13871
+
+// Turns automatic self-calibration on or off.
+#define PAMOJA_SCD4X_COMMAND_SET_AUTOMATIC_SELF_CALIBRATION_ENABLED 9238
+
+// Reads whether automatic self-calibration is on.
+#define PAMOJA_SCD4X_COMMAND_GET_AUTOMATIC_SELF_CALIBRATION_ENABLED 8979
+
+// Starts low-power periodic measurements, one result every thirty seconds.
+#define PAMOJA_SCD4X_COMMAND_START_LOW_POWER_PERIODIC_MEASUREMENT 8620
+
+// Reads whether a fresh result is waiting.
+#define PAMOJA_SCD4X_COMMAND_GET_DATA_READY_STATUS 58552
+
+// Stores the current settings in non-volatile memory.
+#define PAMOJA_SCD4X_COMMAND_PERSIST_SETTINGS 13845
+
+// Reads the 48-bit serial number, three words with their CRCs.
+#define PAMOJA_SCD4X_COMMAND_GET_SERIAL_NUMBER 13954
+
+// Runs the on-board self test, which takes ten seconds.
+#define PAMOJA_SCD4X_COMMAND_PERFORM_SELF_TEST 13881
+
+// Restores the factory settings, discarding the stored calibration.
+#define PAMOJA_SCD4X_COMMAND_PERFORM_FACTORY_RESET 13874
+
+// Reloads the stored settings without a power cycle.
+#define PAMOJA_SCD4X_COMMAND_REINIT 13894
+
+// Takes one measurement on demand, an SCD41 command.
+#define PAMOJA_SCD4X_COMMAND_MEASURE_SINGLE_SHOT 8605
+
+// Takes one humidity and temperature measurement without the photoacoustic cell.
+#define PAMOJA_SCD4X_COMMAND_MEASURE_SINGLE_SHOT_RHT_ONLY 8598
+
+// Puts an SCD41 into its lowest-power state.
+#define PAMOJA_SCD4X_COMMAND_POWER_DOWN 14048
+
+// Brings an SCD41 back out of power-down.
+#define PAMOJA_SCD4X_COMMAND_WAKE_UP 14070
+
+// The number of bytes in a TMP117 register read.
+#define PAMOJA_TMP117_REGISTER_LEN 2
+
+// The value a TMP117's device-ID register reads, which confirms the part.
+#define PAMOJA_TMP117_DEVICE_ID 279
+
+// The value its configuration register reads after a reset.
+#define PAMOJA_TMP117_CONFIG_RESET 544
+
+// The value its high-limit register reads after a reset.
+#define PAMOJA_TMP117_HIGH_LIMIT_RESET 24576
+
+// The value its low-limit register reads after a reset.
+#define PAMOJA_TMP117_LOW_LIMIT_RESET 32768
+
+// The value its result register reads before the first conversion completes.
+#define PAMOJA_TMP117_TEMP_RESULT_RESET 32768
+
+// The byte a general-call reset sends to address 0x00.
+#define PAMOJA_TMP117_GENERAL_CALL_RESET 6
+
+// The word written to the EEPROM unlock register to allow a write.
+#define PAMOJA_TMP117_EEPROM_UNLOCK 32768
+
+// The address a TMP117 answers on with ADD0 tied to GND.
+#define PAMOJA_TMP117_ADDRESS_ADD0_GND 72
+
+// The address it answers on with ADD0 tied to V+.
+#define PAMOJA_TMP117_ADDRESS_ADD0_VPLUS 73
+
+// The address it answers on with ADD0 tied to SDA.
+#define PAMOJA_TMP117_ADDRESS_ADD0_SDA 74
+
+// The address it answers on with ADD0 tied to SCL.
+#define PAMOJA_TMP117_ADDRESS_ADD0_SCL 75
+
+// The TMP117 temperature result register.
+#define PAMOJA_TMP117_REGISTER_TEMP_RESULT 0
+
+// The TMP117 configuration register.
+#define PAMOJA_TMP117_REGISTER_CONFIGURATION 1
+
+// The TMP117 high-limit register.
+#define PAMOJA_TMP117_REGISTER_THIGH_LIMIT 2
+
+// The TMP117 low-limit register.
+#define PAMOJA_TMP117_REGISTER_TLOW_LIMIT 3
+
+// The TMP117 EEPROM unlock register.
+#define PAMOJA_TMP117_REGISTER_EEPROM_UL 4
+
+// The first TMP117 general-purpose EEPROM register.
+#define PAMOJA_TMP117_REGISTER_EEPROM1 5
+
+// The second TMP117 general-purpose EEPROM register.
+#define PAMOJA_TMP117_REGISTER_EEPROM2 6
+
+// The TMP117 temperature offset register.
+#define PAMOJA_TMP117_REGISTER_TEMP_OFFSET 7
+
+// The third TMP117 general-purpose EEPROM register.
+#define PAMOJA_TMP117_REGISTER_EEPROM3 8
+
+// The TMP117 device-ID register.
+#define PAMOJA_TMP117_REGISTER_DEVICE_ID 15
+
+// The number of bytes an HDC1080 sequential read returns.
+#define PAMOJA_HDC1080_MEASUREMENT_LEN 4
+
+// The number of serial-ID registers an HDC1080 carries.
+#define PAMOJA_HDC1080_SERIAL_ID_REGISTERS 3
+
+// The single address an HDC1080 answers on.
+#define PAMOJA_HDC1080_I2C_ADDRESS 64
+
+// The value its manufacturer-ID register reads: TI.
+#define PAMOJA_HDC1080_MANUFACTURER_ID 21577
+
+// The value its device-ID register reads, which confirms the part.
+#define PAMOJA_HDC1080_DEVICE_ID 4176
+
+// The value its configuration register reads after a reset.
+#define PAMOJA_HDC1080_CONFIGURATION_RESET 4096
+
+// The HDC1080 temperature register.
+#define PAMOJA_HDC1080_REGISTER_TEMPERATURE 0
+
+// The HDC1080 humidity register.
+#define PAMOJA_HDC1080_REGISTER_HUMIDITY 1
+
+// The HDC1080 configuration register.
+#define PAMOJA_HDC1080_REGISTER_CONFIGURATION 2
+
+// The high word of the HDC1080 serial ID.
+#define PAMOJA_HDC1080_REGISTER_SERIAL_ID_HIGH 251
+
+// The middle word of the HDC1080 serial ID.
+#define PAMOJA_HDC1080_REGISTER_SERIAL_ID_MID 252
+
+// The low word of the HDC1080 serial ID.
+#define PAMOJA_HDC1080_REGISTER_SERIAL_ID_LOW 253
+
+// The HDC1080 manufacturer-ID register.
+#define PAMOJA_HDC1080_REGISTER_MANUFACTURER_ID 254
+
+// The HDC1080 device-ID register.
+#define PAMOJA_HDC1080_REGISTER_DEVICE_ID 255
+
+// The number of bytes in an OPT3001 register read.
+#define PAMOJA_OPT3001_REGISTER_LEN 2
+
+// The address an OPT3001 answers on with its ADDR pin tied to GND.
+#define PAMOJA_OPT3001_I2C_ADDRESS_GND 68
+
+// The address it answers on with ADDR tied to VDD.
+#define PAMOJA_OPT3001_I2C_ADDRESS_VDD 69
+
+// The address it answers on with ADDR tied to SDA.
+#define PAMOJA_OPT3001_I2C_ADDRESS_SDA 70
+
+// The address it answers on with ADDR tied to SCL.
+#define PAMOJA_OPT3001_I2C_ADDRESS_SCL 71
+
+// The value its manufacturer-ID register reads: TI.
+#define PAMOJA_OPT3001_MANUFACTURER_ID 21577
+
+// The value its device-ID register reads, which confirms the part.
+#define PAMOJA_OPT3001_DEVICE_ID 12289
+
+// The value its configuration register reads after a reset.
+#define PAMOJA_OPT3001_CONFIGURATION_RESET 51216
+
+// The value its low-limit register reads after a reset.
+#define PAMOJA_OPT3001_LOW_LIMIT_RESET 0
+
+// The value its high-limit register reads after a reset.
+#define PAMOJA_OPT3001_HIGH_LIMIT_RESET 49151
+
+// The low-limit value that turns the INT pin into an end-of-conversion signal.
+#define PAMOJA_OPT3001_LOW_LIMIT_END_OF_CONVERSION 49152
+
+// The range number that lets the part choose its own full scale.
+#define PAMOJA_OPT3001_RANGE_AUTOMATIC 12
+
+// The highest fixed range number the part defines.
+#define PAMOJA_OPT3001_RANGE_MAX 11
+
+// The OPT3001 result register.
+#define PAMOJA_OPT3001_REGISTER_RESULT 0
+
+// The OPT3001 configuration register.
+#define PAMOJA_OPT3001_REGISTER_CONFIGURATION 1
+
+// The OPT3001 low-limit register.
+#define PAMOJA_OPT3001_REGISTER_LOW_LIMIT 2
+
+// The OPT3001 high-limit register.
+#define PAMOJA_OPT3001_REGISTER_HIGH_LIMIT 3
+
+// The OPT3001 manufacturer-ID register.
+#define PAMOJA_OPT3001_REGISTER_MANUFACTURER_ID 126
+
+// The OPT3001 device-ID register.
+#define PAMOJA_OPT3001_REGISTER_DEVICE_ID 127
+
+// The address an INA226 answers on with both address pins tied to GND.
+#define PAMOJA_INA226_BASE_ADDRESS 64
+
+// The value its manufacturer-ID register reads: TI.
+#define PAMOJA_INA226_MANUFACTURER_ID 21577
+
+// The device identifier its die-ID register carries.
+#define PAMOJA_INA226_DEVICE_ID 550
+
+// The value its configuration register reads after a reset.
+#define PAMOJA_INA226_CONFIG_RESET 16679
+
+// The shunt-voltage resolution, in nanovolts per count.
+#define PAMOJA_INA226_SHUNT_LSB_NANOVOLTS 2500
+
+// The bus-voltage resolution, in microvolts per count.
+#define PAMOJA_INA226_BUS_LSB_MICROVOLTS 1250
+
+// How many times the power resolution is the current resolution.
+#define PAMOJA_INA226_POWER_LSB_RATIO 25
+
+// The INA226 configuration register.
+#define PAMOJA_INA226_REGISTER_CONFIGURATION 0
+
+// The INA226 shunt-voltage register.
+#define PAMOJA_INA226_REGISTER_SHUNT_VOLTAGE 1
+
+// The INA226 bus-voltage register.
+#define PAMOJA_INA226_REGISTER_BUS_VOLTAGE 2
+
+// The INA226 power register.
+#define PAMOJA_INA226_REGISTER_POWER 3
+
+// The INA226 current register.
+#define PAMOJA_INA226_REGISTER_CURRENT 4
+
+// The INA226 calibration register.
+#define PAMOJA_INA226_REGISTER_CALIBRATION 5
+
+// The INA226 Mask/Enable register.
+#define PAMOJA_INA226_REGISTER_MASK_ENABLE 6
+
+// The INA226 alert-limit register.
+#define PAMOJA_INA226_REGISTER_ALERT_LIMIT 7
+
+// The INA226 manufacturer-ID register.
+#define PAMOJA_INA226_REGISTER_MANUFACTURER_ID 254
+
+// The INA226 die-ID register.
+#define PAMOJA_INA226_REGISTER_DIE_ID 255
+
 // The largest payload, in bytes, that a streaming decoder will reassemble.
 //
 // The Rust decoders are generic over their capacity, which cannot cross a C
@@ -517,6 +982,20 @@ typedef enum {
   PamojaForward_Flood = 2,
 } PamojaForward;
 
+// The limit comparison an INA226 alert pin responds to.
+typedef enum {
+  // Shunt voltage above the alert limit.
+  PamojaIna226AlertFunction_ShuntOverLimit = 0,
+  // Shunt voltage below the alert limit.
+  PamojaIna226AlertFunction_ShuntUnderLimit = 1,
+  // Bus voltage above the alert limit.
+  PamojaIna226AlertFunction_BusOverLimit = 2,
+  // Bus voltage below the alert limit.
+  PamojaIna226AlertFunction_BusUnderLimit = 3,
+  // Power above the alert limit.
+  PamojaIna226AlertFunction_PowerOverLimit = 4,
+} PamojaIna226AlertFunction;
+
 // Which side of a session a device is on.
 //
 // The two devices must choose opposite roles. The role decides the order the
@@ -618,6 +1097,13 @@ typedef struct PamojaAuditVerifier PamojaAuditVerifier;
 // it for every measurement. Release it with
 // [`pamoja_bme280_calibration_free`].
 typedef struct PamojaBme280Calibration PamojaBme280Calibration;
+
+// An opaque handle to a BMP280's factory calibration.
+//
+// Read the calibration registers once at start-up, build one of these, and reuse
+// it for every measurement. Release it with
+// [`pamoja_bmp280_calibration_free`].
+typedef struct PamojaBmp280Calibration PamojaBmp280Calibration;
 
 // An opaque handle to a byte buffer owned by the caller.
 //
@@ -1460,6 +1946,266 @@ typedef struct {
   // The comparator queue code, `0..=3`, where `3` disables the comparator.
   uint8_t comparator_queue;
 } PamojaAds1115Config;
+
+// A compensated BMP280 reading.
+typedef struct {
+  // The temperature in degrees Celsius.
+  float celsius;
+  // The pressure in pascals.
+  uint32_t pascals;
+  // The pressure in hectopascals, the unit a barometer is usually quoted in.
+  float hectopascals;
+} PamojaBmp280Reading;
+
+// A BMP280's per-chip trimming coefficients, as they sit in its registers.
+typedef struct {
+  // The `dig_T1` coefficient.
+  uint16_t dig_t1;
+  // The `dig_T2` coefficient.
+  int16_t dig_t2;
+  // The `dig_T3` coefficient.
+  int16_t dig_t3;
+  // The `dig_P1` coefficient.
+  uint16_t dig_p1;
+  // The `dig_P2` coefficient.
+  int16_t dig_p2;
+  // The `dig_P3` coefficient.
+  int16_t dig_p3;
+  // The `dig_P4` coefficient.
+  int16_t dig_p4;
+  // The `dig_P5` coefficient.
+  int16_t dig_p5;
+  // The `dig_P6` coefficient.
+  int16_t dig_p6;
+  // The `dig_P7` coefficient.
+  int16_t dig_p7;
+  // The `dig_P8` coefficient.
+  int16_t dig_p8;
+  // The `dig_P9` coefficient.
+  int16_t dig_p9;
+} PamojaBmp280Coefficients;
+
+// The uncompensated codes a BMP280 burst read carries.
+typedef struct {
+  // The 20-bit pressure code.
+  uint32_t pressure;
+  // The 20-bit temperature code.
+  uint32_t temperature;
+  // `1` when pressure oversampling was off, so the code carries no reading.
+  uint8_t pressure_skipped;
+  // `1` when temperature oversampling was off, so the code carries no reading.
+  uint8_t temperature_skipped;
+} PamojaBmp280Measurement;
+
+// A BMP280 `ctrl_meas` register, field by field.
+typedef struct {
+  // The temperature oversampling code, `0..=5`, where `0` skips the measurement.
+  uint8_t temperature;
+  // The pressure oversampling code, `0..=5`, where `0` skips the measurement.
+  uint8_t pressure;
+  // The power mode code: `0` sleep, `1` forced, `3` normal.
+  uint8_t mode;
+} PamojaBmp280CtrlMeas;
+
+// A BMP280 `config` register, field by field.
+typedef struct {
+  // The normal-mode standby code, `0..=7`.
+  uint8_t standby;
+  // The IIR filter code, `0..=7`.
+  uint8_t filter;
+  // `1` enables the 3-wire SPI interface.
+  uint8_t spi_3wire;
+} PamojaBmp280Config;
+
+// A decoded SHT3x temperature and humidity pair.
+typedef struct {
+  // The raw temperature word.
+  uint16_t temperature_raw;
+  // The raw humidity word.
+  uint16_t humidity_raw;
+  // The temperature in milli-degrees Celsius, exact in integer arithmetic.
+  int32_t milli_celsius;
+  // The temperature in degrees Celsius.
+  float celsius;
+  // The temperature in milli-degrees Fahrenheit.
+  int32_t milli_fahrenheit;
+  // The temperature in degrees Fahrenheit.
+  float fahrenheit;
+  // The relative humidity in milli-percent.
+  uint32_t milli_percent;
+  // The relative humidity as a percentage.
+  float relative_humidity;
+} PamojaSht3xMeasurement;
+
+// A decoded SHT3x status register.
+typedef struct {
+  // The 16-bit status word the flags were read from.
+  uint16_t bits;
+  // `1` when at least one alert condition is pending.
+  uint8_t alert_pending;
+  // `1` while the on-die heater is running.
+  uint8_t heater_on;
+  // `1` when a humidity tracking alert is set.
+  uint8_t humidity_tracking_alert;
+  // `1` when a temperature tracking alert is set.
+  uint8_t temperature_tracking_alert;
+  // `1` when the part has reset since the flag was last cleared.
+  uint8_t reset_detected;
+  // `1` when the last command could not be processed.
+  uint8_t command_failed;
+  // `1` when the last write failed its checksum.
+  uint8_t write_checksum_failed;
+} PamojaSht3xStatus;
+
+// A decoded SCD4x measurement frame.
+typedef struct {
+  // The carbon dioxide concentration in parts per million.
+  uint16_t co2_ppm;
+  // The raw temperature word.
+  uint16_t temperature_raw;
+  // The raw humidity word.
+  uint16_t humidity_raw;
+  // The temperature in milli-degrees Celsius, exact in integer arithmetic.
+  int32_t milli_celsius;
+  // The temperature in degrees Celsius.
+  float celsius;
+  // The relative humidity in milli-percent.
+  uint32_t humidity_milli_percent;
+  // The relative humidity as a percentage.
+  float relative_humidity_percent;
+} PamojaScd4xMeasurement;
+
+// A TMP117 configuration register, field by field.
+typedef struct {
+  // `1` when a result went above the high limit.
+  uint8_t high_alert;
+  // `1` when a result went below the low limit.
+  uint8_t low_alert;
+  // `1` when a conversion has completed since the register was last read.
+  uint8_t data_ready;
+  // `1` while an EEPROM write is still in progress.
+  uint8_t eeprom_busy;
+  // The conversion-mode code: `0` continuous, `1` shutdown, `3` one-shot.
+  uint8_t mode;
+  // The conversion-cycle code, `0..=7`.
+  uint8_t cycle;
+  // The averaging code, `0..=3`.
+  uint8_t averaging;
+  // `1` makes the limits a therm hysteresis band rather than alerts.
+  uint8_t therm_mode;
+  // `1` makes the ALERT pin active high.
+  uint8_t alert_active_high;
+  // `1` makes the ALERT pin reflect data ready rather than the alert flags.
+  uint8_t alert_pin_data_ready;
+  // `1` triggers a software reset when this register is written.
+  uint8_t soft_reset;
+} PamojaTmp117Config;
+
+// A decoded HDC1080 temperature and humidity pair.
+typedef struct {
+  // The raw temperature register.
+  uint16_t temperature_raw;
+  // The raw humidity register.
+  uint16_t humidity_raw;
+  // The temperature in milli-degrees Celsius, exact in integer arithmetic.
+  int32_t milli_celsius;
+  // The temperature in degrees Celsius.
+  float celsius;
+  // The relative humidity in milli-percent.
+  uint32_t milli_percent;
+  // The relative humidity as a percentage.
+  float relative_humidity;
+} PamojaHdc1080Measurement;
+
+// An HDC1080 configuration register, field by field.
+typedef struct {
+  // `1` resets the part when this register is written.
+  uint8_t software_reset;
+  // `1` runs the on-die heater during measurements.
+  uint8_t heater;
+  // `1` acquires temperature and humidity from one trigger.
+  uint8_t sequential;
+  // `1` when the supply has dropped below 2.8 V, which the part reports back.
+  uint8_t battery_low;
+  // The temperature resolution in bits: 14 or 11.
+  uint8_t temperature_resolution_bits;
+  // The humidity resolution in bits: 14, 11, or 8.
+  uint8_t humidity_resolution_bits;
+} PamojaHdc1080Config;
+
+// An OPT3001 configuration register, field by field.
+typedef struct {
+  // The full-scale range number, `0..=11`, or `12` to set the range automatically.
+  uint8_t range_number;
+  // `1` makes a conversion take 800 ms rather than 100 ms.
+  uint8_t long_conversion;
+  // The mode code: `0` shutdown, `1` single shot, `2` continuous.
+  uint8_t mode;
+  // `1` when the last result overflowed its range.
+  uint8_t overflow;
+  // `1` when a conversion has completed since the register was last read.
+  uint8_t conversion_ready;
+  // `1` when the result went above the high limit.
+  uint8_t flag_high;
+  // `1` when the result went below the low limit.
+  uint8_t flag_low;
+  // `1` latches the INT pin until the configuration register is read.
+  uint8_t latched_window;
+  // `1` makes the INT pin active high.
+  uint8_t active_high;
+  // `1` makes the limit registers carry a mantissa alone, without an exponent.
+  uint8_t mask_exponent;
+  // The fault-count code, `0..=3`, for one, two, four, or eight faults.
+  uint8_t fault_count;
+} PamojaOpt3001Config;
+
+// An INA226 configuration register, field by field.
+typedef struct {
+  // `1` resets the part when this register is written.
+  uint8_t reset;
+  // The averaging code, `0..=7`, from 1 to 1024 samples.
+  uint8_t averaging;
+  // The bus-voltage conversion-time code, `0..=7`.
+  uint8_t bus_conversion_time;
+  // The shunt-voltage conversion-time code, `0..=7`.
+  uint8_t shunt_conversion_time;
+  // The operating-mode code, `0..=7`.
+  uint8_t mode;
+} PamojaIna226Config;
+
+// An INA226 Mask/Enable register, field by field.
+typedef struct {
+  // `1` alerts when the shunt voltage exceeds the limit.
+  uint8_t shunt_over_limit;
+  // `1` alerts when the shunt voltage drops below the limit.
+  uint8_t shunt_under_limit;
+  // `1` alerts when the bus voltage exceeds the limit.
+  uint8_t bus_over_limit;
+  // `1` alerts when the bus voltage drops below the limit.
+  uint8_t bus_under_limit;
+  // `1` alerts when the power exceeds the limit.
+  uint8_t power_over_limit;
+  // `1` also alerts when a conversion completes.
+  uint8_t conversion_ready;
+  // `1` when the selected limit function caused the last alert.
+  uint8_t alert_function_flag;
+  // `1` when every conversion and multiplication has completed.
+  uint8_t conversion_ready_flag;
+  // `1` when an arithmetic overflow left current and power invalid.
+  uint8_t math_overflow;
+  // `1` makes the alert pin active high.
+  uint8_t alert_active_high;
+  // `1` latches the alert pin until this register is read.
+  uint8_t alert_latch;
+} PamojaIna226MaskEnable;
+
+// A decoded INA226 die-ID register.
+typedef struct {
+  // The 12-bit device identifier.
+  uint16_t device;
+  // The 4-bit die revision.
+  uint8_t revision;
+} PamojaIna226DieId;
 
 // The header that travels beside a sealed message.
 //
@@ -9449,6 +10195,1377 @@ int64_t pamoja_ads1115_to_nanovolts(uint8_t pga, int16_t raw);
 //
 // The measured voltage.
 float pamoja_ads1115_to_volts(uint8_t pga, int16_t raw);
+
+// Builds a BMP280 calibration from the 24 bytes read out of its registers.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_calibration` set to a new handle
+// the caller must release with [`pamoja_bmp280_calibration_free`], or
+// [`PamojaStatus::InvalidArgument`] if the buffer is not 24 bytes.
+//
+// # Safety
+//
+// `bytes` must point to at least `bytes_len` readable bytes, and
+// `out_calibration` must point to a writable `*mut PamojaBmp280Calibration`.
+PamojaStatus pamoja_bmp280_calibration_new(const uint8_t *bytes,
+                                           uintptr_t bytes_len,
+                                           PamojaBmp280Calibration **out_calibration);
+
+// Turns a BMP280 burst read into a compensated reading.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_reading` filled in, or
+// [`PamojaStatus::InvalidArgument`] if the calibration is null or the
+// measurement is not six bytes.
+//
+// # Safety
+//
+// `calibration` must be a live handle from [`pamoja_bmp280_calibration_new`],
+// `measurement` must point to at least `measurement_len` readable bytes, and
+// `out_reading` must point to a writable `PamojaBmp280Reading`.
+PamojaStatus pamoja_bmp280_compensate(const PamojaBmp280Calibration *calibration,
+                                      const uint8_t *measurement,
+                                      uintptr_t measurement_len,
+                                      PamojaBmp280Reading *out_reading);
+
+// Rebuilds the 24 calibration bytes a device holding these coefficients returns.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the 24 bytes written to `out_bytes`, or
+// [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `calibration` must be a live handle from [`pamoja_bmp280_calibration_new`],
+// and `out_bytes` must point to at least 24 writable bytes.
+PamojaStatus pamoja_bmp280_calibration_to_bytes(const PamojaBmp280Calibration *calibration,
+                                                uint8_t *out_bytes);
+
+// Reads out the trimming coefficients a BMP280 calibration carries.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_coefficients` filled in, or
+// [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `calibration` must be a live handle from [`pamoja_bmp280_calibration_new`],
+// and `out_coefficients` must point to a writable `PamojaBmp280Coefficients`.
+PamojaStatus pamoja_bmp280_calibration_coefficients(const PamojaBmp280Calibration *calibration,
+                                                    PamojaBmp280Coefficients *out_coefficients);
+
+// Releases a BMP280 calibration handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `calibration` must be a handle from [`pamoja_bmp280_calibration_new`] that has
+// not already been freed, or null. After this call it must not be used again.
+void pamoja_bmp280_calibration_free(PamojaBmp280Calibration *calibration);
+
+// Unpacks the six data bytes a BMP280 burst read returns.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_measurement` filled in, or
+// [`PamojaStatus::InvalidArgument`] if the buffer is not six bytes.
+//
+// # Safety
+//
+// `data` must point to at least `data_len` readable bytes, and `out_measurement`
+// must point to a writable `PamojaBmp280Measurement`.
+PamojaStatus pamoja_bmp280_parse_measurement(const uint8_t *data,
+                                             uintptr_t data_len,
+                                             PamojaBmp280Measurement *out_measurement);
+
+// Builds the six data bytes a BMP280 holding these codes would return.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the six bytes written to `out_bytes`, or
+// [`PamojaStatus::InvalidArgument`] if `out_bytes` is null.
+//
+// # Safety
+//
+// `out_bytes` must point to at least six writable bytes.
+PamojaStatus pamoja_bmp280_measurement_bytes(uint32_t pressure,
+                                             uint32_t temperature,
+                                             uint8_t *out_bytes);
+
+// Reports whether a BMP280 status byte says a conversion is running.
+//
+// # Returns
+//
+// `true` while the part is measuring.
+bool pamoja_bmp280_measuring(uint8_t status);
+
+// Reports whether a BMP280 status byte says the calibration image is loading.
+//
+// # Returns
+//
+// `true` while the coefficients are being copied out of non-volatile memory.
+bool pamoja_bmp280_image_updating(uint8_t status);
+
+// Assembles a BMP280 `ctrl_meas` register value.
+//
+// # Returns
+//
+// The register value to write.
+uint8_t pamoja_bmp280_ctrl_meas_bits(PamojaBmp280CtrlMeas config);
+
+// Parses a BMP280 `ctrl_meas` register value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], with `*out_config` filled in. Every register value
+// decodes, so this fails only on a null pointer.
+//
+// # Safety
+//
+// `out_config` must point to a writable `PamojaBmp280CtrlMeas`.
+PamojaStatus pamoja_bmp280_ctrl_meas_from_bits(uint8_t bits, PamojaBmp280CtrlMeas *out_config);
+
+// Assembles a BMP280 `config` register value.
+//
+// # Returns
+//
+// The register value to write.
+uint8_t pamoja_bmp280_config_bits(PamojaBmp280Config config);
+
+// Parses a BMP280 `config` register value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], with `*out_config` filled in. Every register value
+// decodes, so this fails only on a null pointer.
+//
+// # Safety
+//
+// `out_config` must point to a writable `PamojaBmp280Config`.
+PamojaStatus pamoja_bmp280_config_from_bits(uint8_t bits, PamojaBmp280Config *out_config);
+
+// Returns how many samples a BMP280 oversampling code averages.
+//
+// # Returns
+//
+// The oversampling factor, `1` to `16`.
+uint8_t pamoja_bmp280_oversampling_factor(uint8_t code);
+
+// Returns the normal-mode standby period a BMP280 code selects.
+//
+// # Returns
+//
+// The period in microseconds.
+uint32_t pamoja_bmp280_standby_micros(uint8_t code);
+
+// Computes the CRC-8 an SHT3x appends to every data word.
+//
+// # Returns
+//
+// The checksum over `data`, or 0 if the pointer is null with a non-zero length.
+//
+// # Safety
+//
+// `data` must point to at least `data_len` readable bytes, or be null when
+// `data_len` is 0.
+uint8_t pamoja_sht3x_crc(const uint8_t *data, uintptr_t data_len);
+
+// Reads a CRC-checked three-byte SHT3x word frame.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_word` set, or
+// [`PamojaStatus::Codec`] if the CRC does not match.
+//
+// # Safety
+//
+// `frame` must point to at least `frame_len` readable bytes, and `out_word` must
+// point to a writable `uint16_t`.
+PamojaStatus pamoja_sht3x_word(const uint8_t *frame, uintptr_t frame_len, uint16_t *out_word);
+
+// Builds the three bytes an SHT3x sends for a word: the word then its CRC.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the three bytes written to `out_bytes`,
+// or [`PamojaStatus::InvalidArgument`] if `out_bytes` is null.
+//
+// # Safety
+//
+// `out_bytes` must point to at least three writable bytes.
+PamojaStatus pamoja_sht3x_word_bytes(uint16_t value, uint8_t *out_bytes);
+
+// Parses and CRC-checks a six-byte SHT3x measurement frame.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_measurement` filled in, or
+// [`PamojaStatus::Codec`] if either word fails its checksum, which means the read
+// was corrupted on the bus and should be repeated.
+//
+// # Safety
+//
+// `frame` must point to at least `frame_len` readable bytes, and
+// `out_measurement` must point to a writable `PamojaSht3xMeasurement`.
+PamojaStatus pamoja_sht3x_parse_measurement(const uint8_t *frame,
+                                            uintptr_t frame_len,
+                                            PamojaSht3xMeasurement *out_measurement);
+
+// Builds the six bytes an SHT3x sends for a pair of raw words.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the six bytes written to `out_bytes`, or
+// [`PamojaStatus::InvalidArgument`] if `out_bytes` is null.
+//
+// # Safety
+//
+// `out_bytes` must point to at least six writable bytes.
+PamojaStatus pamoja_sht3x_measurement_bytes(uint16_t temperature_raw,
+                                            uint16_t humidity_raw,
+                                            uint8_t *out_bytes);
+
+// Converts a raw SHT3x temperature word to milli-degrees Celsius.
+//
+// # Returns
+//
+// The temperature, exact in integer arithmetic.
+int32_t pamoja_sht3x_milli_celsius(uint16_t raw);
+
+// Converts a raw SHT3x temperature word to degrees Celsius.
+//
+// # Returns
+//
+// The temperature.
+float pamoja_sht3x_celsius(uint16_t raw);
+
+// Converts a raw SHT3x temperature word to milli-degrees Fahrenheit.
+//
+// # Returns
+//
+// The temperature, exact in integer arithmetic.
+int32_t pamoja_sht3x_milli_fahrenheit(uint16_t raw);
+
+// Converts a raw SHT3x temperature word to degrees Fahrenheit.
+//
+// # Returns
+//
+// The temperature.
+float pamoja_sht3x_fahrenheit(uint16_t raw);
+
+// Converts a raw SHT3x humidity word to milli-percent.
+//
+// # Returns
+//
+// The relative humidity, exact in integer arithmetic.
+uint32_t pamoja_sht3x_milli_percent(uint16_t raw);
+
+// Converts a raw SHT3x humidity word to a relative humidity percentage.
+//
+// # Returns
+//
+// The relative humidity.
+float pamoja_sht3x_relative_humidity(uint16_t raw);
+
+// Builds the SHT3x temperature word that decodes to a temperature.
+//
+// # Returns
+//
+// The raw word, saturating at the ends of the part's range.
+uint16_t pamoja_sht3x_temperature_raw_from_milli_celsius(int32_t milli_celsius);
+
+// Builds the SHT3x temperature word that decodes to a temperature in Celsius.
+//
+// # Returns
+//
+// The raw word, saturating at the ends of the part's range.
+uint16_t pamoja_sht3x_temperature_raw_from_celsius(float celsius);
+
+// Builds the SHT3x temperature word that decodes to a temperature in Fahrenheit.
+//
+// # Returns
+//
+// The raw word, saturating at the ends of the part's range.
+uint16_t pamoja_sht3x_temperature_raw_from_milli_fahrenheit(int32_t milli_fahrenheit);
+
+// Builds the SHT3x humidity word that decodes to a relative humidity.
+//
+// # Returns
+//
+// The raw word, saturating at full scale.
+uint16_t pamoja_sht3x_humidity_raw_from_milli_percent(uint32_t milli_percent);
+
+// Builds the SHT3x humidity word that decodes to a relative humidity percentage.
+//
+// # Returns
+//
+// The raw word, saturating at full scale.
+uint16_t pamoja_sht3x_humidity_raw_from_relative_humidity(float percent);
+
+// Parses and CRC-checks a three-byte SHT3x status frame.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_status` filled in, or
+// [`PamojaStatus::Codec`] if the CRC does not match.
+//
+// # Safety
+//
+// `frame` must point to at least `frame_len` readable bytes, and `out_status`
+// must point to a writable `PamojaSht3xStatus`.
+PamojaStatus pamoja_sht3x_parse_status(const uint8_t *frame,
+                                       uintptr_t frame_len,
+                                       PamojaSht3xStatus *out_status);
+
+// Splits an SHT3x status word into its flags.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], with `*out_status` filled in. Every word decodes, so
+// this fails only on a null pointer.
+//
+// # Safety
+//
+// `out_status` must point to a writable `PamojaSht3xStatus`.
+PamojaStatus pamoja_sht3x_status_from_bits(uint16_t bits, PamojaSht3xStatus *out_status);
+
+// Builds the three bytes an SHT3x sends for a status word, CRC last.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the three bytes written to `out_bytes`,
+// or [`PamojaStatus::InvalidArgument`] if `out_bytes` is null.
+//
+// # Safety
+//
+// `out_bytes` must point to at least three writable bytes.
+PamojaStatus pamoja_sht3x_status_bytes(uint16_t bits, uint8_t *out_bytes);
+
+// Returns the SHT3x single-shot command for a repeatability and clock mode.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_command` set, or
+// [`PamojaStatus::InvalidArgument`] if `repeatability` is not 0, 1, or 2.
+//
+// # Safety
+//
+// `out_command` must point to a writable `uint16_t`.
+PamojaStatus pamoja_sht3x_single_shot(uint8_t repeatability,
+                                      bool clock_stretching,
+                                      uint16_t *out_command);
+
+// Returns the SHT3x periodic-mode command for a repeatability and rate.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_command` set, or
+// [`PamojaStatus::InvalidArgument`] if either code is outside its range.
+//
+// # Safety
+//
+// `out_command` must point to a writable `uint16_t`.
+PamojaStatus pamoja_sht3x_periodic(uint8_t repeatability, uint8_t rate, uint16_t *out_command);
+
+// Returns how long an SHT3x measurement may take at a repeatability.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_micros` set to the datasheet's
+// worst case, or [`PamojaStatus::InvalidArgument`] if the code is out of range.
+//
+// # Safety
+//
+// `out_micros` must point to a writable `uint32_t`.
+PamojaStatus pamoja_sht3x_max_measurement_micros(uint8_t repeatability, uint32_t *out_micros);
+
+// Returns how long an SHT3x measurement typically takes at a repeatability.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_micros` set, or
+// [`PamojaStatus::InvalidArgument`] if the code is out of range.
+//
+// # Safety
+//
+// `out_micros` must point to a writable `uint32_t`.
+PamojaStatus pamoja_sht3x_typical_measurement_micros(uint8_t repeatability, uint32_t *out_micros);
+
+// Returns the gap between SHT3x periodic measurements at a rate.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_micros` set, or
+// [`PamojaStatus::InvalidArgument`] if the code is out of range.
+//
+// # Safety
+//
+// `out_micros` must point to a writable `uint32_t`.
+PamojaStatus pamoja_sht3x_interval_micros(uint8_t rate, uint32_t *out_micros);
+
+// Computes the CRC-8 an SCD4x appends to every data word.
+//
+// # Returns
+//
+// The checksum over `data`, or 0 if the pointer is null with a non-zero length.
+//
+// # Safety
+//
+// `data` must point to at least `data_len` readable bytes, or be null when
+// `data_len` is 0.
+uint8_t pamoja_scd4x_crc(const uint8_t *data, uintptr_t data_len);
+
+// Reads a CRC-checked three-byte SCD4x word frame.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_word` set, or
+// [`PamojaStatus::Codec`] if the CRC does not match.
+//
+// # Safety
+//
+// `frame` must point to at least `frame_len` readable bytes, and `out_word` must
+// point to a writable `uint16_t`.
+PamojaStatus pamoja_scd4x_word(const uint8_t *frame, uintptr_t frame_len, uint16_t *out_word);
+
+// Builds the three bytes an SCD4x sends for a word: the word then its CRC.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the three bytes written to `out_bytes`,
+// or [`PamojaStatus::InvalidArgument`] if `out_bytes` is null.
+//
+// # Safety
+//
+// `out_bytes` must point to at least three writable bytes.
+PamojaStatus pamoja_scd4x_word_frame(uint16_t value, uint8_t *out_bytes);
+
+// Builds the two bytes that address an SCD4x command, most significant first.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the two bytes written to `out_bytes`, or
+// [`PamojaStatus::InvalidArgument`] if `out_bytes` is null.
+//
+// # Safety
+//
+// `out_bytes` must point to at least two writable bytes.
+PamojaStatus pamoja_scd4x_command_frame(uint16_t command, uint8_t *out_bytes);
+
+// Builds the five bytes that write a word to an SCD4x: command, word, CRC.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the five bytes written to `out_bytes`,
+// or [`PamojaStatus::InvalidArgument`] if `out_bytes` is null.
+//
+// # Safety
+//
+// `out_bytes` must point to at least five writable bytes.
+PamojaStatus pamoja_scd4x_write_frame(uint16_t command, uint16_t value, uint8_t *out_bytes);
+
+// Returns how long an SCD4x command may take before its result can be read.
+//
+// # Returns
+//
+// `true` when the command has a documented execution time, with `*out_millis`
+// set to it; `false` when it completes as soon as it is acknowledged.
+//
+// # Safety
+//
+// `out_millis` must point to a writable `uint16_t`.
+bool pamoja_scd4x_max_duration_ms(uint16_t command, uint16_t *out_millis);
+
+// Reports whether an SCD4x accepts a command while it is measuring.
+//
+// # Returns
+//
+// `true` when the command may be sent without stopping periodic measurements.
+bool pamoja_scd4x_allowed_during_measurement(uint16_t command);
+
+// Parses and CRC-checks a nine-byte SCD4x measurement frame.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_measurement` filled in, or
+// [`PamojaStatus::Codec`] if any word fails its checksum, which means the read
+// was corrupted on the bus and should be repeated.
+//
+// # Safety
+//
+// `frame` must point to at least `frame_len` readable bytes, and
+// `out_measurement` must point to a writable `PamojaScd4xMeasurement`.
+PamojaStatus pamoja_scd4x_parse_measurement(const uint8_t *frame,
+                                            uintptr_t frame_len,
+                                            PamojaScd4xMeasurement *out_measurement);
+
+// Builds the SCD4x measurement a sensor reporting these physical values would send.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], with `*out_measurement` filled in, or
+// [`PamojaStatus::InvalidArgument`] if the pointer is null.
+//
+// # Safety
+//
+// `out_measurement` must point to a writable `PamojaScd4xMeasurement`.
+PamojaStatus pamoja_scd4x_measurement_from_physical(uint16_t co2_ppm,
+                                                    int32_t milli_celsius,
+                                                    uint32_t humidity_milli_percent,
+                                                    PamojaScd4xMeasurement *out_measurement);
+
+// Builds the nine bytes an SCD4x sends for a set of raw words, each CRC included.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the nine bytes written to `out_bytes`,
+// or [`PamojaStatus::InvalidArgument`] if `out_bytes` is null.
+//
+// # Safety
+//
+// `out_bytes` must point to at least nine writable bytes.
+PamojaStatus pamoja_scd4x_measurement_bytes(uint16_t co2_ppm,
+                                            uint16_t temperature_raw,
+                                            uint16_t humidity_raw,
+                                            uint8_t *out_bytes);
+
+// Converts a raw SCD4x temperature word to milli-degrees Celsius.
+//
+// # Returns
+//
+// The temperature, exact in integer arithmetic.
+int32_t pamoja_scd4x_milli_celsius(uint16_t raw);
+
+// Converts a raw SCD4x temperature word to degrees Celsius.
+//
+// # Returns
+//
+// The temperature.
+float pamoja_scd4x_celsius(uint16_t raw);
+
+// Builds the SCD4x temperature word that decodes to a temperature.
+//
+// # Returns
+//
+// The raw word, saturating at the ends of the part's range.
+uint16_t pamoja_scd4x_temperature_raw(int32_t milli_celsius);
+
+// Converts a raw SCD4x humidity word to milli-percent.
+//
+// # Returns
+//
+// The relative humidity, exact in integer arithmetic.
+uint32_t pamoja_scd4x_humidity_milli_percent(uint16_t raw);
+
+// Converts a raw SCD4x humidity word to a relative humidity percentage.
+//
+// # Returns
+//
+// The relative humidity.
+float pamoja_scd4x_relative_humidity_percent(uint16_t raw);
+
+// Builds the SCD4x humidity word that decodes to a relative humidity.
+//
+// # Returns
+//
+// The raw word, saturating at full scale.
+uint16_t pamoja_scd4x_humidity_raw(uint32_t milli_percent);
+
+// Reports whether an SCD4x data-ready word says a fresh result is waiting.
+//
+// # Returns
+//
+// `true` when any of the low eleven bits is set.
+bool pamoja_scd4x_data_ready(uint16_t word);
+
+// Builds the SCD4x temperature-offset word for an offset.
+//
+// # Returns
+//
+// The word to write, which scales by 2^16 rather than by the 2^16 - 1 the
+// measurement words use.
+uint16_t pamoja_scd4x_temperature_offset_word(uint32_t milli_celsius);
+
+// Reads an SCD4x temperature-offset word back as an offset.
+//
+// # Returns
+//
+// The offset in milli-degrees Celsius.
+uint32_t pamoja_scd4x_temperature_offset_milli_celsius(uint16_t word);
+
+// Builds the SCD4x ambient-pressure word for a pressure.
+//
+// # Returns
+//
+// The word to write, at 100 pascals per count.
+uint16_t pamoja_scd4x_ambient_pressure_word(uint32_t pascals);
+
+// Reads an SCD4x ambient-pressure word back as a pressure.
+//
+// # Returns
+//
+// The pressure in pascals.
+uint32_t pamoja_scd4x_ambient_pressure_pascals(uint16_t word);
+
+// Reads the correction a forced recalibration applied.
+//
+// # Returns
+//
+// `true` when the recalibration took, with `*out_ppm` set to the correction in
+// parts per million; `false` when the part reported that it failed.
+//
+// # Safety
+//
+// `out_ppm` must point to a writable `int32_t`.
+bool pamoja_scd4x_forced_recalibration_correction_ppm(uint16_t word, int32_t *out_ppm);
+
+// Builds the word an SCD4x returns for a forced-recalibration outcome.
+//
+// # Returns
+//
+// The word, which is the failure sentinel when `succeeded` is `false`.
+uint16_t pamoja_scd4x_forced_recalibration_word(bool succeeded, int32_t correction_ppm);
+
+// Reports whether an SCD4x word says automatic self-calibration is on.
+//
+// # Returns
+//
+// `true` when the part recalibrates itself against clean air.
+bool pamoja_scd4x_automatic_self_calibration_enabled(uint16_t word);
+
+// Builds the SCD4x word that turns automatic self-calibration on or off.
+//
+// # Returns
+//
+// The word to write.
+uint16_t pamoja_scd4x_automatic_self_calibration_word(bool enabled);
+
+// Reports whether an SCD4x self-test word says the part is healthy.
+//
+// # Returns
+//
+// `true` when the self test found no malfunction.
+bool pamoja_scd4x_self_test_passed(uint16_t word);
+
+// Reads the 48-bit serial number out of a nine-byte SCD4x frame.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_serial` set, or
+// [`PamojaStatus::Codec`] if any word fails its checksum.
+//
+// # Safety
+//
+// `frame` must point to at least `frame_len` readable bytes, and `out_serial`
+// must point to a writable `uint64_t`.
+PamojaStatus pamoja_scd4x_serial_number(const uint8_t *frame,
+                                        uintptr_t frame_len,
+                                        uint64_t *out_serial);
+
+// Builds the nine bytes an SCD4x sends for a serial number, each CRC included.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the nine bytes written to `out_bytes`,
+// or [`PamojaStatus::InvalidArgument`] if `out_bytes` is null.
+//
+// # Safety
+//
+// `out_bytes` must point to at least nine writable bytes.
+PamojaStatus pamoja_scd4x_serial_number_frame(uint64_t serial, uint8_t *out_bytes);
+
+// Converts a raw TMP117 temperature register to nano-degrees Celsius.
+//
+// # Returns
+//
+// The temperature, exact in integer arithmetic at the part's 7.8125 m°C step.
+int64_t pamoja_tmp117_nano_celsius(int16_t raw);
+
+// Converts a raw TMP117 temperature register to micro-degrees Celsius.
+//
+// # Returns
+//
+// The temperature, truncated toward zero at the last digit.
+int32_t pamoja_tmp117_micro_celsius(int16_t raw);
+
+// Converts a raw TMP117 temperature register to degrees Celsius.
+//
+// # Returns
+//
+// The temperature.
+float pamoja_tmp117_celsius(int16_t raw);
+
+// Builds the TMP117 temperature register that decodes to a temperature.
+//
+// # Returns
+//
+// The nearest register value, saturating at the ends of the part's range.
+int16_t pamoja_tmp117_raw_from_micro_celsius(int32_t micro_celsius);
+
+// Builds the TMP117 temperature register that decodes to a temperature in Celsius.
+//
+// # Returns
+//
+// The nearest register value, saturating at the ends of the part's range.
+int16_t pamoja_tmp117_raw_from_celsius(float celsius);
+
+// Builds the two bytes a TMP117 sends for a temperature register.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the two bytes written to `out_bytes`, or
+// [`PamojaStatus::InvalidArgument`] if `out_bytes` is null.
+//
+// # Safety
+//
+// `out_bytes` must point to at least two writable bytes.
+PamojaStatus pamoja_tmp117_temperature_bytes(int16_t raw, uint8_t *out_bytes);
+
+// Reads the two bytes a TMP117 sends for a temperature register.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_raw` set, or
+// [`PamojaStatus::InvalidArgument`] if the buffer is not two bytes.
+//
+// # Safety
+//
+// `bytes` must point to at least `bytes_len` readable bytes, and `out_raw` must
+// point to a writable `int16_t`.
+PamojaStatus pamoja_tmp117_temperature_from_bytes(const uint8_t *bytes,
+                                                  uintptr_t bytes_len,
+                                                  int16_t *out_raw);
+
+// Reads the device identifier out of a TMP117 device-ID register.
+//
+// # Returns
+//
+// The low twelve bits, which are 0x117 for a TMP117.
+uint16_t pamoja_tmp117_device_id(uint16_t raw);
+
+// Reads the die revision out of a TMP117 device-ID register.
+//
+// # Returns
+//
+// The high four bits.
+uint8_t pamoja_tmp117_revision(uint16_t raw);
+
+// Reports whether a TMP117 configuration register flags a high alert.
+//
+// # Returns
+//
+// `true` when a result went above the high limit.
+bool pamoja_tmp117_high_alert(uint16_t config);
+
+// Reports whether a TMP117 configuration register flags a low alert.
+//
+// # Returns
+//
+// `true` when a result went below the low limit.
+bool pamoja_tmp117_low_alert(uint16_t config);
+
+// Reports whether a TMP117 configuration register says a result is ready.
+//
+// # Returns
+//
+// `true` when a conversion completed since the register was last read.
+bool pamoja_tmp117_data_ready(uint16_t config);
+
+// Reports whether a TMP117 configuration register says an EEPROM write is running.
+//
+// # Returns
+//
+// `true` while the write is in progress.
+bool pamoja_tmp117_eeprom_busy(uint16_t config);
+
+// Reports whether a TMP117 EEPROM unlock register says a write is running.
+//
+// # Returns
+//
+// `true` while the write is in progress.
+bool pamoja_tmp117_eeprom_unlock_busy(uint16_t unlock);
+
+// Assembles the 16-bit TMP117 configuration register value.
+//
+// # Returns
+//
+// The register value to write.
+uint16_t pamoja_tmp117_config_bits(PamojaTmp117Config config);
+
+// Parses a 16-bit TMP117 configuration register value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], with `*out_config` filled in. Every register value
+// decodes, so this fails only on a null pointer.
+//
+// # Safety
+//
+// `out_config` must point to a writable `PamojaTmp117Config`.
+PamojaStatus pamoja_tmp117_config_from_bits(uint16_t bits, PamojaTmp117Config *out_config);
+
+// Returns how many conversions a TMP117 averaging code folds into one result.
+//
+// # Returns
+//
+// The conversion count: 1, 8, 32, or 64.
+uint8_t pamoja_tmp117_averaging_conversions(uint8_t code);
+
+// Returns how long a TMP117 averaging code takes to convert.
+//
+// # Returns
+//
+// The conversion time in microseconds.
+uint32_t pamoja_tmp117_averaging_micros(uint8_t code);
+
+// Returns the nominal cycle a TMP117 conversion-cycle code selects.
+//
+// # Returns
+//
+// The cycle in microseconds, before the averaging setting extends it.
+uint32_t pamoja_tmp117_cycle_nominal_micros(uint8_t code);
+
+// Returns how often a TMP117 updates its result for a cycle and averaging code.
+//
+// # Returns
+//
+// The longer of the nominal cycle and the time the averaging takes.
+uint32_t pamoja_tmp117_cycle_micros(uint8_t cycle, uint8_t averaging);
+
+// Converts a raw HDC1080 temperature register to milli-degrees Celsius.
+//
+// # Returns
+//
+// The temperature, exact in integer arithmetic.
+int32_t pamoja_hdc1080_milli_celsius(uint16_t raw);
+
+// Converts a raw HDC1080 temperature register to degrees Celsius.
+//
+// # Returns
+//
+// The temperature.
+float pamoja_hdc1080_celsius(uint16_t raw);
+
+// Converts a raw HDC1080 humidity register to milli-percent.
+//
+// # Returns
+//
+// The relative humidity, exact in integer arithmetic.
+uint32_t pamoja_hdc1080_milli_percent(uint16_t raw);
+
+// Converts a raw HDC1080 humidity register to a relative humidity percentage.
+//
+// # Returns
+//
+// The relative humidity.
+float pamoja_hdc1080_relative_humidity(uint16_t raw);
+
+// Builds the HDC1080 temperature register that decodes to a temperature.
+//
+// # Returns
+//
+// The 14-bit code in bits 15:2, clamped to the part's range.
+uint16_t pamoja_hdc1080_temperature_register(int32_t milli_celsius);
+
+// Builds the HDC1080 humidity register that decodes to a relative humidity.
+//
+// # Returns
+//
+// The 14-bit code in bits 15:2, clamped to full scale.
+uint16_t pamoja_hdc1080_humidity_register(uint32_t milli_percent);
+
+// Joins the three HDC1080 serial-ID registers into the 40-bit serial number.
+//
+// # Returns
+//
+// The serial number.
+uint64_t pamoja_hdc1080_serial_id(uint16_t high, uint16_t mid, uint16_t low);
+
+// Splits a serial number back into the three HDC1080 serial-ID registers.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the three registers written to
+// `out_registers` high word first, or [`PamojaStatus::InvalidArgument`] if the
+// pointer is null.
+//
+// # Safety
+//
+// `out_registers` must point to at least three writable `uint16_t` values.
+PamojaStatus pamoja_hdc1080_serial_id_registers(uint64_t serial, uint16_t *out_registers);
+
+// Parses the four bytes an HDC1080 sequential read returns.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_measurement` filled in, or
+// [`PamojaStatus::InvalidArgument`] if the buffer is not four bytes. The part
+// sends no checksum, so a well-sized read always decodes.
+//
+// # Safety
+//
+// `bytes` must point to at least `bytes_len` readable bytes, and
+// `out_measurement` must point to a writable `PamojaHdc1080Measurement`.
+PamojaStatus pamoja_hdc1080_parse_measurement(const uint8_t *bytes,
+                                              uintptr_t bytes_len,
+                                              PamojaHdc1080Measurement *out_measurement);
+
+// Builds the HDC1080 measurement a sensor reporting these physical values would send.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], with `*out_measurement` filled in, or
+// [`PamojaStatus::InvalidArgument`] if the pointer is null.
+//
+// # Safety
+//
+// `out_measurement` must point to a writable `PamojaHdc1080Measurement`.
+PamojaStatus pamoja_hdc1080_measurement_from_physical(int32_t milli_celsius,
+                                                      uint32_t milli_percent,
+                                                      PamojaHdc1080Measurement *out_measurement);
+
+// Builds the four bytes an HDC1080 sends for a pair of raw registers.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the four bytes written to `out_bytes`,
+// or [`PamojaStatus::InvalidArgument`] if `out_bytes` is null.
+//
+// # Safety
+//
+// `out_bytes` must point to at least four writable bytes.
+PamojaStatus pamoja_hdc1080_measurement_bytes(uint16_t temperature_raw,
+                                              uint16_t humidity_raw,
+                                              uint8_t *out_bytes);
+
+// Parses an HDC1080 configuration register value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_config` filled in, or
+// [`PamojaStatus::Codec`] if the humidity-resolution field carries the code the
+// datasheet leaves undefined, which means the value did not come from a working
+// part.
+//
+// # Safety
+//
+// `out_config` must point to a writable `PamojaHdc1080Config`.
+PamojaStatus pamoja_hdc1080_config_from_register(uint16_t raw, PamojaHdc1080Config *out_config);
+
+// Assembles an HDC1080 configuration register value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_register` set, or
+// [`PamojaStatus::InvalidArgument`] if either resolution is not one the part
+// offers.
+//
+// # Safety
+//
+// `out_register` must point to a writable `uint16_t`.
+PamojaStatus pamoja_hdc1080_config_to_register(PamojaHdc1080Config config, uint16_t *out_register);
+
+// Returns how long to wait after triggering an HDC1080 in a configuration.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_micros` set, or
+// [`PamojaStatus::InvalidArgument`] if either resolution is not one the part
+// offers.
+//
+// # Safety
+//
+// `out_micros` must point to a writable `uint32_t`.
+PamojaStatus pamoja_hdc1080_conversion_time_micros(PamojaHdc1080Config config,
+                                                   uint32_t *out_micros);
+
+// Returns how long an HDC1080 temperature conversion takes at a resolution.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_micros` set, or
+// [`PamojaStatus::InvalidArgument`] if `bits` is not 14 or 11.
+//
+// # Safety
+//
+// `out_micros` must point to a writable `uint32_t`.
+PamojaStatus pamoja_hdc1080_temperature_conversion_micros(uint8_t bits, uint32_t *out_micros);
+
+// Returns how long an HDC1080 humidity conversion takes at a resolution.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_micros` set, or
+// [`PamojaStatus::InvalidArgument`] if `bits` is not 14, 11, or 8.
+//
+// # Safety
+//
+// `out_micros` must point to a writable `uint32_t`.
+PamojaStatus pamoja_hdc1080_humidity_conversion_micros(uint8_t bits, uint32_t *out_micros);
+
+// Returns the illuminance one count carries at an OPT3001 exponent.
+//
+// # Returns
+//
+// `true` when the exponent is one the part defines, with `*out_milli_lux` set to
+// the step; `false` for a reserved exponent.
+//
+// # Safety
+//
+// `out_milli_lux` must point to a writable `uint32_t`.
+bool pamoja_opt3001_lsb_milli_lux(uint8_t exponent, uint32_t *out_milli_lux);
+
+// Returns the full scale an OPT3001 range number covers.
+//
+// # Returns
+//
+// `true` when the range is one the part defines, with `*out_milli_lux` set to
+// the full scale; `false` for a reserved range number, which has none.
+//
+// # Safety
+//
+// `out_milli_lux` must point to a writable `uint32_t`.
+bool pamoja_opt3001_full_scale_milli_lux(uint8_t range_number, uint32_t *out_milli_lux);
+
+// Converts a raw OPT3001 result register to milli-lux.
+//
+// # Returns
+//
+// The illuminance, exact in integer arithmetic.
+uint32_t pamoja_opt3001_milli_lux(uint16_t raw);
+
+// Converts a raw OPT3001 result register to lux.
+//
+// # Returns
+//
+// The illuminance.
+float pamoja_opt3001_lux(uint16_t raw);
+
+// Builds the OPT3001 result register that decodes to an illuminance.
+//
+// # Returns
+//
+// The register value, using the smallest exponent that fits and saturating at
+// full scale.
+uint16_t pamoja_opt3001_raw_from_milli_lux(uint32_t milli_lux);
+
+// Reads the two bytes an OPT3001 sends for a register, most significant first.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_word` set, or
+// [`PamojaStatus::InvalidArgument`] if the buffer is not two bytes.
+//
+// # Safety
+//
+// `bytes` must point to at least `bytes_len` readable bytes, and `out_word` must
+// point to a writable `uint16_t`.
+PamojaStatus pamoja_opt3001_word_from_bytes(const uint8_t *bytes,
+                                            uintptr_t bytes_len,
+                                            uint16_t *out_word);
+
+// Builds the two bytes an OPT3001 sends for a register, most significant first.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with the two bytes written to `out_bytes`, or
+// [`PamojaStatus::InvalidArgument`] if `out_bytes` is null.
+//
+// # Safety
+//
+// `out_bytes` must point to at least two writable bytes.
+PamojaStatus pamoja_opt3001_word_to_bytes(uint16_t word, uint8_t *out_bytes);
+
+// Assembles the 16-bit OPT3001 configuration register value.
+//
+// # Returns
+//
+// The register value to write, with the read-only status bits written as zero.
+uint16_t pamoja_opt3001_config_bits(PamojaOpt3001Config config);
+
+// Parses a 16-bit OPT3001 configuration register value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], with `*out_config` filled in. Every register value
+// decodes, so this fails only on a null pointer.
+//
+// # Safety
+//
+// `out_config` must point to a writable `PamojaOpt3001Config`.
+PamojaStatus pamoja_opt3001_config_from_bits(uint16_t bits, PamojaOpt3001Config *out_config);
+
+// Returns the conversion time an OPT3001 setting selects.
+//
+// # Returns
+//
+// The time in milliseconds: 800 for the long conversion, 100 otherwise.
+uint16_t pamoja_opt3001_conversion_millis(bool long_conversion);
+
+// Returns how many consecutive faults an OPT3001 fault-count code requires.
+//
+// # Returns
+//
+// The fault count: 1, 2, 4, or 8.
+uint8_t pamoja_opt3001_fault_count(uint8_t code);
+
+// Reports whether an OPT3001 range number sets the full scale automatically.
+//
+// # Returns
+//
+// `true` for the automatic range number, which has no fixed full scale.
+bool pamoja_opt3001_is_automatic_range(uint8_t range_number);
+
+// Returns the I2C address an INA226's A1 and A0 pin codes select.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_address` set to a 7-bit address in
+// `0x40..=0x4F`, or [`PamojaStatus::InvalidArgument`] if either code is above 3.
+//
+// # Safety
+//
+// `out_address` must point to a writable `uint8_t`.
+PamojaStatus pamoja_ina226_address(uint8_t a1, uint8_t a0, uint8_t *out_address);
+
+// Returns how many samples an INA226 averaging code folds into one result.
+//
+// # Returns
+//
+// The sample count, from 1 to 1024.
+uint16_t pamoja_ina226_averaging_samples(uint8_t code);
+
+// Returns the conversion time an INA226 code selects.
+//
+// # Returns
+//
+// The time in microseconds.
+uint32_t pamoja_ina226_conversion_micros(uint8_t code);
+
+// Reports whether an INA226 mode code converts the shunt voltage.
+//
+// # Returns
+//
+// `true` when the shunt is measured in that mode.
+bool pamoja_ina226_measures_shunt(uint8_t code);
+
+// Reports whether an INA226 mode code converts the bus voltage.
+//
+// # Returns
+//
+// `true` when the bus is measured in that mode.
+bool pamoja_ina226_measures_bus(uint8_t code);
+
+// Reports whether an INA226 mode code keeps converting after the first result.
+//
+// # Returns
+//
+// `true` for the continuous modes.
+bool pamoja_ina226_is_continuous(uint8_t code);
+
+// Parses an INA226 configuration register value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], with `*out_config` filled in. Every register value
+// decodes, so this fails only on a null pointer.
+//
+// # Safety
+//
+// `out_config` must point to a writable `PamojaIna226Config`.
+PamojaStatus pamoja_ina226_config_from_register(uint16_t raw, PamojaIna226Config *out_config);
+
+// Assembles an INA226 configuration register value.
+//
+// # Returns
+//
+// The register value to write.
+uint16_t pamoja_ina226_config_to_register(PamojaIna226Config config);
+
+// Returns how often an INA226 in a configuration updates its results.
+//
+// # Returns
+//
+// The interval in microseconds: every conversion the mode takes, averaged.
+uint32_t pamoja_ina226_update_micros(PamojaIna226Config config);
+
+// Parses an INA226 Mask/Enable register value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], with `*out_mask` filled in. Every register value
+// decodes, so this fails only on a null pointer.
+//
+// # Safety
+//
+// `out_mask` must point to a writable `PamojaIna226MaskEnable`.
+PamojaStatus pamoja_ina226_mask_enable_from_register(uint16_t raw,
+                                                     PamojaIna226MaskEnable *out_mask);
+
+// Assembles an INA226 Mask/Enable register value.
+//
+// # Returns
+//
+// The register value to write, with the read-only flags written as zero.
+uint16_t pamoja_ina226_mask_enable_to_register(PamojaIna226MaskEnable mask);
+
+// Returns the alert function an INA226 pin actually responds to.
+//
+// # Returns
+//
+// `true` when one limit function is selected, with `*out_function` set to it;
+// `false` when none is, so the pin only ever signals a completed conversion.
+//
+// # Safety
+//
+// `out_function` must point to a writable `PamojaIna226AlertFunction`.
+bool pamoja_ina226_active_alert_function(PamojaIna226MaskEnable mask,
+                                         PamojaIna226AlertFunction *out_function);
+
+// Splits an INA226 die-ID register into its device and revision fields.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], with `*out_die_id` filled in. Every register value
+// decodes, so this fails only on a null pointer.
+//
+// # Safety
+//
+// `out_die_id` must point to a writable `PamojaIna226DieId`.
+PamojaStatus pamoja_ina226_die_id(uint16_t raw, PamojaIna226DieId *out_die_id);
+
+// Checks that a pair of identification registers belongs to an INA226.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_die_id` filled in, or
+// [`PamojaStatus::Codec`] if either register carries something other than the
+// values the datasheet fixes, which means a different part, or nothing at all,
+// answered at that address.
+//
+// # Safety
+//
+// `out_die_id` must point to a writable `PamojaIna226DieId`.
+PamojaStatus pamoja_ina226_identify(uint16_t manufacturer_id,
+                                    uint16_t die_id,
+                                    PamojaIna226DieId *out_die_id);
+
+// Computes the INA226 calibration register for a shunt and current resolution.
+//
+// # Returns
+//
+// The register value to write.
+uint16_t pamoja_ina226_calibration(uint32_t current_lsb_microamps, uint32_t shunt_milliohms);
+
+// Returns the smallest current resolution that still covers an expected maximum.
+//
+// # Returns
+//
+// The current LSB in microamps.
+uint32_t pamoja_ina226_minimum_current_lsb_microamps(uint32_t max_expected_microamps);
+
+// Converts a raw INA226 shunt-voltage register to nanovolts.
+//
+// # Returns
+//
+// The shunt voltage, exact in integer arithmetic at 2.5 uV per count.
+int32_t pamoja_ina226_shunt_nanovolts(int16_t raw);
+
+// Converts a raw INA226 shunt-voltage register to millivolts.
+//
+// # Returns
+//
+// The shunt voltage.
+float pamoja_ina226_shunt_millivolts(int16_t raw);
+
+// Converts a raw INA226 bus-voltage register to microvolts.
+//
+// # Returns
+//
+// The bus voltage, exact in integer arithmetic at 1.25 mV per count.
+uint32_t pamoja_ina226_bus_microvolts(uint16_t raw);
+
+// Converts a raw INA226 bus-voltage register to volts.
+//
+// # Returns
+//
+// The bus voltage.
+float pamoja_ina226_bus_volts(uint16_t raw);
+
+// Converts a raw INA226 current register to microamps.
+//
+// # Returns
+//
+// The current, at the resolution the calibration selected.
+int32_t pamoja_ina226_current_microamps(int16_t raw, uint32_t current_lsb_microamps);
+
+// Converts a raw INA226 current register to amps.
+//
+// # Returns
+//
+// The current.
+float pamoja_ina226_current_amps(int16_t raw, uint32_t current_lsb_microamps);
+
+// Converts a raw INA226 power register to microwatts.
+//
+// # Returns
+//
+// The power. The power LSB is fixed at twenty-five times the current LSB.
+uint32_t pamoja_ina226_power_microwatts(uint16_t raw, uint32_t current_lsb_microamps);
+
+// Converts a raw INA226 power register to watts.
+//
+// # Returns
+//
+// The power.
+float pamoja_ina226_power_watts(uint16_t raw, uint32_t current_lsb_microamps);
+
+// Builds the INA226 shunt-voltage register a monitor reports for a shunt voltage.
+//
+// # Returns
+//
+// The signed register value, at 2.5 uV per count.
+int16_t pamoja_ina226_shunt_register(int32_t nanovolts);
+
+// Builds the INA226 bus-voltage register a monitor reports for a bus voltage.
+//
+// # Returns
+//
+// The register value, at 1.25 mV per count.
+uint16_t pamoja_ina226_bus_register(uint32_t microvolts);
+
+// Builds the INA226 current register a monitor reports for a current.
+//
+// # Returns
+//
+// The signed register value, or zero if `current_lsb_microamps` is zero.
+int16_t pamoja_ina226_current_register(int32_t microamps, uint32_t current_lsb_microamps);
+
+// Builds the INA226 power register a monitor reports for a power.
+//
+// # Returns
+//
+// The register value, or zero if `current_lsb_microamps` is zero.
+uint16_t pamoja_ina226_power_register(uint32_t microwatts, uint32_t current_lsb_microamps);
+
+// Computes the INA226 current register the chip derives from a shunt reading.
+//
+// # Returns
+//
+// The signed current register the part's own arithmetic produces.
+int16_t pamoja_ina226_current_register_from_shunt(int16_t shunt, uint16_t calibration);
+
+// Computes the INA226 power register the chip derives from a current reading.
+//
+// # Returns
+//
+// The power register the part's own arithmetic produces.
+uint16_t pamoja_ina226_power_register_from_current(int16_t current, uint16_t bus);
 
 // Frames a payload as a SLIP packet (RFC 1055).
 //
