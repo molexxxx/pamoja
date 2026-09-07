@@ -147,7 +147,8 @@ node = "sensors"
 python = "sensors"
 dotnet = [
     "Bme280", "Bme280Calibration", "Bme280Measurement", "Ds18b20", "Ds18b20Reading",
-    "Ina219", "Ads1115", "Ads1115Config",
+    "Ina219", "Ads1115", "Ads1115Config", "Bmp280", "Bmp280Calibration", "Bmp280Reading",
+    "Hdc1080", "Ina226", "Opt3001", "Scd4x", "Sht3x", "Tmp117",
 ]
 guide = "guides/sensors.md"
 
