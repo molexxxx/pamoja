@@ -273,7 +273,7 @@ vendor = "Sensirion"
 interface = "I2C at 0x62, up to 100 kHz"
 summary = "A photoacoustic NDIR CO2 sensor with a built-in humidity and temperature sensor; every word it sends carries a CRC-8 the driver checks."
 specs = [
-  "CO2 range: 0 to 40'000 ppm output; specified 400 to 2'000 ppm (SCD40) and 400 to 5'000 ppm (SCD41)",
+  "CO2 range: 0 to 40000 ppm output; specified 400 to 2000 ppm (SCD40) and 400 to 5000 ppm (SCD41)",
   "CO2 accuracy: ±(50 ppm + 5 %) for the SCD40, ±(40 ppm + 5 %) for the SCD41",
   "Humidity and temperature: 0 to 100 %RH within ±6 %RH, -10 to 60 °C within ±0.8 °C",
   "Update interval: 5 s periodic, about 30 s low power, single shot on the SCD41",
