@@ -9,6 +9,12 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- The seven new sensor drivers reach Python. Each is a module-level object beside
+  the four already there, with the datasheet constants, the frame parsers and
+  their builders, the configuration registers, and every conversion in both
+  directions, documented in the style the other parts use. The smoke suite checks
+  a datasheet figure per part and the input each one refuses, and the conformance
+  suite asserts the same vectors Rust and Node do.
 - The seven new sensor drivers reach TypeScript and Node. Each is a package-level
   object beside the four that were already there, with the datasheet constants,
   the frame parsers and their builders, the configuration registers, and every

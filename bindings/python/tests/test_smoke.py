@@ -247,6 +247,39 @@ def test_a_sensor_reading_decodes_and_checks_itself():
     assert sensors.ads1115.full_scale_microvolts(1) == 4_096_000
 
 
+def test_the_later_sensor_parts_decode_and_refuse():
+    """A datasheet figure from each later part, and the input each one refuses."""
+    from pamoja import sensors
+
+    frame = sensors.sht3x.measurement_bytes(0x6666, 0x9999)
+    reading = sensors.sht3x.parse_measurement(frame)
+    assert reading.milli_celsius == 25_000
+    assert reading.milli_percent == 60_000
+    assert sensors.sht3x.crc(bytes([0xBE, 0xEF])) == 0x92
+
+    air = sensors.scd4x.measurement_from_physical(500, 25_000, 37_000)
+    frame = sensors.scd4x.measurement_bytes(air.co2_ppm, air.temperature_raw, air.humidity_raw)
+    assert sensors.scd4x.parse_measurement(frame).co2_ppm == 500
+    corrupt = bytearray(frame)
+    corrupt[2] ^= 0xFF
+    with pytest.raises(PamojaError):
+        sensors.scd4x.parse_measurement(bytes(corrupt))
+
+    assert sensors.tmp117.micro_celsius(0x0C80) == 25_000_000
+    assert sensors.tmp117.micro_celsius(-1) == -7_812
+
+    assert sensors.hdc1080.milli_celsius(0x8000) == 42_500
+    with pytest.raises(PamojaError):
+        sensors.hdc1080.config_from_register(0x1300)
+
+    assert sensors.opt3001.milli_lux(0xBFFF) == 83_865_600
+    assert sensors.opt3001.full_scale_milli_lux(12) is None
+
+    assert sensors.ina226.calibration(1_000, 2) == 2_560
+    assert sensors.ina226.power_microwatts(4_792, 1_000) == 119_800_000
+    with pytest.raises(PamojaError):
+        sensors.ina226.identify(0x5449, 0x2270)
+
 def test_an_actuator_command_encodes_to_its_registers():
     from pamoja import actuators
 

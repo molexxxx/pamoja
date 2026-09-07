@@ -368,6 +368,88 @@ def test_sensor_vectors_match():
         )
 
 
+def test_later_sensor_vectors_match():
+    """The parts added after the first four, against the vectors Rust asserts."""
+    vector = VECTORS["sensors"]
+
+    bmp = vector["bmp280"]
+    calibration = sensors.bmp280.calibration(unhex(bmp["calibration"]))
+    reading = calibration.compensate(unhex(bmp["measurement"]))
+    assert reading.celsius == pytest.approx(bmp["celsius"], abs=1e-3)
+    assert reading.pascals == bmp["pascals"]
+    assert calibration.to_bytes().hex() == bmp["calibrationRoundTrip"]
+    assert sensors.bmp280.CHIP_ID == bmp["chipId"]
+
+    sht = vector["sht3x"]
+    decoded = sensors.sht3x.parse_measurement(unhex(sht["measurement"]))
+    assert decoded.temperature_raw == sht["temperatureRaw"]
+    assert sensors.sht3x.milli_celsius(decoded.temperature_raw) == sht["milliCelsius"]
+    assert sensors.sht3x.milli_fahrenheit(decoded.temperature_raw) == sht["milliFahrenheit"]
+    assert sensors.sht3x.milli_percent(decoded.humidity_raw) == sht["milliPercent"]
+    assert sensors.sht3x.crc(unhex(sht["crcInput"])) == sht["crc"]
+    with pytest.raises(PamojaError):
+        sensors.sht3x.parse_measurement(unhex(sht["corruptMeasurement"]))
+    status = sensors.sht3x.parse_status(unhex(sht["status"]))
+    assert status.bits == sht["statusBits"]
+    assert status.alert_pending == sht["alertPending"]
+    assert status.heater_on == sht["heaterOn"]
+
+    scd = vector["scd4x"]
+    air = sensors.scd4x.parse_measurement(unhex(scd["measurement"]))
+    assert air.co2_ppm == scd["co2Ppm"]
+    assert sensors.scd4x.milli_celsius(air.temperature_raw) == scd["milliCelsius"]
+    assert sensors.scd4x.humidity_milli_percent(air.humidity_raw) == scd["humidityMilliPercent"]
+    with pytest.raises(PamojaError):
+        sensors.scd4x.parse_measurement(unhex(scd["corruptMeasurement"]))
+    # The offset scales by 2^16 where the measurement scales by 2^16 - 1, in the same
+    # datasheet, so it is pinned separately.
+    assert (
+        sensors.scd4x.temperature_offset_word(scd["temperatureOffsetMilliCelsius"])
+        == scd["temperatureOffsetWord"]
+    )
+    assert sensors.scd4x.serial_number(unhex(scd["serialFrame"])) == scd["serialNumber"]
+
+    tmp = vector["tmp117"]
+    for entry in tmp["readings"]:
+        raw = entry["register"] - 0x10000 if entry["register"] > 0x7FFF else entry["register"]
+        assert sensors.tmp117.micro_celsius(raw) == entry["microCelsius"]
+        assert sensors.tmp117.nano_celsius(raw) == entry["nanoCelsius"]
+    assert sensors.tmp117.high_alert(tmp["flagConfig"]) == tmp["highAlert"]
+    assert sensors.tmp117.data_ready(tmp["flagConfig"]) == tmp["dataReady"]
+
+    hdc = vector["hdc1080"]
+    room = sensors.hdc1080.parse_measurement(unhex(hdc["measurement"]))
+    assert room.temperature_raw == hdc["temperatureRaw"]
+    assert sensors.hdc1080.milli_celsius(room.temperature_raw) == hdc["milliCelsius"]
+    assert sensors.hdc1080.milli_percent(room.humidity_raw) == hdc["milliPercent"]
+    with pytest.raises(PamojaError):
+        sensors.hdc1080.config_from_register(hdc["invalidConfiguration"])
+
+    opt = vector["opt3001"]
+    for entry in opt["results"]:
+        assert sensors.opt3001.milli_lux(entry["register"]) == entry["milliLux"]
+    for entry in opt["ranges"]:
+        assert sensors.opt3001.full_scale_milli_lux(entry["range"]) == entry["fullScaleMilliLux"]
+    assert sensors.opt3001.full_scale_milli_lux(opt["invalidRange"]) is None
+
+    ina = vector["ina226"]
+    assert (
+        sensors.ina226.calibration(ina["currentLsbMicroamps"], ina["shuntMilliohms"])
+        == ina["calibration"]
+    )
+    assert sensors.ina226.shunt_nanovolts(ina["rawShunt"]) == ina["shuntNanovolts"]
+    assert sensors.ina226.bus_microvolts(ina["rawBus"]) == ina["busMicrovolts"]
+    assert (
+        sensors.ina226.current_microamps(ina["rawCurrent"], ina["currentLsbMicroamps"])
+        == ina["currentMicroamps"]
+    )
+    assert (
+        sensors.ina226.power_microwatts(ina["rawPower"], ina["currentLsbMicroamps"])
+        == ina["powerMicrowatts"]
+    )
+    with pytest.raises(PamojaError):
+        sensors.ina226.identify(ina["manufacturerId"], ina["badDieId"])
+
 def test_actuator_vectors_match():
     vector = VECTORS["actuators"]
 
