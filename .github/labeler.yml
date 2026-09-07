@@ -14,11 +14,13 @@ documentation:
   - changed-files:
       - any-glob-to-any-file:
           - docs/**
+          - web/**
           - README.md
           - "**/README.md"
           - CHANGELOG.md
           - CONTRIBUTING.md
-          - book.toml
+          - CODE_OF_CONDUCT.md
+          - SECURITY.md
 
 ci:
   - changed-files:

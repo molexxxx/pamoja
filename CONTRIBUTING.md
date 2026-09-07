@@ -86,6 +86,8 @@ By contributing, you agree that your contributions are licensed under the
 
 ## Conduct
 
-Be respectful and constructive. This is a project aimed at helping people build things
-that matter in hard environments; keep the community welcoming to newcomers, including
-those who are not native English speakers or professional engineers.
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). It is aimed at
+helping people build things that matter in hard environments, so keep the community
+welcoming to newcomers, including those who are not native English speakers or
+professional engineers. Conduct concerns are reported privately to the maintainer;
+the code of conduct says how.
