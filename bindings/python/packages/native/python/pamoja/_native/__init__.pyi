@@ -14,6 +14,12 @@ __all__ = [
     "AuditVerifier",
     "Bme280Calibration",
     "Bme280Measurement",
+    "Bmp280Calibration",
+    "Bmp280Coefficients",
+    "Bmp280Config",
+    "Bmp280CtrlMeas",
+    "Bmp280RawMeasurement",
+    "Bmp280Reading",
     "BootDecision",
     "Calibration",
     "CanFrame",
@@ -36,7 +42,12 @@ __all__ = [
     "EventBus",
     "ForwardDecision",
     "Geofence",
+    "Hdc1080Config",
+    "Hdc1080Measurement",
     "ImageVerifier",
+    "Ina226Config",
+    "Ina226DieId",
+    "Ina226MaskEnable",
     "J1939Message",
     "Kalman",
     "Ladder",
@@ -74,6 +85,7 @@ __all__ = [
     "ModbusFrame",
     "MqttClient",
     "MqttMessage",
+    "Opt3001Config",
     "Pid",
     "Pose",
     "PowerPlan",
@@ -90,10 +102,13 @@ __all__ = [
     "Reporter",
     "Route",
     "Router",
+    "Scd4xMeasurement",
     "SealedMessage",
     "SeenPackets",
     "SenderStep",
     "Session",
+    "Sht3xMeasurement",
+    "Sht3xStatus",
     "Signals",
     "SimulatedRobot",
     "SimulatedSensor",
@@ -106,6 +121,7 @@ __all__ = [
     "Store",
     "Surge",
     "Thermostat",
+    "Tmp117Config",
     "Trend",
     "Updater",
     "Window",
@@ -116,6 +132,18 @@ __all__ = [
     "ads1115_to_nanovolts",
     "ads1115_to_volts",
     "bearing_between",
+    "bmp280_config_bits",
+    "bmp280_config_from_bits",
+    "bmp280_ctrl_meas_bits",
+    "bmp280_ctrl_meas_from_bits",
+    "bmp280_image_updating",
+    "bmp280_measurement_bytes",
+    "bmp280_measuring",
+    "bmp280_oversampling_factor",
+    "bmp280_parse_measurement",
+    "bmp280_pressure_skipped",
+    "bmp280_standby_micros",
+    "bmp280_temperature_skipped",
     "can_dlc_to_len",
     "can_fd_frame",
     "can_frame",
@@ -142,6 +170,22 @@ __all__ = [
     "encode_manifest",
     "envelope_body",
     "fingerprint",
+    "hdc1080_celsius",
+    "hdc1080_config_from_register",
+    "hdc1080_config_to_register",
+    "hdc1080_conversion_time_micros",
+    "hdc1080_humidity_conversion_micros",
+    "hdc1080_humidity_register",
+    "hdc1080_measurement_bytes",
+    "hdc1080_measurement_from_physical",
+    "hdc1080_milli_celsius",
+    "hdc1080_milli_percent",
+    "hdc1080_parse_measurement",
+    "hdc1080_relative_humidity",
+    "hdc1080_serial_id",
+    "hdc1080_serial_id_registers",
+    "hdc1080_temperature_conversion_micros",
+    "hdc1080_temperature_register",
     "hkdf_sha256_expand",
     "hmac_sha256_digest",
     "i2c_address_frame",
@@ -161,6 +205,36 @@ __all__ = [
     "ina219_power_register",
     "ina219_shunt_microvolts",
     "ina219_shunt_register",
+    "ina226_active_alert_function",
+    "ina226_address",
+    "ina226_averaging_samples",
+    "ina226_bus_microvolts",
+    "ina226_bus_register",
+    "ina226_bus_volts",
+    "ina226_calibration",
+    "ina226_config_from_register",
+    "ina226_config_to_register",
+    "ina226_conversion_micros",
+    "ina226_current_amps",
+    "ina226_current_microamps",
+    "ina226_current_register",
+    "ina226_current_register_from_shunt",
+    "ina226_die_id",
+    "ina226_identify",
+    "ina226_is_continuous",
+    "ina226_mask_enable_from_register",
+    "ina226_mask_enable_to_register",
+    "ina226_measures_bus",
+    "ina226_measures_shunt",
+    "ina226_minimum_current_lsb_microamps",
+    "ina226_power_microwatts",
+    "ina226_power_register",
+    "ina226_power_register_from_current",
+    "ina226_power_watts",
+    "ina226_shunt_millivolts",
+    "ina226_shunt_nanovolts",
+    "ina226_shunt_register",
+    "ina226_update_micros",
     "j1939_broadcast",
     "j1939_compose",
     "j1939_decode",
@@ -202,6 +276,18 @@ __all__ = [
     "modbus_write_single_coil",
     "modbus_write_single_register",
     "open_delegation",
+    "opt3001_config_bits",
+    "opt3001_config_from_bits",
+    "opt3001_conversion_millis",
+    "opt3001_fault_count",
+    "opt3001_full_scale_milli_lux",
+    "opt3001_is_automatic_range",
+    "opt3001_lsb_milli_lux",
+    "opt3001_lux",
+    "opt3001_milli_lux",
+    "opt3001_raw_from_milli_lux",
+    "opt3001_word_from_bytes",
+    "opt3001_word_to_bytes",
     "pca9685_channel_register",
     "pca9685_frequency_for_prescale",
     "pca9685_limits",
@@ -228,7 +314,59 @@ __all__ = [
     "ros2_twist_to_cdr",
     "ros2_type_hash_digest",
     "routing_default_capacity",
+    "scd4x_allowed_during_measurement",
+    "scd4x_ambient_pressure_pascals",
+    "scd4x_ambient_pressure_word",
+    "scd4x_automatic_self_calibration_enabled",
+    "scd4x_automatic_self_calibration_word",
+    "scd4x_celsius",
+    "scd4x_command_frame",
+    "scd4x_crc",
+    "scd4x_data_ready",
+    "scd4x_forced_recalibration_correction_ppm",
+    "scd4x_forced_recalibration_word",
+    "scd4x_humidity_milli_percent",
+    "scd4x_humidity_raw",
+    "scd4x_max_duration_ms",
+    "scd4x_measurement_bytes",
+    "scd4x_measurement_from_physical",
+    "scd4x_milli_celsius",
+    "scd4x_parse_measurement",
+    "scd4x_relative_humidity_percent",
+    "scd4x_self_test_passed",
+    "scd4x_serial_number",
+    "scd4x_serial_number_frame",
+    "scd4x_temperature_offset_milli_celsius",
+    "scd4x_temperature_offset_word",
+    "scd4x_temperature_raw",
+    "scd4x_word",
+    "scd4x_word_frame",
+    "scd4x_write_frame",
     "serial_framing_bytes",
+    "sht3x_celsius",
+    "sht3x_crc",
+    "sht3x_fahrenheit",
+    "sht3x_humidity_raw_from_milli_percent",
+    "sht3x_humidity_raw_from_relative_humidity",
+    "sht3x_interval_micros",
+    "sht3x_max_measurement_micros",
+    "sht3x_measurement_bytes",
+    "sht3x_milli_celsius",
+    "sht3x_milli_fahrenheit",
+    "sht3x_milli_percent",
+    "sht3x_parse_measurement",
+    "sht3x_parse_status",
+    "sht3x_periodic",
+    "sht3x_relative_humidity",
+    "sht3x_single_shot",
+    "sht3x_status_bytes",
+    "sht3x_status_from_bits",
+    "sht3x_temperature_raw_from_celsius",
+    "sht3x_temperature_raw_from_milli_celsius",
+    "sht3x_temperature_raw_from_milli_fahrenheit",
+    "sht3x_typical_measurement_micros",
+    "sht3x_word",
+    "sht3x_word_bytes",
     "sign_delegation",
     "sign_manifest",
     "slip_decode",
@@ -238,6 +376,26 @@ __all__ = [
     "spi_mode_from_clock",
     "stepper_step_count",
     "stepper_steps_for_degrees",
+    "tmp117_averaging_conversions",
+    "tmp117_averaging_micros",
+    "tmp117_celsius",
+    "tmp117_config_bits",
+    "tmp117_config_from_bits",
+    "tmp117_cycle_micros",
+    "tmp117_cycle_nominal_micros",
+    "tmp117_data_ready",
+    "tmp117_device_id",
+    "tmp117_eeprom_busy",
+    "tmp117_eeprom_unlock_busy",
+    "tmp117_high_alert",
+    "tmp117_low_alert",
+    "tmp117_micro_celsius",
+    "tmp117_nano_celsius",
+    "tmp117_raw_from_celsius",
+    "tmp117_raw_from_micro_celsius",
+    "tmp117_revision",
+    "tmp117_temperature_bytes",
+    "tmp117_temperature_from_bytes",
     "update_format_raw",
     "update_structure_version",
     "verify",
@@ -550,6 +708,230 @@ class Bme280Measurement:
     def relative_humidity_percent(self) -> builtins.float:
         r"""
         The relative humidity as a percentage.
+        """
+
+@typing.final
+class Bmp280Calibration:
+    r"""
+    A BMP280's factory calibration, read once and reused for every measurement.
+    """
+    @property
+    def coefficients(self) -> Bmp280Coefficients:
+        r"""
+        The trimming coefficients the calibration bytes carried.
+        """
+    def __new__(cls, data: typing.Sequence[builtins.int]) -> Bmp280Calibration:
+        r"""
+        Builds a calibration from the 24 bytes read out of the device's registers.
+        """
+    def compensate(self, measurement: typing.Sequence[builtins.int]) -> Bmp280Reading:
+        r"""
+        Turns a six-byte burst read into a compensated reading.
+        """
+    def to_bytes(self) -> builtins.list[builtins.int]:
+        r"""
+        Rebuilds the 24 calibration bytes a device holding these coefficients returns.
+        """
+
+@typing.final
+class Bmp280Coefficients:
+    r"""
+    A BMP280's per-chip trimming coefficients, as they sit in its registers.
+    """
+    @property
+    def dig_t1(self) -> builtins.int:
+        r"""
+        The `dig_T1` coefficient.
+        """
+    @property
+    def dig_t2(self) -> builtins.int:
+        r"""
+        The `dig_T2` coefficient.
+        """
+    @property
+    def dig_t3(self) -> builtins.int:
+        r"""
+        The `dig_T3` coefficient.
+        """
+    @property
+    def dig_p1(self) -> builtins.int:
+        r"""
+        The `dig_P1` coefficient.
+        """
+    @property
+    def dig_p2(self) -> builtins.int:
+        r"""
+        The `dig_P2` coefficient.
+        """
+    @property
+    def dig_p3(self) -> builtins.int:
+        r"""
+        The `dig_P3` coefficient.
+        """
+    @property
+    def dig_p4(self) -> builtins.int:
+        r"""
+        The `dig_P4` coefficient.
+        """
+    @property
+    def dig_p5(self) -> builtins.int:
+        r"""
+        The `dig_P5` coefficient.
+        """
+    @property
+    def dig_p6(self) -> builtins.int:
+        r"""
+        The `dig_P6` coefficient.
+        """
+    @property
+    def dig_p7(self) -> builtins.int:
+        r"""
+        The `dig_P7` coefficient.
+        """
+    @property
+    def dig_p8(self) -> builtins.int:
+        r"""
+        The `dig_P8` coefficient.
+        """
+    @property
+    def dig_p9(self) -> builtins.int:
+        r"""
+        The `dig_P9` coefficient.
+        """
+
+@typing.final
+class Bmp280Config:
+    r"""
+    A BMP280 `config` register, field by field.
+    """
+    @property
+    def standby(self) -> builtins.int:
+        r"""
+        The normal-mode standby code, `0..=7`.
+        """
+    @standby.setter
+    def standby(self, value: builtins.int) -> None:
+        r"""
+        The normal-mode standby code, `0..=7`.
+        """
+    @property
+    def filter(self) -> builtins.int:
+        r"""
+        The IIR filter code, `0..=7`.
+        """
+    @filter.setter
+    def filter(self, value: builtins.int) -> None:
+        r"""
+        The IIR filter code, `0..=7`.
+        """
+    @property
+    def spi_3wire(self) -> builtins.bool:
+        r"""
+        Whether the 3-wire SPI interface is enabled.
+        """
+    @spi_3wire.setter
+    def spi_3wire(self, value: builtins.bool) -> None:
+        r"""
+        Whether the 3-wire SPI interface is enabled.
+        """
+    def __new__(cls, standby: builtins.int = 0, filter: builtins.int = 0, spi_3wire: builtins.bool = False) -> Bmp280Config:
+        r"""
+        Builds a configuration, defaulting every field to the part's reset state.
+        """
+    def __eq__(self, other: Bmp280Config) -> builtins.bool:
+        r"""
+        Reports whether two configurations select the same settings.
+        """
+
+@typing.final
+class Bmp280CtrlMeas:
+    r"""
+    A BMP280 `ctrl_meas` register, field by field.
+    """
+    @property
+    def temperature(self) -> builtins.int:
+        r"""
+        The temperature oversampling code, `0..=5`, where `0` skips the measurement.
+        """
+    @temperature.setter
+    def temperature(self, value: builtins.int) -> None:
+        r"""
+        The temperature oversampling code, `0..=5`, where `0` skips the measurement.
+        """
+    @property
+    def pressure(self) -> builtins.int:
+        r"""
+        The pressure oversampling code, `0..=5`, where `0` skips the measurement.
+        """
+    @pressure.setter
+    def pressure(self, value: builtins.int) -> None:
+        r"""
+        The pressure oversampling code, `0..=5`, where `0` skips the measurement.
+        """
+    @property
+    def mode(self) -> builtins.int:
+        r"""
+        The power mode code: `0` sleep, `1` forced, `3` normal.
+        """
+    @mode.setter
+    def mode(self, value: builtins.int) -> None:
+        r"""
+        The power mode code: `0` sleep, `1` forced, `3` normal.
+        """
+    def __new__(cls, temperature: builtins.int = 0, pressure: builtins.int = 0, mode: builtins.int = 0) -> Bmp280CtrlMeas:
+        r"""
+        Builds a control register, defaulting every field to the part's reset state.
+        """
+    def __eq__(self, other: Bmp280CtrlMeas) -> builtins.bool:
+        r"""
+        Reports whether two control registers select the same settings.
+        """
+
+@typing.final
+class Bmp280RawMeasurement:
+    r"""
+    The uncompensated codes a BMP280 burst read carries.
+    """
+    @property
+    def pressure(self) -> builtins.int:
+        r"""
+        The 20-bit pressure code.
+        """
+    @property
+    def temperature(self) -> builtins.int:
+        r"""
+        The 20-bit temperature code.
+        """
+    @property
+    def pressure_skipped(self) -> builtins.bool:
+        r"""
+        Whether pressure oversampling was off, so the code carries no reading.
+        """
+    @property
+    def temperature_skipped(self) -> builtins.bool:
+        r"""
+        Whether temperature oversampling was off, so the code carries no reading.
+        """
+
+@typing.final
+class Bmp280Reading:
+    r"""
+    A compensated BMP280 reading.
+    """
+    @property
+    def celsius(self) -> builtins.float:
+        r"""
+        The temperature in degrees Celsius.
+        """
+    @property
+    def pascals(self) -> builtins.int:
+        r"""
+        The pressure in pascals.
+        """
+    @property
+    def hectopascals(self) -> builtins.float:
+        r"""
+        The pressure in hectopascals, the unit a barometer is usually quoted in.
         """
 
 @typing.final
@@ -1316,6 +1698,116 @@ class Geofence:
         """
 
 @typing.final
+class Hdc1080Config:
+    r"""
+    An HDC1080 configuration register, field by field.
+    """
+    @property
+    def software_reset(self) -> builtins.bool:
+        r"""
+        Whether writing this resets the part.
+        """
+    @software_reset.setter
+    def software_reset(self, value: builtins.bool) -> None:
+        r"""
+        Whether writing this resets the part.
+        """
+    @property
+    def heater(self) -> builtins.bool:
+        r"""
+        Whether the on-die heater runs during measurements.
+        """
+    @heater.setter
+    def heater(self, value: builtins.bool) -> None:
+        r"""
+        Whether the on-die heater runs during measurements.
+        """
+    @property
+    def sequential(self) -> builtins.bool:
+        r"""
+        Whether one trigger acquires temperature and humidity in sequence.
+        """
+    @sequential.setter
+    def sequential(self, value: builtins.bool) -> None:
+        r"""
+        Whether one trigger acquires temperature and humidity in sequence.
+        """
+    @property
+    def battery_low(self) -> builtins.bool:
+        r"""
+        Whether the supply has dropped below 2.8 V, which the part reports back.
+        """
+    @battery_low.setter
+    def battery_low(self, value: builtins.bool) -> None:
+        r"""
+        Whether the supply has dropped below 2.8 V, which the part reports back.
+        """
+    @property
+    def temperature_resolution_bits(self) -> builtins.int:
+        r"""
+        The temperature resolution in bits: 14 or 11.
+        """
+    @temperature_resolution_bits.setter
+    def temperature_resolution_bits(self, value: builtins.int) -> None:
+        r"""
+        The temperature resolution in bits: 14 or 11.
+        """
+    @property
+    def humidity_resolution_bits(self) -> builtins.int:
+        r"""
+        The humidity resolution in bits: 14, 11, or 8.
+        """
+    @humidity_resolution_bits.setter
+    def humidity_resolution_bits(self, value: builtins.int) -> None:
+        r"""
+        The humidity resolution in bits: 14, 11, or 8.
+        """
+    def __new__(cls, software_reset: builtins.bool = False, heater: builtins.bool = False, sequential: builtins.bool = True, battery_low: builtins.bool = False, temperature_resolution_bits: builtins.int = 14, humidity_resolution_bits: builtins.int = 14) -> Hdc1080Config:
+        r"""
+        Builds a configuration, defaulting every field to the part's reset state.
+        """
+    def __eq__(self, other: Hdc1080Config) -> builtins.bool:
+        r"""
+        Reports whether two configurations select the same settings.
+        """
+
+@typing.final
+class Hdc1080Measurement:
+    r"""
+    A decoded HDC1080 temperature and humidity pair.
+    """
+    @property
+    def temperature_raw(self) -> builtins.int:
+        r"""
+        The raw temperature register.
+        """
+    @property
+    def humidity_raw(self) -> builtins.int:
+        r"""
+        The raw humidity register.
+        """
+    @property
+    def milli_celsius(self) -> builtins.int:
+        r"""
+        The temperature in milli-degrees Celsius, exact in integer arithmetic.
+        """
+    @property
+    def celsius(self) -> builtins.float:
+        r"""
+        The temperature in degrees Celsius.
+        """
+    @property
+    def milli_percent(self) -> builtins.int:
+        r"""
+        The relative humidity in milli-percent.
+        """
+    @property
+    def relative_humidity(self) -> builtins.float:
+        r"""
+        The relative humidity as a percentage.
+        """
+
+@typing.final
 class ImageVerifier:
     r"""
     Hashes an image as it arrives and settles it against its manifest.
@@ -1333,6 +1825,210 @@ class ImageVerifier:
         Settles the image, returning its digest, and spends this verifier.
         
         Raises if the image is not the one the manifest described.
+        """
+
+@typing.final
+class Ina226Config:
+    r"""
+    An INA226 configuration register, field by field.
+    """
+    @property
+    def reset(self) -> builtins.bool:
+        r"""
+        Whether writing this resets the part.
+        """
+    @reset.setter
+    def reset(self, value: builtins.bool) -> None:
+        r"""
+        Whether writing this resets the part.
+        """
+    @property
+    def averaging(self) -> builtins.int:
+        r"""
+        The averaging code, `0..=7`, from 1 to 1024 samples.
+        """
+    @averaging.setter
+    def averaging(self, value: builtins.int) -> None:
+        r"""
+        The averaging code, `0..=7`, from 1 to 1024 samples.
+        """
+    @property
+    def bus_conversion_time(self) -> builtins.int:
+        r"""
+        The bus-voltage conversion-time code, `0..=7`.
+        """
+    @bus_conversion_time.setter
+    def bus_conversion_time(self, value: builtins.int) -> None:
+        r"""
+        The bus-voltage conversion-time code, `0..=7`.
+        """
+    @property
+    def shunt_conversion_time(self) -> builtins.int:
+        r"""
+        The shunt-voltage conversion-time code, `0..=7`.
+        """
+    @shunt_conversion_time.setter
+    def shunt_conversion_time(self, value: builtins.int) -> None:
+        r"""
+        The shunt-voltage conversion-time code, `0..=7`.
+        """
+    @property
+    def mode(self) -> builtins.int:
+        r"""
+        The operating-mode code, `0..=7`.
+        """
+    @mode.setter
+    def mode(self, value: builtins.int) -> None:
+        r"""
+        The operating-mode code, `0..=7`.
+        """
+    def __new__(cls, reset: builtins.bool = False, averaging: builtins.int = 0, bus_conversion_time: builtins.int = 4, shunt_conversion_time: builtins.int = 4, mode: builtins.int = 7) -> Ina226Config:
+        r"""
+        Builds a configuration, defaulting every field to the part's reset state.
+        """
+    def __eq__(self, other: Ina226Config) -> builtins.bool:
+        r"""
+        Reports whether two configurations select the same settings.
+        """
+
+@typing.final
+class Ina226DieId:
+    r"""
+    A decoded INA226 die-ID register.
+    """
+    @property
+    def device(self) -> builtins.int:
+        r"""
+        The 12-bit device identifier.
+        """
+    @property
+    def revision(self) -> builtins.int:
+        r"""
+        The 4-bit die revision.
+        """
+
+@typing.final
+class Ina226MaskEnable:
+    r"""
+    An INA226 Mask/Enable register, field by field.
+    """
+    @property
+    def shunt_over_limit(self) -> builtins.bool:
+        r"""
+        Alert when the shunt voltage exceeds the limit.
+        """
+    @shunt_over_limit.setter
+    def shunt_over_limit(self, value: builtins.bool) -> None:
+        r"""
+        Alert when the shunt voltage exceeds the limit.
+        """
+    @property
+    def shunt_under_limit(self) -> builtins.bool:
+        r"""
+        Alert when the shunt voltage drops below the limit.
+        """
+    @shunt_under_limit.setter
+    def shunt_under_limit(self, value: builtins.bool) -> None:
+        r"""
+        Alert when the shunt voltage drops below the limit.
+        """
+    @property
+    def bus_over_limit(self) -> builtins.bool:
+        r"""
+        Alert when the bus voltage exceeds the limit.
+        """
+    @bus_over_limit.setter
+    def bus_over_limit(self, value: builtins.bool) -> None:
+        r"""
+        Alert when the bus voltage exceeds the limit.
+        """
+    @property
+    def bus_under_limit(self) -> builtins.bool:
+        r"""
+        Alert when the bus voltage drops below the limit.
+        """
+    @bus_under_limit.setter
+    def bus_under_limit(self, value: builtins.bool) -> None:
+        r"""
+        Alert when the bus voltage drops below the limit.
+        """
+    @property
+    def power_over_limit(self) -> builtins.bool:
+        r"""
+        Alert when the power exceeds the limit.
+        """
+    @power_over_limit.setter
+    def power_over_limit(self, value: builtins.bool) -> None:
+        r"""
+        Alert when the power exceeds the limit.
+        """
+    @property
+    def conversion_ready(self) -> builtins.bool:
+        r"""
+        Also alert when a conversion completes.
+        """
+    @conversion_ready.setter
+    def conversion_ready(self, value: builtins.bool) -> None:
+        r"""
+        Also alert when a conversion completes.
+        """
+    @property
+    def alert_function_flag(self) -> builtins.bool:
+        r"""
+        Whether the selected limit function caused the last alert.
+        """
+    @alert_function_flag.setter
+    def alert_function_flag(self, value: builtins.bool) -> None:
+        r"""
+        Whether the selected limit function caused the last alert.
+        """
+    @property
+    def conversion_ready_flag(self) -> builtins.bool:
+        r"""
+        Whether every conversion and multiplication has completed.
+        """
+    @conversion_ready_flag.setter
+    def conversion_ready_flag(self, value: builtins.bool) -> None:
+        r"""
+        Whether every conversion and multiplication has completed.
+        """
+    @property
+    def math_overflow(self) -> builtins.bool:
+        r"""
+        Whether an arithmetic overflow left current and power invalid.
+        """
+    @math_overflow.setter
+    def math_overflow(self, value: builtins.bool) -> None:
+        r"""
+        Whether an arithmetic overflow left current and power invalid.
+        """
+    @property
+    def alert_active_high(self) -> builtins.bool:
+        r"""
+        Whether the alert pin is active high.
+        """
+    @alert_active_high.setter
+    def alert_active_high(self, value: builtins.bool) -> None:
+        r"""
+        Whether the alert pin is active high.
+        """
+    @property
+    def alert_latch(self) -> builtins.bool:
+        r"""
+        Whether the alert pin latches until this register is read.
+        """
+    @alert_latch.setter
+    def alert_latch(self, value: builtins.bool) -> None:
+        r"""
+        Whether the alert pin latches until this register is read.
+        """
+    def __new__(cls, shunt_over_limit: builtins.bool = False, shunt_under_limit: builtins.bool = False, bus_over_limit: builtins.bool = False, bus_under_limit: builtins.bool = False, power_over_limit: builtins.bool = False, conversion_ready: builtins.bool = False, alert_function_flag: builtins.bool = False, conversion_ready_flag: builtins.bool = False, math_overflow: builtins.bool = False, alert_active_high: builtins.bool = False, alert_latch: builtins.bool = False) -> Ina226MaskEnable:
+        r"""
+        Builds a Mask/Enable register, defaulting every field to the reset state.
+        """
+    def __eq__(self, other: Ina226MaskEnable) -> builtins.bool:
+        r"""
+        Reports whether two registers select the same enables and flags.
         """
 
 @typing.final
@@ -2772,6 +3468,130 @@ class MqttMessage:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class Opt3001Config:
+    r"""
+    An OPT3001 configuration register, field by field.
+    """
+    @property
+    def range_number(self) -> builtins.int:
+        r"""
+        The full-scale range number, `0..=11`, or `12` to set the range automatically.
+        """
+    @range_number.setter
+    def range_number(self, value: builtins.int) -> None:
+        r"""
+        The full-scale range number, `0..=11`, or `12` to set the range automatically.
+        """
+    @property
+    def long_conversion(self) -> builtins.bool:
+        r"""
+        Whether a conversion takes 800 ms rather than 100 ms.
+        """
+    @long_conversion.setter
+    def long_conversion(self, value: builtins.bool) -> None:
+        r"""
+        Whether a conversion takes 800 ms rather than 100 ms.
+        """
+    @property
+    def mode(self) -> builtins.int:
+        r"""
+        The mode code: `0` shutdown, `1` single shot, `2` continuous.
+        """
+    @mode.setter
+    def mode(self, value: builtins.int) -> None:
+        r"""
+        The mode code: `0` shutdown, `1` single shot, `2` continuous.
+        """
+    @property
+    def overflow(self) -> builtins.bool:
+        r"""
+        Whether the last result overflowed its range.
+        """
+    @overflow.setter
+    def overflow(self, value: builtins.bool) -> None:
+        r"""
+        Whether the last result overflowed its range.
+        """
+    @property
+    def conversion_ready(self) -> builtins.bool:
+        r"""
+        Whether a conversion has completed since the register was last read.
+        """
+    @conversion_ready.setter
+    def conversion_ready(self, value: builtins.bool) -> None:
+        r"""
+        Whether a conversion has completed since the register was last read.
+        """
+    @property
+    def flag_high(self) -> builtins.bool:
+        r"""
+        Whether the result went above the high limit.
+        """
+    @flag_high.setter
+    def flag_high(self, value: builtins.bool) -> None:
+        r"""
+        Whether the result went above the high limit.
+        """
+    @property
+    def flag_low(self) -> builtins.bool:
+        r"""
+        Whether the result went below the low limit.
+        """
+    @flag_low.setter
+    def flag_low(self, value: builtins.bool) -> None:
+        r"""
+        Whether the result went below the low limit.
+        """
+    @property
+    def latched_window(self) -> builtins.bool:
+        r"""
+        Whether the INT pin latches until the configuration register is read.
+        """
+    @latched_window.setter
+    def latched_window(self, value: builtins.bool) -> None:
+        r"""
+        Whether the INT pin latches until the configuration register is read.
+        """
+    @property
+    def active_high(self) -> builtins.bool:
+        r"""
+        Whether the INT pin is active high.
+        """
+    @active_high.setter
+    def active_high(self, value: builtins.bool) -> None:
+        r"""
+        Whether the INT pin is active high.
+        """
+    @property
+    def mask_exponent(self) -> builtins.bool:
+        r"""
+        Whether the limit registers carry a mantissa alone, without an exponent.
+        """
+    @mask_exponent.setter
+    def mask_exponent(self, value: builtins.bool) -> None:
+        r"""
+        Whether the limit registers carry a mantissa alone, without an exponent.
+        """
+    @property
+    def fault_count(self) -> builtins.int:
+        r"""
+        The fault-count code, `0..=3`, for one, two, four, or eight faults.
+        """
+    @fault_count.setter
+    def fault_count(self, value: builtins.int) -> None:
+        r"""
+        The fault-count code, `0..=3`, for one, two, four, or eight faults.
+        """
+    def __new__(cls, range_number: builtins.int = 12, long_conversion: builtins.bool = True, mode: builtins.int = 0, overflow: builtins.bool = False, conversion_ready: builtins.bool = False, flag_high: builtins.bool = False, flag_low: builtins.bool = False, latched_window: builtins.bool = True, active_high: builtins.bool = False, mask_exponent: builtins.bool = False, fault_count: builtins.int = 0) -> Opt3001Config:
+        r"""
+        Builds a configuration, defaulting every field to the part's reset state.
+        """
+    def __eq__(self, other: Opt3001Config) -> builtins.bool:
+        r"""
+        Reports whether two configurations select the same settings.
+        """
+
+@typing.final
 class Pid:
     r"""
     Holds a value at a setpoint by trading off present, past, and predicted error.
@@ -3252,6 +4072,47 @@ class Router:
         """
 
 @typing.final
+class Scd4xMeasurement:
+    r"""
+    A decoded SCD4x measurement frame.
+    """
+    @property
+    def co2_ppm(self) -> builtins.int:
+        r"""
+        The carbon dioxide concentration in parts per million.
+        """
+    @property
+    def temperature_raw(self) -> builtins.int:
+        r"""
+        The raw temperature word.
+        """
+    @property
+    def humidity_raw(self) -> builtins.int:
+        r"""
+        The raw humidity word.
+        """
+    @property
+    def milli_celsius(self) -> builtins.int:
+        r"""
+        The temperature in milli-degrees Celsius, exact in integer arithmetic.
+        """
+    @property
+    def celsius(self) -> builtins.float:
+        r"""
+        The temperature in degrees Celsius.
+        """
+    @property
+    def humidity_milli_percent(self) -> builtins.int:
+        r"""
+        The relative humidity in milli-percent.
+        """
+    @property
+    def relative_humidity_percent(self) -> builtins.float:
+        r"""
+        The relative humidity as a percentage.
+        """
+
+@typing.final
 class SealedMessage:
     r"""
     A message that has been sealed, with the header that travels beside it.
@@ -3359,6 +4220,98 @@ class Session:
         Raises if the counter repeats or is older than the replay window still
         tracks, and if the tag does not authenticate. Nothing readable is ever
         returned from a message that failed either check.
+        """
+
+@typing.final
+class Sht3xMeasurement:
+    r"""
+    A decoded SHT3x temperature and humidity pair.
+    """
+    @property
+    def temperature_raw(self) -> builtins.int:
+        r"""
+        The raw temperature word.
+        """
+    @property
+    def humidity_raw(self) -> builtins.int:
+        r"""
+        The raw humidity word.
+        """
+    @property
+    def milli_celsius(self) -> builtins.int:
+        r"""
+        The temperature in milli-degrees Celsius, exact in integer arithmetic.
+        """
+    @property
+    def celsius(self) -> builtins.float:
+        r"""
+        The temperature in degrees Celsius.
+        """
+    @property
+    def milli_fahrenheit(self) -> builtins.int:
+        r"""
+        The temperature in milli-degrees Fahrenheit.
+        """
+    @property
+    def fahrenheit(self) -> builtins.float:
+        r"""
+        The temperature in degrees Fahrenheit.
+        """
+    @property
+    def milli_percent(self) -> builtins.int:
+        r"""
+        The relative humidity in milli-percent.
+        """
+    @property
+    def relative_humidity(self) -> builtins.float:
+        r"""
+        The relative humidity as a percentage.
+        """
+
+@typing.final
+class Sht3xStatus:
+    r"""
+    A decoded SHT3x status register.
+    """
+    @property
+    def bits(self) -> builtins.int:
+        r"""
+        The 16-bit status word the flags were read from.
+        """
+    @property
+    def alert_pending(self) -> builtins.bool:
+        r"""
+        Whether at least one alert condition is pending.
+        """
+    @property
+    def heater_on(self) -> builtins.bool:
+        r"""
+        Whether the on-die heater is running.
+        """
+    @property
+    def humidity_tracking_alert(self) -> builtins.bool:
+        r"""
+        Whether a humidity tracking alert is set.
+        """
+    @property
+    def temperature_tracking_alert(self) -> builtins.bool:
+        r"""
+        Whether a temperature tracking alert is set.
+        """
+    @property
+    def reset_detected(self) -> builtins.bool:
+        r"""
+        Whether the part has reset since the flag was last cleared.
+        """
+    @property
+    def command_failed(self) -> builtins.bool:
+        r"""
+        Whether the last command could not be processed.
+        """
+    @property
+    def write_checksum_failed(self) -> builtins.bool:
+        r"""
+        Whether the last write failed its checksum.
         """
 
 @typing.final
@@ -3689,6 +4642,130 @@ class Thermostat:
         """
 
 @typing.final
+class Tmp117Config:
+    r"""
+    A TMP117 configuration register, field by field.
+    """
+    @property
+    def high_alert(self) -> builtins.bool:
+        r"""
+        Whether a result went above the high limit.
+        """
+    @high_alert.setter
+    def high_alert(self, value: builtins.bool) -> None:
+        r"""
+        Whether a result went above the high limit.
+        """
+    @property
+    def low_alert(self) -> builtins.bool:
+        r"""
+        Whether a result went below the low limit.
+        """
+    @low_alert.setter
+    def low_alert(self, value: builtins.bool) -> None:
+        r"""
+        Whether a result went below the low limit.
+        """
+    @property
+    def data_ready(self) -> builtins.bool:
+        r"""
+        Whether a conversion has completed since the register was last read.
+        """
+    @data_ready.setter
+    def data_ready(self, value: builtins.bool) -> None:
+        r"""
+        Whether a conversion has completed since the register was last read.
+        """
+    @property
+    def eeprom_busy(self) -> builtins.bool:
+        r"""
+        Whether an EEPROM write is still in progress.
+        """
+    @eeprom_busy.setter
+    def eeprom_busy(self, value: builtins.bool) -> None:
+        r"""
+        Whether an EEPROM write is still in progress.
+        """
+    @property
+    def mode(self) -> builtins.int:
+        r"""
+        The conversion-mode code: `0` continuous, `1` shutdown, `3` one-shot.
+        """
+    @mode.setter
+    def mode(self, value: builtins.int) -> None:
+        r"""
+        The conversion-mode code: `0` continuous, `1` shutdown, `3` one-shot.
+        """
+    @property
+    def cycle(self) -> builtins.int:
+        r"""
+        The conversion-cycle code, `0..=7`.
+        """
+    @cycle.setter
+    def cycle(self, value: builtins.int) -> None:
+        r"""
+        The conversion-cycle code, `0..=7`.
+        """
+    @property
+    def averaging(self) -> builtins.int:
+        r"""
+        The averaging code, `0..=3`.
+        """
+    @averaging.setter
+    def averaging(self, value: builtins.int) -> None:
+        r"""
+        The averaging code, `0..=3`.
+        """
+    @property
+    def therm_mode(self) -> builtins.bool:
+        r"""
+        Whether the limits act as a therm hysteresis band rather than as alerts.
+        """
+    @therm_mode.setter
+    def therm_mode(self, value: builtins.bool) -> None:
+        r"""
+        Whether the limits act as a therm hysteresis band rather than as alerts.
+        """
+    @property
+    def alert_active_high(self) -> builtins.bool:
+        r"""
+        Whether the ALERT pin is active high.
+        """
+    @alert_active_high.setter
+    def alert_active_high(self, value: builtins.bool) -> None:
+        r"""
+        Whether the ALERT pin is active high.
+        """
+    @property
+    def alert_pin_data_ready(self) -> builtins.bool:
+        r"""
+        Whether the ALERT pin reflects data ready rather than the alert flags.
+        """
+    @alert_pin_data_ready.setter
+    def alert_pin_data_ready(self, value: builtins.bool) -> None:
+        r"""
+        Whether the ALERT pin reflects data ready rather than the alert flags.
+        """
+    @property
+    def soft_reset(self) -> builtins.bool:
+        r"""
+        Whether writing this triggers a software reset.
+        """
+    @soft_reset.setter
+    def soft_reset(self, value: builtins.bool) -> None:
+        r"""
+        Whether writing this triggers a software reset.
+        """
+    def __new__(cls, high_alert: builtins.bool = False, low_alert: builtins.bool = False, data_ready: builtins.bool = False, eeprom_busy: builtins.bool = False, mode: builtins.int = 0, cycle: builtins.int = 4, averaging: builtins.int = 1, therm_mode: builtins.bool = False, alert_active_high: builtins.bool = False, alert_pin_data_ready: builtins.bool = False, soft_reset: builtins.bool = False) -> Tmp117Config:
+        r"""
+        Builds a configuration, defaulting every field to the part's reset state.
+        """
+    def __eq__(self, other: Tmp117Config) -> builtins.bool:
+        r"""
+        Reports whether two configurations select the same settings.
+        """
+
+@typing.final
 class Trend:
     r"""
     Fits a line through recent readings, so a slow drift shows before it matters.
@@ -3872,6 +4949,66 @@ def bearing_between(from_latitude: builtins.float, from_longitude: builtins.floa
     Returns the initial bearing from one coordinate to another, in degrees.
     """
 
+def bmp280_config_bits(config: Bmp280Config) -> builtins.int:
+    r"""
+    Packs a BMP280 `config` register value.
+    """
+
+def bmp280_config_from_bits(bits: builtins.int) -> Bmp280Config:
+    r"""
+    Parses a BMP280 `config` register value.
+    """
+
+def bmp280_ctrl_meas_bits(ctrl: Bmp280CtrlMeas) -> builtins.int:
+    r"""
+    Packs a BMP280 `ctrl_meas` register value.
+    """
+
+def bmp280_ctrl_meas_from_bits(bits: builtins.int) -> Bmp280CtrlMeas:
+    r"""
+    Parses a BMP280 `ctrl_meas` register value.
+    """
+
+def bmp280_image_updating(status: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether a BMP280 status byte says the calibration image is loading.
+    """
+
+def bmp280_measurement_bytes(pressure: builtins.int, temperature: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Builds the six data bytes a BMP280 holding these codes would return.
+    """
+
+def bmp280_measuring(status: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether a BMP280 status byte says a conversion is running.
+    """
+
+def bmp280_oversampling_factor(code: builtins.int) -> builtins.int:
+    r"""
+    Returns how many samples a BMP280 oversampling code averages.
+    """
+
+def bmp280_parse_measurement(data: typing.Sequence[builtins.int]) -> Bmp280RawMeasurement:
+    r"""
+    Unpacks the six data bytes a BMP280 burst read returns.
+    """
+
+def bmp280_pressure_skipped(pressure: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether a raw BMP280 pressure says the measurement is switched off.
+    """
+
+def bmp280_standby_micros(code: builtins.int) -> builtins.int:
+    r"""
+    Returns the normal-mode standby period a BMP280 code selects, in microseconds.
+    """
+
+def bmp280_temperature_skipped(temperature: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether a raw BMP280 temperature says the measurement is switched off.
+    """
+
 def can_dlc_to_len(dlc: builtins.int) -> builtins.int:
     r"""
     Returns the payload length a data length code encodes.
@@ -4007,6 +5144,86 @@ def fingerprint(public_key: typing.Sequence[builtins.int]) -> builtins.str:
     Returns the short hex fingerprint of a public key.
     """
 
+def hdc1080_celsius(raw: builtins.int) -> builtins.float:
+    r"""
+    Converts a raw HDC1080 temperature register to degrees Celsius.
+    """
+
+def hdc1080_config_from_register(raw: builtins.int) -> Hdc1080Config:
+    r"""
+    Parses an HDC1080 configuration register value.
+    """
+
+def hdc1080_config_to_register(config: Hdc1080Config) -> builtins.int:
+    r"""
+    Assembles an HDC1080 configuration register value.
+    """
+
+def hdc1080_conversion_time_micros(config: Hdc1080Config) -> builtins.int:
+    r"""
+    Returns how long to wait after triggering an HDC1080 in this configuration.
+    """
+
+def hdc1080_humidity_conversion_micros(bits: builtins.int) -> builtins.int:
+    r"""
+    Returns how long an HDC1080 humidity conversion takes, in microseconds.
+    """
+
+def hdc1080_humidity_register(milli_percent: builtins.int) -> builtins.int:
+    r"""
+    Builds the HDC1080 humidity register that decodes to a relative humidity.
+    """
+
+def hdc1080_measurement_bytes(temperature_raw: builtins.int, humidity_raw: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Builds the four bytes an HDC1080 sends for a pair of raw registers.
+    """
+
+def hdc1080_measurement_from_physical(milli_celsius: builtins.int, milli_percent: builtins.int) -> Hdc1080Measurement:
+    r"""
+    Builds the HDC1080 measurement a sensor reporting these physical values would send.
+    """
+
+def hdc1080_milli_celsius(raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw HDC1080 temperature register to milli-degrees Celsius.
+    """
+
+def hdc1080_milli_percent(raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw HDC1080 humidity register to milli-percent.
+    """
+
+def hdc1080_parse_measurement(data: typing.Sequence[builtins.int]) -> Hdc1080Measurement:
+    r"""
+    Parses the four bytes an HDC1080 sequential read returns.
+    """
+
+def hdc1080_relative_humidity(raw: builtins.int) -> builtins.float:
+    r"""
+    Converts a raw HDC1080 humidity register to a relative humidity percentage.
+    """
+
+def hdc1080_serial_id(high: builtins.int, mid: builtins.int, low: builtins.int) -> builtins.int:
+    r"""
+    Joins the three HDC1080 serial-ID registers into the 40-bit serial number.
+    """
+
+def hdc1080_serial_id_registers(serial: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Splits a serial number back into the three HDC1080 serial-ID registers.
+    """
+
+def hdc1080_temperature_conversion_micros(bits: builtins.int) -> builtins.int:
+    r"""
+    Returns how long an HDC1080 temperature conversion takes, in microseconds.
+    """
+
+def hdc1080_temperature_register(milli_celsius: builtins.int) -> builtins.int:
+    r"""
+    Builds the HDC1080 temperature register that decodes to a temperature.
+    """
+
 def hkdf_sha256_expand(salt: typing.Sequence[builtins.int], ikm: typing.Sequence[builtins.int], info: typing.Sequence[builtins.int], length: builtins.int) -> builtins.list[builtins.int]:
     r"""
     Expands input keying material into `length` bytes bound to `info`.
@@ -4103,6 +5320,156 @@ def ina219_shunt_microvolts(raw: builtins.int) -> builtins.int:
 def ina219_shunt_register(microvolts: builtins.int) -> builtins.int:
     r"""
     Builds the INA219 shunt-voltage register a monitor reports for a shunt voltage.
+    """
+
+def ina226_active_alert_function(mask: Ina226MaskEnable) -> typing.Optional[builtins.str]:
+    r"""
+    Returns the alert function an INA226 pin actually responds to.
+    """
+
+def ina226_address(a1: builtins.int, a0: builtins.int) -> builtins.int:
+    r"""
+    Returns the I2C address an INA226's A1 and A0 pin codes select.
+    """
+
+def ina226_averaging_samples(code: builtins.int) -> builtins.int:
+    r"""
+    Returns how many samples an INA226 averaging code folds into one result.
+    """
+
+def ina226_bus_microvolts(raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw INA226 bus-voltage register to microvolts.
+    """
+
+def ina226_bus_register(microvolts: builtins.int) -> builtins.int:
+    r"""
+    Builds the INA226 bus-voltage register a monitor reports for a bus voltage.
+    """
+
+def ina226_bus_volts(raw: builtins.int) -> builtins.float:
+    r"""
+    Converts a raw INA226 bus-voltage register to volts.
+    """
+
+def ina226_calibration(current_lsb_microamps: builtins.int, shunt_milliohms: builtins.int) -> builtins.int:
+    r"""
+    Computes the INA226 calibration register for a shunt and current resolution.
+    """
+
+def ina226_config_from_register(raw: builtins.int) -> Ina226Config:
+    r"""
+    Parses an INA226 configuration register value.
+    """
+
+def ina226_config_to_register(config: Ina226Config) -> builtins.int:
+    r"""
+    Assembles an INA226 configuration register value.
+    """
+
+def ina226_conversion_micros(code: builtins.int) -> builtins.int:
+    r"""
+    Returns the conversion time an INA226 code selects, in microseconds.
+    """
+
+def ina226_current_amps(raw: builtins.int, current_lsb_microamps: builtins.int) -> builtins.float:
+    r"""
+    Converts a raw INA226 current register to amps.
+    """
+
+def ina226_current_microamps(raw: builtins.int, current_lsb_microamps: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw INA226 current register to microamps.
+    """
+
+def ina226_current_register(microamps: builtins.int, current_lsb_microamps: builtins.int) -> builtins.int:
+    r"""
+    Builds the INA226 current register a monitor reports for a current.
+    """
+
+def ina226_current_register_from_shunt(shunt: builtins.int, calibration: builtins.int) -> builtins.int:
+    r"""
+    Computes the INA226 current register the chip derives from a shunt reading.
+    """
+
+def ina226_die_id(raw: builtins.int) -> Ina226DieId:
+    r"""
+    Splits an INA226 die-ID register into its device and revision fields.
+    """
+
+def ina226_identify(manufacturer_id: builtins.int, die_id: builtins.int) -> Ina226DieId:
+    r"""
+    Checks that a pair of identification registers belongs to an INA226.
+    """
+
+def ina226_is_continuous(code: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether an INA226 mode code keeps converting after the first result.
+    """
+
+def ina226_mask_enable_from_register(raw: builtins.int) -> Ina226MaskEnable:
+    r"""
+    Parses an INA226 Mask/Enable register value.
+    """
+
+def ina226_mask_enable_to_register(mask: Ina226MaskEnable) -> builtins.int:
+    r"""
+    Assembles an INA226 Mask/Enable register value.
+    """
+
+def ina226_measures_bus(code: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether an INA226 mode code converts the bus voltage.
+    """
+
+def ina226_measures_shunt(code: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether an INA226 mode code converts the shunt voltage.
+    """
+
+def ina226_minimum_current_lsb_microamps(max_expected_microamps: builtins.int) -> builtins.int:
+    r"""
+    Returns the smallest current resolution that still covers an expected maximum.
+    """
+
+def ina226_power_microwatts(raw: builtins.int, current_lsb_microamps: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw INA226 power register to microwatts.
+    """
+
+def ina226_power_register(microwatts: builtins.int, current_lsb_microamps: builtins.int) -> builtins.int:
+    r"""
+    Builds the INA226 power register a monitor reports for a power.
+    """
+
+def ina226_power_register_from_current(current: builtins.int, bus: builtins.int) -> builtins.int:
+    r"""
+    Computes the INA226 power register the chip derives from a current reading.
+    """
+
+def ina226_power_watts(raw: builtins.int, current_lsb_microamps: builtins.int) -> builtins.float:
+    r"""
+    Converts a raw INA226 power register to watts.
+    """
+
+def ina226_shunt_millivolts(raw: builtins.int) -> builtins.float:
+    r"""
+    Converts a raw INA226 shunt-voltage register to millivolts.
+    """
+
+def ina226_shunt_nanovolts(raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw INA226 shunt-voltage register to nanovolts.
+    """
+
+def ina226_shunt_register(nanovolts: builtins.int) -> builtins.int:
+    r"""
+    Builds the INA226 shunt-voltage register a monitor reports for a shunt voltage.
+    """
+
+def ina226_update_micros(config: Ina226Config) -> builtins.int:
+    r"""
+    Returns how often an INA226 in this configuration updates its results.
     """
 
 def j1939_broadcast(priority: builtins.int, pgn: builtins.int, source: builtins.int) -> builtins.int:
@@ -4349,6 +5716,66 @@ def open_delegation(data: typing.Sequence[builtins.int], anchor_public_key: typi
     Opens a signed delegation against the anchor that should have signed it.
     """
 
+def opt3001_config_bits(config: Opt3001Config) -> builtins.int:
+    r"""
+    Assembles the 16-bit OPT3001 configuration register value.
+    """
+
+def opt3001_config_from_bits(bits: builtins.int) -> Opt3001Config:
+    r"""
+    Parses a 16-bit OPT3001 configuration register value.
+    """
+
+def opt3001_conversion_millis(long_conversion: builtins.bool) -> builtins.int:
+    r"""
+    Returns the conversion time an OPT3001 setting selects, in milliseconds.
+    """
+
+def opt3001_fault_count(code: builtins.int) -> builtins.int:
+    r"""
+    Returns how many consecutive faults an OPT3001 fault-count code requires.
+    """
+
+def opt3001_full_scale_milli_lux(range_number: builtins.int) -> typing.Optional[builtins.int]:
+    r"""
+    Returns the full scale an OPT3001 range number covers, in milli-lux.
+    """
+
+def opt3001_is_automatic_range(range_number: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether an OPT3001 range number sets the full scale automatically.
+    """
+
+def opt3001_lsb_milli_lux(exponent: builtins.int) -> typing.Optional[builtins.int]:
+    r"""
+    Returns the illuminance one count carries at an OPT3001 exponent.
+    """
+
+def opt3001_lux(raw: builtins.int) -> builtins.float:
+    r"""
+    Converts a raw OPT3001 result register to lux.
+    """
+
+def opt3001_milli_lux(raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw OPT3001 result register to milli-lux.
+    """
+
+def opt3001_raw_from_milli_lux(milli_lux: builtins.int) -> builtins.int:
+    r"""
+    Builds the OPT3001 result register that decodes to an illuminance.
+    """
+
+def opt3001_word_from_bytes(data: typing.Sequence[builtins.int]) -> builtins.int:
+    r"""
+    Reads the two bytes an OPT3001 sends for a register.
+    """
+
+def opt3001_word_to_bytes(word: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Builds the two bytes an OPT3001 sends for a register.
+    """
+
 def pca9685_channel_register(channel: builtins.int) -> builtins.int:
     r"""
     Returns the first of a PCA9685 channel's four consecutive registers.
@@ -4491,10 +5918,270 @@ def routing_default_capacity() -> builtins.int:
     Returns a routing table size for a caller with no reason to choose one.
     """
 
+def scd4x_allowed_during_measurement(command: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether an SCD4x accepts a command while it is measuring.
+    """
+
+def scd4x_ambient_pressure_pascals(word: builtins.int) -> builtins.int:
+    r"""
+    Converts an SCD4x ambient-pressure word back to pascals.
+    """
+
+def scd4x_ambient_pressure_word(pascals: builtins.int) -> builtins.int:
+    r"""
+    Builds the SCD4x word that programs an ambient pressure.
+    """
+
+def scd4x_automatic_self_calibration_enabled(word: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether an SCD4x word says automatic self-calibration is on.
+    """
+
+def scd4x_automatic_self_calibration_word(enabled: builtins.bool) -> builtins.int:
+    r"""
+    Builds the SCD4x word that turns automatic self-calibration on or off.
+    """
+
+def scd4x_celsius(raw: builtins.int) -> builtins.float:
+    r"""
+    Converts a raw SCD4x temperature word to degrees Celsius.
+    """
+
+def scd4x_command_frame(command: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Builds the two bytes that send a bare SCD4x command.
+    """
+
+def scd4x_crc(data: typing.Sequence[builtins.int]) -> builtins.int:
+    r"""
+    Computes the CRC-8 an SCD4x appends to every data word.
+    """
+
+def scd4x_data_ready(word: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether an SCD4x data-ready word says a measurement is waiting.
+    """
+
+def scd4x_forced_recalibration_correction_ppm(word: builtins.int) -> typing.Optional[builtins.int]:
+    r"""
+    Reads the correction an SCD4x reports after a forced recalibration.
+    """
+
+def scd4x_forced_recalibration_word(correction_ppm: typing.Optional[builtins.int] = None) -> builtins.int:
+    r"""
+    Builds the word an SCD4x returns for a forced-recalibration outcome.
+    """
+
+def scd4x_humidity_milli_percent(raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw SCD4x humidity word to milli-percent.
+    """
+
+def scd4x_humidity_raw(milli_percent: builtins.int) -> builtins.int:
+    r"""
+    Builds the SCD4x humidity word that decodes to a relative humidity.
+    """
+
+def scd4x_max_duration_ms(command: builtins.int) -> typing.Optional[builtins.int]:
+    r"""
+    Returns how long an SCD4x command may take, in milliseconds.
+    """
+
+def scd4x_measurement_bytes(co2_ppm: builtins.int, temperature_raw: builtins.int, humidity_raw: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Builds the nine bytes an SCD4x sends for a set of raw words.
+    """
+
+def scd4x_measurement_from_physical(co2_ppm: builtins.int, milli_celsius: builtins.int, humidity_milli_percent: builtins.int) -> Scd4xMeasurement:
+    r"""
+    Builds the SCD4x measurement a sensor reporting these physical values would send.
+    """
+
+def scd4x_milli_celsius(raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw SCD4x temperature word to milli-degrees Celsius.
+    """
+
+def scd4x_parse_measurement(frame: typing.Sequence[builtins.int]) -> Scd4xMeasurement:
+    r"""
+    Parses and CRC-checks a nine-byte SCD4x measurement frame.
+    """
+
+def scd4x_relative_humidity_percent(raw: builtins.int) -> builtins.float:
+    r"""
+    Converts a raw SCD4x humidity word to a relative humidity percentage.
+    """
+
+def scd4x_self_test_passed(word: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether an SCD4x self-test word says the part passed.
+    """
+
+def scd4x_serial_number(frame: typing.Sequence[builtins.int]) -> builtins.int:
+    r"""
+    Reads a CRC-checked nine-byte SCD4x serial-number frame.
+    """
+
+def scd4x_serial_number_frame(serial: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Builds the nine bytes an SCD4x sends for a serial number.
+    """
+
+def scd4x_temperature_offset_milli_celsius(word: builtins.int) -> builtins.int:
+    r"""
+    Converts an SCD4x temperature-offset word back to milli-degrees Celsius.
+    """
+
+def scd4x_temperature_offset_word(milli_celsius: builtins.int) -> builtins.int:
+    r"""
+    Builds the SCD4x word that programs a temperature offset.
+    """
+
+def scd4x_temperature_raw(milli_celsius: builtins.int) -> builtins.int:
+    r"""
+    Builds the SCD4x temperature word that decodes to a temperature.
+    """
+
+def scd4x_word(frame: typing.Sequence[builtins.int]) -> builtins.int:
+    r"""
+    Reads a CRC-checked three-byte SCD4x word frame.
+    """
+
+def scd4x_word_frame(value: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Builds the three bytes an SCD4x sends for a word: the word then its CRC.
+    """
+
+def scd4x_write_frame(command: builtins.int, value: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Builds the five bytes that send an SCD4x command with an argument.
+    """
+
 def serial_framing_bytes() -> tuple[builtins.int, builtins.int, builtins.int, builtins.int, builtins.int]:
     r"""
     Returns the reserved framing bytes: SLIP end, escape, the two escape codes, and
     the COBS delimiter.
+    """
+
+def sht3x_celsius(raw: builtins.int) -> builtins.float:
+    r"""
+    Converts a raw SHT3x temperature word to degrees Celsius.
+    """
+
+def sht3x_crc(data: typing.Sequence[builtins.int]) -> builtins.int:
+    r"""
+    Computes the CRC-8 an SHT3x appends to every data word.
+    """
+
+def sht3x_fahrenheit(raw: builtins.int) -> builtins.float:
+    r"""
+    Converts a raw SHT3x temperature word to degrees Fahrenheit.
+    """
+
+def sht3x_humidity_raw_from_milli_percent(milli_percent: builtins.int) -> builtins.int:
+    r"""
+    Builds the SHT3x humidity word that decodes to a relative humidity.
+    """
+
+def sht3x_humidity_raw_from_relative_humidity(percent: builtins.float) -> builtins.int:
+    r"""
+    Builds the SHT3x humidity word that decodes to a relative humidity percentage.
+    """
+
+def sht3x_interval_micros(rate: builtins.str) -> builtins.int:
+    r"""
+    Returns the gap between SHT3x periodic measurements, in microseconds.
+    """
+
+def sht3x_max_measurement_micros(repeatability: builtins.str) -> builtins.int:
+    r"""
+    Returns how long an SHT3x measurement may take, in microseconds.
+    """
+
+def sht3x_measurement_bytes(temperature_raw: builtins.int, humidity_raw: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Builds the six bytes an SHT3x sends for a pair of raw words.
+    """
+
+def sht3x_milli_celsius(raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw SHT3x temperature word to milli-degrees Celsius.
+    """
+
+def sht3x_milli_fahrenheit(raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw SHT3x temperature word to milli-degrees Fahrenheit.
+    """
+
+def sht3x_milli_percent(raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw SHT3x humidity word to milli-percent.
+    """
+
+def sht3x_parse_measurement(frame: typing.Sequence[builtins.int]) -> Sht3xMeasurement:
+    r"""
+    Parses and CRC-checks a six-byte SHT3x measurement frame.
+    """
+
+def sht3x_parse_status(frame: typing.Sequence[builtins.int]) -> Sht3xStatus:
+    r"""
+    Parses and CRC-checks a three-byte SHT3x status frame.
+    """
+
+def sht3x_periodic(repeatability: builtins.str, rate: builtins.str) -> builtins.int:
+    r"""
+    Returns the SHT3x periodic-mode command for a repeatability and rate.
+    """
+
+def sht3x_relative_humidity(raw: builtins.int) -> builtins.float:
+    r"""
+    Converts a raw SHT3x humidity word to a relative humidity percentage.
+    """
+
+def sht3x_single_shot(repeatability: builtins.str, clock_stretching: builtins.bool) -> builtins.int:
+    r"""
+    Returns the SHT3x single-shot command for a repeatability and clock mode.
+    """
+
+def sht3x_status_bytes(bits: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Builds the three bytes an SHT3x sends for a status word, CRC last.
+    """
+
+def sht3x_status_from_bits(bits: builtins.int) -> Sht3xStatus:
+    r"""
+    Splits an SHT3x status word into its flags.
+    """
+
+def sht3x_temperature_raw_from_celsius(celsius: builtins.float) -> builtins.int:
+    r"""
+    Builds the SHT3x temperature word that decodes to a temperature in Celsius.
+    """
+
+def sht3x_temperature_raw_from_milli_celsius(milli_celsius: builtins.int) -> builtins.int:
+    r"""
+    Builds the SHT3x temperature word that decodes to a temperature.
+    """
+
+def sht3x_temperature_raw_from_milli_fahrenheit(milli_fahrenheit: builtins.int) -> builtins.int:
+    r"""
+    Builds the SHT3x temperature word that decodes to a temperature in Fahrenheit.
+    """
+
+def sht3x_typical_measurement_micros(repeatability: builtins.str) -> builtins.int:
+    r"""
+    Returns how long an SHT3x measurement typically takes, in microseconds.
+    """
+
+def sht3x_word(frame: typing.Sequence[builtins.int]) -> builtins.int:
+    r"""
+    Reads a CRC-checked three-byte SHT3x word frame.
+    """
+
+def sht3x_word_bytes(value: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Builds the three bytes an SHT3x sends for a word: the word then its CRC.
     """
 
 def sign_delegation(delegation: Delegation, anchor: DeviceIdentity) -> builtins.list[builtins.int]:
@@ -4540,6 +6227,106 @@ def stepper_step_count(drive: builtins.str) -> builtins.int:
 def stepper_steps_for_degrees(degrees: builtins.float, steps_per_revolution: builtins.int) -> builtins.int:
     r"""
     Returns how many steps a rotation of `degrees` takes on a given motor.
+    """
+
+def tmp117_averaging_conversions(code: builtins.int) -> builtins.int:
+    r"""
+    Returns how many conversions a TMP117 averaging code folds into one result.
+    """
+
+def tmp117_averaging_micros(code: builtins.int) -> builtins.int:
+    r"""
+    Returns how long a TMP117 averaging code takes to convert, in microseconds.
+    """
+
+def tmp117_celsius(raw: builtins.int) -> builtins.float:
+    r"""
+    Converts a raw TMP117 temperature register to degrees Celsius.
+    """
+
+def tmp117_config_bits(config: Tmp117Config) -> builtins.int:
+    r"""
+    Assembles the 16-bit TMP117 configuration register value.
+    """
+
+def tmp117_config_from_bits(bits: builtins.int) -> Tmp117Config:
+    r"""
+    Parses a 16-bit TMP117 configuration register value.
+    """
+
+def tmp117_cycle_micros(cycle: builtins.int, averaging: builtins.int) -> builtins.int:
+    r"""
+    Returns the TMP117 result-update interval for a cycle and averaging code.
+    """
+
+def tmp117_cycle_nominal_micros(code: builtins.int) -> builtins.int:
+    r"""
+    Returns the nominal cycle a TMP117 conversion-cycle code selects, in microseconds.
+    """
+
+def tmp117_data_ready(config: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether a TMP117 configuration register says a result is ready.
+    """
+
+def tmp117_device_id(raw: builtins.int) -> builtins.int:
+    r"""
+    Reads the device identifier out of a TMP117 device-ID register.
+    """
+
+def tmp117_eeprom_busy(config: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether a TMP117 configuration register says an EEPROM write is running.
+    """
+
+def tmp117_eeprom_unlock_busy(unlock: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether a TMP117 EEPROM unlock register says a write is running.
+    """
+
+def tmp117_high_alert(config: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether a TMP117 configuration register flags a high alert.
+    """
+
+def tmp117_low_alert(config: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether a TMP117 configuration register flags a low alert.
+    """
+
+def tmp117_micro_celsius(raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw TMP117 temperature register to micro-degrees Celsius.
+    """
+
+def tmp117_nano_celsius(raw: builtins.int) -> builtins.int:
+    r"""
+    Converts a raw TMP117 temperature register to nano-degrees Celsius.
+    """
+
+def tmp117_raw_from_celsius(celsius: builtins.float) -> builtins.int:
+    r"""
+    Builds the TMP117 temperature register that decodes to a temperature in Celsius.
+    """
+
+def tmp117_raw_from_micro_celsius(micro_celsius: builtins.int) -> builtins.int:
+    r"""
+    Builds the TMP117 temperature register that decodes to a temperature.
+    """
+
+def tmp117_revision(raw: builtins.int) -> builtins.int:
+    r"""
+    Reads the die revision out of a TMP117 device-ID register.
+    """
+
+def tmp117_temperature_bytes(raw: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Builds the two bytes a TMP117 sends for a temperature register.
+    """
+
+def tmp117_temperature_from_bytes(data: typing.Sequence[builtins.int]) -> builtins.int:
+    r"""
+    Reads the two bytes a TMP117 sends for a temperature register.
     """
 
 def update_format_raw() -> builtins.int:

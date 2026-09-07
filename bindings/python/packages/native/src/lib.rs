@@ -243,6 +243,236 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(sensors::ads1115_samples_per_second, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ads1115_to_nanovolts, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ads1115_to_volts, m)?)?;
+        m.add_class::<sensors::Bmp280Calibration>()?;
+        m.add_class::<sensors::Bmp280Coefficients>()?;
+        m.add_class::<sensors::Bmp280Reading>()?;
+        m.add_class::<sensors::Bmp280RawMeasurement>()?;
+        m.add_class::<sensors::Bmp280CtrlMeas>()?;
+        m.add_class::<sensors::Bmp280Config>()?;
+        m.add_class::<sensors::Sht3xMeasurement>()?;
+        m.add_class::<sensors::Sht3xStatus>()?;
+        m.add_class::<sensors::Scd4xMeasurement>()?;
+        m.add_class::<sensors::Tmp117Config>()?;
+        m.add_class::<sensors::Hdc1080Measurement>()?;
+        m.add_class::<sensors::Hdc1080Config>()?;
+        m.add_class::<sensors::Opt3001Config>()?;
+        m.add_class::<sensors::Ina226Config>()?;
+        m.add_class::<sensors::Ina226MaskEnable>()?;
+        m.add_class::<sensors::Ina226DieId>()?;
+        m.add_function(wrap_pyfunction!(sensors::bmp280_parse_measurement, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bmp280_measurement_bytes, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bmp280_pressure_skipped, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bmp280_temperature_skipped, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bmp280_measuring, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bmp280_image_updating, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bmp280_ctrl_meas_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bmp280_ctrl_meas_from_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bmp280_config_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bmp280_config_from_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bmp280_oversampling_factor, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bmp280_standby_micros, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_crc, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_word, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_word_bytes, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_parse_measurement, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_measurement_bytes, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_milli_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_milli_fahrenheit, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_fahrenheit, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_milli_percent, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_relative_humidity, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::sht3x_temperature_raw_from_milli_celsius,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::sht3x_temperature_raw_from_celsius,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::sht3x_temperature_raw_from_milli_fahrenheit,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::sht3x_humidity_raw_from_milli_percent,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::sht3x_humidity_raw_from_relative_humidity,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_parse_status, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_status_from_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_status_bytes, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_single_shot, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_periodic, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_max_measurement_micros, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::sht3x_typical_measurement_micros,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(sensors::sht3x_interval_micros, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_crc, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_word, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_word_frame, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_command_frame, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_write_frame, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_max_duration_ms, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::scd4x_allowed_during_measurement,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_parse_measurement, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::scd4x_measurement_from_physical,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_measurement_bytes, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_milli_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_temperature_raw, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_humidity_milli_percent, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::scd4x_relative_humidity_percent,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_humidity_raw, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_data_ready, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_temperature_offset_word, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::scd4x_temperature_offset_milli_celsius,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_ambient_pressure_word, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::scd4x_ambient_pressure_pascals,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::scd4x_forced_recalibration_correction_ppm,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::scd4x_forced_recalibration_word,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::scd4x_automatic_self_calibration_enabled,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::scd4x_automatic_self_calibration_word,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_self_test_passed, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_serial_number, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::scd4x_serial_number_frame, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_nano_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_micro_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_raw_from_micro_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_raw_from_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_temperature_bytes, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_temperature_from_bytes, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_device_id, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_revision, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_high_alert, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_low_alert, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_data_ready, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_eeprom_busy, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_eeprom_unlock_busy, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_config_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_config_from_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_averaging_conversions, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_averaging_micros, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_cycle_nominal_micros, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::tmp117_cycle_micros, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::hdc1080_milli_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::hdc1080_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::hdc1080_milli_percent, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::hdc1080_relative_humidity, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::hdc1080_temperature_register, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::hdc1080_humidity_register, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::hdc1080_serial_id, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::hdc1080_serial_id_registers, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::hdc1080_parse_measurement, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::hdc1080_measurement_from_physical,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(sensors::hdc1080_measurement_bytes, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::hdc1080_config_from_register, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::hdc1080_config_to_register, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::hdc1080_conversion_time_micros,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::hdc1080_temperature_conversion_micros,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::hdc1080_humidity_conversion_micros,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(sensors::opt3001_lsb_milli_lux, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::opt3001_full_scale_milli_lux, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::opt3001_milli_lux, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::opt3001_lux, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::opt3001_raw_from_milli_lux, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::opt3001_word_from_bytes, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::opt3001_word_to_bytes, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::opt3001_config_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::opt3001_config_from_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::opt3001_conversion_millis, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::opt3001_fault_count, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::opt3001_is_automatic_range, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_address, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_averaging_samples, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_conversion_micros, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_measures_shunt, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_measures_bus, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_is_continuous, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_config_from_register, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_config_to_register, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_update_micros, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::ina226_mask_enable_from_register,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::ina226_mask_enable_to_register,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_active_alert_function, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_die_id, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_identify, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_calibration, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::ina226_minimum_current_lsb_microamps,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_shunt_nanovolts, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_shunt_millivolts, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_bus_microvolts, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_bus_volts, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_current_microamps, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_current_amps, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_power_microwatts, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_power_watts, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_shunt_register, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_bus_register, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_current_register, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ina226_power_register, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::ina226_current_register_from_shunt,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::ina226_power_register_from_current,
+            m
+        )?)?;
     }
     #[cfg(feature = "actuators")]
     {
