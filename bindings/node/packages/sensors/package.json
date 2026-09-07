@@ -1,7 +1,7 @@
 {
   "name": "@pamoja/sensors",
   "version": "0.1.17",
-  "description": "Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115.",
+  "description": "Datasheet-anchored decoders for eleven parts: the BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, and TMP117.",
   "license": "MIT",
   "publishConfig": {
     "access": "public"

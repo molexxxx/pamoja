@@ -376,7 +376,10 @@ mod tests {
             .find(|page| page.url == "docs/hardware.html")
             .unwrap();
         let ids = check::ids_in(&hardware.body);
-        for id in ["bme280", "ds18b20", "ina219", "ads1115", "pca9685"] {
+        for id in [
+            "bme280", "bmp280", "ds18b20", "hdc1080", "ina219", "ina226", "ads1115", "opt3001",
+            "scd4x", "sht3x", "tmp117", "pca9685",
+        ] {
             assert!(ids.contains(id), "hardware.html lost #{id}");
         }
         let guides = site

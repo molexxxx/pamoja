@@ -7,6 +7,21 @@ released together, so one entry covers all of them.
 
 ## [Unreleased]
 
+### Added
+
+- Seven more sensor drivers, taking `pamoja-sensors` from four parts to eleven: the
+  BMP280 pressure sensor, the SHT3x and HDC1080 humidity and temperature sensors, the
+  SCD4x carbon dioxide sensor, the TMP117 thermometer, the OPT3001 ambient light
+  sensor, and the INA226 power monitor. Each is the same decode-and-configure layer
+  the existing four are, `no_std` and allocation-free, and each was written from the
+  manufacturer's datasheet and then checked back against it: every constant located in
+  the document, every formula recomputed independently, and the register layouts read
+  field by field. The BMP280 pressure path is a port of Bosch's own integer
+  compensation, and the INA226 reproduces its datasheet's worked example exactly. One
+  finding went the other way: the SCD4x datasheet prints the wrong checksum byte for
+  the first word of its example frame, which the driver's CRC, anchored to that same
+  datasheet's published check value, does not reproduce.
+
 ### Fixed
 
 - PyPI refused the compiled engine's source distribution: its metadata named

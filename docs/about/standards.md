@@ -12,7 +12,7 @@ guess is worse than none.
 | Messaging | MQTT topic and wildcard rules, RFC 7252 and RFC 7641 (CoAP with observe) |
 | Radio and mesh | LoRaWAN 1.0.x MAC framing and OTAA join, the LoRa Alliance RP002 regional parameters, LoRa time-on-air and duty cycle, CRC-16/CCITT frames |
 | Field I/O | RFC 1055 (SLIP) and COBS, CRC-16/MODBUS, CAN 2.0 and CAN-FD with SAE J1939, NXP UM10204 (I2C) |
-| Sensors and actuators | The BME280, DS18B20, INA219, ADS1115, and PCA9685 datasheets |
+| Sensors and actuators | The BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, TMP117, and PCA9685 datasheets |
 | Updates | RFC 9124 (the firmware manifest information model) |
 | Drones | MAVLink v1 and v2 framing, CRC-16/MCRF4XX, per-message CRC_EXTRA, MAVLink 2 signing |
 | Robotics | ROS 2 names, RIHS01 type hashes, CDR encoding, rmw_zenoh key expressions |

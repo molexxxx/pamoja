@@ -4,7 +4,7 @@
     <PackageId>Pamoja.Sensors</PackageId>
     <AssemblyName>Pamoja.Sensors</AssemblyName>
     <RootNamespace>Pamoja.Sensors</RootNamespace>
-    <Description>Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115.</Description>
+    <Description>Datasheet-anchored decoders for eleven parts: the BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, and TMP117.</Description>
     <PackageTags>pamoja;iot;robotics;sensors</PackageTags>
     <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/sensors.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>

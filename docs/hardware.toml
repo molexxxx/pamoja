@@ -220,6 +220,296 @@ checked = "2026-09-06"
 verified = true
 
 [[entry]]
+key = "sht3x"
+group = "sensors"
+name = "SHT3x-DIS"
+vendor = "Sensirion"
+interface = "I2C up to 1 MHz, with optional clock stretching"
+summary = "Reports humidity and temperature as calibrated 16-bit words, each followed by a CRC-8, which the driver checks and converts with the fixed linear formulas."
+specs = [
+  "Ranges: 0 to 100 %RH, -40 to +125 °C",
+  "Accuracy: typical ±2 %RH and ±0.2 °C (SHT30, SHT31), ±1.5 %RH and ±0.1 °C (SHT35)",
+  "Repeatability: 0.08 to 0.21 %RH and 0.04 to 0.15 °C across the three modes, measured in 15, 6, or 4 ms",
+  "Addresses: 0x44 with ADDR to logic low, 0x45 with ADDR to logic high; ADDR must not float",
+  "Supply: 2.15 to 5.5 V",
+  "Current: 0.2 µA idle in single-shot mode, 600 µA measuring, 1.7 µA average at one low-repeatability measurement per second",
+]
+cost = "$5 to $20"
+crates = ["pamoja-sensors"]
+modules = ["pamoja-sensors/src/sht3x.rs"]
+source_name = "SHT3x-DIS datasheet, humidity and temperature sensor"
+source_label = "Sensirion SHT3x-DIS datasheet"
+source = "https://sensirion.com/media/documents/213E6A3B/63A5A569/Datasheet_SHT3x_DIS.pdf"
+
+[[entry.buy]]
+vendor = "Seeed Studio"
+name = "Grove - Temperature & Humidity Sensor (SHT31)"
+url = "https://www.seeedstudio.com/Grove-Temperature-Humidity-Sensor-SHT31-p-2655.html"
+price = "US$9.90"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Adafruit"
+name = "Adafruit Sensirion SHT31-D Temperature & Humidity Sensor"
+url = "https://www.adafruit.com/product/2857"
+price = "US$13.95"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Adafruit"
+name = "SHT-30 Mesh-protected Weather-proof Temperature/Humidity Sensor - 1M Cable"
+url = "https://www.adafruit.com/product/4099"
+price = "US$24.95"
+checked = "2026-09-06"
+verified = true
+
+[[entry]]
+key = "scd4x"
+group = "sensors"
+name = "SCD40 and SCD41"
+vendor = "Sensirion"
+interface = "I2C at 0x62, up to 100 kHz"
+summary = "A photoacoustic NDIR CO2 sensor with a built-in humidity and temperature sensor; every word it sends carries a CRC-8 the driver checks."
+specs = [
+  "CO2 range: 0 to 40'000 ppm output; specified 400 to 2'000 ppm (SCD40) and 400 to 5'000 ppm (SCD41)",
+  "CO2 accuracy: ±(50 ppm + 5 %) for the SCD40, ±(40 ppm + 5 %) for the SCD41",
+  "Humidity and temperature: 0 to 100 %RH within ±6 %RH, -10 to 60 °C within ±0.8 °C",
+  "Update interval: 5 s periodic, about 30 s low power, single shot on the SCD41",
+  "Supply: 2.4 to 5.5 V, 15 mA average and 175 mA peak at 3.3 V in periodic measurement",
+]
+cost = "$20 to $60"
+crates = ["pamoja-sensors"]
+modules = ["pamoja-sensors/src/scd4x.rs"]
+source_name = "SCD4x datasheet, CO2 sensor SCD40 and SCD41"
+source_label = "Sensirion SCD4x datasheet"
+source = "https://sensirion.com/media/documents/E0F04247/631EF271/CD_DS_SCD40_SCD41_Datasheet_D1.pdf"
+
+[[entry.buy]]
+vendor = "Adafruit"
+name = "Adafruit SCD-40 - True CO2, Temperature and Humidity Sensor - STEMMA QT / Qwiic"
+url = "https://www.adafruit.com/product/5187"
+price = "US$44.95"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Adafruit"
+name = "Adafruit SCD-41 - True CO2 Temperature and Humidity Sensor - STEMMA QT / Qwiic"
+url = "https://www.adafruit.com/product/5190"
+price = "US$49.95"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Seeed Studio"
+name = "Grove - CO2 & Temperature & Humidity Sensor - SCD41"
+url = "https://www.seeedstudio.com/Grove-CO2-Temperature-Humidity-Sensor-SCD41-p-5025.html"
+price = "US$52.90"
+checked = "2026-09-06"
+verified = true
+
+[[entry]]
+key = "tmp117"
+group = "sensors"
+name = "TMP117"
+vendor = "Texas Instruments"
+interface = "I2C and SMBus, 1 kHz to 400 kHz, four addresses from one pin"
+summary = "A 16-bit digital thermometer accurate to ±0.1 °C with no calibration, with programmable alert limits, a user offset, and 48 bits of EEPROM."
+specs = [
+  "Range: -55 °C to +150 °C",
+  "Accuracy: ±0.1 °C from -20 °C to 50 °C, ±0.3 °C over the full range",
+  "Resolution: 16 bits, 7.8125 m°C per count",
+  "Addresses: 0x48 to 0x4B with ADD0 tied to GND, V+, SDA, or SCL",
+  "Conversion: 15.5 ms typical one-shot, 1 s cycle with 8 averages at reset",
+  "Supply: 1.7 to 5.5 V up to 70 °C, 1.8 to 5.5 V to 150 °C",
+  "Current: 3.5 µA typical at a 1 Hz cycle, 150 nA in shutdown",
+]
+cost = "$5 to $20"
+crates = ["pamoja-sensors"]
+modules = ["pamoja-sensors/src/tmp117.rs"]
+source_name = "TMP117 high-accuracy, low-power, digital temperature sensor data sheet"
+source_label = "TI TMP117 datasheet"
+source = "https://www.ti.com/lit/ds/symlink/tmp117.pdf"
+
+[[entry.buy]]
+vendor = "Adafruit"
+name = "Adafruit TMP117 ±0.1°C High Accuracy I2C Temperature Sensor - STEMMA QT / Qwiic"
+url = "https://www.adafruit.com/product/4821"
+price = "US$11.50"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "SparkFun"
+name = "SparkFun High Precision Temperature Sensor - TMP117 (Qwiic)"
+url = "https://www.sparkfun.com/sparkfun-high-precision-temperature-sensor-tmp117-qwiic.html"
+price = "US$16.95"
+checked = "2026-09-06"
+verified = true
+
+[[entry]]
+key = "hdc1080"
+group = "sensors"
+name = "HDC1080"
+vendor = "Texas Instruments"
+interface = "I2C, 10 to 400 kHz"
+summary = "Reports humidity and temperature as 16-bit fractions of full scale with no per-chip calibration, which the driver decodes in exact integer arithmetic alongside the configuration register."
+specs = [
+  "Ranges: 0 to 100 %RH; temperature sensor -40 to +125 °C, humidity sensor -20 to +70 °C (functional to +85 °C)",
+  "Accuracy: ±2 %RH typical; ±0.2 °C typical, ±0.4 °C max from 5 to 60 °C",
+  "Resolution: 14, 11, or 8 bit humidity in 6.50, 3.85, or 2.50 ms; 14 or 11 bit temperature in 6.35 or 3.65 ms",
+  "Address: fixed 0x40; manufacturer id 0x5449, device id 0x1050, 40-bit serial number",
+  "Supply: 2.7 to 5.5 V; 1.3 µA average at 1 sample/s for 11-bit humidity and temperature, 100 nA asleep",
+]
+cost = "under $5"
+crates = ["pamoja-sensors"]
+modules = ["pamoja-sensors/src/hdc1080.rs"]
+source_name = "HDC1080 low power, high accuracy digital humidity sensor with temperature sensor data sheet"
+source_label = "TI HDC1080 datasheet"
+source = "https://www.ti.com/lit/ds/symlink/hdc1080.pdf"
+
+[[entry.buy]]
+vendor = "LCSC"
+name = "Texas Instruments HDC1080DMBR"
+url = "https://www.lcsc.com/product-detail/C82227.html"
+price = "US$2.17"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Digi-Key"
+name = "Texas Instruments HDC1080DMBR"
+url = "https://www.digikey.com/en/products/detail/texas-instruments/HDC1080DMBR/5878653"
+price = "US$2.27"
+checked = "2026-09-06"
+verified = false
+
+[[entry]]
+key = "opt3001"
+group = "sensors"
+name = "OPT3001"
+vendor = "Texas Instruments"
+interface = "I2C or SMBus up to 2.6 MHz, four addresses from the ADDR pin, INT pin"
+summary = "A single-chip lux meter filtered to the human eye's response that reports illuminance as a 4-bit exponent and 12-bit mantissa, ranging itself across twelve full-scale settings."
+specs = [
+  "Range: 0.01 to 83865.6 lux, 12 binary-weighted full-scale ranges or automatic ranging",
+  "Resolution: 0.01 lux per LSB at the lowest range, 23-bit effective dynamic range",
+  "Accuracy: 2000 lux reads 1800 to 2200 lux, 0.2 % matching between ranges, 0.2 % response at 850 nm",
+  "Conversion: 100 ms or 800 ms, 720 to 880 ms in the 800 ms setting",
+  "Addresses: 0x44 to 0x47 with ADDR to GND, VDD, SDA, or SCL",
+  "Supply: 1.6 to 3.6 V, 1.8 µA active and 0.3 µA shutdown typical, I/O 5.5 V tolerant",
+  "Temperature: -40 to +85 °C",
+]
+cost = "$5 to $20"
+crates = ["pamoja-sensors"]
+modules = ["pamoja-sensors/src/opt3001.rs"]
+source_name = "OPT3001 ambient light sensor (ALS) data sheet"
+source_label = "TI OPT3001 datasheet"
+source = "https://www.ti.com/lit/ds/symlink/opt3001.pdf"
+
+[[entry.buy]]
+vendor = "RAKwireless"
+name = "Light Sensor Texas Instruments OPT3001 | RAK1903"
+url = "https://store.rakwireless.com/products/rak1903-opt3001dnpr-ambient-light-sensor"
+price = "US$3.60"
+checked = "2026-09-06"
+verified = true
+
+[[entry]]
+key = "ina226"
+group = "sensors"
+name = "INA226"
+vendor = "Texas Instruments"
+interface = "I2C or SMBus up to 2.94 MHz, 16 addresses from two pins"
+summary = "Measures the drop across a shunt and the bus voltage on either side of the load, reports current and power once calibrated, and drives an alert pin from one programmable limit."
+specs = [
+  "Bus voltage: senses 0 to 36 V, 1.25 mV per count",
+  "Shunt full scale: ±81.92 mV, 2.5 µV per count",
+  "ADC: 16-bit, 140 µs to 8.244 ms per conversion, 1 to 1024 samples averaged",
+  "Accuracy: 0.1 % gain error and 10 µV shunt offset, maximum",
+  "Alert: open-drain pin on a shunt, bus, or power limit, or conversion ready",
+  "Supply: 2.7 to 5.5 V, 330 µA typical, 2 µA maximum powered down",
+]
+cost = "$5 to $20"
+crates = ["pamoja-sensors"]
+modules = ["pamoja-sensors/src/ina226.rs"]
+source_name = "INA226 high-side or low-side measurement, bi-directional current and power monitor with I2C compatible interface data sheet"
+source_label = "TI INA226 datasheet"
+source = "https://www.ti.com/lit/ds/symlink/ina226.pdf"
+
+[[entry.buy]]
+vendor = "Mouser"
+name = "Texas Instruments INA226AIDGSR"
+url = "https://www.mouser.com/ProductDetail/Texas-Instruments/INA226AIDGSR"
+price = "US$2.66"
+checked = "2026-09-06"
+verified = false
+
+[[entry.buy]]
+vendor = "M5Stack"
+name = "INA226-1A Current Voltage Power Monitor Unit"
+url = "https://shop.m5stack.com/products/ina226-1a-current-voltage-power-monitor-unit"
+price = "US$8.50"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "The Pi Hut"
+name = "INA226-1A Current Voltage Power Monitor Unit"
+url = "https://thepihut.com/products/ina226-1a-current-voltage-power-monitor-unit"
+price = "£8.20"
+checked = "2026-09-06"
+verified = true
+
+[[entry]]
+key = "bmp280"
+group = "sensors"
+name = "BMP280"
+vendor = "Bosch Sensortec"
+interface = "I2C up to 3.4 MHz, or SPI (3 or 4 wire) up to 10 MHz"
+summary = "Reports barometric pressure and temperature as 20-bit raw counts plus per-chip calibration coefficients, which the driver compensates; the BME280 without the humidity element."
+specs = [
+  "Ranges: 300 to 1100 hPa, -40 to +85 °C (full accuracy 0 to +65 °C)",
+  "Accuracy: ±1.0 hPa absolute from 0 to 65 °C, ±0.12 hPa relative from 700 to 900 hPa, ±0.5 °C at 25 °C",
+  "Resolution: 0.16 Pa and 0.0003 °C at ×16 oversampling; 1.3 Pa RMS noise unfiltered, 0.2 Pa with the IIR filter",
+  "Addresses: 0x76 with SDO to ground, 0x77 with SDO to VDDIO; SDO must not float",
+  "Supply: 1.71 to 3.6 V main, 1.2 to 3.6 V interface",
+  "Current: 2.8 µA at 1 Hz forced mode, lowest power; 0.1 µA asleep",
+]
+cost = "$5 to $20"
+crates = ["pamoja-sensors"]
+modules = ["pamoja-sensors/src/bmp280.rs"]
+source_name = "BMP280 digital pressure sensor data sheet, BST-BMP280-DS001"
+source_label = "Bosch BST-BMP280-DS001"
+source = "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmp280-ds001.pdf"
+
+[[entry.buy]]
+vendor = "Pimoroni"
+name = "BMP280 Breakout - Temperature, Pressure, Altitude Sensor"
+url = "https://shop.pimoroni.com/products/bmp280-breakout-temperature-pressure-altitude-sensor"
+price = "£7.75"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Seeed Studio"
+name = "Grove - BMP280 I2C and SPI Barometric and Temperature Sensor"
+url = "https://www.seeedstudio.com/Grove-Barometer-Sensor-BMP280.html"
+price = "US$9.80"
+checked = "2026-09-06"
+verified = true
+
+[[entry.buy]]
+vendor = "Adafruit"
+name = "Adafruit BMP280 I2C or SPI Barometric Pressure & Altitude Sensor - STEMMA QT"
+url = "https://www.adafruit.com/product/2651"
+price = "US$9.95"
+checked = "2026-09-06"
+verified = true
+
+[[entry]]
 key = "pca9685"
 group = "actuators"
 name = "PCA9685"

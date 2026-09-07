@@ -11,7 +11,7 @@ npm install @pamoja/sensing
 
 | Capability | Package | What it covers |
 | --- | --- | --- |
-| [Sensor drivers](https://pamoja.molex.cloud/docs/guides/sensors.html) | `@pamoja/sensors` | Datasheet-anchored decoders for the BME280, DS18B20, INA219, and ADS1115 |
+| [Sensor drivers](https://pamoja.molex.cloud/docs/guides/sensors.html) | `@pamoja/sensors` | Datasheet-anchored decoders for eleven parts: the BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, and TMP117 |
 | [Actuator drivers](https://pamoja.molex.cloud/docs/guides/actuators.html) | `@pamoja/actuators` | PCA9685 PWM and servo pulses, and stepper coil sequencing |
 
 The guides, with a worked TypeScript example for each, are at [https://pamoja.molex.cloud/docs](https://pamoja.molex.cloud/docs/).
