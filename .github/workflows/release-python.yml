@@ -132,12 +132,12 @@ jobs:
         with:
           python-version: "3.13"
 
-      # PyPI caps how many new projects an account may create in a window, and a release
-      # that introduces a package per capability runs past it. So this uploads in
-      # dependency order, the compiled engine first, waits out one window where PyPI says
-      # the cap lifts within it, and stops otherwise. The pypi-backfill workflow finishes
-      # the set on a schedule, and once every project exists a release never meets the
-      # cap again.
+      # PyPI allows an account four new projects in a rolling twenty-four hours, and a
+      # release that introduces a package per capability runs past it. So this uploads in
+      # dependency order, the compiled engine first, waits out a reset that is minutes
+      # away, and stops with the reset named otherwise. The pypi-backfill workflow claims
+      # the rest four a day, and once every project exists a release never meets the cap
+      # again.
       - name: Upload in dependency order, waiting out the cap
         env:
           TWINE_USERNAME: __token__

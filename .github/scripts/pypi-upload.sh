@@ -15,7 +15,7 @@
 #
 #   pypi-upload.sh <dist directory> <version>
 #
-# PYPI_WAIT_BUDGET is the seconds this pass may spend waiting for the cap, 3600 default.
+# PYPI_WAIT_BUDGET is the seconds this pass may spend waiting for the cap, 1800 default.
 #
 # Exits 0 when every distribution is on PyPI or the only ones missing were capped, and 1
 # when an upload failed for any other reason.
@@ -23,7 +23,7 @@ set -euo pipefail
 
 dist="${1:?dist directory}"
 version="${2:?version}"
-budget="${PYPI_WAIT_BUDGET:-3600}"
+budget="${PYPI_WAIT_BUDGET:-1800}"
 upload="$(dirname "$0")/pypi-upload.py"
 
 # The project a distribution file belongs to, as PyPI names it.
