@@ -27,7 +27,7 @@ const TARGET: &str = "x86_64-unknown-linux-gnu";
 
 /// One build the table reports: what a consumer asks for, and what it costs.
 struct Build {
-    /// How the row is labelled.
+    /// How the row is labeled.
     label: &'static str,
     /// What the consumer writes, shown verbatim in the table.
     invocation: &'static str,

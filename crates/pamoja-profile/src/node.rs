@@ -33,7 +33,7 @@ impl Actuator for NoActuator {
 /// control math lives in `pamoja-kit`, the power schedule in `pamoja-power`, and the
 /// wire format in the codec, so the node adds composition, not behavior.
 ///
-/// Readings are real-world `f32` units (degrees, percent, litres), the form the
+/// Readings are real-world `f32` units (degrees, percent, liters), the form the
 /// `pamoja-kit` controllers expect; a driver is responsible for calibrating raw
 /// counts into those units before the node sees them.
 ///

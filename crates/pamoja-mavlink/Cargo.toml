@@ -1,6 +1,6 @@
 [package]
 name = "pamoja-mavlink"
-description = "MAVLink for pamoja: build, parse, and sign v1/v2 frames (CRC-16/MCRF4XX, per-message CRC_EXTRA, MAVLink 2 SHA-256 signing), a typed common dialect with MAVLink 2 extension fields, the mission, command, and offboard protocols as sans-IO state machines, and a vehicle modelled as a pamoja Device driven over real serial, UDP, and TCP links. Hand-written from the mavlink.io spec, no_std and allocation-free at the core, and exercised against ArduPilot and PX4 SITL."
+description = "MAVLink for pamoja: build, parse, and sign v1/v2 frames (CRC-16/MCRF4XX, per-message CRC_EXTRA, MAVLink 2 SHA-256 signing), a typed common dialect with MAVLink 2 extension fields, the mission, command, and offboard protocols as sans-IO state machines, and a vehicle modeled as a pamoja Device driven over real serial, UDP, and TCP links. Hand-written from the mavlink.io spec, no_std and allocation-free at the core, and exercised against ArduPilot and PX4 SITL."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

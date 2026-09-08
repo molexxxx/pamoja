@@ -2,7 +2,7 @@ blank_issues_enabled: true
 contact_links:
   - name: Documentation
     url: https://pamoja.molex.cloud/docs/
-    about: The guides, the hardware catalogue, and the generated reference for all four languages.
+    about: The guides, the hardware catalog, and the generated reference for all four languages.
   - name: Report a security vulnerability
     url: https://github.com/molexxxx/pamoja/security/advisories/new
     about: Please report vulnerabilities privately here rather than in a public issue.

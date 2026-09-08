@@ -5,7 +5,7 @@ doing. Link the issue if there is one. -->
 
 ## Why
 
-<!-- The problem this solves. If it changes behaviour anyone depends on, say so here. -->
+<!-- The problem this solves. If it changes behavior anyone depends on, say so here. -->
 
 ## How it was tested
 

@@ -242,7 +242,7 @@ accent = "amber"
 headline = "Reach off-grid"
 items = [
   "Everything in Spark",
-  "A LoRa radio for kilometres of range",
+  "A LoRa radio for kilometers of range",
   "Joins the mesh where there is no tower",
 ]
 

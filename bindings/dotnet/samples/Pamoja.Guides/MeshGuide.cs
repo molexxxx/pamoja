@@ -61,7 +61,7 @@ public static class MeshGuide
         // ANCHOR_END: example
 
         // The frame layout is pinned once, in the generated conformance vectors, so a
-        // guide asserts behaviour instead.
+        // guide asserts behavior instead.
         Expect(received.Payload.SequenceEqual("level=high"u8.ToArray()), "it carries the reading");
         Expect(first, "the first copy is new");
         Expect(!again, "a second copy is a duplicate");

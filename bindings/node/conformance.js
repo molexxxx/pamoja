@@ -673,8 +673,8 @@ function actuatorVectors() {
   const pwm = vector.pwm;
   assert.deepStrictEqual(actuators.pwm.duty(pwm.duty.off), unhex(pwm.duty.bytes), "duty bytes");
   assert.deepStrictEqual(
-    actuators.pwm.servo(pwm.servoCentre.pulseMicros, pwm.servoCentre.updateRateHz),
-    unhex(pwm.servoCentre.bytes),
+    actuators.pwm.servo(pwm.servoCenter.pulseMicros, pwm.servoCenter.updateRateHz),
+    unhex(pwm.servoCenter.bytes),
     "servo bytes",
   );
   assert.deepStrictEqual(actuators.pwm.fullOn(), unhex(pwm.fullOn), "full-on bytes");
@@ -895,7 +895,7 @@ function mavlinkSchemaVectors() {
   }
 }
 
-// The service protocols: a whole mission upload frame by frame, command acknowledgements,
+// The service protocols: a whole mission upload frame by frame, command acknowledgments,
 // and setpoints, each pinned to the exact bytes the engine puts on the wire.
 function mavlinkProtocolVectors() {
   const vectors = VECTORS.mavlinkProtocol;
@@ -959,7 +959,7 @@ function mavlinkProtocolVectors() {
   const ack = mavlink.MavlinkMessage.decode(mavlink.schemaFor("MISSION_ACK"), refusal.reply.payload);
   assert.strictEqual(ack.get("type"), vectors.overrun.result, "the refusal's result");
 
-  // The command protocol classifies acknowledgements and counts retries.
+  // The command protocol classifies acknowledgments and counts retries.
   const arm = new mavlink.CommandProtocol(vectors.command.command, vectors.command.maxRetries);
   for (const described of vectors.command.acks) {
     const outcome = arm.onFrame(parse(described.frame));

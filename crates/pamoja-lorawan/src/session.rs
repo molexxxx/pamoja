@@ -407,7 +407,7 @@ impl<'a> Uplink<'a> {
         self
     }
 
-    /// Sets the acknowledgement bit, confirming a previously received downlink.
+    /// Sets the acknowledgment bit, confirming a previously received downlink.
     ///
     /// # Returns
     ///
@@ -493,7 +493,7 @@ impl<'a> Downlink<'a> {
         self
     }
 
-    /// Sets the acknowledgement bit, confirming a previously received uplink.
+    /// Sets the acknowledgment bit, confirming a previously received uplink.
     ///
     /// # Returns
     ///
@@ -503,7 +503,7 @@ impl<'a> Downlink<'a> {
         self
     }
 
-    /// Sets the frame-pending bit, signalling more downlinks are waiting.
+    /// Sets the frame-pending bit, signaling more downlinks are waiting.
     ///
     /// # Returns
     ///
@@ -549,7 +549,7 @@ pub struct RxData {
 }
 
 impl RxData {
-    /// Returns the direction the frame travelled.
+    /// Returns the direction the frame traveled.
     ///
     /// # Returns
     ///
@@ -576,7 +576,7 @@ impl RxData {
         self.fcnt_low
     }
 
-    /// Reports whether the frame is a confirmed frame that expects an acknowledgement.
+    /// Reports whether the frame is a confirmed frame that expects an acknowledgment.
     ///
     /// # Returns
     ///
@@ -594,7 +594,7 @@ impl RxData {
         self.adr
     }
 
-    /// Reports whether the acknowledgement bit is set.
+    /// Reports whether the acknowledgment bit is set.
     ///
     /// # Returns
     ///

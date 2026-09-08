@@ -79,7 +79,7 @@ fn a_ground_station_announces_itself_and_arms_a_vehicle() {
         None => println!("out of retries, the vehicle is unreachable"),
     }
 
-    // An acknowledgement names the command it answers, so one for a different command is
+    // An acknowledgment names the command it answers, so one for a different command is
     // not this exchange finishing.
     let someone_elses = CommandAck {
         command: mav_cmd::NAV_TAKEOFF,
@@ -98,7 +98,7 @@ fn a_ground_station_announces_itself_and_arms_a_vehicle() {
         AckOutcome::Final(mav_result::ACCEPTED) => println!("armed     the vehicle is ready"),
         AckOutcome::Final(result) => println!("refused   the vehicle answered {result}"),
         AckOutcome::InProgress(percent) => println!("arming    {percent}% done"),
-        AckOutcome::Unrelated => println!("that acknowledgement was for something else"),
+        AckOutcome::Unrelated => println!("that acknowledgment was for something else"),
     }
     // ANCHOR_END: example
 

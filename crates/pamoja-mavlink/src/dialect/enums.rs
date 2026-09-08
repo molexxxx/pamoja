@@ -81,7 +81,7 @@ pub mod mav_result {
     pub const UNSUPPORTED: u8 = 3;
     pub const FAILED: u8 = 4;
     pub const IN_PROGRESS: u8 = 5;
-    pub const CANCELLED: u8 = 6;
+    pub const CANCELED: u8 = 6;
 }
 
 /// `MAV_MISSION_RESULT`: the outcome a [`MissionAck`](super::MissionAck) reports.

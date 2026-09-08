@@ -9,7 +9,7 @@ moving average, a `Thermostat` is a bang-bang controller with hysteresis, a
 the same code runs on a gateway and on a microcontroller.
 
 The rest of the set has the same shape. `Pid` and `Ramp` drive a continuous output,
-`Debounce` cleans up a noisy contact, `Window` and `Trend` summarise recent
+`Debounce` cleans up a noisy contact, `Window` and `Trend` summarize recent
 readings, `Surge` and `Anomaly` catch a reading that is moving or sitting where it
 should not be, `Geofence` says where a tracked thing is, and the kinematics cover a
 wheeled chassis and a jointed arm.

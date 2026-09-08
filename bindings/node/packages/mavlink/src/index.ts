@@ -18,7 +18,7 @@
  *
  * Above the messages sit the exchanges: {@link MissionSender} and {@link MissionReceiver}
  * carry a plan between a station and a vehicle, {@link CommandProtocol} matches a command
- * to its acknowledgement and counts retries, and {@link offboard} builds setpoints. Each
+ * to its acknowledgment and counts retries, and {@link offboard} builds setpoints. Each
  * takes a frame off the link and hands back the frame to send, with no IO or timers of its
  * own.
  *
@@ -389,7 +389,7 @@ export const MavlinkTypeMask = {
   FORCE: MAVLINK_TYPEMASK_FORCE,
 } as const
 
-/** What an incoming acknowledgement means for the command in flight. */
+/** What an incoming acknowledgment means for the command in flight. */
 export interface AckOutcome {
   /** `unrelated`, `inProgress`, or `final`. */
   kind: 'unrelated' | 'inProgress' | 'final'
@@ -401,9 +401,9 @@ export interface AckOutcome {
 }
 
 /**
- * Tracks one command awaiting its acknowledgement.
+ * Tracks one command awaiting its acknowledgment.
  *
- * Wraps the generated class so an unrelated acknowledgement reports `null` rather than an
+ * Wraps the generated class so an unrelated acknowledgment reports `null` rather than an
  * absent key, matching the rest of this package.
  */
 export class CommandProtocol {
@@ -478,7 +478,7 @@ export const offboard = {
    * @param coordinateFrame - The `MAV_FRAME` of the setpoint.
    * @param targetSystem - The target system id.
    * @param targetComponent - The target component id.
-   * @param x - The position along x, in metres in the chosen frame.
+   * @param x - The position along x, in meters in the chosen frame.
    * @param y - The position along y.
    * @param z - The position along z.
    * @returns The `SET_POSITION_TARGET_LOCAL_NED` frame.
@@ -513,7 +513,7 @@ export const offboard = {
    * @param coordinateFrame - The `MAV_FRAME` of the setpoint.
    * @param targetSystem - The target system id.
    * @param targetComponent - The target component id.
-   * @param vx - The velocity along x, in metres per second in the chosen frame.
+   * @param vx - The velocity along x, in meters per second in the chosen frame.
    * @param vy - The velocity along y.
    * @param vz - The velocity along z.
    * @returns The `SET_POSITION_TARGET_LOCAL_NED` frame.
@@ -550,7 +550,7 @@ export const offboard = {
    * @param targetComponent - The target component id.
    * @param latInt - The latitude, in degrees times ten million.
    * @param lonInt - The longitude, in degrees times ten million.
-   * @param alt - The altitude, in metres.
+   * @param alt - The altitude, in meters.
    * @returns The `SET_POSITION_TARGET_GLOBAL_INT` frame.
    */
   globalPosition(

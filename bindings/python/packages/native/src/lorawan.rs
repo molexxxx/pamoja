@@ -24,7 +24,7 @@ use crate::PamojaError;
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct LorawanRxData {
-    /// The direction the frame travelled: `Uplink` or `Downlink`.
+    /// The direction the frame traveled: `Uplink` or `Downlink`.
     #[pyo3(get)]
     direction: String,
     /// The device address the frame carries.

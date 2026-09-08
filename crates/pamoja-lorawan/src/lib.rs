@@ -2,7 +2,7 @@
 
 //! LoRaWAN 1.0.x MAC framing for the pamoja SDK.
 //!
-//! LoRaWAN is how a low-power node reaches a network kilometres away over a license-free
+//! LoRaWAN is how a low-power node reaches a network kilometers away over a license-free
 //! radio, which is why it is the SDK's first-class answer for rural and remote reach. The
 //! [`pamoja-lora`](https://docs.rs/pamoja-lora) crate gives the link budget, the exact
 //! time a transmission spends on air; this crate gives the bytes that go in it: the
@@ -18,7 +18,7 @@
 //!   an uplink or downlink data frame, encrypting the payload and appending the MIC, and
 //!   [decodes](Session::decode) one received, verifying the MIC before decrypting.
 //! - [`Uplink`] and [`Downlink`] - the data frame to send, built up from the fields a
-//!   sender sets (confirmed, adaptive data rate, acknowledgement, frame options).
+//!   sender sets (confirmed, adaptive data rate, acknowledgment, frame options).
 //! - [`RxData`] - a decoded frame: its header fields and its recovered payload.
 //! - [`Device`] - the root credentials for over-the-air activation: it builds the
 //!   join-request a device broadcasts and turns the network's join-accept into a ready

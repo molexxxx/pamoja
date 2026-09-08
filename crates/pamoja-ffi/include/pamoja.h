@@ -170,16 +170,16 @@
 // A mission receiver answered with a request for the next item.
 #define PAMOJA_MAVLINK_RECEIVER_REQUEST 1
 
-// A mission receiver answered with the acknowledgement that ends the transfer.
+// A mission receiver answered with the acknowledgment that ends the transfer.
 #define PAMOJA_MAVLINK_RECEIVER_ACK 2
 
 // A mission sender answered with a frame to send.
 #define PAMOJA_MAVLINK_SENDER_REPLY 1
 
-// A mission sender saw the receiver's acknowledgement; the transfer is over.
+// A mission sender saw the receiver's acknowledgment; the transfer is over.
 #define PAMOJA_MAVLINK_SENDER_FINISHED 2
 
-// An acknowledgement was for a different command; keep waiting.
+// An acknowledgment was for a different command; keep waiting.
 #define PAMOJA_MAVLINK_ACK_UNRELATED 1
 
 // The command is still running; the value is the reported progress percent, or 255 when
@@ -489,7 +489,7 @@
 // Reads the temperature offset back.
 #define PAMOJA_SCD4X_COMMAND_GET_TEMPERATURE_OFFSET 8984
 
-// Writes the altitude the part compensates its pressure for, in metres.
+// Writes the altitude the part compensates its pressure for, in meters.
 #define PAMOJA_SCD4X_COMMAND_SET_SENSOR_ALTITUDE 9255
 
 // Reads the configured altitude back.
@@ -894,7 +894,7 @@ typedef enum {
   PamojaDelivery_Buffered = 1,
 } PamojaDelivery;
 
-// The direction a frame travelled, which its MIC and encryption both fold in.
+// The direction a frame traveled, which its MIC and encryption both fold in.
 typedef enum {
   // From an end device up to the network.
   PamojaLorawanDirection_Uplink = 0,
@@ -1238,7 +1238,7 @@ typedef struct PamojaLorawanRx PamojaLorawanRx;
 // Release it with [`pamoja_lorawan_session_free`].
 typedef struct PamojaLorawanSession PamojaLorawanSession;
 
-// Tracks one command awaiting its acknowledgement.
+// Tracks one command awaiting its acknowledgment.
 typedef struct PamojaMavlinkCommand PamojaMavlinkCommand;
 
 // The `CRC_EXTRA` seeds of a dialect beyond the common one.
@@ -1256,7 +1256,7 @@ typedef struct PamojaMavlinkFrame PamojaMavlinkFrame;
 // A message being written or read field by field against a schema.
 typedef struct PamojaMavlinkMessage PamojaMavlinkMessage;
 
-// Requests a plan's items in order and collects them, ending with an acknowledgement.
+// Requests a plan's items in order and collects them, ending with an acknowledgment.
 typedef struct PamojaMavlinkMissionReceiver PamojaMavlinkMissionReceiver;
 
 // Holds a plan and answers a receiver's requests for its items.
@@ -1483,7 +1483,7 @@ typedef struct {
   const char *bind;
   // Whether requests are acknowledged and retried.
   PamojaCoapReliability reliability;
-  // How long to wait for an acknowledgement, in milliseconds, or 0 for the
+  // How long to wait for an acknowledgment, in milliseconds, or 0 for the
   // default.
   uint32_t ack_timeout_ms;
   // How many times to retransmit an unacknowledged request, or 0 for the
@@ -1610,7 +1610,7 @@ typedef struct {
 
 // A run of evenly spaced channels.
 typedef struct {
-  // The first channel's centre frequency in hertz.
+  // The first channel's center frequency in hertz.
   uint32_t start_hz;
   // The spacing between channels in hertz.
   uint32_t step_hz;
@@ -1877,7 +1877,7 @@ typedef struct {
 // This is what a ROS 2 robot is driven by on `cmd_vel`, so it is the shape a
 // chassis or navigation helper from `pamoja-kit` publishes into a ROS graph.
 typedef struct {
-  // The linear velocity in metres per second.
+  // The linear velocity in meters per second.
   PamojaVector3 linear;
   // The angular velocity in radians per second.
   PamojaVector3 angular;
@@ -2220,9 +2220,9 @@ typedef struct {
 
 // Where a robot is and which way it faces.
 typedef struct {
-  // Position along the world x axis, in metres.
+  // Position along the world x axis, in meters.
   float x;
-  // Position along the world y axis, in metres.
+  // Position along the world y axis, in meters.
   float y;
   // Heading from the world x axis, in radians, positive counter-clockwise.
   float theta;
@@ -4093,7 +4093,7 @@ PamojaBoundary pamoja_geofence_update(PamojaGeofence *geofence, PamojaCoordinate
 // `geofence` must be a live handle from [`pamoja_geofence_new`], or null.
 bool pamoja_geofence_contains(const PamojaGeofence *geofence, PamojaCoordinate point);
 
-// Returns the great-circle distance between two coordinates, in metres.
+// Returns the great-circle distance between two coordinates, in meters.
 double pamoja_coordinate_distance_to(PamojaCoordinate from, PamojaCoordinate to);
 
 // Returns the initial bearing from one coordinate to another, in degrees.
@@ -5013,13 +5013,13 @@ PamojaStatus pamoja_lora_plan_next_backoff_data_rate(const PamojaLoraPlan *plan,
                                                      uint8_t data_rate,
                                                      uint8_t *out_data_rate);
 
-// Returns the centre frequency of one of the plan's default channels.
+// Returns the center frequency of one of the plan's default channels.
 //
 // # Arguments
 //
 // * `plan` - the plan to read.
 // * `channel` - the channel number, counting across the default blocks in order.
-// * `out_frequency_hz` - set to the centre frequency on success.
+// * `out_frequency_hz` - set to the center frequency on success.
 //
 // # Returns
 //
@@ -5570,7 +5570,7 @@ PamojaStatus pamoja_lorawan_session_decode(const PamojaLorawanSession *session,
 // already been freed, or null. After this call it must not be used again.
 void pamoja_lorawan_session_free(PamojaLorawanSession *session);
 
-// Returns the direction a decoded frame travelled.
+// Returns the direction a decoded frame traveled.
 //
 // # Returns
 //
@@ -6867,7 +6867,7 @@ PamojaStatus pamoja_mavlink_mission_receiver_on_frame(PamojaMavlinkMissionReceiv
 //
 // # Returns
 //
-// `1` once every item has been received and the acknowledgement produced, `0` otherwise or
+// `1` once every item has been received and the acknowledgment produced, `0` otherwise or
 // if `receiver` is null.
 //
 // # Safety
@@ -7167,7 +7167,7 @@ uint16_t pamoja_mavlink_offboard_type_mask(uint32_t flags);
 // * `coordinate_frame` - the `MAV_FRAME` of the setpoint.
 // * `target_system` - the target system id.
 // * `target_component` - the target component id.
-// * `x`, `y`, `z` - the position, in metres in the chosen frame.
+// * `x`, `y`, `z` - the position, in meters in the chosen frame.
 // * `out_frame` - set to the `SET_POSITION_TARGET_LOCAL_NED` frame, which the caller
 //   releases with `pamoja_mavlink_frame_free`.
 //
@@ -7201,7 +7201,7 @@ PamojaStatus pamoja_mavlink_offboard_local_position(PamojaMavlinkHeader header,
 // * `coordinate_frame` - the `MAV_FRAME` of the setpoint.
 // * `target_system` - the target system id.
 // * `target_component` - the target component id.
-// * `vx`, `vy`, `vz` - the velocity, in metres per second in the chosen frame.
+// * `vx`, `vy`, `vz` - the velocity, in meters per second in the chosen frame.
 // * `out_frame` - set to the `SET_POSITION_TARGET_LOCAL_NED` frame, which the caller
 //   releases with `pamoja_mavlink_frame_free`.
 //
@@ -7236,7 +7236,7 @@ PamojaStatus pamoja_mavlink_offboard_local_velocity(PamojaMavlinkHeader header,
 // * `target_system` - the target system id.
 // * `target_component` - the target component id.
 // * `lat_int`, `lon_int` - the latitude and longitude, in degrees times ten million.
-// * `alt` - the altitude, in metres.
+// * `alt` - the altitude, in meters.
 // * `out_frame` - set to the `SET_POSITION_TARGET_GLOBAL_INT` frame, which the caller
 //   releases with `pamoja_mavlink_frame_free`.
 //
@@ -9608,7 +9608,7 @@ void pamoja_cdr_reader_free(PamojaCdrReader *reader);
 // # Arguments
 //
 // * `address` - the address of this node, which is what
-//   [`pamoja_router_forward`] recognises as a local delivery.
+//   [`pamoja_router_forward`] recognizes as a local delivery.
 // * `capacity` - how many routes to make room for; pass
 //   [`PAMOJA_ROUTING_DEFAULT_CAPACITY`] when there is no reason to choose. A
 //   capacity of zero is allowed and makes every unknown destination flood.

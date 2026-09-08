@@ -30,7 +30,7 @@ public sealed class CoapClientOptions
     /// <summary>Gets whether requests are acknowledged and retried.</summary>
     public Reliability Reliability { get; init; } = Reliability.Confirmable;
 
-    /// <summary>Gets how long to wait for an acknowledgement, in milliseconds.</summary>
+    /// <summary>Gets how long to wait for an acknowledgment, in milliseconds.</summary>
     public uint AckTimeoutMs { get; init; }
 
     /// <summary>Gets how many times to retransmit an unacknowledged request.</summary>

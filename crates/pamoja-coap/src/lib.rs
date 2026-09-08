@@ -85,7 +85,7 @@ impl CoapConfig {
     /// # Returns
     ///
     /// A configuration that binds an ephemeral local port, uses confirmable
-    /// delivery, waits two seconds for the first acknowledgement, and retransmits
+    /// delivery, waits two seconds for the first acknowledgment, and retransmits
     /// up to four times.
     pub fn new(host: impl Into<String>, port: u16) -> Self {
         Self {
@@ -127,13 +127,13 @@ impl CoapConfig {
         self
     }
 
-    /// Sets how long to wait for the first acknowledgement of a confirmable request.
+    /// Sets how long to wait for the first acknowledgment of a confirmable request.
     ///
     /// The wait doubles for each retransmission, following the CoAP backoff.
     ///
     /// # Arguments
     ///
-    /// * `timeout` - the initial acknowledgement timeout.
+    /// * `timeout` - the initial acknowledgment timeout.
     ///
     /// # Returns
     ///
@@ -265,7 +265,7 @@ impl CoapTransport {
         token.to_be_bytes().to_vec()
     }
 
-    /// Transmits a confirmable datagram and waits for its acknowledgement,
+    /// Transmits a confirmable datagram and waits for its acknowledgment,
     /// retransmitting with a doubling timeout up to the configured limit.
     async fn send_confirmable(&mut self, id: u16, bytes: &[u8], socket: &UdpSocket) -> Result<()> {
         let mut timeout = self.config.ack_timeout;
@@ -286,7 +286,7 @@ impl CoapTransport {
             }
         }
         Err(Error::Transport(format!(
-            "no acknowledgement for message {id}"
+            "no acknowledgment for message {id}"
         )))
     }
 }
@@ -449,7 +449,7 @@ async fn dispatch(
     }
 }
 
-/// Sends an empty acknowledgement for a confirmable notification.
+/// Sends an empty acknowledgment for a confirmable notification.
 async fn acknowledge(packet: &Packet, socket: &UdpSocket) {
     let mut ack = Packet::new();
     ack.header.set_version(1);

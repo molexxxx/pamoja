@@ -292,7 +292,7 @@ impl LoraMaxPayload {
 #[pyclass(from_py_object)]
 #[derive(Clone, Copy)]
 pub struct LoraChannelBlock {
-    /// The first channel's centre frequency in hertz.
+    /// The first channel's center frequency in hertz.
     #[pyo3(get)]
     start_hz: u32,
     /// The spacing between channels in hertz.
@@ -643,7 +643,7 @@ impl ChannelPlan {
             .with_plan(|plan| plan.next_backoff_data_rate(data_rate))
     }
 
-    /// Returns the centre frequency of one of the plan's default channels, or
+    /// Returns the center frequency of one of the plan's default channels, or
     /// `None` past the last one the plan starts a device with.
     fn channel_frequency_hz(&self, channel: u16) -> Option<u32> {
         self.inner

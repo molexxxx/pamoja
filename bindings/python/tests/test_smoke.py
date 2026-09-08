@@ -145,15 +145,15 @@ def test_helpers_carry_a_reading_through_to_an_action():
 def test_a_geofence_reports_the_single_crossing_fix():
     from pamoja.kit import Boundary, Coordinate, Geofence, distance_between
 
-    centre = Coordinate(-1.2921, 36.8219)
+    center = Coordinate(-1.2921, 36.8219)
     away = Coordinate(-1.2930, 36.8219)
 
-    pen = Geofence(centre, 50.0)
-    assert pen.update(centre) is Boundary.INSIDE
+    pen = Geofence(center, 50.0)
+    assert pen.update(center) is Boundary.INSIDE
     assert pen.update(away) is Boundary.EXITED
     assert pen.update(away) is Boundary.OUTSIDE
     assert pen.contains(away) is False
-    assert distance_between(centre, away) > 50.0
+    assert distance_between(center, away) > 50.0
 
 
 def test_serial_framing_round_trips_and_survives_a_corrupt_frame():
@@ -654,7 +654,7 @@ def test_simulated_devices_run_without_hardware():
         robot = sim.SimulatedRobot(1.0)
         await robot.apply(vx=1.0)
         pose = await robot.pose()
-        assert pose.x == pytest.approx(1.0, abs=1e-5), "one second at one metre a second"
+        assert pose.x == pytest.approx(1.0, abs=1e-5), "one second at one meter a second"
         assert pose.y == pytest.approx(0.0, abs=1e-5)
 
     asyncio.run(run())
@@ -1019,7 +1019,7 @@ def test_mavlink_shapes_describe_a_private_dialect():
 
 
 def test_mavlink_protocols_carry_a_plan_and_match_a_command():
-    """A plan crosses one frame at a time, and a command finds its acknowledgement."""
+    """A plan crosses one frame at a time, and a command finds its acknowledgment."""
     from pamoja import mavlink
 
     vehicle = mavlink.MavlinkHeader(1, 1)
@@ -1053,7 +1053,7 @@ def test_mavlink_protocols_carry_a_plan_and_match_a_command():
     assert accepted == [22, 16]
     assert download.complete
 
-    # A command is matched to its acknowledgement, and a stray frame is passed over.
+    # A command is matched to its acknowledgment, and a stray frame is passed over.
     arm = mavlink.CommandProtocol(400)
     assert arm.confirmation == 0
     ack = mavlink.from_dict(

@@ -142,7 +142,7 @@
     "label.battery_level": "Batterie",
     "label.relay_status": "État du relais",
     "unit.count": "",
-    "mesh.optimised": "Optimisé",
+    "mesh.optimized": "Optimisé",
     "mesh.learning": "Apprentissage",
     "label.neighbour_mesh": "Relais maillé → Voisin",
     "label.neighbours": "Voisins",

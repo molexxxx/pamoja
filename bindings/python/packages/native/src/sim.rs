@@ -24,10 +24,10 @@ use crate::PamojaError;
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct Pose {
-    /// Position along the world x axis, in metres.
+    /// Position along the world x axis, in meters.
     #[pyo3(get)]
     x: f32,
-    /// Position along the world y axis, in metres.
+    /// Position along the world y axis, in meters.
     #[pyo3(get)]
     y: f32,
     /// Heading from the world x axis, in radians, positive counter-clockwise.

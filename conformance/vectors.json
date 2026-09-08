@@ -82,7 +82,7 @@
       },
       "fullOff": "00000010",
       "fullOn": "00100000",
-      "servoCentre": {
+      "servoCenter": {
         "bytes": "00003301",
         "pulseMicros": 1500,
         "updateRateHz": 50

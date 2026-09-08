@@ -34,15 +34,15 @@ pub const PAMOJA_MAVLINK_STEP_IGNORED: u32 = 0;
 
 /// A mission receiver answered with a request for the next item.
 pub const PAMOJA_MAVLINK_RECEIVER_REQUEST: u32 = 1;
-/// A mission receiver answered with the acknowledgement that ends the transfer.
+/// A mission receiver answered with the acknowledgment that ends the transfer.
 pub const PAMOJA_MAVLINK_RECEIVER_ACK: u32 = 2;
 
 /// A mission sender answered with a frame to send.
 pub const PAMOJA_MAVLINK_SENDER_REPLY: u32 = 1;
-/// A mission sender saw the receiver's acknowledgement; the transfer is over.
+/// A mission sender saw the receiver's acknowledgment; the transfer is over.
 pub const PAMOJA_MAVLINK_SENDER_FINISHED: u32 = 2;
 
-/// An acknowledgement was for a different command; keep waiting.
+/// An acknowledgment was for a different command; keep waiting.
 pub const PAMOJA_MAVLINK_ACK_UNRELATED: u32 = 1;
 /// The command is still running; the value is the reported progress percent, or 255 when
 /// the autopilot does not report one.
@@ -73,7 +73,7 @@ unsafe fn emit(frame: Frame, out_frame: *mut *mut PamojaMavlinkFrame) -> PamojaS
     PamojaStatus::Ok
 }
 
-/// Requests a plan's items in order and collects them, ending with an acknowledgement.
+/// Requests a plan's items in order and collects them, ending with an acknowledgment.
 pub struct PamojaMavlinkMissionReceiver {
     inner: MissionReceiver,
 }
@@ -224,7 +224,7 @@ pub unsafe extern "C" fn pamoja_mavlink_mission_receiver_on_frame(
 ///
 /// # Returns
 ///
-/// `1` once every item has been received and the acknowledgement produced, `0` otherwise or
+/// `1` once every item has been received and the acknowledgment produced, `0` otherwise or
 /// if `receiver` is null.
 ///
 /// # Safety
@@ -523,7 +523,7 @@ pub unsafe extern "C" fn pamoja_mavlink_mission_sender_free(
     }
 }
 
-/// Tracks one command awaiting its acknowledgement.
+/// Tracks one command awaiting its acknowledgment.
 pub struct PamojaMavlinkCommand {
     inner: CommandProtocol,
 }
@@ -756,7 +756,7 @@ pub extern "C" fn pamoja_mavlink_offboard_type_mask(flags: u32) -> u16 {
 /// * `coordinate_frame` - the `MAV_FRAME` of the setpoint.
 /// * `target_system` - the target system id.
 /// * `target_component` - the target component id.
-/// * `x`, `y`, `z` - the position, in metres in the chosen frame.
+/// * `x`, `y`, `z` - the position, in meters in the chosen frame.
 /// * `out_frame` - set to the `SET_POSITION_TARGET_LOCAL_NED` frame, which the caller
 ///   releases with `pamoja_mavlink_frame_free`.
 ///
@@ -808,7 +808,7 @@ pub unsafe extern "C" fn pamoja_mavlink_offboard_local_position(
 /// * `coordinate_frame` - the `MAV_FRAME` of the setpoint.
 /// * `target_system` - the target system id.
 /// * `target_component` - the target component id.
-/// * `vx`, `vy`, `vz` - the velocity, in metres per second in the chosen frame.
+/// * `vx`, `vy`, `vz` - the velocity, in meters per second in the chosen frame.
 /// * `out_frame` - set to the `SET_POSITION_TARGET_LOCAL_NED` frame, which the caller
 ///   releases with `pamoja_mavlink_frame_free`.
 ///
@@ -861,7 +861,7 @@ pub unsafe extern "C" fn pamoja_mavlink_offboard_local_velocity(
 /// * `target_system` - the target system id.
 /// * `target_component` - the target component id.
 /// * `lat_int`, `lon_int` - the latitude and longitude, in degrees times ten million.
-/// * `alt` - the altitude, in metres.
+/// * `alt` - the altitude, in meters.
 /// * `out_frame` - set to the `SET_POSITION_TARGET_GLOBAL_INT` frame, which the caller
 ///   releases with `pamoja_mavlink_frame_free`.
 ///

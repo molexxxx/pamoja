@@ -76,7 +76,7 @@ public static class MavlinkGuide
         byte? resend = arming.OnTimeout();
         Console.WriteLine($"silence, resending with confirmation {resend}");
 
-        // An acknowledgement names the command it answers, so one for a different command
+        // An acknowledgment names the command it answers, so one for a different command
         // is not this exchange finishing.
         using MavlinkSchema ackShape = MavlinkSchema.ForName("COMMAND_ACK");
         MavlinkAckOutcome? stray = Acknowledge(ackShape, arming, MavCmdNavTakeoff);

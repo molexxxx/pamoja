@@ -1,7 +1,7 @@
 namespace Pamoja.Native.Interop;
 
 /// <summary>
-/// The direction a frame travelled, mirroring <c>PamojaLorawanDirection</c> in
+/// The direction a frame traveled, mirroring <c>PamojaLorawanDirection</c> in
 /// <c>pamoja.h</c>.
 /// </summary>
 public enum PamojaLorawanDirection

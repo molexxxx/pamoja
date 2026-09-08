@@ -41,7 +41,7 @@ for name, address in [("gateway", GATEWAY), ("pump", PUMP), ("silo", SILO)]:
         print(f"for the {name:<8} flood, no route known")
 
 # Forgetting a node that has gone quiet returns its traffic to flooding, so routing is an
-# optimisation over flooding rather than a second thing that can fail.
+# optimization over flooding rather than a second thing that can fail.
 router.forget(PUMP)
 after = router.forward(PUMP)
 print(f"pump forgotten, so it floods again: {after.action == ForwardAction.FLOOD}")

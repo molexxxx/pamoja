@@ -13,7 +13,7 @@ with nothing wired to it.
 ## What the example does
 
 It sets a PCA9685 up for a bank of hobby servos, finds where channel 3's four
-registers begin, builds the pulse that centres the servo on that channel, and
+registers begin, builds the pulse that centers the servo on that channel, and
 separates a channel held fully off from one sitting at zero duty. Then it walks
 a stepper through a complete half-step cycle.
 
@@ -30,7 +30,7 @@ It proves:
   the datasheet's formula gives, so a divider that is wrong but round-trips
   consistently still fails.
 - Channel 3's registers begin at `0x12`, four along from each channel before it.
-- A centred 1500 microsecond pulse at 50 Hz goes low at count 307 of the 4096
+- A centered 1500 microsecond pulse at 50 Hz goes low at count 307 of the 4096
   counts in a period.
 - Fully off is its own encoding rather than a zero duty, which would still hold
   the output high for the first count of every period.
@@ -59,10 +59,10 @@ println!("prescale  {prescale} gives {rate:.1} Hz");
 let first_register = pca9685::channel_register(3);
 println!("channel 3 starts at register {first_register:#04X}");
 
-// A centred hobby servo holds its output high for 1500 us of the 20 ms period. The
+// A centered hobby servo holds its output high for 1500 us of the 20 ms period. The
 // part counts in 4096 steps per period, so that is where the pulse ends.
-let centred = Pwm::servo(1500, 50);
-println!("centred servo goes low at count {} of 4096", centred.off());
+let centered = Pwm::servo(1500, 50);
+println!("centered servo goes low at count {} of 4096", centered.off());
 
 // Fully off carries its own flag rather than a zero duty, which would still hold the
 // output high for the first count of every period.
@@ -118,10 +118,10 @@ console.log(`prescale  ${prescale} gives ${pca9685.frequencyForPrescale(prescale
 const register = pca9685.channelRegister(3)
 console.log(`channel 3 starts at register 0x${register.toString(16).toUpperCase()}`)
 
-// A centred hobby servo holds its output high for 1500 us of the 20 ms period. The part
+// A centered hobby servo holds its output high for 1500 us of the 20 ms period. The part
 // counts in 4096 steps per period, so that is where the pulse ends.
-const centred = pwm.servo(1500, 50)
-console.log(`centred servo goes low at count ${pwm.counts(centred).off} of 4096`)
+const centered = pwm.servo(1500, 50)
+console.log(`centered servo goes low at count ${pwm.counts(centered).off} of 4096`)
 
 // Fully off carries its own flag rather than a zero duty, which would still hold the
 // output high for the first count of every period.
@@ -164,10 +164,10 @@ print(f"prescale  {prescale} gives {pca9685.frequency_for_prescale(prescale):.1f
 # transaction rather than four.
 print(f"channel 3 starts at register 0x{pca9685.channel_register(3):02X}")
 
-# A centred hobby servo holds its output high for 1500 us of the 20 ms period. The part
+# A centered hobby servo holds its output high for 1500 us of the 20 ms period. The part
 # counts in 4096 steps per period, so that is where the pulse ends.
-centred = pwm.servo(1500, 50)
-print(f"centred servo goes low at count {pwm.counts(centred).off} of 4096")
+centered = pwm.servo(1500, 50)
+print(f"centered servo goes low at count {pwm.counts(centered).off} of 4096")
 
 # Fully off carries its own flag rather than a zero duty, which would still hold the
 # output high for the first count of every period.
@@ -206,10 +206,10 @@ Console.WriteLine(
 // one bus transaction rather than four.
 Console.WriteLine($"channel 3 starts at register 0x{Pca9685.ChannelRegister(3):X2}");
 
-// A centred hobby servo holds its output high for 1500 us of the 20 ms period.
+// A centered hobby servo holds its output high for 1500 us of the 20 ms period.
 // The part counts in 4096 steps per period, so that is where the pulse ends.
-byte[] centred = Pwm.Servo(1500, 50);
-Console.WriteLine($"centred servo goes low at count {Pwm.Counts(centred).Off} of 4096");
+byte[] centered = Pwm.Servo(1500, 50);
+Console.WriteLine($"centered servo goes low at count {Pwm.Counts(centered).Off} of 4096");
 
 // Fully off carries its own flag rather than a zero duty, which would still hold
 // the output high for the first count of every period.

@@ -44,10 +44,10 @@ export const catalog = {
     { id: 'uplink', key: 'uplink', unit: 'state', state: 'state.synced', stat: true },
     { id: 'pump', key: 'pump_health', unit: 'state', state: 'state.nominal' },
     { id: 'relaystatus', key: 'relay_status', unit: 'state', state: 'state.online', stat: true, meshOnly: true },
-    { id: 'routing', key: 'routing', unit: 'state', state: 'mesh.optimised', stat: true, meshOnly: true },
+    { id: 'routing', key: 'routing', unit: 'state', state: 'mesh.optimized', stat: true, meshOnly: true },
     // The mesh map is one sensor that only applies to mesh-link groups; its value is the
     // number of mesh nodes drawn.
-    { id: 'meshrelay', key: 'mesh_relay', unit: 'state', state: 'mesh.optimised', value: 5, meshOnly: true },
+    { id: 'meshrelay', key: 'mesh_relay', unit: 'state', state: 'mesh.optimized', value: 5, meshOnly: true },
     { id: 'tamper', key: 'tamper_log', unit: 'record', value: 1000, stat: true },
   ],
 

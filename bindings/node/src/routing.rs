@@ -58,7 +58,7 @@ impl Router {
     ///
     /// `capacity` is how many routes to make room for, defaulting to
     /// [`ROUTING_DEFAULT_CAPACITY`]. A capacity of zero floods every unknown
-    /// destination, which is the behaviour with no table at all.
+    /// destination, which is the behavior with no table at all.
     #[napi(constructor)]
     pub fn new(address: u32, capacity: Option<u32>) -> Self {
         Self {

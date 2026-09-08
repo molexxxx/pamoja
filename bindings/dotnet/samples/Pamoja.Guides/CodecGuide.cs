@@ -44,7 +44,7 @@ public static class CodecGuide
         // ANCHOR_END: example
 
         // The bytes each specification fixes are pinned once, in the crate tests and the
-        // generated conformance vectors, so a guide asserts behaviour instead.
+        // generated conformance vectors, so a guide asserts behavior instead.
         Expect(cbor.Length < asJson.Length, "CBOR is the smaller form on the wire");
         Expect(restored.SequenceEqual(asJson), "and it comes back as the same JSON");
         Expect(Codec.UnpackSamples(packed).SequenceEqual(samples), "the batch round-trips");

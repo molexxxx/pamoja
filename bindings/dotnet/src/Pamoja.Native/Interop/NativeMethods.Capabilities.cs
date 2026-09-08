@@ -357,7 +357,7 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial void pamoja_geofence_free(IntPtr geofence);
 
-    /// <summary>Returns the great-circle distance between two coordinates, in metres.</summary>
+    /// <summary>Returns the great-circle distance between two coordinates, in meters.</summary>
     [LibraryImport(Library)]
     public static partial double pamoja_coordinate_distance_to(
         PamojaCoordinate from,
@@ -369,7 +369,7 @@ public static partial class NativeMethods
         PamojaCoordinate from,
         PamojaCoordinate to);
 
-    /// <summary>Suppresses movement within a band around a centre value.</summary>
+    /// <summary>Suppresses movement within a band around a center value.</summary>
     [LibraryImport(Library)]
     public static partial float pamoja_kit_deadband(float value, float center, float width);
 }

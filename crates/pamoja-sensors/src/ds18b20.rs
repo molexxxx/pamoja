@@ -399,7 +399,7 @@ mod tests {
     fn crc8_matches_the_published_check_value() {
         // CRC-8/MAXIM-DOW check value for the ASCII string "123456789" is 0xA1.
         assert_eq!(crc8(b"123456789"), 0xA1);
-        // An empty message leaves the zero-initialised register untouched.
+        // An empty message leaves the zero-initialized register untouched.
         assert_eq!(crc8(&[]), 0x00);
     }
 

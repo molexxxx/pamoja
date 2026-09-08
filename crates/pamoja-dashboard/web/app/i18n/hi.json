@@ -142,7 +142,7 @@
     "label.battery_level": "बैटरी",
     "label.relay_status": "रिले स्थिति",
     "unit.count": "",
-    "mesh.optimised": "अनुकूलित",
+    "mesh.optimized": "अनुकूलित",
     "mesh.learning": "सीख रहा",
     "label.neighbour_mesh": "मेश रिले → पड़ोसी",
     "label.neighbours": "पड़ोसी",

@@ -50,7 +50,7 @@ public static class ModbusGuide
         // ANCHOR_END: example
 
         // The request and reply frames the specification fixes are pinned in the crate
-        // tests, so a guide asserts behaviour instead.
+        // tests, so a guide asserts behavior instead.
         Expect(request.Length == 8, "a three-register request is eight bytes on the wire");
         Expect(reply.Address == Meter, "the reply comes from the unit that was asked");
         Expect(reply.Exception is null, "a served request reports no exception");

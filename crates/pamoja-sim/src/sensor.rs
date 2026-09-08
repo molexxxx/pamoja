@@ -58,7 +58,7 @@ impl SimSensor {
         }
     }
 
-    /// Sets how much the baseline moves each reading, modelling a slow trend.
+    /// Sets how much the baseline moves each reading, modeling a slow trend.
     ///
     /// # Arguments
     ///

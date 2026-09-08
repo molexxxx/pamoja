@@ -67,7 +67,7 @@ for (const [name, address] of [
 }
 
 // Forgetting a node that has gone quiet returns its traffic to flooding, so routing is an
-// optimisation over flooding rather than a second thing that can fail.
+// optimization over flooding rather than a second thing that can fail.
 router.forget(PUMP)
 const after = router.forward(PUMP)
 console.log(`pump forgotten, so it floods again: ${after.action === ForwardAction.Flood}`)

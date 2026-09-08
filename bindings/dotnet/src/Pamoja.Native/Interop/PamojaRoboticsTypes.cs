@@ -173,7 +173,7 @@ public struct PamojaVector3
 [StructLayout(LayoutKind.Sequential)]
 public struct PamojaRos2Twist
 {
-    /// <summary>The linear velocity in metres per second.</summary>
+    /// <summary>The linear velocity in meters per second.</summary>
     public PamojaVector3 Linear;
 
     /// <summary>The angular velocity in radians per second.</summary>

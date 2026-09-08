@@ -55,7 +55,7 @@ pub enum PamojaForward {
 /// # Arguments
 ///
 /// * `address` - the address of this node, which is what
-///   [`pamoja_router_forward`] recognises as a local delivery.
+///   [`pamoja_router_forward`] recognizes as a local delivery.
 /// * `capacity` - how many routes to make room for; pass
 ///   [`PAMOJA_ROUTING_DEFAULT_CAPACITY`] when there is no reason to choose. A
 ///   capacity of zero is allowed and makes every unknown destination flood.

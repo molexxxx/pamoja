@@ -7,7 +7,7 @@ from pamoja.sim import RecordingActuator, Replay, SimulatedRobot
 
 
 async def main() -> None:
-    # The clear distance ahead, in metres, taken from an earlier survey run. A replay hands
+    # The clear distance ahead, in meters, taken from an earlier survey run. A replay hands
     # it back one reading at a time, so the loop below sees the same input on every run: the
     # same rover code, driven by a recording rather than a range finder.
     capture = [4.0, 3.0, 1.5, 0.5]

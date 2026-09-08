@@ -74,7 +74,7 @@ pub struct PamojaVector3 {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PamojaRos2Twist {
-    /// The linear velocity in metres per second.
+    /// The linear velocity in meters per second.
     pub linear: PamojaVector3,
     /// The angular velocity in radians per second.
     pub angular: PamojaVector3,

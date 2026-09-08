@@ -8,7 +8,7 @@
 //! machine over a link, so the same logic runs on a microcontroller and under an async host
 //! runtime alike.
 //!
-//! - [`command`] - the command protocol: send a command, match its acknowledgement, treat an
+//! - [`command`] - the command protocol: send a command, match its acknowledgment, treat an
 //!   in-progress result as "keep waiting", and count retries.
 //! - [`mission`] - the mission (plan) transfer protocol, as a [`MissionSender`]
 //!   that answers item requests and a [`MissionReceiver`] that

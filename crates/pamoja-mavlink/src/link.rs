@@ -408,7 +408,7 @@ impl SitlAutopilot {
     }
 
     // Applies one mission-receiver step: send the next request and keep receiving, or store the
-    // completed plan and send the acknowledgement.
+    // completed plan and send the acknowledgment.
     async fn step_receive(
         &mut self,
         action: ReceiverAction,
@@ -504,7 +504,7 @@ mod tests {
         gcs.send(&arm_command()).await.unwrap();
         // The vehicle verifies the signed command before acting on it.
         vehicle.serve_once().await.unwrap();
-        // The ground station verifies the signed acknowledgement.
+        // The ground station verifies the signed acknowledgment.
         let frame = gcs.recv().await.unwrap();
         assert!(frame.is_signed());
         assert_eq!(frame.message_id(), CommandAck::ID);

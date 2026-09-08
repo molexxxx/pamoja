@@ -89,7 +89,7 @@ let topic = "sensors/1/temperature";
 gateway.subscribe(topic).await.expect("the gateway listens");
 
 // The device's identity is provisioned once and never leaves it. The gateway is told
-// only the public half, which is how it recognises this device later.
+// only the public half, which is how it recognizes this device later.
 let device = DeviceIdentity::from_seed(&[7u8; 32]);
 let known = PublicIdentity::from_bytes(&device.public().to_bytes()).expect("a valid key");
 println!("gateway trusts device {}", known.fingerprint());
@@ -163,7 +163,7 @@ import { DeviceIdentity, fingerprint, verifyMessage } from '@pamoja/security'
 import { ds18b20 } from '@pamoja/sensors'
 
 // The device's identity is provisioned once and never leaves it. The gateway is told only
-// the public half, which is how it recognises this device later.
+// the public half, which is how it recognizes this device later.
 const SEED = Buffer.alloc(32, 7)
 const TOPIC = 'sensors/1/temperature'
 
@@ -239,7 +239,7 @@ from pamoja.loopback import LoopbackBroker
 from pamoja.security import DeviceIdentity, fingerprint, verify_message
 
 # The device's identity is provisioned once and never leaves it. The gateway is told only
-# the public half, which is how it recognises this device later.
+# the public half, which is how it recognizes this device later.
 SEED = bytes([7]) * 32
 TOPIC = "sensors/1/temperature"
 

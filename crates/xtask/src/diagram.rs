@@ -449,8 +449,8 @@ fn draw(catalog: &Catalog, on_core: &BTreeSet<String>, narrow: bool) -> String {
         for (slot, (name, on_core)) in chapter.crates.iter().enumerate() {
             let cx = x + 14.0 + (slot % chip_columns) as f64 * chip_w;
             let cy = y + CHIPS_Y + (slot / chip_columns) as f64 * ROW_H;
-            let colour = if *on_core { p.amber } else { p.text };
-            out.push_str(&text(cx, cy, MONO, 11.5, 500, colour, "", name));
+            let color = if *on_core { p.amber } else { p.text };
+            out.push_str(&text(cx, cy, MONO, 11.5, 500, color, "", name));
         }
         // The chapter's package on each registry, under a hairline.
         let rule_y = y + box_h - NAMES_H + 4.0;
@@ -592,9 +592,9 @@ fn text(
 }
 
 // A vertical arrow from `top` to `bottom` at `x`, headed at the bottom.
-fn arrow(x: f64, top: f64, bottom: f64, colour: &str) -> String {
+fn arrow(x: f64, top: f64, bottom: f64, color: &str) -> String {
     format!(
-        r##"  <line x1="{x}" y1="{top}" x2="{x}" y2="{bottom}" stroke="{colour}" stroke-width="1.5" marker-end="url(#head)"/>
+        r##"  <line x1="{x}" y1="{top}" x2="{x}" y2="{bottom}" stroke="{color}" stroke-width="1.5" marker-end="url(#head)"/>
 "##
     )
 }

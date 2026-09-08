@@ -172,7 +172,7 @@ export declare class CobsDecoder {
   reset(): void
 }
 
-/** Tracks one command awaiting its acknowledgement. */
+/** Tracks one command awaiting its acknowledgment. */
 export declare class CommandProtocol {
   /**
    * Starts tracking a command.
@@ -354,7 +354,7 @@ export declare class EventBus {
 
 /** Keeps a tracked point inside an area, and notices when it leaves. */
 export declare class Geofence {
-  /** Creates a circular fence of `radiusM` metres around `center`. */
+  /** Creates a circular fence of `radiusM` meters around `center`. */
   constructor(center: Coord, radiusM: number)
   /** Feeds a fix in and reports where it sits, including a single crossing. */
   update(point: Coord): BoundaryState
@@ -525,7 +525,7 @@ export declare class LoraChannelPlan {
    */
   nextBackoffDataRate(dataRate: number): number | null
   /**
-   * Returns the centre frequency of one of the plan's default channels, or
+   * Returns the center frequency of one of the plan's default channels, or
    * null past the last one the plan starts a device with.
    */
   channelFrequencyHz(channel: number): number | null
@@ -973,7 +973,7 @@ export declare class MessageSchemaBuilder {
   build(): MessageSchema
 }
 
-/** Requests a plan's items in order and collects them, ending with an acknowledgement. */
+/** Requests a plan's items in order and collects them, ending with an acknowledgment. */
 export declare class MissionReceiver {
   /**
    * Creates a receiver for a plan from a target vehicle.
@@ -1002,7 +1002,7 @@ export declare class MissionReceiver {
    *   not handle.
    */
   onFrame(frame: MavlinkFrame, header: MavlinkHeader): ReceiverStep | null
-  /** Whether every item has been received and the acknowledgement produced. */
+  /** Whether every item has been received and the acknowledgment produced. */
   get complete(): boolean
   /** The next sequence number the receiver expects. */
   get expected(): number
@@ -1253,7 +1253,7 @@ export declare class Router {
    *
    * `capacity` is how many routes to make room for, defaulting to
    * [`ROUTING_DEFAULT_CAPACITY`]. A capacity of zero floods every unknown
-   * destination, which is the behaviour with no table at all.
+   * destination, which is the behavior with no table at all.
    */
   constructor(address: number, capacity?: number | undefined | null)
   /** The address this router answers for. */
@@ -1637,7 +1637,7 @@ export declare class Window {
   variance(): number | null
 }
 
-/** What an incoming acknowledgement means for the command in flight. */
+/** What an incoming acknowledgment means for the command in flight. */
 export interface AckOutcome {
   /**
    * `unrelated` if the ack was for another command, `inProgress` if the command is still
@@ -1915,7 +1915,7 @@ export interface CoapClientOptions {
   bind?: string
   /** Whether requests are acknowledged and retried. Defaults to confirmable. */
   reliability?: Reliability
-  /** How long to wait for an acknowledgement, in milliseconds. */
+  /** How long to wait for an acknowledgment, in milliseconds. */
   ackTimeoutMs?: number
   /** How many times to retransmit an unacknowledged request. */
   maxRetransmits?: number
@@ -2013,7 +2013,7 @@ export declare const enum Delivery {
   Buffered = 'Buffered'
 }
 
-/** Returns the great-circle distance between two coordinates, in metres. */
+/** Returns the great-circle distance between two coordinates, in meters. */
 export declare function distanceBetween(from: Coord, to: Coord): number
 
 /** Builds the nine bytes a DS18B20 in the given state puts on the bus, CRC last. */
@@ -2569,7 +2569,7 @@ export interface LoraBeacon {
 
 /** A run of evenly spaced channels. */
 export interface LoraChannelBlock {
-  /** The first channel's centre frequency in hertz. */
+  /** The first channel's center frequency in hertz. */
   startHz: number
   /** The spacing between channels in hertz. */
   stepHz: number
@@ -2782,7 +2782,7 @@ export const LORAWAN_MAX_FRAME: number
 /** The largest application payload, in bytes, a single frame can carry. */
 export const LORAWAN_MAX_PAYLOAD: number
 
-/** The direction a frame travelled, which its MIC and encryption both fold in. */
+/** The direction a frame traveled, which its MIC and encryption both fold in. */
 export declare const enum LorawanDirection {
   /** From an end device up to the network. */
   Uplink = 'Uplink',
@@ -2901,7 +2901,7 @@ export declare function lorawanParseJoinRequest(bytes: Buffer, appKey: Buffer): 
 
 /** A decoded data frame, with its payload decrypted. */
 export interface LorawanRxData {
-  /** The direction the frame travelled. */
+  /** The direction the frame traveled. */
   direction: LorawanDirection
   /** The device address the frame carries. */
   devAddr: number
@@ -3101,7 +3101,7 @@ export declare function mavlinkMessageCrcExtra(name: string, fields: Array<Mavli
  * @param targetComponent - The target component id.
  * @param latInt - The latitude, in degrees times ten million.
  * @param lonInt - The longitude, in degrees times ten million.
- * @param alt - The altitude, in metres.
+ * @param alt - The altitude, in meters.
  * @returns The `SET_POSITION_TARGET_GLOBAL_INT` frame.
  */
 export declare function mavlinkOffboardGlobalPosition(header: MavlinkHeader, timeBootMs: number, coordinateFrame: number, targetSystem: number, targetComponent: number, latInt: number, lonInt: number, alt: number): MavlinkFrame
@@ -3114,7 +3114,7 @@ export declare function mavlinkOffboardGlobalPosition(header: MavlinkHeader, tim
  * @param coordinateFrame - The `MAV_FRAME` of the setpoint.
  * @param targetSystem - The target system id.
  * @param targetComponent - The target component id.
- * @param x - The position along x, in metres in the chosen frame.
+ * @param x - The position along x, in meters in the chosen frame.
  * @param y - The position along y.
  * @param z - The position along z.
  * @returns The `SET_POSITION_TARGET_LOCAL_NED` frame.
@@ -3129,7 +3129,7 @@ export declare function mavlinkOffboardLocalPosition(header: MavlinkHeader, time
  * @param coordinateFrame - The `MAV_FRAME` of the setpoint.
  * @param targetSystem - The target system id.
  * @param targetComponent - The target component id.
- * @param vx - The velocity along x, in metres per second in the chosen frame.
+ * @param vx - The velocity along x, in meters per second in the chosen frame.
  * @param vy - The velocity along y.
  * @param vz - The velocity along z.
  * @returns The `SET_POSITION_TARGET_LOCAL_NED` frame.
@@ -3441,9 +3441,9 @@ export declare function pinPolarityLevel(polarity: PinPolarity, asserted: boolea
 
 /** Where a robot is and which way it faces. */
 export interface Pose {
-  /** Position along the world x axis, in metres. */
+  /** Position along the world x axis, in meters. */
   x: number
-  /** Position along the world y axis, in metres. */
+  /** Position along the world y axis, in meters. */
   y: number
   /** Heading from the world x axis, in radians, positive counter-clockwise. */
   theta: number
@@ -3596,7 +3596,7 @@ export declare function ros2PercentMangle(name: string): string
  * chassis or navigation helper publishes into a ROS graph.
  */
 export interface Ros2Twist {
-  /** The linear velocity in metres per second. */
+  /** The linear velocity in meters per second. */
   linear: Ros2Vector3
   /** The angular velocity in radians per second. */
   angular: Ros2Vector3

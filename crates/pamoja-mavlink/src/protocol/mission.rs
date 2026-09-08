@@ -117,11 +117,11 @@ impl<'a> MissionSender<'a> {
 pub enum ReceiverAction {
     /// Ask for this sequence number.
     Request(MissionRequestInt),
-    /// The transfer is complete; send this acknowledgement.
+    /// The transfer is complete; send this acknowledgment.
     Ack(MissionAck),
 }
 
-/// Requests a plan's items in order and collects them, ending with an acknowledgement.
+/// Requests a plan's items in order and collects them, ending with an acknowledgment.
 ///
 /// The receiver tracks the announced count and the next expected sequence number. It never
 /// stores items; each accepted item is handed back to the caller from
@@ -229,7 +229,7 @@ impl MissionReceiver {
     ///
     /// # Returns
     ///
-    /// `true` once every item has been received and the acknowledgement produced.
+    /// `true` once every item has been received and the acknowledgment produced.
     pub fn is_complete(&self) -> bool {
         self.complete
     }

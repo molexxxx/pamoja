@@ -55,9 +55,9 @@ pub mod command {
     pub const SET_TEMPERATURE_OFFSET: u16 = 0x241d;
     /// Read the temperature offset word; see [`super::temperature_offset_milli_celsius`].
     pub const GET_TEMPERATURE_OFFSET: u16 = 0x2318;
-    /// Write the sensor altitude, in metres above sea level.
+    /// Write the sensor altitude, in meters above sea level.
     pub const SET_SENSOR_ALTITUDE: u16 = 0x2427;
-    /// Read the sensor altitude, in metres above sea level.
+    /// Read the sensor altitude, in meters above sea level.
     pub const GET_SENSOR_ALTITUDE: u16 = 0x2322;
     /// Write the ambient pressure word; see [`super::ambient_pressure_word`].
     pub const SET_AMBIENT_PRESSURE: u16 = 0xe000;

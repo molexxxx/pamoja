@@ -20,10 +20,13 @@ fn a_servo_pulse_and_a_stepper_cycle() {
     let first_register = pca9685::channel_register(3);
     println!("channel 3 starts at register {first_register:#04X}");
 
-    // A centred hobby servo holds its output high for 1500 us of the 20 ms period. The
+    // A centered hobby servo holds its output high for 1500 us of the 20 ms period. The
     // part counts in 4096 steps per period, so that is where the pulse ends.
-    let centred = Pwm::servo(1500, 50);
-    println!("centred servo goes low at count {} of 4096", centred.off());
+    let centered = Pwm::servo(1500, 50);
+    println!(
+        "centered servo goes low at count {} of 4096",
+        centered.off()
+    );
 
     // Fully off carries its own flag rather than a zero duty, which would still hold the
     // output high for the first count of every period.
@@ -53,7 +56,7 @@ fn a_servo_pulse_and_a_stepper_cycle() {
 
     assert_eq!(prescale, 0x79);
     assert_eq!(first_register, 0x12);
-    assert_eq!(centred.off(), 307);
+    assert_eq!(centered.off(), 307);
     assert!(flagged);
     assert_eq!(motor.coils(), 0b1000);
     assert_eq!(steps_for_degrees(90.0, 200), 50);

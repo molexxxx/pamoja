@@ -84,9 +84,9 @@ impl Twist {
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pose {
-    /// Position along the world x axis, in metres.
+    /// Position along the world x axis, in meters.
     pub x: f32,
-    /// Position along the world y axis, in metres.
+    /// Position along the world y axis, in meters.
     pub y: f32,
     /// Heading from the world x axis, in radians, in `(-pi, pi]`, positive counter-clockwise.
     pub theta: f32,

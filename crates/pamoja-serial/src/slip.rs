@@ -51,7 +51,7 @@ pub const fn max_encoded_len(payload_len: usize) -> usize {
 ///
 /// Every [`END`] in the payload is written as `ESC` `ESC_END` and every [`ESC`] as `ESC`
 /// `ESC_ESC`; all other bytes pass through unchanged. A single [`END`] is appended to mark
-/// the end of the frame. A sender that wants RFC 1055's noise-flushing behaviour may
+/// the end of the frame. A sender that wants RFC 1055's noise-flushing behavior may
 /// prepend an extra [`END`] of its own; [`decode`] and [`SlipDecoder`] ignore it.
 ///
 /// # Arguments

@@ -239,7 +239,7 @@ impl Mock {
         }
     }
 
-    // A discrete (non-numeric) sensor rendered as a labelled chip, such as a valve or a
+    // A discrete (non-numeric) sensor rendered as a labeled chip, such as a valve or a
     // pump-health state. Carries a state code the page localizes, no band or history.
     fn chip_sensor(&self, id: &str, key: &str, state_code: &str, status: Status) -> Sensor {
         Sensor {
@@ -277,7 +277,7 @@ impl Mock {
             id: id.to_owned(),
             reading: Reading::new("mesh_relay", nodes, "state")
                 .with_status(Status::Ok)
-                .with_state("mesh.optimised"),
+                .with_state("mesh.optimized"),
             battery: None,
             mode: Mode::Active,
             history: Vec::new(),
@@ -925,7 +925,7 @@ impl StateSource for Mock {
         let neighbours =
             stat(self.sensor("neigh", "neighbours", "count", 5.0, 0.0, (1.0, 12.0), None));
         let hops = stat(self.sensor("hops", "hops", "count", 3.0, 0.0, (1.0, 8.0), None));
-        let routing = stat(self.chip_sensor("routing", "routing", "mesh.optimised", Status::Ok));
+        let routing = stat(self.chip_sensor("routing", "routing", "mesh.optimized", Status::Ok));
         let relayed = stat(self.sensor(
             "relayed",
             "messages_relayed",

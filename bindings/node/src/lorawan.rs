@@ -24,7 +24,7 @@ pub const LORAWAN_MAX_PAYLOAD: u32 = pamoja_lorawan::MAX_PAYLOAD as u32;
 #[napi]
 pub const LORAWAN_MAX_FRAME: u32 = pamoja_lorawan::MAX_FRAME as u32;
 
-/// The direction a frame travelled, which its MIC and encryption both fold in.
+/// The direction a frame traveled, which its MIC and encryption both fold in.
 #[napi(string_enum)]
 pub enum LorawanDirection {
     /// From an end device up to the network.
@@ -54,7 +54,7 @@ pub struct LorawanOptions {
 /// A decoded data frame, with its payload decrypted.
 #[napi(object)]
 pub struct LorawanRxData {
-    /// The direction the frame travelled.
+    /// The direction the frame traveled.
     pub direction: LorawanDirection,
     /// The device address the frame carries.
     pub dev_addr: u32,

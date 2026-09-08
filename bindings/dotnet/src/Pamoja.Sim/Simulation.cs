@@ -4,8 +4,8 @@ using Pamoja.Native.Interop;
 namespace Pamoja.Sim;
 
 /// <summary>Where a robot is and which way it faces.</summary>
-/// <param name="X">Position along the world x axis, in metres.</param>
-/// <param name="Y">Position along the world y axis, in metres.</param>
+/// <param name="X">Position along the world x axis, in meters.</param>
+/// <param name="Y">Position along the world y axis, in meters.</param>
 /// <param name="Theta">Heading from the world x axis, in radians.</param>
 public readonly record struct Pose(float X, float Y, float Theta);
 

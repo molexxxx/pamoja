@@ -54,7 +54,7 @@ public struct PamojaLoraMaxPayload
 [StructLayout(LayoutKind.Sequential)]
 public struct PamojaLoraChannelBlock
 {
-    /// <summary>The first channel's centre frequency in hertz.</summary>
+    /// <summary>The first channel's center frequency in hertz.</summary>
     public uint StartHz;
 
     /// <summary>The spacing between channels in hertz.</summary>

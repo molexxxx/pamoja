@@ -13,7 +13,7 @@ use core::f32::consts::PI;
 /// Maps a servo angle to its RC pulse width in microseconds, and back.
 ///
 /// A hobby servo is positioned by the width of a pulse repeated about every 20 ms: the standard
-/// range is 1000 to 2000 microseconds spanning the full travel, with 1500 at centre.
+/// range is 1000 to 2000 microseconds spanning the full travel, with 1500 at center.
 /// [`ServoMap::standard`] uses those defaults over 180 degrees; [`ServoMap::new`] covers servos
 /// with a different range or travel.
 ///
@@ -24,7 +24,7 @@ use core::f32::consts::PI;
 ///
 /// let servo = ServoMap::standard();
 /// assert_eq!(servo.pulse(0.0), 1000);
-/// assert_eq!(servo.pulse(90.0), 1500); // centre
+/// assert_eq!(servo.pulse(90.0), 1500); // center
 /// assert_eq!(servo.pulse(180.0), 2000);
 /// assert!((servo.angle(1500) - 90.0).abs() < 1e-3);
 /// ```
@@ -196,7 +196,7 @@ fn encode(a: bool, b: bool) -> u8 {
 /// An incremental encoder reports motion as two square waves a quarter-cycle apart; their order of
 /// change tells direction. Feeding successive A/B readings to [`update`](Quadrature::update) returns
 /// the per-step direction and accumulates a signed count, the foundation for wheel odometry. Pair
-/// it with a [`QuadratureScale`] to turn that count into metres.
+/// it with a [`QuadratureScale`] to turn that count into meters.
 ///
 /// # Examples
 ///
@@ -279,7 +279,7 @@ impl Quadrature {
     }
 }
 
-/// Converts encoder ticks into the distance and speed a wheel has travelled.
+/// Converts encoder ticks into the distance and speed a wheel has traveled.
 ///
 /// # Examples
 ///
@@ -303,7 +303,7 @@ impl QuadratureScale {
     /// # Arguments
     ///
     /// * `counts_per_rev` - ticks per wheel revolution; its magnitude is used.
-    /// * `wheel_radius` - the wheel radius in metres; its magnitude is used.
+    /// * `wheel_radius` - the wheel radius in meters; its magnitude is used.
     ///
     /// # Returns
     ///
@@ -323,7 +323,7 @@ impl QuadratureScale {
     ///
     /// # Returns
     ///
-    /// The distance in metres, zero when the resolution is zero.
+    /// The distance in meters, zero when the resolution is zero.
     pub fn distance(&self, count: i64) -> f32 {
         if self.counts_per_rev == 0.0 {
             return 0.0;
@@ -341,7 +341,7 @@ impl QuadratureScale {
     ///
     /// # Returns
     ///
-    /// The speed in metres per second, zero when `dt` is zero.
+    /// The speed in meters per second, zero when `dt` is zero.
     pub fn velocity(&self, delta_count: i64, dt: f32) -> f32 {
         if dt == 0.0 {
             0.0

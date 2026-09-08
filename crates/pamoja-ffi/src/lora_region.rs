@@ -126,7 +126,7 @@ pub struct PamojaLoraMaxPayload {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PamojaLoraChannelBlock {
-    /// The first channel's centre frequency in hertz.
+    /// The first channel's center frequency in hertz.
     pub start_hz: u32,
     /// The spacing between channels in hertz.
     pub step_hz: u32,
@@ -974,13 +974,13 @@ pub unsafe extern "C" fn pamoja_lora_plan_next_backoff_data_rate(
     PamojaStatus::Ok
 }
 
-/// Returns the centre frequency of one of the plan's default channels.
+/// Returns the center frequency of one of the plan's default channels.
 ///
 /// # Arguments
 ///
 /// * `plan` - the plan to read.
 /// * `channel` - the channel number, counting across the default blocks in order.
-/// * `out_frequency_hz` - set to the centre frequency on success.
+/// * `out_frequency_hz` - set to the center frequency on success.
 ///
 /// # Returns
 ///

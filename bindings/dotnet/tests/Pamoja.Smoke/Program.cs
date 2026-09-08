@@ -375,7 +375,7 @@ static async Task AsyncTransports()
     await robot.ApplyAsync(new Twist(1.0f));
     Assert(
         Math.Abs(robot.Pose.X - 1.0f) < 1e-5f,
-        "one second at one metre a second puts it a metre ahead");
+        "one second at one meter a second puts it a meter ahead");
 }
 
 // Signing a payload and checking it, the way a gateway verifies a reading.
@@ -471,14 +471,14 @@ static void Helpers()
 
     Assert(Kit.Deadband(0.2f, 0.0f, 0.5f) == 0.0f, "noise inside the band does not act");
 
-    var centre = new Coordinate(-1.2921, 36.8219);
+    var center = new Coordinate(-1.2921, 36.8219);
     var away = new Coordinate(-1.2930, 36.8219);
-    using var pen = new Geofence(centre, 50.0);
-    Assert(pen.Update(centre) == Boundary.Inside, "the first fix is inside");
+    using var pen = new Geofence(center, 50.0);
+    Assert(pen.Update(center) == Boundary.Inside, "the first fix is inside");
     Assert(pen.Update(away) == Boundary.Exited, "the crossing fix reports once");
     Assert(pen.Update(away) == Boundary.Outside, "later fixes stay outside");
     Assert(!pen.Contains(away), "the fix is outside the fence");
-    Assert(Kit.DistanceBetween(centre, away) > 50.0, "the fix is beyond the radius");
+    Assert(Kit.DistanceBetween(center, away) > 50.0, "the fix is beyond the radius");
 }
 
 // The wires a gateway actually has: framed serial packets, an RS485 request and
@@ -1202,11 +1202,11 @@ static void ConformHelpers(JsonElement vectors, double tolerance)
 
 static void ConformGeofence(JsonElement vector)
 {
-    JsonElement centre = vector.GetProperty("center");
+    JsonElement center = vector.GetProperty("center");
     using var fence = new Geofence(
         new Coordinate(
-            centre.GetProperty("latitude").GetDouble(),
-            centre.GetProperty("longitude").GetDouble()),
+            center.GetProperty("latitude").GetDouble(),
+            center.GetProperty("longitude").GetDouble()),
         vector.GetProperty("radiusM").GetDouble());
 
     JsonElement[] fixes = vector.GetProperty("fixes").EnumerateArray().ToArray();
@@ -1916,7 +1916,7 @@ static void ConformActuators(JsonElement vector)
         Pwm.Duty(pwm.GetProperty("duty").GetProperty("off").GetUInt16()).SequenceEqual(
             Convert.FromHexString(pwm.GetProperty("duty").GetProperty("bytes").GetString()!)),
         "duty bytes match");
-    JsonElement servo = pwm.GetProperty("servoCentre");
+    JsonElement servo = pwm.GetProperty("servoCenter");
     Assert(
         Pwm.Servo(
             servo.GetProperty("pulseMicros").GetUInt32(),
@@ -2190,7 +2190,7 @@ static void RegionalPlans()
     Assert(
         licensed.DutyCyclePermille(915_500_000) == 1000,
         "licensed spectrum is reported as unrestricted, not refused");
-    Assert(licensed.MaxEirpDbm(915_500_000) == 30, "and carries the power its licence allows");
+    Assert(licensed.MaxEirpDbm(915_500_000) == 30, "and carries the power its license allows");
     Assert(
         licensed.MaxPayload(1, LoraPayloadTable.DownlinkDirect)!.Value.Application == 222,
         "an empty downlink table mirrors the uplink one");
@@ -2624,7 +2624,7 @@ static void MavlinkShapes()
 
 
 // The service protocols: a plan crosses from a station to a vehicle one frame at a time,
-// a command is matched to its acknowledgement, and a setpoint goes out as the right message.
+// a command is matched to its acknowledgment, and a setpoint goes out as the right message.
 static void MavlinkProtocols()
 {
     MavlinkHeader vehicle = new(1, 1);
@@ -2681,7 +2681,7 @@ static void MavlinkProtocols()
     Assert(accepted.SequenceEqual([22L, 16L]), "both items arrive in order");
     Assert(download.Complete, "and the download is complete");
 
-    // A command is matched to its acknowledgement, and a stray frame is passed over.
+    // A command is matched to its acknowledgment, and a stray frame is passed over.
     using MavlinkCommand arm = new(400);
     Assert(arm.Confirmation == 0, "the first send carries confirmation 0");
     using MavlinkSchema ackShape = MavlinkSchema.ForName("COMMAND_ACK");
@@ -2990,7 +2990,7 @@ static void ConformMavlinkSchema(JsonElement vector)
 }
 
 
-// The service protocols: a whole mission upload frame by frame, command acknowledgements,
+// The service protocols: a whole mission upload frame by frame, command acknowledgments,
 // and setpoints, each pinned to the exact bytes the engine puts on the wire.
 static void ConformMavlinkProtocol(JsonElement vector)
 {
@@ -3083,7 +3083,7 @@ static void ConformMavlinkProtocol(JsonElement vector)
         Assert(ack.GetInt64("type") == overrun.GetProperty("result").GetInt64(), "the refusal's result");
     }
 
-    // The command protocol classifies acknowledgements and counts retries.
+    // The command protocol classifies acknowledgments and counts retries.
     JsonElement command = vector.GetProperty("command");
     using MavlinkCommand arm = new(
         command.GetProperty("command").GetUInt16(),

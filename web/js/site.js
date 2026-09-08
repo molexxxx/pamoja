@@ -18,7 +18,7 @@
   let tocObserver = null;
 
   /**
-   * Binds the per-page behaviour inside `scope`: everything that reads the page rather than
+   * Binds the per-page behavior inside `scope`: everything that reads the page rather than
    * the header, so it runs again after the page is swapped.
    *
    * @param {ParentNode} scope - the element holding the page, `document` at load.

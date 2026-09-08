@@ -25,7 +25,7 @@ async fn a_reading_travels_from_a_node_to_a_gateway() {
     gateway.subscribe(topic).await.expect("the gateway listens");
 
     // The device's identity is provisioned once and never leaves it. The gateway is told
-    // only the public half, which is how it recognises this device later.
+    // only the public half, which is how it recognizes this device later.
     let device = DeviceIdentity::from_seed(&[7u8; 32]);
     let known = PublicIdentity::from_bytes(&device.public().to_bytes()).expect("a valid key");
     println!("gateway trusts device {}", known.fingerprint());

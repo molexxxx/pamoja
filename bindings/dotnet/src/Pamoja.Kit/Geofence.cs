@@ -4,7 +4,7 @@ namespace Pamoja.Kit;
 
 /// <summary>Keeps a tracked point inside an area, and notices when it leaves.</summary>
 /// <remarks>
-/// A fence is a centre and a radius. Feeding it successive fixes reports whether
+/// A fence is a center and a radius. Feeding it successive fixes reports whether
 /// each is inside or outside and, crucially, the single fix that crossed, so an
 /// alert fires once on the crossing rather than on every fix while away.
 /// </remarks>
@@ -19,9 +19,9 @@ public sealed class Geofence : IDisposable
 {
     private readonly NativeHandle _handle;
 
-    /// <summary>Creates a circular fence around a centre fix.</summary>
-    /// <param name="center">The centre of the fence.</param>
-    /// <param name="radiusM">The fence radius, in metres.</param>
+    /// <summary>Creates a circular fence around a center fix.</summary>
+    /// <param name="center">The center of the fence.</param>
+    /// <param name="radiusM">The fence radius, in meters.</param>
     /// <exception cref="PamojaException">The native fence could not be created.</exception>
     public Geofence(Coordinate center, double radiusM)
     {

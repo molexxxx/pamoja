@@ -398,7 +398,7 @@ mod tests {
             .all(|page| page.body.contains("class=\"lang-tabs\"")));
     }
 
-    /// Whether `text` holds a `#rrggbb`-style colour literal: a hash, three to eight hex
+    /// Whether `text` holds a `#rrggbb`-style color literal: a hash, three to eight hex
     /// digits, and then something that is not a word character.
     fn has_colour_literal(text: &str) -> bool {
         let bytes = text.as_bytes();
@@ -426,7 +426,7 @@ mod tests {
             let css = fs::read_to_string(docs::repo_root().join(sheet)).unwrap();
             assert!(
                 !has_colour_literal(&css),
-                "{sheet} names a colour instead of a token from theme.css"
+                "{sheet} names a color instead of a token from theme.css"
             );
         }
         assert!(has_colour_literal("color: #fff;"));

@@ -2,7 +2,7 @@
 
 //! LoRa link math for the pamoja SDK.
 //!
-//! LoRa is the SDK's answer to reach: kilometres of range on license-free bands at
+//! LoRa is the SDK's answer to reach: kilometers of range on license-free bands at
 //! tiny power. That reach comes with a hard constraint, though. A LoRa transmission
 //! occupies the channel for a duration fixed by the radio settings, and the regional
 //! regulations a deployment lives under cap how much of the time a node may transmit,

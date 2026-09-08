@@ -12,7 +12,7 @@ import { DeviceIdentity, fingerprint, verifyMessage } from '@pamoja/security'
 import { ds18b20 } from '@pamoja/sensors'
 
 // The device's identity is provisioned once and never leaves it. The gateway is told only
-// the public half, which is how it recognises this device later.
+// the public half, which is how it recognizes this device later.
 const SEED = Buffer.alloc(32, 7)
 const TOPIC = 'sensors/1/temperature'
 

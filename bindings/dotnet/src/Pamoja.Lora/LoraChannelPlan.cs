@@ -180,7 +180,7 @@ public readonly record struct LoraDataRate(
 public readonly record struct LoraMaxPayload(ushort MacPayload, ushort Application);
 
 /// <summary>A run of evenly spaced channels.</summary>
-/// <param name="StartHz">The first channel's centre frequency in hertz.</param>
+/// <param name="StartHz">The first channel's center frequency in hertz.</param>
 /// <param name="StepHz">The spacing between channels in hertz.</param>
 /// <param name="Count">How many channels the block holds.</param>
 /// <param name="MinDataRate">The slowest data rate the block allows.</param>
@@ -479,10 +479,10 @@ public sealed class LoraChannelPlan : IDisposable
         return status == PamojaStatus.Ok ? lower : null;
     }
 
-    /// <summary>Returns the centre frequency of one of the plan's default channels.</summary>
+    /// <summary>Returns the center frequency of one of the plan's default channels.</summary>
     /// <param name="channel">The channel number, counting across the default blocks.</param>
     /// <returns>
-    /// The centre frequency in hertz, or <c>null</c> past the last channel the
+    /// The center frequency in hertz, or <c>null</c> past the last channel the
     /// plan starts a device with.
     /// </returns>
     public uint? ChannelFrequencyHz(ushort channel)

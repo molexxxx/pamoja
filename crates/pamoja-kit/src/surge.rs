@@ -15,7 +15,7 @@
 /// ```
 /// use pamoja_kit::Surge;
 ///
-/// // A river gauge in metres, sampled each minute: alarm if it rises faster than
+/// // A river gauge in meters, sampled each minute: alarm if it rises faster than
 /// // 0.5 m per sample.
 /// let mut flood = Surge::rising(0.5);
 /// assert_eq!(flood.update(1.0), None); // first reading: no rate yet

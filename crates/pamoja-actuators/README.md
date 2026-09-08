@@ -35,7 +35,7 @@ with no I/O, so the same code runs on a microcontroller and in a test.
   driver chips that take a step pulse and a direction level.
 
 Simple on/off actuators (relays, solenoid valves, a pump switched through a
-transistor) need no driver of their own: they are a GPIO line, modelled by the pin
+transistor) need no driver of their own: they are a GPIO line, modeled by the pin
 and logic-level types in [`pamoja-gpio`](https://docs.rs/pamoja-gpio).
 
 ## License

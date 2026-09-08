@@ -349,7 +349,7 @@ mod tests {
             assert_eq!(Pwm::from_bytes(&setting.bytes()), setting);
         }
 
-        // A centred servo holds its output high for 1500 us of a 20 ms period, which is
+        // A centered servo holds its output high for 1500 us of a 20 ms period, which is
         // 307 of the part's 4096 counts.
         assert_eq!(Pwm::servo(1500, 50).off(), 307);
         assert_eq!(Pwm::servo(1500, 50).on(), 0);

@@ -24,10 +24,10 @@ console.log(`prescale  ${prescale} gives ${pca9685.frequencyForPrescale(prescale
 const register = pca9685.channelRegister(3)
 console.log(`channel 3 starts at register 0x${register.toString(16).toUpperCase()}`)
 
-// A centred hobby servo holds its output high for 1500 us of the 20 ms period. The part
+// A centered hobby servo holds its output high for 1500 us of the 20 ms period. The part
 // counts in 4096 steps per period, so that is where the pulse ends.
-const centred = pwm.servo(1500, 50)
-console.log(`centred servo goes low at count ${pwm.counts(centred).off} of 4096`)
+const centered = pwm.servo(1500, 50)
+console.log(`centered servo goes low at count ${pwm.counts(centered).off} of 4096`)
 
 // Fully off carries its own flag rather than a zero duty, which would still hold the
 // output high for the first count of every period.
@@ -53,7 +53,7 @@ console.log(`a quarter turn is ${stepsForDegrees(90, 200)} steps`)
 
 assert.equal(prescale, 0x79)
 assert.equal(register, 0x12)
-assert.equal(pwm.counts(centred).off, 307)
+assert.equal(pwm.counts(centered).off, 307)
 assert.notDeepEqual([...pwm.fullOff()], [...pwm.duty(0)])
 assert.equal(motor.coils, 0b1000)
 assert.equal(stepsForDegrees(90, 200), 50)

@@ -1,15 +1,15 @@
-//! The command protocol: send a command and interpret its acknowledgement.
+//! The command protocol: send a command and interpret its acknowledgment.
 //!
 //! A ground station sends a [`CommandLong`](crate::dialect::CommandLong) (or
 //! [`CommandInt`](crate::dialect::CommandInt)) and waits for a
 //! [`CommandAck`] carrying the same command id. The
-//! acknowledgement's result may be
+//! acknowledgment's result may be
 //! [`IN_PROGRESS`](crate::dialect::mav_result::IN_PROGRESS), which means a long-running
 //! command is still executing and the sender should keep waiting rather than time out. If no
-//! acknowledgement arrives, the command is resent with an incremented `confirmation` count,
+//! acknowledgment arrives, the command is resent with an incremented `confirmation` count,
 //! up to a retry limit, exactly as the protocol prescribes.
 //!
-//! [`CommandProtocol`] holds that logic: it matches acknowledgements to the command in flight,
+//! [`CommandProtocol`] holds that logic: it matches acknowledgments to the command in flight,
 //! classifies each into an [`AckOutcome`], and tracks the `confirmation` count and remaining
 //! retries. It performs no IO; the caller sends the messages and applies the timeout.
 
@@ -18,7 +18,7 @@ use crate::dialect::{mav_result, CommandAck};
 /// What an incoming [`CommandAck`] means for the command in flight.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AckOutcome {
-    /// The acknowledgement was for a different command; ignore it and keep waiting.
+    /// The acknowledgment was for a different command; ignore it and keep waiting.
     Unrelated,
     /// The command is still running; keep waiting. The value is the reported progress
     /// percent (`0..=100`), or `255` when the autopilot does not report one.
@@ -27,7 +27,7 @@ pub enum AckOutcome {
     Final(u8),
 }
 
-/// Tracks one command awaiting its acknowledgement: which command, the retransmission
+/// Tracks one command awaiting its acknowledgment: which command, the retransmission
 /// `confirmation` count, and the retries left.
 #[derive(Clone, Copy, Debug)]
 pub struct CommandProtocol {
@@ -77,11 +77,11 @@ impl CommandProtocol {
         self.confirmation
     }
 
-    /// Classifies an incoming acknowledgement against the command in flight.
+    /// Classifies an incoming acknowledgment against the command in flight.
     ///
     /// # Arguments
     ///
-    /// * `ack` - the decoded acknowledgement.
+    /// * `ack` - the decoded acknowledgment.
     ///
     /// # Returns
     ///

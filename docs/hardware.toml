@@ -907,7 +907,7 @@ group = "buses"
 name = "CAN 2.0 and CAN FD"
 vendor = "ISO"
 interface = "differential bus"
-summary = "The multi-master vehicle bus whose identifier both labels a message and arbitrates access. The standard itself is paid, so the figures below are what its catalogue page states and what the crate implements."
+summary = "The multi-master vehicle bus whose identifier both labels a message and arbitrates access. The standard itself is paid, so the figures below are what its catalog page states and what the crate implements."
 specs = [
   "Document: ISO 11898-1:2024, edition 3, published May 2024",
   "Scope: the data link layer and the physical coding sublayer",
@@ -919,7 +919,7 @@ crates = ["pamoja-can"]
 source_name = "ISO 11898-1:2024 Road vehicles, Controller area network (CAN), Part 1: Data link layer and physical coding sublayer"
 source_label = "ISO 11898-1:2024"
 source = "https://www.iso.org/standard/86384.html"
-manual_check = "iso.org answers 403 to scripted clients most of the time; the catalogue page renders in a browser"
+manual_check = "iso.org answers 403 to scripted clients most of the time; the catalog page renders in a browser"
 
 [[entry]]
 key = "j1939"
@@ -1078,7 +1078,7 @@ summary = "Open autopilot firmware for copters, planes, rovers and submarines; t
 specs = [
   "Vehicles: multicopters, helicopters, fixed wing, rovers, submarines and antenna trackers",
   "Protocol: MAVLink between ground station, flight controller and peripherals",
-  "Licence: GPL v3 or later",
+  "License: GPL v3 or later",
   "Verified: the SITL interop job in CI flies it in simulation against pamoja-mavlink",
 ]
 cost = "$60 to $200"
@@ -1109,11 +1109,11 @@ group = "targets"
 name = "PX4 Autopilot"
 vendor = "Dronecode Foundation"
 interface = "MAVLink"
-summary = "Open autopilot firmware for multirotors, fixed wing, VTOL, helicopters and rovers, under a permissive licence; again, the board is the cost."
+summary = "Open autopilot firmware for multirotors, fixed wing, VTOL, helicopters and rovers, under a permissive license; again, the board is the cost."
 specs = [
   "Vehicles: multirotors, fixed wing, VTOL, helicopters and rovers",
   "Protocol: MAVLink for the ground station link",
-  "Licence: BSD 3-clause",
+  "License: BSD 3-clause",
   "Verified: the SITL interop job in CI flies it in simulation against pamoja-mavlink",
 ]
 cost = "$60 to $200"
@@ -1143,7 +1143,7 @@ key = "pixhawk"
 group = "targets"
 name = "Pixhawk standard"
 vendor = "Dronecode Foundation"
-interface = "standardised connectors and pin-outs"
+interface = "standardized connectors and pin-outs"
 summary = "The open hardware standard that fixes flight controller pin-outs, connectors and layout so boards from different vendors interchange; a board built to it is what costs money."
 specs = [
   "Autopilot standards listed: v5X (DS-011), v6X (DS-012), v6U (DS-016) and v6C (DS-018)",

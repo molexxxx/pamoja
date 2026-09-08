@@ -860,7 +860,7 @@ pub unsafe extern "C" fn pamoja_geofence_contains(
     }
 }
 
-/// Returns the great-circle distance between two coordinates, in metres.
+/// Returns the great-circle distance between two coordinates, in meters.
 #[no_mangle]
 pub extern "C" fn pamoja_coordinate_distance_to(
     from: PamojaCoordinate,
@@ -1374,15 +1374,15 @@ mod tests {
 
     #[test]
     fn a_geofence_reports_the_single_crossing_fix() {
-        let centre = PamojaCoordinate {
+        let center = PamojaCoordinate {
             latitude: -1.2921,
             longitude: 36.8219,
         };
         // Safety: the handle is live for the whole test and freed once at the end.
         unsafe {
-            let fence = pamoja_geofence_new(centre, 50.0);
+            let fence = pamoja_geofence_new(center, 50.0);
             assert_eq!(
-                pamoja_geofence_update(fence, centre),
+                pamoja_geofence_update(fence, center),
                 PamojaBoundary::Inside
             );
             let away = PamojaCoordinate {

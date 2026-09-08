@@ -617,7 +617,7 @@ impl Home {
              <div class=\"role-toggle\" role=\"tablist\"><button type=\"button\" class=\"role active\" data-role=\"donor\" role=\"tab\" aria-selected=\"true\">I want to donate</button><button type=\"button\" class=\"role\" data-role=\"vendor\" role=\"tab\" aria-selected=\"false\">I am a vendor or partner</button></div>\n\
              <div class=\"field-row\"><label>Name<input name=\"name\" type=\"text\" autocomplete=\"name\"></label><label>Email<input name=\"email\" type=\"email\" autocomplete=\"email\"></label></div>\n\
              <label data-when=\"donor\">Amount (USD)<input name=\"amount\" type=\"number\" min=\"1\" step=\"1\" value=\"40\" inputmode=\"numeric\"></label>\n\
-             <label data-when=\"vendor\" hidden>Company or organisation<input name=\"org\" type=\"text\" autocomplete=\"organization\"></label>\n\
+             <label data-when=\"vendor\" hidden>Company or organization<input name=\"org\" type=\"text\" autocomplete=\"organization\"></label>\n\
              <label>Message<textarea name=\"message\" rows=\"3\" placeholder=\"What would you like to back, or how can you help?\"></textarea></label>\n\
              <button type=\"submit\" class=\"btn btn-warm btn-block\">Backing opens later</button>\n\
              </fieldset>\n\

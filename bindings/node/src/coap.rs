@@ -36,7 +36,7 @@ pub struct CoapClientOptions {
     pub bind: Option<String>,
     /// Whether requests are acknowledged and retried. Defaults to confirmable.
     pub reliability: Option<Reliability>,
-    /// How long to wait for an acknowledgement, in milliseconds.
+    /// How long to wait for an acknowledgment, in milliseconds.
     pub ack_timeout_ms: Option<u32>,
     /// How many times to retransmit an unacknowledged request.
     pub max_retransmits: Option<u32>,

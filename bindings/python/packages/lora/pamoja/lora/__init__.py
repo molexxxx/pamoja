@@ -1,6 +1,6 @@
 """Idiomatic LoRa link-budget facade.
 
-LoRa buys kilometres of range on license-free bands at tiny power, and the price
+LoRa buys kilometers of range on license-free bands at tiny power, and the price
 is time: a transmission occupies the channel for a duration the radio settings
 fix, and the regional rules cap how much of the time a node may transmit. This is
 the arithmetic that keeps a node inside that budget, with no radio involved.

@@ -81,7 +81,7 @@ impl ReceiverStep {
 }
 
 /// Requests a plan's items in order and collects them, ending with an
-/// acknowledgement.
+/// acknowledgment.
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct MissionReceiver {
@@ -148,7 +148,7 @@ impl MissionReceiver {
         }))
     }
 
-    /// Whether every item has been received and the acknowledgement produced.
+    /// Whether every item has been received and the acknowledgment produced.
     #[getter]
     fn complete(&self) -> bool {
         self.inner
@@ -300,7 +300,7 @@ impl MissionSender {
     }
 }
 
-/// What an incoming acknowledgement means for the command in flight.
+/// What an incoming acknowledgment means for the command in flight.
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct AckOutcome {
@@ -323,7 +323,7 @@ impl AckOutcome {
     }
 }
 
-/// Tracks one command awaiting its acknowledgement.
+/// Tracks one command awaiting its acknowledgment.
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct CommandProtocol {
@@ -428,7 +428,7 @@ pub fn mavlink_offboard_type_mask(flags: u32) -> u16 {
     mask.bits()
 }
 
-/// Builds a local-frame position setpoint frame, in metres in the chosen
+/// Builds a local-frame position setpoint frame, in meters in the chosen
 /// ``MAV_FRAME``.
 #[gen_stub_pyfunction]
 #[pyfunction]
@@ -457,7 +457,7 @@ pub fn mavlink_offboard_local_position(
         .map_err(error_of)
 }
 
-/// Builds a local-frame velocity setpoint frame, in metres per second in the
+/// Builds a local-frame velocity setpoint frame, in meters per second in the
 /// chosen ``MAV_FRAME``.
 #[gen_stub_pyfunction]
 #[pyfunction]
@@ -487,7 +487,7 @@ pub fn mavlink_offboard_local_velocity(
 }
 
 /// Builds a global-frame position setpoint frame, with latitude and longitude
-/// in degrees times ten million and altitude in metres.
+/// in degrees times ten million and altitude in meters.
 #[gen_stub_pyfunction]
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]

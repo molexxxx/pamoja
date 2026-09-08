@@ -32,9 +32,9 @@ It proves:
 - The first arm request goes out with confirmation `0`, and a timeout hands back
   `1` for the resend, so the vehicle can tell a retry from a second, deliberate
   command.
-- An acknowledgement for `NAV_TAKEOFF` comes back unrelated, so another
+- An acknowledgment for `NAV_TAKEOFF` comes back unrelated, so another
   command's answer leaves this exchange still waiting.
-- The acknowledgement naming `COMPONENT_ARM_DISARM` ends the exchange and hands
+- The acknowledgment naming `COMPONENT_ARM_DISARM` ends the exchange and hands
   back the result the vehicle sent.
 
 ## Rust
@@ -117,7 +117,7 @@ match arming.on_timeout() {
     None => println!("out of retries, the vehicle is unreachable"),
 }
 
-// An acknowledgement names the command it answers, so one for a different command is
+// An acknowledgment names the command it answers, so one for a different command is
 // not this exchange finishing.
 let someone_elses = CommandAck {
     command: mav_cmd::NAV_TAKEOFF,
@@ -136,7 +136,7 @@ match arming.on_ack(&accepted) {
     AckOutcome::Final(mav_result::ACCEPTED) => println!("armed     the vehicle is ready"),
     AckOutcome::Final(result) => println!("refused   the vehicle answered {result}"),
     AckOutcome::InProgress(percent) => println!("arming    {percent}% done"),
-    AckOutcome::Unrelated => println!("that acknowledgement was for something else"),
+    AckOutcome::Unrelated => println!("that acknowledgment was for something else"),
 }
 ```
 <!-- end -->
@@ -222,20 +222,20 @@ console.log(`sent      arm request, confirmation ${arming.confirmation}`)
 const resend = arming.onTimeout()
 console.log(`silence, resending with confirmation ${resend}`)
 
-// An acknowledgement names the command it answers, so one for a different command is not
+// An acknowledgment names the command it answers, so one for a different command is not
 // this exchange finishing.
 const ackShape = schemaFor('COMMAND_ACK')
-const acknowledgement = (command: number): MavlinkFrame =>
+const acknowledgment = (command: number): MavlinkFrame =>
   fromObject(ackShape, { command, result: MAV_RESULT_ACCEPTED }).toFrame({
     systemId: VEHICLE,
     componentId: AUTOPILOT,
     sequence: 0,
   })
 
-const stray = arming.onFrame(acknowledgement(MAV_CMD_NAV_TAKEOFF))
+const stray = arming.onFrame(acknowledgment(MAV_CMD_NAV_TAKEOFF))
 console.log(`an ack for another command: ${stray?.kind}`)
 
-const outcome = arming.onFrame(acknowledgement(MAV_CMD_COMPONENT_ARM_DISARM))
+const outcome = arming.onFrame(acknowledgment(MAV_CMD_COMPONENT_ARM_DISARM))
 if (outcome?.kind === 'final' && outcome.value === MAV_RESULT_ACCEPTED) {
   console.log('armed     the vehicle is ready')
 } else {
@@ -331,20 +331,20 @@ print(f"sent      arm request, confirmation {arming.confirmation}")
 resend = arming.on_timeout()
 print(f"silence, resending with confirmation {resend}")
 
-# An acknowledgement names the command it answers, so one for a different command is not
+# An acknowledgment names the command it answers, so one for a different command is not
 # this exchange finishing.
 ack_shape = schema_for("COMMAND_ACK")
 
 
-def acknowledgement(command: int) -> object:
+def acknowledgment(command: int) -> object:
     built = from_dict(ack_shape, {"command": command, "result": MAV_RESULT_ACCEPTED})
     return built.to_frame(MavlinkHeader(VEHICLE, AUTOPILOT, 0))
 
 
-stray = arming.on_frame(acknowledgement(MAV_CMD_NAV_TAKEOFF))
+stray = arming.on_frame(acknowledgment(MAV_CMD_NAV_TAKEOFF))
 print(f"an ack for another command: {stray.kind}")
 
-outcome = arming.on_frame(acknowledgement(MAV_CMD_COMPONENT_ARM_DISARM))
+outcome = arming.on_frame(acknowledgment(MAV_CMD_COMPONENT_ARM_DISARM))
 if outcome.kind == "final" and outcome.value == MAV_RESULT_ACCEPTED:
     print("armed     the vehicle is ready")
 else:
@@ -423,7 +423,7 @@ arm.ToFrame(new MavlinkHeader(Station, 190, 1)).Dispose();
 byte? resend = arming.OnTimeout();
 Console.WriteLine($"silence, resending with confirmation {resend}");
 
-// An acknowledgement names the command it answers, so one for a different command
+// An acknowledgment names the command it answers, so one for a different command
 // is not this exchange finishing.
 using MavlinkSchema ackShape = MavlinkSchema.ForName("COMMAND_ACK");
 MavlinkAckOutcome? stray = Acknowledge(ackShape, arming, MavCmdNavTakeoff);

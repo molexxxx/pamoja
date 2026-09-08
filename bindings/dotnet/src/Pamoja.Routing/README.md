@@ -66,7 +66,7 @@ foreach ((string name, byte address) in
 }
 
 // Forgetting a node that has gone quiet returns its traffic to flooding, so
-// routing is an optimisation over flooding rather than a second thing that can
+// routing is an optimization over flooding rather than a second thing that can
 // fail.
 router.Forget(Pump);
 ForwardDecision after = router.Forward(Pump);

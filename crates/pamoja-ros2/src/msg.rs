@@ -261,7 +261,7 @@ impl Vector3 {
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Twist {
-    /// The linear velocity, in metres per second.
+    /// The linear velocity, in meters per second.
     pub linear: Vector3,
     /// The angular velocity, in radians per second.
     pub angular: Vector3,

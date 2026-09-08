@@ -79,7 +79,7 @@ pub struct Reading {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trend: Option<Trend>,
     /// A discrete state code for a non-numeric reading, such as `"state.open"` for a
-    /// valve or `"pump.nominal"` for a pump, which the page renders as a labelled chip.
+    /// valve or `"pump.nominal"` for a pump, which the page renders as a labeled chip.
     /// Numeric readings leave this `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state: Option<String>,
@@ -309,7 +309,7 @@ impl From<PowerMode> for Mode {
     }
 }
 
-/// The kind of link a group reports over, shown as a labelled service before the bars.
+/// The kind of link a group reports over, shown as a labeled service before the bars.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LinkKind {

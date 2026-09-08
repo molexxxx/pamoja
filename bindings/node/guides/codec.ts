@@ -37,7 +37,7 @@ console.log(`recovered ${[...recovered].map((v) => v.toFixed(1)).join(', ')}`)
 // ANCHOR_END: example
 
 // The bytes each specification fixes are pinned once, in the crate tests and the
-// generated conformance vectors, so a guide asserts behaviour instead.
+// generated conformance vectors, so a guide asserts behavior instead.
 assert.ok(cbor.length < asJson.length)
 assert.deepEqual(restored, reading)
 assert.deepEqual(unpackSamples(packed), samples)

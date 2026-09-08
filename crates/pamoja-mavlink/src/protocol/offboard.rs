@@ -122,7 +122,7 @@ impl SetPositionTargetLocalNed {
     /// * `coordinate_frame` - the [`MAV_FRAME`](crate::dialect::mav_frame) of the setpoint.
     /// * `target_system` - the target system id.
     /// * `target_component` - the target component id.
-    /// * `x`, `y`, `z` - the position, in metres in the chosen frame.
+    /// * `x`, `y`, `z` - the position, in meters in the chosen frame.
     ///
     /// # Returns
     ///
@@ -157,7 +157,7 @@ impl SetPositionTargetLocalNed {
     /// * `coordinate_frame` - the [`MAV_FRAME`](crate::dialect::mav_frame) of the setpoint.
     /// * `target_system` - the target system id.
     /// * `target_component` - the target component id.
-    /// * `vx`, `vy`, `vz` - the velocity, in metres per second in the chosen frame.
+    /// * `vx`, `vy`, `vz` - the velocity, in meters per second in the chosen frame.
     ///
     /// # Returns
     ///
@@ -195,7 +195,7 @@ impl SetPositionTargetGlobalInt {
     /// * `target_system` - the target system id.
     /// * `target_component` - the target component id.
     /// * `lat_int`, `lon_int` - latitude and longitude, in degrees times 1e7.
-    /// * `alt` - the altitude, in metres in the chosen frame.
+    /// * `alt` - the altitude, in meters in the chosen frame.
     ///
     /// # Returns
     ///

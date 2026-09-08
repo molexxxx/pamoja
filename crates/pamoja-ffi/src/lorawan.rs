@@ -31,7 +31,7 @@ pub const PAMOJA_LORAWAN_KEY_LEN: usize = 16;
 /// The length of a LoRaWAN EUI, in bytes.
 pub const PAMOJA_LORAWAN_EUI_LEN: usize = 8;
 
-/// The direction a frame travelled, which its MIC and encryption both fold in.
+/// The direction a frame traveled, which its MIC and encryption both fold in.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PamojaLorawanDirection {
@@ -358,7 +358,7 @@ pub unsafe extern "C" fn pamoja_lorawan_session_free(session: *mut PamojaLorawan
     }
 }
 
-/// Returns the direction a decoded frame travelled.
+/// Returns the direction a decoded frame traveled.
 ///
 /// # Returns
 ///

@@ -18,7 +18,7 @@ never heard of.
 
 Above the messages sit the exchanges: :class:`MissionSender` and
 :class:`MissionReceiver` carry a plan between a station and a vehicle,
-:class:`CommandProtocol` matches a command to its acknowledgement and counts
+:class:`CommandProtocol` matches a command to its acknowledgment and counts
 retries, and :func:`local_position`, :func:`local_velocity`, and
 :func:`global_position` build setpoints. Each takes a frame off the link and
 hands back the frame to send, with no IO or timers of its own.
@@ -386,7 +386,7 @@ def local_position(
     :param coordinate_frame: The ``MAV_FRAME`` of the setpoint.
     :param target_system: The target system id.
     :param target_component: The target component id.
-    :param x: The position along x, in metres in the chosen frame.
+    :param x: The position along x, in meters in the chosen frame.
     :param y: The position along y.
     :param z: The position along z.
     :returns: The ``SET_POSITION_TARGET_LOCAL_NED`` frame.
@@ -416,7 +416,7 @@ def local_velocity(
     :param coordinate_frame: The ``MAV_FRAME`` of the setpoint.
     :param target_system: The target system id.
     :param target_component: The target component id.
-    :param vx: The velocity along x, in metres per second in the chosen frame.
+    :param vx: The velocity along x, in meters per second in the chosen frame.
     :param vy: The velocity along y.
     :param vz: The velocity along z.
     :returns: The ``SET_POSITION_TARGET_LOCAL_NED`` frame.
@@ -445,7 +445,7 @@ def global_position(
     :param target_component: The target component id.
     :param lat_int: The latitude, in degrees times ten million.
     :param lon_int: The longitude, in degrees times ten million.
-    :param alt: The altitude, in metres.
+    :param alt: The altitude, in meters.
     :returns: The ``SET_POSITION_TARGET_GLOBAL_INT`` frame.
 
     >>> global_position(MavlinkHeader(255, 190), 1000, 6, 1, 1, -338567800, 1512153000, 50.0).message_id

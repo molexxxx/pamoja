@@ -21,7 +21,7 @@
 //! - [`Router::forward`] - the per-packet decision: deliver a packet that is for this
 //!   node, [relay](Forward::Relay) one toward a known destination, or [flood](Forward::Flood)
 //!   when there is no route yet. That last case is where this layer hands back to the
-//!   flooding in `pamoja-mesh`, so routing is an optimisation over flooding, never a
+//!   flooding in `pamoja-mesh`, so routing is an optimization over flooding, never a
 //!   single point of failure.
 //!
 //! Nodes are identified by the same address a [`pamoja-mesh`](https://docs.rs/pamoja-mesh)

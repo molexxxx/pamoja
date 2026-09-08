@@ -23,7 +23,7 @@ public readonly record struct Vector3(double X, double Y, double Z);
 
 /// <summary>A body velocity command, matching <c>geometry_msgs/msg/Twist</c>.</summary>
 /// <remarks>This is what a ROS 2 robot is driven by on <c>cmd_vel</c>.</remarks>
-/// <param name="Linear">The linear velocity in metres per second.</param>
+/// <param name="Linear">The linear velocity in meters per second.</param>
 /// <param name="Angular">The angular velocity in radians per second.</param>
 public readonly record struct Ros2Twist(Vector3 Linear, Vector3 Angular);
 

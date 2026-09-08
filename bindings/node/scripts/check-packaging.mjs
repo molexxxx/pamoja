@@ -2,7 +2,7 @@
 //
 // Each facade names `dist/index.js` as its entry and lists `dist/` in `files`. npm drops a
 // `files` entry that is not on disk rather than failing, so publishing without building
-// first yields a tarball holding only package.json, the README and the licence, which
+// first yields a tarball holding only package.json, the README and the license, which
 // installs cleanly and throws MODULE_NOT_FOUND on the first require.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'

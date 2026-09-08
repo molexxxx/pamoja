@@ -236,7 +236,7 @@ impl MissionSender<'_> {
 }
 
 impl CommandProtocol {
-    /// Classifies an incoming frame against the command in flight, if it is an acknowledgement.
+    /// Classifies an incoming frame against the command in flight, if it is an acknowledgment.
     ///
     /// # Arguments
     ///

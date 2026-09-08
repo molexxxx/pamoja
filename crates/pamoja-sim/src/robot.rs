@@ -20,7 +20,7 @@ use pamoja_kit::{Odometry, Pose, Twist};
 ///
 /// # async fn demo() -> pamoja_core::Result<()> {
 /// let mut robot = SimRobot::new(0.1); // 0.1 s per command
-/// // Drive straight at 1 m/s for ten steps: about one metre forward.
+/// // Drive straight at 1 m/s for ten steps: about one meter forward.
 /// for _ in 0..10 {
 ///     robot.apply(Twist::planar(1.0, 0.0)).await?;
 /// }

@@ -49,7 +49,7 @@ fn a_request_and_the_reply_it_draws() {
     // ANCHOR_END: example
 
     // The request and reply frames the specification fixes are pinned in the crate's own
-    // tests, so a guide asserts behaviour instead.
+    // tests, so a guide asserts behavior instead.
     assert_eq!(sent, 8);
     assert_eq!(registers, [2301, 418, 0]);
     assert!(Adu::parse(&mangled).is_err());

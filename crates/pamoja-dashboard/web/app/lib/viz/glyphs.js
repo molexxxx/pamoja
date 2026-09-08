@@ -20,7 +20,7 @@ export function count(r, big)
 }
 
 /**
- * Renders a neighbour-mesh map: peers feeding a gateway with travelling packets.
+ * Renders a neighbour-mesh map: peers feeding a gateway with traveling packets.
  *
  * @param {{value?: number, state?: string}} r - the reading; `value` hints peer count.
  * @param {boolean} big - whether this is the expanded view.
@@ -106,10 +106,10 @@ export function chain(r, big)
   </div>`;
 }
 
-const ON_STATE = /(open|on|synced|online|up|nominal|active|ready|optimised|optimized)$/;
+const ON_STATE = /(open|on|synced|online|up|nominal|active|ready|optimized|optimized)$/;
 
 /**
- * Renders a labelled state chip, lit when the state code reads as "on".
+ * Renders a labeled state chip, lit when the state code reads as "on".
  *
  * @param {{status: string, state?: string}} r - the reading.
  * @param {boolean} big - whether this is the expanded view.

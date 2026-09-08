@@ -500,7 +500,7 @@ h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: 600; letter-sp
 .cnt { font-family: var(--mono); font-weight: 700; font-size: 2.1rem; line-height: 1; color: var(--text); display: flex; align-items: center; justify-content: center; }
 .cnt.big { font-size: 3rem; }
 
-/* Neighbour-mesh schematic with travelling packets */
+/* Neighbour-mesh schematic with traveling packets */
 .msh { inline-size: 100%; block-size: 92px; display: block; overflow: visible; }
 .msh.big { block-size: 150px; }
 .msh-link { stroke: var(--line-2); stroke-width: 1.5; }

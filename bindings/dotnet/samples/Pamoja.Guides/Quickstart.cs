@@ -17,7 +17,7 @@ namespace Guides;
 public static class Quickstart
 {
     // The device's identity is provisioned once and never leaves it. The gateway is told
-    // only the public half, which is how it recognises this device later.
+    // only the public half, which is how it recognizes this device later.
     private const string Topic = "sensors/1/temperature";
 
     /// <summary>Runs the example.</summary>
@@ -87,7 +87,7 @@ public static class Quickstart
         Expect(batch.SequenceEqual(new long[] { 2506, 2531, 2539 }), "smoothing lags the steps");
         Expect(packed.Length < batch.Length * 8, "packing beats eight bytes a sample");
         Expect(received.Topic == Topic, "the message arrives on the topic it was sent to");
-        Expect(payload is not null, "and the gateway recognises the device that signed it");
+        Expect(payload is not null, "and the gateway recognizes the device that signed it");
         Expect(
             Codec.UnpackSamples(payload!).SequenceEqual(batch),
             "so the batch it unpacks is the one the node sent");
