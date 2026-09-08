@@ -62,7 +62,10 @@ println!("channel 3 starts at register {first_register:#04X}");
 // A centered hobby servo holds its output high for 1500 us of the 20 ms period. The
 // part counts in 4096 steps per period, so that is where the pulse ends.
 let centered = Pwm::servo(1500, 50);
-println!("centered servo goes low at count {} of 4096", centered.off());
+println!(
+    "centered servo goes low at count {} of 4096",
+    centered.off()
+);
 
 // Fully off carries its own flag rather than a zero duty, which would still hold the
 // output high for the first count of every period.
