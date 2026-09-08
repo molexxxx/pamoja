@@ -522,7 +522,8 @@ fn capability_readme(
 // * `capability` - the capability the page is about.
 // * `reference` - the URL of its reference in this language.
 fn doc_buttons(capability: &Capability, reference: &str) -> String {
-    let mut row = vec![badge("API reference", "btn-api.svg", reference)];
+    // The actions lead, then the reference they are about.
+    let mut row = Vec::new();
     if capability.guide.is_some() {
         row.push(badge(
             "read the guide",
@@ -531,6 +532,7 @@ fn doc_buttons(capability: &Capability, reference: &str) -> String {
         ));
     }
     row.push(badge("documentation", "btn-docs.svg", &format!("{SITE}/")));
+    row.push(badge("API reference", "btn-api.svg", reference));
     row.join("\n")
 }
 
@@ -542,8 +544,8 @@ fn doc_buttons(capability: &Capability, reference: &str) -> String {
 fn site_buttons(reference: &str) -> String {
     format!(
         "{}\n{}",
-        badge("API reference", "btn-api.svg", reference),
-        badge("documentation", "btn-docs.svg", &format!("{SITE}/"))
+        badge("documentation", "btn-docs.svg", &format!("{SITE}/")),
+        badge("API reference", "btn-api.svg", reference)
     )
 }
 

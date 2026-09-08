@@ -4,10 +4,10 @@
 
 Encrypted, authenticated sessions for pamoja: X25519 key agreement (RFC 7748) and HKDF-SHA256 (RFC 5869) derive a session key, then ChaCha20-Poly1305 (RFC 8439) protects each message with counter nonces and an anti-replay window, so two devices that know each other's keys share a confidential, tamper-evident link, no_std and allocation-free. The secured-channel half ahead of the rustls/DTLS driver.
 
-<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_session/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
-<a href="https://pamoja.molex.cloud/docs/guides/session.html"><img height="28" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
-<a href="https://crates.io/crates/pamoja-session"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
-<a href="https://docs.rs/pamoja-session"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/guides/session.html"><img height="36" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_session/index.html"><img height="36" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://crates.io/crates/pamoja-session"><img height="36" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
+<a href="https://docs.rs/pamoja-session"><img height="36" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
 ## The same capability in every language
 
