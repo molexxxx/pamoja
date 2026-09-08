@@ -167,7 +167,7 @@ jobs:
   publish:
     name: publish what is missing
     needs: [missing, build, sdist, pure]
-    if: ${{ !canceled() && needs.missing.outputs.missing != '' && needs.pure.result == 'success' && (needs.missing.outputs.native != 'true' || (needs.build.result == 'success' && needs.sdist.result == 'success')) }}
+    if: ${{ !cancelled() && needs.missing.outputs.missing != '' && needs.pure.result == 'success' && (needs.missing.outputs.native != 'true' || (needs.build.result == 'success' && needs.sdist.result == 'success')) }}
     runs-on: ubuntu-latest
     steps:
       # The distributions were built from the tag above; the upload script is this
