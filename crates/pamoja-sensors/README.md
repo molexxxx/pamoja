@@ -4,10 +4,10 @@
 
 Concrete sensor drivers for pamoja: the decode-and-configure half of common parts - BME280 and BMP280 (Bosch compensation), DS18B20 1-Wire thermometer (datasheet temperature table + Maxim CRC-8), INA219 and INA226 current/voltage/power monitors (TI calibration math), ADS1115 ADC (config register and full-scale conversion), SHT3x and SCD4x (Sensirion linear formulas, command tables, and CRC-8), TMP117 and HDC1080 thermometers and hygrometers, and the OPT3001 ambient light sensor - each turning raw register bytes into physical readings exactly as the manufacturer datasheet specifies, no_std and allocation-free. The decode half ahead of the bus driver.
 
-<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
-<a href="https://pamoja.molex.cloud/docs/guides/sensors.html"><img height="28" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
-<a href="https://crates.io/crates/pamoja-sensors"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
-<a href="https://docs.rs/pamoja-sensors"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/guides/sensors.html"><img height="36" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html"><img height="36" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://crates.io/crates/pamoja-sensors"><img height="36" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
+<a href="https://docs.rs/pamoja-sensors"><img height="36" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
 ## The same capability in every language
 

@@ -4,12 +4,12 @@
 
 Core engine for the pamoja device SDK: device model, transport, event bus, and error types.
 
-<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
-<a href="https://crates.io/crates/pamoja-core"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
-<a href="https://docs.rs/pamoja-core"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
-<a href="https://www.npmjs.com/package/@pamoja/core"><img height="28" alt="npm" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-npm.svg"></a>
-<a href="https://pypi.org/project/pamoja-core/"><img height="28" alt="PyPI" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-pypi.svg"></a>
-<a href="https://www.nuget.org/packages/Pamoja.Core"><img height="28" alt="NuGet" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-nuget.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html"><img height="36" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://crates.io/crates/pamoja-core"><img height="36" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
+<a href="https://docs.rs/pamoja-core"><img height="36" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
+<a href="https://www.npmjs.com/package/@pamoja/core"><img height="36" alt="npm" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-npm.svg"></a>
+<a href="https://pypi.org/project/pamoja-core/"><img height="36" alt="PyPI" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-pypi.svg"></a>
+<a href="https://www.nuget.org/packages/Pamoja.Core"><img height="36" alt="NuGet" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-nuget.svg"></a>
 
 The full API reference is [on the site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html), and the copy for each published version is on [docs.rs](https://docs.rs/pamoja-core).
 

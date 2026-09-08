@@ -91,7 +91,7 @@ fn bindings(krate: &str) -> Option<(&'static str, &'static str, &'static str)> {
 // One gradient button linking a registry, as inline HTML (renders on crates.io and GitHub).
 fn button(href: &str, alt: &str, file: &str) -> String {
     format!(
-        "<a href=\"{href}\"><img height=\"28\" alt=\"{alt}\" src=\"https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/{file}\"></a>"
+        "<a href=\"{href}\"><img height=\"36\" alt=\"{alt}\" src=\"https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/{file}\"></a>"
     )
 }
 
@@ -108,14 +108,9 @@ fn crate_readme(krate: &str, catalog: &Catalog, overview: &str, items: &str) -> 
         .capabilities
         .iter()
         .find(|capability| capability.crates.iter().any(|owned| owned == krate));
-    let mut buttons = vec![button(
-        &format!(
-            "{SITE}/reference/rust/{}/index.html",
-            krate.replace('-', "_")
-        ),
-        "API reference",
-        "btn-api.svg",
-    )];
+    // The guide leads, since it is the one button here that is somewhere to go rather
+    // than something to look up.
+    let mut buttons = Vec::new();
     if let Some(guide) = capability.and_then(|capability| capability.guide.as_deref()) {
         buttons.push(button(
             &format!("{SITE}/{}.html", guide.trim_end_matches(".md")),
@@ -123,6 +118,14 @@ fn crate_readme(krate: &str, catalog: &Catalog, overview: &str, items: &str) -> 
             "btn-guide.svg",
         ));
     }
+    buttons.push(button(
+        &format!(
+            "{SITE}/reference/rust/{}/index.html",
+            krate.replace('-', "_")
+        ),
+        "API reference",
+        "btn-api.svg",
+    ));
     buttons.push(button(
         &format!("https://crates.io/crates/{krate}"),
         "crates.io",

@@ -4,9 +4,9 @@
 
 Curated C ABI surface over the pamoja device SDK, for C, C++, and .NET.
 
-<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_ffi/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
-<a href="https://crates.io/crates/pamoja-ffi"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
-<a href="https://docs.rs/pamoja-ffi"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_ffi/index.html"><img height="36" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://crates.io/crates/pamoja-ffi"><img height="36" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
+<a href="https://docs.rs/pamoja-ffi"><img height="36" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
 The full API reference is [on the site](https://pamoja.molex.cloud/docs/reference/rust/pamoja_ffi/index.html), and the copy for each published version is on [docs.rs](https://docs.rs/pamoja-ffi).
 

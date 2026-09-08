@@ -11,11 +11,16 @@
 &nbsp;<a href="https://github.com/molexxxx/pamoja/actions/workflows/ci.yml"><img height="22" alt="CI" src="https://raw.githubusercontent.com/molexxxx/molexxxx/main/.github/badges/pamoja-ci-pamoja.svg?v=2d04e663"></a>
 &nbsp;<a href="LICENSE-MIT"><img height="22" alt="license MIT" src="https://raw.githubusercontent.com/molexxxx/molexxxx/main/.github/badges/pamoja-license-pamoja.svg?v=79a1d17d"></a>
 
-<a href="https://pamoja.molex.cloud/docs/"><img height="34" alt="documentation" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg"></a>
-&nbsp;<a href="https://pamoja.molex.cloud/docs/reference/index.html"><img height="34" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
-&nbsp;<a href="https://pamoja.molex.cloud/docs/examples.html"><img height="34" alt="examples" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-examples.svg"></a>
-&nbsp;<a href="https://pamoja.molex.cloud"><img height="34" alt="website" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-website.svg"></a>
-&nbsp;<a href="https://pamoja.molex.cloud/dashboard"><img height="34" alt="dashboard demo" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-dashboard.svg"></a>
+<a href="https://pamoja.molex.cloud"><img height="44" alt="website" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-website.svg"></a>
+&nbsp;<a href="https://pamoja.molex.cloud/docs/"><img height="44" alt="documentation" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg"></a>
+&nbsp;<a href="https://pamoja.molex.cloud/docs/examples.html"><img height="44" alt="examples &amp; guides" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-examples.svg"></a>
+
+<a href="https://pamoja.molex.cloud/docs/hardware.html"><img height="44" alt="hardware" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-hardware.svg"></a>
+&nbsp;<a href="https://pamoja.molex.cloud/docs/reference/rust.html"><img height="44" alt="Rust reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-ref-rust.svg"></a>
+&nbsp;<a href="https://pamoja.molex.cloud/docs/reference/node.html"><img height="44" alt="TypeScript reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-ref-node.svg"></a>
+&nbsp;<a href="https://pamoja.molex.cloud/docs/reference/python.html"><img height="44" alt="Python reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-ref-python.svg"></a>
+&nbsp;<a href="https://pamoja.molex.cloud/docs/reference/dotnet.html"><img height="44" alt=".NET reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-ref-dotnet.svg"></a>
+&nbsp;<a href="https://pamoja.molex.cloud/dashboard/"><img height="44" alt="dashboard demo" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-dashboard.svg"></a>
 
 </div>
 

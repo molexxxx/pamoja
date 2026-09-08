@@ -4,10 +4,10 @@
 
 Tamper-evident audit logs for pamoja: signed, hash-chained entries so altering, reordering, or dropping a record is detectable.
 
-<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_audit/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
-<a href="https://pamoja.molex.cloud/docs/guides/audit.html"><img height="28" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
-<a href="https://crates.io/crates/pamoja-audit"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
-<a href="https://docs.rs/pamoja-audit"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/guides/audit.html"><img height="36" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_audit/index.html"><img height="36" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://crates.io/crates/pamoja-audit"><img height="36" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
+<a href="https://docs.rs/pamoja-audit"><img height="36" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
 ## The same capability in every language
 

@@ -4,10 +4,10 @@
 
 Concrete actuator drivers for pamoja: the command-encode half of common parts - the PCA9685 16-channel PWM/servo/LED controller (mode and prescale registers, the frequency-to-prescale formula, and 12-bit on/off channel words) and stepper-motor coil sequencing (wave, full-step, and half-step drive plus a step/direction position model) - turning a desired output into the bytes and steps a driver applies against the manufacturer datasheet, no_std and allocation-free. The command-encode half ahead of the bus driver.
 
-<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_actuators/index.html"><img height="28" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
-<a href="https://pamoja.molex.cloud/docs/guides/actuators.html"><img height="28" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
-<a href="https://crates.io/crates/pamoja-actuators"><img height="28" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
-<a href="https://docs.rs/pamoja-actuators"><img height="28" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/guides/actuators.html"><img height="36" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_actuators/index.html"><img height="36" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
+<a href="https://crates.io/crates/pamoja-actuators"><img height="36" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-cratesio.svg"></a>
+<a href="https://docs.rs/pamoja-actuators"><img height="36" alt="docs.rs" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docsrs.svg"></a>
 
 ## The same capability in every language
 
