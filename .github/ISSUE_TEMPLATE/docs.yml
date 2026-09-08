@@ -1,0 +1,37 @@
+name: Documentation problem
+description: A guide, a reference page, or a README is wrong, unclear, or missing.
+labels: ["documentation"]
+body:
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: The page, or the file in the repository.
+      placeholder: https://pamoja.molex.cloud/docs/guides/lorawan.html
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong
+      description: >
+        What it says, and what it should say. If an example does not do what the
+        page claims, say what you got: every example on the site is spliced from a
+        test that runs in CI, so a wrong example means a test is asserting the wrong
+        thing and that is worth knowing.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem
+      options:
+        - It says something untrue
+        - It is missing something it should cover
+        - It is unclear or hard to follow
+        - A link or an anchor does not resolve
+        - The example does not run, or does not do what it says
+    validations:
+      required: true

@@ -1,0 +1,95 @@
+name: Bug report
+description: Something in pamoja behaves differently from what its documentation says.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. If you think you have found a
+        security vulnerability, please do not file it here: use the private channel
+        described in [SECURITY.md](https://github.com/molexxxx/pamoja/blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+      placeholder: |
+        Decoding an SHT3x measurement frame returns a temperature of ...
+        The datasheet and the guide both give ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: Which language
+      description: Where you hit it. Pick every one you have reproduced it in.
+      multiple: true
+      options:
+        - Rust
+        - TypeScript or JavaScript (Node)
+        - Python
+        - C# (.NET)
+        - The C ABI directly
+    validations:
+      required: true
+
+  - type: input
+    id: package
+    attributes:
+      label: Crate or package
+      description: The one you called, as you depend on it.
+      placeholder: pamoja-sensors, @pamoja/sensors, pamoja-lorawan, Pamoja.Mavlink
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The version you installed. All packages share one version.
+      placeholder: 0.1.17
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: Operating system and architecture, and the target if you cross-compiled.
+      placeholder: Ubuntu 24.04 x86_64, or thumbv7em-none-eabihf on an nRF52840
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: >
+        The smallest program that shows it. This runs without hardware wherever
+        possible: pamoja-sim and pamoja-loopback provide simulated sensors,
+        actuators, and transports.
+      render: rust
+    validations:
+      required: true
+
+  - type: textarea
+    id: bytes
+    attributes:
+      label: The bytes, for a parser or protocol issue
+      description: >
+        The exact frame, packet, or register block as hex, and where it came from.
+        A byte sequence that panics, hangs, or misparses is the most useful thing
+        you can send, and it becomes a test.
+      placeholder: "fd 09 00 00 00 01 01 16 00 00 ..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: anything-else
+    attributes:
+      label: Anything else
+      description: Logs, a backtrace, the datasheet page, the specification section.
+    validations:
+      required: false

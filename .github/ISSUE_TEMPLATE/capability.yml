@@ -1,0 +1,68 @@
+name: Capability or hardware request
+description: Something pamoja should be able to talk to, decode, or do, and cannot yet.
+labels: ["capability"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The catalogue of what pamoja covers today is on the
+        [reference hub](https://pamoja.molex.cloud/docs/reference/), and the parts it
+        has drivers for are on the [hardware page](https://pamoja.molex.cloud/docs/hardware.html).
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What you want to do
+      description: The task, not the API. What is the device, the link, or the job?
+      placeholder: |
+        Read a Sensirion SPS30 particulate sensor over I2C from a gateway that
+        already talks Modbus to the rest of the site.
+    validations:
+      required: true
+
+  - type: input
+    id: part
+    attributes:
+      label: The part or protocol
+      description: >
+        The manufacturer and part number, or the protocol and its version. Link the
+        datasheet or the specification if you have one; this project implements from
+        the authoritative document, not from an example found elsewhere.
+      placeholder: Sensirion SPS30, or Modbus TCP, or LoRaWAN class B
+    validations:
+      required: true
+
+  - type: dropdown
+    id: languages
+    attributes:
+      label: Which languages you need it in
+      multiple: true
+      options:
+        - Rust
+        - TypeScript or JavaScript (Node)
+        - Python
+        - C# (.NET)
+        - The C ABI directly
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: What you do today instead
+      description: >
+        Whether you have another library, hand-rolled it, or the work is simply
+        blocked. This says a lot about how urgent it is.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints it has to meet
+      description: Pick any that apply. These change how a driver is written.
+      options:
+        - label: Must run on a microcontroller, no allocator
+        - label: Must work with no network, storing and forwarding later
+        - label: Needs to be safe against untrusted input off a radio or a wire
+        - label: Needs to hold up on battery for a long deployment
