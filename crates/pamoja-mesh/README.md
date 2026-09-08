@@ -69,7 +69,7 @@ assert!(seen.record(received.dedup_key())); // true: new to us
 let forwarded = received.relayed().unwrap();
 assert_eq!(forwarded.hop_limit(), received.hop_limit() - 1);
 
-// The same packet arriving again by another path is recognised and dropped.
+// The same packet arriving again by another path is recognized and dropped.
 assert!(!seen.record(received.dedup_key()));
 ```
 

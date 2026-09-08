@@ -78,20 +78,20 @@ console.log(`sent      arm request, confirmation ${arming.confirmation}`)
 const resend = arming.onTimeout()
 console.log(`silence, resending with confirmation ${resend}`)
 
-// An acknowledgement names the command it answers, so one for a different command is not
+// An acknowledgment names the command it answers, so one for a different command is not
 // this exchange finishing.
 const ackShape = schemaFor('COMMAND_ACK')
-const acknowledgement = (command: number): MavlinkFrame =>
+const acknowledgment = (command: number): MavlinkFrame =>
   fromObject(ackShape, { command, result: MAV_RESULT_ACCEPTED }).toFrame({
     systemId: VEHICLE,
     componentId: AUTOPILOT,
     sequence: 0,
   })
 
-const stray = arming.onFrame(acknowledgement(MAV_CMD_NAV_TAKEOFF))
+const stray = arming.onFrame(acknowledgment(MAV_CMD_NAV_TAKEOFF))
 console.log(`an ack for another command: ${stray?.kind}`)
 
-const outcome = arming.onFrame(acknowledgement(MAV_CMD_COMPONENT_ARM_DISARM))
+const outcome = arming.onFrame(acknowledgment(MAV_CMD_COMPONENT_ARM_DISARM))
 if (outcome?.kind === 'final' && outcome.value === MAV_RESULT_ACCEPTED) {
   console.log('armed     the vehicle is ready')
 } else {

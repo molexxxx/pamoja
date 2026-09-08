@@ -3,7 +3,7 @@ using Pamoja.Native.Interop;
 namespace Pamoja.Kit;
 
 /// <summary>Turns a raw sensor count into the units the reading is actually in.</summary>
-/// <remarks>A sensor reports counts, not litres or degrees; a calibration is the mapping between them, either stated outright or fitted through two known points.</remarks>
+/// <remarks>A sensor reports counts, not liters or degrees; a calibration is the mapping between them, either stated outright or fitted through two known points.</remarks>
 public sealed class Calibration : IDisposable
 {
     private readonly NativeHandle _handle;

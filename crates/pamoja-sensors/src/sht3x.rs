@@ -724,7 +724,7 @@ mod tests {
 
     #[test]
     fn crc_matches_the_datasheet_check_value() {
-        // Table 20: CRC(0xBEEF) = 0x92, polynomial 0x31, initialisation 0xFF.
+        // Table 20: CRC(0xBEEF) = 0x92, polynomial 0x31, initialization 0xFF.
         assert_eq!(crc(&[0xBE, 0xEF]), 0x92);
         // With no input the register is left at its initial value.
         assert_eq!(crc(&[]), 0xFF);

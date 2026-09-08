@@ -8,13 +8,13 @@
 //! It comes from two kinds. An action is a warm face lifted off the page by a shadow its
 //! own fill justifies: the three or four places a reader is actually being sent. A
 //! reference is a chip that sits flush on the page, dark enough to hold on white, told
-//! apart from its neighbours by a single dot of colour: the language references, the
-//! registries, the hardware catalogue. One is lit and one is not, which reads at a glance
+//! apart from its neighbours by a single dot of color: the language references, the
+//! registries, the hardware catalog. One is lit and one is not, which reads at a glance
 //! and survives being scaled down to a crate README.
 //!
 //! Both kinds are drawn inside the same box, so one `height` attribute in the markup
 //! renders the difference the drawing carries rather than making the markup carry it, and
-//! a row that mixes them sits on a common centre line.
+//! a row that mixes them sits on a common center line.
 //!
 //! The gradients are the logo's: amber through coral for an action, and the hues the
 //! wordmark travels through for the reference dots. `cargo xtask docs` writes them and
@@ -26,14 +26,14 @@ use crate::theme::{rgba, PALETTE};
 const AMBER: &str = PALETTE.amber;
 /// Coral, the logo's outer glow.
 const CORAL: &str = PALETTE.coral;
-/// A lighter amber, so a short label still shows the face travelling.
+/// A lighter amber, so a short label still shows the face traveling.
 const LIT: &str = "#ffc85a";
 /// Near-black with the palette's warmth in it, for text on a warm fill.
 const ON_WARM: &str = "#2a1606";
 /// The shadow directly under an action, which grounds it where the wide one only glows.
 const CONTACT: &str = "#7a2c14";
 
-/// The box every button is drawn in. An action fills most of it and a chip sits centred
+/// The box every button is drawn in. An action fills most of it and a chip sits centered
 /// inside it, so both scale together from a single height.
 const BOX: f64 = 44.0;
 /// The face of an action, with the rest of the box left for its shadow.
@@ -235,7 +235,7 @@ fn action(label: &str) -> String {
 }
 
 // A reference chip: the dark face, flush, with one hue as a dot and a halo behind it so
-// the colour reads without outlining the whole shape in it.
+// the color reads without outlining the whole shape in it.
 fn reference(label: &str, accent: &str) -> String {
     let text = escape(label);
     let width = (advance(&text, CHIP_SIZE, CHIP_TRACK) + DOT_X + DOT_GAP + CHIP_PAD).round();

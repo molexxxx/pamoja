@@ -9,7 +9,7 @@
 //! its reference values rather than guessed from memory:
 //!
 //! - [`crc16_mcrf4xx`] - the CRC-16/MCRF4XX every frame carries, the checksum that lets a
-//!   receiver reject a frame mangled in transit, anchored to the catalogue check value.
+//!   receiver reject a frame mangled in transit, anchored to the catalog check value.
 //! - [`Frame`] - the v1 and v2 frame on the wire, which both [assembles](Frame::encode_v2)
 //!   a frame to send and [parses](Frame::parse) one received, verifying the checksum and
 //!   the per-message [`message_crc_extra`] seed so a corrupt or mismatched frame never

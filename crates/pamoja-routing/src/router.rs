@@ -311,7 +311,7 @@ impl DynamicRouter {
     ///
     /// * `me` - this node's address.
     /// * `capacity` - how many routes to make room for. A capacity of zero is allowed and
-    ///   makes every unknown destination flood, which is the behaviour with no table.
+    ///   makes every unknown destination flood, which is the behavior with no table.
     ///
     /// # Returns
     ///

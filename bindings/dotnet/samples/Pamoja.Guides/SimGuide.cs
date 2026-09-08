@@ -13,7 +13,7 @@ public static class SimGuide
     public static async Task RunAsync()
     {
         // ANCHOR: example
-        // The clear distance ahead, in metres, taken from an earlier survey run. A replay
+        // The clear distance ahead, in meters, taken from an earlier survey run. A replay
         // hands it back one reading at a time, so the loop below sees the same input on
         // every run: the same rover code, driven by a recording rather than a range finder.
         float[] capture = [4.0f, 3.0f, 1.5f, 0.5f];
@@ -51,7 +51,7 @@ public static class SimGuide
         Expect(
             throttle.Commands.SequenceEqual([1.0f, 1.0f, 1.0f, 0.0f]),
             "and the actuator kept every command the loop issued");
-        Expect(Math.Abs(pose.X - 1.5f) < 1e-6f, "1.5 m travelled along x");
+        Expect(Math.Abs(pose.X - 1.5f) < 1e-6f, "1.5 m traveled along x");
         Expect(Math.Abs(pose.Y) < 1e-6f, "with no sideways drift");
         Expect(Math.Abs(pose.Theta - 0.5f) < 1e-6f, "and a half-radian turn at the end");
     }

@@ -1,7 +1,7 @@
 # LoRaWAN
 
 LoRaWAN is the MAC layer a long-range node speaks above a LoRa radio. The band
-is public and the range is measured in kilometres, so every frame carries a
+is public and the range is measured in kilometers, so every frame carries a
 message integrity code keyed to the network, proving it is authentic and intact,
 and a payload encrypted to the application, readable only by its owner. Both are
 AES-128. A device reaches a network with session keys provisioned into it or by

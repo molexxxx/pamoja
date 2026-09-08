@@ -4,7 +4,7 @@
 //!
 //! Modbus is the lingua franca of cheap industrial sensing. Soil NPK probes, energy
 //! meters, water-quality transmitters, and pump controllers overwhelmingly speak Modbus
-//! over RS485, a serial bus that reaches hundreds of metres down a single cable, which
+//! over RS485, a serial bus that reaches hundreds of meters down a single cable, which
 //! is exactly what a dispersed farm or a rural water network needs. To talk to those
 //! devices a node has to put the right bytes on the wire and trust the bytes it gets
 //! back, and Modbus RTU pins down precisely what those bytes are.

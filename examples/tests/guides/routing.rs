@@ -45,7 +45,7 @@ fn a_node_learns_the_way_from_what_it_hears() {
     }
 
     // Forgetting a node that has gone quiet returns its traffic to flooding, so routing
-    // is an optimisation over flooding rather than a second thing that can fail.
+    // is an optimization over flooding rather than a second thing that can fail.
     router.forget(PUMP);
     let after = router.forward(PUMP);
     let floods_again = after == Forward::Flood;

@@ -8,7 +8,7 @@ name: pamoja
 # project's single auditable unsafe boundary and is exactly where it earns its
 # keep. Excluding this directory instead keeps the rule where it matters.
 #
-# What the directory holds is thin declarative wrapping; the behaviour it wraps
+# What the directory holds is thin declarative wrapping; the behavior it wraps
 # lives in the core crates, which stay analyzed, and clippy at -D warnings plus
 # the smoke and conformance suites still cover the wrappers themselves. Only Rust
 # analysis is affected, because these are the only sources here.

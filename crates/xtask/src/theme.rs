@@ -114,12 +114,12 @@ fn render_stamped(stamp: &str) -> Vec<(String, String)> {
     ]
 }
 
-/// A palette colour with an alpha, as CSS. The palette is hex; the lines and glass the
+/// A palette color with an alpha, as CSS. The palette is hex; the lines and glass the
 /// site draws are the cream at a fraction of its strength, which needs `rgba()`.
 ///
 /// # Arguments
 ///
-/// * `hex` - a `#rrggbb` colour from the palette.
+/// * `hex` - a `#rrggbb` color from the palette.
 /// * `alpha` - the opacity, 0 to 1.
 ///
 /// # Returns
@@ -130,7 +130,7 @@ fn render_stamped(stamp: &str) -> Vec<(String, String)> {
 ///
 /// When `hex` is not six hex digits behind a `#`, which only a palette edit could cause.
 pub(crate) fn rgba(hex: &str, alpha: f32) -> String {
-    let digits = hex.strip_prefix('#').expect("a # colour");
+    let digits = hex.strip_prefix('#').expect("a # color");
     assert_eq!(digits.len(), 6, "{hex} is not #rrggbb");
     let channel = |at: usize| u8::from_str_radix(&digits[at..at + 2], 16).expect("hex digits");
     format!(
@@ -142,7 +142,7 @@ pub(crate) fn rgba(hex: &str, alpha: f32) -> String {
 }
 
 // The site's own stylesheet reads the palette from these custom properties and nothing
-// else, so the pages `cargo xtask site` renders share one source of colour with the
+// else, so the pages `cargo xtask site` renders share one source of color with the
 // showcase and the four references.
 fn tokens() -> String {
     let p = &PALETTE;
@@ -247,7 +247,7 @@ code, pre, .code-header {{ font-family: {mono}; }}
     )
 }
 
-// typedoc: the TypeScript reference. Its variables are set per colour scheme on the root
+// typedoc: the TypeScript reference. Its variables are set per color scheme on the root
 // element; the dark set is the showcase, and the light set keeps the showcase's accents.
 fn typedoc(stamp: &str) -> String {
     let p = &PALETTE;

@@ -19,16 +19,16 @@ public static partial class NativeMethods
     /// <summary>A receiver answered with a request for the next item.</summary>
     public const uint MavlinkReceiverRequest = 1;
 
-    /// <summary>A receiver answered with the acknowledgement that ends the transfer.</summary>
+    /// <summary>A receiver answered with the acknowledgment that ends the transfer.</summary>
     public const uint MavlinkReceiverAck = 2;
 
     /// <summary>A sender answered with a frame to send.</summary>
     public const uint MavlinkSenderReply = 1;
 
-    /// <summary>A sender saw the receiver's acknowledgement.</summary>
+    /// <summary>A sender saw the receiver's acknowledgment.</summary>
     public const uint MavlinkSenderFinished = 2;
 
-    /// <summary>An acknowledgement was for a different command.</summary>
+    /// <summary>An acknowledgment was for a different command.</summary>
     public const uint MavlinkAckUnrelated = 1;
 
     /// <summary>The command is still running.</summary>

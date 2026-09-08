@@ -28,7 +28,7 @@ async fn a_confirmable_request_is_reported_when_no_acknowledgement_arrives() {
     println!("reporter  sent 21.5 and did not wait for an answer");
 
     // A command is different: it has to arrive. Confirmable delivery retransmits until an
-    // acknowledgement comes back. RFC 7252 fixes the defaults at a two-second wait and
+    // acknowledgment comes back. RFC 7252 fixes the defaults at a two-second wait and
     // four retransmissions; both are cut short here so the guide does not sit waiting.
     let mut commander = CoapTransport::new(
         CoapConfig::new("127.0.0.1", 5683)

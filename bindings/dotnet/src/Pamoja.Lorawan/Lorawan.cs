@@ -5,7 +5,7 @@ using Pamoja.Native.Interop;
 
 namespace Pamoja.Lorawan;
 
-/// <summary>The direction a frame travelled, which its MIC and encryption fold in.</summary>
+/// <summary>The direction a frame traveled, which its MIC and encryption fold in.</summary>
 public enum LorawanDirection
 {
     /// <summary>From an end device up to the network.</summary>
@@ -52,7 +52,7 @@ public sealed class LorawanOptions
 public sealed class LorawanRxData
 {
     /// <summary>Creates a decoded frame from the fields the native core reported.</summary>
-    /// <param name="direction">The direction the frame travelled.</param>
+    /// <param name="direction">The direction the frame traveled.</param>
     /// <param name="devAddr">The device address the frame carries.</param>
     /// <param name="fcnt">The low 16 bits of the frame counter.</param>
     /// <param name="confirmed">Whether the frame asks to be acknowledged.</param>
@@ -86,7 +86,7 @@ public sealed class LorawanRxData
         Payload = payload;
     }
 
-    /// <summary>The direction the frame travelled.</summary>
+    /// <summary>The direction the frame traveled.</summary>
     public LorawanDirection Direction { get; }
 
     /// <summary>The device address the frame carries.</summary>

@@ -28,7 +28,7 @@ or a failing test) where possible.
 
 ## What to expect
 
-- Acknowledgement of your report within a few days.
+- Acknowledgment of your report within a few days.
 - An initial assessment of severity and affected versions, and a private channel to
   work through the details with you.
 - A coordinated fix and a patch release across the affected registries, with a

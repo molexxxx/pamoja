@@ -230,7 +230,7 @@ pub struct LoraMaxPayload {
 /// A run of evenly spaced channels.
 #[napi(object)]
 pub struct LoraChannelBlock {
-    /// The first channel's centre frequency in hertz.
+    /// The first channel's center frequency in hertz.
     pub start_hz: u32,
     /// The spacing between channels in hertz.
     pub step_hz: u32,
@@ -495,7 +495,7 @@ impl LoraChannelPlan {
             .with_plan(|plan| plan.next_backoff_data_rate(data_rate))
     }
 
-    /// Returns the centre frequency of one of the plan's default channels, or
+    /// Returns the center frequency of one of the plan's default channels, or
     /// null past the last one the plan starts a device with.
     #[napi]
     pub fn channel_frequency_hz(&self, channel: u16) -> Option<u32> {

@@ -8,7 +8,7 @@ public enum MavlinkReceiverKind : uint
     /// <summary>A request for the next item.</summary>
     Request = 1,
 
-    /// <summary>The acknowledgement that ends the transfer.</summary>
+    /// <summary>The acknowledgment that ends the transfer.</summary>
     Ack = 2,
 }
 
@@ -22,10 +22,10 @@ public enum MavlinkSenderKind : uint
     Finished = 2,
 }
 
-/// <summary>What an incoming acknowledgement means for the command in flight.</summary>
+/// <summary>What an incoming acknowledgment means for the command in flight.</summary>
 public enum MavlinkAckKind : uint
 {
-    /// <summary>The acknowledgement was for a different command; keep waiting.</summary>
+    /// <summary>The acknowledgment was for a different command; keep waiting.</summary>
     Unrelated = 1,
 
     /// <summary>The command is still running; keep waiting.</summary>
@@ -82,8 +82,8 @@ public readonly record struct MavlinkSenderStep(
     MavlinkFrame? Reply,
     byte? Result);
 
-/// <summary>What an incoming acknowledgement means for a <see cref="MavlinkCommand"/>.</summary>
-/// <param name="Kind">How the acknowledgement relates to the command in flight.</param>
+/// <summary>What an incoming acknowledgment means for a <see cref="MavlinkCommand"/>.</summary>
+/// <param name="Kind">How the acknowledgment relates to the command in flight.</param>
 /// <param name="Value">
 /// The progress percent when in progress (255 when the autopilot does not report one), or
 /// the <c>MAV_RESULT</c> when final.
@@ -91,7 +91,7 @@ public readonly record struct MavlinkSenderStep(
 public readonly record struct MavlinkAckOutcome(MavlinkAckKind Kind, byte? Value);
 
 /// <summary>
-/// Requests a plan's items in order and collects them, ending with an acknowledgement.
+/// Requests a plan's items in order and collects them, ending with an acknowledgment.
 /// </summary>
 /// <remarks>
 /// The machine holds the protocol's rules and nothing else: no IO, no timers. Feed it the
@@ -159,7 +159,7 @@ public sealed class MavlinkMissionReceiver : IDisposable
             new MavlinkFrame(reply));
     }
 
-    /// <summary>Whether every item has been received and the acknowledgement produced.</summary>
+    /// <summary>Whether every item has been received and the acknowledgment produced.</summary>
     public bool Complete => NativeMethods.pamoja_mavlink_mission_receiver_is_complete(Handle) != 0;
 
     /// <summary>The next sequence number the receiver expects.</summary>
@@ -253,7 +253,7 @@ public sealed class MavlinkMissionSender : IDisposable
     public void Dispose() => _handle.Dispose();
 }
 
-/// <summary>Tracks one command awaiting its acknowledgement.</summary>
+/// <summary>Tracks one command awaiting its acknowledgment.</summary>
 public sealed class MavlinkCommand : IDisposable
 {
     private readonly NativeHandle _handle;
@@ -328,7 +328,7 @@ public static class MavlinkOffboard
     /// <param name="coordinateFrame">The <c>MAV_FRAME</c> of the setpoint.</param>
     /// <param name="targetSystem">The target system id.</param>
     /// <param name="targetComponent">The target component id.</param>
-    /// <param name="x">The position along x, in metres in the chosen frame.</param>
+    /// <param name="x">The position along x, in meters in the chosen frame.</param>
     /// <param name="y">The position along y.</param>
     /// <param name="z">The position along z.</param>
     /// <returns>The <c>SET_POSITION_TARGET_LOCAL_NED</c> frame.</returns>
@@ -362,7 +362,7 @@ public static class MavlinkOffboard
     /// <param name="coordinateFrame">The <c>MAV_FRAME</c> of the setpoint.</param>
     /// <param name="targetSystem">The target system id.</param>
     /// <param name="targetComponent">The target component id.</param>
-    /// <param name="vx">The velocity along x, in metres per second in the chosen frame.</param>
+    /// <param name="vx">The velocity along x, in meters per second in the chosen frame.</param>
     /// <param name="vy">The velocity along y.</param>
     /// <param name="vz">The velocity along z.</param>
     /// <returns>The <c>SET_POSITION_TARGET_LOCAL_NED</c> frame.</returns>
@@ -398,7 +398,7 @@ public static class MavlinkOffboard
     /// <param name="targetComponent">The target component id.</param>
     /// <param name="latInt">The latitude, in degrees times ten million.</param>
     /// <param name="lonInt">The longitude, in degrees times ten million.</param>
-    /// <param name="alt">The altitude, in metres.</param>
+    /// <param name="alt">The altitude, in meters.</param>
     /// <returns>The <c>SET_POSITION_TARGET_GLOBAL_INT</c> frame.</returns>
     public static MavlinkFrame GlobalPosition(
         MavlinkHeader header,

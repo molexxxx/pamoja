@@ -1,4 +1,4 @@
-//! A MAVLink vehicle modelled as a pamoja [`Device`].
+//! A MAVLink vehicle modeled as a pamoja [`Device`].
 //!
 //! [`Vehicle`] wraps a [`Connection`] over any [`ByteLink`] and presents an autopilot through
 //! the core device traits, so a PX4 or ArduPilot vehicle drives like any other pamoja device
@@ -284,7 +284,7 @@ impl<L: ByteLink> Vehicle<L> {
     /// Sends a command to the vehicle and awaits its result, retransmitting on timeout.
     ///
     /// The command is sent as a `COMMAND_LONG` and matched to its `COMMAND_ACK`. An
-    /// in-progress acknowledgement extends the wait; a missing acknowledgement resends the
+    /// in-progress acknowledgment extends the wait; a missing acknowledgment resends the
     /// command with an incremented confirmation, up to the retry budget.
     ///
     /// # Arguments
@@ -319,7 +319,7 @@ impl<L: ByteLink> Vehicle<L> {
             };
             self.tx(&request).await?;
 
-            // Wait for the matching acknowledgement, ignoring unrelated traffic; on a timeout
+            // Wait for the matching acknowledgment, ignoring unrelated traffic; on a timeout
             // fall out to resend, and on an exhausted budget give up.
             let resend = loop {
                 match timeout(RESPONSE_TIMEOUT, self.rx()).await {
@@ -403,7 +403,7 @@ impl<L: ByteLink> Vehicle<L> {
     ///
     /// # Arguments
     ///
-    /// * `altitude` - the target altitude, in metres.
+    /// * `altitude` - the target altitude, in meters.
     ///
     /// # Returns
     ///
@@ -478,7 +478,7 @@ impl<L: ByteLink> Vehicle<L> {
     /// Uploads a mission plan to the vehicle.
     ///
     /// Runs the mission protocol's sender role: announces the count, answers each item request,
-    /// and completes on the vehicle's acknowledgement, retransmitting on timeout.
+    /// and completes on the vehicle's acknowledgment, retransmitting on timeout.
     ///
     /// # Arguments
     ///

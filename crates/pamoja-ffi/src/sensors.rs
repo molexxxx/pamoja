@@ -1823,7 +1823,7 @@ pub const PAMOJA_SCD4X_COMMAND_SET_TEMPERATURE_OFFSET: u16 = 0x241d;
 /// Reads the temperature offset back.
 pub const PAMOJA_SCD4X_COMMAND_GET_TEMPERATURE_OFFSET: u16 = 0x2318;
 
-/// Writes the altitude the part compensates its pressure for, in metres.
+/// Writes the altitude the part compensates its pressure for, in meters.
 pub const PAMOJA_SCD4X_COMMAND_SET_SENSOR_ALTITUDE: u16 = 0x2427;
 
 /// Reads the configured altitude back.

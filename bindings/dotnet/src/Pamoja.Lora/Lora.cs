@@ -4,7 +4,7 @@ namespace Pamoja.Lora;
 
 /// <summary>The radio settings of a LoRa link, and what they cost in airtime.</summary>
 /// <remarks>
-/// LoRa buys kilometres of range on license-free bands at tiny power, and the
+/// LoRa buys kilometers of range on license-free bands at tiny power, and the
 /// price is time: a transmission occupies the channel for a duration these
 /// settings fix, and the regional rules cap how much of the time a node may
 /// transmit. Values outside the ranges LoRa defines are clamped when used.

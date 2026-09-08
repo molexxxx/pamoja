@@ -7,7 +7,7 @@ use crate::function::Exception;
 ///
 /// A read response is a function code, a byte count, and then the data. [`registers`](Response::registers)
 /// and [`coils`](Response::coils) decode that data into the 16-bit words or the packed
-/// bits it represents; [`exception`](Response::exception) recognises the alternative, a
+/// bits it represents; [`exception`](Response::exception) recognizes the alternative, a
 /// device that refused the request. The view borrows the PDU and copies nothing.
 ///
 /// # Examples

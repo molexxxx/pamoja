@@ -102,7 +102,7 @@ async fn drive<L: ByteLink>(vehicle: &mut Vehicle<L>) {
     let autopilot = read_heartbeat_autopilot(vehicle).await;
     println!("heartbeat autopilot id: {autopilot}");
 
-    // Ask for the autopilot's version; any acknowledgement is a completed command exchange.
+    // Ask for the autopilot's version; any acknowledgment is a completed command exchange.
     let result = vehicle
         .request_message(AutopilotVersion::ID)
         .await

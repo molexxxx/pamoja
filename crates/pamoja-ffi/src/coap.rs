@@ -45,7 +45,7 @@ pub struct PamojaCoapConfig {
     pub bind: *const c_char,
     /// Whether requests are acknowledged and retried.
     pub reliability: PamojaCoapReliability,
-    /// How long to wait for an acknowledgement, in milliseconds, or 0 for the
+    /// How long to wait for an acknowledgment, in milliseconds, or 0 for the
     /// default.
     pub ack_timeout_ms: u32,
     /// How many times to retransmit an unacknowledged request, or 0 for the

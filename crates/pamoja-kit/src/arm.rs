@@ -75,11 +75,11 @@ impl Transform {
 /// revolute joint the joint variable is `theta`; for a prismatic joint it is `d`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DhParameters {
-    /// Link length: distance along the common normal, in metres.
+    /// Link length: distance along the common normal, in meters.
     pub a: f32,
     /// Link twist: angle about the common normal, in radians.
     pub alpha: f32,
-    /// Link offset: distance along the previous z axis, in metres.
+    /// Link offset: distance along the previous z axis, in meters.
     pub d: f32,
     /// Joint angle: rotation about the previous z axis, in radians.
     pub theta: f32,

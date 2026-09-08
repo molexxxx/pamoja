@@ -139,12 +139,12 @@ message! {
 }
 
 message! {
-    /// `COMMAND_ACK`: the vehicle's acknowledgement of a command, carrying the result.
+    /// `COMMAND_ACK`: the vehicle's acknowledgment of a command, carrying the result.
     ///
     /// The extension fields report progress for a long-running command
     /// ([`mav_result::IN_PROGRESS`](crate::dialect::mav_result::IN_PROGRESS)), a
     /// command-specific second result value, and which system and component the
-    /// acknowledgement is addressed to.
+    /// acknowledgment is addressed to.
     CommandAck = 77, crc = 143, name = "COMMAND_ACK";
     command: u16,
     result: u8;

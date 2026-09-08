@@ -28,7 +28,7 @@ public struct PamojaCoapConfig
     /// <summary>Whether requests are acknowledged and retried.</summary>
     public PamojaCoapReliability Reliability;
 
-    /// <summary>How long to wait for an acknowledgement, in milliseconds.</summary>
+    /// <summary>How long to wait for an acknowledgment, in milliseconds.</summary>
     public uint AckTimeoutMs;
 
     /// <summary>How many times to retransmit an unacknowledged request.</summary>
@@ -49,10 +49,10 @@ public enum PamojaDelivery
 [StructLayout(LayoutKind.Sequential)]
 public struct PamojaPose
 {
-    /// <summary>Position along the world x axis, in metres.</summary>
+    /// <summary>Position along the world x axis, in meters.</summary>
     public float X;
 
-    /// <summary>Position along the world y axis, in metres.</summary>
+    /// <summary>Position along the world y axis, in meters.</summary>
     public float Y;
 
     /// <summary>Heading from the world x axis, in radians.</summary>

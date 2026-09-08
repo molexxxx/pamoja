@@ -1,7 +1,7 @@
 // viz/util.js - shared low-level helpers for the visualizations.
 //
 // Pure string/number helpers used across the gauge, glyph, and chart builders: HTML
-// escaping, status-to-colour mapping, trend arrows, and the safe-band geometry and
+// escaping, status-to-color mapping, trend arrows, and the safe-band geometry and
 // gauge furniture the SVG gauges share.
 
 import { nf } from '../i18n.js';
@@ -16,10 +16,10 @@ export const esc = (s) =>
   String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /**
- * Maps a health status to its CSS colour variable.
+ * Maps a health status to its CSS color variable.
  *
  * @param {string} s - the status, one of `'ok'`, `'warn'`, or `'alarm'`.
- * @returns {string} the `var(--...)` colour reference for that status.
+ * @returns {string} the `var(--...)` color reference for that status.
  */
 export const statusColor = (s) => `var(--${s === 'ok' ? 'ok' : s === 'warn' ? 'warn' : 'alarm'})`;
 
@@ -48,7 +48,7 @@ export function rangeOf(band)
  * Computes a value's fractional position within its padded display range.
  *
  * @param {number} v - the reading value.
- * @param {[number, number]} [band] - the safe band; a missing band centres the value.
+ * @param {[number, number]} [band] - the safe band; a missing band centers the value.
  * @returns {number} the fraction in `[0, 1]`.
  */
 export function fracOf(v, band)
@@ -76,7 +76,7 @@ export const unitSup = (unit, x, y) =>
  * floats in the top-right corner so it never widens a value or pushes it off its end.
  *
  * @param {[number, number]} band - the safe band `[low, high]`.
- * @param {boolean} big - whether this is the expanded (labelled) view.
+ * @param {boolean} big - whether this is the expanded (labeled) view.
  * @param {string} [unit] - the already-localized unit label.
  * @returns {string} the end-label markup, or an empty string when not big or bandless.
  */
@@ -86,7 +86,7 @@ export const ends = (band, big, unit = '') =>
     : '');
 
 /**
- * Builds the five evenly-spaced tick marks for a 270-degree gauge centred at (28,28).
+ * Builds the five evenly-spaced tick marks for a 270-degree gauge centered at (28,28).
  *
  * @returns {string} the tick `<line>` markup.
  */

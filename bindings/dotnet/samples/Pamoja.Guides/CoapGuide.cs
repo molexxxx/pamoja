@@ -31,7 +31,7 @@ public static class CoapGuide
         Console.WriteLine("reporter  sent 21.5 and did not wait for an answer");
 
         // A command is different: it has to arrive. Confirmable delivery retransmits until
-        // an acknowledgement comes back. RFC 7252 fixes the defaults at a two-second wait
+        // an acknowledgment comes back. RFC 7252 fixes the defaults at a two-second wait
         // and four retransmissions; both are cut short here so the guide does not sit
         // waiting.
         using var commander = new CoapClient(new CoapClientOptions

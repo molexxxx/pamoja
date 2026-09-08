@@ -125,7 +125,7 @@ export function bigSpark(history)
 }
 
 /**
- * Renders the expanded-view per-sample histogram, with the most recent bar emphasised
+ * Renders the expanded-view per-sample histogram, with the most recent bar emphasized
  * and the safe band shaded as a target zone.
  *
  * @param {number[]} history - the values, oldest first.

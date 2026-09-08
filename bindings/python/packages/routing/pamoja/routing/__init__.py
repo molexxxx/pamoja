@@ -3,7 +3,7 @@
 Flooding always works but costs every node airtime and power on every packet.
 Once a mesh has settled, most traffic goes to a few known places, and a node that
 remembers the way can forward to one neighbour instead of shouting at the whole
-network. Routing is that optimisation, and it falls back to flooding rather than
+network. Routing is that optimization, and it falls back to flooding rather than
 failing whenever it does not know the way.
 """
 
@@ -42,9 +42,9 @@ def router(address: int, capacity: int = DEFAULT_CAPACITY) -> Router:
     """Create an empty routing table for a node.
 
     :param address: The address of this node, which is what a routing decision
-        recognises as a local delivery.
+        recognizes as a local delivery.
     :param capacity: How many routes to make room for. A capacity of zero floods
-        every unknown destination, which is the behaviour with no table at all.
+        every unknown destination, which is the behavior with no table at all.
     :returns: The routing table, ready to learn from the traffic the node hears.
     """
     return Router(address, capacity)

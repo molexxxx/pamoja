@@ -4,7 +4,7 @@ use core::f64::consts::PI;
 
 use libm::{atan2, cos, sin, sqrt};
 
-// IUGG mean Earth radius in metres. Treating the Earth as a sphere is accurate to a
+// IUGG mean Earth radius in meters. Treating the Earth as a sphere is accurate to a
 // few tenths of a percent, which is well inside the error of a low-cost GPS fix.
 const EARTH_RADIUS_M: f64 = 6_371_008.8;
 
@@ -28,11 +28,11 @@ fn magnitude(value: f64) -> f64 {
 /// A position on the Earth, in decimal degrees.
 ///
 /// Latitude and longitude are kept as `f64` because a GPS fix needs more precision
-/// than `f32` can hold: rounding a coordinate to `f32` can move it tens of metres.
+/// than `f32` can hold: rounding a coordinate to `f32` can move it tens of meters.
 ///
 /// # Examples
 ///
-/// Great-circle distance between two cities, in kilometres:
+/// Great-circle distance between two cities, in kilometers:
 ///
 /// ```
 /// use pamoja_kit::Coordinate;
@@ -68,12 +68,12 @@ impl Coordinate {
         }
     }
 
-    /// Returns the distance to another coordinate in metres.
+    /// Returns the distance to another coordinate in meters.
     ///
     /// This is the great-circle distance: the shortest path over the surface of a
     /// spherical Earth. The technique one layer down is the haversine formula, which
     /// stays numerically stable for the short distances a field deployment cares
-    /// about, down to points a few metres apart.
+    /// about, down to points a few meters apart.
     ///
     /// # Arguments
     ///
@@ -81,7 +81,7 @@ impl Coordinate {
     ///
     /// # Returns
     ///
-    /// The distance in metres, always zero or positive.
+    /// The distance in meters, always zero or positive.
     pub fn distance_to(&self, other: Coordinate) -> f64 {
         let lat1 = to_radians(self.latitude);
         let lat2 = to_radians(other.latitude);
@@ -98,7 +98,7 @@ impl Coordinate {
     ///
     /// This is the forward azimuth of the great-circle path: the compass heading to set off
     /// on to reach `other` by the shortest route. Because a great circle curves, the bearing
-    /// changes along the way; this is the heading at the start. The result is normalised to
+    /// changes along the way; this is the heading at the start. The result is normalized to
     /// `[0.0, 360.0)`, with 0 north, 90 east, 180 south, and 270 west.
     ///
     /// # Arguments
@@ -141,7 +141,7 @@ pub enum Boundary {
 ///
 /// This is the primitive behind "tell me when it leaves the safe zone": a collared
 /// animal straying from its pasture, an asset moving off-site, or a drone crossing
-/// its allowed boundary. A fence is a centre and a radius; feeding it successive
+/// its allowed boundary. A fence is a center and a radius; feeding it successive
 /// fixes reports whether each is [`Inside`](Boundary::Inside) or
 /// [`Outside`](Boundary::Outside) and, crucially, the single fix that
 /// [`Exited`](Boundary::Exited) or [`Entered`](Boundary::Entered), so an alert fires
@@ -165,12 +165,12 @@ pub struct Geofence {
 }
 
 impl Geofence {
-    /// Creates a fence of `radius_m` metres around `center`.
+    /// Creates a fence of `radius_m` meters around `center`.
     ///
     /// # Arguments
     ///
     /// * `center` - the middle of the safe area.
-    /// * `radius_m` - the radius of the safe area in metres; its magnitude is used.
+    /// * `radius_m` - the radius of the safe area in meters; its magnitude is used.
     ///
     /// # Returns
     ///
@@ -234,8 +234,8 @@ mod tests {
         // A degree of longitude at the equator is about 111.2 km.
         let here = Coordinate::new(0.0, 0.0);
         let east = Coordinate::new(0.0, 1.0);
-        let metres = here.distance_to(east);
-        assert!((metres - 111_195.0).abs() < 5.0);
+        let meters = here.distance_to(east);
+        assert!((meters - 111_195.0).abs() < 5.0);
     }
 
     #[test]

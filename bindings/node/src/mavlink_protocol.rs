@@ -82,7 +82,7 @@ impl ReceiverStep {
     }
 }
 
-/// Requests a plan's items in order and collects them, ending with an acknowledgement.
+/// Requests a plan's items in order and collects them, ending with an acknowledgment.
 #[napi]
 pub struct MissionReceiver {
     inner: CoreReceiver,
@@ -147,7 +147,7 @@ impl MissionReceiver {
         }))
     }
 
-    /// Whether every item has been received and the acknowledgement produced.
+    /// Whether every item has been received and the acknowledgment produced.
     #[napi(getter)]
     pub fn complete(&self) -> bool {
         self.inner.is_complete()
@@ -294,7 +294,7 @@ impl MissionSender {
     }
 }
 
-/// What an incoming acknowledgement means for the command in flight.
+/// What an incoming acknowledgment means for the command in flight.
 #[napi(object)]
 pub struct AckOutcome {
     /// `unrelated` if the ack was for another command, `inProgress` if the command is still
@@ -305,7 +305,7 @@ pub struct AckOutcome {
     pub value: Option<u8>,
 }
 
-/// Tracks one command awaiting its acknowledgement.
+/// Tracks one command awaiting its acknowledgment.
 #[napi]
 pub struct CommandProtocol {
     inner: CoreCommand,
@@ -406,7 +406,7 @@ pub fn mavlink_offboard_type_mask(flags: u32) -> u16 {
 /// @param coordinateFrame - The `MAV_FRAME` of the setpoint.
 /// @param targetSystem - The target system id.
 /// @param targetComponent - The target component id.
-/// @param x - The position along x, in metres in the chosen frame.
+/// @param x - The position along x, in meters in the chosen frame.
 /// @param y - The position along y.
 /// @param z - The position along z.
 /// @returns The `SET_POSITION_TARGET_LOCAL_NED` frame.
@@ -443,7 +443,7 @@ pub fn mavlink_offboard_local_position(
 /// @param coordinateFrame - The `MAV_FRAME` of the setpoint.
 /// @param targetSystem - The target system id.
 /// @param targetComponent - The target component id.
-/// @param vx - The velocity along x, in metres per second in the chosen frame.
+/// @param vx - The velocity along x, in meters per second in the chosen frame.
 /// @param vy - The velocity along y.
 /// @param vz - The velocity along z.
 /// @returns The `SET_POSITION_TARGET_LOCAL_NED` frame.
@@ -482,7 +482,7 @@ pub fn mavlink_offboard_local_velocity(
 /// @param targetComponent - The target component id.
 /// @param latInt - The latitude, in degrees times ten million.
 /// @param lonInt - The longitude, in degrees times ten million.
-/// @param alt - The altitude, in metres.
+/// @param alt - The altitude, in meters.
 /// @returns The `SET_POSITION_TARGET_GLOBAL_INT` frame.
 #[napi]
 #[allow(clippy::too_many_arguments)]

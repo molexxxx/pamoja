@@ -53,7 +53,7 @@ fn a_reading_flooded_across_a_mesh() {
     // ANCHOR_END: example
 
     // The frame layout and the CRC check value are pinned once, in the crate's own tests
-    // and the generated conformance vectors, so a guide asserts behaviour instead.
+    // and the generated conformance vectors, so a guide asserts behavior instead.
     assert_eq!(received.payload(), b"level=high");
     assert!(first);
     assert!(!again);

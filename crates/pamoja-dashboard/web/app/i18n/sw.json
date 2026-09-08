@@ -142,7 +142,7 @@
     "label.battery_level": "Betri",
     "label.relay_status": "Hali ya relei",
     "unit.count": "",
-    "mesh.optimised": "Imeboreshwa",
+    "mesh.optimized": "Imeboreshwa",
     "mesh.learning": "Inajifunza",
     "label.neighbour_mesh": "Relei ya mesh → Jirani",
     "label.neighbours": "Majirani",

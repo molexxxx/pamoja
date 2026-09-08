@@ -162,7 +162,7 @@ public static partial class NativeMethods
         byte dataRate,
         out byte outDataRate);
 
-    /// <summary>Returns the centre frequency of one of the plan's default channels.</summary>
+    /// <summary>Returns the center frequency of one of the plan's default channels.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_lora_plan_channel_frequency_hz(
         IntPtr plan,

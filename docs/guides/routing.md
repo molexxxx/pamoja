@@ -81,7 +81,7 @@ for (name, address) in [("gateway", GATEWAY), ("pump", PUMP), ("silo", SILO)] {
 }
 
 // Forgetting a node that has gone quiet returns its traffic to flooding, so routing
-// is an optimisation over flooding rather than a second thing that can fail.
+// is an optimization over flooding rather than a second thing that can fail.
 router.forget(PUMP);
 let after = router.forward(PUMP);
 let floods_again = after == Forward::Flood;
@@ -141,7 +141,7 @@ for (const [name, address] of [
 }
 
 // Forgetting a node that has gone quiet returns its traffic to flooding, so routing is an
-// optimisation over flooding rather than a second thing that can fail.
+// optimization over flooding rather than a second thing that can fail.
 router.forget(PUMP)
 const after = router.forward(PUMP)
 console.log(`pump forgotten, so it floods again: ${after.action === ForwardAction.Flood}`)
@@ -194,7 +194,7 @@ for name, address in [("gateway", GATEWAY), ("pump", PUMP), ("silo", SILO)]:
         print(f"for the {name:<8} flood, no route known")
 
 # Forgetting a node that has gone quiet returns its traffic to flooding, so routing is an
-# optimisation over flooding rather than a second thing that can fail.
+# optimization over flooding rather than a second thing that can fail.
 router.forget(PUMP)
 after = router.forward(PUMP)
 print(f"pump forgotten, so it floods again: {after.action == ForwardAction.FLOOD}")
@@ -248,7 +248,7 @@ foreach ((string name, byte address) in
 }
 
 // Forgetting a node that has gone quiet returns its traffic to flooding, so
-// routing is an optimisation over flooding rather than a second thing that can
+// routing is an optimization over flooding rather than a second thing that can
 // fail.
 router.Forget(Pump);
 ForwardDecision after = router.Forward(Pump);

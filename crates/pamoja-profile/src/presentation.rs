@@ -46,7 +46,7 @@ pub enum Viz {
     Sun,
     /// An acoustic waveform, for sound level or an acoustic event.
     Wave,
-    /// A labelled state chip, lit when the state reads as "on". For a discrete state.
+    /// A labeled state chip, lit when the state reads as "on". For a discrete state.
     Switch,
     /// A pipe valve, open along the flow or closed across it. For a controllable valve.
     Valve,
@@ -131,7 +131,7 @@ pub enum Scope {
 ///
 /// This is the unit of a [`Presentation`]: one element keyed by a stable, language-
 /// neutral key, drawn with a chosen [`Viz`], scoped to the groups it belongs on, and
-/// labelled for people who do not read the key. The snapshot still carries the raw
+/// labeled for people who do not read the key. The snapshot still carries the raw
 /// value under `key`; this names how to show it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ElementSpec {

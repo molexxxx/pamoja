@@ -75,7 +75,7 @@ class Boundary(str, enum.Enum):
 class Geofence:
     """Keeps a tracked point inside an area, and notices when it leaves.
 
-    A fence is a centre and a radius; feeding it successive fixes reports whether
+    A fence is a center and a radius; feeding it successive fixes reports whether
     each is inside or outside and, crucially, the single fix that crossed, so an
     alert fires once on the crossing rather than on every fix while away.
 
@@ -89,10 +89,10 @@ class Geofence:
     __slots__ = ("_native",)
 
     def __init__(self, center: Coordinate, radius_m: float) -> None:
-        """Create a circular fence around a centre fix.
+        """Create a circular fence around a center fix.
 
-        :param center: The centre of the fence.
-        :param radius_m: The fence radius, in metres.
+        :param center: The center of the fence.
+        :param radius_m: The fence radius, in meters.
         """
         self._native = _NativeGeofence(center.latitude, center.longitude, radius_m)
 
@@ -114,11 +114,11 @@ class Geofence:
 
 
 def distance_between(origin: Coordinate, destination: Coordinate) -> float:
-    """Return the great-circle distance between two coordinates, in metres.
+    """Return the great-circle distance between two coordinates, in meters.
 
     :param origin: The coordinate to measure from.
     :param destination: The coordinate to measure to.
-    :returns: The distance in metres.
+    :returns: The distance in meters.
     """
     return _distance_between(
         origin.latitude, origin.longitude, destination.latitude, destination.longitude

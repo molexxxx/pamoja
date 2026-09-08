@@ -81,7 +81,7 @@ Creates a configuration pointing at the given CoAP server.
 **Returns**
 
 A configuration that binds an ephemeral local port, uses confirmable
-delivery, waits two seconds for the first acknowledgement, and retransmits
+delivery, waits two seconds for the first acknowledgment, and retransmits
 up to four times.
 
 ```rust
@@ -123,13 +123,13 @@ fn reliability(mut self, reliability: Reliability) -> Self
 
 ### `CoapConfig::ack_timeout`
 
-Sets how long to wait for the first acknowledgement of a confirmable request.
+Sets how long to wait for the first acknowledgment of a confirmable request.
 
 The wait doubles for each retransmission, following the CoAP backoff.
 
 **Arguments**
 
-* `timeout` - the initial acknowledgement timeout.
+* `timeout` - the initial acknowledgment timeout.
 
 **Returns**
 

@@ -372,9 +372,9 @@ mod tests {
 
     #[test]
     fn a_servo_pulse_scales_against_its_update_rate() {
-        // A 1500 microsecond pulse at 50 Hz is the centre of a hobby servo's travel.
-        let centre = pamoja_pwm_servo(1_500, 50);
-        let counts = u16::from(centre.off_low) | (u16::from(centre.off_high) << 8);
+        // A 1500 microsecond pulse at 50 Hz is the center of a hobby servo's travel.
+        let center = pamoja_pwm_servo(1_500, 50);
+        let counts = u16::from(center.off_low) | (u16::from(center.off_high) << 8);
         assert_eq!(counts, 307, "1500 us * 4096 * 50 / 1e6");
     }
 

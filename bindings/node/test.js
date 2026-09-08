@@ -174,13 +174,13 @@ function helpers() {
 
   assert.strictEqual(deadband(0.2, 0, 0.5), 0, "noise inside the band does not act");
 
-  const centre = { latitude: -1.2921, longitude: 36.8219 };
+  const center = { latitude: -1.2921, longitude: 36.8219 };
   const away = { latitude: -1.293, longitude: 36.8219 };
-  const pen = new Geofence(centre, 50);
-  assert.strictEqual(pen.update(centre), Boundary.Inside);
+  const pen = new Geofence(center, 50);
+  assert.strictEqual(pen.update(center), Boundary.Inside);
   assert.strictEqual(pen.update(away), Boundary.Exited, "the crossing fix reports once");
   assert.strictEqual(pen.update(away), Boundary.Outside, "later fixes stay outside");
-  assert.ok(distanceBetween(centre, away) > 50, "the fix is beyond the radius");
+  assert.ok(distanceBetween(center, away) > 50, "the fix is beyond the radius");
 }
 
 // The wires a gateway actually has: framed serial packets, an RS485 request and
@@ -558,7 +558,7 @@ function mavlinkShapes() {
 }
 
 // The service protocols: a plan crosses from a station to a vehicle one frame at a time,
-// a command is matched to its acknowledgement, and a setpoint goes out as the right message.
+// a command is matched to its acknowledgment, and a setpoint goes out as the right message.
 function mavlinkProtocols() {
   const vehicle = { systemId: 1, componentId: 1, sequence: 0 };
   const station = { systemId: 255, componentId: 190, sequence: 0 };
@@ -592,7 +592,7 @@ function mavlinkProtocols() {
   assert.deepStrictEqual(accepted, [22, 16], "both items arrive in order");
   assert.ok(download.complete, "and the download is complete");
 
-  // A command is matched to its acknowledgement, and a stray frame is passed over.
+  // A command is matched to its acknowledgment, and a stray frame is passed over.
   const arm = new mavlink.CommandProtocol(400);
   assert.strictEqual(arm.confirmation, 0, "the first send carries confirmation 0");
   const ackShape = mavlink.schemaFor("COMMAND_ACK");
@@ -745,7 +745,7 @@ function radioAndReach() {
   assert.strictEqual(
     licensed.maxEirpDbm(915_500_000),
     30,
-    "and carries the power its licence allows",
+    "and carries the power its license allows",
   );
   assert.strictEqual(
     licensed.nextBackoffDataRate(1),
@@ -1102,7 +1102,7 @@ async function asyncTransports() {
   await robot.apply({ vx: 1.0, vy: 0.0, omega: 0.0 });
   assert.ok(
     Math.abs((await robot.pose()).x - 1.0) < 1e-5,
-    "one second at one metre a second puts it a metre ahead",
+    "one second at one meter a second puts it a meter ahead",
   );
   // A profile decides what a reading calls for, with no hardware wired up.
   const fridge = profile.Profile.vaccineFridgeMonitor();

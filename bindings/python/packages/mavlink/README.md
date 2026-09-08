@@ -106,20 +106,20 @@ print(f"sent      arm request, confirmation {arming.confirmation}")
 resend = arming.on_timeout()
 print(f"silence, resending with confirmation {resend}")
 
-# An acknowledgement names the command it answers, so one for a different command is not
+# An acknowledgment names the command it answers, so one for a different command is not
 # this exchange finishing.
 ack_shape = schema_for("COMMAND_ACK")
 
 
-def acknowledgement(command: int) -> object:
+def acknowledgment(command: int) -> object:
     built = from_dict(ack_shape, {"command": command, "result": MAV_RESULT_ACCEPTED})
     return built.to_frame(MavlinkHeader(VEHICLE, AUTOPILOT, 0))
 
 
-stray = arming.on_frame(acknowledgement(MAV_CMD_NAV_TAKEOFF))
+stray = arming.on_frame(acknowledgment(MAV_CMD_NAV_TAKEOFF))
 print(f"an ack for another command: {stray.kind}")
 
-outcome = arming.on_frame(acknowledgement(MAV_CMD_COMPONENT_ARM_DISARM))
+outcome = arming.on_frame(acknowledgment(MAV_CMD_COMPONENT_ARM_DISARM))
 if outcome.kind == "final" and outcome.value == MAV_RESULT_ACCEPTED:
     print("armed     the vehicle is ready")
 else:

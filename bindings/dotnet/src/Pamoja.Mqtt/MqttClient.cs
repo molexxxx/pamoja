@@ -251,7 +251,7 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
         InvokeAsync(NativeMethods.pamoja_mqtt_client_disconnect);
 
     /// <summary>Yields messages from subscribed topics until the connection ends.</summary>
-    /// <param name="cancellationToken">Stops iteration when cancelled.</param>
+    /// <param name="cancellationToken">Stops iteration when canceled.</param>
     /// <returns>An async stream over incoming messages.</returns>
     public async IAsyncEnumerable<MqttMessage> Messages(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -270,7 +270,7 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
     }
 
     /// <summary>Iterates incoming messages, so the client can be used with <c>await foreach</c>.</summary>
-    /// <param name="cancellationToken">Stops iteration when cancelled.</param>
+    /// <param name="cancellationToken">Stops iteration when canceled.</param>
     /// <returns>An async enumerator over incoming messages.</returns>
     public IAsyncEnumerator<MqttMessage> GetAsyncEnumerator(
         CancellationToken cancellationToken = default) =>

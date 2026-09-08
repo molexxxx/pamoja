@@ -1,13 +1,13 @@
 // viz/links.js - the link-type palette and connection chips.
 //
-// The presentation constants for a group's link (display name, accent colour, and the
+// The presentation constants for a group's link (display name, accent color, and the
 // nominal floor RSSI used to derive a believable signal reading) plus the small markup
 // builders for the signal bars and the connection chip shown in card and modal headers.
 
 /** Human-readable display names for each link kind, keyed by the wire enum value. */
 export const LINK_NAMES = { lora: 'LoRa', wifi: 'Wi-Fi', cellular: 'Cellular', nbiot: 'NB-IoT', satellite: 'Satellite', ethernet: 'Ethernet', mesh: 'Mesh' };
 
-/** Accent colours for each link kind, used for chips, edges, and packets. */
+/** Accent colors for each link kind, used for chips, edges, and packets. */
 export const LINK_COLORS = { lora: '#38bdf8', wifi: '#22d3ee', cellular: '#a855f7', nbiot: '#818cf8', satellite: '#fb923c', ethernet: '#94a3b8', mesh: '#ec4899' };
 
 /** Nominal floor RSSI (dBm) per link kind, the basis for a derived signal reading. */

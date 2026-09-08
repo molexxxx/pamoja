@@ -62,7 +62,7 @@ fn slip_and_cobs_frames_on_a_byte_stream() {
     // ANCHOR_END: example
 
     // The frames RFC 1055 and the COBS paper fix are pinned in the crate's own tests, so
-    // a guide asserts behaviour instead.
+    // a guide asserts behavior instead.
     assert!(n > payload.len());
     assert!(framed_len > packet.len());
     assert_eq!(&restored[..m], &payload[..]);

@@ -43,12 +43,12 @@ public sealed class Router : IDisposable
 
     /// <summary>Creates an empty routing table for a node.</summary>
     /// <param name="address">
-    /// The address of this node, which is what a routing decision recognises as a
+    /// The address of this node, which is what a routing decision recognizes as a
     /// local delivery.
     /// </param>
     /// <param name="capacity">
     /// How many routes to make room for. A capacity of 0 floods every unknown
-    /// destination, which is the behaviour with no table at all.
+    /// destination, which is the behavior with no table at all.
     /// </param>
     /// <exception cref="PamojaException">The native table could not be created.</exception>
     public Router(uint address, int capacity = NativeMethods.RoutingDefaultCapacity)

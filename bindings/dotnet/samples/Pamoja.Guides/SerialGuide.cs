@@ -53,7 +53,7 @@ public static class SerialGuide
         // ANCHOR_END: example
 
         // The frames each specification fixes are pinned once, in the crate tests and the
-        // generated conformance vectors, so a guide asserts behaviour instead.
+        // generated conformance vectors, so a guide asserts behavior instead.
         Expect(framed.Length > payload.Length, "stuffing costs bytes");
         Expect(cobsFramed.Length > packet.Length, "and so does the COBS code byte");
         Expect(restored.SequenceEqual(payload), "and it decodes back to the payload");

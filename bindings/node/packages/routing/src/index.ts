@@ -4,7 +4,7 @@
  * Flooding always works but costs every node airtime and power on every packet.
  * Once a mesh has settled, most traffic goes to a few known places, and a node
  * that remembers the way can forward to one neighbour instead of shouting at the
- * whole network. Routing is that optimisation, and it falls back to flooding
+ * whole network. Routing is that optimization, and it falls back to flooding
  * rather than failing whenever it does not know the way.
  *
  * The routing action is re-exported as a runtime {@link ForwardAction} object,
@@ -69,7 +69,7 @@ export class Router {
    * Creates an empty routing table for a node.
    *
    * @param address - The address of this node, which is what a routing decision
-   *   recognises as a local delivery.
+   *   recognizes as a local delivery.
    * @param capacity - How many routes to make room for, defaulting to
    *   {@link DEFAULT_CAPACITY}. A capacity of 0 floods every unknown destination.
    */
@@ -167,7 +167,7 @@ export class Router {
  * Creates an empty routing table for a node.
  *
  * @param address - The address of this node, which is what a routing decision
- *   recognises as a local delivery.
+ *   recognizes as a local delivery.
  * @param capacity - How many routes to make room for, defaulting to
  *   {@link DEFAULT_CAPACITY}.
  * @returns The routing table, ready to learn from the traffic the node hears.

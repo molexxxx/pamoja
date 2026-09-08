@@ -33,7 +33,7 @@ cargo run -p xtask -- docs --check
 cargo xtask release --dry-run       # resolves every crate against its siblings
 ```
 
-Open that as a pull request labelled `release`, merge it when green, and wait for
+Open that as a pull request labeled `release`, merge it when green, and wait for
 `rust (fmt, clippy, test)` and the three binding jobs to finish on the merge
 commit. Then tag it:
 

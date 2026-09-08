@@ -29,7 +29,7 @@ const CFLIST_LEN: usize = 16;
 /// let device = Device::new([0x11; 8], [0x22; 8], APP_KEY);
 /// let on_air = device.join_request(0x1234);
 ///
-/// // The network recognises the device and the nonce it must not accept twice.
+/// // The network recognizes the device and the nonce it must not accept twice.
 /// let request = JoinRequest::parse(on_air.as_bytes(), &APP_KEY)?;
 /// assert_eq!(request.dev_eui(), [0x11; 8]);
 /// assert_eq!(request.dev_nonce(), 0x1234);

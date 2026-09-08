@@ -6,7 +6,7 @@
 //! distinction is not cosmetic: the two share a polynomial, initial value, and
 //! reflection and differ only in that final XOR, so a frame checked with the wrong one
 //! is silently rejected. This module pins the MCRF4XX parameters and is anchored to the
-//! catalogue check value, so that trap is closed.
+//! catalog check value, so that trap is closed.
 
 // The reflected form of the CRC-16/CCITT polynomial 0x1021, used because the checksum
 // reflects its input and output and so processes each byte least-significant bit first.
@@ -60,7 +60,7 @@ pub const fn accumulate(mut crc: u16, data: &[u8]) -> u16 {
 /// ```
 /// use pamoja_mavlink::crc16_mcrf4xx;
 ///
-/// // The catalogue check value for CRC-16/MCRF4XX.
+/// // The catalog check value for CRC-16/MCRF4XX.
 /// assert_eq!(crc16_mcrf4xx(b"123456789"), 0x6F91);
 /// ```
 pub const fn crc16_mcrf4xx(data: &[u8]) -> u16 {

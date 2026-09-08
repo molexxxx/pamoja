@@ -36,10 +36,10 @@ Console.WriteLine(
 // one bus transaction rather than four.
 Console.WriteLine($"channel 3 starts at register 0x{Pca9685.ChannelRegister(3):X2}");
 
-// A centred hobby servo holds its output high for 1500 us of the 20 ms period.
+// A centered hobby servo holds its output high for 1500 us of the 20 ms period.
 // The part counts in 4096 steps per period, so that is where the pulse ends.
-byte[] centred = Pwm.Servo(1500, 50);
-Console.WriteLine($"centred servo goes low at count {Pwm.Counts(centred).Off} of 4096");
+byte[] centered = Pwm.Servo(1500, 50);
+Console.WriteLine($"centered servo goes low at count {Pwm.Counts(centered).Off} of 4096");
 
 // Fully off carries its own flag rather than a zero duty, which would still hold
 // the output high for the first count of every period.

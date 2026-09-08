@@ -162,7 +162,7 @@ function tChain(spec)
   };
 }
 
-// A compact mesh / signal-flow schematic with travelling packets (SMIL).
+// A compact mesh / signal-flow schematic with traveling packets (SMIL).
 function tMesh(spec)
 {
   const node = el('div', 'tile t-mesh wide');
@@ -544,7 +544,7 @@ const SPECS = {
       { type: 'mesh', label: 'neighbour mesh', note: (s) => (s.flags.reroute ? 'rerouting' : `cost ${s.v.hops}`), cfg: { nodes: [[20, 60], [80, 30], [80, 95], [150, 55], [200, 80, 'gw']], links: [[0, 1], [0, 2], [1, 3], [2, 3], [3, 4], [1, 4, 1]], packets: [[0, 1, 3, 4], [0, 2, 3, 4]] } },
       { type: 'kpi', label: 'neighbours', key: 'neighbors', unit: '' },
       { type: 'kpi', label: 'hops to gateway', key: 'hops', unit: '' },
-      { type: 'chip', label: 'routing', state: (s) => (s.flags.reroute ? ['learning', 'warn'] : ['optimised', 'ok']) },
+      { type: 'chip', label: 'routing', state: (s) => (s.flags.reroute ? ['learning', 'warn'] : ['optimized', 'ok']) },
       { type: 'spark', label: 'messages relayed', key: 'relayed', max: 360, start: 300 },
     ],
     script(s)
@@ -555,7 +555,7 @@ const SPECS = {
         { at: 3, msg: 'flooding suppressed · seen once' },
         { at: 6, set: { hops: 4 }, msg: 'link B→GW lost' },
         { at: 7, set: { hops: 2, neighbors: 5 }, msg: 'learned route via C (cost 2)' },
-        { at: 9, msg: 'route optimised · airtime saved' },
+        { at: 9, msg: 'route optimized · airtime saved' },
       ]);
       s.flags.reroute = (s.t % 12) >= 6 && (s.t % 12) < 9;
     },

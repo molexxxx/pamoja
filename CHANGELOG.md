@@ -53,7 +53,7 @@ released together, so one entry covers all of them.
 - PyPI refused the compiled engine's source distribution: its metadata named
   `LICENSE-MIT`, which maturin had placed beside the vendored crate rather than
   at the archive's root once the package carried path dependencies, and PyPI
-  checks that a named licence file is in the archive. The package declares the
+  checks that a named license file is in the archive. The package declares the
   file explicitly, which puts it at the root, and the upload pass no longer
   stops at a file PyPI refuses: it prints PyPI's full answer, carries on with
   the rest, and fails at the end naming what it could not place.
@@ -64,7 +64,7 @@ released together, so one entry covers all of them.
   phone layout on a phone, closed by the button, a click outside it, or Escape,
   rather than leaving the page for the file; on a wide screen it also runs a
   little past the text column. The site's background is a faint grain over the
-  colour washes rather than a grid of dots.
+  color washes rather than a grid of dots.
 
 ## [0.1.17] - 2026-09-06
 
@@ -148,7 +148,7 @@ a boxed error compiles on the first try, and the .NET packages carry an icon.
   at `/dashboard` is minified the same way as it is copied in, by
   `cargo xtask minify <dir>`.
 - The hardware page is a set of cards rather than tables and bullet lists. A
-  card breaks a part down into labelled facts (interface, each figure from its
+  card breaks a part down into labeled facts (interface, each figure from its
   document, and its price band with the lowest listed price), says where to buy
   it with the price each page listed, and keeps that apart from what to read
   and build with: the datasheet, specification, or documentation it was written
@@ -209,7 +209,7 @@ a boxed error compiles on the first try, and the .NET packages carry an icon.
   the `pamoja` crate. It is rendered from the capability map and the manifests
   by `cargo xtask docs`, in a wide layout and one for a phone, so it names every
   chapter and crate the map does and is checked like the tables. The link
-  buttons take their colours from the same palette as the site's theme.
+  buttons take their colors from the same palette as the site's theme.
 
 ## [0.1.16] - 2026-09-05
 
@@ -225,7 +225,7 @@ this version, and the 0.1.15 npm packages are deprecated.
   built by `tsc` and is not in the repository, and the publish job went from
   `npm install` to `npm publish` without building it. npm omits a `files` entry
   that is not on disk rather than failing, so all thirty tarballs shipped
-  holding a manifest, a README and a licence. They installed without complaint
+  holding a manifest, a README and a license. They installed without complaint
   and threw `MODULE_NOT_FOUND` on the first `require`. The publish job builds the
   facades now, and a check that runs before publishing and on every pull request
   confirms every package carries the files its `main` and `types` name.

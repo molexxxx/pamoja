@@ -57,7 +57,7 @@ impl Router {
     /// Creates an empty routing table for a node at `address`.
     ///
     /// `capacity` is how many routes to make room for. A capacity of zero floods
-    /// every unknown destination, which is the behaviour with no table at all.
+    /// every unknown destination, which is the behavior with no table at all.
     #[new]
     #[pyo3(signature = (address, capacity = DEFAULT_CAPACITY))]
     fn new(address: u32, capacity: usize) -> Self {

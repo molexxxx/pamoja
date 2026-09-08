@@ -7,7 +7,7 @@ measured against the battery.
 
 Because there is no session, reliability is per message rather than per
 connection. A non-confirmable message is sent once and forgotten. A confirmable
-message waits for an acknowledgement and retransmits until one arrives or the
+message waits for an acknowledgment and retransmits until one arrives or the
 attempts run out, and RFC 7252 fixes the defaults for that: two seconds for the
 first wait, doubling, and four retransmissions. A node picks the mode per client
 and gets the guarantee it paid for.
@@ -37,7 +37,7 @@ It proves:
 
 - Connecting a CoAP endpoint binds a local socket and nothing else: it reports
   itself connected with nothing on the far side.
-- A non-confirmable send succeeds without an acknowledgement, which is the mode
+- A non-confirmable send succeeds without an acknowledgment, which is the mode
   for a reading whose loss costs nothing.
 - A confirmable send to that same address fails once its retransmissions run
   out. Both endpoints point at the same dead port, so the delivery guarantee,
@@ -76,7 +76,7 @@ reporter
 println!("reporter  sent 21.5 and did not wait for an answer");
 
 // A command is different: it has to arrive. Confirmable delivery retransmits until an
-// acknowledgement comes back. RFC 7252 fixes the defaults at a two-second wait and
+// acknowledgment comes back. RFC 7252 fixes the defaults at a two-second wait and
 // four retransmissions; both are cut short here so the guide does not sit waiting.
 let mut commander = CoapTransport::new(
     CoapConfig::new("127.0.0.1", 5683)
@@ -121,7 +121,7 @@ async function main(): Promise<void> {
   console.log('reporter  sent 21.5 and did not wait for an answer')
 
   // A command is different: it has to arrive. Confirmable delivery retransmits until an
-  // acknowledgement comes back. RFC 7252 fixes the defaults at a two-second wait and four
+  // acknowledgment comes back. RFC 7252 fixes the defaults at a two-second wait and four
   // retransmissions; both are cut short here so the guide does not sit waiting.
   const commander = new CoapClient({
     host: '127.0.0.1',
@@ -174,7 +174,7 @@ async def main() -> None:
     print("reporter  sent 21.5 and did not wait for an answer")
 
     # A command is different: it has to arrive. Confirmable delivery retransmits until an
-    # acknowledgement comes back. RFC 7252 fixes the defaults at a two-second wait and
+    # acknowledgment comes back. RFC 7252 fixes the defaults at a two-second wait and
     # four retransmissions; both are cut short here so the guide does not sit waiting.
     commander = CoapClient(
         host="127.0.0.1",
@@ -222,7 +222,7 @@ await reporter.SendAsync("sensors/1/temperature", "21.5"u8.ToArray());
 Console.WriteLine("reporter  sent 21.5 and did not wait for an answer");
 
 // A command is different: it has to arrive. Confirmable delivery retransmits until
-// an acknowledgement comes back. RFC 7252 fixes the defaults at a two-second wait
+// an acknowledgment comes back. RFC 7252 fixes the defaults at a two-second wait
 // and four retransmissions; both are cut short here so the guide does not sit
 // waiting.
 using var commander = new CoapClient(new CoapClientOptions

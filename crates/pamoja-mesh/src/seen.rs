@@ -85,7 +85,7 @@ fn record_into(keys: &mut [Option<(u32, u16)>], next: &mut usize, key: (u32, u16
         return false;
     }
     // A zero-capacity cache remembers nothing, so every key reads as new and every packet
-    // is relayed, which is the behaviour of a node with no cache at all.
+    // is relayed, which is the behavior of a node with no cache at all.
     if keys.is_empty() {
         return true;
     }

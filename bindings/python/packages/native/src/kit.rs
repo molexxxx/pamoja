@@ -328,7 +328,7 @@ pub struct Geofence {
 #[gen_stub_pymethods]
 #[pymethods]
 impl Geofence {
-    /// Creates a circular fence of `radius_m` metres around a centre fix.
+    /// Creates a circular fence of `radius_m` meters around a center fix.
     #[new]
     fn new(latitude: f64, longitude: f64, radius_m: f64) -> Self {
         Self {
@@ -349,7 +349,7 @@ impl Geofence {
     }
 }
 
-/// Returns the great-circle distance between two coordinates, in metres.
+/// Returns the great-circle distance between two coordinates, in meters.
 #[gen_stub_pyfunction]
 #[pyfunction]
 pub fn distance_between(

@@ -33,8 +33,8 @@ It proves:
 
 - The replay hands back exactly the series it was given: 4 m, 3 m, 1.5 m and
   0.5 m, in that order.
-- The recording actuator keeps every command the loop issued: three at one metre
-  per second, then a zero once the 0.5 m reading falls under the metre of
+- The recording actuator keeps every command the loop issued: three at one meter
+  per second, then a zero once the 0.5 m reading falls under the meter of
   clearance the rule drives on.
 - Those three half-second commands dead-reckon to 1.5 m along x and nothing along
   y, so a straight run stays straight.
@@ -52,7 +52,7 @@ use pamoja_core::{Actuator, Sensor};
 use pamoja_kit::Twist;
 use pamoja_sim::{RecordingActuator, Replay, SimRobot};
 
-// The clear distance ahead, in metres, taken from an earlier survey run. A replay
+// The clear distance ahead, in meters, taken from an earlier survey run. A replay
 // hands it back one reading at a time, so the loop below sees the same input on every
 // run: the same rover code, driven by a recording rather than a range finder.
 let capture = vec![4.0, 3.0, 1.5, 0.5];
@@ -99,7 +99,7 @@ From [`bindings/node/guides/sim.ts`](https://github.com/molexxxx/pamoja/blob/mai
 import { RecordingActuator, Replay, SimulatedRobot } from '@pamoja/sim'
 
 async function main() {
-  // The clear distance ahead, in metres, taken from an earlier survey run. A replay hands
+  // The clear distance ahead, in meters, taken from an earlier survey run. A replay hands
   // it back one reading at a time, so the loop below sees the same input on every run: the
   // same rover code, driven by a recording rather than a range finder.
   const capture = [4, 3, 1.5, 0.5]
@@ -153,7 +153,7 @@ from pamoja.sim import RecordingActuator, Replay, SimulatedRobot
 
 
 async def main() -> None:
-    # The clear distance ahead, in metres, taken from an earlier survey run. A replay hands
+    # The clear distance ahead, in meters, taken from an earlier survey run. A replay hands
     # it back one reading at a time, so the loop below sees the same input on every run: the
     # same rover code, driven by a recording rather than a range finder.
     capture = [4.0, 3.0, 1.5, 0.5]
@@ -197,7 +197,7 @@ seen, commands, pose = asyncio.run(main())
 From [`bindings/dotnet/samples/Pamoja.Guides/SimGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/SimGuide.cs):
 
 ```csharp
-// The clear distance ahead, in metres, taken from an earlier survey run. A replay
+// The clear distance ahead, in meters, taken from an earlier survey run. A replay
 // hands it back one reading at a time, so the loop below sees the same input on
 // every run: the same rover code, driven by a recording rather than a range finder.
 float[] capture = [4.0f, 3.0f, 1.5f, 0.5f];

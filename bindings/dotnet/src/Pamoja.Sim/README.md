@@ -25,7 +25,7 @@ The guide project's example, spliced here as it ran in CI.
 From [`bindings/dotnet/samples/Pamoja.Guides/SimGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/SimGuide.cs):
 
 ```csharp
-// The clear distance ahead, in metres, taken from an earlier survey run. A replay
+// The clear distance ahead, in meters, taken from an earlier survey run. A replay
 // hands it back one reading at a time, so the loop below sees the same input on
 // every run: the same rover code, driven by a recording rather than a range finder.
 float[] capture = [4.0f, 3.0f, 1.5f, 0.5f];

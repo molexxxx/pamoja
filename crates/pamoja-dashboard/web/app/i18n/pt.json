@@ -142,7 +142,7 @@
     "label.battery_level": "Bateria",
     "label.relay_status": "Estado do relé",
     "unit.count": "",
-    "mesh.optimised": "Otimizado",
+    "mesh.optimized": "Otimizado",
     "mesh.learning": "A aprender",
     "label.neighbour_mesh": "Relé de malha → Vizinho",
     "label.neighbours": "Vizinhos",

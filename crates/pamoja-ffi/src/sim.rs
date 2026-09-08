@@ -22,9 +22,9 @@ use crate::{runtime, set_last_error, PamojaStatus};
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PamojaPose {
-    /// Position along the world x axis, in metres.
+    /// Position along the world x axis, in meters.
     pub x: f32,
-    /// Position along the world y axis, in metres.
+    /// Position along the world y axis, in meters.
     pub y: f32,
     /// Heading from the world x axis, in radians, positive counter-clockwise.
     pub theta: f32,
@@ -536,7 +536,7 @@ mod tests {
             let pose = pamoja_sim_robot_pose(robot);
             assert!(
                 (pose.x - 1.0).abs() < 1e-5,
-                "one second at one metre a second"
+                "one second at one meter a second"
             );
             assert!(pose.y.abs() < 1e-5);
 

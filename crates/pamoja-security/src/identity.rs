@@ -256,7 +256,7 @@ mod tests {
             b"meter-4 1182.750 kWh"
         );
 
-        // A payload edited in transit no longer matches the signature travelling with it.
+        // A payload edited in transit no longer matches the signature traveling with it.
         let mut edited = message.clone();
         *edited.last_mut().expect("a payload byte") ^= 0xFF;
         assert!(public.verify_message(&edited).is_err());

@@ -40,7 +40,7 @@ try {
 // ANCHOR_END: example
 
 // The bytes each specification fixes are pinned once, in the crate tests and the
-// generated conformance vectors, so a guide asserts behaviour instead.
+// generated conformance vectors, so a guide asserts behavior instead.
 assert.equal(request.length, 8)
 assert.equal(reply.address, METER)
 assert.equal(reply.exception, null)

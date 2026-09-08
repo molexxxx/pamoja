@@ -12,7 +12,7 @@ import { fracOf, unitSup, ends, gaugeTicks } from './util.js';
  * Renders a 270-degree arch gauge for a fractional/percentage reading.
  *
  * @param {{value: number, band?: [number, number], unit: string}} r - the reading.
- * @param {boolean} big - whether this is the expanded (labelled) view.
+ * @param {boolean} big - whether this is the expanded (labeled) view.
  * @returns {string} the gauge SVG markup.
  */
 export function radial(r, big)
@@ -37,7 +37,7 @@ export function radial(r, big)
  * Renders a thermometer for a temperature reading.
  *
  * @param {{value: number, band?: [number, number], unit: string}} r - the reading.
- * @param {boolean} big - whether this is the expanded (labelled) view.
+ * @param {boolean} big - whether this is the expanded (labeled) view.
  * @returns {string} the thermometer SVG markup.
  */
 export function therm(r, big)
@@ -58,7 +58,7 @@ export function therm(r, big)
  *
  * @param {{value: number, band?: [number, number], unit: string}} r - the reading.
  * @param {string} uid - a unique suffix for the SVG clip-path id.
- * @param {boolean} big - whether this is the expanded (labelled) view.
+ * @param {boolean} big - whether this is the expanded (labeled) view.
  * @returns {string} the droplet SVG markup.
  */
 export function droplet(r, uid, big)
@@ -102,7 +102,7 @@ export function battery(r, uid)
  * Renders a half-dial gauge with a needle for a pressure/flow reading.
  *
  * @param {{value: number, band?: [number, number], unit: string}} r - the reading.
- * @param {boolean} big - whether this is the expanded (labelled) view.
+ * @param {boolean} big - whether this is the expanded (labeled) view.
  * @returns {string} the dial SVG markup.
  */
 export function dial(r, big)
@@ -125,7 +125,7 @@ export function dial(r, big)
  * the stronger the wind.
  *
  * @param {{value: number, band?: [number, number], unit: string}} r - the reading.
- * @param {boolean} big - whether this is the expanded (labelled) view.
+ * @param {boolean} big - whether this is the expanded (labeled) view.
  * @returns {string} the anemometer SVG markup.
  */
 export function wind(r, big)
@@ -147,7 +147,7 @@ export function wind(r, big)
  * and its corona brightens the more light there is.
  *
  * @param {{value: number, band?: [number, number], unit: string}} r - the reading.
- * @param {boolean} big - whether this is the expanded (labelled) view.
+ * @param {boolean} big - whether this is the expanded (labeled) view.
  * @returns {string} the light-gauge SVG markup.
  */
 export function sun(r, big)
@@ -170,7 +170,7 @@ export function sun(r, big)
  *
  * @param {number} v - the reading value.
  * @param {[number, number]} [band] - the safe band `[low, high]`; sets the scale top.
- * @param {boolean} big - whether to draw the labelled scale.
+ * @param {boolean} big - whether to draw the labeled scale.
  * @param {string} [unit] - the already-localized unit label for the scale.
  * @returns {string} the bar-gauge markup.
  */

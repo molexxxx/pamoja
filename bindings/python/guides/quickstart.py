@@ -12,7 +12,7 @@ from pamoja.loopback import LoopbackBroker
 from pamoja.security import DeviceIdentity, fingerprint, verify_message
 
 # The device's identity is provisioned once and never leaves it. The gateway is told only
-# the public half, which is how it recognises this device later.
+# the public half, which is how it recognizes this device later.
 SEED = bytes([7]) * 32
 TOPIC = "sensors/1/temperature"
 

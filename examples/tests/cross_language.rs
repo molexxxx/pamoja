@@ -977,7 +977,7 @@ fn actuator_vectors_match() {
         hex(&pca9685::Pwm::duty(pwm["duty"]["off"].as_u64().expect("a count") as u16).bytes()),
         pwm["duty"]["bytes"].as_str().expect("the bytes")
     );
-    let servo = &pwm["servoCentre"];
+    let servo = &pwm["servoCenter"];
     assert_eq!(
         hex(&pca9685::Pwm::servo(
             servo["pulseMicros"].as_u64().expect("a pulse") as u32,
@@ -3361,7 +3361,7 @@ fn mavlink_protocol_vectors_match() {
         "the refusal's result"
     );
 
-    // The command protocol classifies acknowledgements and counts retries.
+    // The command protocol classifies acknowledgments and counts retries.
     let command = &case["command"];
     let mut arm = CommandProtocol::new(
         command["command"].as_u64().expect("an id") as u16,

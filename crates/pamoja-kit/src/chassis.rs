@@ -99,7 +99,7 @@ impl Ackermann {
     ///
     /// # Returns
     ///
-    /// The radius `wheelbase / tan(steering)` in metres, or [`f32::INFINITY`] when the wheels
+    /// The radius `wheelbase / tan(steering)` in meters, or [`f32::INFINITY`] when the wheels
     /// point straight ahead (`steering` is zero), since the path is then a straight line.
     pub fn turn_radius(&self, steering: f32) -> f32 {
         let t = tanf(steering);

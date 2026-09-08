@@ -73,7 +73,7 @@ class MessageType(str, enum.Enum):
 
 
 class Direction(str, enum.Enum):
-    """The direction a frame travelled, which its MIC and encryption fold in."""
+    """The direction a frame traveled, which its MIC and encryption fold in."""
 
     #: From an end device up to the network.
     UPLINK = "Uplink"

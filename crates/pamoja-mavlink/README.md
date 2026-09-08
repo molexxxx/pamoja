@@ -2,7 +2,7 @@
 
 # pamoja-mavlink
 
-MAVLink for pamoja: build, parse, and sign v1/v2 frames (CRC-16/MCRF4XX, per-message CRC_EXTRA, MAVLink 2 SHA-256 signing), a typed common dialect with MAVLink 2 extension fields, the mission, command, and offboard protocols as sans-IO state machines, and a vehicle modelled as a pamoja Device driven over real serial, UDP, and TCP links. Hand-written from the mavlink.io spec, no_std and allocation-free at the core, and exercised against ArduPilot and PX4 SITL.
+MAVLink for pamoja: build, parse, and sign v1/v2 frames (CRC-16/MCRF4XX, per-message CRC_EXTRA, MAVLink 2 SHA-256 signing), a typed common dialect with MAVLink 2 extension fields, the mission, command, and offboard protocols as sans-IO state machines, and a vehicle modeled as a pamoja Device driven over real serial, UDP, and TCP links. Hand-written from the mavlink.io spec, no_std and allocation-free at the core, and exercised against ArduPilot and PX4 SITL.
 
 <a href="https://pamoja.molex.cloud/docs/guides/mavlink.html"><img height="36" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_mavlink/index.html"><img height="36" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
@@ -27,7 +27,7 @@ layer, hand-written from the [MAVLink specification](https://mavlink.io) and pin
 its reference values rather than guessed from memory:
 
 - `crc16_mcrf4xx` - the CRC-16/MCRF4XX every frame carries, the checksum that lets a
-  receiver reject a frame mangled in transit, anchored to the catalogue check value.
+  receiver reject a frame mangled in transit, anchored to the catalog check value.
 - `Frame` - the v1 and v2 frame on the wire, which both assembles
   a frame to send and parses one received, verifying the checksum and
   the per-message `message_crc_extra` seed so a corrupt or mismatched frame never

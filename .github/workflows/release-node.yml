@@ -104,7 +104,7 @@ jobs:
         run: npx napi artifacts --output-dir artifacts --package-json-path packages/native/package.json --npm-dir packages/native/npm
 
       # The facades are TypeScript and dist/ is not in the repository, so without this the
-      # tarballs carry package.json, a README and a licence and no code at all.
+      # tarballs carry package.json, a README and a license and no code at all.
       - name: Build the facades
         run: npm run build:facade
 

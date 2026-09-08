@@ -30,7 +30,7 @@ fn magnitude_f64(value: f64) -> f64 {
 pub struct Guidance {
     /// The body twist to drive: a forward speed and a yaw rate toward the target.
     pub twist: Twist,
-    /// The remaining distance to the target, in metres.
+    /// The remaining distance to the target, in meters.
     pub distance_m: f64,
     /// The heading error to the target, in degrees, in `(-180, 180]`.
     pub heading_error_deg: f32,
@@ -78,7 +78,7 @@ impl WaypointFollower {
     /// # Arguments
     ///
     /// * `cruise` - the forward speed when pointed at the target; its magnitude is used.
-    /// * `arrival_m` - how close, in metres, counts as arrived; its magnitude is used.
+    /// * `arrival_m` - how close, in meters, counts as arrived; its magnitude is used.
     /// * `heading_gain` - yaw rate commanded per radian of heading error; its magnitude is used.
     /// * `max_angular` - the largest yaw rate to command; its magnitude is used.
     ///
@@ -150,7 +150,7 @@ impl WaypointFollower {
 /// # Arguments
 ///
 /// * `twist` - the requested body motion.
-/// * `range_m` - the nearest measured range ahead, in metres.
+/// * `range_m` - the nearest measured range ahead, in meters.
 /// * `stop_distance_m` - the range at or below which forward motion is cut; its magnitude is used.
 ///
 /// # Returns

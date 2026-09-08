@@ -20,9 +20,9 @@ use tokio::sync::Mutex;
 /// Where a robot is and which way it faces.
 #[napi(object)]
 pub struct Pose {
-    /// Position along the world x axis, in metres.
+    /// Position along the world x axis, in meters.
     pub x: f64,
-    /// Position along the world y axis, in metres.
+    /// Position along the world y axis, in meters.
     pub y: f64,
     /// Heading from the world x axis, in radians, positive counter-clockwise.
     pub theta: f64,

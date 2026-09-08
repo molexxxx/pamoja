@@ -275,7 +275,7 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial void pamoja_lorawan_session_free(IntPtr session);
 
-    /// <summary>Returns the direction a decoded frame travelled.</summary>
+    /// <summary>Returns the direction a decoded frame traveled.</summary>
     [LibraryImport(Library)]
     public static partial PamojaLorawanDirection pamoja_lorawan_rx_direction(IntPtr rx);
 

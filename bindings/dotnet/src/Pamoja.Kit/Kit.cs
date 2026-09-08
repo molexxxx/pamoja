@@ -16,7 +16,7 @@ public static class Kit
     /// <param name="width">The full width of the band.</param>
     /// <returns>
     /// <paramref name="center"/> while the reading is inside the band, and
-    /// otherwise the reading shifted toward the centre by half the band width, so
+    /// otherwise the reading shifted toward the center by half the band width, so
     /// the output is continuous.
     /// </returns>
     public static float Deadband(float value, float center, float width) =>
@@ -25,7 +25,7 @@ public static class Kit
     /// <summary>Returns the great-circle distance between two coordinates.</summary>
     /// <param name="origin">The coordinate to measure from.</param>
     /// <param name="destination">The coordinate to measure to.</param>
-    /// <returns>The distance in metres.</returns>
+    /// <returns>The distance in meters.</returns>
     public static double DistanceBetween(Coordinate origin, Coordinate destination) =>
         NativeMethods.pamoja_coordinate_distance_to(
             Geofence.ToNative(origin), Geofence.ToNative(destination));

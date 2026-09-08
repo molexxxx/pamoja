@@ -409,7 +409,7 @@ __all__ = [
 @typing.final
 class AckOutcome:
     r"""
-    What an incoming acknowledgement means for the command in flight.
+    What an incoming acknowledgment means for the command in flight.
     """
     @property
     def kind(self) -> builtins.str:
@@ -1166,7 +1166,7 @@ class ChannelPlan:
         """
     def channel_frequency_hz(self, channel: builtins.int) -> typing.Optional[builtins.int]:
         r"""
-        Returns the centre frequency of one of the plan's default channels, or
+        Returns the center frequency of one of the plan's default channels, or
         `None` past the last one the plan starts a device with.
         """
     def channel_blocks(self, which: builtins.str = 'default') -> builtins.list[LoraChannelBlock]:
@@ -1317,7 +1317,7 @@ class CobsDecoder:
 @typing.final
 class CommandProtocol:
     r"""
-    Tracks one command awaiting its acknowledgement.
+    Tracks one command awaiting its acknowledgment.
     """
     @property
     def command(self) -> builtins.int:
@@ -1684,7 +1684,7 @@ class Geofence:
     """
     def __new__(cls, latitude: builtins.float, longitude: builtins.float, radius_m: builtins.float) -> Geofence:
         r"""
-        Creates a circular fence of `radius_m` metres around a centre fix.
+        Creates a circular fence of `radius_m` meters around a center fix.
         """
     def update(self, latitude: builtins.float, longitude: builtins.float) -> builtins.str:
         r"""
@@ -2214,7 +2214,7 @@ class LoraChannelBlock:
     @property
     def start_hz(self) -> builtins.int:
         r"""
-        The first channel's centre frequency in hertz.
+        The first channel's center frequency in hertz.
         """
     @property
     def step_hz(self) -> builtins.int:
@@ -2676,7 +2676,7 @@ class LorawanRxData:
     @property
     def direction(self) -> builtins.str:
         r"""
-        The direction the frame travelled: `Uplink` or `Downlink`.
+        The direction the frame traveled: `Uplink` or `Downlink`.
         """
     @property
     def dev_addr(self) -> builtins.int:
@@ -3309,12 +3309,12 @@ class MessageSchemaBuilder:
 class MissionReceiver:
     r"""
     Requests a plan's items in order and collects them, ending with an
-    acknowledgement.
+    acknowledgment.
     """
     @property
     def complete(self) -> builtins.bool:
         r"""
-        Whether every item has been received and the acknowledgement produced.
+        Whether every item has been received and the acknowledgment produced.
         """
     @property
     def expected(self) -> builtins.int:
@@ -3617,12 +3617,12 @@ class Pose:
     @property
     def x(self) -> builtins.float:
         r"""
-        Position along the world x axis, in metres.
+        Position along the world x axis, in meters.
         """
     @property
     def y(self) -> builtins.float:
         r"""
-        Position along the world y axis, in metres.
+        Position along the world y axis, in meters.
         """
     @property
     def theta(self) -> builtins.float:
@@ -4039,7 +4039,7 @@ class Router:
         Creates an empty routing table for a node at `address`.
         
         `capacity` is how many routes to make room for. A capacity of zero floods
-        every unknown destination, which is the behaviour with no table at all.
+        every unknown destination, which is the behavior with no table at all.
         """
     def observe(self, origin: builtins.int, via: builtins.int, cost: builtins.int) -> builtins.bool:
         r"""
@@ -5074,7 +5074,7 @@ def decode_manifest(data: typing.Sequence[builtins.int]) -> Manifest:
 
 def distance_between(from_latitude: builtins.float, from_longitude: builtins.float, to_latitude: builtins.float, to_longitude: builtins.float) -> builtins.float:
     r"""
-    Returns the great-circle distance between two coordinates, in metres.
+    Returns the great-circle distance between two coordinates, in meters.
     """
 
 def ds18b20_build_scratchpad(celsius: builtins.float, bits: builtins.int, alarm_high: builtins.int, alarm_low: builtins.int) -> builtins.list[builtins.int]:
@@ -5582,18 +5582,18 @@ def mavlink_message_crc_extra(name: builtins.str, fields: typing.Sequence[tuple[
 def mavlink_offboard_global_position(header: MavlinkHeader, time_boot_ms: builtins.int, coordinate_frame: builtins.int, target_system: builtins.int, target_component: builtins.int, lat_int: builtins.int, lon_int: builtins.int, alt: builtins.float) -> MavlinkFrame:
     r"""
     Builds a global-frame position setpoint frame, with latitude and longitude
-    in degrees times ten million and altitude in metres.
+    in degrees times ten million and altitude in meters.
     """
 
 def mavlink_offboard_local_position(header: MavlinkHeader, time_boot_ms: builtins.int, coordinate_frame: builtins.int, target_system: builtins.int, target_component: builtins.int, x: builtins.float, y: builtins.float, z: builtins.float) -> MavlinkFrame:
     r"""
-    Builds a local-frame position setpoint frame, in metres in the chosen
+    Builds a local-frame position setpoint frame, in meters in the chosen
     ``MAV_FRAME``.
     """
 
 def mavlink_offboard_local_velocity(header: MavlinkHeader, time_boot_ms: builtins.int, coordinate_frame: builtins.int, target_system: builtins.int, target_component: builtins.int, vx: builtins.float, vy: builtins.float, vz: builtins.float) -> MavlinkFrame:
     r"""
-    Builds a local-frame velocity setpoint frame, in metres per second in the
+    Builds a local-frame velocity setpoint frame, in meters per second in the
     chosen ``MAV_FRAME``.
     """
 

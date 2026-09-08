@@ -50,7 +50,7 @@ console.log(`discarded ${decoder.discarded} frame the stream mangled`)
 // ANCHOR_END: example
 
 // The bytes each specification fixes are pinned once, in the crate tests and the
-// generated conformance vectors, so a guide asserts behaviour instead.
+// generated conformance vectors, so a guide asserts behavior instead.
 assert.ok(framed.length > payload.length)
 assert.ok(cobsFramed.length > packet.length)
 assert.deepEqual([...restored], [...payload])

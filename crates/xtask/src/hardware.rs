@@ -223,7 +223,7 @@ impl Hardware {
     }
 
     /// Render the page body. Each group gets a heading, its line of intent, and one card
-    /// per entry. A card breaks the entry down into labelled facts (its interface, each
+    /// per entry. A card breaks the entry down into labeled facts (its interface, each
     /// figure from its document, and its price band with the lowest listed price), says
     /// where to buy it with the price each page listed, and points at the document it was
     /// written from, the driver's source, its crates, and the guides that use it.

@@ -37,7 +37,7 @@ export const MAX_PAYLOAD = LORAWAN_MAX_PAYLOAD
 export const MAX_FRAME = LORAWAN_MAX_FRAME
 
 /**
- * The direction a frame travelled, which its MIC and encryption both fold in.
+ * The direction a frame traveled, which its MIC and encryption both fold in.
  *
  * Provided as a runtime object plus a matching string-union type so it works as
  * both a value (`Direction.Uplink`) and a type annotation.
@@ -54,7 +54,7 @@ export type Direction = DirectionName
 
 /** A decoded data frame, with its payload decrypted. */
 export interface RxData {
-  /** The direction the frame travelled. */
+  /** The direction the frame traveled. */
   direction: Direction
   /** The device address the frame carries. */
   devAddr: number

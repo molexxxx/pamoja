@@ -51,7 +51,7 @@ fn addressing_a_bus_and_driving_a_pin() {
     // ANCHOR_END: example
 
     // The addressing bytes the I2C specification fixes are pinned in the crate's own
-    // tests, so a guide asserts behaviour instead.
+    // tests, so a guide asserts behavior instead.
     assert_eq!(to_write.len(), 1);
     assert_ne!(to_write.as_bytes(), to_read.as_bytes());
     assert!(!sensor_reserved);

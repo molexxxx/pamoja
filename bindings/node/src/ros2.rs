@@ -55,7 +55,7 @@ pub struct Ros2Vector3 {
 /// chassis or navigation helper publishes into a ROS graph.
 #[napi(object)]
 pub struct Ros2Twist {
-    /// The linear velocity in metres per second.
+    /// The linear velocity in meters per second.
     pub linear: Ros2Vector3,
     /// The angular velocity in radians per second.
     pub angular: Ros2Vector3,

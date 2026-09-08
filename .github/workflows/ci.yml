@@ -75,6 +75,13 @@ jobs:
       - name: Dashboard mock tests
         run: cargo test -p pamoja-dashboard --features mock
 
+      # The pairing crypto in the browser is hand-written, because WebCrypto is unavailable
+      # over the plain-http hotspot. It is checked against the vectors its standards publish
+      # and against the same pairing exchange src/auth.rs asserts, so the two halves of the
+      # control channel cannot drift apart.
+      - name: Dashboard browser crypto vectors
+        run: node --test "crates/pamoja-dashboard/web/app/lib/crypto/*.test.mjs"
+
       # The dashboard's per-locale JSON bundles are the single source of translations;
       # this fails if a locale's keys or placeholders drift from English, if a bundle is
       # missing metadata, or if one grows past its gzipped footprint budget.

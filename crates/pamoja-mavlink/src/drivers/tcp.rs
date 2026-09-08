@@ -77,7 +77,7 @@ mod tests {
     #[tokio::test]
     async fn a_command_round_trips_over_a_real_tcp_connection() {
         // A listener stands in for a MAVLink TCP server (as ArduPilot SITL is); a command and
-        // its acknowledgement cross a real localhost TCP connection through the driver.
+        // its acknowledgment cross a real localhost TCP connection through the driver.
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
 

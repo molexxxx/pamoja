@@ -796,7 +796,7 @@ impl Catalog {
                 Some(url) => format!("[{}]({url})", capability.title),
                 None => capability.title.clone(),
             };
-            // The engine's own surface is hoisted above the chapters, so it is labelled for
+            // The engine's own surface is hoisted above the chapters, so it is labeled for
             // what it is rather than borrowing the chapter it happens to sit in.
             let chapter = if capability.node == "core" {
                 "**Engine**".to_owned()

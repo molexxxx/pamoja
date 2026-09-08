@@ -383,7 +383,7 @@ impl<T: r2r::WrappedActionTypeSupport> RosGoal<T> {
     }
 }
 
-/// A ROS 2 action server: a stream of incoming goals to accept and fulfil.
+/// A ROS 2 action server: a stream of incoming goals to accept and fulfill.
 pub struct RosActionServer<T>
 where
     T: r2r::WrappedActionTypeSupport,

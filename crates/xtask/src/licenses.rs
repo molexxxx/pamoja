@@ -1,6 +1,6 @@
-//! The licence text, copied into every package that is published.
+//! The license text, copied into every package that is published.
 //!
-//! Each registry is told the licence is MIT, and MIT itself asks that the notice travel
+//! Each registry is told the license is MIT, and MIT itself asks that the notice travel
 //! with the copies. A `license = "MIT"` line is metadata, not the notice, so the text goes
 //! into every publishable package directory as well: cargo, npm, and the Python build all
 //! include a `LICENSE*` file from the package root without being asked, and the .NET
@@ -13,7 +13,7 @@ use std::path::Path;
 /// The file every package carries, named as the repository names it.
 const NAME: &str = "LICENSE-MIT";
 
-/// Copy the licence into every publishable package.
+/// Copy the license into every publishable package.
 ///
 /// # Arguments
 ///
@@ -25,7 +25,7 @@ const NAME: &str = "LICENSE-MIT";
 ///
 /// # Errors
 ///
-/// If the licence at the repository root cannot be read, or a package directory cannot
+/// If the license at the repository root cannot be read, or a package directory cannot
 /// be listed.
 pub fn render(root: &Path) -> Result<Vec<(String, String)>, String> {
     let source = root.join(NAME);

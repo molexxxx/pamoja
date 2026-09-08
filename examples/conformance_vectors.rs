@@ -272,7 +272,7 @@ fn calibration() -> Value {
     })
 }
 
-/// Suppressing movement inside a band around a centre value.
+/// Suppressing movement inside a band around a center value.
 fn deadband_vectors() -> Value {
     let (center, width) = (0.0f32, 0.5f32);
     let inputs: Vec<f32> = vec![0.0, 0.2, -0.2, 1.0, -1.0];
@@ -1001,7 +1001,7 @@ fn actuators() -> Value {
         },
         "pwm": {
             "duty": { "off": 2048, "bytes": hex(&pca9685::Pwm::duty(2048).bytes()) },
-            "servoCentre": {
+            "servoCenter": {
                 "pulseMicros": 1_500,
                 "updateRateHz": 50,
                 "bytes": hex(&pca9685::Pwm::servo(1_500, 50).bytes()),
@@ -1337,7 +1337,7 @@ fn mavlink() -> Value {
     .collect();
 
     json!({
-        // The catalogue check value, plus the frame this suite builds.
+        // The catalog check value, plus the frame this suite builds.
         "crc16": [
             { "input": hex("123456789".as_bytes()), "checksum": crc16_mcrf4xx(b"123456789") },
             { "input": hex(&heartbeat), "checksum": crc16_mcrf4xx(&heartbeat) },

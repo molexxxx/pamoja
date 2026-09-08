@@ -100,7 +100,7 @@ skipped.
 
 - **Event:** A violation involving a single incident or series of incidents.
 - **Consequence:** A private, written warning from the Community Moderators.
-- **Repair:** Examples of repair include a private written apology, acknowledgement of
+- **Repair:** Examples of repair include a private written apology, acknowledgment of
   responsibility, and seeking clarification on expectations.
 
 ### Temporarily Limited Activities

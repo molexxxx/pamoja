@@ -13,10 +13,10 @@ print(f"prescale  {prescale} gives {pca9685.frequency_for_prescale(prescale):.1f
 # transaction rather than four.
 print(f"channel 3 starts at register 0x{pca9685.channel_register(3):02X}")
 
-# A centred hobby servo holds its output high for 1500 us of the 20 ms period. The part
+# A centered hobby servo holds its output high for 1500 us of the 20 ms period. The part
 # counts in 4096 steps per period, so that is where the pulse ends.
-centred = pwm.servo(1500, 50)
-print(f"centred servo goes low at count {pwm.counts(centred).off} of 4096")
+centered = pwm.servo(1500, 50)
+print(f"centered servo goes low at count {pwm.counts(centered).off} of 4096")
 
 # Fully off carries its own flag rather than a zero duty, which would still hold the
 # output high for the first count of every period.
@@ -39,7 +39,7 @@ print(f"a quarter turn is {steps_for_degrees(90.0, 200)} steps")
 
 assert prescale == 0x79
 assert pca9685.channel_register(3) == 0x12
-assert pwm.counts(centred).off == 307
+assert pwm.counts(centered).off == 307
 assert pwm.full_off() != pwm.duty(0)
 assert motor.coils == 0b1000
 assert steps_for_degrees(90.0, 200) == 50

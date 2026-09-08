@@ -365,7 +365,7 @@ pub struct Geofence {
 
 #[napi]
 impl Geofence {
-    /// Creates a circular fence of `radiusM` metres around `center`.
+    /// Creates a circular fence of `radiusM` meters around `center`.
     #[napi(constructor)]
     pub fn new(center: Coord, radius_m: f64) -> Self {
         Self {
@@ -386,7 +386,7 @@ impl Geofence {
     }
 }
 
-/// Returns the great-circle distance between two coordinates, in metres.
+/// Returns the great-circle distance between two coordinates, in meters.
 #[napi]
 pub fn distance_between(from: Coord, to: Coord) -> f64 {
     Coordinate::from(from).distance_to(to.into())

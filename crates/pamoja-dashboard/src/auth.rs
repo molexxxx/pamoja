@@ -261,6 +261,59 @@ mod tests {
         key
     }
 
+    // The browser derives this key from the same inputs with its own SHA-256, HMAC and
+    // HKDF, since WebCrypto is unavailable over a plain-http hotspot. Both halves assert
+    // this file, so a change to either one that stops them interoperating fails here or
+    // in vectors.test.mjs rather than in the field.
+    #[test]
+    fn the_pairing_exchange_agrees_with_the_browser() {
+        let vector: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/pairing-vector.json"))
+                .expect("the shared pairing vector parses");
+        let text = |key: &str| -> String {
+            vector[key]
+                .as_str()
+                .unwrap_or_else(|| panic!("{key} is a string"))
+                .to_owned()
+        };
+
+        assert_eq!(
+            text("info").as_bytes(),
+            INFO,
+            "the vector was produced for this info string"
+        );
+
+        let key = client_key(&text("secret"), &text("nonce"));
+        assert_eq!(to_hex(&key), text("key"));
+        assert_eq!(
+            to_hex(&hmac_sha256(
+                &key,
+                format!(
+                    "confirm
+{}",
+                    text("sessionId")
+                )
+                .as_bytes()
+            )),
+            text("confirmMac")
+        );
+
+        let command = &vector["command"];
+        let counter = command["counter"].as_u64().expect("a counter");
+        let payload = command["payload"].as_str().expect("a payload");
+        assert_eq!(
+            to_hex(&hmac_sha256(
+                &key,
+                format!(
+                    "{counter}
+{payload}"
+                )
+                .as_bytes()
+            )),
+            command["mac"].as_str().expect("a mac")
+        );
+    }
+
     #[test]
     fn a_correct_secret_pairs_and_commands() {
         let secret = "s3cret";

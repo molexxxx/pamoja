@@ -43,7 +43,7 @@ compiled engine carrying every capability, so choosing packages there narrows th
 API and the dependency manifest rather than the download. Compiling away what you
 do not use is a property of a compiled language, and the targets that need it run
 Rust rather than a managed runtime. A C or C++ host that builds `pamoja-ffi`
-itself gets the Rust behaviour, because the capabilities are cargo features
+itself gets the Rust behavior, because the capabilities are cargo features
 there: dropping the seven that need an async runtime halves the library.
 
 A domain package brings in its capabilities and, where the language allows it,

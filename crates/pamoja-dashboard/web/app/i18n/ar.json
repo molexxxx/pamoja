@@ -146,7 +146,7 @@
     "label.battery_level": "البطارية",
     "label.relay_status": "حالة المُرحِّل",
     "unit.count": "",
-    "mesh.optimised": "مُحسَّن",
+    "mesh.optimized": "مُحسَّن",
     "mesh.learning": "يتعلّم",
     "label.neighbour_mesh": "مُرحِّل شبكي ← الجار",
     "label.neighbours": "الجيران",

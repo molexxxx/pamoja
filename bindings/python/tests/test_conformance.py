@@ -469,8 +469,8 @@ def test_actuator_vectors_match():
     pwm = vector["pwm"]
     assert actuators.pwm.duty(pwm["duty"]["off"]) == unhex(pwm["duty"]["bytes"])
     assert actuators.pwm.servo(
-        pwm["servoCentre"]["pulseMicros"], pwm["servoCentre"]["updateRateHz"]
-    ) == unhex(pwm["servoCentre"]["bytes"])
+        pwm["servoCenter"]["pulseMicros"], pwm["servoCenter"]["updateRateHz"]
+    ) == unhex(pwm["servoCenter"]["bytes"])
     assert actuators.pwm.full_on() == unhex(pwm["fullOn"])
     assert actuators.pwm.full_off() == unhex(pwm["fullOff"])
 
@@ -841,7 +841,7 @@ def test_mavlink_protocol_vectors_match():
     ack = mavlink.MavlinkMessage.decode(mavlink.schema_for("MISSION_ACK"), refusal.reply.payload)
     assert ack.get_int("type") == overrun["result"]
 
-    # The command protocol classifies acknowledgements and counts retries.
+    # The command protocol classifies acknowledgments and counts retries.
     command = vector["command"]
     arm = mavlink.CommandProtocol(command["command"], command["maxRetries"])
     kinds = {"unrelated": "unrelated", "inProgress": "in_progress", "final": "final"}

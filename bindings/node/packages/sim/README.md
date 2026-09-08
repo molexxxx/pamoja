@@ -24,7 +24,7 @@ From [`bindings/node/guides/sim.ts`](https://github.com/molexxxx/pamoja/blob/mai
 import { RecordingActuator, Replay, SimulatedRobot } from '@pamoja/sim'
 
 async function main() {
-  // The clear distance ahead, in metres, taken from an earlier survey run. A replay hands
+  // The clear distance ahead, in meters, taken from an earlier survey run. A replay hands
   // it back one reading at a time, so the loop below sees the same input on every run: the
   // same rover code, driven by a recording rather than a range finder.
   const capture = [4, 3, 1.5, 0.5]

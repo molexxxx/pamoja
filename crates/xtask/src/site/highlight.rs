@@ -1,12 +1,12 @@
 //! Syntax highlighting at build time.
 //!
-//! Every code block on the site is coloured when the site is rendered, so a page carries
-//! plain spans and the browser runs nothing to colour them. syntect drives the grammars.
-//! The theme it is handed is not a colour scheme but a set of sentinels, one per class, so
+//! Every code block on the site is colored when the site is rendered, so a page carries
+//! plain spans and the browser runs nothing to color them. syntect drives the grammars.
+//! The theme it is handed is not a color scheme but a set of sentinels, one per class, so
 //! each token comes out tagged with which of a handful of classes it belongs to, and
 //! `site.css` maps those classes to the palette. That keeps the HTML small (one span per
-//! run of tokens sharing a class, no nesting) and keeps colour in the stylesheet, where the
-//! rest of the site's colour lives.
+//! run of tokens sharing a class, no nesting) and keeps color in the stylesheet, where the
+//! rest of the site's color lives.
 //!
 //! The syntaxes are syntect's defaults with two-face's extras on top, which is what brings
 //! TypeScript and TOML; the default set has neither.

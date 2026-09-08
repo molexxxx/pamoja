@@ -9,7 +9,7 @@ async fn a_rover_runs_a_recorded_capture_with_no_hardware() {
     use pamoja_kit::Twist;
     use pamoja_sim::{RecordingActuator, Replay, SimRobot};
 
-    // The clear distance ahead, in metres, taken from an earlier survey run. A replay
+    // The clear distance ahead, in meters, taken from an earlier survey run. A replay
     // hands it back one reading at a time, so the loop below sees the same input on every
     // run: the same rover code, driven by a recording rather than a range finder.
     let capture = vec![4.0, 3.0, 1.5, 0.5];

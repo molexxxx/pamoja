@@ -62,7 +62,7 @@ async fn spawn_server(port: u16) {
                 MessageClass::Request(RequestType::Get)
                     if request.get_option(CoapOption::Observe).is_some() =>
                 {
-                    // Piggybacked acknowledgement carrying the first notification.
+                    // Piggybacked acknowledgment carrying the first notification.
                     let mut first = Packet::new();
                     first.header.set_version(1);
                     first.header.set_type(MessageType::Acknowledgement);
