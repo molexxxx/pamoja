@@ -152,8 +152,9 @@ pub fn home(chrome: &Chrome, body: &str) -> String {
          </ul>\n\
          <details class=\"side-group\" open><summary>Project</summary><ul>\n\
          <li><a href=\"{REPO}\">Source on GitHub</a></li>\n\
-         <li><a href=\"{REPO}/issues/new?labels=bug\">Report a bug</a></li>\n\
-         <li><a href=\"{REPO}/issues/new?labels=enhancement\">Suggest a change</a></li>\n\
+         <li><a href=\"{REPO}/issues/new?template=bug.yml\">Report a bug</a></li>\n\
+         <li><a href=\"{REPO}/issues/new?template=capability.yml\">Request a capability</a></li>\n\
+         <li><a href=\"{REPO}/issues/new?template=docs.yml\">Report a documentation problem</a></li>\n\
          <li><a href=\"{REPO}/releases\">Releases</a></li>\n\
          </ul></details>\n\
          </div>\n\
@@ -324,8 +325,8 @@ fn header() -> String {
          </div>\n\
          <nav class=\"top-icons\" aria-label=\"The project on GitHub\">\n\
          <a href=\"{REPO}\" title=\"Source on GitHub\" aria-label=\"Source on GitHub\">{}</a>\n\
-         <a href=\"{REPO}/issues/new?labels=bug\" title=\"Report a bug\" aria-label=\"Report a bug\">{}</a>\n\
-         <a href=\"{REPO}/issues/new?labels=enhancement\" title=\"Suggest a capability or a change\" aria-label=\"Suggest a capability or a change\">{}</a>\n\
+         <a href=\"{REPO}/issues/new?template=bug.yml\" title=\"Report a bug\" aria-label=\"Report a bug\">{}</a>\n\
+         <a href=\"{REPO}/issues/new?template=capability.yml\" title=\"Request a capability or a change\" aria-label=\"Request a capability or a change\">{}</a>\n\
          <a href=\"{REPO}/releases\" title=\"Releases and the changelog\" aria-label=\"Releases and the changelog\">{}</a>\n\
          </nav>\n\
          </header>\n",
