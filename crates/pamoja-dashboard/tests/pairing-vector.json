@@ -1,0 +1,14 @@
+{
+  "note": "One pairing exchange, asserted by both halves of the control channel: the Rust node in src/auth.rs and the browser in web/app/lib/crypto. The two derive the session key independently, so pinning the same bytes here is what proves they agree. Produced with an independent HKDF and HMAC implementation, not with either of them.",
+  "info": "pamoja/dashboard/cmd v1",
+  "secret": "pamoja-pairing-secret",
+  "nonce": "0123456789abcdef0123456789abcdef",
+  "sessionId": "fedcba9876543210fedcba9876543210",
+  "key": "07a86739b25a72669a2270e420c7ff56aa42b581c7de96fe84fb875508d4863a",
+  "confirmMac": "00befd4aade3cabe507b22676796fc29cdb91bbf7cc55df3273f452146216c78",
+  "command": {
+    "counter": 1,
+    "payload": "{\"kind\":\"ping\"}",
+    "mac": "73cf3908a90f47ac6a4f8cf109965d81fc395c3b73c359c0f0abcd6914a98ffb"
+  }
+}

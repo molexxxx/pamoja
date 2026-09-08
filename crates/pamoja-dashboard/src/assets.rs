@@ -362,6 +362,35 @@ impl Assets {
 mod tests {
     use super::*;
 
+    // The dashboard's whole point is that it works on a node's own hotspot with no route
+    // to the internet, so nothing it serves may fetch from a remote origin. A stylesheet
+    // from a font host is the way this goes wrong: it blocks first paint until the
+    // connection times out, on exactly the deployment the crate advertises. A URL written
+    // in a comment is harmless and does not count; only the forms that load something do.
+    #[test]
+    fn nothing_served_fetches_from_off_the_device() {
+        const LOADS: &[&str] = &[
+            "src=\"http",
+            "src='http",
+            "href=\"http",
+            "href='http",
+            "@import",
+            "url(http",
+            "fetch(\"http",
+            "fetch('http",
+        ];
+        for asset in EMBEDDED {
+            let text = String::from_utf8_lossy(asset.bytes);
+            for form in LOADS {
+                assert!(
+                    !text.contains(form),
+                    "{} loads from off the device with `{form}`",
+                    asset.path
+                );
+            }
+        }
+    }
+
     #[test]
     fn embedded_serves_the_shell_for_root() {
         let (content_type, bytes) = Assets::Embedded.get("/").expect("shell present");
