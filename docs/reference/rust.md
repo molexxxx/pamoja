@@ -34,7 +34,7 @@ that holds more than one:
 </div>
 <div class="domain">
 <div class="pkg-head">
-<div class="pkg-what"><span class="pkg-title">Sensing and actuation</span><p><a href="https://pamoja.molex.cloud/docs/guides/sensors.html">Sensor drivers</a>, <a href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a></p></div>
+<div class="pkg-what"><span class="pkg-title">Sensing and actuation</span><p><a href="https://pamoja.molex.cloud/docs/guides/sensors.html">Sensor drivers</a>, <a href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a>, <a href="https://pamoja.molex.cloud/docs/guides/device.html">Your own device</a></p></div>
 <div class="pkg-get"><code class="cmd">cargo add pamoja --features sensing</code><button class="copy" type="button" data-copy="cargo add pamoja --features sensing" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html">API reference</a></div></div>
@@ -83,6 +83,16 @@ reference pages, one step away.
 ### Engine
 
 <div class="pkgs">
+<div class="pkg" id="rust-device">
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/device.html">Your own device</a><code class="pkg-import">pamoja-core</code><p>A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in</p></div>
+<div class="pkg-get"><code class="cmd">cargo add pamoja-core</code><button class="copy" type="button" data-copy="cargo add pamoja-core" aria-label="Copy the install command">copy</button></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/device.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/device.html#rust">Worked example</a><a class="pkg-btn ext" href="https://crates.io/crates/pamoja-core">crates.io</a><a class="pkg-btn ext" href="https://docs.rs/pamoja-core">docs.rs</a></div>
+<p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-device" title="@pamoja/core">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-device" title="pamoja-core">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-device" title="Pamoja.Core">C#</a></p>
+</div>
+</div>
 <div class="pkg" id="rust-transport">
 <div class="pkg-head">
 <div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/transport.html">Engine surface</a><code class="pkg-import">pamoja-core</code><p>The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version</p></div>

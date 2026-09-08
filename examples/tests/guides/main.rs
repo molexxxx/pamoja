@@ -7,6 +7,7 @@ mod bus;
 mod can;
 mod coap;
 mod codec;
+mod device;
 mod gpio;
 mod imports;
 mod kit;

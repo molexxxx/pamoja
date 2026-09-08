@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <PackageId>Pamoja.Sensing</PackageId>
-    <Description>Sensing and actuation: The parts wired to a board: a thermometer that checks its own bytes, a servo pulse, and a stepper walking its coils.</Description>
+    <Description>Sensing and actuation: The parts wired to a board: a thermometer that checks its own bytes, a servo pulse, a stepper walking its coils, and a part of your own.</Description>
     <PackageTags>pamoja;iot;robotics;sensing</PackageTags>
     <PackageProjectUrl>https://pamoja.molex.cloud/docs/install.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="../Pamoja.Sensors/Pamoja.Sensors.csproj" />
     <ProjectReference Include="../Pamoja.Actuators/Pamoja.Actuators.csproj" />
+    <ProjectReference Include="../Pamoja.Core/Pamoja.Core.csproj" />
   </ItemGroup>
 
 </Project>

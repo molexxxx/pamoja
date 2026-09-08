@@ -12,6 +12,7 @@ CanGuide.Run();
 GpioGuide.Run();
 SensorsGuide.Run();
 ActuatorsGuide.Run();
+await DeviceGuide.RunAsync();
 LoraGuide.Run();
 LorawanGuide.Run();
 MeshGuide.Run();

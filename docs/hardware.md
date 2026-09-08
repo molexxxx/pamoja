@@ -320,13 +320,13 @@ Where pamoja itself runs, and what it has been built and tested against.
 
 ## Anything else with a driver
 
-The four sensors and two actuator families above are the parts pamoja decodes itself. They are
-not the limit of what it can talk to. Everything below the driver is a trait: implement
+The parts above are the ones pamoja decodes itself. They are not the limit of what it can
+talk to. Everything below the driver is a trait: implement
 [`Sensor`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/device/trait.Sensor.html) or
 [`Actuator`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/device/trait.Actuator.html) for
-your own part and the rest of the library, the profiles, the ladder, the dashboard, treats it
-exactly like the ones here. The [sensor drivers guide](guides/sensors.md) and the
-[actuator drivers guide](guides/actuators.md) show what that takes.
+your own part and the kit, the profiles, and the ladder take it as they take the ones here. The
+[your own device guide](guides/device.md) builds a probe and a valve pamoja has never heard of and
+runs them, in all four languages, with nothing plugged in.
 
 The same holds for transports. A part reachable over I2C, SPI, a serial line, RS485, or CAN is
 reachable through the crates listed under Buses, whether or not its decoder ships here.
