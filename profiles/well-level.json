@@ -1,0 +1,17 @@
+{
+  "name": "well-level",
+  "description": "Reports a well's water level and warns once the level is on course to reach the dry mark within six more samples, so a pump is stopped before it runs dry.",
+  "topic": "water/well/level",
+  "control": {
+    "kind": "level",
+    "empty": 0.5,
+    "warn_within": 6
+  },
+  "power": {
+    "active_secs": 600,
+    "saver_secs": 1800,
+    "critical_secs": 3600,
+    "saver_below": 0.5,
+    "critical_below": 0.2
+  }
+}

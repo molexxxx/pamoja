@@ -39,6 +39,7 @@ __all__ = [
     "Dialect",
     "Ds18b20Reading",
     "DutyCycle",
+    "ElementSpec",
     "EventBus",
     "ForwardDecision",
     "Geofence",
@@ -90,6 +91,7 @@ __all__ = [
     "Pose",
     "PowerPlan",
     "PowerScheduleSpec",
+    "Presentation",
     "Profile",
     "Progress",
     "PyTransport",
@@ -120,6 +122,7 @@ __all__ = [
     "Stepper",
     "Store",
     "Surge",
+    "Theme",
     "Thermostat",
     "Tmp117Config",
     "Trend",
@@ -1627,6 +1630,78 @@ class DutyCycle:
     def from_fraction(period_us: builtins.int, fraction: builtins.float) -> DutyCycle:
         r"""
         Creates a duty cycle that spends `fraction` of `period_us` awake.
+        """
+
+@typing.final
+class ElementSpec:
+    r"""
+    A custom sensor or node stat a profile contributes to the dashboard.
+    
+    The graphic is named as a manifest names it (`droplet`, `gauge`, ...); the
+    :class:`Viz` enum in the facade lists the choices. A band is `(low, high)` in the
+    element's unit, and `scope` names the link kinds whose groups the element is offered
+    on, or `None` for every group.
+    """
+    @property
+    def key(self) -> builtins.str:
+        r"""
+        The stable, language-neutral element key, such as `water_turbidity`.
+        """
+    @property
+    def unit(self) -> builtins.str:
+        r"""
+        The canonical unit name, such as `ntu`, `ph`, or `count`.
+        """
+    @property
+    def label(self) -> builtins.str:
+        r"""
+        A human-readable fallback label, shown when no localized label applies.
+        """
+    @property
+    def viz(self) -> builtins.str:
+        r"""
+        The graphic this element is drawn with, by its manifest name.
+        """
+    @property
+    def labels(self) -> typing.Optional[builtins.dict[builtins.str, builtins.str]]:
+        r"""
+        Per-locale labels, keyed by locale tag (`en`, `sw`, ...).
+        """
+    @property
+    def band(self) -> typing.Optional[tuple[builtins.float, builtins.float]]:
+        r"""
+        The safe band `(low, high)` in the element's unit.
+        """
+    @property
+    def stat(self) -> builtins.bool:
+        r"""
+        Whether this is a node or network stat rather than a measurement of the world.
+        """
+    @property
+    def scope(self) -> typing.Optional[builtins.list[builtins.str]]:
+        r"""
+        The link kinds whose groups this element is offered on; `None` means every group.
+        """
+    @property
+    def span(self) -> builtins.bool:
+        r"""
+        Whether the element's tile spans two columns.
+        """
+    @property
+    def value(self) -> typing.Optional[builtins.float]:
+        r"""
+        A starting numeric value for the add-sensor dialog.
+        """
+    @property
+    def state(self) -> typing.Optional[builtins.str]:
+        r"""
+        A starting discrete state code, such as `state.closed`, for a non-numeric element.
+        """
+    def __new__(cls, key: builtins.str, unit: builtins.str, label: builtins.str, viz: builtins.str, *, labels: typing.Optional[typing.Mapping[builtins.str, builtins.str]] = None, band: typing.Optional[tuple[builtins.float, builtins.float]] = None, stat: builtins.bool = False, scope: typing.Optional[typing.Sequence[builtins.str]] = None, span: builtins.bool = False, value: typing.Optional[builtins.float] = None, state: typing.Optional[builtins.str] = None) -> ElementSpec:
+        r"""
+        Declares an element drawn with the named graphic.
+        
+        Raises `ValueError` if `viz` is not a graphic the dashboard draws.
         """
 
 @typing.final
@@ -3726,6 +3801,36 @@ class PowerScheduleSpec:
         """
 
 @typing.final
+class Presentation:
+    r"""
+    How a profile presents itself on the dashboard: its custom elements, an optional
+    theme, and the words for any state or event code it introduces.
+    """
+    @property
+    def elements(self) -> builtins.list[ElementSpec]:
+        r"""
+        The custom sensors and node stats this profile contributes.
+        """
+    @property
+    def theme(self) -> typing.Optional[Theme]:
+        r"""
+        An optional theme that tints the dashboard.
+        """
+    @property
+    def messages(self) -> dict:
+        r"""
+        The text for each code this profile introduces, keyed by the page's message key
+        (`state.flushing`, `event.filter_clog`): a `str` for every locale, or a `dict`
+        from locale tag to text.
+        """
+    def __new__(cls, elements: typing.Sequence[ElementSpec], *, theme: typing.Optional[Theme] = None, messages: typing.Optional[typing.Mapping[builtins.str, builtins.str | typing.Mapping[builtins.str, builtins.str]]] = None) -> Presentation:
+        r"""
+        Builds a presentation from its elements, an optional theme, and the messages for
+        the codes it introduces, each one string for every locale or a `dict` from locale
+        tag to text.
+        """
+
+@typing.final
 class Profile:
     r"""
     A named, ready-to-run node assembled from pamoja capabilities.
@@ -3739,6 +3844,17 @@ class Profile:
     def topic(self) -> builtins.str:
         r"""
         The topic each reading is published to.
+        """
+    @property
+    def description(self) -> typing.Optional[builtins.str]:
+        r"""
+        What the profile is for, in the words its manifest carries, or `None`.
+        """
+    @property
+    def presentation(self) -> typing.Optional[Presentation]:
+        r"""
+        How the profile presents itself on the dashboard, or `None` when it declares
+        nothing beyond the built-in set.
         """
     @property
     def control(self) -> ControlPolicy:
@@ -3780,6 +3896,16 @@ class Profile:
     def to_json(self) -> builtins.str:
         r"""
         Serializes this profile to its JSON manifest.
+        """
+    def with_description(self, description: builtins.str) -> Profile:
+        r"""
+        A copy of this profile carrying a description of what it is for.
+        """
+    def with_presentation(self, presentation: Presentation) -> Profile:
+        r"""
+        A copy of this profile carrying a dashboard presentation.
+        
+        Raises `ValueError` if an element names a graphic the dashboard does not draw.
         """
     def controller(self) -> Controller:
         r"""
@@ -4648,6 +4774,41 @@ class Surge:
     def update(self, value: builtins.float) -> typing.Optional[builtins.float]:
         r"""
         Feeds a value in and returns the size of a qualifying step, or `None`.
+        """
+
+@typing.final
+class Theme:
+    r"""
+    The theme tokens a profile sets on the dashboard; each is any CSS color.
+    """
+    @property
+    def accent(self) -> typing.Optional[builtins.str]:
+        r"""
+        The brand and interaction accent.
+        """
+    @property
+    def ok(self) -> typing.Optional[builtins.str]:
+        r"""
+        The healthy status color, which also tints an in-band gauge.
+        """
+    @property
+    def warn(self) -> typing.Optional[builtins.str]:
+        r"""
+        The warning status color.
+        """
+    @property
+    def alarm(self) -> typing.Optional[builtins.str]:
+        r"""
+        The alarm status color.
+        """
+    @property
+    def track(self) -> typing.Optional[builtins.str]:
+        r"""
+        The unfilled track color behind gauges and bars.
+        """
+    def __new__(cls, *, accent: typing.Optional[builtins.str] = None, ok: typing.Optional[builtins.str] = None, warn: typing.Optional[builtins.str] = None, alarm: typing.Optional[builtins.str] = None, track: typing.Optional[builtins.str] = None) -> Theme:
+        r"""
+        Builds a theme from the tokens given; the rest keep the dashboard's own colors.
         """
 
 @typing.final

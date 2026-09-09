@@ -425,6 +425,10 @@ page on any registry links to the same capability on the other three.
   first program that compiles in CI, and
   [the buses and links](https://pamoja.molex.cloud/docs/buses.html) they speak,
   from I2C to LoRa.
+- [The profiles](https://pamoja.molex.cloud/docs/profiles.html) people have
+  shared, each a node as a JSON file checked in CI, and the
+  [community page](https://pamoja.molex.cloud/docs/community.html) on adding a
+  profile, an example, a driver, or a board of your own.
 - [Why it exists](https://pamoja.molex.cloud/docs/about/why.html),
   [how it is put together](https://pamoja.molex.cloud/docs/about/architecture.html),
   and [which standards it is held to](https://pamoja.molex.cloud/docs/about/standards.html).

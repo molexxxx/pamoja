@@ -24,6 +24,7 @@ use syn::{Fields, ImplItem, Item, TraitItem, Visibility};
 use crate::catalog::{Catalog, SITE};
 use crate::examples;
 use crate::hardware::Hardware;
+use crate::profiles::Profiles;
 use crate::{builds, buttons, diagram, licenses, packages, regions, theme, version};
 
 /// Run the `docs` task: regenerate every derived file, or `--check` to verify they are in sync.
@@ -216,6 +217,11 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
     let hardware = Hardware::load(&root)?;
     hardware.check(&root)?;
 
+    // The shared profiles are read by the parser a device uses and checked for what a
+    // hand-written manifest gets wrong, so the catalog never lists one a node would refuse.
+    let profiles = Profiles::load(&root)?;
+    profiles.check(&root)?;
+
     let mut files = Vec::new();
     for krate in &crates {
         let lib = fs::read_to_string(crates_root.join(krate).join("src/lib.rs"))
@@ -248,6 +254,7 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
                     "builds" => builds::table(&root),
                     "hardware" => Ok(hardware.table(&catalog)),
                     "examples" => examples::table(&root, &catalog),
+                    "profiles" => Ok(profiles.table()),
                     reference if reference.starts_with("reference ") => {
                         let key = reference.trim_start_matches("reference ").trim();
                         catalog

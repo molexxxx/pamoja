@@ -1,0 +1,53 @@
+{
+  "name": "grain-store-humidity",
+  "description": "Reports the relative humidity in a grain store without driving anything, drawn as a droplet with a safe band up to 65 %, above which stored cereal takes on the moisture that mold grows in. Samples every 10 minutes, since a store changes slowly.",
+  "topic": "storage/grain/humidity",
+  "control": {
+    "kind": "monitor"
+  },
+  "power": {
+    "active_secs": 600,
+    "saver_secs": 3600,
+    "critical_secs": 7200,
+    "saver_below": 0.5,
+    "critical_below": 0.2
+  },
+  "presentation": {
+    "elements": [
+      {
+        "key": "store_humidity",
+        "unit": "percent",
+        "label": "Store humidity",
+        "labels": {
+          "fr": "Humidité du grenier",
+          "sw": "Unyevu wa ghala"
+        },
+        "viz": "droplet",
+        "band": [
+          30.0,
+          65.0
+        ],
+        "stat": false,
+        "scope": "always",
+        "span": false
+      },
+      {
+        "key": "store_temperature",
+        "unit": "celsius",
+        "label": "Store temperature",
+        "labels": {
+          "fr": "Température du grenier",
+          "sw": "Joto la ghala"
+        },
+        "viz": "thermometer",
+        "band": [
+          5.0,
+          30.0
+        ],
+        "stat": false,
+        "scope": "always",
+        "span": false
+      }
+    ]
+  }
+}

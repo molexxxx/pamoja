@@ -1,0 +1,19 @@
+{
+  "name": "vaccine-fridge-monitor",
+  "description": "Holds a vaccine fridge at 5 C by switching its cooler, and raises an alert the moment the temperature leaves the 2 to 8 C safe range. Keeps sampling often as the battery drains, since an unnoticed excursion costs more than a flat battery.",
+  "topic": "cold-chain/fridge/temperature",
+  "control": {
+    "kind": "setpoint",
+    "setpoint": 5.0,
+    "hysteresis": 0.5,
+    "cooling": true,
+    "safe_band": 3.0
+  },
+  "power": {
+    "active_secs": 60,
+    "saver_secs": 300,
+    "critical_secs": 900,
+    "saver_below": 0.5,
+    "critical_below": 0.2
+  }
+}

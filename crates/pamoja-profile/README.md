@@ -32,7 +32,8 @@ This guide runs from the simplest use to a fully themed dashboard. Skip to
 # The shape of a profile
 
 - `Profile` is the manifest: plain data a community can publish and share, carrying
-  a `ControlSpec`, a `PowerSchedule`, and an optional `Presentation`. It
+  a `ControlSpec`, a `PowerSchedule`, an optional `Presentation`, and a
+  description of what it is for. It
   serializes to and from JSON with `Profile::to_json` and `Profile::from_json`, so
   a profile ships as a file and loads onto a device. The presets
   `Profile::vaccine_fridge_monitor`, `Profile::irrigation_node`,
@@ -102,6 +103,7 @@ use pamoja_profile::{ControlSpec, PowerSchedule, Profile};
 // Hold soil moisture near 35% by opening a valve - a "heater" for moisture.
 let profile = Profile {
     name: "drip-node".to_owned(),
+    description: None,
     topic: "farm/soil-moisture".to_owned(),
     control: ControlSpec::Setpoint { setpoint: 35.0, hysteresis: 5.0, cooling: false, safe_band: 25.0 },
     power: PowerSchedule::new(300, 1800, 3600),

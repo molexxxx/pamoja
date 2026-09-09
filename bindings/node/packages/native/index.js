@@ -1127,4 +1127,5 @@ module.exports.verifyAuditChain = nativeBinding.verifyAuditChain
 module.exports.verifyEnvelope = nativeBinding.verifyEnvelope
 module.exports.verifyMessage = nativeBinding.verifyMessage
 module.exports.version = nativeBinding.version
+module.exports.Viz = nativeBinding.Viz
 module.exports.WINDOW_CAPACITY = nativeBinding.WINDOW_CAPACITY

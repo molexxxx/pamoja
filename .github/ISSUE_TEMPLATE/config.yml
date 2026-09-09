@@ -6,6 +6,9 @@ contact_links:
   - name: Report a security vulnerability
     url: https://github.com/molexxxx/pamoja/security/advisories/new
     about: Please report vulnerabilities privately here rather than in a public issue.
+  - name: Community
+    url: https://pamoja.molex.cloud/docs/community.html
+    about: How to share a profile, an example, a driver, or a board, with or without a toolchain.
   - name: Building and contributing
     url: https://pamoja.molex.cloud/docs/about/building.html
     about: How to build the workspace, run the four test suites, and re-splice the documentation examples.

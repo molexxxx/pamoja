@@ -92,6 +92,12 @@ Each one is a complete program with a `main`, written to be read top to bottom a
 </div>
 </div>
 
+## Community programs
+
+Programs people have shared, held to the same bar: complete, run in CI with nothing plugged in, and credited in the file. The [community page](community.md#share-an-example) says how to add one.
+
+<p>None yet. The first one is yours to add.</p>
+
 ## Guide examples
 
 Every guide carries the same example in Rust, TypeScript, Python, and C#, spliced from the file that runs it in CI. The buttons open those files; the guide explains them.
@@ -386,7 +392,7 @@ Every guide carries the same example in Rust, TypeScript, Python, and C#, splice
 <div class="pkgs">
 <div class="pkg" id="guide-profile">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a><ul class="pkg-proves"><li>A manifest parses into the name, topic, setpoint policy and sampling schedule the node runs on, with <code>cooling</code> set false marking the output a heater.</li><li><code>saver_below</code> never appears in the manifest and still reads <code>0.5</code>, the documented default, rather than nothing.</li><li>A reading below the deadband switches the lamp on and raises <code>OutOfRange</code>, so the excursion is reported as well as acted on.</li><li>A reading inside the safe band raises nothing, so an alert tracks the band rather than firing on every sample.</li><li>Serializing writes the defaulted threshold out by name, so the shared text names <code>saver_below</code> even though the manifest never did.</li></ul></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a><ul class="pkg-proves"><li>A manifest parses into the name, topic, setpoint policy and sampling schedule the node runs on, with <code>cooling</code> set false marking the output a heater.</li><li><code>saver_below</code> never appears in the manifest and still reads <code>0.5</code>, the documented default, rather than nothing.</li><li>A reading below the deadband switches the lamp on and raises <code>OutOfRange</code>, so the excursion is reported as well as acted on.</li><li>A reading inside the safe band raises nothing, so an alert tracks the band rather than firing on every sample.</li><li>Serializing writes the defaulted threshold out by name, so the shared text names <code>saver_below</code> even though the manifest never did.</li><li>A dashboard element declared on the profile travels in the same manifest, typed on the way in and on the way out: its key, unit, graphic, and safe band come back as given.</li></ul></div>
 </div>
 <div class="pkg-foot">
 <div class="pkg-btns"><a class="pkg-btn rust" href="https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/profile.rs">Rust <code>profile.rs</code></a><a class="pkg-btn node" href="https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/profile.ts">TypeScript <code>profile.ts</code></a><a class="pkg-btn python" href="https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/profile.py">Python <code>profile.py</code></a><a class="pkg-btn dotnet" href="https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs">C# <code>ProfileGuide.cs</code></a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/profile.html">Guide</a></div>

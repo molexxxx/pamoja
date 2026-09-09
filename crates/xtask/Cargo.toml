@@ -26,6 +26,8 @@ pulldown-cmark = { version = "0.13", default-features = false, features = ["html
 syntect = { version = "5.3", default-features = false, features = ["default-syntaxes", "regex-fancy"] }
 two-face = { version = "0.5", default-features = false, features = ["syntect-fancy"] }
 oxc = { version = "0.148", features = ["minifier", "codegen"] }
+# The profiles task loads every shared manifest with the parser a device uses.
+pamoja-profile = { path = "../pamoja-profile" }
 
 [lints]
 workspace = true

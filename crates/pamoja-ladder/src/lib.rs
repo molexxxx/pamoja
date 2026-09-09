@@ -984,6 +984,7 @@ mod tests {
 
         let profile = Profile {
             name: "raised-bed-drip".to_owned(),
+            description: None,
             topic: "garden/bed-1/moisture".to_owned(),
             control: ControlSpec::Setpoint {
                 setpoint: 37.5,

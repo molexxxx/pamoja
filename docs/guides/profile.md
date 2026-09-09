@@ -20,8 +20,9 @@ leaves nothing for the next reader to infer.
 ## What the example does
 
 It loads a brooder-heater profile from a JSON manifest, runs two temperatures
-through the controller that manifest describes, and writes the profile back out
-as text.
+through the controller that manifest describes, writes the profile back out as
+text, and then declares how a dashboard draws the node, one thermometer element
+with a safe band, and reads the declaration back.
 
 The manifest sets the three sampling intervals but neither battery threshold, so
 the 50% saver figure printed comes from the library's default rather than from
@@ -41,6 +42,9 @@ It proves:
   rather than firing on every sample.
 - Serializing writes the defaulted threshold out by name, so the shared text
   names `saver_below` even though the manifest never did.
+- A dashboard element declared on the profile travels in the same manifest, typed
+  on the way in and on the way out: its key, unit, graphic, and safe band come
+  back as given.
 
 ## Rust
 
@@ -48,7 +52,7 @@ It proves:
 From [`examples/tests/guides/profile.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/profile.rs):
 
 ```rust
-use pamoja_profile::{Alert, Profile};
+use pamoja_profile::{Alert, ElementSpec, Presentation, Profile, Viz};
 
 // A profile is plain data, so a fleet ships one as a file rather than as code. The two
 // power thresholds are optional and fall back to the documented defaults.
@@ -93,6 +97,30 @@ println!(
     "shared form names its defaults: {}",
     shared.contains("saver_below")
 );
+
+// The manifest also carries how a dashboard draws the node: one element here, the
+// brooder's temperature as a thermometer with the band the chicks are safe in.
+let drawn = profile.clone().with_presentation(
+    Presentation::new().with_element(
+        ElementSpec::new(
+            "brooder_temperature",
+            "celsius",
+            "Brooder temperature",
+            Viz::Thermometer,
+        )
+        .with_band(28.0, 36.0),
+    ),
+);
+let element = &drawn
+    .presentation
+    .as_ref()
+    .expect("a declared presentation")
+    .elements[0];
+let [low, high] = element.band.expect("a band");
+println!(
+    "draws {} in {} with a safe band of {low} to {high}",
+    element.key, element.unit
+);
 ```
 <!-- end -->
 
@@ -102,7 +130,7 @@ println!(
 From [`bindings/node/guides/profile.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/profile.ts):
 
 ```typescript
-import { AlertKind, ControlKind, Profile } from '@pamoja/profile'
+import { AlertKind, ControlKind, Profile, Viz } from '@pamoja/profile'
 
 // A profile is plain data, so a fleet ships one as a file rather than as code. The two
 // power thresholds are optional and fall back to the documented defaults.
@@ -134,6 +162,24 @@ console.log(`at 32.2 C: lamp ${settled.actuator}, alert ${settled.alert}`)
 // shared back carries no value the next reader has to infer.
 const shared = profile.toJson()
 console.log(`shared form names its defaults: ${shared.includes('saver_below')}`)
+
+// The manifest also carries how a dashboard draws the node: one element here, the
+// brooder's temperature as a thermometer with the band the chicks are safe in.
+const drawn = profile.withPresentation({
+  elements: [
+    {
+      key: 'brooder_temperature',
+      unit: 'celsius',
+      label: 'Brooder temperature',
+      viz: Viz.Thermometer,
+      band: [28, 36],
+    },
+  ],
+})
+const element = drawn.presentation?.elements[0]
+console.log(
+  `draws ${element?.key} in ${element?.unit} with a safe band of ${element?.band?.[0]} to ${element?.band?.[1]}`,
+)
 ```
 <!-- end -->
 
@@ -143,7 +189,7 @@ console.log(`shared form names its defaults: ${shared.includes('saver_below')}`)
 From [`bindings/python/guides/profile.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/profile.py):
 
 ```python
-from pamoja.profile import AlertKind, ControlKind, Profile
+from pamoja.profile import AlertKind, ControlKind, ElementSpec, Presentation, Profile, Viz
 
 # A profile is plain data, so a fleet ships one as a file rather than as code. The two
 # power thresholds are optional and fall back to the documented defaults.
@@ -175,6 +221,22 @@ print(f"at 32.2 C: lamp {settled.actuator}, alert {settled.alert}")
 # shared back carries no value the next reader has to infer.
 shared = profile.to_json()
 print(f"shared form names its defaults: {'saver_below' in shared}")
+
+# The manifest also carries how a dashboard draws the node: one element here, the
+# brooder's temperature as a thermometer with the band the chicks are safe in.
+drawn = profile.with_presentation(
+    Presentation(
+        [
+            ElementSpec(
+                "brooder_temperature", "celsius", "Brooder temperature", Viz.THERMOMETER,
+                band=(28, 36),
+            ),
+        ]
+    )
+)
+element = drawn.presentation.elements[0]
+low, high = element.band
+print(f"draws {element.key} in {element.unit} with a safe band of {low:g} to {high:g}")
 ```
 <!-- end -->
 
@@ -219,6 +281,19 @@ Console.WriteLine($"at 32.2 C: lamp {settled.Actuator}, alert {quiet}");
 // device and shared back carries no value the next reader has to infer.
 string shared = profile.ToJson();
 Console.WriteLine($"shared form names its defaults: {shared.Contains("saver_below")}");
+
+// The manifest also carries how a dashboard draws the node: one element here, the
+// brooder's temperature as a thermometer with the band the chicks are safe in.
+using var drawn = profile.WithPresentation(new Presentation(
+[
+    new ElementSpec("brooder_temperature", "celsius", "Brooder temperature", Viz.Thermometer)
+    {
+        Band = [28f, 36f],
+    },
+]));
+ElementSpec element = drawn.Presentation!.Elements[0];
+Console.WriteLine(
+    $"draws {element.Key} in {element.Unit} with a safe band of {element.Band![0]} to {element.Band![1]}");
 ```
 <!-- end -->
 

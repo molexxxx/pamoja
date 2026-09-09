@@ -15,6 +15,10 @@ changelog:
     - title: Fixes
       labels:
         - bug
+    - title: Shared profiles and examples
+      labels:
+        - profile
+        - example
     - title: Documentation
       labels:
         - documentation

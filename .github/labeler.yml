@@ -22,6 +22,16 @@ documentation:
           - CODE_OF_CONDUCT.md
           - SECURITY.md
 
+profile:
+  - changed-files:
+      - any-glob-to-any-file:
+          - profiles/**
+
+example:
+  - changed-files:
+      - any-glob-to-any-file:
+          - examples/community/**
+
 ci:
   - changed-files:
       - any-glob-to-any-file:

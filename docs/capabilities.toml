@@ -420,7 +420,7 @@ summary = "Named, ready-to-run device profiles from plain data or a JSON manifes
 crates = ["pamoja-profile"]
 node = "profile"
 python = "profile"
-dotnet = ["Profile", "ControlPolicy", "ControlKind", "Controller", "Reaction", "Alert", "AlertKind", "PowerSchedule"]
+dotnet = ["Profile", "ControlPolicy", "ControlKind", "Controller", "Reaction", "Alert", "AlertKind", "PowerSchedule", "Presentation", "ElementSpec", "Theme", "Viz", "LocalizedText"]
 guide = "guides/profile.md"
 
 [[capability]]

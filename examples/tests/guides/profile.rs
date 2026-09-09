@@ -5,7 +5,7 @@
 #[test]
 fn a_profile_carried_as_a_manifest() {
     // ANCHOR: example
-    use pamoja_profile::{Alert, Profile};
+    use pamoja_profile::{Alert, ElementSpec, Presentation, Profile, Viz};
 
     // A profile is plain data, so a fleet ships one as a file rather than as code. The two
     // power thresholds are optional and fall back to the documented defaults.
@@ -50,6 +50,30 @@ fn a_profile_carried_as_a_manifest() {
         "shared form names its defaults: {}",
         shared.contains("saver_below")
     );
+
+    // The manifest also carries how a dashboard draws the node: one element here, the
+    // brooder's temperature as a thermometer with the band the chicks are safe in.
+    let drawn = profile.clone().with_presentation(
+        Presentation::new().with_element(
+            ElementSpec::new(
+                "brooder_temperature",
+                "celsius",
+                "Brooder temperature",
+                Viz::Thermometer,
+            )
+            .with_band(28.0, 36.0),
+        ),
+    );
+    let element = &drawn
+        .presentation
+        .as_ref()
+        .expect("a declared presentation")
+        .elements[0];
+    let [low, high] = element.band.expect("a band");
+    println!(
+        "draws {} in {} with a safe band of {low} to {high}",
+        element.key, element.unit
+    );
     // ANCHOR_END: example
 
     assert_eq!(cold.actuator, Some(true));
@@ -59,4 +83,10 @@ fn a_profile_carried_as_a_manifest() {
     assert_eq!(profile.power.saver_below, 0.5);
     assert!(shared.contains("\"saver_below\""));
     assert_eq!(Profile::from_json(&shared).expect("valid JSON"), profile);
+    assert_eq!(element.viz, Viz::Thermometer);
+    assert_eq!(element.band, Some([28.0, 36.0]));
+    assert!(drawn
+        .to_json()
+        .unwrap()
+        .contains("\"viz\": \"thermometer\""));
 }

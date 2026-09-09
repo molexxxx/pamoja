@@ -25,7 +25,7 @@ The script the test suite runs, spliced here as it ran.
 From [`bindings/python/guides/profile.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/profile.py):
 
 ```python
-from pamoja.profile import AlertKind, ControlKind, Profile
+from pamoja.profile import AlertKind, ControlKind, ElementSpec, Presentation, Profile, Viz
 
 # A profile is plain data, so a fleet ships one as a file rather than as code. The two
 # power thresholds are optional and fall back to the documented defaults.
@@ -57,6 +57,22 @@ print(f"at 32.2 C: lamp {settled.actuator}, alert {settled.alert}")
 # shared back carries no value the next reader has to infer.
 shared = profile.to_json()
 print(f"shared form names its defaults: {'saver_below' in shared}")
+
+# The manifest also carries how a dashboard draws the node: one element here, the
+# brooder's temperature as a thermometer with the band the chicks are safe in.
+drawn = profile.with_presentation(
+    Presentation(
+        [
+            ElementSpec(
+                "brooder_temperature", "celsius", "Brooder temperature", Viz.THERMOMETER,
+                band=(28, 36),
+            ),
+        ]
+    )
+)
+element = drawn.presentation.elements[0]
+low, high = element.band
+print(f"draws {element.key} in {element.unit} with a safe band of {low:g} to {high:g}")
 ```
 
 ## The same capability in every language

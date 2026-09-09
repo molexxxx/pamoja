@@ -1,0 +1,54 @@
+{
+  "name": "brooder-heater",
+  "description": "Keeps a poultry brooder at 32 C by switching a heat lamp on below 31.5 C and off above 32.5 C, and alerts when the chicks are more than 4 C from target. Samples every two minutes on a healthy battery and eases off as it drains.",
+  "topic": "poultry/brooder/temperature",
+  "control": {
+    "kind": "setpoint",
+    "setpoint": 32.0,
+    "hysteresis": 0.5,
+    "cooling": false,
+    "safe_band": 4.0
+  },
+  "power": {
+    "active_secs": 120,
+    "saver_secs": 600,
+    "critical_secs": 1800,
+    "saver_below": 0.5,
+    "critical_below": 0.2
+  },
+  "presentation": {
+    "elements": [
+      {
+        "key": "brooder_temperature",
+        "unit": "celsius",
+        "label": "Brooder temperature",
+        "labels": {
+          "fr": "Température de la couveuse",
+          "sw": "Joto la kitalu"
+        },
+        "viz": "thermometer",
+        "band": [
+          28.0,
+          36.0
+        ],
+        "stat": false,
+        "scope": "always",
+        "span": false
+      },
+      {
+        "key": "heat_lamp",
+        "unit": "state",
+        "label": "Heat lamp",
+        "labels": {
+          "fr": "Lampe chauffante",
+          "sw": "Taa ya joto"
+        },
+        "viz": "switch",
+        "stat": false,
+        "scope": "always",
+        "span": false,
+        "state": "state.online"
+      }
+    ]
+  }
+}

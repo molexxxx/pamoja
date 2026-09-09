@@ -148,14 +148,17 @@ pub fn home(chrome: &Chrome, body: &str) -> String {
          <li><a href=\"/docs/hardware.html\">Hardware</a></li>\n\
          <li><a href=\"/docs/buses.html\">Buses and links</a></li>\n\
          <li><a href=\"/docs/examples.html\">Examples</a></li>\n\
+         <li><a href=\"/docs/profiles.html\">Profiles</a></li>\n\
          <li><a href=\"/docs/reference/index.html\">API reference</a></li>\n\
          <li><a href=\"https://pamoja.molex.cloud/dashboard/\">Dashboard demo</a></li>\n\
          </ul>\n\
          <details class=\"side-group\" open><summary>Project</summary><ul>\n\
          <li><a href=\"{REPO}\">Source on GitHub</a></li>\n\
+         <li><a href=\"/docs/community.html\">Contribute</a></li>\n\
          <li><a href=\"{REPO}/issues/new?template=bug.yml\">Report a bug</a></li>\n\
          <li><a href=\"{REPO}/issues/new?template=capability.yml\">Request a capability</a></li>\n\
          <li><a href=\"{REPO}/issues/new?template=docs.yml\">Report a documentation problem</a></li>\n\
+         <li><a href=\"{REPO}/issues/new?template=profile.yml\">Share a profile</a></li>\n\
          <li><a href=\"{REPO}/releases\">Releases</a></li>\n\
          </ul></details>\n\
          </div>\n\

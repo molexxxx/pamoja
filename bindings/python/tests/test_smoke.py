@@ -819,6 +819,44 @@ def test_a_profile_manifest_round_trips():
         profile.Profile.from_json("{")
 
 
+def test_a_presentation_is_typed_both_ways():
+    from pamoja import profile
+
+    fridge = profile.Profile.vaccine_fridge_monitor()
+    assert "safe range" in fridge.description, "a preset says what it is for"
+    assert fridge.presentation is None, "and declares no presentation"
+
+    drawn = fridge.with_description("Holds the clinic fridge at 5 C.").with_presentation(
+        profile.Presentation(
+            [
+                profile.ElementSpec(
+                    "door_open", "state", "Door", profile.Viz.SWITCH,
+                    labels={"sw": "Mlango"}, state="state.closed",
+                ),
+                profile.ElementSpec(
+                    "compressor_amps", "amps", "Compressor current", "dial",
+                    band=(0.5, 3.0), scope=["mesh"],
+                ),
+            ],
+            theme=profile.Theme(accent="#3fb1c8"),
+            messages={"event.door_ajar": {"en": "Door left open", "sw": "Mlango umeachwa wazi"}},
+        )
+    )
+    assert drawn.description == "Holds the clinic fridge at 5 C."
+    shown = profile.Profile.from_json(drawn.to_json()).presentation
+    assert [e.key for e in shown.elements] == ["door_open", "compressor_amps"]
+    assert shown.elements[0].viz == profile.Viz.SWITCH, "the graphic is its manifest name"
+    assert shown.elements[0].labels == {"sw": "Mlango"}
+    assert shown.elements[0].scope is None, "an unscoped element is offered everywhere"
+    assert shown.elements[1].band == pytest.approx((0.5, 3.0))
+    assert shown.elements[1].scope == ["mesh"]
+    assert shown.theme.accent == "#3fb1c8"
+    assert shown.messages["event.door_ajar"]["sw"] == "Mlango umeachwa wazi"
+
+    with pytest.raises(ValueError, match="not a graphic"):
+        profile.ElementSpec("x", "u", "x", "my_custom_widget")
+
+
 def test_ros2_names_map_onto_the_dds_wire():
     from pamoja import ros2
 

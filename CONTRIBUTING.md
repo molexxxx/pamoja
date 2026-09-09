@@ -29,6 +29,15 @@ committed block no longer matches its source. The four runners and the marker
 convention are described on the
 [building page](https://pamoja.molex.cloud/docs/about/building.html).
 
+## Profiles, examples, drivers, and boards
+
+Not every contribution is Rust. A device profile is a JSON file under `profiles/`,
+checked by `cargo xtask profiles`; a shared program goes under `examples/community/`
+and runs in CI; a driver for a new part follows a datasheet audit checklist; a board
+is a page and a first program that compiles. The
+[community page](https://pamoja.molex.cloud/docs/community.html) has the path for
+each, and an issue form for anyone without the toolchain to run the checks.
+
 ## Before you open a pull request
 
 CI runs formatting, linting, tests, a dependency audit, and a set of drift and

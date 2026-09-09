@@ -9184,6 +9184,87 @@ PamojaString *pamoja_profile_name(const PamojaProfile *profile);
 // `profile` must be a live handle from a call that produced one, or null.
 PamojaString *pamoja_profile_topic(const PamojaProfile *profile);
 
+// Returns what a profile is for, in the words its manifest carries.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+//
+// # Returns
+//
+// A null-terminated UTF-8 string, which the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if the profile
+// carries no description or `profile` is null. The two cases are told apart by
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message), which is set
+// only for a null handle.
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, or null.
+PamojaString *pamoja_profile_description(const PamojaProfile *profile);
+
+// Returns a copy of a profile carrying a description of what it is for.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+// * `description` - the description, as null-terminated UTF-8.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_profile_free`], or null if
+// either pointer is null or the text is not UTF-8.
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, and
+// `description` must be a valid null-terminated UTF-8 string for the duration
+// of the call; either may be null.
+PamojaProfile *pamoja_profile_with_description(const PamojaProfile *profile,
+                                               const char *description);
+
+// Returns how a profile presents itself on a dashboard, as the JSON object its
+// manifest carries under `presentation`.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+//
+// # Returns
+//
+// A null-terminated UTF-8 string, which the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if the profile
+// declares no presentation or `profile` is null. The two cases are told apart
+// by [`pamoja_last_error_message`](crate::pamoja_last_error_message), which is
+// set only for a null handle or a presentation that cannot be serialized.
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, or null.
+PamojaString *pamoja_profile_presentation_json(const PamojaProfile *profile);
+
+// Returns a copy of a profile carrying a dashboard presentation.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+// * `presentation` - the JSON object a manifest carries under `presentation`,
+//   as null-terminated UTF-8.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_profile_free`], or null if
+// either pointer is null or the JSON is not a presentation, with the reason
+// available from [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, and
+// `presentation` must be a valid null-terminated UTF-8 string for the duration
+// of the call; either may be null.
+PamojaProfile *pamoja_profile_with_presentation_json(const PamojaProfile *profile,
+                                                     const char *presentation);
+
 // Returns the control policy a profile applies.
 //
 // # Arguments

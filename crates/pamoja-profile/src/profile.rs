@@ -169,6 +169,11 @@ impl PowerSchedule {
 pub struct Profile {
     /// A stable, human-readable name, such as `"vaccine-fridge-monitor"`.
     pub name: String,
+    /// What the profile is for, in a sentence or two: what it watches or holds, and what
+    /// it does when a reading crosses a line. A manifest shared in a catalog explains
+    /// itself with it; a profile built in code may leave it `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     /// The topic each reading is published to.
     pub topic: String,
     /// The control policy applied to each reading.
@@ -196,6 +201,13 @@ impl Profile {
     pub fn vaccine_fridge_monitor() -> Self {
         Self {
             name: "vaccine-fridge-monitor".to_owned(),
+            description: Some(
+                "Holds a vaccine fridge at 5 C by switching its cooler, and raises an \
+                 alert the moment the temperature leaves the 2 to 8 C safe range. Keeps \
+                 sampling often as the battery drains, since an unnoticed excursion \
+                 costs more than a flat battery."
+                    .to_owned(),
+            ),
             topic: "cold-chain/fridge/temperature".to_owned(),
             control: ControlSpec::Setpoint {
                 setpoint: 5.0,
@@ -221,6 +233,13 @@ impl Profile {
     pub fn irrigation_node() -> Self {
         Self {
             name: "irrigation-node".to_owned(),
+            description: Some(
+                "Opens an irrigation valve when soil moisture falls below 30 % and \
+                 closes it again above 40 %, and alerts when the soil dries below 10 % \
+                 or is waterlogged above 60 %. Samples slowly, since soil changes over \
+                 hours and the battery has to last."
+                    .to_owned(),
+            ),
             topic: "farm/irrigation/soil-moisture".to_owned(),
             control: ControlSpec::Setpoint {
                 setpoint: 35.0,
@@ -245,6 +264,12 @@ impl Profile {
     pub fn well_level() -> Self {
         Self {
             name: "well-level".to_owned(),
+            description: Some(
+                "Reports a well's water level and warns once the level is on course to \
+                 reach the dry mark within six more samples, so a pump is stopped \
+                 before it runs dry."
+                    .to_owned(),
+            ),
             topic: "water/well/level".to_owned(),
             control: ControlSpec::Level {
                 empty: 0.5,
@@ -279,6 +304,12 @@ impl Profile {
     pub fn flood_sensor() -> Self {
         Self {
             name: "flood-sensor".to_owned(),
+            description: Some(
+                "Watches a river gauge and warns when the level rises more than 0.3 m \
+                 in one sample, the signature of a flash flood. Samples every minute, \
+                 since a flood gives little warning."
+                    .to_owned(),
+            ),
             topic: "water/river/level".to_owned(),
             control: ControlSpec::Surge {
                 rising: true,
@@ -341,6 +372,33 @@ impl Profile {
     /// ```
     pub fn with_presentation(mut self, presentation: Presentation) -> Self {
         self.presentation = Some(presentation);
+        self
+    }
+
+    /// Sets what this profile is for, in a sentence or two.
+    ///
+    /// A manifest shared in a catalog carries its purpose with it, so a reader knows what
+    /// the profile watches or holds and what it does about it before opening the file.
+    ///
+    /// # Arguments
+    ///
+    /// * `description` - the purpose, in plain words.
+    ///
+    /// # Returns
+    ///
+    /// The profile, for chaining.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::Profile;
+    ///
+    /// let profile = Profile::well_level()
+    ///     .with_description("Warns before the village borehole runs dry.");
+    /// assert!(profile.to_json().unwrap().contains("borehole"));
+    /// ```
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
         self
     }
 }
@@ -417,6 +475,15 @@ mod tests {
             Profile::vaccine_fridge_monitor().name,
             "vaccine-fridge-monitor"
         );
+        for preset in [
+            Profile::vaccine_fridge_monitor(),
+            Profile::irrigation_node(),
+            Profile::well_level(),
+            Profile::flood_sensor(),
+        ] {
+            let description = preset.description.expect("every preset explains itself");
+            assert!(description.ends_with('.'), "{description}");
+        }
         assert_eq!(
             Profile::vaccine_fridge_monitor().topic,
             "cold-chain/fridge/temperature"
@@ -486,5 +553,11 @@ mod tests {
             profile.control,
             ControlSpec::Level { warn_within: 4, .. }
         ));
+        assert_eq!(profile.description, None);
+        assert!(!profile.to_json().unwrap().contains("description"));
+        let described = profile.with_description("Warns before a rain tank runs dry.");
+        let shared = described.to_json().unwrap();
+        assert!(shared.contains("\"description\": \"Warns before a rain tank runs dry.\""));
+        assert_eq!(Profile::from_json(&shared).unwrap(), described);
     }
 }

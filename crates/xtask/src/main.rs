@@ -20,6 +20,7 @@ mod licenses;
 mod links;
 mod packages;
 mod prices;
+mod profiles;
 mod regions;
 mod release;
 mod site;
@@ -63,6 +64,10 @@ const TASKS: &[(&str, &str)] = &[
     (
         "links",
         "fetch every source the hardware reference cites and fail on anything that is not 200",
+    ),
+    (
+        "profiles",
+        "check every shared profile manifest and rewrite it into canonical form (profiles [--check])",
     ),
     (
         "prices",
@@ -128,6 +133,10 @@ fn main() -> ExitCode {
 
     if task == "site" {
         return site::run(&args.collect::<Vec<_>>());
+    }
+
+    if task == "profiles" {
+        return profiles::run(&args.collect::<Vec<_>>());
     }
 
     if task == "links" {

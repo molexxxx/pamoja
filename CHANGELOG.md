@@ -9,6 +9,27 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- A path for what people build. `profiles/` holds one JSON manifest per shared
+  profile, the four presets among them, read by the parser a device uses and
+  checked by `cargo xtask profiles` for what a hand-written manifest gets wrong:
+  the name and file agree, a description is present, the topic is one publishable
+  path, a policy can act, the schedule slows as the battery drains, and every
+  dashboard element has a key, a unit, a label, a band with its low end first,
+  and a starting state the page has words for. The task rewrites each into the
+  form the library writes, and CI holds them there. A profiles page catalogs
+  them with what each does in words and the line that downloads it, and a
+  community page lays out the path for a profile, an example, a driver (the
+  datasheet audit checklist every shipped driver went through), and a board,
+  with an issue form for each. `examples/community/` is the place for shared
+  programs, listed on the examples page and run in CI. A profile gains a
+  `description`, carried in the manifest and by the presets, with
+  `with_description` in Rust and a getter in every binding. The dashboard
+  presentation a profile carries is typed in every binding: `Presentation`,
+  `ElementSpec`, `Theme`, and the `Viz` graphics in TypeScript, Python, and C#,
+  read from `presentation` and set with `withPresentation`, `with_presentation`,
+  and `WithPresentation`, over `pamoja_profile_presentation_json` and
+  `pamoja_profile_with_presentation_json` in the C ABI; the profile guide
+  declares one element in all four languages.
 - A page per board, each ending in a program that compiles in CI. The
   Raspberry Pi page wires a BME280 to the header, names the kernel settings
   that turn the buses on, and runs the driver over the kernel's device files;

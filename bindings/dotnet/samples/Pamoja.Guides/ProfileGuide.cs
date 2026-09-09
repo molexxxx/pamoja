@@ -46,6 +46,19 @@ public static class ProfileGuide
         // device and shared back carries no value the next reader has to infer.
         string shared = profile.ToJson();
         Console.WriteLine($"shared form names its defaults: {shared.Contains("saver_below")}");
+
+        // The manifest also carries how a dashboard draws the node: one element here, the
+        // brooder's temperature as a thermometer with the band the chicks are safe in.
+        using var drawn = profile.WithPresentation(new Presentation(
+        [
+            new ElementSpec("brooder_temperature", "celsius", "Brooder temperature", Viz.Thermometer)
+            {
+                Band = [28f, 36f],
+            },
+        ]));
+        ElementSpec element = drawn.Presentation!.Elements[0];
+        Console.WriteLine(
+            $"draws {element.Key} in {element.Unit} with a safe band of {element.Band![0]} to {element.Band![1]}");
         // ANCHOR_END: example
 
         Expect(profile.Control.Kind == ControlKind.Setpoint, "the control policy is a setpoint");
@@ -57,5 +70,8 @@ public static class ProfileGuide
         Expect(cold.Alert?.Kind == AlertKind.OutOfRange, "and the drift is reported");
         Expect(settled.Alert is null, "inside it nothing is raised");
         Expect(shared.Contains("saver_below"), "the shared form names its defaults");
+        Expect(element.Viz == Viz.Thermometer, "the graphic comes back typed");
+        Expect(element.Band is [28f, 36f], "and so does the band");
+        Expect(drawn.ToJson().Contains("\"viz\": \"thermometer\""), "the manifest names the graphic");
     }
 }
