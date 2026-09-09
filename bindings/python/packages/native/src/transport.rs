@@ -9,14 +9,23 @@
 //! from then on. A consumed transport is emptied rather than left aliasing what
 //! now belongs to a ladder, so using one twice raises instead of quietly sharing
 //! a link.
+//!
+//! A link written in Python enters the same way: [`PyTransport::from_handlers`]
+//! wraps an object whose methods connect, send, subscribe, and receive, so a
+//! vendor SDK or a class of the caller's own composes like a transport pamoja
+//! ships.
 
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Mutex;
 
-use pamoja_core::{Message as CoreMessage, Receive, Result, Transport};
+use pamoja_core::{Error, Message as CoreMessage, Receive, Result, Transport};
 use pyo3::prelude::*;
+use pyo3::types::{PyBytes, PyTuple};
+use pyo3_async_runtimes::TaskLocals;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use crate::PamojaError;
 
@@ -128,6 +137,19 @@ pub(crate) enum Kind {
     /// Another transport carrying loss and outages.
     #[cfg(feature = "sim")]
     Degraded(pamoja_sim::DegradedLink<AnyTransport>),
+    /// A link whose operations are the methods of a Python object.
+    Host(HostTransport),
+}
+
+impl Kind {
+    /// Whether the transport delivers messages, so a ladder listens on it rather
+    /// than treating it as an uplink.
+    pub(crate) fn listens(&self) -> bool {
+        match self {
+            Kind::Host(inner) => inner.listens,
+            _ => true,
+        }
+    }
 }
 
 impl Transport for Kind {
@@ -143,6 +165,7 @@ impl Transport for Kind {
             Kind::Faulty(inner) => inner.connect().await,
             #[cfg(feature = "sim")]
             Kind::Degraded(inner) => inner.connect().await,
+            Kind::Host(inner) => inner.connect().await,
         }
     }
 
@@ -158,6 +181,7 @@ impl Transport for Kind {
             Kind::Faulty(inner) => inner.send(topic, payload).await,
             #[cfg(feature = "sim")]
             Kind::Degraded(inner) => inner.send(topic, payload).await,
+            Kind::Host(inner) => inner.send(topic, payload).await,
         }
     }
 
@@ -173,6 +197,7 @@ impl Transport for Kind {
             Kind::Faulty(inner) => inner.subscribe(topic).await,
             #[cfg(feature = "sim")]
             Kind::Degraded(inner) => inner.subscribe(topic).await,
+            Kind::Host(inner) => inner.subscribe(topic).await,
         }
     }
 }
@@ -190,6 +215,190 @@ impl Receive for Kind {
             Kind::Faulty(inner) => inner.recv().await,
             #[cfg(feature = "sim")]
             Kind::Degraded(inner) => inner.recv().await,
+            Kind::Host(inner) => inner.recv().await,
+        }
+    }
+}
+
+/// A transport whose operations are the methods of a Python object.
+///
+/// Each call runs the method under the interpreter lock and, when the method
+/// returned an awaitable, awaits it on the event loop the ladder was driven from.
+/// A host with a `recv` method is asked for messages from a task that starts at
+/// `connect` and calls it again as soon as it returns, queueing what it delivers,
+/// so a receive through pamoja is cancel-safe whatever the method does.
+pub(crate) struct HostTransport {
+    handlers: Py<PyAny>,
+    listens: bool,
+    connected: bool,
+    inbox: Option<mpsc::UnboundedReceiver<CoreMessage>>,
+    pump: Option<JoinHandle<()>>,
+}
+
+impl HostTransport {
+    /// Wraps `handlers`, refusing an object that lacks a required method.
+    fn new(handlers: &Bound<'_, PyAny>) -> PyResult<Self> {
+        for name in ["connect", "send", "subscribe"] {
+            if !handlers.hasattr(name)? {
+                return Err(PamojaError::new_err(format!(
+                    "a transport handler needs a {name} method"
+                )));
+            }
+        }
+        Ok(Self {
+            listens: handlers.hasattr("recv")?,
+            handlers: handlers.clone().unbind(),
+            connected: false,
+            inbox: None,
+            pump: None,
+        })
+    }
+
+    /// Starts the task that asks the host for messages until it answers `None`.
+    fn start_pump(&mut self, locals: TaskLocals) {
+        if !self.listens {
+            return;
+        }
+        if let Some(pump) = self.pump.take() {
+            pump.abort();
+        }
+        let handlers = Python::attach(|py| self.handlers.clone_ref(py));
+        let (sender, receiver) = mpsc::unbounded_channel();
+        self.inbox = Some(receiver);
+        self.pump = Some(tokio::spawn(async move {
+            loop {
+                let Ok(Some(message)) = receive(&handlers, &locals).await else {
+                    break;
+                };
+                if sender.send(message).is_err() {
+                    break;
+                }
+            }
+        }));
+    }
+}
+
+impl Drop for HostTransport {
+    fn drop(&mut self) {
+        if let Some(pump) = self.pump.take() {
+            pump.abort();
+        }
+    }
+}
+
+/// The task locals the current call was made under, which is where the host's
+/// coroutines are scheduled.
+fn current_locals() -> Result<TaskLocals> {
+    Python::attach(pyo3_async_runtimes::tokio::get_current_locals).map_err(host_error)
+}
+
+/// Calls a handler method with `args` and awaits its result if it is awaitable.
+async fn call(
+    handlers: &Py<PyAny>,
+    locals: &TaskLocals,
+    name: &str,
+    args: impl for<'py> FnOnce(Python<'py>) -> PyResult<Bound<'py, PyTuple>> + Send,
+) -> PyResult<Py<PyAny>> {
+    let pending = Python::attach(|py| -> PyResult<_> {
+        let result = handlers.bind(py).call_method1(name, args(py)?)?;
+        if result.hasattr("__await__")? {
+            Ok(Err(pyo3_async_runtimes::into_future_with_locals(
+                locals, result,
+            )?))
+        } else {
+            Ok(Ok(result.unbind()))
+        }
+    })?;
+    match pending {
+        Ok(value) => Ok(value),
+        Err(future) => future.await,
+    }
+}
+
+/// Asks the host for its next message and reads the answer: a [`Message`], a
+/// `(topic, payload)` pair, or `None` once the link has ended.
+async fn receive(handlers: &Py<PyAny>, locals: &TaskLocals) -> PyResult<Option<CoreMessage>> {
+    let value = call(handlers, locals, "recv", |py| Ok(PyTuple::empty(py))).await?;
+    Python::attach(|py| {
+        let value = value.bind(py);
+        if value.is_none() {
+            return Ok(None);
+        }
+        if let Ok(message) = value.extract::<PyRef<'_, Message>>() {
+            return Ok(Some(CoreMessage::new(
+                message.topic.clone(),
+                message.payload.clone(),
+            )));
+        }
+        let (topic, payload): (String, Vec<u8>) = value.extract().map_err(|_| {
+            PamojaError::new_err("recv must return a Message, a (topic, payload) pair, or None")
+        })?;
+        Ok(Some(CoreMessage::new(topic, payload)))
+    })
+}
+
+/// Maps a Python exception onto the shared transport error.
+fn host_error(error: PyErr) -> Error {
+    Error::Transport(error.to_string())
+}
+
+impl Transport for HostTransport {
+    async fn connect(&mut self) -> Result<()> {
+        let locals = current_locals()?;
+        call(&self.handlers, &locals, "connect", |py| {
+            Ok(PyTuple::empty(py))
+        })
+        .await
+        .map_err(host_error)?;
+        self.connected = true;
+        self.start_pump(locals);
+        Ok(())
+    }
+
+    async fn send(&mut self, topic: &str, payload: &[u8]) -> Result<()> {
+        if !self.connected {
+            return Err(Error::Closed);
+        }
+        let locals = current_locals()?;
+        let topic = topic.to_owned();
+        let payload = payload.to_vec();
+        call(&self.handlers, &locals, "send", move |py| {
+            PyTuple::new(
+                py,
+                [
+                    topic.into_pyobject(py)?.into_any(),
+                    PyBytes::new(py, &payload).into_any(),
+                ],
+            )
+        })
+        .await
+        .map(|_| ())
+        .map_err(host_error)
+    }
+
+    async fn subscribe(&mut self, topic: &str) -> Result<()> {
+        if !self.connected {
+            return Err(Error::Closed);
+        }
+        let locals = current_locals()?;
+        let topic = topic.to_owned();
+        call(&self.handlers, &locals, "subscribe", move |py| {
+            PyTuple::new(py, [topic.into_pyobject(py)?.into_any()])
+        })
+        .await
+        .map(|_| ())
+        .map_err(host_error)
+    }
+}
+
+impl Receive for HostTransport {
+    async fn recv(&mut self) -> Result<Option<CoreMessage>> {
+        if !self.connected {
+            return Err(Error::Closed);
+        }
+        match self.inbox.as_mut() {
+            Some(inbox) => Ok(inbox.recv().await),
+            None => Ok(None),
         }
     }
 }
@@ -212,6 +421,12 @@ pub struct Message {
 #[gen_stub_pymethods]
 #[pymethods]
 impl Message {
+    /// Creates a message, which is what a transport handler returns from `recv`.
+    #[new]
+    fn new(topic: String, payload: Vec<u8>) -> Self {
+        Self { topic, payload }
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Message(topic={:?}, payload={} bytes)",
@@ -330,6 +545,19 @@ impl PyTransport {
             link = link.intermittent(up, down);
         }
         Ok(Self::wrap(Kind::Degraded(link)))
+    }
+
+    /// Wraps an object whose methods are the link.
+    ///
+    /// `handlers` needs `connect()`, `send(topic, payload)`, and `subscribe(topic)`,
+    /// each a coroutine function or a plain one. A `recv()` that returns a
+    /// `Message`, a `(topic, payload)` pair, or `None` once the link has ended makes
+    /// it a link that delivers: it is called again as soon as it returns, from the
+    /// moment the transport connects. Without `recv` the transport only sends, and
+    /// a ladder never listens on it.
+    #[staticmethod]
+    fn from_handlers(handlers: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self::wrap(Kind::Host(HostTransport::new(handlers)?)))
     }
 
     /// Whether this transport is still holdable, or has been handed on.

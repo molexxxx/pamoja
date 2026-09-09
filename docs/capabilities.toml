@@ -391,6 +391,17 @@ dotnet = ["Transport", "TransportMessage"]
 guide = "guides/transport.md"
 
 [[capability]]
+key = "link"
+chapter = "transports"
+title = "Your own link"
+summary = "A link pamoja does not ship, written in your language against the transport contract and composed like any other"
+crates = []
+node = "core"
+python = "core"
+dotnet = ["Transport", "ITransportHandlers", "IReceivingTransportHandlers"]
+guide = "guides/link.md"
+
+[[capability]]
 key = "sim"
 chapter = "transports"
 title = "Simulators"

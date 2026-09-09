@@ -69,7 +69,9 @@ pub unsafe extern "C" fn pamoja_ladder_new(store: *mut PamojaStore) -> *mut Pamo
 /// Adds a rung, which is tried after the rungs already added.
 ///
 /// Add the cheapest, most-preferred link first and the costliest fallback last,
-/// because a send takes the first rung that accepts it.
+/// because a send takes the first rung that accepts it. A transport that delivers
+/// is subscribed and listened on; one that only sends, a host transport without a
+/// `recv` callback, is an uplink the ladder never listens on.
 ///
 /// # Arguments
 ///
@@ -103,7 +105,11 @@ pub unsafe extern "C" fn pamoja_ladder_rung(
         set_last_error("this ladder is no longer usable".to_owned());
         return PamojaStatus::InvalidArgument;
     };
-    handle.inner = Some(inner.rung(transport));
+    handle.inner = Some(if transport.listens() {
+        inner.rung(transport)
+    } else {
+        inner.uplink(transport)
+    });
     PamojaStatus::Ok
 }
 

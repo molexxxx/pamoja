@@ -2105,7 +2105,8 @@ class Ladder:
         
         Add the cheapest, most-preferred link first and the costliest fallback
         last, because a send takes the first rung that accepts it. The transport
-        is consumed.
+        is consumed. A transport that delivers is subscribed and listened on; a
+        host transport without `recv` is an uplink the ladder never listens on.
         """
     def connect(self) -> typing.Any:
         r"""
@@ -3235,6 +3236,10 @@ class Message:
         r"""
         The raw payload bytes.
         """
+    def __new__(cls, topic: builtins.str, payload: typing.Sequence[builtins.int]) -> Message:
+        r"""
+        Creates a message, which is what a transport handler returns from `recv`.
+        """
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
@@ -3835,6 +3840,18 @@ class PyTransport:
         Wraps a transport in a link that loses packets and goes down.
         
         The wrapped transport is consumed.
+        """
+    @staticmethod
+    def from_handlers(handlers: typing.Any) -> PyTransport:
+        r"""
+        Wraps an object whose methods are the link.
+        
+        `handlers` needs `connect()`, `send(topic, payload)`, and `subscribe(topic)`,
+        each a coroutine function or a plain one. A `recv()` that returns a
+        `Message`, a `(topic, payload)` pair, or `None` once the link has ended makes
+        it a link that delivers: it is called again as soon as it returns, from the
+        moment the transport connects. Without `recv` the transport only sends, and
+        a ladder never listens on it.
         """
 
 @typing.final

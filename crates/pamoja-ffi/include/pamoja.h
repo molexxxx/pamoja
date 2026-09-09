@@ -1503,6 +1503,31 @@ typedef struct {
   uint8_t ten_bit;
 } PamojaI2cAddress;
 
+// The functions a host supplies to stand as a transport.
+//
+// `connect`, `send`, and `subscribe` are required. `recv` is null for a link that
+// only sends. `release` is null when `user_data` needs no cleanup. The threading
+// rules are in the module documentation.
+typedef struct {
+  // Establishes the link. Called once per `connect` on the transport.
+  PamojaStatus (*connect)(void *user_data);
+  // Publishes `payload_len` bytes at `payload` to the null-terminated UTF-8
+  // `topic`. Both pointers are valid only for the duration of the call.
+  PamojaStatus (*send)(void *user_data,
+                       const char *topic,
+                       const uint8_t *payload,
+                       uintptr_t payload_len);
+  // Subscribes to the null-terminated UTF-8 `topic` filter, valid only for the
+  // duration of the call.
+  PamojaStatus (*subscribe)(void *user_data, const char *topic);
+  // Waits for the next message on a subscribed topic and stores it in
+  // `out_message`, or stores null once the link has ended. Null for a link that
+  // only sends.
+  PamojaStatus (*recv)(void *user_data, PamojaMessage **out_message);
+  // Frees whatever `user_data` refers to, once nothing will call the host again.
+  void (*release)(void *user_data);
+} PamojaTransportCallbacks;
+
 // A latitude and longitude in degrees.
 typedef struct {
   // Degrees north of the equator, negative for south.
@@ -3631,6 +3656,71 @@ PamojaPinLevel pamoja_pin_polarity_level(PamojaPinPolarity polarity, bool assert
 // `true` if `level` asserts the signal under `polarity`.
 bool pamoja_pin_polarity_is_asserted(PamojaPinPolarity polarity, PamojaPinLevel level);
 
+// Wraps host callbacks in a transport.
+//
+// # Arguments
+//
+// * `callbacks` - the host's functions, copied by this call; the struct need not
+//   outlive it.
+// * `user_data` - the pointer every callback receives, owned by the host until
+//   `release` is called with it.
+//
+// # Returns
+//
+// A handle the caller releases with [`pamoja_transport_free`] or hands to a call
+// that consumes it, such as adding it to a ladder. Null if `callbacks` is null or
+// lacks `connect`, `send`, or `subscribe`; the host then keeps `user_data` and
+// `release` is never called.
+//
+// # Safety
+//
+// `callbacks` must point to a valid struct for the duration of the call, and
+// each function in it must honor the contract in the module documentation for as
+// long as the transport, or any transport composed from it, lives.
+//
+// [`pamoja_transport_free`]: crate::transport::pamoja_transport_free
+PamojaTransport *pamoja_transport_from_callbacks(const PamojaTransportCallbacks *callbacks,
+                                                 void *user_data);
+
+// Builds a message for a host's `recv` callback to deliver.
+//
+// # Arguments
+//
+// * `topic` - the topic the message arrived on, as null-terminated UTF-8.
+// * `payload` - the payload bytes, or null when `payload_len` is 0.
+// * `payload_len` - the length of `payload`.
+//
+// # Returns
+//
+// A message the receiving side owns once it is stored in `out_message`; release
+// it with [`pamoja_message_free`] only if it is not handed over. Null if `topic`
+// is null or not UTF-8, or `payload` is null with a nonzero length.
+//
+// # Safety
+//
+// `topic` must be a valid null-terminated string and `payload` must point to at
+// least `payload_len` readable bytes or be null when that length is 0.
+//
+// [`pamoja_message_free`]: crate::transport::pamoja_message_free
+PamojaMessage *pamoja_message_new(const char *topic, const uint8_t *payload, uintptr_t payload_len);
+
+// Records the text a host callback wants attached to the status it returns.
+//
+// Call it on the thread the callback is running on, before returning the
+// status; pamoja reads it there and carries it to whoever made the call, where
+// [`pamoja_last_error_message`] then reports it.
+//
+// # Arguments
+//
+// * `message` - the description as null-terminated UTF-8, or null to clear it.
+//
+// # Safety
+//
+// `message` must be a valid null-terminated string, or null.
+//
+// [`pamoja_last_error_message`]: crate::pamoja_last_error_message
+void pamoja_last_error_set(const char *message);
+
 // Releases a smoother handle.
 //
 // Passing null is a no-op.
@@ -4365,7 +4455,9 @@ PamojaLadder *pamoja_ladder_new(PamojaStore *store);
 // Adds a rung, which is tried after the rungs already added.
 //
 // Add the cheapest, most-preferred link first and the costliest fallback last,
-// because a send takes the first rung that accepts it.
+// because a send takes the first rung that accepts it. A transport that delivers
+// is subscribed and listened on; one that only sends, a host transport without a
+// `recv` callback, is an uplink the ladder never listens on.
 //
 // # Arguments
 //

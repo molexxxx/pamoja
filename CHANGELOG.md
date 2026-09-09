@@ -9,6 +9,23 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- A link written in the host language is a transport. The C ABI takes a table of
+  callbacks and a `user_data` pointer through `pamoja_transport_from_callbacks`,
+  runs each callback off the runtime's blocking pool, asks an optional `recv`
+  callback for messages from a background thread and queues them so a receive
+  stays cancel-safe, and calls `release` only after the last callback in flight
+  has returned; `pamoja_message_new` builds what `recv` delivers and
+  `pamoja_last_error_set` attaches a reason to a status. On that, .NET gains
+  `Transport.FromHandlers` over `ITransportHandlers` and
+  `IReceivingTransportHandlers`; Node gains `Transport.fromHandlers` over an
+  object whose methods are called on it, so a class instance works as it is, each
+  method plain or returning a promise; Python gains `Transport.from_handlers` over
+  an object whose methods are plain or coroutine functions, awaited on the loop
+  the ladder was driven from, with `recv` returning a `Message`, a
+  `(topic, payload)` pair, or `None`. A host transport without a receive is an
+  uplink: every ladder adds it as one and never listens on it. The Python
+  `Message` gains a constructor. A guide, `docs/guides/link.md`, writes a link
+  over two queues in each language and runs it as a ladder rung.
 - The inbound half of a link, `Receive`, beside `Transport` in the core, with one
   `Message` type for what any link delivers. MQTT, CoAP, Zenoh, and the loopback
   transport implement it, the fault injector and the degraded link pass it

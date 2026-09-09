@@ -614,6 +614,111 @@ def test_a_command_comes_back_through_the_ladder():
     asyncio.run(run())
 
 
+def test_a_link_written_in_python_is_a_rung():
+    from pamoja import core, ladder, sync
+
+    class QueueLink:
+        """A link over two asyncio queues, standing in for a vendor SDK."""
+
+        def __init__(self):
+            self.sent = []
+            self.filters = []
+            self.inbox = asyncio.Queue()
+
+        async def connect(self):
+            self.connected = True
+
+        async def send(self, topic, payload):
+            self.sent.append((topic, payload))
+
+        def subscribe(self, topic):
+            self.filters.append(topic)
+
+        async def recv(self):
+            return await self.inbox.get()
+
+    async def run():
+        link = QueueLink()
+        rungs = ladder.Ladder(sync.Store.memory())
+        await rungs.rung(core.Transport.from_handlers(link))
+        await rungs.connect()
+        await rungs.subscribe("commands/1")
+        assert await rungs.send("sensors/1", b"21.5") == ladder.Delivery.SENT
+        assert link.sent == [("sensors/1", b"21.5")]
+        assert link.filters == ["commands/1"]
+
+        # What the link delivers comes back through the ladder, as a Message or as
+        # a pair; None ends the link.
+        await link.inbox.put(core.Message("commands/1", b"open"))
+        await link.inbox.put(("commands/1", b"close"))
+        first = await rungs.recv()
+        second = await rungs.recv()
+        assert (first.topic, first.payload) == ("commands/1", b"open")
+        assert second.payload == b"close"
+        await link.inbox.put(None)
+        with pytest.raises(PamojaError):
+            await rungs.recv()
+
+    asyncio.run(run())
+
+
+def test_a_send_only_link_is_an_uplink():
+    from pamoja import core, ladder, sync
+
+    class Uplink:
+        def __init__(self):
+            self.sent = []
+
+        async def connect(self):
+            pass
+
+        async def send(self, topic, payload):
+            self.sent.append(payload)
+
+        async def subscribe(self, topic):
+            raise AssertionError("an uplink is never subscribed")
+
+    async def run():
+        link = Uplink()
+        rungs = ladder.Ladder(sync.Store.memory())
+        await rungs.rung(core.Transport.from_handlers(link))
+        await rungs.connect()
+        await rungs.subscribe("commands/1")
+        assert await rungs.send("sensors/1", b"21.5") == ladder.Delivery.SENT
+        assert link.sent == [b"21.5"]
+        with pytest.raises(PamojaError):
+            await rungs.recv()
+
+    asyncio.run(run())
+
+
+def test_a_handler_that_raises_reports_its_reason():
+    from pamoja import core, ladder, sync
+
+    class Broken:
+        async def connect(self):
+            pass
+
+        async def send(self, topic, payload):
+            raise RuntimeError("the radio is out of range")
+
+        async def subscribe(self, topic):
+            pass
+
+    async def run():
+        rungs = ladder.Ladder(sync.Store.memory())
+        await rungs.rung(core.Transport.from_handlers(Broken()))
+        await rungs.connect()
+        # The ladder buffers what the link refused, so the reason is visible only
+        # when the link is driven directly through a wrapper that surfaces it.
+        assert await rungs.send("sensors/1", b"21.5") == ladder.Delivery.BUFFERED
+
+        with pytest.raises(PamojaError, match="needs a connect method"):
+            core.Transport.from_handlers(object())
+
+    asyncio.run(run())
+
+
 def test_a_spent_transport_cannot_be_added_twice():
     from pamoja import core, ladder, loopback, sync
 

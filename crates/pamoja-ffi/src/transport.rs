@@ -11,7 +11,9 @@
 //! [`PamojaMqttClient`](crate::mqtt::PamojaMqttClient). A client is for driving
 //! a link directly; a transport is for composition, and is consumed by whatever
 //! it is composed into. Keeping them apart means nothing has to move out of a
-//! live, shared handle.
+//! live, shared handle. A link the host implements itself enters through
+//! [`pamoja_transport_from_callbacks`](crate::host::pamoja_transport_from_callbacks)
+//! and is one of these handles from then on.
 
 use std::ffi::CString;
 use std::future::Future;
@@ -130,6 +132,19 @@ pub(crate) enum Kind {
     /// Another transport carrying loss and outages.
     #[cfg(feature = "sim")]
     Degraded(pamoja_sim::DegradedLink<AnyTransport>),
+    /// A link the host implements through callbacks.
+    Host(crate::host::CallbackTransport),
+}
+
+impl Kind {
+    /// Whether the transport delivers messages, so a ladder listens on it rather
+    /// than treating it as an uplink.
+    pub(crate) fn listens(&self) -> bool {
+        match self {
+            Kind::Host(inner) => inner.listens(),
+            _ => true,
+        }
+    }
 }
 
 impl Transport for Kind {
@@ -145,6 +160,7 @@ impl Transport for Kind {
             Kind::Faulty(inner) => inner.connect().await,
             #[cfg(feature = "sim")]
             Kind::Degraded(inner) => inner.connect().await,
+            Kind::Host(inner) => inner.connect().await,
         }
     }
 
@@ -160,6 +176,7 @@ impl Transport for Kind {
             Kind::Faulty(inner) => inner.send(topic, payload).await,
             #[cfg(feature = "sim")]
             Kind::Degraded(inner) => inner.send(topic, payload).await,
+            Kind::Host(inner) => inner.send(topic, payload).await,
         }
     }
 
@@ -175,6 +192,7 @@ impl Transport for Kind {
             Kind::Faulty(inner) => inner.subscribe(topic).await,
             #[cfg(feature = "sim")]
             Kind::Degraded(inner) => inner.subscribe(topic).await,
+            Kind::Host(inner) => inner.subscribe(topic).await,
         }
     }
 }
@@ -192,6 +210,7 @@ impl Receive for Kind {
             Kind::Faulty(inner) => inner.recv().await,
             #[cfg(feature = "sim")]
             Kind::Degraded(inner) => inner.recv().await,
+            Kind::Host(inner) => inner.recv().await,
         }
     }
 }
@@ -214,6 +233,11 @@ impl PamojaMessage {
     pub(crate) fn into_raw(topic: String, payload: Vec<u8>) -> *mut Self {
         let topic = CString::new(topic).unwrap_or_default();
         Box::into_raw(Box::new(Self { topic, payload }))
+    }
+
+    /// Takes the message back into the core type, for a message a host built.
+    pub(crate) fn into_message(self) -> Message {
+        Message::new(self.topic.into_string().unwrap_or_default(), self.payload)
     }
 }
 

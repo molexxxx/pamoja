@@ -51,13 +51,18 @@ impl Ladder {
     ///
     /// Add the cheapest, most-preferred link first and the costliest fallback
     /// last, because a send takes the first rung that accepts it. The transport
-    /// is consumed.
+    /// is consumed. A transport that delivers is subscribed and listened on; a
+    /// host transport without `recv` is an uplink the ladder never listens on.
     #[napi]
     pub async fn rung(&self, transport: &Transport) -> napi::Result<()> {
         let transport = transport.take()?;
         let mut slot = self.inner.lock().await;
         let ladder = slot.take().ok_or_else(unusable)?;
-        *slot = Some(ladder.rung(transport));
+        *slot = Some(if transport.listens() {
+            ladder.rung(transport)
+        } else {
+            ladder.uplink(transport)
+        });
         Ok(())
     }
 

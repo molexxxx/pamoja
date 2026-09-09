@@ -14,7 +14,9 @@ public sealed record TransportMessage(string Topic, byte[] Payload);
 /// A ladder rung, a fault injector, and a degraded link all take some transport,
 /// which a C ABI cannot express, so one handle carries whichever kind was built.
 /// Composing consumes it: the thing it is composed into owns it from then on, so
-/// a spent transport throws rather than aliasing a link it no longer holds.
+/// a spent transport throws rather than aliasing a link it no longer holds. A link
+/// written in .NET enters through <see cref="FromHandlers"/> and is one of these
+/// from then on.
 /// </remarks>
 public sealed class Transport : IDisposable
 {
@@ -35,6 +37,39 @@ public sealed class Transport : IDisposable
 
     /// <summary>Whether this transport is still holdable, or has been handed on.</summary>
     public bool IsAvailable => _handle != IntPtr.Zero;
+
+    /// <summary>Wraps a link written in .NET as a transport.</summary>
+    /// <remarks>
+    /// The handlers are held for the life of the transport and every transport
+    /// composed from it, and released once nothing will call them again. A
+    /// <see cref="IReceivingTransportHandlers"/> is listened on; plain
+    /// <see cref="ITransportHandlers"/> only send, and a ladder never listens on them.
+    /// </remarks>
+    /// <param name="handlers">The link.</param>
+    /// <returns>A transport whose every operation is one of the handlers.</returns>
+    /// <exception cref="PamojaException">The native transport could not be created.</exception>
+    public static unsafe Transport FromHandlers(ITransportHandlers handlers)
+    {
+        ArgumentNullException.ThrowIfNull(handlers);
+        GCHandle handle = GCHandle.Alloc(handlers);
+        var callbacks = new PamojaTransportCallbacks
+        {
+            Connect = &HostThunks.Connect,
+            Send = &HostThunks.Send,
+            Subscribe = &HostThunks.Subscribe,
+            Recv = handlers is IReceivingTransportHandlers ? &HostThunks.Receive : null,
+            Release = &HostThunks.Release,
+        };
+        IntPtr native = NativeMethods.pamoja_transport_from_callbacks(
+            ref callbacks, GCHandle.ToIntPtr(handle));
+        if (native == IntPtr.Zero)
+        {
+            handle.Free();
+            throw new PamojaException(Status.LastError() ?? "failed to create the host transport");
+        }
+
+        return new Transport(native, "host transport");
+    }
 
     /// <summary>Wraps a transport so a set number of its next sends fail.</summary>
     /// <remarks>

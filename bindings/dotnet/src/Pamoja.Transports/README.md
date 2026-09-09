@@ -2,7 +2,7 @@
 
 Reaching the network when no single link always works, and testing all of it with nothing plugged in.
 
-One reference for the 8 capabilities of this domain. Each is also its own package,
+One reference for the 9 capabilities of this domain. Each is also its own package,
 and `Pamoja` is the whole framework in one.
 
 ```sh
@@ -21,6 +21,7 @@ namespace, so a type is named the way it is when the package is referenced direc
 | [Transport ladder](https://pamoja.molex.cloud/docs/guides/ladder.html) | `Pamoja.Ladder` | Cheapest reachable link first, buffering to a store when every link is down |
 | [Event bus](https://pamoja.molex.cloud/docs/guides/bus.html) | `Pamoja.Bus` | An in-memory typed publish and subscribe event bus |
 | [Engine surface](https://pamoja.molex.cloud/docs/guides/transport.html) | `Pamoja.Core` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
+| [Your own link](https://pamoja.molex.cloud/docs/guides/link.html) | `Pamoja.Core` | A link pamoja does not ship, written in your language against the transport contract and composed like any other |
 | [Simulators](https://pamoja.molex.cloud/docs/guides/sim.html) | `Pamoja.Sim` | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
 
 The guides, with a worked C# example for each, are at [https://pamoja.molex.cloud/docs](https://pamoja.molex.cloud/docs/).

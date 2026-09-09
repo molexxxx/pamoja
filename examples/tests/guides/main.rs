@@ -13,6 +13,7 @@ mod hal;
 mod imports;
 mod kit;
 mod ladder;
+mod link;
 mod loopback;
 mod lora;
 mod lorawan;

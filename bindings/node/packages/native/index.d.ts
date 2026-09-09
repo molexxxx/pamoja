@@ -402,7 +402,8 @@ export declare class Ladder {
    *
    * Add the cheapest, most-preferred link first and the costliest fallback
    * last, because a send takes the first rung that accepts it. The transport
-   * is consumed.
+   * is consumed. A transport that delivers is subscribed and listened on; a
+   * host transport without `recv` is an uplink the ladder never listens on.
    */
   rung(transport: Transport): Promise<void>
   /**
@@ -1524,6 +1525,18 @@ export declare class Transport {
   static mqtt(options: MqttClientOptions): Transport
   /** Creates a CoAP transport from endpoint settings. */
   static coap(options: CoapClientOptions): Transport
+  /**
+   * Wraps a link written in JavaScript as a transport.
+   *
+   * `handlers` needs `connect()`, `send(topic, payload)`, and
+   * `subscribe(topic)`, each returning a promise or nothing. A `recv()` that
+   * resolves to a message, or to `null` once the link has ended, makes it a
+   * link that delivers: it is called again as soon as it settles, from the
+   * moment the transport connects. Without `recv` the transport only sends,
+   * and a ladder never listens on it. The methods are called on `handlers`,
+   * so a class instance works as it is.
+   */
+  static fromHandlers(handlers: { connect(): void | Promise<void>; send(topic: string, payload: Buffer): void | Promise<void>; subscribe(topic: string): void | Promise<void>; recv?(): TransportMessage | null | undefined | Promise<TransportMessage | null | undefined> }): Transport
   /**
    * Wraps a transport so its next `failures` sends fail.
    *
