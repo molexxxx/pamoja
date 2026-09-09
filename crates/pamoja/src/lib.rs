@@ -89,6 +89,7 @@
 //! | `modbus` | `pamoja::modbus` | [pamoja-modbus](https://docs.rs/pamoja-modbus) |
 //! | `can` | `pamoja::can` | [pamoja-can](https://docs.rs/pamoja-can) |
 //! | `gpio` | `pamoja::gpio` | [pamoja-gpio](https://docs.rs/pamoja-gpio) |
+//! | `hal` | `pamoja::hal` | [pamoja-hal](https://docs.rs/pamoja-hal) |
 //! | `sensors` | `pamoja::sensors` | [pamoja-sensors](https://docs.rs/pamoja-sensors) |
 //! | `actuators` | `pamoja::actuators` | [pamoja-actuators](https://docs.rs/pamoja-actuators) |
 //! | `lora` | `pamoja::lora` | [pamoja-lora](https://docs.rs/pamoja-lora) |
@@ -120,7 +121,7 @@
 //!
 //! | Group feature | Turns on |
 //! | --- | --- |
-//! | `field-io` | `serial`, `modbus`, `can`, `gpio` |
+//! | `field-io` | `serial`, `modbus`, `can`, `gpio`, `hal` |
 //! | `sensing` | `sensors`, `actuators` |
 //! | `radio` | `lora`, `lorawan`, `mesh`, `routing` |
 //! | `trust` | `audit`, `session`, `update`, `power`, `telemetry` |
@@ -133,14 +134,18 @@
 //! ```
 //!
 //! `std`, on by default, turns on the standard-library layer of the crates that
-//! have one (`pamoja-core`, `pamoja-lora`, `pamoja-mavlink`) and implies `alloc`,
+//! have one (`pamoja-core`, `pamoja-lora`, `pamoja-mavlink`, `pamoja-hal`,
+//! `pamoja-sensors`, `pamoja-actuators`, `pamoja-gpio`) and implies `alloc`,
 //! which adds the owned channel plans, tables, and message shapes of `pamoja-lora`,
 //! `pamoja-mesh`, `pamoja-routing`, and `pamoja-mavlink`. With both off and only
 //! `no_std` capabilities named, the crate builds for a bare-metal target; CI
 //! compiles it for `thumbv7em-none-eabihf`. The crates keep their finer switches
 //! (the LoRa region set, the kit's helper groups, the MAVLink serial driver), so
 //! depend on the crate itself when you need one of those. `dashboard` adds the
-//! fleet dashboard, a web server, and is off by default.
+//! fleet dashboard, a web server, and is off by default. `linux` adds the bus
+//! backends over the kernel's i2c-dev, spidev, and GPIO character devices and the
+//! kernel's 1-Wire thermometer file, for a gateway; it is off by default and inert
+//! on any other operating system.
 
 #![no_std]
 
@@ -162,6 +167,8 @@ pub use pamoja_codec as codec;
 pub use pamoja_dashboard as dashboard;
 #[cfg(feature = "gpio")]
 pub use pamoja_gpio as gpio;
+#[cfg(feature = "hal")]
+pub use pamoja_hal as hal;
 #[cfg(feature = "kit")]
 pub use pamoja_kit as kit;
 #[cfg(feature = "ladder")]

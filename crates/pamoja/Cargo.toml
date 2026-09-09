@@ -25,6 +25,7 @@ default = [
     "modbus",
     "can",
     "gpio",
+    "hal",
     "sensors",
     "actuators",
     "lora",
@@ -50,7 +51,16 @@ default = [
 ]
 # The standard-library layer of the crates that have one. With it off and only the
 # `no_std` capabilities named, the crate builds for a bare-metal target.
-std = ["alloc", "pamoja-core/std", "pamoja-lora?/std", "pamoja-mavlink?/std"]
+std = [
+    "alloc",
+    "pamoja-core/std",
+    "pamoja-lora?/std",
+    "pamoja-mavlink?/std",
+    "pamoja-hal?/std",
+    "pamoja-sensors?/std",
+    "pamoja-actuators?/std",
+    "pamoja-gpio?/std",
+]
 # The owned tables and message shapes that need an allocator but no operating system.
 alloc = [
     "pamoja-lora?/alloc",
@@ -66,6 +76,7 @@ serial = ["dep:pamoja-serial"]
 modbus = ["dep:pamoja-modbus"]
 can = ["dep:pamoja-can"]
 gpio = ["dep:pamoja-gpio"]
+hal = ["dep:pamoja-hal"]
 sensors = ["dep:pamoja-sensors"]
 actuators = ["dep:pamoja-actuators"]
 lora = ["dep:pamoja-lora"]
@@ -92,7 +103,7 @@ zenoh = ["dep:pamoja-zenoh"]
 # Chapter features: the groups the guides are organized into, so a build can name a
 # domain rather than listing its capabilities. Each is exactly the capabilities of that
 # chapter, and is checked against docs/capabilities.toml.
-field-io = ["serial", "modbus", "can", "gpio"]
+field-io = ["serial", "modbus", "can", "gpio", "hal"]
 sensing = ["sensors", "actuators"]
 radio = ["lora", "lorawan", "mesh", "routing"]
 trust = ["audit", "session", "update", "power", "telemetry"]
@@ -101,6 +112,8 @@ profiles = ["profile", "ros2", "zenoh"]
 
 # The fleet dashboard is a web server, so it is opt-in rather than part of the default set.
 dashboard = ["dep:pamoja-dashboard"]
+# The Linux bus backends and the kernel thermometer file, for a gateway; Linux only.
+linux = ["std", "pamoja-hal?/linux", "pamoja-sensors?/linux"]
 
 [dependencies]
 # The core and MAVLink take their std layer from this crate's `std` feature, so a
@@ -114,6 +127,7 @@ pamoja-serial = { path = "../pamoja-serial", version = "0.1.17", optional = true
 pamoja-modbus = { path = "../pamoja-modbus", version = "0.1.17", optional = true }
 pamoja-can = { path = "../pamoja-can", version = "0.1.17", optional = true }
 pamoja-gpio = { path = "../pamoja-gpio", version = "0.1.17", optional = true }
+pamoja-hal = { path = "../pamoja-hal", version = "0.1.17", optional = true }
 pamoja-sensors = { path = "../pamoja-sensors", version = "0.1.17", optional = true }
 pamoja-actuators = { path = "../pamoja-actuators", version = "0.1.17", optional = true }
 pamoja-lora = { path = "../pamoja-lora", version = "0.1.17", optional = true }

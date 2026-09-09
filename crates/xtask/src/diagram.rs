@@ -686,7 +686,11 @@ mod tests {
             !on_core.contains("pamoja-modbus"),
             "a pure codec depends on nothing"
         );
-        assert!(!on_core.contains("pamoja-sensors"));
+        assert!(
+            on_core.contains("pamoja-sensors"),
+            "a driver implements the core's trait"
+        );
+        assert!(!on_core.contains("pamoja-can"));
         let drawing = draw(&catalog, &on_core, false);
         let amber = format!("fill=\"{}\">mqtt<", PALETTE.amber);
         let plain = format!("fill=\"{}\">modbus<", PALETTE.text);

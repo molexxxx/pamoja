@@ -5,6 +5,7 @@
 //! [`Actuator`] that accepts commands, and a [`Telemetry`] source that streams
 //! frames. A single type may implement more than one of them.
 
+use crate::adapt::{Map, MapCommand};
 use crate::error::Result;
 
 /// A connectable physical or virtual device.
@@ -65,6 +66,28 @@ pub trait Sensor {
     /// [`Error::Closed`](crate::Error::Closed) if the sensor has been
     /// disconnected.
     async fn read(&mut self) -> Result<Self::Reading>;
+
+    /// Wraps this sensor so every reading passes through `select` first.
+    ///
+    /// This is how a driver that measures several channels feeds a consumer that
+    /// wants one number: `select` picks the channel, converts the unit, or combines
+    /// fields, and the result is a [`Sensor`] whose reading is whatever `select`
+    /// returns. See [`Map`] for an example.
+    ///
+    /// # Arguments
+    ///
+    /// * `select` - the function applied to each reading as it is taken.
+    ///
+    /// # Returns
+    ///
+    /// The adapted sensor.
+    fn map<F, T>(self, select: F) -> Map<Self, F>
+    where
+        Self: Sized,
+        F: FnMut(Self::Reading) -> T,
+    {
+        Map::new(self, select)
+    }
 }
 
 /// A sink that accepts typed commands, such as a motor or a valve.
@@ -88,6 +111,28 @@ pub trait Actuator {
     /// delivered, or [`Error::Closed`](crate::Error::Closed) if the actuator has
     /// been disconnected.
     async fn apply(&mut self, command: Self::Command) -> Result<()>;
+
+    /// Wraps this actuator so every command passes through `convert` first.
+    ///
+    /// This is how a part that takes its own command shape is driven by a consumer
+    /// that has a simpler one: a profile's `bool` becomes a pulse width, a percentage
+    /// becomes a duty. The result is an [`Actuator`] whose command is whatever
+    /// `convert` accepts. See [`MapCommand`] for an example.
+    ///
+    /// # Arguments
+    ///
+    /// * `convert` - the function turning the caller's command into this part's.
+    ///
+    /// # Returns
+    ///
+    /// The adapted actuator.
+    fn map_command<F, C>(self, convert: F) -> MapCommand<Self, F, C>
+    where
+        Self: Sized,
+        F: FnMut(C) -> Self::Command,
+    {
+        MapCommand::new(self, convert)
+    }
 }
 
 /// A device that emits a continuous stream of telemetry frames.

@@ -13,6 +13,9 @@
       "path": "../can"
     },
     {
+      "path": "../core"
+    },
+    {
       "path": "../gpio"
     },
     {

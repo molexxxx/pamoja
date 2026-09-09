@@ -422,6 +422,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cast"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
+
+[[package]]
 name = "castaway"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1117,6 +1123,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
 
 [[package]]
+name = "embedded-hal"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "361a90feb7004eca4019fb28352a9465666b24f840f5c3cddf0ff13920590b89"
+
+[[package]]
 name = "embedded-io"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1431,6 +1443,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
+name = "gpio-cdev"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09831ec59b80be69e75d29cf36e16afbbe5fd1af9c1bf4689ad91c77db5aa6a6"
+dependencies = [
+ "bitflags 2.13.0",
+ "libc",
+ "nix 0.27.1",
+]
+
+[[package]]
 name = "half"
 version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1687,6 +1710,18 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "tower-service",
+]
+
+[[package]]
+name = "i2cdev"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b940f7497c4f95b863b21cd34c3737b53a67d80d94cf29055d7f7eeca6ffdb4"
+dependencies = [
+ "bitflags 2.13.0",
+ "byteorder",
+ "libc",
+ "nix 0.26.4",
 ]
 
 [[package]]
@@ -2110,6 +2145,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "linux-embedded-hal"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c54d3532c66df7cc711f1419e4ca28086dddb94fbe9f99be436ca520f907951f"
+dependencies = [
+ "cast",
+ "embedded-hal",
+ "gpio-cdev",
+ "i2cdev",
+ "nb",
+ "nix 0.31.3",
+ "spidev",
+]
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2286,12 +2336,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "nb"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d5439c4ad607c3c23abf66de8c8bf57ba8adcd1f129e699851a6e43935d339d"
+
+[[package]]
 name = "nix"
 version = "0.26.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "598beaf3cc6fdd9a5dfb1630c2800c7acd31df7aaf0f565796fba2b53ca1af1b"
 dependencies = [
  "bitflags 1.3.2",
+ "cfg-if",
+ "libc",
+]
+
+[[package]]
+name = "nix"
+version = "0.27.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2eb04e9c688eff1c89d72b407f168cf79bb9e867a9d3323ed6c01519eb9cc053"
+dependencies = [
+ "bitflags 2.13.0",
  "cfg-if",
  "libc",
 ]
@@ -2883,6 +2950,7 @@ dependencies = [
  "pamoja-core",
  "pamoja-dashboard",
  "pamoja-gpio",
+ "pamoja-hal",
  "pamoja-kit",
  "pamoja-ladder",
  "pamoja-loopback",
@@ -2910,6 +2978,11 @@ dependencies = [
 [[package]]
 name = "pamoja-actuators"
 version = "0.1.17"
+dependencies = [
+ "embedded-hal",
+ "pamoja-core",
+ "pamoja-hal",
+]
 
 [[package]]
 name = "pamoja-audit"
@@ -2987,6 +3060,7 @@ dependencies = [
  "pamoja-codec",
  "pamoja-core",
  "pamoja-gpio",
+ "pamoja-hal",
  "pamoja-kit",
  "pamoja-ladder",
  "pamoja-loopback",
@@ -3058,6 +3132,19 @@ dependencies = [
 [[package]]
 name = "pamoja-gpio"
 version = "0.1.17"
+dependencies = [
+ "embedded-hal",
+ "pamoja-core",
+ "pamoja-hal",
+]
+
+[[package]]
+name = "pamoja-hal"
+version = "0.1.17"
+dependencies = [
+ "embedded-hal",
+ "linux-embedded-hal",
+]
 
 [[package]]
 name = "pamoja-kit"
@@ -3175,6 +3262,11 @@ dependencies = [
 [[package]]
 name = "pamoja-sensors"
 version = "0.1.17"
+dependencies = [
+ "embedded-hal",
+ "pamoja-core",
+ "pamoja-hal",
+]
 
 [[package]]
 name = "pamoja-serial"
@@ -4767,6 +4859,17 @@ checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "spidev"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f611021817865236902d15bdf8d729b0bd232141b568d56bb88409a8dc27397"
+dependencies = [
+ "bitflags 2.13.0",
+ "libc",
+ "nix 0.29.0",
 ]
 
 [[package]]

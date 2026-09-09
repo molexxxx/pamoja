@@ -12,7 +12,15 @@
 //! burst-reads the six data registers each cycle into a [`Measurement`] and calls
 //! [`Calibration::compensate`] for a [`Reading`]. [`CtrlMeas`] and [`Config`] build
 //! and decode the two control registers, and every decode has a matching builder so a
-//! node can be exercised with nothing wired.
+//! node can be exercised with nothing wired. The measurement-time functions are here
+//! too, and the [`Bmp280`] driver (the `embedded-hal` feature) runs the whole
+//! sequence, reset to reading, over an I2C or SPI bus.
+
+#[cfg(feature = "embedded-hal")]
+mod driver;
+
+#[cfg(feature = "embedded-hal")]
+pub use driver::{Bmp280, STATUS_POLLS};
 
 /// The I2C address with the SDO pin tied to ground.
 pub const I2C_ADDRESS_PRIMARY: u8 = 0x76;
@@ -28,6 +36,10 @@ pub const SKIPPED_OUTPUT: u32 = 0x80000;
 pub const CALIBRATION_LEN: usize = 24;
 /// The number of data bytes at [`register::DATA`].
 pub const DATA_LEN: usize = 6;
+/// The start-up time from power-on or reset until the part accepts a transfer, in
+/// microseconds: Table 2's `t_startup`, 2 ms at most, which the soft reset of section
+/// 4.3.2 incurs again since it runs the complete power-on-reset procedure.
+pub const STARTUP_MICROS: u32 = 2_000;
 
 /// The BMP280 register addresses.
 pub mod register {
@@ -346,6 +358,81 @@ impl Config {
     }
 }
 
+/// The longest one measurement cycle can take, in microseconds.
+///
+/// 1.25 ms, plus 2.3 ms per temperature sample, plus 2.3 ms per pressure sample and
+/// 0.575 ms, each term only for a measurement that is not skipped. Section 3.8.1 of
+/// the data sheet publishes these maxima as Table 13, one row per recommended
+/// setting, rather than as a formula; the terms are the BME280 data sheet's formula
+/// without its humidity term, and they reproduce every row of the table, including
+/// the minimum-rate column, which is computed from the maxima before the time column
+/// rounds them (6.425 ms gives the row's 155.6 Hz where 6.4 ms would give 156.3 Hz).
+/// A driver waits this long after forcing a measurement before it polls the status
+/// register, which is how section 3.9 asks forced-mode readout to be timed.
+///
+/// # Arguments
+///
+/// * `temperature` - temperature oversampling.
+/// * `pressure` - pressure oversampling.
+///
+/// # Returns
+///
+/// The maximum measurement time in microseconds.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_sensors::bmp280::{max_measurement_micros, Oversampling};
+///
+/// // Table 13's standard resolution row: pressure x4, temperature x1, 13.3 ms.
+/// let micros = max_measurement_micros(Oversampling::X1, Oversampling::X4);
+/// assert_eq!(micros, 13_325);
+/// ```
+pub fn max_measurement_micros(temperature: Oversampling, pressure: Oversampling) -> u32 {
+    let mut micros = 1_250;
+    if temperature != Oversampling::Skipped {
+        micros += 2_300 * u32::from(temperature.factor());
+    }
+    if pressure != Oversampling::Skipped {
+        micros += 2_300 * u32::from(pressure.factor()) + 575;
+    }
+    micros
+}
+
+/// The typical time one measurement cycle takes, in microseconds.
+///
+/// 1 ms, plus 2 ms per temperature sample, plus 2 ms per pressure sample and 0.5 ms,
+/// each term only for a measurement that is not skipped: the typical column of
+/// Table 13, row for row.
+///
+/// # Arguments
+///
+/// * `temperature` - temperature oversampling.
+/// * `pressure` - pressure oversampling.
+///
+/// # Returns
+///
+/// The typical measurement time in microseconds.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_sensors::bmp280::{typical_measurement_micros, Oversampling};
+///
+/// // Table 13's ultra low power row: pressure x1, temperature x1, 5.5 ms.
+/// assert_eq!(typical_measurement_micros(Oversampling::X1, Oversampling::X1), 5_500);
+/// ```
+pub fn typical_measurement_micros(temperature: Oversampling, pressure: Oversampling) -> u32 {
+    let mut micros = 1_000;
+    if temperature != Oversampling::Skipped {
+        micros += 2_000 * u32::from(temperature.factor());
+    }
+    if pressure != Oversampling::Skipped {
+        micros += 2_000 * u32::from(pressure.factor()) + 500;
+    }
+    micros
+}
+
 /// The per-chip trimming coefficients read from `0x88..=0x9F`.
 ///
 /// These are programmed into non-volatile memory during production and are constant
@@ -640,6 +727,75 @@ mod tests {
         // Section 5.2: 1110110 with SDO to GND, 1110111 with SDO to VDDIO.
         assert_eq!(I2C_ADDRESS_PRIMARY, 0b1110110);
         assert_eq!(I2C_ADDRESS_SECONDARY, 0b1110111);
+    }
+
+    #[test]
+    fn start_up_time_matches_table_2() {
+        // Table 2: t_startup, time to first communication, 2 ms at most.
+        assert_eq!(STARTUP_MICROS, 2_000);
+    }
+
+    #[test]
+    fn measurement_times_reproduce_table_13() {
+        // Table 13, one row per oversampling setting: pressure and temperature
+        // oversampling, then typical and maximum measurement time in tenths of a
+        // millisecond and typical and minimum rate in tenths of a hertz. The rate
+        // columns pin the maxima before the time column rounds them: 6.425 ms is the
+        // row's 155.6 Hz, where 6.4 ms would be 156.3 Hz.
+        let rows = [
+            (Oversampling::X1, Oversampling::X1, 55, 64, 1818, 1556),
+            (Oversampling::X2, Oversampling::X1, 75, 87, 1333, 1146),
+            (Oversampling::X4, Oversampling::X1, 115, 133, 870, 750),
+            (Oversampling::X8, Oversampling::X1, 195, 225, 513, 444),
+            (Oversampling::X16, Oversampling::X2, 375, 432, 267, 231),
+        ];
+        let tenths_of_ms = |micros: u32| (micros + 50) / 100;
+        let tenths_of_hz = |micros: u32| (10_000_000 + micros / 2) / micros;
+        for (pressure, temperature, typ_ms, max_ms, typ_hz, min_hz) in rows {
+            let typical = typical_measurement_micros(temperature, pressure);
+            let maximum = max_measurement_micros(temperature, pressure);
+            assert_eq!(
+                tenths_of_ms(typical),
+                typ_ms,
+                "{pressure:?} {temperature:?}"
+            );
+            assert_eq!(
+                tenths_of_ms(maximum),
+                max_ms,
+                "{pressure:?} {temperature:?}"
+            );
+            assert_eq!(
+                tenths_of_hz(typical),
+                typ_hz,
+                "{pressure:?} {temperature:?}"
+            );
+            assert_eq!(
+                tenths_of_hz(maximum),
+                min_hz,
+                "{pressure:?} {temperature:?}"
+            );
+        }
+        // The BME280 data sheet's worked example of the same terms, x1 temperature and
+        // x4 pressure, is Table 13's standard resolution row.
+        assert_eq!(
+            typical_measurement_micros(Oversampling::X1, Oversampling::X4),
+            11_500
+        );
+        assert_eq!(
+            max_measurement_micros(Oversampling::X1, Oversampling::X4),
+            13_325
+        );
+        let none = Oversampling::Skipped;
+        assert_eq!(typical_measurement_micros(none, none), 1_000);
+        assert_eq!(max_measurement_micros(none, none), 1_250);
+        assert_eq!(
+            max_measurement_micros(Oversampling::X1, none),
+            1_250 + 2_300
+        );
+        assert_eq!(
+            max_measurement_micros(none, Oversampling::X1),
+            1_250 + 2_300 + 575
+        );
     }
 
     #[test]

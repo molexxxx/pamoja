@@ -12,5 +12,22 @@ keywords.workspace = true
 categories.workspace = true
 authors.workspace = true
 
+[features]
+# The drivers, which reach a part over an embedded-hal bus and implement the core
+# Sensor trait. The decode half needs nothing and builds with the feature off.
+default = ["embedded-hal"]
+embedded-hal = ["dep:embedded-hal", "dep:pamoja-core", "dep:pamoja-hal"]
+std = ["embedded-hal", "pamoja-core/std", "pamoja-hal/std"]
+# The Linux kernel's 1-Wire thermometer files, read as a Sensor; see `ds18b20::linux`.
+linux = ["std"]
+
+[dependencies]
+embedded-hal = { version = "1.0", optional = true }
+pamoja-core = { path = "../pamoja-core", version = "0.1.17", default-features = false, optional = true }
+pamoja-hal = { path = "../pamoja-hal", version = "0.1.17", default-features = false, optional = true }
+
+[dev-dependencies]
+pamoja-hal = { path = "../pamoja-hal", features = ["alloc"] }
+
 [lints]
 workspace = true

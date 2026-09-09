@@ -1,4 +1,4 @@
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 //! On-board bus addressing and pin logic for the pamoja SDK.
 //!
@@ -28,8 +28,13 @@
 //!
 //! Everything is exact integer work over `Copy` values, so the same logic runs on the
 //! smallest microcontroller driving the bus. Clocking the bytes and toggling the lines
-//! themselves arrives with the hardware-I/O layer; this is the addressing-and-mode half
-//! ahead of it.
+//! themselves is the job of [`pamoja-hal`](https://docs.rs/pamoja-hal), whose
+//! `embedded-hal` traits every board implements. The [`switch`] module (the
+//! `embedded-hal` feature, on by default) puts the two together for the parts that are
+//! a single line: [`Switch`](switch::Switch) drives a relay, a valve, or a lamp as a
+//! core `Actuator`, and [`Contact`](switch::Contact) reads a button, a float switch,
+//! or a motion detector as a core `Sensor`, each with its [`Polarity`](pin::Polarity)
+//! carried by the type rather than remembered at every call.
 //!
 //! # Examples
 //!
@@ -47,14 +52,19 @@
 //! // SPI clock mode 0 is the (CPOL, CPHA) pair (false, false), as a datasheet quotes it.
 //! assert_eq!(Mode::Mode0.cpol_cpha(), (false, false));
 //!
-//! // An active-low relay is energised by driving its pin low.
+//! // An active-low relay is energized by driving its pin low.
 //! assert_eq!(Polarity::ActiveLow.level(true), Level::Low);
 //! # Ok::<(), pamoja_gpio::GpioError>(())
 //! ```
 
+#[cfg(feature = "embedded-hal")]
+extern crate alloc;
+
 pub mod i2c;
 pub mod pin;
 pub mod spi;
+#[cfg(feature = "embedded-hal")]
+pub mod switch;
 
 mod error;
 

@@ -120,7 +120,7 @@ impl Edge {
 /// Whether a signal is asserted by a high or a low physical level.
 ///
 /// Active-low wiring is everywhere in cheap hardware: a button to ground with a pull-up
-/// reads [`Level::Low`] when pressed, and many relay boards energise when their input is
+/// reads [`Level::Low`] when pressed, and many relay boards energize when their input is
 /// driven low. This type maps between the logical idea of "asserted" and the physical
 /// [`Level`] so the mapping lives in one place instead of in scattered inversions.
 ///

@@ -42,6 +42,12 @@ pub const POWER_UP_TIME_MS: u32 = 1_000;
 /// (Table 18).
 pub const FORCED_RECALIBRATION_FAILED: u16 = 0xffff;
 
+#[cfg(feature = "embedded-hal")]
+mod driver;
+
+#[cfg(feature = "embedded-hal")]
+pub use driver::{Scd4x, DATA_READY_POLLS, DATA_READY_POLL_MILLIS};
+
 /// The command words (Table 9), 16 bits each, most significant byte first, with no
 /// CRC after the command itself.
 pub mod command {

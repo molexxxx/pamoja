@@ -17,6 +17,7 @@ Each package name opens its reference.
 
 | Package | What it covers |
 | --- | --- |
+| [`Pamoja.Core`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.html) | The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, scripted buses that play a part's side of a conversation, and the Linux backends over i2c-dev, spidev, and the GPIO character device |
 | [`Pamoja.Core`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.html) | A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in |
 | [`Pamoja.Core`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.html) | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | [`Pamoja.Security`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Security.html) | ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic |

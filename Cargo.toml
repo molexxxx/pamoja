@@ -30,6 +30,7 @@ members = [
     "crates/pamoja-can",
     "crates/pamoja-serial",
     "crates/pamoja-gpio",
+    "crates/pamoja-hal",
     "crates/pamoja-bus",
     "crates/pamoja-dashboard",
     "crates/pamoja-zenoh",

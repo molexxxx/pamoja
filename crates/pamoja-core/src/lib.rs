@@ -15,6 +15,8 @@
 //! - [`Transport`] - a bidirectional byte transport.
 //! - [`Store`] - a durable store-and-forward queue.
 //! - [`EventBus`] - a typed publish/subscribe channel.
+//! - [`Map`] and [`MapCommand`] - adapters that reshape a reading or a command, so a
+//!   multi-channel driver feeds a consumer that wants one number.
 //! - [`Error`] and [`Result`] - the shared error model.
 //!
 //! # Examples
@@ -48,12 +50,14 @@
 
 extern crate alloc;
 
+pub mod adapt;
 pub mod bus;
 pub mod device;
 pub mod error;
 pub mod store;
 pub mod transport;
 
+pub use adapt::{Map, MapCommand};
 pub use bus::EventBus;
 pub use device::{Actuator, Device, Sensor, Telemetry};
 pub use error::{Error, Result};

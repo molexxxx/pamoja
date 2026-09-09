@@ -1,0 +1,56 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
+//! The bus layer for the pamoja SDK.
+//!
+//! Every part a node talks to sits on a bus: I2C for the dense breakout sensors, SPI
+//! for displays and radios, a GPIO line for a relay or a button, 1-Wire for a
+//! waterproof thermometer on a long cable. The drivers in
+//! [`pamoja-sensors`](https://docs.rs/pamoja-sensors) and
+//! [`pamoja-actuators`](https://docs.rs/pamoja-actuators) are written against traits
+//! rather than against a board, and this crate is where those traits come from and
+//! where the buses that implement them live:
+//!
+//! - [`i2c`], [`spi`], [`digital`], and [`delay`] are the `embedded-hal` 1.0 traits,
+//!   re-exported so a driver and the code that opens its bus name one thing. Any HAL
+//!   that implements them drives every pamoja part unchanged: `embassy-rp` on an
+//!   RP2040, `esp-hal` on an ESP32, the Linux backends below on a Raspberry Pi.
+//! - [`onewire`] is the bus `embedded-hal` does not define: the 1-Wire protocol a
+//!   DS18B20 speaks, bit-banged over any open-drain pin and a delay, with the reset
+//!   and presence handshake, the ROM commands, and the search that enumerates a bus.
+//! - [`script`] plays a part's side of a conversation: an I2C bus that checks each
+//!   transfer against a script and answers with the bytes a real part would send, a
+//!   pin that records what it was driven to, and a delay that records how long it was
+//!   asked to wait. A driver is tested against the datasheet's own sequence with
+//!   nothing plugged in.
+//! - [`linux`] (feature `linux`, Linux only) opens the kernel's `/dev/i2c-*`,
+//!   `/dev/spidev*`, and GPIO character devices as those same traits, so a gateway
+//!   reads a sensor with one call and no glue.
+//!
+//! # Examples
+//!
+//! A script stands in for a part that answers a one-byte register read: the chip id
+//! a BME280 returns for register `0xD0`.
+//!
+//! ```
+//! use pamoja_hal::i2c::I2c;
+//! use pamoja_hal::script::{I2cScript, I2cStep};
+//!
+//! let mut bus = I2cScript::new([I2cStep::write_read(0x76, [0xD0], [0x60])]);
+//! let mut id = [0u8; 1];
+//! bus.write_read(0x76, &[0xD0], &mut id)?;
+//! assert_eq!(id, [0x60]);
+//! assert!(bus.done());
+//! # Ok::<(), pamoja_hal::script::ScriptError>(())
+//! ```
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
+pub use embedded_hal;
+pub use embedded_hal::{delay, digital, i2c, spi};
+
+#[cfg(all(feature = "linux", target_os = "linux"))]
+pub mod linux;
+pub mod onewire;
+#[cfg(feature = "alloc")]
+pub mod script;

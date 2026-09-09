@@ -11,6 +11,29 @@
 //! It is pure logic: a caller writes the bytes to the device over whatever performs
 //! the I2C transfers.
 
+#[cfg(feature = "embedded-hal")]
+mod driver;
+
+#[cfg(feature = "embedded-hal")]
+pub use driver::{Output, Outputs, Pca9685};
+
+/// The I2C address with the six address pins low.
+pub const DEFAULT_I2C_ADDRESS: u8 = 0x40;
+
+/// The general-call address the software reset is sent to.
+pub const SOFTWARE_RESET_ADDRESS: u8 = 0x00;
+
+/// The one data byte the software reset carries; any other byte is not acknowledged.
+pub const SOFTWARE_RESET_BYTE: u8 = 0x06;
+
+/// How long the oscillator takes to run after the SLEEP bit is cleared, in
+/// microseconds; channel timing is not guaranteed inside this window and the
+/// RESTART bit must not be written before it has passed.
+pub const OSCILLATOR_STARTUP_MICROS: u32 = 500;
+
+/// The reset value of MODE2: totem-pole outputs, not inverted, change on STOP.
+pub const MODE2_RESET: u8 = 0x04;
+
 /// The PCA9685 register addresses.
 pub mod register {
     /// Mode register 1.
@@ -58,6 +81,20 @@ pub mod mode1 {
     pub const SUB3: u8 = 0x02;
     /// Respond to the LED All Call address.
     pub const ALLCALL: u8 = 0x01;
+}
+
+/// The MODE2 register bits.
+pub mod mode2 {
+    /// Invert the output logic; for boards with no external driver.
+    pub const INVRT: u8 = 0x10;
+    /// Outputs change on the acknowledge of each register write instead of on STOP.
+    pub const OCH: u8 = 0x08;
+    /// Totem-pole outputs when set, open-drain when clear.
+    pub const OUTDRV: u8 = 0x04;
+    /// With OE high: outputs high when OUTDRV is set, high-impedance otherwise.
+    pub const OUTNE_HIGH: u8 = 0x01;
+    /// With OE high: outputs high-impedance.
+    pub const OUTNE_HIGH_Z: u8 = 0x02;
 }
 
 /// The frequency of the internal oscillator, 25 MHz.
@@ -329,7 +366,7 @@ mod tests {
     }
 
     #[test]
-    fn servo_midpoint_is_a_centred_pulse() {
+    fn servo_midpoint_is_a_centered_pulse() {
         // 1500 µs at 50 Hz is 7.5 % of the 20 ms period: 0.075 * 4096 = 307 counts.
         assert_eq!(Pwm::servo(1500, 50), Pwm::duty(307));
         // The travel extremes.

@@ -127,6 +127,7 @@ tags = [
   { text = "CAN / J1939", ships = true, crate = "pamoja-can" },
   { text = "serial (SLIP / COBS)", ships = true, crate = "pamoja-serial" },
   { text = "GPIO / I2C / SPI", ships = true, crate = "pamoja-gpio" },
+  { text = "buses (embedded-hal, 1-Wire)", ships = true, crate = "pamoja-hal" },
   { text = "sensor drivers", ships = true, crate = "pamoja-sensors" },
   { text = "actuator drivers", ships = true, crate = "pamoja-actuators" },
   { text = "device profiles", ships = true, crate = "pamoja-profile" },

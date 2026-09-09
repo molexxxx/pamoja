@@ -23,6 +23,12 @@ pub const DEVICE_ID: u16 = 0x1050;
 /// temperature then humidity, 14-bit resolution on both, heater off.
 pub const CONFIGURATION_RESET: u16 = 0x1000;
 
+#[cfg(feature = "embedded-hal")]
+mod driver;
+
+#[cfg(feature = "embedded-hal")]
+pub use driver::Hdc1080;
+
 /// The HDC1080 register addresses. Every register is 16 bits, sent MSB first.
 pub mod register {
     /// Temperature result; writing this pointer also triggers an acquisition.
