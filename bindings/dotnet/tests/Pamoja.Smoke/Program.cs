@@ -328,6 +328,54 @@ static async Task AsyncTransports()
         inbound is not null && inbound.Payload.AsSpan().SequenceEqual("open"u8),
         "the command came back through the ladder");
 
+    // A link written in .NET is a rung like any other: what the ladder sends reaches
+    // it, and what it delivers comes back through the ladder.
+    var hostLink = new QueueLink();
+    using var hosted = new Ladder(Store.Memory());
+    hosted.Rung(Transport.FromHandlers(hostLink));
+    await hosted.ConnectAsync();
+    await hosted.SubscribeAsync("commands/1");
+    Assert(
+        await hosted.SendAsync("sensors/1", "21.5"u8.ToArray()) == Delivery.Sent,
+        "the host link carried the reading");
+    Assert(hostLink.Sent.Count == 1 && hostLink.Sent[0].Topic == "sensors/1", "and saw it");
+    Assert(hostLink.Filters.Contains("commands/1"), "the subscription reached the host link");
+    hostLink.Deliver(new TransportMessage("commands/1", "open"u8.ToArray()));
+    TransportMessage? fromHost = await hosted.ReceiveAsync();
+    Assert(
+        fromHost is not null && fromHost.Payload.AsSpan().SequenceEqual("open"u8),
+        "what the host link delivered came back through the ladder");
+
+    // A send-only host link is an uplink: sends go out, nothing is listened on.
+    var uplink = new SendOnlyLink();
+    using var oneWay = new Ladder(Store.Memory());
+    oneWay.Rung(Transport.FromHandlers(uplink));
+    await oneWay.ConnectAsync();
+    Assert(
+        await oneWay.SendAsync("sensors/1", "21.6"u8.ToArray()) == Delivery.Sent,
+        "an uplink carries sends");
+    try
+    {
+        await oneWay.ReceiveAsync();
+        Fail("a ladder with only an uplink has nothing to receive from");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    // A handler that throws reports its reason to the caller.
+    using var failing = Transport.FromHandlers(new RefusingLink());
+    await failing.ConnectAsync();
+    try
+    {
+        await failing.SendAsync("sensors/1", "x"u8.ToArray());
+        Fail("a refusing link must fail the send");
+    }
+    catch (PamojaException error)
+    {
+        Assert(error.Message.Contains("out of range"), $"the reason is the handler's: {error.Message}");
+    }
+
     // A transport handed to a ladder is spent.
     Transport spent = broker.Rung();
     Assert(spent.IsAvailable, "a fresh transport is holdable");
@@ -4072,4 +4120,55 @@ static async Task ConformSimulation(JsonElement vector)
             1e-6,
             "the heading it holds");
     }
+}
+
+/// <summary>A link over two queues, standing in for a vendor SDK.</summary>
+sealed class QueueLink : IReceivingTransportHandlers
+{
+    private readonly System.Threading.Channels.Channel<TransportMessage?> _inbox =
+        System.Threading.Channels.Channel.CreateUnbounded<TransportMessage?>();
+
+    public List<TransportMessage> Sent { get; } = new();
+
+    public List<string> Filters { get; } = new();
+
+    public Task ConnectAsync() => Task.CompletedTask;
+
+    public Task SendAsync(string topic, ReadOnlyMemory<byte> payload)
+    {
+        Sent.Add(new TransportMessage(topic, payload.ToArray()));
+        return Task.CompletedTask;
+    }
+
+    public Task SubscribeAsync(string topic)
+    {
+        Filters.Add(topic);
+        return Task.CompletedTask;
+    }
+
+    public async Task<TransportMessage?> ReceiveAsync() => await _inbox.Reader.ReadAsync();
+
+    public void Deliver(TransportMessage? message) => _inbox.Writer.TryWrite(message);
+}
+
+/// <summary>A link that only sends.</summary>
+sealed class SendOnlyLink : ITransportHandlers
+{
+    public Task ConnectAsync() => Task.CompletedTask;
+
+    public Task SendAsync(string topic, ReadOnlyMemory<byte> payload) => Task.CompletedTask;
+
+    public Task SubscribeAsync(string topic) =>
+        throw new InvalidOperationException("an uplink is never subscribed");
+}
+
+/// <summary>A link whose sends fail with a reason.</summary>
+sealed class RefusingLink : ITransportHandlers
+{
+    public Task ConnectAsync() => Task.CompletedTask;
+
+    public Task SendAsync(string topic, ReadOnlyMemory<byte> payload) =>
+        throw new InvalidOperationException("the radio is out of range");
+
+    public Task SubscribeAsync(string topic) => Task.CompletedTask;
 }

@@ -49,6 +49,7 @@ Each module name opens its reference.
 | `pamoja-ladder` | [`pamoja.ladder`](https://pamoja.molex.cloud/docs/reference/python/pamoja/ladder.html) | Cheapest reachable link first, buffering to a store when every link is down |
 | `pamoja-bus` | [`pamoja.bus`](https://pamoja.molex.cloud/docs/reference/python/pamoja/bus.html) | An in-memory typed publish and subscribe event bus |
 | `pamoja-core` | [`pamoja.core`](https://pamoja.molex.cloud/docs/reference/python/pamoja/core.html) | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
+| `pamoja-core` | [`pamoja.core`](https://pamoja.molex.cloud/docs/reference/python/pamoja/core.html) | A link pamoja does not ship, written in your language against the transport contract and composed like any other |
 | `pamoja-sim` | [`pamoja.sim`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sim.html) | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
 | `pamoja-profile` | [`pamoja.profile`](https://pamoja.molex.cloud/docs/reference/python/pamoja/profile.html) | Named, ready-to-run device profiles from plain data or a JSON manifest |
 | `pamoja-ros2` | [`pamoja.ros2`](https://pamoja.molex.cloud/docs/reference/python/pamoja/ros2.html) | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |

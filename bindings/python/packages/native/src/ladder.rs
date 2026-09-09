@@ -45,14 +45,19 @@ impl Ladder {
     ///
     /// Add the cheapest, most-preferred link first and the costliest fallback
     /// last, because a send takes the first rung that accepts it. The transport
-    /// is consumed.
+    /// is consumed. A transport that delivers is subscribed and listened on; a
+    /// host transport without `recv` is an uplink the ladder never listens on.
     fn rung<'py>(&self, py: Python<'py>, transport: &PyTransport) -> PyResult<Bound<'py, PyAny>> {
         let transport = transport.take()?;
         let inner = Arc::clone(&self.inner);
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let mut guard = inner.lock().await;
             let ladder = guard.take().ok_or_else(unusable)?;
-            *guard = Some(ladder.rung(transport));
+            *guard = Some(if transport.listens() {
+                ladder.rung(transport)
+            } else {
+                ladder.uplink(transport)
+            });
             Ok(())
         })
     }

@@ -9,13 +9,27 @@
 //! from then on. A consumed transport is emptied rather than left aliasing what
 //! now belongs to a ladder, so using one twice throws instead of quietly sharing
 //! a link.
+//!
+//! A link written in JavaScript enters the same way: [`Transport::from_handlers`]
+//! wraps an object whose methods connect, send, subscribe, and receive, so a
+//! vendor SDK or a class of the caller's own composes like a transport pamoja
+//! ships.
 
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
 
-use napi::bindgen_prelude::Buffer;
+use napi::bindgen_prelude::{
+    Buffer, FnArgs, FromNapiValue, Function, JsValuesTupleIntoVec, Object, Promise, ToNapiValue,
+    Unknown,
+};
+use napi::threadsafe_function::ThreadsafeFunction;
+use napi::{sys, Error as NapiError, JsValue, Status, ValueType};
 use napi_derive::napi;
-use pamoja_core::{Message, Receive, Result, Transport as CoreTransport};
+use pamoja_core::{Error, Message, Receive, Result, Transport as CoreTransport};
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 /// Object-safe erasure of a transport, so a wrapper can hold any of them.
 ///
@@ -125,6 +139,19 @@ pub(crate) enum Kind {
     /// Another transport carrying loss and outages.
     #[cfg(feature = "sim")]
     Degraded(pamoja_sim::DegradedLink<AnyTransport>),
+    /// A link whose operations are the methods of a JavaScript object.
+    Host(HostTransport),
+}
+
+impl Kind {
+    /// Whether the transport delivers messages, so a ladder listens on it rather
+    /// than treating it as an uplink.
+    pub(crate) fn listens(&self) -> bool {
+        match self {
+            Kind::Host(inner) => inner.recv.is_some(),
+            _ => true,
+        }
+    }
 }
 
 impl CoreTransport for Kind {
@@ -140,6 +167,7 @@ impl CoreTransport for Kind {
             Kind::Faulty(inner) => inner.connect().await,
             #[cfg(feature = "sim")]
             Kind::Degraded(inner) => inner.connect().await,
+            Kind::Host(inner) => inner.connect().await,
         }
     }
 
@@ -155,6 +183,7 @@ impl CoreTransport for Kind {
             Kind::Faulty(inner) => inner.send(topic, payload).await,
             #[cfg(feature = "sim")]
             Kind::Degraded(inner) => inner.send(topic, payload).await,
+            Kind::Host(inner) => inner.send(topic, payload).await,
         }
     }
 
@@ -170,6 +199,7 @@ impl CoreTransport for Kind {
             Kind::Faulty(inner) => inner.subscribe(topic).await,
             #[cfg(feature = "sim")]
             Kind::Degraded(inner) => inner.subscribe(topic).await,
+            Kind::Host(inner) => inner.subscribe(topic).await,
         }
     }
 }
@@ -187,6 +217,236 @@ impl Receive for Kind {
             Kind::Faulty(inner) => inner.recv().await,
             #[cfg(feature = "sim")]
             Kind::Degraded(inner) => inner.recv().await,
+            Kind::Host(inner) => inner.recv().await,
+        }
+    }
+}
+
+/// No arguments for a handler: a zero-sized value the call turns into none.
+struct NoArgs;
+
+impl ToNapiValue for NoArgs {
+    unsafe fn to_napi_value(env: sys::napi_env, _: Self) -> napi::Result<sys::napi_value> {
+        let mut undefined = std::ptr::null_mut();
+        napi::check_status!(
+            unsafe { sys::napi_get_undefined(env, &mut undefined) },
+            "Get undefined value failed"
+        )?;
+        Ok(undefined)
+    }
+}
+
+/// A handler result that is not looked at, whatever it was.
+struct Ignored;
+
+impl FromNapiValue for Ignored {
+    unsafe fn from_napi_value(_: sys::napi_env, _: sys::napi_value) -> napi::Result<Self> {
+        Ok(Ignored)
+    }
+}
+
+/// What a handler returned: a promise still to settle, or the value itself, so a
+/// plain method and an `async` one are both accepted.
+struct Settled<T: FromNapiValue + 'static>(SettledInner<T>);
+
+enum SettledInner<T: FromNapiValue + 'static> {
+    Now(Option<T>),
+    Later(Promise<T>),
+}
+
+impl<T: FromNapiValue + 'static> FromNapiValue for Settled<T> {
+    unsafe fn from_napi_value(env: sys::napi_env, value: sys::napi_value) -> napi::Result<Self> {
+        let mut is_promise = false;
+        napi::check_status!(
+            unsafe { sys::napi_is_promise(env, value, &mut is_promise) },
+            "Check for a promise failed"
+        )?;
+        Ok(Self(if is_promise {
+            SettledInner::Later(unsafe { Promise::from_napi_value(env, value)? })
+        } else {
+            SettledInner::Now(Some(unsafe { T::from_napi_value(env, value)? }))
+        }))
+    }
+}
+
+impl<T: FromNapiValue + Unpin + 'static> Future for Settled<T> {
+    type Output = napi::Result<T>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match &mut self.get_mut().0 {
+            SettledInner::Now(value) => Poll::Ready(value.take().ok_or_else(|| {
+                NapiError::from_reason("a handler result was polled after it completed")
+            })),
+            SettledInner::Later(promise) => Pin::new(promise).poll(cx),
+        }
+    }
+}
+
+/// A handler bound to its object, callable from any thread, and not holding the
+/// event loop open on its own.
+type Handler<Args, T> = ThreadsafeFunction<Args, Settled<T>, Args, Status, false, true>;
+
+/// Takes the method `name` off `handlers`, bound to it, as a threadsafe function.
+fn handler<Args, T>(
+    handlers: &Object,
+    name: &str,
+    required: bool,
+) -> napi::Result<Option<Handler<Args, T>>>
+where
+    Args: JsValuesTupleIntoVec + 'static,
+    T: FromNapiValue + 'static,
+{
+    let method = handlers.get::<Unknown>(name)?;
+    let is_function = match &method {
+        Some(method) => method.get_type()? == ValueType::Function,
+        None => false,
+    };
+    let Some(method) = method.filter(|_| is_function) else {
+        if required || method.is_some() {
+            return Err(NapiError::from_reason(format!(
+                "a transport handler needs a {name} method"
+            )));
+        }
+        return Ok(None);
+    };
+    let method = method.coerce_to_object()?;
+    let bind: Function<'_, Object<'_>, Function<'_, Args, Settled<T>>> = method
+        .get("bind")?
+        .ok_or_else(|| NapiError::from_reason(format!("{name} cannot be bound")))?;
+    let bound = bind.apply(method, *handlers)?;
+    Ok(Some(
+        bound
+            .build_threadsafe_function::<Args>()
+            .weak::<true>()
+            .build()?,
+    ))
+}
+
+/// Maps a JavaScript exception or a rejected promise onto the shared transport error.
+fn host_error(error: NapiError) -> Error {
+    if error.reason.is_empty() {
+        Error::Transport(format!("the handler failed with {:?}", error.status))
+    } else {
+        Error::Transport(error.reason)
+    }
+}
+
+/// A transport whose operations are the methods of a JavaScript object.
+///
+/// Each call is made on the event loop through a threadsafe function and awaited
+/// if it returned a promise. A host with a `recv` method is asked for messages from
+/// a task that starts at `connect` and calls it again as soon as it settles,
+/// queueing what it delivers, so a receive through pamoja is cancel-safe whatever
+/// the method does.
+pub(crate) struct HostTransport {
+    connect: Handler<NoArgs, Ignored>,
+    send: Handler<FnArgs<(String, Buffer)>, Ignored>,
+    subscribe: Handler<String, Ignored>,
+    recv: Option<Arc<Handler<NoArgs, Option<TransportMessage>>>>,
+    connected: bool,
+    inbox: Option<mpsc::UnboundedReceiver<Message>>,
+    pump: Option<JoinHandle<()>>,
+}
+
+impl HostTransport {
+    /// Wraps `handlers`, refusing an object that lacks a required method.
+    fn new(handlers: &Object) -> napi::Result<Self> {
+        Ok(Self {
+            connect: handler(handlers, "connect", true)?.expect("required"),
+            send: handler(handlers, "send", true)?.expect("required"),
+            subscribe: handler(handlers, "subscribe", true)?.expect("required"),
+            recv: handler(handlers, "recv", false)?.map(Arc::new),
+            connected: false,
+            inbox: None,
+            pump: None,
+        })
+    }
+
+    /// Starts the task that asks the host for messages until it answers `null`.
+    fn start_pump(&mut self) {
+        let Some(recv) = self.recv.as_ref().map(Arc::clone) else {
+            return;
+        };
+        if let Some(pump) = self.pump.take() {
+            pump.abort();
+        }
+        let (sender, receiver) = mpsc::unbounded_channel();
+        self.inbox = Some(receiver);
+        self.pump = Some(tokio::spawn(async move {
+            loop {
+                let next = match recv.call_async(NoArgs).await {
+                    Ok(settled) => settled.await,
+                    Err(error) => Err(error),
+                };
+                let Ok(Some(message)) = next else {
+                    break;
+                };
+                let message = Message::new(message.topic, message.payload.to_vec());
+                if sender.send(message).is_err() {
+                    break;
+                }
+            }
+        }));
+    }
+}
+
+impl Drop for HostTransport {
+    fn drop(&mut self) {
+        if let Some(pump) = self.pump.take() {
+            pump.abort();
+        }
+    }
+}
+
+impl CoreTransport for HostTransport {
+    async fn connect(&mut self) -> Result<()> {
+        self.connect
+            .call_async(NoArgs)
+            .await
+            .map_err(host_error)?
+            .await
+            .map_err(host_error)?;
+        self.connected = true;
+        self.start_pump();
+        Ok(())
+    }
+
+    async fn send(&mut self, topic: &str, payload: &[u8]) -> Result<()> {
+        if !self.connected {
+            return Err(Error::Closed);
+        }
+        let args = FnArgs::from((topic.to_owned(), Buffer::from(payload.to_vec())));
+        self.send
+            .call_async(args)
+            .await
+            .map_err(host_error)?
+            .await
+            .map_err(host_error)?;
+        Ok(())
+    }
+
+    async fn subscribe(&mut self, topic: &str) -> Result<()> {
+        if !self.connected {
+            return Err(Error::Closed);
+        }
+        self.subscribe
+            .call_async(topic.to_owned())
+            .await
+            .map_err(host_error)?
+            .await
+            .map_err(host_error)?;
+        Ok(())
+    }
+}
+
+impl Receive for HostTransport {
+    async fn recv(&mut self) -> Result<Option<Message>> {
+        if !self.connected {
+            return Err(Error::Closed);
+        }
+        match self.inbox.as_mut() {
+            Some(inbox) => Ok(inbox.recv().await),
+            None => Ok(None),
         }
     }
 }
@@ -262,6 +522,23 @@ impl Transport {
         Self::wrap(Kind::Coap(pamoja_coap::CoapTransport::new(
             crate::coap::settings(options),
         )))
+    }
+
+    /// Wraps a link written in JavaScript as a transport.
+    ///
+    /// `handlers` needs `connect()`, `send(topic, payload)`, and
+    /// `subscribe(topic)`, each returning a promise or nothing. A `recv()` that
+    /// resolves to a message, or to `null` once the link has ended, makes it a
+    /// link that delivers: it is called again as soon as it settles, from the
+    /// moment the transport connects. Without `recv` the transport only sends,
+    /// and a ladder never listens on it. The methods are called on `handlers`,
+    /// so a class instance works as it is.
+    #[napi(
+        factory,
+        ts_args_type = "handlers: { connect(): void | Promise<void>; send(topic: string, payload: Buffer): void | Promise<void>; subscribe(topic: string): void | Promise<void>; recv?(): TransportMessage | null | undefined | Promise<TransportMessage | null | undefined> }"
+    )]
+    pub fn from_handlers(handlers: Object) -> napi::Result<Self> {
+        Ok(Self::wrap(Kind::Host(HostTransport::new(&handlers)?)))
     }
 
     /// Wraps a transport so its next `failures` sends fail.

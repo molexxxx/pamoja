@@ -57,7 +57,7 @@ each under its own name:
 </div>
 <div class="domain">
 <div class="pkg-head">
-<div class="pkg-what"><span class="pkg-title">Transports and testing</span><code class="pkg-import">@pamoja/transports</code><p><a href="https://pamoja.molex.cloud/docs/guides/mqtt.html">MQTT</a>, <a href="https://pamoja.molex.cloud/docs/guides/coap.html">CoAP</a>, <a href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a>, <a href="https://pamoja.molex.cloud/docs/guides/sync.html">Store and forward</a>, <a href="https://pamoja.molex.cloud/docs/guides/ladder.html">Transport ladder</a>, <a href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a>, <a href="https://pamoja.molex.cloud/docs/guides/transport.html">Engine surface</a>, <a href="https://pamoja.molex.cloud/docs/guides/sim.html">Simulators</a></p></div>
+<div class="pkg-what"><span class="pkg-title">Transports and testing</span><code class="pkg-import">@pamoja/transports</code><p><a href="https://pamoja.molex.cloud/docs/guides/mqtt.html">MQTT</a>, <a href="https://pamoja.molex.cloud/docs/guides/coap.html">CoAP</a>, <a href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a>, <a href="https://pamoja.molex.cloud/docs/guides/sync.html">Store and forward</a>, <a href="https://pamoja.molex.cloud/docs/guides/ladder.html">Transport ladder</a>, <a href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a>, <a href="https://pamoja.molex.cloud/docs/guides/transport.html">Engine surface</a>, <a href="https://pamoja.molex.cloud/docs/guides/link.html">Your own link</a>, <a href="https://pamoja.molex.cloud/docs/guides/sim.html">Simulators</a></p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/transports</code><button class="copy" type="button" data-copy="npm install @pamoja/transports" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_transports.html">API reference</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/transports">npm</a></div></div>
@@ -110,6 +110,16 @@ reference pages, one step away.
 <div class="pkg-foot">
 <div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_core.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/transport.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/transport.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/core">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-transport" title="pamoja-core">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-transport" title="pamoja-core">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-transport" title="Pamoja.Core">C#</a></p>
+</div>
+</div>
+<div class="pkg" id="node-link">
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/link.html">Your own link</a><code class="pkg-import">@pamoja/core</code><p>A link pamoja does not ship, written in your language against the transport contract and composed like any other</p></div>
+<div class="pkg-get"><code class="cmd">npm install @pamoja/core</code><button class="copy" type="button" data-copy="npm install @pamoja/core" aria-label="Copy the install command">copy</button></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_core.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/link.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/link.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/core">npm</a></div>
+<p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-link" title="pamoja-core">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-link" title="pamoja-core">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-link" title="Pamoja.Core">C#</a></p>
 </div>
 </div>
 </div>

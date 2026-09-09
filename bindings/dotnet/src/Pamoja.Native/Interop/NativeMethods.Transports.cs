@@ -75,6 +75,23 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_transport_recv(IntPtr transport, out IntPtr outMessage);
 
+    /// <summary>Wraps host callbacks in a transport.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_transport_from_callbacks(
+        ref PamojaTransportCallbacks callbacks,
+        IntPtr userData);
+
+    /// <summary>Builds a message for a host to deliver.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_message_new(
+        IntPtr topic,
+        ReadOnlySpan<byte> payload,
+        nuint payloadLen);
+
+    /// <summary>Records the text attached to the status a host callback returns.</summary>
+    [LibraryImport(Library)]
+    public static partial void pamoja_last_error_set(IntPtr message);
+
     /// <summary>Releases a transport handle.</summary>
     [LibraryImport(Library)]
     public static partial void pamoja_transport_free(IntPtr transport);

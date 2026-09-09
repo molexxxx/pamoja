@@ -71,6 +71,8 @@ pub mod coap;
 pub mod codec;
 #[cfg(feature = "gpio")]
 pub mod gpio;
+#[cfg(feature = "runtime")]
+pub mod host;
 #[cfg(feature = "kit")]
 pub mod kit;
 #[cfg(feature = "ladder")]
@@ -193,6 +195,13 @@ pub(crate) fn set_last_error(message: String) {
     let value =
         CString::new(message).unwrap_or_else(|_| CString::new("pamoja error").expect("static"));
     LAST_ERROR.with(|slot| *slot.borrow_mut() = Some(value));
+}
+
+/// Takes the calling thread's most recent error message, leaving none recorded.
+pub(crate) fn take_last_error() -> Option<String> {
+    LAST_ERROR
+        .with(|slot| slot.borrow_mut().take())
+        .and_then(|value| value.into_string().ok())
 }
 
 /// Returns the calling thread's most recent error message, or null if none.

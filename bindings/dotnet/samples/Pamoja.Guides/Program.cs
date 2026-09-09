@@ -31,6 +31,7 @@ await SyncGuide.RunAsync();
 await LadderGuide.RunAsync();
 await BusGuide.RunAsync();
 await TransportGuide.RunAsync();
+await LinkGuide.RunAsync();
 await SimGuide.RunAsync();
 ProfileGuide.Run();
 Ros2Guide.Run();

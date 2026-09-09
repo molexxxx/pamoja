@@ -2,7 +2,7 @@
 
 Reaching the network when no single link always works, and testing all of it with nothing plugged in.
 
-One install for the 8 capabilities of this domain. Each is also its own package, and
+One install for the 9 capabilities of this domain. Each is also its own package, and
 `pamoja` is the whole framework in one.
 
 ```sh
@@ -18,6 +18,7 @@ npm install @pamoja/transports
 | [Transport ladder](https://pamoja.molex.cloud/docs/guides/ladder.html) | `@pamoja/ladder` | Cheapest reachable link first, buffering to a store when every link is down |
 | [Event bus](https://pamoja.molex.cloud/docs/guides/bus.html) | `@pamoja/bus` | An in-memory typed publish and subscribe event bus |
 | [Engine surface](https://pamoja.molex.cloud/docs/guides/transport.html) | `@pamoja/core` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
+| [Your own link](https://pamoja.molex.cloud/docs/guides/link.html) | `@pamoja/core` | A link pamoja does not ship, written in your language against the transport contract and composed like any other |
 | [Simulators](https://pamoja.molex.cloud/docs/guides/sim.html) | `@pamoja/sim` | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
 
 The guides, with a worked TypeScript example for each, are at [https://pamoja.molex.cloud/docs](https://pamoja.molex.cloud/docs/).

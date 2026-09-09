@@ -1071,6 +1071,105 @@ async function asyncTransports() {
     "the command came back through the ladder",
   );
 
+  // A link written in JavaScript is a rung like any other: what the ladder sends
+  // reaches it, and what it delivers comes back through the ladder.
+  class QueueLink {
+    constructor() {
+      this.sent = [];
+      this.filters = [];
+      this.inbox = [];
+      this.waiting = [];
+    }
+    async connect() {}
+    async send(topic, payload) {
+      this.sent.push({ topic, payload });
+    }
+    subscribe(topic) {
+      this.filters.push(topic);
+    }
+    recv() {
+      const next = this.inbox.shift();
+      return next !== undefined
+        ? Promise.resolve(next)
+        : new Promise((resolve) => this.waiting.push(resolve));
+    }
+    deliver(message) {
+      const waiter = this.waiting.shift();
+      if (waiter) waiter(message);
+      else this.inbox.push(message);
+    }
+  }
+  const hostLink = new QueueLink();
+  const hosted = new ladder.Ladder(sync.Store.memory());
+  await hosted.rung(transport.Transport.fromHandlers(hostLink));
+  await hosted.connect();
+  await hosted.subscribe("commands/1");
+  assert.strictEqual(
+    await hosted.send("sensors/1", Buffer.from("21.5")),
+    ladder.Delivery.Sent,
+    "the host link carried the reading",
+  );
+  assert.strictEqual(hostLink.sent[0].topic, "sensors/1", "and saw its topic");
+  assert.strictEqual(hostLink.sent[0].payload.toString(), "21.5", "and its bytes");
+  assert.deepStrictEqual(hostLink.filters, ["commands/1"], "the subscription reached it");
+  hostLink.deliver({ topic: "commands/1", payload: Buffer.from("open") });
+  const fromHost = await hosted.recv();
+  assert.strictEqual(
+    fromHost.payload.toString(),
+    "open",
+    "what the host link delivered came back through the ladder",
+  );
+  hostLink.deliver(null);
+  await assert.rejects(
+    () => hosted.recv(),
+    /closed/,
+    "once the link ends the ladder has nothing to receive from",
+  );
+
+  // A send-only host link is an uplink: sends go out, nothing is listened on.
+  const carried = [];
+  const oneWay = new ladder.Ladder(sync.Store.memory());
+  await oneWay.rung(
+    transport.Transport.fromHandlers({
+      connect() {},
+      send(topic, payload) {
+        carried.push(payload.toString());
+      },
+      subscribe() {
+        throw new Error("an uplink is never subscribed");
+      },
+    }),
+  );
+  await oneWay.connect();
+  await oneWay.subscribe("commands/1");
+  assert.strictEqual(await oneWay.send("sensors/1", Buffer.from("21.6")), ladder.Delivery.Sent);
+  assert.deepStrictEqual(carried, ["21.6"], "an uplink carries sends");
+  await assert.rejects(() => oneWay.recv(), /closed/, "and is never listened on");
+
+  // A handler that throws reports its reason, and a handler set missing a method
+  // is refused up front.
+  const refusing = new ladder.Ladder(sync.Store.memory());
+  await refusing.rung(
+    transport.Transport.fromHandlers({
+      async connect() {},
+      async send() {
+        throw new Error("the radio is out of range");
+      },
+      async subscribe() {},
+    }),
+  );
+  await refusing.connect();
+  assert.strictEqual(
+    await refusing.send("sensors/1", Buffer.from("x")),
+    ladder.Delivery.Buffered,
+    "a refused send is buffered by the ladder",
+  );
+  assert.throws(
+    () => transport.Transport.fromHandlers({ connect() {}, subscribe() {} }),
+    /needs a send method/,
+    "a handler set without send is refused",
+  );
+
   // A transport handed to a ladder is spent.
   const spent = broker.rung();
   assert.ok(spent.isAvailable, "a fresh transport is holdable");

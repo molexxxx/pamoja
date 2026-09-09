@@ -138,7 +138,7 @@ pamoja-sim = { path = "../pamoja-sim", version = "0.1.17", optional = true }
 pamoja-profile = { path = "../pamoja-profile", version = "0.1.17", optional = true }
 pamoja-ros2 = { path = "../pamoja-ros2", version = "0.1.17", optional = true }
 pamoja-zenoh = { path = "../pamoja-zenoh", version = "0.1.17", optional = true }
-tokio = { version = "1", default-features = false, features = ["rt-multi-thread"], optional = true }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "sync"], optional = true }
 
 [dev-dependencies]
 # The update tests describe a release by its digest, which is what a manifest

@@ -127,4 +127,4 @@ pamoja-sim = { path = "../../../../crates/pamoja-sim", optional = true }
 pamoja-profile = { path = "../../../../crates/pamoja-profile", optional = true }
 pamoja-ros2 = { path = "../../../../crates/pamoja-ros2", optional = true }
 pamoja-zenoh = { path = "../../../../crates/pamoja-zenoh", optional = true }
-tokio = { version = "1", default-features = false, features = ["sync"], optional = true }
+tokio = { version = "1", default-features = false, features = ["rt", "sync"], optional = true }
