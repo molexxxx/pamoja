@@ -11,45 +11,30 @@
  * }}
  */
 export const catalog = {
-  // Sensor types a user can add, each carrying the canonical key/unit/band.
+  // The physical quantities and node stats any deployment may add, each carrying the
+  // canonical key/unit/band. A deployment's own elements arrive from the device's catalog,
+  // and anything else is entered on the page as a custom sensor.
   sensorPresets: [
     { id: 'temperature', key: 'temperature', unit: 'celsius', band: [2, 8] },
     { id: 'humidity', key: 'humidity', unit: 'percent', band: [30, 60] },
+    { id: 'soil', key: 'soil_moisture', unit: 'percent', band: [36, 100] },
     { id: 'soc', key: 'state_of_charge', unit: 'percent', band: [20, 100] },
+    { id: 'batterylevel', key: 'battery_level', unit: 'percent', band: [20, 100] },
+    { id: 'voltage', key: 'battery_voltage', unit: 'volt', band: [11.8, 14.6] },
     { id: 'power', key: 'pv_power', unit: 'watt', band: [0, 400] },
     { id: 'pressure', key: 'pressure', unit: 'hectopascal', band: [980, 1040] },
+    { id: 'flow', key: 'flow_rate', unit: 'liter_per_minute', band: [0, 16] },
     { id: 'wind', key: 'wind_speed', unit: 'meter_per_second', band: [0, 20] },
     { id: 'light', key: 'illuminance', unit: 'lux', band: [0, 100000] },
-    { id: 'voltage', key: 'battery_voltage', unit: 'volt', band: [11.8, 14.6] },
-    // Field-kit sensors (Farm node, Health post).
-    { id: 'soil', key: 'soil_moisture', unit: 'percent', band: [36, 100] },
-    { id: 'well', key: 'well_level', unit: 'percent', band: [20, 100] },
-    { id: 'soiltrend', key: 'soil_trend', unit: 'percent', band: [0, 100] },
-    { id: 'fridge', key: 'fridge_temp', unit: 'celsius', band: [2, 8] },
-    { id: 'wardpower', key: 'ward_power', unit: 'percent', band: [50, 100] },
-    { id: 'oxygen', key: 'oxygen_stock', unit: 'percent', band: [30, 100] },
-    { id: 'flow', key: 'flow_rate', unit: 'liter_per_minute', band: [0, 16] },
-    { id: 'tank', key: 'storage_tank', unit: 'percent', band: [20, 100] },
-    { id: 'flowtrend', key: 'flow_trend', unit: 'liter_per_minute', band: [0, 16] },
-    // Ranger relay / mesh node.
-    { id: 'acoustic', key: 'acoustic', unit: 'decibel', band: [0, 120] },
-    { id: 'batterylevel', key: 'battery_level', unit: 'percent', band: [20, 100] },
     // Mesh-node stats: telemetry about the node, not measurements - flagged as stats and
     // only offered on mesh-link groups.
     { id: 'neighbours', key: 'neighbours', unit: 'count', value: 5, band: [1, 12], stat: true, meshOnly: true },
     { id: 'hops', key: 'hops', unit: 'count', value: 3, band: [1, 8], stat: true, meshOnly: true },
     { id: 'relayed', key: 'messages_relayed', unit: 'count', value: 300, band: [0, 99999], stat: true, meshOnly: true },
-    // Discrete (state chip / valve / mesh) and the tamper-evident chain log.
-    { id: 'valve', key: 'drip_valve', unit: 'state', state: 'state.closed' },
-    { id: 'uplink', key: 'uplink', unit: 'state', state: 'state.synced', stat: true },
-    { id: 'pump', key: 'pump_health', unit: 'state', state: 'state.nominal' },
-    { id: 'relaystatus', key: 'relay_status', unit: 'state', state: 'state.online', stat: true, meshOnly: true },
-    { id: 'routing', key: 'routing', unit: 'state', state: 'mesh.optimized', stat: true, meshOnly: true },
-    // The mesh map is one sensor that only applies to mesh-link groups; its value is the
-    // number of mesh nodes drawn.
-    { id: 'meshrelay', key: 'mesh_relay', unit: 'state', state: 'mesh.optimized', value: 5, meshOnly: true },
-    { id: 'tamper', key: 'tamper_log', unit: 'record', value: 1000, stat: true },
   ],
+
+  // The graphics a custom sensor may be drawn with, in the order the picker offers them.
+  graphics: ['radial', 'bar', 'dial', 'spark', 'therm', 'droplet', 'battery', 'wind', 'sun', 'wave', 'count'],
 
   // Link kinds a user can pick when creating a group.
   linkKinds: ['lora', 'wifi', 'cellular', 'satellite', 'ethernet', 'mesh'],
@@ -66,16 +51,12 @@ export const catalog = {
     mesh: { speed: '42 kbps', lat: 130, rssi: -96 },
   },
 
-  // Demo site positions (normalized 0..1) for the network map tab, spread so nodes and
-  // labels never collide. A real build would use each group's GPS over a tile basemap.
+  // Where the network map tab places each group (normalized 0..1), by group id. A device
+  // serves its own positions in its catalog; only the gateway has a place by default, and
+  // a group without one sits at the center. A real build would use each group's GPS over
+  // a tile basemap.
   sitePositions: {
     __gateway: [0.47, 0.45],
-    'cold-chain': [0.29, 0.15],
-    maternity: [0.17, 0.27],
-    'silo-3': [0.72, 0.20],
-    weather: [0.88, 0.36],
-    solar: [0.66, 0.78],
-    river: [0.36, 0.69],
   },
 
   // Theme tokens a device/profile may override (accent, status colors, glyph stroke).

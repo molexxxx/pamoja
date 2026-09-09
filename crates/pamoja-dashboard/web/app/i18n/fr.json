@@ -203,6 +203,27 @@
     "ui.commandFailed": "Échec de l'action",
     "ui.sensorUnsupported": "Cet appareil ne prend pas en charge ce capteur",
     "ui.binding": "Liaison matérielle",
-    "ui.bindingHint": "Facultatif : comment l'appareil trouve ce capteur (ex. i2c:0x76)"
+    "ui.bindingHint": "Facultatif : comment l'appareil trouve ce capteur (ex. i2c:0x76)",
+    "ui.custom": "Personnalisé",
+    "ui.customHint": "Un capteur inconnu de la page : nommez-le, choisissez son unité et son graphique, et l'appareil s'en charge.",
+    "ui.key": "Clé",
+    "ui.keyHint": "Lettres, chiffres et tirets bas, par exemple water_turbidity",
+    "ui.unit": "Unité",
+    "ui.unitHint": "Telle que l'appareil la rapporte, par exemple percent, celsius ou ntu",
+    "ui.graphic": "Graphique",
+    "ui.low": "Bas",
+    "ui.high": "Haut",
+    "ui.set": "Régler",
+    "viz.radial": "Jauge radiale",
+    "viz.bar": "Barre",
+    "viz.dial": "Cadran",
+    "viz.spark": "Courbe",
+    "viz.therm": "Thermomètre",
+    "viz.droplet": "Goutte",
+    "viz.battery": "Batterie",
+    "viz.wind": "Vent",
+    "viz.sun": "Soleil",
+    "viz.wave": "Onde",
+    "viz.count": "Compteur"
   }
 }

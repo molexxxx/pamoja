@@ -299,6 +299,20 @@ fn apply(state: &mut State, command: &Command) -> Result<(), CommandError> {
                 None => Err(CommandError::Unsupported),
             }
         }
+        Command::Set { target, value } => {
+            let (group, sensor) = target.split_once('/').ok_or(CommandError::UnknownTarget)?;
+            let reading = sensor_mut(state, group, sensor)
+                .map(|s| &mut s.reading)
+                .ok_or(CommandError::UnknownTarget)?;
+            match reading.range {
+                Some([low, high]) if (low..=high).contains(value) => {
+                    reading.value = *value;
+                    Ok(())
+                }
+                Some(_) => Err(CommandError::OutOfRange),
+                None => Err(CommandError::Unsupported),
+            }
+        }
         Command::AddGroup { org, group } => match org_mut(state, org) {
             Some(target) => {
                 target.groups.push(group.clone());
@@ -486,7 +500,72 @@ mod tests {
                         .with_actions(["open", "closed"]),
                 ),
             )
+            .sensor(
+                "fridges",
+                Sensor::new(
+                    "compressor",
+                    Reading::new("compressor_duty", 40.0, "percent").with_range(0.0, 100.0),
+                ),
+            )
             .build()
+    }
+
+    #[test]
+    fn a_numeric_actuator_takes_a_value_inside_its_range() {
+        let mut fleet = fleet();
+        fleet
+            .command(&Command::Set {
+                target: "fridges/compressor".to_owned(),
+                value: 65.0,
+            })
+            .expect("the duty is inside the range");
+        assert_eq!(fleet.take_commands().len(), 1, "queued for the project");
+        let compressor = sensor_after(&fleet, "fridges", "compressor");
+        assert_eq!(compressor.reading.value, 65.0);
+        let json = fleet.clone().snapshot().to_json().expect("serialize");
+        assert!(json.contains("\"range\":[0.0,100.0]"));
+    }
+
+    #[test]
+    fn a_value_outside_the_range_or_on_a_plain_reading_is_refused() {
+        let mut fleet = fleet();
+        assert_eq!(
+            fleet.command(&Command::Set {
+                target: "fridges/compressor".to_owned(),
+                value: 120.0,
+            }),
+            Err(CommandError::OutOfRange)
+        );
+        assert_eq!(
+            fleet.command(&Command::Set {
+                target: "fridges/fridge-1".to_owned(),
+                value: 5.0,
+            }),
+            Err(CommandError::Unsupported)
+        );
+        assert!(fleet.take_commands().is_empty());
+        let compressor = sensor_after(&fleet, "fridges", "compressor");
+        assert_eq!(
+            compressor.reading.value, 40.0,
+            "the refused value did not land"
+        );
+    }
+
+    #[test]
+    fn a_sensor_added_with_its_own_name_keeps_it() {
+        let mut fleet = fleet();
+        fleet
+            .command(&Command::AddSensor {
+                group: "fridges".to_owned(),
+                sensor: Sensor::new(
+                    "turbidity",
+                    Reading::new("water_turbidity", 1.2, "ntu").with_label("Turbidity"),
+                ),
+                binding: Some("i2c:0x29".to_owned()),
+            })
+            .expect("add a sensor the page never shipped");
+        let json = fleet.clone().snapshot().to_json().expect("serialize");
+        assert!(json.contains("\"label\":\"Turbidity\""));
     }
 
     #[test]

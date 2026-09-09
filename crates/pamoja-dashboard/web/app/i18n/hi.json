@@ -203,6 +203,27 @@
     "ui.commandFailed": "कार्रवाई विफल",
     "ui.sensorUnsupported": "यह डिवाइस उस सेंसर का समर्थन नहीं करता",
     "ui.binding": "हार्डवेयर बाइंडिंग",
-    "ui.bindingHint": "वैकल्पिक: डिवाइस इस सेंसर को कैसे ढूँढे (जैसे i2c:0x76)"
+    "ui.bindingHint": "वैकल्पिक: डिवाइस इस सेंसर को कैसे ढूँढे (जैसे i2c:0x76)",
+    "ui.custom": "कस्टम",
+    "ui.customHint": "ऐसा सेंसर जिसे पेज ने कभी नहीं देखा: नाम दें, इकाई और ग्राफ़िक चुनें, डिवाइस इसे जोड़ेगा।",
+    "ui.key": "कुंजी",
+    "ui.keyHint": "अक्षर, अंक और अंडरस्कोर, जैसे water_turbidity",
+    "ui.unit": "इकाई",
+    "ui.unitHint": "जैसे डिवाइस रिपोर्ट करता है, जैसे percent, celsius या ntu",
+    "ui.graphic": "ग्राफ़िक",
+    "ui.low": "निम्न",
+    "ui.high": "उच्च",
+    "ui.set": "सेट करें",
+    "viz.radial": "रेडियल गेज",
+    "viz.bar": "बार",
+    "viz.dial": "डायल",
+    "viz.spark": "स्पार्कलाइन",
+    "viz.therm": "थर्मामीटर",
+    "viz.droplet": "बूँद",
+    "viz.battery": "बैटरी",
+    "viz.wind": "हवा",
+    "viz.sun": "सूर्य",
+    "viz.wave": "तरंग",
+    "viz.count": "गिनती"
   }
 }

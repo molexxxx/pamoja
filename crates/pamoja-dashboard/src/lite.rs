@@ -84,7 +84,14 @@ pub(crate) fn render_lite(state: &State) -> String {
                 .sensors
                 .iter()
                 .filter(|s| s.reading.stat)
-                .map(|s| format!("{} {}", esc(&label(&s.reading.key)), stat_text(&s.reading)))
+                .map(|s| {
+                    let name = s
+                        .reading
+                        .label
+                        .clone()
+                        .unwrap_or_else(|| label(&s.reading.key));
+                    format!("{} {}", esc(&name), stat_text(&s.reading))
+                })
                 .collect();
             if !stats.is_empty() {
                 out.push_str(&format!(

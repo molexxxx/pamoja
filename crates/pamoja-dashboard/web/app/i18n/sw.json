@@ -203,6 +203,27 @@
     "ui.commandFailed": "Kitendo kimeshindwa",
     "ui.sensorUnsupported": "Kifaa hiki hakitumii kitambuzi hicho",
     "ui.binding": "Kifungo cha vifaa",
-    "ui.bindingHint": "Hiari: jinsi kifaa kinavyopata kitambuzi hiki (mf. i2c:0x76)"
+    "ui.bindingHint": "Hiari: jinsi kifaa kinavyopata kitambuzi hiki (mf. i2c:0x76)",
+    "ui.custom": "Maalum",
+    "ui.customHint": "Kitambuzi ambacho ukurasa haujawahi kuona: kipe jina, chagua kipimo na mchoro wake, na kifaa kitakiunganisha.",
+    "ui.key": "Ufunguo",
+    "ui.keyHint": "Herufi, nambari na mistari ya chini, mfano water_turbidity",
+    "ui.unit": "Kipimo",
+    "ui.unitHint": "Kama kifaa kinavyoripoti, mfano percent, celsius au ntu",
+    "ui.graphic": "Mchoro",
+    "ui.low": "Chini",
+    "ui.high": "Juu",
+    "ui.set": "Weka",
+    "viz.radial": "Kipimo cha duara",
+    "viz.bar": "Kipau",
+    "viz.dial": "Saa ya kipimo",
+    "viz.spark": "Mstari",
+    "viz.therm": "Kipimajoto",
+    "viz.droplet": "Tone",
+    "viz.battery": "Betri",
+    "viz.wind": "Upepo",
+    "viz.sun": "Jua",
+    "viz.wave": "Wimbi",
+    "viz.count": "Hesabu"
   }
 }

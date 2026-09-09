@@ -207,6 +207,27 @@
     "ui.commandFailed": "فشل الإجراء",
     "ui.sensorUnsupported": "هذا الجهاز لا يدعم هذا المستشعر",
     "ui.binding": "ربط الجهاز",
-    "ui.bindingHint": "اختياري: كيف يجد الجهاز هذا المستشعر (مثل i2c:0x76)"
+    "ui.bindingHint": "اختياري: كيف يجد الجهاز هذا المستشعر (مثل i2c:0x76)",
+    "ui.custom": "مخصص",
+    "ui.customHint": "مستشعر لم تره الصفحة من قبل: سمِّه واختر وحدته ورسمه، والجهاز يربطه.",
+    "ui.key": "المفتاح",
+    "ui.keyHint": "حروف وأرقام وشرطات سفلية، مثل water_turbidity",
+    "ui.unit": "الوحدة",
+    "ui.unitHint": "كما يبلّغ عنها الجهاز، مثل percent أو celsius أو ntu",
+    "ui.graphic": "الرسم",
+    "ui.low": "الأدنى",
+    "ui.high": "الأعلى",
+    "ui.set": "ضبط",
+    "viz.radial": "مقياس دائري",
+    "viz.bar": "شريط",
+    "viz.dial": "قرص",
+    "viz.spark": "خط",
+    "viz.therm": "ميزان حرارة",
+    "viz.droplet": "قطرة",
+    "viz.battery": "بطارية",
+    "viz.wind": "رياح",
+    "viz.sun": "شمس",
+    "viz.wave": "موجة",
+    "viz.count": "عداد"
   }
 }

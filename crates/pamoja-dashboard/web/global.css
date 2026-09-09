@@ -689,6 +689,14 @@ h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: 600; letter-sp
 .actuator { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-block-start: 1rem; padding-block-start: 0.9rem; border-block-start: 1px solid var(--line-2); }
 .actuator-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 700; }
 .actuator-actions { display: flex; gap: 0.4rem; margin-inline-start: auto; }
+.actuator-set { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: 0.7rem; }
+.set-range { flex: 1 1 8rem; min-inline-size: 0; accent-color: var(--cyan); }
+.set-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.set-value b { font-weight: 700; margin-inline-end: 0.2rem; }
+.form-hint { margin: 0; font-size: 0.82rem; line-height: 1.4; color: var(--muted); }
+.field-pair { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.field-pair .field-input { flex: 1 1 7rem; min-inline-size: 0; }
+.chip-custom { border-style: dashed; }
 .seg.on { border-color: transparent; color: var(--text); background: color-mix(in srgb, var(--teal) 20%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--teal) 45%, transparent); }
 
 /* ---------- Network mesh map ---------- */

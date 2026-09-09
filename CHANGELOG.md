@@ -9,6 +9,22 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- The dashboard takes a sensor it has never seen and a number it can set. The
+  add-sensor picker offers a custom entry beside the presets: a name, a key, a
+  unit, a graphic, and a safe band, and the sensor is created with them, labeled
+  by the name it was given, which travels in the reading as `label` so every
+  client and the no-script page show it. A reading gains `range`, the numeric
+  span a device lets a client command, and a `set` command carries a value
+  inside it; the page shows a slider and a `Set` button for such a reading, the
+  fleet applies and queues the command for the gateway, and the mock holds the
+  value across ticks. The demo fleet's own elements, its field-kit sensors and
+  its map positions, come from the mock's catalog, served by the dev server and
+  carried in the static showcase's first frame, so the page ships only the
+  physical quantities and node stats any deployment may add; the graphic
+  heuristic keys on units and generic key patterns rather than the demo's names,
+  and a label no bundle or catalog carries reads as its key with the underscores
+  taken out. The catalog gains `from_presentations` and `with_site_position`,
+  and the demo farm node gains a pump speed to set.
 - A link written in the host language is a transport. The C ABI takes a table of
   callbacks and a `user_data` pointer through `pamoja_transport_from_callbacks`,
   runs each callback off the runtime's blocking pool, asks an optional `recv`

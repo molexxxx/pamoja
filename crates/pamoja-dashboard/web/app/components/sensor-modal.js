@@ -2,12 +2,28 @@ import { store } from '../store.js';
 import { currentFleet } from '../lib/edits.js';
 import { back, open } from '../nav.js';
 import { sensorDetailBody, stickLog } from '../lib/detail.js';
-import { t } from '../lib/i18n.js';
+import { fmt, t } from '../lib/i18n.js';
 import { sendCommand, unlocked } from '../lib/pair.js';
 import { conn, esc } from '../lib/viz/index.js';
 
+/**
+ * Picks the slider step for a numeric actuator: whole units over a wide range, finer
+ * over a narrow one.
+ *
+ * @param {number} low - the range's low end.
+ * @param {number} high - the range's high end.
+ * @returns {number} the step.
+ */
+function stepFor(low, high)
+{
+  const span = Math.abs(high - low);
+  if (span >= 100) return 1;
+  if (span >= 10) return 0.5;
+  return Math.max(span / 100, 0.001);
+}
+
 $.component('sensor-modal', {
-  state: { busy: false, error: null },
+  state: { busy: false, error: null, target: null, value: null },
 
   /** Re-renders on store changes, on each fleet frame, and on lock state changes. */
   mounted()
@@ -64,6 +80,45 @@ $.component('sensor-modal', {
     this.setState({});
   },
 
+  /**
+   * Tracks the slider of a numeric actuator without re-rendering, so the thumb stays
+   * under the pointer; the readout beside it follows.
+   *
+   * @param {Event} e - the input event from the slider.
+   * @returns {void}
+   */
+  onSlide(e)
+  {
+    const found = this.find();
+    if (!found) return;
+    this.state.target = found.group.id + '/' + found.sensor.id;
+    this.state.value = parseFloat(e.target.value);
+    const out = this._el && this._el.querySelector('.set-value b');
+    if (out) out.textContent = fmt(this.state.value);
+  },
+
+  /**
+   * Sends an authenticated set command carrying the slider's value to the selected
+   * numeric actuator.
+   *
+   * @returns {Promise<void>} resolves once the command has been sent and the UI updated.
+   */
+  async set()
+  {
+    if (this.state.busy) return;
+    const found = this.find();
+    if (!found) return;
+    const target = found.group.id + '/' + found.sensor.id;
+    const value = this.state.target === target && this.state.value != null ? this.state.value : found.sensor.reading.value;
+    this.state.busy = true;
+    this.state.error = null;
+    this.setState({});
+    const result = await sendCommand({ type: 'set', target, value });
+    this.state.busy = false;
+    this.state.error = result.ok ? null : t('ui.commandFailed');
+    this.setState({});
+  },
+
   /** Opens the pairing dialog so a locked actuator can be unlocked. */
   unlockPrompt() { open(() => store.dispatch('openPairing'), () => store.dispatch('closePairing')); },
 
@@ -78,14 +133,38 @@ $.component('sensor-modal', {
     if (!found) return '<div hidden></div>';
     const { org, group, sensor: s } = found;
     const actions = s.reading.actions || [];
-    const control = actions.length ? `
+    const range = Array.isArray(s.reading.range) ? s.reading.range : null;
+    const sid = group.id + '/' + s.id;
+    const unlock = `<button class="seg" type="button" @click="unlockPrompt">${esc(t('ui.unlock'))}</button>`;
+    const error = this.state.error ? `<span class="form-error">${esc(this.state.error)}</span>` : '';
+    let control = '';
+    if (actions.length)
+    {
+      control = `
       <div class="actuator">
         <span class="actuator-label">${esc(t('ui.control'))}</span>
         ${unlocked.value
           ? `<div class="actuator-actions">${actions.map((a) => `<button class="seg ${s.reading.state === 'state.' + a ? 'on' : ''}" type="button" @click="actuate('${a}')" ${this.state.busy ? 'disabled' : ''}>${esc(t('state.' + a))}</button>`).join('')}</div>`
-          : `<button class="seg" type="button" @click="unlockPrompt">${esc(t('ui.unlock'))}</button>`}
-        ${this.state.error ? `<span class="form-error">${esc(this.state.error)}</span>` : ''}
-      </div>` : '';
+          : unlock}
+        ${error}
+      </div>`;
+    } else if (range)
+    {
+      const [low, high] = range;
+      const current = this.state.target === sid && this.state.value != null ? this.state.value : s.reading.value;
+      control = `
+      <div class="actuator">
+        <span class="actuator-label">${esc(t('ui.control'))}</span>
+        ${unlocked.value
+          ? `<div class="actuator-set">
+              <input class="set-range" type="range" min="${low}" max="${high}" step="${stepFor(low, high)}" value="${current}" @input="onSlide" aria-label="${esc(t('ui.set'))}" ${this.state.busy ? 'disabled' : ''} />
+              <span class="set-value"><b>${fmt(current)}</b><span class="sunit">${t('unit.' + s.reading.unit)}</span></span>
+              <button class="seg primary" type="button" @click="set" ${this.state.busy ? 'disabled' : ''}>${esc(t('ui.set'))}</button>
+            </div>`
+          : unlock}
+        ${error}
+      </div>`;
+    }
     return `
       <div class="modal-overlay" @click="onOverlay">
         <div class="modal" data-status="${s.reading.status}" role="dialog" aria-modal="true">

@@ -38,6 +38,13 @@ let replay;
 function publish(snap)
 {
   if (snap && snap.catalog) { extendCatalog(snap.catalog); registerLabels(snap.catalog.sensorPresets); registerMessages(snap.catalog.messages); }
+  // A reading that carries its own name (a sensor added from the page) labels its key.
+  if (snap && Array.isArray(snap.orgs))
+  {
+    registerLabels(snap.orgs.flatMap((o) => (o.groups || []).flatMap((g) => (g.sensors || [])
+      .filter((s) => s.reading && s.reading.label)
+      .map((s) => ({ key: s.reading.key, label: s.reading.label })))));
+  }
   demo.value = !!(snap && snap.demo);
   fleet.value = snap;
 }

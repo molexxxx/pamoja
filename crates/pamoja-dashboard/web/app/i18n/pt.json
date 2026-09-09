@@ -203,6 +203,27 @@
     "ui.commandFailed": "Falha na ação",
     "ui.sensorUnsupported": "Este dispositivo não suporta esse sensor",
     "ui.binding": "Vínculo de hardware",
-    "ui.bindingHint": "Opcional: como o dispositivo encontra este sensor (ex. i2c:0x76)"
+    "ui.bindingHint": "Opcional: como o dispositivo encontra este sensor (ex. i2c:0x76)",
+    "ui.custom": "Personalizado",
+    "ui.customHint": "Um sensor que a página nunca viu: dê-lhe um nome, escolha a unidade e o gráfico, e o dispositivo faz a ligação.",
+    "ui.key": "Chave",
+    "ui.keyHint": "Letras, dígitos e sublinhados, por exemplo water_turbidity",
+    "ui.unit": "Unidade",
+    "ui.unitHint": "Como o dispositivo a reporta, por exemplo percent, celsius ou ntu",
+    "ui.graphic": "Gráfico",
+    "ui.low": "Baixo",
+    "ui.high": "Alto",
+    "ui.set": "Definir",
+    "viz.radial": "Medidor radial",
+    "viz.bar": "Barra",
+    "viz.dial": "Mostrador",
+    "viz.spark": "Linha",
+    "viz.therm": "Termômetro",
+    "viz.droplet": "Gota",
+    "viz.battery": "Bateria",
+    "viz.wind": "Vento",
+    "viz.sun": "Sol",
+    "viz.wave": "Onda",
+    "viz.count": "Contador"
   }
 }
