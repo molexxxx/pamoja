@@ -419,6 +419,12 @@ page on any registry links to the same capability on the other three.
 - [The hardware](https://pamoja.molex.cloud/docs/hardware.html) the drivers were
   written against, the buses and radios the crates implement, and the boards this
   is built and tested on.
+- A page per board, [Raspberry Pi](https://pamoja.molex.cloud/docs/boards/raspberry-pi.html),
+  [ESP32](https://pamoja.molex.cloud/docs/boards/esp32.html), and
+  [RP2040](https://pamoja.molex.cloud/docs/boards/rp2040.html), each ending in a
+  first program that compiles in CI, and
+  [the buses and links](https://pamoja.molex.cloud/docs/buses.html) they speak,
+  from I2C to LoRa.
 - [Why it exists](https://pamoja.molex.cloud/docs/about/why.html),
   [how it is put together](https://pamoja.molex.cloud/docs/about/architecture.html),
   and [which standards it is held to](https://pamoja.molex.cloud/docs/about/standards.html).

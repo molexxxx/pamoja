@@ -70,6 +70,9 @@ pub struct Entry {
     pub modules: Vec<String>,
     /// The LoRaWAN regional plans it covers, checked against the `Region` enum.
     pub regions: Vec<String>,
+    /// The page under `docs/` that wires a part to this board and runs the first program
+    /// on it, as `boards/<board>.md`. Empty for everything but a board.
+    pub page: String,
     /// The document: its title, and its number or revision where it has one.
     pub source_name: String,
     /// The short label the source column links.
@@ -176,6 +179,7 @@ impl Hardware {
                 crates: optional_strings(table, "crates", &context)?,
                 modules: optional_strings(table, "modules", &context)?,
                 regions: optional_strings(table, "regions", &context)?,
+                page: optional(table, "page"),
                 source_name: string(table, "source_name", &context)?,
                 source_label: string(table, "source_label", &context)?,
                 source: string(table, "source", &context)?,
@@ -330,6 +334,12 @@ impl Hardware {
             if entry.specs.is_empty() {
                 return Err(format!("{at}: needs at least one figure from its source"));
             }
+            if !entry.page.is_empty() && !root.join("docs").join(&entry.page).is_file() {
+                return Err(format!(
+                    "{at}: the board page `{}` is not under docs/",
+                    entry.page
+                ));
+            }
             if !entry.buy.is_empty() && entry.cost == "not applicable" {
                 return Err(format!(
                     "{at}: lists where to buy a thing that has no price"
@@ -476,6 +486,15 @@ fn card(entry: &Entry, group: &Group, catalog: &Catalog, all: &[Entry]) -> Strin
             "Crate",
             &format!("<small><code>{krate}</code></small>"),
             "&#8599;",
+        ));
+    }
+    if !entry.page.is_empty() {
+        links.push(row(
+            &format!("{SITE}/{}.html", entry.page.trim_end_matches(".md")),
+            " guide",
+            "Board page",
+            "<small>wiring, setup, and the first program</small>",
+            "&#8594;",
         ));
     }
     for capability in catalog.ordered() {
@@ -917,6 +936,23 @@ price = "US$5.34"
 checked = "2026-09-06"
 verified = false
 "#;
+
+    #[test]
+    fn a_board_page_is_linked_from_the_card_and_must_exist() {
+        let with_page = format!(
+            "{MINIMAL}page = \"boards/nowhere.md\"
+"
+        );
+        let hardware = Hardware::parse(&with_page).expect("parses");
+        let rendered = hardware.table(&catalog());
+        assert!(rendered.contains("<li><a class=\"hw-row guide\" href=\"https://pamoja.molex.cloud/docs/boards/nowhere.html\"><span class=\"hw-main\"><b>Board page</b><small>wiring, setup, and the first program</small></span><span class=\"hw-go\" aria-hidden=\"true\">&#8594;</span></a></li>"), "{rendered}");
+        let error = hardware.check(&std::env::temp_dir()).unwrap_err();
+        assert!(error.contains("board page `boards/nowhere.md`"), "{error}");
+        assert!(!Hardware::parse(MINIMAL)
+            .expect("parses")
+            .table(&catalog())
+            .contains("Board page"));
+    }
 
     #[test]
     fn where_to_buy_is_listed_with_the_lowest_price_up_front() {

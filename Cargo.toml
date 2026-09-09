@@ -40,7 +40,14 @@ members = [
 ]
 # Language bindings are standalone crates with their own toolchains and lint
 # policy; they are built by their own pipelines, not the core workspace.
-exclude = ["bindings/node", "bindings/python"]
+exclude = [
+    "bindings/node",
+    "bindings/python",
+    # The first program for each board builds for that board's own target with its HAL.
+    "examples/boards/raspberry-pi",
+    "examples/boards/rp2040",
+    "examples/boards/esp32c3",
+]
 
 [workspace.package]
 version = "0.1.17"

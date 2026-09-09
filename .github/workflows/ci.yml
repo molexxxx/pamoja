@@ -67,6 +67,7 @@ jobs:
           cargo clippy -p pamoja-hal --features linux --all-targets -- -D warnings
           cargo test -p pamoja-hal --features linux
           cargo test -p pamoja-sensors --features linux
+          (cd examples/boards/raspberry-pi && cargo build --release)
 
       # Every example under examples/ runs to completion with nothing plugged in, except the
       # SITL interop, which has its own job. The last one regenerates the cross-language
@@ -135,8 +136,8 @@ jobs:
       # A Cortex-M4F target with no operating system: the honest test of the `no_std`
       # claim, since the host `no_std build` job still links against the host `std`. Every
       # crate that declares `no_std` must compile for a real microcontroller.
-      - name: Add the thumbv7em-none-eabihf target
-        run: rustup target add thumbv7em-none-eabihf
+      - name: Add the bare-metal targets
+        run: rustup target add thumbv7em-none-eabihf thumbv6m-none-eabi riscv32imc-unknown-none-elf
 
       - name: Cache cargo
         uses: actions/cache@v6
@@ -163,6 +164,15 @@ jobs:
           # same build through one dependency.
           cargo build --target $T --no-default-features -p pamoja --features \
             "security audit update mavlink session sensors actuators serial mesh modbus can gpio hal lora lorawan routing power telemetry"
+
+      # The first program on each board page, built for the board's own target with its
+      # HAL, so the page never shows code that has stopped compiling. Each package carries
+      # its own .cargo/config.toml naming the target and the flash runner, and cargo reads
+      # that file from the working directory, so every build runs from inside its package.
+      - name: Build the first program for each board
+        run: |
+          (cd examples/boards/rp2040 && cargo build --release)
+          (cd examples/boards/esp32c3 && cargo build --release)
 
   msrv:
     name: minimum supported rust

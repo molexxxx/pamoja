@@ -146,6 +146,7 @@ pub fn home(chrome: &Chrome, body: &str) -> String {
          <li><a href=\"/docs/index.html\">Docs</a></li>\n\
          <li><a href=\"/docs/install.html\">Install</a></li>\n\
          <li><a href=\"/docs/hardware.html\">Hardware</a></li>\n\
+         <li><a href=\"/docs/buses.html\">Buses and links</a></li>\n\
          <li><a href=\"/docs/examples.html\">Examples</a></li>\n\
          <li><a href=\"/docs/reference/index.html\">API reference</a></li>\n\
          <li><a href=\"https://pamoja.molex.cloud/dashboard/\">Dashboard demo</a></li>\n\

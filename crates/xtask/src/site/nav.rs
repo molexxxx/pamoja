@@ -1,6 +1,6 @@
 //! The site's navigation, derived from the capability map.
 //!
-//! The pages come first (introduction, install, hardware, examples), then a group per
+//! The pages come first (introduction, install, hardware, buses, examples), the boards, then a group per
 //! chapter holding its guides in the order the map gives them, then the reference hub and
 //! the four references, and the pages about the project. The same order gives every page its previous and next neighbour.
 
@@ -48,9 +48,18 @@ impl Nav {
                 item("Introduction", "docs/index.html"),
                 item("Install", "docs/install.html"),
                 item("Hardware", "docs/hardware.html"),
+                item("Buses and links", "docs/buses.html"),
                 item("Examples", "docs/examples.html"),
             ],
         }];
+        groups.push(Group {
+            title: Some("Boards".to_owned()),
+            items: vec![
+                item("Raspberry Pi", "docs/boards/raspberry-pi.html"),
+                item("ESP32", "docs/boards/esp32.html"),
+                item("RP2040", "docs/boards/rp2040.html"),
+            ],
+        });
         for chapter in &catalog.chapters {
             let items: Vec<Item> = catalog
                 .in_chapter(&chapter.key)
@@ -222,16 +231,26 @@ guide = "guides/can.md"
             .collect();
         assert_eq!(
             titles,
-            [None, Some("Field I/O"), Some("Reference"), Some("About")]
+            [
+                None,
+                Some("Boards"),
+                Some("Field I/O"),
+                Some("Reference"),
+                Some("About")
+            ]
         );
         let urls: Vec<&str> = nav.items().map(|item| item.url.as_str()).collect();
         assert_eq!(
-            &urls[..6],
+            &urls[..10],
             [
                 "docs/index.html",
                 "docs/install.html",
                 "docs/hardware.html",
+                "docs/buses.html",
                 "docs/examples.html",
+                "docs/boards/raspberry-pi.html",
+                "docs/boards/esp32.html",
+                "docs/boards/rp2040.html",
                 "docs/guides/modbus.html",
                 "docs/guides/can.html",
             ]

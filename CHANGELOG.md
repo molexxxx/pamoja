@@ -9,6 +9,19 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- A page per board, each ending in a program that compiles in CI. The
+  Raspberry Pi page wires a BME280 to the header, names the kernel settings
+  that turn the buses on, and runs the driver over the kernel's device files;
+  the ESP32 page works through the ESP32-C3 on `esp-hal`, and the RP2040 page
+  through the Pico on `rp2040-hal`, each with the board's own pins, toolchain,
+  and flash step from the maker's documentation. The three programs live as
+  standalone packages under `examples/boards`, outside the workspace, and CI
+  builds each for its target on every change. A buses page explains I2C, SPI,
+  1-Wire, UART, PWM, ADC, RS-485 with Modbus, CAN, and LoRa in the terms the
+  guides use, what to get right on each, and which crate carries the logic,
+  citing the specification or reference manual for every figure. The hardware
+  reference gains a card for the Raspberry Pi Pico, and every board card links
+  its page.
 - The dashboard takes a sensor it has never seen and a number it can set. The
   add-sensor picker offers a custom entry beside the presets: a name, a key, a
   unit, a graphic, and a safe band, and the sensor is created with them, labeled
