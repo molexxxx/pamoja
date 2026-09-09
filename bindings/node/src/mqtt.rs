@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
-use pamoja_core::{Error, Transport};
+use pamoja_core::{Error, Receive, Transport};
 use pamoja_mqtt::{MqttConfig, MqttTransport, QualityOfService};
 use tokio::sync::Mutex;
 

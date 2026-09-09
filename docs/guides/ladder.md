@@ -17,6 +17,13 @@ nothing and loses nothing. And a reading taken while a backlog exists joins the
 back of it rather than overtaking, so what arrives upstream is in the order it was
 measured.
 
+A ladder is a link in its own right, both ways. Anything written against one
+transport, a profile node, a rule, a hand-written loop, runs over a ladder unchanged
+and gains the buffering. A subscription placed on the ladder goes onto every rung
+that listens, and a receive hands up whichever rung delivers first, so a command
+reaches the node over whatever link happens to be up. In Rust, a send-only link such
+as a LoRa uplink is added with `uplink` rather than `rung`, and is never listened on.
+
 ## What the example does
 
 It builds a ladder over two in-process links, a near mesh hop and a metered
@@ -31,6 +38,10 @@ send. The backhaul carries one send, refuses the next two, then is reachable
 again, which lines up with the four attempts the ladder makes on it: the two
 readings and the two flushes.
 
+Last, a command goes the other way. The ladder is subscribed to the valve topic, the
+gateway publishes `open` on the backhaul, and the ladder hands it up, so the object
+that carried the readings out is the one that carries the command in.
+
 It proves:
 
 - Rungs are tried in the order they were added, and a refusing rung falls through
@@ -43,6 +54,8 @@ It proves:
   waiting in the queue.
 - The next flush forwards one, the gateway receives `21.6`, and the queue drops
   to zero, so the backlog went out exactly once.
+- A subscription placed on the ladder reaches its rungs, and the `open` published
+  on the backhaul arrives through the ladder's own receive.
 
 ## Rust
 
@@ -50,7 +63,7 @@ It proves:
 From [`examples/tests/guides/ladder.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/ladder.rs):
 
 ```rust
-use pamoja_core::Transport;
+use pamoja_core::{Receive, Transport};
 use pamoja_ladder::{Delivery, TransportLadder};
 use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 use pamoja_sim::DegradedLink;
@@ -95,6 +108,21 @@ let when_up = ladder.flush().await.expect("a flush");
 let late = gateway.recv().await.expect("recv").expect("a message");
 let buffered_reading = String::from_utf8_lossy(&late.payload);
 println!("flush when up forwarded {when_up}, gateway got {buffered_reading}");
+
+// The ladder is a link both ways. A subscription placed on it goes onto every rung
+// that listens, and a receive takes whichever rung delivers, so a command reaches
+// the node over whatever link is up. This one comes back over the backhaul.
+ladder
+    .subscribe("actuators/1/valve")
+    .await
+    .expect("subscribe");
+gateway
+    .send("actuators/1/valve", b"open")
+    .await
+    .expect("send");
+let command = ladder.recv().await.expect("recv").expect("a command");
+let order = String::from_utf8_lossy(&command.payload);
+println!("command back over the ladder: {order}");
 ```
 <!-- end -->
 
@@ -148,7 +176,16 @@ async function main() {
   const late = (await gateway.recv())!
   console.log(`flush when up forwarded ${whenUp}, gateway got ${late.payload.toString()}`)
 
-  return { first, second, waiting, whileDown, whenUp, left: await ladder.buffered(), late }
+  // The ladder is a link both ways. A subscription placed on it goes onto every rung that
+  // listens, and a receive takes whichever rung delivers, so a command reaches the node
+  // over whatever link is up. This one comes back over the backhaul.
+  await ladder.subscribe('actuators/1/valve')
+  await gateway.send('actuators/1/valve', Buffer.from('open'))
+  const command = (await ladder.recv())!
+  console.log(`command back over the ladder: ${command.payload.toString()}`)
+
+  const left = await ladder.buffered()
+  return { first, second, waiting, whileDown, whenUp, left, late, command }
 }
 
 main()
@@ -208,10 +245,19 @@ async def main() -> None:
     late = await gateway.recv()
     print(f"flush when up forwarded {when_up}, gateway got {late.payload.decode()}")
 
-    return first, second, waiting, while_down, when_up, await ladder.buffered(), late
+    # The ladder is a link both ways. A subscription placed on it goes onto every rung
+    # that listens, and a receive takes whichever rung delivers, so a command reaches
+    # the node over whatever link is up. This one comes back over the backhaul.
+    await ladder.subscribe("actuators/1/valve")
+    await gateway.send("actuators/1/valve", b"open")
+    command = await ladder.recv()
+    print(f"command back over the ladder: {command.payload.decode()}")
+
+    left = await ladder.buffered()
+    return first, second, waiting, while_down, when_up, left, late, command
 
 
-first, second, waiting, while_down, when_up, left, late = asyncio.run(main())
+first, second, waiting, while_down, when_up, left, late, command = asyncio.run(main())
 ```
 <!-- end -->
 
@@ -263,6 +309,16 @@ TransportMessage late = (await gateway.ReceiveAsync())!;
 Console.WriteLine(
     $"flush when up forwarded {whenUp}, gateway got"
     + $" {System.Text.Encoding.UTF8.GetString(late.Payload)}");
+
+// The ladder is a link both ways. A subscription placed on it goes onto every
+// rung that listens, and a receive takes whichever rung delivers, so a command
+// reaches the node over whatever link is up. This one comes back over the
+// backhaul.
+await ladder.SubscribeAsync("actuators/1/valve");
+await gateway.SendAsync("actuators/1/valve", "open"u8.ToArray());
+TransportMessage command = (await ladder.ReceiveAsync())!;
+Console.WriteLine(
+    $"command back over the ladder: {System.Text.Encoding.UTF8.GetString(command.Payload)}");
 ```
 <!-- end -->
 

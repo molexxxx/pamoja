@@ -43,7 +43,7 @@ It proves:
 From [`examples/tests/guides/loopback.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/loopback.rs):
 
 ```rust
-use pamoja_core::Transport;
+use pamoja_core::{Receive, Transport};
 use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 
 // One broker and two links off it, all in this process. Nothing binds a port and

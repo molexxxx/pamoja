@@ -20,9 +20,9 @@ CoAP transport for the pamoja device SDK, built on coap-lite over UDP.
 
 CoAP transport for the pamoja SDK.
 
-`CoapTransport` implements the core `Transport`
-trait on top of the pure-Rust `coap_lite` message codec and a UDP socket, so
-an application can talk to constrained RESTful devices through the same
+`CoapTransport` implements the core `Transport` and `Receive` traits on
+top of the pure-Rust `coap_lite` message codec and a UDP socket, so an
+application can talk to constrained RESTful devices through the same
 protocol-agnostic surface it uses for every other transport.
 
 CoAP is connectionless: `connect` binds a local UDP
@@ -40,7 +40,7 @@ which suits the cheapest, most power-constrained devices.
 **Examples**
 
 ```rust
-use pamoja_core::Transport;
+use pamoja_core::{Receive, Transport};
 use pamoja_coap::{CoapConfig, CoapTransport};
 
 let mut transport = CoapTransport::new(CoapConfig::new("localhost", 5683));
@@ -155,15 +155,6 @@ The updated configuration, for chaining.
 fn max_retransmits(mut self, count: u32) -> Self
 ```
 
-## struct `Message`
-
-A message received from an observed resource.
-
-Fields:
-
-- `topic: String` - The resource path the message was published to.
-- `payload: Vec <u8>` - The raw payload bytes.
-
 ## struct `CoapTransport`
 
 A CoAP client that implements the core `Transport` trait.
@@ -200,24 +191,6 @@ Reports whether the transport currently holds a bound socket.
 
 ```rust
 fn is_connected(&self) -> bool
-```
-
-### `CoapTransport::recv`
-
-Awaits the next notification from an observed resource.
-
-**Returns**
-
-`Some(message)` for the next queued notification, or `None` once the
-background task has stopped and no further messages will arrive.
-
-**Errors**
-
-Returns `Error::Closed` if the transport is
-not connected.
-
-```rust
-async fn recv(&mut self) -> Result <Option <Message>>
 ```
 
 ### `CoapTransport::disconnect`

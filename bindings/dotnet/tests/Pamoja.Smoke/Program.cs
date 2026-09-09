@@ -317,6 +317,17 @@ static async Task AsyncTransports()
         await rungs.SendAsync("sensors/1", "4.8C"u8.ToArray()) == Delivery.Sent,
         "the second rung carried what the first refused");
 
+    // A subscription placed on the ladder reaches its rungs, and a command published
+    // upstream comes back through the ladder.
+    await rungs.SubscribeAsync("commands/1");
+    using var upstream = broker.Link();
+    await upstream.ConnectAsync();
+    await upstream.SendAsync("commands/1", "open"u8.ToArray());
+    TransportMessage? inbound = await rungs.ReceiveAsync();
+    Assert(
+        inbound is not null && inbound.Payload.AsSpan().SequenceEqual("open"u8),
+        "the command came back through the ladder");
+
     // A transport handed to a ladder is spent.
     Transport spent = broker.Rung();
     Assert(spent.IsAvailable, "a fresh transport is holdable");

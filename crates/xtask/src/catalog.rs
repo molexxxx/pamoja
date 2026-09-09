@@ -691,7 +691,7 @@ impl Catalog {
             ));
         } else {
             lines.push(format!(
-                "- Rust: the `Transport` trait in [`pamoja-core`]({}), [install]({})",
+                "- Rust: the `Transport` and `Receive` traits in [`pamoja-core`]({}), [install]({})",
                 rustdoc_url("pamoja-core"),
                 rust.row_url(capability)
             ));

@@ -2130,6 +2130,23 @@ class Ladder:
         r"""
         How many messages are waiting in the buffer.
         """
+    def subscribe(self, topic: builtins.str) -> typing.Any:
+        r"""
+        Subscribes every rung that listens to a topic.
+        
+        The filter is kept for the life of the ladder: a rung that is down when it
+        is placed receives it when it next connects, so subscribing before
+        `connect` is fine and never fails for want of a link.
+        """
+    def recv(self) -> typing.Any:
+        r"""
+        Waits for the next message from any rung that listens, whichever
+        delivers first.
+        
+        Raises if no connected rung listens: none was added, the ladder is not
+        connected, or every listening link has ended. The ladder is held while
+        waiting, so a send from elsewhere waits behind the receive.
+        """
 
 @typing.final
 class LoopbackBroker:

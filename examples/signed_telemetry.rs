@@ -11,7 +11,7 @@
 //! Run with: `cargo run -p pamoja-examples --example signed_telemetry`
 
 use pamoja_codec::{CborCodec, Codec};
-use pamoja_core::{Result, Transport};
+use pamoja_core::{Receive, Result, Transport};
 use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 use pamoja_security::{DeviceIdentity, PublicIdentity, Signature};
 use serde::{Deserialize, Serialize};

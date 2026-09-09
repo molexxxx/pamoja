@@ -57,6 +57,16 @@ public static class LadderGuide
         Console.WriteLine(
             $"flush when up forwarded {whenUp}, gateway got"
             + $" {System.Text.Encoding.UTF8.GetString(late.Payload)}");
+
+        // The ladder is a link both ways. A subscription placed on it goes onto every
+        // rung that listens, and a receive takes whichever rung delivers, so a command
+        // reaches the node over whatever link is up. This one comes back over the
+        // backhaul.
+        await ladder.SubscribeAsync("actuators/1/valve");
+        await gateway.SendAsync("actuators/1/valve", "open"u8.ToArray());
+        TransportMessage command = (await ladder.ReceiveAsync())!;
+        Console.WriteLine(
+            $"command back over the ladder: {System.Text.Encoding.UTF8.GetString(command.Payload)}");
         // ANCHOR_END: example
 
         Expect(first == Delivery.Sent, "a dead rung falls through to the next one");
@@ -67,5 +77,7 @@ public static class LadderGuide
         Expect(whenUp == 1, "the reading goes out once a link returns");
         Expect(await ladder.BufferedAsync() == 0, "leaving nothing queued");
         Expect(late.Payload.AsSpan().SequenceEqual("21.6"u8), "and it arrives exactly once");
+        Expect(command.Topic == "actuators/1/valve", "a command comes back through the ladder");
+        Expect(command.Payload.AsSpan().SequenceEqual("open"u8), "carrying what was published");
     }
 }

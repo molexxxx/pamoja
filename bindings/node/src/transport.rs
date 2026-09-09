@@ -15,7 +15,7 @@ use std::pin::Pin;
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
-use pamoja_core::{Result, Transport as CoreTransport};
+use pamoja_core::{Message, Receive, Result, Transport as CoreTransport};
 
 /// Object-safe erasure of a transport, so a wrapper can hold any of them.
 ///
@@ -40,12 +40,15 @@ trait DynTransport: Send {
         &'a mut self,
         topic: &'a str,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
+
+    /// Awaits the next message the erased transport delivers.
+    fn recv(&mut self) -> Pin<Box<dyn Future<Output = Result<Option<Message>>> + Send + '_>>;
 }
 
 /// Newtype carrying one concrete transport behind [`DynTransport`].
 struct Erased<T>(T);
 
-impl<T: CoreTransport + Send> DynTransport for Erased<T> {
+impl<T: CoreTransport + Receive + Send> DynTransport for Erased<T> {
     fn connect(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
         Box::pin(CoreTransport::connect(&mut self.0))
     }
@@ -63,6 +66,10 @@ impl<T: CoreTransport + Send> DynTransport for Erased<T> {
         topic: &'a str,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
         Box::pin(CoreTransport::subscribe(&mut self.0, topic))
+    }
+
+    fn recv(&mut self) -> Pin<Box<dyn Future<Output = Result<Option<Message>>> + Send + '_>> {
+        Box::pin(Receive::recv(&mut self.0))
     }
 }
 
@@ -87,6 +94,12 @@ impl CoreTransport for AnyTransport {
 
     async fn subscribe(&mut self, topic: &str) -> Result<()> {
         self.0.subscribe(topic).await
+    }
+}
+
+impl Receive for AnyTransport {
+    async fn recv(&mut self) -> Result<Option<Message>> {
+        self.0.recv().await
     }
 }
 
@@ -157,6 +170,23 @@ impl CoreTransport for Kind {
             Kind::Faulty(inner) => inner.subscribe(topic).await,
             #[cfg(feature = "sim")]
             Kind::Degraded(inner) => inner.subscribe(topic).await,
+        }
+    }
+}
+
+impl Receive for Kind {
+    async fn recv(&mut self) -> Result<Option<Message>> {
+        match self {
+            #[cfg(feature = "mqtt")]
+            Kind::Mqtt(inner) => inner.recv().await,
+            #[cfg(feature = "coap")]
+            Kind::Coap(inner) => inner.recv().await,
+            #[cfg(feature = "loopback")]
+            Kind::Loopback(inner) => inner.recv().await,
+            #[cfg(feature = "loopback")]
+            Kind::Faulty(inner) => inner.recv().await,
+            #[cfg(feature = "sim")]
+            Kind::Degraded(inner) => inner.recv().await,
         }
     }
 }

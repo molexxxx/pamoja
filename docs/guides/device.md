@@ -103,7 +103,7 @@ The loop:
 From [`examples/tests/guides/device.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/device.rs):
 
 ```rust
-use pamoja_core::Transport;
+use pamoja_core::{Receive, Transport};
 use pamoja_kit::Thermostat;
 use pamoja_ladder::TransportLadder;
 use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
@@ -536,7 +536,7 @@ Console.WriteLine($"gateway got {string.Join(", ", got)}");
 ## Reference
 
 <!-- table: reference device -->
-- Rust: the `Transport` trait in [`pamoja-core`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-device)
+- Rust: the `Transport` and `Receive` traits in [`pamoja-core`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-device)
 - TypeScript: [`@pamoja/core`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_core.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-device)
 - Python: [`pamoja.core`](https://pamoja.molex.cloud/docs/reference/python/pamoja/core.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-device)
 - C#: [`Pamoja.Core`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-device)

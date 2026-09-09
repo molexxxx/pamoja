@@ -425,6 +425,23 @@ export declare class Ladder {
   flush(): Promise<number>
   /** How many messages are waiting in the buffer. */
   buffered(): Promise<number>
+  /**
+   * Subscribes every rung that listens to a topic.
+   *
+   * The filter is kept for the life of the ladder: a rung that is down when it
+   * is placed receives it when it next connects, so subscribing before
+   * `connect` is fine and never fails for want of a link.
+   */
+  subscribe(topic: string): Promise<void>
+  /**
+   * Waits for the next message from any rung that listens, whichever
+   * delivers first.
+   *
+   * Throws if no connected rung listens: none was added, the ladder is not
+   * connected, or every listening link has ended. The ladder is held while
+   * waiting, so a send from elsewhere waits behind the receive.
+   */
+  recv(): Promise<TransportMessage | null>
 }
 
 /**

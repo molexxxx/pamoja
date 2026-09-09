@@ -2,9 +2,8 @@
 
 use std::sync::{Arc, Mutex};
 
+use pamoja_core::Message;
 use tokio::sync::mpsc::UnboundedSender;
-
-use crate::transport::Message;
 
 /// A shared, in-process router for [`LoopbackTransport`](crate::LoopbackTransport)s.
 ///

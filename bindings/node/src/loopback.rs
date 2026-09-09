@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
-use pamoja_core::Transport as CoreTransport;
+use pamoja_core::{Receive, Transport as CoreTransport};
 use pamoja_loopback::{LoopbackBroker as CoreBroker, LoopbackTransport as CoreLoopback};
 use tokio::sync::Mutex;
 

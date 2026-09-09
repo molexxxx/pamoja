@@ -5,7 +5,7 @@
 #[tokio::test]
 async fn a_round_trip_through_an_in_process_broker() {
     // ANCHOR: example
-    use pamoja_core::Transport;
+    use pamoja_core::{Receive, Transport};
     use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 
     // One broker and two links off it, all in this process. Nothing binds a port and

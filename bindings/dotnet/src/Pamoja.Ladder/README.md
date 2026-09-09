@@ -67,6 +67,16 @@ TransportMessage late = (await gateway.ReceiveAsync())!;
 Console.WriteLine(
     $"flush when up forwarded {whenUp}, gateway got"
     + $" {System.Text.Encoding.UTF8.GetString(late.Payload)}");
+
+// The ladder is a link both ways. A subscription placed on it goes onto every
+// rung that listens, and a receive takes whichever rung delivers, so a command
+// reaches the node over whatever link is up. This one comes back over the
+// backhaul.
+await ladder.SubscribeAsync("actuators/1/valve");
+await gateway.SendAsync("actuators/1/valve", "open"u8.ToArray());
+TransportMessage command = (await ladder.ReceiveAsync())!;
+Console.WriteLine(
+    $"command back over the ladder: {System.Text.Encoding.UTF8.GetString(command.Payload)}");
 ```
 
 ## The same capability in every language

@@ -1058,6 +1058,19 @@ async function asyncTransports() {
     "the second rung carried what the first refused",
   );
 
+  // A subscription placed on the ladder reaches its rungs, and a command published
+  // upstream comes back through the ladder.
+  await rungs.subscribe("commands/1");
+  const upstream = broker.link();
+  await upstream.connect();
+  await upstream.send("commands/1", Buffer.from("open"));
+  const inbound = await rungs.recv();
+  assert.strictEqual(
+    inbound.payload.toString(),
+    "open",
+    "the command came back through the ladder",
+  );
+
   // A transport handed to a ladder is spent.
   const spent = broker.rung();
   assert.ok(spent.isAvailable, "a fresh transport is holdable");

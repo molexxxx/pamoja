@@ -9,6 +9,24 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- The inbound half of a link, `Receive`, beside `Transport` in the core, with one
+  `Message` type for what any link delivers. MQTT, CoAP, Zenoh, and the loopback
+  transport implement it, the fault injector and the degraded link pass it
+  through, and its contract names the cancel safety a ladder and a `select!`
+  depend on. A link that only sends, a LoRa uplink or a satellite messenger,
+  implements `Transport` alone, as before.
+- The transport ladder is a link in its own right: it implements `Transport` and
+  `Receive`, so a profile node, a rule, or any loop written against one link runs
+  over a ladder unchanged and gains its buffering. A subscription placed on the
+  ladder goes onto every rung that listens and is kept, so a rung that is down
+  when it is placed receives it when it next connects; a receive polls every
+  listening rung together, starting from a different one each call, and hands
+  up whichever delivers first. The ladder now tracks which rungs are up: a rung
+  that reports itself closed, on a send or a receive, is left out until the next
+  connect, and connect no longer reconnects rungs that are already up. A
+  send-only link is added with `uplink` rather than `rung` and is never listened
+  on. The ladder in every binding gains `subscribe` and `recv`, and the
+  composable transport handle in the C ABI and .NET gains a receive.
 - A bus layer, `pamoja-hal`: the `embedded-hal` 1.0 I2C, SPI, GPIO, and delay
   traits every driver is written against, re-exported in one place; a bit-banged
   1-Wire bus over any pin with the reset and presence handshake, the ROM
@@ -97,6 +115,13 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- Receiving is the `Receive` trait's `recv` rather than a method each transport
+  defined for itself, so a caller brings `pamoja_core::Receive` into scope the
+  way it already does `Transport`. The per-crate `Message` types of the MQTT,
+  CoAP, Zenoh, and loopback transports are the core `Message`, re-exported under
+  their old paths; a Zenoh sample's key expression is its `topic` field, where it
+  was `key`. The `Store` trait's futures are `Send`, as `Transport`'s already
+  were, which a store written as `async fn` over `Send` state already satisfies.
 - The architecture drawing opens over the page at full size when clicked, the
   phone layout on a phone, closed by the button, a click outside it, or Escape,
   rather than leaving the page for the file; on a wide screen it also runs a

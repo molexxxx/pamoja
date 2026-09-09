@@ -3157,8 +3157,10 @@ dependencies = [
 name = "pamoja-ladder"
 version = "0.1.17"
 dependencies = [
+ "pamoja-codec",
  "pamoja-core",
  "pamoja-loopback",
+ "pamoja-profile",
  "pamoja-sync",
  "tokio",
 ]

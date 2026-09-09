@@ -17,7 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use pamoja_coap::{CoapConfig, CoapTransport, Reliability};
-use pamoja_core::Transport;
+use pamoja_core::{Receive, Transport};
 use tokio::sync::Mutex;
 
 use crate::transport::{status, Kind, PamojaMessage, PamojaTransport};

@@ -593,6 +593,27 @@ def test_a_flush_replays_what_was_buffered():
     asyncio.run(run())
 
 
+def test_a_command_comes_back_through_the_ladder():
+    from pamoja import ladder, loopback, sync
+
+    async def run():
+        broker = loopback.LoopbackBroker()
+        rungs = ladder.Ladder(sync.Store.memory())
+        await rungs.rung(broker.rung())
+        await rungs.connect()
+        await rungs.subscribe("commands/1")
+
+        # A subscription placed on the ladder reaches its rungs, and a command
+        # published upstream comes back through the ladder.
+        upstream = broker.link()
+        await upstream.connect()
+        await upstream.send("commands/1", b"open")
+        command = await rungs.recv()
+        assert command.payload == b"open", "the command came back through the ladder"
+
+    asyncio.run(run())
+
+
 def test_a_spent_transport_cannot_be_added_twice():
     from pamoja import core, ladder, loopback, sync
 

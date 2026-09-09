@@ -1,6 +1,6 @@
 //! A transport decorator that simulates a degraded radio link.
 
-use pamoja_core::{Error, Result, Transport};
+use pamoja_core::{Error, Message, Receive, Result, Transport};
 
 /// A [`Transport`] decorator that simulates an ongoing degraded link.
 ///
@@ -12,8 +12,9 @@ use pamoja_core::{Error, Result, Transport};
 /// by a send counter, not a clock or randomness - so a store-and-forward drain over
 /// the link behaves the same way every run.
 ///
-/// Connect and subscribe pass straight through; only [`send`](Transport::send) is
-/// degraded, since that is the path store-and-forward depends on. A degraded send
+/// Connect, subscribe, and receive pass straight through; only
+/// [`send`](Transport::send) is degraded, since that is the path store-and-forward
+/// depends on. A degraded send
 /// returns [`Error::Transport`], which [`drain_to`](https://docs.rs/pamoja-sync)
 /// leaves buffered, in order, to retry later.
 ///
@@ -140,6 +141,12 @@ impl<T: Transport + Send> Transport for DegradedLink<T> {
 
     async fn subscribe(&mut self, topic: &str) -> Result<()> {
         self.inner.subscribe(topic).await
+    }
+}
+
+impl<T: Receive + Send> Receive for DegradedLink<T> {
+    async fn recv(&mut self) -> Result<Option<Message>> {
+        self.inner.recv().await
     }
 }
 

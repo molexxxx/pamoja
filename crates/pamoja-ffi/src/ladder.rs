@@ -17,7 +17,7 @@ use std::ptr;
 use pamoja_ladder::{Delivery, TransportLadder};
 
 use crate::sync::{take_store, PamojaStore, StoreKind};
-use crate::transport::{take_transport, PamojaTransport};
+use crate::transport::{take_transport, PamojaMessage, PamojaTransport};
 use crate::{read_bytes, read_str, runtime, set_last_error, PamojaStatus};
 
 /// What became of a message handed to a ladder.
@@ -254,6 +254,87 @@ pub unsafe extern "C" fn pamoja_ladder_buffered(
     }
 }
 
+/// Subscribes every rung that listens to a topic.
+///
+/// The filter is kept for the life of the ladder, so a rung that is down when it
+/// is placed receives it when it next connects. Subscribing while no rung is up
+/// succeeds, the way a send with no rung up is buffered rather than refused.
+///
+/// # Arguments
+///
+/// * `ladder` - the ladder.
+/// * `topic` - the topic filter, as null-terminated UTF-8.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] once the filter is live on a rung or held for the next
+/// connect, or the status of the refusal if every connected rung refused it.
+///
+/// # Safety
+///
+/// `ladder` must be a live handle and `topic` a valid null-terminated UTF-8
+/// string.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_ladder_subscribe(
+    ladder: *mut PamojaLadder,
+    topic: *const c_char,
+) -> PamojaStatus {
+    let Some(topic) = read_str(topic, "topic") else {
+        return PamojaStatus::InvalidArgument;
+    };
+    let Some(inner) = ladder_inner(ladder) else {
+        return PamojaStatus::InvalidArgument;
+    };
+    match runtime().block_on(inner.subscribe(topic)) {
+        Ok(()) => PamojaStatus::Ok,
+        Err(error) => fail(error),
+    }
+}
+
+/// Waits for the next message from any rung that listens.
+///
+/// Every connected rung that listens is polled together and the first to deliver
+/// wins. A rung whose link ends is left out until the next
+/// [`pamoja_ladder_connect`].
+///
+/// # Arguments
+///
+/// * `ladder` - the ladder.
+/// * `out_message` - receives a message handle to release with
+///   [`pamoja_message_free`](crate::transport::pamoja_message_free).
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] with a message, or [`PamojaStatus::Closed`] if no
+/// connected rung listens: none was added, the ladder is not connected, or every
+/// listening link has ended.
+///
+/// # Safety
+///
+/// `ladder` must be a live handle and `out_message` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_ladder_recv(
+    ladder: *mut PamojaLadder,
+    out_message: *mut *mut PamojaMessage,
+) -> PamojaStatus {
+    let Some(inner) = ladder_inner(ladder) else {
+        return PamojaStatus::InvalidArgument;
+    };
+    if out_message.is_null() {
+        set_last_error("out_message must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    *out_message = ptr::null_mut();
+    match runtime().block_on(inner.recv()) {
+        Ok(Some(message)) => {
+            *out_message = PamojaMessage::into_raw(message.topic, message.payload);
+            PamojaStatus::Ok
+        }
+        Ok(None) => PamojaStatus::Ok,
+        Err(error) => fail(error),
+    }
+}
+
 /// Releases a ladder handle, and the rungs and buffer it owns.
 ///
 /// Passing null is a no-op.
@@ -313,8 +394,8 @@ mod tests {
     use crate::loopback::{
         pamoja_loopback_broker_free, pamoja_loopback_broker_new, pamoja_loopback_transport_connect,
         pamoja_loopback_transport_free, pamoja_loopback_transport_new,
-        pamoja_loopback_transport_recv, pamoja_loopback_transport_subscribe,
-        pamoja_transport_loopback,
+        pamoja_loopback_transport_recv, pamoja_loopback_transport_send,
+        pamoja_loopback_transport_subscribe, pamoja_transport_loopback,
     };
     use crate::sync::pamoja_store_memory;
     use crate::transport::{
@@ -426,6 +507,60 @@ mod tests {
             pamoja_ladder_free(ladder);
             pamoja_loopback_transport_free(listener);
             pamoja_loopback_broker_free(broker);
+        }
+    }
+
+    #[test]
+    fn a_command_comes_back_through_the_ladder() {
+        unsafe {
+            let broker = pamoja_loopback_broker_new();
+            let ladder = pamoja_ladder_new(pamoja_store_memory(0));
+            assert_eq!(
+                pamoja_ladder_rung(ladder, pamoja_transport_loopback(broker)),
+                PamojaStatus::Ok
+            );
+            assert_eq!(pamoja_ladder_connect(ladder), PamojaStatus::Ok);
+            let topic = std::ffi::CString::new("commands/1").expect("static");
+            assert_eq!(
+                pamoja_ladder_subscribe(ladder, topic.as_ptr()),
+                PamojaStatus::Ok
+            );
+
+            let upstream = pamoja_loopback_transport_new(broker);
+            pamoja_loopback_transport_connect(upstream);
+            pamoja_loopback_transport_send(upstream, topic.as_ptr(), b"open".as_ptr(), 4);
+
+            let mut message = ptr::null_mut();
+            assert_eq!(pamoja_ladder_recv(ladder, &mut message), PamojaStatus::Ok);
+            assert!(
+                !message.is_null(),
+                "the command came back through the ladder"
+            );
+            let payload = std::slice::from_raw_parts(
+                pamoja_message_payload(message),
+                pamoja_message_payload_len(message),
+            )
+            .to_vec();
+            assert_eq!(payload, b"open");
+            pamoja_message_free(message);
+
+            pamoja_ladder_free(ladder);
+            pamoja_loopback_transport_free(upstream);
+            pamoja_loopback_broker_free(broker);
+        }
+    }
+
+    #[test]
+    fn a_receive_with_no_listening_rung_reports_closed() {
+        unsafe {
+            let ladder = pamoja_ladder_new(pamoja_store_memory(0));
+            let mut message = ptr::null_mut();
+            assert_eq!(
+                pamoja_ladder_recv(ladder, &mut message),
+                PamojaStatus::Closed
+            );
+            assert!(message.is_null());
+            pamoja_ladder_free(ladder);
         }
     }
 

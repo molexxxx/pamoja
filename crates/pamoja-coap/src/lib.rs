@@ -1,8 +1,8 @@
 //! CoAP transport for the pamoja SDK.
 //!
-//! [`CoapTransport`] implements the core [`Transport`]
-//! trait on top of the pure-Rust [`coap_lite`] message codec and a UDP socket, so
-//! an application can talk to constrained RESTful devices through the same
+//! [`CoapTransport`] implements the core [`Transport`] and [`Receive`] traits on
+//! top of the pure-Rust [`coap_lite`] message codec and a UDP socket, so an
+//! application can talk to constrained RESTful devices through the same
 //! protocol-agnostic surface it uses for every other transport.
 //!
 //! CoAP is connectionless: [`connect`](Transport::connect) binds a local UDP
@@ -10,7 +10,7 @@
 //! inbound datagrams. A [`send`](Transport::send) is a CoAP `PUT` to a resource
 //! path, and a [`subscribe`](Transport::subscribe) registers an RFC 7641 observe on
 //! a resource so the server's notifications are forwarded to an internal queue that
-//! [`recv`](CoapTransport::recv) drains.
+//! [`recv`](Receive::recv) drains.
 //!
 //! Delivery follows the configured [`Reliability`]: [`Reliability::Confirmable`]
 //! messages are acknowledged with retransmission (at-least-once), while
@@ -20,7 +20,7 @@
 //! # Examples
 //!
 //! ```no_run
-//! use pamoja_core::Transport;
+//! use pamoja_core::{Receive, Transport};
 //! use pamoja_coap::{CoapConfig, CoapTransport};
 //!
 //! # async fn run() -> pamoja_core::Result<()> {
@@ -41,7 +41,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use coap_lite::{CoapOption, MessageClass, MessageType, Packet, RequestType};
-use pamoja_core::{Error, Result, Transport};
+pub use pamoja_core::Message;
+use pamoja_core::{Error, Receive, Result, Transport};
 use tokio::net::UdpSocket;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
@@ -158,15 +159,6 @@ impl CoapConfig {
     }
 }
 
-/// A message received from an observed resource.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Message {
-    /// The resource path the message was published to.
-    pub topic: String,
-    /// The raw payload bytes.
-    pub payload: Vec<u8>,
-}
-
 /// A CoAP client that implements the core [`Transport`] trait.
 ///
 /// A transport is created disconnected; [`connect`](Transport::connect) binds the
@@ -213,22 +205,6 @@ impl CoapTransport {
     /// [`disconnect`](CoapTransport::disconnect) is called.
     pub fn is_connected(&self) -> bool {
         self.socket.is_some()
-    }
-
-    /// Awaits the next notification from an observed resource.
-    ///
-    /// # Returns
-    ///
-    /// `Some(message)` for the next queued notification, or `None` once the
-    /// background task has stopped and no further messages will arrive.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Closed`] if the transport is
-    /// not connected.
-    pub async fn recv(&mut self) -> Result<Option<Message>> {
-        let incoming = self.incoming.as_mut().ok_or(Error::Closed)?;
-        Ok(incoming.recv().await)
     }
 
     /// Closes the socket and stops the background task.
@@ -382,6 +358,23 @@ impl Transport for CoapTransport {
     }
 }
 
+impl Receive for CoapTransport {
+    /// Awaits the next notification from an observed resource.
+    ///
+    /// # Returns
+    ///
+    /// `Some(message)` for the next queued notification, or `None` once the
+    /// background task has stopped and no further messages will arrive.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Closed`] if the transport is not connected.
+    async fn recv(&mut self) -> Result<Option<Message>> {
+        let incoming = self.incoming.as_mut().ok_or(Error::Closed)?;
+        Ok(incoming.recv().await)
+    }
+}
+
 /// Maps a [`Reliability`] onto the CoAP message type used on the wire.
 fn message_type(reliability: Reliability) -> MessageType {
     match reliability {
@@ -463,10 +456,7 @@ async fn acknowledge(packet: &Packet, socket: &UdpSocket) {
 
 /// Queues a notification, returning `false` once the receiver has been dropped.
 fn enqueue(packet: Packet, tx: &mpsc::UnboundedSender<Message>) -> bool {
-    let message = Message {
-        topic: path_from_packet(&packet),
-        payload: packet.payload,
-    };
+    let message = Message::new(path_from_packet(&packet), packet.payload);
     tx.send(message).is_ok()
 }
 

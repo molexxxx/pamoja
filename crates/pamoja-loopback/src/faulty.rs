@@ -1,12 +1,14 @@
 //! A transport decorator that injects send failures for degraded-link testing.
 
-use pamoja_core::{Error, Result, Transport};
+use pamoja_core::{Error, Message, Receive, Result, Transport};
 
 /// Wraps a [`Transport`] and fails a configurable number of upcoming sends.
 ///
 /// This simulates an intermittent link so offline-first behavior can be proven
 /// rather than assumed: pair it with a store-and-forward drain and assert that
-/// every record still arrives, in order, once the link recovers.
+/// every record still arrives, in order, once the link recovers. Connecting,
+/// subscribing, and receiving pass straight through to the wrapped transport;
+/// only sends are failed.
 ///
 /// # Examples
 ///
@@ -74,6 +76,12 @@ impl<T: Transport + Send> Transport for Faulty<T> {
 
     async fn subscribe(&mut self, topic: &str) -> Result<()> {
         self.inner.subscribe(topic).await
+    }
+}
+
+impl<T: Receive + Send> Receive for Faulty<T> {
+    async fn recv(&mut self) -> Result<Option<Message>> {
+        self.inner.recv().await
     }
 }
 

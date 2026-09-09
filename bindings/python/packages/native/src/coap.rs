@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use pamoja_coap::{CoapConfig, CoapTransport, Reliability};
-use pamoja_core::Transport;
+use pamoja_core::{Receive, Transport};
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use tokio::sync::Mutex;

@@ -65,7 +65,16 @@ async function main() {
   const late = (await gateway.recv())!
   console.log(`flush when up forwarded ${whenUp}, gateway got ${late.payload.toString()}`)
 
-  return { first, second, waiting, whileDown, whenUp, left: await ladder.buffered(), late }
+  // The ladder is a link both ways. A subscription placed on it goes onto every rung that
+  // listens, and a receive takes whichever rung delivers, so a command reaches the node
+  // over whatever link is up. This one comes back over the backhaul.
+  await ladder.subscribe('actuators/1/valve')
+  await gateway.send('actuators/1/valve', Buffer.from('open'))
+  const command = (await ladder.recv())!
+  console.log(`command back over the ladder: ${command.payload.toString()}`)
+
+  const left = await ladder.buffered()
+  return { first, second, waiting, whileDown, whenUp, left, late, command }
 }
 
 main()
