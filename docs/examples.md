@@ -191,6 +191,14 @@ Every guide carries the same example in Rust, TypeScript, Python, and C#, splice
 <div class="pkg-btns"><a class="pkg-btn rust" href="https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/actuators.rs">Rust <code>actuators.rs</code></a><a class="pkg-btn node" href="https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/actuators.ts">TypeScript <code>actuators.ts</code></a><a class="pkg-btn python" href="https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/actuators.py">Python <code>actuators.py</code></a><a class="pkg-btn dotnet" href="https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/ActuatorsGuide.cs">C# <code>ActuatorsGuide.cs</code></a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/actuators.html">Guide</a></div>
 </div>
 </div>
+<div class="pkg" id="guide-device">
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/device.html">Your own device</a><ul class="pkg-proves"><li>A struct or class of the maker's own is a sensor the moment it can be read and an actuator the moment it can be told, with no registration and no base class.</li><li>The probe reports percent because it does its own calibration; the converter underneath is any source of counts, a replay here and a driver on the node.</li><li>The valve opens on the first reading, closes at 50%, and opens again at 25%: three changes, with the readings inside the band leaving it as it was.</li><li>The first two readings are buffered rather than lost, both go out when the link returns, and the gateway receives all six in order.</li><li>In Rust, the same two parts run under a hand-written profile through <code>Node</code>, which reads, decides, drives the valve, and publishes on every tick, and raises an alert once the bed is far from target.</li></ul></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn rust" href="https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/device.rs">Rust <code>device.rs</code></a><a class="pkg-btn node" href="https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/device.ts">TypeScript <code>device.ts</code></a><a class="pkg-btn python" href="https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/device.py">Python <code>device.py</code></a><a class="pkg-btn dotnet" href="https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/DeviceGuide.cs">C# <code>DeviceGuide.cs</code></a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/device.html">Guide</a></div>
+</div>
+</div>
 </div>
 
 ### Radio and reach

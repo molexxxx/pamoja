@@ -29,7 +29,7 @@ intent = "The wires a gateway actually has: framed serial packets, an RS485 requ
 [[chapter]]
 key = "sensing"
 title = "Sensing and actuation"
-intent = "The parts wired to a board: a thermometer that checks its own bytes, a servo pulse, and a stepper walking its coils."
+intent = "The parts wired to a board: a thermometer that checks its own bytes, a servo pulse, a stepper walking its coils, and a part of your own."
 
 [[chapter]]
 key = "radio"
@@ -162,6 +162,17 @@ node = "actuators"
 python = "actuators"
 dotnet = ["Pca9685", "Pwm", "Stepper", "StepDrive", "StepDirection"]
 guide = "guides/actuators.md"
+
+[[capability]]
+key = "device"
+chapter = "sensing"
+title = "Your own device"
+summary = "A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in"
+crates = []
+node = "core"
+python = "core"
+dotnet = []
+guide = "guides/device.md"
 
 [[capability]]
 key = "lora"
