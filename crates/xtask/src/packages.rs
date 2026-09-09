@@ -404,7 +404,7 @@ fn homepage(capability: &Capability) -> String {
 /// and again under the capability's own name. A name two capabilities of the domain both
 /// export is ambiguous, so `export *` leaves it out and the namespaced form reaches it.
 fn domain_entry(chapter: &Chapter, members: &[&Capability]) -> String {
-    let names: Vec<&str> = members.iter().map(|c| c.node.as_str()).collect();
+    let names = distinct(members.iter().map(|c| c.node.as_str()));
     let installs = names
         .iter()
         .map(|name| format!("`@pamoja/{name}`"))
@@ -421,6 +421,14 @@ fn domain_entry(chapter: &Chapter, members: &[&Capability]) -> String {
         ));
     }
     out
+}
+
+/// The package names a set of capabilities maps to, each once, in first-seen order:
+/// two capabilities that live in one package (the engine surface and an own-link
+/// guide both in the core) must not re-export it twice.
+fn distinct<'a>(names: impl Iterator<Item = &'a str>) -> Vec<&'a str> {
+    let mut seen = BTreeSet::new();
+    names.filter(|name| seen.insert(*name)).collect()
 }
 
 /// The README of a domain package.
@@ -1304,7 +1312,7 @@ fn python_domain_files(
     version: &str,
 ) -> Vec<(String, String)> {
     let module = chapter.key.replace('-', "_");
-    let names: Vec<&str> = members.iter().map(|c| c.python.as_str()).collect();
+    let names = distinct(members.iter().map(|c| c.python.as_str()));
     let deps: BTreeSet<String> = names.iter().map(|name| (*name).to_owned()).collect();
     let installs = names
         .iter()
