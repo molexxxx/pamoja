@@ -20,21 +20,21 @@ MQTT transport for the pamoja device SDK, built on rumqttc.
 
 MQTT transport for the pamoja SDK.
 
-`MqttTransport` implements the core `Transport`
-trait on top of the pure-Rust `rumqttc` client, so an application can publish
-to and subscribe from an MQTT broker through the same protocol-agnostic surface
-it uses for every other transport.
+`MqttTransport` implements the core `Transport` and `Receive` traits on
+top of the pure-Rust `rumqttc` client, so an application can publish to and
+subscribe from an MQTT broker through the same protocol-agnostic surface it uses
+for every other transport.
 
 Once `connect` succeeds the transport owns a background
 task that drives the MQTT event loop: it answers keep-alive pings, completes
 delivery handshakes, and forwards inbound messages to an internal queue that
-`recv` drains. Publishing and subscribing use the
-default `QualityOfService` configured on the transport.
+`recv` drains. Publishing and subscribing use the default
+`QualityOfService` configured on the transport.
 
 **Examples**
 
 ```rust
-use pamoja_core::Transport;
+use pamoja_core::{Receive, Transport};
 use pamoja_mqtt::{MqttConfig, MqttTransport};
 
 let mut transport = MqttTransport::new(MqttConfig::new("sensor-1", "localhost", 1883));
@@ -134,18 +134,9 @@ The updated configuration, for chaining.
 fn qos(mut self, qos: QualityOfService) -> Self
 ```
 
-## struct `Message`
-
-A message received from a subscribed topic.
-
-Fields:
-
-- `topic: String` - The topic the message was published to.
-- `payload: Vec <u8>` - The raw payload bytes.
-
 ## struct `MqttTransport`
 
-An MQTT client that implements the core `Transport` trait.
+An MQTT client that implements the core `Transport` and `Receive` traits.
 
 A transport is created disconnected; `connect` opens the
 link and spawns the background task that runs the MQTT event loop for the life
@@ -179,24 +170,6 @@ Reports whether the transport currently holds an active connection.
 
 ```rust
 fn is_connected(&self) -> bool
-```
-
-### `MqttTransport::recv`
-
-Awaits the next message from any subscribed topic.
-
-**Returns**
-
-`Some(message)` for the next queued message, or `None` once the event loop
-has stopped and no further messages will arrive.
-
-**Errors**
-
-Returns `Error::Closed` if the transport
-is not connected.
-
-```rust
-async fn recv(&mut self) -> Result <Option <Message>>
 ```
 
 ### `MqttTransport::disconnect`

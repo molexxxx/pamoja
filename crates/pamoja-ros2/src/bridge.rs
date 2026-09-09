@@ -458,7 +458,7 @@ mod tests {
     #[ignore = "needs rmw_zenoh; run via `cargo xtask ros` or RMW_IMPLEMENTATION=rmw_zenoh_cpp"]
     async fn ros2_twist_is_received_over_zenoh() {
         use crate::msg::Twist;
-        use pamoja_core::Transport;
+        use pamoja_core::{Receive, Transport};
         use pamoja_zenoh::{ZenohConfig, ZenohTransport};
         use std::time::Duration;
 
@@ -493,10 +493,10 @@ mod tests {
         // The live key matches the rmw_zenoh structure pamoja-ros2 builds for this topic and type.
         assert!(
             sample
-                .key
+                .topic
                 .starts_with("0/cmd_vel/geometry_msgs::msg::dds_::Twist_/RIHS01_"),
             "unexpected key: {}",
-            sample.key,
+            sample.topic,
         );
 
         // The payload is CDR our own decoder reads back to the published values.

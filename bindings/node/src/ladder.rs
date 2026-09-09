@@ -18,7 +18,7 @@ use pamoja_ladder::{Delivery as CoreDelivery, TransportLadder};
 use tokio::sync::Mutex;
 
 use crate::sync::{SharedStore, Store};
-use crate::transport::Transport;
+use crate::transport::{Transport, TransportMessage};
 
 /// What became of a message handed to a ladder.
 #[napi(string_enum)]
@@ -116,6 +116,42 @@ impl Ladder {
             .await
             .map(|count| count as u32)
             .map_err(to_napi)
+    }
+
+    /// Subscribes every rung that listens to a topic.
+    ///
+    /// The filter is kept for the life of the ladder: a rung that is down when it
+    /// is placed receives it when it next connects, so subscribing before
+    /// `connect` is fine and never fails for want of a link.
+    #[napi]
+    pub async fn subscribe(&self, topic: String) -> napi::Result<()> {
+        let mut slot = self.inner.lock().await;
+        slot.as_mut()
+            .ok_or_else(unusable)?
+            .subscribe(&topic)
+            .await
+            .map_err(to_napi)
+    }
+
+    /// Waits for the next message from any rung that listens, whichever
+    /// delivers first.
+    ///
+    /// Throws if no connected rung listens: none was added, the ladder is not
+    /// connected, or every listening link has ended. The ladder is held while
+    /// waiting, so a send from elsewhere waits behind the receive.
+    #[napi]
+    pub async fn recv(&self) -> napi::Result<Option<TransportMessage>> {
+        let mut slot = self.inner.lock().await;
+        let received = slot
+            .as_mut()
+            .ok_or_else(unusable)?
+            .recv()
+            .await
+            .map_err(to_napi)?;
+        Ok(received.map(|message| TransportMessage {
+            topic: message.topic,
+            payload: message.payload.into(),
+        }))
     }
 }
 

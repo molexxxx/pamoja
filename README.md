@@ -72,7 +72,7 @@ From [`examples/tests/guides/quickstart.rs`](https://github.com/molexxxx/pamoja/
 
 ```rust
 use pamoja_codec::{decode_deltas, encode_deltas};
-use pamoja_core::Transport;
+use pamoja_core::{Receive, Transport};
 use pamoja_kit::Smoother;
 use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 use pamoja_security::{DeviceIdentity, PublicIdentity};

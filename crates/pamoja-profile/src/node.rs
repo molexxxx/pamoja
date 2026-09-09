@@ -207,6 +207,7 @@ mod tests {
 
     use pamoja_codec::CborCodec;
     use pamoja_core::Error;
+    use pamoja_core::Receive;
     use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
     use pamoja_power::PowerMode;
 

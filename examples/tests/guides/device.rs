@@ -49,7 +49,7 @@ impl Actuator for Valve {
 #[tokio::test]
 async fn a_homemade_probe_waters_a_bed_and_reports() {
     // ANCHOR: example
-    use pamoja_core::Transport;
+    use pamoja_core::{Receive, Transport};
     use pamoja_kit::Thermostat;
     use pamoja_ladder::TransportLadder;
     use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};

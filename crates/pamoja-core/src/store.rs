@@ -1,6 +1,7 @@
 //! Durable local storage backing the offline-first synchronization layer.
 
 use alloc::vec::Vec;
+use core::future::Future;
 
 use crate::error::Result;
 
@@ -9,6 +10,13 @@ use crate::error::Result;
 /// Records are appended while a device is offline and drained in order when a
 /// link becomes available, letting applications tolerate intermittent
 /// connectivity without losing data.
+///
+/// The returned futures are `Send`, for the same reason a [`Transport`]'s are: a
+/// transport ladder buffers into a store and is itself a transport, so a task on a
+/// multi-threaded runtime can drive it. An implementation written as `async fn`
+/// satisfies this as long as everything it holds across an await is `Send`.
+///
+/// [`Transport`]: crate::Transport
 pub trait Store {
     /// Appends a record to the back of the queue.
     ///
@@ -24,7 +32,7 @@ pub trait Store {
     ///
     /// Returns [`Error::Io`](crate::Error::Io) if the record cannot be written to
     /// durable storage.
-    async fn append(&mut self, record: &[u8]) -> Result<()>;
+    fn append(&mut self, record: &[u8]) -> impl Future<Output = Result<()>> + Send;
 
     /// Returns the oldest record without removing it.
     ///
@@ -39,7 +47,7 @@ pub trait Store {
     /// # Errors
     ///
     /// Returns [`Error::Io`](crate::Error::Io) if the queue cannot be read.
-    async fn peek(&self) -> Result<Option<Vec<u8>>>;
+    fn peek(&self) -> impl Future<Output = Result<Option<Vec<u8>>>> + Send;
 
     /// Removes and returns the oldest record in the queue.
     ///
@@ -51,7 +59,7 @@ pub trait Store {
     /// # Errors
     ///
     /// Returns [`Error::Io`](crate::Error::Io) if the queue cannot be read.
-    async fn pop(&mut self) -> Result<Option<Vec<u8>>>;
+    fn pop(&mut self) -> impl Future<Output = Result<Option<Vec<u8>>>> + Send;
 
     /// Returns the number of records currently buffered.
     ///
@@ -63,11 +71,13 @@ pub trait Store {
     ///
     /// Returns [`Error::Io`](crate::Error::Io) if the queue length cannot be
     /// determined.
-    async fn len(&self) -> Result<usize>;
+    fn len(&self) -> impl Future<Output = Result<usize>> + Send;
 
     /// Returns whether the queue currently holds no records.
     ///
-    /// The default implementation reports whether [`len`](Self::len) is zero.
+    /// The default implementation reports whether [`len`](Self::len) is zero. It
+    /// borrows the store across an await, so it asks for `Sync`, which a store whose
+    /// own futures are `Send` already is.
     ///
     /// # Returns
     ///
@@ -77,7 +87,10 @@ pub trait Store {
     ///
     /// Returns [`Error::Io`](crate::Error::Io) if the queue length cannot be
     /// determined.
-    async fn is_empty(&self) -> Result<bool> {
-        Ok(self.len().await? == 0)
+    fn is_empty(&self) -> impl Future<Output = Result<bool>> + Send
+    where
+        Self: Sync,
+    {
+        async { Ok(self.len().await? == 0) }
     }
 }

@@ -12,7 +12,7 @@
 //! `pamoja-codec`, and `pamoja-loopback`, with no hardware and no broker.
 
 use pamoja_codec::{CborCodec, Codec};
-use pamoja_core::{Result, Store, Transport};
+use pamoja_core::{Receive, Result, Store, Transport};
 use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 use pamoja_sim::DegradedLink;
 use pamoja_sync::{drain_to, MemoryStore};

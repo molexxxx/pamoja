@@ -8,7 +8,7 @@
 async fn a_reading_travels_from_a_node_to_a_gateway() {
     // ANCHOR: example
     use pamoja_codec::{decode_deltas, encode_deltas};
-    use pamoja_core::Transport;
+    use pamoja_core::{Receive, Transport};
     use pamoja_kit::Smoother;
     use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
     use pamoja_security::{DeviceIdentity, PublicIdentity};

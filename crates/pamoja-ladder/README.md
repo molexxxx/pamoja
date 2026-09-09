@@ -42,6 +42,17 @@ record only after a rung accepts it. The pattern is to call
 `flush` when a link event suggests connectivity may
 have returned, and `send` for new data.
 
+# The ladder as a link
+
+A ladder is itself a `Transport` and a `Receive`, so anything written against
+one link, a profile node, a rule engine, a hand-written loop, runs over the
+ladder unchanged and gains its buffering. A subscription is placed on every rung
+that listens, and a receive hands up whichever rung delivers first, so a command
+reaches the node over whatever link happens to be up. A rung added with
+`rung` both sends and listens; a send-only link such as
+a LoRa uplink is added with `uplink` and is never
+listened on.
+
 **Examples**
 
 ```rust
@@ -73,7 +84,9 @@ An ordered set of transports backed by an offline buffer.
 
 Rungs are tried in the order they are added, so the cheapest, most-preferred
 link is added first. A send that no rung accepts is buffered in the
-`Store` and replayed by `flush`.
+`Store` and replayed by `flush`. The ladder is itself a
+`Transport` and a `Receive`: a subscription goes onto every rung that
+listens, and a receive takes whichever rung delivers first.
 
 ### `TransportLadder <S>::new`
 
@@ -86,7 +99,8 @@ Creates an empty ladder that buffers into `buffer`.
 
 **Returns**
 
-A ladder with no rungs; add them with `rung`.
+A ladder with no rungs; add them with `rung` and
+`uplink`.
 
 ```rust
 fn new(buffer: S) -> Self
@@ -94,27 +108,52 @@ fn new(buffer: S) -> Self
 
 ### `TransportLadder <S>::rung`
 
-Adds a rung, lowest-cost first.
+Adds a rung that sends and listens, lowest-cost first.
 
 **Arguments**
 
-* `transport` - a transport to try. Rungs added earlier are preferred, so
-  add the cheapest link first and the costliest fallback last.
+* `transport` - a link to try. Rungs added earlier are preferred, so add
+  the cheapest link first and the costliest fallback last. The ladder
+  subscribes on it and listens to it as well as sending over it.
 
 **Returns**
 
 The ladder, for chaining.
 
 ```rust
-fn rung(mut self, transport: impl Transport + Send + 'static) -> Self
+fn rung(mut self, transport: impl Transport + Receive + Send + 'static) -> Self
+```
+
+### `TransportLadder <S>::uplink`
+
+Adds a rung that only sends, lowest-cost first.
+
+This is the shape of a LoRa uplink, a satellite messenger, or any link that
+carries readings out but never a command back. The ladder sends over it in
+turn with the other rungs and never subscribes or listens on it.
+
+**Arguments**
+
+* `transport` - a send-only link to try, in the same cheapest-first order as
+  `rung`.
+
+**Returns**
+
+The ladder, for chaining.
+
+```rust
+fn uplink(mut self, transport: impl Transport + Send + 'static) -> Self
 ```
 
 ### `TransportLadder <S>::connect`
 
-Connects every rung, best-effort.
+Connects every rung that is not connected, best-effort.
 
 A rung that fails to connect is left unreachable rather than failing the
-whole ladder; sends simply fall through to the next rung or the buffer.
+whole ladder; sends simply fall through to the next rung or the buffer, and
+the next call tries it again. A rung that connects receives every filter
+the ladder has been asked to `subscribe` to, so a
+subscription placed while a link was down takes effect when it returns.
 
 **Returns**
 
@@ -132,9 +171,11 @@ async fn connect(&mut self) -> Result <()>
 
 Sends a payload, falling back down the rungs and then to the buffer.
 
-If the buffer is empty, each rung is tried in order and the first to accept
-the message delivers it. If every rung fails, or the buffer already holds a
-backlog, the message is buffered to preserve order.
+If the buffer is empty, each connected rung is tried in order and the first
+to accept the message delivers it. If every rung fails, or the buffer
+already holds a backlog, the message is buffered to preserve order. A rung
+that answers `Error::Closed` is treated as down until the next
+`connect`.
 
 **Arguments**
 
@@ -198,6 +239,62 @@ read.
 
 ```rust
 async fn buffered(&mut self) -> Result <usize>
+```
+
+### `TransportLadder <S>::subscribe`
+
+Subscribes to a topic on every rung that listens.
+
+The filter is kept for the life of the ladder: a rung that is down when it
+is placed, or that later drops and reconnects, receives it on its next
+`connect`. Subscribing while no rung is up therefore
+succeeds, in the same way a send with no rung up is buffered rather than
+refused.
+
+**Arguments**
+
+* `topic` - the topic filter, in the syntax the rungs' links understand.
+
+**Returns**
+
+`Ok(())` once the filter is live on at least one rung, or is held for the
+rungs to pick up as they connect.
+
+**Errors**
+
+Returns the rung's own `Error::Transport` if every connected rung refused
+the filter. A rung that answers `Error::Closed` is treated as down rather
+than as refusing.
+
+```rust
+async fn subscribe(&mut self, topic: &str) -> Result <()>
+```
+
+### `TransportLadder <S>::recv`
+
+Awaits the next message from any rung that listens.
+
+Every connected, listening rung is polled together and the first to deliver
+wins, starting from a different rung each call so a busy link cannot starve
+a quiet one. A rung whose link ends, or that answers `Error::Closed`, is
+treated as down until the next `connect`, and the wait
+continues on the rungs that remain.
+
+**Returns**
+
+`Some(message)` for the next message any rung delivers. `None` is never
+returned: a ladder's links come back with `connect`, so it
+reports a closed state rather than an ended one.
+
+**Errors**
+
+Returns `Error::Closed` if no connected rung listens: none was added with
+`rung`, `connect` has not been called, or
+every listening link has since ended. Returns a rung's own
+`Error::Transport` if its link fails while waiting.
+
+```rust
+async fn recv(&mut self) -> Result <Option <Message>>
 ```
 
 ## License

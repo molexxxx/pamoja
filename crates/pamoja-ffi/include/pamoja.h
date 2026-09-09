@@ -4459,6 +4459,51 @@ PamojaStatus pamoja_ladder_flush(PamojaLadder *ladder, uintptr_t *out_sent);
 // `ladder` must be a live handle and `out_count` must be writable.
 PamojaStatus pamoja_ladder_buffered(PamojaLadder *ladder, uintptr_t *out_count);
 
+// Subscribes every rung that listens to a topic.
+//
+// The filter is kept for the life of the ladder, so a rung that is down when it
+// is placed receives it when it next connects. Subscribing while no rung is up
+// succeeds, the way a send with no rung up is buffered rather than refused.
+//
+// # Arguments
+//
+// * `ladder` - the ladder.
+// * `topic` - the topic filter, as null-terminated UTF-8.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once the filter is live on a rung or held for the next
+// connect, or the status of the refusal if every connected rung refused it.
+//
+// # Safety
+//
+// `ladder` must be a live handle and `topic` a valid null-terminated UTF-8
+// string.
+PamojaStatus pamoja_ladder_subscribe(PamojaLadder *ladder, const char *topic);
+
+// Waits for the next message from any rung that listens.
+//
+// Every connected rung that listens is polled together and the first to deliver
+// wins. A rung whose link ends is left out until the next
+// [`pamoja_ladder_connect`].
+//
+// # Arguments
+//
+// * `ladder` - the ladder.
+// * `out_message` - receives a message handle to release with
+//   [`pamoja_message_free`](crate::transport::pamoja_message_free).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with a message, or [`PamojaStatus::Closed`] if no
+// connected rung listens: none was added, the ladder is not connected, or every
+// listening link has ended.
+//
+// # Safety
+//
+// `ladder` must be a live handle and `out_message` must be writable.
+PamojaStatus pamoja_ladder_recv(PamojaLadder *ladder, PamojaMessage **out_message);
+
 // Releases a ladder handle, and the rungs and buffer it owns.
 //
 // Passing null is a no-op.
@@ -12716,6 +12761,24 @@ PamojaStatus pamoja_transport_send(PamojaTransport *transport,
 // `transport` must be a live handle and `topic` a valid null-terminated UTF-8
 // string.
 PamojaStatus pamoja_transport_subscribe(PamojaTransport *transport, const char *topic);
+
+// Waits for the next message a transport delivers on a subscribed topic.
+//
+// # Arguments
+//
+// * `transport` - the transport to receive from.
+// * `out_message` - receives a message handle to release with
+//   [`pamoja_message_free`], or null once the link has ended.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with a message or with null once the link has ended, or
+// [`PamojaStatus::Closed`] if the transport is not connected.
+//
+// # Safety
+//
+// `transport` must be a live handle and `out_message` must be writable.
+PamojaStatus pamoja_transport_recv(PamojaTransport *transport, PamojaMessage **out_message);
 
 // Releases a transport handle.
 //

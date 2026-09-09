@@ -18,7 +18,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use tokio::sync::Mutex;
 
 use crate::sync::{SharedStore, Store};
-use crate::transport::PyTransport;
+use crate::transport::{Message, PyTransport};
 use crate::PamojaError;
 
 /// An ordered set of transports backed by an offline buffer.
@@ -113,6 +113,39 @@ impl Ladder {
             let mut guard = inner.lock().await;
             let ladder = guard.as_mut().ok_or_else(unusable)?;
             ladder.buffered().await.map_err(to_pyerr)
+        })
+    }
+
+    /// Subscribes every rung that listens to a topic.
+    ///
+    /// The filter is kept for the life of the ladder: a rung that is down when it
+    /// is placed receives it when it next connects, so subscribing before
+    /// `connect` is fine and never fails for want of a link.
+    fn subscribe<'py>(&self, py: Python<'py>, topic: String) -> PyResult<Bound<'py, PyAny>> {
+        let inner = Arc::clone(&self.inner);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let mut guard = inner.lock().await;
+            let ladder = guard.as_mut().ok_or_else(unusable)?;
+            ladder.subscribe(&topic).await.map_err(to_pyerr)
+        })
+    }
+
+    /// Waits for the next message from any rung that listens, whichever
+    /// delivers first.
+    ///
+    /// Raises if no connected rung listens: none was added, the ladder is not
+    /// connected, or every listening link has ended. The ladder is held while
+    /// waiting, so a send from elsewhere waits behind the receive.
+    fn recv<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let inner = Arc::clone(&self.inner);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let mut guard = inner.lock().await;
+            let ladder = guard.as_mut().ok_or_else(unusable)?;
+            let received = ladder.recv().await.map_err(to_pyerr)?;
+            Ok(received.map(|message| Message {
+                topic: message.topic,
+                payload: message.payload,
+            }))
         })
     }
 }

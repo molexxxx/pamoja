@@ -111,6 +111,16 @@ public sealed class Transport : IDisposable
         }
     });
 
+    /// <summary>Waits for the next message this transport delivers on a subscribed topic.</summary>
+    /// <returns>The message, or <c>null</c> once the link has ended.</returns>
+    /// <exception cref="PamojaException">The transport is not connected.</exception>
+    public Task<TransportMessage?> ReceiveAsync() => Task.Run(() =>
+    {
+        IntPtr message = IntPtr.Zero;
+        Status.ThrowIfError(NativeMethods.pamoja_transport_recv(Live(), out message));
+        return Messages.Take(message);
+    });
+
     /// <inheritdoc/>
     public void Dispose()
     {

@@ -12,7 +12,8 @@
 //! - [`Sensor`] - a source of typed readings.
 //! - [`Actuator`] - a sink for typed commands.
 //! - [`Telemetry`] - a stream of telemetry frames.
-//! - [`Transport`] - a bidirectional byte transport.
+//! - [`Transport`] - the outbound half of a link: connect, send, subscribe.
+//! - [`Receive`] - the inbound half: the messages a subscription delivers.
 //! - [`Store`] - a durable store-and-forward queue.
 //! - [`EventBus`] - a typed publish/subscribe channel.
 //! - [`Map`] and [`MapCommand`] - adapters that reshape a reading or a command, so a
@@ -62,4 +63,4 @@ pub use bus::EventBus;
 pub use device::{Actuator, Device, Sensor, Telemetry};
 pub use error::{Error, Result};
 pub use store::Store;
-pub use transport::Transport;
+pub use transport::{Message, Receive, Transport};

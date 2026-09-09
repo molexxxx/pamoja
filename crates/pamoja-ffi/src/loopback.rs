@@ -15,7 +15,7 @@ use std::ffi::c_char;
 use std::ptr;
 use std::sync::Arc;
 
-use pamoja_core::Transport;
+use pamoja_core::{Receive, Transport};
 use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 use tokio::sync::Mutex;
 

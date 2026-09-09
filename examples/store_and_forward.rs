@@ -10,7 +10,7 @@
 //! Run with: `cargo run -p pamoja-examples --example store_and_forward`
 
 use pamoja_codec::{CborCodec, Codec};
-use pamoja_core::{Result, Store, Transport};
+use pamoja_core::{Receive, Result, Store, Transport};
 use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 use pamoja_sync::{drain_to, MemoryStore};
 use serde::{Deserialize, Serialize};

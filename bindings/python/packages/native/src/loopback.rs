@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use pamoja_core::Transport;
+use pamoja_core::{Receive, Transport};
 use pamoja_loopback::{LoopbackBroker as CoreBroker, LoopbackTransport as CoreLoopback};
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};

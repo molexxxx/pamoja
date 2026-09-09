@@ -71,6 +71,10 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_transport_subscribe(IntPtr transport, IntPtr topic);
 
+    /// <summary>Waits for the next message a transport delivers.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_transport_recv(IntPtr transport, out IntPtr outMessage);
+
     /// <summary>Releases a transport handle.</summary>
     [LibraryImport(Library)]
     public static partial void pamoja_transport_free(IntPtr transport);
@@ -230,6 +234,14 @@ public static partial class NativeMethods
     /// <summary>Reports how many messages a ladder has buffered.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_ladder_buffered(IntPtr ladder, out nuint outCount);
+
+    /// <summary>Subscribes every listening rung of a ladder to a topic.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_ladder_subscribe(IntPtr ladder, IntPtr topic);
+
+    /// <summary>Waits for the next message from any listening rung of a ladder.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_ladder_recv(IntPtr ladder, out IntPtr outMessage);
 
     /// <summary>Releases a ladder handle.</summary>
     [LibraryImport(Library)]

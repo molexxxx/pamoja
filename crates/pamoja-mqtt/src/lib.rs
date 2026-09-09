@@ -1,20 +1,20 @@
 //! MQTT transport for the pamoja SDK.
 //!
-//! [`MqttTransport`] implements the core [`Transport`]
-//! trait on top of the pure-Rust [`rumqttc`] client, so an application can publish
-//! to and subscribe from an MQTT broker through the same protocol-agnostic surface
-//! it uses for every other transport.
+//! [`MqttTransport`] implements the core [`Transport`] and [`Receive`] traits on
+//! top of the pure-Rust [`rumqttc`] client, so an application can publish to and
+//! subscribe from an MQTT broker through the same protocol-agnostic surface it uses
+//! for every other transport.
 //!
 //! Once [`connect`](Transport::connect) succeeds the transport owns a background
 //! task that drives the MQTT event loop: it answers keep-alive pings, completes
 //! delivery handshakes, and forwards inbound messages to an internal queue that
-//! [`recv`](MqttTransport::recv) drains. Publishing and subscribing use the
-//! default [`QualityOfService`] configured on the transport.
+//! [`recv`](Receive::recv) drains. Publishing and subscribing use the default
+//! [`QualityOfService`] configured on the transport.
 //!
 //! # Examples
 //!
 //! ```no_run
-//! use pamoja_core::Transport;
+//! use pamoja_core::{Receive, Transport};
 //! use pamoja_mqtt::{MqttConfig, MqttTransport};
 //!
 //! # async fn run() -> pamoja_core::Result<()> {
@@ -32,7 +32,8 @@
 
 use std::time::Duration;
 
-use pamoja_core::{Error, Result, Transport};
+pub use pamoja_core::Message;
+use pamoja_core::{Error, Receive, Result, Transport};
 use rumqttc::{AsyncClient, ClientError, ConnectionError, Event, MqttOptions, Packet, QoS};
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
@@ -144,21 +145,12 @@ impl MqttConfig {
     }
 }
 
-/// A message received from a subscribed topic.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Message {
-    /// The topic the message was published to.
-    pub topic: String,
-    /// The raw payload bytes.
-    pub payload: Vec<u8>,
-}
-
-/// An MQTT client that implements the core [`Transport`] trait.
+/// An MQTT client that implements the core [`Transport`] and [`Receive`] traits.
 ///
 /// A transport is created disconnected; [`connect`](Transport::connect) opens the
 /// link and spawns the background task that runs the MQTT event loop for the life
 /// of the connection. Inbound messages are queued and read with
-/// [`recv`](MqttTransport::recv).
+/// [`recv`](Receive::recv).
 pub struct MqttTransport {
     config: MqttConfig,
     client: Option<AsyncClient>,
@@ -193,22 +185,6 @@ impl MqttTransport {
     /// [`disconnect`](MqttTransport::disconnect) is called.
     pub fn is_connected(&self) -> bool {
         self.client.is_some()
-    }
-
-    /// Awaits the next message from any subscribed topic.
-    ///
-    /// # Returns
-    ///
-    /// `Some(message)` for the next queued message, or `None` once the event loop
-    /// has stopped and no further messages will arrive.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Closed`] if the transport
-    /// is not connected.
-    pub async fn recv(&mut self) -> Result<Option<Message>> {
-        let incoming = self.incoming.as_mut().ok_or(Error::Closed)?;
-        Ok(incoming.recv().await)
     }
 
     /// Closes the connection and stops the background event loop.
@@ -259,10 +235,7 @@ impl Transport for MqttTransport {
                         }
                     }
                     Ok(Event::Incoming(Packet::Publish(publish))) => {
-                        let message = Message {
-                            topic: publish.topic,
-                            payload: publish.payload.to_vec(),
-                        };
+                        let message = Message::new(publish.topic, publish.payload.to_vec());
                         if tx.send(message).is_err() {
                             break;
                         }
@@ -312,6 +285,23 @@ impl Transport for MqttTransport {
             .subscribe(topic, self.config.qos.into())
             .await
             .map_err(map_client_error)
+    }
+}
+
+impl Receive for MqttTransport {
+    /// Awaits the next message from any subscribed topic.
+    ///
+    /// # Returns
+    ///
+    /// `Some(message)` for the next queued message, or `None` once the event loop
+    /// has stopped and no further messages will arrive.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Closed`] if the transport is not connected.
+    async fn recv(&mut self) -> Result<Option<Message>> {
+        let incoming = self.incoming.as_mut().ok_or(Error::Closed)?;
+        Ok(incoming.recv().await)
     }
 }
 

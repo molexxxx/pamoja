@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use coap_lite::{CoapOption, MessageClass, MessageType, Packet, RequestType, ResponseType};
 use pamoja_coap::{CoapConfig, CoapTransport};
-use pamoja_core::Transport;
+use pamoja_core::{Receive, Transport};
 use tokio::net::UdpSocket;
 
 /// Reserves an ephemeral UDP port for the server to listen on.

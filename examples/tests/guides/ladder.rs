@@ -6,7 +6,7 @@
 #[tokio::test]
 async fn a_reading_falls_through_a_dead_rung_and_then_waits_for_a_link() {
     // ANCHOR: example
-    use pamoja_core::Transport;
+    use pamoja_core::{Receive, Transport};
     use pamoja_ladder::{Delivery, TransportLadder};
     use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
     use pamoja_sim::DegradedLink;
@@ -51,6 +51,21 @@ async fn a_reading_falls_through_a_dead_rung_and_then_waits_for_a_link() {
     let late = gateway.recv().await.expect("recv").expect("a message");
     let buffered_reading = String::from_utf8_lossy(&late.payload);
     println!("flush when up forwarded {when_up}, gateway got {buffered_reading}");
+
+    // The ladder is a link both ways. A subscription placed on it goes onto every rung
+    // that listens, and a receive takes whichever rung delivers, so a command reaches
+    // the node over whatever link is up. This one comes back over the backhaul.
+    ladder
+        .subscribe("actuators/1/valve")
+        .await
+        .expect("subscribe");
+    gateway
+        .send("actuators/1/valve", b"open")
+        .await
+        .expect("send");
+    let command = ladder.recv().await.expect("recv").expect("a command");
+    let order = String::from_utf8_lossy(&command.payload);
+    println!("command back over the ladder: {order}");
     // ANCHOR_END: example
 
     assert_eq!(first, Delivery::Sent);
@@ -61,4 +76,6 @@ async fn a_reading_falls_through_a_dead_rung_and_then_waits_for_a_link() {
     assert_eq!(when_up, 1);
     assert_eq!(ladder.buffered().await.expect("a count"), 0);
     assert_eq!(late.payload, b"21.6");
+    assert_eq!(command.topic, "actuators/1/valve");
+    assert_eq!(command.payload, b"open");
 }

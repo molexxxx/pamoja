@@ -3,9 +3,11 @@
 A node should not care which link it got. The reading it took is worth the same
 whether it leaves over MQTT, over CoAP, over a mesh hop, or into a queue on disk
 until morning. So every link in pamoja implements one contract: connect,
-subscribe, send. Everything that carries traffic takes that contract rather than
-a particular link, which is what lets a store, a ladder, or a fault injector work
-with all of them and with each other.
+subscribe, send, and, for a link that can deliver, receive. Everything that
+carries traffic takes that contract rather than a particular link, which is what
+lets a store, a ladder, or a fault injector work with all of them and with each
+other. A ladder is a link under that contract too, so a node written against one
+transport runs over a ladder unchanged.
 
 The fault injector is the clearest case. It is a transport that wraps a transport
 and fails a set number of the sends passing through it, so the offline path can be
@@ -49,7 +51,7 @@ It proves:
 From [`examples/tests/guides/transport.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/transport.rs):
 
 ```rust
-use pamoja_core::Transport;
+use pamoja_core::{Receive, Transport};
 use pamoja_ladder::{Delivery, TransportLadder};
 use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
 use pamoja_sync::MemoryStore;
@@ -243,7 +245,7 @@ Console.WriteLine(
 ## Reference
 
 <!-- table: reference transport -->
-- Rust: the `Transport` trait in [`pamoja-core`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-transport)
+- Rust: the `Transport` and `Receive` traits in [`pamoja-core`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-transport)
 - TypeScript: [`@pamoja/core`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_core.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-transport)
 - Python: [`pamoja.core`](https://pamoja.molex.cloud/docs/reference/python/pamoja/core.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-transport)
 - C#: [`Pamoja.Core`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-transport)

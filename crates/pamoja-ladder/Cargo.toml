@@ -21,4 +21,7 @@ pamoja-core = { workspace = true }
 [dev-dependencies]
 pamoja-sync = { path = "../pamoja-sync" }
 pamoja-loopback = { path = "../pamoja-loopback" }
+# A profile node is the reference consumer of a ladder as a link.
+pamoja-profile = { path = "../pamoja-profile" }
+pamoja-codec = { path = "../pamoja-codec" }
 tokio = { version = "1", features = ["rt", "macros", "time"] }

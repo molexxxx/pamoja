@@ -262,6 +262,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded-hal"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "361a90feb7004eca4019fb28352a9465666b24f840f5c3cddf0ff13920590b89"
+
+[[package]]
 name = "fiat-crypto"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -562,6 +568,11 @@ dependencies = [
 [[package]]
 name = "pamoja-actuators"
 version = "0.1.17"
+dependencies = [
+ "embedded-hal",
+ "pamoja-core",
+ "pamoja-hal",
+]
 
 [[package]]
 name = "pamoja-audit"
@@ -610,6 +621,17 @@ version = "0.1.17"
 [[package]]
 name = "pamoja-gpio"
 version = "0.1.17"
+dependencies = [
+ "embedded-hal",
+ "pamoja-core",
+]
+
+[[package]]
+name = "pamoja-hal"
+version = "0.1.17"
+dependencies = [
+ "embedded-hal",
+]
 
 [[package]]
 name = "pamoja-kit"
@@ -746,6 +768,11 @@ dependencies = [
 [[package]]
 name = "pamoja-sensors"
 version = "0.1.17"
+dependencies = [
+ "embedded-hal",
+ "pamoja-core",
+ "pamoja-hal",
+]
 
 [[package]]
 name = "pamoja-serial"

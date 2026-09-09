@@ -53,7 +53,7 @@ It proves:
 From [`examples/tests/guides/mqtt.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/mqtt.rs):
 
 ```rust
-use pamoja_core::Transport;
+use pamoja_core::{Receive, Transport};
 use pamoja_mqtt::{MqttConfig, MqttTransport, QualityOfService};
 
 // The gateway takes every temperature on the site. A `+` stands for exactly one level,

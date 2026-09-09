@@ -11,7 +11,7 @@ use std::time::Duration;
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_coap::{CoapConfig, CoapTransport, Reliability as CoreReliability};
-use pamoja_core::Transport as CoreTransport;
+use pamoja_core::{Receive, Transport as CoreTransport};
 use tokio::sync::Mutex;
 
 use crate::transport::TransportMessage;

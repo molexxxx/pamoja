@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use tokio::sync::Mutex;
 
-use pamoja_core::{Error, Transport};
+use pamoja_core::{Error, Receive, Transport};
 use pamoja_mqtt::{MqttConfig, MqttTransport, QualityOfService};
 
 use crate::{read_bytes, read_str, runtime, set_last_error, PamojaStatus};

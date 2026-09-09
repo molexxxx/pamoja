@@ -48,10 +48,19 @@ async def main() -> None:
     late = await gateway.recv()
     print(f"flush when up forwarded {when_up}, gateway got {late.payload.decode()}")
 
-    return first, second, waiting, while_down, when_up, await ladder.buffered(), late
+    # The ladder is a link both ways. A subscription placed on it goes onto every rung
+    # that listens, and a receive takes whichever rung delivers, so a command reaches
+    # the node over whatever link is up. This one comes back over the backhaul.
+    await ladder.subscribe("actuators/1/valve")
+    await gateway.send("actuators/1/valve", b"open")
+    command = await ladder.recv()
+    print(f"command back over the ladder: {command.payload.decode()}")
+
+    left = await ladder.buffered()
+    return first, second, waiting, while_down, when_up, left, late, command
 
 
-first, second, waiting, while_down, when_up, left, late = asyncio.run(main())
+first, second, waiting, while_down, when_up, left, late, command = asyncio.run(main())
 # ANCHOR_END: example
 
 assert first == Delivery.SENT
@@ -61,3 +70,5 @@ assert while_down == 0
 assert when_up == 1
 assert left == 0
 assert late.payload == b"21.6"
+assert command.topic == "actuators/1/valve"
+assert command.payload == b"open"

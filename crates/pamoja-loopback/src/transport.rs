@@ -4,29 +4,20 @@ use std::sync::{Arc, Mutex};
 
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 
-use pamoja_core::{Error, Result, Transport};
+use pamoja_core::{Error, Message, Receive, Result, Transport};
 
 use crate::broker::LoopbackBroker;
-
-/// A message delivered over a loopback subscription.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Message {
-    /// The topic the message was published to.
-    pub topic: String,
-    /// The raw payload bytes.
-    pub payload: Vec<u8>,
-}
 
 /// An in-process transport that routes through a shared [`LoopbackBroker`].
 ///
 /// A transport is created disconnected; [`connect`](Transport::connect) registers
 /// it with the broker so it can publish and receive. Inbound messages are read
-/// with [`recv`](LoopbackTransport::recv).
+/// with [`recv`](Receive::recv).
 ///
 /// # Examples
 ///
 /// ```
-/// use pamoja_core::Transport;
+/// use pamoja_core::{Receive, Transport};
 /// use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 ///
 /// # async fn run() -> pamoja_core::Result<()> {
@@ -79,22 +70,6 @@ impl LoopbackTransport {
         self.incoming.is_some()
     }
 
-    /// Awaits the next message from any subscribed topic.
-    ///
-    /// # Returns
-    ///
-    /// `Some(message)` for the next message, or `None` once the broker and all
-    /// other transports have been dropped.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Closed`](pamoja_core::Error::Closed) if the transport is
-    /// not connected.
-    pub async fn recv(&mut self) -> Result<Option<Message>> {
-        let incoming = self.incoming.as_mut().ok_or(Error::Closed)?;
-        Ok(incoming.recv().await)
-    }
-
     /// Disconnects the transport from the broker.
     ///
     /// Its registration is pruned from the broker on the next publish.
@@ -115,10 +90,7 @@ impl Transport for LoopbackTransport {
         if self.incoming.is_none() {
             return Err(Error::Closed);
         }
-        self.broker.publish(&Message {
-            topic: topic.to_owned(),
-            payload: payload.to_vec(),
-        });
+        self.broker.publish(&Message::new(topic, payload));
         Ok(())
     }
 
@@ -131,6 +103,24 @@ impl Transport for LoopbackTransport {
             .expect("filters lock")
             .push(topic.to_owned());
         Ok(())
+    }
+}
+
+impl Receive for LoopbackTransport {
+    /// Awaits the next message from any subscribed topic.
+    ///
+    /// # Returns
+    ///
+    /// `Some(message)` for the next message, or `None` once the broker and all
+    /// other transports have been dropped.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Closed`](pamoja_core::Error::Closed) if the transport is
+    /// not connected.
+    async fn recv(&mut self) -> Result<Option<Message>> {
+        let incoming = self.incoming.as_mut().ok_or(Error::Closed)?;
+        Ok(incoming.recv().await)
     }
 }
 

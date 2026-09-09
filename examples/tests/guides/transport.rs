@@ -6,7 +6,7 @@
 #[tokio::test]
 async fn one_transport_contract_carries_every_link() {
     // ANCHOR: example
-    use pamoja_core::Transport;
+    use pamoja_core::{Receive, Transport};
     use pamoja_ladder::{Delivery, TransportLadder};
     use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
     use pamoja_sync::MemoryStore;

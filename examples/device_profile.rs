@@ -14,7 +14,7 @@
 //! Run with: `cargo run -p pamoja-examples --example device_profile`
 
 use pamoja_codec::{CborCodec, Codec};
-use pamoja_core::{Result, Transport};
+use pamoja_core::{Receive, Result, Transport};
 use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 use pamoja_power::PowerMode;
 use pamoja_profile::{Node, Profile};

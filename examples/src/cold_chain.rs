@@ -15,7 +15,7 @@
 
 use pamoja_audit::{verify_chain, AuditLog, Entry};
 use pamoja_codec::{encode_deltas, CborCodec, Codec, Quantizer};
-use pamoja_core::{Result, Sensor, Transport};
+use pamoja_core::{Receive, Result, Sensor, Transport};
 use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 use pamoja_profile::{Alert, Profile, Reaction};
 use pamoja_security::{DeviceIdentity, Signature};

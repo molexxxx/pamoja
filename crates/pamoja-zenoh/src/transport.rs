@@ -1,24 +1,17 @@
 //! The live Zenoh transport: a Zenoh session behind the core [`Transport`] trait.
 //!
 //! [`ZenohTransport`] opens a Zenoh session and exposes it through the protocol-agnostic
-//! [`Transport`](pamoja_core::Transport) surface, so Zenoh serves as the efficient edge-to-edge and
-//! fleet transport alongside MQTT, CoAP, and the radios. Like the other live transports it owns a
-//! background task per subscription that forwards samples into a queue [`recv`](ZenohTransport::recv)
-//! drains.
+//! [`Transport`](pamoja_core::Transport) and [`Receive`](pamoja_core::Receive) surface, so Zenoh
+//! serves as the efficient edge-to-edge and fleet transport alongside MQTT, CoAP, and the radios.
+//! Like the other live transports it owns a background task per subscription that forwards samples
+//! into a queue [`recv`](Receive::recv) drains. A sample arrives as a [`Message`] whose topic is the
+//! key expression it was published to.
 
-use pamoja_core::{Error, Result, Transport};
+pub use pamoja_core::Message;
+use pamoja_core::{Error, Receive, Result, Transport};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use zenoh::{Config, Session};
-
-/// A sample received from a subscribed key expression.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Message {
-    /// The key expression the sample was published to.
-    pub key: String,
-    /// The raw payload bytes.
-    pub payload: Vec<u8>,
-}
 
 /// Connection settings for a [`ZenohTransport`].
 ///
@@ -101,11 +94,11 @@ impl ZenohConfig {
     }
 }
 
-/// A Zenoh session that implements the core [`Transport`] trait.
+/// A Zenoh session that implements the core [`Transport`] and [`Receive`] traits.
 ///
 /// Created disconnected; [`connect`](Transport::connect) opens the session. Each
 /// [`subscribe`](Transport::subscribe) declares a Zenoh subscriber and spawns a task forwarding its
-/// samples to an internal queue, and [`recv`](ZenohTransport::recv) awaits the next one.
+/// samples to an internal queue, and [`recv`](Receive::recv) awaits the next one.
 pub struct ZenohTransport {
     config: Option<Config>,
     session: Option<Session>,
@@ -141,20 +134,6 @@ impl ZenohTransport {
     /// `true` once [`connect`](Transport::connect) has succeeded.
     pub fn is_connected(&self) -> bool {
         self.session.is_some()
-    }
-
-    /// Awaits the next sample from any subscribed key expression.
-    ///
-    /// # Returns
-    ///
-    /// `Some(message)` for the next queued sample, or `None` once every subscription has ended.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Closed`](pamoja_core::Error::Closed) if the transport is not connected.
-    pub async fn recv(&mut self) -> Result<Option<Message>> {
-        let incoming = self.incoming.as_mut().ok_or(Error::Closed)?;
-        Ok(incoming.recv().await)
     }
 
     /// Closes the session and stops the subscription tasks.
@@ -204,10 +183,10 @@ impl Transport for ZenohTransport {
             .map_err(map_err)?;
         let task = tokio::spawn(async move {
             while let Ok(sample) = subscriber.recv_async().await {
-                let message = Message {
-                    key: sample.key_expr().as_str().to_string(),
-                    payload: sample.payload().to_bytes().to_vec(),
-                };
+                let message = Message::new(
+                    sample.key_expr().as_str(),
+                    sample.payload().to_bytes().to_vec(),
+                );
                 if sender.send(message).is_err() {
                     break;
                 }
@@ -215,6 +194,23 @@ impl Transport for ZenohTransport {
         });
         self.tasks.push(task);
         Ok(())
+    }
+}
+
+impl Receive for ZenohTransport {
+    /// Awaits the next sample from any subscribed key expression.
+    ///
+    /// # Returns
+    ///
+    /// `Some(message)` for the next queued sample, with the key expression as its topic, or `None`
+    /// once every subscription has ended.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Closed`](pamoja_core::Error::Closed) if the transport is not connected.
+    async fn recv(&mut self) -> Result<Option<Message>> {
+        let incoming = self.incoming.as_mut().ok_or(Error::Closed)?;
+        Ok(incoming.recv().await)
     }
 }
 
@@ -269,7 +265,7 @@ mod tests {
         .expect("a sample should arrive within the timeout");
 
         assert_eq!(received.payload, b"hello");
-        assert_eq!(received.key, "pamoja/test/a");
+        assert_eq!(received.topic, "pamoja/test/a");
 
         subscriber.disconnect().await.unwrap();
         publisher.disconnect().await.unwrap();

@@ -5,7 +5,7 @@
 //! transport whose first attempts fail, and asserts nothing is lost, duplicated,
 //! or reordered.
 
-use pamoja_core::{Store, Transport};
+use pamoja_core::{Receive, Store, Transport};
 use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
 use pamoja_sync::{drain_to, MemoryStore};
 

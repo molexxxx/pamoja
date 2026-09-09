@@ -18,7 +18,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::ptr;
 
-use pamoja_core::{Result, Transport};
+use pamoja_core::{Message, Receive, Result, Transport};
 
 use crate::{read_bytes, set_last_error, PamojaStatus};
 
@@ -45,12 +45,15 @@ trait DynTransport: Send {
         &'a mut self,
         topic: &'a str,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
+
+    /// Awaits the next message the erased transport delivers.
+    fn recv(&mut self) -> Pin<Box<dyn Future<Output = Result<Option<Message>>> + Send + '_>>;
 }
 
 /// Newtype carrying one concrete transport behind [`DynTransport`].
 struct Erased<T>(T);
 
-impl<T: Transport + Send> DynTransport for Erased<T> {
+impl<T: Transport + Receive + Send> DynTransport for Erased<T> {
     fn connect(&mut self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
         Box::pin(Transport::connect(&mut self.0))
     }
@@ -68,6 +71,10 @@ impl<T: Transport + Send> DynTransport for Erased<T> {
         topic: &'a str,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
         Box::pin(Transport::subscribe(&mut self.0, topic))
+    }
+
+    fn recv(&mut self) -> Pin<Box<dyn Future<Output = Result<Option<Message>>> + Send + '_>> {
+        Box::pin(Receive::recv(&mut self.0))
     }
 }
 
@@ -92,6 +99,12 @@ impl Transport for AnyTransport {
 
     async fn subscribe(&mut self, topic: &str) -> Result<()> {
         self.0.subscribe(topic).await
+    }
+}
+
+impl Receive for AnyTransport {
+    async fn recv(&mut self) -> Result<Option<Message>> {
+        self.0.recv().await
     }
 }
 
@@ -162,6 +175,23 @@ impl Transport for Kind {
             Kind::Faulty(inner) => inner.subscribe(topic).await,
             #[cfg(feature = "sim")]
             Kind::Degraded(inner) => inner.subscribe(topic).await,
+        }
+    }
+}
+
+impl Receive for Kind {
+    async fn recv(&mut self) -> Result<Option<Message>> {
+        match self {
+            #[cfg(feature = "mqtt")]
+            Kind::Mqtt(inner) => inner.recv().await,
+            #[cfg(feature = "coap")]
+            Kind::Coap(inner) => inner.recv().await,
+            #[cfg(feature = "loopback")]
+            Kind::Loopback(inner) => inner.recv().await,
+            #[cfg(feature = "loopback")]
+            Kind::Faulty(inner) => inner.recv().await,
+            #[cfg(feature = "sim")]
+            Kind::Degraded(inner) => inner.recv().await,
         }
     }
 }
@@ -467,6 +497,45 @@ pub unsafe extern "C" fn pamoja_transport_subscribe(
         return PamojaStatus::InvalidArgument;
     };
     status(crate::runtime().block_on(transport.kind.subscribe(topic)))
+}
+
+/// Waits for the next message a transport delivers on a subscribed topic.
+///
+/// # Arguments
+///
+/// * `transport` - the transport to receive from.
+/// * `out_message` - receives a message handle to release with
+///   [`pamoja_message_free`], or null once the link has ended.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] with a message or with null once the link has ended, or
+/// [`PamojaStatus::Closed`] if the transport is not connected.
+///
+/// # Safety
+///
+/// `transport` must be a live handle and `out_message` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_transport_recv(
+    transport: *mut PamojaTransport,
+    out_message: *mut *mut PamojaMessage,
+) -> PamojaStatus {
+    let Some(transport) = transport_handle(transport) else {
+        return PamojaStatus::InvalidArgument;
+    };
+    if out_message.is_null() {
+        set_last_error("out_message must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    *out_message = ptr::null_mut();
+    match crate::runtime().block_on(transport.kind.recv()) {
+        Ok(Some(message)) => {
+            *out_message = PamojaMessage::into_raw(message.topic, message.payload);
+            PamojaStatus::Ok
+        }
+        Ok(None) => PamojaStatus::Ok,
+        Err(error) => status(Err(error)),
+    }
 }
 
 /// Releases a transport handle.

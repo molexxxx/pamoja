@@ -109,6 +109,45 @@ public sealed class Ladder : IDisposable
         return checked((int)count);
     });
 
+    /// <summary>Subscribes every rung that listens to a topic.</summary>
+    /// <remarks>
+    /// The filter is kept for the life of the ladder: a rung that is down when it
+    /// is placed receives it when it next connects, so subscribing before
+    /// <see cref="ConnectAsync"/> is fine and never fails for want of a link.
+    /// </remarks>
+    /// <param name="topic">The topic filter, in the syntax the rungs understand.</param>
+    /// <exception cref="PamojaException">Every connected rung refused the filter.</exception>
+    public Task SubscribeAsync(string topic) => Task.Run(() =>
+    {
+        IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
+        try
+        {
+            Status.ThrowIfError(_handle.Use(handle =>
+                NativeMethods.pamoja_ladder_subscribe(handle, topicPtr)));
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(topicPtr);
+        }
+    });
+
+    /// <summary>Waits for the next message from any rung that listens, whichever delivers first.</summary>
+    /// <remarks>
+    /// The ladder is held while waiting, so a send from elsewhere waits behind the receive.
+    /// </remarks>
+    /// <returns>The message.</returns>
+    /// <exception cref="PamojaException">
+    /// No connected rung listens: none was added, the ladder is not connected, or
+    /// every listening link has ended.
+    /// </exception>
+    public Task<TransportMessage?> ReceiveAsync() => Task.Run(() =>
+    {
+        IntPtr message = IntPtr.Zero;
+        Status.ThrowIfError(_handle.Use(handle =>
+            NativeMethods.pamoja_ladder_recv(handle, out message)));
+        return Messages.Take(message);
+    });
+
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();
 }
