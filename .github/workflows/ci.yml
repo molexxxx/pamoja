@@ -60,6 +60,14 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+      # The Linux bus backends and the kernel thermometer file only build on Linux, so
+      # the default-feature graph the rest of this job covers never compiles them.
+      - name: Linux bus backends
+        run: |
+          cargo clippy -p pamoja-hal --features linux --all-targets -- -D warnings
+          cargo test -p pamoja-hal --features linux
+          cargo test -p pamoja-sensors --features linux
+
       # Every example under examples/ runs to completion with nothing plugged in, except the
       # SITL interop, which has its own job. The last one regenerates the cross-language
       # conformance vectors, and the diff fails if the committed file no longer matches.
@@ -149,12 +157,12 @@ jobs:
           cargo build --target $T --no-default-features --features "robotics geo" -p pamoja-kit
           cargo build --target $T \
             -p pamoja-session -p pamoja-sensors -p pamoja-actuators -p pamoja-serial \
-            -p pamoja-mesh -p pamoja-modbus -p pamoja-can -p pamoja-gpio \
+            -p pamoja-mesh -p pamoja-modbus -p pamoja-can -p pamoja-gpio -p pamoja-hal \
             -p pamoja-lora -p pamoja-lorawan -p pamoja-routing -p pamoja-power -p pamoja-telemetry
           # The bundle crate with its std layer off and only those capabilities named is the
           # same build through one dependency.
           cargo build --target $T --no-default-features -p pamoja --features \
-            "security audit update mavlink session sensors actuators serial mesh modbus can gpio lora lorawan routing power telemetry"
+            "security audit update mavlink session sensors actuators serial mesh modbus can gpio hal lora lorawan routing power telemetry"
 
   msrv:
     name: minimum supported rust

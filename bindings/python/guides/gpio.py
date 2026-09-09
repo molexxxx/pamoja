@@ -27,10 +27,10 @@ print(f"a 10-bit address takes {i2c.frame_len(TEN_BIT_DEVICE, ten_bit=True)} byt
 clock = spi.clock_for(3)
 print(f"spi mode 3: idles high {clock.cpol}, samples on the trailing edge {clock.cpha}")
 
-# A relay board sold as active low energises when its pin is driven low. The polarity
+# A relay board sold as active low energizes when its pin is driven low. The polarity
 # carries that inversion, so no call site has to remember which way round it is.
-energise = pin.level_for(Polarity.ACTIVE_LOW, True)
-print(f"to energise an active-low relay, drive the pin {energise.name}")
+energize = pin.level_for(Polarity.ACTIVE_LOW, True)
+print(f"to energize an active-low relay, drive the pin {energize.name}")
 
 # Releasing it drives the line back high, an edge a falling trigger ignores.
 rising = pin.triggers(Edge.RISING, Level.LOW, Level.HIGH)
@@ -44,7 +44,7 @@ assert i2c.is_reserved(i2c.RESERVED_FROM)
 assert i2c.frame_len(TEN_BIT_DEVICE, ten_bit=True) == 2
 assert clock.cpol and clock.cpha
 assert spi.mode_for(True, False) == 2
-assert energise is Level.LOW
+assert energize is Level.LOW
 assert pin.is_asserted(Polarity.ACTIVE_LOW, Level.LOW)
 assert rising
 assert not falling

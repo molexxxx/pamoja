@@ -26,6 +26,12 @@ pub const MANUFACTURER_ID: u16 = 0x5449;
 /// The value the device ID register returns for an OPT3001.
 pub const DEVICE_ID: u16 = 0x3001;
 
+#[cfg(feature = "embedded-hal")]
+mod driver;
+
+#[cfg(feature = "embedded-hal")]
+pub use driver::{Opt3001, POLL_INTERVAL_MILLIS, STATUS_POLLS};
+
 /// The OPT3001 register addresses. Every register is 16 bits, sent most significant
 /// byte first.
 pub mod register {
@@ -429,6 +435,73 @@ impl Configuration {
     /// Returns whether the range number selects automatic full-scale setting.
     pub fn is_automatic_range(&self) -> bool {
         self.range_number == RANGE_AUTOMATIC
+    }
+}
+
+/// One result register word, with the conversion to illuminance.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_sensors::opt3001::Reading;
+///
+/// // Exponent 0 over mantissa 3200: 0.01 lux per count, 32 lux.
+/// let reading = Reading::new(0x0C80);
+/// assert_eq!(reading.milli_lux(), 32_000);
+/// assert_eq!(reading.to_bytes(), [0x0C, 0x80]);
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Reading {
+    raw: u16,
+}
+
+impl Reading {
+    /// Wraps a result register word.
+    ///
+    /// # Arguments
+    ///
+    /// * `raw` - the word: a four-bit exponent over a twelve-bit mantissa.
+    ///
+    /// # Returns
+    ///
+    /// The reading.
+    pub fn new(raw: u16) -> Reading {
+        Reading { raw }
+    }
+
+    /// Returns the register word.
+    pub fn raw(&self) -> u16 {
+        self.raw
+    }
+
+    /// Returns the illuminance in millilux, exact in integer arithmetic.
+    pub fn milli_lux(&self) -> u32 {
+        milli_lux(self.raw)
+    }
+
+    /// Returns the illuminance in lux.
+    pub fn lux(&self) -> f32 {
+        lux(self.raw)
+    }
+
+    /// Returns the register bytes, most significant first, as the part sends them.
+    pub fn to_bytes(&self) -> [u8; 2] {
+        word_to_bytes(self.raw)
+    }
+}
+
+#[cfg(test)]
+mod driver_support_tests {
+    use super::*;
+
+    #[test]
+    fn a_reading_converts_its_word_like_the_free_functions() {
+        let raw = raw_from_milli_lux(1_000_000);
+        let reading = Reading::new(raw);
+        assert_eq!(reading.raw(), raw);
+        assert_eq!(reading.milli_lux(), milli_lux(raw));
+        assert!((reading.lux() - 1000.0).abs() < 1.0);
+        assert_eq!(reading.to_bytes(), word_to_bytes(raw));
     }
 }
 

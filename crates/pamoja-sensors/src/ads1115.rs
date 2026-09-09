@@ -7,6 +7,27 @@
 //! selected full-scale range, following the datasheet's register tables and per-gain
 //! LSB sizes.
 
+#[cfg(feature = "embedded-hal")]
+mod driver;
+
+#[cfg(feature = "embedded-hal")]
+pub use driver::{Ads1115, CONVERSION_POLLS};
+
+/// The I2C addresses the ADDR pin selects, by what it is tied to.
+pub mod address {
+    /// ADDR tied to GND: `1001000b`.
+    pub const GND: u8 = 0x48;
+    /// ADDR tied to VDD: `1001001b`.
+    pub const VDD: u8 = 0x49;
+    /// ADDR tied to SDA: `1001010b`.
+    pub const SDA: u8 = 0x4A;
+    /// ADDR tied to SCL: `1001011b`.
+    pub const SCL: u8 = 0x4B;
+}
+
+/// The time from a stable supply until the part accepts a transfer, in microseconds.
+pub const POWER_UP_MICROS: u32 = 50;
+
 /// The ADS1115 register addresses, selected by the address pointer.
 pub mod register {
     /// Conversion register: the last 16-bit result, two's complement.
@@ -423,6 +444,93 @@ pub fn to_nanovolts(pga: Pga, raw: i16) -> i64 {
 /// The measured voltage in volts.
 pub fn to_volts(pga: Pga, raw: i16) -> f32 {
     to_nanovolts(pga, raw) as f32 / 1_000_000_000.0
+}
+
+/// The longest one conversion takes at a data rate, in microseconds.
+///
+/// A conversion takes one period of the data rate, and the datasheet allows the
+/// rate to vary by ten percent, so the period is stretched by that much. A driver
+/// waits this long after starting a single-shot conversion before it polls the
+/// operational-status bit.
+///
+/// # Arguments
+///
+/// * `rate` - the data rate the conversion runs at.
+///
+/// # Returns
+///
+/// The period in microseconds, with the ten percent margin.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_sensors::ads1115::{conversion_micros, DataRate};
+///
+/// assert_eq!(conversion_micros(DataRate::Sps128), 8_595);
+/// assert_eq!(conversion_micros(DataRate::Sps860), 1_280);
+/// ```
+pub fn conversion_micros(rate: DataRate) -> u32 {
+    let period = 1_000_000u32.div_ceil(u32::from(rate.samples_per_second()));
+    period + period.div_ceil(10)
+}
+
+/// One conversion result with the gain it was taken at, so it converts to volts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Sample {
+    /// The signed 16-bit conversion register value.
+    pub raw: i16,
+    /// The full-scale range the conversion ran at.
+    pub pga: Pga,
+}
+
+impl Sample {
+    /// Returns the measured voltage in volts.
+    pub fn volts(&self) -> f32 {
+        to_volts(self.pga, self.raw)
+    }
+
+    /// Returns the measured voltage in nanovolts, exact in integer arithmetic.
+    pub fn nanovolts(&self) -> i64 {
+        to_nanovolts(self.pga, self.raw)
+    }
+
+    /// Returns the conversion register bytes for this sample, most significant first.
+    ///
+    /// This is what the part sends when the register is read, so a test can script it.
+    pub fn to_bytes(&self) -> [u8; 2] {
+        self.raw.to_be_bytes()
+    }
+}
+
+#[cfg(test)]
+mod driver_support_tests {
+    use super::*;
+
+    #[test]
+    fn conversion_time_is_one_period_plus_the_ten_percent_variation() {
+        assert_eq!(conversion_micros(DataRate::Sps8), 137_500);
+        assert_eq!(conversion_micros(DataRate::Sps128), 8_595);
+        assert_eq!(conversion_micros(DataRate::Sps860), 1_280);
+    }
+
+    #[test]
+    fn a_sample_converts_at_its_gain_and_scripts_its_bytes() {
+        let sample = Sample {
+            raw: 3200,
+            pga: Pga::Fsr2_048,
+        };
+        assert!((sample.volts() - 0.2).abs() < 1e-6);
+        assert_eq!(sample.nanovolts(), 200_000_000);
+        assert_eq!(sample.to_bytes(), [0x0C, 0x80]);
+    }
+
+    #[test]
+    fn the_addresses_follow_the_addr_pin_table() {
+        assert_eq!(address::GND, 0b100_1000);
+        assert_eq!(address::VDD, 0b100_1001);
+        assert_eq!(address::SDA, 0b100_1010);
+        assert_eq!(address::SCL, 0b100_1011);
+    }
 }
 
 #[cfg(test)]

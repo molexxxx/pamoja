@@ -9,6 +9,43 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- A bus layer, `pamoja-hal`: the `embedded-hal` 1.0 I2C, SPI, GPIO, and delay
+  traits every driver is written against, re-exported in one place; a bit-banged
+  1-Wire bus over any pin with the reset and presence handshake, the ROM
+  commands, and the search that enumerates a bus; scripted I2C and SPI buses, a
+  scripted pin, and a recording delay, so a driver is tested against its
+  datasheet's own transfer sequence with nothing plugged in; and, behind the
+  `linux` feature, the kernel's i2c-dev, spidev, and GPIO character devices
+  opened as those same traits.
+- Drivers that reach the parts: every sensor and actuator module gains a type
+  named after its part that owns a bus, performs the datasheet's transfer
+  sequence with the datasheet's timings, and implements the core `Sensor` or
+  `Actuator` trait. The BME280 and BMP280 run over I2C or SPI through a shared
+  register-bus abstraction; the SHT3x, SCD4x, TMP117, HDC1080, OPT3001, INA219,
+  INA226, and ADS1115 over I2C; the DS18B20 over any 1-Wire bus; the PCA9685 over
+  I2C; and a four-wire stepper or a step/direction driver chip over output pins.
+  Each is tested against its datasheet's own sequence on a scripted bus,
+  including the identity check, the timeout, and the bus fault. The decode
+  layers gain what the drivers needed: the BME280 control registers,
+  measurement-time formula, and register builders; the BMP280 measurement
+  times; the DS18B20 function commands, the parser for the Linux kernel's
+  `w1_slave` text, and a thermometer that reads the kernel's file as a
+  `Sensor`; the ADS1115 addresses, conversion time, and sample type; the INA219
+  configuration register and reading type; reading types for the INA226,
+  TMP117, and OPT3001; the TMP117 alert flags; and the PCA9685 MODE2 bits,
+  software reset, and oscillator start-up time.
+- A guide for the bus layer, `docs/guides/hal.md`: a BME280 read through its
+  driver over a scripted bus in Rust, and the same datasheet conversation driven
+  from a bus shaped like the host I2C library in TypeScript, Python, and C#,
+  with pamoja compensating the burst.
+- `Sensor::map` and `Actuator::map_command` in the core, with the `Map` and
+  `MapCommand` adapters, so a driver's multi-channel reading feeds a controller
+  that wants one number and a part's own command shape is driven by a `bool` or
+  a percentage.
+- `Switch` and `Contact` in `pamoja-gpio`: a relay, valve, or lamp driven as a
+  core `Actuator`, and a button, float switch, or motion detector read as a core
+  `Sensor`, each carrying its polarity in the type.
+
 - The seven new sensor drivers reach Python. Each is a module-level object beside
   the four already there, with the datasheet constants, the frame parsers and
   their builders, the configuration registers, and every conversion in both

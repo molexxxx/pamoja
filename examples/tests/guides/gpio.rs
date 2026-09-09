@@ -39,10 +39,10 @@ fn addressing_a_bus_and_driving_a_pin() {
     let (idles_high, trailing_edge) = Mode::Mode3.cpol_cpha();
     println!("spi mode 3: idles high {idles_high}, samples on the trailing edge {trailing_edge}");
 
-    // A relay board sold as active low energises when its pin is driven low. The polarity
+    // A relay board sold as active low energizes when its pin is driven low. The polarity
     // carries that inversion, so no call site has to remember which way round it is.
-    let energise = Polarity::ActiveLow.level(true);
-    println!("to energise an active-low relay, drive the pin {energise:?}");
+    let energize = Polarity::ActiveLow.level(true);
+    println!("to energize an active-low relay, drive the pin {energize:?}");
 
     // Releasing it drives the line back high, an edge a falling trigger ignores.
     let rising = Edge::Rising.triggered_by(Level::Low, Level::High);
@@ -59,7 +59,7 @@ fn addressing_a_bus_and_driving_a_pin() {
     assert_eq!(wide_frame.len(), 2);
     assert_eq!((idles_high, trailing_edge), (true, true));
     assert_eq!(Mode::from_cpol_cpha(true, false).number(), 2);
-    assert_eq!(energise, Level::Low);
+    assert_eq!(energize, Level::Low);
     assert!(Polarity::ActiveLow.is_asserted(Level::Low));
     assert!(rising);
     assert!(!falling);

@@ -10,6 +10,7 @@ SerialGuide.Run();
 ModbusGuide.Run();
 CanGuide.Run();
 GpioGuide.Run();
+await HalGuide.RunAsync();
 SensorsGuide.Run();
 ActuatorsGuide.Run();
 await DeviceGuide.RunAsync();

@@ -61,7 +61,7 @@ jobs:
         # that the header fragment changed, so the reference is always built afresh.
         run: |
           cargo clean --doc
-          cargo doc --workspace --no-deps --exclude xtask --exclude pamoja-examples
+          cargo doc --workspace --no-deps --exclude xtask --exclude pamoja-examples --features pamoja-hal/linux,pamoja-sensors/linux
           mkdir -p target/site/docs/reference
           cp -r target/doc target/site/docs/reference/rust
 

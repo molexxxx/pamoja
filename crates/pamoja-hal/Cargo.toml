@@ -1,0 +1,36 @@
+[package]
+name = "pamoja-hal"
+description = "The bus layer for pamoja: the embedded-hal 1.0 I2C, SPI, GPIO, and delay traits every driver is written against, a bit-banged 1-Wire bus over any pin, scripted buses that play a part's replies for tests with nothing plugged in, and Linux backends over the kernel's i2c-dev, spidev, and GPIO character devices, so one driver runs on a microcontroller, on a gateway, and in a test."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+targets = ["x86_64-unknown-linux-gnu"]
+
+[features]
+# The scripted buses keep their steps in a vector, so they need an allocator; the
+# traits and the 1-Wire bus need neither an allocator nor an operating system.
+default = ["alloc"]
+alloc = []
+std = ["alloc"]
+# The Linux backends: i2c-dev, spidev, and the GPIO character device through
+# linux-embedded-hal. They only build on Linux; on any other target the feature is inert.
+linux = ["std", "dep:linux-embedded-hal"]
+
+[dependencies]
+embedded-hal = "1.0"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+linux-embedded-hal = { version = "0.5", optional = true, default-features = false, features = ["gpio_cdev", "i2c", "spi"] }
+
+[lints]
+workspace = true

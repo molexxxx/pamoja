@@ -15,7 +15,7 @@ It builds the byte a sensor at 7-bit address `0x76` is written to and the byte
 it is read from, checks that address against the ranges the I2C specification
 keeps back, then asks how many bytes a 10-bit address puts on the wire. It
 reads the clock polarity and phase back out of SPI mode 3, and works out which
-level energises an active-low relay and which edge releasing it raises.
+level energizes an active-low relay and which edge releasing it raises.
 
 The numbers typed in are the ones a datasheet or the specification prints: the
 
@@ -41,7 +41,7 @@ It proves:
   address it holds.
 - Mode 3 is CPOL 1 with CPHA 1, and the pair maps back the other way: CPOL 1
   with CPHA 0 is mode 2, not mode 3 again.
-- An active-low relay is energised by a low level, which that polarity reads
+- An active-low relay is energized by a low level, which that polarity reads
   back as asserted, and releasing it is a rising edge that a falling-edge
   trigger ignores.
 
@@ -85,10 +85,10 @@ println!("a 10-bit address takes {} bytes", wide_frame.len());
 let (idles_high, trailing_edge) = Mode::Mode3.cpol_cpha();
 println!("spi mode 3: idles high {idles_high}, samples on the trailing edge {trailing_edge}");
 
-// A relay board sold as active low energises when its pin is driven low. The polarity
+// A relay board sold as active low energizes when its pin is driven low. The polarity
 // carries that inversion, so no call site has to remember which way round it is.
-let energise = Polarity::ActiveLow.level(true);
-println!("to energise an active-low relay, drive the pin {energise:?}");
+let energize = Polarity::ActiveLow.level(true);
+println!("to energize an active-low relay, drive the pin {energize:?}");
 
 // Releasing it drives the line back high, an edge a falling trigger ignores.
 let rising = Edge::Rising.triggered_by(Level::Low, Level::High);
@@ -131,10 +131,10 @@ console.log(`a 10-bit address takes ${i2c.frameLen(TEN_BIT_DEVICE, true)} bytes`
 const clock = spi.clockFor(3)
 console.log(`spi mode 3: idles high ${clock.cpol}, samples on the trailing edge ${clock.cpha}`)
 
-// A relay board sold as active low energises when its pin is driven low. The polarity
+// A relay board sold as active low energizes when its pin is driven low. The polarity
 // carries that inversion, so no call site has to remember which way round it is.
-const energise = pin.levelFor(PinPolarity.ActiveLow, true)
-console.log(`to energise an active-low relay, drive the pin ${energise}`)
+const energize = pin.levelFor(PinPolarity.ActiveLow, true)
+console.log(`to energize an active-low relay, drive the pin ${energize}`)
 
 // Releasing it drives the line back high, an edge a falling trigger ignores.
 const rising = pin.triggers(PinEdge.Rising, PinLevel.Low, PinLevel.High)
@@ -175,10 +175,10 @@ print(f"a 10-bit address takes {i2c.frame_len(TEN_BIT_DEVICE, ten_bit=True)} byt
 clock = spi.clock_for(3)
 print(f"spi mode 3: idles high {clock.cpol}, samples on the trailing edge {clock.cpha}")
 
-# A relay board sold as active low energises when its pin is driven low. The polarity
+# A relay board sold as active low energizes when its pin is driven low. The polarity
 # carries that inversion, so no call site has to remember which way round it is.
-energise = pin.level_for(Polarity.ACTIVE_LOW, True)
-print(f"to energise an active-low relay, drive the pin {energise.name}")
+energize = pin.level_for(Polarity.ACTIVE_LOW, True)
+print(f"to energize an active-low relay, drive the pin {energize.name}")
 
 # Releasing it drives the line back high, an edge a falling trigger ignores.
 rising = pin.triggers(Edge.RISING, Level.LOW, Level.HIGH)
@@ -218,10 +218,10 @@ SpiClock clock = Spi.ClockFor(3);
 Console.WriteLine(
     $"spi mode 3: idles high {clock.Cpol}, samples on the trailing edge {clock.Cpha}");
 
-// A relay board sold as active low energises when its pin is driven low. The
+// A relay board sold as active low energizes when its pin is driven low. The
 // polarity carries that inversion, so no call site has to remember it.
-PinLevel energise = Pin.LevelFor(PinPolarity.ActiveLow, true);
-Console.WriteLine($"to energise an active-low relay, drive the pin {energise}");
+PinLevel energize = Pin.LevelFor(PinPolarity.ActiveLow, true);
+Console.WriteLine($"to energize an active-low relay, drive the pin {energize}");
 
 // Releasing it drives the line back high, an edge a falling trigger ignores.
 bool rising = Pin.Triggers(PinEdge.Rising, PinLevel.Low, PinLevel.High);

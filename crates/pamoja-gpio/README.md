@@ -46,8 +46,13 @@ This crate is that logic, with no pins toggled and no allocation:
 
 Everything is exact integer work over `Copy` values, so the same logic runs on the
 smallest microcontroller driving the bus. Clocking the bytes and toggling the lines
-themselves arrives with the hardware-I/O layer; this is the addressing-and-mode half
-ahead of it.
+themselves is the job of [`pamoja-hal`](https://docs.rs/pamoja-hal), whose
+`embedded-hal` traits every board implements. The `switch` module (the
+`embedded-hal` feature, on by default) puts the two together for the parts that are
+a single line: `Switch` drives a relay, a valve, or a lamp as a
+core `Actuator`, and `Contact` reads a button, a float switch,
+or a motion detector as a core `Sensor`, each with its `Polarity`
+carried by the type rather than remembered at every call.
 
 **Examples**
 
@@ -65,7 +70,7 @@ assert_eq!(&frame[..n], &[0xD1]); // (0x68 << 1) | 1
 // SPI clock mode 0 is the (CPOL, CPHA) pair (false, false), as a datasheet quotes it.
 assert_eq!(Mode::Mode0.cpol_cpha(), (false, false));
 
-// An active-low relay is energised by driving its pin low.
+// An active-low relay is energized by driving its pin low.
 assert_eq!(Polarity::ActiveLow.level(true), Level::Low);
 ```
 

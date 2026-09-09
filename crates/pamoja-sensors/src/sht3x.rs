@@ -1,6 +1,6 @@
 //! Sensirion SHT3x-DIS humidity and temperature sensor (SHT30, SHT31, SHT35).
 //!
-//! The SHT3x returns fully calibrated, linearised 16-bit temperature and humidity
+//! The SHT3x returns fully calibrated, linearized 16-bit temperature and humidity
 //! words over I2C, each followed by a CRC-8, and converts to physical units with two
 //! fixed linear formulas. This module holds the command words, verifies the CRC,
 //! decodes a six-byte measurement frame, applies the datasheet's conversion formulas
@@ -10,10 +10,17 @@
 //! A caller writes a word from [`command`] most-significant byte first, waits the
 //! measurement duration for the chosen repeatability, reads six bytes, and hands them
 //! to [`Measurement::parse`]. In periodic mode the same six bytes follow
-//! [`command::FETCH_DATA`].
+//! [`command::FETCH_DATA`]. The [`Sht3x`] driver (the `embedded-hal` feature) runs the
+//! single-shot sequence over an I2C bus.
 //!
 //! Temperatures are returned in millidegrees and humidity in thousandths of a percent,
 //! rounded to nearest, which is finer than the part's 0.01 °C and 0.01 %RH resolution.
+
+#[cfg(feature = "embedded-hal")]
+mod driver;
+
+#[cfg(feature = "embedded-hal")]
+pub use driver::Sht3x;
 
 use crate::SensorError;
 
@@ -25,6 +32,12 @@ pub const I2C_ADDRESS_B: u8 = 0x45;
 /// The shortest gap between two commands, in microseconds: the part needs 1 ms after
 /// a command before it accepts another.
 pub const MIN_COMMAND_GAP_MICROS: u32 = 1_000;
+
+/// How long the part takes to come back after [`command::SOFT_RESET`], in
+/// microseconds: the datasheet's maximum of 1.5 ms between the acknowledge of the
+/// command and the part entering idle state, which also covers the gap before the
+/// next command.
+pub const SOFT_RESET_MICROS: u32 = 1_500;
 
 /// The 16-bit command words, sent most-significant byte first.
 ///
@@ -89,7 +102,7 @@ pub mod command {
     /// power; the part is idle again within 1.5 ms.
     pub const SOFT_RESET: u16 = 0x30A2;
     /// The I2C general-call reset: address byte 0x00 followed by 0x06. It resets every
-    /// device on the bus that honours the general call, not just this part.
+    /// device on the bus that honors the general call, not just this part.
     pub const GENERAL_CALL_RESET: u16 = 0x0006;
     /// Switches the plausibility-check heater on.
     pub const HEATER_ENABLE: u16 = 0x306D;
@@ -954,6 +967,7 @@ mod tests {
         assert_eq!(Rate::HalfMps.interval_micros(), 2_000_000);
         assert_eq!(Rate::TenMps.interval_micros(), 100_000);
         assert_eq!(MIN_COMMAND_GAP_MICROS, 1_000);
+        assert_eq!(SOFT_RESET_MICROS, 1_500);
     }
 
     #[test]

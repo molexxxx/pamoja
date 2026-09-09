@@ -50,10 +50,10 @@ SpiClock clock = Spi.ClockFor(3);
 Console.WriteLine(
     $"spi mode 3: idles high {clock.Cpol}, samples on the trailing edge {clock.Cpha}");
 
-// A relay board sold as active low energises when its pin is driven low. The
+// A relay board sold as active low energizes when its pin is driven low. The
 // polarity carries that inversion, so no call site has to remember it.
-PinLevel energise = Pin.LevelFor(PinPolarity.ActiveLow, true);
-Console.WriteLine($"to energise an active-low relay, drive the pin {energise}");
+PinLevel energize = Pin.LevelFor(PinPolarity.ActiveLow, true);
+Console.WriteLine($"to energize an active-low relay, drive the pin {energize}");
 
 // Releasing it drives the line back high, an edge a falling trigger ignores.
 bool rising = Pin.Triggers(PinEdge.Rising, PinLevel.Low, PinLevel.High);

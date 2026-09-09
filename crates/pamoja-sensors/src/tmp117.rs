@@ -11,6 +11,12 @@
 //! stays in integer arithmetic; the `f32` form is exact too, since one count is
 //! 1/128 °C.
 
+#[cfg(feature = "embedded-hal")]
+mod driver;
+
+#[cfg(feature = "embedded-hal")]
+pub use driver::{Tmp117, STATUS_POLLS};
+
 /// The TMP117 register addresses, written to the pointer register.
 pub mod register {
     /// Temperature result register, read-only, two's complement at 7.8125 m°C.
@@ -631,6 +637,155 @@ impl Configuration {
             },
             soft_reset: bits & (1 << 1) != 0,
         }
+    }
+}
+
+/// One temperature result: the register word, with the conversions to real units.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_sensors::tmp117::Reading;
+///
+/// // Table 7-1: 25 C is 0C80h.
+/// let reading = Reading::new(0x0C80);
+/// assert_eq!(reading.celsius(), 25.0);
+/// assert_eq!(reading.micro_celsius(), 25_000_000);
+/// assert_eq!(reading.to_bytes(), [0x0C, 0x80]);
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Reading {
+    raw: i16,
+}
+
+impl Reading {
+    /// Wraps a temperature register word.
+    ///
+    /// # Arguments
+    ///
+    /// * `raw` - the signed 16-bit register value, 7.8125 m°C per count.
+    ///
+    /// # Returns
+    ///
+    /// The reading.
+    pub fn new(raw: i16) -> Reading {
+        Reading { raw }
+    }
+
+    /// Returns the register word.
+    pub fn raw(&self) -> i16 {
+        self.raw
+    }
+
+    /// Returns the temperature in degrees Celsius.
+    pub fn celsius(&self) -> f32 {
+        celsius(self.raw)
+    }
+
+    /// Returns the temperature in microdegrees Celsius, exact in integer arithmetic.
+    pub fn micro_celsius(&self) -> i32 {
+        micro_celsius(self.raw)
+    }
+
+    /// Returns the temperature in nanodegrees Celsius, exact in integer arithmetic.
+    pub fn nano_celsius(&self) -> i64 {
+        nano_celsius(self.raw)
+    }
+
+    /// Returns the register bytes, most significant first, as the part sends them.
+    pub fn to_bytes(&self) -> [u8; 2] {
+        temperature_bytes(self.raw)
+    }
+}
+
+/// The two alert flags the part sets at the end of every conversion.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_sensors::tmp117::Alerts;
+///
+/// // Table 7-6: HIGH_Alert is bit 15 and LOW_Alert bit 14 of the configuration register.
+/// let alerts = Alerts::from_bits(0x8220);
+/// assert!(alerts.high);
+/// assert!(!alerts.low);
+/// assert_eq!(alerts | Alerts { high: false, low: true }, Alerts { high: true, low: true });
+/// ```
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Alerts {
+    /// A result was above the high limit.
+    pub high: bool,
+    /// A result was below the low limit.
+    pub low: bool,
+}
+
+impl Alerts {
+    /// Reads the two flags from a configuration register value.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - the word read from [`register::CONFIGURATION`].
+    ///
+    /// # Returns
+    ///
+    /// The flags.
+    pub fn from_bits(config: u16) -> Alerts {
+        Alerts {
+            high: high_alert(config),
+            low: low_alert(config),
+        }
+    }
+
+    /// Reports whether either flag is set.
+    pub fn any(&self) -> bool {
+        self.high || self.low
+    }
+}
+
+impl core::ops::BitOr for Alerts {
+    type Output = Alerts;
+
+    fn bitor(self, other: Alerts) -> Alerts {
+        Alerts {
+            high: self.high || other.high,
+            low: self.low || other.low,
+        }
+    }
+}
+
+#[cfg(test)]
+mod driver_support_tests {
+    use super::*;
+
+    #[test]
+    fn a_reading_converts_its_word_like_the_free_functions() {
+        let reading = Reading::new(0xF380_u16 as i16);
+        assert_eq!(reading.raw(), -3200);
+        assert_eq!(reading.celsius(), -25.0);
+        assert_eq!(reading.micro_celsius(), -25_000_000);
+        assert_eq!(reading.nano_celsius(), -25_000_000_000);
+        assert_eq!(reading.to_bytes(), [0xF3, 0x80]);
+    }
+
+    #[test]
+    fn alerts_read_bits_15_and_14_and_combine() {
+        assert_eq!(
+            Alerts::from_bits(1 << 15),
+            Alerts {
+                high: true,
+                low: false
+            }
+        );
+        assert_eq!(
+            Alerts::from_bits(1 << 14),
+            Alerts {
+                high: false,
+                low: true
+            }
+        );
+        assert_eq!(Alerts::from_bits(0x0220), Alerts::default());
+        assert!(!Alerts::default().any());
+        assert!((Alerts::from_bits(1 << 15) | Alerts::default()).any());
     }
 }
 

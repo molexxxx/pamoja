@@ -49,10 +49,10 @@ console.log(`a 10-bit address takes ${i2c.frameLen(TEN_BIT_DEVICE, true)} bytes`
 const clock = spi.clockFor(3)
 console.log(`spi mode 3: idles high ${clock.cpol}, samples on the trailing edge ${clock.cpha}`)
 
-// A relay board sold as active low energises when its pin is driven low. The polarity
+// A relay board sold as active low energizes when its pin is driven low. The polarity
 // carries that inversion, so no call site has to remember which way round it is.
-const energise = pin.levelFor(PinPolarity.ActiveLow, true)
-console.log(`to energise an active-low relay, drive the pin ${energise}`)
+const energize = pin.levelFor(PinPolarity.ActiveLow, true)
+console.log(`to energize an active-low relay, drive the pin ${energize}`)
 
 // Releasing it drives the line back high, an edge a falling trigger ignores.
 const rising = pin.triggers(PinEdge.Rising, PinLevel.Low, PinLevel.High)

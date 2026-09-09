@@ -24,7 +24,7 @@ intent = "The helper math a field node runs between reading a sensor and acting 
 [[chapter]]
 key = "field-io"
 title = "Field I/O"
-intent = "The wires a gateway actually has: framed serial packets, an RS485 request and the reply it draws, a CAN frame, and the address a chip answers on."
+intent = "The wires a gateway actually has: framed serial packets, an RS485 request and the reply it draws, a CAN frame, the address a chip answers on, and the bus that carries a driver to the part."
 
 [[chapter]]
 key = "sensing"
@@ -136,6 +136,17 @@ node = "gpio"
 python = "gpio"
 dotnet = ["I2c", "Spi", "SpiClock", "Pin", "PinLevel", "PinEdge", "PinPolarity"]
 guide = "guides/gpio.md"
+
+[[capability]]
+key = "hal"
+chapter = "field-io"
+title = "Buses"
+summary = "The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, scripted buses that play a part's side of a conversation, and the Linux backends over i2c-dev, spidev, and the GPIO character device"
+crates = ["pamoja-hal"]
+node = "core"
+python = "core"
+dotnet = []
+guide = "guides/hal.md"
 
 [[capability]]
 key = "sensors"

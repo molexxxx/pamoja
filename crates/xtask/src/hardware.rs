@@ -34,7 +34,7 @@ pub const BANDS: &[&str] = &[
 const DRIVERS: &[&str] = &["pamoja-sensors", "pamoja-actuators"];
 
 /// Module files that carry no driver, so no entry describes them.
-const NOT_DRIVERS: &[&str] = &["lib.rs", "error.rs"];
+const NOT_DRIVERS: &[&str] = &["lib.rs", "error.rs", "driver.rs"];
 
 /// A group of entries that share a heading on the page.
 pub struct Group {

@@ -12,5 +12,23 @@ keywords.workspace = true
 categories.workspace = true
 authors.workspace = true
 
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+# The switch and contact drivers over embedded-hal pins, which implement the core
+# Actuator and Sensor traits. The pin model needs nothing and builds with the feature
+# off.
+default = ["embedded-hal"]
+embedded-hal = ["dep:embedded-hal", "dep:pamoja-core"]
+std = ["embedded-hal", "pamoja-core/std"]
+
+[dependencies]
+embedded-hal = { version = "1.0", optional = true }
+pamoja-core = { path = "../pamoja-core", version = "0.1.17", default-features = false, optional = true }
+
+[dev-dependencies]
+pamoja-hal = { path = "../pamoja-hal", features = ["alloc"] }
+
 [lints]
 workspace = true

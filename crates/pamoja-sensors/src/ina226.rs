@@ -15,6 +15,12 @@
 
 use crate::SensorError;
 
+#[cfg(feature = "embedded-hal")]
+mod driver;
+
+#[cfg(feature = "embedded-hal")]
+pub use driver::{Ina226, STATUS_POLLS};
+
 /// The INA226 register pointer addresses.
 pub mod register {
     /// Configuration register: reset, averaging, conversion times, and operating mode.
@@ -801,6 +807,94 @@ pub fn current_register_from_shunt(shunt: i16, calibration: u16) -> i16 {
 /// The power register the chip would hold.
 pub fn power_register_from_current(current: i16, bus: u16) -> u16 {
     (u32::from(current.unsigned_abs()) * u32::from(bus & 0x7FFF) / 20_000) as u16
+}
+
+/// One set of results, with the current resolution they were taken at.
+///
+/// The four data registers are kept as read; the methods apply the datasheet's
+/// scaling. The overflow flag is the one the Mask/Enable register carried when the
+/// conversion finished.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Reading {
+    /// The Shunt Voltage register.
+    pub shunt: i16,
+    /// The Bus Voltage register.
+    pub bus: u16,
+    /// The Current register.
+    pub current: i16,
+    /// The Power register.
+    pub power: u16,
+    /// The programmed current resolution, in microamps per count.
+    pub current_lsb_microamps: u32,
+    /// The math overflow flag: the current and power may be invalid.
+    pub math_overflow: bool,
+}
+
+impl Reading {
+    /// Returns the shunt voltage in nanovolts.
+    pub fn shunt_nanovolts(&self) -> i32 {
+        shunt_nanovolts(self.shunt)
+    }
+
+    /// Returns the shunt voltage in millivolts.
+    pub fn shunt_millivolts(&self) -> f32 {
+        shunt_millivolts_f32(self.shunt)
+    }
+
+    /// Returns the bus voltage in microvolts.
+    pub fn bus_microvolts(&self) -> u32 {
+        bus_microvolts(self.bus)
+    }
+
+    /// Returns the bus voltage in volts.
+    pub fn bus_volts(&self) -> f32 {
+        bus_volts_f32(self.bus)
+    }
+
+    /// Returns the current in microamps.
+    pub fn current_microamps(&self) -> i32 {
+        current_microamps(self.current, self.current_lsb_microamps)
+    }
+
+    /// Returns the current in amps.
+    pub fn current_amps(&self) -> f32 {
+        current_amps_f32(self.current, self.current_lsb_microamps)
+    }
+
+    /// Returns the power in microwatts.
+    pub fn power_microwatts(&self) -> u32 {
+        power_microwatts(self.power, self.current_lsb_microamps)
+    }
+
+    /// Returns the power in watts.
+    pub fn power_watts(&self) -> f32 {
+        power_watts_f32(self.power, self.current_lsb_microamps)
+    }
+}
+
+#[cfg(test)]
+mod driver_support_tests {
+    use super::*;
+
+    #[test]
+    fn a_reading_scales_its_registers_like_the_free_functions() {
+        let reading = Reading {
+            shunt: shunt_register(50_000_000),
+            bus: bus_register(12_000_000),
+            current: current_register(1_000_000, 100),
+            power: power_register(12_000_000, 100),
+            current_lsb_microamps: 100,
+            math_overflow: false,
+        };
+        assert_eq!(reading.shunt_nanovolts(), 50_000_000);
+        assert!((reading.shunt_millivolts() - 50.0).abs() < 1e-3);
+        assert_eq!(reading.bus_microvolts(), 12_000_000);
+        assert!((reading.bus_volts() - 12.0).abs() < 1e-3);
+        assert_eq!(reading.current_microamps(), 1_000_000);
+        assert!((reading.current_amps() - 1.0).abs() < 1e-3);
+        assert_eq!(reading.power_microwatts(), 12_000_000);
+        assert!((reading.power_watts() - 12.0).abs() < 1e-3);
+    }
 }
 
 #[cfg(test)]

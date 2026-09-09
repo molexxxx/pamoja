@@ -12,6 +12,31 @@
 
 use crate::SensorError;
 
+#[cfg(feature = "embedded-hal")]
+mod driver;
+
+#[cfg(feature = "embedded-hal")]
+pub use driver::Ds18b20;
+
+/// The function commands a DS18B20 answers once it has been addressed.
+pub mod command {
+    /// Start a temperature conversion; the result lands in the scratchpad.
+    pub const CONVERT_T: u8 = 0x44;
+    /// Send the nine scratchpad bytes, CRC last.
+    pub const READ_SCRATCHPAD: u8 = 0xBE;
+    /// Take the alarm thresholds and the configuration byte, three bytes in that order.
+    pub const WRITE_SCRATCHPAD: u8 = 0x4E;
+    /// Copy those three bytes from the scratchpad to the EEPROM.
+    pub const COPY_SCRATCHPAD: u8 = 0x48;
+    /// Reload the three EEPROM bytes into the scratchpad.
+    pub const RECALL_EEPROM: u8 = 0xB8;
+    /// Answer one bit: 1 for external power, 0 for parasite power.
+    pub const READ_POWER_SUPPLY: u8 = 0xB4;
+}
+
+/// How long a copy to the EEPROM takes, in microseconds.
+pub const EEPROM_WRITE_MICROS: u32 = 10_000;
+
 /// The 1-Wire family code that identifies a DS18B20 in the first ROM byte.
 pub const FAMILY_CODE: u8 = 0x28;
 
@@ -371,6 +396,302 @@ impl Scratchpad {
     }
 }
 
+/// Decodes the text the Linux kernel's `w1_therm` driver serves for a thermometer.
+///
+/// The `w1_slave` file under `/sys/bus/w1/devices/28-*/` holds two lines: the nine
+/// scratchpad bytes in hex followed by `: crc=xx YES` or `NO`, then the same bytes
+/// followed by `t=` and the temperature in millidegrees. This takes the first line's
+/// bytes and parses them as a [`Scratchpad`], so the CRC is checked here as well; a
+/// `NO` from the kernel is reported without a second look.
+///
+/// # Arguments
+///
+/// * `text` - the file's contents.
+///
+/// # Returns
+///
+/// The scratchpad.
+///
+/// # Errors
+///
+/// Returns [`SensorError::Crc`] if the kernel or this decoder rejects the CRC, and
+/// [`SensorError::Invalid`] if the text is not in the driver's format.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_sensors::ds18b20::{parse_w1_slave, temperature_from_celsius, Resolution, Scratchpad};
+///
+/// // What the kernel prints for a part at 20.8125 C, built from the same library
+/// // that decodes it.
+/// let raw = temperature_from_celsius(20.8125, Resolution::Bits12);
+/// let bytes = Scratchpad::new(raw, Resolution::Bits12, 75, -10).to_bytes();
+/// let hex: Vec<String> = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+/// let text = format!("{} : crc={:02x} YES\n", hex.join(" "), bytes[8]);
+///
+/// let scratchpad = parse_w1_slave(&text)?;
+/// assert_eq!(scratchpad.temperature_micro_celsius(), 20_812_500);
+/// # Ok::<(), pamoja_sensors::SensorError>(())
+/// ```
+pub fn parse_w1_slave(text: &str) -> Result<Scratchpad, SensorError> {
+    let line = text.lines().next().ok_or(SensorError::Invalid)?;
+    let (hex, verdict) = line.split_once(": crc=").ok_or(SensorError::Invalid)?;
+    let verdict = verdict.trim();
+    if verdict.ends_with("NO") {
+        return Err(SensorError::Crc);
+    }
+    if !verdict.ends_with("YES") {
+        return Err(SensorError::Invalid);
+    }
+    let mut bytes = [0u8; 9];
+    let mut count = 0;
+    for token in hex.split_ascii_whitespace() {
+        if count == bytes.len() {
+            return Err(SensorError::Invalid);
+        }
+        bytes[count] = u8::from_str_radix(token, 16).map_err(|_| SensorError::Invalid)?;
+        count += 1;
+    }
+    if count != bytes.len() {
+        return Err(SensorError::Invalid);
+    }
+    Scratchpad::parse(&bytes)
+}
+
+/// The kernel's own 1-Wire driver: thermometers as files under `/sys/bus/w1/devices`.
+///
+/// On a Raspberry Pi the `w1-gpio` overlay (`dtoverlay=w1-gpio` in `config.txt`)
+/// puts the bus on a GPIO, and the kernel's `w1_therm` driver lists every DS18B20 it
+/// finds as a directory named by its family code and serial, `28-000005e2fdc3`, with
+/// a `w1_slave` file that runs a conversion and prints the scratchpad on every read.
+/// A [`Thermometer`](linux::Thermometer) reads that file as a
+/// [`Sensor`](pamoja_core::Sensor), which is the right way to reach a DS18B20 from a
+/// Linux process, where the bit timing a [`Ds18b20`] needs cannot be held.
+#[cfg(feature = "linux")]
+pub mod linux {
+    use std::path::{Path, PathBuf};
+    use std::{fmt, fs, io};
+
+    use pamoja_core::Sensor;
+
+    use super::{parse_w1_slave, Scratchpad, FAMILY_CODE};
+    use crate::SensorError;
+
+    /// Where the kernel lists the devices on its 1-Wire buses.
+    pub const DEVICES: &str = "/sys/bus/w1/devices";
+
+    /// The name of the file that runs a conversion and prints the scratchpad.
+    pub const W1_SLAVE: &str = "w1_slave";
+
+    /// What can go wrong reading a thermometer through the kernel.
+    #[derive(Debug)]
+    pub enum ThermometerError {
+        /// The file could not be read: the overlay is off, the device is gone, or the
+        /// process lacks permission.
+        Io(io::Error),
+        /// The file was read but its scratchpad did not decode.
+        Sensor(SensorError),
+    }
+
+    impl fmt::Display for ThermometerError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                ThermometerError::Io(error) => write!(f, "reading the w1_slave file: {error}"),
+                ThermometerError::Sensor(error) => write!(f, "{error}"),
+            }
+        }
+    }
+
+    impl std::error::Error for ThermometerError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match self {
+                ThermometerError::Io(error) => Some(error),
+                ThermometerError::Sensor(error) => Some(error),
+            }
+        }
+    }
+
+    impl From<ThermometerError> for pamoja_core::Error {
+        fn from(error: ThermometerError) -> Self {
+            match error {
+                ThermometerError::Io(io) => pamoja_core::Error::Io(io.to_string()),
+                ThermometerError::Sensor(sensor) => pamoja_core::Error::Codec(sensor.to_string()),
+            }
+        }
+    }
+
+    /// A DS18B20 the kernel exposes as a `w1_slave` file.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pamoja_core::Sensor;
+    /// use pamoja_sensors::ds18b20::linux::Thermometer;
+    ///
+    /// # async fn run() -> pamoja_core::Result<()> {
+    /// let mut probe = Thermometer::new("000005e2fdc3");
+    /// let scratchpad = probe.read().await?;
+    /// println!("{:.4} C", scratchpad.temperature_celsius());
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Thermometer {
+        path: PathBuf,
+    }
+
+    impl Thermometer {
+        /// Names a thermometer by the serial in its directory name.
+        ///
+        /// # Arguments
+        ///
+        /// * `serial` - the twelve hex digits after `28-` in the device directory.
+        ///
+        /// # Returns
+        ///
+        /// The thermometer, reading `/sys/bus/w1/devices/28-<serial>/w1_slave`.
+        pub fn new(serial: &str) -> Thermometer {
+            let directory = format!("{FAMILY_CODE:02x}-{serial}");
+            Thermometer {
+                path: Path::new(DEVICES).join(directory).join(W1_SLAVE),
+            }
+        }
+
+        /// Names a thermometer by the path of its `w1_slave` file.
+        ///
+        /// # Arguments
+        ///
+        /// * `path` - the file to read.
+        ///
+        /// # Returns
+        ///
+        /// The thermometer.
+        pub fn at(path: impl Into<PathBuf>) -> Thermometer {
+            Thermometer { path: path.into() }
+        }
+
+        /// Returns the path of the file the thermometer reads.
+        pub fn path(&self) -> &Path {
+            &self.path
+        }
+
+        /// Lists every DS18B20 the kernel has found.
+        ///
+        /// # Returns
+        ///
+        /// One thermometer per `28-*` directory under [`DEVICES`].
+        ///
+        /// # Errors
+        ///
+        /// Returns the I/O error if the directory cannot be listed, which usually
+        /// means the 1-Wire overlay is not enabled.
+        pub fn discover() -> io::Result<Vec<Thermometer>> {
+            Thermometer::discover_in(Path::new(DEVICES))
+        }
+
+        /// Lists every DS18B20 directory under `devices`.
+        ///
+        /// # Arguments
+        ///
+        /// * `devices` - the directory the kernel lists its 1-Wire devices in.
+        ///
+        /// # Returns
+        ///
+        /// One thermometer per directory whose name starts with the DS18B20 family
+        /// code, sorted by name.
+        ///
+        /// # Errors
+        ///
+        /// Returns the I/O error if the directory cannot be listed.
+        pub fn discover_in(devices: &Path) -> io::Result<Vec<Thermometer>> {
+            let prefix = format!("{FAMILY_CODE:02x}-");
+            let mut found: Vec<Thermometer> = fs::read_dir(devices)?
+                .filter_map(|entry| entry.ok())
+                .filter(|entry| entry.file_name().to_string_lossy().starts_with(&prefix))
+                .map(|entry| Thermometer::at(entry.path().join(W1_SLAVE)))
+                .collect();
+            found.sort_by(|a, b| a.path.cmp(&b.path));
+            Ok(found)
+        }
+
+        /// Reads the file, which makes the kernel run a conversion, and decodes it.
+        ///
+        /// # Returns
+        ///
+        /// The CRC-checked scratchpad.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`ThermometerError::Io`] if the file cannot be read and
+        /// [`ThermometerError::Sensor`] if it does not decode.
+        pub fn read_scratchpad(&self) -> Result<Scratchpad, ThermometerError> {
+            let text = fs::read_to_string(&self.path).map_err(ThermometerError::Io)?;
+            parse_w1_slave(&text).map_err(ThermometerError::Sensor)
+        }
+    }
+
+    impl Sensor for Thermometer {
+        type Reading = Scratchpad;
+
+        async fn read(&mut self) -> pamoja_core::Result<Scratchpad> {
+            self.read_scratchpad().map_err(pamoja_core::Error::from)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::ds18b20::{temperature_from_celsius, Resolution};
+
+        fn kernel_text(celsius: f32) -> String {
+            let raw = temperature_from_celsius(celsius, Resolution::Bits12);
+            let bytes = Scratchpad::new(raw, Resolution::Bits12, 75, -10).to_bytes();
+            let hex: Vec<String> = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+            let hex = hex.join(" ");
+            format!(
+                "{hex} : crc={:02x} YES\n{hex} t={}\n",
+                bytes[8],
+                (celsius * 1000.0) as i32
+            )
+        }
+
+        #[test]
+        fn a_thermometer_reads_and_decodes_its_file() {
+            let dir = std::env::temp_dir().join(format!("pamoja-w1-{}", std::process::id()));
+            let device = dir.join("28-000005e2fdc3");
+            fs::create_dir_all(&device).unwrap();
+            fs::write(device.join(W1_SLAVE), kernel_text(21.5)).unwrap();
+            fs::create_dir_all(dir.join("w1_bus_master1")).unwrap();
+
+            let found = Thermometer::discover_in(&dir).unwrap();
+            assert_eq!(found.len(), 1);
+            assert_eq!(found[0].path(), device.join(W1_SLAVE));
+            let scratchpad = found[0].read_scratchpad().unwrap();
+            assert_eq!(scratchpad.temperature_celsius(), 21.5);
+            assert_eq!(
+                pamoja_hal::script::block_on(found[0].clone().read()).unwrap(),
+                scratchpad
+            );
+
+            let missing = Thermometer::at(dir.join("28-none").join(W1_SLAVE));
+            assert!(matches!(
+                missing.read_scratchpad(),
+                Err(ThermometerError::Io(_))
+            ));
+            fs::remove_dir_all(&dir).unwrap();
+        }
+
+        #[test]
+        fn a_serial_names_the_kernel_path() {
+            let probe = Thermometer::new("000005e2fdc3");
+            assert_eq!(
+                probe.path(),
+                Path::new("/sys/bus/w1/devices/28-000005e2fdc3/w1_slave")
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -501,5 +822,29 @@ mod tests {
                 raw
             );
         }
+    }
+    #[test]
+    fn the_kernel_text_decodes_and_its_verdict_is_honored() {
+        let raw = temperature_from_celsius(20.8125, Resolution::Bits12);
+        let bytes = Scratchpad::new(raw, Resolution::Bits12, 75, -10).to_bytes();
+        let mut hex = alloc::string::String::new();
+        for byte in bytes {
+            hex.push_str(&alloc::format!("{byte:02x} "));
+        }
+        let text = alloc::format!("{hex}: crc={:02x} YES\n{hex}t=20812\n", bytes[8]);
+        let scratchpad = parse_w1_slave(&text).unwrap();
+        assert_eq!(scratchpad.temperature_micro_celsius(), 20_812_500);
+
+        let rejected = alloc::format!("{hex}: crc=00 NO\n{hex}t=20812\n");
+        assert_eq!(parse_w1_slave(&rejected), Err(SensorError::Crc));
+        assert_eq!(parse_w1_slave(""), Err(SensorError::Invalid));
+        assert_eq!(
+            parse_w1_slave("4d 01 : crc=e8 YES\n"),
+            Err(SensorError::Invalid)
+        );
+        assert_eq!(
+            parse_w1_slave("zz 01 4b 46 7f ff 03 10 e8 : crc=e8 YES\n"),
+            Err(SensorError::Invalid)
+        );
     }
 }

@@ -1,6 +1,6 @@
 //! Coil sequencing for four-wire stepper motors.
 //!
-//! A stepper turns by energising its coils in a repeating pattern; stepping through
+//! A stepper turns by energizing its coils in a repeating pattern; stepping through
 //! the pattern in one direction or the other advances or reverses the shaft. This
 //! module holds the three standard drive patterns and a sequencer that walks them, so
 //! a caller toggles the four coil lines (directly, or through a darlington array like
@@ -10,6 +10,12 @@
 //!
 //! Coil patterns are four bits, the most significant being the first coil (IN1 on a
 //! ULN2003 board) down to the least significant (IN4).
+
+#[cfg(feature = "embedded-hal")]
+mod driver;
+
+#[cfg(feature = "embedded-hal")]
+pub use driver::{FourWire, StepDir, DEFAULT_PULSE_MICROS, DEFAULT_STEP_MICROS};
 
 /// Which way to step.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,15 +28,15 @@ pub enum Direction {
 
 /// A stepper drive pattern.
 ///
-/// The three patterns trade torque, smoothness, and resolution. Wave drive energises
-/// one coil at a time (least torque, least power); full-step energises two at a time
+/// The three patterns trade torque, smoothness, and resolution. Wave drive energizes
+/// one coil at a time (least torque, least power); full-step energizes two at a time
 /// (most torque); half-step alternates between them to double the resolution at the
 /// cost of uneven torque.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Drive {
-    /// One coil energised at a time: four steps.
+    /// One coil energized at a time: four steps.
     Wave,
-    /// Two adjacent coils energised at a time: four steps, more torque.
+    /// Two adjacent coils energized at a time: four steps, more torque.
     FullStep,
     /// Alternating one and two coils: eight steps, double resolution.
     HalfStep,

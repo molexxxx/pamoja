@@ -1,8 +1,8 @@
 # @pamoja/field-io
 
-The wires a gateway actually has: framed serial packets, an RS485 request and the reply it draws, a CAN frame, and the address a chip answers on.
+The wires a gateway actually has: framed serial packets, an RS485 request and the reply it draws, a CAN frame, the address a chip answers on, and the bus that carries a driver to the part.
 
-One install for the 4 capabilities of this domain. Each is also its own package, and
+One install for the 5 capabilities of this domain. Each is also its own package, and
 `pamoja` is the whole framework in one.
 
 ```sh
@@ -15,6 +15,7 @@ npm install @pamoja/field-io
 | [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html) | `@pamoja/modbus` | Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices |
 | [CAN and J1939](https://pamoja.molex.cloud/docs/guides/can.html) | `@pamoja/can` | CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose |
 | [I2C, SPI, and GPIO](https://pamoja.molex.cloud/docs/guides/gpio.html) | `@pamoja/gpio` | I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins |
+| [Buses](https://pamoja.molex.cloud/docs/guides/hal.html) | `@pamoja/core` | The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, scripted buses that play a part's side of a conversation, and the Linux backends over i2c-dev, spidev, and the GPIO character device |
 
 The guides, with a worked TypeScript example for each, are at [https://pamoja.molex.cloud/docs](https://pamoja.molex.cloud/docs/).
 

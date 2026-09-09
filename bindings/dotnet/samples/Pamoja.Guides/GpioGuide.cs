@@ -36,10 +36,10 @@ public static class GpioGuide
         Console.WriteLine(
             $"spi mode 3: idles high {clock.Cpol}, samples on the trailing edge {clock.Cpha}");
 
-        // A relay board sold as active low energises when its pin is driven low. The
+        // A relay board sold as active low energizes when its pin is driven low. The
         // polarity carries that inversion, so no call site has to remember it.
-        PinLevel energise = Pin.LevelFor(PinPolarity.ActiveLow, true);
-        Console.WriteLine($"to energise an active-low relay, drive the pin {energise}");
+        PinLevel energize = Pin.LevelFor(PinPolarity.ActiveLow, true);
+        Console.WriteLine($"to energize an active-low relay, drive the pin {energize}");
 
         // Releasing it drives the line back high, an edge a falling trigger ignores.
         bool rising = Pin.Triggers(PinEdge.Rising, PinLevel.Low, PinLevel.High);
@@ -54,7 +54,7 @@ public static class GpioGuide
         Expect(I2c.FrameLen(TenBitDevice, tenBit: true) == 2, "a 10-bit address takes two bytes");
         Expect(clock.Cpol && clock.Cpha, "mode 3 is both bits set");
         Expect(Spi.ModeFor(true, false) == 2, "and the pair maps back to a mode number");
-        Expect(energise == PinLevel.Low, "active low energises on a low level");
+        Expect(energize == PinLevel.Low, "active low energizes on a low level");
         Expect(Pin.IsAsserted(PinPolarity.ActiveLow, PinLevel.Low), "and reads as asserted");
         Expect(rising, "the release is a rising edge");
         Expect(!falling, "which a falling trigger ignores");

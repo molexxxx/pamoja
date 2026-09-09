@@ -9,6 +9,7 @@ mod coap;
 mod codec;
 mod device;
 mod gpio;
+mod hal;
 mod imports;
 mod kit;
 mod ladder;

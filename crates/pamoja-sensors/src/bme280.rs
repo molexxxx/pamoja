@@ -9,7 +9,15 @@
 //!
 //! A caller reads the calibration registers once with [`Calibration::from_registers`],
 //! then reads the data registers each cycle into a [`RawMeasurement`] and calls
-//! [`Calibration::compensate`].
+//! [`Calibration::compensate`]. The control registers ([`CtrlHum`], [`CtrlMeas`],
+//! [`Config`]) and the measurement-time formula are here too, and the [`Bme280`]
+//! driver (the `embedded-hal` feature) runs the whole sequence over an I2C or SPI bus.
+
+#[cfg(feature = "embedded-hal")]
+mod driver;
+
+#[cfg(feature = "embedded-hal")]
+pub use driver::{Bme280, STATUS_POLLS};
 
 /// The I2C address with the SDO pin tied low.
 pub const I2C_ADDRESS_PRIMARY: u8 = 0x76;
@@ -31,6 +39,58 @@ pub mod register {
     /// First of the 8 burst-read data bytes: pressure, temperature, humidity
     /// (0xF7..=0xFE).
     pub const DATA: u8 = 0xF7;
+    /// Humidity acquisition options; effective only after a write to `CTRL_MEAS`.
+    pub const CTRL_HUM: u8 = 0xF2;
+    /// The `measuring` and `im_update` flags.
+    pub const STATUS: u8 = 0xF3;
+    /// Temperature and pressure acquisition options and the power mode.
+    pub const CTRL_MEAS: u8 = 0xF4;
+    /// Standby time, IIR filter, and the 3-wire SPI switch.
+    pub const CONFIG: u8 = 0xF5;
+}
+
+/// The soft-reset word: writing it to [`register::RESET`] runs the power-on sequence.
+pub const RESET_WORD: u8 = 0xB6;
+/// The value a skipped temperature or pressure measurement leaves in its registers.
+pub const SKIPPED_OUTPUT: u32 = 0x80000;
+/// The value a skipped humidity measurement leaves in its registers.
+pub const SKIPPED_HUMIDITY: u16 = 0x8000;
+/// The number of bytes in the temperature and pressure calibration block.
+pub const CALIB_TEMP_PRESS_LEN: usize = 26;
+/// The number of bytes in the humidity calibration block.
+pub const CALIB_HUMIDITY_LEN: usize = 7;
+/// The number of bytes in the burst-read data block.
+pub const DATA_LEN: usize = 8;
+/// The start-up time from power-on or reset until the part accepts a transfer, in
+/// microseconds.
+pub const STARTUP_MICROS: u32 = 2_000;
+
+/// Reads the `measuring` flag of a status register value.
+///
+/// # Arguments
+///
+/// * `status` - the byte read from [`register::STATUS`].
+///
+/// # Returns
+///
+/// `true` while a conversion is running and its results are not yet in the data
+/// registers.
+pub fn measuring(status: u8) -> bool {
+    status & 0x08 != 0
+}
+
+/// Reads the `im_update` flag of a status register value.
+///
+/// # Arguments
+///
+/// * `status` - the byte read from [`register::STATUS`].
+///
+/// # Returns
+///
+/// `true` while the calibration data is being copied from non-volatile memory, at
+/// power-on reset and before every conversion.
+pub fn image_updating(status: u8) -> bool {
+    status & 0x01 != 0
 }
 
 /// The per-chip calibration coefficients read from the sensor's calibration registers.
@@ -241,6 +301,650 @@ impl Measurement {
     /// Returns the relative humidity in percent.
     pub fn relative_humidity_percent(&self) -> f32 {
         self.humidity_q22_10 as f32 / 1024.0
+    }
+}
+
+/// An oversampling setting for one of the three measurements.
+///
+/// Each doubling of the sample count adds one bit of resolution to temperature and
+/// pressure, up to the 20 bits the data registers hold.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Oversampling {
+    /// The measurement is skipped; its data registers read [`SKIPPED_OUTPUT`] or
+    /// [`SKIPPED_HUMIDITY`].
+    #[default]
+    Skipped,
+    /// A single sample.
+    X1,
+    /// Two samples.
+    X2,
+    /// Four samples.
+    X4,
+    /// Eight samples.
+    X8,
+    /// Sixteen samples.
+    X16,
+}
+
+impl Oversampling {
+    /// Returns the three-bit `osrs_t`, `osrs_p`, or `osrs_h` field value.
+    pub fn code(self) -> u8 {
+        match self {
+            Oversampling::Skipped => 0b000,
+            Oversampling::X1 => 0b001,
+            Oversampling::X2 => 0b010,
+            Oversampling::X4 => 0b011,
+            Oversampling::X8 => 0b100,
+            Oversampling::X16 => 0b101,
+        }
+    }
+
+    /// Decodes a three-bit oversampling field value.
+    ///
+    /// The codes `0b101`, `0b110`, and `0b111` all select 16x oversampling.
+    ///
+    /// # Arguments
+    ///
+    /// * `code` - the field value; only the low three bits are used.
+    ///
+    /// # Returns
+    ///
+    /// The oversampling setting.
+    pub fn from_code(code: u8) -> Oversampling {
+        match code & 0b111 {
+            0b000 => Oversampling::Skipped,
+            0b001 => Oversampling::X1,
+            0b010 => Oversampling::X2,
+            0b011 => Oversampling::X4,
+            0b100 => Oversampling::X8,
+            _ => Oversampling::X16,
+        }
+    }
+
+    /// Returns the number of samples averaged, or `0` when skipped.
+    pub fn factor(self) -> u8 {
+        match self {
+            Oversampling::Skipped => 0,
+            Oversampling::X1 => 1,
+            Oversampling::X2 => 2,
+            Oversampling::X4 => 4,
+            Oversampling::X8 => 8,
+            Oversampling::X16 => 16,
+        }
+    }
+}
+
+/// The power mode selected by the `mode[1:0]` field.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Mode {
+    /// No measurements; the power-on default. Every register stays readable.
+    #[default]
+    Sleep,
+    /// One measurement, then back to sleep.
+    Forced,
+    /// Continuous cycling between a measurement and a standby period.
+    Normal,
+}
+
+impl Mode {
+    /// Returns the two-bit `mode` field value.
+    pub fn code(self) -> u8 {
+        match self {
+            Mode::Sleep => 0b00,
+            Mode::Forced => 0b01,
+            Mode::Normal => 0b11,
+        }
+    }
+
+    /// Decodes a two-bit `mode` field value; both `0b01` and `0b10` mean forced.
+    ///
+    /// # Arguments
+    ///
+    /// * `code` - the field value; only the low two bits are used.
+    ///
+    /// # Returns
+    ///
+    /// The power mode.
+    pub fn from_code(code: u8) -> Mode {
+        match code & 0b11 {
+            0b00 => Mode::Sleep,
+            0b11 => Mode::Normal,
+            _ => Mode::Forced,
+        }
+    }
+}
+
+/// The inactive period between measurements in normal mode, the `t_sb[2:0]` field.
+///
+/// The two longest BMP280 settings become the two shortest here: codes `0b110` and
+/// `0b111` mean 10 and 20 ms on a BME280.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Standby {
+    /// 0.5 ms.
+    #[default]
+    Ms0_5,
+    /// 62.5 ms.
+    Ms62_5,
+    /// 125 ms.
+    Ms125,
+    /// 250 ms.
+    Ms250,
+    /// 500 ms.
+    Ms500,
+    /// 1000 ms.
+    Ms1000,
+    /// 10 ms.
+    Ms10,
+    /// 20 ms.
+    Ms20,
+}
+
+impl Standby {
+    /// Returns the three-bit `t_sb` field value.
+    pub fn code(self) -> u8 {
+        match self {
+            Standby::Ms0_5 => 0b000,
+            Standby::Ms62_5 => 0b001,
+            Standby::Ms125 => 0b010,
+            Standby::Ms250 => 0b011,
+            Standby::Ms500 => 0b100,
+            Standby::Ms1000 => 0b101,
+            Standby::Ms10 => 0b110,
+            Standby::Ms20 => 0b111,
+        }
+    }
+
+    /// Decodes a three-bit `t_sb` field value.
+    ///
+    /// # Arguments
+    ///
+    /// * `code` - the field value; only the low three bits are used.
+    ///
+    /// # Returns
+    ///
+    /// The standby period.
+    pub fn from_code(code: u8) -> Standby {
+        match code & 0b111 {
+            0b000 => Standby::Ms0_5,
+            0b001 => Standby::Ms62_5,
+            0b010 => Standby::Ms125,
+            0b011 => Standby::Ms250,
+            0b100 => Standby::Ms500,
+            0b101 => Standby::Ms1000,
+            0b110 => Standby::Ms10,
+            _ => Standby::Ms20,
+        }
+    }
+
+    /// Returns the standby period in microseconds.
+    pub fn microseconds(self) -> u32 {
+        match self {
+            Standby::Ms0_5 => 500,
+            Standby::Ms62_5 => 62_500,
+            Standby::Ms125 => 125_000,
+            Standby::Ms250 => 250_000,
+            Standby::Ms500 => 500_000,
+            Standby::Ms1000 => 1_000_000,
+            Standby::Ms10 => 10_000,
+            Standby::Ms20 => 20_000,
+        }
+    }
+}
+
+/// The IIR filter coefficient, the `filter[2:0]` field.
+///
+/// The filter smooths pressure and temperature across measurements and raises their
+/// resolution to 20 bits; humidity is never filtered.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Filter {
+    /// No filtering.
+    #[default]
+    Off,
+    /// Coefficient 2.
+    X2,
+    /// Coefficient 4.
+    X4,
+    /// Coefficient 8.
+    X8,
+    /// Coefficient 16.
+    X16,
+}
+
+impl Filter {
+    /// Returns the three-bit `filter` field value.
+    pub fn code(self) -> u8 {
+        match self {
+            Filter::Off => 0b000,
+            Filter::X2 => 0b001,
+            Filter::X4 => 0b010,
+            Filter::X8 => 0b011,
+            Filter::X16 => 0b100,
+        }
+    }
+
+    /// Decodes a three-bit `filter` field value; `0b100` and above mean 16.
+    ///
+    /// # Arguments
+    ///
+    /// * `code` - the field value; only the low three bits are used.
+    ///
+    /// # Returns
+    ///
+    /// The filter setting.
+    pub fn from_code(code: u8) -> Filter {
+        match code & 0b111 {
+            0b000 => Filter::Off,
+            0b001 => Filter::X2,
+            0b010 => Filter::X4,
+            0b011 => Filter::X8,
+            _ => Filter::X16,
+        }
+    }
+
+    /// Returns the filter coefficient, or `0` when off.
+    pub fn coefficient(self) -> u8 {
+        match self {
+            Filter::Off => 0,
+            Filter::X2 => 2,
+            Filter::X4 => 4,
+            Filter::X8 => 8,
+            Filter::X16 => 16,
+        }
+    }
+}
+
+/// The humidity control register (0xF2, `ctrl_hum`).
+///
+/// A write takes effect only after the next write to `ctrl_meas`. The default is the
+/// reset state, `0x00`: humidity skipped.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct CtrlHum {
+    /// Humidity oversampling, `osrs_h[2:0]` in bits 2:0.
+    pub humidity: Oversampling,
+}
+
+impl CtrlHum {
+    /// Packs the setting into the register byte.
+    ///
+    /// # Returns
+    ///
+    /// The byte to write to [`register::CTRL_HUM`].
+    pub fn bits(self) -> u8 {
+        self.humidity.code()
+    }
+
+    /// Decodes a register byte.
+    ///
+    /// # Arguments
+    ///
+    /// * `bits` - the byte read from [`register::CTRL_HUM`].
+    ///
+    /// # Returns
+    ///
+    /// The decoded setting.
+    pub fn from_bits(bits: u8) -> CtrlHum {
+        CtrlHum {
+            humidity: Oversampling::from_code(bits),
+        }
+    }
+}
+
+/// The measurement control register (0xF4, `ctrl_meas`).
+///
+/// The default is the reset state, `0x00`: temperature and pressure skipped, the
+/// part asleep.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct CtrlMeas {
+    /// Temperature oversampling, `osrs_t[2:0]` in bits 7:5.
+    pub temperature: Oversampling,
+    /// Pressure oversampling, `osrs_p[2:0]` in bits 4:2.
+    pub pressure: Oversampling,
+    /// Power mode, `mode[1:0]` in bits 1:0.
+    pub mode: Mode,
+}
+
+impl CtrlMeas {
+    /// Packs the settings into the register byte.
+    ///
+    /// # Returns
+    ///
+    /// The byte to write to [`register::CTRL_MEAS`].
+    pub fn bits(self) -> u8 {
+        (self.temperature.code() << 5) | (self.pressure.code() << 2) | self.mode.code()
+    }
+
+    /// Decodes a register byte.
+    ///
+    /// # Arguments
+    ///
+    /// * `bits` - the byte read from [`register::CTRL_MEAS`].
+    ///
+    /// # Returns
+    ///
+    /// The decoded settings.
+    pub fn from_bits(bits: u8) -> CtrlMeas {
+        CtrlMeas {
+            temperature: Oversampling::from_code(bits >> 5),
+            pressure: Oversampling::from_code(bits >> 2),
+            mode: Mode::from_code(bits),
+        }
+    }
+}
+
+/// The configuration register (0xF5, `config`).
+///
+/// Writes may be ignored in normal mode; write it in sleep mode. The default is the
+/// reset state, `0x00`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct Config {
+    /// Normal-mode standby period, `t_sb[2:0]` in bits 7:5.
+    pub standby: Standby,
+    /// IIR filter coefficient, `filter[2:0]` in bits 4:2.
+    pub filter: Filter,
+    /// Enables the 3-wire SPI interface, `spi3w_en` in bit 0.
+    pub spi_3wire: bool,
+}
+
+impl Config {
+    /// Packs the settings into the register byte.
+    ///
+    /// # Returns
+    ///
+    /// The byte to write to [`register::CONFIG`].
+    pub fn bits(self) -> u8 {
+        (self.standby.code() << 5) | (self.filter.code() << 2) | u8::from(self.spi_3wire)
+    }
+
+    /// Decodes a register byte.
+    ///
+    /// # Arguments
+    ///
+    /// * `bits` - the byte read from [`register::CONFIG`].
+    ///
+    /// # Returns
+    ///
+    /// The decoded settings.
+    pub fn from_bits(bits: u8) -> Config {
+        Config {
+            standby: Standby::from_code(bits >> 5),
+            filter: Filter::from_code(bits >> 2),
+            spi_3wire: bits & 0x01 != 0,
+        }
+    }
+}
+
+/// The longest one measurement cycle can take, in microseconds.
+///
+/// This is the datasheet's maximum: 1.25 ms, plus 2.3 ms per temperature sample,
+/// plus 2.3 ms per pressure sample and 0.575 ms, plus 2.3 ms per humidity sample and
+/// 0.575 ms, each term only for a measurement that is not skipped. A driver waits
+/// this long after forcing a measurement before it polls the status register.
+///
+/// # Arguments
+///
+/// * `temperature` - temperature oversampling.
+/// * `pressure` - pressure oversampling.
+/// * `humidity` - humidity oversampling.
+///
+/// # Returns
+///
+/// The maximum measurement time in microseconds.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_sensors::bme280::{max_measurement_micros, Oversampling};
+///
+/// // The datasheet's worked example: temperature x1, pressure x4, no humidity.
+/// let micros = max_measurement_micros(Oversampling::X1, Oversampling::X4, Oversampling::Skipped);
+/// assert_eq!(micros, 13_325);
+/// ```
+pub fn max_measurement_micros(
+    temperature: Oversampling,
+    pressure: Oversampling,
+    humidity: Oversampling,
+) -> u32 {
+    let mut micros = 1_250;
+    if temperature != Oversampling::Skipped {
+        micros += 2_300 * u32::from(temperature.factor());
+    }
+    if pressure != Oversampling::Skipped {
+        micros += 2_300 * u32::from(pressure.factor()) + 575;
+    }
+    if humidity != Oversampling::Skipped {
+        micros += 2_300 * u32::from(humidity.factor()) + 575;
+    }
+    micros
+}
+
+/// The typical time one measurement cycle takes, in microseconds.
+///
+/// The datasheet's typical figure: 1 ms, plus 2 ms per temperature sample, plus 2 ms
+/// per pressure sample and 0.5 ms, plus 2 ms per humidity sample and 0.5 ms, each
+/// term only for a measurement that is not skipped.
+///
+/// # Arguments
+///
+/// * `temperature` - temperature oversampling.
+/// * `pressure` - pressure oversampling.
+/// * `humidity` - humidity oversampling.
+///
+/// # Returns
+///
+/// The typical measurement time in microseconds.
+pub fn typical_measurement_micros(
+    temperature: Oversampling,
+    pressure: Oversampling,
+    humidity: Oversampling,
+) -> u32 {
+    let mut micros = 1_000;
+    if temperature != Oversampling::Skipped {
+        micros += 2_000 * u32::from(temperature.factor());
+    }
+    if pressure != Oversampling::Skipped {
+        micros += 2_000 * u32::from(pressure.factor()) + 500;
+    }
+    if humidity != Oversampling::Skipped {
+        micros += 2_000 * u32::from(humidity.factor()) + 500;
+    }
+    micros
+}
+
+impl Calibration {
+    /// Packs the coefficients back into the two register blocks.
+    ///
+    /// This is the inverse of [`from_registers`](Calibration::from_registers), so a
+    /// test can build what a part with these coefficients holds in its calibration
+    /// registers. Byte 24 of the first block (register 0xA0) is not a coefficient and
+    /// is written as zero.
+    ///
+    /// # Returns
+    ///
+    /// The 26 bytes of `0x88..=0xA1` and the 7 bytes of `0xE1..=0xE7`.
+    pub fn to_registers(&self) -> ([u8; CALIB_TEMP_PRESS_LEN], [u8; CALIB_HUMIDITY_LEN]) {
+        let mut tp = [0u8; CALIB_TEMP_PRESS_LEN];
+        let words = [
+            self.dig_t1,
+            self.dig_t2 as u16,
+            self.dig_t3 as u16,
+            self.dig_p1,
+            self.dig_p2 as u16,
+            self.dig_p3 as u16,
+            self.dig_p4 as u16,
+            self.dig_p5 as u16,
+            self.dig_p6 as u16,
+            self.dig_p7 as u16,
+            self.dig_p8 as u16,
+            self.dig_p9 as u16,
+        ];
+        for (index, word) in words.into_iter().enumerate() {
+            let [low, high] = word.to_le_bytes();
+            tp[2 * index] = low;
+            tp[2 * index + 1] = high;
+        }
+        tp[25] = self.dig_h1;
+
+        let h2 = (self.dig_h2 as u16).to_le_bytes();
+        let h = [
+            h2[0],
+            h2[1],
+            self.dig_h3,
+            (self.dig_h4 >> 4) as u8,
+            (((self.dig_h5 & 0x0F) as u8) << 4) | (self.dig_h4 & 0x0F) as u8,
+            (self.dig_h5 >> 4) as u8,
+            self.dig_h6 as u8,
+        ];
+        (tp, h)
+    }
+}
+
+impl RawMeasurement {
+    /// Packs the raw readings back into the eight data-register bytes.
+    ///
+    /// This is the inverse of [`from_registers`](RawMeasurement::from_registers), so
+    /// a test can build what a part holding these readings sends in a burst read.
+    ///
+    /// # Returns
+    ///
+    /// The eight bytes of `0xF7..=0xFE`.
+    pub fn to_registers(&self) -> [u8; DATA_LEN] {
+        let pressure = self.pressure as u32;
+        let temperature = self.temperature as u32;
+        let humidity = self.humidity as u16;
+        [
+            (pressure >> 12) as u8,
+            (pressure >> 4) as u8,
+            ((pressure & 0x0F) << 4) as u8,
+            (temperature >> 12) as u8,
+            (temperature >> 4) as u8,
+            ((temperature & 0x0F) << 4) as u8,
+            (humidity >> 8) as u8,
+            humidity as u8,
+        ]
+    }
+}
+
+#[cfg(test)]
+mod control_tests {
+    use super::*;
+
+    #[test]
+    fn oversampling_codes_follow_the_datasheet_tables() {
+        assert_eq!(Oversampling::Skipped.code(), 0b000);
+        assert_eq!(Oversampling::X16.code(), 0b101);
+        assert_eq!(Oversampling::from_code(0b110), Oversampling::X16);
+        assert_eq!(Oversampling::from_code(0b100), Oversampling::X8);
+        assert_eq!(Oversampling::X8.factor(), 8);
+    }
+
+    #[test]
+    fn mode_codes_treat_both_forced_encodings_alike() {
+        assert_eq!(Mode::from_code(0b01), Mode::Forced);
+        assert_eq!(Mode::from_code(0b10), Mode::Forced);
+        assert_eq!(Mode::from_code(0b11), Mode::Normal);
+        assert_eq!(Mode::Normal.code(), 0b11);
+    }
+
+    #[test]
+    fn standby_codes_carry_the_bme280_reassignment_of_the_top_two() {
+        assert_eq!(Standby::Ms10.code(), 0b110);
+        assert_eq!(Standby::Ms20.code(), 0b111);
+        assert_eq!(Standby::from_code(0b110).microseconds(), 10_000);
+        assert_eq!(Standby::from_code(0b101).microseconds(), 1_000_000);
+        assert_eq!(Standby::from_code(0b000).microseconds(), 500);
+    }
+
+    #[test]
+    fn filter_codes_saturate_at_sixteen() {
+        assert_eq!(Filter::X16.code(), 0b100);
+        assert_eq!(Filter::from_code(0b111), Filter::X16);
+        assert_eq!(Filter::from_code(0b011).coefficient(), 8);
+        assert_eq!(Filter::Off.coefficient(), 0);
+    }
+
+    #[test]
+    fn control_registers_pack_their_fields_where_the_datasheet_puts_them() {
+        let ctrl_meas = CtrlMeas {
+            temperature: Oversampling::X2,
+            pressure: Oversampling::X16,
+            mode: Mode::Normal,
+        };
+        assert_eq!(ctrl_meas.bits(), 0b0101_0111);
+        assert_eq!(CtrlMeas::from_bits(0b0101_0111), ctrl_meas);
+        let config = Config {
+            standby: Standby::Ms1000,
+            filter: Filter::X4,
+            spi_3wire: true,
+        };
+        assert_eq!(config.bits(), 0b1010_1001);
+        assert_eq!(Config::from_bits(0b1010_1001), config);
+        assert_eq!(CtrlHum::from_bits(0x03).humidity, Oversampling::X4);
+        assert_eq!(CtrlMeas::default().bits(), 0x00);
+        assert_eq!(Config::default().bits(), 0x00);
+    }
+
+    #[test]
+    fn status_flags_sit_in_bits_three_and_zero() {
+        assert!(measuring(0x08));
+        assert!(!measuring(0x01));
+        assert!(image_updating(0x01));
+        assert!(!image_updating(0x08));
+    }
+
+    #[test]
+    fn measurement_times_match_the_datasheet_worked_example() {
+        let (t, p, h) = (Oversampling::X1, Oversampling::X4, Oversampling::Skipped);
+        assert_eq!(max_measurement_micros(t, p, h), 13_325);
+        assert_eq!(typical_measurement_micros(t, p, h), 11_500);
+        let all = Oversampling::X1;
+        assert_eq!(max_measurement_micros(all, all, all), 9_300);
+        assert_eq!(
+            max_measurement_micros(
+                Oversampling::Skipped,
+                Oversampling::Skipped,
+                Oversampling::Skipped
+            ),
+            1_250
+        );
+    }
+
+    #[test]
+    fn calibration_registers_round_trip_including_the_shared_h4_h5_byte() {
+        let tp = [
+            0x45, 0x6F, 0x6F, 0x68, 0x32, 0x00, 0x46, 0x91, 0x6A, 0xD6, 0xD0, 0x0B, 0x4E, 0x1E,
+            0x88, 0xFF, 0xF9, 0xFF, 0xAC, 0x26, 0x0A, 0xD8, 0xBD, 0x10, 0x00, 0x4B,
+        ];
+        let h = [0x62, 0x01, 0x00, 0x15, 0x23, 0x03, 0x1E];
+        let calibration = Calibration::from_registers(&tp, &h);
+        assert_eq!(calibration.dig_t1, 28485);
+        assert_eq!(calibration.dig_p2, -10646);
+        assert_eq!(calibration.dig_h4, 339);
+        assert_eq!(calibration.dig_h5, 50);
+        assert_eq!(calibration.to_registers(), (tp, h));
+
+        let negative = Calibration {
+            dig_h4: -100,
+            dig_h5: -7,
+            ..calibration
+        };
+        let (tp2, h2) = negative.to_registers();
+        assert_eq!(Calibration::from_registers(&tp2, &h2), negative);
+    }
+
+    #[test]
+    fn raw_measurement_registers_round_trip() {
+        let data = [0x53, 0xD0, 0xE0, 0x81, 0xD9, 0x00, 0x6E, 0x62];
+        let raw = RawMeasurement::from_registers(&data);
+        assert_eq!(raw.to_registers(), data);
+        let skipped = RawMeasurement {
+            temperature: SKIPPED_OUTPUT as i32,
+            pressure: SKIPPED_OUTPUT as i32,
+            humidity: i32::from(SKIPPED_HUMIDITY),
+        };
+        assert_eq!(
+            RawMeasurement::from_registers(&skipped.to_registers()),
+            skipped
+        );
     }
 }
 

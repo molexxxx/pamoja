@@ -27,11 +27,21 @@ into a physical reading. Each module is one named part: it knows that part's
 register map, builds the bytes that configure it, and decodes what it sends back,
 applying the exact conversion the manufacturer's datasheet specifies.
 
-Like the rest of the SDK's hardware crates, these are the decode-and-configure
-half ahead of the actual bus driver: pure logic with no I/O, so the same code runs
-on a microcontroller and in a test. A caller pairs a module here with whatever
-performs the transfers (a `pamoja-gpio` Linux backend, an `embedded-hal` bus, or a
-simulator) and gets calibrated readings without re-deriving a datasheet.
+Each module is two layers. The decode layer is pure logic with no I/O: the register
+map, the bytes that configure the part, and the conversion of what it sends back,
+so it runs on a microcontroller, on a gateway, and in a test with nothing plugged
+in. The driver layer (the `embedded-hal` feature, on by default) is a type named
+after the part that owns a bus from [`pamoja-hal`](https://docs.rs/pamoja-hal),
+performs the datasheet's transfer sequence, and implements the core
+[`Sensor`](https://docs.rs/pamoja-core/latest/pamoja_core/trait.Sensor.html)
+trait, so a `Bme280` reads through any `embedded-hal` I2C or SPI implementation
+and a `Ds18b20` through any 1-Wire bus. A driver's reading is the part's full
+measurement; `Sensor::map` selects one channel for a controller that wants a
+single number. Every driver is tested against its datasheet's own transfer
+sequence over a scripted bus, and a driver's error converts into the core error so
+the part slots into a profile or a node unchanged. The shapes the drivers share,
+a register bus over I2C or SPI and the 16-bit register access of the Texas
+Instruments parts, are in `driver`.
 
 The conversions are anchored to each datasheet's own reference values, since they
 are where memory-driven bugs hide. The BME280 compensation is ported from Bosch's

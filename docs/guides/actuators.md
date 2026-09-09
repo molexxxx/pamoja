@@ -3,7 +3,7 @@
 Two parts cover most of what a field node actually moves. A PCA9685 gives
 sixteen PWM channels at one shared frequency, which is how a bank of servos,
 dimmable lights, or the inputs of a motor driver run off a single I2C device. A
-four-wire stepper turns by energising its coils in a repeating pattern. Both are
+four-wire stepper turns by energizing its coils in a repeating pattern. Both are
 exact arithmetic against a datasheet, and both fail quietly when a constant is
 wrong: a servo that buzzes against its endstop, a motor that hums without
 turning. pamoja works out the register bytes and the coil patterns and writes
@@ -34,7 +34,7 @@ It proves:
   counts in a period.
 - Fully off is its own encoding rather than a zero duty, which would still hold
   the output high for the first count of every period.
-- Half-step drive alternates one energised coil with two, `1000` then `1100`
+- Half-step drive alternates one energized coil with two, `1000` then `1100`
   then `0100`, and eight steps wrap back to the pattern it started on.
 - A quarter turn of a 1.8-degree motor is 50 whole steps.
 

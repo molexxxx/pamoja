@@ -30,6 +30,8 @@ The primary abstractions are:
 - `Transport` - a bidirectional byte transport.
 - `Store` - a durable store-and-forward queue.
 - `EventBus` - a typed publish/subscribe channel.
+- `Map` and `MapCommand` - adapters that reshape a reading or a command, so a
+  multi-channel driver feeds a consumer that wants one number.
 - `Error` and `Result` - the shared error model.
 
 **Examples**
