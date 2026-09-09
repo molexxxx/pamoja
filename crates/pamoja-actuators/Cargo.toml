@@ -12,6 +12,9 @@ keywords.workspace = true
 categories.workspace = true
 authors.workspace = true
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 # The drivers, which reach a part over an embedded-hal bus or pins and implement the
 # core Actuator trait. The encode half needs nothing and builds with the feature off.

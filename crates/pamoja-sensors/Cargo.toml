@@ -12,6 +12,9 @@ keywords.workspace = true
 categories.workspace = true
 authors.workspace = true
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 # The drivers, which reach a part over an embedded-hal bus and implement the core
 # Sensor trait. The decode half needs nothing and builds with the feature off.

@@ -22,7 +22,7 @@
 //!   pin that records what it was driven to, and a delay that records how long it was
 //!   asked to wait. A driver is tested against the datasheet's own sequence with
 //!   nothing plugged in.
-//! - [`linux`] (feature `linux`, Linux only) opens the kernel's `/dev/i2c-*`,
+//! - `linux` (feature `linux`, Linux only) opens the kernel's `/dev/i2c-*`,
 //!   `/dev/spidev*`, and GPIO character devices as those same traits, so a gateway
 //!   reads a sensor with one call and no glue.
 //!

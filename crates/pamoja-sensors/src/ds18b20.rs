@@ -464,9 +464,9 @@ pub fn parse_w1_slave(text: &str) -> Result<Scratchpad, SensorError> {
 /// puts the bus on a GPIO, and the kernel's `w1_therm` driver lists every DS18B20 it
 /// finds as a directory named by its family code and serial, `28-000005e2fdc3`, with
 /// a `w1_slave` file that runs a conversion and prints the scratchpad on every read.
-/// A [`Thermometer`] reads that file as a [`Sensor`], which is the right way to reach
-/// a DS18B20 from a Linux process, where the bit timing a [`Ds18b20`] needs cannot
-/// be held.
+/// A [`Thermometer`](linux::Thermometer) reads that file as a
+/// [`Sensor`](pamoja_core::Sensor), which is the right way to reach a DS18B20 from a
+/// Linux process, where the bit timing a [`Ds18b20`] needs cannot be held.
 #[cfg(feature = "linux")]
 pub mod linux {
     use std::path::{Path, PathBuf};

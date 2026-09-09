@@ -12,6 +12,9 @@ keywords.workspace = true
 categories.workspace = true
 authors.workspace = true
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 # The switch and contact drivers over embedded-hal pins, which implement the core
 # Actuator and Sensor traits. The pin model needs nothing and builds with the feature

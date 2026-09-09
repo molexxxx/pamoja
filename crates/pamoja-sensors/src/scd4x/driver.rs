@@ -102,7 +102,8 @@ impl<I2C: I2c, D: DelayNs> Scd4x<I2C, D> {
     /// # Errors
     ///
     /// Returns [`DriverError::Bus`] if the bus fails, and [`DriverError::Sensor`]
-    /// with [`SensorError::Crc`] if the serial number arrives corrupted.
+    /// with [`SensorError::Crc`](crate::SensorError::Crc) if the serial number
+    /// arrives corrupted.
     pub fn init(&mut self) -> Result<(), DriverError<I2C::Error>> {
         self.send(command::STOP_PERIODIC_MEASUREMENT)?;
         self.send(command::GET_SERIAL_NUMBER)?;
@@ -129,8 +130,9 @@ impl<I2C: I2c, D: DelayNs> Scd4x<I2C, D> {
     /// # Errors
     ///
     /// Returns [`DriverError::Bus`] if the bus fails, [`DriverError::Timeout`] if
-    /// no result becomes ready, [`DriverError::Sensor`] with [`SensorError::Crc`] if
-    /// a word arrives corrupted, or any error of [`init`](Scd4x::init).
+    /// no result becomes ready, [`DriverError::Sensor`] with
+    /// [`SensorError::Crc`](crate::SensorError::Crc) if a word arrives corrupted, or
+    /// any error of [`init`](Scd4x::init).
     pub fn measure(&mut self) -> Result<Measurement, DriverError<I2C::Error>> {
         if self.serial.is_none() {
             self.init()?;
@@ -162,7 +164,8 @@ impl<I2C: I2c, D: DelayNs> Scd4x<I2C, D> {
     /// # Errors
     ///
     /// Returns [`DriverError::Bus`] if the bus fails, and [`DriverError::Sensor`]
-    /// with [`SensorError::Crc`] if a word arrives corrupted.
+    /// with [`SensorError::Crc`](crate::SensorError::Crc) if a word arrives
+    /// corrupted.
     pub fn measure_single_shot(&mut self) -> Result<Measurement, DriverError<I2C::Error>> {
         self.send(command::MEASURE_SINGLE_SHOT)?;
         self.read_measurement()
@@ -177,7 +180,8 @@ impl<I2C: I2c, D: DelayNs> Scd4x<I2C, D> {
     /// # Errors
     ///
     /// Returns [`DriverError::Bus`] if the bus fails, and [`DriverError::Sensor`]
-    /// with [`SensorError::Crc`] if the status word arrives corrupted.
+    /// with [`SensorError::Crc`](crate::SensorError::Crc) if the status word
+    /// arrives corrupted.
     pub fn data_ready(&mut self) -> Result<bool, DriverError<I2C::Error>> {
         self.send(command::GET_DATA_READY_STATUS)?;
         let mut frame = [0u8; 3];
