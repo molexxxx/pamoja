@@ -24,6 +24,11 @@ narrow build actually costs, read [Install](install.md).
 If you are here with a part in hand rather than a language in mind,
 [Hardware](hardware.md) lists what the drivers were written against, the buses
 and radios the crates implement, and the boards this is built and tested on.
+With a board on the desk, its page wires a sensor to it, turns the bus on, and
+runs a first program: [Raspberry Pi](boards/raspberry-pi.md),
+[ESP32](boards/esp32.md), or [RP2040](boards/rp2040.md). [Buses and links](buses.md)
+explains the buses and links themselves, from I2C to LoRa, and names the crate
+that carries each one's logic.
 
 To see it run before reading anything, [Examples](examples.md) lists every
 complete program and every guide's example in the four languages, all of which

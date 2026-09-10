@@ -8,7 +8,10 @@ read the calibration, configure, trigger, wait, read. pamoja's drivers are writt
 against the `embedded-hal` traits rather than against a board, so the same driver
 runs over a microcontroller's peripheral, over the kernel's `/dev/i2c-1` on a
 Raspberry Pi, and over a script of what the part would have sent, with nothing
-plugged in.
+plugged in. [Buses and links](../buses.md) explains each bus in its own terms,
+and the board pages wire a part to a [Raspberry Pi](../boards/raspberry-pi.md),
+an [ESP32](../boards/esp32.md), or an [RP2040](../boards/rp2040.md) and run a
+driver there.
 
 In Rust the bus layer is `pamoja-hal`: the traits every driver takes, a bit-banged
 1-Wire bus over any pin, the Linux backends, and the scripted buses that play a

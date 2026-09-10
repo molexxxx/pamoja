@@ -1,0 +1,27 @@
+[package]
+name = "board-esp32c3"
+version = "0.0.0"
+edition = "2021"
+publish = false
+license = "MIT"
+description = "The first program on an ESP32-C3: a BME280 on I2C0, read through pamoja, printed over the USB serial port."
+
+[dependencies]
+embedded-hal = "1.0"
+esp-alloc = { version = "0.11", features = ["esp32c3"] }
+esp-hal = { version = "1.2", features = ["esp32c3"] }
+esp-println = { version = "0.18", features = ["esp32c3"] }
+pamoja-core = { path = "../../../crates/pamoja-core", default-features = false }
+pamoja-hal = { path = "../../../crates/pamoja-hal", default-features = false }
+pamoja-sensors = { path = "../../../crates/pamoja-sensors" }
+
+[profile.dev]
+opt-level = "s"
+
+[profile.release]
+codegen-units = 1
+debug = true
+lto = "fat"
+opt-level = "s"
+
+[workspace]
