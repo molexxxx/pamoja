@@ -554,7 +554,7 @@ impl StateSource for Mock {
         );
         let cold_chain = self.group(
             "cold-chain",
-            "Kano cold chain",
+            "District cold chain",
             LinkKind::Cellular,
             3,
             vec![fridge1, fridge2, ward_humidity],
@@ -588,7 +588,7 @@ impl StateSource for Mock {
 
         let health = Org {
             id: "kano-health".to_owned(),
-            name: "Kano Health Authority".to_owned(),
+            name: "District Health Service".to_owned(),
             groups: vec![cold_chain, maternity],
         };
 
@@ -755,7 +755,7 @@ impl StateSource for Mock {
 
         let coop = Org {
             id: "meru-coop".to_owned(),
-            name: "Meru Farmers Co-op".to_owned(),
+            name: "Valley Farmers Co-op".to_owned(),
             groups: vec![silo, weather, solar, river],
         };
 

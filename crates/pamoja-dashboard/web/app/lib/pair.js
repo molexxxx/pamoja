@@ -3,7 +3,7 @@ import { hmacSha256 } from './crypto/hmac.js';
 import { utf8, toHex } from './crypto/bytes.js';
 import { refresh } from './feed.js';
 import { store } from '../store.js';
-import { open } from '../nav.js';
+import { openOverlay } from '../nav.js';
 
 const INFO = utf8('pamoja/dashboard/cmd v1');
 const STORE_KEY = 'pamoja.pair';
@@ -65,7 +65,7 @@ export async function pair(code, remember)
 export function lock() { save(null); }
 
 /** Opens the pairing dialog so the user can unlock control. */
-export function promptUnlock() { open(() => store.dispatch('openPairing'), () => store.dispatch('closePairing')); }
+export function promptUnlock() { openOverlay(() => store.dispatch('openPairing'), () => store.dispatch('closePairing')); }
 
 /**
  * Sends an authenticated command, then refreshes the fleet so the change shows at once.

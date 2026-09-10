@@ -32,8 +32,8 @@ export function sparkPoints(history, w, h, pad = 3)
 export function miniSpark(history)
 {
   const pts = sparkPoints(history, 100, 26);
-  if (!pts) return '<svg class="spark" viewBox="0 0 100 26" preserveAspectRatio="none"></svg>';
-  return `<svg class="spark" viewBox="0 0 100 26" preserveAspectRatio="none">
+  if (!pts) return '<svg aria-hidden="true" class="spark" viewBox="0 0 100 26" preserveAspectRatio="none"></svg>';
+  return `<svg aria-hidden="true" class="spark" viewBox="0 0 100 26" preserveAspectRatio="none">
     <polyline class="sp-area" points="0,26 ${pts} 100,26"/><polyline class="sp-line" points="${pts}"/></svg>`;
 }
 
@@ -69,7 +69,7 @@ export function detailGraph(history, band)
   const grid = [0.5].map((g) => `<line class="dg-grid" x1="0" y1="${(h * g).toFixed(1)}" x2="${w}" y2="${(h * g).toFixed(1)}"/>`).join('');
   const last = pts.split(' ').pop().split(',');
   return `<div class="graph">
-    <svg class="detail-graph" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <svg aria-hidden="true" class="detail-graph" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
       ${grid}${limits}
       <polyline class="dg-area" points="0,${h} ${pts} ${w},${h}"/>
       <polyline class="dg-line" points="${pts}"/>
@@ -94,7 +94,7 @@ export function bannerRing(status)
     : `<path d="M33 19 L33 36 M33 44 L33 46" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round"/>`;
   return `<svg viewBox="0 0 66 66" width="100%" height="100%" aria-hidden="true">
     <circle cx="33" cy="33" r="${r}" fill="none" stroke="var(--track)" stroke-width="4"/>
-    <circle cx="33" cy="33" r="${r}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(frac * c).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 33 33)" style="filter: drop-shadow(0 0 5px ${color})"/>
+    <circle cx="33" cy="33" r="${r}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(frac * c).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 33 33)" style="filter: var(--viz-glow)"/>
     ${mark}</svg>`;
 }
 
@@ -108,13 +108,13 @@ export function bannerRing(status)
 export function bigSpark(history)
 {
   const w = 300, h = 116, pad = 14;
-  if (!history || history.length < 2) return `<svg class="bspark" viewBox="0 0 ${w} ${h}"></svg>`;
+  if (!history || history.length < 2) return `<svg aria-hidden="true" class="bspark" viewBox="0 0 ${w} ${h}"></svg>`;
   const min = Math.min(...history), max = Math.max(...history), span = max - min || 1;
   const step = w / (history.length - 1);
   const pts = history.map((v, i) => [+(i * step).toFixed(1), +(h - pad - ((v - min) / span) * (h - pad * 2)).toFixed(1)]);
   const line = pts.map((p) => p.join(',')).join(' ');
   const dots = pts.map((p, i) => `<circle class="bsp-dot${i === pts.length - 1 ? ' last' : ''}" cx="${p[0]}" cy="${p[1]}" r="${i === pts.length - 1 ? 3 : 1.6}"/>`).join('');
-  return `<svg class="bspark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+  return `<svg aria-hidden="true" class="bspark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
     <line class="bsp-grid" x1="0" y1="${h / 2}" x2="${w}" y2="${h / 2}"/>
     <polyline class="bsp-area" points="0,${h} ${line} ${w},${h}"/>
     <polyline class="bsp-line" points="${line}"/>
@@ -135,7 +135,7 @@ export function bigSpark(history)
 export function bigBars(history, band)
 {
   const w = 300, h = 120, pad = 12;
-  if (!history || history.length < 2) return `<svg class="bbars" viewBox="0 0 ${w} ${h}"></svg>`;
+  if (!history || history.length < 2) return `<svg aria-hidden="true" class="bbars" viewBox="0 0 ${w} ${h}"></svg>`;
   const min = Math.min(...history), max = Math.max(...history), span = max - min || 1;
   const n = history.length, slot = (w - pad * 2) / n, bw = slot * 0.6;
   const y = (v) => h - pad - ((v - min) / span) * (h - pad * 2);
@@ -153,7 +153,7 @@ export function bigBars(history, band)
   // The min/max labels live in HTML, not the SVG, so the none-aspect stretch that fills
   // the bars to full width never warps the text.
   return `<div class="bbars-wrap">
-    <svg class="bbars" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${zone}${bars}</svg>
+    <svg aria-hidden="true" class="bbars" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${zone}${bars}</svg>
     <span class="bb-ax bb-max">${nf(max)}</span><span class="bb-ax bb-min">${nf(min)}</span>
   </div>`;
 }

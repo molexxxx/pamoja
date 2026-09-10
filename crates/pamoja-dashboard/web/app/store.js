@@ -1,3 +1,5 @@
+import { known } from './lib/theme.js';
+
 /**
  * Reads a persisted preference from localStorage, with a default.
  *
@@ -16,13 +18,12 @@ const blankEdits = () => ({ addGroups: [], addSensors: [], rmGroups: [], rmSenso
 
 export const store = $.store('app', {
   state: {
-    theme: get('theme', 'night'),
+    theme: known(get('theme', 'system')),
     locale: get('locale', 'en'),
     scenario: get('scenario', 'normal'),
     selected: null,
     editing: false,
     create: null,
-    network: false,
     netInspect: null,
     netSensor: null,
     group: null,
@@ -36,8 +37,6 @@ export const store = $.store('app', {
     setScenario(state, v) { state.scenario = v; $.storage.set('scenario', v); state.selected = null; },
     selectSensor(state, id) { state.selected = id; },
     closeSensor(state) { state.selected = null; },
-    openNetwork(state) { state.network = true; },
-    closeNetwork(state) { state.network = false; state.netInspect = null; state.netSensor = null; },
     setNetInspect(state, id) { state.netInspect = id; },
     clearNetInspect(state) { state.netInspect = null; },
     setNetSensor(state, id) { state.netSensor = id; },

@@ -101,11 +101,6 @@ const EMBEDDED: &[Asset] = &[
         bytes: include_bytes!("../web/app/lib/discovery.js"),
     },
     Asset {
-        path: "/app/lib/parallax.js",
-        content_type: JS,
-        bytes: include_bytes!("../web/app/lib/parallax.js"),
-    },
-    Asset {
         path: "/app/lib/detail.js",
         content_type: JS,
         bytes: include_bytes!("../web/app/lib/detail.js"),

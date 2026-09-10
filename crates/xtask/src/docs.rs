@@ -253,8 +253,11 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
                 match table.trim() {
                     "builds" => builds::table(&root),
                     "hardware" => Ok(hardware.table(&catalog)),
-                    "examples" => examples::table(&root, &catalog),
+                    "examples" => examples::table(&root),
                     "profiles" => Ok(profiles.table()),
+                    "run" => Ok(examples::run_block(&text)),
+                    "architecture" => crate::diagram::blocks(&catalog, &root)
+                        .map(|blocks| crate::site::block::diagram(&blocks)),
                     reference if reference.starts_with("reference ") => {
                         let key = reference.trim_start_matches("reference ").trim();
                         catalog

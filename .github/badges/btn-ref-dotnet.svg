@@ -1,12 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="113" height="44" viewBox="0 0 113 44" role="img" aria-label=".NET reference">
-  <defs>
-    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#16263f"/>
-      <stop offset="1" stop-color="#0e1b2e"/>
-    </linearGradient>
-  </defs>
-  <rect x="0.5" y="9.5" width="112" height="25" rx="13" fill="url(#face)" stroke="rgba(251, 243, 228, 0.14)" stroke-width="1"/>
-  <circle cx="11" cy="22" r="5.5" fill="rgba(242, 106, 75, 0.2)"/>
-  <circle cx="11" cy="22" r="2.4" fill="#f26a4b"/>
-  <text x="20" y="22" dominant-baseline="central" font-family="Segoe UI, Inter, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" letter-spacing="0.4" fill="#e7eef8">.NET reference</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="136" height="44" viewBox="0 0 136 44" role="img" aria-label=".NET reference">
+  <style>
+    .paper { fill: #fbfaf6; }
+    .rule { stroke: #d7d4cc; }
+    .band { fill: #0f5f56; }
+    .ink { fill: #141414; }
+    .accent { fill: #0f5f56; }
+    .accent-rule { stroke: rgba(15, 95, 86, 0.45); }
+    .tint { fill: rgba(15, 95, 86, 0.1); }
+    .s-accent { stroke: #0f5f56; }
+    .on-band { fill: #ffffff; }
+    .s-on-band { stroke: #ffffff; }
+    @media (prefers-color-scheme: dark) {
+      .paper { fill: #191a17; }
+      .rule { stroke: #3a3b35; }
+      .band { fill: #0d4d46; }
+      .ink { fill: #eae8e1; }
+      .accent { fill: #5ec6b0; }
+      .accent-rule { stroke: rgba(94, 198, 176, 0.45); }
+      .tint { fill: rgba(94, 198, 176, 0.1); }
+      .s-accent { stroke: #5ec6b0; }
+    }
+  </style>
+  <rect x="0.5" y="9.5" width="135" height="25" rx="2" class="tint accent-rule" stroke-width="1"/>
+  <rect x="11" y="19.5" width="5" height="5" class="accent"/>
+  <text x="24" y="22" dominant-baseline="central" font-family="Segoe UI, Inter, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="0.8" class="accent">.NET REFERENCE</text>
 </svg>

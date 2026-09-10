@@ -82,14 +82,14 @@ guide = "guides/codec.md"
 key = "kit"
 chapter = "helpers"
 title = "Helpers"
-summary = "Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo"
+summary = "Plain-language helper math: smoothing, calibration, PID and thermostat control, a trigger with hysteresis, trend and surge prediction, rolling windows, kinematics, and geo"
 crates = ["pamoja-kit"]
 node = "kit"
 python = "kit"
 dotnet = [
     "Kit", "Smoother", "Median", "Kalman", "Calibration", "Pid", "Ramp", "Thermostat",
-    "Debounce", "Boundary", "Coordinate", "Geofence", "Window", "Trend", "Surge",
-    "Depletion", "Anomaly",
+    "Trigger", "Edge", "Debounce", "Boundary", "Coordinate", "Geofence", "Window",
+    "Trend", "Surge", "Depletion", "Anomaly",
 ]
 guide = "guides/kit.md"
 
@@ -422,6 +422,17 @@ node = "profile"
 python = "profile"
 dotnet = ["Profile", "ControlPolicy", "ControlKind", "Controller", "Reaction", "Alert", "AlertKind", "PowerSchedule", "Presentation", "ElementSpec", "Theme", "Viz", "LocalizedText"]
 guide = "guides/profile.md"
+
+[[capability]]
+key = "rules"
+chapter = "profiles"
+title = "Rules"
+summary = "Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link"
+crates = []
+node = "kit"
+python = "kit"
+dotnet = []
+guide = "guides/rules.md"
 
 [[capability]]
 key = "ros2"

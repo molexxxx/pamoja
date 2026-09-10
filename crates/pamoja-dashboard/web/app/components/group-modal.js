@@ -1,9 +1,10 @@
 import { store } from '../store.js';
 import { currentFleet } from '../lib/edits.js';
-import { open, back } from '../nav.js';
+import { openOverlay, back } from '../nav.js';
 import { t, nf, fmt } from '../lib/i18n.js';
 import { conn, tileViz, trendArrow, isDiscrete, realSensors, meshPeerCount, vizOf, esc } from '../lib/viz/index.js';
 import { openMeshOverlay } from './mesh-modal.js';
+import { sync as syncDialog, drop as dropDialog } from '../lib/dialog.js';
 
 // Sensors shown per page in the group view before it paginates.
 const PAGE = 6;
@@ -31,7 +32,7 @@ $.component('group-modal', {
     this._eff = $.effect(() => { currentFleet(); this.setState({}); });
   },
   /** Tears down the store subscription and fleet effect. */
-  destroyed() { if (this._un) this._un(); if (typeof this._eff === 'function') this._eff(); },
+  destroyed() { dropDialog(); if (this._un) this._un(); if (typeof this._eff === 'function') this._eff(); },
 
   /** Closes the modal by unwinding one history entry. */
   close() { back(); },
@@ -72,7 +73,7 @@ $.component('group-modal', {
     const sid = el.dataset.sid;
     const s = this.sensorBySid(sid);
     if (s && vizOf(s.reading) === 'mesh') { openMeshOverlay(sid); return; }
-    open(() => store.dispatch('selectSensor', sid), () => store.dispatch('closeSensor'));
+    openOverlay(() => store.dispatch('selectSensor', sid), () => store.dispatch('closeSensor'));
   },
   /**
    * Resolves a sensor by its `groupId/sensorId` key from the current fleet.
@@ -124,6 +125,9 @@ $.component('group-modal', {
    *
    * @returns {string} the modal markup, or an empty placeholder when no group is active.
    */
+  /** Keeps the modal contract in step with what this component just rendered. */
+  updated() { syncDialog(this._el); },
+
   render()
   {
     const id = store.state.group;
@@ -158,7 +162,7 @@ $.component('group-modal', {
         <div class="modal gv-modal" data-status="${group.status}" role="dialog" aria-modal="true">
           <div class="gv-head">
             <div class="gv-head-main">
-              <div class="modal-title">${esc(group.name)}</div>
+              <h2 class="modal-title">${esc(group.name)}</h2>
               <div class="modal-sub">${esc(org.name)} · ${nf(idx + 1)} / ${nf(n)} · ${t('ui.sensorsCount', { n: realSensors(group).length })}</div>
             </div>
             <div class="gv-head-side">
@@ -171,7 +175,7 @@ $.component('group-modal', {
               <button class="gv-picker" type="button" @click="togglePicker" aria-expanded="${this.state.pickerOpen ? 'true' : 'false'}">
                 <span class="gv-tab-dot" data-status="${group.status}"></span>
                 <span class="gv-picker-txt"><span class="gv-picker-org">${esc(org.name)}</span><span class="gv-picker-cur">${esc(group.name)}</span></span>
-                <svg class="gv-picker-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                <svg aria-hidden="true" class="gv-picker-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
               </button>
               <nav class="gv-rail" aria-label="${esc(t('ui.groups'))}">
                 ${f.orgs.map((o) => `<div class="gv-railorg ${o.groups.some((g) => g.id === id) ? 'active' : ''}">

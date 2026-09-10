@@ -1,40 +1,16 @@
 import { mountConsoles } from './consoles.js';
 
-let toast = null;
-let listening = false;
-
 /**
- * Shows a short notice at the foot of the viewport.
- *
- * @param {string} message - the notice.
- * @returns {void}
- */
-const notice = (message) =>
-{
-  if (!toast || !toast.isConnected)
-  {
-    toast = document.createElement('div');
-    toast.className = 'toast';
-    toast.setAttribute('role', 'status');
-    toast.setAttribute('aria-live', 'polite');
-    document.body.appendChild(toast);
-  }
-  toast.textContent = message;
-  toast.classList.add('show');
-  clearTimeout(notice.timer);
-  notice.timer = setTimeout(() => toast.classList.remove('show'), 3200);
-};
-
-const PREVIEW = 'Backing is not open yet; this section is a preview of how it will work.';
-
-/**
- * Binds the front page: the stage, the wall of cards, and the backing preview.
+ * Binds the front page: the scenario figures, the language pin, the probe over a figure,
+ * and the capped first listing.
  *
  * @returns {void}
  */
 export function init()
 {
-  // One scene on the stage at a time; its tab carries the accent.
+  const root = document.documentElement;
+
+  // One scene on the stage at a time.
   const stageTabs = [...document.querySelectorAll('.stage-tab')];
   const scenes = [...document.querySelectorAll('.scene')];
   if (stageTabs.length)
@@ -44,86 +20,83 @@ export function init()
       stageTabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.scene === key)));
       scenes.forEach((scene) => { scene.hidden = scene.id !== `scene-${key}`; });
     };
-    stageTabs.forEach((tab, index) =>
+    stageTabs.forEach((tab, i) =>
     {
       tab.addEventListener('click', () => show(tab.dataset.scene));
       tab.addEventListener('keydown', (e) =>
       {
         if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
         e.preventDefault();
-        const next = stageTabs[(index + (e.key === 'ArrowRight' ? 1 : -1) + stageTabs.length) % stageTabs.length];
-        next.focus();
+        const next = stageTabs[(i + (e.key === 'ArrowRight' ? 1 : stageTabs.length - 1)) % stageTabs.length];
         show(next.dataset.scene);
+        next.focus();
       });
     });
+    // A link from the applications list opens its scene as well as scrolling to it.
+    document.querySelectorAll('.applications a[href^="#scene-"]').forEach((a) => a.addEventListener('click', () =>
+    {
+      show(a.getAttribute('href').slice('#scene-'.length));
+    }));
   }
   mountConsoles();
 
-  // The wall of cards: a click pins a card open, and the chips narrow the wall to a chapter.
-  const cards = [...document.querySelectorAll('.bento-card')];
-  const unpin = () => cards.forEach((card) => card.classList.remove('pinned'));
-  cards.forEach((card) =>
+  // The language pin in the ordering table sets every listing on the site, the way the
+  // tabs over a listing do.
+  const pins = [...document.querySelectorAll('.pin')];
+  const keyed = (pin) => (pin.dataset.lang === 'node' ? 'typescript' : pin.dataset.lang === 'dotnet' ? 'c' : pin.dataset.lang);
+  const pinned = () => pins.forEach((pin) => pin.setAttribute('aria-pressed', String(keyed(pin) === root.dataset.lang)));
+  pinned();
+  pins.forEach((pin) => pin.addEventListener('click', () =>
   {
-    card.addEventListener('click', (e) =>
+    const lang = keyed(pin);
+    root.dataset.lang = lang;
+    try { localStorage.setItem('pamoja:lang', lang); } catch (e) { /* storage may be unavailable */ }
+    document.querySelectorAll('.lang-tab').forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.lang === lang)));
+    pinned();
+  }));
+  document.querySelectorAll('.lang-tab').forEach((tab) => tab.addEventListener('click', pinned));
+
+  // The probe: pointing at one reading in a figure, or moving the keyboard to it, singles
+  // it out. Every reading is focusable, so the probe is not a mouse-only affordance.
+  document.querySelectorAll('.diorama').forEach((figure) =>
+  {
+    const clear = () =>
     {
-      if (e.target.closest('a')) return;
-      const open = card.classList.contains('pinned');
-      unpin();
-      if (!open) card.classList.add('pinned');
-    });
-    card.addEventListener('keydown', (e) =>
+      figure.classList.remove('probing');
+      figure.querySelectorAll('.tile.probed').forEach((t) => t.classList.remove('probed'));
+    };
+    const probe = (tile) =>
     {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.click(); }
-      if (e.key === 'Escape') unpin();
+      figure.classList.toggle('probing', Boolean(tile));
+      figure.querySelectorAll('.tile.probed').forEach((t) => { if (t !== tile) t.classList.remove('probed'); });
+      if (tile) tile.classList.add('probed');
+    };
+    figure.addEventListener('pointerover', (e) => probe(e.target.closest('.tile')));
+    figure.addEventListener('focusin', (e) => probe(e.target.closest('.tile')));
+    figure.addEventListener('pointerleave', clear);
+    figure.addEventListener('focusout', (e) => { if (!figure.contains(e.relatedTarget)) clear(); });
+    figure.addEventListener('pointercancel', clear);
+  });
+  // A tap outside a figure lets go of the reading it was holding.
+  document.addEventListener('pointerdown', (e) =>
+  {
+    if (e.target.closest('.diorama')) return;
+    document.querySelectorAll('.diorama.probing').forEach((figure) =>
+    {
+      figure.classList.remove('probing');
+      figure.querySelectorAll('.tile.probed').forEach((t) => t.classList.remove('probed'));
     });
   });
-  if (!listening)
-  {
-    listening = true;
-    document.addEventListener('click', (e) =>
-    {
-      if (!e.target.closest('.bento-card')) document.querySelectorAll('.bento-card.pinned').forEach((card) => card.classList.remove('pinned'));
-    });
-  }
 
-  const chips = [...document.querySelectorAll('.chip-btn')];
-  chips.forEach((chip) => chip.addEventListener('click', () =>
-  {
-    const chapter = chip.dataset.chapter;
-    chips.forEach((other) =>
-    {
-      const on = other === chip;
-      other.classList.toggle('active', on);
-      other.setAttribute('aria-selected', String(on));
-    });
-    unpin();
-    cards.forEach((card) => { card.hidden = chapter !== 'all' && card.dataset.chapter !== chapter; });
-  }));
-
-  // The first example opens capped; one click shows the whole of it.
+  // The first listing opens at a few lines; the control in its caption opens the rest and
+  // closes it again.
   document.querySelectorAll('.reveal').forEach((button) => button.addEventListener('click', () =>
   {
     const panel = button.closest('.lang-panel');
-    if (panel) panel.classList.remove('capped');
-    button.remove();
+    if (!panel) return;
+    const capped = panel.classList.toggle('capped');
+    button.setAttribute('aria-expanded', String(!capped));
+    button.firstChild.nodeValue = capped ? 'Whole listing' : 'Collapse';
+    if (capped) panel.scrollIntoView({ block: 'nearest' });
   }));
-
-  // Backing is a preview: every button says so rather than pretending.
-  document.querySelectorAll('.soon').forEach((button) => button.addEventListener('click', () => notice(PREVIEW)));
-  const form = document.querySelector('.pledge');
-  if (form)
-  {
-    form.addEventListener('submit', (e) => { e.preventDefault(); notice(PREVIEW); });
-    const roles = [...form.querySelectorAll('.role')];
-    roles.forEach((button) => button.addEventListener('click', () =>
-    {
-      roles.forEach((other) =>
-      {
-        const on = other === button;
-        other.classList.toggle('active', on);
-        other.setAttribute('aria-selected', String(on));
-      });
-      form.querySelectorAll('[data-when]').forEach((field) => { field.hidden = field.dataset.when !== button.dataset.role; });
-    }));
-  }
 }

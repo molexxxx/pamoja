@@ -97,6 +97,9 @@ impl Nav {
                 item("Standards and conformance", "docs/about/standards.html"),
                 item("Building", "docs/about/building.html"),
                 item("Releasing", "docs/about/releasing.html"),
+                item("Privacy", "docs/about/privacy.html"),
+                item("Terms", "docs/about/terms.html"),
+                item("Notices and contact", "docs/about/notices.html"),
             ],
         });
         Nav { groups }
@@ -272,7 +275,7 @@ guide = "guides/can.md"
             Some("docs/reference/index.html")
         );
         assert!(nav.neighbours("docs/index.html").0.is_none());
-        assert!(nav.neighbours("docs/about/releasing.html").1.is_none());
+        assert!(nav.neighbours("docs/about/notices.html").1.is_none());
         assert_eq!(nav.neighbours("docs/nowhere.html"), (None, None));
         assert_eq!(
             nav.group_of("docs/guides/can.html")

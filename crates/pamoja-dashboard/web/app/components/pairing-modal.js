@@ -3,6 +3,7 @@ import { back } from '../nav.js';
 import { t } from '../lib/i18n.js';
 import { pair } from '../lib/pair.js';
 import { esc } from '../lib/viz/index.js';
+import { sync as syncDialog, drop as dropDialog } from '../lib/dialog.js';
 
 $.component('pairing-modal', {
   state: { code: '', error: null, busy: false, remember: false },
@@ -10,7 +11,7 @@ $.component('pairing-modal', {
   /** Resets the form whenever the dialog opens or closes. */
   mounted() { this._un = store.subscribe(() => this.sync()); },
   /** Tears down the store subscription. */
-  destroyed() { if (this._un) this._un(); },
+  destroyed() { dropDialog(); if (this._un) this._un(); },
 
   /** Clears the form when the dialog is not open, then re-renders. */
   sync()
@@ -51,6 +52,9 @@ $.component('pairing-modal', {
    *
    * @returns {string} the dialog markup.
    */
+  /** Keeps the modal contract in step with what this component just rendered. */
+  updated() { syncDialog(this._el); },
+
   render()
   {
     if (!store.state.pairing) return '<div hidden></div>';
@@ -59,7 +63,7 @@ $.component('pairing-modal', {
       <div class="modal-overlay" @click="onOverlay">
         <div class="modal modal-form" role="dialog" aria-modal="true">
           <div class="modal-head">
-            <div class="modal-title">${t('ui.pairTitle')}</div>
+            <h2 class="modal-title">${t('ui.pairTitle')}</h2>
             <button class="modal-close" type="button" @click="cancel" aria-label="${esc(t('ui.cancel'))}">✕</button>
           </div>
           <div class="form">

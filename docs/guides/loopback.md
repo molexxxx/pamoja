@@ -37,6 +37,20 @@ It proves:
 - A disconnected link fails the send rather than accepting a reading it has no
   way to deliver.
 
+## Run it
+
+The example below is a test that runs in CI, in each language, from a clone of the
+repository:
+
+<!-- table: run -->
+<div class="run">
+<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo test -p pamoja-examples --test guides loopback -- --nocapture" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo test -p pamoja-examples --test guides loopback -- --nocapture</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run test:guides -- loopback" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run test:guides -- loopback</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">Python</span><button class="copy" type="button" data-copy="python bindings/python/guides/loopback.py" aria-label="Copy the command that runs the Python example">copy</button></p><code class="run-cmd">python bindings/python/guides/loopback.py</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">C#</span><button class="copy" type="button" data-copy="dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- loopback" aria-label="Copy the command that runs the C# example">copy</button></p><code class="run-cmd">dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- loopback</code></div>
+</div>
+<!-- end -->
+
 ## Rust
 
 <!-- snippet: examples/tests/guides/loopback.rs#example -->

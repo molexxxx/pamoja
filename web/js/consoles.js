@@ -1,6 +1,4 @@
 const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const ACCENT = { farm: 'var(--teal)', clinic: 'var(--amber)', water: 'var(--sky)', conservation: 'var(--forest)', village: 'var(--teal)', storm: 'var(--coral)', robot: 'var(--coral)', arm: 'var(--amber)', fleet: 'var(--sky)' };
-
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const lerp = (a, b, k) => a + (b - a) * k;
 const pad = (n) => (n < 10 ? '0' + n : '' + n);
@@ -13,7 +11,7 @@ function tRadial(spec)
   const node = el('div', 'tile t-radial');
   const C = 2 * Math.PI * 30, sweep = 0.75; // 270deg gauge
   node.innerHTML = `
-    <svg viewBox="0 0 80 72" class="gauge">
+    <svg aria-hidden="true" viewBox="0 0 80 72" class="gauge">
       <circle cx="40" cy="38" r="30" class="g-track" transform="rotate(135 40 38)"
         stroke-dasharray="${(C * sweep).toFixed(1)} ${C.toFixed(1)}" stroke-linecap="round"/>
       <circle cx="40" cy="38" r="30" class="g-val" transform="rotate(135 40 38)"
@@ -55,7 +53,7 @@ function tBar(spec)
     update(s)
     {
       const v = s.v[spec.key] || 0; const pct = clamp(v / spec.max, 0, 1);
-      fill.style.width = (pct * 100).toFixed(1) + '%';
+      fill.style.transform = `scaleX(${pct.toFixed(3)})`;
       val.textContent = spec.fmt ? spec.fmt(v) : Math.round(v);
     },
   };
@@ -93,20 +91,25 @@ function tSpark(spec)
 {
   const node = el('div', 'tile t-spark');
   node.innerHTML = `<div class="t-row"><span class="t-label">${spec.label}</span><span class="t-val"><b>0</b>${spec.unit || ''}</span></div>
-    <svg viewBox="0 0 200 46" preserveAspectRatio="none" class="spark"><polyline class="sp-line" points=""/><polyline class="sp-area" points=""/></svg>`;
+    <svg aria-hidden="true" viewBox="0 0 200 46" preserveAspectRatio="none" class="spark"><polyline class="sp-line" points=""/><polyline class="sp-area" points=""/></svg>`;
   const line = node.querySelector('.sp-line'); const area = node.querySelector('.sp-area'); const val = node.querySelector('.t-val b');
   const buf = new Array(48).fill(spec.start ?? 50);
   let acc = 0;
+  const plot = () =>
+  {
+    const max = spec.max || 100;
+    const pts = buf.map((v, i) => `${(i / (buf.length - 1) * 200).toFixed(1)},${(44 - clamp(v / max, 0, 1) * 40).toFixed(1)}`).join(' ');
+    line.setAttribute('points', pts);
+    area.setAttribute('points', `0,46 ${pts} 200,46`);
+  };
+  plot();
   return {
     node,
     update(s, dt)
     {
       acc += dt; if (acc < 0.22) { val.textContent = spec.fmt ? spec.fmt(s.v[spec.key]) : Math.round(s.v[spec.key]); return; } acc = 0;
       buf.push(s.v[spec.key] || 0); buf.shift();
-      const max = spec.max || 100;
-      const pts = buf.map((v, i) => `${(i / (buf.length - 1) * 200).toFixed(1)},${(44 - clamp(v / max, 0, 1) * 40).toFixed(1)}`).join(' ');
-      line.setAttribute('points', pts);
-      area.setAttribute('points', `0,46 ${pts} 200,46`);
+      plot();
       val.textContent = spec.fmt ? spec.fmt(s.v[spec.key]) : Math.round(s.v[spec.key]);
     },
   };
@@ -178,7 +181,7 @@ function tMesh(spec)
     <g transform="translate(${sat.xy[0] - 7},${sat.xy[1] - 5})" class="sat"><rect width="14" height="9" rx="1.5"/><rect x="-6" y="2.5" width="5" height="4"/><rect x="15" y="2.5" width="5" height="4"/></g>` : '';
   const nodeSvg = nodes.map((n2, i) => `<circle cx="${n2[0]}" cy="${n2[1]}" r="${n2[2] === 'gw' ? 6 : 4.5}" class="mn${n2[2] === 'gw' ? ' gw' : ''}"/>`).join('');
   node.innerHTML = `<div class="t-row"><span class="t-label">${spec.label}</span>${spec.note ? `<span class="t-val mono mesh-note"></span>` : ''}</div>
-    <svg viewBox="0 0 220 120" class="mesh">${linkSvg}${satSvg}${pktSvg}${nodeSvg}</svg>`;
+    <svg aria-hidden="true" viewBox="0 0 220 120" class="mesh">${linkSvg}${satSvg}${pktSvg}${nodeSvg}</svg>`;
   const note = node.querySelector('.mesh-note');
   return {
     node,
@@ -224,7 +227,7 @@ function tRover(spec)
   const obs = OBS ? `<circle cx="${OBS.x}" cy="${OBS.y}" r="${OBS.r}" class="rv-obs"/><circle cx="${OBS.x}" cy="${OBS.y}" r="2.4" class="rv-obs-c"/>` : '';
   node.innerHTML = `
     <div class="t-row"><span class="t-label">${spec.label}</span><span class="t-val mono rv-pose"></span></div>
-    <svg viewBox="0 0 ${W} ${H}" class="rover" preserveAspectRatio="xMidYMid meet">
+    <svg aria-hidden="true" viewBox="0 0 ${W} ${H}" class="rover" preserveAspectRatio="xMidYMid meet">
       <g class="rv-grid">${grid}</g>
       <path d="${plan}" class="rv-plan"/>
       ${obs}
@@ -339,7 +342,7 @@ function tArm(spec)
   const tgts = WP.slice(0, -1).map((t) => `<circle cx="${t[0]}" cy="${t[1]}" r="2.6" class="arm-tgt"/>`).join('');
   node.innerHTML = `
     <div class="t-row"><span class="t-label">${spec.label}</span><span class="t-val mono arm-read"></span></div>
-    <svg viewBox="0 0 ${W} ${H}" class="arm" preserveAspectRatio="xMidYMid meet">
+    <svg aria-hidden="true" viewBox="0 0 ${W} ${H}" class="arm" preserveAspectRatio="xMidYMid meet">
       <path class="arm-reach" d="${arc}"/>
       ${tgts}
       <line class="arm-link arm-l1"/>
@@ -401,7 +404,7 @@ function tFleet(spec)
   const links = bots.map((b) => `<line x1="${hub[0]}" y1="${hub[1]}" x2="${b.cx}" y2="${b.cy}" class="fl-link"/>`).join('');
   node.innerHTML = `
     <div class="t-row"><span class="t-label">${spec.label}</span><span class="t-val mono fl-note">${bots.length} peers</span></div>
-    <svg viewBox="0 0 ${W} ${H}" class="fleet" preserveAspectRatio="xMidYMid meet">
+    <svg aria-hidden="true" viewBox="0 0 ${W} ${H}" class="fleet" preserveAspectRatio="xMidYMid meet">
       ${loops}${links}
       <g transform="translate(${hub[0]},${hub[1]})"><rect x="-6" y="-5" width="12" height="10" rx="2" class="fl-hub"/></g>
       ${bots.map(() => '<g class="fl-bot"><path d="M6,0 L-4,-3.5 L-1.5,0 L-4,3.5 Z"/></g>').join('')}
@@ -671,8 +674,6 @@ class Console
   {
     this.fig = fig; this.active = false;
     const spec = SPECS[name]; this.spec = spec;
-    const accent = ACCENT[name];
-    fig.style.setProperty('--accent', accent);
     fig.classList.add('console');
 
     this.s = { v: { ...spec.init }, target: { ...spec.init }, t: 0, dt: 0, flags: {}, min: 12 * 60 + 1, lines: [], say: null };
@@ -698,11 +699,30 @@ class Console
       <div class="cons-log"></div>`;
     const body = root.querySelector('.cons-body');
     this.logEl = root.querySelector('.cons-log');
-    this.tiles = spec.tiles.map((ts) => { const t = RENDER[ts.type](ts); body.appendChild(t.node); return t; });
+    this.tiles = spec.tiles.map((ts) =>
+    {
+      const t = RENDER[ts.type](ts);
+      t.node.tabIndex = 0;
+      t.node.setAttribute('role', 'group');
+      t.node.setAttribute('aria-label', ts.label);
+      body.appendChild(t.node);
+      return t;
+    });
     fig.replaceChildren(root);
 
-    // Seed a couple of log lines and an initial render.
-    spec.script(this.s);
+    // The log holds four lines, so run the script far enough to fill it and then put the
+    // state back where it started; a figure at rest reads as a node that has been up a
+    // while rather than one line over a gap.
+    for (const at of [0, 1.5, 3, 4.5, 6, 7.5, 9])
+    {
+      this.s.t = at;
+      spec.script(this.s);
+      if (this.s.lines.length >= 4) break;
+    }
+    Object.assign(this.s, { t: 0, dt: 0, _fire: undefined, _wp: undefined, _near: false, _grip: false });
+    this.s.v = { ...spec.init };
+    this.s.target = { ...spec.init };
+    this.s.flags = {};
     this.tiles.forEach((t) => t.update(this.s, 0));
     this.renderLog();
     if (prefersReducedMotion) { const svgs = fig.querySelectorAll('svg'); svgs.forEach((sv) => sv.pauseAnimations && sv.pauseAnimations()); }

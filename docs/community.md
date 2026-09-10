@@ -41,7 +41,8 @@ credits you in the pull request.
 
 What the check enforces, so a reader knows what a listed profile has been held to:
 the name matches the file and is unique; the description is there and reads as a
-sentence; the topic is one publishable path, with no wildcards; a setpoint policy
+sentence; the topic is one publishable path, with no wildcards; a custom kind is
+named in lowercase words joined by underscores; a setpoint policy
 has a deadband above zero and a safe band no narrower than it; a level policy
 warns at least one sample ahead; a surge policy has a limit above zero; the
 sampling intervals do not shorten as the battery drains, and the two thresholds

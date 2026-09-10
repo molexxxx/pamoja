@@ -4,6 +4,7 @@
   const base = root.dataset.root || '/';
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const LANG_KEY = 'pamoja:lang';
+  const SCHEME_KEY = 'pamoja:scheme';
 
   /**
    * Escapes text for insertion as HTML.
@@ -98,6 +99,25 @@
       }, { rootMargin: '-64px 0px -70% 0px' });
       headings.forEach((heading) => tocObserver.observe(heading));
     }
+
+    // A domain's guide list opens downward when the viewport has room for it and upward
+    // when it does not, and only one is open at a time.
+    scope.querySelectorAll('.guide-menu').forEach((guides) =>
+    {
+      const summary = guides.querySelector('summary');
+      const list = guides.querySelector('.guide-menu-list');
+      if (!summary || !list) return;
+      guides.addEventListener('toggle', () =>
+      {
+        if (!guides.open) return;
+        document.querySelectorAll('.guide-menu[open]').forEach((other) => { if (other !== guides) other.open = false; });
+        guides.dataset.drop = 'down';
+        const box = summary.getBoundingClientRect();
+        const needed = list.scrollHeight + 12;
+        if (innerHeight - box.bottom < needed && box.top > needed) guides.dataset.drop = 'up';
+      });
+    });
+
   };
 
   // A hash change selects the tab it names.
@@ -195,6 +215,15 @@
     syncHead(doc);
     document.body.className = doc.body.className;
     page.replaceWith(document.adoptNode(next));
+    // The band is never swapped, so the door the new page belongs to has to be moved here.
+    const doors = [...doc.querySelectorAll('.top-nav a')];
+    [...document.querySelectorAll('.top-nav a')].forEach((door, at) =>
+    {
+      const from = doors[at];
+      door.classList.toggle('here', Boolean(from && from.classList.contains('here')));
+      if (from && from.getAttribute('aria-current')) door.setAttribute('aria-current', 'page');
+      else door.removeAttribute('aria-current');
+    });
     bind(next);
     syncToggle();
     if (next.querySelector('.home'))
@@ -243,9 +272,15 @@
 
   const lightbox = (a) =>
   {
-    const source = a.querySelector('picture source');
-    const img = a.querySelector('img');
-    const src = source && matchMedia(source.media).matches ? source.srcset : a.href;
+    // The drawing the page is showing, which is the dark one on the dark sheet.
+    const shown = a.querySelector('picture:not([hidden])') && document.documentElement.dataset.theme === 'dark' && a.dataset.dark
+      ? a.querySelector('.sheet-dark')
+      : a.querySelector('picture');
+    const source = shown && shown.querySelector('source');
+    const img = a.querySelector('.sheet-light img') || a.querySelector('img');
+    const src = source && matchMedia(source.media).matches
+      ? source.srcset
+      : (document.documentElement.dataset.theme === 'dark' && a.dataset.dark) || a.href;
     const view = document.createElement('div');
     view.className = 'lightbox-view';
     view.setAttribute('role', 'dialog');
@@ -314,6 +349,54 @@
     navigate(location.href, { push: false, scrollY: (e.state && e.state.scrollY) || 0 });
   });
 
+  // Escape, or a click away, closes an open guide list.
+  document.addEventListener('keydown', (e) =>
+  {
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('.guide-menu[open]').forEach((guides) => { guides.open = false; });
+  });
+  document.addEventListener('click', (e) =>
+  {
+    document.querySelectorAll('.guide-menu[open]').forEach((guides) => { if (!guides.contains(e.target)) guides.open = false; });
+  });
+
+  // What the sticky band actually occupies, so a jump to a heading clears it at any width
+  // and the drawer and the search panel open under it rather than behind it.
+  const band = document.querySelector('.band');
+  if (band)
+  {
+    const stick = () => root.style.setProperty('--stick', `${Math.round(band.getBoundingClientRect().height)}px`);
+    stick();
+    if (typeof ResizeObserver === 'function') new ResizeObserver(stick).observe(band);
+    else addEventListener('resize', stick);
+  }
+
+  // The colour scheme: the reader's system until the control says otherwise, and the
+  // choice is remembered. The header is never swapped, so this binds once.
+  const scheme = document.querySelector('.scheme');
+  if (scheme)
+  {
+    const ORDER = ['system', 'light', 'dark'];
+    const NEXT = { system: 'the light sheet', light: 'the dark sheet', dark: 'your system' };
+    const NOW = { system: 'following your system', light: 'the light sheet', dark: 'the dark sheet' };
+    const WORD = { system: 'Auto', light: 'Light', dark: 'Dark' };
+    let at = root.dataset.theme === 'light' ? 1 : root.dataset.theme === 'dark' ? 2 : 0;
+    const apply = () =>
+    {
+      const mode = ORDER[at];
+      if (mode === 'system') delete root.dataset.theme; else root.dataset.theme = mode;
+      scheme.dataset.scheme = mode;
+      scheme.querySelector('.scheme-word').textContent = WORD[mode];
+      scheme.setAttribute('aria-label', `Color scheme: ${NOW[mode]}. Activate for ${NEXT[mode]}.`);
+      try
+      {
+        if (mode === 'system') localStorage.removeItem(SCHEME_KEY); else localStorage.setItem(SCHEME_KEY, mode);
+      } catch { /* private mode */ }
+    };
+    apply();
+    scheme.addEventListener('click', () => { at = (at + 1) % ORDER.length; apply(); });
+  }
+
   // Search: the index loads on first focus and is ranked here, heading matches first. The
   // header is never swapped, so this binds once.
   const input = document.querySelector('.search-input');
@@ -363,20 +446,24 @@
       }
       return html;
     };
-    const render = (hits, words) =>
+    const render = (hits, words, total) =>
     {
-      selected = -1;
-      results.hidden = false;
       if (!hits.length)
       {
-        results.innerHTML = '<p class="search-empty">Nothing matches.</p>';
+        results.innerHTML = '<p class="search-empty">Nothing on this site matches that.</p>';
+        results.hidden = false;
         return;
       }
-      results.innerHTML = hits.map((entry, i) =>
-        `<a class="result" role="option" id="result-${i}" href="${base}${entry.u}">` +
-        `<span class="result-where">${esc(entry.s)}</span>` +
-        `<span class="result-title">${mark(entry.p, words)}${entry.h ? ` <span class="result-sep">›</span> ${mark(entry.h, words)}` : ''}</span>` +
-        `<span class="result-body">${mark(entry.b, words)}</span></a>`).join('');
+      const list = hits.map((entry, i) =>
+        `<a class="result" role="option" id="result-${i}" href="${base}${entry.u}">`
+        + `<span class="result-where">${esc(entry.s)}</span>`
+        + `<span class="result-title">${mark(entry.p, words)}${entry.h ? ` <span class="result-sep">\u203a</span> ${mark(entry.h, words)}` : ''}</span>`
+        + `<span class="result-body">${mark(entry.b, words)}</span></a>`).join('');
+      results.innerHTML =
+        `<p class="search-head"><span>Results</span><span class="search-count">${hits.length} of ${total}</span></p>`
+        + `<div class="search-list" role="listbox" aria-label="Search results">${list}</div>`
+        + '<p class="search-foot"><span><kbd>\u2191</kbd><kbd>\u2193</kbd> move</span><span><kbd>\u21b5</kbd> open</span><span><kbd>esc</kbd> close</span></p>';
+      results.hidden = false;
     };
     input.addEventListener('focus', () => { load(); }, { once: true });
     input.addEventListener('input', async () =>
@@ -388,9 +475,8 @@
         .map((entry) => ({ entry, s: score(entry, words) }))
         .filter((hit) => hit.s > 0)
         .sort((a, b) => b.s - a.s)
-        .slice(0, 12)
-        .map((hit) => hit.entry);
-      render(hits, words);
+        .slice(0, 12);
+      render(hits.map((hit) => hit.entry), words, all.length);
     });
     input.addEventListener('keydown', (e) =>
     {

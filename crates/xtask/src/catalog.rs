@@ -40,7 +40,7 @@ impl Capability {
         if self.node == "core" {
             "Pamoja.Core".to_owned()
         } else {
-            format!("Pamoja.{}", dotnet_name(&self.key))
+            format!("Pamoja.{}", dotnet_name(&self.node))
         }
     }
 }
@@ -384,7 +384,7 @@ impl Catalog {
                     self.capabilities
                         .iter()
                         .filter(|capability| capability.node != "core")
-                        .map(|capability| dotnet_name(&capability.key))
+                        .map(|capability| dotnet_name(&capability.node))
                         .chain(domain_keys.iter().map(|key| {
                             key.split('-').map(dotnet_name).collect::<Vec<_>>().concat()
                         }))
@@ -574,6 +574,7 @@ impl Catalog {
             ("packages", Some(language @ ("rust" | "node" | "python" | "dotnet"))) => {
                 Ok(self.packages_block(language))
             }
+            ("install", Some("all")) => Ok(self.install_tabs()),
             ("install", Some(language @ ("rust" | "node" | "python" | "dotnet"))) => {
                 Ok(self.install_block(language))
             }
@@ -847,6 +848,32 @@ impl Catalog {
         out
     }
 
+    // The same six domains once, in a tab per language, so a page that speaks to all four
+    // shows a reader the one they work in rather than the set four times over. The tab
+    // ids are the ones every listing on the site uses, so the choice carries between pages.
+    fn install_tabs(&self) -> String {
+        const TABS: [(&str, &str, &str); 4] = [
+            ("Rust", "rust", "rust"),
+            ("TypeScript", "typescript", "node"),
+            ("Python", "python", "python"),
+            ("C#", "c", "dotnet"),
+        ];
+        let mut tabs = String::new();
+        let mut panels = String::new();
+        for (label, id, key) in TABS {
+            tabs.push_str(&format!(
+                "<button class=\"lang-tab\" role=\"tab\" type=\"button\" id=\"domains-tab-{id}\" aria-controls=\"domains-{id}\" aria-selected=\"false\" data-lang=\"{id}\">{label}</button>\n"
+            ));
+            panels.push_str(&format!(
+                "<section class=\"lang-panel\" id=\"domains-{id}\" role=\"tabpanel\" aria-labelledby=\"domains-tab-{id}\" data-lang=\"{id}\" tabindex=\"0\">\n{}\n</section>\n",
+                self.install_block(key)
+            ));
+        }
+        format!(
+            "<div class=\"langs\">\n<div class=\"lang-tabs\" role=\"tablist\" aria-label=\"Language\">\n{tabs}</div>\n{panels}</div>"
+        )
+    }
+
     /// The six domains as install rows for the site: the install line with a copy button,
     /// the domain linked to its registry page where it is a package, and the capabilities
     /// it brings in, each linking its guide.
@@ -861,20 +888,16 @@ impl Catalog {
                     None => escape(&member.title),
                 })
                 .collect();
-            let mut actions = Vec::new();
+            let page = domain_url(lang.key, &chapter.title);
+            let mut actions = vec![format!(
+                "<a class=\"pkg-btn api {}\" href=\"{page}\">API reference</a>",
+                lang.key
+            )];
             let import = match lang.domain_reference(&chapter.key) {
-                Some((import, href)) => {
-                    actions.push(format!(
-                        "<a class=\"pkg-btn api {}\" href=\"{href}\">API reference</a>",
-                        lang.key
-                    ));
-                    if lang.key == "rust" {
-                        String::new()
-                    } else {
-                        format!("<code class=\"pkg-import\">{}</code>", escape(&import))
-                    }
+                Some((import, _)) if lang.key != "rust" => {
+                    format!("<code class=\"pkg-import\">{}</code>", escape(&import))
                 }
-                None => String::new(),
+                _ => String::new(),
             };
             if let Some(package) = lang.domain_package(&chapter.key) {
                 actions.push(format!(
@@ -883,10 +906,18 @@ impl Catalog {
                     lang.registry
                 ));
             }
+            let count = names.len();
+            let guides = format!(
+                "<details class=\"guide-menu\">\n<summary><span class=\"guide-menu-n\">{count}</span> {}<span class=\"guide-menu-caret\" aria-hidden=\"true\"></span></summary>\n<ul class=\"guide-menu-list\">{}</ul>\n</details>",
+                if count == 1 { "guide" } else { "guides" },
+                names
+                    .iter()
+                    .map(|name| format!("<li>{name}</li>"))
+                    .collect::<String>()
+            );
             out.push_str(&format!(
-                "<div class=\"domain\">\n<div class=\"pkg-head\">\n<div class=\"pkg-what\"><span class=\"pkg-title\">{}</span>{import}<p>{}</p></div>\n{}\n</div>\n<div class=\"pkg-foot\"><div class=\"pkg-btns\">{}</div></div>\n</div>\n",
+                "<div class=\"domain\">\n<div class=\"pkg-head\">\n<div class=\"pkg-what\"><a class=\"pkg-title\" href=\"{page}\">{}</a>{import}</div>\n{}\n</div>\n<div class=\"pkg-foot\"><div class=\"pkg-btns\">{guides}{}</div></div>\n</div>\n",
                 escape(&chapter.title),
-                names.join(", "),
                 command(&lang.domain_install(&chapter.key)),
                 actions.join("")
             ));
@@ -1181,6 +1212,33 @@ pub(crate) fn escape(text: &str) -> String {
 }
 
 /// The absolute URL of a capability's guide on the site, when it has one.
+/// Where a domain is listed: the section of one language's reference page that holds its
+/// capabilities, each with its install line and its API pages.
+///
+/// # Arguments
+///
+/// * `language` - the reference page to open (`rust`, `node`, `python`, `dotnet`).
+/// * `title` - the chapter's title, which is also its heading on that page.
+///
+/// # Returns
+///
+/// The absolute URL of that section.
+pub fn domain_url(language: &str, title: &str) -> String {
+    let anchor: String = title
+        .chars()
+        .filter_map(|ch| {
+            if ch.is_alphanumeric() || ch == '_' || ch == '-' {
+                Some(ch.to_ascii_lowercase())
+            } else if ch.is_whitespace() {
+                Some('-')
+            } else {
+                None
+            }
+        })
+        .collect();
+    format!("{SITE}/reference/{language}.html#{anchor}")
+}
+
 fn guide_url(capability: &Capability) -> Option<String> {
     capability.guide.as_ref().map(|guide| {
         let page = guide.strip_suffix(".md").unwrap_or(guide);
@@ -1565,30 +1623,30 @@ crate = "pamoja"
         let descriptions = BTreeMap::new();
 
         let node = catalog.render("install node", &descriptions).unwrap();
-        assert!(node.starts_with("<div class=\"domains\">\n<div class=\"domain\">\n<div class=\"pkg-head\">\n<div class=\"pkg-what\"><span class=\"pkg-title\">Field I/O</span><code class=\"pkg-import\">@pamoja/field-io</code><p>"), "{node}");
+        assert!(node.starts_with("<div class=\"domains\">\n<div class=\"domain\">\n<div class=\"pkg-head\">\n<div class=\"pkg-what\"><a class=\"pkg-title\" href=\"https://pamoja.molex.cloud/docs/reference/node.html#field-io\">Field I/O</a><code class=\"pkg-import\">@pamoja/field-io</code></div>"), "{node}");
         assert!(
             node.contains(
                 "<div class=\"pkg-get\"><code class=\"cmd\">npm install @pamoja/field-io</code>"
             ),
             "{node}"
         );
-        assert!(node.contains("<p><a href=\"https://pamoja.molex.cloud/docs/guides/modbus.html\">Modbus RTU</a>, Transports, <a href=\"https://pamoja.molex.cloud/docs/guides/can.html\">CAN</a></p></div>\n<div class=\"pkg-get\">"), "{node}");
-        assert!(node.contains("<div class=\"pkg-foot\"><div class=\"pkg-btns\"><a class=\"pkg-btn api node\" href=\"https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_field-io.html\">API reference</a><a class=\"pkg-btn ext\" href=\"https://www.npmjs.com/package/@pamoja/field-io\">npm</a></div></div>"), "{node}");
+        assert!(node.contains("<div class=\"pkg-btns\"><details class=\"guide-menu\">\n<summary><span class=\"guide-menu-n\">3</span> guides<span class=\"guide-menu-caret\" aria-hidden=\"true\"></span></summary>\n<ul class=\"guide-menu-list\"><li><a href=\"https://pamoja.molex.cloud/docs/guides/modbus.html\">Modbus RTU</a></li><li>Transports</li><li><a href=\"https://pamoja.molex.cloud/docs/guides/can.html\">CAN</a></li></ul>\n</details><a class=\"pkg-btn api node\""), "{node}");
+        assert!(node.contains("<a class=\"pkg-btn api node\" href=\"https://pamoja.molex.cloud/docs/reference/node.html#field-io\">API reference</a><a class=\"pkg-btn ext\" href=\"https://www.npmjs.com/package/@pamoja/field-io\">npm</a></div></div>"), "{node}");
 
         let rust = catalog.render("install rust", &descriptions).unwrap();
         assert!(rust.contains("<code class=\"cmd\">cargo add pamoja --features field-io</code>"));
         assert!(
-            rust.contains("<span class=\"pkg-title\">Field I/O</span><p>"),
+            rust.contains("<a class=\"pkg-title\" href=\"https://pamoja.molex.cloud/docs/reference/rust.html#field-io\">Field I/O</a></div>"),
             "a feature has no registry page and no import of its own"
         );
-        assert!(rust.contains("<div class=\"pkg-btns\"><a class=\"pkg-btn api rust\" href=\"https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html\">API reference</a></div>"), "a Rust domain is a feature of the umbrella crate");
+        assert!(rust.contains("</details><a class=\"pkg-btn api rust\" href=\"https://pamoja.molex.cloud/docs/reference/rust.html#field-io\">API reference</a></div>"), "every language opens the section that lists the domain, not the root of its whole reference");
 
         let dotnet = catalog.render("install dotnet", &descriptions).unwrap();
         assert!(dotnet.contains("dotnet add package Pamoja.FieldIo"));
-        assert!(dotnet.contains("<div class=\"pkg-btns\"><a class=\"pkg-btn ext\" href=\"https://www.nuget.org/packages/Pamoja.FieldIo\">NuGet</a></div>"), "a NuGet domain package holds no code of its own");
+        assert!(dotnet.contains("<a class=\"pkg-btn api dotnet\" href=\"https://pamoja.molex.cloud/docs/reference/dotnet.html#field-io\">API reference</a><a class=\"pkg-btn ext\" href=\"https://www.nuget.org/packages/Pamoja.FieldIo\">NuGet</a></div></div>"), "a NuGet domain package has no namespace page of its own, so it opens the section that lists it");
         let python = catalog.render("install python", &descriptions).unwrap();
         assert!(python.contains("<code class=\"pkg-import\">pamoja.field_io</code>"));
-        assert!(python.contains("<a class=\"pkg-btn api python\" href=\"https://pamoja.molex.cloud/docs/reference/python/pamoja/field_io.html\">API reference</a>"));
+        assert!(python.contains("<a class=\"pkg-btn api python\" href=\"https://pamoja.molex.cloud/docs/reference/python.html#field-io\">API reference</a>"));
 
         let door = catalog
             .render("reference-link python", &descriptions)

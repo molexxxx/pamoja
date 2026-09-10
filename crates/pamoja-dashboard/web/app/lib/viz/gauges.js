@@ -25,7 +25,7 @@ export function radial(r, big)
     ticks += `<line class="vv-tick" x1="${(28 + 15.5 * Math.cos(a)).toFixed(1)}" y1="${(28 + 15.5 * Math.sin(a)).toFixed(1)}" x2="${(28 + 21 * Math.cos(a)).toFixed(1)}" y2="${(28 + 21 * Math.sin(a)).toFixed(1)}"/>`;
   }
   const center = `<text class="vv-num${big ? '' : ' sm'}" x="28" y="31" text-anchor="middle">${fmt(v)}</text>`;
-  return `<svg class="tv" viewBox="0 0 56 52">
+  return `<svg aria-hidden="true" class="tv" viewBox="0 0 56 52">
     <g transform="rotate(135 28 28)">
       <circle class="vv-track" cx="28" cy="28" r="${rad}" stroke-dasharray="${sweep.toFixed(1)} ${c.toFixed(1)}"/>
       ${ticks}
@@ -46,7 +46,7 @@ export function therm(r, big)
   let ticks = '';
   for (const p of [0, 0.33, 0.66, 1]) ticks += `<line class="vv-tick" x1="18" y1="${(bottom - p * h).toFixed(1)}" x2="21" y2="${(bottom - p * h).toFixed(1)}"/>`;
   const lab = big && band ? `<text class="vv-end" x="23" y="${(top + 3).toFixed(1)}">${nf(band[1])}</text><text class="vv-end" x="23" y="${bottom}">${nf(band[0])}</text>${unitSup(t('unit.' + r.unit), 38, 8)}` : '';
-  return `<svg class="tv" viewBox="0 0 ${big ? 40 : 26} 50">
+  return `<svg aria-hidden="true" class="tv" viewBox="0 0 ${big ? 40 : 26} 50">
     <rect class="vv-tube" x="9" y="4" width="8" height="34" rx="4"/>
     ${ticks}
     <rect class="vv-merc" x="11" y="${(bottom - mh).toFixed(1)}" width="4" height="${(mh + 8).toFixed(1)}" rx="2"/>
@@ -67,7 +67,7 @@ export function droplet(r, uid, big)
   const path = 'M22 6 C32 22 36 28 36 33 a14 14 0 1 1 -28 0 C8 28 12 22 22 6 Z';
   const pct = big ? `<text class="vv-num" x="22" y="36" text-anchor="middle">${Math.round(f * 100)}</text>` : '';
   const cap = big && r.band ? `<text class="vv-end" x="5" y="55">${nf(r.band[0])}</text><text class="vv-end" x="39" y="55" text-anchor="end">${nf(r.band[1])}</text>${unitSup(t('unit.' + r.unit), 42, 8)}` : '';
-  return `<svg class="tv" viewBox="0 0 44 ${big ? 58 : 50}"><defs><clipPath id="d${uid}"><path d="${path}"/></clipPath></defs>
+  return `<svg aria-hidden="true" class="tv" viewBox="0 0 44 ${big ? 58 : 50}"><defs><clipPath id="d${uid}"><path d="${path}"/></clipPath></defs>
     <path class="vv-back" d="${path}"/>
     <g clip-path="url(#d${uid})"><rect class="vv-fill" x="6" width="32" height="50" y="0" style="transform:translateY(${((1 - f) * 50).toFixed(1)}px)"/>
       <ellipse class="vv-wave" cx="22" cy="${((1 - f) * 50).toFixed(1)}" rx="17" ry="3"/></g>
@@ -89,7 +89,7 @@ export function battery(r, uid)
   const x0 = 9, innerW = 52;
   const segs = [1, 2, 3].map((i) => `<line class="bat-seg" x1="${(x0 + innerW * i / 4).toFixed(1)}" y1="12" x2="${(x0 + innerW * i / 4).toFixed(1)}" y2="34"/>`).join('');
   const bolt = r.trend === 'rising' ? '<path class="bat-bolt" d="M40 13 L31 26 L38 26 L35 35 L47 21 L40 21 Z"/>' : '';
-  return `<svg class="tv" viewBox="0 0 80 46">
+  return `<svg aria-hidden="true" class="tv" viewBox="0 0 80 46">
       <defs><clipPath id="bf${uid}"><rect x="${x0}" y="12" width="${innerW}" height="22" rx="3"/></clipPath></defs>
       <rect class="bat-body" x="6" y="9" width="58" height="28" rx="5"/>
       <rect class="bat-cap" x="65" y="16" width="5" height="14" rx="2"/>
@@ -112,7 +112,7 @@ export function dial(r, big)
   let ticks = '';
   for (const p of [0, 0.25, 0.5, 0.75, 1]) { const t2 = Math.PI - p * Math.PI; ticks += `<line class="vv-tick" x1="${(cx + Math.cos(t2) * (rad - 4)).toFixed(1)}" y1="${(cy - Math.sin(t2) * (rad - 4)).toFixed(1)}" x2="${(cx + Math.cos(t2) * rad).toFixed(1)}" y2="${(cy - Math.sin(t2) * rad).toFixed(1)}"/>`; }
   const lab = big && band ? `<text class="vv-end" x="${cx - rad}" y="48">${nf(band[0])}</text><text class="vv-end" x="${cx + rad}" y="48" text-anchor="end">${nf(band[1])}</text>${unitSup(t('unit.' + r.unit), 60, 9)}` : '';
-  return `<svg class="tv" viewBox="0 0 64 50">
+  return `<svg aria-hidden="true" class="tv" viewBox="0 0 64 50">
     <path class="vv-track" fill="none" d="M${cx - rad} ${cy} A ${rad} ${rad} 0 0 1 ${cx + rad} ${cy}"/>
     <path class="vv-arcline" fill="none" pathLength="100" stroke-dasharray="${(f * 100).toFixed(1)} 100" d="M${cx - rad} ${cy} A ${rad} ${rad} 0 0 1 ${cx + rad} ${cy}"/>
     ${ticks}
@@ -132,7 +132,7 @@ export function wind(r, big)
 {
   const v = r.value, band = r.band, rad = 20, c = 2 * Math.PI * rad, sweep = c * 0.75, f = fracOf(v, band);
   const arm = (deg) => { const a = deg * Math.PI / 180, x = 28 + 8 * Math.cos(a), y = 28 + 8 * Math.sin(a); return `<line class="vv-arm" x1="28" y1="28" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/><circle class="vv-cup" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.8"/>`; };
-  return `<svg class="tv" viewBox="0 0 56 52">
+  return `<svg aria-hidden="true" class="tv" viewBox="0 0 56 52">
     <g transform="rotate(135 28 28)">
       <circle class="vv-track" cx="28" cy="28" r="${rad}" stroke-dasharray="${sweep.toFixed(1)} ${c.toFixed(1)}"/>
       ${gaugeTicks()}
@@ -155,7 +155,7 @@ export function sun(r, big)
   const v = r.value, band = r.band, rad = 20, c = 2 * Math.PI * rad, sweep = c * 0.75, f = fracOf(v, band);
   let rays = '';
   for (let i = 0; i < 8; i++) { const a = i * 45 * Math.PI / 180, x1 = 28 + 9 * Math.cos(a), y1 = 28 + 9 * Math.sin(a), x2 = 28 + 12.5 * Math.cos(a), y2 = 28 + 12.5 * Math.sin(a); rays += `<line class="vv-ray" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }
-  return `<svg class="tv" viewBox="0 0 56 52">
+  return `<svg aria-hidden="true" class="tv" viewBox="0 0 56 52">
     <g transform="rotate(135 28 28)">
       <circle class="vv-track" cx="28" cy="28" r="${rad}" stroke-dasharray="${sweep.toFixed(1)} ${c.toFixed(1)}"/>
       ${gaugeTicks()}

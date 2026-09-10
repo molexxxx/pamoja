@@ -4,6 +4,7 @@ import { t } from '../lib/i18n.js';
 import { makeGroup, makeSensor, currentFleet, provision } from '../lib/edits.js';
 import { catalog, scopeAllows } from '../lib/catalog.js';
 import { LINK_NAMES, esc } from '../lib/viz/index.js';
+import { sync as syncDialog, drop as dropDialog } from '../lib/dialog.js';
 
 /** The unit tokens the custom-sensor entry suggests, beyond whatever the presets carry. */
 const UNIT_TOKENS = ['percent', 'celsius', 'volt', 'watt', 'hectopascal', 'meter_per_second', 'millimeter', 'lux', 'liter_per_minute', 'decibel', 'count'];
@@ -26,7 +27,7 @@ $.component('manage-modal', {
   /** Resets the form whenever the create target changes. */
   mounted() { this._un = store.subscribe(() => this.sync()); },
   /** Tears down the store subscription. */
-  destroyed() { if (this._un) this._un(); },
+  destroyed() { dropDialog(); if (this._un) this._un(); },
 
   /** Resets the form fields when a new create dialog opens, then re-renders. */
   sync()
@@ -215,6 +216,9 @@ $.component('manage-modal', {
    *
    * @returns {string} the dialog markup.
    */
+  /** Keeps the modal contract in step with what this component just rendered. */
+  updated() { syncDialog(this._el); },
+
   render()
   {
     const c = store.state.create;
@@ -240,7 +244,7 @@ $.component('manage-modal', {
       <div class="modal-overlay" @click="onOverlay">
         <div class="modal modal-form" role="dialog" aria-modal="true">
           <div class="modal-head">
-            <div class="modal-title">${c.mode === 'group' ? t('ui.addGroup') : t('ui.addSensor')}</div>
+            <h2 class="modal-title">${c.mode === 'group' ? t('ui.addGroup') : t('ui.addSensor')}</h2>
             <button class="modal-close" type="button" @click="cancel" aria-label="${esc(t('ui.cancel'))}">✕</button>
           </div>
           <div class="form">${body}${s.error ? `<p class="form-error">${esc(s.error)}</p>` : ''}</div>

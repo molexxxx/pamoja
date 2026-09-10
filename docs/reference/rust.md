@@ -27,45 +27,63 @@ that holds more than one:
 <div class="domains">
 <div class="domain">
 <div class="pkg-head">
-<div class="pkg-what"><span class="pkg-title">Field I/O</span><p><a href="https://pamoja.molex.cloud/docs/guides/serial.html">Serial framing</a>, <a href="https://pamoja.molex.cloud/docs/guides/modbus.html">Modbus RTU</a>, <a href="https://pamoja.molex.cloud/docs/guides/can.html">CAN and J1939</a>, <a href="https://pamoja.molex.cloud/docs/guides/gpio.html">I2C, SPI, and GPIO</a>, <a href="https://pamoja.molex.cloud/docs/guides/hal.html">Buses</a></p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/reference/rust.html#field-io">Field I/O</a></div>
 <div class="pkg-get"><code class="cmd">cargo add pamoja --features field-io</code><button class="copy" type="button" data-copy="cargo add pamoja --features field-io" aria-label="Copy the install command">copy</button></div>
 </div>
-<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html">API reference</a></div></div>
+<div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
+<summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/serial.html">Serial framing</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/modbus.html">Modbus RTU</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/can.html">CAN and J1939</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/gpio.html">I2C, SPI, and GPIO</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/hal.html">Buses</a></li></ul>
+</details><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust.html#field-io">API reference</a></div></div>
 </div>
 <div class="domain">
 <div class="pkg-head">
-<div class="pkg-what"><span class="pkg-title">Sensing and actuation</span><p><a href="https://pamoja.molex.cloud/docs/guides/sensors.html">Sensor drivers</a>, <a href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a>, <a href="https://pamoja.molex.cloud/docs/guides/device.html">Your own device</a></p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/reference/rust.html#sensing-and-actuation">Sensing and actuation</a></div>
 <div class="pkg-get"><code class="cmd">cargo add pamoja --features sensing</code><button class="copy" type="button" data-copy="cargo add pamoja --features sensing" aria-label="Copy the install command">copy</button></div>
 </div>
-<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html">API reference</a></div></div>
+<div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
+<summary><span class="guide-menu-n">3</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/sensors.html">Sensor drivers</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/device.html">Your own device</a></li></ul>
+</details><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust.html#sensing-and-actuation">API reference</a></div></div>
 </div>
 <div class="domain">
 <div class="pkg-head">
-<div class="pkg-what"><span class="pkg-title">Radio and reach</span><p><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a>, <a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a>, <a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a>, <a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/reference/rust.html#radio-and-reach">Radio and reach</a></div>
 <div class="pkg-get"><code class="cmd">cargo add pamoja --features radio</code><button class="copy" type="button" data-copy="cargo add pamoja --features radio" aria-label="Copy the install command">copy</button></div>
 </div>
-<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html">API reference</a></div></div>
+<div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
+<summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
+</details><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust.html#radio-and-reach">API reference</a></div></div>
 </div>
 <div class="domain">
 <div class="pkg-head">
-<div class="pkg-what"><span class="pkg-title">Trust and operation</span><p><a href="https://pamoja.molex.cloud/docs/guides/audit.html">Audit log</a>, <a href="https://pamoja.molex.cloud/docs/guides/session.html">Secured session</a>, <a href="https://pamoja.molex.cloud/docs/guides/update.html">Signed updates</a>, <a href="https://pamoja.molex.cloud/docs/guides/power.html">Power</a>, <a href="https://pamoja.molex.cloud/docs/guides/telemetry.html">Telemetry</a></p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/reference/rust.html#trust-and-operation">Trust and operation</a></div>
 <div class="pkg-get"><code class="cmd">cargo add pamoja --features trust</code><button class="copy" type="button" data-copy="cargo add pamoja --features trust" aria-label="Copy the install command">copy</button></div>
 </div>
-<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html">API reference</a></div></div>
+<div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
+<summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/audit.html">Audit log</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/session.html">Secured session</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/update.html">Signed updates</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/power.html">Power</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/telemetry.html">Telemetry</a></li></ul>
+</details><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust.html#trust-and-operation">API reference</a></div></div>
 </div>
 <div class="domain">
 <div class="pkg-head">
-<div class="pkg-what"><span class="pkg-title">Transports and testing</span><p><a href="https://pamoja.molex.cloud/docs/guides/mqtt.html">MQTT</a>, <a href="https://pamoja.molex.cloud/docs/guides/coap.html">CoAP</a>, <a href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a>, <a href="https://pamoja.molex.cloud/docs/guides/sync.html">Store and forward</a>, <a href="https://pamoja.molex.cloud/docs/guides/ladder.html">Transport ladder</a>, <a href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a>, <a href="https://pamoja.molex.cloud/docs/guides/transport.html">Engine surface</a>, <a href="https://pamoja.molex.cloud/docs/guides/link.html">Your own link</a>, <a href="https://pamoja.molex.cloud/docs/guides/sim.html">Simulators</a></p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/reference/rust.html#transports-and-testing">Transports and testing</a></div>
 <div class="pkg-get"><code class="cmd">cargo add pamoja --features transports</code><button class="copy" type="button" data-copy="cargo add pamoja --features transports" aria-label="Copy the install command">copy</button></div>
 </div>
-<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html">API reference</a></div></div>
+<div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
+<summary><span class="guide-menu-n">9</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/mqtt.html">MQTT</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/coap.html">CoAP</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/sync.html">Store and forward</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/ladder.html">Transport ladder</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/transport.html">Engine surface</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/link.html">Your own link</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/sim.html">Simulators</a></li></ul>
+</details><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust.html#transports-and-testing">API reference</a></div></div>
 </div>
 <div class="domain">
 <div class="pkg-head">
-<div class="pkg-what"><span class="pkg-title">Profiles and robotics</span><p><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a>, <a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a>, <a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/reference/rust.html#profiles-and-robotics">Profiles and robotics</a></div>
 <div class="pkg-get"><code class="cmd">cargo add pamoja --features profiles</code><button class="copy" type="button" data-copy="cargo add pamoja --features profiles" aria-label="Copy the install command">copy</button></div>
 </div>
-<div class="pkg-foot"><div class="pkg-btns"><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust/pamoja/index.html">API reference</a></div></div>
+<div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
+<summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></li></ul>
+</details><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust.html#profiles-and-robotics">API reference</a></div></div>
 </div>
 </div>
 <!-- end -->
@@ -160,7 +178,7 @@ reference pages, one step away.
 <div class="pkgs">
 <div class="pkg" id="rust-kit">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/kit.html">Helpers</a><code class="pkg-import">pamoja-kit</code><p>Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/kit.html">Helpers</a><code class="pkg-import">pamoja-kit</code><p>Plain-language helper math: smoothing, calibration, PID and thermostat control, a trigger with hysteresis, trend and surge prediction, rolling windows, kinematics, and geo</p></div>
 <div class="pkg-get"><code class="cmd">cargo add pamoja-kit</code><button class="copy" type="button" data-copy="cargo add pamoja-kit" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">
@@ -441,6 +459,16 @@ reference pages, one step away.
 <div class="pkg-foot">
 <div class="pkg-btns"><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_profile/index.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/profile.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/profile.html#rust">Worked example</a><a class="pkg-btn ext" href="https://crates.io/crates/pamoja-profile">crates.io</a><a class="pkg-btn ext" href="https://docs.rs/pamoja-profile">docs.rs</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-profile" title="@pamoja/profile">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-profile" title="pamoja-profile">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-profile" title="Pamoja.Profile">C#</a></p>
+</div>
+</div>
+<div class="pkg" id="rust-rules">
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a><code class="pkg-import">pamoja-core</code><p>Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link</p></div>
+<div class="pkg-get"><code class="cmd">cargo add pamoja-core</code><button class="copy" type="button" data-copy="cargo add pamoja-core" aria-label="Copy the install command">copy</button></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/rules.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/rules.html#rust">Worked example</a><a class="pkg-btn ext" href="https://crates.io/crates/pamoja-core">crates.io</a><a class="pkg-btn ext" href="https://docs.rs/pamoja-core">docs.rs</a></div>
+<p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-rules" title="@pamoja/kit">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-rules" title="pamoja-kit">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-rules" title="Pamoja.Kit">C#</a></p>
 </div>
 </div>
 <div class="pkg" id="rust-ros2">

@@ -56,11 +56,6 @@ pub fn root_of(url: &str) -> String {
 ///
 /// The document, from `<!doctype html>` to `</html>`.
 pub fn document(chrome: &Chrome, page: &Page) -> String {
-    let group = chrome
-        .nav
-        .group_of(&page.url)
-        .and_then(|group| group.title.as_deref())
-        .unwrap_or("Documentation");
     let (previous, next) = chrome.nav.neighbours(&page.url);
 
     let full = if page.title == "pamoja" {
@@ -79,14 +74,17 @@ pub fn document(chrome: &Chrome, page: &Page) -> String {
     );
     out.push_str("<body>\n");
     out.push_str("<a class=\"skip\" href=\"#content\">Skip to content</a>\n");
-    out.push_str(&header());
-    out.push_str("<div id=\"page\">\n<div class=\"docs\">\n<aside class=\"side\" id=\"side\">\n");
+    out.push_str(&header(chrome.version, &page.url));
+    // A page carrying the block diagram opens out: the diagram needs more width than a
+    // reading column, so the sheet widens and the table of contents stands down, the way a
+    // datasheet prints its block diagram on a foldout.
+    let foldout = page.body.contains("class=\"bd\"");
+    out.push_str(&format!(
+        "<div id=\"page\">\n<div class=\"docs{}\">\n<aside class=\"side\" id=\"side\">\n",
+        if foldout { " docs-foldout" } else { "" }
+    ));
     out.push_str(&chrome.nav.sidebar(&page.url, ROOT));
     out.push_str("</aside>\n<main class=\"content\" id=\"content\">\n");
-    out.push_str(&format!(
-        "<p class=\"crumbs\"><span>{}</span></p>\n",
-        escape(group)
-    ));
     out.push_str(match page.kind {
         Kind::Guide => "<article class=\"article article-guide\">\n",
         Kind::Article => "<article class=\"article\">\n",
@@ -99,7 +97,9 @@ pub fn document(chrome: &Chrome, page: &Page) -> String {
         escape(&page.source)
     ));
     out.push_str("</main>\n");
-    out.push_str(&toc(&page.toc));
+    if !foldout {
+        out.push_str(&toc(&page.toc));
+    }
     out.push_str("</div>\n</div>\n");
     out.push_str(&footer(chrome.version));
     out.push_str(&format!(
@@ -137,7 +137,7 @@ pub fn home(chrome: &Chrome, body: &str) -> String {
     );
     out.push_str("<body class=\"is-home\">\n");
     out.push_str("<a class=\"skip\" href=\"#content\">Skip to content</a>\n");
-    out.push_str(&header());
+    out.push_str(&header(chrome.version, "index.html"));
     out.push_str("<div id=\"page\">\n");
     out.push_str(&format!(
         "<nav class=\"side home-menu\" id=\"side\" aria-label=\"Site\">\n\
@@ -199,7 +199,7 @@ pub fn not_found(chrome: &Chrome) -> String {
         chrome.stamp,
     );
     out.push_str("<body>\n");
-    out.push_str(&header());
+    out.push_str(&header(chrome.version, "404.html"));
     out.push_str(
         "<div id=\"page\">\n<main class=\"content lone\" id=\"content\">\n<article class=\"article\">\n\
          <h1>There is no page here</h1>\n\
@@ -289,15 +289,15 @@ fn head(page: &Head, stamp: &str) -> String {
          <meta property=\"og:url\" content=\"{canonical}\">\n\
          <meta name=\"twitter:card\" content=\"summary\">\n\
          <link rel=\"icon\" href=\"/assets/pamoja-icon.svg\">\n\
-         <link rel=\"preload\" href=\"/fonts/Sora.woff2\" as=\"font\" type=\"font/woff2\" crossorigin>\n\
-         <link rel=\"preload\" href=\"/fonts/Inter.woff2\" as=\"font\" type=\"font/woff2\" crossorigin>\n\
+         <link rel=\"preload\" href=\"/fonts/Archivo.woff2\" as=\"font\" type=\"font/woff2\" crossorigin>\n\
          <link rel=\"stylesheet\" href=\"/fonts/fonts.css?v={stamp}\">\n\
          <link rel=\"stylesheet\" href=\"/theme.css?v={stamp}\">\n\
          <link rel=\"stylesheet\" href=\"/site.css?v={stamp}\">\n\
          <script>document.documentElement.classList.replace('no-js','js');\
-try{{var h=location.hash.slice(1);document.documentElement.dataset.lang=/^(rust|typescript|python|c)$/.test(h)?h:(localStorage.getItem('pamoja:lang')||'rust')}}catch(e){{document.documentElement.dataset.lang='rust'}}</script>\n\
+try{{var h=location.hash.slice(1);document.documentElement.dataset.lang=/^(rust|typescript|python|c)$/.test(h)?h:(localStorage.getItem('pamoja:lang')||'rust')}}catch(e){{document.documentElement.dataset.lang='rust'}}\
+try{{var s=localStorage.getItem('pamoja:scheme');if(s==='light'||s==='dark')document.documentElement.dataset.theme=s}}catch(e){{}}</script>\n\
          </head>\n",
-        theme::PALETTE.navy_1,
+        theme::LIGHT.band,
         page.kind,
         title = escape(page.title),
         description = escape(page.description),
@@ -305,42 +305,95 @@ try{{var h=location.hash.slice(1);document.documentElement.dataset.lang=/^(rust|
     )
 }
 
-// The header every page shares: the mark, the site's doors, the search box, and the icon
-// bar to the project on GitHub. The menu button opens the sidebar on a narrow screen and is
-// only rendered where there is one.
-// Every page gets the menu toggle: it opens the sidebar on a documentation page and the
-// drawer of site links on the front page, and site.js hides it where there is neither.
-fn header() -> String {
+// The header every page shares, drawn as a datasheet's band: the mark and the part name,
+// the one-line description, the site's doors, the search box, and the icon bar to the
+// project on GitHub; under it the document line a sheet carries on every page, the part,
+// its revision, and its license. Every page gets the menu toggle: it opens the sidebar on
+// a documentation page and the drawer of site links on the front page, and site.js hides
+// it where there is neither.
+fn header(version: &str, here: &str) -> String {
     let menu = "<button class=\"menu-toggle\" type=\"button\" aria-controls=\"side\" aria-expanded=\"false\">\
          <span class=\"menu-bars\" aria-hidden=\"true\"></span>Menu</button>\n";
+    let matched = SECTIONS
+        .iter()
+        .find(|(_, _, prefix)| here.starts_with(prefix))
+        .map(|(label, _, _)| *label);
+    let nav: String = DOORS
+        .iter()
+        .map(|(label, url)| {
+            let current = if matched == Some(*label) {
+                " class=\"here\" aria-current=\"page\""
+            } else {
+                ""
+            };
+            format!("<a href=\"/{url}\"{current}>{label}</a>\n")
+        })
+        .collect();
     format!(
-        "<header class=\"top\">\n\
+        "<header class=\"band\">\n\
+         <div class=\"band-row\">\n\
          {menu}\
          <a class=\"brand\" href=\"/\" aria-label=\"pamoja home\">{}<span class=\"brand-word\">pamoja</span></a>\n\
-         <nav class=\"top-nav\" aria-label=\"Site\">\n\
-         <a href=\"/docs/index.html\">Docs</a>\n\
-         <a href=\"/docs/hardware.html\">Hardware</a>\n\
-         <a href=\"/docs/reference/index.html\">Reference</a>\n\
-         </nav>\n\
+         <p class=\"band-desc\">An SDK for IoT, robotics, and drones</p>\n\
+         <nav class=\"top-nav\" aria-label=\"Site\">\n{nav}</nav>\n\
          <div class=\"search\" role=\"search\">\n\
-         <input class=\"search-input\" type=\"search\" placeholder=\"Search\" aria-label=\"Search the documentation, or press slash\" autocomplete=\"off\" spellcheck=\"false\">\n\
+         {}\
+         <input class=\"search-input\" type=\"search\" placeholder=\"Search the documentation\" aria-label=\"Search the documentation, or press slash\" autocomplete=\"off\" spellcheck=\"false\">\n\
          <kbd class=\"search-key\" aria-hidden=\"true\">/</kbd>\n\
-         <div class=\"search-results\" role=\"listbox\" aria-label=\"Search results\" hidden></div>\n\
+         <div class=\"search-results\" hidden></div>\n\
          </div>\n\
-         <nav class=\"top-icons\" aria-label=\"The project on GitHub\">\n\
+         <button class=\"scheme\" type=\"button\" data-scheme=\"system\" aria-label=\"Color scheme: following your system. Activate for the light sheet.\">\
+         <span class=\"scheme-icon\" aria-hidden=\"true\">{}{}{}</span><span class=\"scheme-word\">Auto</span></button>\n\
+         <nav class=\"project\" aria-label=\"The project on GitHub\">\n\
          <a href=\"{REPO}\" title=\"Source on GitHub\" aria-label=\"Source on GitHub\">{}</a>\n\
          <a href=\"{REPO}/issues/new?template=bug.yml\" title=\"Report a bug\" aria-label=\"Report a bug\">{}</a>\n\
          <a href=\"{REPO}/issues/new?template=capability.yml\" title=\"Request a capability or a change\" aria-label=\"Request a capability or a change\">{}</a>\n\
          <a href=\"{REPO}/releases\" title=\"Releases and the changelog\" aria-label=\"Releases and the changelog\">{}</a>\n\
          </nav>\n\
+         </div>\n\
+         <p class=\"docline\"><span>pamoja</span><span>Rev {}</span><span>MIT license</span><span class=\"docline-end\">pamoja.molex.cloud</span></p>\n\
          </header>\n",
         mark(),
+        ICON_GLASS,
+        ICON_AUTO,
+        ICON_SUN,
+        ICON_MOON,
         ICON_GITHUB,
         ICON_BUG,
-        ICON_IDEA,
+        ICON_REQUEST,
         ICON_TAG,
+        escape(version),
     )
 }
+
+/// The doors in the band, in reading order.
+const DOORS: [(&str, &str); 4] = [
+    ("Docs", "docs/index.html"),
+    ("Install", "docs/install.html"),
+    ("Hardware", "docs/hardware.html"),
+    ("Reference", "docs/reference/index.html"),
+];
+
+/// Which door the reader is behind, tried in this order: the three single destinations
+/// first, then the documentation, which would otherwise claim every page under `docs/`.
+const SECTIONS: [(&str, &str, &str); 4] = [
+    ("Install", "docs/install.html", "docs/install"),
+    ("Hardware", "docs/hardware.html", "docs/hardware"),
+    ("Reference", "docs/reference/index.html", "docs/reference"),
+    ("Docs", "docs/index.html", "docs/"),
+];
+
+/// A magnifying glass, inside the search field.
+const ICON_GLASS: &str = "<svg class=\"search-glass\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" aria-hidden=\"true\"><circle cx=\"7\" cy=\"7\" r=\"4.5\"/><path d=\"M10.4 10.4 14 14\"/></svg>";
+
+/// A half-lit disc: the scheme follows the reader's system.
+const ICON_AUTO: &str = "<svg class=\"i-auto\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><circle cx=\"8\" cy=\"8\" r=\"6\"/><path d=\"M8 2a6 6 0 0 0 0 12z\" fill=\"currentColor\" stroke=\"none\"/></svg>";
+
+/// A sun: the light sheet.
+const ICON_SUN: &str = "<svg class=\"i-sun\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" aria-hidden=\"true\"><circle cx=\"8\" cy=\"8\" r=\"3.25\"/><path d=\"M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3.05 3.05l1.13 1.13M11.82 11.82l1.13 1.13M12.95 3.05l-1.13 1.13M4.18 11.82l-1.13 1.13\"/></svg>";
+
+/// A moon: the sheet in reverse.
+const ICON_MOON: &str = "<svg class=\"i-moon\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M13.2 9.7A5.6 5.6 0 0 1 6.3 2.8a5.6 5.6 0 1 0 6.9 6.9z\"/></svg>";
 
 /// The GitHub mark, filled with the current color.
 const ICON_GITHUB: &str = "<svg viewBox=\"0 0 16 16\" width=\"18\" height=\"18\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z\"/></svg>";
@@ -348,8 +401,8 @@ const ICON_GITHUB: &str = "<svg viewBox=\"0 0 16 16\" width=\"18\" height=\"18\"
 /// A bug, drawn in strokes.
 const ICON_BUG: &str = "<svg viewBox=\"0 0 16 16\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 7.5a3 3 0 0 1 6 0v2.5a3 3 0 0 1-6 0z\"/><path d=\"M6 5.2V4a2 2 0 0 1 4 0v1.2M8 7.5v5.5M2.5 8.5H5M11 8.5h2.5M3.2 12.5 5 11.3M12.8 12.5 11 11.3M3.2 4.5 5 6M12.8 4.5 11 6\"/></svg>";
 
-/// A lightbulb, for a suggestion.
-const ICON_IDEA: &str = "<svg viewBox=\"0 0 16 16\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M8 1.5a4.5 4.5 0 0 0-2.6 8.2c.5.4.8.9.9 1.5h3.4c.1-.6.4-1.1.9-1.5A4.5 4.5 0 0 0 8 1.5z\"/><path d=\"M6.3 13.3h3.4M7 15h2\"/></svg>";
+/// A plus in a circle, for asking the project for something.
+const ICON_REQUEST: &str = "<svg viewBox=\"0 0 16 16\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" aria-hidden=\"true\"><circle cx=\"8\" cy=\"8\" r=\"6.25\"/><path d=\"M8 5.2v5.6M5.2 8h5.6\"/></svg>";
 
 /// A tag, for the releases.
 const ICON_TAG: &str = "<svg viewBox=\"0 0 16 16\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 2h5.6l6.4 6.4-5.6 5.6L2 7.6z\"/><circle cx=\"5.2\" cy=\"5.2\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/></svg>";
@@ -357,7 +410,7 @@ const ICON_TAG: &str = "<svg viewBox=\"0 0 16 16\" width=\"18\" height=\"18\" fi
 // The mark: the mesh from the logo, turning slowly. SMIL rather than script, so it moves
 // without JavaScript and stops for a reader who asked for reduced motion.
 fn mark() -> &'static str {
-    r##"<svg class="brand-mark" viewBox="0 0 240 240" width="30" height="30" aria-hidden="true"><defs><radialGradient id="mark-core" cx="0.5" cy="0.42" r="0.62"><stop offset="0" stop-color="#FFF3D6"/><stop offset="0.45" stop-color="#FFB627"/><stop offset="1" stop-color="#F26A4B"/></radialGradient></defs><g><animateTransform attributeName="transform" type="rotate" from="0 120 120" to="360 120 120" dur="60s" repeatCount="indefinite"/><g fill="none" stroke-width="10"><polygon points="120,40 188,80 188,160 120,200 52,160 52,80" stroke="#FBF3E4" stroke-opacity="0.28"/><g stroke="#FBF3E4" stroke-opacity="0.22"><line x1="120" y1="120" x2="120" y2="40"/><line x1="120" y1="120" x2="188" y2="80"/><line x1="120" y1="120" x2="188" y2="160"/><line x1="120" y1="120" x2="120" y2="200"/><line x1="120" y1="120" x2="52" y2="160"/><line x1="120" y1="120" x2="52" y2="80"/></g></g><g><circle cx="120" cy="40" r="13" fill="#FFB627"/><circle cx="188" cy="80" r="13" fill="#F26A4B"/><circle cx="188" cy="160" r="13" fill="#1FA995"/><circle cx="120" cy="200" r="13" fill="#FFB627"/><circle cx="52" cy="160" r="13" fill="#F26A4B"/><circle cx="52" cy="80" r="13" fill="#1FA995"/></g></g><circle cx="120" cy="120" r="22" fill="url(#mark-core)"/></svg>"##
+    r##"<svg class="brand-mark" viewBox="0 0 240 240" width="30" height="30" aria-hidden="true"><g><g fill="none" stroke-width="10"><polygon points="120,40 188,80 188,160 120,200 52,160 52,80" stroke="#FBF3E4" stroke-opacity="0.28"/><g stroke="#FBF3E4" stroke-opacity="0.22"><line x1="120" y1="120" x2="120" y2="40"/><line x1="120" y1="120" x2="188" y2="80"/><line x1="120" y1="120" x2="188" y2="160"/><line x1="120" y1="120" x2="120" y2="200"/><line x1="120" y1="120" x2="52" y2="160"/><line x1="120" y1="120" x2="52" y2="80"/></g></g><g><circle cx="120" cy="40" r="13" fill="#FFB627"/><circle cx="188" cy="80" r="13" fill="#F26A4B"/><circle cx="188" cy="160" r="13" fill="#1FA995"/><circle cx="120" cy="200" r="13" fill="#FFB627"/><circle cx="52" cy="160" r="13" fill="#F26A4B"/><circle cx="52" cy="80" r="13" fill="#1FA995"/></g></g><circle cx="120" cy="120" r="22" fill="#FFB627"/></svg>"##
 }
 
 // The page's own table of contents: its second- and third-level headings, nested.
@@ -428,16 +481,37 @@ fn pager(previous: Option<&super::nav::Item>, next: Option<&super::nav::Item>) -
 fn footer(version: &str) -> String {
     format!(
         "<footer class=\"foot\">\n\
-         <div class=\"foot-brand\"><a href=\"/\" class=\"brand-word\">pamoja</a>\
-         <p>One memory-safe Rust core with bindings for TypeScript, Python, and C#, for IoT, robotics, and drones.</p></div>\n\
-         <nav class=\"foot-links\" aria-label=\"Registries\">\n\
+         <div class=\"foot-grid\">\n\
+         <div class=\"foot-notice\">\n\
+         <h2 class=\"foot-head\">Important notice</h2>\n\
+         <p>pamoja is free software under the MIT license: one memory-safe Rust core with bindings for TypeScript, Python, and C#, for IoT, robotics, and drones. \
+         Every example on this site is spliced from a test that runs in CI on every change, every table is rendered from the source, and every number is measured by a build or read from a registry. \
+         The scenarios are illustrations of what the crates do, not deployments.</p>\n\
+         <p>Nothing here is certified for safety-critical use, and the MIT license disclaims every warranty. Copyright 2026 Anthony Wiedman.</p>\n\
+         </div>\n\
+         <nav class=\"foot-links\" aria-labelledby=\"foot-published\">\n\
+         <h2 class=\"foot-head\" id=\"foot-published\">Published</h2>\n\
          <a href=\"{REPO}\">GitHub</a>\n\
          <a href=\"https://crates.io/crates/pamoja\">crates.io</a>\n\
          <a href=\"https://www.npmjs.com/package/pamoja\">npm</a>\n\
          <a href=\"https://pypi.org/project/pamoja/\">PyPI</a>\n\
          <a href=\"https://www.nuget.org/packages/Pamoja\">NuGet</a>\n\
          </nav>\n\
-         <p class=\"foot-fine\">Version {} · MIT licensed</p>\n\
+         <nav class=\"foot-links\" aria-labelledby=\"foot-legal\">\n\
+         <h2 class=\"foot-head\" id=\"foot-legal\">Legal</h2>\n\
+         <a href=\"/docs/about/terms.html\">Terms</a>\n\
+         <a href=\"/docs/about/privacy.html\">Privacy</a>\n\
+         <a href=\"/docs/about/notices.html\">Notices</a>\n\
+         <a href=\"{REPO}/blob/main/LICENSE-MIT\">MIT license</a>\n\
+         </nav>\n\
+         <nav class=\"foot-links\" aria-labelledby=\"foot-contact\">\n\
+         <h2 class=\"foot-head\" id=\"foot-contact\">Contact</h2>\n\
+         <a href=\"{REPO}/issues/new/choose\">Open an issue</a>\n\
+         <a href=\"{REPO}/security/advisories/new\">Report a vulnerability</a>\n\
+         <a href=\"/docs/about/notices.html#contact\">Email the maintainer</a>\n\
+         </nav>\n\
+         </div>\n\
+         <p class=\"foot-fine\"><span>pamoja</span><span>Rev {}</span><span>MIT license</span><span class=\"foot-host\">pamoja.molex.cloud</span></p>\n\
          </footer>\n",
         escape(version)
     )
