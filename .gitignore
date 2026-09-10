@@ -26,9 +26,10 @@ wheels/
 .mypy_cache/
 .ruff_cache/
 
-# .NET
-bin/
-obj/
+# .NET build output. Scoped to the .NET tree, since `bin/` on its own also hides a
+# Rust package's src/bin, which is where a package's extra programs live.
+bindings/dotnet/**/bin/
+bindings/dotnet/**/obj/
 *.user
 
 # Native build artifacts

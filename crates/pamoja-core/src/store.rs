@@ -1,5 +1,6 @@
 //! Durable local storage backing the offline-first synchronization layer.
 
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::future::Future;
 

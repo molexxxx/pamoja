@@ -37,7 +37,9 @@ dependencies = [
  "esp-hal",
  "esp-println",
  "pamoja-core",
+ "pamoja-gpio",
  "pamoja-hal",
+ "pamoja-kit",
  "pamoja-sensors",
 ]
 
@@ -694,11 +696,23 @@ name = "pamoja-core"
 version = "0.1.17"
 
 [[package]]
+name = "pamoja-gpio"
+version = "0.1.17"
+dependencies = [
+ "embedded-hal",
+ "pamoja-core",
+]
+
+[[package]]
 name = "pamoja-hal"
 version = "0.1.17"
 dependencies = [
  "embedded-hal",
 ]
+
+[[package]]
+name = "pamoja-kit"
+version = "0.1.17"
 
 [[package]]
 name = "pamoja-sensors"
