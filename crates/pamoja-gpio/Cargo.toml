@@ -25,7 +25,7 @@ std = ["embedded-hal", "pamoja-core/std"]
 
 [dependencies]
 embedded-hal = { version = "1.0", optional = true }
-pamoja-core = { path = "../pamoja-core", version = "0.1.17", default-features = false, optional = true }
+pamoja-core = { path = "../pamoja-core", version = "0.1.18", default-features = false, optional = true }
 
 [dev-dependencies]
 pamoja-hal = { path = "../pamoja-hal", features = ["alloc"] }

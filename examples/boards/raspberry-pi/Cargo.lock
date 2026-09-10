@@ -299,7 +299,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-codec"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "ciborium",
  "pamoja-core",
@@ -309,11 +309,11 @@ dependencies = [
 
 [[package]]
 name = "pamoja-core"
-version = "0.1.17"
+version = "0.1.18"
 
 [[package]]
 name = "pamoja-gpio"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "embedded-hal",
  "pamoja-core",
@@ -321,7 +321,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-hal"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "embedded-hal",
  "linux-embedded-hal",
@@ -329,14 +329,14 @@ dependencies = [
 
 [[package]]
 name = "pamoja-kit"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "libm",
 ]
 
 [[package]]
 name = "pamoja-mqtt"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "pamoja-core",
  "rumqttc",
@@ -345,11 +345,11 @@ dependencies = [
 
 [[package]]
 name = "pamoja-power"
-version = "0.1.17"
+version = "0.1.18"
 
 [[package]]
 name = "pamoja-profile"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "pamoja-codec",
  "pamoja-core",
@@ -361,7 +361,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-sensors"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "embedded-hal",
  "pamoja-core",

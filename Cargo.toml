@@ -50,7 +50,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "0.1.17"
+version = "0.1.18"
 edition = "2021"
 rust-version = "1.89"
 license = "MIT"
@@ -70,10 +70,10 @@ categories = [
 # Internal crate dependencies. The version is required so each crate can be
 # published to crates.io, and is kept in lockstep with workspace.package.version.
 [workspace.dependencies]
-pamoja-core = { path = "crates/pamoja-core", version = "0.1.17" }
-pamoja-mqtt = { path = "crates/pamoja-mqtt", version = "0.1.17" }
-pamoja-kit = { path = "crates/pamoja-kit", version = "0.1.17" }
-pamoja-zenoh = { path = "crates/pamoja-zenoh", version = "0.1.17" }
+pamoja-core = { path = "crates/pamoja-core", version = "0.1.18" }
+pamoja-mqtt = { path = "crates/pamoja-mqtt", version = "0.1.18" }
+pamoja-kit = { path = "crates/pamoja-kit", version = "0.1.18" }
+pamoja-zenoh = { path = "crates/pamoja-zenoh", version = "0.1.18" }
 
 [workspace.lints.rust]
 missing_docs = "deny"

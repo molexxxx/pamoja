@@ -539,18 +539,18 @@ dependencies = [
 
 [[package]]
 name = "pamoja-core"
-version = "0.1.17"
+version = "0.1.18"
 
 [[package]]
 name = "pamoja-hal"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "embedded-hal 1.0.0",
 ]
 
 [[package]]
 name = "pamoja-sensors"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "embedded-hal 1.0.0",
  "pamoja-core",

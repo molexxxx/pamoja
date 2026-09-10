@@ -7,6 +7,22 @@ released together, so one entry covers all of them.
 
 ## [Unreleased]
 
+## [0.1.18] - 2026-09-10
+
+What a node does between reading and reporting, and what a console makes of a
+fleet of them. Rules between nodes are a file: one node's reading crossing a
+line drives another node's actuator, with a release band so it fires once per
+crossing. A policy of your own runs in a profile's node over whatever a driver
+reads and whatever an actuator takes, and a manifest may name a control kind the
+library never shipped. Every shipped profile now says how it should be drawn, so
+a dashboard built from the eight of them draws each with its own graphics, safe
+bands, and French and Swahili labels. A message reads as text or a number and a
+link sends text, so a reading written out as words needs no encoding step. Two
+new examples show the two shapes a deployment takes, one node done properly and
+a district console running all eight profiles at once, and the Raspberry Pi and
+ESP32-C3 pages go past a single sensor read into what a GPIO line can drive,
+which pins are safe to use, and the whole loop on real hardware.
+
 ### Added
 
 - Rules between nodes, as a file. A rule watches one node's topic for a reading
@@ -44,11 +60,60 @@ released together, so one entry covers all of them.
   as its code and value, over `pamoja_profile_control_kind` and
   `pamoja_profile_control_params_json` in the C ABI, and the conformance vectors
   carry a manifest with a kind the library never shipped.
+- Every shipped profile says how it should be drawn. All eight manifests in
+  `profiles/` now carry a presentation naming their own elements, each with its
+  graphic, its safe band, and French and Swahili labels beside the English: the
+  fridge draws a thermometer, a cooler switch, and a compressor-duty stat; the
+  irrigation node a soil droplet and a drip valve; the well a level bar and a
+  battery stat; the flood sensor a wide river wave and a rainfall bar. Naming the
+  element also fixes what a bare threshold could not say, since the flood
+  sensor's limit of 0.3 is meters and a reading in millimeters would have tripped
+  it every sample; the dashboard learns the two unit symbols that go with that,
+  and the brooder's heat lamp stops reporting itself as "Online".
+- Builders for adding to a profile rather than replacing what it declares.
+  `Profile::with_element` and `Profile::with_message` add one element or one
+  state's wording, `Presentation::with_elements` declares several at once, and
+  `LocalizedText::per_locale` (or an array of locale and text pairs, which
+  converts into one) writes text in several languages without building a map.
+  `Viz::name` and `Viz::from_name` are the word a manifest writes, which differs
+  from the renderer's own token for three of the graphics.
+- A node hands back the parts it was assembled from. `Node::sensor_mut`,
+  `actuator_mut`, and `transport_mut` reach the components a running node holds,
+  which is how a node publishing through a transport ladder flushes its own
+  buffer once the link is back, and `Node::into_parts` takes the whole thing
+  apart. `Reading::from_element` in `pamoja-dashboard` turns a profile's
+  declaration into the first reading a gateway reports.
+- Two examples for the two shapes a deployment takes.
+  `examples/brooder_node.rs` is one small node end to end: a shared manifest read
+  off disk, a probe, a heat lamp on an active-low relay, an uplink that comes and
+  goes so the cold hours are held and drained in order, a vent fan at the far end
+  of a rule file, and the sampling interval stretching as the battery sags.
+  `pamoja-dashboard`'s `fleet` example is the district console: every manifest in
+  `profiles/` stood up side by side, one group per deployment, each group's
+  sensors built from the elements its own profile declares.
+- The board pages go past a single sensor read. The Raspberry Pi package gains a
+  program that drives a relay board on one GPIO line and reads a debounced limit
+  switch on another, and one that runs the whole profile-driven loop on real
+  hardware and publishes over MQTT; its page gains what a pin can actually drive,
+  why every GPIO reverts to an input at power-on, the groups behind almost every
+  permission error, how to set an input's pull at boot, and how to run a node
+  under systemd without root. The ESP32-C3 package gains a thermostat that
+  decides on the chip, with a relay and a debounced override button; its page
+  gains the pin table that matters, since GPIO11 to GPIO17 are the SPI flash and
+  GPIO2, GPIO8, and GPIO9 are strapping pins, GPIO9 being the boot-mode strap.
+- Every shipped manifest is proved to run, not only to parse. A test in
+  `pamoja-profile` loads each one with the parser a device uses, feeds it
+  readings that cross its own lines, and checks the output switches both ways,
+  the alerts its policy promises fire, and the sampling interval stretches as the
+  battery drains.
 
 ### Changed
 
 - `ControlSpec` is no longer `Copy`, since a custom kind carries its name and
   parameters; clone it or borrow it.
+- `cargo xtask profiles` writes a preset's manifest from the constructor that
+  builds it, so the code stays the single source for the four profiles the crate
+  also builds in Rust and a hand edit to those files cannot drift away from it.
 
 - A path for what people build. `profiles/` holds one JSON manifest per shared
   profile, the four presets among them, read by the parser a device uses and
@@ -206,6 +271,17 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- The store's text accessors named `String` without importing it, so
+  `pamoja-core` did not build for a target with no operating system. Only the
+  bare-metal build would have caught it, and it did.
+- British spellings had spread through the routing and mesh doc comments, the
+  update crate's trust prose, the dashboard's reading keys and locale labels, and
+  the package READMEs that reach npm, PyPI, and NuGet. The dashboard's mesh stats
+  rename with them: the reading keys `neighbours` and `neighbour_mesh` are
+  `neighbors` and `neighbor_mesh`, and every locale file renames the key while
+  keeping its own translated words.
+- The Python type stub for `Message` had not caught up with the payload that
+  takes text as well as bytes.
 - The hardware page's purchase offers were never actually sorted cheapest first.
   The sort ran, but on the array alone: a TOML table is written back where its
   recorded position says, not where the array now puts it, so the file kept the
