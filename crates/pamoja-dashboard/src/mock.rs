@@ -8,6 +8,9 @@
 //! battery, a dropped link, a cold start - into the otherwise healthy fleet so each
 //! state is one click away.
 
+use pamoja_profile::{ElementSpec, Presentation, Scope, Viz};
+
+use crate::catalog::Catalog;
 use crate::command::{Command, CommandError};
 use crate::source::StateSource;
 use crate::state::{
@@ -99,6 +102,8 @@ pub struct Mock {
     // Actuator overrides applied to each snapshot, keyed by `"groupId/sensorId"`, so a
     // commanded valve stays where it was set across the deterministic drift.
     overrides: std::collections::HashMap<String, String>,
+    // Values commanded onto numeric actuators, keyed the same way.
+    settings: std::collections::HashMap<String, f32>,
     // Provisioning overlay: groups and sensors added or removed by authenticated commands,
     // so the device is the shared source of truth every client sees.
     added_groups: Vec<(String, Group)>,
@@ -126,6 +131,7 @@ impl Mock {
             tick: 0,
             slot: 0,
             overrides: std::collections::HashMap::new(),
+            settings: std::collections::HashMap::new(),
             added_groups: Vec::new(),
             added_sensors: Vec::new(),
             removed_groups: Vec::new(),
@@ -352,32 +358,132 @@ impl Mock {
         }
     }
 
-    // Applies the recorded actuator overrides onto a freshly built fleet, so a commanded
-    // valve holds its position across the deterministic drift.
+    // Applies the recorded actuator overrides and settings onto a freshly built fleet, so
+    // a commanded valve or pump holds what it was set to across the deterministic drift.
     fn apply_overrides(&self, state: &mut State) {
-        if self.overrides.is_empty() {
+        if self.overrides.is_empty() && self.settings.is_empty() {
             return;
         }
         for org in &mut state.orgs {
             for group in &mut org.groups {
                 for sensor in &mut group.sensors {
                     let target = format!("{}/{}", group.id, sensor.id);
-                    let Some(action) = self.overrides.get(&target) else {
-                        continue;
-                    };
-                    let allowed = sensor
-                        .reading
-                        .actions
-                        .as_ref()
-                        .is_some_and(|actions| actions.iter().any(|a| a == action));
-                    if allowed {
-                        sensor.reading.state = Some(format!("state.{action}"));
-                        sensor.reading.value = if action == "open" { 1.0 } else { 0.0 };
+                    if let Some(action) = self.overrides.get(&target) {
+                        let allowed = sensor
+                            .reading
+                            .actions
+                            .as_ref()
+                            .is_some_and(|actions| actions.iter().any(|a| a == action));
+                        if allowed {
+                            sensor.reading.state = Some(format!("state.{action}"));
+                            sensor.reading.value = if action == "open" { 1.0 } else { 0.0 };
+                        }
+                    }
+                    if let Some(value) = self.settings.get(&target) {
+                        if sensor.reading.range.is_some() {
+                            sensor.reading.value = *value;
+                            sensor.history.push(*value);
+                        }
                     }
                 }
                 group.recompute_status();
             }
         }
+    }
+
+    /// The presentation catalog of the demo fleet: the field-kit elements the page ships
+    /// no presets for, and where its network map places the demo sites.
+    ///
+    /// The dev server serves it at `GET /catalog` and the static showcase carries it in
+    /// its first frame, so the demo fleet's own elements never have to be baked into the
+    /// page. A real deployment serves its own from its profiles instead.
+    ///
+    /// # Returns
+    ///
+    /// The demo catalog.
+    pub fn catalog() -> Catalog {
+        let mesh = || Scope::Links(vec!["mesh".to_owned()]);
+        let presentation = Presentation::new()
+            .with_element(
+                ElementSpec::new("well_level", "percent", "Well level", Viz::Bar)
+                    .with_band(20.0, 100.0),
+            )
+            .with_element(
+                ElementSpec::new("soil_trend", "percent", "Soil trend", Viz::Spark)
+                    .with_band(0.0, 100.0),
+            )
+            .with_element(
+                ElementSpec::new("drip_valve", "state", "Drip valve", Viz::Valve)
+                    .with_state("state.closed"),
+            )
+            .with_element(
+                ElementSpec::new("pump_speed", "percent", "Pump speed", Viz::Bar)
+                    .with_band(0.0, 100.0),
+            )
+            .with_element(
+                ElementSpec::new("fridge_temp", "celsius", "Fridge", Viz::Thermometer)
+                    .with_band(2.0, 8.0),
+            )
+            .with_element(
+                ElementSpec::new("ward_power", "percent", "Ward power", Viz::Bar)
+                    .with_band(50.0, 100.0),
+            )
+            .with_element(
+                ElementSpec::new("oxygen_stock", "percent", "Oxygen stock", Viz::Bar)
+                    .with_band(30.0, 100.0),
+            )
+            .with_element(
+                ElementSpec::new("uplink", "state", "Uplink", Viz::Switch)
+                    .with_state("state.synced")
+                    .as_stat(),
+            )
+            .with_element(
+                ElementSpec::new("tamper_log", "record", "Tamper log", Viz::Chain)
+                    .with_value(1000.0)
+                    .as_stat(),
+            )
+            .with_element(
+                ElementSpec::new("storage_tank", "percent", "Storage tank", Viz::Bar)
+                    .with_band(20.0, 100.0),
+            )
+            .with_element(
+                ElementSpec::new("flow_trend", "liter_per_minute", "Flow trend", Viz::Spark)
+                    .with_band(0.0, 16.0),
+            )
+            .with_element(
+                ElementSpec::new("pump_health", "state", "Pump health", Viz::Switch)
+                    .with_state("state.nominal"),
+            )
+            .with_element(
+                ElementSpec::new("acoustic", "decibel", "Acoustic", Viz::Wave)
+                    .with_band(0.0, 120.0),
+            )
+            .with_element(
+                ElementSpec::new("relay_status", "state", "Relay status", Viz::Switch)
+                    .with_state("state.online")
+                    .as_stat()
+                    .on(mesh()),
+            )
+            .with_element(
+                ElementSpec::new("routing", "state", "Routing", Viz::Switch)
+                    .with_state("mesh.optimized")
+                    .as_stat()
+                    .on(mesh()),
+            )
+            .with_element(
+                ElementSpec::new("mesh_relay", "state", "Mesh relay", Viz::Mesh)
+                    .with_state("mesh.optimized")
+                    .with_value(5.0)
+                    .on(mesh()),
+            );
+        Catalog::from_presentations(&[&presentation])
+            .with_site_position("__gateway", 0.47, 0.45)
+            .with_site_position("cold-chain", 0.29, 0.15)
+            .with_site_position("maternity", 0.17, 0.27)
+            .with_site_position("silo-3", 0.72, 0.20)
+            .with_site_position("weather", 0.88, 0.36)
+            .with_site_position("solar", 0.66, 0.78)
+            .with_site_position("river", 0.36, 0.69)
     }
 }
 
@@ -703,12 +809,24 @@ impl StateSource for Mock {
             (0.0, 100.0),
             None,
         );
+        // The pump is a numeric actuator: its duty is whatever it was last set to.
+        let pump_speed = Sensor {
+            id: "pump".to_owned(),
+            reading: Reading::new("pump_speed", 55.0, "percent").with_range(0.0, 100.0),
+            battery: None,
+            mode: Mode::Active,
+            history: vec![55.0; 12],
+            events: Vec::new(),
+            peer: None,
+            lat: None,
+            lon: None,
+        };
         let farm = self.group(
             "farm-node",
             "Farm node",
             LinkKind::Lora,
             3,
-            vec![soil, well, valve, farm_batt, soil_trend],
+            vec![soil, well, valve, pump_speed, farm_batt, soil_trend],
         );
 
         // Health post: a cold-chain clinic kit on NB-IoT whose readings are written to a
@@ -989,6 +1107,17 @@ impl StateSource for Mock {
                     },
                 }
             }
+            Command::Set { target, value } => {
+                match find_sensor(&fleet, target).map(|sensor| sensor.reading.range) {
+                    None => Err(CommandError::UnknownTarget),
+                    Some(Some([low, high])) if (low..=high).contains(value) => {
+                        self.settings.insert(target.clone(), *value);
+                        Ok(())
+                    }
+                    Some(Some(_)) => Err(CommandError::OutOfRange),
+                    Some(None) => Err(CommandError::Unsupported),
+                }
+            }
             Command::AddGroup { org, group } => {
                 if fleet.orgs.iter().any(|o| o.id == *org) {
                     self.added_groups.push((org.clone(), group.clone()));
@@ -1043,6 +1172,106 @@ mod tests {
         assert!(groups >= 7, "expected a rich fleet, got {groups} groups");
         assert_eq!(state.status, Status::Ok);
         assert!(state.demo, "the mock marks its snapshot as demo data");
+    }
+
+    #[test]
+    fn a_set_value_holds_across_ticks_and_out_of_range_is_refused() {
+        let mut fleet = Mock::new(Scenario::Normal);
+        fleet
+            .command(&Command::Set {
+                target: "farm-node/pump".to_owned(),
+                value: 80.0,
+            })
+            .expect("inside the pump's range");
+        for _ in 0..3 {
+            let state = fleet.snapshot();
+            let pump = state
+                .orgs
+                .iter()
+                .flat_map(|o| &o.groups)
+                .flat_map(|g| &g.sensors)
+                .find(|s| s.id == "pump")
+                .expect("the pump");
+            assert_eq!(pump.reading.value, 80.0);
+            assert_eq!(pump.reading.range, Some([0.0, 100.0]));
+        }
+        assert_eq!(
+            fleet.command(&Command::Set {
+                target: "farm-node/pump".to_owned(),
+                value: 140.0,
+            }),
+            Err(CommandError::OutOfRange)
+        );
+        assert_eq!(
+            fleet.command(&Command::Set {
+                target: "farm-node/soil".to_owned(),
+                value: 40.0,
+            }),
+            Err(CommandError::Unsupported)
+        );
+    }
+
+    #[test]
+    fn the_demo_catalog_declares_the_field_kit_elements_and_the_map() {
+        let json = Mock::catalog().to_json().expect("serialize");
+        for key in [
+            "well_level",
+            "fridge_temp",
+            "ward_power",
+            "oxygen_stock",
+            "pump_speed",
+            "mesh_relay",
+            "tamper_log",
+        ] {
+            assert!(
+                json.contains(&format!("\"key\":\"{key}\"")),
+                "{key} is declared"
+            );
+        }
+        assert!(json.contains("\"sitePositions\""));
+        assert!(json.contains("\"river\":[0.36,0.69]"));
+        // Every key the demo fleet reports has a preset or is one the page ships.
+        let mut fleet = Mock::new(Scenario::Normal);
+        let state = fleet.snapshot();
+        let shipped = [
+            "temperature",
+            "humidity",
+            "state_of_charge",
+            "pv_power",
+            "pressure",
+            "wind_speed",
+            "illuminance",
+            "battery_voltage",
+            "soil_moisture",
+            "battery_level",
+            "flow_rate",
+            "neighbours",
+            "hops",
+            "messages_relayed",
+            "ambient_temp",
+            "load_power",
+            "rainfall",
+            "river_level",
+            "compressor_duty",
+            "grain_temp_top",
+            "grain_temp_upper",
+            "grain_temp_lower",
+            "grain_temp_floor",
+            "neighbour_mesh",
+            "relay_mesh",
+        ];
+        for sensor in state
+            .orgs
+            .iter()
+            .flat_map(|o| &o.groups)
+            .flat_map(|g| &g.sensors)
+        {
+            let key = sensor.reading.key.as_str();
+            assert!(
+                shipped.contains(&key) || json.contains(&format!("\"key\":\"{key}\"")),
+                "{key} needs a preset in the demo catalog or the page"
+            );
+        }
     }
 
     #[test]

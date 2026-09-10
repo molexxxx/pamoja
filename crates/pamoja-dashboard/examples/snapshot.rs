@@ -1,7 +1,8 @@
 //! Generates the static fleet snapshots the hosted showcase replays when no device answers
 //! `GET /state`. For each mock scenario it advances the clock and writes a JSON array of
 //! frames to `state.<scenario>.json`; the static dashboard cycles them on the live cadence
-//! so it animates like the device feed. Used by the Pages build:
+//! so it animates like the device feed. The first frame carries the demo catalog, which a
+//! live device would serve at `GET /catalog`. Used by the Pages build:
 //! `cargo run -p pamoja-dashboard --example snapshot -- dist/dashboard`.
 
 use std::path::PathBuf;
@@ -18,12 +19,28 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
+    let catalog = match serde_json::to_value(Mock::catalog()) {
+        Ok(value) => value,
+        Err(err) => {
+            eprintln!("snapshot: could not serialize the demo catalog: {err}");
+            return ExitCode::FAILURE;
+        }
+    };
     for scenario in Scenario::ALL {
         let mut mock = Mock::new(scenario);
         let mut frames = Vec::with_capacity(FRAMES);
-        for _ in 0..FRAMES {
-            match mock.snapshot().to_json() {
-                Ok(json) => frames.push(json),
+        for index in 0..FRAMES {
+            let frame = mock
+                .snapshot()
+                .to_json()
+                .and_then(|json| serde_json::from_str::<serde_json::Value>(&json));
+            match frame {
+                Ok(mut frame) => {
+                    if index == 0 {
+                        frame["catalog"] = catalog.clone();
+                    }
+                    frames.push(frame.to_string());
+                }
                 Err(err) => {
                     eprintln!("snapshot: could not serialize {}: {err}", scenario.key());
                     return ExitCode::FAILURE;

@@ -5,8 +5,23 @@ import { makeGroup, makeSensor, currentFleet, provision } from '../lib/edits.js'
 import { catalog, scopeAllows } from '../lib/catalog.js';
 import { LINK_NAMES, esc } from '../lib/viz/index.js';
 
+/** The unit tokens the custom-sensor entry suggests, beyond whatever the presets carry. */
+const UNIT_TOKENS = ['percent', 'celsius', 'volt', 'watt', 'hectopascal', 'meter_per_second', 'millimeter', 'lux', 'liter_per_minute', 'decibel', 'count'];
+
+/**
+ * Turns a typed name into a stable element key, such as `"Water turbidity"` into
+ * `"water_turbidity"`.
+ *
+ * @param {string} text - the name or key as typed.
+ * @returns {string} the key, or an empty string if nothing usable was typed.
+ */
+function slug(text)
+{
+  return String(text || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
 $.component('manage-modal', {
-  state: { name: '', linkKind: 'lora', sensorKind: 'temperature', value: '', binding: '', peer: '', error: null, last: null },
+  state: { name: '', linkKind: 'lora', sensorKind: 'temperature', value: '', binding: '', peer: '', error: null, last: null, cName: '', cKey: '', cUnit: '', cViz: 'radial', cLow: '', cHigh: '' },
 
   /** Resets the form whenever the create target changes. */
   mounted() { this._un = store.subscribe(() => this.sync()); },
@@ -28,6 +43,12 @@ $.component('manage-modal', {
       this.state.error = null;
       this.state.linkKind = 'lora';
       this.state.sensorKind = 'temperature';
+      this.state.cName = '';
+      this.state.cKey = '';
+      this.state.cUnit = '';
+      this.state.cViz = 'radial';
+      this.state.cLow = '';
+      this.state.cHigh = '';
     }
     this.setState({});
   },
@@ -46,6 +67,13 @@ $.component('manage-modal', {
    * @returns {void}
    */
   setKind(k) { this.state.sensorKind = k; },
+  /**
+   * Selects the graphic a custom sensor is drawn with.
+   *
+   * @param {string} k - the visualization kind, such as `'bar'`.
+   * @returns {void}
+   */
+  setViz(k) { this.state.cViz = k; },
 
   /**
    * The sensor presets offered for a target group, gated by each preset's scope so a
@@ -88,10 +116,59 @@ $.component('manage-modal', {
     const chip = (p) => `<button type="button" class="chip-opt ${selected === p.id ? 'on' : ''}" @click="setKind('${p.id}')">${esc(t('label.' + p.key))}</button>`;
     const sensors = presets.filter((p) => !p.stat);
     const stats = presets.filter((p) => p.stat);
+    const custom = `<button type="button" class="chip-opt chip-custom ${selected === 'custom' ? 'on' : ''}" @click="setKind('custom')">${esc(t('ui.custom'))}</button>`;
     return `<div class="field"><span>${t('ui.type')}</span>
-        <div class="chips">${sensors.map(chip).join('')}</div>
+        <div class="chips">${sensors.map(chip).join('')}${custom}</div>
         ${stats.length ? `<span class="chips-sub">${esc(t('ui.stats'))}</span><div class="chips">${stats.map(chip).join('')}</div>` : ''}
       </div>`;
+  },
+
+  /**
+   * Renders the fields that describe a sensor the catalog has never seen: its name, key,
+   * unit, graphic, and safe band.
+   *
+   * @returns {string} the custom-entry markup.
+   */
+  customFields()
+  {
+    const s = this.state;
+    const units = [...new Set([...catalog.sensorPresets.map((p) => p.unit), ...UNIT_TOKENS].filter((u) => u && u !== 'state' && u !== 'record'))];
+    return `
+        <p class="form-hint">${esc(t('ui.customHint'))}</p>
+        <label class="field"><span>${t('ui.name')}</span>
+          <input class="field-input" type="text" autocomplete="off" z-model="cName" placeholder="Turbidity" /></label>
+        <label class="field"><span>${t('ui.key')}</span>
+          <input class="field-input" type="text" autocomplete="off" spellcheck="false" z-model="cKey" placeholder="water_turbidity" /></label>
+        <label class="field"><span>${t('ui.unit')}</span>
+          <input class="field-input" type="text" autocomplete="off" spellcheck="false" list="unit-tokens" z-model="cUnit" placeholder="percent, celsius, ntu" />
+          <datalist id="unit-tokens">${units.map((u) => `<option value="${esc(u)}"></option>`).join('')}</datalist></label>
+        <div class="field"><span>${t('ui.graphic')}</span>
+          <div class="chips">${catalog.graphics.map((k) => `<button type="button" class="chip-opt ${s.cViz === k ? 'on' : ''}" @click="setViz('${k}')">${esc(t('viz.' + k))}</button>`).join('')}</div>
+        </div>
+        <div class="field"><span>${t('ui.band')}</span>
+          <div class="field-pair">
+            <input class="field-input" type="number" step="any" z-model="cLow" placeholder="${esc(t('ui.low'))}" aria-label="${esc(t('ui.low'))}" />
+            <input class="field-input" type="number" step="any" z-model="cHigh" placeholder="${esc(t('ui.high'))}" aria-label="${esc(t('ui.high'))}" />
+          </div>
+        </div>`;
+  },
+
+  /**
+   * Reads the custom-entry fields into a sensor description, or explains what is missing.
+   *
+   * @returns {{spec?: object, error?: string}} the description, or the error to show.
+   */
+  customSpec()
+  {
+    const s = this.state;
+    const key = slug(s.cKey) || slug(s.cName);
+    if (!key) return { error: t('ui.keyHint') };
+    const unit = slug(s.cUnit);
+    if (!unit) return { error: t('ui.unitHint') };
+    const low = parseFloat(s.cLow), high = parseFloat(s.cHigh);
+    const band = Number.isFinite(low) && Number.isFinite(high) && high > low ? [low, high] : undefined;
+    const label = s.cName.trim() || undefined;
+    return { spec: { key, unit, viz: s.cViz, label, band } };
   },
 
   /** Cancels the dialog by unwinding one history entry. */
@@ -108,9 +185,16 @@ $.component('manage-modal', {
   async submit()
   {
     const c = store.state.create; if (!c) return;
+    let spec;
+    if (c.mode === 'sensor' && this.state.sensorKind === 'custom')
+    {
+      const read = this.customSpec();
+      if (read.error) { this.state.error = read.error; this.setState({}); return; }
+      spec = read.spec;
+    }
     const built = c.mode === 'group'
       ? makeGroup(c.orgId, this.state.name.trim() || t('ui.newGroup'), this.state.linkKind)
-      : makeSensor(c.groupId, this.state.sensorKind, (() => { const v = parseFloat(this.state.value); return Number.isFinite(v) ? v : NaN; })());
+      : makeSensor(c.groupId, this.state.sensorKind, (() => { const v = parseFloat(this.state.value); return Number.isFinite(v) ? v : NaN; })(), spec);
     // A sensor may carry an optional hardware binding for a real gateway to bind a driver,
     // and on a mesh node an optional peer (station) name that groups it on the mesh map.
     if (c.mode === 'sensor')
@@ -145,6 +229,7 @@ $.component('manage-modal', {
         </div>`
       : `
         ${this.typeField(c.groupId, s.sensorKind)}
+        ${s.sensorKind === 'custom' ? this.customFields() : ''}
         <label class="field"><span>${t('ui.value')}</span>
           <input class="field-input" type="number" step="any" z-model="value" placeholder="${t('ui.auto')}" /></label>
         <label class="field"><span>${t('ui.binding')}</span>

@@ -56,14 +56,25 @@ function applyOrder(items, order, idOf)
  * Builds a fresh custom sensor for a group (numeric, discrete-state, or chain log).
  *
  * @param {string} groupId - the id of the group the sensor belongs to.
- * @param {string} presetId - the catalog preset id; falls back to the first preset.
+ * @param {string} presetId - the catalog preset id, or `'custom'` for a sensor described
+ *   by `spec`; falls back to the first preset.
  * @param {number} [value] - an explicit numeric value; defaults to the band midpoint.
+ * @param {{key: string, unit: string, viz: string, label?: string, band?: number[]}} [spec] -
+ *   a sensor the catalog has never seen: its key, unit, graphic, name, and safe band.
  * @returns {object} the new sensor, in the snapshot shape.
  */
-export function makeSensor(groupId, presetId, value)
+export function makeSensor(groupId, presetId, value, spec)
 {
-  const p = catalog.sensorPresets.find((x) => x.id === presetId) || catalog.sensorPresets[0];
   const base = { id: uid('s'), groupId, battery: null, mode: 'active', events: [], custom: true };
+  if (presetId === 'custom' && spec)
+  {
+    const v = Number.isFinite(value) ? value : (spec.band ? (spec.band[0] + spec.band[1]) / 2 : 0);
+    const reading = { key: spec.key, value: v, unit: spec.unit, status: statusFor(v, spec.band), trend: 'steady', viz: spec.viz };
+    if (spec.band) reading.band = spec.band;
+    if (spec.label) reading.label = spec.label;
+    return { ...base, reading, history: Array.from({ length: 12 }, () => v) };
+  }
+  const p = catalog.sensorPresets.find((x) => x.id === presetId) || catalog.sensorPresets[0];
   // A custom preset may pin its graphic and tile width; carry them onto the reading so it
   // renders the same way the profile intends.
   const pres = { ...(p.viz ? { viz: p.viz } : {}), ...(p.span ? { span: true } : {}), ...(p.stat ? { stat: true } : {}) };

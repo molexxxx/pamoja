@@ -83,6 +83,7 @@ fn main() -> std::process::ExitCode {
     );
 
     let server = Server::new(Mock::new(scenario), assets)
+        .with_catalog(Mock::catalog())
         .with_push_interval(interval)
         .with_pairing_secret(secret);
     match server.run(&addr) {

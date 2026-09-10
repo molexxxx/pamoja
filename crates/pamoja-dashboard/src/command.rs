@@ -4,7 +4,8 @@
 //! over the authenticated `POST /command` path (see the serving layer) and is dispatched
 //! to the [`StateSource`](crate::StateSource), which is the only thing that can move an
 //! actuator or change the fleet. The wire form is a serde-tagged object, so the page
-//! sends `{"type":"actuate", ...}`.
+//! sends `{"type":"actuate", ...}` for a discrete actuator and `{"type":"set", ...}` for
+//! a numeric one.
 
 use serde::Deserialize;
 
@@ -15,6 +16,9 @@ use crate::state::{Group, Sensor};
 /// The provisioning variants carry the group or sensor the client built, so the device
 /// records the structure the operator described; the device owns and shares it across
 /// every client.
+// A command is decoded once per request and queued a handful at a time, so the sensor
+// the add variant carries stays inline rather than boxed for the wire type's sake.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Command {
@@ -24,6 +28,15 @@ pub enum Command {
         target: String,
         /// The action to apply, one of the reading's advertised actions (`"open"`).
         action: String,
+    },
+    /// Set a numeric actuator to a value inside its advertised range, such as a pump
+    /// speed or a setpoint.
+    Set {
+        /// The actuator's `"groupId/sensorId"` path.
+        target: String,
+        /// The value to apply, in the reading's unit and inside its
+        /// [`range`](crate::Reading::range).
+        value: f32,
     },
     /// Add a group to an organization.
     AddGroup {
@@ -66,6 +79,8 @@ pub enum CommandError {
     UnknownTarget,
     /// The target exists but does not accept the requested action.
     InvalidAction,
+    /// The value lies outside the range the target advertises.
+    OutOfRange,
     /// The sensor being added is not one this device supports, so it was not added. A real
     /// device only accepts the sensor types it can actually bind a driver to.
     UnknownSensor,
@@ -82,6 +97,7 @@ impl CommandError {
             CommandError::Unsupported => "command.unsupported",
             CommandError::UnknownTarget => "command.unknown_target",
             CommandError::InvalidAction => "command.invalid_action",
+            CommandError::OutOfRange => "command.out_of_range",
             CommandError::UnknownSensor => "command.unknown_sensor",
         }
     }

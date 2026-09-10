@@ -219,7 +219,8 @@ $.component('network-view', {
     const ax = 100, ay = 70, aw = W - 200, ah = H - 170;
     const P = (nx, ny) => [+(ax + nx * aw).toFixed(1), +(ay + ny * ah).toFixed(1)];
     const hub = P(...catalog.sitePositions.__gateway);
-    const town = P(0.23, 0.21), farms = P(0.80, 0.28), sol = P(...catalog.sitePositions.solar), riv = P(...catalog.sitePositions.river);
+    // Roads run to the two landmarks and to whichever mapped groups sit beyond them.
+    const ends = [P(0.23, 0.21), P(0.80, 0.28), ...['solar', 'river'].filter((id) => catalog.sitePositions[id]).map((id) => P(...catalog.sitePositions[id]))];
     const road = (a, b) => `<path class="net-road" d="M${a[0]} ${a[1]} Q${(a[0] + b[0]) / 2 + 20} ${(a[1] + b[1]) / 2 - 20} ${b[0]} ${b[1]}"/>`;
 
     let grid = '';
@@ -236,7 +237,7 @@ $.component('network-view', {
     const contours = `
       <path class="net-contour" d="M812 300 q96 50 50 168 q-66 100 -196 86"/>
       <path class="net-contour" d="M790 320 q70 48 36 138 q-50 78 -150 74"/>`;
-    const roads = `<g class="net-roads">${road(hub, town)}${road(hub, farms)}${road(hub, sol)}${road(hub, riv)}</g>`;
+    const roads = `<g class="net-roads">${ends.map((end) => road(hub, end)).join('')}</g>`;
 
     const compass = `<g class="net-compass" transform="translate(${W - 70} 60)"><circle r="22" class="net-comp-ring"/><path d="M0 -16 L5 4 L0 0 L-5 4 Z" class="net-comp-n"/><text y="-24" text-anchor="middle" class="net-comp-t">N</text></g>`;
     const scale = `<g class="net-scale" transform="translate(70 ${H - 40})"><line x1="0" y1="0" x2="120" y2="0"/><line x1="0" y1="-4" x2="0" y2="4"/><line x1="120" y1="-4" x2="120" y2="4"/><text x="60" y="-8" text-anchor="middle">2 km</text></g>`;

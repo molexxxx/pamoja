@@ -88,6 +88,17 @@ pub struct Reading {
     /// read-only sensor leaves this `None`, and the page shows control only when it is set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actions: Option<Vec<String>>,
+    /// The numeric range `[low, high]` this reading can be commanded to, in its unit,
+    /// present only on a numeric actuator such as a pump speed or a setpoint. The page
+    /// shows a control for it, and a [`Command::Set`](crate::Command::Set) inside the
+    /// range moves the value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<[f32; 2]>,
+    /// A display name for a key the page's own bundles and the served catalog do not
+    /// carry, such as a sensor added from the page itself. The page prefers a translated
+    /// label when it has one, then this, then a reading of the key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     /// Whether this is a node or network stat (neighbours, hops, link or relay status, a
     /// tamper-log record count) rather than a measurement of the world. The page counts and
     /// renders stats apart from sensors. Defaults `false`.
@@ -118,6 +129,8 @@ impl Reading {
             trend: None,
             state: None,
             actions: None,
+            range: None,
+            label: None,
             stat: false,
         }
     }
@@ -207,6 +220,35 @@ impl Reading {
     /// The reading, for chaining.
     pub fn with_actions(mut self, actions: impl IntoIterator<Item = impl Into<String>>) -> Self {
         self.actions = Some(actions.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Marks the reading as a numeric actuator that accepts a value inside a range.
+    ///
+    /// # Arguments
+    ///
+    /// * `low` - the lowest value a client may command, in the reading's unit.
+    /// * `high` - the highest value a client may command.
+    ///
+    /// # Returns
+    ///
+    /// The reading, for chaining.
+    pub fn with_range(mut self, low: f32, high: f32) -> Self {
+        self.range = Some([low, high]);
+        self
+    }
+
+    /// Gives the reading a display name of its own, for a key no bundle or catalog knows.
+    ///
+    /// # Arguments
+    ///
+    /// * `label` - the name the page shows when it has no translation for the key.
+    ///
+    /// # Returns
+    ///
+    /// The reading, for chaining.
+    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
         self
     }
 

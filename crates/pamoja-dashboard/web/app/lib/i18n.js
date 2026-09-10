@@ -160,6 +160,19 @@ function fill(text, args)
 }
 
 /**
+ * Turns a stable element key into a readable name, such as `"water_turbidity"` into
+ * `"Water turbidity"`.
+ *
+ * @param {string} key - the element key.
+ * @returns {string} the name.
+ */
+export function humanize(key)
+{
+  const text = key.replace(/_+/g, ' ').trim();
+  return text ? text[0].toUpperCase() + text.slice(1) : key;
+}
+
+/**
  * Looks up a localized message by its stable key.
  *
  * @param {string} k - the message key, such as `"ui.status"`.
@@ -177,8 +190,10 @@ export const t = (k, args = {}) =>
   if (m == null) m = labelExtra.en?.[k];
   if (m == null) m = labelExtra['*']?.[k];
   // A unit we do not ship a symbol for (a profile's custom unit, such as `ntu`) degrades to
-  // its bare, language-neutral token rather than the raw `unit.ntu` key.
+  // its bare, language-neutral token rather than the raw `unit.ntu` key, and a label no
+  // bundle or catalog carries reads as its key with the underscores taken out.
   if (m == null && k.startsWith('unit.')) return k.slice(5);
+  if (m == null && k.startsWith('label.')) return humanize(k.slice(6));
   if (m == null) return k;
   if (typeof m === 'object')
   {

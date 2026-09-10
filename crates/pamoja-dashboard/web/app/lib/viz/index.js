@@ -22,15 +22,14 @@ import { count, mesh, wave, chain, chip, valve } from './glyphs.js';
  */
 export function vizFor(key, unit)
 {
-  if (key === 'mesh_relay' || key === 'neighbour_mesh' || key === 'relay_mesh') return 'mesh';
-  if (key === 'tamper_log') return 'chain';
-  if (key === 'drip_valve') return 'valve';
+  if (key.includes('mesh')) return 'mesh';
+  if (unit === 'record') return 'chain';
+  if (key.endsWith('valve')) return 'valve';
   if (unit === 'count') return 'count';
   if (unit === 'state') return 'chip';
-  if (key === 'soil_trend' || key.endsWith('_trend')) return 'spark';
+  if (key.endsWith('_trend')) return 'spark';
   if (unit === 'celsius') return 'therm';
-  if (key === 'humidity' || key === 'soil_moisture' || unit === 'millimeter') return 'droplet';
-  if (key === 'well_level' || key === 'storage_tank' || key === 'ward_power' || key === 'oxygen_stock') return 'bar';
+  if (key === 'humidity' || key.includes('moisture') || unit === 'millimeter') return 'droplet';
   if (unit === 'hectopascal' || unit === 'liter_per_minute') return 'dial';
   if (unit === 'meter_per_second') return 'wind';
   if (unit === 'lux') return 'sun';
