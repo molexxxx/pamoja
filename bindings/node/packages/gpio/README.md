@@ -21,43 +21,48 @@ The test that runs in CI, spliced here as it ran.
 From [`bindings/node/guides/gpio.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/gpio.ts):
 
 ```typescript
-import { PinEdge, PinLevel, PinPolarity, i2c, pin, spi } from '@pamoja/gpio'
+// Most relay boards energize when their input is pulled low, and a float switch wired to
+// ground closes the same way. Saying "active low" once, here, is what keeps the inversion
+// out of every line below it.
+const RELAY = PinPolarity.ActiveLow
+const FLOAT = PinPolarity.ActiveLow
+const pump = new Line()
+const float = new Line([PinLevel.High, PinLevel.Low])
+console.log(`a pump on an active-low relay runs when its line is ${pin.levelFor(RELAY, true)}`)
 
-// A BME280 answers at the 7-bit address its datasheet gives. That is not the byte that
-// goes on the wire: the address shifts up one and the low bit says whether this
-// transaction reads or writes, which is the step easiest to get wrong by hand.
-const BME280 = 0x76
-const hex = (byte: number) => `0x${byte.toString(16).toUpperCase()}`
-console.log(`write to  ${hex(i2c.addressFrame(BME280)[0]!)}`)
-console.log(`read from ${hex(i2c.addressFrame(BME280, { read: true })[0]!)}`)
+// The pump runs while the tank fills. The stand-in line answers open and then closed, so
+// this is the real loop with nothing plugged in.
+pump.drive(pin.levelFor(RELAY, true))
+const whileFilling = pin.isAsserted(FLOAT, float.read())
+const onceFilled = pin.isAsserted(FLOAT, float.read())
+console.log(`the float reads full: ${whileFilling}, then ${onceFilled}`)
 
-// The I2C specification keeps two ranges of addresses for itself, so a part answering in
-// either is a wiring mistake rather than a device.
-console.log(
-  `${hex(BME280)} reserved: ${i2c.isReserved(BME280)}, ` +
-    `${hex(i2c.RESERVED_FROM)} reserved: ${i2c.isReserved(i2c.RESERVED_FROM)}`,
-)
+// The moment the float closes is that line going low, which is a falling edge. A watch
+// armed for the rising one would sleep through the tank filling.
+const closing = pin.triggers(PinEdge.Falling, PinLevel.High, PinLevel.Low)
+console.log(`the float closing is a falling edge on that line: ${closing}`)
 
-// A 10-bit address spends a reserved prefix over two bytes rather than one, so a bus
-// driver has to send a different number of bytes depending on the address it holds.
-// This is the worked example UM10204 itself prints.
-const TEN_BIT_DEVICE = 0x2a5
-console.log(`a 10-bit address takes ${i2c.frameLen(TEN_BIT_DEVICE, true)} bytes`)
+// Full, so the pump stops, and the levels the line was driven to are the whole
+// conversation the board saw.
+pump.drive(pin.levelFor(RELAY, false))
+const [ran, stopped] = pump.driven
+console.log(`running drove the line ${ran} and stopping drove it ${stopped}`)
 
-// Datasheets quote clock polarity and phase as one mode number. Mode 3 idles the clock
-// high and samples on the trailing edge.
+// A part on a shared bus answers to an address, and the byte on the wire is not the
+// address the datasheet prints: it shifts up one and the low bit says read or write.
+const hex = (byte: number) => `0x${byte.toString(16).toUpperCase().padStart(2, '0')}`
+const toWrite = i2c.addressFrame(0x76)[0]!
+const toRead = i2c.addressFrame(0x76, { read: true })[0]!
+console.log(`a part at 0x76 is written to as ${hex(toWrite)} and read from as ${hex(toRead)}`)
+
+// Two ranges belong to the specification itself, so a part answering in either is a wiring
+// mistake rather than a device.
+const reserved = i2c.isReserved(i2c.RESERVED_FROM)
+console.log(`${hex(i2c.RESERVED_FROM)} is reserved by the specification: ${reserved}`)
+
+// And a datasheet quotes SPI's clock polarity and phase as one mode number.
 const clock = spi.clockFor(3)
-console.log(`spi mode 3: idles high ${clock.cpol}, samples on the trailing edge ${clock.cpha}`)
-
-// A relay board sold as active low energizes when its pin is driven low. The polarity
-// carries that inversion, so no call site has to remember which way round it is.
-const energize = pin.levelFor(PinPolarity.ActiveLow, true)
-console.log(`to energize an active-low relay, drive the pin ${energize}`)
-
-// Releasing it drives the line back high, an edge a falling trigger ignores.
-const rising = pin.triggers(PinEdge.Rising, PinLevel.Low, PinLevel.High)
-const falling = pin.triggers(PinEdge.Falling, PinLevel.Low, PinLevel.High)
-console.log(`release seen by a rising trigger: ${rising}, by a falling trigger: ${falling}`)
+console.log(`SPI mode 3 idles high: ${clock.cpol}, samples on the trailing edge: ${clock.cpha}`)
 ```
 
 ## The same capability in every language
