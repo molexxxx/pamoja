@@ -422,9 +422,14 @@ pub struct Message {
 #[pymethods]
 impl Message {
     /// Creates a message, which is what a transport handler returns from `recv`.
+    ///
+    /// The payload is bytes, or text such as a reading written out.
     #[new]
-    fn new(topic: String, payload: Vec<u8>) -> Self {
-        Self { topic, payload }
+    fn new(topic: String, payload: Payload) -> Self {
+        Self {
+            topic,
+            payload: payload.into_bytes(),
+        }
     }
 
     fn __repr__(&self) -> String {

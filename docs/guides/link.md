@@ -135,9 +135,12 @@ let mut ladder = TransportLadder::new(MemoryStore::new()).rung(link);
 ladder.connect().await.expect("the ladder connects");
 
 // A reading out through the ladder lands in the link, topic and bytes intact.
-ladder.send("sensors/1", b"21.5").await.expect("a delivery");
+ladder
+    .send_text("sensors/1", "21.5")
+    .await
+    .expect("a delivery");
 let carried = vendor.lock().expect("the vendor").sent[0].clone();
-let reading = String::from_utf8_lossy(&carried.payload);
+let reading = carried.text().expect("text");
 println!("link carried: {} {reading}", carried.topic);
 
 // A subscription placed on the ladder reaches the link.
@@ -153,7 +156,7 @@ vendor
     .push_back(Message::new("commands/1", b"open"));
 delivered.notify_one();
 let command = ladder.recv().await.expect("recv").expect("a command");
-let order = String::from_utf8_lossy(&command.payload);
+let order = command.text().expect("text");
 println!("command over the ladder: {} {order}", command.topic);
 ```
 <!-- end -->
@@ -172,7 +175,7 @@ import { Store } from '@pamoja/sync'
 // names a broker: it needs only the operations the contract asks for, and `recv` is
 // what makes it a link that delivers rather than an uplink.
 class QueueLink implements TransportHandlers {
-  sent: TransportMessage[] = []
+  sent: { topic: string; text: string }[] = []
   filters: string[] = []
   private inbox: TransportMessage[] = []
   private waiting: ((message: TransportMessage) => void)[] = []
@@ -180,7 +183,7 @@ class QueueLink implements TransportHandlers {
   async connect(): Promise<void> {}
 
   async send(topic: string, payload: Buffer): Promise<void> {
-    this.sent.push({ topic, payload })
+    this.sent.push({ topic, text: payload.toString() })
   }
 
   async subscribe(topic: string): Promise<void> {
@@ -192,8 +195,10 @@ class QueueLink implements TransportHandlers {
     return next ? Promise.resolve(next) : new Promise((resolve) => this.waiting.push(resolve))
   }
 
-  // The vendor side: a message arriving from the radio.
-  deliver(message: TransportMessage): void {
+  // The vendor side: a message arriving from the radio, which the link hands on in
+  // the shape the contract asks for.
+  deliver(topic: string, text: string): void {
+    const message: TransportMessage = { topic, payload: Buffer.from(text) }
     const waiter = this.waiting.shift()
     if (waiter) waiter(message)
     else this.inbox.push(message)
@@ -209,9 +214,9 @@ async function main() {
   await ladder.connect()
 
   // A reading out through the ladder lands in the link, topic and bytes intact.
-  await ladder.send('sensors/1', Buffer.from('21.5'))
+  await ladder.send('sensors/1', '21.5')
   const carried = link.sent[0]
-  console.log(`link carried: ${carried.topic} ${carried.payload.toString()}`)
+  console.log(`link carried: ${carried.topic} ${carried.text}`)
 
   // A subscription placed on the ladder reaches the link.
   await ladder.subscribe('commands/#')
@@ -219,9 +224,9 @@ async function main() {
   console.log(`link subscribed to: ${filter}`)
 
   // What the link delivers comes back through the ladder.
-  link.deliver({ topic: 'commands/1', payload: Buffer.from('open') })
+  link.deliver('commands/1', 'open')
   const command = (await ladder.recv())!
-  console.log(`command over the ladder: ${command.topic} ${command.payload.toString()}`)
+  console.log(`command over the ladder: ${command.topic} ${command.text!}`)
 
   return { carried, filter, command }
 }
@@ -281,9 +286,9 @@ async def main() -> None:
     await ladder.connect()
 
     # A reading out through the ladder lands in the link, topic and bytes intact.
-    await ladder.send("sensors/1", b"21.5")
+    await ladder.send("sensors/1", "21.5")
     carried = link.sent[0]
-    print(f"link carried: {carried.topic} {carried.payload.decode()}")
+    print(f"link carried: {carried.topic} {carried.text}")
 
     # A subscription placed on the ladder reaches the link.
     await ladder.subscribe("commands/#")
@@ -291,9 +296,9 @@ async def main() -> None:
     print(f"link subscribed to: {filter}")
 
     # What the link delivers comes back through the ladder.
-    link.deliver(Message("commands/1", b"open"))
+    link.deliver(Message("commands/1", "open"))
     command = await ladder.recv()
-    print(f"command over the ladder: {command.topic} {command.payload.decode()}")
+    print(f"command over the ladder: {command.topic} {command.text}")
 
     return carried, filter, command
 
@@ -339,8 +344,14 @@ private sealed class QueueLink : IReceivingTransportHandlers
 
     public async Task<TransportMessage?> ReceiveAsync() => await _inbox.Reader.ReadAsync();
 
-    /// <summary>The vendor side: a message arriving from the radio.</summary>
-    public void Deliver(TransportMessage message) => _inbox.Writer.TryWrite(message);
+    /// <summary>
+    /// The vendor side: a message arriving from the radio, which the link hands on
+    /// in the shape the contract asks for.
+    /// </summary>
+    /// <param name="topic">The topic it arrived on.</param>
+    /// <param name="text">What it carried.</param>
+    public void Deliver(string topic, string text) =>
+        _inbox.Writer.TryWrite(new TransportMessage(topic, Encoding.UTF8.GetBytes(text)));
 }
 ```
 <!-- end -->
@@ -357,10 +368,10 @@ ladder.Rung(Transport.FromHandlers(link));
 await ladder.ConnectAsync();
 
 // A reading out through the ladder lands in the link, topic and bytes intact.
-await ladder.SendAsync("sensors/1", "21.5"u8.ToArray());
+await ladder.SendAsync("sensors/1", "21.5");
 TransportMessage carried = link.Sent[0];
 Console.WriteLine(
-    $"link carried: {carried.Topic} {System.Text.Encoding.UTF8.GetString(carried.Payload)}");
+    $"link carried: {carried.Topic} {carried.Text}");
 
 // A subscription placed on the ladder reaches the link.
 await ladder.SubscribeAsync("commands/#");
@@ -368,10 +379,10 @@ string filter = link.Filters[0];
 Console.WriteLine($"link subscribed to: {filter}");
 
 // What the link delivers comes back through the ladder.
-link.Deliver(new TransportMessage("commands/1", "open"u8.ToArray()));
+link.Deliver("commands/1", "open");
 TransportMessage command = (await ladder.ReceiveAsync())!;
 Console.WriteLine(
-    $"command over the ladder: {command.Topic} {System.Text.Encoding.UTF8.GetString(command.Payload)}");
+    $"command over the ladder: {command.Topic} {command.Text}");
 ```
 <!-- end -->
 

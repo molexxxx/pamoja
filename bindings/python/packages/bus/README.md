@@ -37,17 +37,17 @@ async def main() -> None:
     control = await hub.subscribe()
     logger = await hub.subscribe()
 
-    await hub.publish(b"battery.low")
-    to_control = await control.next_event()
-    to_logger = await logger.next_event()
-    print(f"control saw {to_control.decode()}, the logger saw {to_logger.decode()}")
+    await hub.publish("battery.low")
+    to_control = await control.next_text()
+    to_logger = await logger.next_text()
+    print(f"control saw {to_control}, the logger saw {to_logger}")
 
     # A subscriber taken later starts from the next event, so it never sees what went out
     # before it existed.
     late = await hub.subscribe()
-    await hub.publish(b"link.up")
-    first_seen = await late.next_event()
-    print(f"the late subscriber's first event is {first_seen.decode()}")
+    await hub.publish("link.up")
+    first_seen = await late.next_text()
+    print(f"the late subscriber's first event is {first_seen}")
 
     # The buffer is per subscriber and bounded, so one further behind than the capacity
     # drops what it missed and resumes with the most recent events. A slow reader costs
@@ -55,9 +55,9 @@ async def main() -> None:
     slow = EventBus(2)
     reader = await slow.subscribe()
     for count in range(5):
-        await slow.publish(bytes([count]))
-    resumed = await reader.next_event()
-    print(f"after five events into a buffer of two, the reader resumes at {resumed[0]}")
+        await slow.publish(str(count))
+    resumed = await reader.next_text()
+    print(f"after five events into a buffer of two, the reader resumes at {resumed}")
 
     return to_control, to_logger, first_seen, resumed
 

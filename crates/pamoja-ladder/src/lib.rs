@@ -374,6 +374,30 @@ impl<S: Store> TransportLadder<S> {
         Ok(Delivery::Buffered)
     }
 
+    /// Sends text down the ladder: a reading or a command written out.
+    ///
+    /// This is [`send`](Self::send) with the text's UTF-8 bytes, so a reading that is
+    /// already a number in words needs no encoding step; the far side reads it back with
+    /// [`Message::text`](pamoja_core::Message::text) or
+    /// [`Message::number`](pamoja_core::Message::number).
+    ///
+    /// # Arguments
+    ///
+    /// * `topic` - the destination topic.
+    /// * `text` - the text to send.
+    ///
+    /// # Returns
+    ///
+    /// [`Delivery::Sent`] if a rung delivered the message, or [`Delivery::Buffered`]
+    /// if it was queued for a later [`flush`](Self::flush).
+    ///
+    /// # Errors
+    ///
+    /// Whatever [`send`](Self::send) returns.
+    pub async fn send_text(&mut self, topic: &str, text: &str) -> Result<Delivery> {
+        self.send(topic, text.as_bytes()).await
+    }
+
     /// Drains the buffer across the rungs, oldest record first.
     ///
     /// Each record is sent before it is removed, so the first record no rung can

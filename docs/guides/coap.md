@@ -84,7 +84,7 @@ println!("reporter  connected: {}", reporter.is_connected());
 // Non-confirmable delivery is at most once: the datagram leaves unacknowledged, which
 // is what a battery-powered node sends when one missed reading costs nothing.
 reporter
-    .send("sensors/1/temperature", b"21.5")
+    .send_text("sensors/1/temperature", "21.5")
     .await
     .expect("the datagram leaves");
 println!("reporter  sent 21.5 and did not wait for an answer");
@@ -99,7 +99,7 @@ let mut commander = CoapTransport::new(
         .max_retransmits(1),
 );
 commander.connect().await.expect("a local socket");
-match commander.send("actuators/valve", b"open").await {
+match commander.send_text("actuators/valve", "open").await {
     Ok(()) => println!("commander the valve acknowledged the command"),
     Err(error) => println!("commander gave up unacknowledged: {error}"),
 }
@@ -131,7 +131,7 @@ async function main(): Promise<void> {
 
   // Non-confirmable delivery is at most once: the datagram leaves unacknowledged, which is
   // what a battery-powered node sends when one missed reading costs nothing.
-  await reporter.send('sensors/1/temperature', Buffer.from('21.5'))
+  await reporter.send('sensors/1/temperature', '21.5')
   console.log('reporter  sent 21.5 and did not wait for an answer')
 
   // A command is different: it has to arrive. Confirmable delivery retransmits until an
@@ -146,7 +146,7 @@ async function main(): Promise<void> {
   })
   await commander.connect()
   try {
-    await commander.send('actuators/valve', Buffer.from('open'))
+    await commander.send('actuators/valve', 'open')
     console.log('commander the valve acknowledged the command')
   } catch (error) {
     console.log(`commander gave up unacknowledged: ${(error as Error).message}`)
@@ -184,7 +184,7 @@ async def main() -> None:
 
     # Non-confirmable delivery is at most once: the datagram leaves unacknowledged, which
     # is what a battery-powered node sends when one missed reading costs nothing.
-    await reporter.send("sensors/1/temperature", b"21.5")
+    await reporter.send("sensors/1/temperature", "21.5")
     print("reporter  sent 21.5 and did not wait for an answer")
 
     # A command is different: it has to arrive. Confirmable delivery retransmits until an
@@ -199,7 +199,7 @@ async def main() -> None:
     )
     await commander.connect()
     try:
-        await commander.send("actuators/valve", b"open")
+        await commander.send("actuators/valve", "open")
         print("commander the valve acknowledged the command")
     except PamojaError as error:
         print(f"commander gave up unacknowledged: {error}")
@@ -232,7 +232,7 @@ Console.WriteLine($"reporter  connected: {await reporter.IsConnectedAsync()}");
 
 // Non-confirmable delivery is at most once: the datagram leaves unacknowledged,
 // which is what a battery-powered node sends when a missed reading costs nothing.
-await reporter.SendAsync("sensors/1/temperature", "21.5"u8.ToArray());
+await reporter.SendAsync("sensors/1/temperature", "21.5");
 Console.WriteLine("reporter  sent 21.5 and did not wait for an answer");
 
 // A command is different: it has to arrive. Confirmable delivery retransmits until
@@ -250,7 +250,7 @@ using var commander = new CoapClient(new CoapClientOptions
 await commander.ConnectAsync();
 try
 {
-    await commander.SendAsync("actuators/valve", "open"u8.ToArray());
+    await commander.SendAsync("actuators/valve", "open");
     Console.WriteLine("commander the valve acknowledged the command");
 }
 catch (PamojaException error)

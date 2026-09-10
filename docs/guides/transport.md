@@ -86,13 +86,13 @@ let mut ladder = TransportLadder::new(MemoryStore::new())
 ladder.connect().await.expect("the ladder connects");
 
 // The injected failure lands, so the reading is buffered rather than lost.
-let first = ladder.send(topic, b"20.1").await.expect("a delivery");
+let first = ladder.send_text(topic, "20.1").await.expect("a delivery");
 let after_first = ladder.buffered().await.expect("a count");
 println!("first reading: {first:?}, {after_first} queued");
 
 // The next reading joins the back of the queue instead of overtaking it, even though
 // the link would take it now. Order on the wire is the order the readings were taken.
-let second = ladder.send(topic, b"20.4").await.expect("a delivery");
+let second = ladder.send_text(topic, "20.4").await.expect("a delivery");
 let queued = ladder.buffered().await.expect("a count");
 println!("second reading: {second:?}, {queued} queued");
 
@@ -100,8 +100,8 @@ println!("second reading: {second:?}, {queued} queued");
 let forwarded = ladder.flush().await.expect("a flush");
 let first_out = gateway.recv().await.expect("recv").expect("a message");
 let second_out = gateway.recv().await.expect("recv").expect("a message");
-let earlier = String::from_utf8_lossy(&first_out.payload);
-let later = String::from_utf8_lossy(&second_out.payload);
+let earlier = first_out.text().expect("text");
+let later = second_out.text().expect("text");
 println!("flush forwarded {forwarded}, gateway saw {earlier} then {later}");
 ```
 <!-- end -->
@@ -135,19 +135,19 @@ async function main() {
   await ladder.connect()
 
   // The injected failure lands, so the reading is buffered rather than lost.
-  const first = await ladder.send(TOPIC, Buffer.from('20.1'))
+  const first = await ladder.send(TOPIC, '20.1')
   console.log(`first reading: ${first}, ${await ladder.buffered()} queued`)
 
   // The next reading joins the back of the queue instead of overtaking it, even though the
   // link would take it now. Order on the wire is the order the readings were taken.
-  const second = await ladder.send(TOPIC, Buffer.from('20.4'))
+  const second = await ladder.send(TOPIC, '20.4')
   const queued = await ladder.buffered()
   console.log(`second reading: ${second}, ${queued} queued`)
 
   // Flushing forwards the backlog oldest first, and the subscriber sees it in order.
   const forwarded = await ladder.flush()
-  const earlier = (await gateway.recv())!.payload.toString()
-  const later = (await gateway.recv())!.payload.toString()
+  const earlier = (await gateway.recv())!.text!
+  const later = (await gateway.recv())!.text!
   console.log(`flush forwarded ${forwarded}, gateway saw ${earlier} then ${later}`)
 
   return { first, second, queued, forwarded, left: await ladder.buffered(), earlier, later }
@@ -189,19 +189,19 @@ async def main() -> None:
     await ladder.connect()
 
     # The injected failure lands, so the reading is buffered rather than lost.
-    first = await ladder.send(TOPIC, b"20.1")
+    first = await ladder.send(TOPIC, "20.1")
     print(f"first reading: {first}, {await ladder.buffered()} queued")
 
     # The next reading joins the back of the queue instead of overtaking it, even though
     # the link would take it now. Order on the wire is the order the readings were taken.
-    second = await ladder.send(TOPIC, b"20.4")
+    second = await ladder.send(TOPIC, "20.4")
     queued = await ladder.buffered()
     print(f"second reading: {second}, {queued} queued")
 
     # Flushing forwards the backlog oldest first, and the subscriber sees it in order.
     forwarded = await ladder.flush()
-    earlier = (await gateway.recv()).payload.decode()
-    later = (await gateway.recv()).payload.decode()
+    earlier = (await gateway.recv()).text
+    later = (await gateway.recv()).text
     print(f"flush forwarded {forwarded}, gateway saw {earlier} then {later}")
 
     return first, second, queued, forwarded, await ladder.buffered(), earlier, later
@@ -235,13 +235,13 @@ ladder.Rung(Transport.Faulty(broker.Rung(), 1));
 await ladder.ConnectAsync();
 
 // The injected failure lands, so the reading is buffered rather than lost.
-Delivery first = await ladder.SendAsync(Topic, "20.1"u8.ToArray());
+Delivery first = await ladder.SendAsync(Topic, "20.1");
 Console.WriteLine($"first reading: {first}, {await ladder.BufferedAsync()} queued");
 
 // The next reading joins the back of the queue instead of overtaking it, even
 // though the link would take it now. Order on the wire is the order they were
 // taken.
-Delivery second = await ladder.SendAsync(Topic, "20.4"u8.ToArray());
+Delivery second = await ladder.SendAsync(Topic, "20.4");
 int queued = await ladder.BufferedAsync();
 Console.WriteLine($"second reading: {second}, {queued} queued");
 
@@ -251,8 +251,8 @@ TransportMessage earlier = (await gateway.ReceiveAsync())!;
 TransportMessage later = (await gateway.ReceiveAsync())!;
 Console.WriteLine(
     $"flush forwarded {forwarded}, gateway saw"
-    + $" {System.Text.Encoding.UTF8.GetString(earlier.Payload)} then"
-    + $" {System.Text.Encoding.UTF8.GetString(later.Payload)}");
+    + $" {earlier.Text} then"
+    + $" {later.Text}");
 ```
 <!-- end -->
 

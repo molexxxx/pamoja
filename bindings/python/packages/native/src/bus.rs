@@ -17,6 +17,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use tokio::sync::Mutex;
 
+use crate::transport::Payload;
 use crate::PamojaError;
 
 /// One endpoint on an event bus.
@@ -60,8 +61,9 @@ impl EventBus {
     }
 
     /// Publishes an event to every subscriber.
-    fn publish<'py>(&self, py: Python<'py>, event: Vec<u8>) -> PyResult<Bound<'py, PyAny>> {
+    fn publish<'py>(&self, py: Python<'py>, event: Payload) -> PyResult<Bound<'py, PyAny>> {
         let inner = Arc::clone(&self.inner);
+        let event = event.into_bytes();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let bus = inner.lock().await;
             bus.publish(event).await.map_err(to_pyerr)
@@ -74,6 +76,23 @@ impl EventBus {
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let mut bus = inner.lock().await;
             bus.next_event().await.map_err(to_pyerr)
+        })
+    }
+
+    /// Waits for the next event as text, or `None` once the bus closes.
+    ///
+    /// Raises `ValueError` if the event is not UTF-8 text.
+    fn next_text<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let inner = Arc::clone(&self.inner);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let mut bus = inner.lock().await;
+            let event = bus.next_event().await.map_err(to_pyerr)?;
+            match event {
+                Some(bytes) => String::from_utf8(bytes).map(Some).map_err(|_| {
+                    pyo3::exceptions::PyValueError::new_err("the event is not UTF-8 text")
+                }),
+                None => Ok(None),
+            }
         })
     }
 }

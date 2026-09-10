@@ -33,13 +33,13 @@ public static class TransportGuide
         await ladder.ConnectAsync();
 
         // The injected failure lands, so the reading is buffered rather than lost.
-        Delivery first = await ladder.SendAsync(Topic, "20.1"u8.ToArray());
+        Delivery first = await ladder.SendAsync(Topic, "20.1");
         Console.WriteLine($"first reading: {first}, {await ladder.BufferedAsync()} queued");
 
         // The next reading joins the back of the queue instead of overtaking it, even
         // though the link would take it now. Order on the wire is the order they were
         // taken.
-        Delivery second = await ladder.SendAsync(Topic, "20.4"u8.ToArray());
+        Delivery second = await ladder.SendAsync(Topic, "20.4");
         int queued = await ladder.BufferedAsync();
         Console.WriteLine($"second reading: {second}, {queued} queued");
 
@@ -49,8 +49,8 @@ public static class TransportGuide
         TransportMessage later = (await gateway.ReceiveAsync())!;
         Console.WriteLine(
             $"flush forwarded {forwarded}, gateway saw"
-            + $" {System.Text.Encoding.UTF8.GetString(earlier.Payload)} then"
-            + $" {System.Text.Encoding.UTF8.GetString(later.Payload)}");
+            + $" {earlier.Text} then"
+            + $" {later.Text}");
         // ANCHOR_END: example
 
         Expect(first == Delivery.Buffered, "a refused send is buffered, not lost");

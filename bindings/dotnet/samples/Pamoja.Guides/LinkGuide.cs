@@ -1,3 +1,4 @@
+using System.Text;
 using System.Threading.Channels;
 
 using Pamoja.Core;
@@ -43,8 +44,14 @@ public static class LinkGuide
 
         public async Task<TransportMessage?> ReceiveAsync() => await _inbox.Reader.ReadAsync();
 
-        /// <summary>The vendor side: a message arriving from the radio.</summary>
-        public void Deliver(TransportMessage message) => _inbox.Writer.TryWrite(message);
+        /// <summary>
+        /// The vendor side: a message arriving from the radio, which the link hands on
+        /// in the shape the contract asks for.
+        /// </summary>
+        /// <param name="topic">The topic it arrived on.</param>
+        /// <param name="text">What it carried.</param>
+        public void Deliver(string topic, string text) =>
+            _inbox.Writer.TryWrite(new TransportMessage(topic, Encoding.UTF8.GetBytes(text)));
     }
     // ANCHOR_END: parts
 
@@ -61,10 +68,10 @@ public static class LinkGuide
         await ladder.ConnectAsync();
 
         // A reading out through the ladder lands in the link, topic and bytes intact.
-        await ladder.SendAsync("sensors/1", "21.5"u8.ToArray());
+        await ladder.SendAsync("sensors/1", "21.5");
         TransportMessage carried = link.Sent[0];
         Console.WriteLine(
-            $"link carried: {carried.Topic} {System.Text.Encoding.UTF8.GetString(carried.Payload)}");
+            $"link carried: {carried.Topic} {carried.Text}");
 
         // A subscription placed on the ladder reaches the link.
         await ladder.SubscribeAsync("commands/#");
@@ -72,10 +79,10 @@ public static class LinkGuide
         Console.WriteLine($"link subscribed to: {filter}");
 
         // What the link delivers comes back through the ladder.
-        link.Deliver(new TransportMessage("commands/1", "open"u8.ToArray()));
+        link.Deliver("commands/1", "open");
         TransportMessage command = (await ladder.ReceiveAsync())!;
         Console.WriteLine(
-            $"command over the ladder: {command.Topic} {System.Text.Encoding.UTF8.GetString(command.Payload)}");
+            $"command over the ladder: {command.Topic} {command.Text}");
         // ANCHOR_END: example
 
         Expect(carried.Topic == "sensors/1", "the reading reached the link");

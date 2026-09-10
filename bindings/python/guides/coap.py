@@ -19,7 +19,7 @@ async def main() -> None:
 
     # Non-confirmable delivery is at most once: the datagram leaves unacknowledged, which
     # is what a battery-powered node sends when one missed reading costs nothing.
-    await reporter.send("sensors/1/temperature", b"21.5")
+    await reporter.send("sensors/1/temperature", "21.5")
     print("reporter  sent 21.5 and did not wait for an answer")
 
     # A command is different: it has to arrive. Confirmable delivery retransmits until an
@@ -34,7 +34,7 @@ async def main() -> None:
     )
     await commander.connect()
     try:
-        await commander.send("actuators/valve", b"open")
+        await commander.send("actuators/valve", "open")
         print("commander the valve acknowledged the command")
     except PamojaError as error:
         print(f"commander gave up unacknowledged: {error}")

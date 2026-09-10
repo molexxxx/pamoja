@@ -46,9 +46,9 @@ async def main() -> None:
     await ladder.connect()
 
     # A reading out through the ladder lands in the link, topic and bytes intact.
-    await ladder.send("sensors/1", b"21.5")
+    await ladder.send("sensors/1", "21.5")
     carried = link.sent[0]
-    print(f"link carried: {carried.topic} {carried.payload.decode()}")
+    print(f"link carried: {carried.topic} {carried.text}")
 
     # A subscription placed on the ladder reaches the link.
     await ladder.subscribe("commands/#")
@@ -56,9 +56,9 @@ async def main() -> None:
     print(f"link subscribed to: {filter}")
 
     # What the link delivers comes back through the ladder.
-    link.deliver(Message("commands/1", b"open"))
+    link.deliver(Message("commands/1", "open"))
     command = await ladder.recv()
-    print(f"command over the ladder: {command.topic} {command.payload.decode()}")
+    print(f"command over the ladder: {command.topic} {command.text}")
 
     return carried, filter, command
 

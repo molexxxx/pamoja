@@ -34,7 +34,7 @@ async fn a_reading_reaches_a_gateway_over_a_broker() {
         .keep_alive(Duration::from_secs(5))
         .qos(QualityOfService::AtLeastOnce);
     let mut node = connect(node_config).await;
-    node.send("sensors/1/temperature", b"21.5")
+    node.send_text("sensors/1/temperature", "21.5")
         .await
         .expect("the broker takes the reading");
     println!("node      published 21.5 to sensors/1/temperature");
@@ -46,7 +46,7 @@ async fn a_reading_reaches_a_gateway_over_a_broker() {
         .await
         .expect("the link is up")
         .expect("a message arrives");
-    let reading = String::from_utf8_lossy(&received.payload);
+    let reading = received.text().expect("text");
     let topic = &received.topic;
     println!("gateway   got {reading} on {topic}");
 

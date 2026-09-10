@@ -28,7 +28,7 @@ import { MqttClient, Qos } from '@pamoja/mqtt'
 const BROKER = '127.0.0.1'
 const PORT = 1883
 
-async function main(): Promise<{ topic: string; payload: Buffer }> {
+async function main(): Promise<{ topic: string; text?: string }> {
   // The gateway takes every temperature on the site. A `+` stands for exactly one level,
   // so this matches every node's temperature and nothing deeper.
   const gateway = new MqttClient({
@@ -56,7 +56,7 @@ async function main(): Promise<{ topic: string; payload: Buffer }> {
   // The gateway receives it with the topic attached, which is how it knows which node
   // sent the reading without the payload having to repeat it.
   const received = (await gateway.recv())!
-  console.log(`gateway   got ${received.payload.toString()} on ${received.topic}`)
+  console.log(`gateway   got ${received.text!} on ${received.topic}`)
 
   // Disconnecting leaves the client reusable, so a node that loses its link can reconnect
   // the same object when the broker comes back.

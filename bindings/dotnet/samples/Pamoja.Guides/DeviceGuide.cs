@@ -89,7 +89,7 @@ public static class DeviceGuide
             float moisture = await probe.ReadAsync();
             await valve.ApplyAsync(rule.Update(moisture));
             string report = moisture.ToString("F1", CultureInfo.InvariantCulture);
-            Delivery delivery = await ladder.SendAsync(Topic, Encoding.UTF8.GetBytes(report));
+            Delivery delivery = await ladder.SendAsync(Topic, report);
             string state = valve.Open ? "open" : "closed";
             Console.WriteLine($"bed at {report}%, valve {state}, {delivery}");
             if (await ladder.BufferedAsync() > 0)
@@ -109,7 +109,7 @@ public static class DeviceGuide
         for (int n = 0; n < 6; n++)
         {
             TransportMessage message = (await gateway.ReceiveAsync())!;
-            got.Add(Encoding.UTF8.GetString(message.Payload));
+            got.Add(message.Text);
         }
 
         Console.WriteLine($"gateway got {string.Join(", ", got)}");

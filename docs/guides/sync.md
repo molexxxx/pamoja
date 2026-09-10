@@ -69,33 +69,35 @@ use pamoja_sync::MemoryStore;
 // it lasts as long as the process; FileStore::open(dir) is the same queue on disk,
 // which is what a node uses to survive a reboot with its backlog intact.
 let mut outbox = MemoryStore::new();
-for reading in [b"20.1", b"20.4", b"20.2"] {
-    outbox.append(reading).await.expect("the queue takes it");
+for reading in ["20.1", "20.4", "20.2"] {
+    outbox
+        .append_text(reading)
+        .await
+        .expect("the queue takes it");
 }
 let held = outbox.len().await.expect("a count");
 println!("queued    {held} readings with no link");
 
 // Peek reads the oldest record without taking it, so a send that fails part-way leaves
 // the queue exactly as it was.
-let oldest = outbox.peek().await.expect("a peek").expect("a record");
+let oldest = outbox.peek_text().await.expect("a peek").expect("a record");
 let still_held = outbox.len().await.expect("a count");
-let oldest_reading = String::from_utf8_lossy(&oldest);
-println!("oldest    {oldest_reading} and still {still_held} held");
+println!("oldest    {oldest} and still {still_held} held");
 
 // The link returns and the queue drains oldest first, in the order the readings were
 // taken rather than the order they happen to come back off a buffer.
 let mut drained = Vec::new();
-while let Some(record) = outbox.pop().await.expect("a pop") {
-    drained.push(String::from_utf8_lossy(&record).into_owned());
+while let Some(record) = outbox.pop_text().await.expect("a pop") {
+    drained.push(record);
 }
 println!("drained   {}", drained.join(", "));
 
 // A bounded queue refuses the append that would overflow it. A full store is
 // backpressure the caller is told about, not a reading dropped behind its back.
 let mut bounded = MemoryStore::with_capacity(2);
-bounded.append(b"20.1").await.expect("room");
-bounded.append(b"20.4").await.expect("room");
-match bounded.append(b"20.2").await {
+bounded.append_text("20.1").await.expect("room");
+bounded.append_text("20.4").await.expect("room");
+match bounded.append_text("20.2").await {
     Ok(()) => println!("a full queue took a third reading, which should never happen"),
     Err(error) => println!("full      refused the third reading: {error}"),
 }
@@ -116,30 +118,30 @@ async function main() {
   // a node uses to survive a reboot with its backlog intact.
   const outbox = Store.memory()
   for (const reading of ['20.1', '20.4', '20.2']) {
-    await outbox.append(Buffer.from(reading))
+    await outbox.append(reading)
   }
   console.log(`queued    ${await outbox.len()} readings with no link`)
 
   // Peek reads the oldest record without taking it, so a send that fails part-way leaves
   // the queue exactly as it was.
-  const oldest = (await outbox.peek())!
-  console.log(`oldest    ${oldest.toString()} and still ${await outbox.len()} held`)
+  const oldest = (await outbox.peekText())!
+  console.log(`oldest    ${oldest} and still ${await outbox.len()} held`)
 
   // The link returns and the queue drains oldest first, in the order the readings were
   // taken rather than the order they happen to come back off a buffer.
   const drained: string[] = []
-  for (let record = await outbox.pop(); record !== null; record = await outbox.pop()) {
-    drained.push(record.toString())
+  for (let record = await outbox.popText(); record !== null; record = await outbox.popText()) {
+    drained.push(record)
   }
   console.log(`drained   ${drained.join(', ')}`)
 
   // A bounded queue refuses the append that would overflow it. A full store is
   // backpressure the caller is told about, not a reading dropped behind its back.
   const bounded = Store.memory(2)
-  await bounded.append(Buffer.from('20.1'))
-  await bounded.append(Buffer.from('20.4'))
+  await bounded.append('20.1')
+  await bounded.append('20.4')
   try {
-    await bounded.append(Buffer.from('20.2'))
+    await bounded.append('20.2')
     console.log('a full queue took a third reading, which should never happen')
   } catch (error) {
     console.log(`full      refused the third reading: ${(error as Error).message}`)
@@ -169,29 +171,29 @@ async def main() -> None:
     # lasts as long as the process; Store.file(dir) is the same queue on disk, which is what
     # a node uses to survive a reboot with its backlog intact.
     outbox = Store.memory()
-    for reading in (b"20.1", b"20.4", b"20.2"):
+    for reading in ("20.1", "20.4", "20.2"):
         await outbox.append(reading)
     print(f"queued    {await outbox.len()} readings with no link")
 
     # Peek reads the oldest record without taking it, so a send that fails part-way leaves
     # the queue exactly as it was.
-    oldest = await outbox.peek()
-    print(f"oldest    {oldest.decode()} and still {await outbox.len()} held")
+    oldest = await outbox.peek_text()
+    print(f"oldest    {oldest} and still {await outbox.len()} held")
 
     # The link returns and the queue drains oldest first, in the order the readings were
     # taken rather than the order they happen to come back off a buffer.
     drained = []
-    while (record := await outbox.pop()) is not None:
-        drained.append(record.decode())
+    while (record := await outbox.pop_text()) is not None:
+        drained.append(record)
     print(f"drained   {', '.join(drained)}")
 
     # A bounded queue refuses the append that would overflow it. A full store is
     # backpressure the caller is told about, not a reading dropped behind its back.
     bounded = Store.memory(capacity=2)
-    await bounded.append(b"20.1")
-    await bounded.append(b"20.4")
+    await bounded.append("20.1")
+    await bounded.append("20.4")
     try:
-        await bounded.append(b"20.2")
+        await bounded.append("20.2")
         print("a full queue took a third reading, which should never happen")
     except PamojaError as error:
         print(f"full      refused the third reading: {error}")
@@ -215,24 +217,23 @@ From [`bindings/dotnet/samples/Pamoja.Guides/SyncGuide.cs`](https://github.com/m
 using var outbox = Store.Memory();
 foreach (string reading in new[] { "20.1", "20.4", "20.2" })
 {
-    await outbox.AppendAsync(Encoding.UTF8.GetBytes(reading));
+    await outbox.AppendAsync(reading);
 }
 
 Console.WriteLine($"queued    {await outbox.CountAsync()} readings with no link");
 
 // Peek reads the oldest record without taking it, so a send that fails part-way
 // leaves the queue exactly as it was.
-byte[] oldest = (await outbox.PeekAsync())!;
+string oldest = (await outbox.PeekTextAsync())!;
 Console.WriteLine(
-    $"oldest    {Encoding.UTF8.GetString(oldest)}"
-    + $" and still {await outbox.CountAsync()} held");
+    $"oldest    {oldest} and still {await outbox.CountAsync()} held");
 
 // The link returns and the queue drains oldest first, in the order the readings
 // were taken rather than the order they happen to come back off a buffer.
 List<string> drained = [];
-while (await outbox.PopAsync() is { } record)
+while (await outbox.PopTextAsync() is { } record)
 {
-    drained.Add(Encoding.UTF8.GetString(record));
+    drained.Add(record);
 }
 
 Console.WriteLine($"drained   {string.Join(", ", drained)}");
@@ -240,11 +241,11 @@ Console.WriteLine($"drained   {string.Join(", ", drained)}");
 // A bounded queue refuses the append that would overflow it. A full store is
 // backpressure the caller is told about, not a reading dropped behind its back.
 using var bounded = Store.Memory(2);
-await bounded.AppendAsync("20.1"u8.ToArray());
-await bounded.AppendAsync("20.4"u8.ToArray());
+await bounded.AppendAsync("20.1");
+await bounded.AppendAsync("20.4");
 try
 {
-    await bounded.AppendAsync("20.2"u8.ToArray());
+    await bounded.AppendAsync("20.2");
     Console.WriteLine("a full queue took a third reading, which should never happen");
 }
 catch (PamojaException error)

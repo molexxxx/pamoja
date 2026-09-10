@@ -34,14 +34,14 @@ public static class LadderGuide
 
         // The mesh hop refuses, so the reading goes out over the backhaul and arrives on
         // the broker only that rung publishes to.
-        Delivery first = await ladder.SendAsync(Topic, "21.5"u8.ToArray());
+        Delivery first = await ladder.SendAsync(Topic, "21.5");
         TransportMessage arrived = (await gateway.ReceiveAsync())!;
         Console.WriteLine(
             $"first reading: {first}, gateway got"
-            + $" {System.Text.Encoding.UTF8.GetString(arrived.Payload)}");
+            + $" {arrived.Text}");
 
         // Now nothing will take a send, so the next reading is buffered rather than lost.
-        Delivery second = await ladder.SendAsync(Topic, "21.6"u8.ToArray());
+        Delivery second = await ladder.SendAsync(Topic, "21.6");
         int waiting = await ladder.BufferedAsync();
         Console.WriteLine($"second reading: {second}, {waiting} waiting in the queue");
 
@@ -56,17 +56,17 @@ public static class LadderGuide
         TransportMessage late = (await gateway.ReceiveAsync())!;
         Console.WriteLine(
             $"flush when up forwarded {whenUp}, gateway got"
-            + $" {System.Text.Encoding.UTF8.GetString(late.Payload)}");
+            + $" {late.Text}");
 
         // The ladder is a link both ways. A subscription placed on it goes onto every
         // rung that listens, and a receive takes whichever rung delivers, so a command
         // reaches the node over whatever link is up. This one comes back over the
         // backhaul.
         await ladder.SubscribeAsync("actuators/1/valve");
-        await gateway.SendAsync("actuators/1/valve", "open"u8.ToArray());
+        await gateway.SendAsync("actuators/1/valve", "open");
         TransportMessage command = (await ladder.ReceiveAsync())!;
         Console.WriteLine(
-            $"command back over the ladder: {System.Text.Encoding.UTF8.GetString(command.Payload)}");
+            $"command back over the ladder: {command.Text}");
         // ANCHOR_END: example
 
         Expect(first == Delivery.Sent, "a dead rung falls through to the next one");

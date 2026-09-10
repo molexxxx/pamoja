@@ -105,7 +105,7 @@ async fn a_homemade_probe_waters_a_bed_and_reports() {
     let mut got = Vec::new();
     for _ in 0..6 {
         let message = gateway.recv().await.expect("recv").expect("a message");
-        got.push(String::from_utf8_lossy(&message.payload).into_owned());
+        got.push(message.text().expect("text").to_owned());
     }
     let readings = got.join(", ");
     println!("gateway got {readings}");

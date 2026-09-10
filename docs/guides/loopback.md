@@ -76,16 +76,16 @@ subscriber
     .await
     .expect("subscribe");
 publisher
-    .send("line/mixer/temp/raw", b"2150")
+    .send_text("line/mixer/temp/raw", "2150")
     .await
     .expect("send");
 publisher
-    .send("line/mixer/temp", b"21.5")
+    .send_text("line/mixer/temp", "21.5")
     .await
     .expect("send");
 
 let message = subscriber.recv().await.expect("recv").expect("a message");
-let reading = String::from_utf8_lossy(&message.payload);
+let reading = message.text().expect("text");
 println!("line/+/temp took {reading} from {}", message.topic);
 
 // A `#` covers every level that remains, so a second link takes the whole subtree,
@@ -94,18 +94,18 @@ let mut watcher = LoopbackTransport::new(broker);
 watcher.connect().await.expect("the watcher connects");
 watcher.subscribe("line/#").await.expect("subscribe");
 publisher
-    .send("line/mixer/temp/raw", b"2150")
+    .send_text("line/mixer/temp/raw", "2150")
     .await
     .expect("send");
 
 let deep = watcher.recv().await.expect("recv").expect("a message");
-let raw = String::from_utf8_lossy(&deep.payload);
+let raw = deep.text().expect("text");
 println!("line/#     took {raw} from {}", deep.topic);
 
 // A link that has been disconnected reports the failure instead of dropping the
 // reading, which is the case a test wants to reach without unplugging anything.
 publisher.disconnect();
-match publisher.send("line/mixer/temp", b"21.6").await {
+match publisher.send_text("line/mixer/temp", "21.6").await {
     Ok(_) => println!("a disconnected link took a reading, which should never happen"),
     Err(error) => println!("disconnected refused the reading: {error}"),
 }
@@ -118,7 +118,7 @@ match publisher.send("line/mixer/temp", b"21.6").await {
 From [`bindings/node/guides/loopback.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/loopback.ts):
 
 ```typescript
-import { LoopbackBroker } from '@pamoja/loopback'
+import { LoopbackBroker, type TransportMessage } from '@pamoja/loopback'
 
 async function main() {
   // One broker and two links off it, all in this process. Nothing binds a port and nothing
@@ -133,27 +133,27 @@ async function main() {
   // A `+` stands for exactly one level, so this takes the mixer's temperature but not the
   // raw reading a level below it.
   await subscriber.subscribe('line/+/temp')
-  await publisher.send('line/mixer/temp/raw', Buffer.from('2150'))
-  await publisher.send('line/mixer/temp', Buffer.from('21.5'))
+  await publisher.send('line/mixer/temp/raw', '2150')
+  await publisher.send('line/mixer/temp', '21.5')
 
   const message = (await subscriber.recv())!
-  console.log(`line/+/temp took ${message.payload.toString()} from ${message.topic}`)
+  console.log(`line/+/temp took ${message.text!} from ${message.topic}`)
 
   // A `#` covers every level that remains, so a second link takes the whole subtree,
   // including the reading the single-level filter passed over.
   const watcher = broker.link()
   await watcher.connect()
   await watcher.subscribe('line/#')
-  await publisher.send('line/mixer/temp/raw', Buffer.from('2150'))
+  await publisher.send('line/mixer/temp/raw', '2150')
 
   const deep = (await watcher.recv())!
-  console.log(`line/#     took ${deep.payload.toString()} from ${deep.topic}`)
+  console.log(`line/#     took ${deep.text!} from ${deep.topic}`)
 
   // A link that has been disconnected reports the failure instead of dropping the reading,
   // which is the case a test wants to reach without unplugging anything.
   await publisher.disconnect()
   try {
-    await publisher.send('line/mixer/temp', Buffer.from('21.6'))
+    await publisher.send('line/mixer/temp', '21.6')
     console.log('a disconnected link took a reading, which should never happen')
   } catch (error) {
     console.log(`disconnected refused the reading: ${(error as Error).message}`)
@@ -191,27 +191,27 @@ async def main() -> None:
     # A `+` stands for exactly one level, so this takes the mixer's temperature but not the
     # raw reading a level below it.
     await subscriber.subscribe("line/+/temp")
-    await publisher.send("line/mixer/temp/raw", b"2150")
-    await publisher.send("line/mixer/temp", b"21.5")
+    await publisher.send("line/mixer/temp/raw", "2150")
+    await publisher.send("line/mixer/temp", "21.5")
 
     message = await subscriber.recv()
-    print(f"line/+/temp took {message.payload.decode()} from {message.topic}")
+    print(f"line/+/temp took {message.text} from {message.topic}")
 
     # A `#` covers every level that remains, so a second link takes the whole subtree,
     # including the reading the single-level filter passed over.
     watcher = broker.link()
     await watcher.connect()
     await watcher.subscribe("line/#")
-    await publisher.send("line/mixer/temp/raw", b"2150")
+    await publisher.send("line/mixer/temp/raw", "2150")
 
     deep = await watcher.recv()
-    print(f"line/#     took {deep.payload.decode()} from {deep.topic}")
+    print(f"line/#     took {deep.text} from {deep.topic}")
 
     # A link that has been disconnected reports the failure instead of dropping the
     # reading, which is the case a test wants to reach without unplugging anything.
     await publisher.disconnect()
     try:
-        await publisher.send("line/mixer/temp", b"21.6")
+        await publisher.send("line/mixer/temp", "21.6")
         print("a disconnected link took a reading, which should never happen")
     except PamojaError as error:
         print(f"disconnected refused the reading: {error}")
@@ -241,12 +241,12 @@ await subscriber.ConnectAsync();
 // A `+` stands for exactly one level, so this takes the mixer's temperature but
 // not the raw reading a level below it.
 await subscriber.SubscribeAsync("line/+/temp");
-await publisher.SendAsync("line/mixer/temp/raw", "2150"u8.ToArray());
-await publisher.SendAsync("line/mixer/temp", "21.5"u8.ToArray());
+await publisher.SendAsync("line/mixer/temp/raw", "2150");
+await publisher.SendAsync("line/mixer/temp", "21.5");
 
 TransportMessage message = (await subscriber.ReceiveAsync())!;
 Console.WriteLine(
-    $"line/+/temp took {System.Text.Encoding.UTF8.GetString(message.Payload)}"
+    $"line/+/temp took {message.Text}"
     + $" from {message.Topic}");
 
 // A `#` covers every level that remains, so a second link takes the whole subtree,
@@ -254,11 +254,11 @@ Console.WriteLine(
 using LoopbackTransport watcher = broker.Link();
 await watcher.ConnectAsync();
 await watcher.SubscribeAsync("line/#");
-await publisher.SendAsync("line/mixer/temp/raw", "2150"u8.ToArray());
+await publisher.SendAsync("line/mixer/temp/raw", "2150");
 
 TransportMessage deep = (await watcher.ReceiveAsync())!;
 Console.WriteLine(
-    $"line/#     took {System.Text.Encoding.UTF8.GetString(deep.Payload)}"
+    $"line/#     took {deep.Text}"
     + $" from {deep.Topic}");
 
 // A link that has been disconnected reports the failure instead of dropping the
@@ -266,7 +266,7 @@ Console.WriteLine(
 await publisher.DisconnectAsync();
 try
 {
-    await publisher.SendAsync("line/mixer/temp", "21.6"u8.ToArray());
+    await publisher.SendAsync("line/mixer/temp", "21.6");
     Console.WriteLine("a disconnected link took a reading, which should never happen");
 }
 catch (PamojaException error)

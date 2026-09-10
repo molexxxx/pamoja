@@ -88,7 +88,7 @@ async def main():
     print(f"the valve switched {valve.switched} times")
 
     # On the gateway, in the order they were read, outage included.
-    got = [(await gateway.recv()).payload.decode() for _ in range(6)]
+    got = [(await gateway.recv()).text for _ in range(6)]
     print(f"gateway got {', '.join(got)}")
     return got, valve, await ladder.buffered()
 

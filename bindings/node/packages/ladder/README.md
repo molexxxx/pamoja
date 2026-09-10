@@ -46,12 +46,12 @@ async function main() {
 
   // The mesh hop refuses, so the reading goes out over the backhaul and arrives on the
   // broker only that rung publishes to.
-  const first = await ladder.send(TOPIC, Buffer.from('21.5'))
+  const first = await ladder.send(TOPIC, '21.5')
   const arrived = (await gateway.recv())!
-  console.log(`first reading: ${first}, gateway got ${arrived.payload.toString()}`)
+  console.log(`first reading: ${first}, gateway got ${arrived.text!}`)
 
   // Now nothing will take a send, so the next reading is buffered rather than lost.
-  const second = await ladder.send(TOPIC, Buffer.from('21.6'))
+  const second = await ladder.send(TOPIC, '21.6')
   const waiting = await ladder.buffered()
   console.log(`second reading: ${second}, ${waiting} waiting in the queue`)
 
@@ -63,15 +63,15 @@ async function main() {
   // The backhaul is reachable again, so the buffered reading goes out exactly once.
   const whenUp = await ladder.flush()
   const late = (await gateway.recv())!
-  console.log(`flush when up forwarded ${whenUp}, gateway got ${late.payload.toString()}`)
+  console.log(`flush when up forwarded ${whenUp}, gateway got ${late.text!}`)
 
   // The ladder is a link both ways. A subscription placed on it goes onto every rung that
   // listens, and a receive takes whichever rung delivers, so a command reaches the node
   // over whatever link is up. This one comes back over the backhaul.
   await ladder.subscribe('actuators/1/valve')
-  await gateway.send('actuators/1/valve', Buffer.from('open'))
+  await gateway.send('actuators/1/valve', 'open')
   const command = (await ladder.recv())!
-  console.log(`command back over the ladder: ${command.payload.toString()}`)
+  console.log(`command back over the ladder: ${command.text!}`)
 
   const left = await ladder.buffered()
   return { first, second, waiting, whileDown, whenUp, left, late, command }

@@ -1752,13 +1752,19 @@ class EventBus:
         The new endpoint sees events published from now on, not those already
         sent, so subscribe before publishing anything it needs to see.
         """
-    def publish(self, event: typing.Sequence[builtins.int]) -> typing.Any:
+    def publish(self, event: builtins.str | typing.Sequence[builtins.int]) -> typing.Any:
         r"""
         Publishes an event to every subscriber.
         """
     def next_event(self) -> typing.Any:
         r"""
         Waits for the next event on this endpoint, or `None` once the bus closes.
+        """
+    def next_text(self) -> typing.Any:
+        r"""
+        Waits for the next event as text, or `None` once the bus closes.
+        
+        Raises `ValueError` if the event is not UTF-8 text.
         """
 
 @typing.final
@@ -4792,7 +4798,7 @@ class Store:
         r"""
         Opens a buffer backed by a directory, so it survives a restart.
         """
-    def append(self, record: typing.Sequence[builtins.int]) -> typing.Any:
+    def append(self, record: builtins.str | typing.Sequence[builtins.int]) -> typing.Any:
         r"""
         Adds a record to the end of the buffer.
         """
@@ -4803,6 +4809,18 @@ class Store:
     def pop(self) -> typing.Any:
         r"""
         Removes and returns the oldest record, or `None` when empty.
+        """
+    def peek_text(self) -> typing.Any:
+        r"""
+        Reads the oldest record as text without removing it, or `None` when empty.
+        
+        Raises `ValueError` if the record is not UTF-8 text.
+        """
+    def pop_text(self) -> typing.Any:
+        r"""
+        Removes and returns the oldest record as text, or `None` when empty.
+        
+        Raises `ValueError` if the record is not UTF-8 text.
         """
     def len(self) -> typing.Any:
         r"""

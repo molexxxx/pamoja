@@ -349,10 +349,16 @@ export declare class EventBus {
    * sent, so subscribe before publishing anything it needs to see.
    */
   subscribe(): Promise<EventBus>
-  /** Publishes an event to every subscriber. */
-  publish(event: Buffer): Promise<void>
+  /** Publishes an event to every subscriber: bytes, or text such as an event name. */
+  publish(event: Buffer | string): Promise<void>
   /** Waits for the next event on this endpoint, or `null` once the bus closes. */
   next(): Promise<Buffer | null>
+  /**
+   * Waits for the next event as text, or `null` once the bus closes.
+   *
+   * Throws if the event is not UTF-8 text.
+   */
+  nextText(): Promise<string | null>
 }
 
 /** Keeps a tracked point inside an area, and notices when it leaves. */
@@ -1507,12 +1513,27 @@ export declare class Store {
    * @param dir - the directory to hold records in; it is created if missing.
    */
   static file(dir: string): Store
-  /** Adds a record to the end of the buffer. */
-  append(record: Buffer): Promise<void>
+  /**
+   * Adds a record to the end of the buffer: bytes, or text such as a reading
+   * written out.
+   */
+  append(record: Buffer | string): Promise<void>
   /** Reads the oldest record without removing it, or `null` when empty. */
   peek(): Promise<Buffer | null>
   /** Removes and returns the oldest record, or `null` when empty. */
   pop(): Promise<Buffer | null>
+  /**
+   * Reads the oldest record as text without removing it, or `null` when empty.
+   *
+   * Throws if the record is not UTF-8 text.
+   */
+  peekText(): Promise<string | null>
+  /**
+   * Removes and returns the oldest record as text, or `null` when empty.
+   *
+   * Throws if the record is not UTF-8 text.
+   */
+  popText(): Promise<string | null>
   /** Whether this store is still holdable, or has been given to a ladder. */
   get isAvailable(): boolean
   /** How many records the buffer holds. */

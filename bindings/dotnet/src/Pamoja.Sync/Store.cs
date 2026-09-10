@@ -62,6 +62,12 @@ public sealed class Store : IDisposable
         }
     }
 
+    /// <summary>Adds text to the end of the buffer: a reading or a line written out.</summary>
+    /// <param name="text">The text to hold, as UTF-8.</param>
+    /// <exception cref="PamojaException">The store is full, or otherwise refused it.</exception>
+    public Task AppendAsync(string text) =>
+        AppendAsync(System.Text.Encoding.UTF8.GetBytes(text));
+
     /// <summary>Adds a record to the end of the buffer.</summary>
     /// <param name="record">The bytes to hold.</param>
     /// <exception cref="PamojaException">The store is full, or otherwise refused it.</exception>
@@ -91,6 +97,18 @@ public sealed class Store : IDisposable
         Status.ThrowIfError(NativeMethods.pamoja_store_pop(Live(), out record));
         return record == IntPtr.Zero ? null : Pamoja.Codec.Codec.TakeBytes(record);
     });
+
+    /// <summary>Reads the oldest record as text, without removing it.</summary>
+    /// <returns>The record, or <c>null</c> when the buffer is empty.</returns>
+    /// <exception cref="PamojaException">The native call failed.</exception>
+    public async Task<string?> PeekTextAsync() =>
+        await PeekAsync() is { } record ? System.Text.Encoding.UTF8.GetString(record) : null;
+
+    /// <summary>Removes and returns the oldest record as text.</summary>
+    /// <returns>The record, or <c>null</c> when the buffer is empty.</returns>
+    /// <exception cref="PamojaException">The native call failed.</exception>
+    public async Task<string?> PopTextAsync() =>
+        await PopAsync() is { } record ? System.Text.Encoding.UTF8.GetString(record) : null;
 
     /// <summary>Reports how many records the buffer holds.</summary>
     /// <returns>The count.</returns>

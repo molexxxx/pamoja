@@ -22,7 +22,7 @@ async fn a_confirmable_request_is_reported_when_no_acknowledgement_arrives() {
     // Non-confirmable delivery is at most once: the datagram leaves unacknowledged, which
     // is what a battery-powered node sends when one missed reading costs nothing.
     reporter
-        .send("sensors/1/temperature", b"21.5")
+        .send_text("sensors/1/temperature", "21.5")
         .await
         .expect("the datagram leaves");
     println!("reporter  sent 21.5 and did not wait for an answer");
@@ -37,7 +37,7 @@ async fn a_confirmable_request_is_reported_when_no_acknowledgement_arrives() {
             .max_retransmits(1),
     );
     commander.connect().await.expect("a local socket");
-    match commander.send("actuators/valve", b"open").await {
+    match commander.send_text("actuators/valve", "open").await {
         Ok(()) => println!("commander the valve acknowledged the command"),
         Err(error) => println!("commander gave up unacknowledged: {error}"),
     }
@@ -47,5 +47,8 @@ async fn a_confirmable_request_is_reported_when_no_acknowledgement_arrives() {
     // ANCHOR_END: example
 
     assert!(!reporter.is_connected());
-    assert!(commander.send("actuators/valve", b"open").await.is_err());
+    assert!(commander
+        .send_text("actuators/valve", "open")
+        .await
+        .is_err());
 }

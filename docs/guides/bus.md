@@ -126,17 +126,17 @@ async function main() {
   const control = await hub.subscribe()
   const logger = await hub.subscribe()
 
-  await hub.publish(Buffer.from('battery.low'))
-  const toControl = (await control.next())!
-  const toLogger = (await logger.next())!
-  console.log(`control saw ${toControl.toString()}, the logger saw ${toLogger.toString()}`)
+  await hub.publish('battery.low')
+  const toControl = (await control.nextText())!
+  const toLogger = (await logger.nextText())!
+  console.log(`control saw ${toControl}, the logger saw ${toLogger}`)
 
   // A subscriber taken later starts from the next event, so it never sees what went out
   // before it existed.
   const late = await hub.subscribe()
-  await hub.publish(Buffer.from('link.up'))
-  const firstSeen = (await late.next())!
-  console.log(`the late subscriber's first event is ${firstSeen.toString()}`)
+  await hub.publish('link.up')
+  const firstSeen = (await late.nextText())!
+  console.log(`the late subscriber's first event is ${firstSeen}`)
 
   // The buffer is per subscriber and bounded, so one further behind than the capacity
   // drops what it missed and resumes with the most recent events. A slow reader costs
@@ -144,10 +144,10 @@ async function main() {
   const slow = new EventBus(2)
   const reader = await slow.subscribe()
   for (let count = 0; count < 5; count += 1) {
-    await slow.publish(Buffer.from([count]))
+    await slow.publish(String(count))
   }
-  const resumed = (await reader.next())!
-  console.log(`after five events into a buffer of two, the reader resumes at ${resumed[0]}`)
+  const resumed = (await reader.nextText())!
+  console.log(`after five events into a buffer of two, the reader resumes at ${resumed}`)
 
   return { toControl, toLogger, firstSeen, resumed }
 }
@@ -174,17 +174,17 @@ async def main() -> None:
     control = await hub.subscribe()
     logger = await hub.subscribe()
 
-    await hub.publish(b"battery.low")
-    to_control = await control.next_event()
-    to_logger = await logger.next_event()
-    print(f"control saw {to_control.decode()}, the logger saw {to_logger.decode()}")
+    await hub.publish("battery.low")
+    to_control = await control.next_text()
+    to_logger = await logger.next_text()
+    print(f"control saw {to_control}, the logger saw {to_logger}")
 
     # A subscriber taken later starts from the next event, so it never sees what went out
     # before it existed.
     late = await hub.subscribe()
-    await hub.publish(b"link.up")
-    first_seen = await late.next_event()
-    print(f"the late subscriber's first event is {first_seen.decode()}")
+    await hub.publish("link.up")
+    first_seen = await late.next_text()
+    print(f"the late subscriber's first event is {first_seen}")
 
     # The buffer is per subscriber and bounded, so one further behind than the capacity
     # drops what it missed and resumes with the most recent events. A slow reader costs
@@ -192,9 +192,9 @@ async def main() -> None:
     slow = EventBus(2)
     reader = await slow.subscribe()
     for count in range(5):
-        await slow.publish(bytes([count]))
-    resumed = await reader.next_event()
-    print(f"after five events into a buffer of two, the reader resumes at {resumed[0]}")
+        await slow.publish(str(count))
+    resumed = await reader.next_text()
+    print(f"after five events into a buffer of two, the reader resumes at {resumed}")
 
     return to_control, to_logger, first_seen, resumed
 
@@ -215,35 +215,31 @@ using EventBus hub = new EventBus(8);
 using EventBus control = hub.Subscribe();
 using EventBus logger = hub.Subscribe();
 
-await hub.PublishAsync("battery.low"u8.ToArray());
-byte[] toControl = (await control.NextAsync())!;
-byte[] toLogger = (await logger.NextAsync())!;
-Console.WriteLine(
-    $"control saw {System.Text.Encoding.UTF8.GetString(toControl)},"
-    + $" the logger saw {System.Text.Encoding.UTF8.GetString(toLogger)}");
+await hub.PublishAsync("battery.low");
+string toControl = (await control.NextTextAsync())!;
+string toLogger = (await logger.NextTextAsync())!;
+Console.WriteLine($"control saw {toControl}, the logger saw {toLogger}");
 
 // A subscriber taken later starts from the next event, so it never sees what went
 // out before it existed.
 using EventBus late = hub.Subscribe();
-await hub.PublishAsync("link.up"u8.ToArray());
-byte[] firstSeen = (await late.NextAsync())!;
-Console.WriteLine(
-    $"the late subscriber's first event is"
-    + $" {System.Text.Encoding.UTF8.GetString(firstSeen)}");
+await hub.PublishAsync("link.up");
+string firstSeen = (await late.NextTextAsync())!;
+Console.WriteLine($"the late subscriber's first event is {firstSeen}");
 
 // The buffer is per subscriber and bounded, so one further behind than the
 // capacity drops what it missed and resumes with the most recent events. A slow
 // reader costs itself, not the publisher.
 using EventBus slow = new EventBus(2);
 using EventBus reader = slow.Subscribe();
-for (byte count = 0; count < 5; count++)
+for (int count = 0; count < 5; count++)
 {
-    await slow.PublishAsync(new byte[] { count });
+    await slow.PublishAsync(count.ToString());
 }
 
-byte[] resumed = (await reader.NextAsync())!;
+string resumed = (await reader.NextTextAsync())!;
 Console.WriteLine(
-    $"after five events into a buffer of two, the reader resumes at {resumed[0]}");
+    $"after five events into a buffer of two, the reader resumes at {resumed}");
 ```
 <!-- end -->
 

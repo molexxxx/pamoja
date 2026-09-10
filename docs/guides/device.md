@@ -176,7 +176,7 @@ println!("the valve switched {switched} times");
 let mut got = Vec::new();
 for _ in 0..6 {
     let message = gateway.recv().await.expect("recv").expect("a message");
-    got.push(String::from_utf8_lossy(&message.payload).into_owned());
+    got.push(message.text().expect("text").to_owned());
 }
 let readings = got.join(", ");
 println!("gateway got {readings}");
@@ -316,7 +316,7 @@ async function main() {
     const moisture = await probe.read()
     await valve.apply(rule.update(moisture))
     const report = moisture.toFixed(1)
-    const delivery = await ladder.send(TOPIC, Buffer.from(report))
+    const delivery = await ladder.send(TOPIC, report)
     console.log(`bed at ${report}%, valve ${valve.open ? 'open' : 'closed'}, ${delivery}`)
     if ((await ladder.buffered()) > 0) {
       const caughtUp = await ladder.flush()
@@ -328,7 +328,7 @@ async function main() {
   // On the gateway, in the order they were read, outage included.
   const got: string[] = []
   for (let n = 0; n < 6; n += 1) {
-    got.push((await gateway.recv())!.payload.toString())
+    got.push((await gateway.recv())!.text!)
   }
   console.log(`gateway got ${got.join(', ')}`)
 
@@ -437,7 +437,7 @@ async def main():
     print(f"the valve switched {valve.switched} times")
 
     # On the gateway, in the order they were read, outage included.
-    got = [(await gateway.recv()).payload.decode() for _ in range(6)]
+    got = [(await gateway.recv()).text for _ in range(6)]
     print(f"gateway got {', '.join(got)}")
     return got, valve, await ladder.buffered()
 
@@ -524,7 +524,7 @@ for (int sample = 0; sample < 6; sample++)
     float moisture = await probe.ReadAsync();
     await valve.ApplyAsync(rule.Update(moisture));
     string report = moisture.ToString("F1", CultureInfo.InvariantCulture);
-    Delivery delivery = await ladder.SendAsync(Topic, Encoding.UTF8.GetBytes(report));
+    Delivery delivery = await ladder.SendAsync(Topic, report);
     string state = valve.Open ? "open" : "closed";
     Console.WriteLine($"bed at {report}%, valve {state}, {delivery}");
     if (await ladder.BufferedAsync() > 0)
@@ -544,7 +544,7 @@ List<string> got = [];
 for (int n = 0; n < 6; n++)
 {
     TransportMessage message = (await gateway.ReceiveAsync())!;
-    got.Add(Encoding.UTF8.GetString(message.Payload));
+    got.Add(message.Text);
 }
 
 Console.WriteLine($"gateway got {string.Join(", ", got)}");

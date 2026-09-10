@@ -60,7 +60,7 @@ Console.WriteLine("node      published 21.5 to sensors/1/temperature");
 // node sent the reading without the payload having to repeat it.
 MqttMessage received = (await gateway.RecvAsync())!;
 Console.WriteLine(
-    $"gateway   got {System.Text.Encoding.UTF8.GetString(received.Payload.Span)}"
+    $"gateway   got {received.Text}"
     + $" on {received.Topic}");
 
 // Disconnecting leaves the client reusable, so a node that loses its link can
