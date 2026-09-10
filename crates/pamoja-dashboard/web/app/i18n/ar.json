@@ -114,6 +114,8 @@
     "unit.hectopascal": "hPa",
     "unit.meter_per_second": "m/s",
     "unit.millimeter": "mm",
+    "unit.meter": "m",
+    "unit.bar": "bar",
     "unit.lux": "lux",
     "unit.second_short": "ث",
     "unit.minute_short": "د",

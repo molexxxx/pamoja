@@ -231,7 +231,10 @@ mod tests {
 
     #[test]
     fn a_profile_without_presentation_yields_an_empty_catalog() {
-        let plain = Profile::well_level();
+        // Every shipped profile presents itself, so this is a profile of one's own that
+        // draws with the built-in elements alone.
+        let mut plain = Profile::well_level();
+        plain.presentation = None;
         assert!(Catalog::from_profiles(&[&plain]).is_empty());
     }
 

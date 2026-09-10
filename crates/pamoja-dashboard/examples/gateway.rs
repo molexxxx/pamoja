@@ -15,8 +15,8 @@ use std::thread;
 use std::time::Duration;
 
 use pamoja_dashboard::{
-    Assets, Auth, Catalog, Command, ElementSpec, Fleet, LinkKind, Presentation, Reading, Scope,
-    Sensor, Server, State, StateSource, Status, Trend, Viz,
+    Assets, Auth, Catalog, Command, ElementSpec, Fleet, LinkKind, Reading, Scope, Sensor, Server,
+    State, StateSource, Status, Trend, Viz,
 };
 use pamoja_profile::{Alert, Profile};
 
@@ -48,29 +48,31 @@ fn pairing_secret() -> Option<String> {
     None
 }
 
-// The profile this gateway runs: an irrigation controller, plus a dashboard presentation that
-// teaches the page two elements it would not draw by default - a turbidity gauge and a
-// dropped-packet node stat. The page fetches these from `GET /catalog` and renders them.
+// The profile this gateway runs: the shipped irrigation controller, which already draws a
+// soil droplet and a drip valve, plus three elements this particular farm fitted - a
+// turbidity gauge, a dropped-packet node stat, and a filter whose state the page has no
+// words for until the profile supplies them. `with_element` adds to what the profile
+// declares instead of replacing it, so the shipped elements survive. The page fetches all
+// of this from `GET /catalog`.
 fn profile() -> Profile {
-    Profile::irrigation_node().with_presentation(
-        Presentation::new()
-            .with_element(
-                ElementSpec::new("water_turbidity", "ntu", "Turbidity", Viz::Gauge)
-                    .with_band(0.0, 5.0),
-            )
-            .with_element(
-                ElementSpec::new("packets_dropped", "count", "Packets dropped", Viz::Count)
-                    .as_stat()
-                    .on(Scope::Links(vec!["lora".to_owned(), "mesh".to_owned()])),
-            )
-            .with_element(
-                ElementSpec::new("filter_state", "state", "Water filter", Viz::Switch)
-                    .with_state("state.clean"),
-            )
-            // Localize the custom states this profile emits, so the page shows words, not codes.
-            .with_message("state.clean", "Clean")
-            .with_message("state.flushing", "Flushing"),
-    )
+    Profile::irrigation_node()
+        .with_element(
+            ElementSpec::new("water_turbidity", "ntu", "Turbidity", Viz::Gauge).with_band(0.0, 5.0),
+        )
+        .with_element(
+            ElementSpec::new("packets_dropped", "count", "Packets dropped", Viz::Count)
+                .as_stat()
+                .on(Scope::Links(vec!["lora".to_owned(), "mesh".to_owned()])),
+        )
+        .with_element(
+            ElementSpec::new("filter_state", "state", "Water filter", Viz::Switch)
+                .with_state("state.clean"),
+        )
+        .with_message("state.clean", [("en", "Clean"), ("sw", "Safi")])
+        .with_message(
+            "state.flushing",
+            [("en", "Flushing"), ("sw", "Inasafishwa")],
+        )
 }
 
 // Where this example persists its fleet, so provisioning and the last valve state survive a

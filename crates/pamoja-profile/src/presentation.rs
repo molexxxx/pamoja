@@ -346,6 +346,49 @@ pub enum LocalizedText {
     PerLocale(BTreeMap<String, String>),
 }
 
+impl LocalizedText {
+    /// Text written out in several locales at once.
+    ///
+    /// # Arguments
+    ///
+    /// * `texts` - `(locale tag, text)` pairs, such as `[("en", "Open"), ("sw", "Wazi")]`.
+    ///   A locale that is missing falls back to `"en"`.
+    ///
+    /// # Returns
+    ///
+    /// The per-locale text.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::{LocalizedText, Presentation};
+    ///
+    /// let presentation = Presentation::new().with_message(
+    ///     "state.lamp_on",
+    ///     LocalizedText::per_locale([("en", "On"), ("fr", "Allumée"), ("sw", "Imewashwa")]),
+    /// );
+    /// assert_eq!(presentation.messages.len(), 1);
+    /// ```
+    pub fn per_locale<K, V>(texts: impl IntoIterator<Item = (K, V)>) -> Self
+    where
+        K: Into<String>,
+        V: Into<String>,
+    {
+        LocalizedText::PerLocale(
+            texts
+                .into_iter()
+                .map(|(locale, text)| (locale.into(), text.into()))
+                .collect(),
+        )
+    }
+}
+
+impl<K: Into<String>, V: Into<String>, const N: usize> From<[(K, V); N]> for LocalizedText {
+    fn from(texts: [(K, V); N]) -> Self {
+        LocalizedText::per_locale(texts)
+    }
+}
+
 impl From<String> for LocalizedText {
     fn from(text: String) -> Self {
         LocalizedText::Plain(text)
@@ -442,6 +485,32 @@ impl Presentation {
     /// The presentation, for chaining.
     pub fn with_element(mut self, element: ElementSpec) -> Self {
         self.elements.push(element);
+        self
+    }
+
+    /// Declares several custom elements at once.
+    ///
+    /// # Arguments
+    ///
+    /// * `elements` - the elements to declare, in the order they should be offered.
+    ///
+    /// # Returns
+    ///
+    /// The presentation, for chaining.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::{ElementSpec, Presentation, Viz};
+    ///
+    /// let presentation = Presentation::new().with_elements([
+    ///     ElementSpec::new("ph", "ph", "Acidity", Viz::Dial).with_band(6.0, 8.0),
+    ///     ElementSpec::new("water_turbidity", "ntu", "Turbidity", Viz::Gauge),
+    /// ]);
+    /// assert_eq!(presentation.elements.len(), 2);
+    /// ```
+    pub fn with_elements(mut self, elements: impl IntoIterator<Item = ElementSpec>) -> Self {
+        self.elements.extend(elements);
         self
     }
 

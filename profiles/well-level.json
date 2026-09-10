@@ -13,5 +13,43 @@
     "critical_secs": 3600,
     "saver_below": 0.5,
     "critical_below": 0.2
+  },
+  "presentation": {
+    "elements": [
+      {
+        "key": "well_level",
+        "unit": "meter",
+        "label": "Well level",
+        "labels": {
+          "fr": "Niveau du puits",
+          "sw": "Kina cha kisima"
+        },
+        "viz": "bar",
+        "band": [
+          1.0,
+          6.0
+        ],
+        "stat": false,
+        "scope": "always",
+        "span": false
+      },
+      {
+        "key": "battery_voltage",
+        "unit": "volt",
+        "label": "Battery",
+        "labels": {
+          "fr": "Batterie",
+          "sw": "Betri"
+        },
+        "viz": "battery",
+        "band": [
+          3.5,
+          4.3
+        ],
+        "stat": true,
+        "scope": "always",
+        "span": false
+      }
+    ]
   }
 }

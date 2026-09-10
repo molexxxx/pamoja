@@ -13,7 +13,7 @@ use serde::de::{self, Deserializer};
 use serde::ser::{SerializeMap, Serializer};
 use serde::{Deserialize, Serialize};
 
-use crate::{Controller, Param, Params, Presentation};
+use crate::{Controller, ElementSpec, LocalizedText, Param, Params, Presentation, Viz};
 
 /// How a profile turns each reading into control output and alerts.
 ///
@@ -363,7 +363,49 @@ impl Profile {
                 safe_band: 3.0,
             },
             power: PowerSchedule::new(60, 300, 900),
-            presentation: None,
+            presentation: Some(
+                Presentation::new()
+                    .with_element(
+                        ElementSpec::new(
+                            "fridge_temp",
+                            "celsius",
+                            "Fridge temperature",
+                            Viz::Thermometer,
+                        )
+                        .with_band(2.0, 8.0)
+                        .with_locale_label("fr", "Température du réfrigérateur")
+                        .with_locale_label("sw", "Joto la friji"),
+                    )
+                    .with_element(
+                        ElementSpec::new("cooler", "state", "Cooler", Viz::Switch)
+                            .with_state("state.cooler_off")
+                            .with_locale_label("fr", "Groupe froid")
+                            .with_locale_label("sw", "Kipoza"),
+                    )
+                    .with_element(
+                        ElementSpec::new("compressor_duty", "percent", "Compressor duty", Viz::Bar)
+                            .as_stat()
+                            .with_band(0.0, 60.0)
+                            .with_locale_label("fr", "Cycle du compresseur")
+                            .with_locale_label("sw", "Utendaji wa kompresa"),
+                    )
+                    .with_message(
+                        "state.cooler_off",
+                        LocalizedText::per_locale([
+                            ("en", "Off"),
+                            ("fr", "Arrêt"),
+                            ("sw", "Imezimwa"),
+                        ]),
+                    )
+                    .with_message(
+                        "state.cooler_on",
+                        LocalizedText::per_locale([
+                            ("en", "Running"),
+                            ("fr", "En marche"),
+                            ("sw", "Inafanya kazi"),
+                        ]),
+                    ),
+            ),
         }
     }
 
@@ -395,7 +437,21 @@ impl Profile {
                 safe_band: 25.0,
             },
             power: PowerSchedule::new(300, 1800, 3600),
-            presentation: None,
+            presentation: Some(
+                Presentation::new()
+                    .with_element(
+                        ElementSpec::new("soil_moisture", "percent", "Soil moisture", Viz::Droplet)
+                            .with_band(10.0, 60.0)
+                            .with_locale_label("fr", "Humidité du sol")
+                            .with_locale_label("sw", "Unyevu wa udongo"),
+                    )
+                    .with_element(
+                        ElementSpec::new("drip_valve", "state", "Drip valve", Viz::Valve)
+                            .with_state("state.closed")
+                            .with_locale_label("fr", "Vanne goutte-à-goutte")
+                            .with_locale_label("sw", "Vali ya matone"),
+                    ),
+            ),
         }
     }
 
@@ -423,7 +479,22 @@ impl Profile {
                 warn_within: 6,
             },
             power: PowerSchedule::new(600, 1800, 3600),
-            presentation: None,
+            presentation: Some(
+                Presentation::new()
+                    .with_element(
+                        ElementSpec::new("well_level", "meter", "Well level", Viz::Bar)
+                            .with_band(1.0, 6.0)
+                            .with_locale_label("fr", "Niveau du puits")
+                            .with_locale_label("sw", "Kina cha kisima"),
+                    )
+                    .with_element(
+                        ElementSpec::new("battery_voltage", "volt", "Battery", Viz::Battery)
+                            .as_stat()
+                            .with_band(3.5, 4.3)
+                            .with_locale_label("fr", "Batterie")
+                            .with_locale_label("sw", "Betri"),
+                    ),
+            ),
         }
     }
 
@@ -463,7 +534,22 @@ impl Profile {
                 limit: 0.3,
             },
             power: PowerSchedule::new(60, 300, 900),
-            presentation: None,
+            presentation: Some(
+                Presentation::new()
+                    .with_element(
+                        ElementSpec::new("river_level", "meter", "River level", Viz::Wave)
+                            .with_band(0.2, 2.5)
+                            .wide()
+                            .with_locale_label("fr", "Niveau de la rivière")
+                            .with_locale_label("sw", "Kina cha mto"),
+                    )
+                    .with_element(
+                        ElementSpec::new("rainfall", "millimeter", "Rainfall", Viz::Bar)
+                            .with_band(0.0, 25.0)
+                            .with_locale_label("fr", "Précipitations")
+                            .with_locale_label("sw", "Mvua iliyonyesha"),
+                    ),
+            ),
         }
     }
 
@@ -513,6 +599,85 @@ impl Profile {
     /// ```
     pub fn with_presentation(mut self, presentation: Presentation) -> Self {
         self.presentation = Some(presentation);
+        self
+    }
+
+    /// Adds one element to how this profile presents itself, keeping the rest.
+    ///
+    /// [`with_presentation`](Profile::with_presentation) replaces a profile's whole
+    /// presentation, which drops what a preset already declared. This adds to it, so a
+    /// deployment can hang its own gauge off a shipped profile and keep the profile's
+    /// own elements, labels, and theme.
+    ///
+    /// # Arguments
+    ///
+    /// * `element` - the custom sensor or node stat to add.
+    ///
+    /// # Returns
+    ///
+    /// The profile, for chaining.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::{ElementSpec, Profile, Viz};
+    ///
+    /// // The shipped irrigation profile, plus the turbidity probe this farm also fitted.
+    /// let profile = Profile::irrigation_node().with_element(
+    ///     ElementSpec::new("water_turbidity", "ntu", "Turbidity", Viz::Gauge).with_band(0.0, 5.0),
+    /// );
+    /// let keys: Vec<&str> = profile
+    ///     .presentation
+    ///     .as_ref()
+    ///     .unwrap()
+    ///     .elements
+    ///     .iter()
+    ///     .map(|element| element.key.as_str())
+    ///     .collect();
+    /// assert_eq!(keys, ["soil_moisture", "drip_valve", "water_turbidity"]);
+    /// ```
+    pub fn with_element(mut self, element: ElementSpec) -> Self {
+        self.presentation
+            .get_or_insert_with(Presentation::new)
+            .elements
+            .push(element);
+        self
+    }
+
+    /// Adds the wording for one state or event code this profile emits.
+    ///
+    /// The dashboard ships no translation for a code it never knew, so a profile that
+    /// raises its own supplies the words here. Like
+    /// [`with_element`](Profile::with_element) this keeps whatever the profile already
+    /// declared.
+    ///
+    /// # Arguments
+    ///
+    /// * `code` - the message key, a `state.` or `event.` code.
+    /// * `text` - one text for every locale, or per-locale text.
+    ///
+    /// # Returns
+    ///
+    /// The profile, for chaining.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::Profile;
+    ///
+    /// let profile = Profile::irrigation_node()
+    ///     .with_message("state.flushing", [("en", "Flushing"), ("sw", "Inasafishwa")]);
+    /// assert!(profile.presentation.unwrap().messages.contains_key("state.flushing"));
+    /// ```
+    pub fn with_message(
+        mut self,
+        code: impl Into<String>,
+        text: impl Into<crate::LocalizedText>,
+    ) -> Self {
+        self.presentation
+            .get_or_insert_with(Presentation::new)
+            .messages
+            .insert(code.into(), text.into());
         self
     }
 
