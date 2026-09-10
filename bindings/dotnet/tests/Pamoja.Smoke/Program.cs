@@ -773,7 +773,9 @@ static void ProfilesAndRobotics()
         reloaded.PowerPlan.ActiveUs == fridge.Power.ActiveSecs * 1_000_000,
         "and its schedule assembles into a governor");
     Assert(fridge.Description?.Contains("safe range") == true, "a preset says what it is for");
-    Assert(fridge.Presentation is null, "and declares no presentation");
+    Assert(
+        fridge.Presentation?.Elements.Any(element => element.Key == "fridge_temp") == true,
+        "and says how it should be drawn");
 
     // A presentation is typed on the way in and on the way out, and travels in the manifest.
     using var described = fridge.WithDescription("Holds the clinic fridge at 5 C.");

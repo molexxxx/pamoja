@@ -48,7 +48,7 @@ drive its output to 3.3 V and a pin set low tries to drive it to ground; the
 drive strength is not a current limit, only the current at which the pad still
 meets its voltage specification. The numbers from the hardware documentation:
 
-| | Value |
+| Rating | Value |
 | --- | --- |
 | Design target per pin | about 3 mA |
 | Safe current per pin | 16 mA |
