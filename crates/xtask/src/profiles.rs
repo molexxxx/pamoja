@@ -9,7 +9,7 @@ use std::fs;
 use std::path::Path;
 use std::process::ExitCode;
 
-use pamoja_profile::{ControlSpec, ElementSpec, LocalizedText, Presentation, Profile};
+use pamoja_profile::{ControlSpec, ElementSpec, LocalizedText, Param, Presentation, Profile};
 
 use crate::catalog::{command, escape};
 use crate::docs::repo_root;
@@ -351,6 +351,13 @@ fn check_control(at: &str, control: &ControlSpec) -> Result<(), String> {
             }
         }
         ControlSpec::Monitor => {}
+        ControlSpec::Custom { ref kind, .. } => {
+            if !is_snake_case(kind) {
+                return Err(format!(
+                    "{at}: the control kind `{kind}` must be lowercase words joined by underscores"
+                ));
+            }
+        }
     }
     Ok(())
 }
@@ -558,6 +565,32 @@ fn policy_sentence(control: &ControlSpec) -> String {
             number(limit)
         ),
         ControlSpec::Monitor => "Reports readings and drives nothing.".to_owned(),
+        ControlSpec::Custom {
+            ref kind,
+            ref params,
+        } => {
+            let listed: Vec<String> = params
+                .iter()
+                .map(|(name, value)| format!("{} {}", escape(name), param(value)))
+                .collect();
+            let with = if listed.is_empty() {
+                String::new()
+            } else {
+                format!(" with {}", listed.join(", "))
+            };
+            format!(
+                "Applies the custom <code>{}</code> policy{with}, which the node's own code provides through a policy registry.",
+                escape(kind)
+            )
+        }
+    }
+}
+
+fn param(value: &Param) -> String {
+    match value {
+        Param::Number(number) => format!("{number}"),
+        Param::Flag(flag) => flag.to_string(),
+        Param::Text(text) => format!("<code>{}</code>", escape(text)),
     }
 }
 
@@ -712,6 +745,19 @@ mod tests {
             policy_sentence(&ControlSpec::Monitor),
             "Reports readings and drives nothing."
         );
+        let custom = Profile::from_json(
+            r#"{ "name": "orchard-frost", "topic": "orchard/air", "control": { "kind": "frost_guard", "warn_below": 2.0, "zone": "north" }, "power": { "active_secs": 60, "saver_secs": 300, "critical_secs": 900 } }"#,
+        )
+        .unwrap();
+        assert_eq!(
+            policy_sentence(&custom.control),
+            "Applies the custom <code>frost_guard</code> policy with warn_below 2, zone <code>north</code>, which the node's own code provides through a policy registry."
+        );
+        let odd = MINIMAL.replace(
+            r#"{ "kind": "level", "empty": 0.0, "warn_within": 4 }"#,
+            r#"{ "kind": "Frost-Guard", "warn_below": 2.0 }"#,
+        );
+        assert!(error_of("tank-level", &odd).contains("underscores"));
     }
 
     #[test]

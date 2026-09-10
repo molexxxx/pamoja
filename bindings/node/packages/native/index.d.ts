@@ -145,8 +145,11 @@ export declare class CoapClient {
   constructor(options: CoapClientOptions)
   /** Binds the local socket so the endpoint can carry traffic. */
   connect(): Promise<void>
-  /** Sends a payload to a resource path. */
-  send(topic: string, payload: Buffer): Promise<void>
+  /**
+   * Sends a payload to a resource path: bytes, or text such as a reading written
+   * out.
+   */
+  send(topic: string, payload: Buffer | string): Promise<void>
   /** Observes a resource path, so messages published to it reach `recv`. */
   subscribe(topic: string): Promise<void>
   /**
@@ -418,7 +421,7 @@ export declare class Ladder {
    *
    * Buffering is a success, not a failure: it is what the ladder exists to do.
    */
-  send(topic: string, payload: Buffer): Promise<Delivery>
+  send(topic: string, payload: Buffer | string): Promise<Delivery>
   /**
    * Replays the buffer over the rungs, oldest message first, and reports how
    * many went out.
@@ -467,8 +470,11 @@ export declare class LoopbackBroker {
 export declare class LoopbackTransport {
   /** Marks this link connected so it will carry traffic. */
   connect(): Promise<void>
-  /** Publishes a payload to a topic on the broker. */
-  send(topic: string, payload: Buffer): Promise<void>
+  /**
+   * Publishes a payload to a topic on the broker: bytes, or text such as a
+   * reading written out.
+   */
+  send(topic: string, payload: Buffer | string): Promise<void>
   /** Subscribes this link to a topic. */
   subscribe(topic: string): Promise<void>
   /**
@@ -1079,7 +1085,7 @@ export declare class MqttClient {
   /** Connects to the broker and starts the background event loop. */
   connect(): Promise<void>
   /** Publishes a payload to a topic. */
-  publish(topic: string, payload: Buffer): Promise<void>
+  publish(topic: string, payload: Buffer | string): Promise<void>
   /** Subscribes to a topic filter. */
   subscribe(topic: string): Promise<void>
   /**
@@ -1589,6 +1595,31 @@ export declare class Trend {
   slope(): number | null
 }
 
+/**
+ * Fires once when a reading crosses a line, and not again until it has come back
+ * past the release band.
+ */
+export declare class Trigger {
+  /**
+   * Creates a trigger that fires when a reading rises above the line and clears once
+   * it has fallen below the line by the hysteresis.
+   */
+  static above(threshold: number, hysteresis: number): Trigger
+  /**
+   * Creates a trigger that fires when a reading falls below the line and clears once
+   * it has risen above the line by the hysteresis.
+   */
+  static below(threshold: number, hysteresis: number): Trigger
+  /** Feeds a reading in and returns the edge it caused, or `null` while nothing changed. */
+  update(reading: number): Edge | null
+  /** Whether the condition currently holds. */
+  isSet(): boolean
+  /** The line the trigger watches. */
+  get threshold(): number
+  /** The release band on the far side of the line. */
+  get hysteresis(): number
+}
+
 /** A device slots, and the rules applied to what is offered for them. */
 export declare class Updater {
   /**
@@ -1743,7 +1774,9 @@ export declare const enum AlertKind {
   /** A falling level will reach empty within a few more samples. */
   RunningOut = 'RunningOut',
   /** A reading is changing faster than its safe rate. */
-  ChangingFast = 'ChangingFast'
+  ChangingFast = 'ChangingFast',
+  /** A condition a policy of the program's own raised, named by `code`. */
+  Custom = 'Custom'
 }
 
 /** An alert a reading raised. Only the field belonging to `kind` is set. */
@@ -1756,6 +1789,10 @@ export interface AlertReport {
   samples?: number
   /** The change since the previous sample, for a changing-fast alert. */
   rate?: number
+  /** The condition's name, for a custom alert. */
+  code?: string
+  /** The measurement behind the condition, for a custom alert. */
+  value?: number
 }
 
 /** Returns the initial bearing from one coordinate to another, in degrees. */
@@ -1987,7 +2024,12 @@ export declare const enum ControlKind {
   /** Warn when a reading changes faster than a limit. */
   Surge = 'Surge',
   /** Report readings only, with no output and no alerts. */
-  Monitor = 'Monitor'
+  Monitor = 'Monitor',
+  /**
+   * A kind the library does not ship, named by the manifest and decided by the
+   * program's own code; its name and parameters ride in `customKind` and `params`.
+   */
+  Custom = 'Custom'
 }
 
 /** A profile's control policy. Only the fields belonging to `kind` are set. */
@@ -2010,6 +2052,10 @@ export interface ControlPolicy {
   rising?: boolean
   /** The largest safe change per sample, for a surge policy. */
   limit?: number
+  /** The kind as the manifest names it, for a custom policy. */
+  customKind?: string
+  /** Every field the manifest carried beside the kind, for a custom policy. */
+  params?: Record<string, number | boolean | string>
 }
 
 /** A latitude and longitude in degrees. */
@@ -2103,6 +2149,14 @@ export declare function ds18b20ResolutionBits(configByte: number): number
 
 /** Returns the temperature step a DS18B20 resolution resolves, in micro-degrees. */
 export declare function ds18b20StepMicroCelsius(bits: number): number
+
+/** What a trigger reports when a reading changes its state. */
+export declare const enum Edge {
+  /** The reading just crossed the line: the condition became true. */
+  Set = 'set',
+  /** The reading just came back past the release band: the condition stopped holding. */
+  Cleared = 'cleared'
+}
 
 /** A custom sensor or node stat a profile contributes to the dashboard. */
 export interface ElementSpec {
@@ -3387,6 +3441,10 @@ export interface MqttMessage {
   topic: string
   /** The raw payload bytes. */
   payload: Buffer
+  /** The payload as text, when it is UTF-8: words, or a number written out. */
+  text?: string
+  /** The payload as a number, when its text is one, such as `21.5`. */
+  number?: number
 }
 
 /** Opens a signed delegation against the anchor that should have signed it. */
@@ -4203,6 +4261,10 @@ export interface TransportMessage {
   topic: string
   /** The raw payload bytes. */
   payload: Buffer
+  /** The payload as text, when it is UTF-8: words, or a number written out. */
+  text?: string
+  /** The payload as a number, when its text is one, such as `21.5`. */
+  number?: number
 }
 
 /** How fast a robot is asked to move. */

@@ -8,10 +8,78 @@ what they do not use, and on a microcontroller you compile in two crates and
 nothing else. The [install page](../install.md) measures that claim per feature
 set, down to a single-capability build that carries no third-party code at all.
 
-<a class="lightbox" href="../assets/architecture.svg"><picture>
-<source media="(max-width: 640px)" srcset="../assets/architecture-narrow.svg">
-<img alt="How a call reaches a crate: the three bindings over the compiled engine, Rust straight to the crates, and every capability crate over pamoja-core" src="../assets/architecture.svg">
-</picture></a>
+<!-- table: architecture -->
+<div class="bd" role="img" aria-label="How a call reaches a crate: three bindings over one compiled engine, a Rust program straight to the crates, every capability by chapter, and every crate over pamoja-core.">
+<div class="bd-doors"><div class="bd-door"><b>TypeScript</b><code>@pamoja/&lt;name&gt;</code><span>over napi-rs</span></div><div class="bd-door"><b>Python</b><code>pamoja-&lt;name&gt;</code><span>over PyO3</span></div><div class="bd-door"><b>C#</b><code>Pamoja.&lt;Name&gt;</code><span>over cbindgen and P/Invoke</span></div></div>
+<p class="bd-flow" aria-hidden="true"><span></span></p>
+<div class="bd-engine">
+<div><b>Compiled engine</b><p>pamoja-ffi over the C ABI: one library carrying every capability</p></div>
+<div class="bd-engine-end"><code>@pamoja/native, pamoja-native, Pamoja.Native</code><span>A package narrows the API, not the download.</span></div>
+</div>
+<p class="bd-flow" aria-hidden="true"><span></span></p>
+<div class="bd-caps">
+<p class="bd-caps-head"><b>Capabilities by chapter</b><code>Rust: cargo add pamoja-&lt;name&gt;, the crates themselves</code></p>
+<div class="bd-grid">
+<div class="bd-cell">
+<p class="bd-cell-title">Identity</p>
+<ul class="bd-crates"><li class="on-core">security</li></ul>
+<ul class="bd-names"><li>@pamoja/security</li><li>pamoja-security</li><li>Pamoja.Security</li><li>pamoja -F security</li></ul>
+</div>
+<div class="bd-cell">
+<p class="bd-cell-title">Codecs</p>
+<ul class="bd-crates"><li class="on-core">codec</li></ul>
+<ul class="bd-names"><li>@pamoja/codec</li><li>pamoja-codec</li><li>Pamoja.Codec</li><li>pamoja -F codec</li></ul>
+</div>
+<div class="bd-cell">
+<p class="bd-cell-title">Helpers</p>
+<ul class="bd-crates"><li>kit</li></ul>
+<ul class="bd-names"><li>@pamoja/kit</li><li>pamoja-kit</li><li>Pamoja.Kit</li><li>pamoja -F kit</li></ul>
+</div>
+<div class="bd-cell">
+<p class="bd-cell-title">Field I/O</p>
+<ul class="bd-crates"><li>serial</li><li>modbus</li><li>can</li><li class="on-core">gpio</li><li>hal</li></ul>
+<ul class="bd-names"><li>@pamoja/field-io</li><li>pamoja-field-io</li><li>Pamoja.FieldIo</li><li>pamoja -F field-io</li></ul>
+</div>
+<div class="bd-cell">
+<p class="bd-cell-title">Sensing and actuation</p>
+<ul class="bd-crates"><li class="on-core">sensors</li><li class="on-core">actuators</li></ul>
+<ul class="bd-names"><li>@pamoja/sensing</li><li>pamoja-sensing</li><li>Pamoja.Sensing</li><li>pamoja -F sensing</li></ul>
+</div>
+<div class="bd-cell">
+<p class="bd-cell-title">Radio and reach</p>
+<ul class="bd-crates"><li>lora</li><li>lorawan</li><li>mesh</li><li>routing</li></ul>
+<ul class="bd-names"><li>@pamoja/radio</li><li>pamoja-radio</li><li>Pamoja.Radio</li><li>pamoja -F radio</li></ul>
+</div>
+<div class="bd-cell">
+<p class="bd-cell-title">MAVLink</p>
+<ul class="bd-crates"><li class="on-core">mavlink</li></ul>
+<ul class="bd-names"><li>@pamoja/mavlink</li><li>pamoja-mavlink</li><li>Pamoja.Mavlink</li><li>pamoja -F mavlink</li></ul>
+</div>
+<div class="bd-cell">
+<p class="bd-cell-title">Trust and operation</p>
+<ul class="bd-crates"><li class="on-core">audit</li><li>session</li><li class="on-core">update</li><li>power</li><li>telemetry</li></ul>
+<ul class="bd-names"><li>@pamoja/trust</li><li>pamoja-trust</li><li>Pamoja.Trust</li><li>pamoja -F trust</li></ul>
+</div>
+<div class="bd-cell">
+<p class="bd-cell-title">Transports and testing</p>
+<ul class="bd-crates"><li class="on-core">mqtt</li><li class="on-core">coap</li><li class="on-core">loopback</li><li class="on-core">sync</li><li class="on-core">ladder</li><li class="on-core">bus</li><li class="on-core">sim</li></ul>
+<ul class="bd-names"><li>@pamoja/transports</li><li>pamoja-transports</li><li>Pamoja.Transports</li><li>pamoja -F transports</li></ul>
+</div>
+<div class="bd-cell">
+<p class="bd-cell-title">Profiles and robotics</p>
+<ul class="bd-crates"><li class="on-core">profile</li><li class="on-core">ros2</li><li class="on-core">zenoh</li></ul>
+<ul class="bd-names"><li>@pamoja/profiles</li><li>pamoja-profiles</li><li>Pamoja.Profiles</li><li>pamoja -F profiles</li></ul>
+</div>
+</div>
+<div class="bd-core">
+<b>pamoja-core</b>
+<p>Transport, Device, Sensor, Actuator, Store, and the event bus; <code>no_std</code>, so it runs on a microcontroller</p>
+<p class="bd-key">The names in the vendor ink build on it; the rest are pure logic with no dependency.</p>
+</div>
+</div>
+<p class="bd-foot">A chapter's package brings its capabilities with it. Everything at once: <code>npm install pamoja</code>, <code>pip install pamoja</code>, <code>dotnet add package Pamoja</code>, or <code>cargo add pamoja</code>.</p>
+</div>
+<!-- end -->
 
 This separation is literal in Rust: `pamoja-core` defines the traits, and each
 transport (`pamoja-mqtt`, `pamoja-coap`) is its own crate, so Rust code pulls

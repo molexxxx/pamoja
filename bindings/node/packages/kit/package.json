@@ -1,7 +1,7 @@
 {
   "name": "@pamoja/kit",
   "version": "0.1.17",
-  "description": "Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo.",
+  "description": "Plain-language helper math: smoothing, calibration, PID and thermostat control, a trigger with hysteresis, trend and surge prediction, rolling windows, kinematics, and geo.",
   "license": "MIT",
   "publishConfig": {
     "access": "public"

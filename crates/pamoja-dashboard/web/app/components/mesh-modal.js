@@ -1,9 +1,10 @@
 import { store } from '../store.js';
 import { currentFleet } from '../lib/edits.js';
-import { open, back } from '../nav.js';
+import { openOverlay, back } from '../nav.js';
 import { t, nf, fmt } from '../lib/i18n.js';
 import { catalog } from '../lib/catalog.js';
 import { LINK_NAMES, LINK_COLORS, LINK_RSSI, meshStations, meshPeerCount, esc } from '../lib/viz/index.js';
+import { sync as syncDialog, drop as dropDialog } from '../lib/dialog.js';
 
 // The map is laid out in a viewBox that turns portrait on a phone, so a narrow screen gets a
 // tall graph that fills the panel instead of a short, wide one squeezed to the width.
@@ -33,7 +34,7 @@ function findGroup(f, gid)
  */
 function closeMesh()
 {
-  if (store.state.meshNode) { store.dispatch('clearMeshNode'); open(() => { }, closeMesh); return; }
+  if (store.state.meshNode) { store.dispatch('clearMeshNode'); openOverlay(() => { }, closeMesh); return; }
   store.dispatch('closeMeshView');
 }
 
@@ -45,7 +46,7 @@ function closeMesh()
  */
 export function openMeshOverlay(sid)
 {
-  open(() => store.dispatch('openMeshView', sid), closeMesh);
+  openOverlay(() => store.dispatch('openMeshView', sid), closeMesh);
 }
 
 $.component('mesh-modal', {
@@ -61,10 +62,11 @@ $.component('mesh-modal', {
     document.addEventListener('pointerup', this._up);
   },
   /** Re-applies the pan/zoom transform after a re-render. */
-  updated() { this.applyTransform(); },
+  updated() { syncDialog(this._el); this.applyTransform(); },
   /** Tears down subscriptions and document pointer listeners. */
   destroyed()
   {
+    dropDialog();
     if (this._un) this._un();
     if (typeof this._eff === 'function') this._eff();
     document.removeEventListener('pointermove', this._move);
@@ -120,7 +122,7 @@ $.component('mesh-modal', {
   viewSensor(e)
   {
     const el = e.target.closest('[data-sid]'); if (!el) return;
-    open(() => store.dispatch('selectSensor', el.dataset.sid), () => store.dispatch('closeSensor'));
+    openOverlay(() => store.dispatch('selectSensor', el.dataset.sid), () => store.dispatch('closeSensor'));
   },
 
   /**
@@ -326,14 +328,14 @@ $.component('mesh-modal', {
         <div class="net-panel" data-status="${group.status}" style="--lc:${color}" role="dialog" aria-modal="true">
           <div class="net-head">
             <div>
-              <div class="net-title">${esc(group.name)}</div>
+              <h2 class="net-title">${esc(group.name)}</h2>
               <div class="net-subtitle">${LINK_NAMES[group.link.kind] || group.link.kind} · ${nf(neighbours)} ${t('label.neighbours')} · ${nf(hops)} ${t('label.hops')}</div>
             </div>
             <div class="spacer"></div>
             <button class="modal-close" type="button" @click="close" aria-label="${esc(t('ui.cancel'))}">✕</button>
           </div>
           <div class="net-stage">
-            <svg class="net-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" @wheel="onWheel" @pointerdown="onDown">
+            <svg aria-hidden="true" class="net-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" @wheel="onWheel" @pointerdown="onDown">
               <g class="mm-scene">${linkSvg}${pkSvg}${nodeSvg}</g>
             </svg>
             <div class="net-zoom">

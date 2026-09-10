@@ -38,6 +38,8 @@ The first helpers cover the jobs the cookbook leans on most:
 - `deadband` - ignore small wiggle around a setpoint so an actuator does not chatter.
 - `Thermostat` - keep a reading near a setpoint (on/off control with
   hysteresis).
+- `Trigger` - fire once when a reading crosses a line, and not again until it has
+  come back (a threshold with hysteresis that reports its edges).
 - `Pid` - hold a value at a target with a smooth, proportional command (PID control).
 - `Ramp` - ease a command toward a target at a limited rate (slew-rate limiter).
 - `Depletion` - warn before a falling level runs out (linear extrapolation).

@@ -143,10 +143,12 @@ pub fn render_node(
         core_readme(),
     ));
 
+    // A capability that lives in another capability's package (a trait-level guide in
+    // the core package, or the rules over the kit's trigger) renders no package of its own.
     let mut keys: Vec<&str> = Vec::new();
     for capability in &catalog.capabilities {
         let key = capability.node.as_str();
-        if key == "core" {
+        if key == "core" || key != capability.key {
             continue;
         }
         keys.push(key);
@@ -665,7 +667,7 @@ pub fn render_python(
     let mut keys: Vec<&str> = Vec::new();
     for capability in catalog.ordered() {
         let key = capability.python.as_str();
-        if key == "core" {
+        if key == "core" || key != capability.key {
             continue;
         }
         keys.push(key);
@@ -1003,9 +1005,11 @@ pub fn render_dotnet(root: &Path, catalog: &Catalog) -> Result<Vec<(String, Stri
         dotnet_core_readme(),
     ));
 
+    // A capability that lives in another capability's package (a trait-level guide in
+    // the core package, or the rules over the kit's trigger) has no project of its own.
     let mut names: Vec<String> = Vec::new();
     for capability in &catalog.capabilities {
-        if capability.dotnet_package() == "Pamoja.Core" {
+        if capability.dotnet_package() == "Pamoja.Core" || capability.node != capability.key {
             continue;
         }
         let name = dotnet_name(&capability.key);

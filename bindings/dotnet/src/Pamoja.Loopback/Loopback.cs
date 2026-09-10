@@ -60,6 +60,13 @@ public sealed class LoopbackTransport : IDisposable
     public Task ConnectAsync() => Task.Run(() => Status.ThrowIfError(
         _handle.Use(NativeMethods.pamoja_loopback_transport_connect)));
 
+    /// <summary>Publishes text to a topic on the broker: words, or a number written out.</summary>
+    /// <param name="topic">The destination topic.</param>
+    /// <param name="text">The text to publish, as UTF-8.</param>
+    /// <exception cref="PamojaException">The link is not connected.</exception>
+    public Task SendAsync(string topic, string text) =>
+        SendAsync(topic, System.Text.Encoding.UTF8.GetBytes(text));
+
     /// <summary>Publishes a payload to a topic on the broker.</summary>
     /// <param name="topic">The destination topic.</param>
     /// <param name="payload">The bytes to publish.</param>

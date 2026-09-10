@@ -9,6 +9,7 @@
 //! decides how they look.
 
 mod assets;
+pub(crate) mod block;
 mod check;
 mod highlight;
 mod home;
@@ -339,7 +340,8 @@ mod tests {
             "home.css",
             "theme.css",
             "fonts/fonts.css",
-            "fonts/Inter.woff2",
+            "fonts/Archivo.woff2",
+            "fonts/Archivo-Italic.woff2",
             "js/site.js",
             "js/home.js",
             "js/consoles.js",
@@ -506,7 +508,7 @@ mod tests {
             "the module keeps its import"
         );
         assert!(
-            published("site.css").contains("color-mix(in srgb,var(--cream)"),
+            published("site.css").contains("color-mix(in srgb,var(--paper-tint)"),
             "the palette maths survives"
         );
     }
@@ -561,12 +563,24 @@ mod tests {
                 "the front page has no stage for {key}"
             );
         }
-        assert!(index.contains("class=\"bento-card span-big\""));
         assert!(
-            index.contains("class=\"hero-stage diorama\" data-diorama=\"farm\""),
-            "the hero plays a console"
+            !index.contains("fig-block") && !index.contains("class=\"bd\""),
+            "the block diagram belongs to the architecture page, not the front sheet"
         );
-        assert!(index.contains("class=\"milestones\""));
+        assert!(
+            index.contains("docs/about/architecture.html"),
+            "the front sheet points at the architecture page instead"
+        );
+        assert!(
+            index.contains("<div class=\"chapters\">")
+                && index.contains("<p class=\"chapter-id\">4.1</p>"),
+            "the map is a card per heading, each opening what it covers"
+        );
+        assert!(
+            index.contains("class=\"fig fig-lead\" id=\"figure-1\""),
+            "the first figure is the typical application"
+        );
+        assert!(index.contains("<table class=\"milestones\">"));
         assert!(
             index.contains("id=\"quick-python\""),
             "the first example is spliced"

@@ -685,7 +685,7 @@ impl<L: ByteLink> Vehicle<L> {
     }
 }
 
-impl<L: ByteLink> Device for Vehicle<L> {
+impl<L: ByteLink + Send> Device for Vehicle<L> {
     fn id(&self) -> &str {
         &self.id
     }
@@ -700,7 +700,7 @@ impl<L: ByteLink> Device for Vehicle<L> {
     }
 }
 
-impl<L: ByteLink> Telemetry for Vehicle<L> {
+impl<L: ByteLink + Send> Telemetry for Vehicle<L> {
     type Frame = Report;
 
     async fn next_frame(&mut self) -> CoreResult<Option<Report>> {
@@ -712,7 +712,7 @@ impl<L: ByteLink> Telemetry for Vehicle<L> {
     }
 }
 
-impl<L: ByteLink> Actuator for Vehicle<L> {
+impl<L: ByteLink + Send> Actuator for Vehicle<L> {
     type Command = Setpoint;
 
     async fn apply(&mut self, command: Setpoint) -> CoreResult<()> {

@@ -4,6 +4,14 @@
 //! application: a connectable [`Device`], a [`Sensor`] that produces readings, an
 //! [`Actuator`] that accepts commands, and a [`Telemetry`] source that streams
 //! frames. A single type may implement more than one of them.
+//!
+//! The futures these traits return are `Send`, as a [`Transport`](crate::Transport)'s
+//! are, so a node built from any sensor and actuator can be driven from a task on a
+//! multi-threaded runtime and erased behind a trait object that is. An implementation
+//! written as `async fn` satisfies this as long as everything it holds across an await
+//! is `Send`; a driver generic over a bus says so with a `Send` bound on the bus.
+
+use core::future::Future;
 
 use crate::adapt::{Map, MapCommand};
 use crate::error::Result;
@@ -34,7 +42,7 @@ pub trait Device {
     /// Returns [`Error::Io`](crate::Error::Io) if the underlying resource cannot
     /// be opened, or [`Error::Transport`](crate::Error::Transport) if a link to
     /// the device cannot be established.
-    async fn connect(&mut self) -> Result<()>;
+    fn connect(&mut self) -> impl Future<Output = Result<()>> + Send;
 
     /// Releases the device and any resources it holds.
     ///
@@ -46,7 +54,7 @@ pub trait Device {
     ///
     /// Returns [`Error::Io`](crate::Error::Io) if the underlying resource cannot
     /// be released cleanly.
-    async fn disconnect(&mut self) -> Result<()>;
+    fn disconnect(&mut self) -> impl Future<Output = Result<()>> + Send;
 }
 
 /// A source of typed readings, such as a thermometer, GPS receiver, or lidar.
@@ -65,7 +73,7 @@ pub trait Sensor {
     /// Returns [`Error::Io`](crate::Error::Io) if the sensor cannot be read, or
     /// [`Error::Closed`](crate::Error::Closed) if the sensor has been
     /// disconnected.
-    async fn read(&mut self) -> Result<Self::Reading>;
+    fn read(&mut self) -> impl Future<Output = Result<Self::Reading>> + Send;
 
     /// Wraps this sensor so every reading passes through `select` first.
     ///
@@ -110,7 +118,7 @@ pub trait Actuator {
     /// Returns [`Error::Io`](crate::Error::Io) if the command cannot be
     /// delivered, or [`Error::Closed`](crate::Error::Closed) if the actuator has
     /// been disconnected.
-    async fn apply(&mut self, command: Self::Command) -> Result<()>;
+    fn apply(&mut self, command: Self::Command) -> impl Future<Output = Result<()>> + Send;
 
     /// Wraps this actuator so every command passes through `convert` first.
     ///
@@ -151,5 +159,5 @@ pub trait Telemetry {
     ///
     /// Returns [`Error::Transport`](crate::Error::Transport) if the telemetry
     /// link fails while waiting.
-    async fn next_frame(&mut self) -> Result<Option<Self::Frame>>;
+    fn next_frame(&mut self) -> impl Future<Output = Result<Option<Self::Frame>>> + Send;
 }

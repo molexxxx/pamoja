@@ -34,6 +34,7 @@
     "node": ">= 16"
   },
   "dependencies": {
+    "@pamoja/kit": "0.1.17",
     "@pamoja/profile": "0.1.17",
     "@pamoja/ros2": "0.1.17",
     "@pamoja/zenoh": "0.1.17"

@@ -1,5 +1,17 @@
 (() =>
 {
+  const root = document.documentElement;
+  // rustdoc, typedoc, and DocFX each carry a scheme control and write their own attribute,
+  // which the token sheet reads. pdoc carries none, so it takes the choice made on the site.
+  if (!root.dataset.theme && !root.dataset.bsTheme)
+  {
+    try
+    {
+      const stored = localStorage.getItem('pamoja:scheme');
+      if (stored === 'light' || stored === 'dark') root.dataset.theme = stored;
+    } catch { /* private mode */ }
+  }
+
   const match = location.pathname.match(/\/docs\/reference\/(rust|node|python|dotnet)\//);
   const language = match ? match[1] : null;
   const names = { rust: 'Rust', node: 'TypeScript', python: 'Python', dotnet: 'C#' };

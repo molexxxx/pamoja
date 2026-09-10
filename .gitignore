@@ -50,3 +50,7 @@ coverage/
 
 # DocFX metadata intermediates, rebuilt by the docs workflow.
 bindings/dotnet/docs/api/
+PRODUCT.md
+.github/agents
+.github/hooks
+.github/skills

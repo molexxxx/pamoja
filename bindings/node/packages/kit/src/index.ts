@@ -12,7 +12,7 @@
  * @packageDocumentation
  */
 
-import type { BoundaryState as BoundaryName } from '@pamoja/native'
+import type { BoundaryState as BoundaryName, Edge as EdgeName } from '@pamoja/native'
 
 export {
   Anomaly,
@@ -32,9 +32,25 @@ export {
   Surge,
   Thermostat,
   Trend,
+  Trigger,
   Window,
   WINDOW_CAPACITY,
 } from '@pamoja/native'
+
+/**
+ * What a {@link Trigger} reports when a reading changes its state.
+ *
+ * Provided as a runtime object plus a matching string-union type.
+ */
+export const Edge = {
+  /** The reading just crossed the line: the condition became true. */
+  Set: 'set' as EdgeName,
+  /** The reading just came back past the release band: the condition stopped holding. */
+  Cleared: 'cleared' as EdgeName,
+} as const
+
+/** One of the {@link Edge} states. */
+export type Edge = EdgeName
 
 /**
  * Where a fix sits relative to a {@link Geofence}, including the moment it

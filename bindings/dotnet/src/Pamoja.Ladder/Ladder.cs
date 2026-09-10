@@ -62,6 +62,14 @@ public sealed class Ladder : IDisposable
     public Task ConnectAsync() => Task.Run(() => Status.ThrowIfError(
         _handle.Use(NativeMethods.pamoja_ladder_connect)));
 
+    /// <summary>Sends text, buffering it if no rung takes it: words, or a number written out.</summary>
+    /// <param name="topic">The destination topic.</param>
+    /// <param name="text">The text to send, as UTF-8.</param>
+    /// <returns>Whether the message went out or was buffered.</returns>
+    /// <exception cref="PamojaException">The native call failed.</exception>
+    public Task<Delivery> SendAsync(string topic, string text) =>
+        SendAsync(topic, System.Text.Encoding.UTF8.GetBytes(text));
+
     /// <summary>Sends a payload, buffering it if no rung takes it.</summary>
     /// <param name="topic">The destination topic.</param>
     /// <param name="payload">The bytes to send.</param>

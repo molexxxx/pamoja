@@ -1,6 +1,11 @@
 //! The decision logic a profile assembles: turning a reading into a reaction.
 
+use std::collections::BTreeMap;
+
+use pamoja_core::{Error, Result};
 use pamoja_kit::{Depletion, Surge, Thermostat};
+
+use crate::{ControlSpec, Params};
 
 /// An alert raised when a reading crosses a profile's safety threshold.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -26,6 +31,18 @@ pub enum Alert {
         /// The change since the previous sample, as a positive number.
         rate: f32,
     },
+    /// A condition a policy of your own raised, named by a code it chose.
+    ///
+    /// The code is a fixed identifier the policy's author picks, such as
+    /// `"FrostRisk"`, and the value is the measurement behind it. The bindings carry
+    /// it as they carry the built-in kinds, as the code and a number, so a custom
+    /// condition reads the same wherever the node's code is written.
+    Custom {
+        /// The condition's name, chosen by the policy that raises it.
+        code: &'static str,
+        /// The measurement behind the condition.
+        value: f32,
+    },
 }
 
 impl Alert {
@@ -37,32 +54,292 @@ impl Alert {
     ///
     /// # Returns
     ///
-    /// One of `"OutOfRange"`, `"RunningOut"`, or `"ChangingFast"`.
+    /// One of `"OutOfRange"`, `"RunningOut"`, or `"ChangingFast"`, or the code a
+    /// custom alert was raised with.
     pub fn kind(self) -> &'static str {
         match self {
             Alert::OutOfRange { .. } => "OutOfRange",
             Alert::RunningOut { .. } => "RunningOut",
             Alert::ChangingFast { .. } => "ChangingFast",
+            Alert::Custom { code, .. } => code,
         }
     }
 }
 
-/// The outcome of evaluating one reading against a profile's control policy.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct Reaction {
-    /// The actuator setting this reading calls for, if the profile drives one.
+/// The outcome of evaluating one reading against a policy.
+///
+/// A [`Controller`] issues an on/off command, so a reaction is `Reaction<bool>` by
+/// default; a policy of your own issues whatever its actuator takes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Reaction<C = bool> {
+    /// The actuator setting this reading calls for, if the policy drives one.
     ///
-    /// `Some(true)` switches the output on, `Some(false)` switches it off, and
-    /// `None` means the profile observes without driving an output.
-    pub actuator: Option<bool>,
-    /// An alert, if the reading crossed a profile threshold; `None` otherwise.
+    /// For a controller, `Some(true)` switches the output on, `Some(false)` switches
+    /// it off, and `None` means the profile observes without driving an output.
+    pub actuator: Option<C>,
+    /// An alert, if the reading crossed a threshold; `None` otherwise.
     pub alert: Option<Alert>,
+}
+
+impl<C> Default for Reaction<C> {
+    fn default() -> Self {
+        Self {
+            actuator: None,
+            alert: None,
+        }
+    }
+}
+
+/// The decision half of a node: what one reading calls for.
+///
+/// A [`Controller`] is the policy behind every built-in kind, deciding an `f32`
+/// reading into an on/off command. A policy of your own decides whatever a driver
+/// reads, a whole measurement struct included, into whatever an actuator takes, and
+/// [`Node::with_policy`](crate::Node::with_policy) runs it in the same read, decide,
+/// act, publish loop. Evaluation is synchronous and hardware-free, so a policy is
+/// unit-testable with no devices and no network.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_profile::{Alert, Policy, Reaction};
+///
+/// // Frost settles when the air is cold and damp, so this reads both at once and
+/// // switches a heater, raising its own condition when the risk is on.
+/// struct FrostGuard {
+///     warn_below: f32,
+/// }
+///
+/// impl Policy for FrostGuard {
+///     type Reading = (f32, f32);
+///     type Command = bool;
+///
+///     fn evaluate(&mut self, &(temperature, humidity): &(f32, f32)) -> Reaction {
+///         let risk = temperature < self.warn_below && humidity > 80.0;
+///         Reaction {
+///             actuator: Some(risk),
+///             alert: risk.then_some(Alert::Custom { code: "FrostRisk", value: temperature }),
+///         }
+///     }
+/// }
+///
+/// let mut guard = FrostGuard { warn_below: 2.0 };
+/// let cold = guard.evaluate(&(1.0, 92.0));
+/// assert_eq!(cold.actuator, Some(true));
+/// assert_eq!(cold.alert.map(Alert::kind), Some("FrostRisk"));
+/// assert_eq!(guard.evaluate(&(1.0, 40.0)).alert, None);
+/// ```
+pub trait Policy {
+    /// What the policy decides on: a number, or a driver's whole measurement.
+    type Reading;
+    /// What the policy issues: an on/off setting, a duty, a setpoint.
+    type Command;
+
+    /// Decides what one reading calls for.
+    ///
+    /// # Arguments
+    ///
+    /// * `reading` - the latest reading, borrowed so the node can still publish it.
+    ///
+    /// # Returns
+    ///
+    /// The command to apply, if any, and any alert the reading raised.
+    fn evaluate(&mut self, reading: &Self::Reading) -> Reaction<Self::Command>;
+}
+
+impl<P: Policy + ?Sized> Policy for Box<P> {
+    type Reading = P::Reading;
+    type Command = P::Command;
+
+    fn evaluate(&mut self, reading: &Self::Reading) -> Reaction<Self::Command> {
+        (**self).evaluate(reading)
+    }
+}
+
+impl Policy for Controller {
+    type Reading = f32;
+    type Command = bool;
+
+    fn evaluate(&mut self, reading: &f32) -> Reaction {
+        Controller::evaluate(self, *reading)
+    }
+}
+
+/// A policy behind a trait object, as a [`PolicyRegistry`] hands one out.
+pub type BoxedPolicy<R = f32, C = bool> = Box<dyn Policy<Reading = R, Command = C> + Send>;
+
+/// The code that builds a custom kind's policy from the parameters its manifest carries.
+type Factory<R, C> = Box<dyn Fn(&Params) -> Result<BoxedPolicy<R, C>> + Send + Sync>;
+
+/// What resolves a manifest's control kind to the code that decides it.
+///
+/// The four built-in kinds resolve to a [`Controller`]. A kind pamoja never shipped
+/// resolves to the factory registered under its name, which reads the parameters the
+/// manifest carried beside the kind and builds the policy, so a fleet can share a
+/// manifest for a policy of its own the same way it shares one for a setpoint. A
+/// registry is generic over the reading and command its policies work in;
+/// [`resolve`](PolicyRegistry::resolve) exists for the `f32` reading and `bool` command
+/// the built-in kinds share, and [`custom`](PolicyRegistry::custom) for any other pair.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_core::Error;
+/// use pamoja_profile::{Alert, BoxedPolicy, Policy, PolicyRegistry, Profile, Reaction};
+///
+/// struct FrostGuard {
+///     warn_below: f32,
+/// }
+///
+/// impl Policy for FrostGuard {
+///     type Reading = f32;
+///     type Command = bool;
+///
+///     fn evaluate(&mut self, reading: &f32) -> Reaction {
+///         let cold = *reading < self.warn_below;
+///         Reaction {
+///             actuator: Some(cold),
+///             alert: cold.then_some(Alert::Custom { code: "FrostRisk", value: *reading }),
+///         }
+///     }
+/// }
+///
+/// // The manifest names a kind the library has never heard of, with its parameter
+/// // beside it, exactly as a built-in kind carries its own.
+/// let manifest = r#"{
+///     "name": "orchard-frost",
+///     "topic": "orchard/air/temperature",
+///     "control": { "kind": "frost_guard", "warn_below": 2.0 },
+///     "power": { "active_secs": 60, "saver_secs": 300, "critical_secs": 900 }
+/// }"#;
+/// let profile = Profile::from_json(manifest)?;
+///
+/// let registry = PolicyRegistry::new().register("frost_guard", |params| {
+///     let warn_below = params
+///         .number("warn_below")
+///         .ok_or(Error::Unsupported("frost_guard needs a `warn_below` parameter"))?;
+///     Ok(Box::new(FrostGuard { warn_below: warn_below as f32 }) as BoxedPolicy)
+/// });
+/// let mut policy = registry.resolve(&profile.control)?;
+/// assert_eq!(policy.evaluate(&1.0).alert.map(Alert::kind), Some("FrostRisk"));
+/// assert_eq!(policy.evaluate(&5.0).actuator, Some(false));
+///
+/// // A built-in kind resolves through the same registry.
+/// let mut fridge = registry.resolve(&Profile::vaccine_fridge_monitor().control)?;
+/// assert_eq!(fridge.evaluate(&9.0).actuator, Some(true));
+/// # Ok::<(), Error>(())
+/// ```
+pub struct PolicyRegistry<R = f32, C = bool> {
+    factories: BTreeMap<String, Factory<R, C>>,
+}
+
+impl<R, C> PolicyRegistry<R, C> {
+    /// Starts a registry with no custom kinds.
+    ///
+    /// # Returns
+    ///
+    /// A registry that resolves only what is registered on it.
+    pub fn new() -> Self {
+        Self {
+            factories: BTreeMap::new(),
+        }
+    }
+
+    /// Registers the factory for a custom kind, replacing one of the same name.
+    ///
+    /// # Arguments
+    ///
+    /// * `kind` - the kind as a manifest names it, such as `"frost_guard"`.
+    /// * `factory` - builds the policy from the parameters beside the kind, or says
+    ///   which parameter it needed.
+    ///
+    /// # Returns
+    ///
+    /// The registry, for chaining.
+    pub fn register<F>(mut self, kind: impl Into<String>, factory: F) -> Self
+    where
+        F: Fn(&Params) -> Result<BoxedPolicy<R, C>> + Send + Sync + 'static,
+    {
+        self.factories.insert(kind.into(), Box::new(factory));
+        self
+    }
+
+    /// Lists the custom kinds registered, in name order.
+    ///
+    /// # Returns
+    ///
+    /// Each kind's name.
+    pub fn kinds(&self) -> impl Iterator<Item = &str> {
+        self.factories.keys().map(String::as_str)
+    }
+
+    /// Builds the policy for a custom kind from its parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `kind` - the kind as a manifest names it.
+    /// * `params` - the parameters the manifest carried beside it.
+    ///
+    /// # Returns
+    ///
+    /// The policy, ready to evaluate readings.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unsupported`] when no factory is registered for the kind, or
+    /// whatever the factory returns when the parameters are not what it needs.
+    pub fn custom(&self, kind: &str, params: &Params) -> Result<BoxedPolicy<R, C>> {
+        match self.factories.get(kind) {
+            Some(factory) => factory(params),
+            None => Err(Error::Unsupported(
+                "the manifest names a control kind no policy is registered for",
+            )),
+        }
+    }
+}
+
+impl PolicyRegistry<f32, bool> {
+    /// Resolves a manifest's control kind: a built-in kind to its [`Controller`], a
+    /// custom kind to the policy its factory builds.
+    ///
+    /// # Arguments
+    ///
+    /// * `spec` - the control policy a profile carries.
+    ///
+    /// # Returns
+    ///
+    /// The policy, ready to evaluate readings.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unsupported`] when the kind is custom and no factory is
+    /// registered for it, or whatever the factory returns.
+    pub fn resolve(&self, spec: &ControlSpec) -> Result<BoxedPolicy<f32, bool>> {
+        match spec {
+            ControlSpec::Custom { kind, params } => self.custom(kind, params),
+            built_in => Ok(Box::new(Controller::from_spec(built_in))),
+        }
+    }
+}
+
+impl<R, C> Default for PolicyRegistry<R, C> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<R, C> core::fmt::Debug for PolicyRegistry<R, C> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("PolicyRegistry")
+            .field("kinds", &self.factories.keys().collect::<Vec<_>>())
+            .finish()
+    }
 }
 
 // The live policy behind a `Controller`. It is private so the controller's public
 // surface stays its constructors and `evaluate`, not the kit helpers it wraps.
 #[derive(Clone, Copy, Debug)]
-enum Policy {
+enum Builtin {
     Setpoint {
         thermostat: Thermostat,
         setpoint: f32,
@@ -78,7 +355,7 @@ enum Policy {
     Monitor,
 }
 
-/// The assembled, stateful decision logic of a profile.
+/// The assembled, stateful decision logic of a profile's built-in kind.
 ///
 /// A controller is what a [`Profile`](crate::Profile) turns its
 /// [`ControlSpec`](crate::ControlSpec) into: the live loop that maps each reading to
@@ -88,7 +365,8 @@ enum Policy {
 /// [`Surge`](pamoja_kit::Surge) alarm for rapid change - so the same field-tested
 /// math drives every profile. The logic is synchronous and
 /// hardware-free, so a profile's whole control policy is unit-testable with no
-/// devices and no network.
+/// devices and no network. It implements [`Policy`] over an `f32` reading and a
+/// `bool` command, which is what lets a policy of your own stand in its place.
 ///
 /// # Examples
 ///
@@ -104,7 +382,7 @@ enum Policy {
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct Controller {
-    policy: Policy,
+    policy: Builtin,
 }
 
 impl Controller {
@@ -134,7 +412,7 @@ impl Controller {
             Thermostat::heating(setpoint, hysteresis)
         };
         Self {
-            policy: Policy::Setpoint {
+            policy: Builtin::Setpoint {
                 thermostat,
                 setpoint,
                 safe_band,
@@ -158,7 +436,7 @@ impl Controller {
     /// A controller awaiting its first two readings.
     pub fn level(empty: f32, warn_within: u32) -> Self {
         Self {
-            policy: Policy::Level {
+            policy: Builtin::Level {
                 depletion: Depletion::new(empty),
                 warn_within,
             },
@@ -187,7 +465,7 @@ impl Controller {
             Surge::falling(limit)
         };
         Self {
-            policy: Policy::Surge { surge },
+            policy: Builtin::Surge { surge },
         }
     }
 
@@ -198,7 +476,34 @@ impl Controller {
     /// A controller that never commands an actuator and never alerts.
     pub fn monitor() -> Self {
         Self {
-            policy: Policy::Monitor,
+            policy: Builtin::Monitor,
+        }
+    }
+
+    /// Assembles the controller a manifest's control kind describes.
+    ///
+    /// A custom kind has no built-in controller: its policy is the code a
+    /// [`PolicyRegistry`] resolves it to, so for one this returns
+    /// [`monitor`](Controller::monitor), which reports readings and decides nothing.
+    ///
+    /// # Arguments
+    ///
+    /// * `spec` - the control policy a profile carries.
+    ///
+    /// # Returns
+    ///
+    /// A fresh controller with its control state reset.
+    pub fn from_spec(spec: &ControlSpec) -> Self {
+        match *spec {
+            ControlSpec::Setpoint {
+                setpoint,
+                hysteresis,
+                cooling,
+                safe_band,
+            } => Controller::setpoint(setpoint, hysteresis, cooling, safe_band),
+            ControlSpec::Level { empty, warn_within } => Controller::level(empty, warn_within),
+            ControlSpec::Surge { rising, limit } => Controller::surge(rising, limit),
+            ControlSpec::Monitor | ControlSpec::Custom { .. } => Controller::monitor(),
         }
     }
 
@@ -214,7 +519,7 @@ impl Controller {
     /// one) and any alert the reading raised.
     pub fn evaluate(&mut self, reading: f32) -> Reaction {
         match &mut self.policy {
-            Policy::Setpoint {
+            Builtin::Setpoint {
                 thermostat,
                 setpoint,
                 safe_band,
@@ -230,7 +535,7 @@ impl Controller {
                     alert,
                 }
             }
-            Policy::Level {
+            Builtin::Level {
                 depletion,
                 warn_within,
             } => {
@@ -244,7 +549,7 @@ impl Controller {
                     alert,
                 }
             }
-            Policy::Surge { surge } => {
+            Builtin::Surge { surge } => {
                 let alert = surge
                     .update(reading)
                     .map(|rate| Alert::ChangingFast { rate });
@@ -253,7 +558,7 @@ impl Controller {
                     alert,
                 }
             }
-            Policy::Monitor => Reaction::default(),
+            Builtin::Monitor => Reaction::default(),
         }
     }
 }
@@ -317,5 +622,85 @@ mod tests {
         let mut control = Controller::monitor();
         let reaction = control.evaluate(42.0);
         assert_eq!(reaction, Reaction::default());
+    }
+
+    #[test]
+    fn a_controller_is_a_policy_over_a_number() {
+        let mut policy: BoxedPolicy = Box::new(Controller::setpoint(5.0, 0.5, true, 3.0));
+        assert_eq!(policy.evaluate(&9.0).actuator, Some(true));
+        assert_eq!(
+            Alert::Custom {
+                code: "FrostRisk",
+                value: 1.0
+            }
+            .kind(),
+            "FrostRisk"
+        );
+        assert_eq!(Reaction::<u8>::default().actuator, None);
+    }
+
+    // A policy over a whole measurement, deciding a duty rather than an on/off.
+    struct Fan {
+        above: f32,
+    }
+
+    impl Policy for Fan {
+        type Reading = (f32, f32);
+        type Command = u8;
+
+        fn evaluate(&mut self, &(temperature, humidity): &(f32, f32)) -> Reaction<u8> {
+            let hot = temperature > self.above;
+            Reaction {
+                actuator: Some(if hot { 100 } else { 0 }),
+                alert: (hot && humidity > 90.0).then_some(Alert::Custom {
+                    code: "Muggy",
+                    value: humidity,
+                }),
+            }
+        }
+    }
+
+    #[test]
+    fn a_registry_resolves_built_in_and_custom_kinds() {
+        let registry = PolicyRegistry::<(f32, f32), u8>::new().register("fan", |params| {
+            let above = params
+                .number("above")
+                .ok_or(Error::Unsupported("fan needs `above`"))?;
+            Ok(Box::new(Fan {
+                above: above as f32,
+            }) as BoxedPolicy<(f32, f32), u8>)
+        });
+        assert_eq!(registry.kinds().collect::<Vec<_>>(), ["fan"]);
+
+        let params = Params::new().with("above", 30.0);
+        let mut fan = registry.custom("fan", &params).expect("registered");
+        assert_eq!(fan.evaluate(&(35.0, 95.0)).actuator, Some(100));
+        assert_eq!(
+            fan.evaluate(&(35.0, 95.0)).alert.map(Alert::kind),
+            Some("Muggy")
+        );
+        assert!(matches!(
+            registry.custom("fan", &Params::new()),
+            Err(Error::Unsupported(_))
+        ));
+        assert!(matches!(
+            registry.custom("heater", &params),
+            Err(Error::Unsupported(_))
+        ));
+
+        let scalar = PolicyRegistry::new();
+        let mut monitor = scalar
+            .resolve(&ControlSpec::Monitor)
+            .expect("a built-in kind resolves without a factory");
+        assert_eq!(monitor.evaluate(&1.0), Reaction::default());
+        let custom = ControlSpec::Custom {
+            kind: "heater".to_owned(),
+            params: Params::new(),
+        };
+        assert!(matches!(
+            scalar.resolve(&custom),
+            Err(Error::Unsupported(_))
+        ));
+        assert_eq!(format!("{scalar:?}"), "PolicyRegistry { kinds: [] }");
     }
 }

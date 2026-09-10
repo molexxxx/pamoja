@@ -1,6 +1,6 @@
 import { store } from '../store.js';
 import { currentFleet } from '../lib/edits.js';
-import { open, back } from '../nav.js';
+import { openOverlay, back } from '../nav.js';
 import { t, nf, fmt } from '../lib/i18n.js';
 import { esc } from '../lib/viz/index.js';
 
@@ -61,7 +61,7 @@ $.component('alarm-bar', {
   onGoSensor(e)
   {
     const el = e.target.closest('[data-sid]'); if (!el) return;
-    open(() => store.dispatch('selectSensor', el.dataset.sid), () => store.dispatch('closeSensor'));
+    openOverlay(() => store.dispatch('selectSensor', el.dataset.sid), () => store.dispatch('closeSensor'));
   },
   /**
    * Opens the group view for the clicked alarm row's group.
@@ -73,7 +73,7 @@ $.component('alarm-bar', {
   {
     const el = e.target.closest('[data-gid]'); if (!el) return;
     const gid = el.dataset.gid;
-    open(() => store.dispatch('setGroupView', gid), () => store.dispatch('clearGroupView'));
+    openOverlay(() => store.dispatch('setGroupView', gid), () => store.dispatch('clearGroupView'));
   },
 
   /**

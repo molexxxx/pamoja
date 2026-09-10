@@ -91,6 +91,9 @@ class ControlKind(str, enum.Enum):
     SURGE = "Surge"
     #: Report readings only, with no output and no alerts.
     MONITOR = "Monitor"
+    #: A kind the library does not ship, named by the manifest in ``custom_kind`` and
+    #: decided by the program's own code from ``params``.
+    CUSTOM = "Custom"
 
 
 class AlertKind(str, enum.Enum):
@@ -102,3 +105,5 @@ class AlertKind(str, enum.Enum):
     RUNNING_OUT = "RunningOut"
     #: A reading is changing faster than its safe rate.
     CHANGING_FAST = "ChangingFast"
+    #: A condition a policy of the program's own raised, named by ``code``.
+    CUSTOM = "Custom"

@@ -74,6 +74,14 @@ public static partial class NativeMethods
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     public static partial IntPtr pamoja_profile_with_presentation_json(IntPtr profile, string presentation);
 
+    /// <summary>Returns the control kind a profile names, as its manifest writes it.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_profile_control_kind(IntPtr profile);
+
+    /// <summary>Returns a custom kind's parameters as JSON, or null for a built-in kind.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_profile_control_params_json(IntPtr profile);
+
     /// <summary>Returns the control policy a profile applies.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_profile_control(

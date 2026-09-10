@@ -105,6 +105,13 @@ public sealed class CoapClient : IDisposable
     public Task ConnectAsync() => Task.Run(() => Status.ThrowIfError(
         _handle.Use(NativeMethods.pamoja_coap_client_connect)));
 
+    /// <summary>Sends text to a resource path: words, or a number written out.</summary>
+    /// <param name="topic">The resource path.</param>
+    /// <param name="text">The text to send, as UTF-8.</param>
+    /// <exception cref="PamojaException">The request could not be sent.</exception>
+    public Task SendAsync(string topic, string text) =>
+        SendAsync(topic, System.Text.Encoding.UTF8.GetBytes(text));
+
     /// <summary>Sends a payload to a resource path.</summary>
     /// <param name="topic">The resource path.</param>
     /// <param name="payload">The bytes to send.</param>

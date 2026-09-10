@@ -247,7 +247,7 @@ impl Hardware {
                 continue;
             }
             let mut section = format!(
-                "### {}\n\n{}\n\n<div class=\"hw-cards\">\n",
+                "## {}\n\n{}\n\n<div class=\"hw-cards\">\n",
                 group.title, group.intent
             );
             for entry in &entries {
@@ -546,7 +546,7 @@ fn card(entry: &Entry, group: &Group, catalog: &Catalog, all: &[Entry]) -> Strin
                 )
             })
             .collect();
-        format!("<section class=\"hw-buy\"><h5>{heading}</h5><ul class=\"hw-rows\">{offers}</ul></section>\n")
+        format!("<section class=\"hw-buy\"><h4>{heading}</h4><ul class=\"hw-rows\">{offers}</ul></section>\n")
     } else if entry.cost == "not applicable" && !speakers(entry, all).is_empty() {
         let parts: String = speakers(entry, all)
             .iter()
@@ -560,7 +560,7 @@ fn card(entry: &Entry, group: &Group, catalog: &Catalog, all: &[Entry]) -> Strin
                 )
             })
             .collect();
-        format!("<section class=\"hw-buy\"><h5>Parts on this bus</h5><ul class=\"hw-rows\">{parts}</ul></section>\n")
+        format!("<section class=\"hw-buy\"><h4>Parts on this bus</h4><ul class=\"hw-rows\">{parts}</ul></section>\n")
     } else {
         let note = if entry.cost == "not applicable" {
             String::new()
@@ -584,11 +584,11 @@ fn card(entry: &Entry, group: &Group, catalog: &Catalog, all: &[Entry]) -> Strin
                 )
             })
             .collect();
-        format!("<section class=\"hw-buy\"><h5>Find parts</h5>{note}<ul class=\"hw-rows\">{searches}</ul></section>\n")
+        format!("<section class=\"hw-buy\"><h4>Find parts</h4>{note}<ul class=\"hw-rows\">{searches}</ul></section>\n")
     };
 
     format!(
-        "<article class=\"hw-card\" id=\"{}\">\n<header class=\"hw-head\"><div class=\"hw-name\"><h4>{}</h4><span class=\"hw-by\">{}</span></div><p class=\"hw-summary\">{}</p></header>\n<dl class=\"hw-facts\">{facts}</dl>\n<div class=\"hw-foot\">\n{left}<section class=\"hw-learn\"><h5>Read and build</h5><ul class=\"hw-rows\">{}</ul></section>\n</div>\n</article>\n",
+        "<article class=\"hw-card\" id=\"{}\">\n<header class=\"hw-head\"><div class=\"hw-name\"><h3>{}</h3><span class=\"hw-by\">{}</span></div><p class=\"hw-summary\">{}</p></header>\n<dl class=\"hw-facts\">{facts}</dl>\n<div class=\"hw-foot\">\n{left}<section class=\"hw-learn\"><h4>Read and build</h4><ul class=\"hw-rows\">{}</ul></section>\n</div>\n</article>\n",
         entry.key,
         escape(&entry.name),
         escape(&entry.vendor),
@@ -860,15 +860,15 @@ crates = ["pamoja-core"]
     #[test]
     fn a_card_breaks_the_part_down_and_points_at_the_document_the_driver_and_the_guide() {
         let rendered = Hardware::parse(MINIMAL).expect("parses").table(&catalog());
-        assert!(rendered.starts_with("### Sensors\n\nParts a driver decodes.\n\n<div class=\"hw-cards\">\n<article class=\"hw-card\" id=\"bme280\">\n"), "{rendered}");
-        assert!(rendered.contains("<header class=\"hw-head\"><div class=\"hw-name\"><h4>BME280</h4><span class=\"hw-by\">Bosch Sensortec</span></div><p class=\"hw-summary\">Humidity, pressure and temperature on one die.</p></header>"));
+        assert!(rendered.starts_with("## Sensors\n\nParts a driver decodes.\n\n<div class=\"hw-cards\">\n<article class=\"hw-card\" id=\"bme280\">\n"), "{rendered}");
+        assert!(rendered.contains("<header class=\"hw-head\"><div class=\"hw-name\"><h3>BME280</h3><span class=\"hw-by\">Bosch Sensortec</span></div><p class=\"hw-summary\">Humidity, pressure and temperature on one die.</p></header>"));
         assert!(rendered.contains("<dl class=\"hw-facts\"><div><dt>Interface</dt><dd>I2C or SPI</dd></div><div><dt>Temperature</dt><dd>-40 to 85 C</dd></div><div><dt>Typical cost</dt><dd>$5 to $20 for a breakout module or a board</dd></div></dl>"), "{rendered}");
         assert!(rendered.contains("<li><a class=\"hw-row\" href=\"https://example.invalid/bme280\"><span class=\"hw-main\"><b>Datasheet</b><small>datasheet</small></span><span class=\"hw-go\" aria-hidden=\"true\">&#8599;</span></a></li>"), "{rendered}");
         assert!(rendered.contains("<a class=\"hw-row\" href=\"https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-sensors/src/bme280.rs\"><span class=\"hw-main\"><b>Driver source</b><small><code>bme280.rs</code></small></span>"));
         assert!(rendered.contains("<a class=\"hw-row\" href=\"https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html\"><span class=\"hw-main\"><b>Crate</b><small><code>pamoja-sensors</code></small></span>"));
         assert!(rendered.contains("<a class=\"hw-row guide\" href=\"https://pamoja.molex.cloud/docs/guides/sensors.html\"><span class=\"hw-main\"><b>Sensor drivers guide</b><small>the worked example, in four languages</small></span><span class=\"hw-go\" aria-hidden=\"true\">&#8594;</span></a>"));
         assert!(
-            rendered.contains("<section class=\"hw-buy\"><h5>Find parts</h5><p class=\"hw-none\">No reputable store lists this part.") && rendered.contains("<b>Search Adafruit</b><small>for BME280</small>"),
+            rendered.contains("<section class=\"hw-buy\"><h4>Find parts</h4><p class=\"hw-none\">No reputable store lists this part.") && rendered.contains("<b>Search Adafruit</b><small>for BME280</small>"),
             "a part no store lists says so and offers searches: {rendered}"
         );
         assert!(rendered.ends_with("</article>\n</div>"), "{rendered}");
@@ -900,7 +900,7 @@ crates = ["pamoja-core"]
         let lonely = bus.replace("interface = \"I2C or SPI\"", "interface = \"none\"");
         let lonely = Hardware::parse(&lonely).expect("parses").table(&catalog());
         assert!(
-            lonely.contains("<h5>Find parts</h5><ul class=\"hw-rows\">")
+            lonely.contains("<h4>Find parts</h4><ul class=\"hw-rows\">")
                 && !lonely.contains("hw-none"),
             "{lonely}"
         );
@@ -915,7 +915,7 @@ crates = ["pamoja-core"]
             .expect("parses")
             .table(&catalog());
         assert!(
-            with_probe.contains("<h5>Parts on this bus</h5><ul class=\"hw-rows\"><li><a class=\"hw-row\" href=\"#probe\"><span class=\"hw-main\"><b>Probe</b><small>I2C at 400 kHz</small></span>"),
+            with_probe.contains("<h4>Parts on this bus</h4><ul class=\"hw-rows\"><li><a class=\"hw-row\" href=\"#probe\"><span class=\"hw-main\"><b>Probe</b><small>I2C at 400 kHz</small></span>"),
             "a bus leads to the parts that speak it: {with_probe}"
         );
     }
@@ -962,7 +962,7 @@ verified = false
         assert!(entry.buy[0].verified && !entry.buy[1].verified);
         let rendered = hardware.table(&catalog());
         assert!(rendered.contains("<dt>Typical cost</dt><dd>$5 to $20 for a breakout module or a board; the lowest listed price is <a href=\"https://www.adafruit.com/product/2652\">US$14.95</a> at Adafruit</dd>"), "{rendered}");
-        assert!(rendered.contains("<div class=\"hw-foot\">\n<section class=\"hw-buy\"><h5>Where to buy <small>prices as listed on 2026-09-06</small></h5><ul class=\"hw-rows\"><li><a class=\"hw-row\" href=\"https://www.adafruit.com/product/2652\"><span class=\"hw-main\"><b>Adafruit</b><small>Adafruit BME280 breakout</small></span><span class=\"hw-price\">US$14.95</span></a></li><li><a class=\"hw-row\" href=\"https://www.digikey.com/en/products/detail/bosch/BME280/5341156\"><span class=\"hw-main\"><b>Digi-Key</b><small>BME280 bare sensor</small><small class=\"hw-note\">listed price; the page refuses scripted readers</small></span><span class=\"hw-price\">US$5.34</span></a></li></ul></section>"), "{rendered}");
+        assert!(rendered.contains("<div class=\"hw-foot\">\n<section class=\"hw-buy\"><h4>Where to buy <small>prices as listed on 2026-09-06</small></h4><ul class=\"hw-rows\"><li><a class=\"hw-row\" href=\"https://www.adafruit.com/product/2652\"><span class=\"hw-main\"><b>Adafruit</b><small>Adafruit BME280 breakout</small></span><span class=\"hw-price\">US$14.95</span></a></li><li><a class=\"hw-row\" href=\"https://www.digikey.com/en/products/detail/bosch/BME280/5341156\"><span class=\"hw-main\"><b>Digi-Key</b><small>BME280 bare sensor</small><small class=\"hw-note\">listed price; the page refuses scripted readers</small></span><span class=\"hw-price\">US$5.34</span></a></li></ul></section>"), "{rendered}");
     }
 
     #[test]
@@ -971,7 +971,7 @@ verified = false
         let rendered = Hardware::parse(&searched)
             .expect("parses")
             .table(&catalog());
-        assert!(rendered.contains("<div class=\"hw-foot\">\n<section class=\"hw-buy\"><h5>Find parts</h5><p class=\"hw-none\">No reputable store lists this part as of 2026-09-06."), "{rendered}");
+        assert!(rendered.contains("<div class=\"hw-foot\">\n<section class=\"hw-buy\"><h4>Find parts</h4><p class=\"hw-none\">No reputable store lists this part as of 2026-09-06."), "{rendered}");
         let plain = Hardware::parse(MINIMAL).expect("parses").table(&catalog());
         assert!(
             plain.contains("<p class=\"hw-none\">No reputable store lists this part. The makers"),

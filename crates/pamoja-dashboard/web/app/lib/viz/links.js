@@ -8,7 +8,7 @@
 export const LINK_NAMES = { lora: 'LoRa', wifi: 'Wi-Fi', cellular: 'Cellular', nbiot: 'NB-IoT', satellite: 'Satellite', ethernet: 'Ethernet', mesh: 'Mesh' };
 
 /** Accent colors for each link kind, used for chips, edges, and packets. */
-export const LINK_COLORS = { lora: '#38bdf8', wifi: '#22d3ee', cellular: '#a855f7', nbiot: '#818cf8', satellite: '#fb923c', ethernet: '#94a3b8', mesh: '#ec4899' };
+export const LINK_COLORS = { lora: 'var(--lk-lora)', wifi: 'var(--lk-wifi)', cellular: 'var(--lk-cellular)', nbiot: 'var(--lk-nbiot)', satellite: 'var(--lk-satellite)', ethernet: 'var(--lk-ethernet)', mesh: 'var(--lk-mesh)' };
 
 /** Nominal floor RSSI (dBm) per link kind, the basis for a derived signal reading. */
 export const LINK_RSSI = { lora: -112, wifi: -52, cellular: -84, nbiot: -102, satellite: -118, ethernet: -40, mesh: -96 };
@@ -36,7 +36,7 @@ export function bars(strength, online)
 export function conn(link)
 {
   const name = LINK_NAMES[link.kind] || link.kind;
-  const color = LINK_COLORS[link.kind] || 'var(--cyan)';
+  const color = LINK_COLORS[link.kind] || 'var(--key)';
   const dbm = link.online ? (LINK_RSSI[link.kind] ?? -90) + (link.strength - 2) * 6 : null;
   const sig = dbm != null ? `<span class="conn-speed">${dbm} dBm</span>` : '';
   return `<span class="conn ${link.online ? '' : 'off'}" style="--lc:${color}"><span class="conn-kind">${name}</span>${sig}${bars(link.strength, link.online)}</span>`;

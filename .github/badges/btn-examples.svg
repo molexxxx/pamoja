@@ -1,17 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="171" height="44" viewBox="0 0 171 44" role="img" aria-label="examples &amp; guides">
-  <defs>
-    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#16263f"/>
-      <stop offset="1" stop-color="#0e1b2e"/>
-    </linearGradient>
-    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0.04"/>
-    </linearGradient>
-  </defs>
-  <rect x="0.5" y="5.5" width="170" height="33" rx="17" fill="url(#face)" stroke="rgba(251, 243, 228, 0.22)" stroke-width="1"/>
-  <rect x="1.5" y="6.5" width="168" height="31" rx="16" fill="none" stroke="url(#rim)" stroke-width="1"/>
-  <text x="75.52" y="22" dominant-baseline="central" text-anchor="middle" font-family="Segoe UI, Inter, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="13.5" font-weight="600" letter-spacing="0.1" fill="#fbf3e4">examples &amp; guides</text>
-  <circle cx="151.5" cy="22" r="8.5" fill="rgba(255, 182, 39, 0.16)"/>
-  <text x="151.5" y="22" dominant-baseline="central" text-anchor="middle" font-family="Segoe UI, Inter, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#ffb627" fill-opacity="1">↗</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="185" height="44" viewBox="0 0 185 44" role="img" aria-label="examples &amp; guides">
+  <style>
+    .paper { fill: #fbfaf6; }
+    .rule { stroke: #d7d4cc; }
+    .band { fill: #0f5f56; }
+    .ink { fill: #141414; }
+    .accent { fill: #0f5f56; }
+    .accent-rule { stroke: rgba(15, 95, 86, 0.45); }
+    .tint { fill: rgba(15, 95, 86, 0.1); }
+    .s-accent { stroke: #0f5f56; }
+    .on-band { fill: #ffffff; }
+    .s-on-band { stroke: #ffffff; }
+    @media (prefers-color-scheme: dark) {
+      .paper { fill: #191a17; }
+      .rule { stroke: #3a3b35; }
+      .band { fill: #0d4d46; }
+      .ink { fill: #eae8e1; }
+      .accent { fill: #5ec6b0; }
+      .accent-rule { stroke: rgba(94, 198, 176, 0.45); }
+      .tint { fill: rgba(94, 198, 176, 0.1); }
+      .s-accent { stroke: #5ec6b0; }
+    }
+  </style>
+  <rect x="0.5" y="6.5" width="184" height="31" rx="2" class="paper rule" stroke-width="1"/>
+  <text x="14" y="22" dominant-baseline="central" font-family="Segoe UI, Inter, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="0.9" class="ink">EXAMPLES &amp; GUIDES</text>
+  <path d="M162 26.5L171 17.5M163 17.5h8v8" class="s-accent" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

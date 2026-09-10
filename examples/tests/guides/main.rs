@@ -26,6 +26,7 @@ mod profile;
 mod quickstart;
 mod ros2;
 mod routing;
+mod rules;
 mod security;
 mod sensors;
 mod serial;

@@ -7,7 +7,7 @@
 use std::fs;
 use std::path::Path;
 
-use crate::catalog::{command, escape, Catalog, SITE};
+use crate::catalog::{command, escape, rustdoc_url};
 use crate::docs;
 
 /// The repository, for the links to each file.
@@ -35,12 +35,12 @@ const RUNNERS: [(&str, &str, &str); 4] = [
 /// # Errors
 ///
 /// When an example or a guide cannot be read or parsed.
-pub fn table(root: &Path, catalog: &Catalog) -> Result<String, String> {
+pub fn table(root: &Path) -> Result<String, String> {
     let mut out = String::from(
         "## Programs\n\nEach one is a complete program with a `main`, written to be read top to bottom and run with nothing plugged in. The line beside it runs it.\n\n<div class=\"pkgs\">\n",
     );
-    for program in programs_in(root, "examples")? {
-        out.push_str(&program_card(&program));
+    for (at, program) in programs_in(root, "examples")?.iter().enumerate() {
+        out.push_str(&program_card(program, at + 1));
     }
     out.push_str("</div>\n\n## Community programs\n\nPrograms people have shared, held to the same bar: complete, run in CI with nothing plugged in, and credited in the file. The [community page](community.md#share-an-example) says how to add one.\n\n");
     let community = programs_in(root, "examples/community")?;
@@ -48,39 +48,37 @@ pub fn table(root: &Path, catalog: &Catalog) -> Result<String, String> {
         out.push_str("<p>None yet. The first one is yours to add.</p>\n");
     } else {
         out.push_str("<div class=\"pkgs\">\n");
-        for program in &community {
-            out.push_str(&program_card(program));
+        for (at, program) in community.iter().enumerate() {
+            out.push_str(&program_card(program, at + 1));
         }
         out.push_str("</div>\n");
-    }
-    out.push_str("\n## Guide examples\n\nEvery guide carries the same example in Rust, TypeScript, Python, and C#, spliced from the file that runs it in CI. The buttons open those files; the guide explains them.\n");
-    for chapter in &catalog.chapters {
-        let mut cards = String::new();
-        for capability in catalog.in_chapter(&chapter.key) {
-            let Some(guide) = &capability.guide else {
-                continue;
-            };
-            let text = fs::read_to_string(root.join("docs").join(guide))
-                .map_err(|err| format!("reading docs/{guide}: {err}"))?;
-            cards.push_str(&guide_card(&capability.title, guide, &text));
-        }
-        if !cards.is_empty() {
-            out.push_str(&format!(
-                "\n### {}\n\n<div class=\"pkgs\">\n{cards}</div>\n",
-                escape(&chapter.title)
-            ));
-        }
     }
     Ok(out.trim_end().to_owned())
 }
 
 /// One program: its name, the file it lives in from the repository root, what its module
-/// doc says first, and how to run it.
+/// doc says first, how to run it, and the capability crates it reaches for.
 struct Program {
     name: String,
     path: String,
     summary: String,
     run: String,
+    uses: Vec<String>,
+}
+
+// The capability crates a program imports, read from its `use` lines. The examples crate
+// itself is the harness, not a capability, so it is left out.
+fn uses(source: &str) -> Vec<String> {
+    let mut out: Vec<String> = source
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("use "))
+        .filter_map(|rest| rest.split([':', ';', ' ']).next())
+        .filter(|name| name.starts_with("pamoja_") && *name != "pamoja_examples")
+        .map(|name| name.replace('_', "-"))
+        .collect();
+    out.sort();
+    out.dedup();
+    out
 }
 
 // The programs in one directory, in name order, from their module docs; none when the
@@ -112,6 +110,7 @@ fn programs_in(root: &Path, relative: &str) -> Result<Vec<Program>, String> {
             let (summary, run) = summary_and_run(&doc, &name);
             Ok(Program {
                 path: format!("{relative}/{name}.rs"),
+                uses: uses(&source),
                 name,
                 summary,
                 run,
@@ -150,9 +149,41 @@ pub fn summary_and_run(doc: &str, name: &str) -> (String, String) {
     (summary, run)
 }
 
-fn program_card(program: &Program) -> String {
+fn program_card(program: &Program, number: usize) -> String {
+    // A program that reaches for everything would otherwise bury its own row, so the list
+    // stops at eight and the file itself carries the rest.
+    const SHOWN: usize = 8;
+    let listed: String = program
+        .uses
+        .iter()
+        .take(SHOWN)
+        .map(|krate| {
+            format!(
+                "<li><a href=\"{}\"><code>{}</code></a></li>",
+                rustdoc_url(krate),
+                escape(krate)
+            )
+        })
+        .collect();
+    let rest = program.uses.len().saturating_sub(SHOWN);
+    let more = if rest == 0 {
+        String::new()
+    } else {
+        format!(
+            "<li class=\"uses-more\"><a href=\"{REPO}/blob/main/{}\">and {rest} more</a></li>",
+            program.path
+        )
+    };
+    let uses = if listed.is_empty() {
+        String::new()
+    } else {
+        format!("<ul class=\"uses\"><li class=\"uses-head\">Imports</li>{listed}{more}</ul>\n")
+    };
     format!(
-        "<div class=\"pkg stack\" id=\"example-{name}\">\n<div class=\"pkg-head\">\n<div class=\"pkg-what\"><a class=\"pkg-title\" href=\"{REPO}/blob/main/{path}\">{name}</a><code class=\"pkg-import\">{path}</code><p>{}</p></div>\n{}\n</div>\n</div>\n",
+        "<div class=\"pkg stack program\" id=\"example-{name}\">\n<div class=\"pkg-head\">\n\
+         <div class=\"pkg-what\"><p class=\"program-id\">Program {number}</p>\
+         <a class=\"pkg-title\" href=\"{REPO}/blob/main/{path}\">{name}</a><code class=\"pkg-import\">{path}</code>\
+         <p>{}</p>{uses}</div>\n{}\n</div>\n</div>\n",
         markdown_inline(&program.summary),
         command(&program.run),
         name = program.name,
@@ -160,48 +191,18 @@ fn program_card(program: &Program) -> String {
     )
 }
 
-/// One guide's card: what its example proves, and the four files that run it.
+/// One guide's row: its title and summary, what its example proves behind a disclosure,
+/// and the four files that run it.
 ///
 /// # Arguments
 ///
 /// * `title` - the capability's title.
+/// * `summary` - the capability's one-line summary.
 /// * `guide` - the guide's path under `docs/`.
 /// * `text` - the guide's Markdown.
 ///
 /// # Returns
 ///
-/// The card's HTML.
-pub fn guide_card(title: &str, guide: &str, text: &str) -> String {
-    let page = guide.trim_end_matches(".md");
-    let proves: String = proves(text)
-        .iter()
-        .map(|line| format!("<li>{}</li>", markdown_inline(line)))
-        .collect();
-    let proves = if proves.is_empty() {
-        String::new()
-    } else {
-        format!("<ul class=\"pkg-proves\">{proves}</ul>")
-    };
-    let mut buttons: Vec<String> = runners(text)
-        .into_iter()
-        .map(|(path, key, language)| {
-            format!(
-                "<a class=\"pkg-btn {key}\" href=\"{REPO}/blob/main/{path}\">{language} <code>{}</code></a>",
-                escape(path.rsplit('/').next().unwrap_or(&path))
-            )
-        })
-        .collect();
-    buttons.push(format!(
-        "<a class=\"pkg-btn\" href=\"{SITE}/{page}.html\">Guide</a>"
-    ));
-    format!(
-        "<div class=\"pkg\" id=\"guide-{}\">\n<div class=\"pkg-head\">\n<div class=\"pkg-what\"><a class=\"pkg-title\" href=\"{SITE}/{page}.html\">{}</a>{proves}</div>\n</div>\n<div class=\"pkg-foot\">\n<div class=\"pkg-btns\">{}</div>\n</div>\n</div>\n",
-        page.rsplit('/').next().unwrap_or(page),
-        escape(title),
-        buttons.join("")
-    )
-}
-
 /// The bullets under a guide's "It proves:" line.
 ///
 /// # Arguments
@@ -210,27 +211,6 @@ pub fn guide_card(title: &str, guide: &str, text: &str) -> String {
 ///
 /// # Returns
 ///
-/// Each bullet as one line, continuation lines joined.
-pub fn proves(text: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut lines = text.lines().skip_while(|line| line.trim() != "It proves:");
-    if lines.next().is_none() {
-        return out;
-    }
-    for line in lines {
-        if let Some(bullet) = line.strip_prefix("- ") {
-            out.push(bullet.trim().to_owned());
-        } else if line.starts_with("  ") && !out.is_empty() {
-            let last = out.last_mut().expect("a bullet to continue");
-            last.push(' ');
-            last.push_str(line.trim());
-        } else if !line.trim().is_empty() || !out.is_empty() {
-            break;
-        }
-    }
-    out
-}
-
 /// The files a guide splices its examples from, one per language, in language order.
 ///
 /// # Arguments
@@ -240,6 +220,49 @@ pub fn proves(text: &str) -> Vec<String> {
 /// # Returns
 ///
 /// (path, language key, language name) per file, each file once.
+/// The line that runs a guide's example in each language, and the file it runs.
+///
+/// # Arguments
+///
+/// * `text` - the guide's Markdown, whose snippet directives name the four files.
+///
+/// # Returns
+///
+/// A block of install-line rows, or an empty string when the guide splices no example.
+pub fn run_block(text: &str) -> String {
+    let files = runners(text);
+    let Some(key) = files
+        .iter()
+        .find(|(path, _, _)| path.ends_with(".rs"))
+        .and_then(|(path, _, _)| path.rsplit('/').next())
+        .and_then(|name| name.strip_suffix(".rs"))
+    else {
+        return String::new();
+    };
+    // One block per language: the name and the copy button share a line, and the command sits
+    // under them with the whole width, so nothing squeezes it and every block is the same
+    // shape at every width.
+    let mut out = String::from("<div class=\"run\">\n");
+    for (_, kind, language) in &files {
+        let line = match *kind {
+            "rust" => format!("cargo test -p pamoja-examples --test guides {key} -- --nocapture"),
+            "node" => format!("npm --prefix bindings/node run test:guides -- {key}"),
+            "python" => format!("python bindings/python/guides/{key}.py"),
+            _ => format!("dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- {key}"),
+        };
+        out.push_str(&format!(
+            "<div class=\"run-row\">\
+             <p class=\"run-head\"><span class=\"run-lang\">{language}</span>\
+             <button class=\"copy\" type=\"button\" data-copy=\"{}\" aria-label=\"Copy the command that runs the {language} example\">copy</button></p>\
+             <code class=\"run-cmd\">{}</code></div>\n",
+            escape(&line),
+            escape(&line)
+        ));
+    }
+    out.push_str("</div>");
+    out
+}
+
 pub fn runners(text: &str) -> Vec<(String, &'static str, &'static str)> {
     let mut paths: Vec<String> = Vec::new();
     let mut rest = text;
@@ -297,23 +320,32 @@ mod tests {
     #[test]
     fn a_guide_gives_what_it_proves_and_the_files_that_run_it() {
         let text = "# Modbus RTU\n\nIt proves:\n\n- A request is eight bytes: the address,\n  the code, and the checksum.\n- A reply validates its checksum.\n\n## Rust\n\n<!-- snippet: examples/tests/guides/modbus.rs#example -->\n```rust\n```\n<!-- end -->\n\n<!-- snippet: examples/tests/guides/modbus.rs#frame -->\n<!-- snippet: bindings/node/guides/modbus.ts#example -->\n<!-- snippet: bindings/python/guides/modbus.py#example -->\n<!-- snippet: bindings/dotnet/samples/Pamoja.Guides/ModbusGuide.cs#example -->\n";
-        assert_eq!(
-            proves(text),
-            [
-                "A request is eight bytes: the address, the code, and the checksum.",
-                "A reply validates its checksum."
-            ]
-        );
         let files = runners(text);
         assert_eq!(files.len(), 4);
         assert_eq!(files[0].0, "examples/tests/guides/modbus.rs");
         assert_eq!(files[3].2, "C#");
-        let card = guide_card("Modbus RTU", "guides/modbus.md", text);
-        assert!(card.starts_with("<div class=\"pkg\" id=\"guide-modbus\">"));
-        assert!(card.contains("<a class=\"pkg-title\" href=\"https://pamoja.molex.cloud/docs/guides/modbus.html\">Modbus RTU</a><ul class=\"pkg-proves\"><li>A request is eight bytes"));
-        assert!(card.contains("<a class=\"pkg-btn node\" href=\"https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/modbus.ts\">TypeScript <code>modbus.ts</code></a>"));
-        assert!(card.ends_with("<a class=\"pkg-btn\" href=\"https://pamoja.molex.cloud/docs/guides/modbus.html\">Guide</a></div>\n</div>\n</div>\n"));
-        assert!(proves("no such line").is_empty());
+        let run = run_block(text);
+        assert!(
+            run.starts_with("<div class=\"run\">\n<div class=\"run-row\"><p class=\"run-head\"><span class=\"run-lang\">Rust</span>"),
+            "{run}"
+        );
+        assert!(
+            run.contains("cargo test -p pamoja-examples --test guides modbus -- --nocapture"),
+            "{run}"
+        );
+        assert!(
+            run.contains("npm --prefix bindings/node run test:guides -- modbus")
+                && run.contains("python bindings/python/guides/modbus.py")
+                && run.contains(
+                    "dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- modbus"
+                ),
+            "{run}"
+        );
+        assert!(
+            !run.contains("ModbusGuide.cs"),
+            "the file each command runs is named by the listing right under the table"
+        );
+        assert!(run_block("no snippets here").is_empty());
     }
 
     #[test]
@@ -329,21 +361,23 @@ mod tests {
         let programs = programs_in(&root, "examples/community").unwrap();
         assert_eq!(programs.len(), 1);
         assert_eq!(programs[0].path, "examples/community/hello_valve.rs");
-        let card = program_card(&programs[0]);
+        let card = program_card(&programs[0], 1);
         assert!(card.contains("href=\"https://github.com/molexxxx/pamoja/blob/main/examples/community/hello_valve.rs\">hello_valve</a><code class=\"pkg-import\">examples/community/hello_valve.rs</code><p>Opens a valve from a shared profile.</p>"), "{card}");
         assert!(programs_in(&root, "examples/nowhere").unwrap().is_empty());
         fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]
-    fn the_page_lists_every_program_and_every_guide() {
+    fn the_page_lists_every_program() {
         let root = docs::repo_root();
-        let catalog = Catalog::load(&root).unwrap();
-        let page = table(&root, &catalog).unwrap();
+        let page = table(&root).unwrap();
         assert!(page.starts_with("## Programs\n"));
         assert!(page.contains("<a class=\"pkg-title\" href=\"https://github.com/molexxxx/pamoja/blob/main/examples/batched_telemetry.rs\">batched_telemetry</a>"));
         assert!(page.contains("cargo run -p pamoja-examples --example batched_telemetry"));
-        assert!(page.contains("### Field I/O") && page.contains("id=\"guide-modbus\""));
-        assert!(page.contains("<code>modbus.py</code>"));
+        assert!(page.contains("## Community programs"));
+        assert!(
+            !page.contains("id=\"guide-modbus\""),
+            "a guide's example is listed on the guide, not a second time here"
+        );
     }
 }

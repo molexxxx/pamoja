@@ -434,6 +434,58 @@ impl Message {
             self.payload.len()
         )
     }
+
+    /// The payload as text: words, or a number written out.
+    ///
+    /// Raises `ValueError` if the payload is not UTF-8 text.
+    #[getter]
+    fn text(&self) -> PyResult<String> {
+        text_of(&self.payload)
+    }
+
+    /// The payload as a number written out as text, such as `21.5`.
+    ///
+    /// Raises `ValueError` if the payload is not text or the text is not a number.
+    #[getter]
+    fn number(&self) -> PyResult<f64> {
+        number_of(&self.payload)
+    }
+}
+
+/// Reads a payload as text.
+pub(crate) fn text_of(payload: &[u8]) -> PyResult<String> {
+    std::str::from_utf8(payload)
+        .map(str::to_owned)
+        .map_err(|_| pyo3::exceptions::PyValueError::new_err("the payload is not UTF-8 text"))
+}
+
+/// Reads a payload as a number written out as text.
+pub(crate) fn number_of(payload: &[u8]) -> PyResult<f64> {
+    text_of(payload)?
+        .trim()
+        .parse()
+        .map_err(|_| pyo3::exceptions::PyValueError::new_err("the payload is not a number"))
+}
+
+/// A payload to send: text such as a reading written out, or raw bytes.
+#[derive(FromPyObject)]
+pub(crate) enum Payload {
+    /// Words, or a number written out, sent as UTF-8.
+    Text(String),
+    /// Raw bytes.
+    Bytes(Vec<u8>),
+}
+
+pyo3_stub_gen::impl_stub_type!(Payload = String | Vec<u8>);
+
+impl Payload {
+    /// The bytes that go on the wire.
+    pub(crate) fn into_bytes(self) -> Vec<u8> {
+        match self {
+            Payload::Text(text) => text.into_bytes(),
+            Payload::Bytes(bytes) => bytes,
+        }
+    }
 }
 
 /// One transport, ready to compose into a ladder or a wrapper.

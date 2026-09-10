@@ -81,6 +81,16 @@ struct Walk<'a> {
     description: String,
     headings: Vec<Heading>,
     sections: Vec<Section>,
+    table: Option<TableState>,
+}
+
+/// A table being rendered: its header texts, so each body cell can carry its column's
+/// label for the stacked layout narrow screens use.
+#[derive(Default)]
+struct TableState {
+    in_head: bool,
+    headers: Vec<String>,
+    cell: usize,
 }
 
 struct OpenHeading<'a> {
@@ -149,14 +159,58 @@ impl<'a> Walk<'a> {
                 }));
             }
             Event::Start(Tag::Table(alignment)) => {
+                self.table = Some(TableState::default());
                 self.out
                     .push(Event::Html("<div class=\"table-scroll\">\n".into()));
                 self.out.push(Event::Start(Tag::Table(alignment)));
             }
             Event::End(TagEnd::Table) => {
+                self.table = None;
                 self.out.push(Event::End(TagEnd::Table));
                 self.out.push(Event::Html("</div>\n".into()));
             }
+            Event::Start(Tag::TableHead) => {
+                if let Some(table) = &mut self.table {
+                    table.in_head = true;
+                }
+                self.out.push(event);
+            }
+            Event::End(TagEnd::TableHead) => {
+                if let Some(table) = &mut self.table {
+                    table.in_head = false;
+                }
+                self.out.push(event);
+            }
+            Event::Start(Tag::TableRow) => {
+                if let Some(table) = &mut self.table {
+                    table.cell = 0;
+                }
+                self.out.push(event);
+            }
+            Event::Start(Tag::TableCell) => match &mut self.table {
+                Some(table) if table.in_head => {
+                    table.headers.push(String::new());
+                    self.out.push(event);
+                }
+                Some(table) => {
+                    let label = table.headers.get(table.cell).map(String::as_str);
+                    table.cell += 1;
+                    self.out.push(Event::Html(
+                        match label {
+                            Some(label) if !label.is_empty() => {
+                                format!("<td data-label=\"{}\">", escape(label))
+                            }
+                            _ => "<td>".to_owned(),
+                        }
+                        .into(),
+                    ));
+                }
+                None => self.out.push(event),
+            },
+            Event::End(TagEnd::TableCell) => match &self.table {
+                Some(table) if !table.in_head => self.out.push(Event::Html("</td>".into())),
+                _ => self.out.push(event),
+            },
             Event::Start(Tag::Paragraph) => {
                 self.in_paragraph = true;
                 self.paragraphs += 1;
@@ -169,6 +223,13 @@ impl<'a> Walk<'a> {
             Event::Text(ref text) | Event::Code(ref text) => {
                 if self.in_paragraph && self.paragraphs == 1 {
                     self.description.push_str(text);
+                }
+                if let Some(table) = &mut self.table {
+                    if table.in_head {
+                        if let Some(header) = table.headers.last_mut() {
+                            header.push_str(text);
+                        }
+                    }
                 }
                 self.section().push_text(text);
                 self.out.push(event);
@@ -436,6 +497,13 @@ mod tests {
             .html
             .starts_with("<div class=\"table-scroll\">\n<table>"));
         assert!(page.html.contains("</table>\n</div>"));
+        let table = render("| Build | Crates |\n| --- | --- |\n| All | 109 |\n");
+        assert!(
+            table.html.contains("<td data-label=\"Build\">All</td>")
+                && table.html.contains("<td data-label=\"Crates\">109</td>"),
+            "{}",
+            table.html
+        );
         assert!(page.html.contains("<div class=\"pkgs\">x</div>"));
     }
 

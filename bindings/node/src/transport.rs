@@ -25,6 +25,7 @@ use napi::bindgen_prelude::{
     Unknown,
 };
 use napi::threadsafe_function::ThreadsafeFunction;
+use napi::Either;
 use napi::{sys, Error as NapiError, JsValue, Status, ValueType};
 use napi_derive::napi;
 use pamoja_core::{Error, Message, Receive, Result, Transport as CoreTransport};
@@ -458,6 +459,31 @@ pub struct TransportMessage {
     pub topic: String,
     /// The raw payload bytes.
     pub payload: Buffer,
+    /// The payload as text, when it is UTF-8: words, or a number written out.
+    pub text: Option<String>,
+    /// The payload as a number, when its text is one, such as `21.5`.
+    pub number: Option<f64>,
+}
+
+/// Lays a received message out as the object JavaScript sees, reading its text and
+/// number once so a program takes the form it wants.
+pub(crate) fn message_of(message: Message) -> TransportMessage {
+    let text = message.text().ok().map(str::to_owned);
+    let number = message.number().ok();
+    TransportMessage {
+        topic: message.topic,
+        payload: message.payload.into(),
+        text,
+        number,
+    }
+}
+
+/// The bytes of a payload given as either a buffer or text.
+pub(crate) fn bytes_of(payload: Either<Buffer, String>) -> Vec<u8> {
+    match payload {
+        Either::A(buffer) => buffer.to_vec(),
+        Either::B(text) => text.into_bytes(),
+    }
 }
 
 /// One transport, ready to compose into a ladder or a wrapper.

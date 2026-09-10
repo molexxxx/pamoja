@@ -9,12 +9,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use napi::bindgen_prelude::Buffer;
+use napi::Either;
 use napi_derive::napi;
 use pamoja_coap::{CoapConfig, CoapTransport, Reliability as CoreReliability};
 use pamoja_core::{Receive, Transport as CoreTransport};
 use tokio::sync::Mutex;
 
-use crate::transport::TransportMessage;
+use crate::transport::{bytes_of, message_of, TransportMessage};
 
 /// Whether a CoAP request is acknowledged and retried.
 #[napi(string_enum)]
@@ -66,11 +67,12 @@ impl CoapClient {
         transport.connect().await.map_err(to_napi)
     }
 
-    /// Sends a payload to a resource path.
+    /// Sends a payload to a resource path: bytes, or text such as a reading written
+    /// out.
     #[napi]
-    pub async fn send(&self, topic: String, payload: Buffer) -> napi::Result<()> {
+    pub async fn send(&self, topic: String, payload: Either<Buffer, String>) -> napi::Result<()> {
         let inner = Arc::clone(&self.inner);
-        let payload = payload.to_vec();
+        let payload = bytes_of(payload);
         let mut transport = inner.lock().await;
         transport.send(&topic, &payload).await.map_err(to_napi)
     }
@@ -90,10 +92,7 @@ impl CoapClient {
         let inner = Arc::clone(&self.inner);
         let mut transport = inner.lock().await;
         let received = transport.recv().await.map_err(to_napi)?;
-        Ok(received.map(|message| TransportMessage {
-            topic: message.topic,
-            payload: message.payload.into(),
-        }))
+        Ok(received.map(message_of))
     }
 
     /// Whether the local socket is bound.

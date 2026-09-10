@@ -23,11 +23,14 @@ export function initNav(r)
 /**
  * Opens an overlay: runs `openFn`, records `closeFn`, and pushes a history entry.
  *
+ * Named `openOverlay` rather than `open` on purpose: a file that forgets the import would
+ * otherwise fall through to `window.open` and silently navigate a popup.
+ *
  * @param {() => void} openFn - opens the overlay (typically a store dispatch).
  * @param {() => void} closeFn - closes the overlay when the entry is popped.
  * @returns {void}
  */
-export function open(openFn, closeFn)
+export function openOverlay(openFn, closeFn)
 {
   openFn();
   stack.push(closeFn);

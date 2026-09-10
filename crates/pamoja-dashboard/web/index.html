@@ -1,13 +1,20 @@
 <!doctype html>
-<html lang="en" dir="ltr" data-theme="night">
+<html lang="en" dir="ltr" data-theme="sheet">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="color-scheme" content="dark light" />
+    <meta name="color-scheme" content="light dark" />
     <title>pamoja</title>
     <base href="./" />
     <script>
-      try { var _t = JSON.parse(localStorage.getItem('theme')); if (_t === 'night' || _t === 'day') document.documentElement.dataset.theme = _t; } catch (e) {}
+      try {
+        var _s = ['sheet', 'sheet-dark', 'slate', 'blueprint', 'phosphor', 'safelight'];
+        var _m = { night: 'sheet-dark', day: 'sheet' };
+        var _t = JSON.parse(localStorage.getItem('theme'));
+        _t = _m[_t] || _t;
+        if (_s.indexOf(_t) < 0) _t = matchMedia('(prefers-color-scheme: dark)').matches ? 'sheet-dark' : 'sheet';
+        document.documentElement.dataset.theme = _t;
+      } catch (e) {}
     </script>
     <link rel="stylesheet" href="global.css" />
     <script src="zquery.min.js"></script>
@@ -16,15 +23,14 @@
   <body>
     <div id="space-bg" aria-hidden="true"></div>
     <top-bar></top-bar>
-    <z-outlet class="outlet"></z-outlet>
+    <main id="main" class="outlet" tabindex="-1"><z-outlet></z-outlet></main>
     <sensor-modal></sensor-modal>
     <manage-modal></manage-modal>
     <pairing-modal></pairing-modal>
     <group-modal></group-modal>
     <mesh-modal></mesh-modal>
-    <network-view></network-view>
     <alarm-bar></alarm-bar>
     <div id="offline-tag" class="offline-tag" hidden></div>
-    <div id="boot"><div class="boot-mark"></div></div>
+    <div id="boot"><div class="boot-mark"><svg viewBox="0 0 240 240" width="56" height="56" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="10" opacity="0.3"><polygon points="120,40 188,80 188,160 120,200 52,160 52,80"/><path d="M120 120V40M120 120l68-40M120 120l68 40M120 120v80M120 120l-68 40M120 120l-68-40"/></g><g><circle cx="120" cy="40" r="13" fill="#FFB627"/><circle cx="188" cy="80" r="13" fill="#F26A4B"/><circle cx="188" cy="160" r="13" fill="#1FA995"/><circle cx="120" cy="200" r="13" fill="#FFB627"/><circle cx="52" cy="160" r="13" fill="#F26A4B"/><circle cx="52" cy="80" r="13" fill="#1FA995"/></g><circle cx="120" cy="120" r="22" fill="#FFB627"/></svg></div></div>
   </body>
 </html>

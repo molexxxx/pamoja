@@ -121,6 +121,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<kit::Smoother>()?;
         m.add_class::<kit::Pid>()?;
         m.add_class::<kit::Thermostat>()?;
+        m.add_class::<kit::Trigger>()?;
         m.add_class::<kit::Depletion>()?;
         m.add_class::<kit::Kalman>()?;
         m.add_class::<kit::Debounce>()?;

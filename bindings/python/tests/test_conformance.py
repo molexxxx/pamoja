@@ -11,7 +11,7 @@ import pathlib
 import pytest
 
 from pamoja.codec import Quantizer, from_cbor, pack_samples, to_cbor, unpack_samples
-from pamoja.kit import Calibration, Coordinate, Depletion, Geofence, Pid, Smoother, Thermostat, deadband
+from pamoja.kit import Calibration, Coordinate, Depletion, Geofence, Pid, Smoother, Thermostat, Trigger, deadband
 from pamoja.security import DeviceIdentity, verify
 from pamoja import actuators, audit, can, gpio, lora, lorawan, mesh, modbus, power, profile, ros2, routing, sensors, serial, session, telemetry, update, zenoh
 from pamoja.core import PamojaError
@@ -88,6 +88,13 @@ def test_thermostat_vectors_match():
     thermostat = Thermostat.cooling(vector["setpoint"], vector["hysteresis"])
     for reading, want in zip(vector["readings"], vector["outputs"]):
         assert thermostat.update(reading) is want
+
+
+def test_trigger_vectors_match():
+    vector = VECTORS["trigger"]
+    trigger = Trigger.below(vector["threshold"], vector["hysteresis"])
+    for reading, want in zip(vector["readings"], vector["outputs"]):
+        assert trigger.update(reading) == want
 
 
 def test_depletion_vectors_match():
@@ -1432,6 +1439,9 @@ def _assert_control(policy, want: dict) -> None:
     elif want["kind"] == "Surge":
         assert policy.rising == want["rising"]
         assert policy.limit == pytest.approx(want["limit"], abs=TOLERANCE)
+    elif want["kind"] == "Custom":
+        assert policy.custom_kind == want["customKind"]
+        assert policy.params == want["params"]
 
 
 def _assert_reactions(control, reactions: list[dict]) -> None:
@@ -1455,6 +1465,9 @@ def _assert_reactions(control, reactions: list[dict]) -> None:
             )
         elif kind == "RunningOut":
             assert reaction.alert.samples == want["alert"]["samples"]
+        elif kind == "Custom":
+            assert reaction.alert.code == want["alert"]["code"]
+            assert reaction.alert.value == pytest.approx(want["alert"]["value"], abs=TOLERANCE)
         elif kind == "ChangingFast":
             assert reaction.alert.rate == pytest.approx(
                 want["alert"]["rate"], abs=TOLERANCE
@@ -1485,6 +1498,12 @@ def test_profile_vectors_match():
     assert observed.actuator is None, "a monitoring profile drives no output"
     assert observed.alert is None
     assert vector["observed"]["alert"]["kind"] == "None"
+
+    custom = vector["custom"]
+    orchard = profile.Profile.from_json(custom["manifest"])
+    assert orchard.name == custom["name"]
+    _assert_control(orchard.control, custom["control"])
+    _assert_reactions(orchard.controller(), custom["reactions"])
 
 
 def test_ros2_vectors_match():

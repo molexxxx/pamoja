@@ -10,61 +10,100 @@ lead = "pamoja runs on a two-dollar microcontroller, on a solar panel, over an i
 key = "farm"
 group = "field"
 tab = "Farm"
-eyebrow = "Smallholder farms · East Africa"
+eyebrow = "Drip controller · RS485 probes · LoRa uplink"
 title = "Water, only when the soil asks for it."
 body = "A drip controller reads soil moisture from RS485 probes down a long cable, watches a well's level, and opens the valve only when it should, then duty-cycles back to sleep on a small solar panel until the next cycle. One node, a whole season, unattended."
-accent = "teal"
 crates = ["pamoja-modbus", "pamoja-lora", "pamoja-kit", "pamoja-power", "pamoja-sync", "pamoja-profile"]
+# What the node reads, for the figure a reader gets before any script runs. The console in
+# web/js/consoles.js takes the figure over and moves these; they are one node's opening
+# state, not a measurement.
+readings = [
+  { label = "Soil moisture", value = "34", unit = "%" },
+  { label = "Well level", value = "60", unit = "%" },
+  { label = "Drip valve", value = "Open", unit = "" },
+  { label = "Battery", value = "4.06", unit = "V" },
+  { label = "Link", value = "LoRa -87", unit = "dBm" },
+]
 
 [[scenario]]
 key = "clinic"
 group = "field"
 tab = "Clinic"
-eyebrow = "Rural clinics · the last mile"
+eyebrow = "Cold chain monitor · NB-IoT · signed log"
 title = "A health post that keeps watch when no one can."
 body = "A solar-run clinic tracks the things it cannot afford to lose, the power to the ward, the oxygen on the shelf, the cold chain for medicines, and writes each reading into a tamper-evident log. Drop the link for days and nothing is lost; when it returns, the record uploads intact."
-accent = "amber"
 crates = ["pamoja-telemetry", "pamoja-security", "pamoja-audit", "pamoja-sync", "pamoja-power", "pamoja-profile"]
+readings = [
+  { label = "Fridge temp", value = "4.2", unit = "°C" },
+  { label = "Ward power", value = "90", unit = "%" },
+  { label = "Oxygen stock", value = "74", unit = "%" },
+  { label = "Uplink", value = "Synced", unit = "" },
+  { label = "Link", value = "NB-IoT -102", unit = "dBm" },
+]
 
 [[scenario]]
 key = "water"
 group = "field"
 tab = "Water"
-eyebrow = "Clean water · every drop counted"
+eyebrow = "Handpump meter · LoRa · store and forward"
 title = "The handpump that says when it is failing."
 body = "A sensor on the well watches the water level and the flow through the pump, logging every draw, so a community, and the people who fund the repair, can see a pump weakening before it fails, not weeks after the queue has already given up on it."
-accent = "sky"
 crates = ["pamoja-modbus", "pamoja-kit", "pamoja-audit", "pamoja-sync", "pamoja-lora", "pamoja-profile"]
+readings = [
+  { label = "Flow rate", value = "0", unit = "L/min" },
+  { label = "Well level", value = "60", unit = "%" },
+  { label = "Storage tank", value = "40", unit = "%" },
+  { label = "Pump health", value = "Nominal", unit = "" },
+  { label = "Link", value = "LoRa -91", unit = "dBm" },
+]
 
 [[scenario]]
 key = "conservation"
 group = "field"
 tab = "Reserve"
-eyebrow = "Conservation · eyes on the wild"
+eyebrow = "Acoustic relay · mesh · solar"
 title = "Listening for the things that should not be there."
 body = "Low-power nodes across a reserve relay the sound of a chainsaw or a shot, the level of a drying river, the movement at a waterhole, hop by hop to a ranger post, on batteries that last a season, where pulling a wire was never an option."
-accent = "forest"
 crates = ["pamoja-mesh", "pamoja-routing", "pamoja-lora", "pamoja-telemetry", "pamoja-power", "pamoja-codec"]
+readings = [
+  { label = "Ambient sound", value = "41", unit = "dB" },
+  { label = "River level", value = "38", unit = "%" },
+  { label = "Battery", value = "92", unit = "%" },
+  { label = "Relay", value = "Idle", unit = "" },
+  { label = "Link", value = "Mesh -95", unit = "dBm" },
+]
 
 [[scenario]]
 key = "village"
 group = "field"
 tab = "Village"
-eyebrow = "Off-grid · by design"
+eyebrow = "Mesh node · no tower · learned routes"
 title = "No tower. The village is its own network."
 body = "Nodes form a mesh, each relaying for the next, flooding a message across the valley exactly once, then learning cheaper routes from the traffic they overhear, so the airtime and battery that blind flooding wastes is saved for the messages that matter."
-accent = "teal"
 crates = ["pamoja-mesh", "pamoja-routing", "pamoja-lora", "pamoja-sync", "pamoja-codec"]
+readings = [
+  { label = "Neighbours", value = "5", unit = "" },
+  { label = "Hops to gateway", value = "3", unit = "" },
+  { label = "Routing", value = "Optimized", unit = "" },
+  { label = "Messages relayed", value = "318", unit = "" },
+  { label = "Link", value = "Mesh -83", unit = "dBm" },
+]
 
 [[scenario]]
 key = "storm"
 group = "field"
 tab = "Storm"
-eyebrow = "When the grid goes dark"
+eyebrow = "Coast relay · satellite backhaul · queued"
 title = "The storm takes the towers. The mesh keeps talking."
 body = "A typhoon makes landfall and the cell network goes with it. Along the coast, battery nodes relay hop by hop to a gateway that still holds a satellite uplink, carrying the one thing that matters in the first hours: where people are, and who needs help."
-accent = "coral"
 crates = ["pamoja-mesh", "pamoja-routing", "pamoja-lorawan", "pamoja-telemetry", "pamoja-power"]
+readings = [
+  { label = "Cell grid", value = "Down", unit = "" },
+  { label = "pamoja mesh", value = "Up", unit = "" },
+  { label = "Uplink queue", value = "11", unit = "" },
+  { label = "Reports carried", value = "12", unit = "" },
+  { label = "Link", value = "Sat -118", unit = "dBm" },
+]
 
 [[scenario]]
 key = "robot"
@@ -73,8 +112,14 @@ tab = "Rover"
 eyebrow = "Mobile rover · waypoint patrol"
 title = "Follow the path. Watch the wheels. Hold on obstacle."
 body = "The rover chases a carrot along its route while odometry turns wheel motion into a live pose, with no GPS. A watchdog and an obstacle stop cut motion in milliseconds, and every <code>cmd_vel</code> leaves as a ROS 2 Twist on a Zenoh key any robot on the fleet already understands."
-accent = "coral"
 crates = ["pamoja-kit", "pamoja-ros2", "pamoja-zenoh", "pamoja-sim"]
+readings = [
+  { label = "Linear speed", value = "0.00", unit = "m/s" },
+  { label = "Angular rate", value = "0.00", unit = "rad/s" },
+  { label = "Odometry", value = "0.0", unit = "m" },
+  { label = "Safety", value = "Armed", unit = "" },
+  { label = "Waypoints", value = "5", unit = "" },
+]
 
 [[scenario]]
 key = "arm"
@@ -83,8 +128,14 @@ tab = "Arm"
 eyebrow = "Robot arm · pick and place"
 title = "Reach the point. Solve the angles. Respect the limits."
 body = "A two-link arm solves its own inverse kinematics to land its tip on a moving target, elbow up or down, while forward kinematics draw the linkage and confirm the reach. The same arm takes a ROS 2 trajectory action from any controller on the bus."
-accent = "amber"
 crates = ["pamoja-kit", "pamoja-ros2"]
+readings = [
+  { label = "Joint 1", value = "0", unit = "°" },
+  { label = "Joint 2", value = "0", unit = "°" },
+  { label = "Reach", value = "0", unit = "%" },
+  { label = "Gripper", value = "Open", unit = "" },
+  { label = "Trajectory", value = "4 points", unit = "" },
+]
 
 [[scenario]]
 key = "fleet"
@@ -93,8 +144,14 @@ tab = "Fleet"
 eyebrow = "Fleet · one bus, many robots"
 title = "Many robots. One key expression."
 body = "A single Zenoh key expression subscribes to every robot's <code>cmd_vel</code> at once, routerless, and one service flips them all into a mode together. Each robot can be the real thing or a pure-software twin, so the whole fleet is testable with no hardware."
-accent = "sky"
 crates = ["pamoja-zenoh", "pamoja-ros2", "pamoja-sim", "pamoja-kit"]
+readings = [
+  { label = "Peers", value = "3", unit = "" },
+  { label = "Command rate", value = "0", unit = "/s" },
+  { label = "Sim twins", value = "1", unit = "/ 3" },
+  { label = "Coordination", value = "In sync", unit = "" },
+  { label = "Link", value = "Zenoh -57", unit = "dBm" },
+]
 
 # Where it is going. A tag that names a crate is checked against the workspace: one that
 # ships must exist, one that is planned must not.
@@ -102,7 +159,6 @@ crates = ["pamoja-zenoh", "pamoja-ros2", "pamoja-sim", "pamoja-kit"]
 [[track]]
 key = "radio"
 title = "Messaging and radio"
-accent = "teal"
 lead = "A cost-aware ladder that tries the cheapest link first and buffers when there is none."
 tags = [
   { text = "MQTT", ships = true, crate = "pamoja-mqtt" },
@@ -120,7 +176,6 @@ tags = [
 [[track]]
 key = "hardware"
 title = "Hardware and sensors"
-accent = "amber"
 lead = "Talk to the cheap, salvageable parts the field already runs on, by name instead of by pin."
 tags = [
   { text = "Modbus / RS485", ships = true, crate = "pamoja-modbus" },
@@ -137,7 +192,6 @@ tags = [
 [[track]]
 key = "robotics"
 title = "Robotics and drones"
-accent = "coral"
 lead = "Drive it, dead-reckon where it is, follow a path, and keep it safe: a robot as an ordinary pamoja device, bridged to ROS 2 over Zenoh."
 tags = [
   { text = "motion / kinematics", ships = true, crate = "pamoja-kit" },
@@ -154,7 +208,6 @@ tags = [
 [[track]]
 key = "resilience"
 title = "Resilience and power"
-accent = "sky"
 lead = "Offline-first by default, awake only when it must be, so a node lives on sun and a battery."
 tags = [
   { text = "store-and-forward", ships = true, crate = "pamoja-sync" },
@@ -168,7 +221,6 @@ tags = [
 [[track]]
 key = "security"
 title = "Security and trust"
-accent = "amber"
 lead = "Memory-safe by construction, with identity, a secured channel, and signed updates that survive a hostile link."
 tags = [
   { text = "memory safety", ships = true },
@@ -182,7 +234,6 @@ tags = [
 [[track]]
 key = "reach"
 title = "Reach"
-accent = "forest"
 lead = "One engine, idiomatic in every language a device developer actually uses, plus plain-language helpers."
 tags = [
   { text = "Rust", ships = true },
@@ -200,13 +251,26 @@ tags = [
 
 [backing]
 lead = "The software is free and MIT-licensed forever. What costs money is the hardware: cheap, salvageable boards, radios, and a USB or SD card with the SDK preloaded, put into the hands of the people who need it. Donors fund kits; vendors and partners help build and ship them. A kit ships pre-flashed with a local dashboard it serves over its own WiFi, so anyone nearby opens it on an ordinary phone while the radio mesh carries the data behind it."
-preview = "Backing is not open yet. The campaign, packages, tiers, and amounts below are an early sketch of how supporting pamoja will work: a rough estimate, not a live campaign or a commitment."
-goal = "100 field kits"
-uplink_title = "Sponsor the uplink"
-uplink_lead = "Hardware is one-time; the link is the one recurring cost. Sponsor a shared gateway's satellite or cellular plan, or partner as a carrier, and the last rung of the ladder stays free at the point of use."
 note_title = "How the link gets paid for"
 note = "pamoja is free, MIT-licensed software. It does not run satellites, and satellite data is never free. What pamoja does is make connectivity <em>cheap enough to be free at the point of use</em>. Satellite and cellular are the last, most expensive rung of the ladder, reached only when local mesh and community gateways are gone. One sponsored gateway carries a whole area's traffic, and every message is kept to tens of bytes, so the cost is cents, and it is borne upstream by an NGO, an agency, or a donated kit, never by the family on the ground."
-form_note = "A preview, not a live campaign. Backing, payment, and partner onboarding are not open yet; the packages and amounts here are an early estimate of how supporting pamoja will work, not a commitment."
+
+# What will open, and the sentence that says when. Every state is a preview until the
+# first pilot has run.
+offers = [
+  { name = "Kits", state = "Not open" },
+  { name = "Uplink sponsorship", state = "Not open" },
+  { name = "Partner onboarding", state = "Not open" },
+]
+opens = "Each opens once the first pilot has run and the numbers are real."
+
+# The rungs a message climbs, cheapest first, which is the order pamoja-ladder tries them
+# in. See docs/guides/ladder.md.
+rungs = [
+  { name = "Neighbour mesh", cost = "Free", detail = "A hop to the node next door, on its own battery" },
+  { name = "Community gateway", cost = "Sponsored", detail = "One uplink carrying a whole area's traffic" },
+  { name = "Cellular", cost = "Per byte", detail = "Money for every byte, and a chunk of the battery" },
+  { name = "Satellite", cost = "Dearest", detail = "The last rung, reached only when the rest are gone" },
+]
 
 # How backing will open, in order. Every entry is a preview until the first one is done.
 
@@ -224,87 +288,3 @@ detail = "Ten kits in one district for one season, with the dashboard on local p
 state = "later"
 title = "Backing opens"
 detail = "The tiers, the uplink sponsorship, and partner onboarding go live once the pilot has run and the numbers below are real."
-
-[[tier]]
-name = "Spark"
-amount = 15
-accent = "teal"
-headline = "One sensing node"
-items = [
-  "A microcontroller and one sensor",
-  "Flashed with a pamoja device profile",
-  "Enough to read and report one thing reliably",
-]
-
-[[tier]]
-name = "Link"
-amount = 40
-accent = "amber"
-headline = "Reach off-grid"
-items = [
-  "Everything in Spark",
-  "A LoRa radio for kilometers of range",
-  "Joins the mesh where there is no tower",
-]
-
-[[tier]]
-name = "Field Kit"
-amount = 120
-accent = "coral"
-featured = true
-headline = "A node that lives outside"
-items = [
-  "Board, sensors, solar panel and battery",
-  "Pre-flashed with the SDK and real-world profiles",
-  "A local dashboard over its own WiFi: any phone, no app",
-  "Duty-cycled to run for a season unattended",
-]
-
-[[tier]]
-name = "Lifeline"
-amount = 300
-accent = "amber"
-headline = "Guard something critical"
-items = [
-  "A clinic, water-point, or ranger node",
-  "Tamper-evident, hash-chained records",
-  "Store-and-forward over whatever link exists",
-]
-
-[[uplink]]
-name = "Gateway uplink"
-amount = 20
-per = "/ month"
-accent = "coral"
-role = "donor"
-headline = "Reach a satellite when the towers fall"
-items = [
-  "A LoRa-to-satellite plan for one shared gateway",
-  "Carries a whole area's emergency traffic",
-  "The last rung of the ladder, kept to tens of bytes",
-]
-
-[[uplink]]
-name = "Cellular backhaul"
-amount = 8
-per = "/ month"
-accent = "sky"
-role = "donor"
-headline = "Where there is coverage but no wifi"
-items = [
-  "An LTE-M / NB-IoT plan for a gateway",
-  "A cheaper rung below satellite",
-  "Store-and-forward, so it sips data",
-]
-
-[[uplink]]
-name = "Carrier / integrator"
-per = "partner"
-accent = "amber"
-role = "vendor"
-headline = "Operators and integrators"
-items = [
-  "Donate satellite or cellular airtime",
-  "Co-develop the uplink crates",
-  "Help one sponsored link reach more places",
-]

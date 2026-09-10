@@ -16,6 +16,7 @@ const {
   Smoother,
   Pid,
   Thermostat,
+  Trigger,
   Depletion,
   Calibration,
   Geofence,
@@ -134,6 +135,12 @@ function helpers() {
   const thermostat = Thermostat.cooling(t.setpoint, t.hysteresis);
   t.readings.forEach((reading, index) => {
     assert.strictEqual(thermostat.update(reading), t.outputs[index], "thermostat output");
+  });
+
+  const tr = VECTORS.trigger;
+  const trigger = Trigger.below(tr.threshold, tr.hysteresis);
+  tr.readings.forEach((reading, index) => {
+    assert.strictEqual(trigger.update(reading) ?? null, tr.outputs[index], "trigger edge");
   });
 
   const d = VECTORS.depletion;
@@ -2075,6 +2082,14 @@ function profileVectors() {
   assert.ok(observed.actuator == null, "a monitoring profile drives no output");
   assert.strictEqual(vector.observed.alert.kind, "None");
   assert.ok(observed.alert == null, "and raises nothing");
+
+  // A kind the library never shipped: loaded, named, its parameters kept, and its
+  // built-in controller observing only.
+  const custom = vector.custom;
+  const orchard = profile.Profile.fromJson(custom.manifest);
+  assert.strictEqual(orchard.name, custom.name, "a custom kind's profile carries its name");
+  assertControl(orchard.control, custom.control);
+  assertReactions(orchard.controller(), custom.reactions);
 }
 
 // Walks a controller through a recorded run and checks every decision.
@@ -2096,6 +2111,9 @@ function assertReactions(control, reactions) {
       assert.strictEqual(reaction.alert.samples, want.alert.samples);
     } else if (kind === "ChangingFast") {
       close(reaction.alert.rate, want.alert.rate, "the rate of change");
+    } else if (kind === "Custom") {
+      assert.strictEqual(reaction.alert.code, want.alert.code, "the custom code");
+      close(reaction.alert.value, want.alert.value, "the custom value");
     }
   }
 }
@@ -2114,6 +2132,9 @@ function assertControl(policy, want) {
   } else if (want.kind === "Surge") {
     assert.strictEqual(policy.rising, want.rising, "the direction");
     close(policy.limit, want.limit, "the limit");
+  } else if (want.kind === "Custom") {
+    assert.strictEqual(policy.customKind, want.customKind, "the custom kind");
+    assert.deepStrictEqual(policy.params, want.params, "the parameters beside it");
   }
 }
 

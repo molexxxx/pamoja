@@ -248,9 +248,9 @@ impl<I2C: I2c, D: DelayNs> Ads1115<I2C, D> {
 
 impl<I2C, D> Sensor for Ads1115<I2C, D>
 where
-    I2C: I2c,
+    I2C: I2c + Send,
     I2C::Error: core::fmt::Debug,
-    D: DelayNs,
+    D: DelayNs + Send,
 {
     type Reading = Sample;
 

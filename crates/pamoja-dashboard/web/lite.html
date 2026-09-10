@@ -9,32 +9,32 @@
          falls back to the device's server-rendered, meta-refreshing table at /lite. -->
     <noscript><meta http-equiv="refresh" content="0; url=lite" /></noscript>
     <style>
-      :root { --bg: #f6f7fb; --card: #fff; --line: #c8cedd; --text: #11151f; --muted: #5a6478; --ok: #137a4b; --warn: #8a5a00; --alarm: #b3261e; }
-      @media (prefers-color-scheme: dark) { :root { --bg: #0b0f1a; --card: #131a2a; --line: #2a3552; --text: #eef2fb; --muted: #98a3bd; --ok: #34d399; --warn: #fbbf24; --alarm: #f87171; } }
+      :root { --bg: #fbfaf6; --tint: #f1efe7; --card: #fbfaf6; --line: #d7d4cc; --frame: #141414; --text: #141414; --muted: #585856; --ok: #0f5f56; --warn: #8a5a00; --alarm: #a5321a; color-scheme: light dark; }
+      @media (prefers-color-scheme: dark) { :root { --bg: #191a17; --tint: #22231f; --card: #191a17; --line: #3a3b35; --frame: #82857b; --text: #eae8e1; --muted: #a8a69d; --ok: #5ec6b0; --warn: #e8b44a; --alarm: #ef8368; } }
       * { box-sizing: border-box; }
-      body { margin: 0; padding: 1rem; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-      header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
-      h1 { margin: 0; font-size: 1.3rem; letter-spacing: 0.02em; }
-      h2 { margin: 1.6rem 0 0.5rem; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 0.35rem; }
-      h3 { margin: 0.9rem 0 0.35rem; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+      body { margin: 0; padding: 1rem; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding-bottom: 0.7rem; margin-bottom: 1.2rem; border-bottom: 1.5px solid var(--frame); }
+      h1 { margin: 0; font-size: 1.3rem; letter-spacing: -0.01em; }
+      h2 { margin: 2rem 0 0.6rem; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; border-top: 1.5px solid var(--frame); padding-top: 0.5rem; }
+      h3 { margin: 1rem 0 0.4rem; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
       .status { font-weight: 700; font-size: 1.05rem; }
-      .badge { font-size: 0.78rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid currentColor; }
+      .badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; padding: 0.1rem 0.45rem; border: 1px solid currentColor; }
       .ok { color: var(--ok); } .warn { color: var(--warn); } .alarm { color: var(--alarm); }
       .muted { color: var(--muted); font-size: 0.85rem; margin: 0.1rem 0; }
       .count { color: var(--muted); font-size: 0.78rem; font-weight: 400; }
-      .bars { letter-spacing: 0.12em; }
-      .stats { font-size: 0.8rem; margin-top: 0.35rem; }
-      section.group { margin: 0.2rem 0 0.9rem; }
-      table { width: 100%; table-layout: fixed; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-      th, td { text-align: start; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); }
+      .bars { letter-spacing: 0.12em; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .stats { font-size: 0.8rem; margin-top: 0.35rem; color: var(--muted); }
+      section.group { margin: 0.2rem 0 1.1rem; }
+      table { width: 100%; table-layout: fixed; border-collapse: collapse; background: var(--card); border-top: 1.5px solid var(--frame); border-bottom: 1.5px solid var(--frame); }
+      th, td { text-align: start; padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--line); }
       th.reading, td.reading, th.state, td.state { text-align: end; }
       th.reading { width: 34%; } th.state { width: 22%; }
       .unit { color: var(--muted); }
-      thead th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+      thead th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); background: var(--tint); border-bottom: 1px solid var(--frame); }
       tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
       tbody th { font-weight: 600; }
-      td.ok, td.warn, td.alarm { font-weight: 700; white-space: nowrap; }
-      footer { margin-top: 1.5rem; display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; align-items: center; }
+      td.ok, td.warn, td.alarm { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+      footer { margin-top: 2rem; padding-top: 0.7rem; border-top: 1.5px solid var(--frame); display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; align-items: center; color: var(--muted); font-size: 0.85rem; }
       a { color: inherit; }
     </style>
   </head>

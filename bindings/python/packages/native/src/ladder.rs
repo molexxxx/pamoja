@@ -18,7 +18,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use tokio::sync::Mutex;
 
 use crate::sync::{SharedStore, Store};
-use crate::transport::{Message, PyTransport};
+use crate::transport::{Message, Payload, PyTransport};
 use crate::PamojaError;
 
 /// An ordered set of transports backed by an offline buffer.
@@ -83,14 +83,14 @@ impl Ladder {
         &self,
         py: Python<'py>,
         topic: String,
-        payload: Vec<u8>,
+        payload: Payload,
     ) -> PyResult<Bound<'py, PyAny>> {
         let inner = Arc::clone(&self.inner);
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let mut guard = inner.lock().await;
             let ladder = guard.as_mut().ok_or_else(unusable)?;
             ladder
-                .send(&topic, &payload)
+                .send(&topic, &payload.into_bytes())
                 .await
                 .map(|delivery| match delivery {
                     Delivery::Sent => "Sent",

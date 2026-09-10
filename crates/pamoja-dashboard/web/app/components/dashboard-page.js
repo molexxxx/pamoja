@@ -1,5 +1,5 @@
 import { store } from '../store.js';
-import { open } from '../nav.js';
+import { openOverlay } from '../nav.js';
 import { t, nf, fmt } from '../lib/i18n.js';
 import { currentFleet, provision, hasLocalEdits } from '../lib/edits.js';
 import { live } from '../lib/feed.js';
@@ -8,11 +8,11 @@ import { conn, tileViz, bannerRing, trendArrow, isDiscrete, isStat, realSensors,
 import { isNew } from '../lib/discovery.js';
 import { openMeshOverlay } from './mesh-modal.js';
 
-const ICON_EDIT = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19.5l-4 1 1-4z"/></svg>';
-const ICON_DONE = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
-const ICON_EXPAND = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>';
-const ICON_DRAG = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9 2 12l3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>';
-const ICON_RESET = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
+const ICON_EDIT = '<svg aria-hidden="true" class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19.5l-4 1 1-4z"/></svg>';
+const ICON_DONE = '<svg aria-hidden="true" class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const ICON_EXPAND = '<svg aria-hidden="true" class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>';
+const ICON_DRAG = '<svg aria-hidden="true" class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9 2 12l3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>';
+const ICON_RESET = '<svg aria-hidden="true" class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
 
 /**
  * Counts the non-mesh sensors in a group, the peer count the mesh preview draws.
@@ -209,7 +209,7 @@ $.component('dashboard-page', {
     const el = e.target.closest('[data-sid]'); if (!el) return;
     const sid = el.dataset.sid;
     if (isMeshSensor(sid)) { openMeshOverlay(sid); return; }
-    open(() => store.dispatch('selectSensor', sid), () => store.dispatch('closeSensor'));
+    openOverlay(() => store.dispatch('selectSensor', sid), () => store.dispatch('closeSensor'));
   },
   /**
    * Removes a sensor in Manage mode.
@@ -231,21 +231,21 @@ $.component('dashboard-page', {
    * @param {MouseEvent} e - the click event.
    * @returns {void}
    */
-  onOpenGroup(e) { const el = e.target.closest('[data-gid]'); if (el) { const gid = el.dataset.gid; open(() => store.dispatch('setGroupView', gid), () => store.dispatch('clearGroupView')); } },
+  onOpenGroup(e) { const el = e.target.closest('[data-gid]'); if (el) { const gid = el.dataset.gid; openOverlay(() => store.dispatch('setGroupView', gid), () => store.dispatch('clearGroupView')); } },
   /**
    * Opens the add-sensor dialog for the clicked group.
    *
    * @param {MouseEvent} e - the click event.
    * @returns {void}
    */
-  onAddSensor(e) { const el = e.target.closest('[data-gid]'); if (el) { const gid = el.dataset.gid; open(() => store.dispatch('openCreate', { mode: 'sensor', groupId: gid }), () => store.dispatch('closeCreate')); } },
+  onAddSensor(e) { const el = e.target.closest('[data-gid]'); if (el) { const gid = el.dataset.gid; openOverlay(() => store.dispatch('openCreate', { mode: 'sensor', groupId: gid }), () => store.dispatch('closeCreate')); } },
   /**
    * Opens the add-group dialog for the clicked org.
    *
    * @param {MouseEvent} e - the click event.
    * @returns {void}
    */
-  onAddGroup(e) { const el = e.target.closest('[data-oid]'); if (el) { const oid = el.dataset.oid; open(() => store.dispatch('openCreate', { mode: 'group', orgId: oid }), () => store.dispatch('closeCreate')); } },
+  onAddGroup(e) { const el = e.target.closest('[data-oid]'); if (el) { const oid = el.dataset.oid; openOverlay(() => store.dispatch('openCreate', { mode: 'group', orgId: oid }), () => store.dispatch('closeCreate')); } },
 
   /**
    * Resolves the org addressed by the route, defaulting to the first org.
@@ -270,7 +270,7 @@ $.component('dashboard-page', {
     const f = currentFleet();
     if (!f)
     {
-      return `<div class="shell"><section class="banner"><div class="banner-text"><span class="banner-eyebrow">${t('ui.status')}</span><h1 class="banner-title">${t('ui.connecting')}</h1></div></section></div>`;
+      return `<div class="shell"><section class="banner"><div class="banner-text"><h1 class="banner-title">${t('ui.connecting')}</h1></div></section></div>`;
     }
     return `<div class="shell">${this.banner(f)}${this.orgtabs(f)}${this.groups(f)}</div>`;
   },
@@ -296,7 +296,6 @@ $.component('dashboard-page', {
       <section class="banner" data-status="${f.status}">
         <div class="banner-ring">${bannerRing(f.status)}</div>
         <div class="banner-text">
-          <span class="banner-eyebrow">${t('ui.status')}</span>
           <h1 class="banner-title">${t('ui.hero.' + f.status)}</h1>
           <span class="banner-sub">${nf(f.orgs.length)} ${t('ui.orgs')} · ${nf(groups)} ${t('ui.groups')} · ${t('ui.sensorsCount', { n: sensors })}</span>
         </div>
@@ -318,7 +317,7 @@ $.component('dashboard-page', {
   {
     const sel = this.selectedOrg(f) || f.orgs[0];
     const open = this.state.orgOpen;
-    const menu = f.orgs.map((o) => `<a class="orgsel-item ${sel && o.id === sel.id ? 'on' : ''}" z-link="/org/${o.id}" @click="closeOrg">
+    const menu = f.orgs.map((o) => `<a class="orgsel-item ${sel && o.id === sel.id ? 'on' : ''}" href="#/org/${o.id}" z-link="/org/${o.id}" @click="closeOrg">
         <span class="dotc" data-status="${orgStatus(o)}"></span><span class="orgsel-iname">${esc(o.name)}</span><span class="count">${nf(o.groups.length)}</span></a>`).join('');
     return `<div class="orgbar">
       <div class="orgsel ${open ? 'open' : ''}" @click.outside="closeOrg">
@@ -326,7 +325,7 @@ $.component('dashboard-page', {
           <span class="dotc" data-status="${sel ? orgStatus(sel) : 'ok'}"></span>
           <span class="orgsel-cur">${esc(sel ? sel.name : t('ui.orgs'))}</span>
           <span class="count">${sel ? nf(sel.groups.length) : ''}</span>
-          <svg class="orgsel-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          <svg aria-hidden="true" class="orgsel-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
         <div class="orgsel-menu">${menu}</div>
       </div>

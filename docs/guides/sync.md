@@ -42,6 +42,20 @@ It proves:
   caller is told to back off rather than have the oldest reading dropped to
   make room.
 
+## Run it
+
+The example below is a test that runs in CI, in each language, from a clone of the
+repository:
+
+<!-- table: run -->
+<div class="run">
+<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo test -p pamoja-examples --test guides sync -- --nocapture" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo test -p pamoja-examples --test guides sync -- --nocapture</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run test:guides -- sync" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run test:guides -- sync</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">Python</span><button class="copy" type="button" data-copy="python bindings/python/guides/sync.py" aria-label="Copy the command that runs the Python example">copy</button></p><code class="run-cmd">python bindings/python/guides/sync.py</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">C#</span><button class="copy" type="button" data-copy="dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- sync" aria-label="Copy the command that runs the C# example">copy</button></p><code class="run-cmd">dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- sync</code></div>
+</div>
+<!-- end -->
+
 ## Rust
 
 <!-- snippet: examples/tests/guides/sync.rs#example -->

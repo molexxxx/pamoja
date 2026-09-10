@@ -224,6 +224,27 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial void pamoja_thermostat_free(IntPtr thermostat);
 
+    /// <summary>Creates a trigger that fires when a reading rises above a line.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_trigger_above(float threshold, float hysteresis);
+
+    /// <summary>Creates a trigger that fires when a reading falls below a line.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_trigger_below(float threshold, float hysteresis);
+
+    /// <summary>Feeds a reading to a trigger and returns the edge it caused.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaEdge pamoja_trigger_update(IntPtr trigger, float reading);
+
+    /// <summary>Reports whether a trigger's condition currently holds.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_trigger_is_set(IntPtr trigger);
+
+    /// <summary>Releases a trigger handle. Passing null is a no-op.</summary>
+    [LibraryImport(Library)]
+    public static partial void pamoja_trigger_free(IntPtr trigger);
+
     /// <summary>Creates a depletion estimator.</summary>
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_depletion_new(float threshold);

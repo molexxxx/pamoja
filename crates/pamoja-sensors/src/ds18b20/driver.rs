@@ -276,9 +276,9 @@ impl<B: OneWireBus, D: DelayNs> Ds18b20<B, D> {
 
 impl<B, D> Sensor for Ds18b20<B, D>
 where
-    B: OneWireBus,
+    B: OneWireBus + Send,
     B::Error: core::fmt::Debug,
-    D: DelayNs,
+    D: DelayNs + Send,
 {
     type Reading = Scratchpad;
 

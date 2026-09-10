@@ -36,6 +36,41 @@ impl Message {
             payload: payload.into(),
         }
     }
+
+    /// Reads the payload as text.
+    ///
+    /// Most readings and commands on a topic are words or a number written out, and
+    /// this is the accessor for them; a payload that is a codec's bytes goes through
+    /// the codec instead.
+    ///
+    /// # Returns
+    ///
+    /// The payload as a string slice.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Codec`](crate::Error::Codec) if the payload is not UTF-8 text.
+    pub fn text(&self) -> Result<&str> {
+        core::str::from_utf8(&self.payload)
+            .map_err(|_| crate::Error::Codec("the payload is not UTF-8 text".into()))
+    }
+
+    /// Reads the payload as a number written out as text, such as `21.5`.
+    ///
+    /// # Returns
+    ///
+    /// The number.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Codec`](crate::Error::Codec) if the payload is not UTF-8 text
+    /// or the text is not a number.
+    pub fn number(&self) -> Result<f64> {
+        self.text()?
+            .trim()
+            .parse()
+            .map_err(|_| crate::Error::Codec("the payload is not a number".into()))
+    }
 }
 
 /// A bidirectional, topic-addressed message transport.
@@ -86,6 +121,28 @@ pub trait Transport {
     /// be sent, or [`Error::Closed`](crate::Error::Closed) if the transport is not
     /// connected.
     fn send(&mut self, topic: &str, payload: &[u8]) -> impl Future<Output = Result<()>> + Send;
+
+    /// Publishes text to a topic: words, or a number written out.
+    ///
+    /// This is [`send`](Transport::send) with the text's UTF-8 bytes, so a reading or a
+    /// command that is plain text needs no encoding step on either end; the receiver
+    /// reads it back with [`Message::text`] or [`Message::number`].
+    ///
+    /// # Arguments
+    ///
+    /// * `topic` - the destination topic.
+    /// * `text` - the text to publish.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once the transport has accepted the message.
+    ///
+    /// # Errors
+    ///
+    /// Whatever [`send`](Transport::send) returns.
+    fn send_text(&mut self, topic: &str, text: &str) -> impl Future<Output = Result<()>> + Send {
+        self.send(topic, text.as_bytes())
+    }
 
     /// Subscribes to a topic so that matching payloads are routed to this transport.
     ///
@@ -153,6 +210,20 @@ pub trait Receive {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_message_reads_as_text_or_a_number() {
+        let reading = super::Message::new("garden/bed-1/moisture", "28.5");
+        assert_eq!(reading.text().unwrap(), "28.5");
+        assert_eq!(reading.number().unwrap(), 28.5);
+        let spaced = super::Message::new("t", " 42 \n");
+        assert_eq!(spaced.number().unwrap(), 42.0);
+        let words = super::Message::new("garden/bed-1/valve", "open");
+        assert_eq!(words.text().unwrap(), "open");
+        assert!(matches!(words.number(), Err(crate::Error::Codec(_))));
+        let raw = super::Message::new("t", vec![0xff, 0xfe]);
+        assert!(matches!(raw.text(), Err(crate::Error::Codec(_))));
+    }
+
     use super::*;
 
     #[test]

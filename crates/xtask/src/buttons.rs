@@ -1,75 +1,62 @@
-//! The link buttons the READMEs and the site use, drawn from the logo's palette.
+//! The buttons the README and the crate pages link, drawn on the sheet the site is printed
+//! on.
 //!
-//! GitHub, crates.io, npm, PyPI, and NuGet all render a README against a background this
-//! project does not control, and half of them render it twice, once per theme. A filled
-//! shape holds on both; an outlined one disappears on one of them. So every button carries
-//! its own opaque fill, and the hierarchy has to come from somewhere other than weight.
-//!
-//! It comes from three kinds, which are the site's own hero controls drawn as images. One
-//! warm face per page carries the first place a reader is being sent, and it is the only
-//! saturated shape in the block, so a row reads as one accent among the navy rather than a
-//! wall of orange. The other places to go are the same pill in the navy the pages are drawn
-//! in, told apart by a brighter edge and an amber mark. Everything that is looked up rather
-//! than gone to is a smaller chip, flush on the page, told apart from its neighbors by a
-//! single dot of color: the language references, the registries, the hardware catalog.
-//!
-//! All three are drawn inside the same box, so one `height` attribute in the markup renders
-//! the difference the drawing carries rather than making the markup carry it, and a row that
-//! mixes them sits on a common center line.
-//!
-//! The gradients are the logo's, and the geometry is the site's `.btn`: a full pill, the
-//! same amber-through-coral face, and the same shadow under it. `cargo xtask docs` writes
-//! them and `--check` fails when they drift, so the palette lives in exactly one place.
+//! A registry renders Markdown without a stylesheet, so a button has to be an image. These
+//! are flat rectangles in the site's own inks: one filled in the vendor green for the way
+//! in, the same shape on the sheet with a hairline for the other ways, and a chip with a
+//! square mark for a reference. Each carries both schemes in its own `<style>`, so a reader
+//! on a dark registry page gets the dark sheet. `cargo xtask docs` writes them to
+//! `.github/badges/`.
 
-use crate::theme::{rgba, PALETTE};
+use crate::theme::{rgba, DARK, LIGHT};
 
-/// Amber, the logo's inner glow.
-const AMBER: &str = PALETTE.amber;
-/// Coral, the logo's outer glow.
-const CORAL: &str = PALETTE.coral;
-/// Near-black with the palette's warmth in it, for text on a warm fill.
-const ON_WARM: &str = "#2a1606";
-/// The palette's dark warm, which shades the bottom edge of a warm face.
-const CONTACT: &str = "#7a2c14";
-
-/// The box every button is drawn in. An action fills most of it and a chip sits centered
-/// inside it, so both scale together from a single height.
+/// The height of every button, which the README asks for as `height="44"`.
 const BOX: f64 = 44.0;
-/// The face of an action, with the rest of the box left for its shadow.
-const FACE: f64 = 34.0;
-/// The face of a reference chip.
+/// The height of the drawn face inside that box.
+const FACE: f64 = 32.0;
+/// The height of a reference chip's face.
 const CHIP: f64 = 26.0;
+/// The corner every rectangle on the sheet takes.
+const RADIUS: f64 = 2.0;
 
-const ACTION_SIZE: f64 = 13.5;
-const ACTION_TRACK: f64 = 0.1;
-/// The label's inset, the space it clears the arrow by, the arrow's disc, and its inset.
-const ACTION_LEAD: f64 = 17.0;
-const ACTION_GAP: f64 = 9.0;
-const PUCK: f64 = 17.0;
-const ACTION_TAIL: f64 = 11.0;
+const ACTION_SIZE: f64 = 12.0;
+const ACTION_TRACK: f64 = 0.9;
+const ACTION_PAD: f64 = 14.0;
+const ACTION_GAP: f64 = 8.0;
+const ARROW_W: f64 = 9.0;
 
-const CHIP_SIZE: f64 = 11.5;
-const CHIP_TRACK: f64 = 0.4;
-/// Where the dot sits, how far the label clears it, and what the label clears the edge by.
-const DOT_X: f64 = 11.0;
-const DOT_GAP: f64 = 9.0;
+const CHIP_SIZE: f64 = 11.0;
+const CHIP_TRACK: f64 = 0.8;
 const CHIP_PAD: f64 = 11.0;
+const MARK: f64 = 5.0;
+const MARK_GAP: f64 = 8.0;
 
 const FONT: &str =
     "Segoe UI, Inter, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif";
 
-/// The mark an action ends on, which says the link leaves the page. A chip does not carry
+/// The mark an action ends on, which says the link leaves the page, drawn rather than typed
+/// so it keeps one stroke weight with every other mark on the sheet. A chip does not carry
 /// it: a row of them is already a list of references, and nine arrows is noise.
-const ARROW: &str = "\u{2197}";
+fn arrow(x: f64, mid: f64, class: &str) -> String {
+    let left = x - ARROW_W / 2.0;
+    let right = x + ARROW_W / 2.0;
+    let top = mid - ARROW_W / 2.0;
+    let bottom = mid + ARROW_W / 2.0;
+    let hook = left + 1.0;
+    let side = ARROW_W - 1.0;
+    format!(
+        "  <path d=\"M{left} {bottom}L{right} {top}M{hook} {top}h{side}v{side}\" class=\"{class}\" fill=\"none\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n"
+    )
+}
 
 /// What a button is: the way out of the page, another way out, or something to look up.
 enum Kind {
-    /// The warm face, and the only one on a page.
+    /// The filled face, and the only one on a page.
     Primary,
-    /// The same pill in navy, for the other places to go.
+    /// The same rectangle on the sheet, for the other places to go.
     Secondary,
-    /// A flush chip, carrying one hue as its dot.
-    Reference(&'static str),
+    /// A chip with a square mark, for something to look up.
+    Reference,
 }
 
 /// One button: the file it is written to, its label, and which of the three kinds it is.
@@ -80,10 +67,6 @@ struct Button {
 }
 
 /// Every button the documentation links.
-///
-/// The hues are the ecosystems the logo already travels through, used consistently: amber
-/// for Rust, sky for TypeScript, forest for Python, coral for .NET, and teal for the
-/// things that are pamoja's own rather than a language's.
 const BUTTONS: &[Button] = &[
     Button {
         file: "btn-website.svg",
@@ -108,75 +91,75 @@ const BUTTONS: &[Button] = &[
     Button {
         file: "btn-hardware.svg",
         label: "hardware",
-        kind: Kind::Reference(PALETTE.teal),
+        kind: Kind::Reference,
     },
     Button {
         file: "btn-ref-rust.svg",
         label: "Rust reference",
-        kind: Kind::Reference(PALETTE.amber),
+        kind: Kind::Reference,
     },
     Button {
         file: "btn-ref-node.svg",
         label: "TypeScript reference",
-        kind: Kind::Reference(PALETTE.sky),
+        kind: Kind::Reference,
     },
     Button {
         file: "btn-ref-python.svg",
         label: "Python reference",
-        kind: Kind::Reference(PALETTE.forest),
+        kind: Kind::Reference,
     },
     Button {
         file: "btn-ref-dotnet.svg",
         label: ".NET reference",
-        kind: Kind::Reference(PALETTE.coral),
-    },
-    Button {
-        file: "btn-dashboard.svg",
-        label: "dashboard demo",
-        kind: Kind::Reference(PALETTE.teal),
+        kind: Kind::Reference,
     },
     Button {
         file: "btn-api.svg",
         label: "API reference",
-        kind: Kind::Reference(PALETTE.cream),
+        kind: Kind::Reference,
     },
     Button {
         file: "btn-reference.svg",
         label: "open the reference",
-        kind: Kind::Reference(PALETTE.cream),
+        kind: Kind::Reference,
     },
     Button {
-        file: "btn-cratesio.svg",
-        label: "crates.io",
-        kind: Kind::Reference(PALETTE.amber),
+        file: "btn-dashboard.svg",
+        label: "dashboard demo",
+        kind: Kind::Reference,
     },
     Button {
         file: "btn-docsrs.svg",
         label: "docs.rs",
-        kind: Kind::Reference(PALETTE.amber),
+        kind: Kind::Reference,
+    },
+    Button {
+        file: "btn-cratesio.svg",
+        label: "crates.io",
+        kind: Kind::Reference,
     },
     Button {
         file: "btn-npm.svg",
         label: "npm",
-        kind: Kind::Reference(PALETTE.sky),
+        kind: Kind::Reference,
     },
     Button {
         file: "btn-pypi.svg",
         label: "PyPI",
-        kind: Kind::Reference(PALETTE.forest),
+        kind: Kind::Reference,
     },
     Button {
         file: "btn-nuget.svg",
         label: "NuGet",
-        kind: Kind::Reference(PALETTE.coral),
+        kind: Kind::Reference,
     },
 ];
 
-/// Render every button as (path, SVG).
+/// Render every button as (path, contents).
 ///
 /// # Returns
 ///
-/// One entry per button, pathed under `.github/badges`.
+/// One SVG per button, under `.github/badges/`.
 pub fn render() -> Vec<(String, String)> {
     BUTTONS
         .iter()
@@ -184,7 +167,7 @@ pub fn render() -> Vec<(String, String)> {
             let svg = match button.kind {
                 Kind::Primary => action(button.label, true),
                 Kind::Secondary => action(button.label, false),
-                Kind::Reference(accent) => reference(button.label, accent),
+                Kind::Reference => reference(button.label),
             };
             (format!(".github/badges/{}", button.file), svg)
         })
@@ -201,144 +184,111 @@ fn escape(label: &str) -> String {
         .replace('>', "&gt;")
 }
 
-// An action: the site's pill, with its label set against a disc holding the arrow. Warm is
-// the lit face with a shadow in its own hue; the rest are the same shape in navy, which
-// keeps a row to one accent and still reads as somewhere to go rather than something to
-// look up.
-fn action(label: &str, warm: bool) -> String {
-    let text = escape(label);
-    let span = advance(label, ACTION_SIZE, ACTION_TRACK);
-    let width = (span + ACTION_LEAD + ACTION_GAP + PUCK + ACTION_TAIL).round();
-    let mid = BOX / 2.0;
-    let face = if warm {
-        warm_face(width)
-    } else {
-        glass_face(width)
-    };
-    let (ink, mark) = if warm {
-        (ON_WARM, rgba(ON_WARM, 0.16))
-    } else {
-        (PALETTE.cream, rgba(AMBER, 0.16))
-    };
-    let arrow_ink = if warm { ON_WARM } else { AMBER };
+// The palette a button carries with it, in both schemes. A registry page has no stylesheet
+// to give it, and an image cannot read the page it sits on, so the media query travels
+// inside the file.
+fn sheet() -> String {
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{BOX}" viewBox="0 0 {width} {BOX}" role="img" aria-label="{text}">
+        r##"  <style>
+    .paper {{ fill: {light_paper}; }}
+    .rule {{ stroke: {light_rule}; }}
+    .band {{ fill: {light_band}; }}
+    .ink {{ fill: {light_ink}; }}
+    .accent {{ fill: {light_accent}; }}
+    .accent-rule {{ stroke: {light_accent_rule}; }}
+    .tint {{ fill: {light_tint}; }}
+    .s-accent {{ stroke: {light_accent}; }}
+    .on-band {{ fill: #ffffff; }}
+    .s-on-band {{ stroke: #ffffff; }}
+    @media (prefers-color-scheme: dark) {{
+      .paper {{ fill: {dark_paper}; }}
+      .rule {{ stroke: {dark_rule}; }}
+      .band {{ fill: {dark_band}; }}
+      .ink {{ fill: {dark_ink}; }}
+      .accent {{ fill: {dark_accent}; }}
+      .accent-rule {{ stroke: {dark_accent_rule}; }}
+      .tint {{ fill: {dark_tint}; }}
+      .s-accent {{ stroke: {dark_accent}; }}
+    }}
+  </style>"##,
+        light_paper = LIGHT.paper,
+        light_rule = LIGHT.rule,
+        light_band = LIGHT.band,
+        light_ink = LIGHT.ink,
+        light_accent = LIGHT.accent,
+        light_accent_rule = rgba(LIGHT.accent, 0.45),
+        light_tint = rgba(LIGHT.accent, 0.1),
+        dark_paper = DARK.paper,
+        dark_rule = DARK.rule,
+        dark_band = DARK.band,
+        dark_ink = DARK.ink,
+        dark_accent = DARK.accent,
+        dark_accent_rule = rgba(DARK.accent, 0.45),
+        dark_tint = rgba(DARK.accent, 0.1),
+    )
+}
+
+// An action: a rectangle on the sheet with an uppercase label and the arrow that says the
+// link leaves. The way in is filled in the vendor ink; the others are the sheet itself
+// behind a hairline, so a row keeps one filled shape.
+fn action(label: &str, filled: bool) -> String {
+    let text = escape(&label.to_uppercase());
+    let span = advance(&label.to_uppercase(), ACTION_SIZE, ACTION_TRACK) * CAPS;
+    let width = (span + ACTION_PAD * 2.0 + ACTION_GAP + ARROW_W).round();
+    let mid = BOX / 2.0;
+    let face = if filled {
+        format!(
+            r##"  <rect x="0.5" y="{y}" width="{inner}" height="{height}" rx="{RADIUS}" class="band"/>"##,
+            y = (BOX - FACE) / 2.0 + 0.5,
+            inner = width - 1.0,
+            height = FACE - 1.0,
+        )
+    } else {
+        format!(
+            r##"  <rect x="0.5" y="{y}" width="{inner}" height="{height}" rx="{RADIUS}" class="paper rule" stroke-width="1"/>"##,
+            y = (BOX - FACE) / 2.0 + 0.5,
+            inner = width - 1.0,
+            height = FACE - 1.0,
+        )
+    };
+    let ink = if filled { "on-band" } else { "ink" };
+    let mark = if filled { "s-on-band" } else { "s-accent" };
+    format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{BOX}" viewBox="0 0 {width} {BOX}" role="img" aria-label="{plain}">
+{style}
 {face}
-  <text x="{label_x}" y="{mid}" dominant-baseline="central" text-anchor="middle" font-family="{FONT}" font-size="{ACTION_SIZE}" font-weight="600" letter-spacing="{ACTION_TRACK}" fill="{ink}">{text}</text>
-  <circle cx="{puck_x}" cy="{mid}" r="{puck_r}" fill="{mark}"/>
-  <text x="{puck_x}" y="{mid}" dominant-baseline="central" text-anchor="middle" font-family="{FONT}" font-size="11" font-weight="700" fill="{arrow_ink}" fill-opacity="{arrow_alpha}">{ARROW}</text>
-</svg>
+  <text x="{ACTION_PAD}" y="{mid}" dominant-baseline="central" font-family="{FONT}" font-size="{ACTION_SIZE}" font-weight="700" letter-spacing="{ACTION_TRACK}" class="{ink}">{text}</text>
+{}</svg>
 "##,
-        label_x = ((ACTION_LEAD + span / 2.0) * 100.0).round() / 100.0,
-        puck_x = width - ACTION_TAIL - PUCK / 2.0,
-        puck_r = PUCK / 2.0,
-        arrow_alpha = if warm { 0.72 } else { 1.0 },
+        arrow(width - ACTION_PAD - ARROW_W / 2.0, mid, mark),
+        plain = escape(label),
+        style = sheet(),
     )
 }
 
-// The warm face: the site's amber-through-coral gradient, molded by a highlight along the
-// top and the contact color along the bottom, over a bloom of its own hue that grounds it.
-// The bloom is drawn rather than blurred, because a filter reaches past the image box the
-// button is cut to and leaves a seam down both edges of the row.
-fn warm_face(width: f64) -> String {
-    format!(
-        r##"  <defs>
-    <linearGradient id="face" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="{AMBER}"/>
-      <stop offset="1" stop-color="{CORAL}"/>
-      <animateTransform attributeName="gradientTransform" type="translate" values="-0.08 0;0.08 0;-0.08 0" dur="9s" repeatCount="indefinite"/>
-    </linearGradient>
-    <linearGradient id="mold" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
-      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/>
-      <stop offset="1" stop-color="{CONTACT}" stop-opacity="0.16"/>
-    </linearGradient>
-    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
-      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.06"/>
-      <stop offset="1" stop-color="{navy}" stop-opacity="0.26"/>
-    </linearGradient>
-    <radialGradient id="bloom" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="{CORAL}" stop-opacity="0.5"/>
-      <stop offset="0.6" stop-color="{CORAL}" stop-opacity="0.2"/>
-      <stop offset="1" stop-color="{CORAL}" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <ellipse cx="{center}" cy="{bloom_y}" rx="{bloom_rx}" ry="6.5" fill="url(#bloom)"/>
-  <rect x="0.5" y="{y}" width="{inner}" height="{height}" rx="{radius}" fill="url(#face)"/>
-  <rect x="0.5" y="{y}" width="{inner}" height="{height}" rx="{radius}" fill="url(#mold)"/>
-  <rect x="0.5" y="{y}" width="{inner}" height="{height}" rx="{radius}" fill="none" stroke="url(#rim)" stroke-width="1"/>"##,
-        navy = PALETTE.navy_0,
-        center = width / 2.0,
-        bloom_y = (BOX + FACE) / 2.0 - 2.0,
-        bloom_rx = width / 2.0 - 2.0,
-        y = (BOX - FACE) / 2.0 + 0.5,
-        inner = width - 1.0,
-        height = FACE - 1.0,
-        radius = FACE / 2.0,
-    )
-}
-
-// The navy face: the same pill in the page's own color, with the strong hairline and an
-// inner highlight for the glass, and no shadow, so it sits behind the warm one.
-fn glass_face(width: f64) -> String {
-    format!(
-        r##"  <defs>
-    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="{navy_2}"/>
-      <stop offset="1" stop-color="{navy_1}"/>
-    </linearGradient>
-    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0.04"/>
-    </linearGradient>
-  </defs>
-  <rect x="0.5" y="{y}" width="{inner}" height="{height}" rx="{radius}" fill="url(#face)" stroke="{edge}" stroke-width="1"/>
-  <rect x="1.5" y="{inset_y}" width="{inset_w}" height="{inset_h}" rx="{inset_r}" fill="none" stroke="url(#rim)" stroke-width="1"/>"##,
-        navy_1 = PALETTE.navy_1,
-        navy_2 = PALETTE.navy_2,
-        edge = rgba(PALETTE.cream, 0.22),
-        y = (BOX - FACE) / 2.0 + 0.5,
-        inner = width - 1.0,
-        height = FACE - 1.0,
-        radius = FACE / 2.0,
-        inset_y = (BOX - FACE) / 2.0 + 1.5,
-        inset_w = width - 3.0,
-        inset_h = FACE - 3.0,
-        inset_r = FACE / 2.0 - 1.0,
-    )
-}
-
-// A reference chip: the dark face, flush, with one hue as a dot and a halo behind it so
-// the color reads without outlining the whole shape in it.
-fn reference(label: &str, accent: &str) -> String {
-    let text = escape(label);
-    let width = (advance(label, CHIP_SIZE, CHIP_TRACK) + DOT_X + DOT_GAP + CHIP_PAD).round();
+// A reference chip: the vendor ink at a tenth of its strength behind a hairline of the same
+// ink, with a square mark and the label in it, which is how the site draws the button that
+// opens a generated reference.
+fn reference(label: &str) -> String {
+    let text = escape(&label.to_uppercase());
+    let span = advance(&label.to_uppercase(), CHIP_SIZE, CHIP_TRACK) * CAPS;
+    let width = (span + CHIP_PAD * 2.0 + MARK + MARK_GAP).round();
     let mid = BOX / 2.0;
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{BOX}" viewBox="0 0 {width} {BOX}" role="img" aria-label="{text}">
-  <defs>
-    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="{navy_2}"/>
-      <stop offset="1" stop-color="{navy_1}"/>
-    </linearGradient>
-  </defs>
-  <rect x="0.5" y="{y}" width="{inner}" height="{height}" rx="{radius}" fill="url(#face)" stroke="{hairline}" stroke-width="1"/>
-  <circle cx="{DOT_X}" cy="{mid}" r="5.5" fill="{halo}"/>
-  <circle cx="{DOT_X}" cy="{mid}" r="2.4" fill="{accent}"/>
-  <text x="{label_x}" y="{mid}" dominant-baseline="central" font-family="{FONT}" font-size="{CHIP_SIZE}" font-weight="600" letter-spacing="{CHIP_TRACK}" fill="{ink}">{text}</text>
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{BOX}" viewBox="0 0 {width} {BOX}" role="img" aria-label="{plain}">
+{style}
+  <rect x="0.5" y="{y}" width="{inner}" height="{height}" rx="{RADIUS}" class="tint accent-rule" stroke-width="1"/>
+  <rect x="{CHIP_PAD}" y="{mark_y}" width="{MARK}" height="{MARK}" class="accent"/>
+  <text x="{label_x}" y="{mid}" dominant-baseline="central" font-family="{FONT}" font-size="{CHIP_SIZE}" font-weight="700" letter-spacing="{CHIP_TRACK}" class="accent">{text}</text>
 </svg>
 "##,
-        navy_1 = PALETTE.navy_1,
-        navy_2 = PALETTE.navy_2,
+        plain = escape(label),
+        style = sheet(),
         y = (BOX - CHIP) / 2.0 + 0.5,
         inner = width - 1.0,
         height = CHIP - 1.0,
-        radius = CHIP / 2.0,
-        hairline = rgba(PALETTE.cream, 0.14),
-        halo = rgba(accent, 0.2),
-        label_x = DOT_X + DOT_GAP,
-        ink = PALETTE.text,
+        mark_y = mid - MARK / 2.0,
+        label_x = CHIP_PAD + MARK + MARK_GAP,
     )
 }
 
@@ -412,6 +362,10 @@ const DEFAULT_ADVANCE: f64 = 0.58;
 // The rendered width of a label, in the absence of a font engine. The shape is text on a
 // filled ground, so this only has to be close: too narrow crowds the label, too wide leaves
 // the button looking empty.
+/// How much wider a run of capitals is than the same string in the mixed case the table
+/// was measured from. The labels are set in capitals, so every width is scaled by this.
+const CAPS: f64 = 1.07;
+
 fn advance(text: &str, size: f64, tracking: f64) -> f64 {
     text.chars()
         .map(|ch| {
@@ -448,7 +402,7 @@ mod tests {
     #[test]
     fn a_longer_label_gets_a_wider_button() {
         assert!(width(&action("examples & guides", false)) > width(&action("website", true)));
-        assert!(width(&reference("TypeScript reference", AMBER)) > width(&reference("npm", AMBER)));
+        assert!(width(&reference("TypeScript reference")) > width(&reference("npm")));
     }
 
     #[test]
@@ -461,11 +415,12 @@ mod tests {
     #[test]
     fn a_label_clears_the_shape_it_sits_in() {
         for (button, (_, svg)) in BUTTONS.iter().zip(render()) {
+            let label = button.label.to_uppercase();
             let taken = match button.kind {
-                Kind::Reference(_) => {
-                    advance(button.label, CHIP_SIZE, CHIP_TRACK) + DOT_X + DOT_GAP
+                Kind::Reference => {
+                    advance(&label, CHIP_SIZE, CHIP_TRACK) * CAPS + CHIP_PAD + MARK + MARK_GAP
                 }
-                _ => advance(button.label, ACTION_SIZE, ACTION_TRACK) + ACTION_LEAD + ACTION_GAP,
+                _ => advance(&label, ACTION_SIZE, ACTION_TRACK) * CAPS + ACTION_PAD + ACTION_GAP,
             };
             let clearance = width(&svg) - taken;
             assert!(
@@ -477,30 +432,41 @@ mod tests {
     }
 
     #[test]
-    fn one_kind_is_warm_and_the_others_are_not() {
-        let warm = action("website", true);
-        assert!(warm.contains(AMBER) && warm.contains("url(#bloom)"));
-        let glass = action("documentation", false);
-        assert!(glass.contains(PALETTE.navy_2) && !glass.contains("url(#bloom)"));
-        let chip = reference("npm", PALETTE.sky);
-        assert!(chip.contains(PALETTE.navy_2) && !chip.contains("url(#bloom)"));
+    fn the_way_in_is_filled_and_the_others_are_the_sheet() {
+        let filled = action("website", true);
+        assert!(filled.contains("class=\"band\"") && !filled.contains("class=\"paper rule\""));
+        let outline = action("documentation", false);
+        assert!(outline.contains("class=\"paper rule\"") && !outline.contains("class=\"band\""));
+        let chip = reference("npm");
+        assert!(chip.contains("class=\"tint accent-rule\"") && !chip.contains("class=\"band\""));
     }
 
     #[test]
-    fn a_page_carries_one_warm_button() {
-        let warm: Vec<_> = BUTTONS
+    fn a_page_carries_one_filled_button() {
+        let filled: Vec<_> = BUTTONS
             .iter()
             .filter(|button| matches!(button.kind, Kind::Primary))
             .map(|button| button.file)
             .collect();
-        assert_eq!(warm, ["btn-website.svg", "btn-guide.svg"]);
+        assert_eq!(filled, ["btn-website.svg", "btn-guide.svg"]);
     }
 
     #[test]
-    fn a_reference_carries_its_own_hue_and_no_other() {
-        let python = reference("Python reference", PALETTE.forest);
-        assert!(python.contains(PALETTE.forest));
-        assert!(!python.contains(PALETTE.sky) && !python.contains(CORAL));
+    fn every_button_carries_both_sheets_and_no_other_palette() {
+        for (path, svg) in render() {
+            assert!(
+                svg.contains(LIGHT.accent) && svg.contains(DARK.accent),
+                "{path} carries only one sheet"
+            );
+            assert!(
+                svg.contains("prefers-color-scheme: dark"),
+                "{path} cannot follow a dark registry page"
+            );
+            // The navy, coral, and sky of the world these buttons used to be drawn in.
+            for gone in ["#0e1b2e", "#16263f", "#f26a4b", "#36b6dd"] {
+                assert!(!svg.contains(gone), "{path} still carries {gone}");
+            }
+        }
     }
 
     #[test]
@@ -512,10 +478,7 @@ mod tests {
                 .map(str::to_owned)
                 .expect("the root element carries a height")
         };
-        assert_eq!(
-            height(&action("website", true)),
-            height(&reference("npm", AMBER))
-        );
+        assert_eq!(height(&action("website", true)), height(&reference("npm")));
         assert!(render()
             .iter()
             .all(|(_, svg)| height(svg) == BOX.to_string()));
@@ -523,16 +486,16 @@ mod tests {
 
     #[test]
     fn only_an_action_says_the_link_leaves_the_page() {
-        assert!(action("website", true).contains(ARROW));
-        assert!(action("documentation", false).contains(ARROW));
-        assert!(!reference("npm", AMBER).contains(ARROW));
+        assert!(action("website", true).contains("class=\"s-on-band\""));
+        assert!(action("documentation", false).contains("class=\"s-accent\""));
+        assert!(!reference("npm").contains("stroke-linecap"));
         assert!(render().iter().all(|(_, svg)| svg.contains("role=\"img\"")));
     }
 
     #[test]
     fn a_label_that_is_not_xml_is_escaped_into_it() {
         let svg = action("examples & guides", false);
-        assert!(svg.contains("examples &amp; guides"));
-        assert!(!svg.contains("examples & guides"));
+        assert!(svg.contains("EXAMPLES &amp; GUIDES"));
+        assert!(!svg.contains("EXAMPLES & GUIDES"));
     }
 }

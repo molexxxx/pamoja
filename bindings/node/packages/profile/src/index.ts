@@ -91,6 +91,11 @@ export const ControlKind = {
   Surge: 'Surge' as ControlKindName,
   /** Report readings only, with no output and no alerts. */
   Monitor: 'Monitor' as ControlKindName,
+  /**
+   * A kind the library does not ship, named by the manifest and decided by the
+   * program's own code; its name and parameters ride in `customKind` and `params`.
+   */
+  Custom: 'Custom' as ControlKindName,
 } as const
 
 /** One of the {@link ControlKind} choices. */
@@ -108,6 +113,8 @@ export const AlertKind = {
   RunningOut: 'RunningOut' as AlertKindName,
   /** A reading is changing faster than its safe rate. */
   ChangingFast: 'ChangingFast' as AlertKindName,
+  /** A condition a policy of the program's own raised, named by `code`. */
+  Custom: 'Custom' as AlertKindName,
 } as const
 
 /** One of the {@link AlertKind} choices. */

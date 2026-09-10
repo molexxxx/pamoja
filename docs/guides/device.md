@@ -17,7 +17,10 @@ In TypeScript, Python, and C# there is no trait to implement. A class with a `re
 an `apply` is the whole contract, and the loop that calls them is the program's own,
 with the helpers, the controller, and the ladder taking plain numbers, booleans, and
 bytes. In Rust the same two structs also drop into a profile `Node`, which runs the loop
-for them.
+for them; the `Send` on the probe's converter is what lets that node run from a spawned
+task, since every core trait's futures are `Send`. A rule of the maker's own, over the
+whole reading a driver produces, is a `Policy` the node runs the same way, as the
+device profiles guide shows.
 
 ## What the example does
 
@@ -46,6 +49,20 @@ It proves:
   reads, decides, drives the valve, and publishes on every tick, and raises an alert
   once the bed is far from target.
 
+## Run it
+
+The example below is a test that runs in CI, in each language, from a clone of the
+repository:
+
+<!-- table: run -->
+<div class="run">
+<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo test -p pamoja-examples --test guides device -- --nocapture" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo test -p pamoja-examples --test guides device -- --nocapture</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run test:guides -- device" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run test:guides -- device</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">Python</span><button class="copy" type="button" data-copy="python bindings/python/guides/device.py" aria-label="Copy the command that runs the Python example">copy</button></p><code class="run-cmd">python bindings/python/guides/device.py</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">C#</span><button class="copy" type="button" data-copy="dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- device" aria-label="Copy the command that runs the C# example">copy</button></p><code class="run-cmd">dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- device</code></div>
+</div>
+<!-- end -->
+
 ## Rust
 
 The parts:
@@ -66,7 +83,7 @@ struct SoilProbe<A> {
     calibration: Calibration,
 }
 
-impl<A: Sensor<Reading = f32>> Sensor for SoilProbe<A> {
+impl<A: Sensor<Reading = f32> + Send> Sensor for SoilProbe<A> {
     type Reading = f32;
 
     async fn read(&mut self) -> Result<f32> {

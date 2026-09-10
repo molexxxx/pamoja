@@ -67,7 +67,7 @@ impl<C> Default for RecordingActuator<C> {
     }
 }
 
-impl<C> Actuator for RecordingActuator<C> {
+impl<C: Send> Actuator for RecordingActuator<C> {
     type Command = C;
 
     async fn apply(&mut self, command: C) -> Result<()> {

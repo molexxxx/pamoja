@@ -39,6 +39,20 @@ It proves:
 - One byte flipped inside the accept fails the integrity check, so a device
   does not activate on a join it cannot attribute to its own network.
 
+## Run it
+
+The example below is a test that runs in CI, in each language, from a clone of the
+repository:
+
+<!-- table: run -->
+<div class="run">
+<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo test -p pamoja-examples --test guides lorawan -- --nocapture" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo test -p pamoja-examples --test guides lorawan -- --nocapture</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run test:guides -- lorawan" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run test:guides -- lorawan</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">Python</span><button class="copy" type="button" data-copy="python bindings/python/guides/lorawan.py" aria-label="Copy the command that runs the Python example">copy</button></p><code class="run-cmd">python bindings/python/guides/lorawan.py</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">C#</span><button class="copy" type="button" data-copy="dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- lorawan" aria-label="Copy the command that runs the C# example">copy</button></p><code class="run-cmd">dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- lorawan</code></div>
+</div>
+<!-- end -->
+
 ## Rust
 
 <!-- snippet: examples/tests/guides/lorawan.rs#example -->

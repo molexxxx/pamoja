@@ -1,10 +1,11 @@
 import { store } from '../store.js';
 import { currentFleet } from '../lib/edits.js';
-import { back, open } from '../nav.js';
+import { back, openOverlay } from '../nav.js';
 import { sensorDetailBody, stickLog } from '../lib/detail.js';
 import { fmt, t } from '../lib/i18n.js';
 import { sendCommand, unlocked } from '../lib/pair.js';
 import { conn, esc } from '../lib/viz/index.js';
+import { sync as syncDialog, drop as dropDialog } from '../lib/dialog.js';
 
 /**
  * Picks the slider step for a numeric actuator: whole units over a wide range, finer
@@ -32,9 +33,9 @@ $.component('sensor-modal', {
     this._eff = $.effect(() => { currentFleet(); unlocked.value; this.setState({}); });
   },
   /** Tears down the store subscription and fleet effect. */
-  destroyed() { if (this._un) this._un(); if (typeof this._eff === 'function') this._eff(); },
+  destroyed() { dropDialog(); if (this._un) this._un(); if (typeof this._eff === 'function') this._eff(); },
   /** Keeps the event log pinned to its newest line after a re-render. */
-  updated() { stickLog(this._el); },
+  updated() { syncDialog(this._el); stickLog(this._el); },
 
   /** Closes the modal by unwinding one history entry. */
   close() { back(); },
@@ -120,7 +121,7 @@ $.component('sensor-modal', {
   },
 
   /** Opens the pairing dialog so a locked actuator can be unlocked. */
-  unlockPrompt() { open(() => store.dispatch('openPairing'), () => store.dispatch('closePairing')); },
+  unlockPrompt() { openOverlay(() => store.dispatch('openPairing'), () => store.dispatch('closePairing')); },
 
   /**
    * Renders the modal for the selected sensor, or an empty placeholder when none.
@@ -170,7 +171,7 @@ $.component('sensor-modal', {
         <div class="modal" data-status="${s.reading.status}" role="dialog" aria-modal="true">
           <div class="modal-head">
             <div class="modal-head-main">
-              <div class="modal-title">${esc(t('label.' + s.reading.key))}</div>
+              <h2 class="modal-title">${esc(t('label.' + s.reading.key))}</h2>
               <div class="modal-sub">${esc(org.name)} · ${esc(group.name)}</div>
             </div>
             <div class="modal-head-side">${conn(group.link)}<button class="modal-close" type="button" @click="close" aria-label="Close">✕</button></div>

@@ -264,6 +264,10 @@
 // A reasonable duplicate-cache size for a caller with no reason to choose one.
 #define PAMOJA_MESH_SEEN_DEFAULT_CAPACITY 64
 
+// The most bytes a custom alert's code carries across the boundary, terminator
+// included; a longer code is cut to fit.
+#define PAMOJA_ALERT_CODE_LEN 32
+
 // The number of bytes in a RIHS01 type hash digest.
 #define PAMOJA_TYPE_HASH_LEN 32
 
@@ -874,6 +878,16 @@ typedef enum {
   PamojaPinPolarity_ActiveLow = 1,
 } PamojaPinPolarity;
 
+// What a trigger reports when a reading changes its state, if anything.
+typedef enum {
+  // Nothing changed.
+  PamojaEdge_None = 0,
+  // The reading just crossed the line: the condition became true.
+  PamojaEdge_Set = 1,
+  // The reading just came back past the release band: the condition stopped holding.
+  PamojaEdge_Cleared = 2,
+} PamojaEdge;
+
 // Where a fix sits relative to a geofence, including the moment it crosses.
 typedef enum {
   // The fix is inside the fence and was inside before, or is the first fix inside.
@@ -948,6 +962,10 @@ typedef enum {
   PamojaControlKind_Surge = 2,
   // Report readings only, with no output and no alerts.
   PamojaControlKind_Monitor = 3,
+  // A kind the library does not ship, decided by code the host registers; its
+  // name and parameters come from [`pamoja_profile_control_kind`] and
+  // [`pamoja_profile_control_params_json`].
+  PamojaControlKind_Custom = 4,
 } PamojaControlKind;
 
 // Which threshold a reading crossed, if any.
@@ -960,6 +978,8 @@ typedef enum {
   PamojaAlertKind_RunningOut = 2,
   // A reading is changing faster than its safe rate.
   PamojaAlertKind_ChangingFast = 3,
+  // A condition a policy of the host's own raised, named by `code`.
+  PamojaAlertKind_Custom = 4,
 } PamojaAlertKind;
 
 // The ROS 2 subsystem a name belongs to, which fixes its DDS prefix.
@@ -1418,6 +1438,9 @@ typedef struct PamojaTransport PamojaTransport;
 
 // An opaque handle to a trend estimator.
 typedef struct PamojaTrend PamojaTrend;
+
+// An opaque handle to a threshold with hysteresis that reports its edges.
+typedef struct PamojaTrigger PamojaTrigger;
 
 // An opaque handle to a device slots and the rules applied to them.
 //
@@ -1879,6 +1902,10 @@ typedef struct {
   // The change since the previous sample, for
   // [`PamojaAlertKind::ChangingFast`].
   float rate;
+  // The condition's name, null-terminated, for [`PamojaAlertKind::Custom`].
+  char code[PAMOJA_ALERT_CODE_LEN];
+  // The measurement behind the condition, for [`PamojaAlertKind::Custom`].
+  float value;
 } PamojaReaction;
 
 // A RIHS01 type hash: the 32-byte digest that identifies a message definition.
@@ -3740,6 +3767,62 @@ void pamoja_smoother_free(PamojaSmoother *smoother);
 // `pid` must be a handle from [`pamoja_pid_new`] that has not already been
 // freed, or null. After this call it must not be used again.
 void pamoja_pid_free(PamojaPid *pid);
+
+// Releases a trigger handle.
+//
+// # Safety
+//
+// `trigger` must be a handle from [`pamoja_trigger_above`] or [`pamoja_trigger_below`]
+// that has not already been freed, or null.
+void pamoja_trigger_free(PamojaTrigger *trigger);
+
+// Creates a trigger that fires when a reading rises above the line and clears once it
+// has fallen below the line by the hysteresis.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_trigger_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaTrigger *pamoja_trigger_above(float threshold, float hysteresis);
+
+// Creates a trigger that fires when a reading falls below the line and clears once it
+// has risen above the line by the hysteresis.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_trigger_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaTrigger *pamoja_trigger_below(float threshold, float hysteresis);
+
+// Feeds a reading to a trigger and returns the edge it caused.
+//
+// # Returns
+//
+// [`PamojaEdge::Set`] or [`PamojaEdge::Cleared`] the moment the state changes, and
+// [`PamojaEdge::None`] while nothing changed or if `trigger` is null.
+//
+// # Safety
+//
+// `trigger` must be a live handle from a trigger constructor, or null.
+PamojaEdge pamoja_trigger_update(PamojaTrigger *trigger, float reading);
+
+// Reports whether a trigger's condition currently holds.
+//
+// # Returns
+//
+// `true` from the reading that set the trigger until the one that clears it, or
+// `false` if `trigger` is null.
+//
+// # Safety
+//
+// `trigger` must be a live handle from a trigger constructor, or null.
+bool pamoja_trigger_is_set(const PamojaTrigger *trigger);
 
 // Releases a thermostat handle.
 //
@@ -9264,6 +9347,43 @@ PamojaString *pamoja_profile_presentation_json(const PamojaProfile *profile);
 // of the call; either may be null.
 PamojaProfile *pamoja_profile_with_presentation_json(const PamojaProfile *profile,
                                                      const char *presentation);
+
+// Returns the control kind a profile names, as its manifest writes it.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+//
+// # Returns
+//
+// `setpoint`, `level`, `surge`, `monitor`, or a custom kind's own name, as a
+// null-terminated UTF-8 string the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if `profile` is null.
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, or null.
+PamojaString *pamoja_profile_control_kind(const PamojaProfile *profile);
+
+// Returns the parameters a custom control kind carries, as the JSON object of
+// every field the manifest wrote beside `kind`.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+//
+// # Returns
+//
+// A null-terminated UTF-8 string the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if the kind is a
+// built-in one or `profile` is null. The two cases are told apart by
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message), which is set
+// only for a null handle or parameters that cannot be serialized.
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, or null.
+PamojaString *pamoja_profile_control_params_json(const PamojaProfile *profile);
 
 // Returns the control policy a profile applies.
 //

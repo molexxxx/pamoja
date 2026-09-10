@@ -1,9 +1,9 @@
 import { store } from './store.js';
+import { apply as applySheet, followSystem } from './lib/theme.js';
 import { initI18n, t, registerLabels, registerMessages } from './lib/i18n.js';
 import { initNav, back } from './nav.js';
 import { connectFeed, connected, fleet } from './lib/feed.js';
 import { catalog, extendCatalog } from './lib/catalog.js';
-import { initParallax } from './lib/parallax.js';
 import { routes } from './routes.js';
 import './components/top-bar.js';
 import './components/dashboard-page.js';
@@ -26,7 +26,7 @@ function applyTheme(theme)
   if (!theme) return;
   const root = document.documentElement.style;
   const set = (name, value) => { if (value) root.setProperty(name, value); };
-  set('--cyan', theme.accent);
+  set('--key', theme.accent);
   set('--ok', theme.ok);
   set('--warn', theme.warn);
   set('--alarm', theme.alarm);
@@ -56,7 +56,8 @@ async function loadCatalog()
 
 await initI18n();
 await loadCatalog();
-document.documentElement.dataset.theme = store.state.theme;
+applySheet(store.state.theme);
+followSystem(() => store.state.theme);
 
 const router = $.router({ routes, mode: 'hash', fallback: 'dashboard-page' });
 connectFeed();
@@ -86,6 +87,5 @@ $.ready(() =>
   $.mountAll();
   mounted = true;
   reveal();
-  initParallax();
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') back(); });
 });

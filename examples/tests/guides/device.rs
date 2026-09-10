@@ -14,7 +14,7 @@ struct SoilProbe<A> {
     calibration: Calibration,
 }
 
-impl<A: Sensor<Reading = f32>> Sensor for SoilProbe<A> {
+impl<A: Sensor<Reading = f32> + Send> Sensor for SoilProbe<A> {
     type Reading = f32;
 
     async fn read(&mut self) -> Result<f32> {

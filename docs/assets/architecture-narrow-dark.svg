@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="1672" viewBox="0 0 360 1672" role="img" aria-labelledby="title">
+  <title id="title">How a call reaches a crate: the three bindings over the compiled engine, a Rust program straight to the crates, every capability by chapter, the crates that build on pamoja-core, and the three ways to install.</title>
+  <defs>
+    <marker id="head" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0.5 L7,4 L0,7.5" fill="none" stroke="#a8a69d" stroke-width="1.5"/>
+    </marker>
+  </defs>
+  <rect width="360" height="1672" fill="#191a17"/>
+  <rect x="0.5" y="0.5" width="359" height="1671" fill="none" stroke="rgba(234, 232, 225, 0.16)" stroke-width="1"/>
+  <rect x="16" y="16" width="328" height="74" rx="10" fill="rgba(13, 77, 70, 0.09)" stroke="rgba(13, 77, 70, 0.5)"/>
+  <text x="28" y="41" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="15" font-weight="600" fill="#eae8e1">TypeScript</text>
+  <text x="28" y="61" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="400" fill="#eae8e1">@pamoja/&lt;name&gt;</text>
+  <text x="28" y="78" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="12.5" font-weight="400" fill="#a8a69d">napi-rs</text>
+  <rect x="16" y="100" width="328" height="74" rx="10" fill="rgba(13, 77, 70, 0.09)" stroke="rgba(13, 77, 70, 0.5)"/>
+  <text x="28" y="125" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="15" font-weight="600" fill="#eae8e1">Python</text>
+  <text x="28" y="145" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="400" fill="#eae8e1">pamoja-&lt;name&gt;</text>
+  <text x="28" y="162" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="12.5" font-weight="400" fill="#a8a69d">PyO3</text>
+  <rect x="16" y="184" width="328" height="74" rx="10" fill="rgba(13, 77, 70, 0.09)" stroke="rgba(13, 77, 70, 0.5)"/>
+  <text x="28" y="209" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="15" font-weight="600" fill="#eae8e1">C#</text>
+  <text x="28" y="229" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="400" fill="#eae8e1">Pamoja.&lt;Name&gt;</text>
+  <text x="28" y="246" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="12.5" font-weight="400" fill="#a8a69d">cbindgen, P/Invoke</text>
+  <line x1="180" y1="258" x2="180" y2="302" stroke="#a8a69d" stroke-width="1.5" marker-end="url(#head)"/>
+  <rect x="16" y="302" width="328" height="88" rx="10" fill="rgba(94, 198, 176, 0.09)" stroke="rgba(234, 232, 225, 0.24)"/>
+  <text x="28" y="327" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="15" font-weight="600" fill="#eae8e1">Compiled engine</text>
+  <text x="28" y="348" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="400" fill="#eae8e1">pamoja-ffi over the C ABI</text>
+  <text x="28" y="366" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12.5" font-weight="400" fill="#a8a69d">@pamoja/native, pamoja-native, Pamoja.Native</text>
+  <text x="28" y="382" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="12.5" font-weight="400" fill="#a8a69d">A package narrows the API, not the download.</text>
+  <line x1="180" y1="390" x2="180" y2="434" stroke="#a8a69d" stroke-width="1.5" marker-end="url(#head)"/>
+  <rect x="16" y="434" width="328" height="1164" rx="12" fill="rgba(234, 232, 225, 0.035)" stroke="rgba(234, 232, 225, 0.16)"/>
+  <text x="30" y="457" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#a8a69d" letter-spacing="1.2">CAPABILITIES BY CHAPTER</text>
+  <text x="30" y="477" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12.5" font-weight="500" fill="#5ec6b0">Rust: cargo add pamoja-&lt;name&gt;</text>
+  <rect x="30" y="490" width="300" height="70" rx="10" fill="#22231f" stroke="rgba(234, 232, 225, 0.16)"/>
+  <text x="44" y="512" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#eae8e1">Identity</text>
+  <text x="44" y="532" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">security</text>
+  <rect x="30" y="574" width="300" height="70" rx="10" fill="#22231f" stroke="rgba(234, 232, 225, 0.16)"/>
+  <text x="44" y="596" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#eae8e1">Codecs</text>
+  <text x="44" y="616" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">codec</text>
+  <rect x="30" y="658" width="300" height="70" rx="10" fill="#22231f" stroke="rgba(234, 232, 225, 0.16)"/>
+  <text x="44" y="680" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#eae8e1">Helpers</text>
+  <text x="44" y="700" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#eae8e1">kit</text>
+  <rect x="30" y="742" width="300" height="106" rx="10" fill="#22231f" stroke="rgba(234, 232, 225, 0.16)"/>
+  <text x="44" y="764" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#eae8e1">Field I/O</text>
+  <text x="44" y="784" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#eae8e1">serial</text>
+  <text x="180" y="784" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#eae8e1">modbus</text>
+  <text x="44" y="802" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#eae8e1">can</text>
+  <text x="180" y="802" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">gpio</text>
+  <text x="44" y="820" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#eae8e1">hal</text>
+  <rect x="30" y="862" width="300" height="70" rx="10" fill="#22231f" stroke="rgba(234, 232, 225, 0.16)"/>
+  <text x="44" y="884" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#eae8e1">Sensing and actuation</text>
+  <text x="44" y="904" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">sensors</text>
+  <text x="180" y="904" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">actuators</text>
+  <rect x="30" y="946" width="300" height="88" rx="10" fill="#22231f" stroke="rgba(234, 232, 225, 0.16)"/>
+  <text x="44" y="968" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#eae8e1">Radio and reach</text>
+  <text x="44" y="988" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#eae8e1">lora</text>
+  <text x="180" y="988" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#eae8e1">lorawan</text>
+  <text x="44" y="1006" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#eae8e1">mesh</text>
+  <text x="180" y="1006" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#eae8e1">routing</text>
+  <rect x="30" y="1048" width="300" height="70" rx="10" fill="#22231f" stroke="rgba(234, 232, 225, 0.16)"/>
+  <text x="44" y="1070" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#eae8e1">MAVLink</text>
+  <text x="44" y="1090" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">mavlink</text>
+  <rect x="30" y="1132" width="300" height="106" rx="10" fill="#22231f" stroke="rgba(234, 232, 225, 0.16)"/>
+  <text x="44" y="1154" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#eae8e1">Trust and operation</text>
+  <text x="44" y="1174" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">audit</text>
+  <text x="180" y="1174" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#eae8e1">session</text>
+  <text x="44" y="1192" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">update</text>
+  <text x="180" y="1192" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#eae8e1">power</text>
+  <text x="44" y="1210" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#eae8e1">telemetry</text>
+  <rect x="30" y="1252" width="300" height="124" rx="10" fill="#22231f" stroke="rgba(234, 232, 225, 0.16)"/>
+  <text x="44" y="1274" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#eae8e1">Transports and testing</text>
+  <text x="44" y="1294" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">mqtt</text>
+  <text x="180" y="1294" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">coap</text>
+  <text x="44" y="1312" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">loopback</text>
+  <text x="180" y="1312" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">sync</text>
+  <text x="44" y="1330" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">ladder</text>
+  <text x="180" y="1330" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">bus</text>
+  <text x="44" y="1348" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">sim</text>
+  <rect x="30" y="1390" width="300" height="88" rx="10" fill="#22231f" stroke="rgba(234, 232, 225, 0.16)"/>
+  <text x="44" y="1412" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#eae8e1">Profiles and robotics</text>
+  <text x="44" y="1432" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">profile</text>
+  <text x="180" y="1432" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">ros2</text>
+  <text x="44" y="1450" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#5ec6b0">zenoh</text>
+  <rect x="30" y="1492" width="300" height="92" rx="10" fill="rgba(94, 198, 176, 0.08)" stroke="rgba(94, 198, 176, 0.45)"/>
+  <text x="44" y="1517" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="15" font-weight="600" fill="#eae8e1">pamoja-core</text>
+  <text x="44" y="1538" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="400" fill="#eae8e1">Transport, Device, Sensor, Actuator, Store, and the event bus</text>
+  <text x="44" y="1555" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="12.5" font-weight="400" fill="#a8a69d">no_std, so it runs on a microcontroller</text>
+  <text x="44" y="1572" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="12.5" font-weight="400" fill="#5ec6b0">The names set in green build on it; the rest are pure logic with no dependency.</text>
+  <text x="16" y="1624" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="12.5" font-weight="400" fill="#a8a69d">A chapter's package brings its capabilities with it. Everything</text>
+  <text x="16" y="1640" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="12.5" font-weight="400" fill="#a8a69d">at once: npm install pamoja, pip install pamoja,</text>
+  <text x="16" y="1656" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="12.5" font-weight="400" fill="#a8a69d">dotnet add package Pamoja, or cargo add pamoja.</text>
+</svg>

@@ -1,6 +1,6 @@
 import { store } from '../store.js';
 import { currentFleet } from '../lib/edits.js';
-import { open, back } from '../nav.js';
+import { openOverlay } from '../nav.js';
 import { sensorDetailBody, stickLog } from '../lib/detail.js';
 import { t, nf } from '../lib/i18n.js';
 import { catalog } from '../lib/catalog.js';
@@ -8,37 +8,23 @@ import { LINK_NAMES, LINK_COLORS, realSensors, esc } from '../lib/viz/index.js';
 
 const SR = 60;
 
+/**
+ * Whether the viewport is phone-width, where the two views take different shapes.
+ *
+ * @returns {boolean} true on a narrow screen.
+ */
+function narrow()
+{
+  return typeof matchMedia === 'function' && matchMedia('(max-width: 700px)').matches;
+}
+
 function dims(map)
 {
-  const phone = !map && typeof matchMedia === 'function' && matchMedia('(max-width: 560px)').matches;
-  return phone ? { W: 680, H: 920 } : { W: 1040, H: 660 };
-}
-
-/**
- * Closes the network overlay one layer at a time: sensor panel, then inspect, then map.
- *
- * @returns {void}
- */
-function closeNet()
-{
-  const st = store.state;
-  if (st.netSensor) { store.dispatch('clearNetSensor'); open(() => { }, closeNet); return; }
-  if (st.netInspect) { store.dispatch('clearNetInspect'); open(() => { }, closeNet); return; }
-  store.dispatch('closeNetwork');
-}
-
-/**
- * Opens the network overlay as a single substate (see closeNet for the unwind logic).
- *
- * @returns {void}
- */
-export function openNetworkOverlay()
-{
-  open(() => store.dispatch('openNetwork'), closeNet);
+  return !map && narrow() ? { W: 680, H: 920 } : { W: 1040, H: 660 };
 }
 
 $.component('network-view', {
-  state: { tab: 'topology', tick: 0 },
+  state: { tick: 0 },
 
   /** Initializes pan/zoom state, subscriptions, and document pointer listeners. */
   mounted()
@@ -63,20 +49,57 @@ $.component('network-view', {
   },
 
   /** Writes the current pan/zoom onto the scene group. */
-  applyTransform() { const g = this._el && this._el.querySelector('.net-scene'); if (g) g.setAttribute('transform', `translate(${this._px} ${this._py}) scale(${this._z})`); },
+  /**
+   * Applies the current pan and zoom. The scale is taken about the drawing's own center, so
+   * zooming holds what you are looking at instead of pulling it toward a corner.
+   *
+   * @returns {void}
+   */
+  applyTransform()
+  {
+    const g = this._el && this._el.querySelector('.net-scene');
+    if (!g) return;
+    const { W, H } = dims(this.tab() === 'map');
+    const z = this._z;
+    const x = this._px + (W / 2) * (1 - z);
+    const y = this._py + (H / 2) * (1 - z);
+    g.setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)}) scale(${z})`);
+  },
   /** Zooms in one step. */
-  zoomIn() { this._z = $.clamp(this._z * 1.2, 0.5, 3); this.applyTransform(); },
+  zoomIn() { this._z = $.clamp(this._z * 1.2, 0.25, 3); this.applyTransform(); },
   /** Zooms out one step. */
-  zoomOut() { this._z = $.clamp(this._z / 1.2, 0.5, 3); this.applyTransform(); },
+  zoomOut() { this._z = $.clamp(this._z / 1.2, 0.25, 3); this.applyTransform(); },
   /** Resets pan and zoom to the default view. */
-  resetView() { this._z = 1; this._px = 0; this._py = 0; this.applyTransform(); },
+  /**
+   * Fits the whole drawing in the stage. The map fills its stage and crops, so on a narrow
+   * screen part of it starts out of view; this brings all of it back, at any size.
+   *
+   * @returns {void}
+   */
+  resetView()
+  {
+    const svg = this._el && this._el.querySelector('.net-svg');
+    const { W, H } = dims(this.tab() === 'map');
+    let z = 1;
+    if (svg)
+    {
+      const box = svg.getBoundingClientRect();
+      if (box.width && box.height)
+      {
+        const fill = Math.max(box.width / W, box.height / H);
+        const fit = Math.min(box.width / W, box.height / H);
+        z = Math.min(1, fit / fill);
+      }
+    }
+    this._z = z; this._px = 0; this._py = 0; this.applyTransform();
+  },
   /**
    * Zooms toward the wheel direction.
    *
    * @param {WheelEvent} e - the wheel event.
    * @returns {void}
    */
-  onWheel(e) { e.preventDefault(); this._z = $.clamp(this._z * (e.deltaY < 0 ? 1.12 : 0.89), 0.5, 3); this.applyTransform(); },
+  onWheel(e) { e.preventDefault(); this._z = $.clamp(this._z * (e.deltaY < 0 ? 1.12 : 0.89), 0.25, 3); this.applyTransform(); },
   /**
    * Begins a pan drag, unless the pointer landed on a node or leaf.
    *
@@ -85,22 +108,12 @@ $.component('network-view', {
    */
   onDown(e) { if (e.button !== 0) return; if (e.target.closest('[data-sid]') || e.target.closest('[data-gid]')) return; this._drag = { x: e.clientX, y: e.clientY, px: this._px, py: this._py }; },
 
-  /** Closes the overlay and unwinds one history entry. */
-  close() { store.dispatch('closeNetwork'); back(); },
   /**
-   * Closes the overlay when the scrim itself is clicked.
+   * Reads which view the route addresses, so a link carries the map as well as the page.
    *
-   * @param {MouseEvent} e - the click event.
-   * @returns {void}
+   * @returns {string} `'map'` or `'topology'`.
    */
-  onOverlay(e) { if (e.target.classList.contains('net-overlay')) this.close(); },
-  /**
-   * Switches between the topology and map tabs, resetting the view.
-   *
-   * @param {string} tab - the tab to show, `'topology'` or `'map'`.
-   * @returns {void}
-   */
-  setTab(tab) { this.state.tab = tab; this.resetView(); },
+  tab() { return (this.props.$params && this.props.$params.tab) === 'map' ? 'map' : 'topology'; },
 
   /**
    * Docks the sensor panel for the clicked leaf.
@@ -193,18 +206,21 @@ $.component('network-view', {
           nodes += `<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="6" class="net-leaf" data-sid="${p.g.id}/${s.id}" data-status="${s.reading.status}" @click="onLeaf"><title>${esc(t('label.' + s.reading.key))}</title></circle>`;
         });
       }
-      const below = Math.sin(p.ang) >= 0;
+      // On the ring a label falls outward by angle; on the map the positions are real, so
+      // it falls away from the gateway instead, which is what stops the labels colliding
+      // where several nodes sit close to the hub.
+      const below = map ? p.y >= hub.y : Math.sin(p.ang) >= 0;
       nodes += `<g class="net-node ${store.state.netInspect === p.g.id ? 'sel' : ''}" data-status="${p.g.status}" data-gid="${p.g.id}" style="--lc:${color}" @click="onNode">
         <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="13" class="net-gn"/>
         <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="13" class="net-gn-ring"/>
         ${p.g.status !== 'ok' ? `<circle cx="${(p.x + 11).toFixed(1)}" cy="${(p.y - 11).toFixed(1)}" r="4.5" class="net-badge" data-status="${p.g.status}"/>` : ''}
       </g>
-      <text class="net-label" x="${p.x.toFixed(1)}" y="${(p.y + (below ? 34 : -26)).toFixed(1)}" text-anchor="middle">${esc(p.g.name)}</text>
-      <text class="net-sub" x="${p.x.toFixed(1)}" y="${(p.y + (below ? 47 : -13)).toFixed(1)}" text-anchor="middle">${esc(owner[p.g.id] || '')}${online ? '' : ' · ' + t('ui.offline')}</text>`;
+      <text class="net-label" x="${p.x.toFixed(1)}" y="${(p.y + (below ? 34 : -30)).toFixed(1)}" text-anchor="middle">${esc(p.g.name)}</text>
+      <text class="net-sub" x="${p.x.toFixed(1)}" y="${(p.y + (below ? 50 : -14)).toFixed(1)}" text-anchor="middle">${esc(owner[p.g.id] || '')}${online ? '' : ' · ' + t('ui.offline')}</text>`;
     });
     return `<g class="net-scene">${backdrop}${edges}${packets}${nodes}
       <g class="net-hub"><circle cx="${hub.x.toFixed(1)}" cy="${hub.y.toFixed(1)}" r="26" class="net-hub-glow"/><circle cx="${hub.x.toFixed(1)}" cy="${hub.y.toFixed(1)}" r="18" class="net-hub-core"/><text x="${hub.x.toFixed(1)}" y="${(hub.y + 4).toFixed(1)}" text-anchor="middle" class="net-hub-t">⌂</text></g>
-      <text x="${hub.x.toFixed(1)}" y="${(hub.y + 44).toFixed(1)}" text-anchor="middle" class="net-label">${t('ui.gateway')}</text></g>`;
+      <text x="${hub.x.toFixed(1)}" y="${(hub.y - 32).toFixed(1)}" text-anchor="middle" class="net-label">${t('ui.gateway')}</text></g>`;
   },
 
   /**
@@ -239,13 +255,13 @@ $.component('network-view', {
       <path class="net-contour" d="M790 320 q70 48 36 138 q-50 78 -150 74"/>`;
     const roads = `<g class="net-roads">${ends.map((end) => road(hub, end)).join('')}</g>`;
 
-    const compass = `<g class="net-compass" transform="translate(${W - 70} 60)"><circle r="22" class="net-comp-ring"/><path d="M0 -16 L5 4 L0 0 L-5 4 Z" class="net-comp-n"/><text y="-24" text-anchor="middle" class="net-comp-t">N</text></g>`;
-    const scale = `<g class="net-scale" transform="translate(70 ${H - 40})"><line x1="0" y1="0" x2="120" y2="0"/><line x1="0" y1="-4" x2="0" y2="4"/><line x1="120" y1="-4" x2="120" y2="4"/><text x="60" y="-8" text-anchor="middle">2 km</text></g>`;
+    const compass = `<g class="net-compass" transform="translate(${W - 88} 120)"><circle r="22" class="net-comp-ring"/><path d="M0 -16 L5 4 L0 0 L-5 4 Z" class="net-comp-n"/><text y="-24" text-anchor="middle" class="net-comp-t">N</text></g>`;
+    const scale = `<g class="net-scale" transform="translate(88 ${H - 108})"><line x1="0" y1="0" x2="120" y2="0"/><line x1="0" y1="-4" x2="0" y2="4"/><line x1="120" y1="-4" x2="120" y2="4"/><text x="60" y="-8" text-anchor="middle">2 km</text></g>`;
     const places = `
-      <text class="net-place" x="200" y="118">Nkuene</text>
-      <text class="net-place" x="840" y="470">Kithoka ridge</text>
-      <text class="net-place net-river-t" x="246" y="180">Kazita river</text>
-      <text class="net-place net-river-t" x="120" y="420">Marima lake</text>`;
+      <text class="net-place" x="200" y="118">North uplands</text>
+      <text class="net-place" x="840" y="470">East ridge</text>
+      <text class="net-place net-river-t" x="246" y="180">River</text>
+      <text class="net-place net-river-t" x="120" y="420">Lake</text>`;
     return `<g class="net-bg">${grid}${water}${river}${forest}${fields}${contours}${roads}${compass}${scale}${places}</g>`;
   },
 
@@ -326,7 +342,7 @@ $.component('network-view', {
   {
     const el = e.target.closest('[data-gid]'); if (!el) return;
     const gid = el.dataset.gid;
-    open(() => store.dispatch('setGroupView', gid), () => store.dispatch('clearGroupView'));
+    openOverlay(() => store.dispatch('setGroupView', gid), () => store.dispatch('clearGroupView'));
   },
 
   /**
@@ -336,39 +352,36 @@ $.component('network-view', {
    */
   render()
   {
-    if (!store.state.network) return '<div hidden></div>';
     const f = currentFleet();
-    if (!f) return '<div hidden></div>';
-    const map = this.state.tab === 'map';
+    if (!f) return '<div class="shell"></div>';
+    const map = this.tab() === 'map';
     const { W, H } = dims(map);
     return `
-      <div class="net-overlay" @click="onOverlay">
-        <div class="net-panel">
-          <div class="net-head">
-            <div>
-              <div class="net-title">${t('ui.network')}</div>
-              <div class="net-subtitle">${nf(this.groupsOf(f).length)} ${t('ui.groups')} · ${t('ui.networkHint')}</div>
-            </div>
-            <div class="net-tabs">
-              <button class="net-tab ${!map ? 'on' : ''}" type="button" @click="setTab('topology')">${t('ui.topology')}</button>
-              <button class="net-tab ${map ? 'on' : ''}" type="button" @click="setTab('map')">${t('ui.map')}</button>
-            </div>
-            <button class="modal-close" type="button" @click="close" aria-label="${esc(t('ui.cancel'))}">✕</button>
+      <div class="shell net-page">
+        <header class="net-head">
+          <div class="net-head-main">
+            <a class="net-back" href="#/" z-link="/">${esc(t('ui.backToFleet'))}</a>
+            <h1 class="net-title">${t('ui.network')}</h1>
+            <p class="net-subtitle">${nf(this.groupsOf(f).length)} ${t('ui.groups')} · ${t('ui.networkHint')}</p>
           </div>
-          <div class="net-stage">
-            <svg class="net-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" @wheel="onWheel" @pointerdown="onDown">
-              ${this.scene(f, map)}
-            </svg>
-            <div class="net-zoom">
-              <button type="button" @click="zoomIn" aria-label="zoom in">+</button>
-              <button type="button" @click="zoomOut" aria-label="zoom out">−</button>
-              <button type="button" @click="resetView" aria-label="reset">⟲</button>
-            </div>
-            ${this.inspectPanel(f)}
-            ${this.sensorPanel(f)}
+          <nav class="net-tabs" aria-label="${esc(t('ui.network'))}">
+            <a class="net-tab ${!map ? 'on' : ''}" href="#/network" z-link="/network" aria-current="${!map}">${t('ui.topology')}</a>
+            <a class="net-tab ${map ? 'on' : ''}" href="#/network/map" z-link="/network/map" aria-current="${map}">${t('ui.map')}</a>
+          </nav>
+        </header>
+        <div class="net-stage">
+          <svg class="net-svg${map ? ' fill' : ''}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="${map ? 'xMidYMid slice' : 'xMidYMid meet'}" role="img" aria-label="${esc(t('ui.networkHint'))}" @wheel="onWheel" @pointerdown="onDown">
+            ${this.scene(f, map)}
+          </svg>
+          <div class="net-zoom">
+            <button type="button" @click="zoomIn" aria-label="${esc(t('ui.zoomIn'))}">+</button>
+            <button type="button" @click="zoomOut" aria-label="${esc(t('ui.zoomOut'))}">\u2212</button>
+            <button type="button" @click="resetView" aria-label="${esc(t('ui.zoomReset'))}">\u27f2</button>
           </div>
-          <div class="net-legend">${Object.keys(LINK_NAMES).map((k) => `<span class="net-leg"><i style="background:${LINK_COLORS[k]}"></i>${LINK_NAMES[k]}</span>`).join('')}</div>
+          ${this.inspectPanel(f)}
+          ${this.sensorPanel(f)}
         </div>
+        <p class="net-legend">${Object.keys(LINK_NAMES).map((k) => `<span class="net-leg"><i style="background:${LINK_COLORS[k]}"></i>${LINK_NAMES[k]}</span>`).join('')}</p>
       </div>`;
   },
 });
