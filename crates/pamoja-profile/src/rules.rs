@@ -749,13 +749,15 @@ mod tests {
         watcher.connect().await.unwrap();
         watcher.subscribe("garden/bed-1/valve").await.unwrap();
 
+        // The engine's link carries one topic no rule watches, subscribed before the
+        // engine takes it over.
+        let mut link = LoopbackTransport::new(broker);
+        link.connect().await.unwrap();
+        link.subscribe("garden/bed-1/note").await.unwrap();
+
         let valve = Valve::default();
-        let mut engine = RuleEngine::new(
-            Rules::from_json(FILE).unwrap(),
-            LoopbackTransport::new(broker),
-            JsonCodec,
-        )
-        .with_actuator("bed-valve", valve.clone());
+        let mut engine = RuleEngine::new(Rules::from_json(FILE).unwrap(), link, JsonCodec)
+            .with_actuator("bed-valve", valve.clone());
         engine.connect().await.unwrap();
         assert_eq!(engine.rules().count(), 1);
         assert_eq!(engine.is_set("water-when-dry"), Some(false));
