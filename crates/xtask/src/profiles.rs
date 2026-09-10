@@ -636,7 +636,7 @@ fn presentation_sentence(presentation: &Presentation) -> Option<String> {
             let mut text = format!(
                 "{} as a {} in {}",
                 escape(&element.label),
-                viz_name(element),
+                element.viz.name(),
                 escape(&element.unit)
             );
             if let Some([low, high]) = element.band {
@@ -653,14 +653,6 @@ fn presentation_sentence(presentation: &Presentation) -> Option<String> {
         })
         .collect();
     Some(format!("Draws {}.", elements.join("; ")))
-}
-
-// The graphic's manifest name, from the same serializer the manifest uses.
-fn viz_name(element: &ElementSpec) -> String {
-    serde_json::to_value(element.viz)
-        .ok()
-        .and_then(|value| value.as_str().map(str::to_owned))
-        .unwrap_or_default()
 }
 
 fn number(value: f32) -> String {

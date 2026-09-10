@@ -10,7 +10,7 @@
 use serde::{Deserialize, Serialize};
 
 use pamoja_power::PowerMode;
-use pamoja_profile::Viz;
+use pamoja_profile::{ElementSpec, Viz};
 use pamoja_telemetry::{Event, Level};
 
 /// The health of a sensor, group, or the whole fleet, the basis of the glance-first UI.
@@ -133,6 +133,54 @@ impl Reading {
             label: None,
             stat: false,
         }
+    }
+
+    /// Creates a reading from an element a profile declares.
+    ///
+    /// A profile says how a reading should be drawn: its key, unit, graphic, safe band,
+    /// and the value or discrete state it starts in. This is that declaration turned
+    /// into the first reading a gateway reports, so a fleet can be stood up straight
+    /// from the profiles it runs. Later samples replace the value and keep the rest.
+    ///
+    /// # Arguments
+    ///
+    /// * `element` - the element the profile declares.
+    ///
+    /// # Returns
+    ///
+    /// A [`Status::Ok`] reading carrying the element's key, unit, graphic, band, and
+    /// starting value or state.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_dashboard::{ElementSpec, Reading, Viz};
+    ///
+    /// let element = ElementSpec::new("store_humidity", "percent", "Store humidity", Viz::Droplet)
+    ///     .with_band(30.0, 65.0)
+    ///     .with_value(48.0);
+    /// let reading = Reading::from_element(&element);
+    /// assert_eq!(reading.key, "store_humidity");
+    /// assert_eq!(reading.band, Some([30.0, 65.0]));
+    /// assert_eq!(reading.viz.as_deref(), Some("droplet"));
+    /// ```
+    pub fn from_element(element: &ElementSpec) -> Self {
+        let mut reading = Reading::new(
+            &element.key,
+            element.value.unwrap_or_default(),
+            &element.unit,
+        )
+        .with_viz(element.viz);
+        if let Some([low, high]) = element.band {
+            reading = reading.with_band(low, high);
+        }
+        if let Some(state) = &element.state {
+            reading = reading.with_state(state);
+        }
+        if element.stat {
+            reading = reading.as_stat();
+        }
+        reading
     }
 
     /// Sets the reading's health.

@@ -79,6 +79,65 @@ impl Viz {
         Viz::Count,
     ];
 
+    /// Returns the graphic as a manifest writes it.
+    ///
+    /// [`kind`](Viz::kind) is the token the dashboard renderer dispatches on, which for
+    /// three graphics is not the word a manifest uses. This is the word.
+    ///
+    /// # Returns
+    ///
+    /// The manifest name, such as `"thermometer"` or `"switch"`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::Viz;
+    ///
+    /// assert_eq!(Viz::Thermometer.name(), "thermometer");
+    /// assert_eq!(Viz::Thermometer.kind(), "therm");
+    /// ```
+    pub fn name(self) -> &'static str {
+        match self {
+            Viz::Spark => "spark",
+            Viz::Gauge => "gauge",
+            Viz::Dial => "dial",
+            Viz::Bar => "bar",
+            Viz::Thermometer => "thermometer",
+            Viz::Droplet => "droplet",
+            Viz::Battery => "battery",
+            Viz::Wind => "wind",
+            Viz::Sun => "sun",
+            Viz::Wave => "wave",
+            Viz::Switch => "switch",
+            Viz::Valve => "valve",
+            Viz::Chain => "chain",
+            Viz::Mesh => "mesh",
+            Viz::Count => "count",
+        }
+    }
+
+    /// Returns the graphic a manifest name refers to.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - the manifest name, such as `"droplet"`.
+    ///
+    /// # Returns
+    ///
+    /// The graphic, or `None` for a name no graphic has.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::Viz;
+    ///
+    /// assert_eq!(Viz::from_name("droplet"), Some(Viz::Droplet));
+    /// assert_eq!(Viz::from_name("hologram"), None);
+    /// ```
+    pub fn from_name(name: &str) -> Option<Viz> {
+        Viz::ALL.into_iter().find(|viz| viz.name() == name)
+    }
+
     /// Returns the dashboard visualization kind this graphic renders as.
     ///
     /// The dashboard's renderer dispatches on a small set of internal kind strings; a
@@ -550,6 +609,15 @@ impl Presentation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_graphic_name_is_the_word_the_manifest_carries() {
+        for viz in Viz::ALL {
+            let written = serde_json::to_value(viz).expect("a graphic serializes");
+            assert_eq!(written.as_str(), Some(viz.name()), "{viz:?}");
+            assert_eq!(Viz::from_name(viz.name()), Some(viz));
+        }
+    }
 
     #[test]
     fn every_viz_maps_to_its_documented_render_kind() {

@@ -222,6 +222,58 @@ impl<S, A, T, C, P> Node<S, A, T, C, P> {
         &self.policy
     }
 
+    /// The sensor the node reads, so a driver can be reconfigured between ticks.
+    ///
+    /// # Returns
+    ///
+    /// The sensor.
+    pub fn sensor_mut(&mut self) -> &mut S {
+        &mut self.sensor
+    }
+
+    /// The actuator the node drives, so its own state can be read or set directly.
+    ///
+    /// The control loop switches this on every [`tick`](Node::tick). Reaching it is for
+    /// what the loop does not do: reading back what a recording output captured, or
+    /// driving it by hand for a manual override.
+    ///
+    /// # Returns
+    ///
+    /// The actuator.
+    pub fn actuator_mut(&mut self) -> &mut A {
+        &mut self.actuator
+    }
+
+    /// The link readings are published over.
+    ///
+    /// A node on a link that comes and goes usually publishes through a
+    /// [`TransportLadder`](https://docs.rs/pamoja-ladder), which buffers a reading no
+    /// rung would take. Flushing that buffer once the link is back is the caller's, so
+    /// this is how the caller reaches it.
+    ///
+    /// # Returns
+    ///
+    /// The transport.
+    pub fn transport_mut(&mut self) -> &mut T {
+        &mut self.transport
+    }
+
+    /// Takes the node apart into the pieces it was assembled from.
+    ///
+    /// # Returns
+    ///
+    /// The profile, the policy, the sensor, the actuator, the transport, and the codec.
+    pub fn into_parts(self) -> (Profile, P, S, A, T, C) {
+        (
+            self.profile,
+            self.policy,
+            self.sensor,
+            self.actuator,
+            self.transport,
+            self.codec,
+        )
+    }
+
     /// Returns the power mode and wait interval for the next cycle.
     ///
     /// This assembles the profile's [`PowerSchedule`](crate::PowerSchedule) into a
