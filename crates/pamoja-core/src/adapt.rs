@@ -88,8 +88,8 @@ impl<S, F> Map<S, F> {
 
 impl<S, F, T> Sensor for Map<S, F>
 where
-    S: Sensor,
-    F: FnMut(S::Reading) -> T,
+    S: Sensor + Send,
+    F: FnMut(S::Reading) -> T + Send,
 {
     type Reading = T;
 
@@ -184,8 +184,9 @@ impl<A, F, C> MapCommand<A, F, C> {
 
 impl<A, F, C> Actuator for MapCommand<A, F, C>
 where
-    A: Actuator,
-    F: FnMut(C) -> A::Command,
+    A: Actuator + Send,
+    F: FnMut(C) -> A::Command + Send,
+    C: Send,
 {
     type Command = C;
 

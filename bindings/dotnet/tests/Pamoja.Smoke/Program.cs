@@ -521,6 +521,12 @@ static void Helpers()
     Assert(fridge.Update(9.5f), "a warm fridge switches the compressor on");
     Assert(fridge.IsOn, "the thermostat reports its state");
 
+    using var dry = Trigger.Below(30.0f, 5.0f);
+    Assert(dry.Update(42.0f) is null, "above the line nothing fires");
+    Assert(dry.Update(28.0f) == Edge.Set, "crossing it fires once");
+    Assert(dry.IsSet, "and the trigger reports the condition holds");
+    Assert(dry.Update(36.0f) == Edge.Cleared, "coming back past the band clears it");
+
     using var tank = new Depletion(10.0f);
     Assert(tank.Update(100.0f) is null, "the first reading sets no rate");
     Assert(tank.Update(90.0f) > 0, "a falling level projects a countdown");
@@ -820,6 +826,29 @@ static void ProfilesAndRobotics()
     {
     }
 
+    // A kind the library never shipped loads with its parameters beside it.
+    using var orchard = Profile.FromJson("""
+        {
+            "name": "orchard-frost",
+            "topic": "orchard/air/temperature",
+            "control": { "kind": "frost_guard", "warn_below": 2.0, "latching": true, "zone": "north" },
+            "power": { "active_secs": 60, "saver_secs": 300, "critical_secs": 900 }
+        }
+        """);
+    ControlPolicy custom = orchard.Control;
+    Assert(custom.Kind == ControlKind.Custom, "an unknown kind is a custom policy");
+    Assert(custom.CustomKind == "frost_guard", "named as the manifest names it");
+    Assert(custom.Params?["warn_below"] is double warnBelow && Math.Abs(warnBelow - 2.0) < 1e-9, "with its numbers");
+    Assert(custom.Params?["latching"] is true, "its flags");
+    Assert(custom.Params?["zone"] is "north", "and its text");
+    Assert(fridge.Control.Params is null, "a built-in kind carries no parameter object");
+    using (Controller inert = orchard.Controller())
+    {
+        Assert(inert.Evaluate(-4.0f).Actuator is null, "the built-in controller for a custom kind observes only");
+    }
+
+    Assert(orchard.ToJson().Contains("\"kind\": \"frost_guard\""), "and it writes back under its own name");
+
     Assert(Ros2.IsValidName("/robot1/camera_left/image_raw"), "a legal ROS 2 name is accepted");
     Assert(!Ros2.IsValidName("/2foo"), "a token may not start with a digit");
     Assert(Ros2.IsFullyQualified("/chatter"), "a leading slash is fully qualified");
@@ -892,6 +921,15 @@ static void ConformProfile(JsonElement vector, double tolerance)
         AssertReactions(control, coldChain.GetProperty("reactions"), tolerance);
     }
 
+    JsonElement customVector = vector.GetProperty("custom");
+    using var orchard = Profile.FromJson(customVector.GetProperty("manifest").GetString()!);
+    Assert(orchard.Name == customVector.GetProperty("name").GetString(), "a custom kind's profile name");
+    AssertControl(orchard.Control, customVector.GetProperty("control"), tolerance);
+    using (Controller inert = orchard.Controller())
+    {
+        AssertReactions(inert, customVector.GetProperty("reactions"), tolerance);
+    }
+
     JsonElement draining = vector.GetProperty("draining");
     using var well = Profile.WellLevel();
     Assert(well.Name == draining.GetProperty("name").GetString(), "the preset name");
@@ -960,6 +998,16 @@ static void AssertReactions(Controller control, JsonElement reactions, double to
                     tolerance,
                     "the rate of change");
                 break;
+            case "Custom":
+                Assert(
+                    reaction.Alert!.Value.Code == alert.GetProperty("code").GetString(),
+                    $"the custom code at {reading}");
+                Close(
+                    reaction.Alert!.Value.Value ?? 0f,
+                    (float)alert.GetProperty("value").GetDouble(),
+                    tolerance,
+                    "the custom value");
+                break;
         }
     }
 }
@@ -990,6 +1038,26 @@ static void AssertControl(ControlPolicy policy, JsonElement want, double toleran
             Assert(policy.Rising == want.GetProperty("rising").GetBoolean(), "the direction");
             Close(policy.Limit ?? 0f, (float)want.GetProperty("limit").GetDouble(), tolerance,
                 "the limit");
+            break;
+        case "Custom":
+            Assert(policy.CustomKind == want.GetProperty("customKind").GetString(), "the custom kind");
+            JsonElement wantParams = want.GetProperty("params");
+            Assert(policy.Params is not null, "a custom kind carries its parameters");
+            foreach (JsonProperty parameter in wantParams.EnumerateObject())
+            {
+                object got = policy.Params![parameter.Name];
+                bool same = parameter.Value.ValueKind switch
+                {
+                    JsonValueKind.Number => got is double number
+                        && Math.Abs(number - parameter.Value.GetDouble()) < tolerance,
+                    JsonValueKind.True => got is true,
+                    JsonValueKind.False => got is false,
+                    _ => got is string text && text == parameter.Value.GetString(),
+                };
+                Assert(same, $"the parameter {parameter.Name}");
+            }
+
+            Assert(policy.Params!.Count == wantParams.EnumerateObject().Count(), "and no other");
             break;
     }
 }
@@ -1281,6 +1349,19 @@ static void ConformHelpers(JsonElement vectors, double tolerance)
     for (int i = 0; i < readings.Length; i++)
     {
         Assert(thermostat.Update(readings[i]) == states[i], "thermostat output");
+    }
+
+    vector = vectors.GetProperty("trigger");
+    using var trigger = Trigger.Below(
+        vector.GetProperty("threshold").GetSingle(),
+        vector.GetProperty("hysteresis").GetSingle());
+    float[] crossings = Floats(vector, "readings");
+    JsonElement[] edges = vector.GetProperty("outputs").EnumerateArray().ToArray();
+    for (int i = 0; i < crossings.Length; i++)
+    {
+        Edge? edge = trigger.Update(crossings[i]);
+        string? want = edges[i].ValueKind == JsonValueKind.Null ? null : edges[i].GetString();
+        Assert(edge?.ToString().ToLowerInvariant() == want, "trigger edge");
     }
 
     vector = vectors.GetProperty("depletion");

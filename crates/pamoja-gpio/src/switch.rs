@@ -140,7 +140,7 @@ impl<P: OutputPin> Switch<P> {
 
 impl<P> Actuator for Switch<P>
 where
-    P: OutputPin,
+    P: OutputPin + Send,
     P::Error: core::fmt::Debug,
 {
     type Command = bool;
@@ -262,7 +262,7 @@ impl<P: InputPin> Contact<P> {
 
 impl<P> Sensor for Contact<P>
 where
-    P: InputPin,
+    P: InputPin + Send,
     P::Error: core::fmt::Debug,
 {
     type Reading = bool;

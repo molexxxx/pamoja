@@ -4,7 +4,7 @@
     <PackageId>Pamoja.Kit</PackageId>
     <AssemblyName>Pamoja.Kit</AssemblyName>
     <RootNamespace>Pamoja.Kit</RootNamespace>
-    <Description>Plain-language helper math: smoothing, calibration, PID and thermostat control, trend and surge prediction, rolling windows, kinematics, and geo.</Description>
+    <Description>Plain-language helper math: smoothing, calibration, PID and thermostat control, a trigger with hysteresis, trend and surge prediction, rolling windows, kinematics, and geo.</Description>
     <PackageTags>pamoja;iot;robotics;kit</PackageTags>
     <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/kit.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>

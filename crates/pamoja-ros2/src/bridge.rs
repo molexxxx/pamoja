@@ -202,7 +202,7 @@ pub struct RosPublisher<T: WrappedTypesupport> {
     publisher: Publisher<T>,
 }
 
-impl<T: WrappedTypesupport + 'static> Actuator for RosPublisher<T> {
+impl<T: WrappedTypesupport + Send + 'static> Actuator for RosPublisher<T> {
     type Command = T;
 
     async fn apply(&mut self, command: T) -> Result<()> {
@@ -215,7 +215,7 @@ pub struct RosSubscriber<T> {
     stream: Pin<Box<dyn Stream<Item = T> + Send>>,
 }
 
-impl<T> Sensor for RosSubscriber<T> {
+impl<T: Send> Sensor for RosSubscriber<T> {
     type Reading = T;
 
     async fn read(&mut self) -> Result<T> {

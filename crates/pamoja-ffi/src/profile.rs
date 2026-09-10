@@ -43,7 +43,15 @@ pub enum PamojaControlKind {
     Surge = 2,
     /// Report readings only, with no output and no alerts.
     Monitor = 3,
+    /// A kind the library does not ship, decided by code the host registers; its
+    /// name and parameters come from [`pamoja_profile_control_kind`] and
+    /// [`pamoja_profile_control_params_json`].
+    Custom = 4,
 }
+
+/// The most bytes a custom alert's code carries across the boundary, terminator
+/// included; a longer code is cut to fit.
+pub const PAMOJA_ALERT_CODE_LEN: usize = 32;
 
 /// A control policy, flattened so every variant crosses as one value.
 ///
@@ -102,6 +110,8 @@ pub enum PamojaAlertKind {
     RunningOut = 2,
     /// A reading is changing faster than its safe rate.
     ChangingFast = 3,
+    /// A condition a policy of the host's own raised, named by `code`.
+    Custom = 4,
 }
 
 /// What a controller decided about one reading.
@@ -126,10 +136,14 @@ pub struct PamojaReaction {
     /// The change since the previous sample, for
     /// [`PamojaAlertKind::ChangingFast`].
     pub rate: f32,
+    /// The condition's name, null-terminated, for [`PamojaAlertKind::Custom`].
+    pub code: [c_char; PAMOJA_ALERT_CODE_LEN],
+    /// The measurement behind the condition, for [`PamojaAlertKind::Custom`].
+    pub value: f32,
 }
 
-impl From<ControlSpec> for PamojaControlSpec {
-    fn from(spec: ControlSpec) -> Self {
+impl From<&ControlSpec> for PamojaControlSpec {
+    fn from(spec: &ControlSpec) -> Self {
         let mut flat = Self {
             kind: PamojaControlKind::Monitor,
             setpoint: 0.0,
@@ -141,7 +155,7 @@ impl From<ControlSpec> for PamojaControlSpec {
             rising: false,
             limit: 0.0,
         };
-        match spec {
+        match *spec {
             ControlSpec::Setpoint {
                 setpoint,
                 hysteresis,
@@ -165,6 +179,7 @@ impl From<ControlSpec> for PamojaControlSpec {
                 flat.limit = limit;
             }
             ControlSpec::Monitor => {}
+            ControlSpec::Custom { .. } => flat.kind = PamojaControlKind::Custom,
         }
         flat
     }
@@ -192,6 +207,8 @@ impl PamojaReaction {
             reading: 0.0,
             samples: 0,
             rate: 0.0,
+            code: [0; PAMOJA_ALERT_CODE_LEN],
+            value: 0.0,
         };
         match reaction.alert {
             None => {}
@@ -206,6 +223,17 @@ impl PamojaReaction {
             Some(Alert::ChangingFast { rate }) => {
                 flat.alert = PamojaAlertKind::ChangingFast;
                 flat.rate = rate;
+            }
+            Some(Alert::Custom { code, value }) => {
+                flat.alert = PamojaAlertKind::Custom;
+                flat.value = value;
+                for (slot, byte) in flat
+                    .code
+                    .iter_mut()
+                    .zip(code.bytes().take(PAMOJA_ALERT_CODE_LEN - 1))
+                {
+                    *slot = byte as c_char;
+                }
             }
         }
         flat
@@ -510,6 +538,68 @@ pub unsafe extern "C" fn pamoja_profile_with_presentation_json(
     }
 }
 
+/// Returns the control kind a profile names, as its manifest writes it.
+///
+/// # Arguments
+///
+/// * `profile` - the profile.
+///
+/// # Returns
+///
+/// `setpoint`, `level`, `surge`, `monitor`, or a custom kind's own name, as a
+/// null-terminated UTF-8 string the caller must release with
+/// [`pamoja_string_free`](crate::pamoja_string_free), or null if `profile` is null.
+///
+/// # Safety
+///
+/// `profile` must be a live handle from a call that produced one, or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_profile_control_kind(
+    profile: *const PamojaProfile,
+) -> *mut PamojaString {
+    match profile_handle(profile) {
+        Some(profile) => PamojaString::into_raw(profile.inner.control.kind().to_owned()),
+        None => ptr::null_mut(),
+    }
+}
+
+/// Returns the parameters a custom control kind carries, as the JSON object of
+/// every field the manifest wrote beside `kind`.
+///
+/// # Arguments
+///
+/// * `profile` - the profile.
+///
+/// # Returns
+///
+/// A null-terminated UTF-8 string the caller must release with
+/// [`pamoja_string_free`](crate::pamoja_string_free), or null if the kind is a
+/// built-in one or `profile` is null. The two cases are told apart by
+/// [`pamoja_last_error_message`](crate::pamoja_last_error_message), which is set
+/// only for a null handle or parameters that cannot be serialized.
+///
+/// # Safety
+///
+/// `profile` must be a live handle from a call that produced one, or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_profile_control_params_json(
+    profile: *const PamojaProfile,
+) -> *mut PamojaString {
+    let Some(profile) = profile_handle(profile) else {
+        return ptr::null_mut();
+    };
+    let ControlSpec::Custom { params, .. } = &profile.inner.control else {
+        return ptr::null_mut();
+    };
+    match params.to_json() {
+        Ok(json) => PamojaString::into_raw(json),
+        Err(error) => {
+            set_last_error(error.to_string());
+            ptr::null_mut()
+        }
+    }
+}
+
 /// Returns the control policy a profile applies.
 ///
 /// # Arguments
@@ -538,7 +628,7 @@ pub unsafe extern "C" fn pamoja_profile_control(
     let Some(profile) = profile_handle(profile) else {
         return PamojaStatus::InvalidArgument;
     };
-    *out_control = profile.inner.control.into();
+    *out_control = PamojaControlSpec::from(&profile.inner.control);
     PamojaStatus::Ok
 }
 
@@ -823,6 +913,8 @@ mod tests {
             reading: 0.0,
             samples: 0,
             rate: 0.0,
+            code: [0; PAMOJA_ALERT_CODE_LEN],
+            value: 0.0,
         };
         assert_eq!(
             unsafe { pamoja_controller_evaluate(controller, reading, &mut reaction) },
@@ -878,7 +970,7 @@ mod tests {
             text_of(unsafe { pamoja_profile_name(profile) })
         );
 
-        let mut original = PamojaControlSpec::from(ControlSpec::Monitor);
+        let mut original = PamojaControlSpec::from(&ControlSpec::Monitor);
         let mut restored = original;
         unsafe {
             assert_eq!(
@@ -894,6 +986,76 @@ mod tests {
         }
         assert_eq!(restored.kind, PamojaControlKind::Level);
         assert_eq!(restored, original, "the policy came back unchanged");
+    }
+
+    #[test]
+    fn a_custom_kind_crosses_as_its_name_and_parameters() {
+        let manifest = CString::new(
+            r#"{ "name": "orchard-frost", "topic": "orchard/air", "control": { "kind": "frost_guard", "warn_below": 2.0, "zone": "north" }, "power": { "active_secs": 60, "saver_secs": 300, "critical_secs": 900 } }"#,
+        )
+        .unwrap();
+        let profile = unsafe { pamoja_profile_from_json(manifest.as_ptr()) };
+        assert!(!profile.is_null());
+        let mut control = PamojaControlSpec::from(&ControlSpec::Monitor);
+        assert_eq!(
+            unsafe { pamoja_profile_control(profile, &mut control) },
+            PamojaStatus::Ok
+        );
+        assert_eq!(control.kind, PamojaControlKind::Custom);
+        assert_eq!(
+            text_of(unsafe { pamoja_profile_control_kind(profile) }),
+            "frost_guard"
+        );
+        assert_eq!(
+            text_of(unsafe { pamoja_profile_control_params_json(profile) }),
+            r#"{"warn_below":2.0,"zone":"north"}"#
+        );
+
+        let fridge = pamoja_profile_vaccine_fridge_monitor();
+        assert_eq!(
+            text_of(unsafe { pamoja_profile_control_kind(fridge) }),
+            "setpoint"
+        );
+        assert!(
+            unsafe { pamoja_profile_control_params_json(fridge) }.is_null(),
+            "a built-in kind has no parameter object"
+        );
+
+        // The built-in controller for a custom kind observes only; the custom alert a
+        // host's own policy raises crosses as its code and value.
+        let controller = unsafe { pamoja_profile_controller(profile) };
+        let reaction = reaction_for(controller, -4.0);
+        assert!(!reaction.has_actuator);
+        let flat = PamojaReaction::flatten(pamoja_profile::Reaction {
+            actuator: Some(true),
+            alert: Some(Alert::Custom {
+                code: "FrostRisk",
+                value: -4.0,
+            }),
+        });
+        assert_eq!(flat.alert, PamojaAlertKind::Custom);
+        assert_eq!(flat.value, -4.0);
+        let code = unsafe { CStr::from_ptr(flat.code.as_ptr()) }
+            .to_str()
+            .unwrap();
+        assert_eq!(code, "FrostRisk");
+        let long = PamojaReaction::flatten(pamoja_profile::Reaction {
+            actuator: None,
+            alert: Some(Alert::Custom {
+                code: "a-code-far-longer-than-thirty-one-bytes-will-allow",
+                value: 0.0,
+            }),
+        });
+        let cut = unsafe { CStr::from_ptr(long.code.as_ptr()) }
+            .to_str()
+            .unwrap();
+        assert_eq!(cut.len(), PAMOJA_ALERT_CODE_LEN - 1);
+
+        unsafe {
+            pamoja_controller_free(controller);
+            pamoja_profile_free(fridge);
+            pamoja_profile_free(profile);
+        }
     }
 
     #[test]

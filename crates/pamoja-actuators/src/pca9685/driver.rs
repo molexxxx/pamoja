@@ -327,9 +327,9 @@ impl<I2C: I2c, D: DelayNs> Pca9685<I2C, D> {
 
 impl<I2C, D> Actuator for Pca9685<I2C, D>
 where
-    I2C: I2c,
+    I2C: I2c + Send,
     I2C::Error: core::fmt::Debug,
-    D: DelayNs,
+    D: DelayNs + Send,
 {
     type Command = Output;
 

@@ -94,6 +94,8 @@ Every profile names one `ControlSpec`, the rule applied to each reading:
 - `Level` watches a falling level and warns before it reaches empty.
 - `Surge` warns when a reading changes faster than a safe rate (a flash flood).
 - `Monitor` only reports, with no output and no alert.
+- Any other `kind` is a custom policy: its parameters ride beside it in the
+  manifest, and a `PolicyRegistry` resolves the kind to your code.
 
 Every field is public, so a deployment can build or tune a policy in place:
 
@@ -111,6 +113,111 @@ let profile = Profile {
 };
 let mut control = profile.controller();
 assert_eq!(control.evaluate(28.0).actuator, Some(true)); // dry: the valve opens
+```
+
+# Your own policy
+
+The built-in kinds decide one number into an on/off setting. A `Policy` of your own
+decides whatever a driver reads into whatever an actuator takes, raises its own
+`Alert::Custom` conditions, and runs in the same node through
+`Node::with_policy`:
+
+```rust
+use pamoja_profile::{Alert, Policy, Reaction};
+
+// Frost settles when the air is cold and damp, so this reads both at once.
+struct FrostGuard {
+    warn_below: f32,
+}
+
+impl Policy for FrostGuard {
+    type Reading = (f32, f32);
+    type Command = bool;
+
+    fn evaluate(&mut self, &(temperature, humidity): &(f32, f32)) -> Reaction {
+        let risk = temperature < self.warn_below && humidity > 80.0;
+        Reaction {
+            actuator: Some(risk),
+            alert: risk.then_some(Alert::Custom { code: "FrostRisk", value: temperature }),
+        }
+    }
+}
+
+let mut guard = FrostGuard { warn_below: 2.0 };
+assert_eq!(guard.evaluate(&(1.0, 92.0)).alert.map(Alert::kind), Some("FrostRisk"));
+```
+
+# A kind the library never shipped
+
+A manifest may name a control kind of your own, with its parameters beside it, and
+a `PolicyRegistry` turns that kind into the policy that decides it, so a policy
+written once ships as data like every other:
+
+```rust
+use pamoja_core::Error;
+use pamoja_profile::{BoxedPolicy, Controller, PolicyRegistry, Profile};
+
+let manifest = r#"{
+    "name": "orchard-frost",
+    "topic": "orchard/air/temperature",
+    "control": { "kind": "frost_guard", "warn_below": 2.0 },
+    "power": { "active_secs": 60, "saver_secs": 300, "critical_secs": 900 }
+}"#;
+let profile = Profile::from_json(manifest)?;
+
+// Here the kind reuses a built-in controller as its policy; any `Policy` will do.
+let registry = PolicyRegistry::new().register("frost_guard", |params| {
+    let warn_below = params
+        .number("warn_below")
+        .ok_or(Error::Unsupported("frost_guard needs `warn_below`"))?;
+    Ok(Box::new(Controller::setpoint(warn_below as f32, 0.5, false, 5.0)) as BoxedPolicy)
+});
+let mut policy = registry.resolve(&profile.control)?;
+assert_eq!(policy.evaluate(&1.0).actuator, Some(true)); // cold: the heater comes on
+```
+
+# Rules between nodes
+
+A profile decides at the node that reads. A `Rule` decides between nodes: it watches
+one topic for a reading crossing a line and, the moment it does, drives an actuator
+the engine holds by name or publishes a message, over the same link. Rules are a file
+(`Rules::from_json`), the condition is a `Trigger` with
+hysteresis so it fires once per crossing, and a `RuleEngine` runs the file off any
+link that can receive:
+
+```rust
+use pamoja_codec::JsonCodec;
+use pamoja_core::{Actuator, Result, Transport};
+use pamoja_kit::Edge;
+use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
+use pamoja_profile::{RuleEngine, Rules};
+
+struct Valve(bool);
+impl Actuator for Valve {
+    type Command = bool;
+    async fn apply(&mut self, open: bool) -> Result<()> {
+        self.0 = open;
+        Ok(())
+    }
+}
+
+let rules = Rules::from_json(r#"{ "rules": [ {
+    "name": "water-when-dry",
+    "when": { "topic": "garden/bed-1/moisture", "compare": "below", "threshold": 30.0, "hysteresis": 5.0 },
+    "then": [ { "do": "drive", "actuator": "bed-valve", "on": true } ],
+    "otherwise": [ { "do": "drive", "actuator": "bed-valve", "on": false } ]
+} ] }"#)?;
+
+let broker = LoopbackBroker::new();
+let mut probe = LoopbackTransport::new(broker.clone());
+probe.connect().await?;
+let mut engine = RuleEngine::new(rules, LoopbackTransport::new(broker), JsonCodec)
+    .with_actuator("bed-valve", Valve(false));
+engine.connect().await?;
+
+probe.send("garden/bed-1/moisture", b"28.0").await?;
+let fired = engine.step().await?.expect("the link is up");
+assert_eq!((fired[0].rule.as_str(), fired[0].edge), ("water-when-dry", Edge::Set));
 ```
 
 # Power: sampling that follows the battery
@@ -200,6 +307,10 @@ dashboard reads it; control actions queue back for you to apply. See the
 
 - **Just want it to work?** Pick a preset and call `controller`.
 - **Sharing a recipe?** Write a JSON manifest and load it with `Profile::from_json`.
+- **A rule of your own?** Implement `Policy` and run it with `Node::with_policy`;
+  name it in a manifest and resolve it with a `PolicyRegistry`.
+- **One node acting on another's reading?** Write a `Rules` file and run it with a
+  `RuleEngine`.
 - **A sensor we do not draw?** Add an `ElementSpec` with the `Viz` you want.
 - **Your own look and words?** Add a `Theme` and
   `with_message` for custom states and events.

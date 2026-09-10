@@ -19,8 +19,8 @@ use pamoja_gpio::i2c::{Address, Direction};
 use pamoja_gpio::pin::{Edge, Level, Polarity};
 use pamoja_gpio::spi::Mode;
 use pamoja_kit::{
-    deadband, Anomaly, Boundary, Calibration, Coordinate, Depletion, Geofence, Median, Pid,
-    Smoother, Thermostat, Trend, Window,
+    deadband, Anomaly, Boundary, Calibration, Coordinate, Depletion, Edge as TriggerEdge, Geofence,
+    Median, Pid, Smoother, Thermostat, Trend, Trigger, Window,
 };
 use pamoja_ladder::{Delivery, TransportLadder};
 use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
@@ -118,6 +118,7 @@ fn main() {
         "smoother": smoother(),
         "pid": pid(),
         "thermostat": thermostat(),
+        "trigger": trigger(),
         "depletion": depletion(),
         "calibration": calibration(),
         "deadband": deadband_vectors(),
@@ -238,6 +239,28 @@ fn thermostat() -> Value {
     json!({
         "mode": "cooling",
         "setpoint": setpoint,
+        "hysteresis": hysteresis,
+        "readings": readings,
+        "outputs": outputs,
+    })
+}
+
+/// A falling trigger with a release band, over readings that cross, hold, and come back.
+fn trigger() -> Value {
+    let (threshold, hysteresis) = (30.0f32, 5.0f32);
+    let readings: Vec<f32> = vec![42.0, 31.0, 28.0, 25.0, 33.0, 36.0, 36.0, 29.9];
+    let mut trigger = Trigger::below(threshold, hysteresis);
+    let outputs: Vec<Value> = readings
+        .iter()
+        .map(|&reading| match trigger.update(reading) {
+            Some(TriggerEdge::Set) => json!("set"),
+            Some(TriggerEdge::Cleared) => json!("cleared"),
+            None => Value::Null,
+        })
+        .collect();
+    json!({
+        "mode": "below",
+        "threshold": threshold,
         "hysteresis": hysteresis,
         "readings": readings,
         "outputs": outputs,
@@ -2876,26 +2899,46 @@ fn profile() -> Value {
     let mut observer = Controller::monitor();
     let observed = reaction_value(21.5, observer.evaluate(21.5));
 
+    // A kind the library never shipped: every binding must load it, name it, keep its
+    // parameters, and hand back a controller that observes only.
+    let custom_manifest = concat!(
+        "{ \"name\": \"orchard-frost\", \"topic\": \"orchard/air/temperature\", ",
+        "\"control\": { \"kind\": \"frost_guard\", \"warn_below\": 2.0, \"latching\": true, \"zone\": \"north\" }, ",
+        "\"power\": { \"active_secs\": 60, \"saver_secs\": 300, \"critical_secs\": 900 } }"
+    );
+    let custom = Profile::from_json(custom_manifest).expect("a custom kind parses");
+    let mut inert = custom.controller();
+    let custom_reactions: Vec<Value> = [-4.0, 12.0]
+        .iter()
+        .map(|reading| reaction_value(*reading, inert.evaluate(*reading)))
+        .collect();
+
     json!({
         "coldChain": {
             "name": fridge.name,
             "topic": fridge.topic,
-            "control": control_value(fridge.control),
+            "control": control_value(&fridge.control),
             "power": schedule_value(fridge.power),
             "reactions": cold_chain,
         },
         "draining": {
             "name": well.name,
-            "control": control_value(well.control),
+            "control": control_value(&well.control),
             "reactions": draining,
         },
         "observed": observed,
+        "custom": {
+            "manifest": custom_manifest,
+            "name": custom.name,
+            "control": control_value(&custom.control),
+            "reactions": custom_reactions,
+        },
     })
 }
 
 /// Flattens a control policy the way each binding exposes it.
-fn control_value(spec: ControlSpec) -> Value {
-    match spec {
+fn control_value(spec: &ControlSpec) -> Value {
+    match *spec {
         ControlSpec::Setpoint {
             setpoint,
             hysteresis,
@@ -2919,6 +2962,14 @@ fn control_value(spec: ControlSpec) -> Value {
             "limit": limit,
         }),
         ControlSpec::Monitor => json!({ "kind": "Monitor" }),
+        ControlSpec::Custom {
+            ref kind,
+            ref params,
+        } => json!({
+            "kind": "Custom",
+            "customKind": kind,
+            "params": params,
+        }),
     }
 }
 
@@ -2948,6 +2999,11 @@ fn reaction_value(reading: f32, reaction: Reaction) -> Value {
         Some(Alert::ChangingFast { rate }) => json!({
             "kind": "ChangingFast",
             "rate": rate,
+        }),
+        Some(Alert::Custom { code, value }) => json!({
+            "kind": "Custom",
+            "code": code,
+            "value": value,
         }),
     };
     json!({

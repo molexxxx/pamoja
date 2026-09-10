@@ -14,7 +14,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use tokio::sync::Mutex;
 
-use crate::transport::{Kind, Message, PyTransport};
+use crate::transport::{Kind, Message, Payload, PyTransport};
 use crate::PamojaError;
 
 /// An in-process broker.
@@ -76,12 +76,15 @@ impl LoopbackTransport {
         &self,
         py: Python<'py>,
         topic: String,
-        payload: Vec<u8>,
+        payload: Payload,
     ) -> PyResult<Bound<'py, PyAny>> {
         let inner = Arc::clone(&self.inner);
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let mut transport = inner.lock().await;
-            transport.send(&topic, &payload).await.map_err(to_pyerr)
+            transport
+                .send(&topic, &payload.into_bytes())
+                .await
+                .map_err(to_pyerr)
         })
     }
 

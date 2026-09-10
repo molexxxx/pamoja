@@ -126,6 +126,7 @@ __all__ = [
     "Thermostat",
     "Tmp117Config",
     "Trend",
+    "Trigger",
     "Updater",
     "Window",
     "ads1115_config_bits",
@@ -560,8 +561,8 @@ class AlertReport:
     @property
     def kind(self) -> builtins.str:
         r"""
-        Which threshold the reading crossed: `OutOfRange`, `RunningOut`, or
-        `ChangingFast`.
+        Which threshold the reading crossed: `OutOfRange`, `RunningOut`,
+        `ChangingFast`, or `Custom` for a condition the program's own policy raised.
         """
     @property
     def reading(self) -> typing.Optional[builtins.float]:
@@ -577,6 +578,16 @@ class AlertReport:
     def rate(self) -> typing.Optional[builtins.float]:
         r"""
         The change since the previous sample, for a changing-fast alert.
+        """
+    @property
+    def code(self) -> typing.Optional[builtins.str]:
+        r"""
+        The condition's name, for a custom alert.
+        """
+    @property
+    def value(self) -> typing.Optional[builtins.float]:
+        r"""
+        The measurement behind the condition, for a custom alert.
         """
 
 @typing.final
@@ -1273,7 +1284,7 @@ class CoapClient:
         r"""
         Binds the local socket so the endpoint can carry traffic.
         """
-    def send(self, topic: builtins.str, payload: typing.Sequence[builtins.int]) -> typing.Any:
+    def send(self, topic: builtins.str, payload: builtins.str | typing.Sequence[builtins.int]) -> typing.Any:
         r"""
         Sends a payload to a resource path.
         """
@@ -1357,12 +1368,15 @@ class ControlPolicy:
     r"""
     A profile's control policy.
     
-    Only the attributes belonging to `kind` are set; the rest are `None`.
+    Only the attributes belonging to `kind` are set; the rest are `None`. A `Custom`
+    kind is one the library does not ship: the manifest names it in `custom_kind`, and
+    every field beside the kind is in `params`, for the program's own code to decide.
     """
     @property
     def kind(self) -> builtins.str:
         r"""
-        Which policy this describes: `Setpoint`, `Level`, `Surge`, or `Monitor`.
+        Which policy this describes: `Setpoint`, `Level`, `Surge`, `Monitor`, or
+        `Custom`.
         """
     @property
     def setpoint(self) -> typing.Optional[builtins.float]:
@@ -1403,6 +1417,17 @@ class ControlPolicy:
     def limit(self) -> typing.Optional[builtins.float]:
         r"""
         The largest safe change per sample, for a surge policy.
+        """
+    @property
+    def custom_kind(self) -> typing.Optional[builtins.str]:
+        r"""
+        The kind as the manifest names it, for a custom policy.
+        """
+    @property
+    def params(self) -> typing.Optional[dict]:
+        r"""
+        Every field the manifest carried beside a custom kind, as numbers, flags, and
+        text by name, or `None` for a built-in kind.
         """
 
 @typing.final
@@ -2190,7 +2215,7 @@ class Ladder:
         A rung that will not connect is left in the ladder: it may come back, and
         a send simply falls through it until it does.
         """
-    def send(self, topic: builtins.str, payload: typing.Sequence[builtins.int]) -> typing.Any:
+    def send(self, topic: builtins.str, payload: builtins.str | typing.Sequence[builtins.int]) -> typing.Any:
         r"""
         Sends a payload, falling through the rungs and buffering if none take it.
         
@@ -2255,7 +2280,7 @@ class LoopbackTransport:
         r"""
         Marks this link connected so it will carry traffic.
         """
-    def send(self, topic: builtins.str, payload: typing.Sequence[builtins.int]) -> typing.Any:
+    def send(self, topic: builtins.str, payload: builtins.str | typing.Sequence[builtins.int]) -> typing.Any:
         r"""
         Publishes a payload to a topic on the broker.
         """
@@ -3311,6 +3336,20 @@ class Message:
         r"""
         The raw payload bytes.
         """
+    @property
+    def text(self) -> builtins.str:
+        r"""
+        The payload as text: words, or a number written out.
+        
+        Raises `ValueError` if the payload is not UTF-8 text.
+        """
+    @property
+    def number(self) -> builtins.float:
+        r"""
+        The payload as a number written out as text, such as `21.5`.
+        
+        Raises `ValueError` if the payload is not text or the text is not a number.
+        """
     def __new__(cls, topic: builtins.str, payload: typing.Sequence[builtins.int]) -> Message:
         r"""
         Creates a message, which is what a transport handler returns from `recv`.
@@ -3525,7 +3564,7 @@ class MqttClient:
         r"""
         Connects to the broker and starts the background event loop.
         """
-    def publish(self, topic: builtins.str, payload: typing.Sequence[builtins.int]) -> typing.Any:
+    def publish(self, topic: builtins.str, payload: builtins.str | typing.Sequence[builtins.int]) -> typing.Any:
         r"""
         Publishes a payload to a topic.
         """
@@ -3556,6 +3595,20 @@ class MqttMessage:
     def topic(self) -> builtins.str:
         r"""
         The topic the message was published to.
+        """
+    @property
+    def text(self) -> builtins.str:
+        r"""
+        The payload as text: words, or a number written out.
+        
+        Raises `ValueError` if the payload is not UTF-8 text.
+        """
+    @property
+    def number(self) -> builtins.float:
+        r"""
+        The payload as a number written out as text, such as `21.5`.
+        
+        Raises `ValueError` if the payload is not text or the text is not a number.
         """
     @property
     def payload(self) -> bytes:
@@ -4977,6 +5030,48 @@ class Trend:
     def push(self, reading: builtins.float) -> None:
         r"""
         Adds a reading.
+        """
+
+@typing.final
+class Trigger:
+    r"""
+    Fires once when a reading crosses a line, and not again until it has come back past
+    the release band.
+    
+    `update` answers `"set"` the moment the reading crosses the line, `"cleared"` the
+    moment it comes back past the band, and `None` while nothing changed; the facade's
+    `Edge` enum names the two.
+    """
+    @property
+    def is_set(self) -> builtins.bool:
+        r"""
+        Whether the condition currently holds.
+        """
+    @property
+    def threshold(self) -> builtins.float:
+        r"""
+        The line the trigger watches.
+        """
+    @property
+    def hysteresis(self) -> builtins.float:
+        r"""
+        The release band on the far side of the line.
+        """
+    @staticmethod
+    def above(threshold: builtins.float, hysteresis: builtins.float) -> Trigger:
+        r"""
+        Creates a trigger that fires when a reading rises above the line and clears once
+        it has fallen below the line by the hysteresis.
+        """
+    @staticmethod
+    def below(threshold: builtins.float, hysteresis: builtins.float) -> Trigger:
+        r"""
+        Creates a trigger that fires when a reading falls below the line and clears once
+        it has risen above the line by the hysteresis.
+        """
+    def update(self, reading: builtins.float) -> typing.Optional[builtins.str]:
+        r"""
+        Feeds a reading in and returns the edge it caused, or `None` while nothing changed.
         """
 
 @typing.final

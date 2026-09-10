@@ -78,13 +78,13 @@ async fn a_real_autopilot_completes_the_mission_and_command_exchanges() {
     }
 }
 
-async fn run<L: ByteLink>(mut vehicle: Vehicle<L>) {
+async fn run<L: ByteLink + Send>(mut vehicle: Vehicle<L>) {
     tokio::time::timeout(BUDGET, drive(&mut vehicle))
         .await
         .expect("the SITL interop exchange overran its time budget");
 }
 
-async fn drive<L: ByteLink>(vehicle: &mut Vehicle<L>) {
+async fn drive<L: ByteLink + Send>(vehicle: &mut Vehicle<L>) {
     // The vehicle announces itself; connecting learns its MAVLink address.
     vehicle
         .connect()

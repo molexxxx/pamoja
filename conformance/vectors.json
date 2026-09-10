@@ -3218,6 +3218,35 @@
       ],
       "topic": "cold-chain/fridge/temperature"
     },
+    "custom": {
+      "control": {
+        "customKind": "frost_guard",
+        "kind": "Custom",
+        "params": {
+          "latching": true,
+          "warn_below": 2.0,
+          "zone": "north"
+        }
+      },
+      "manifest": "{ \"name\": \"orchard-frost\", \"topic\": \"orchard/air/temperature\", \"control\": { \"kind\": \"frost_guard\", \"warn_below\": 2.0, \"latching\": true, \"zone\": \"north\" }, \"power\": { \"active_secs\": 60, \"saver_secs\": 300, \"critical_secs\": 900 } }",
+      "name": "orchard-frost",
+      "reactions": [
+        {
+          "actuator": null,
+          "alert": {
+            "kind": "None"
+          },
+          "reading": -4.0
+        },
+        {
+          "actuator": null,
+          "alert": {
+            "kind": "None"
+          },
+          "reading": 12.0
+        }
+      ]
+    },
     "draining": {
       "control": {
         "empty": 0.5,
@@ -4042,6 +4071,31 @@
     "setpoint": 8.0
   },
   "tolerance": 1e-6,
+  "trigger": {
+    "hysteresis": 5.0,
+    "mode": "below",
+    "outputs": [
+      null,
+      null,
+      "set",
+      null,
+      null,
+      "cleared",
+      null,
+      "set"
+    ],
+    "readings": [
+      42.0,
+      31.0,
+      28.0,
+      25.0,
+      33.0,
+      36.0,
+      36.0,
+      29.899999618530273
+    ],
+    "threshold": 30.0
+  },
   "update": {
     "anchorPublicKey": "db995fe25169d141cab9bbba92baa01f9f2e1ece7df4cb2ac05190f37fcc1f9d",
     "anchorSeed": "4141414141414141414141414141414141414141414141414141414141414141",

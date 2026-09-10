@@ -305,9 +305,9 @@ impl<B: RegisterBus, D: DelayNs> Bme280<B, D> {
 
 impl<B, D> Sensor for Bme280<B, D>
 where
-    B: RegisterBus,
+    B: RegisterBus + Send,
     B::Error: core::fmt::Debug,
-    D: DelayNs,
+    D: DelayNs + Send,
 {
     type Reading = Measurement;
 

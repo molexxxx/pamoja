@@ -10,10 +10,10 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pyme
 
 use pamoja_kit::{
     deadband as core_deadband, Anomaly as CoreAnomaly, Boundary, Calibration as CoreCalibration,
-    Coordinate, Debounce as CoreDebounce, Depletion as CoreDepletion, Geofence as CoreGeofence,
-    Kalman as CoreKalman, Median as CoreMedian, Pid as CorePid, Ramp as CoreRamp,
-    Smoother as CoreSmoother, Surge as CoreSurge, Thermostat as CoreThermostat, Trend as CoreTrend,
-    Window as CoreWindow,
+    Coordinate, Debounce as CoreDebounce, Depletion as CoreDepletion, Edge,
+    Geofence as CoreGeofence, Kalman as CoreKalman, Median as CoreMedian, Pid as CorePid,
+    Ramp as CoreRamp, Smoother as CoreSmoother, Surge as CoreSurge, Thermostat as CoreThermostat,
+    Trend as CoreTrend, Trigger as CoreTrigger, Window as CoreWindow,
 };
 
 /// Names the boundary state a geofence reports, as a plain string.
@@ -128,6 +128,69 @@ impl Thermostat {
     #[getter]
     fn is_on(&self) -> bool {
         self.inner.is_on()
+    }
+}
+
+/// Fires once when a reading crosses a line, and not again until it has come back past
+/// the release band.
+///
+/// `update` answers `"set"` the moment the reading crosses the line, `"cleared"` the
+/// moment it comes back past the band, and `None` while nothing changed; the facade's
+/// `Edge` enum names the two.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct Trigger {
+    inner: CoreTrigger,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl Trigger {
+    /// Creates a trigger that fires when a reading rises above the line and clears once
+    /// it has fallen below the line by the hysteresis.
+    #[staticmethod]
+    fn above(threshold: f32, hysteresis: f32) -> Self {
+        Self {
+            inner: CoreTrigger::above(threshold, hysteresis),
+        }
+    }
+
+    /// Creates a trigger that fires when a reading falls below the line and clears once
+    /// it has risen above the line by the hysteresis.
+    #[staticmethod]
+    fn below(threshold: f32, hysteresis: f32) -> Self {
+        Self {
+            inner: CoreTrigger::below(threshold, hysteresis),
+        }
+    }
+
+    /// Feeds a reading in and returns the edge it caused, or `None` while nothing changed.
+    fn update(&mut self, reading: f32) -> Option<String> {
+        self.inner.update(reading).map(|edge| {
+            match edge {
+                Edge::Set => "set",
+                Edge::Cleared => "cleared",
+            }
+            .to_owned()
+        })
+    }
+
+    /// Whether the condition currently holds.
+    #[getter]
+    fn is_set(&self) -> bool {
+        self.inner.is_set()
+    }
+
+    /// The line the trigger watches.
+    #[getter]
+    fn threshold(&self) -> f32 {
+        self.inner.threshold()
+    }
+
+    /// The release band on the far side of the line.
+    #[getter]
+    fn hysteresis(&self) -> f32 {
+        self.inner.hysteresis()
     }
 }
 

@@ -5,13 +5,18 @@ const { readdirSync } = require("node:fs");
 const { join } = require("node:path");
 const { spawnSync } = require("node:child_process");
 
+// An argument names one guide to run; without one every guide runs, which is what CI does.
+const only = process.argv[2];
 const dir = join(__dirname, "..", "build", "guides");
 const guides = readdirSync(dir)
   .filter((name) => name.endsWith(".js"))
+  .filter((name) => !only || name === `${only}.js`)
   .sort();
 
 if (guides.length === 0) {
-  console.error(`no compiled guides under ${dir}; run tsc -p guides/tsconfig.json first`);
+  console.error(only
+    ? `no guide named ${only} under ${dir}`
+    : `no compiled guides under ${dir}; run tsc -p guides/tsconfig.json first`);
   process.exit(1);
 }
 

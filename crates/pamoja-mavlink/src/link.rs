@@ -49,7 +49,7 @@ pub trait ByteLink {
     /// # Errors
     ///
     /// Returns a [`MavlinkError`] if the underlying link fails.
-    fn read(&mut self, buf: &mut [u8]) -> impl core::future::Future<Output = Result<usize>>;
+    fn read(&mut self, buf: &mut [u8]) -> impl core::future::Future<Output = Result<usize>> + Send;
 
     /// Writes all of `data` to the link.
     ///
@@ -64,7 +64,7 @@ pub trait ByteLink {
     /// # Errors
     ///
     /// Returns a [`MavlinkError`] if the underlying link fails.
-    fn write_all(&mut self, data: &[u8]) -> impl core::future::Future<Output = Result<()>>;
+    fn write_all(&mut self, data: &[u8]) -> impl core::future::Future<Output = Result<()>> + Send;
 }
 
 // The size of a read from the link into the connection's staging buffer.

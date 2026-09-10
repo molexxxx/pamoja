@@ -15,6 +15,7 @@ use tokio::sync::Mutex;
 use pamoja_core::{Error, Receive, Transport};
 use pamoja_mqtt::{MqttConfig, MqttTransport, QualityOfService};
 
+use crate::transport::Payload;
 use crate::PamojaError;
 
 /// A message received from a subscribed topic.
@@ -30,6 +31,22 @@ pub struct MqttMessage {
 #[gen_stub_pymethods]
 #[pymethods]
 impl MqttMessage {
+    /// The payload as text: words, or a number written out.
+    ///
+    /// Raises `ValueError` if the payload is not UTF-8 text.
+    #[getter]
+    fn text(&self) -> PyResult<String> {
+        crate::transport::text_of(&self.payload)
+    }
+
+    /// The payload as a number written out as text, such as `21.5`.
+    ///
+    /// Raises `ValueError` if the payload is not text or the text is not a number.
+    #[getter]
+    fn number(&self) -> PyResult<f64> {
+        crate::transport::number_of(&self.payload)
+    }
+
     /// The raw payload bytes.
     #[getter]
     fn payload<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
@@ -86,12 +103,15 @@ impl MqttClient {
         &self,
         py: Python<'py>,
         topic: String,
-        payload: Vec<u8>,
+        payload: Payload,
     ) -> PyResult<Bound<'py, PyAny>> {
         let inner = Arc::clone(&self.inner);
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let mut transport = inner.lock().await;
-            transport.send(&topic, &payload).await.map_err(to_pyerr)
+            transport
+                .send(&topic, &payload.into_bytes())
+                .await
+                .map_err(to_pyerr)
         })
     }
 

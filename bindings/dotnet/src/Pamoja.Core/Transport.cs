@@ -7,7 +7,21 @@ namespace Pamoja.Core;
 /// <summary>A message that arrived on a subscribed topic.</summary>
 /// <param name="Topic">The topic it was published to.</param>
 /// <param name="Payload">The raw payload bytes.</param>
-public sealed record TransportMessage(string Topic, byte[] Payload);
+public sealed record TransportMessage(string Topic, byte[] Payload)
+{
+    /// <summary>Gets the payload as text: words, or a number written out.</summary>
+    public string Text => System.Text.Encoding.UTF8.GetString(Payload);
+
+    /// <summary>Gets the payload as a number written out as text, such as <c>21.5</c>, or <c>null</c> when it is not one.</summary>
+    public double? Number =>
+        double.TryParse(
+            Text.Trim(),
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out double number)
+            ? number
+            : null;
+}
 
 /// <summary>One transport, ready to compose into a ladder or a wrapper.</summary>
 /// <remarks>
@@ -106,6 +120,13 @@ public sealed class Transport : IDisposable
     public Task ConnectAsync() =>
         Task.Run(() => Status.ThrowIfError(
             NativeMethods.pamoja_transport_connect(Live())));
+
+    /// <summary>Sends text to a topic over this transport: words, or a number written out.</summary>
+    /// <param name="topic">The destination topic.</param>
+    /// <param name="text">The text to send, as UTF-8.</param>
+    /// <exception cref="PamojaException">The transport would not take it.</exception>
+    public Task SendAsync(string topic, string text) =>
+        SendAsync(topic, System.Text.Encoding.UTF8.GetBytes(text));
 
     /// <summary>Sends a payload to a topic over this transport.</summary>
     /// <param name="topic">The destination topic.</param>

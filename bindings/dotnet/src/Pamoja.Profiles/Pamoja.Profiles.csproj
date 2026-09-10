@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Pamoja.Profile/Pamoja.Profile.csproj" />
+    <ProjectReference Include="../Pamoja.Kit/Pamoja.Kit.csproj" />
     <ProjectReference Include="../Pamoja.Ros2/Pamoja.Ros2.csproj" />
     <ProjectReference Include="../Pamoja.Zenoh/Pamoja.Zenoh.csproj" />
   </ItemGroup>

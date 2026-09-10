@@ -8,7 +8,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use napi::bindgen_prelude::Buffer;
+use napi::Either;
 use napi_derive::napi;
+
+use crate::transport::bytes_of;
 use pamoja_core::{Error, Receive, Transport};
 use pamoja_mqtt::{MqttConfig, MqttTransport, QualityOfService};
 use tokio::sync::Mutex;
@@ -61,6 +64,10 @@ pub struct MqttMessage {
     pub topic: String,
     /// The raw payload bytes.
     pub payload: Buffer,
+    /// The payload as text, when it is UTF-8: words, or a number written out.
+    pub text: Option<String>,
+    /// The payload as a number, when its text is one, such as `21.5`.
+    pub number: Option<f64>,
 }
 
 /// An MQTT client transport backed by the native pamoja core.
@@ -89,13 +96,15 @@ impl MqttClient {
 
     /// Publishes a payload to a topic.
     #[napi]
-    pub async fn publish(&self, topic: String, payload: Buffer) -> napi::Result<()> {
+    pub async fn publish(
+        &self,
+        topic: String,
+        payload: Either<Buffer, String>,
+    ) -> napi::Result<()> {
         let inner = Arc::clone(&self.inner);
+        let payload = bytes_of(payload);
         let mut transport = inner.lock().await;
-        transport
-            .send(&topic, payload.as_ref())
-            .await
-            .map_err(to_napi)
+        transport.send(&topic, &payload).await.map_err(to_napi)
     }
 
     /// Subscribes to a topic filter.
@@ -114,6 +123,8 @@ impl MqttClient {
         let mut transport = inner.lock().await;
         let message = transport.recv().await.map_err(to_napi)?;
         Ok(message.map(|message| MqttMessage {
+            text: message.text().ok().map(str::to_owned),
+            number: message.number().ok(),
             topic: message.topic,
             payload: message.payload.into(),
         }))

@@ -17,6 +17,9 @@ public enum PamojaControlKind
 
     /// <summary>Report readings only, with no output and no alerts.</summary>
     Monitor = 3,
+
+    /// <summary>A kind the library does not ship, decided by code the host registers.</summary>
+    Custom = 4,
 }
 
 /// <summary>Which threshold a reading crossed, if any.</summary>
@@ -33,6 +36,33 @@ public enum PamojaAlertKind
 
     /// <summary>A reading is changing faster than its safe rate.</summary>
     ChangingFast = 3,
+
+    /// <summary>A condition a policy of the host's own raised, named by its code.</summary>
+    Custom = 4,
+}
+
+/// <summary>The null-terminated code of a custom alert, as it crosses the boundary.</summary>
+/// <remarks>
+/// The C ABI declares the code as a fixed array inside a struct that crosses by value,
+/// so the managed mirror needs a type of exactly that width.
+/// </remarks>
+[InlineArray(Length)]
+public struct PamojaAlertCode
+{
+    /// <summary>The width of the code, in bytes, terminator included.</summary>
+    public const int Length = 32;
+
+    private byte _element0;
+
+    /// <summary>Reads the code out as text.</summary>
+    /// <returns>The code, up to its terminator.</returns>
+    public readonly string ToText()
+    {
+        PamojaAlertCode copy = this;
+        ReadOnlySpan<byte> bytes = copy;
+        int end = bytes.IndexOf((byte)0);
+        return System.Text.Encoding.UTF8.GetString(end < 0 ? bytes : bytes[..end]);
+    }
 }
 
 /// <summary>The ROS 2 subsystem a name belongs to, which fixes its DDS prefix.</summary>
@@ -123,6 +153,12 @@ public struct PamojaReaction
 
     /// <summary>The change since the previous sample, for a changing-fast alert.</summary>
     public float Rate;
+
+    /// <summary>The condition's name, null-terminated, for a custom alert.</summary>
+    public PamojaAlertCode Code;
+
+    /// <summary>The measurement behind the condition, for a custom alert.</summary>
+    public float Value;
 }
 
 /// <summary>A RIHS01 type hash: the digest that identifies a message definition.</summary>

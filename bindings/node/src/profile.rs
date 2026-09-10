@@ -20,13 +20,17 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use napi::bindgen_prelude::Either3;
 use napi::Either;
 use napi_derive::napi;
 use pamoja_profile::{
     Alert as CoreAlert, ControlSpec, Controller as CoreController, ElementSpec as CoreElementSpec,
-    LocalizedText, PowerSchedule as CoreSchedule, Presentation as CorePresentation,
+    LocalizedText, Param, PowerSchedule as CoreSchedule, Presentation as CorePresentation,
     Profile as CoreProfile, Reaction as CoreReaction, Scope, Theme as CoreTheme, Viz as CoreViz,
 };
+
+/// One parameter of a custom control kind: a number, a flag, or text.
+type ParamValue = Either3<f64, bool, String>;
 
 /// Which control policy a profile applies to each reading.
 #[napi(string_enum)]
@@ -39,6 +43,9 @@ pub enum ControlKind {
     Surge,
     /// Report readings only, with no output and no alerts.
     Monitor,
+    /// A kind the library does not ship, named by the manifest and decided by the
+    /// program's own code; its name and parameters ride in `customKind` and `params`.
+    Custom,
 }
 
 /// A profile's control policy. Only the fields belonging to `kind` are set.
@@ -62,6 +69,11 @@ pub struct ControlPolicy {
     pub rising: Option<bool>,
     /// The largest safe change per sample, for a surge policy.
     pub limit: Option<f64>,
+    /// The kind as the manifest names it, for a custom policy.
+    pub custom_kind: Option<String>,
+    /// Every field the manifest carried beside the kind, for a custom policy.
+    #[napi(ts_type = "Record<string, number | boolean | string>")]
+    pub params: Option<HashMap<String, ParamValue>>,
 }
 
 /// How often a node samples as its battery drains, in whole seconds.
@@ -186,6 +198,8 @@ pub enum AlertKind {
     RunningOut,
     /// A reading is changing faster than its safe rate.
     ChangingFast,
+    /// A condition a policy of the program's own raised, named by `code`.
+    Custom,
 }
 
 /// An alert a reading raised. Only the field belonging to `kind` is set.
@@ -199,6 +213,10 @@ pub struct AlertReport {
     pub samples: Option<u32>,
     /// The change since the previous sample, for a changing-fast alert.
     pub rate: Option<f64>,
+    /// The condition's name, for a custom alert.
+    pub code: Option<String>,
+    /// The measurement behind the condition, for a custom alert.
+    pub value: Option<f64>,
 }
 
 /// What a controller decided about one reading.
@@ -212,7 +230,7 @@ pub struct Reaction {
 }
 
 /// Flattens a control policy into the object JavaScript sees.
-fn policy_of(spec: ControlSpec) -> ControlPolicy {
+fn policy_of(spec: &ControlSpec) -> ControlPolicy {
     let mut policy = ControlPolicy {
         kind: ControlKind::Monitor,
         setpoint: None,
@@ -223,8 +241,10 @@ fn policy_of(spec: ControlSpec) -> ControlPolicy {
         warn_within: None,
         rising: None,
         limit: None,
+        custom_kind: None,
+        params: None,
     };
-    match spec {
+    match *spec {
         ControlSpec::Setpoint {
             setpoint,
             hysteresis,
@@ -248,6 +268,26 @@ fn policy_of(spec: ControlSpec) -> ControlPolicy {
             policy.limit = Some(f64::from(limit));
         }
         ControlSpec::Monitor => {}
+        ControlSpec::Custom {
+            ref kind,
+            ref params,
+        } => {
+            policy.kind = ControlKind::Custom;
+            policy.custom_kind = Some(kind.clone());
+            policy.params = Some(
+                params
+                    .iter()
+                    .map(|(name, value)| {
+                        let value = match value {
+                            Param::Number(number) => Either3::A(*number),
+                            Param::Flag(flag) => Either3::B(*flag),
+                            Param::Text(text) => Either3::C(text.clone()),
+                        };
+                        (name.to_owned(), value)
+                    })
+                    .collect(),
+            );
+        }
     }
     policy
 }
@@ -418,18 +458,32 @@ fn reaction_of(reaction: CoreReaction) -> Reaction {
                 reading: Some(f64::from(reading)),
                 samples: None,
                 rate: None,
+                code: None,
+                value: None,
             },
             CoreAlert::RunningOut { samples } => AlertReport {
                 kind: AlertKind::RunningOut,
                 reading: None,
                 samples: Some(samples),
                 rate: None,
+                code: None,
+                value: None,
             },
             CoreAlert::ChangingFast { rate } => AlertReport {
                 kind: AlertKind::ChangingFast,
                 reading: None,
                 samples: None,
                 rate: Some(f64::from(rate)),
+                code: None,
+                value: None,
+            },
+            CoreAlert::Custom { code, value } => AlertReport {
+                kind: AlertKind::Custom,
+                reading: None,
+                samples: None,
+                rate: None,
+                code: Some(code.to_owned()),
+                value: Some(f64::from(value)),
             },
         }),
     }
@@ -540,7 +594,7 @@ impl Profile {
     /// The control policy applied to each reading.
     #[napi(getter)]
     pub fn control(&self) -> ControlPolicy {
-        policy_of(self.inner.control)
+        policy_of(&self.inner.control)
     }
 
     /// The sampling schedule kept as the battery drains.

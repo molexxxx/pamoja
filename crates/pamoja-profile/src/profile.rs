@@ -6,23 +6,35 @@
 //! [`ControlSpec`] and a [`PowerSchedule`] is a valid profile.
 
 use core::time::Duration;
+use std::collections::BTreeMap;
 
 use pamoja_power::PowerPlan;
+use serde::de::{self, Deserializer};
+use serde::ser::{SerializeMap, Serializer};
 use serde::{Deserialize, Serialize};
 
-use crate::{Controller, Presentation};
+use crate::{Controller, Param, Params, Presentation};
 
 /// How a profile turns each reading into control output and alerts.
 ///
 /// This is the policy half of a profile's manifest: the tunable rule a community can
 /// publish and share, with no code to write. [`Profile::controller`] assembles it
-/// into a live [`Controller`]. In a manifest it is tagged by `kind`:
+/// into a live [`Controller`]. In a manifest it is tagged by `kind`, with the kind's
+/// parameters beside it:
 ///
 /// ```json
 /// { "kind": "setpoint", "setpoint": 5.0, "hysteresis": 0.5, "cooling": true, "safe_band": 3.0 }
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+///
+/// A `kind` the library does not know is a [`Custom`](ControlSpec::Custom) policy: it
+/// loads with every other field kept as its [`Params`], and a
+/// [`PolicyRegistry`](crate::PolicyRegistry) resolves it to the code that decides it,
+/// so a manifest for a policy of your own reads exactly like one for a setpoint:
+///
+/// ```json
+/// { "kind": "frost_guard", "warn_below": 2.0 }
+/// ```
+#[derive(Clone, Debug, PartialEq)]
 pub enum ControlSpec {
     /// Hold a reading near `setpoint` by switching an output on and off.
     Setpoint {
@@ -55,6 +67,141 @@ pub enum ControlSpec {
     },
     /// Report readings only, with no control output and no alerts.
     Monitor,
+    /// A policy the library does not ship, named by the manifest and decided by code a
+    /// [`PolicyRegistry`](crate::PolicyRegistry) resolves the kind to.
+    Custom {
+        /// The kind as the manifest names it, such as `"frost_guard"`.
+        kind: String,
+        /// Every other field the manifest carried beside the kind.
+        params: Params,
+    },
+}
+
+impl ControlSpec {
+    /// The kinds the library ships, as a manifest names them.
+    pub const BUILT_IN: [&'static str; 4] = ["setpoint", "level", "surge", "monitor"];
+
+    /// Returns the kind as a manifest names it.
+    ///
+    /// # Returns
+    ///
+    /// `"setpoint"`, `"level"`, `"surge"`, `"monitor"`, or a custom kind's own name.
+    pub fn kind(&self) -> &str {
+        match self {
+            ControlSpec::Setpoint { .. } => "setpoint",
+            ControlSpec::Level { .. } => "level",
+            ControlSpec::Surge { .. } => "surge",
+            ControlSpec::Monitor => "monitor",
+            ControlSpec::Custom { kind, .. } => kind,
+        }
+    }
+}
+
+impl Serialize for ControlSpec {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            ControlSpec::Setpoint {
+                setpoint,
+                hysteresis,
+                cooling,
+                safe_band,
+            } => {
+                let mut map = serializer.serialize_map(Some(5))?;
+                map.serialize_entry("kind", "setpoint")?;
+                map.serialize_entry("setpoint", setpoint)?;
+                map.serialize_entry("hysteresis", hysteresis)?;
+                map.serialize_entry("cooling", cooling)?;
+                map.serialize_entry("safe_band", safe_band)?;
+                map.end()
+            }
+            ControlSpec::Level { empty, warn_within } => {
+                let mut map = serializer.serialize_map(Some(3))?;
+                map.serialize_entry("kind", "level")?;
+                map.serialize_entry("empty", empty)?;
+                map.serialize_entry("warn_within", warn_within)?;
+                map.end()
+            }
+            ControlSpec::Surge { rising, limit } => {
+                let mut map = serializer.serialize_map(Some(3))?;
+                map.serialize_entry("kind", "surge")?;
+                map.serialize_entry("rising", rising)?;
+                map.serialize_entry("limit", limit)?;
+                map.end()
+            }
+            ControlSpec::Monitor => {
+                let mut map = serializer.serialize_map(Some(1))?;
+                map.serialize_entry("kind", "monitor")?;
+                map.end()
+            }
+            ControlSpec::Custom { kind, params } => {
+                let mut map = serializer.serialize_map(Some(1 + params.len()))?;
+                map.serialize_entry("kind", kind)?;
+                for (name, value) in params.iter() {
+                    map.serialize_entry(name, value)?;
+                }
+                map.end()
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ControlSpec {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let mut fields: BTreeMap<String, Param> = BTreeMap::deserialize(deserializer)?;
+        let kind = match fields.remove("kind") {
+            Some(Param::Text(kind)) => kind,
+            Some(_) => return Err(de::Error::custom("`kind` must be a string")),
+            None => return Err(de::Error::missing_field("kind")),
+        };
+        let number = |name: &'static str| -> Result<f32, D::Error> {
+            match fields.get(name) {
+                Some(Param::Number(value)) => Ok(*value as f32),
+                Some(_) => Err(de::Error::custom(format!("`{name}` must be a number"))),
+                None => Err(de::Error::missing_field(name)),
+            }
+        };
+        let flag = |name: &'static str| -> Result<bool, D::Error> {
+            match fields.get(name) {
+                Some(Param::Flag(value)) => Ok(*value),
+                Some(_) => Err(de::Error::custom(format!("`{name}` must be true or false"))),
+                None => Err(de::Error::missing_field(name)),
+            }
+        };
+        let count = |name: &'static str| -> Result<u32, D::Error> {
+            match fields.get(name) {
+                Some(Param::Number(value))
+                    if *value >= 0.0 && value.fract() == 0.0 && *value <= f64::from(u32::MAX) =>
+                {
+                    Ok(*value as u32)
+                }
+                Some(_) => Err(de::Error::custom(format!(
+                    "`{name}` must be a whole number of samples"
+                ))),
+                None => Err(de::Error::missing_field(name)),
+            }
+        };
+        Ok(match kind.as_str() {
+            "setpoint" => ControlSpec::Setpoint {
+                setpoint: number("setpoint")?,
+                hysteresis: number("hysteresis")?,
+                cooling: flag("cooling")?,
+                safe_band: number("safe_band")?,
+            },
+            "level" => ControlSpec::Level {
+                empty: number("empty")?,
+                warn_within: count("warn_within")?,
+            },
+            "surge" => ControlSpec::Surge {
+                rising: flag("rising")?,
+                limit: number("limit")?,
+            },
+            "monitor" => ControlSpec::Monitor,
+            _ => ControlSpec::Custom {
+                kind,
+                params: Params::from(fields),
+            },
+        })
+    }
 }
 
 /// How often a node samples as its battery drains, in plain seconds.
@@ -322,22 +469,16 @@ impl Profile {
 
     /// Assembles this profile's [`ControlSpec`] into a live [`Controller`].
     ///
+    /// A custom kind has no built-in controller; for one this returns a monitoring
+    /// controller, and a [`PolicyRegistry`](crate::PolicyRegistry) resolves the kind to
+    /// the code that decides it.
+    ///
     /// # Returns
     ///
     /// A fresh controller implementing the profile's policy, with its control state
     /// reset.
     pub fn controller(&self) -> Controller {
-        match self.control {
-            ControlSpec::Setpoint {
-                setpoint,
-                hysteresis,
-                cooling,
-                safe_band,
-            } => Controller::setpoint(setpoint, hysteresis, cooling, safe_band),
-            ControlSpec::Level { empty, warn_within } => Controller::level(empty, warn_within),
-            ControlSpec::Surge { rising, limit } => Controller::surge(rising, limit),
-            ControlSpec::Monitor => Controller::monitor(),
-        }
+        Controller::from_spec(&self.control)
     }
 
     /// Attaches a dashboard [`Presentation`] declaring this profile's custom elements.
@@ -467,7 +608,7 @@ impl Profile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Alert;
+    use crate::{Alert, Reaction};
 
     #[test]
     fn presets_have_stable_names_and_topics() {
@@ -535,6 +676,72 @@ mod tests {
             let restored = Profile::from_json(&json).expect("deserialize");
             assert_eq!(profile, restored);
         }
+    }
+
+    #[cfg(feature = "json")]
+    #[test]
+    fn a_kind_the_library_never_shipped_loads_with_its_parameters() {
+        let manifest = r#"{
+            "name": "orchard-frost",
+            "topic": "orchard/air/temperature",
+            "control": { "kind": "frost_guard", "warn_below": 2.0, "latching": true, "zone": "north" },
+            "power": { "active_secs": 60, "saver_secs": 300, "critical_secs": 900 }
+        }"#;
+        let profile = Profile::from_json(manifest).expect("a custom kind parses");
+        let ControlSpec::Custom { kind, params } = &profile.control else {
+            panic!("expected a custom kind, got {:?}", profile.control);
+        };
+        assert_eq!(kind, "frost_guard");
+        assert_eq!(profile.control.kind(), "frost_guard");
+        assert_eq!(params.number("warn_below"), Some(2.0));
+        assert_eq!(params.flag("latching"), Some(true));
+        assert_eq!(params.text("zone"), Some("north"));
+        assert_eq!(params.len(), 3);
+
+        // The built-in controller for a custom kind observes only.
+        assert_eq!(profile.controller().evaluate(-5.0), Reaction::default());
+
+        // It writes back in the same flat shape, with the kind first.
+        let shared = profile.to_json().expect("serializes");
+        assert!(
+            shared.contains("\"kind\": \"frost_guard\",\n    \"latching\": true,\n    \"warn_below\": 2.0,\n    \"zone\": \"north\""),
+            "{shared}"
+        );
+        assert_eq!(Profile::from_json(&shared).expect("round trip"), profile);
+    }
+
+    #[cfg(feature = "json")]
+    #[test]
+    fn a_built_in_kind_with_a_wrong_field_is_refused_rather_than_taken_as_custom() {
+        let control = |body: &str| {
+            let manifest = format!(
+                r#"{{ "name": "t", "topic": "t", "control": {body}, "power": {{ "active_secs": 1, "saver_secs": 2, "critical_secs": 3 }} }}"#
+            );
+            Profile::from_json(&manifest).map(|profile| profile.control)
+        };
+        let error = control(r#"{ "kind": "setpoint", "setpoint": 5.0 }"#).unwrap_err();
+        assert!(error.to_string().contains("hysteresis"), "{error}");
+        let error =
+            control(r#"{ "kind": "level", "empty": 0.0, "warn_within": 2.5 }"#).unwrap_err();
+        assert!(error.to_string().contains("whole number"), "{error}");
+        let error = control(r#"{ "kind": "surge", "rising": "up", "limit": 1.0 }"#).unwrap_err();
+        assert!(error.to_string().contains("true or false"), "{error}");
+        let error = control(r#"{ "setpoint": 5.0 }"#).unwrap_err();
+        assert!(error.to_string().contains("kind"), "{error}");
+        let error = control(r#"{ "kind": 3 }"#).unwrap_err();
+        assert!(error.to_string().contains("string"), "{error}");
+        assert_eq!(
+            control(r#"{ "kind": "level", "empty": 1, "warn_within": 4 }"#).unwrap(),
+            ControlSpec::Level {
+                empty: 1.0,
+                warn_within: 4
+            }
+        );
+        assert_eq!(
+            ControlSpec::BUILT_IN,
+            ["setpoint", "level", "surge", "monitor"]
+        );
+        assert_eq!(ControlSpec::Monitor.kind(), "monitor");
     }
 
     #[cfg(feature = "json")]

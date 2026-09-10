@@ -127,6 +127,16 @@ def test_helpers_carry_a_reading_through_to_an_action():
     smoother.reset()
     assert smoother.value is None
 
+    from pamoja.kit import Edge, Trigger
+
+    dry = Trigger.below(30.0, 5.0)
+    assert dry.update(42.0) is None, "above the line nothing fires"
+    assert dry.update(28.0) == Edge.SET, "crossing it fires once"
+    assert dry.is_set, "and the trigger reports the condition holds"
+    assert dry.update(33.0) is None, "inside the band it holds"
+    assert dry.update(36.0) == Edge.CLEARED, "coming back past the band clears it"
+    assert dry.threshold == 30.0
+
     fridge = Thermostat.cooling(8.0, 1.0)
     assert fridge.update(7.0) is False
     assert fridge.update(9.5) is True
@@ -855,6 +865,27 @@ def test_a_presentation_is_typed_both_ways():
 
     with pytest.raises(ValueError, match="not a graphic"):
         profile.ElementSpec("x", "u", "x", "my_custom_widget")
+
+
+def test_a_kind_the_library_never_shipped_loads_with_its_parameters():
+    import json
+
+    from pamoja import profile
+
+    orchard = profile.Profile.from_json(json.dumps({
+        "name": "orchard-frost",
+        "topic": "orchard/air/temperature",
+        "control": {"kind": "frost_guard", "warn_below": 2, "latching": True, "zone": "north"},
+        "power": {"active_secs": 60, "saver_secs": 300, "critical_secs": 900},
+    }))
+    assert orchard.control.kind == profile.ControlKind.CUSTOM
+    assert orchard.control.custom_kind == "frost_guard"
+    assert orchard.control.params == {"warn_below": 2.0, "latching": True, "zone": "north"}
+    assert profile.Profile.well_level().control.params is None
+    assert orchard.controller().evaluate(-4.0).actuator is None, (
+        "the built-in controller for a custom kind observes only"
+    )
+    assert '"kind": "frost_guard"' in orchard.to_json()
 
 
 def test_ros2_names_map_onto_the_dds_wire():

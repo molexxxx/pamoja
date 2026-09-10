@@ -8,10 +8,10 @@
 use napi_derive::napi;
 use pamoja_kit::{
     deadband as core_deadband, Anomaly as CoreAnomaly, Boundary, Calibration as CoreCalibration,
-    Coordinate, Debounce as CoreDebounce, Depletion as CoreDepletion, Geofence as CoreGeofence,
-    Kalman as CoreKalman, Median as CoreMedian, Pid as CorePid, Ramp as CoreRamp,
-    Smoother as CoreSmoother, Surge as CoreSurge, Thermostat as CoreThermostat, Trend as CoreTrend,
-    Window as CoreWindow,
+    Coordinate, Debounce as CoreDebounce, Depletion as CoreDepletion, Edge as CoreEdge,
+    Geofence as CoreGeofence, Kalman as CoreKalman, Median as CoreMedian, Pid as CorePid,
+    Ramp as CoreRamp, Smoother as CoreSmoother, Surge as CoreSurge, Thermostat as CoreThermostat,
+    Trend as CoreTrend, Trigger as CoreTrigger, Window as CoreWindow,
 };
 
 /// A latitude and longitude in degrees.
@@ -163,6 +163,70 @@ impl Thermostat {
     #[napi]
     pub fn is_on(&self) -> bool {
         self.inner.is_on()
+    }
+}
+
+/// What a trigger reports when a reading changes its state.
+#[napi(string_enum = "lowercase")]
+pub enum Edge {
+    /// The reading just crossed the line: the condition became true.
+    Set,
+    /// The reading just came back past the release band: the condition stopped holding.
+    Cleared,
+}
+
+/// Fires once when a reading crosses a line, and not again until it has come back
+/// past the release band.
+#[napi]
+pub struct Trigger {
+    inner: CoreTrigger,
+}
+
+#[napi]
+impl Trigger {
+    /// Creates a trigger that fires when a reading rises above the line and clears once
+    /// it has fallen below the line by the hysteresis.
+    #[napi(factory)]
+    pub fn above(threshold: f64, hysteresis: f64) -> Self {
+        Self {
+            inner: CoreTrigger::above(threshold as f32, hysteresis as f32),
+        }
+    }
+
+    /// Creates a trigger that fires when a reading falls below the line and clears once
+    /// it has risen above the line by the hysteresis.
+    #[napi(factory)]
+    pub fn below(threshold: f64, hysteresis: f64) -> Self {
+        Self {
+            inner: CoreTrigger::below(threshold as f32, hysteresis as f32),
+        }
+    }
+
+    /// Feeds a reading in and returns the edge it caused, or `null` while nothing changed.
+    #[napi]
+    pub fn update(&mut self, reading: f64) -> Option<Edge> {
+        self.inner.update(reading as f32).map(|edge| match edge {
+            CoreEdge::Set => Edge::Set,
+            CoreEdge::Cleared => Edge::Cleared,
+        })
+    }
+
+    /// Whether the condition currently holds.
+    #[napi]
+    pub fn is_set(&self) -> bool {
+        self.inner.is_set()
+    }
+
+    /// The line the trigger watches.
+    #[napi(getter)]
+    pub fn threshold(&self) -> f64 {
+        f64::from(self.inner.threshold())
+    }
+
+    /// The release band on the far side of the line.
+    #[napi(getter)]
+    pub fn hysteresis(&self) -> f64 {
+        f64::from(self.inner.hysteresis())
     }
 }
 

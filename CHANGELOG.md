@@ -9,6 +9,47 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- Rules between nodes, as a file. A rule watches one node's topic for a reading
+  crossing a line, with a release band so it fires once per crossing, and the
+  moment it does drives an actuator held by name or publishes a message over the
+  same link; `then` runs as the condition sets and `otherwise` as it clears.
+  `pamoja-profile` gains `Rule`, `Condition`, `Action`, `Rules` (a JSON file with
+  `from_json` and `to_json`), and `RuleEngine`, which subscribes to each rule's
+  topic, decodes readings in the nodes' codec, and runs the file off any link
+  that can receive. The condition is `pamoja_kit::Trigger`, a threshold with
+  hysteresis that reports its `Edge`, bound in every language with a conformance
+  vector. A rules guide runs the same file in four languages: the engine in
+  Rust, and the trigger with the program's own loop in the others.
+- A message reads as text or a number, and a link sends text. `Message::text`
+  and `Message::number` in the core, `send_text` on every `Transport`, and in
+  the bindings `text` and `number` on every received message and a `send` (or
+  `publish`) that takes a string beside bytes, so a reading or a command written
+  out as words needs no encoding step in a program.
+- A policy of your own runs in a profile's node. `Policy` in `pamoja-profile` is
+  the decision half of a node, generic over the reading it decides on and the
+  command it issues, and `Controller` implements it over an `f32` and a `bool`;
+  `Node::with_policy` runs any policy in the same read, decide, act, publish
+  loop, so a node can read a driver's whole measurement and command an actuator
+  that takes more than on and off, and `Reaction` is generic over the command.
+  `Alert` gains `Custom { code, value }` for a condition a policy names itself.
+  A manifest may name a control kind the library never shipped, with its
+  parameters beside it as every built-in kind carries its own: `ControlSpec`
+  gains `Custom { kind, params }` with `Params` of numbers, flags, and text, and
+  `PolicyRegistry` resolves the four built-in kinds to a controller and a
+  custom kind to the factory registered under its name. The futures the core
+  `Sensor`, `Actuator`, `Device`, and `Telemetry` traits return are `Send`, as a
+  transport's are, so a node built from any sensor and actuator can be driven
+  from a spawned task; a driver generic over a bus says so with a `Send` bound.
+  Every binding reads a custom kind as its name and parameters and a custom alert
+  as its code and value, over `pamoja_profile_control_kind` and
+  `pamoja_profile_control_params_json` in the C ABI, and the conformance vectors
+  carry a manifest with a kind the library never shipped.
+
+### Changed
+
+- `ControlSpec` is no longer `Copy`, since a custom kind carries its name and
+  parameters; clone it or borrow it.
+
 - A path for what people build. `profiles/` holds one JSON manifest per shared
   profile, the four presets among them, read by the parser a device uses and
   checked by `cargo xtask profiles` for what a hand-written manifest gets wrong:

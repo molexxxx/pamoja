@@ -27,7 +27,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use pamoja_profile::{
     Alert, ControlSpec, Controller as CoreController, ElementSpec as CoreElementSpec,
-    LocalizedText, PowerSchedule, Presentation as CorePresentation, Profile as CoreProfile,
+    LocalizedText, Param, PowerSchedule, Presentation as CorePresentation, Profile as CoreProfile,
     Reaction as CoreReaction, Scope, Theme as CoreTheme, Viz,
 };
 
@@ -372,11 +372,14 @@ impl Presentation {
 
 /// A profile's control policy.
 ///
-/// Only the attributes belonging to `kind` are set; the rest are `None`.
+/// Only the attributes belonging to `kind` are set; the rest are `None`. A `Custom`
+/// kind is one the library does not ship: the manifest names it in `custom_kind`, and
+/// every field beside the kind is in `params`, for the program's own code to decide.
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct ControlPolicy {
-    /// Which policy this describes: `Setpoint`, `Level`, `Surge`, or `Monitor`.
+    /// Which policy this describes: `Setpoint`, `Level`, `Surge`, `Monitor`, or
+    /// `Custom`.
     #[pyo3(get)]
     kind: String,
     /// The target reading, for a setpoint policy.
@@ -403,6 +406,32 @@ pub struct ControlPolicy {
     /// The largest safe change per sample, for a surge policy.
     #[pyo3(get)]
     limit: Option<f32>,
+    /// The kind as the manifest names it, for a custom policy.
+    #[pyo3(get)]
+    custom_kind: Option<String>,
+    params: Option<BTreeMap<String, Param>>,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl ControlPolicy {
+    /// Every field the manifest carried beside a custom kind, as numbers, flags, and
+    /// text by name, or `None` for a built-in kind.
+    #[getter]
+    fn params<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyDict>>> {
+        let Some(params) = &self.params else {
+            return Ok(None);
+        };
+        let out = PyDict::new(py);
+        for (name, value) in params {
+            match value {
+                Param::Number(number) => out.set_item(name, number)?,
+                Param::Flag(flag) => out.set_item(name, flag)?,
+                Param::Text(text) => out.set_item(name, text)?,
+            }
+        }
+        Ok(Some(out))
+    }
 }
 
 /// How often a node samples as its battery drains, in whole seconds.
@@ -432,8 +461,8 @@ pub struct PowerScheduleSpec {
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct AlertReport {
-    /// Which threshold the reading crossed: `OutOfRange`, `RunningOut`, or
-    /// `ChangingFast`.
+    /// Which threshold the reading crossed: `OutOfRange`, `RunningOut`,
+    /// `ChangingFast`, or `Custom` for a condition the program's own policy raised.
     #[pyo3(get)]
     kind: String,
     /// The offending reading, for an out-of-range alert.
@@ -445,6 +474,12 @@ pub struct AlertReport {
     /// The change since the previous sample, for a changing-fast alert.
     #[pyo3(get)]
     rate: Option<f32>,
+    /// The condition's name, for a custom alert.
+    #[pyo3(get)]
+    code: Option<String>,
+    /// The measurement behind the condition, for a custom alert.
+    #[pyo3(get)]
+    value: Option<f32>,
 }
 
 /// What a controller decided about one reading.
@@ -461,7 +496,7 @@ pub struct Reaction {
 }
 
 /// Flattens a control policy into the object Python sees.
-fn policy_of(spec: ControlSpec) -> ControlPolicy {
+fn policy_of(spec: &ControlSpec) -> ControlPolicy {
     let mut policy = ControlPolicy {
         kind: "Monitor".to_owned(),
         setpoint: None,
@@ -472,8 +507,10 @@ fn policy_of(spec: ControlSpec) -> ControlPolicy {
         warn_within: None,
         rising: None,
         limit: None,
+        custom_kind: None,
+        params: None,
     };
-    match spec {
+    match *spec {
         ControlSpec::Setpoint {
             setpoint,
             hysteresis,
@@ -497,6 +534,19 @@ fn policy_of(spec: ControlSpec) -> ControlPolicy {
             policy.limit = Some(limit);
         }
         ControlSpec::Monitor => {}
+        ControlSpec::Custom {
+            ref kind,
+            ref params,
+        } => {
+            policy.kind = "Custom".to_owned();
+            policy.custom_kind = Some(kind.clone());
+            policy.params = Some(
+                params
+                    .iter()
+                    .map(|(name, value)| (name.to_owned(), value.clone()))
+                    .collect(),
+            );
+        }
     }
     policy
 }
@@ -519,6 +569,8 @@ fn alert_of(alert: Alert) -> AlertReport {
         reading: None,
         samples: None,
         rate: None,
+        code: None,
+        value: None,
     };
     match alert {
         Alert::OutOfRange { reading } => {
@@ -532,6 +584,11 @@ fn alert_of(alert: Alert) -> AlertReport {
         Alert::ChangingFast { rate } => {
             report.kind = "ChangingFast".to_owned();
             report.rate = Some(rate);
+        }
+        Alert::Custom { code, value } => {
+            report.kind = "Custom".to_owned();
+            report.code = Some(code.to_owned());
+            report.value = Some(value);
         }
     }
     report
@@ -646,7 +703,7 @@ impl Profile {
     /// The control policy applied to each reading.
     #[getter]
     fn control(&self) -> ControlPolicy {
-        policy_of(self.inner.control)
+        policy_of(&self.inner.control)
     }
 
     /// The sampling schedule kept as the battery drains.

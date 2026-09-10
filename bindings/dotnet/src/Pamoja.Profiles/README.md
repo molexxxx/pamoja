@@ -2,7 +2,7 @@
 
 A node instantiated by name with its policy and schedule, and the naming and encoding rules a robot's topics follow, with no ROS 2 or Zenoh installed.
 
-One reference for the 3 capabilities of this domain. Each is also its own package,
+One reference for the 4 capabilities of this domain. Each is also its own package,
 and `Pamoja` is the whole framework in one.
 
 ```sh
@@ -15,6 +15,7 @@ namespace, so a type is named the way it is when the package is referenced direc
 | Capability | Package | What it covers |
 | --- | --- | --- |
 | [Device profiles](https://pamoja.molex.cloud/docs/guides/profile.html) | `Pamoja.Profile` | Named, ready-to-run device profiles from plain data or a JSON manifest |
+| [Rules](https://pamoja.molex.cloud/docs/guides/rules.html) | `Pamoja.Kit` | Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link |
 | [ROS 2 rules](https://pamoja.molex.cloud/docs/guides/ros2.html) | `Pamoja.Ros2` | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |
 | [Zenoh keys](https://pamoja.molex.cloud/docs/guides/zenoh.html) | `Pamoja.Zenoh` | Zenoh key expressions: validity, canonical form, and wildcard matching |
 

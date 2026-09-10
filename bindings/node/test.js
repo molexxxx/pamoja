@@ -15,6 +15,8 @@ const {
   Quantizer,
   Smoother,
   Thermostat,
+  Trigger,
+  Edge,
   Depletion,
   Calibration,
   Geofence,
@@ -159,6 +161,14 @@ function helpers() {
   assert.ok(smoothed > 10 && smoothed < 20, "smoothing should lag the step");
   smoother.reset();
   assert.strictEqual(smoother.value(), null, "reset should clear the value");
+
+  const dry = Trigger.below(30, 5);
+  assert.strictEqual(dry.update(42), null, "above the line nothing fires");
+  assert.strictEqual(dry.update(28), Edge.Set, "crossing it fires once");
+  assert.ok(dry.isSet(), "and the trigger reports the condition holds");
+  assert.strictEqual(dry.update(33), null, "inside the band it holds");
+  assert.strictEqual(dry.update(36), Edge.Cleared, "coming back past the band clears it");
+  assert.strictEqual(dry.threshold, 30);
 
   const fridge = Thermostat.cooling(8, 1);
   assert.ok(!fridge.update(7), "a cool fridge leaves the compressor off");
@@ -1282,6 +1292,22 @@ async function asyncTransports() {
     /must be \[low, high\]/,
     "a band is two numbers",
   );
+
+  // A kind the library never shipped loads with its parameters beside it.
+  const orchard = profile.Profile.fromJson(JSON.stringify({
+    name: "orchard-frost",
+    topic: "orchard/air/temperature",
+    control: { kind: "frost_guard", warn_below: 2, latching: true, zone: "north" },
+    power: { active_secs: 60, saver_secs: 300, critical_secs: 900 },
+  }));
+  assert.strictEqual(orchard.control.kind, profile.ControlKind.Custom);
+  assert.strictEqual(orchard.control.customKind, "frost_guard");
+  assert.deepStrictEqual(orchard.control.params, { warn_below: 2, latching: true, zone: "north" });
+  assert.ok(
+    orchard.controller().evaluate(-4).actuator == null,
+    "the built-in controller for a custom kind observes only",
+  );
+  assert.ok(orchard.toJson().includes('"kind": "frost_guard"'), "and it writes back under its own name");
 
   // The ROS 2 naming rules, with no ROS installation in sight.
   assert.ok(ros2.name.isValid("/robot1/camera_left/image_raw"));

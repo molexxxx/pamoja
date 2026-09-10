@@ -187,11 +187,11 @@ where
 
 impl<A, B, C, Dp, D, E> Actuator for FourWire<A, B, C, Dp, D>
 where
-    A: OutputPin<Error = E>,
-    B: OutputPin<Error = E>,
-    C: OutputPin<Error = E>,
-    Dp: OutputPin<Error = E>,
-    D: DelayNs,
+    A: OutputPin<Error = E> + Send,
+    B: OutputPin<Error = E> + Send,
+    C: OutputPin<Error = E> + Send,
+    Dp: OutputPin<Error = E> + Send,
+    D: DelayNs + Send,
     E: core::fmt::Debug,
 {
     type Command = i32;
@@ -351,9 +351,9 @@ where
 
 impl<S, R, D, E> Actuator for StepDir<S, R, D>
 where
-    S: OutputPin<Error = E>,
-    R: OutputPin<Error = E>,
-    D: DelayNs,
+    S: OutputPin<Error = E> + Send,
+    R: OutputPin<Error = E> + Send,
+    D: DelayNs + Send,
     E: core::fmt::Debug,
 {
     type Command = i32;

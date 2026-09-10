@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
 using Pamoja.Power;
 using Pamoja.Native.Interop;
@@ -19,6 +20,13 @@ public enum ControlKind
 
     /// <summary>Report readings only, with no output and no alerts.</summary>
     Monitor = 3,
+
+    /// <summary>
+    /// A kind the library does not ship, named by the manifest in
+    /// <see cref="ControlPolicy.CustomKind"/> and decided by the program's own code
+    /// from <see cref="ControlPolicy.Params"/>.
+    /// </summary>
+    Custom = 4,
 }
 
 /// <summary>Which threshold a reading crossed.</summary>
@@ -32,6 +40,9 @@ public enum AlertKind
 
     /// <summary>A reading is changing faster than its safe rate.</summary>
     ChangingFast = 3,
+
+    /// <summary>A condition a policy of the program's own raised, named by its code.</summary>
+    Custom = 4,
 }
 
 /// <summary>An alert a reading raised.</summary>
@@ -40,11 +51,15 @@ public enum AlertKind
 /// <param name="Reading">The offending reading, for an out-of-range alert.</param>
 /// <param name="Samples">The samples until empty, for a running-out alert.</param>
 /// <param name="Rate">The change since the previous sample, for a changing-fast alert.</param>
+/// <param name="Code">The condition's name, for a custom alert.</param>
+/// <param name="Value">The measurement behind the condition, for a custom alert.</param>
 public readonly record struct Alert(
     AlertKind Kind,
     float? Reading,
     uint? Samples,
-    float? Rate);
+    float? Rate,
+    string? Code = null,
+    float? Value = null);
 
 /// <summary>What a controller decided about one reading.</summary>
 /// <param name="Actuator">
@@ -65,6 +80,11 @@ public readonly record struct Reaction(bool? Actuator, Alert? Alert);
 /// <param name="WarnWithin">How many samples ahead to warn, for a level policy.</param>
 /// <param name="Rising">Whether a rise rather than a fall is watched.</param>
 /// <param name="Limit">The largest safe change per sample, for a surge policy.</param>
+/// <param name="CustomKind">The kind as the manifest names it, for a custom policy.</param>
+/// <param name="Params">
+/// Every field the manifest carried beside a custom kind, each a <see cref="double"/>,
+/// a <see cref="bool"/>, or a <see cref="string"/>.
+/// </param>
 public readonly record struct ControlPolicy(
     ControlKind Kind,
     float? Setpoint,
@@ -74,7 +94,9 @@ public readonly record struct ControlPolicy(
     float? Empty,
     uint? WarnWithin,
     bool? Rising,
-    float? Limit);
+    float? Limit,
+    string? CustomKind = null,
+    IReadOnlyDictionary<string, object>? Params = null);
 
 /// <summary>How often a node samples as its battery drains, in whole seconds.</summary>
 /// <param name="ActiveSecs">Seconds between samples at a healthy charge.</param>
@@ -171,8 +193,37 @@ public sealed class Profile : IDisposable
     {
         PamojaStatus status = NativeMethods.pamoja_profile_control(p, out PamojaControlSpec spec);
         Status.ThrowIfError(status);
-        return Policy(spec);
+        if (spec.Kind != PamojaControlKind.Custom)
+        {
+            return Policy(spec);
+        }
+
+        string kind = OwnedString.Read(NativeMethods.pamoja_profile_control_kind(p));
+        string json = OwnedString.Read(NativeMethods.pamoja_profile_control_params_json(p));
+        return new ControlPolicy(
+            ControlKind.Custom, null, null, null, null, null, null, null, null, kind, Parameters(json));
     });
+
+    /// <summary>Reads a custom kind's parameters out of their JSON object.</summary>
+    /// <param name="json">The object the manifest carried beside the kind.</param>
+    /// <returns>Each parameter as a double, a bool, or a string.</returns>
+    private static IReadOnlyDictionary<string, object> Parameters(string json)
+    {
+        using JsonDocument document = JsonDocument.Parse(json);
+        var parameters = new Dictionary<string, object>();
+        foreach (JsonProperty property in document.RootElement.EnumerateObject())
+        {
+            parameters[property.Name] = property.Value.ValueKind switch
+            {
+                JsonValueKind.Number => property.Value.GetDouble(),
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                _ => property.Value.GetString() ?? string.Empty,
+            };
+        }
+
+        return parameters;
+    }
 
     /// <summary>Gets the sampling schedule kept as the battery drains.</summary>
     public PowerSchedule Power => _handle.Use(p =>
@@ -315,6 +366,8 @@ public sealed class Controller : IDisposable
                 new Alert(AlertKind.RunningOut, null, reaction.Samples, null),
             PamojaAlertKind.ChangingFast =>
                 new Alert(AlertKind.ChangingFast, null, null, reaction.Rate),
+            PamojaAlertKind.Custom =>
+                new Alert(AlertKind.Custom, null, null, null, reaction.Code.ToText(), reaction.Value),
             _ => null,
         };
         return new Reaction(reaction.HasActuator != 0 ? reaction.Actuator != 0 : null, alert);

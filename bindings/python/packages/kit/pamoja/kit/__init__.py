@@ -17,7 +17,7 @@ from typing import NamedTuple
 
 from pamoja._native import Anomaly, Median, Trend, Window
 from pamoja._native import window_capacity as _window_capacity
-from pamoja._native import Calibration, Debounce, Depletion, Kalman, Pid, Ramp, Smoother, Surge, Thermostat
+from pamoja._native import Calibration, Debounce, Depletion, Kalman, Pid, Ramp, Smoother, Surge, Thermostat, Trigger
 from pamoja._native import Geofence as _NativeGeofence
 from pamoja._native import bearing_between as _bearing_between
 from pamoja._native import deadband
@@ -44,10 +44,21 @@ __all__ = [
     "Smoother",
     "Surge",
     "Thermostat",
+    "Trigger",
+    "Edge",
     "bearing_between",
     "deadband",
     "distance_between",
 ]
+
+
+class Edge(str, enum.Enum):
+    """What a :class:`Trigger` reports when a reading changes its state."""
+
+    #: The reading just crossed the line: the condition became true.
+    SET = "set"
+    #: The reading just came back past the release band: the condition stopped holding.
+    CLEARED = "cleared"
 
 
 class Coordinate(NamedTuple):

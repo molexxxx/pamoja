@@ -17,8 +17,8 @@ use pamoja_gpio::i2c::{Address, Direction};
 use pamoja_gpio::pin::{Edge, Level, Polarity};
 use pamoja_gpio::spi::Mode;
 use pamoja_kit::{
-    deadband, Anomaly, Boundary, Calibration, Coordinate, Depletion, Geofence, Median, Pid,
-    Smoother, Thermostat, Trend, Window,
+    deadband, Anomaly, Boundary, Calibration, Coordinate, Depletion, Edge as TriggerEdge, Geofence,
+    Median, Pid, Smoother, Thermostat, Trend, Trigger, Window,
 };
 use pamoja_ladder::{Delivery, TransportLadder};
 use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
@@ -213,6 +213,20 @@ fn helper_vectors_match() {
         .zip(case["outputs"].as_array().expect("an array").iter())
     {
         assert_eq!(thermostat.update(*reading), want.as_bool().expect("a bool"));
+    }
+
+    let case = &vectors["trigger"];
+    let mut trigger = Trigger::below(float(&case["threshold"]), float(&case["hysteresis"]));
+    for (reading, want) in floats(&case["readings"])
+        .iter()
+        .zip(case["outputs"].as_array().expect("an array").iter())
+    {
+        let got = match trigger.update(*reading) {
+            Some(TriggerEdge::Set) => Some("set"),
+            Some(TriggerEdge::Cleared) => Some("cleared"),
+            None => None,
+        };
+        assert_eq!(got, want.as_str(), "the trigger edge at {reading}");
     }
 
     let case = &vectors["depletion"];
@@ -2671,7 +2685,7 @@ fn profile_vectors_match() {
         fridge.topic,
         cold_chain["topic"].as_str().expect("the topic")
     );
-    assert_control(fridge.control, &cold_chain["control"]);
+    assert_control(&fridge.control, &cold_chain["control"]);
 
     let power = &cold_chain["power"];
     assert_eq!(
@@ -2690,9 +2704,17 @@ fn profile_vectors_match() {
     let draining = &vector["draining"];
     let well = Profile::well_level();
     assert_eq!(well.name, draining["name"].as_str().expect("the name"));
-    assert_control(well.control, &draining["control"]);
+    assert_control(&well.control, &draining["control"]);
     let mut level = well.controller();
     assert_reactions(&mut level, &draining["reactions"]);
+
+    let custom = &vector["custom"];
+    let orchard = Profile::from_json(custom["manifest"].as_str().expect("the manifest"))
+        .expect("a custom kind parses");
+    assert_eq!(orchard.name, custom["name"].as_str().expect("the name"));
+    assert_control(&orchard.control, &custom["control"]);
+    let mut inert = orchard.controller();
+    assert_reactions(&mut inert, &custom["reactions"]);
 
     let mut observer = Controller::monitor();
     let observed = &vector["observed"];
@@ -2734,15 +2756,19 @@ fn assert_reactions(control: &mut Controller, reactions: &Value) {
             Some(Alert::ChangingFast { rate }) => {
                 assert_eq!(rate, float(&alert["rate"]));
             }
+            Some(Alert::Custom { code, value }) => {
+                assert_eq!(code, alert["code"].as_str().expect("the code"));
+                assert_eq!(value, float(&alert["value"]));
+            }
             None => {}
         }
     }
 }
 
 /// Checks a control policy against the flattened form the vectors carry.
-fn assert_control(spec: ControlSpec, want: &Value) {
+fn assert_control(spec: &ControlSpec, want: &Value) {
     let kind = want["kind"].as_str().expect("the policy kind");
-    match spec {
+    match *spec {
         ControlSpec::Setpoint {
             setpoint,
             hysteresis,
@@ -2769,6 +2795,21 @@ fn assert_control(spec: ControlSpec, want: &Value) {
             assert_eq!(limit, float(&want["limit"]));
         }
         ControlSpec::Monitor => assert_eq!(kind, "Monitor"),
+        ControlSpec::Custom {
+            kind: ref custom_kind,
+            ref params,
+        } => {
+            assert_eq!(kind, "Custom");
+            assert_eq!(
+                custom_kind,
+                want["customKind"].as_str().expect("the custom kind")
+            );
+            assert_eq!(
+                serde_json::to_value(params).expect("params"),
+                want["params"],
+                "the parameters ride beside the kind"
+            );
+        }
     }
 }
 
@@ -2779,6 +2820,7 @@ fn alert_name(alert: Option<&Alert>) -> &'static str {
         Some(Alert::OutOfRange { .. }) => "OutOfRange",
         Some(Alert::RunningOut { .. }) => "RunningOut",
         Some(Alert::ChangingFast { .. }) => "ChangingFast",
+        Some(Alert::Custom { .. }) => "Custom",
     }
 }
 

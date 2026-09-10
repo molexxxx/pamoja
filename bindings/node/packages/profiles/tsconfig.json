@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../kit"
+    },
+    {
       "path": "../profile"
     },
     {

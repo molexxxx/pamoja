@@ -17,4 +17,17 @@ public sealed class MqttMessage
 
     /// <summary>The raw payload bytes.</summary>
     public ReadOnlyMemory<byte> Payload { get; }
+
+    /// <summary>The payload as text: words, or a number written out.</summary>
+    public string Text => System.Text.Encoding.UTF8.GetString(Payload.Span);
+
+    /// <summary>The payload as a number written out as text, such as <c>21.5</c>, or <c>null</c> when it is not one.</summary>
+    public double? Number =>
+        double.TryParse(
+            Text.Trim(),
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out double number)
+            ? number
+            : null;
 }

@@ -13,12 +13,13 @@
 use std::sync::Arc;
 
 use napi::bindgen_prelude::Buffer;
+use napi::Either;
 use napi_derive::napi;
 use pamoja_ladder::{Delivery as CoreDelivery, TransportLadder};
 use tokio::sync::Mutex;
 
 use crate::sync::{SharedStore, Store};
-use crate::transport::{Transport, TransportMessage};
+use crate::transport::{bytes_of, message_of, Transport, TransportMessage};
 
 /// What became of a message handed to a ladder.
 #[napi(string_enum)]
@@ -84,8 +85,12 @@ impl Ladder {
     ///
     /// Buffering is a success, not a failure: it is what the ladder exists to do.
     #[napi]
-    pub async fn send(&self, topic: String, payload: Buffer) -> napi::Result<Delivery> {
-        let payload = payload.to_vec();
+    pub async fn send(
+        &self,
+        topic: String,
+        payload: Either<Buffer, String>,
+    ) -> napi::Result<Delivery> {
+        let payload = bytes_of(payload);
         let mut slot = self.inner.lock().await;
         slot.as_mut()
             .ok_or_else(unusable)?
@@ -153,10 +158,7 @@ impl Ladder {
             .recv()
             .await
             .map_err(to_napi)?;
-        Ok(received.map(|message| TransportMessage {
-            topic: message.topic,
-            payload: message.payload.into(),
-        }))
+        Ok(received.map(message_of))
     }
 }
 

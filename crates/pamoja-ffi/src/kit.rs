@@ -16,8 +16,8 @@
 use std::ptr;
 
 use pamoja_kit::{
-    deadband, Anomaly, Boundary, Calibration, Coordinate, Debounce, Depletion, Geofence, Kalman,
-    Median, Pid, Ramp, Smoother, Surge, Thermostat, Trend, Window,
+    deadband, Anomaly, Boundary, Calibration, Coordinate, Debounce, Depletion, Edge, Geofence,
+    Kalman, Median, Pid, Ramp, Smoother, Surge, Thermostat, Trend, Trigger, Window,
 };
 
 /// A latitude and longitude in degrees.
@@ -108,6 +108,119 @@ pub unsafe extern "C" fn pamoja_pid_free(pid: *mut PamojaPid) {
 /// An opaque handle to an on/off controller with hysteresis.
 pub struct PamojaThermostat {
     inner: Thermostat,
+}
+
+/// What a trigger reports when a reading changes its state, if anything.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PamojaEdge {
+    /// Nothing changed.
+    None = 0,
+    /// The reading just crossed the line: the condition became true.
+    Set = 1,
+    /// The reading just came back past the release band: the condition stopped holding.
+    Cleared = 2,
+}
+
+/// An opaque handle to a threshold with hysteresis that reports its edges.
+pub struct PamojaTrigger {
+    inner: Trigger,
+}
+
+/// Releases a trigger handle.
+///
+/// # Safety
+///
+/// `trigger` must be a handle from [`pamoja_trigger_above`] or [`pamoja_trigger_below`]
+/// that has not already been freed, or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_trigger_free(trigger: *mut PamojaTrigger) {
+    if !trigger.is_null() {
+        drop(Box::from_raw(trigger));
+    }
+}
+
+/// Creates a trigger that fires when a reading rises above the line and clears once it
+/// has fallen below the line by the hysteresis.
+///
+/// # Returns
+///
+/// A handle the caller must release with [`pamoja_trigger_free`].
+///
+/// # Safety
+///
+/// The returned handle must be freed exactly once.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_trigger_above(
+    threshold: f32,
+    hysteresis: f32,
+) -> *mut PamojaTrigger {
+    Box::into_raw(Box::new(PamojaTrigger {
+        inner: Trigger::above(threshold, hysteresis),
+    }))
+}
+
+/// Creates a trigger that fires when a reading falls below the line and clears once it
+/// has risen above the line by the hysteresis.
+///
+/// # Returns
+///
+/// A handle the caller must release with [`pamoja_trigger_free`].
+///
+/// # Safety
+///
+/// The returned handle must be freed exactly once.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_trigger_below(
+    threshold: f32,
+    hysteresis: f32,
+) -> *mut PamojaTrigger {
+    Box::into_raw(Box::new(PamojaTrigger {
+        inner: Trigger::below(threshold, hysteresis),
+    }))
+}
+
+/// Feeds a reading to a trigger and returns the edge it caused.
+///
+/// # Returns
+///
+/// [`PamojaEdge::Set`] or [`PamojaEdge::Cleared`] the moment the state changes, and
+/// [`PamojaEdge::None`] while nothing changed or if `trigger` is null.
+///
+/// # Safety
+///
+/// `trigger` must be a live handle from a trigger constructor, or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_trigger_update(
+    trigger: *mut PamojaTrigger,
+    reading: f32,
+) -> PamojaEdge {
+    match trigger.as_mut() {
+        Some(trigger) => match trigger.inner.update(reading) {
+            Some(Edge::Set) => PamojaEdge::Set,
+            Some(Edge::Cleared) => PamojaEdge::Cleared,
+            None => PamojaEdge::None,
+        },
+        None => PamojaEdge::None,
+    }
+}
+
+/// Reports whether a trigger's condition currently holds.
+///
+/// # Returns
+///
+/// `true` from the reading that set the trigger until the one that clears it, or
+/// `false` if `trigger` is null.
+///
+/// # Safety
+///
+/// `trigger` must be a live handle from a trigger constructor, or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_trigger_is_set(trigger: *const PamojaTrigger) -> bool {
+    match trigger.as_ref() {
+        Some(trigger) => trigger.inner.is_set(),
+        None => false,
+    }
 }
 
 /// Releases a thermostat handle.
@@ -1355,6 +1468,19 @@ mod tests {
             assert!(pamoja_thermostat_update(thermostat, 9.5));
             assert!(pamoja_thermostat_is_on(thermostat));
             pamoja_thermostat_free(thermostat);
+
+            let trigger = pamoja_trigger_below(30.0, 5.0);
+            assert_eq!(pamoja_trigger_update(trigger, 42.0), PamojaEdge::None);
+            assert_eq!(pamoja_trigger_update(trigger, 28.0), PamojaEdge::Set);
+            assert!(pamoja_trigger_is_set(trigger));
+            assert_eq!(pamoja_trigger_update(trigger, 33.0), PamojaEdge::None);
+            assert_eq!(pamoja_trigger_update(trigger, 36.0), PamojaEdge::Cleared);
+            assert!(!pamoja_trigger_is_set(trigger));
+            assert_eq!(
+                pamoja_trigger_update(ptr::null_mut(), 1.0),
+                PamojaEdge::None
+            );
+            pamoja_trigger_free(trigger);
         }
     }
 
