@@ -10,17 +10,22 @@
 //! read. A controller is the decision logic that manifest describes: hand it a
 //! reading and it says what the output should do and whether the reading crossed
 //! a threshold worth raising. The presentation a dashboard reads travels inside
-//! the manifest JSON rather than as its own classes, which keeps one
-//! representation of a profile across every language.
+//! the manifest JSON, which keeps one representation of a profile across every
+//! language, and crosses here as a typed object so a program can read and build
+//! it without composing JSON by hand.
 //!
 //! Assembling a running node stays in Rust, where it is generic over its sensor,
 //! actuator, transport, and codec. Nothing is lost: the controller holds the
 //! decisions, and the caller drives their own hardware around it.
 
+use std::collections::{BTreeMap, HashMap};
+
+use napi::Either;
 use napi_derive::napi;
 use pamoja_profile::{
-    Alert as CoreAlert, ControlSpec, Controller as CoreController, PowerSchedule as CoreSchedule,
-    Profile as CoreProfile, Reaction as CoreReaction,
+    Alert as CoreAlert, ControlSpec, Controller as CoreController, ElementSpec as CoreElementSpec,
+    LocalizedText, PowerSchedule as CoreSchedule, Presentation as CorePresentation,
+    Profile as CoreProfile, Reaction as CoreReaction, Scope, Theme as CoreTheme, Viz as CoreViz,
 };
 
 /// Which control policy a profile applies to each reading.
@@ -72,6 +77,104 @@ pub struct PowerScheduleSpec {
     pub saver_below: f64,
     /// Enter the critical cadence below this state of charge.
     pub critical_below: f64,
+}
+
+/// The graphic a dashboard draws an element with, named by the instrument rather than
+/// the quantity. The values are the ones a manifest carries.
+#[napi(string_enum = "snake_case")]
+pub enum Viz {
+    /// A rolling sparkline of recent values.
+    Spark,
+    /// A 270-degree arch gauge, for a fraction or percentage.
+    Gauge,
+    /// A half-dial with a needle, for a pressure or flow reading.
+    Dial,
+    /// A horizontal bar with a safe-band tick, for a level or stock.
+    Bar,
+    /// A thermometer, for a temperature.
+    Thermometer,
+    /// A liquid-filled droplet, for humidity or moisture.
+    Droplet,
+    /// A segmented battery cell, for a state of charge or voltage.
+    Battery,
+    /// An anemometer, for wind speed.
+    Wind,
+    /// A sun whose corona grows with the reading, for illuminance.
+    Sun,
+    /// An acoustic waveform, for sound level or an acoustic event.
+    Wave,
+    /// A labeled state chip, lit when the state reads as on.
+    Switch,
+    /// A pipe valve, open along the flow or closed across it.
+    Valve,
+    /// A row of hash-chained blocks, for a tamper-evident record count.
+    Chain,
+    /// A neighbor-mesh topology map, for a mesh node's peers.
+    Mesh,
+    /// A plain numeric counter, for a node or network stat.
+    Count,
+}
+
+/// A custom sensor or node stat a profile contributes to the dashboard.
+#[napi(object)]
+pub struct ElementSpec {
+    /// The stable, language-neutral element key, such as `water_turbidity`.
+    pub key: String,
+    /// The canonical unit name, such as `ntu`, `ph`, or `count`.
+    pub unit: String,
+    /// A human-readable fallback label, shown when no localized label applies.
+    pub label: String,
+    /// Per-locale labels, keyed by locale tag (`en`, `sw`, ...).
+    pub labels: Option<HashMap<String, String>>,
+    /// The graphic this element is drawn with.
+    pub viz: Viz,
+    /// The safe band as `[low, high]` in the element's unit.
+    pub band: Option<Vec<f64>>,
+    /// Whether this is a node or network stat rather than a measurement of the world.
+    pub stat: Option<bool>,
+    /// The link kinds whose groups this element is offered on, such as `["mesh"]`;
+    /// absent means every group.
+    pub scope: Option<Vec<String>>,
+    /// Whether the element's tile spans two columns.
+    pub span: Option<bool>,
+    /// A starting numeric value for the add-sensor dialog.
+    pub value: Option<f64>,
+    /// A starting discrete state code, such as `state.closed`, for a non-numeric element.
+    pub state: Option<String>,
+}
+
+/// The theme tokens a profile sets on the dashboard; each is any CSS color.
+#[napi(object)]
+pub struct Theme {
+    /// The brand and interaction accent.
+    pub accent: Option<String>,
+    /// The healthy status color, which also tints an in-band gauge.
+    pub ok: Option<String>,
+    /// The warning status color.
+    pub warn: Option<String>,
+    /// The alarm status color.
+    pub alarm: Option<String>,
+    /// The unfilled track color behind gauges and bars.
+    pub track: Option<String>,
+}
+
+/// Text for one code a profile introduces: one string for every locale, or a map from
+/// locale tag to text.
+type MessageText = Either<String, HashMap<String, String>>;
+
+/// How a profile presents itself on the dashboard: its custom elements, an optional
+/// theme, and the words for any state or event code it introduces.
+#[napi(object)]
+pub struct Presentation {
+    /// The custom sensors and node stats this profile contributes.
+    pub elements: Vec<ElementSpec>,
+    /// An optional theme that tints the dashboard.
+    pub theme: Option<Theme>,
+    /// Text for the codes this profile introduces, keyed by the page's message key
+    /// (`state.flushing`, `event.filter_clog`): one string for every locale, or a map
+    /// from locale tag to text.
+    #[napi(ts_type = "Record<string, string | Record<string, string>>")]
+    pub messages: Option<HashMap<String, MessageText>>,
 }
 
 /// Which threshold a reading crossed.
@@ -158,6 +261,151 @@ fn schedule_of(schedule: CoreSchedule) -> PowerScheduleSpec {
         saver_below: f64::from(schedule.saver_below),
         critical_below: f64::from(schedule.critical_below),
     }
+}
+
+fn viz_of(viz: CoreViz) -> Viz {
+    match viz {
+        CoreViz::Spark => Viz::Spark,
+        CoreViz::Gauge => Viz::Gauge,
+        CoreViz::Dial => Viz::Dial,
+        CoreViz::Bar => Viz::Bar,
+        CoreViz::Thermometer => Viz::Thermometer,
+        CoreViz::Droplet => Viz::Droplet,
+        CoreViz::Battery => Viz::Battery,
+        CoreViz::Wind => Viz::Wind,
+        CoreViz::Sun => Viz::Sun,
+        CoreViz::Wave => Viz::Wave,
+        CoreViz::Switch => Viz::Switch,
+        CoreViz::Valve => Viz::Valve,
+        CoreViz::Chain => Viz::Chain,
+        CoreViz::Mesh => Viz::Mesh,
+        CoreViz::Count => Viz::Count,
+    }
+}
+
+fn core_viz(viz: Viz) -> CoreViz {
+    match viz {
+        Viz::Spark => CoreViz::Spark,
+        Viz::Gauge => CoreViz::Gauge,
+        Viz::Dial => CoreViz::Dial,
+        Viz::Bar => CoreViz::Bar,
+        Viz::Thermometer => CoreViz::Thermometer,
+        Viz::Droplet => CoreViz::Droplet,
+        Viz::Battery => CoreViz::Battery,
+        Viz::Wind => CoreViz::Wind,
+        Viz::Sun => CoreViz::Sun,
+        Viz::Wave => CoreViz::Wave,
+        Viz::Switch => CoreViz::Switch,
+        Viz::Valve => CoreViz::Valve,
+        Viz::Chain => CoreViz::Chain,
+        Viz::Mesh => CoreViz::Mesh,
+        Viz::Count => CoreViz::Count,
+    }
+}
+
+/// Lays a presentation out as the object JavaScript sees.
+fn presentation_of(presentation: &CorePresentation) -> Presentation {
+    Presentation {
+        elements: presentation
+            .elements
+            .iter()
+            .map(|element| ElementSpec {
+                key: element.key.clone(),
+                unit: element.unit.clone(),
+                label: element.label.clone(),
+                labels: element
+                    .labels
+                    .as_ref()
+                    .map(|labels| labels.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
+                viz: viz_of(element.viz),
+                band: element
+                    .band
+                    .map(|[low, high]| vec![f64::from(low), f64::from(high)]),
+                stat: Some(element.stat),
+                scope: match &element.scope {
+                    Scope::Always => None,
+                    Scope::Links(links) => Some(links.clone()),
+                },
+                span: Some(element.span),
+                value: element.value.map(f64::from),
+                state: element.state.clone(),
+            })
+            .collect(),
+        theme: presentation.theme.as_ref().map(|theme| Theme {
+            accent: theme.accent.clone(),
+            ok: theme.ok.clone(),
+            warn: theme.warn.clone(),
+            alarm: theme.alarm.clone(),
+            track: theme.track.clone(),
+        }),
+        messages: (!presentation.messages.is_empty()).then(|| {
+            presentation
+                .messages
+                .iter()
+                .map(|(code, text)| {
+                    let text = match text {
+                        LocalizedText::Plain(text) => Either::A(text.clone()),
+                        LocalizedText::PerLocale(map) => {
+                            Either::B(map.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                        }
+                    };
+                    (code.clone(), text)
+                })
+                .collect()
+        }),
+    }
+}
+
+/// Reads a presentation back from the object JavaScript built, checking what the type
+/// system cannot: a band is two numbers.
+fn core_presentation(presentation: Presentation) -> napi::Result<CorePresentation> {
+    let mut out = CorePresentation::new();
+    for element in presentation.elements {
+        let mut spec = CoreElementSpec::new(
+            element.key.clone(),
+            element.unit,
+            element.label,
+            core_viz(element.viz),
+        );
+        if let Some(labels) = element.labels {
+            spec.labels = Some(labels.into_iter().collect::<BTreeMap<_, _>>());
+        }
+        if let Some(band) = element.band {
+            let [low, high] = band[..] else {
+                return Err(napi::Error::from_reason(format!(
+                    "the band of `{}` must be [low, high]",
+                    element.key
+                )));
+            };
+            spec = spec.with_band(low as f32, high as f32);
+        }
+        spec.stat = element.stat.unwrap_or(false);
+        spec.scope = match element.scope {
+            Some(links) => Scope::Links(links),
+            None => Scope::Always,
+        };
+        spec.span = element.span.unwrap_or(false);
+        spec.value = element.value.map(|value| value as f32);
+        spec.state = element.state;
+        out = out.with_element(spec);
+    }
+    if let Some(theme) = presentation.theme {
+        out = out.with_theme(CoreTheme {
+            accent: theme.accent,
+            ok: theme.ok,
+            warn: theme.warn,
+            alarm: theme.alarm,
+            track: theme.track,
+        });
+    }
+    for (code, text) in presentation.messages.unwrap_or_default() {
+        let text = match text {
+            Either::A(text) => LocalizedText::Plain(text),
+            Either::B(map) => LocalizedText::PerLocale(map.into_iter().collect()),
+        };
+        out = out.with_message(code, text);
+    }
+    Ok(out)
 }
 
 /// Flattens a reaction into the object JavaScript sees.
@@ -253,6 +501,40 @@ impl Profile {
     #[napi(getter)]
     pub fn topic(&self) -> String {
         self.inner.topic.clone()
+    }
+
+    /// What the profile is for, in the words its manifest carries, or `null`.
+    #[napi(getter)]
+    pub fn description(&self) -> Option<String> {
+        self.inner.description.clone()
+    }
+
+    /// How the profile presents itself on the dashboard, or `null` when it declares
+    /// nothing beyond the built-in set.
+    #[napi(getter)]
+    pub fn presentation(&self) -> Option<Presentation> {
+        self.inner.presentation.as_ref().map(presentation_of)
+    }
+
+    /// A copy of this profile carrying a description of what it is for.
+    #[napi]
+    pub fn with_description(&self, description: String) -> Profile {
+        Profile {
+            inner: self.inner.clone().with_description(description),
+        }
+    }
+
+    /// A copy of this profile carrying a dashboard presentation.
+    ///
+    /// Throws if a band is not two numbers.
+    #[napi]
+    pub fn with_presentation(&self, presentation: Presentation) -> napi::Result<Profile> {
+        Ok(Profile {
+            inner: self
+                .inner
+                .clone()
+                .with_presentation(core_presentation(presentation)?),
+        })
     }
 
     /// The control policy applied to each reading.

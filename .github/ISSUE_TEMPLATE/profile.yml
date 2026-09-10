@@ -1,0 +1,70 @@
+name: Share a profile
+description: A device profile that ran on a real node, to add to the shared catalog.
+labels: ["profile"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A profile is a node written down as data, and sharing one needs no code. The
+        [catalog](https://pamoja.molex.cloud/docs/profiles.html) shows the ones already
+        shared, and the [community page](https://pamoja.molex.cloud/docs/community.html#share-a-profile)
+        lists what a manifest is checked for. If you can run `cargo xtask profiles`
+        yourself, a pull request with the file under `profiles/` is the direct route;
+        this form is for everyone else, and a maintainer runs the checks and credits you.
+
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      description: Lowercase words joined by hyphens, which becomes the file name.
+      placeholder: brooder-heater
+    validations:
+      required: true
+
+  - type: textarea
+    id: purpose
+    attributes:
+      label: What it is for
+      description: >
+        A sentence or two: what it watches or holds, and what it does when a reading
+        crosses a line. This becomes the manifest's description.
+      placeholder: |
+        Keeps a poultry brooder at 32 C by switching a heat lamp, and alerts when the
+        chicks are more than 4 C from target.
+    validations:
+      required: true
+
+  - type: textarea
+    id: manifest
+    attributes:
+      label: The manifest
+      description: The JSON, as the node loaded it.
+      render: json
+      placeholder: |
+        {
+          "name": "brooder-heater",
+          "topic": "poultry/brooder/temperature",
+          "control": { "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5, "cooling": false, "safe_band": 4.0 },
+          "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
+        }
+    validations:
+      required: true
+
+  - type: textarea
+    id: ran
+    attributes:
+      label: Where it ran
+      description: >
+        The board, the sensor and actuator, the language, and for how long. "A Pi Zero
+        with a DS18B20 and a relay, in Python, for a month" is the right kind of answer;
+        a profile that only ran in the simulator is fine too, say so.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: license
+    attributes:
+      label: License
+      options:
+        - label: I wrote this manifest and share it under the project's MIT license.
+          required: true

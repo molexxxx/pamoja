@@ -6,6 +6,7 @@
 crates/      Rust engine and capability crates (each crate's README is its landing page)
 bindings/    per-language bindings: node, python, dotnet
 examples/    runnable end-to-end scenarios and the cross-language conformance generator
+profiles/    the shared device profiles, one JSON manifest each, checked by `cargo xtask profiles`
 conformance/ the vectors every binding asserts, so the languages cannot disagree
 docs/        this site: the guides, the capability map, and the pages about the project
 sitl/        ArduPilot and PX4 SITL images for the MAVLink interop job
@@ -56,6 +57,7 @@ they come from and regenerate:
 | `bindings/python/packages/native/python/pamoja/_native/__init__.pyi` | the Python binding source | `cargo run --bin stub_gen` in `bindings/python/packages/native` |
 | `bindings/python/packages/*/pyproject.toml`, `README.md`, and `py.typed` | `docs/capabilities.toml` and each portion's imports | `cargo xtask docs` |
 | `conformance/vectors.json` | the Rust implementation | `cargo run -p pamoja-examples --example conformance_vectors` |
+| `profiles/*.json`, in canonical form | each manifest, through `Profile::to_json` | `cargo xtask profiles` |
 
 ## Guide examples
 

@@ -1,0 +1,17 @@
+{
+  "name": "flood-sensor",
+  "description": "Watches a river gauge and warns when the level rises more than 0.3 m in one sample, the signature of a flash flood. Samples every minute, since a flood gives little warning.",
+  "topic": "water/river/level",
+  "control": {
+    "kind": "surge",
+    "rising": true,
+    "limit": 0.3
+  },
+  "power": {
+    "active_secs": 60,
+    "saver_secs": 300,
+    "critical_secs": 900,
+    "saver_below": 0.5,
+    "critical_below": 0.2
+  }
+}

@@ -669,6 +669,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<profile::PowerScheduleSpec>()?;
         m.add_class::<profile::AlertReport>()?;
         m.add_class::<profile::Reaction>()?;
+        m.add_class::<profile::ElementSpec>()?;
+        m.add_class::<profile::Theme>()?;
+        m.add_class::<profile::Presentation>()?;
     }
     #[cfg(feature = "ros2")]
     {

@@ -21,7 +21,7 @@ The test that runs in CI, spliced here as it ran.
 From [`bindings/node/guides/profile.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/profile.ts):
 
 ```typescript
-import { AlertKind, ControlKind, Profile } from '@pamoja/profile'
+import { AlertKind, ControlKind, Profile, Viz } from '@pamoja/profile'
 
 // A profile is plain data, so a fleet ships one as a file rather than as code. The two
 // power thresholds are optional and fall back to the documented defaults.
@@ -53,6 +53,24 @@ console.log(`at 32.2 C: lamp ${settled.actuator}, alert ${settled.alert}`)
 // shared back carries no value the next reader has to infer.
 const shared = profile.toJson()
 console.log(`shared form names its defaults: ${shared.includes('saver_below')}`)
+
+// The manifest also carries how a dashboard draws the node: one element here, the
+// brooder's temperature as a thermometer with the band the chicks are safe in.
+const drawn = profile.withPresentation({
+  elements: [
+    {
+      key: 'brooder_temperature',
+      unit: 'celsius',
+      label: 'Brooder temperature',
+      viz: Viz.Thermometer,
+      band: [28, 36],
+    },
+  ],
+})
+const element = drawn.presentation?.elements[0]
+console.log(
+  `draws ${element?.key} in ${element?.unit} with a safe band of ${element?.band?.[0]} to ${element?.band?.[1]}`,
+)
 ```
 
 ## The same capability in every language

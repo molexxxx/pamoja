@@ -1,0 +1,19 @@
+{
+  "name": "irrigation-node",
+  "description": "Opens an irrigation valve when soil moisture falls below 30 % and closes it again above 40 %, and alerts when the soil dries below 10 % or is waterlogged above 60 %. Samples slowly, since soil changes over hours and the battery has to last.",
+  "topic": "farm/irrigation/soil-moisture",
+  "control": {
+    "kind": "setpoint",
+    "setpoint": 35.0,
+    "hysteresis": 5.0,
+    "cooling": false,
+    "safe_band": 25.0
+  },
+  "power": {
+    "active_secs": 300,
+    "saver_secs": 1800,
+    "critical_secs": 3600,
+    "saver_below": 0.5,
+    "critical_below": 0.2
+  }
+}

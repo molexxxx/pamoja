@@ -1239,6 +1239,49 @@ async function asyncTransports() {
   const reloaded = profile.Profile.fromJson(manifest);
   assert.strictEqual(reloaded.topic, fridge.topic, "a manifest round-trips");
   assert.throws(() => profile.Profile.fromJson("{"), "a malformed manifest throws");
+  assert.ok(fridge.description.includes("safe range"), "a preset says what it is for");
+  assert.strictEqual(fridge.presentation, null, "and declares no presentation");
+
+  // A presentation is typed on the way in and on the way out, and travels in the manifest.
+  const drawn = fridge
+    .withDescription("Holds the clinic fridge at 5 C.")
+    .withPresentation({
+      elements: [
+        {
+          key: "door_open",
+          unit: "state",
+          label: "Door",
+          labels: { sw: "Mlango" },
+          viz: profile.Viz.Switch,
+          state: "state.closed",
+        },
+        {
+          key: "compressor_amps",
+          unit: "amps",
+          label: "Compressor current",
+          viz: profile.Viz.Dial,
+          band: [0.5, 3.0],
+          scope: ["mesh"],
+        },
+      ],
+      theme: { accent: "#3fb1c8" },
+      messages: { "event.door_ajar": { en: "Door left open", sw: "Mlango umeachwa wazi" } },
+    });
+  assert.strictEqual(drawn.description, "Holds the clinic fridge at 5 C.");
+  const shown = profile.Profile.fromJson(drawn.toJson()).presentation;
+  assert.strictEqual(shown.elements.length, 2, "both elements survive the manifest");
+  assert.strictEqual(shown.elements[0].viz, "switch", "the graphic is its manifest name");
+  assert.strictEqual(shown.elements[0].labels.sw, "Mlango");
+  assert.deepStrictEqual(shown.elements[1].band, [0.5, 3.0]);
+  assert.deepStrictEqual(shown.elements[1].scope, ["mesh"]);
+  assert.ok(shown.elements[0].scope == null, "an unscoped element is offered everywhere");
+  assert.strictEqual(shown.theme.accent, "#3fb1c8");
+  assert.strictEqual(shown.messages["event.door_ajar"].sw, "Mlango umeachwa wazi");
+  assert.throws(
+    () => fridge.withPresentation({ elements: [{ key: "x", unit: "u", label: "x", viz: "bar", band: [1] }] }),
+    /must be \[low, high\]/,
+    "a band is two numbers",
+  );
 
   // The ROS 2 naming rules, with no ROS installation in sight.
   assert.ok(ros2.name.isValid("/robot1/camera_left/image_raw"));

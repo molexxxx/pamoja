@@ -94,7 +94,8 @@ public readonly record struct PowerSchedule(
 /// A profile is a pre-wired bundle: a control policy, a publish topic, and a
 /// power schedule. Instantiate one rather than choosing algorithms and tuning
 /// constants by hand. The presentation a dashboard reads travels inside the
-/// manifest JSON, so <see cref="ToJson"/> carries the whole profile.
+/// manifest JSON, so <see cref="ToJson"/> carries the whole profile, and is read
+/// and built here as a typed <see cref="Profile.Presentation"/>.
 /// </remarks>
 public sealed class Profile : IDisposable
 {
@@ -135,6 +136,35 @@ public sealed class Profile : IDisposable
 
     /// <summary>Gets the topic each reading is published to.</summary>
     public string Topic => _handle.Use(p => OwnedString.Read(NativeMethods.pamoja_profile_topic(p)));
+
+    /// <summary>Gets what the profile is for, in the words its manifest carries, or <c>null</c>.</summary>
+    public string? Description =>
+        _handle.Use(p => OwnedString.ReadOrNull(NativeMethods.pamoja_profile_description(p)));
+
+    /// <summary>
+    /// Gets how the profile presents itself on the dashboard, or <c>null</c> when it
+    /// declares nothing beyond the built-in set.
+    /// </summary>
+    public Presentation? Presentation => _handle.Use(p =>
+    {
+        string? json = OwnedString.ReadOrNull(NativeMethods.pamoja_profile_presentation_json(p));
+        return json is null ? null : Pamoja.Profile.Presentation.FromJson(json);
+    });
+
+    /// <summary>Returns a copy of this profile carrying a description of what it is for.</summary>
+    /// <param name="description">The description, a sentence or two.</param>
+    /// <returns>The profile, which the caller disposes.</returns>
+    public Profile WithDescription(string description) =>
+        _handle.Use(p => new Profile(NativeMethods.pamoja_profile_with_description(p, description), "profile"));
+
+    /// <summary>Returns a copy of this profile carrying a dashboard presentation.</summary>
+    /// <param name="presentation">How the profile presents itself.</param>
+    /// <returns>The profile, which the caller disposes.</returns>
+    /// <exception cref="PamojaException">The presentation does not serialize to one the engine accepts.</exception>
+    public Profile WithPresentation(Presentation presentation) =>
+        _handle.Use(p => new Profile(
+            NativeMethods.pamoja_profile_with_presentation_json(p, presentation.ToJson()),
+            "profile"));
 
     /// <summary>Gets the control policy applied to each reading.</summary>
     public ControlPolicy Control => _handle.Use(p =>

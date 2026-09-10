@@ -1,0 +1,38 @@
+{
+  "name": "pipeline-pressure-drop",
+  "description": "Watches the pressure in a water main and warns when it falls by more than 0.5 bar between samples, the signature of a burst or a valve left open downstream. Samples every 30 s, since a burst empties a tank in minutes.",
+  "topic": "water/main/pressure",
+  "control": {
+    "kind": "surge",
+    "rising": false,
+    "limit": 0.5
+  },
+  "power": {
+    "active_secs": 30,
+    "saver_secs": 120,
+    "critical_secs": 600,
+    "saver_below": 0.4,
+    "critical_below": 0.15
+  },
+  "presentation": {
+    "elements": [
+      {
+        "key": "main_pressure",
+        "unit": "bar",
+        "label": "Main pressure",
+        "labels": {
+          "fr": "Pression de la conduite",
+          "sw": "Shinikizo la bomba"
+        },
+        "viz": "dial",
+        "band": [
+          2.0,
+          6.0
+        ],
+        "stat": false,
+        "scope": "always",
+        "span": false
+      }
+    ]
+  }
+}

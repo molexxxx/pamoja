@@ -1150,6 +1150,21 @@ export declare class Profile {
   get name(): string
   /** The topic each reading is published to. */
   get topic(): string
+  /** What the profile is for, in the words its manifest carries, or `null`. */
+  get description(): string | null
+  /**
+   * How the profile presents itself on the dashboard, or `null` when it declares
+   * nothing beyond the built-in set.
+   */
+  get presentation(): Presentation | null
+  /** A copy of this profile carrying a description of what it is for. */
+  withDescription(description: string): Profile
+  /**
+   * A copy of this profile carrying a dashboard presentation.
+   *
+   * Throws if a band is not two numbers.
+   */
+  withPresentation(presentation: Presentation): Profile
   /** The control policy applied to each reading. */
   get control(): ControlPolicy
   /** The sampling schedule kept as the battery drains. */
@@ -2088,6 +2103,35 @@ export declare function ds18b20ResolutionBits(configByte: number): number
 
 /** Returns the temperature step a DS18B20 resolution resolves, in micro-degrees. */
 export declare function ds18b20StepMicroCelsius(bits: number): number
+
+/** A custom sensor or node stat a profile contributes to the dashboard. */
+export interface ElementSpec {
+  /** The stable, language-neutral element key, such as `water_turbidity`. */
+  key: string
+  /** The canonical unit name, such as `ntu`, `ph`, or `count`. */
+  unit: string
+  /** A human-readable fallback label, shown when no localized label applies. */
+  label: string
+  /** Per-locale labels, keyed by locale tag (`en`, `sw`, ...). */
+  labels?: Record<string, string>
+  /** The graphic this element is drawn with. */
+  viz: Viz
+  /** The safe band as `[low, high]` in the element's unit. */
+  band?: Array<number>
+  /** Whether this is a node or network stat rather than a measurement of the world. */
+  stat?: boolean
+  /**
+   * The link kinds whose groups this element is offered on, such as `["mesh"]`;
+   * absent means every group.
+   */
+  scope?: Array<string>
+  /** Whether the element's tile spans two columns. */
+  span?: boolean
+  /** A starting numeric value for the add-sensor dialog. */
+  value?: number
+  /** A starting discrete state code, such as `state.closed`, for a non-numeric element. */
+  state?: string
+}
 
 /** Delta-encodes a series of integer samples into a compact buffer. */
 export declare function encodeDeltaSamples(samples: Array<number>): Buffer
@@ -3503,6 +3547,23 @@ export interface PowerScheduleSpec {
   criticalBelow: number
 }
 
+/**
+ * How a profile presents itself on the dashboard: its custom elements, an optional
+ * theme, and the words for any state or event code it introduces.
+ */
+export interface Presentation {
+  /** The custom sensors and node stats this profile contributes. */
+  elements: Array<ElementSpec>
+  /** An optional theme that tints the dashboard. */
+  theme?: Theme
+  /**
+   * Text for the codes this profile introduces, keyed by the page's message key
+   * (`state.flushing`, `event.filter_clog`): one string for every locale, or a map
+   * from locale tag to text.
+   */
+  messages?: Record<string, string | Record<string, string>>
+}
+
 /** How much of an image has arrived. */
 export interface Progress {
   /** The bytes stored so far. */
@@ -4036,6 +4097,20 @@ export declare function stepperStepCount(drive: StepDrive): number
 /** Returns how many steps a rotation of `degrees` takes on a given motor. */
 export declare function stepperStepsForDegrees(degrees: number, stepsPerRevolution: number): number
 
+/** The theme tokens a profile sets on the dashboard; each is any CSS color. */
+export interface Theme {
+  /** The brand and interaction accent. */
+  accent?: string
+  /** The healthy status color, which also tints an in-band gauge. */
+  ok?: string
+  /** The warning status color. */
+  warn?: string
+  /** The alarm status color. */
+  alarm?: string
+  /** The unfilled track color behind gauges and bars. */
+  track?: string
+}
+
 /** Returns how many conversions a TMP117 averaging code folds into one result. */
 export declare function tmp117AveragingConversions(code: number): number
 
@@ -4180,6 +4255,43 @@ export declare function verifyMessage(publicKey: Buffer, message: Buffer): Buffe
 
 /** Returns the version of the native pamoja module. */
 export declare function version(): string
+
+/**
+ * The graphic a dashboard draws an element with, named by the instrument rather than
+ * the quantity. The values are the ones a manifest carries.
+ */
+export declare const enum Viz {
+  /** A rolling sparkline of recent values. */
+  Spark = 'spark',
+  /** A 270-degree arch gauge, for a fraction or percentage. */
+  Gauge = 'gauge',
+  /** A half-dial with a needle, for a pressure or flow reading. */
+  Dial = 'dial',
+  /** A horizontal bar with a safe-band tick, for a level or stock. */
+  Bar = 'bar',
+  /** A thermometer, for a temperature. */
+  Thermometer = 'thermometer',
+  /** A liquid-filled droplet, for humidity or moisture. */
+  Droplet = 'droplet',
+  /** A segmented battery cell, for a state of charge or voltage. */
+  Battery = 'battery',
+  /** An anemometer, for wind speed. */
+  Wind = 'wind',
+  /** A sun whose corona grows with the reading, for illuminance. */
+  Sun = 'sun',
+  /** An acoustic waveform, for sound level or an acoustic event. */
+  Wave = 'wave',
+  /** A labeled state chip, lit when the state reads as on. */
+  Switch = 'switch',
+  /** A pipe valve, open along the flow or closed across it. */
+  Valve = 'valve',
+  /** A row of hash-chained blocks, for a tamper-evident record count. */
+  Chain = 'chain',
+  /** A neighbor-mesh topology map, for a mesh node's peers. */
+  Mesh = 'mesh',
+  /** A plain numeric counter, for a node or network stat. */
+  Count = 'count'
+}
 
 /**
  * The number of readings a windowed helper keeps.

@@ -1,6 +1,6 @@
 //! The site's navigation, derived from the capability map.
 //!
-//! The pages come first (introduction, install, hardware, buses, examples), the boards, then a group per
+//! The pages come first (introduction, install, hardware, buses, examples, profiles, community), the boards, then a group per
 //! chapter holding its guides in the order the map gives them, then the reference hub and
 //! the four references, and the pages about the project. The same order gives every page its previous and next neighbour.
 
@@ -50,6 +50,8 @@ impl Nav {
                 item("Hardware", "docs/hardware.html"),
                 item("Buses and links", "docs/buses.html"),
                 item("Examples", "docs/examples.html"),
+                item("Profiles", "docs/profiles.html"),
+                item("Community", "docs/community.html"),
             ],
         }];
         groups.push(Group {
@@ -248,11 +250,11 @@ guide = "guides/can.md"
                 "docs/hardware.html",
                 "docs/buses.html",
                 "docs/examples.html",
+                "docs/profiles.html",
+                "docs/community.html",
                 "docs/boards/raspberry-pi.html",
                 "docs/boards/esp32.html",
                 "docs/boards/rp2040.html",
-                "docs/guides/modbus.html",
-                "docs/guides/can.html",
             ]
         );
     }

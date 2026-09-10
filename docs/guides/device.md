@@ -183,6 +183,7 @@ use pamoja_sim::Replay;
 // profile, and it saves to JSON the same as a shipped one.
 let profile = Profile {
     name: "raised-bed-drip".to_owned(),
+    description: None,
     topic: "garden/bed-1/moisture".to_owned(),
     control: ControlSpec::Setpoint {
         setpoint: 37.5,

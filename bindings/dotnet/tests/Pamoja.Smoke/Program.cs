@@ -766,6 +766,59 @@ static void ProfilesAndRobotics()
     Assert(
         reloaded.PowerPlan.ActiveUs == fridge.Power.ActiveSecs * 1_000_000,
         "and its schedule assembles into a governor");
+    Assert(fridge.Description?.Contains("safe range") == true, "a preset says what it is for");
+    Assert(fridge.Presentation is null, "and declares no presentation");
+
+    // A presentation is typed on the way in and on the way out, and travels in the manifest.
+    using var described = fridge.WithDescription("Holds the clinic fridge at 5 C.");
+    using var drawn = described.WithPresentation(new Presentation(
+    [
+        new ElementSpec("door_open", "state", "Door", Viz.Switch)
+        {
+            Labels = new Dictionary<string, string> { ["sw"] = "Mlango" },
+            State = "state.closed",
+        },
+        new ElementSpec("compressor_amps", "amps", "Compressor current", Viz.Dial)
+        {
+            Band = [0.5f, 3.0f],
+            Scope = ["mesh"],
+        },
+    ])
+    {
+        Theme = new Theme { Accent = "#3fb1c8" },
+        Messages = new Dictionary<string, LocalizedText>
+        {
+            ["event.door_ajar"] = new Dictionary<string, string>
+            {
+                ["en"] = "Door left open",
+                ["sw"] = "Mlango umeachwa wazi",
+            },
+            ["state.priming"] = "Priming",
+        },
+    });
+    Assert(drawn.Description == "Holds the clinic fridge at 5 C.", "the description travels");
+    using var shown = Profile.FromJson(drawn.ToJson());
+    Presentation? presentation = shown.Presentation;
+    Assert(presentation?.Elements.Count == 2, "both elements survive the manifest");
+    Assert(presentation!.Elements[0].Viz == Viz.Switch, "the graphic comes back typed");
+    Assert(presentation.Elements[0].Labels?["sw"] == "Mlango", "and so does a locale label");
+    Assert(presentation.Elements[0].Scope is null, "an unscoped element is offered everywhere");
+    Assert(presentation.Elements[1].Band is [0.5f, 3.0f], "a band is two numbers");
+    Assert(presentation.Elements[1].Scope is ["mesh"], "a scoped element names its links");
+    Assert(presentation.Theme?.Accent == "#3fb1c8", "the theme survives");
+    Assert(
+        presentation.Messages?["event.door_ajar"].PerLocale?["sw"] == "Mlango umeachwa wazi",
+        "a per-locale message survives");
+    Assert(presentation.Messages?["state.priming"].Text == "Priming", "and so does a plain one");
+    Assert(drawn.ToJson().Contains("\"viz\": \"switch\""), "the manifest names the graphic as a manifest does");
+    try
+    {
+        using var refused = fridge.WithPresentation(Presentation.FromJson("{ \"elements\": 3 }"));
+        Assert(false, "a malformed presentation should be refused");
+    }
+    catch (JsonException)
+    {
+    }
 
     Assert(Ros2.IsValidName("/robot1/camera_left/image_raw"), "a legal ROS 2 name is accepted");
     Assert(!Ros2.IsValidName("/2foo"), "a token may not start with a digit");

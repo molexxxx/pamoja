@@ -74,7 +74,7 @@ jobs:
       # conformance vectors, and the diff fails if the committed file no longer matches.
       - name: Examples run and the conformance vectors are current
         run: |
-          for example in $(ls examples/*.rs | xargs -n1 basename | sed 's/\.rs$//' | grep -v '^mavlink_sitl$'); do
+          for example in $(ls examples/*.rs examples/community/*.rs 2>/dev/null | xargs -n1 basename | sed 's/\.rs$//' | grep -v '^mavlink_sitl$'); do
             cargo run -p pamoja-examples --example "$example" > /dev/null
           done
           git diff --exit-code -- conformance/vectors.json
@@ -116,6 +116,11 @@ jobs:
       # crates.io pages stay in sync with the code.
       - name: Crate READMEs in sync
         run: cargo run -p xtask -- docs --check
+
+      # Every shared profile manifest is read by the parser a device uses, checked for what
+      # a hand-written manifest gets wrong, and held in the form the library writes.
+      - name: Shared profiles valid and canonical
+        run: cargo run -p xtask -- profiles --check
 
       # Every manifest, lockfile, and generated loader must carry the workspace version, and
       # CHANGELOG.md must have that version's entry; this fails on the first one that drifts.

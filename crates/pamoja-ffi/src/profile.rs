@@ -11,10 +11,12 @@
 //! describes: hand it a reading and it says what the output should do and
 //! whether the reading crossed a threshold worth raising.
 //!
-//! The whole presentation layer, which declares how a profile appears on a
-//! dashboard, travels inside the manifest JSON rather than as its own set of
-//! calls. That keeps one representation of a profile across every language, and
-//! it is the same JSON the dashboard already consumes.
+//! The presentation layer, which declares how a profile appears on a dashboard,
+//! crosses as the JSON object a manifest carries under `presentation`, through
+//! [`pamoja_profile_presentation_json`] and [`pamoja_profile_with_presentation_json`].
+//! That keeps one representation of a profile across every language, and it is
+//! the same JSON the dashboard already consumes; each binding gives it a typed
+//! shape on its own side.
 //!
 //! Assembling a running node from a profile stays in Rust, because the Rust
 //! `Node` is generic over its sensor, actuator, transport, and codec, and the
@@ -24,7 +26,7 @@
 use std::ffi::c_char;
 use std::ptr;
 
-use pamoja_profile::{Alert, ControlSpec, Controller, PowerSchedule, Profile};
+use pamoja_profile::{Alert, ControlSpec, Controller, PowerSchedule, Presentation, Profile};
 
 use crate::power::PamojaPowerPlan;
 use crate::{read_str, set_last_error, PamojaStatus, PamojaString};
@@ -366,6 +368,145 @@ pub unsafe extern "C" fn pamoja_profile_topic(profile: *const PamojaProfile) -> 
     match profile_handle(profile) {
         Some(profile) => PamojaString::into_raw(profile.inner.topic.clone()),
         None => ptr::null_mut(),
+    }
+}
+
+/// Returns what a profile is for, in the words its manifest carries.
+///
+/// # Arguments
+///
+/// * `profile` - the profile.
+///
+/// # Returns
+///
+/// A null-terminated UTF-8 string, which the caller must release with
+/// [`pamoja_string_free`](crate::pamoja_string_free), or null if the profile
+/// carries no description or `profile` is null. The two cases are told apart by
+/// [`pamoja_last_error_message`](crate::pamoja_last_error_message), which is set
+/// only for a null handle.
+///
+/// # Safety
+///
+/// `profile` must be a live handle from a call that produced one, or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_profile_description(
+    profile: *const PamojaProfile,
+) -> *mut PamojaString {
+    match profile_handle(profile) {
+        Some(profile) => match &profile.inner.description {
+            Some(description) => PamojaString::into_raw(description.clone()),
+            None => ptr::null_mut(),
+        },
+        None => ptr::null_mut(),
+    }
+}
+
+/// Returns a copy of a profile carrying a description of what it is for.
+///
+/// # Arguments
+///
+/// * `profile` - the profile.
+/// * `description` - the description, as null-terminated UTF-8.
+///
+/// # Returns
+///
+/// A handle the caller must release with [`pamoja_profile_free`], or null if
+/// either pointer is null or the text is not UTF-8.
+///
+/// # Safety
+///
+/// `profile` must be a live handle from a call that produced one, and
+/// `description` must be a valid null-terminated UTF-8 string for the duration
+/// of the call; either may be null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_profile_with_description(
+    profile: *const PamojaProfile,
+    description: *const c_char,
+) -> *mut PamojaProfile {
+    let Some(profile) = profile_handle(profile) else {
+        return ptr::null_mut();
+    };
+    let Some(description) = read_str(description, "description") else {
+        return ptr::null_mut();
+    };
+    PamojaProfile::into_raw(profile.inner.clone().with_description(description))
+}
+
+/// Returns how a profile presents itself on a dashboard, as the JSON object its
+/// manifest carries under `presentation`.
+///
+/// # Arguments
+///
+/// * `profile` - the profile.
+///
+/// # Returns
+///
+/// A null-terminated UTF-8 string, which the caller must release with
+/// [`pamoja_string_free`](crate::pamoja_string_free), or null if the profile
+/// declares no presentation or `profile` is null. The two cases are told apart
+/// by [`pamoja_last_error_message`](crate::pamoja_last_error_message), which is
+/// set only for a null handle or a presentation that cannot be serialized.
+///
+/// # Safety
+///
+/// `profile` must be a live handle from a call that produced one, or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_profile_presentation_json(
+    profile: *const PamojaProfile,
+) -> *mut PamojaString {
+    let Some(profile) = profile_handle(profile) else {
+        return ptr::null_mut();
+    };
+    let Some(presentation) = &profile.inner.presentation else {
+        return ptr::null_mut();
+    };
+    match presentation.to_json() {
+        Ok(json) => PamojaString::into_raw(json),
+        Err(error) => {
+            set_last_error(error.to_string());
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Returns a copy of a profile carrying a dashboard presentation.
+///
+/// # Arguments
+///
+/// * `profile` - the profile.
+/// * `presentation` - the JSON object a manifest carries under `presentation`,
+///   as null-terminated UTF-8.
+///
+/// # Returns
+///
+/// A handle the caller must release with [`pamoja_profile_free`], or null if
+/// either pointer is null or the JSON is not a presentation, with the reason
+/// available from [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+///
+/// # Safety
+///
+/// `profile` must be a live handle from a call that produced one, and
+/// `presentation` must be a valid null-terminated UTF-8 string for the duration
+/// of the call; either may be null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_profile_with_presentation_json(
+    profile: *const PamojaProfile,
+    presentation: *const c_char,
+) -> *mut PamojaProfile {
+    let Some(profile) = profile_handle(profile) else {
+        return ptr::null_mut();
+    };
+    let Some(presentation) = read_str(presentation, "presentation") else {
+        return ptr::null_mut();
+    };
+    match Presentation::from_json(presentation) {
+        Ok(presentation) => {
+            PamojaProfile::into_raw(profile.inner.clone().with_presentation(presentation))
+        }
+        Err(error) => {
+            set_last_error(error.to_string());
+            ptr::null_mut()
+        }
     }
 }
 
@@ -753,6 +894,50 @@ mod tests {
         }
         assert_eq!(restored.kind, PamojaControlKind::Level);
         assert_eq!(restored, original, "the policy came back unchanged");
+    }
+
+    #[test]
+    fn a_description_and_a_presentation_cross_as_text() {
+        let profile = pamoja_profile_well_level();
+        let description = text_of(unsafe { pamoja_profile_description(profile) });
+        assert!(description.contains("runs dry"), "{description}");
+        assert!(
+            unsafe { pamoja_profile_presentation_json(profile) }.is_null(),
+            "a preset declares no presentation"
+        );
+
+        let presentation = CString::new(
+            r#"{ "elements": [ { "key": "water_turbidity", "unit": "ntu", "label": "Turbidity", "viz": "gauge", "band": [0.0, 5.0] } ], "messages": { "state.flushing": "Flushing" } }"#,
+        )
+        .unwrap();
+        let drawn =
+            unsafe { pamoja_profile_with_presentation_json(profile, presentation.as_ptr()) };
+        assert!(!drawn.is_null());
+        let json = text_of(unsafe { pamoja_profile_presentation_json(drawn) });
+        assert!(json.contains("\"viz\": \"gauge\""), "{json}");
+        assert!(
+            text_of(unsafe { pamoja_profile_to_json(drawn) }).contains("water_turbidity"),
+            "the manifest carries it"
+        );
+
+        let described = CString::new("Warns before the village borehole runs dry.").unwrap();
+        let renamed = unsafe { pamoja_profile_with_description(drawn, described.as_ptr()) };
+        assert_eq!(
+            text_of(unsafe { pamoja_profile_description(renamed) }),
+            "Warns before the village borehole runs dry."
+        );
+
+        let malformed = CString::new("{ \"elements\": 3 }").unwrap();
+        assert!(
+            unsafe { pamoja_profile_with_presentation_json(profile, malformed.as_ptr()) }.is_null()
+        );
+        assert!(unsafe { pamoja_profile_with_presentation_json(profile, ptr::null()) }.is_null());
+
+        unsafe {
+            pamoja_profile_free(renamed);
+            pamoja_profile_free(drawn);
+            pamoja_profile_free(profile);
+        }
     }
 
     #[test]

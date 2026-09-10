@@ -39,10 +39,21 @@ pub fn table(root: &Path, catalog: &Catalog) -> Result<String, String> {
     let mut out = String::from(
         "## Programs\n\nEach one is a complete program with a `main`, written to be read top to bottom and run with nothing plugged in. The line beside it runs it.\n\n<div class=\"pkgs\">\n",
     );
-    for program in programs(root)? {
+    for program in programs_in(root, "examples")? {
         out.push_str(&program_card(&program));
     }
-    out.push_str("</div>\n\n## Guide examples\n\nEvery guide carries the same example in Rust, TypeScript, Python, and C#, spliced from the file that runs it in CI. The buttons open those files; the guide explains them.\n");
+    out.push_str("</div>\n\n## Community programs\n\nPrograms people have shared, held to the same bar: complete, run in CI with nothing plugged in, and credited in the file. The [community page](community.md#share-an-example) says how to add one.\n\n");
+    let community = programs_in(root, "examples/community")?;
+    if community.is_empty() {
+        out.push_str("<p>None yet. The first one is yours to add.</p>\n");
+    } else {
+        out.push_str("<div class=\"pkgs\">\n");
+        for program in &community {
+            out.push_str(&program_card(program));
+        }
+        out.push_str("</div>\n");
+    }
+    out.push_str("\n## Guide examples\n\nEvery guide carries the same example in Rust, TypeScript, Python, and C#, spliced from the file that runs it in CI. The buttons open those files; the guide explains them.\n");
     for chapter in &catalog.chapters {
         let mut cards = String::new();
         for capability in catalog.in_chapter(&chapter.key) {
@@ -63,17 +74,22 @@ pub fn table(root: &Path, catalog: &Catalog) -> Result<String, String> {
     Ok(out.trim_end().to_owned())
 }
 
-/// One program under `examples/`: its name, what its module doc says first, and how to
-/// run it.
+/// One program: its name, the file it lives in from the repository root, what its module
+/// doc says first, and how to run it.
 struct Program {
     name: String,
+    path: String,
     summary: String,
     run: String,
 }
 
-// The programs, in name order, from their module docs.
-fn programs(root: &Path) -> Result<Vec<Program>, String> {
-    let dir = root.join("examples");
+// The programs in one directory, in name order, from their module docs; none when the
+// directory does not exist yet.
+fn programs_in(root: &Path, relative: &str) -> Result<Vec<Program>, String> {
+    let dir = root.join(relative);
+    if !dir.is_dir() {
+        return Ok(Vec::new());
+    }
     let mut names: Vec<String> = fs::read_dir(&dir)
         .map_err(|err| format!("reading {}: {err}", dir.display()))?
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
@@ -94,7 +110,12 @@ fn programs(root: &Path) -> Result<Vec<Program>, String> {
                 .map_err(|err| format!("parsing {}: {err}", path.display()))?;
             let doc = docs::doc_of(&file.attrs);
             let (summary, run) = summary_and_run(&doc, &name);
-            Ok(Program { name, summary, run })
+            Ok(Program {
+                path: format!("{relative}/{name}.rs"),
+                name,
+                summary,
+                run,
+            })
         })
         .collect()
 }
@@ -131,10 +152,11 @@ pub fn summary_and_run(doc: &str, name: &str) -> (String, String) {
 
 fn program_card(program: &Program) -> String {
     format!(
-        "<div class=\"pkg stack\" id=\"example-{name}\">\n<div class=\"pkg-head\">\n<div class=\"pkg-what\"><a class=\"pkg-title\" href=\"{REPO}/blob/main/examples/{name}.rs\">{name}</a><code class=\"pkg-import\">examples/{name}.rs</code><p>{}</p></div>\n{}\n</div>\n</div>\n",
+        "<div class=\"pkg stack\" id=\"example-{name}\">\n<div class=\"pkg-head\">\n<div class=\"pkg-what\"><a class=\"pkg-title\" href=\"{REPO}/blob/main/{path}\">{name}</a><code class=\"pkg-import\">{path}</code><p>{}</p></div>\n{}\n</div>\n</div>\n",
         markdown_inline(&program.summary),
         command(&program.run),
-        name = program.name
+        name = program.name,
+        path = program.path
     )
 }
 
@@ -292,6 +314,25 @@ mod tests {
         assert!(card.contains("<a class=\"pkg-btn node\" href=\"https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/modbus.ts\">TypeScript <code>modbus.ts</code></a>"));
         assert!(card.ends_with("<a class=\"pkg-btn\" href=\"https://pamoja.molex.cloud/docs/guides/modbus.html\">Guide</a></div>\n</div>\n</div>\n"));
         assert!(proves("no such line").is_empty());
+    }
+
+    #[test]
+    fn a_shared_program_is_listed_from_its_own_directory() {
+        let root = std::env::temp_dir().join(format!("pamoja-community-{}", std::process::id()));
+        let dir = root.join("examples/community");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("hello_valve.rs"),
+            "//! Opens a valve from a shared profile.\n//!\n//! Run with: `cargo run -p pamoja-examples --example hello_valve`\n\nfn main() {}\n",
+        )
+        .unwrap();
+        let programs = programs_in(&root, "examples/community").unwrap();
+        assert_eq!(programs.len(), 1);
+        assert_eq!(programs[0].path, "examples/community/hello_valve.rs");
+        let card = program_card(&programs[0]);
+        assert!(card.contains("href=\"https://github.com/molexxxx/pamoja/blob/main/examples/community/hello_valve.rs\">hello_valve</a><code class=\"pkg-import\">examples/community/hello_valve.rs</code><p>Opens a valve from a shared profile.</p>"), "{card}");
+        assert!(programs_in(&root, "examples/nowhere").unwrap().is_empty());
+        fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

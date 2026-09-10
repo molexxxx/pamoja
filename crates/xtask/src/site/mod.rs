@@ -292,12 +292,14 @@ mod tests {
     }
 
     /// The URLs the site has published; each keeps resolving.
-    const PUBLISHED: [&str; 15] = [
+    const PUBLISHED: [&str; 17] = [
         "index.html",
         "docs/index.html",
         "docs/install.html",
         "docs/hardware.html",
         "docs/examples.html",
+        "docs/profiles.html",
+        "docs/community.html",
         "docs/reference/index.html",
         "docs/reference/rust.html",
         "docs/reference/node.html",

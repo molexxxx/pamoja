@@ -1,0 +1,70 @@
+name: Contribute a driver
+description: Claim a part you intend to write a decoder and driver for, from its datasheet.
+labels: ["driver"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A driver here is written from the manufacturer's datasheet and audited back
+        against it; the
+        [community page](https://pamoja.molex.cloud/docs/community.html#contribute-a-driver)
+        has the checklist every shipped driver went through. Filing this first claims the
+        part, so two people do not write the same decoder in the same month, and lets a
+        maintainer flag anything about the part before the work starts. A part you want
+        but do not intend to write is a
+        [capability request](https://github.com/molexxxx/pamoja/issues/new?template=capability.yml)
+        instead.
+
+  - type: input
+    id: part
+    attributes:
+      label: The part
+      description: The manufacturer and part number.
+      placeholder: Sensirion SPS30
+    validations:
+      required: true
+
+  - type: input
+    id: datasheet
+    attributes:
+      label: The datasheet
+      description: >
+        The manufacturer's own document, as a link. The hardware page cites it, so it
+        must be the original, not a distributor's copy or a tutorial.
+      placeholder: https://sensirion.com/media/documents/.../Sensirion_PM_Sensors_Datasheet_SPS30.pdf
+    validations:
+      required: true
+
+  - type: dropdown
+    id: bus
+    attributes:
+      label: How it is reached
+      multiple: true
+      options:
+        - I2C
+        - SPI
+        - 1-Wire
+        - UART
+        - Modbus RTU over RS-485
+        - CAN
+        - An analog output, through an ADC
+        - Other, described below
+    validations:
+      required: true
+
+  - type: textarea
+    id: quantities
+    attributes:
+      label: What it measures or drives
+      description: The quantities and their units, or the outputs, so the driver's reading type is right from the start.
+      placeholder: PM1.0, PM2.5, PM4, PM10 mass concentration in µg/m³ and number concentration in #/cm³
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: bench
+    attributes:
+      label: On the bench
+      options:
+        - label: I have the part and can run the driver on real hardware before opening the pull request.
+        - label: I have read the checklist on the community page and will audit the decoder back against the datasheet.

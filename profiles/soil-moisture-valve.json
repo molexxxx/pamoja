@@ -1,0 +1,64 @@
+{
+  "name": "soil-moisture-valve",
+  "description": "Waters a raised bed through a solenoid valve, opening it when the volumetric water content falls below 25 % and closing it above 35 %, and alerts when the bed is drier than 15 % or wetter than 45 %. The dashboard draws the bed as a droplet and the valve as a valve, with French and Swahili labels.",
+  "topic": "garden/bed/moisture",
+  "control": {
+    "kind": "setpoint",
+    "setpoint": 30.0,
+    "hysteresis": 5.0,
+    "cooling": false,
+    "safe_band": 15.0
+  },
+  "power": {
+    "active_secs": 300,
+    "saver_secs": 1800,
+    "critical_secs": 3600,
+    "saver_below": 0.5,
+    "critical_below": 0.2
+  },
+  "presentation": {
+    "elements": [
+      {
+        "key": "soil_moisture",
+        "unit": "percent",
+        "label": "Soil moisture",
+        "labels": {
+          "fr": "Humidité du sol",
+          "sw": "Unyevu wa udongo"
+        },
+        "viz": "droplet",
+        "band": [
+          25.0,
+          45.0
+        ],
+        "stat": false,
+        "scope": "always",
+        "span": false
+      },
+      {
+        "key": "bed_valve",
+        "unit": "state",
+        "label": "Bed valve",
+        "labels": {
+          "fr": "Vanne du carré",
+          "sw": "Vali ya kitalu"
+        },
+        "viz": "valve",
+        "stat": false,
+        "scope": "always",
+        "span": false,
+        "state": "state.closed"
+      }
+    ],
+    "theme": {
+      "accent": "#5aa66f"
+    },
+    "messages": {
+      "event.bed_dry": {
+        "en": "Bed dry, valve open",
+        "fr": "Carré sec, vanne ouverte",
+        "sw": "Kitalu kimekauka, vali imefunguliwa"
+      }
+    }
+  }
+}

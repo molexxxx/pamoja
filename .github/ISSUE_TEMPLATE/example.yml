@@ -1,0 +1,64 @@
+name: Share an example
+description: A complete program that shows pamoja doing something, to run in CI beside the others.
+labels: ["example"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every program on the [examples page](https://pamoja.molex.cloud/docs/examples.html)
+        runs in CI on every change with nothing plugged in. The
+        [community page](https://pamoja.molex.cloud/docs/community.html#share-an-example)
+        says where a shared program goes and how it is registered; a pull request is the
+        direct route, and this form is for a program you would rather hand over as text
+        or a link.
+
+  - type: textarea
+    id: shows
+    attributes:
+      label: What it shows
+      description: One paragraph, the way the examples page would describe it.
+      placeholder: |
+        A soil probe on an ADS1115 opens a valve through a profile loaded from a file,
+        with the readings published over the loopback transport and decoded at a gateway.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      options:
+        - Rust
+        - TypeScript or JavaScript (Node)
+        - Python
+        - C# (.NET)
+    validations:
+      required: true
+
+  - type: textarea
+    id: program
+    attributes:
+      label: The program, or a link to it
+      description: >
+        Paste it here, or link a repository or gist. It has to run to completion with
+        nothing plugged in, so a simulator or the loopback transport stands in for the
+        hardware, and print what it found.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: hardware
+    attributes:
+      label: The hardware it was written against, if any
+      placeholder: Raspberry Pi 5, ADS1115, a 12 V solenoid valve on a relay
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: license
+    attributes:
+      label: License
+      options:
+        - label: I wrote this program and share it under the project's MIT license.
+          required: true

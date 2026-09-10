@@ -396,6 +396,41 @@ impl Presentation {
         Self::default()
     }
 
+    /// Loads a presentation from its JSON text, the `presentation` object of a manifest.
+    ///
+    /// # Arguments
+    ///
+    /// * `text` - the JSON object.
+    ///
+    /// # Returns
+    ///
+    /// The presentation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Codec`](pamoja_core::Error::Codec) if the text is not a
+    /// presentation.
+    #[cfg(feature = "json")]
+    pub fn from_json(text: &str) -> pamoja_core::Result<Self> {
+        serde_json::from_str(text).map_err(|error| pamoja_core::Error::Codec(error.to_string()))
+    }
+
+    /// Serializes this presentation to the JSON object a manifest carries.
+    ///
+    /// # Returns
+    ///
+    /// The pretty-printed JSON text.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Codec`](pamoja_core::Error::Codec) if the presentation cannot be
+    /// serialized.
+    #[cfg(feature = "json")]
+    pub fn to_json(&self) -> pamoja_core::Result<String> {
+        serde_json::to_string_pretty(self)
+            .map_err(|error| pamoja_core::Error::Codec(error.to_string()))
+    }
+
     /// Adds a custom element.
     ///
     /// # Arguments

@@ -32,7 +32,9 @@ that carries each one's logic.
 
 To see it run before reading anything, [Examples](examples.md) lists every
 complete program and every guide's example in the four languages, all of which
-run in CI on every change.
+run in CI on every change. [Profiles](profiles.md) is the catalog of nodes
+written down as data, ready to load, and [Community](community.md) says how to
+add a profile, an example, a driver, or a board of your own.
 
 ## What it covers
 

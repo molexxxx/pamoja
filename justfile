@@ -52,6 +52,7 @@ builds:
 # verify the generated crate READMEs and the doc regions are in sync
 docs-check:
     cargo run -p xtask -- docs --check
+    cargo run -p xtask -- profiles --check
 
 # render the documentation site into target/site (the four references are generated separately)
 site:

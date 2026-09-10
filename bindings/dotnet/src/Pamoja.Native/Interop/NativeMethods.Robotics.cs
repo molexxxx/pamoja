@@ -58,6 +58,22 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_profile_topic(IntPtr profile);
 
+    /// <summary>Returns what a profile is for, or null when its manifest says nothing.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_profile_description(IntPtr profile);
+
+    /// <summary>Returns a copy of a profile carrying a description.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial IntPtr pamoja_profile_with_description(IntPtr profile, string description);
+
+    /// <summary>Returns a profile's dashboard presentation as JSON, or null when it declares none.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_profile_presentation_json(IntPtr profile);
+
+    /// <summary>Returns a copy of a profile carrying the presentation the JSON describes.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial IntPtr pamoja_profile_with_presentation_json(IntPtr profile, string presentation);
+
     /// <summary>Returns the control policy a profile applies.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_profile_control(
