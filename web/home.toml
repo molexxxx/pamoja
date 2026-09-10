@@ -82,7 +82,7 @@ title = "No tower. The village is its own network."
 body = "Nodes form a mesh, each relaying for the next, flooding a message across the valley exactly once, then learning cheaper routes from the traffic they overhear, so the airtime and battery that blind flooding wastes is saved for the messages that matter."
 crates = ["pamoja-mesh", "pamoja-routing", "pamoja-lora", "pamoja-sync", "pamoja-codec"]
 readings = [
-  { label = "Neighbours", value = "5", unit = "" },
+  { label = "Neighbors", value = "5", unit = "" },
   { label = "Hops to gateway", value = "3", unit = "" },
   { label = "Routing", value = "Optimized", unit = "" },
   { label = "Messages relayed", value = "318", unit = "" },
@@ -266,7 +266,7 @@ opens = "Each opens once the first pilot has run and the numbers are real."
 # The rungs a message climbs, cheapest first, which is the order pamoja-ladder tries them
 # in. See docs/guides/ladder.md.
 rungs = [
-  { name = "Neighbour mesh", cost = "Free", detail = "A hop to the node next door, on its own battery" },
+  { name = "Neighbor mesh", cost = "Free", detail = "A hop to the node next door, on its own battery" },
   { name = "Community gateway", cost = "Sponsored", detail = "One uplink carrying a whole area's traffic" },
   { name = "Cellular", cost = "Per byte", detail = "Money for every byte, and a chunk of the battery" },
   { name = "Satellite", cost = "Dearest", detail = "The last rung, reached only when the rest are gone" },

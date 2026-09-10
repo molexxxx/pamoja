@@ -73,7 +73,7 @@ public sealed record Manifest(
 /// </param>
 /// <param name="ReleaseKey">The key that may sign manifests while this stands.</param>
 /// <param name="Expires">
-/// When the delegation stops being honoured, in seconds since the Unix epoch, or
+/// When the delegation stops being honored, in seconds since the Unix epoch, or
 /// 0 to never expire.
 /// </param>
 public sealed record Delegation(ulong Epoch, byte[] ReleaseKey, ulong Expires = 0);
@@ -230,7 +230,7 @@ public sealed class Updater : IDisposable
     }
 
     /// <summary>
-    /// Gets the delegation this updater honours, or <c>null</c> when releases must
+    /// Gets the delegation this updater honors, or <c>null</c> when releases must
     /// be signed by the anchor itself.
     /// </summary>
     public Delegation? CurrentDelegation

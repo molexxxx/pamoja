@@ -2029,7 +2029,7 @@ class _Ina226:
         """Return the alert function the pin actually responds to.
 
         Only one limit function drives the pin at a time; when several are enabled
-        the part honours the most significant bit.
+        the part honors the most significant bit.
 
         :param mask: The enables and flags the part is running.
         :returns: The function the pin follows, or ``None`` if no limit function is

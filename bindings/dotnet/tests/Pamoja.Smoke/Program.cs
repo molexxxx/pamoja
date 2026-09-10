@@ -204,7 +204,7 @@ static void TrustAndOperation()
     using var delegated = new Updater(vendor, deviceClass, anchor.PublicKey, 2, 4096);
     delegated.Provision(0, 1);
     delegated.Adopt(statement);
-    Assert(delegated.CurrentDelegation is not null, "the device now honours it");
+    Assert(delegated.CurrentDelegation is not null, "the device now honors it");
     Assert(
         delegated.Stage(Update.SignManifest(manifest, releases), image) == 1,
         "so a release the anchor never touched is accepted");
@@ -2271,7 +2271,7 @@ static void RadioAndReach()
     router.Observe(0x09, 0x05, 2);
     Assert(router.Forward(0x09).NextHop == 0x05, "a learned route relays");
     router.Observe(0x09, 0x07, 1);
-    Assert(router.Forward(0x09).NextHop == 0x07, "a cheaper neighbour wins");
+    Assert(router.Forward(0x09).NextHop == 0x07, "a cheaper neighbor wins");
     Assert(
         router.Forward(0x01).Action == ForwardAction.Deliver,
         "a packet for this node is delivered");
@@ -3545,7 +3545,7 @@ static void AssertDecision(Router router, JsonElement want)
     }
     else
     {
-        Assert(decision.NextHop == nextHop.GetUInt32(), "the neighbour to unicast to");
+        Assert(decision.NextHop == nextHop.GetUInt32(), "the neighbor to unicast to");
     }
 }
 

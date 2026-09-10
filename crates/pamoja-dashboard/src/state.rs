@@ -99,7 +99,7 @@ pub struct Reading {
     /// label when it has one, then this, then a reading of the key.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
-    /// Whether this is a node or network stat (neighbours, hops, link or relay status, a
+    /// Whether this is a node or network stat (neighbors, hops, link or relay status, a
     /// tamper-log record count) rather than a measurement of the world. The page counts and
     /// renders stats apart from sensors. Defaults `false`.
     #[serde(default, skip_serializing_if = "is_false")]

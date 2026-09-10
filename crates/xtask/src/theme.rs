@@ -501,7 +501,7 @@ mod tests {
     }
 
     #[test]
-    fn the_token_sheet_names_every_colour_and_the_alpha_helper_reads_the_palette() {
+    fn the_token_sheet_names_every_color_and_the_alpha_helper_reads_the_palette() {
         let tokens = &render_stamped("f00dcafe")[0];
         assert_eq!(tokens.0, "web/theme.css");
         for name in [

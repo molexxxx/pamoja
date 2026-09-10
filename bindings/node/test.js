@@ -803,7 +803,7 @@ function radioAndReach() {
   router.observe(0x09, 0x05, 2);
   assert.strictEqual(router.forward(0x09).nextHop, 0x05, "a learned route relays");
   router.observe(0x09, 0x07, 1);
-  assert.strictEqual(router.forward(0x09).nextHop, 0x07, "a cheaper neighbour wins");
+  assert.strictEqual(router.forward(0x09).nextHop, 0x07, "a cheaper neighbor wins");
   assert.strictEqual(
     router.forward(0x01).action,
     routing.ForwardAction.Deliver,

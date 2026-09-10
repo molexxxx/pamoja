@@ -60,7 +60,7 @@ pub struct Delegation {
     pub epoch: u64,
     /// The public key that may sign manifests while this delegation stands.
     pub release_key: [u8; KEY_LEN],
-    /// When this delegation stops being honoured, in seconds since the Unix epoch,
+    /// When this delegation stops being honored, in seconds since the Unix epoch,
     /// or `0` to never expire. Setting one requires the device to have a clock.
     pub expires: u64,
 }

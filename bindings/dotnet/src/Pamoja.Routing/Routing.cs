@@ -15,24 +15,24 @@ public enum ForwardAction
     Flood = 2,
 }
 
-/// <summary>A routing decision, and the neighbour it names when there is one.</summary>
+/// <summary>A routing decision, and the neighbor it names when there is one.</summary>
 /// <param name="Action">What to do with the packet.</param>
 /// <param name="NextHop">
-/// The neighbour to unicast to, or <c>null</c> unless the action is
+/// The neighbor to unicast to, or <c>null</c> unless the action is
 /// <see cref="ForwardAction.Relay"/>.
 /// </param>
 public readonly record struct ForwardDecision(ForwardAction Action, uint? NextHop);
 
 /// <summary>A learned way to reach one node.</summary>
 /// <param name="Dst">The node this route reaches.</param>
-/// <param name="NextHop">The neighbour to send a packet to on the way there.</param>
+/// <param name="NextHop">The neighbor to send a packet to on the way there.</param>
 /// <param name="Cost">What the route costs, usually in hops.</param>
 public readonly record struct Route(uint Dst, uint NextHop, ushort Cost);
 
 /// <summary>One node routing table, learned from the traffic the node hears.</summary>
 /// <remarks>
 /// Flooding always works but costs every node airtime and power on every packet.
-/// A node that remembers the way can forward to one neighbour instead, and falls
+/// A node that remembers the way can forward to one neighbor instead, and falls
 /// back to flooding rather than failing whenever it does not know the way. The
 /// core table is generic over its size, which cannot cross the C ABI, so this one
 /// is sized when it is built.
@@ -71,7 +71,7 @@ public sealed class Router : IDisposable
 
     /// <summary>Learns a route from a packet that arrived.</summary>
     /// <param name="origin">The node the packet came from.</param>
-    /// <param name="via">The neighbour it arrived through.</param>
+    /// <param name="via">The neighbor it arrived through.</param>
     /// <param name="cost">What that path costs, usually a hop count.</param>
     /// <returns>
     /// Whether the table changed. It keeps the cheapest way it knows to each node,
@@ -81,7 +81,7 @@ public sealed class Router : IDisposable
     public bool Observe(uint origin, uint via, ushort cost) =>
         _handle.Use(handle => NativeMethods.pamoja_router_observe(handle, origin, via, cost));
 
-    /// <summary>Returns the neighbour on the way to a node.</summary>
+    /// <summary>Returns the neighbor on the way to a node.</summary>
     /// <param name="dst">The node to reach.</param>
     /// <returns>The next hop, or <c>null</c> when no route is known.</returns>
     public uint? NextHop(uint dst) =>

@@ -1,7 +1,7 @@
 # Transport ladder
 
 Most nodes that matter have more than one way to reach home, and the ways are not
-equally priced. A mesh hop to the neighbour costs almost nothing. A cellular
+equally priced. A mesh hop to the neighbor costs almost nothing. A cellular
 backhaul costs money per byte and a chunk of the battery. Satellite costs more
 again. What a node wants is the cheapest link that is actually working right now,
 decided per message, without the application knowing which one it got.

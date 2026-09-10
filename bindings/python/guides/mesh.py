@@ -12,7 +12,7 @@ reading = broadcast(RIVER_GAUGE, 1, b"level=high")
 print(f"sent      {len(reading.bytes)} bytes to every node in range")
 print(f"addressed to broadcast: {reading.dst == BROADCAST}")
 
-# A neighbour hears it. Every node in range rebroadcasts, so the same packet arrives
+# A neighbor hears it. Every node in range rebroadcasts, so the same packet arrives
 # several times over; the source and sequence id decide which copy is the first.
 received = parse(reading.bytes)
 print(f"payload   {received.payload.decode()}")

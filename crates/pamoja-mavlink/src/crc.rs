@@ -151,7 +151,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn matches_the_mcrf4xx_catalogue_check_value() {
+    fn matches_the_mcrf4xx_catalog_check_value() {
         assert_eq!(crc16_mcrf4xx(b"123456789"), 0x6F91);
     }
 

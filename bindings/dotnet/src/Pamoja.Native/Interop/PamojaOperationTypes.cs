@@ -168,7 +168,7 @@ public struct PamojaDelegation
     /// <summary>The public key that may sign manifests while this stands.</summary>
     public PamojaDigest ReleaseKey;
 
-    /// <summary>When the delegation stops being honoured, or 0 to never expire.</summary>
+    /// <summary>When the delegation stops being honored, or 0 to never expire.</summary>
     public ulong Expires;
 }
 

@@ -2,7 +2,7 @@
 //!
 //! This is the shape to copy into a real project. It restores a persisted fleet on boot,
 //! assembles a profile's controller, samples a sensor on a loop, surfaces a node when it is
-//! discovered, applies the control commands the dashboard queues (honouring any hardware
+//! discovered, applies the control commands the dashboard queues (honoring any hardware
 //! binding), persists changes, and serves the dashboard from that fleet. Swap the stand-in
 //! sensor for a real `pamoja-sensors` driver, and (to also publish telemetry upstream) tick
 //! the async `pamoja_profile::Node` instead of its controller directly.

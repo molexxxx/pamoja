@@ -72,7 +72,7 @@ pub struct PamojaDelegation {
     pub epoch: u64,
     /// The public key that may sign manifests while this delegation stands.
     pub release_key: [u8; PAMOJA_KEY_LEN],
-    /// When the delegation stops being honoured, in seconds since the Unix
+    /// When the delegation stops being honored, in seconds since the Unix
     /// epoch, or `0` to never expire.
     pub expires: u64,
 }
@@ -680,7 +680,7 @@ pub unsafe extern "C" fn pamoja_updater_adopt(
     }
 }
 
-/// Reads the delegation an updater currently honours.
+/// Reads the delegation an updater currently honors.
 ///
 /// # Arguments
 ///

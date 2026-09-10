@@ -22,7 +22,7 @@ Mesh packet framing for the pamoja SDK.
 
 When the fixed infrastructure is gone or was never there, devices have to carry each
 other's traffic. A flood-warning sensor on a riverbank, a handheld in a search team, a
-solar node on a rooftop: each can hear only its nearest neighbours over a cheap radio,
+solar node on a rooftop: each can hear only its nearest neighbors over a cheap radio,
 yet a message has to cross the whole area. The answer is a mesh, where every node
 relays what it hears so a packet hops node to node until it arrives. This is the
 messaging backbone for exactly the places the SDK is built for, and it rides on the
@@ -58,7 +58,7 @@ use pamoja_mesh::{Frame, SeenCache};
 let reading = Frame::broadcast(0x1234_5678, 1, b"level=high")?;
 let on_air = reading.as_bytes();
 
-// A neighbour receives it, checks it has not already seen this packet, and reads it.
+// A neighbor receives it, checks it has not already seen this packet, and reads it.
 let mut seen: SeenCache<32> = SeenCache::new();
 let received = Frame::parse(on_air)?;
 assert!(received.is_broadcast());

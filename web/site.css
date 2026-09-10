@@ -88,7 +88,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 .project a:first-child { border-left: 0; }
 .project a:hover { color: var(--on-band); background: rgba(255, 255, 255, 0.16); }
 
-/* The colour scheme: the reader's system until this says otherwise. */
+/* The color scheme: the reader's system until this says otherwise. */
 .scheme {
   display: inline-flex; align-items: center; gap: 0.4rem; flex: none;
   height: 34px; padding: 0 0.6rem; cursor: pointer;

@@ -52,7 +52,7 @@ Console.WriteLine($"to the pump   via {route?.NextHop} at cost {route?.Cost}");
 Console.WriteLine($"routes held   {router.Count}");
 
 // Every packet gets one of three answers: deliver it here, relay it to the
-// neighbour on the way, or flood it because no route is known yet.
+// neighbor on the way, or flood it because no route is known yet.
 foreach ((string name, byte address) in
     new[] { ("gateway", Gateway), ("pump", Pump), ("silo", Silo) })
 {

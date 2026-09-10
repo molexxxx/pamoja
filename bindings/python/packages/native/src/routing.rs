@@ -24,7 +24,7 @@ pub struct Route {
     /// The node this route reaches.
     #[pyo3(get)]
     dst: u32,
-    /// The neighbour to send a packet to on the way there.
+    /// The neighbor to send a packet to on the way there.
     #[pyo3(get)]
     next_hop: u32,
     /// What the route costs, usually in hops.
@@ -32,14 +32,14 @@ pub struct Route {
     cost: u16,
 }
 
-/// A routing decision, and the neighbour it names when there is one.
+/// A routing decision, and the neighbor it names when there is one.
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct ForwardDecision {
     /// What to do with the packet: `Deliver`, `Relay`, or `Flood`.
     #[pyo3(get)]
     action: String,
-    /// The neighbour to unicast to, or `None` unless the action is `Relay`.
+    /// The neighbor to unicast to, or `None` unless the action is `Relay`.
     #[pyo3(get)]
     next_hop: Option<u32>,
 }
@@ -78,7 +78,7 @@ impl Router {
         self.inner.observe(origin, via, cost)
     }
 
-    /// The neighbour to send a packet to on the way to `dst`, or `None`.
+    /// The neighbor to send a packet to on the way to `dst`, or `None`.
     fn next_hop(&self, dst: u32) -> Option<u32> {
         self.inner.next_hop(dst)
     }

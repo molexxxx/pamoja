@@ -30,7 +30,7 @@ pub enum Refusal {
     /// The manifest's expiry has passed, so this release is no longer offered.
     Expired,
     /// The manifest expires, but this device cannot tell the time, so it has no
-    /// way to honour that.
+    /// way to honor that.
     NoClock,
     /// The image does not fit the slot it is bound for.
     SlotTooSmall,

@@ -12,7 +12,7 @@ public struct PamojaRoute
     /// <summary>The node this route reaches.</summary>
     public uint Dst;
 
-    /// <summary>The neighbour to send a packet to on the way there.</summary>
+    /// <summary>The neighbor to send a packet to on the way there.</summary>
     public uint NextHop;
 
     /// <summary>What the route costs, usually in hops.</summary>

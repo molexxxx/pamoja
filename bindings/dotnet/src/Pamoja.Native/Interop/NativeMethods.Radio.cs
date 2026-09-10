@@ -184,7 +184,7 @@ public static partial class NativeMethods
     [return: MarshalAs(UnmanagedType.U1)]
     public static partial bool pamoja_router_observe(IntPtr router, uint origin, uint via, ushort cost);
 
-    /// <summary>Returns the neighbour on the way to a node.</summary>
+    /// <summary>Returns the neighbor on the way to a node.</summary>
     [LibraryImport(Library)]
     [return: MarshalAs(UnmanagedType.U1)]
     public static partial bool pamoja_router_next_hop(IntPtr router, uint dst, out uint outNextHop);

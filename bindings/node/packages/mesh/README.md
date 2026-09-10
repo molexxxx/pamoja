@@ -31,7 +31,7 @@ const reading = broadcast(RIVER_GAUGE, 1, Buffer.from('level=high'))
 console.log(`sent      ${reading.bytes.length} bytes to every node in range`)
 console.log(`addressed to broadcast: ${reading.dst === BROADCAST}`)
 
-// A neighbour hears it. Every node in range rebroadcasts, so the same packet arrives
+// A neighbor hears it. Every node in range rebroadcasts, so the same packet arrives
 // several times over; the source and sequence id decide which copy is the first.
 const received = parse(reading.bytes)
 console.log(`payload   ${received.payload.toString()}`)

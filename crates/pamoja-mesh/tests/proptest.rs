@@ -1,6 +1,6 @@
 //! Property tests for the mesh frame on the untrusted-input boundary.
 //!
-//! A frame parses bytes that arrive over a radio link from an unknown neighbour, so the
+//! A frame parses bytes that arrive over a radio link from an unknown neighbor, so the
 //! parser must never panic on arbitrary input, and every frame built by the encoder must
 //! parse back to the same header and payload.
 

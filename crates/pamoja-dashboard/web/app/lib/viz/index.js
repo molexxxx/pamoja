@@ -150,7 +150,7 @@ export const meshStations = (g) =>
 };
 
 /**
- * The number of mesh peers to draw for a group: its declared `neighbours` stat, or the
+ * The number of mesh peers to draw for a group: its declared `neighbors` stat, or the
  * number of peer stations it hosts when none is given. Shared by the tile preview and the
  * full mesh map so the two never disagree.
  *
@@ -159,7 +159,7 @@ export const meshStations = (g) =>
  */
 export const meshPeerCount = (g) =>
 {
-  const n = (g.sensors || []).find((s) => s.reading.key === 'neighbours');
+  const n = (g.sensors || []).find((s) => s.reading.key === 'neighbors');
   const stat = n ? Math.max(0, Math.round(n.reading.value)) : 0;
   return Math.min(14, Math.max(1, stat || Math.max(meshStations(g).length, 3)));
 };

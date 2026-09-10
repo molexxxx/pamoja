@@ -52,7 +52,7 @@ pub enum Viz {
     Valve,
     /// A row of hash-chained blocks, for a tamper-evident record count.
     Chain,
-    /// A neighbour-mesh topology map, for a mesh node's peers.
+    /// A neighbor-mesh topology map, for a mesh node's peers.
     Mesh,
     /// A plain numeric counter, for a node or network stat.
     Count,

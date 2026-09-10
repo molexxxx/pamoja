@@ -437,7 +437,7 @@ $.component('dashboard-page', {
   },
 
   /**
-   * Renders the group's node-stats strip (neighbours, hops, link/relay status, ...), shown
+   * Renders the group's node-stats strip (neighbors, hops, link/relay status, ...), shown
    * apart from sensors and never counted as one. Empty when the group has no stats.
    *
    * @param {object} g - the group.

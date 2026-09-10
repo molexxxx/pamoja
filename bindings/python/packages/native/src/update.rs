@@ -118,7 +118,7 @@ pub struct Delegation {
     /// The public key that may sign manifests while this delegation stands.
     #[pyo3(get)]
     release_key: Vec<u8>,
-    /// When the delegation stops being honoured, in seconds since the Unix
+    /// When the delegation stops being honored, in seconds since the Unix
     /// epoch, or `0` to never expire.
     #[pyo3(get)]
     expires: u64,
@@ -397,7 +397,7 @@ impl Updater {
             .map_err(refusal)
     }
 
-    /// The delegation this updater currently honours, or `None` when releases
+    /// The delegation this updater currently honors, or `None` when releases
     /// must be signed by the anchor itself.
     #[getter]
     fn delegation(&self) -> Option<Delegation> {

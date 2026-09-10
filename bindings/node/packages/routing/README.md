@@ -49,7 +49,7 @@ const route = router.route(PUMP)
 console.log(`to the pump   via ${route?.nextHop} at cost ${route?.cost}`)
 console.log(`routes held   ${router.size}`)
 
-// Every packet gets one of three answers: deliver it here, relay it to the neighbour on
+// Every packet gets one of three answers: deliver it here, relay it to the neighbor on
 // the way, or flood it because no route is known yet.
 for (const [name, address] of [
   ['gateway', GATEWAY],

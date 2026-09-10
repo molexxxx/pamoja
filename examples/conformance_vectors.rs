@@ -346,7 +346,7 @@ fn serial() -> Value {
     let cobs_frame = framed[..cobs_len].to_vec();
 
     // A good frame, an escape truncated by the delimiter, then a good frame. The
-    // corrupt one must be dropped without taking its neighbours with it.
+    // corrupt one must be dropped without taking its neighbors with it.
     let stream = [b'o', b'k', 0xC0, 0xDB, 0xC0, b'g', b'o', 0xC0];
     let mut decoder: slip::SlipDecoder<64> = slip::SlipDecoder::new();
     let mut frames: Vec<String> = Vec::new();

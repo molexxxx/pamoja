@@ -1941,7 +1941,7 @@ typedef struct {
 typedef struct {
   // The node this route reaches.
   uint32_t dst;
-  // The neighbour to send a packet to on the way there.
+  // The neighbor to send a packet to on the way there.
   uint32_t next_hop;
   // What the route costs, usually in hops.
   uint16_t cost;
@@ -2337,7 +2337,7 @@ typedef struct {
   uint64_t epoch;
   // The public key that may sign manifests while this delegation stands.
   uint8_t release_key[PAMOJA_KEY_LEN];
-  // When the delegation stops being honoured, in seconds since the Unix
+  // When the delegation stops being honored, in seconds since the Unix
   // epoch, or `0` to never expire.
   uint64_t expires;
 } PamojaDelegation;
@@ -9969,7 +9969,7 @@ uint32_t pamoja_router_address(const PamojaRouter *router);
 
 // Learns a route from a packet that arrived.
 //
-// When a packet from a distant node comes in via a neighbour, that neighbour is
+// When a packet from a distant node comes in via a neighbor, that neighbor is
 // the way back to it. The table keeps the cheapest way it knows to each node, and
 // when full gives up the most expensive route to make room for a cheaper one.
 //
@@ -9977,7 +9977,7 @@ uint32_t pamoja_router_address(const PamojaRouter *router);
 //
 // * `router` - the routing table.
 // * `origin` - the node the packet came from.
-// * `via` - the neighbour it arrived through.
+// * `via` - the neighbor it arrived through.
 // * `cost` - what that path costs, usually a hop count.
 //
 // # Returns
@@ -9990,13 +9990,13 @@ uint32_t pamoja_router_address(const PamojaRouter *router);
 // `router` must be a live handle from [`pamoja_router_new`], or null.
 bool pamoja_router_observe(PamojaRouter *router, uint32_t origin, uint32_t via, uint16_t cost);
 
-// Returns the neighbour to send a packet to on the way to a node.
+// Returns the neighbor to send a packet to on the way to a node.
 //
 // # Arguments
 //
 // * `router` - the routing table.
 // * `dst` - the node to reach.
-// * `out_next_hop` - receives the neighbour address.
+// * `out_next_hop` - receives the neighbor address.
 //
 // # Returns
 //
@@ -10052,7 +10052,7 @@ bool pamoja_router_route(const PamojaRouter *router, uint32_t dst, PamojaRoute *
 //
 // * `router` - the routing table.
 // * `dst` - the node the packet is addressed to.
-// * `out_next_hop` - receives the neighbour to unicast to, written only when the
+// * `out_next_hop` - receives the neighbor to unicast to, written only when the
 //   answer is [`PamojaForward::Relay`].
 //
 // # Returns
@@ -13352,7 +13352,7 @@ PamojaStatus pamoja_updater_adopt(PamojaUpdater *updater,
                                   uint64_t now,
                                   PamojaDelegation *out_delegation);
 
-// Reads the delegation an updater currently honours.
+// Reads the delegation an updater currently honors.
 //
 // # Arguments
 //

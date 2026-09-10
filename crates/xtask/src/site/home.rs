@@ -925,7 +925,7 @@ note_title = "How the link gets paid for"
 note = "By an NGO, <em>never</em> the family."
 offers = [{ name = "Kits", state = "Not open" }]
 opens = "Once the pilot has run."
-rungs = [{ name = "Neighbour mesh", cost = "Free", detail = "A hop next door." }]
+rungs = [{ name = "Neighbor mesh", cost = "Free", detail = "A hop next door." }]
 
 [[milestone]]
 state = "now"

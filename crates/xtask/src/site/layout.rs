@@ -56,7 +56,7 @@ pub fn root_of(url: &str) -> String {
 ///
 /// The document, from `<!doctype html>` to `</html>`.
 pub fn document(chrome: &Chrome, page: &Page) -> String {
-    let (previous, next) = chrome.nav.neighbours(&page.url);
+    let (previous, next) = chrome.nav.neighbors(&page.url);
 
     let full = if page.title == "pamoja" {
         "pamoja documentation".to_owned()

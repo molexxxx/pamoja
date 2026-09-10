@@ -1,7 +1,7 @@
 // viz/glyphs.js - discrete and non-numeric visualizations.
 //
 // The instruments for readings that are not a single number on a scale: a plain count,
-// a neighbour-mesh map, an acoustic waveform, a hash-chained tamper log, a state chip,
+// a neighbor-mesh map, an acoustic waveform, a hash-chained tamper log, a state chip,
 // and a drip valve. Each sizes to its own content rather than the fixed gauge slot.
 
 import { nf, fmt, t } from '../i18n.js';
@@ -20,7 +20,7 @@ export function count(r, big)
 }
 
 /**
- * Renders a neighbour-mesh map: peers feeding a gateway with traveling packets.
+ * Renders a neighbor-mesh map: peers feeding a gateway with traveling packets.
  *
  * @param {{value?: number, state?: string}} r - the reading; `value` hints peer count.
  * @param {boolean} big - whether this is the expanded view.

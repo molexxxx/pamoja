@@ -20,7 +20,7 @@ public static class MeshGuide
         Console.WriteLine($"sent      {reading.Bytes.Length} bytes to every node in range");
         Console.WriteLine($"addressed to broadcast: {reading.Dst == Mesh.Broadcast}");
 
-        // A neighbour hears it. Every node in range rebroadcasts, so the same packet
+        // A neighbor hears it. Every node in range rebroadcasts, so the same packet
         // arrives several times over; the source and sequence id decide which copy is
         // the first.
         MeshFrame received = Mesh.Parse(reading.Bytes);

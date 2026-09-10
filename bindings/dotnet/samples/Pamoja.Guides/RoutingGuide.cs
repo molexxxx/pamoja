@@ -38,7 +38,7 @@ public static class RoutingGuide
         Console.WriteLine($"routes held   {router.Count}");
 
         // Every packet gets one of three answers: deliver it here, relay it to the
-        // neighbour on the way, or flood it because no route is known yet.
+        // neighbor on the way, or flood it because no route is known yet.
         foreach ((string name, byte address) in
             new[] { ("gateway", Gateway), ("pump", Pump), ("silo", Silo) })
         {
@@ -67,7 +67,7 @@ public static class RoutingGuide
 
         using Router fresh = new(Gateway, 4);
         Expect(fresh.Observe(Pump, NorthRelay, 2), "the first packet heard teaches a route");
-        Expect(fresh.Observe(Pump, EastRelay, 1), "a cheaper neighbour redirects it");
+        Expect(fresh.Observe(Pump, EastRelay, 1), "a cheaper neighbor redirects it");
         Expect(!fresh.Observe(Pump, SouthRelay, 4), "a costlier way is not worth taking");
         Expect(fresh.Observe(Tank, NorthRelay, 3), "a second node is learned");
         Expect(fresh.Count == 2, "two nodes are known, not four observations");

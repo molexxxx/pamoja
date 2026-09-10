@@ -210,7 +210,7 @@ fn bars(strength: u8) -> String {
 }
 
 // A node or network stat as short text for the stats line: the state leaf, or the bare
-// rounded value with no unit, since a stat like a neighbour count reads better plain.
+// rounded value with no unit, since a stat like a neighbor count reads better plain.
 fn stat_text(reading: &Reading) -> String {
     if let Some(state) = &reading.state {
         let leaf = state.rsplit('.').next().unwrap_or(state);
@@ -372,7 +372,7 @@ mod tests {
                         ),
                         crate::Sensor::new(
                             "neigh",
-                            Reading::new("neighbours", 5.0, "count").as_stat(),
+                            Reading::new("neighbors", 5.0, "count").as_stat(),
                         ),
                         crate::Sensor::new("hops", Reading::new("hops", 3.0, "count").as_stat()),
                     ],
@@ -390,7 +390,7 @@ mod tests {
         assert!(html.contains("river-1"), "the measurement is a sensor row");
         // The stats show on the stats line by their key, not as sensor rows.
         assert!(html.contains("class=\"muted stats\""));
-        assert!(html.contains("neighbours 5"));
+        assert!(html.contains("neighbors 5"));
         assert!(html.contains("hops 3"));
         assert!(
             !html.contains("scope=\"row\">neigh<"),

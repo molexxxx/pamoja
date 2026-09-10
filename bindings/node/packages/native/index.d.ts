@@ -1306,11 +1306,11 @@ export declare class Router {
   /**
    * Learns a route from a packet that arrived.
    *
-   * When a packet from `origin` comes in through neighbour `via` at `cost`,
-   * that neighbour is the way back. Returns whether the table changed.
+   * When a packet from `origin` comes in through neighbor `via` at `cost`,
+   * that neighbor is the way back. Returns whether the table changed.
    */
   observe(origin: number, via: number, cost: number): boolean
-  /** Returns the neighbour to send a packet to on the way to `dst`, or `null`. */
+  /** Returns the neighbor to send a packet to on the way to `dst`, or `null`. */
   nextHop(dst: number): number | null
   /** Returns what the known route to `dst` costs, or `null` when none is known. */
   cost(dst: number): number | null
@@ -1665,7 +1665,7 @@ export declare class Updater {
   /** Adopts a delegation, so releases signed by the key it names are accepted. */
   adopt(envelope: Buffer, now?: number | undefined | null): Delegation
   /**
-   * The delegation this updater currently honours, or `null` when releases
+   * The delegation this updater currently honors, or `null` when releases
    * must be signed by the anchor itself.
    */
   get delegation(): Delegation | null
@@ -2111,7 +2111,7 @@ export interface Delegation {
   /** The public key that may sign manifests while this delegation stands. */
   releaseKey: Buffer
   /**
-   * When the delegation stops being honoured, in seconds since the Unix
+   * When the delegation stops being honored, in seconds since the Unix
    * epoch, or `0` to never expire.
    */
   expires: number
@@ -2260,11 +2260,11 @@ export declare const enum ForwardAction {
   Flood = 'Flood'
 }
 
-/** A routing decision, and the neighbour it names when there is one. */
+/** A routing decision, and the neighbor it names when there is one. */
 export interface ForwardDecision {
   /** What to do with the packet. */
   action: ForwardAction
-  /** The neighbour to unicast to, or `null` unless the action is `Relay`. */
+  /** The neighbor to unicast to, or `null` unless the action is `Relay`. */
   nextHop?: number
 }
 
@@ -3801,7 +3801,7 @@ export interface Ros2Vector3 {
 export interface Route {
   /** The node this route reaches. */
   dst: number
-  /** The neighbour to send a packet to on the way there. */
+  /** The neighbor to send a packet to on the way there. */
   nextHop: number
   /** What the route costs, usually in hops. */
   cost: number

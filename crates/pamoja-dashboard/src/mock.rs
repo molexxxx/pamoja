@@ -957,7 +957,7 @@ impl StateSource for Mock {
 
         // Ranger relay: a conservation mesh node that listens for threats (chainsaws,
         // gunshots) on an acoustic monitor and relays alerts to the ranger post.
-        // The relay's neighbours are real sensor stations with their own positions; two
+        // The relay's neighbors are real sensor stations with their own positions; two
         // sensors share the riverside post to show a peer that hosts more than one sensor.
         let rr_river = self
             .sensor(
@@ -1037,11 +1037,11 @@ impl StateSource for Mock {
             )
             .at(-0.4216, 36.9123);
 
-        // Mesh node: a routing peer in the mesh - it draws its neighbour graph with live
-        // packets and reports neighbours, hops to the gateway, routing state and traffic.
-        let neighbour_mesh = self.mesh_sensor("mesh", 6.0);
-        let neighbours =
-            stat(self.sensor("neigh", "neighbours", "count", 5.0, 0.0, (1.0, 12.0), None));
+        // Mesh node: a routing peer in the mesh - it draws its neighbor graph with live
+        // packets and reports neighbors, hops to the gateway, routing state and traffic.
+        let neighbor_mesh = self.mesh_sensor("mesh", 6.0);
+        let neighbors =
+            stat(self.sensor("neigh", "neighbors", "count", 5.0, 0.0, (1.0, 12.0), None));
         let hops = stat(self.sensor("hops", "hops", "count", 3.0, 0.0, (1.0, 8.0), None));
         let routing = stat(self.chip_sensor("routing", "routing", "mesh.optimized", Status::Ok));
         let relayed = stat(self.sensor(
@@ -1058,7 +1058,7 @@ impl StateSource for Mock {
             "Neighborhood Mesh",
             LinkKind::Mesh,
             4,
-            vec![neighbour_mesh, neighbours, hops, routing, relayed],
+            vec![neighbor_mesh, neighbors, hops, routing, relayed],
         );
 
         let field_kits = Org {
@@ -1245,7 +1245,7 @@ mod tests {
             "soil_moisture",
             "battery_level",
             "flow_rate",
-            "neighbours",
+            "neighbors",
             "hops",
             "messages_relayed",
             "ambient_temp",
@@ -1257,7 +1257,7 @@ mod tests {
             "grain_temp_upper",
             "grain_temp_lower",
             "grain_temp_floor",
-            "neighbour_mesh",
+            "neighbor_mesh",
             "relay_mesh",
         ];
         for sensor in state
@@ -1305,7 +1305,7 @@ mod tests {
                 .find(|s| s.reading.key == key)
         };
         for key in [
-            "neighbours",
+            "neighbors",
             "hops",
             "routing",
             "messages_relayed",

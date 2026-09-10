@@ -1502,7 +1502,7 @@ class Delegation:
     @property
     def expires(self) -> builtins.int:
         r"""
-        When the delegation stops being honoured, in seconds since the Unix
+        When the delegation stops being honored, in seconds since the Unix
         epoch, or `0` to never expire.
         """
     def __new__(cls, epoch: builtins.int, release_key: typing.Sequence[builtins.int], expires: builtins.int = 0) -> Delegation:
@@ -1770,7 +1770,7 @@ class EventBus:
 @typing.final
 class ForwardDecision:
     r"""
-    A routing decision, and the neighbour it names when there is one.
+    A routing decision, and the neighbor it names when there is one.
     """
     @property
     def action(self) -> builtins.str:
@@ -1780,7 +1780,7 @@ class ForwardDecision:
     @property
     def next_hop(self) -> typing.Optional[builtins.int]:
         r"""
-        The neighbour to unicast to, or `None` unless the action is `Relay`.
+        The neighbor to unicast to, or `None` unless the action is `Relay`.
         """
 
 @typing.final
@@ -3356,9 +3356,11 @@ class Message:
         
         Raises `ValueError` if the payload is not text or the text is not a number.
         """
-    def __new__(cls, topic: builtins.str, payload: typing.Sequence[builtins.int]) -> Message:
+    def __new__(cls, topic: builtins.str, payload: builtins.str | typing.Sequence[builtins.int]) -> Message:
         r"""
         Creates a message, which is what a transport handler returns from `recv`.
+        
+        The payload is bytes, or text such as a reading written out.
         """
     def __repr__(self) -> builtins.str: ...
 
@@ -4230,7 +4232,7 @@ class Route:
     @property
     def next_hop(self) -> builtins.int:
         r"""
-        The neighbour to send a packet to on the way there.
+        The neighbor to send a packet to on the way there.
         """
     @property
     def cost(self) -> builtins.int:
@@ -4267,7 +4269,7 @@ class Router:
         """
     def next_hop(self, dst: builtins.int) -> typing.Optional[builtins.int]:
         r"""
-        The neighbour to send a packet to on the way to `dst`, or `None`.
+        The neighbor to send a packet to on the way to `dst`, or `None`.
         """
     def cost(self, dst: builtins.int) -> typing.Optional[builtins.int]:
         r"""
@@ -5110,7 +5112,7 @@ class Updater:
     @property
     def delegation(self) -> typing.Optional[Delegation]:
         r"""
-        The delegation this updater currently honours, or `None` when releases
+        The delegation this updater currently honors, or `None` when releases
         must be signed by the anchor itself.
         """
     def __new__(cls, vendor_id: typing.Sequence[builtins.int], class_id: typing.Sequence[builtins.int], anchor_public_key: typing.Sequence[builtins.int], slot_count: builtins.int, slot_capacity: builtins.int) -> Updater:

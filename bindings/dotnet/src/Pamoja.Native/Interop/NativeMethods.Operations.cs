@@ -269,7 +269,7 @@ public static partial class NativeMethods
         ulong now,
         out PamojaDelegation outDelegation);
 
-    /// <summary>Reads the delegation an updater currently honours.</summary>
+    /// <summary>Reads the delegation an updater currently honors.</summary>
     [LibraryImport(Library)]
     [return: MarshalAs(UnmanagedType.U1)]
     public static partial bool pamoja_updater_delegation(
