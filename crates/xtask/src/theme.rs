@@ -17,7 +17,7 @@
 use std::fs;
 use std::path::Path;
 
-/// One scheme's inks. The sheet is white stock with a deep green vendor ink; the dark
+/// One scheme's inks. The sheet is warm coated stock with a deep green vendor ink; the dark
 /// scheme is the same sheet printed in reverse, and lightens the ink that carries a link
 /// so it still reads against the ground.
 pub(crate) struct Scheme {
@@ -43,18 +43,18 @@ pub(crate) struct Scheme {
 
 /// The sheet as printed.
 pub(crate) const LIGHT: Scheme = Scheme {
-    paper: "#fbfaf6",
-    paper_tint: "#f1efe7",
+    paper: "#faf5eb",
+    paper_tint: "#ede3d2",
     ink: "#141414",
     ink_soft: "#585856",
-    rule: "#d7d4cc",
+    rule: "#d4cdc1",
     frame: "#141414",
     band: "#0f5f56",
     band_deep: "#0a463f",
     accent: "#0f5f56",
     accent_deep: "#0a463f",
     caution: "#8a5a00",
-    caution_tint: "#fff4d6",
+    caution_tint: "#ffecc1",
     alarm: "#a5321a",
     code_string: "#1f5c8b",
     code_literal: "#8a3a12",
@@ -364,11 +364,11 @@ a:hover {{ color: var(--accent-deep); }}
 fn pdoc(stamp: &str) -> String {
     format!(
         "{}\
-:root {{ --pdoc-background: var(--paper); }}
+:root {{ --pdoc-background: var(--paper); --pamoja-accent: var(--accent); }}
 .pdoc {{
   --text: var(--ink);
   --muted: var(--ink-soft);
-  --link: var(--accent);
+  --link: var(--pamoja-accent);
   --link-hover: var(--accent-deep);
   --code: var(--paper-tint);
   --active: var(--band-tint);
@@ -376,12 +376,15 @@ fn pdoc(stamp: &str) -> String {
   --accent2: var(--rule);
   --nav-hover: var(--band-tint);
   --name: var(--ink);
-  --def: var(--accent);
+  --def: var(--pamoja-accent);
   --annotation: var(--ink-soft);
 }}
 html, body {{ background: var(--paper); color: var(--ink); }}
 {SHARED}.pdoc h1, .pdoc h2, .pdoc h3 {{ font-family: var(--sans); letter-spacing: -0.01em; }}
 .pdoc code, .pdoc pre {{ font-family: var(--mono); }}
+.module-index dl {{ margin: 0; }}
+.module-index dt {{ margin-top: 1rem; font-family: var(--mono); font-size: 0.9375rem; }}
+.module-index dd {{ margin: 0.2rem 0 0; color: var(--ink-soft); }}
 ",
         banner("pdoc", stamp),
     )
@@ -424,9 +427,292 @@ pre, code {{ background: var(--paper-tint); }}
     )
 }
 
+/// The dashboard's copies of the palette, written from the schemes above.
+///
+/// The dashboard ships as its own bundle and cannot load the site's token sheet, so its
+/// stylesheet, the page it serves with scripts off, and the page the smallest tier renders
+/// on the device each carry the palette inline. Those declarations are the site's colors
+/// under the dashboard's own names. This sets them from [`LIGHT`] and [`DARK`] and leaves
+/// every declaration the dashboard owns alone, such as its link colors, radii, and the
+/// quieter card edges its sheets choose.
+///
+/// # Arguments
+///
+/// * `root` - the repository root.
+///
+/// # Returns
+///
+/// The stylesheet, the static floor page, and the source of the server-rendered floor,
+/// each with its palette declarations set from the schemes.
+///
+/// # Errors
+///
+/// When a file cannot be read, or a block the palette belongs in is missing, or sets a
+/// palette name twice.
+pub fn dashboard(root: &Path) -> Result<Vec<(String, String)>, String> {
+    const CSS: &str = "crates/pamoja-dashboard/web/global.css";
+    const PAGE: &str = "crates/pamoja-dashboard/web/lite.html";
+    const SOURCE: &str = "crates/pamoja-dashboard/src/lite.rs";
+
+    let mut css = read(root, CSS)?;
+    css = within(&css, CSS, &["[data-theme=\"sheet\"]"], |b| {
+        set_all(CSS, b, &console(&LIGHT))
+    })?;
+    css = within(&css, CSS, &["[data-theme=\"sheet-dark\"]"], |b| {
+        set_all(CSS, b, &console(&DARK))
+    })?;
+    css = swatch(CSS, &css)?;
+
+    let mut page = read(root, PAGE)?;
+    page = within(&page, PAGE, &[":root"], |b| {
+        set_all(PAGE, b, &floor(&LIGHT))
+    })?;
+    page = within(&page, PAGE, &["prefers-color-scheme: dark", ":root"], |b| {
+        set_all(PAGE, b, &floor(&DARK))
+    })?;
+
+    let mut source = read(root, SOURCE)?;
+    source = within(&source, SOURCE, &[":root"], |b| {
+        set_all(SOURCE, b, &floor(&LIGHT))
+    })?;
+    source = within(
+        &source,
+        SOURCE,
+        &["prefers-color-scheme:dark", ":root"],
+        |b| set_all(SOURCE, b, &floor(&DARK)),
+    )?;
+
+    Ok(vec![
+        (CSS.to_owned(), css),
+        (PAGE.to_owned(), page),
+        (SOURCE.to_owned(), source),
+    ])
+}
+
+// The palette as the dashboard stylesheet names it, for one of its two sheets.
+fn console(s: &Scheme) -> [(&'static str, &'static str); 17] {
+    [
+        ("--band", s.band),
+        ("--on-key", s.paper),
+        ("--on-alarm", s.paper),
+        ("--bg-0", s.paper),
+        ("--bg-1", s.paper_tint),
+        ("--panel", s.paper),
+        ("--panel-2", s.paper),
+        ("--tile", s.paper_tint),
+        ("--line", s.rule),
+        ("--frame", s.frame),
+        ("--text", s.ink),
+        ("--muted", s.ink_soft),
+        ("--key", s.accent),
+        ("--key-deep", s.accent_deep),
+        ("--ok", s.accent),
+        ("--warn", s.caution),
+        ("--alarm", s.alarm),
+    ]
+}
+
+// The palette as the two floor pages name it.
+fn floor(s: &Scheme) -> [(&'static str, &'static str); 10] {
+    [
+        ("--bg", s.paper),
+        ("--tint", s.paper_tint),
+        ("--card", s.paper),
+        ("--line", s.rule),
+        ("--frame", s.frame),
+        ("--text", s.ink),
+        ("--muted", s.ink_soft),
+        ("--ok", s.accent),
+        ("--warn", s.caution),
+        ("--alarm", s.alarm),
+    ]
+}
+
+fn read(root: &Path, path: &str) -> Result<String, String> {
+    fs::read_to_string(root.join(path)).map_err(|err| format!("reading {path}: {err}"))
+}
+
+// Applies `edit` to the body of the block that follows the anchors, each found after the
+// one before it, and returns the text with that body replaced.
+fn within(
+    text: &str,
+    path: &str,
+    anchors: &[&str],
+    edit: impl Fn(&str) -> Result<String, String>,
+) -> Result<String, String> {
+    let mut at = 0;
+    for anchor in anchors {
+        at += text[at..]
+            .find(anchor)
+            .ok_or_else(|| format!("{path}: no `{anchor}` to write the palette into"))?
+            + anchor.len();
+    }
+    let open = at
+        + text[at..]
+            .find('{')
+            .ok_or_else(|| format!("{path}: `{}` opens no block", anchors.join(" ")))?;
+    let mut depth = 0usize;
+    let mut close = None;
+    for (offset, ch) in text[open..].char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    close = Some(open + offset);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let close = close.ok_or_else(|| format!("{path}: `{}` never closes", anchors.join(" ")))?;
+    let body = edit(&text[open + 1..close])?;
+    Ok(format!("{}{}{}", &text[..open + 1], body, &text[close..]))
+}
+
+// Sets each named declaration in a block, failing when a name is missing or set twice,
+// since either means the block and the palette have drifted apart.
+fn set_all(path: &str, block: &str, pairs: &[(&str, &str)]) -> Result<String, String> {
+    let mut out = block.to_owned();
+    for (name, value) in pairs {
+        match declarations(&out, name).as_slice() {
+            [(start, end)] => out.replace_range(*start..*end, value),
+            [] => return Err(format!("{path}: the palette block sets no `{name}`")),
+            _ => {
+                return Err(format!(
+                    "{path}: the palette block sets `{name}` more than once"
+                ))
+            }
+        }
+    }
+    Ok(out)
+}
+
+// The value span of every declaration of exactly `name`: the text after its colon and any
+// spaces, up to the semicolon or the closing brace.
+fn declarations(block: &str, name: &str) -> Vec<(usize, usize)> {
+    let bytes = block.as_bytes();
+    let mut found = Vec::new();
+    let mut from = 0;
+    while let Some(hit) = block[from..].find(name) {
+        let start = from + hit;
+        let mut cursor = start + name.len();
+        from = cursor;
+        let before = if start == 0 { b' ' } else { bytes[start - 1] };
+        if !(before.is_ascii_whitespace() || before == b';' || before == b'{') {
+            continue;
+        }
+        while cursor < bytes.len() && bytes[cursor] == b' ' {
+            cursor += 1;
+        }
+        if cursor >= bytes.len() || bytes[cursor] != b':' {
+            continue;
+        }
+        cursor += 1;
+        while cursor < bytes.len() && bytes[cursor] == b' ' {
+            cursor += 1;
+        }
+        let end = block[cursor..]
+            .find(&[';', '}'][..])
+            .map_or(block.len(), |offset| cursor + offset);
+        found.push((cursor, end));
+    }
+    found
+}
+
+// The system swatch paints the two sheets it chooses between, so it names both papers.
+fn swatch(path: &str, css: &str) -> Result<String, String> {
+    let anchor = ".dd-option .swatch[data-theme=\"system\"] { background: ";
+    let start = css
+        .find(anchor)
+        .ok_or_else(|| format!("{path}: no system swatch to paint"))?
+        + anchor.len();
+    let end = start
+        + css[start..]
+            .find(';')
+            .ok_or_else(|| format!("{path}: the system swatch never ends"))?;
+    Ok(format!(
+        "{}linear-gradient(135deg, {} 0 50%, {} 50% 100%){}",
+        &css[..start],
+        LIGHT.paper,
+        DARK.paper,
+        &css[end..]
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_pdoc_adapter_reads_the_site_accent_where_pdoc_cannot_shadow_it() {
+        let css = pdoc("stamp");
+        let start = css.find(".pdoc {").unwrap();
+        let block = &css[start..start + css[start..].find('}').unwrap()];
+        assert!(block.contains("--accent: var(--paper-tint);"), "{block}");
+        assert!(!block.contains("var(--accent)"), "{block}");
+    }
+
+    #[test]
+    fn the_dashboard_copies_carry_both_sheets_and_keep_their_own_declarations() {
+        let files = dashboard(&crate::docs::repo_root()).unwrap();
+        assert_eq!(files.len(), 3);
+        for (path, body) in &files {
+            assert!(
+                body.contains(LIGHT.paper) && body.contains(DARK.paper),
+                "{path} lacks a sheet"
+            );
+        }
+        assert!(
+            files[0].1.contains("--lk-lora:"),
+            "the dashboard keeps its link colors"
+        );
+    }
+
+    #[test]
+    fn a_palette_rewrite_sets_only_the_names_it_owns() {
+        let block = "\n  --line: #000000;\n  --line-2: #222222;\n  --key: #111111;\n  --key-deep: #333333;\n";
+        let out = set_all(
+            "test",
+            block,
+            &[("--line", "#abcdef"), ("--key", "#123456")],
+        )
+        .unwrap();
+        assert!(out.contains("--line: #abcdef;"), "{out}");
+        assert!(out.contains("--line-2: #222222;"), "{out}");
+        assert!(out.contains("--key: #123456;"), "{out}");
+        assert!(out.contains("--key-deep: #333333;"), "{out}");
+    }
+
+    #[test]
+    fn a_palette_block_missing_a_name_or_setting_it_twice_is_refused() {
+        let missing = set_all("test", "--line: #000000;", &[("--tile", "#ffffff")]).unwrap_err();
+        assert!(missing.contains("--tile"), "{missing}");
+        let twice = set_all(
+            "test",
+            "--tile: #000000; --tile: #111111;",
+            &[("--tile", "#ffffff")],
+        )
+        .unwrap_err();
+        assert!(twice.contains("more than once"), "{twice}");
+    }
+
+    #[test]
+    fn a_block_is_found_after_each_anchor_in_turn() {
+        let text = ":root { --bg: #000000; } @media (prefers-color-scheme: dark) { :root { --bg: #111111; } }";
+        let out = within(
+            text,
+            "test",
+            &["prefers-color-scheme: dark", ":root"],
+            |b| set_all("test", b, &[("--bg", "#222222")]),
+        )
+        .unwrap();
+        assert_eq!(
+            out,
+            ":root { --bg: #000000; } @media (prefers-color-scheme: dark) { :root { --bg: #222222; } }"
+        );
+    }
 
     #[test]
     fn every_adapter_carries_the_palette_and_names_its_generator() {

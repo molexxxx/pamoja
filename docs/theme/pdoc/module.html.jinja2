@@ -7,3 +7,18 @@
     {{ super() }}
     <script src="/js/reference.js" defer></script>
 {% endblock %}
+
+{% block module_contents %}
+    {{ super() }}
+    {% if not module.docstring and not module.flattened_own_members and module.submodules %}
+        <section class="module-index">
+            <h2>Submodules</h2>
+            <dl>
+                {% for submodule in module.submodules if is_public(submodule) | trim %}
+                    <dt>{{ submodule.taken_from | link(text=submodule.modulename) }}</dt>
+                    <dd>{{ submodule.docstring.split("\n\n")[0] | replace("\n", " ") }}</dd>
+                {% endfor %}
+            </dl>
+        </section>
+    {% endif %}
+{% endblock %}

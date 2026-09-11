@@ -9,8 +9,9 @@
     <script>
       try {
         var _s = ['sheet', 'sheet-dark', 'slate', 'blueprint', 'phosphor', 'safelight'];
-        var _m = { night: 'sheet-dark', day: 'sheet' };
-        var _t = JSON.parse(localStorage.getItem('theme'));
+        var _m = { night: 'sheet-dark', day: 'sheet', daylight: 'sheet' };
+        var _q = new URLSearchParams(location.search).get('theme');
+        var _t = _q === 'system' || _s.indexOf(_q) >= 0 ? _q : JSON.parse(localStorage.getItem('theme'));
         _t = _m[_t] || _t;
         if (_s.indexOf(_t) < 0) _t = matchMedia('(prefers-color-scheme: dark)').matches ? 'sheet-dark' : 'sheet';
         document.documentElement.dataset.theme = _t;

@@ -24,6 +24,20 @@ released together, so one entry covers all of them.
   through it is, rather than also in the middle of the front page.
 - The front page says what a node is: the profile as a file, the four pieces that
   sit around it, and the two programs that put the whole thing together.
+- The light sheet is printed on warm coated stock. The paper, its tint, the rule,
+  and the caution wash moved toward tan, and the tint now stands apart from the
+  paper where it had nearly vanished into it. The site, the four reference
+  generators, the badges, and the dashboard take the new values from the same
+  palette.
+- A group card on the dashboard's two sheets is drawn with a hairline rule rather
+  than a heavy ink frame, and the reading tiles inside it with their tint alone,
+  so a card no longer reads as a window inside a window. Stat cards drop their
+  accent stripe and their hover shadow there too. A card or tile in warning or
+  alarm still takes its status color, and the panels that float over the page
+  keep their frame.
+- `cargo xtask docs` writes the dashboard's copies of the palette, in its
+  stylesheet and in the two pages that render without scripts, from the site's
+  palette, and `--check` fails when a copy drifts.
 
 ### Fixed
 
@@ -33,6 +47,24 @@ released together, so one entry covers all of them.
   the asserts passed only because the originals were gone. Both examples now say
   the call replaces, check the element count, and point at `with_element` for
   adding. One of them generates the crates.io page for `pamoja-profile`.
+- The Python reference can be navigated on a phone. A height meant for the
+  desktop sidebar left a tall empty band above the page, and the site bar
+  covered the menu button. The height applies on the desktop only, and the
+  button sits below the bar.
+- The Python reference no longer opens on a page carrying only the package name.
+  The `pamoja` namespace has no documentation or members of its own, so its page
+  lists the submodules with the first line of each one's documentation.
+- A dashboard link with `?theme=`, `?locale=`, or `?scenario=` opens on that
+  view. The dev server had always said it would, but nothing read those
+  parameters. The link changes what is shown, not the saved choice, and a locale
+  the build lacks falls back to the saved one. The dev server no longer offers
+  `?tier=`, since the tier is a build feature.
+- The remove button on a dashboard tile takes a tap across 44 pixels instead of
+  20, and a text field shows the focus outline again when reached from the
+  keyboard.
+- The sheets no longer glow. The alarm count, a gauge bar, and a newly seen link
+  each drew a fixed glow that ignored the theme, and they now take the theme's
+  own. Faint text on a tile on the light sheet reaches a 4.9:1 contrast.
 
 ## [0.1.18] - 2026-09-10
 

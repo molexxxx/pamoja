@@ -277,6 +277,7 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
     files.extend(buttons::render(&version::current()?));
     files.extend(diagram::render(&catalog, &root)?);
     files.extend(theme::render(&root)?);
+    files.extend(theme::dashboard(&root)?);
     files.extend(licenses::render(&root)?);
 
     // The mark the showcase uses, carried into the site so every reference page opens with
@@ -677,7 +678,10 @@ fn is_handwritten(path: &Path) -> bool {
 // Whether a generated file is a crate README that may be hand-written (no marker) and must
 // then be left in place.
 fn is_kept_handwritten(name: &str, path: &Path) -> bool {
-    name.starts_with("crates/") && path.exists() && is_handwritten(path)
+    name.starts_with("crates/")
+        && name.ends_with("/README.md")
+        && path.exists()
+        && is_handwritten(path)
 }
 
 // Writes every derived file, leaving a hand-written crate README in place.

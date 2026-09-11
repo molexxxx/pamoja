@@ -5,7 +5,7 @@
       <path d="M0,0.5 L7,4 L0,7.5" fill="none" stroke="#585856" stroke-width="1.5"/>
     </marker>
   </defs>
-  <rect width="1004" height="812" fill="#fbfaf6"/>
+  <rect width="1004" height="812" fill="#faf5eb"/>
   <rect x="0.5" y="0.5" width="1003" height="811" fill="none" stroke="rgba(20, 20, 20, 0.16)" stroke-width="1"/>
   <rect x="24" y="24" width="305.3333333333333" height="74" rx="10" fill="rgba(15, 95, 86, 0.09)" stroke="rgba(15, 95, 86, 0.5)"/>
   <text x="36" y="49" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="15" font-weight="600" fill="#141414">TypeScript</text>
@@ -31,7 +31,7 @@
   <rect x="24" y="250" width="956" height="512" rx="12" fill="rgba(20, 20, 20, 0.035)" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="38" y="273" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#585856" letter-spacing="1.2">CAPABILITIES BY CHAPTER</text>
   <text x="966" y="273" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="500" fill="#0f5f56" text-anchor="end">Rust: cargo add pamoja-&lt;name&gt;, the crates themselves</text>
-  <rect x="38" y="286" width="174.4" height="170" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="38" y="286" width="174.4" height="170" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="52" y="308" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Identity</text>
   <text x="52" y="328" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#0f5f56">security</text>
   <line x1="52" y1="386" x2="198.4" y2="386" stroke="rgba(20, 20, 20, 0.16)"/>
@@ -39,7 +39,7 @@
   <text x="52" y="416" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja-security</text>
   <text x="52" y="430" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">Pamoja.Security</text>
   <text x="52" y="444" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja -F security</text>
-  <rect x="226.4" y="286" width="174.4" height="170" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="226.4" y="286" width="174.4" height="170" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="240.4" y="308" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Codecs</text>
   <text x="240.4" y="328" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#0f5f56">codec</text>
   <line x1="240.4" y1="386" x2="386.8" y2="386" stroke="rgba(20, 20, 20, 0.16)"/>
@@ -47,7 +47,7 @@
   <text x="240.4" y="416" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja-codec</text>
   <text x="240.4" y="430" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">Pamoja.Codec</text>
   <text x="240.4" y="444" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja -F codec</text>
-  <rect x="414.8" y="286" width="174.4" height="170" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="414.8" y="286" width="174.4" height="170" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="428.8" y="308" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Helpers</text>
   <text x="428.8" y="328" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#141414">kit</text>
   <line x1="428.8" y1="386" x2="575.2" y2="386" stroke="rgba(20, 20, 20, 0.16)"/>
@@ -55,7 +55,7 @@
   <text x="428.8" y="416" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja-kit</text>
   <text x="428.8" y="430" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">Pamoja.Kit</text>
   <text x="428.8" y="444" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja -F kit</text>
-  <rect x="603.2" y="286" width="174.4" height="170" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="603.2" y="286" width="174.4" height="170" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="617.2" y="308" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Field I/O</text>
   <text x="617.2" y="328" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#141414">serial</text>
   <text x="690.4000000000001" y="328" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#141414">modbus</text>
@@ -67,7 +67,7 @@
   <text x="617.2" y="416" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja-field-io</text>
   <text x="617.2" y="430" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">Pamoja.FieldIo</text>
   <text x="617.2" y="444" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja -F field-io</text>
-  <rect x="791.6" y="286" width="174.4" height="170" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="791.6" y="286" width="174.4" height="170" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="805.6" y="308" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Sensing and actuation</text>
   <text x="805.6" y="328" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#0f5f56">sensors</text>
   <text x="878.8000000000001" y="328" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#0f5f56">actuators</text>
@@ -76,7 +76,7 @@
   <text x="805.6" y="416" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja-sensing</text>
   <text x="805.6" y="430" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">Pamoja.Sensing</text>
   <text x="805.6" y="444" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja -F sensing</text>
-  <rect x="38" y="470" width="174.4" height="188" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="38" y="470" width="174.4" height="188" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="52" y="492" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Radio and reach</text>
   <text x="52" y="512" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#141414">lora</text>
   <text x="125.2" y="512" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#141414">lorawan</text>
@@ -87,7 +87,7 @@
   <text x="52" y="618" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja-radio</text>
   <text x="52" y="632" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">Pamoja.Radio</text>
   <text x="52" y="646" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja -F radio</text>
-  <rect x="226.4" y="470" width="174.4" height="188" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="226.4" y="470" width="174.4" height="188" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="240.4" y="492" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">MAVLink</text>
   <text x="240.4" y="512" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#0f5f56">mavlink</text>
   <line x1="240.4" y1="588" x2="386.8" y2="588" stroke="rgba(20, 20, 20, 0.16)"/>
@@ -95,7 +95,7 @@
   <text x="240.4" y="618" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja-mavlink</text>
   <text x="240.4" y="632" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">Pamoja.Mavlink</text>
   <text x="240.4" y="646" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja -F mavlink</text>
-  <rect x="414.8" y="470" width="174.4" height="188" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="414.8" y="470" width="174.4" height="188" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="428.8" y="492" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Trust and operation</text>
   <text x="428.8" y="512" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#0f5f56">audit</text>
   <text x="502" y="512" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#141414">session</text>
@@ -107,7 +107,7 @@
   <text x="428.8" y="618" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja-trust</text>
   <text x="428.8" y="632" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">Pamoja.Trust</text>
   <text x="428.8" y="646" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja -F trust</text>
-  <rect x="603.2" y="470" width="174.4" height="188" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="603.2" y="470" width="174.4" height="188" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="617.2" y="492" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Transports and testing</text>
   <text x="617.2" y="512" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#0f5f56">mqtt</text>
   <text x="690.4000000000001" y="512" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#0f5f56">coap</text>
@@ -121,7 +121,7 @@
   <text x="617.2" y="618" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja-transports</text>
   <text x="617.2" y="632" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">Pamoja.Transports</text>
   <text x="617.2" y="646" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="11" font-weight="400" fill="#585856">pamoja -F transports</text>
-  <rect x="791.6" y="470" width="174.4" height="188" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="791.6" y="470" width="174.4" height="188" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="805.6" y="492" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Profiles and robotics</text>
   <text x="805.6" y="512" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#0f5f56">profile</text>
   <text x="878.8000000000001" y="512" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#0f5f56">ros2</text>

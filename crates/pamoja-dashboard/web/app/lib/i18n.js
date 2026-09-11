@@ -49,7 +49,8 @@ export async function initI18n()
 {
   fallback = bundles.en = await load('en');
   await discoverLocales();
-  if (!available.includes(store.state.locale)) store.dispatch('setLocale', 'en');
+  const saved = $.storage.get('locale');
+  if (!available.includes(store.state.locale)) store.dispatch('setLocale', available.includes(saved) ? saved : 'en');
   await load(store.state.locale);
   applyDir();
 }
