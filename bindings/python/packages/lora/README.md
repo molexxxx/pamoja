@@ -1,6 +1,6 @@
 # pamoja-lora
 
-Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+Time-on-air, duty-cycle off-time, the regional channel plans a LoRa node must keep to, and the link budget that sets its range. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/lora.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -69,7 +69,7 @@ print(f"700 MHz  is outside this plan, so it budgets nothing: {outside is None}"
 ## Documentation
 
 - [`pamoja.lora` reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/lora.html), every class and function in this module.
-- [The LoRa airtime guide](https://pamoja.molex.cloud/docs/guides/lora.html), with the same example in Rust, TypeScript, and C#.
+- [The LoRa airtime and range guide](https://pamoja.molex.cloud/docs/guides/lora.html), with the same example in Rust, TypeScript, and C#.
 - [Every capability](https://pamoja.molex.cloud/docs/), and the [install page](https://pamoja.molex.cloud/docs/install.html).
 
 ## License

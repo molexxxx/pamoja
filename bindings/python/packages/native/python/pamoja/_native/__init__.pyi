@@ -52,6 +52,7 @@ __all__ = [
     "J1939Message",
     "Kalman",
     "Ladder",
+    "LinkBudget",
     "LoopbackBroker",
     "LoopbackTransport",
     "LoraBeacon",
@@ -249,6 +250,11 @@ __all__ = [
     "keyexpr_is_valid",
     "keyexpr_matches",
     "link_cost_threshold",
+    "lora_demodulator_snr_db",
+    "lora_fcc_max_conducted_dbm",
+    "lora_free_space_loss_db",
+    "lora_fresnel_radius_mm",
+    "lora_noise_floor_dbm",
     "lorawan_parse_header",
     "lorawan_parse_join_request",
     "mavlink_crc16_mcrf4xx",
@@ -2253,6 +2259,85 @@ class Ladder:
         Raises if no connected rung listens: none was added, the ladder is not
         connected, or every listening link has ended. The ladder is held while
         waiting, so a send from elsewhere waits behind the receive.
+        """
+
+@typing.final
+class LinkBudget:
+    r"""
+    The gains and losses of a LoRa link, from the transmitting radio to the receiving one.
+    
+    Every value is in decibels, resolved to the hundredth of a decibel the Rust crate
+    holds.
+    """
+    @property
+    def transmit_power_dbm(self) -> builtins.float:
+        r"""
+        The power the transmitting radio delivers at its antenna port, in dBm.
+        """
+    @property
+    def transmit_antenna_gain_dbi(self) -> builtins.float:
+        r"""
+        The gain of the transmitting antenna over an isotropic antenna, in dBi.
+        """
+    @property
+    def transmit_cable_loss_db(self) -> builtins.float:
+        r"""
+        The loss in the cable and connectors between the transmitting radio and its
+        antenna, in dB.
+        """
+    @property
+    def receive_antenna_gain_dbi(self) -> builtins.float:
+        r"""
+        The gain of the receiving antenna over an isotropic antenna, in dBi.
+        """
+    @property
+    def receive_cable_loss_db(self) -> builtins.float:
+        r"""
+        The loss in the cable and connectors between the receiving antenna and its radio,
+        in dB.
+        """
+    @property
+    def noise_figure_db(self) -> builtins.float:
+        r"""
+        The noise figure of the receiver, in dB.
+        """
+    def __new__(cls, transmit_power_dbm: builtins.float = 0.0, transmit_antenna_gain_dbi: builtins.float = 0.0, transmit_cable_loss_db: builtins.float = 0.0, receive_antenna_gain_dbi: builtins.float = 0.0, receive_cable_loss_db: builtins.float = 0.0, noise_figure_db: builtins.float = 6.0) -> LinkBudget:
+        r"""
+        Describes the gains and losses of a link.
+        
+        The defaults are 0 dBm between isotropic antennas with no cable loss, heard with
+        the 6 dB noise figure typical of a Semtech sub-GHz radio.
+        """
+    def eirp_dbm(self) -> builtins.float:
+        r"""
+        The equivalent isotropically radiated power, in dBm.
+        
+        The transmit power plus the transmitting antenna gain, less the transmitting
+        cable loss. This is the figure regional power ceilings limit.
+        """
+    def received_dbm(self, path_loss_db: builtins.float) -> builtins.float:
+        r"""
+        The power that reaches the receiving radio across a path, in dBm.
+        """
+    def sensitivity_dbm(self, link: LoraLink) -> builtins.float:
+        r"""
+        The weakest signal the receiver can demodulate on a link, in dBm.
+        """
+    def max_path_loss_db(self, link: LoraLink) -> builtins.float:
+        r"""
+        The most path loss the link survives, in dB.
+        """
+    def margin_db(self, link: LoraLink, path_loss_db: builtins.float) -> builtins.float:
+        r"""
+        How far above the sensitivity a signal arrives across a path, in dB.
+        
+        Negative where the path loses more than the link survives.
+        """
+    def max_transmit_power_dbm(self, eirp_ceiling_dbm: builtins.float) -> builtins.float:
+        r"""
+        The most transmit power that keeps the EIRP at or under a ceiling, in dBm.
+        
+        A higher-gain antenna leaves less power for the radio.
         """
 
 @typing.final
@@ -5842,6 +5927,36 @@ def keyexpr_matches(pattern: builtins.str, key: builtins.str) -> builtins.bool:
 def link_cost_threshold(cost: builtins.str) -> builtins.str:
     r"""
     Returns the level a named link cost calls for.
+    """
+
+def lora_demodulator_snr_db(spreading_factor: builtins.int) -> builtins.float:
+    r"""
+    The signal-to-noise ratio the LoRa demodulator needs at a spreading factor, in dB.
+    """
+
+def lora_fcc_max_conducted_dbm(antenna_gain_dbi: builtins.float, hopping_channels: typing.Optional[builtins.int] = None) -> typing.Optional[builtins.float]:
+    r"""
+    The most conducted power 47 CFR 15.247 allows a 902-928 MHz transmitter through an
+    antenna, in dBm.
+    
+    Without a channel count the transmitter uses digital modulation. A frequency hopping
+    system on fewer than 25 channels comes back as `None`, because paragraph (b)(2) sets
+    no limit for it.
+    """
+
+def lora_free_space_loss_db(distance_m: builtins.int, frequency_hz: builtins.int) -> builtins.float:
+    r"""
+    The free-space basic transmission loss between isotropic antennas, in dB.
+    """
+
+def lora_fresnel_radius_mm(near_m: builtins.int, far_m: builtins.int, frequency_hz: builtins.int) -> builtins.int:
+    r"""
+    The radius of the first Fresnel ellipsoid at a point on a path, in millimeters.
+    """
+
+def lora_noise_floor_dbm(bandwidth_hz: builtins.int) -> builtins.float:
+    r"""
+    The thermal noise power in a channel, in dBm.
     """
 
 def lorawan_parse_header(bytes: typing.Sequence[builtins.int]) -> LorawanHeader:

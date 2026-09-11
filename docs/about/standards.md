@@ -10,7 +10,7 @@ guess is worse than none.
 | --- | --- |
 | Crypto | FIPS-197 (AES-128), RFC 4493 (AES-CMAC), FIPS-180 (SHA-256), RFC 2104 and RFC 4231 (HMAC-SHA256), RFC 5869 (HKDF), RFC 7748 (X25519), RFC 8439 (ChaCha20-Poly1305) |
 | Messaging | MQTT topic and wildcard rules, RFC 7252 and RFC 7641 (CoAP with observe) |
-| Radio and mesh | LoRaWAN 1.0.x MAC framing and OTAA join, the LoRa Alliance RP002 regional parameters, LoRa time-on-air and duty cycle, CRC-16/CCITT frames |
+| Radio and mesh | LoRaWAN 1.0.x MAC framing and OTAA join, the LoRa Alliance RP002 regional parameters, LoRa time-on-air and duty cycle, ITU-R P.525-5 (free-space loss) and P.526-16 (Fresnel zones), the Semtech SX1261/2 and SX1276 datasheets and AN1200.22 (receiver sensitivity), 47 CFR 15.247 (conducted power and antenna gain), CRC-16/CCITT frames |
 | Field I/O | RFC 1055 (SLIP) and COBS, CRC-16/MODBUS, CAN 2.0 and CAN-FD with SAE J1939, NXP UM10204 (I2C) |
 | Sensors and actuators | The BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, TMP117, and PCA9685 datasheets |
 | Updates | RFC 9124 (the firmware manifest information model) |

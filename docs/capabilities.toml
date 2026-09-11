@@ -188,8 +188,8 @@ guide = "guides/device.md"
 [[capability]]
 key = "lora"
 chapter = "radio"
-title = "LoRa airtime"
-summary = "Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to"
+title = "LoRa airtime and range"
+summary = "Time-on-air, duty-cycle off-time, the regional channel plans a LoRa node must keep to, and the link budget that sets its range"
 crates = ["pamoja-lora"]
 node = "lora"
 python = "lora"
@@ -197,6 +197,7 @@ dotnet = [
     "LoraLink", "LoraChannelPlan", "LoraPlanBuilder", "LoraPlanInfo", "LoraRegion",
     "LoraDataRate", "LoraChannelBlock", "LoraChannelSet", "LoraSubBand", "LoraRx2",
     "LoraBeacon", "LoraMaxPayload", "LoraPayloadTable", "LoraModulation", "LoraDirection",
+    "LoraLinkBudget",
 ]
 guide = "guides/lora.md"
 

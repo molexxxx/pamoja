@@ -65,6 +65,74 @@ public static partial class NativeMethods
         nuint payloadLen,
         uint dutyCyclePermille);
 
+    /// <summary>Returns a LoRa link budget of 0 dBm between isotropic antennas.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaLoraLinkBudget pamoja_lora_link_budget_default();
+
+    /// <summary>Returns the EIRP of a link budget, in hundredths of a dBm.</summary>
+    [LibraryImport(Library)]
+    public static partial int pamoja_lora_link_budget_eirp_centi_dbm(PamojaLoraLinkBudget budget);
+
+    /// <summary>Returns the power that reaches the receiving radio, in hundredths of a dBm.</summary>
+    [LibraryImport(Library)]
+    public static partial int pamoja_lora_link_budget_received_centi_dbm(
+        PamojaLoraLinkBudget budget,
+        int pathLossCentiDb);
+
+    /// <summary>Returns the sensitivity of a budget on a link, in hundredths of a dBm.</summary>
+    [LibraryImport(Library)]
+    public static partial int pamoja_lora_link_budget_sensitivity_centi_dbm(
+        PamojaLoraLinkBudget budget,
+        PamojaLoraLink link);
+
+    /// <summary>Returns the most path loss a link survives, in hundredths of a dB.</summary>
+    [LibraryImport(Library)]
+    public static partial int pamoja_lora_link_budget_max_path_loss_centi_db(
+        PamojaLoraLinkBudget budget,
+        PamojaLoraLink link);
+
+    /// <summary>Returns the margin a path leaves, in hundredths of a dB.</summary>
+    [LibraryImport(Library)]
+    public static partial int pamoja_lora_link_budget_margin_centi_db(
+        PamojaLoraLinkBudget budget,
+        PamojaLoraLink link,
+        int pathLossCentiDb);
+
+    /// <summary>Returns the most transmit power under an EIRP ceiling, in hundredths of a dBm.</summary>
+    [LibraryImport(Library)]
+    public static partial int pamoja_lora_link_budget_max_transmit_power_centi_dbm(
+        PamojaLoraLinkBudget budget,
+        int eirpCeilingCentiDbm);
+
+    /// <summary>Returns the thermal noise power in a channel, in hundredths of a dBm.</summary>
+    [LibraryImport(Library)]
+    public static partial int pamoja_lora_noise_floor_centi_dbm(uint bandwidthHz);
+
+    /// <summary>Returns the SNR the LoRa demodulator needs, in hundredths of a dB.</summary>
+    [LibraryImport(Library)]
+    public static partial int pamoja_lora_demodulator_snr_centi_db(byte spreadingFactor);
+
+    /// <summary>Returns the free-space basic transmission loss, in hundredths of a dB.</summary>
+    [LibraryImport(Library)]
+    public static partial int pamoja_lora_free_space_loss_centi_db(uint distanceM, uint frequencyHz);
+
+    /// <summary>Returns the radius of the first Fresnel ellipsoid, in millimeters.</summary>
+    [LibraryImport(Library)]
+    public static partial uint pamoja_lora_fresnel_radius_mm(uint nearM, uint farM, uint frequencyHz);
+
+    /// <summary>Returns the 47 CFR 15.247 limit for digital modulation, in hundredths of a dBm.</summary>
+    [LibraryImport(Library)]
+    public static partial int pamoja_lora_fcc_digital_max_conducted_centi_dbm(int antennaGainCentiDbi);
+
+    /// <summary>
+    /// Returns the 47 CFR 15.247 limit for frequency hopping, in hundredths of a dBm, or
+    /// <see cref="int.MinValue"/> for fewer than 25 channels.
+    /// </summary>
+    [LibraryImport(Library)]
+    public static partial int pamoja_lora_fcc_hopping_max_conducted_centi_dbm(
+        ushort hoppingChannels,
+        int antennaGainCentiDbi);
+
     /// <summary>Builds a mesh frame addressed to one node.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_mesh_frame_new(

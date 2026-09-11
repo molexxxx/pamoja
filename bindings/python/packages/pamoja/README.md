@@ -32,7 +32,7 @@ Each module name opens its reference.
 | `pamoja-sensors` | [`pamoja.sensors`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sensors.html) | Datasheet-anchored decoders for eleven parts: the BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, and TMP117 |
 | `pamoja-actuators` | [`pamoja.actuators`](https://pamoja.molex.cloud/docs/reference/python/pamoja/actuators.html) | PCA9685 PWM and servo pulses, and stepper coil sequencing |
 | `pamoja-core` | [`pamoja.core`](https://pamoja.molex.cloud/docs/reference/python/pamoja/core.html) | A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in |
-| `pamoja-lora` | [`pamoja.lora`](https://pamoja.molex.cloud/docs/reference/python/pamoja/lora.html) | Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to |
+| `pamoja-lora` | [`pamoja.lora`](https://pamoja.molex.cloud/docs/reference/python/pamoja/lora.html) | Time-on-air, duty-cycle off-time, the regional channel plans a LoRa node must keep to, and the link budget that sets its range |
 | `pamoja-lorawan` | [`pamoja.lorawan`](https://pamoja.molex.cloud/docs/reference/python/pamoja/lorawan.html) | LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join |
 | `pamoja-mesh` | [`pamoja.mesh`](https://pamoja.molex.cloud/docs/reference/python/pamoja/mesh.html) | Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once |
 | `pamoja-routing` | [`pamoja.routing`](https://pamoja.molex.cloud/docs/reference/python/pamoja/routing.html) | Reverse-path routing that learns the cheapest route from overheard traffic |

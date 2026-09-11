@@ -99,7 +99,7 @@ name two of them share stays unambiguous. Pick a language:
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
 <summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
 </details><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust.html#radio-and-reach">API reference</a></div></div>
 </div>
 <div class="domain">
@@ -163,7 +163,7 @@ name two of them share stays unambiguous. Pick a language:
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
 <summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
 </details><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node.html#radio-and-reach">API reference</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/radio">npm</a></div></div>
 </div>
 <div class="domain">
@@ -227,7 +227,7 @@ name two of them share stays unambiguous. Pick a language:
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
 <summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
 </details><a class="pkg-btn api python" href="https://pamoja.molex.cloud/docs/reference/python.html#radio-and-reach">API reference</a><a class="pkg-btn ext" href="https://pypi.org/project/pamoja-radio/">PyPI</a></div></div>
 </div>
 <div class="domain">
@@ -291,7 +291,7 @@ name two of them share stays unambiguous. Pick a language:
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
 <summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
 </details><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet.html#radio-and-reach">API reference</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Radio">NuGet</a></div></div>
 </div>
 <div class="domain">

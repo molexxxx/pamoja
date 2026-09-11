@@ -22,6 +22,7 @@ use pamoja_kit::{
 };
 use pamoja_ladder::{Delivery, TransportLadder};
 use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
+use pamoja_lora::budget::{self, Decibels, Fcc15247, LinkBudget};
 use pamoja_lora::region::{
     ChannelBlock, ChannelPlan, ChannelPlanBuilder, DataRate, MaxPayload, Modulation, PayloadTable,
     Region, SubBand,
@@ -1503,6 +1504,127 @@ fn mavlink_vectors_match() {
             entry["timestamp"].as_u64().expect("a timestamp"),
             "the signing timestamp for {}",
             entry["unixMicros"]
+        );
+    }
+}
+
+#[test]
+fn lora_budget_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["lora"];
+    let vector = &case["budget"];
+    let hundredths = |value: &Value| value.as_i64().expect("hundredths of a decibel") as i32;
+    let level = |value: &Value| Decibels::from_hundredths(hundredths(value));
+
+    assert_eq!(
+        budget::RADIO_NOISE_FIGURE_DB,
+        level(&vector["radioNoiseFigureHundredths"])
+    );
+    assert_eq!(
+        budget::GATEWAY_NOISE_FIGURE_DB,
+        level(&vector["gatewayNoiseFigureHundredths"])
+    );
+
+    for floor in vector["noiseFloors"].as_array().expect("an array") {
+        let bandwidth = floor["bandwidthHz"].as_u64().expect("a bandwidth") as u32;
+        assert_eq!(
+            budget::noise_floor_dbm(bandwidth),
+            level(&floor["hundredths"]),
+            "noise floor in {bandwidth} Hz"
+        );
+    }
+
+    for snr in vector["demodulatorSnrs"].as_array().expect("an array") {
+        let spreading_factor = snr["spreadingFactor"].as_u64().expect("a factor") as u8;
+        assert_eq!(
+            budget::demodulator_snr_db(spreading_factor),
+            level(&snr["hundredths"]),
+            "demodulator SNR at SF{spreading_factor}"
+        );
+    }
+
+    for loss in vector["freeSpaceLosses"].as_array().expect("an array") {
+        let distance = loss["distanceM"].as_u64().expect("a distance") as u32;
+        let frequency = loss["frequencyHz"].as_u64().expect("a frequency") as u32;
+        assert_eq!(
+            budget::free_space_loss_db(distance, frequency),
+            level(&loss["hundredths"]),
+            "free-space loss over {distance} m at {frequency} Hz"
+        );
+    }
+
+    for radius in vector["fresnelRadii"].as_array().expect("an array") {
+        let near = radius["nearM"].as_u64().expect("a distance") as u32;
+        let far = radius["farM"].as_u64().expect("a distance") as u32;
+        let frequency = radius["frequencyHz"].as_u64().expect("a frequency") as u32;
+        assert_eq!(
+            u64::from(budget::fresnel_radius_mm(near, far, frequency)),
+            radius["radiusMm"].as_u64().expect("a radius"),
+            "Fresnel radius {near} m and {far} m along at {frequency} Hz"
+        );
+    }
+
+    for described in vector["budgets"].as_array().expect("an array") {
+        let name = &described["name"];
+        let link = link_of(named(case, described["link"].as_str().expect("a link")));
+        let link_budget = LinkBudget {
+            transmit_power_dbm: level(&described["transmitPowerHundredths"]),
+            transmit_antenna_gain_dbi: level(&described["transmitAntennaGainHundredths"]),
+            transmit_cable_loss_db: level(&described["transmitCableLossHundredths"]),
+            receive_antenna_gain_dbi: level(&described["receiveAntennaGainHundredths"]),
+            receive_cable_loss_db: level(&described["receiveCableLossHundredths"]),
+            noise_figure_db: level(&described["noiseFigureHundredths"]),
+        };
+        let path = level(&described["pathLossHundredths"]);
+        let ceiling = level(&described["ceilingHundredths"]);
+        assert_eq!(
+            link_budget.eirp_dbm(),
+            level(&described["eirpHundredths"]),
+            "EIRP of {name}"
+        );
+        assert_eq!(
+            link_budget.received_dbm(path),
+            level(&described["receivedHundredths"]),
+            "received power of {name}"
+        );
+        assert_eq!(
+            link_budget.sensitivity_dbm(link),
+            level(&described["sensitivityHundredths"]),
+            "sensitivity of {name}"
+        );
+        assert_eq!(
+            link_budget.max_path_loss_db(link),
+            level(&described["maxPathLossHundredths"]),
+            "most path loss {name} survives"
+        );
+        assert_eq!(
+            link_budget.margin_db(link, path),
+            level(&described["marginHundredths"]),
+            "margin of {name}"
+        );
+        assert_eq!(
+            link_budget.max_transmit_power_dbm(ceiling),
+            level(&described["maxTransmitPowerHundredths"]),
+            "most transmit power {name} allows under its ceiling"
+        );
+    }
+
+    for rule in vector["fcc"].as_array().expect("an array") {
+        let system = match rule["hoppingChannels"].as_u64() {
+            None => Fcc15247::DigitalModulation,
+            Some(channels) => Fcc15247::FrequencyHopping {
+                channels: channels as u16,
+            },
+        };
+        assert_eq!(
+            system
+                .max_conducted_dbm(level(&rule["antennaGainHundredths"]))
+                .map(Decibels::hundredths),
+            rule["maxConductedHundredths"]
+                .as_i64()
+                .map(|value| value as i32),
+            "{system:?} through {}",
+            rule["antennaGainHundredths"]
         );
     }
 }
