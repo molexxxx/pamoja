@@ -29,6 +29,8 @@ pub mod can;
 pub mod coap;
 #[cfg(feature = "codec")]
 pub mod codec;
+#[cfg(feature = "gateway")]
+pub mod gateway;
 #[cfg(feature = "gpio")]
 pub mod gpio;
 #[cfg(feature = "kit")]

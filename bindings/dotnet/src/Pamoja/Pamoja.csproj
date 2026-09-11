@@ -25,6 +25,7 @@
     <ProjectReference Include="../Pamoja.Coap/Pamoja.Coap.csproj" />
     <ProjectReference Include="../Pamoja.Codec/Pamoja.Codec.csproj" />
     <ProjectReference Include="../Pamoja.Core/Pamoja.Core.csproj" />
+    <ProjectReference Include="../Pamoja.Gateway/Pamoja.Gateway.csproj" />
     <ProjectReference Include="../Pamoja.Gpio/Pamoja.Gpio.csproj" />
     <ProjectReference Include="../Pamoja.Kit/Pamoja.Kit.csproj" />
     <ProjectReference Include="../Pamoja.Ladder/Pamoja.Ladder.csproj" />

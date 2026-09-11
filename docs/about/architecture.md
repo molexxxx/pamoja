@@ -47,7 +47,7 @@ set, down to a single-capability build that carries no third-party code at all.
 </div>
 <div class="bd-cell">
 <p class="bd-cell-title">Radio and reach</p>
-<ul class="bd-crates"><li>lora</li><li>lorawan</li><li class="on-core">radios</li><li>mesh</li><li>routing</li></ul>
+<ul class="bd-crates"><li>lora</li><li>lorawan</li><li class="on-core">radios</li><li>gateway</li><li>mesh</li><li>routing</li></ul>
 <ul class="bd-names"><li>@pamoja/radio</li><li>pamoja-radio</li><li>Pamoja.Radio</li><li>pamoja -F radio</li></ul>
 </div>
 <div class="bd-cell">

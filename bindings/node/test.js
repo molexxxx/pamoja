@@ -37,6 +37,7 @@ const {
   loopback,
   power,
   profile,
+  gateway,
   radios,
   ros2,
   routing,
@@ -856,6 +857,24 @@ function radioAndReach() {
     /1\.9 V/,
     "and a TCXO voltage DIO3 cannot supply is refused before any device is opened",
   );
+  // A gateway datagram round trips, and one that is not this protocol is refused.
+  const pull = gateway.encode({
+    kind: gateway.PacketKind.PullData,
+    token: 0x0102,
+    gateway: "b827ebfffe010203",
+  });
+  assert.strictEqual(pull.length, 12, "a PULL_DATA is twelve bytes");
+  assert.strictEqual(
+    gateway.parse(pull).gateway,
+    "b827ebfffe010203",
+    "and carries the gateway's identifier",
+  );
+  assert.throws(
+    () => gateway.parse(Buffer.from([1, 0, 1, 0])),
+    /version/,
+    "protocol version 1 is not this protocol",
+  );
+
   const { sx127x } = radios;
   assert.strictEqual(sx127x.frequencyWord(868_100_000), 0xd90666, "the SX1276 carrier word");
   assert.strictEqual(sx127x.loraOpMode(sx127x.Mode.Tx), 0x8b, "TX mode on the LoRa page");

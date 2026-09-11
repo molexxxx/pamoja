@@ -733,6 +733,14 @@ name = "pamoja-core"
 version = "0.1.18"
 
 [[package]]
+name = "pamoja-gateway"
+version = "0.1.18"
+dependencies = [
+ "pamoja-lora",
+ "serde_json",
+]
+
+[[package]]
 name = "pamoja-gpio"
 version = "0.1.18"
 dependencies = [
@@ -819,6 +827,7 @@ dependencies = [
  "pamoja-coap",
  "pamoja-codec",
  "pamoja-core",
+ "pamoja-gateway",
  "pamoja-gpio",
  "pamoja-kit",
  "pamoja-ladder",

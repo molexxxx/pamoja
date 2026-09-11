@@ -2346,6 +2346,144 @@ export interface ForwardDecision {
   nextHop?: number
 }
 
+/** Returns the acknowledgment a server owes a datagram, or `null` for one that needs none. */
+export declare function gatewayAcknowledgment(packet: GatewayPacket): GatewayPacket | null
+
+/** What the CRC of a received packet said. */
+export declare const enum GatewayCrc {
+  /** The CRC checked. */
+  Ok = 'Ok',
+  /** The CRC failed. */
+  Failed = 'Failed',
+  /** The packet carried no CRC. */
+  Absent = 'Absent'
+}
+
+/** Writes a datagram to send over a socket. */
+export declare function gatewayEncode(packet: GatewayPacket): Buffer
+
+/** One datagram of the protocol, with the fields its kind carries. */
+export interface GatewayPacket {
+  /** Which kind of datagram. */
+  kind: GatewayPacketKind
+  /** The token that pairs a datagram with its answer. */
+  token: number
+  /** The gateway's identifier, as sixteen hexadecimal digits, for the kinds that carry one. */
+  gateway?: string
+  /** The packets a PUSH_DATA forwards. */
+  packets?: Array<GatewayRxpk>
+  /** The report a PUSH_DATA carries. */
+  status?: GatewayStat
+  /** What a PULL_RESP asks the gateway to transmit. */
+  transmit?: GatewayTxpk
+  /**
+   * What a TX_ACK reports, in the protocol's own words, such as `NONE` or
+   * `COLLISION_PACKET`.
+   */
+  txStatus?: string
+}
+
+/** Which kind of datagram this is. */
+export declare const enum GatewayPacketKind {
+  /** The gateway forwarding what it heard. */
+  PushData = 'PushData',
+  /** The server acknowledging a PUSH_DATA. */
+  PushAck = 'PushAck',
+  /** The gateway holding its route open. */
+  PullData = 'PullData',
+  /** The server sending a packet to transmit. */
+  PullResp = 'PullResp',
+  /** The server acknowledging a PULL_DATA. */
+  PullAck = 'PullAck',
+  /** The gateway reporting what became of a PULL_RESP. */
+  TxAck = 'TxAck'
+}
+
+/** Reads a datagram that arrived. */
+export declare function gatewayParse(datagram: Buffer): GatewayPacket
+
+/** A packet the gateway heard, with the metadata the protocol carries beside it. */
+export interface GatewayRxpk {
+  /** The carrier it arrived on, in hertz. */
+  frequencyHz: number
+  /** The packet itself. */
+  payload: Buffer
+  /** The spreading factor, bandwidth, and coding rate, for a LoRa packet. */
+  link?: LoraLink
+  /** The bitrate in bits per second, for an FSK packet. */
+  bitrateBps?: number
+  /** What the CRC said; `Ok` when omitted. */
+  crc?: GatewayCrc
+  /** The received signal strength in dBm. */
+  rssiDbm?: number
+  /** The signal-to-noise ratio in dB. */
+  snrDb?: number
+  /** The concentrator channel it arrived on. */
+  channel?: number
+  /** The radio chain it arrived on. */
+  rfChain?: number
+  /** The concentrator's own timestamp of the reception, in microseconds. */
+  timestampUs?: number
+  /** When it arrived, in microseconds since 1970-01-01 UTC. */
+  receivedAtUs?: number
+  /** When it arrived on the GPS clock, in milliseconds since 6 January 1980. */
+  gpsMillis?: number
+}
+
+/** A gateway's own status report. */
+export interface GatewayStat {
+  /** The gateway's clock, in seconds since 1970-01-01 UTC. */
+  timeS?: number
+  /** Its latitude in degrees, north positive. */
+  latitudeDeg?: number
+  /** Its longitude in degrees, east positive. */
+  longitudeDeg?: number
+  /** Its altitude in meters. */
+  altitudeM?: number
+  /** How many packets its radio received. */
+  received: number
+  /** How many of those had a good CRC. */
+  receivedOk: number
+  /** How many it forwarded. */
+  forwarded: number
+  /** What share of its datagrams were acknowledged, as a percentage. */
+  acknowledgedPercent?: number
+  /** How many downlink datagrams it received. */
+  downlinks: number
+  /** How many packets it transmitted. */
+  transmitted: number
+}
+
+/** A packet the server asks the gateway to transmit. */
+export interface GatewayTxpk {
+  /** The carrier to transmit on, in hertz. */
+  frequencyHz: number
+  /** The packet itself. */
+  payload: Buffer
+  /** The spreading factor, bandwidth, and coding rate, for a LoRa packet. */
+  link?: LoraLink
+  /** The bitrate in bits per second, for an FSK packet. */
+  bitrateBps?: number
+  /** Whether to transmit at once, which ignores the timestamps. */
+  immediate?: boolean
+  /** The concentrator timestamp to transmit at, in microseconds. */
+  timestampUs?: number
+  /** The GPS time to transmit at, in milliseconds since 6 January 1980. */
+  gpsMillis?: number
+  /** The radio chain to transmit from. */
+  rfChain?: number
+  /** The power to transmit at, in dBm; 14 when omitted. */
+  powerDbm?: number
+  /** The FSK frequency deviation in hertz. */
+  frequencyDeviationHz?: number
+  /** Whether to invert the LoRa polarity, as a LoRaWAN downlink is sent. */
+  invertPolarity?: boolean
+  /** How long a preamble to send, in symbols. */
+  preambleSymbols?: number
+  /** Whether to leave the physical CRC off, as LoRaWAN downlinks are. */
+  withoutCrc?: boolean
+}
+
 /** Converts a raw HDC1080 temperature register to degrees Celsius. */
 export declare function hdc1080Celsius(raw: number): number
 

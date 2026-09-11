@@ -23,6 +23,7 @@ members = [
     "crates/pamoja-telemetry",
     "crates/pamoja-lora",
     "crates/pamoja-radios",
+    "crates/pamoja-gateway",
     "crates/pamoja-modbus",
     "crates/pamoja-mesh",
     "crates/pamoja-lorawan",

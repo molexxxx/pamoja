@@ -13,7 +13,7 @@ import pytest
 from pamoja.codec import Quantizer, from_cbor, pack_samples, to_cbor, unpack_samples
 from pamoja.kit import Calibration, Coordinate, Depletion, Geofence, Pid, Smoother, Thermostat, Trigger, deadband
 from pamoja.security import DeviceIdentity, verify
-from pamoja import actuators, audit, can, gpio, lora, lorawan, mesh, modbus, power, profile, radios, ros2, routing, sensors, serial, session, telemetry, update, zenoh
+from pamoja import actuators, audit, can, gateway, gpio, lora, lorawan, mesh, modbus, power, profile, radios, ros2, routing, sensors, serial, session, telemetry, update, zenoh
 from pamoja.core import PamojaError
 from pamoja.kit import WINDOW_CAPACITY, Anomaly, Median, Trend, Window
 
@@ -1896,3 +1896,100 @@ def test_zenoh_vectors_match():
 
     for want in vector["matches"]:
         assert zenoh.matches(want["pattern"], want["key"]) == want["matches"]
+
+
+def test_gateway_vectors_match():
+    vector = VECTORS["gateway"]
+    heard = vector["pushData"]["rxpk"]
+    reported = vector["pushData"]["stat"]
+    link = lora.link(
+        heard["spreadingFactor"],
+        heard["bandwidthHz"],
+        coding_rate_denominator=heard["codingRateDenominator"],
+    )
+
+    push = gateway.encode(
+        gateway.Packet(
+            gateway.PacketKind.PUSH_DATA,
+            vector["pushData"]["token"],
+            gateway=vector["gateway"],
+            packets=[
+                gateway.Rxpk(
+                    heard["frequencyHz"],
+                    heard["payload"].encode(),
+                    link=link,
+                    rssi_dbm=heard["rssiDbm"],
+                    snr_db=heard["snrDb"],
+                    timestamp_us=heard["timestampUs"],
+                    received_at_us=heard["receivedAtUs"],
+                    channel=heard["channel"],
+                )
+            ],
+            status=gateway.Stat(
+                time_s=reported["timeS"],
+                latitude_deg=reported["latitudeDeg"],
+                longitude_deg=reported["longitudeDeg"],
+                altitude_m=reported["altitudeM"],
+                received=reported["received"],
+                received_ok=reported["receivedOk"],
+                forwarded=reported["forwarded"],
+                acknowledged_percent=reported["acknowledgedPercent"],
+                downlinks=reported["downlinks"],
+                transmitted=reported["transmitted"],
+            ),
+        )
+    )
+    assert push.hex() == vector["pushData"]["datagram"]
+
+    read = gateway.parse(push)
+    assert read.gateway == vector["gateway"]
+    assert read.packets[0].frequency_hz == heard["frequencyHz"]
+    assert read.packets[0].payload == heard["payload"].encode()
+    assert read.packets[0].link.spreading_factor == heard["spreadingFactor"]
+    assert read.status.altitude_m == reported["altitudeM"]
+    assert gateway.encode(gateway.acknowledgment(read)).hex() == vector["pushAck"]
+
+    pull = gateway.Packet(gateway.PacketKind.PULL_DATA, 0x0304, gateway=vector["gateway"])
+    assert gateway.encode(pull).hex() == vector["pullData"]
+    assert (
+        gateway.encode(gateway.Packet(gateway.PacketKind.PULL_ACK, 0x0304)).hex()
+        == vector["pullAck"]
+    )
+
+    asked = vector["pullResp"]["txpk"]
+    downlink = gateway.encode(
+        gateway.Packet(
+            gateway.PacketKind.PULL_RESP,
+            vector["pullResp"]["token"],
+            transmit=gateway.Txpk(
+                asked["frequencyHz"],
+                asked["payload"].encode(),
+                link=lora.link(asked["spreadingFactor"], asked["bandwidthHz"]),
+                timestamp_us=asked["timestampUs"],
+                power_dbm=asked["powerDbm"],
+                invert_polarity=asked["invertPolarity"],
+                without_crc=asked["withoutCrc"],
+            ),
+        )
+    )
+    assert downlink.hex() == vector["pullResp"]["datagram"]
+    assert gateway.parse(downlink).transmit.power_dbm == asked["powerDbm"]
+
+    refused = gateway.encode(
+        gateway.Packet(
+            gateway.PacketKind.TX_ACK,
+            vector["txAck"]["token"],
+            gateway=vector["gateway"],
+            tx_status=vector["txAck"]["status"],
+        )
+    )
+    assert refused.hex() == vector["txAck"]["datagram"]
+    assert gateway.parse(refused).tx_status == vector["txAck"]["status"]
+
+    for status in vector["statuses"]:
+        datagram = gateway.encode(
+            gateway.Packet(
+                gateway.PacketKind.TX_ACK, 1, gateway=vector["gateway"], tx_status=status
+            )
+        )
+        assert gateway.parse(datagram).tx_status == status

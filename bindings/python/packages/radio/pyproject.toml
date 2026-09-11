@@ -19,6 +19,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    "pamoja-gateway==0.1.18",
     "pamoja-lora==0.1.18",
     "pamoja-lorawan==0.1.18",
     "pamoja-mesh==0.1.18",

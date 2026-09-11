@@ -55,8 +55,8 @@ each under its own name:
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Radio</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Radio" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
-<summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/radios.html">LoRa radios</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
+<summary><span class="guide-menu-n">6</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/radios.html">LoRa radios</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/gateway.html">LoRaWAN gateways</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
 </details><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet.html#radio-and-reach">API reference</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Radio">NuGet</a></div></div>
 </div>
 <div class="domain">
@@ -290,6 +290,16 @@ reference pages, one step away.
 <div class="pkg-foot">
 <div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Radios.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/radios.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/radios.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Radios">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-radios" title="pamoja-radios">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-radios" title="@pamoja/radios">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-radios" title="pamoja-radios">Python</a></p>
+</div>
+</div>
+<div class="pkg" id="dotnet-gateway">
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/gateway.html">LoRaWAN gateways</a><code class="pkg-import">Pamoja.Gateway</code><p>The Semtech UDP packet forwarder protocol on both sides: the datagrams a gateway and a network server exchange, and the packets, reports and downlinks they carry</p></div>
+<div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Gateway</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Gateway" aria-label="Copy the install command">copy</button></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Gateway.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/gateway.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/gateway.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Gateway">NuGet</a></div>
+<p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-gateway" title="pamoja-gateway">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-gateway" title="@pamoja/gateway">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-gateway" title="pamoja-gateway">Python</a></p>
 </div>
 </div>
 <div class="pkg" id="dotnet-mesh">

@@ -36,6 +36,7 @@ default = [
     "lora",
     "lorawan",
     "radios",
+    "gateway",
     "mavlink",
     "mesh",
     "routing",
@@ -71,6 +72,7 @@ lorawan = ["dep:pamoja-lorawan"]
 # The SX126x command set and decoders, and the duty-cycle guard; the embedded-hal driver
 # stays Rust-only.
 radios = ["dep:pamoja-radios", "lora", "pamoja-radios/linux"]
+gateway = ["dep:pamoja-gateway", "lora"]
 mavlink = ["dep:pamoja-mavlink", "pamoja-mavlink/alloc"]
 mesh = ["dep:pamoja-mesh"]
 routing = ["dep:pamoja-routing"]
@@ -115,6 +117,7 @@ pamoja-actuators = { path = "../../../../crates/pamoja-actuators", optional = tr
 pamoja-lora = { path = "../../../../crates/pamoja-lora", features = ["alloc"], optional = true }
 pamoja-lorawan = { path = "../../../../crates/pamoja-lorawan", optional = true }
 pamoja-radios = { path = "../../../../crates/pamoja-radios", default-features = false, optional = true }
+pamoja-gateway = { path = "../../../../crates/pamoja-gateway", optional = true }
 pamoja-mavlink = { path = "../../../../crates/pamoja-mavlink", default-features = false, optional = true }
 pamoja-mesh = { path = "../../../../crates/pamoja-mesh", features = ["alloc"], optional = true }
 pamoja-routing = { path = "../../../../crates/pamoja-routing", features = ["alloc"], optional = true }

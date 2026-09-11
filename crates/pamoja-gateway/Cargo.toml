@@ -1,0 +1,24 @@
+[package]
+name = "pamoja-gateway"
+description = "LoRaWAN gateway protocols for pamoja: the Semtech UDP packet forwarder protocol on both sides, its PUSH_DATA, PULL_DATA, PULL_RESP and TX_ACK datagrams and the rxpk, stat, txpk and txpk_ack objects they carry, with the base64 payloads and the timestamps the protocol prescribes, so a gateway and a network server speak the same wire."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+
+[dependencies]
+# The link a datarate identifier names is the same one the airtime and range math takes,
+# so a forwarded packet and its budget are described by one type.
+pamoja-lora = { path = "../pamoja-lora", version = "0.1.18", default-features = false }
+# The protocol's payload is a JSON object, built and read field by field so a datagram
+# from a gateway in the field is refused with the name of what is wrong with it.
+serde_json = "1"
+
+[lints]
+workspace = true

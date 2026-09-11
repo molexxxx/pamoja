@@ -171,6 +171,7 @@ tags = [
   { text = "SX126x LoRa radios", state = "ships", crate = "pamoja-radios" },
   { text = "SX127x LoRa radios", state = "ships", crate = "pamoja-radios" },
   { text = "radios on a Linux board", state = "ships", crate = "pamoja-radios" },
+  { text = "gateway packet forwarder protocol", state = "ships", crate = "pamoja-gateway" },
   { text = "antennas, feed lines and power limits", state = "ships", href = "docs/radio.html" },
   { text = "mesh", state = "ships", crate = "pamoja-mesh" },
   { text = "routing", state = "ships", crate = "pamoja-routing" },

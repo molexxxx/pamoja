@@ -8,6 +8,7 @@ mod can;
 mod coap;
 mod codec;
 mod device;
+mod gateway;
 mod gpio;
 mod hal;
 mod imports;

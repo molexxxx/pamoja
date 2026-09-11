@@ -81,6 +81,18 @@ pub fn lora_min_off_time_us(
     Some(settings(&link).min_off_time_us(payload_len as usize, duty_cycle_permille) as f64)
 }
 
+/// Describes link settings the way JavaScript holds them.
+pub(crate) fn lora_link_of(settings: LinkSettings) -> LoraLink {
+    LoraLink {
+        spreading_factor: settings.spreading_factor(),
+        bandwidth_hz: settings.bandwidth_hz(),
+        coding_rate_denominator: settings.coding_rate_denominator(),
+        preamble_symbols: settings.preamble_symbols(),
+        explicit_header: settings.explicit_header(),
+        crc: settings.crc(),
+    }
+}
+
 /// Rebuilds the Rust link settings, clamping every value to its LoRa range.
 pub(crate) fn settings(link: &LoraLink) -> LinkSettings {
     let mut settings = LinkSettings::new(link.spreading_factor, link.bandwidth_hz)

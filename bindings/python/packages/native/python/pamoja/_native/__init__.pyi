@@ -42,6 +42,10 @@ __all__ = [
     "ElementSpec",
     "EventBus",
     "ForwardDecision",
+    "GatewayPacket",
+    "GatewayRxpk",
+    "GatewayStat",
+    "GatewayTxpk",
     "Geofence",
     "Hdc1080Config",
     "Hdc1080Measurement",
@@ -189,6 +193,9 @@ __all__ = [
     "encode_manifest",
     "envelope_body",
     "fingerprint",
+    "gateway_acknowledgment",
+    "gateway_encode",
+    "gateway_parse",
     "hdc1080_celsius",
     "hdc1080_config_from_register",
     "hdc1080_config_to_register",
@@ -1863,6 +1870,257 @@ class ForwardDecision:
     def next_hop(self) -> typing.Optional[builtins.int]:
         r"""
         The neighbor to unicast to, or `None` unless the action is `Relay`.
+        """
+
+@typing.final
+class GatewayPacket:
+    r"""
+    One datagram of the protocol, with the fields its kind carries.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        Which kind of datagram: `"PushData"`, `"PushAck"`, `"PullData"`, `"PullResp"`,
+        `"PullAck"`, or `"TxAck"`.
+        """
+    @property
+    def token(self) -> builtins.int:
+        r"""
+        The token that pairs a datagram with its answer.
+        """
+    @property
+    def gateway(self) -> typing.Optional[builtins.str]:
+        r"""
+        The gateway's identifier, as sixteen hexadecimal digits, for the kinds that carry one.
+        """
+    @property
+    def packets(self) -> builtins.list[GatewayRxpk]:
+        r"""
+        The packets a PUSH_DATA forwards.
+        """
+    @property
+    def status(self) -> typing.Optional[GatewayStat]:
+        r"""
+        The report a PUSH_DATA carries.
+        """
+    @property
+    def transmit(self) -> typing.Optional[GatewayTxpk]:
+        r"""
+        What a PULL_RESP asks the gateway to transmit.
+        """
+    @property
+    def tx_status(self) -> typing.Optional[builtins.str]:
+        r"""
+        What a TX_ACK reports, such as `"NONE"` or `"COLLISION_PACKET"`.
+        """
+    def __new__(cls, kind: builtins.str, token: builtins.int, *, gateway: typing.Optional[builtins.str] = None, packets: typing.Sequence[GatewayRxpk] = [], status: typing.Optional[GatewayStat] = None, transmit: typing.Optional[GatewayTxpk] = None, tx_status: typing.Optional[builtins.str] = None) -> GatewayPacket:
+        r"""
+        Describes a datagram of the protocol.
+        """
+
+@typing.final
+class GatewayRxpk:
+    r"""
+    A packet the gateway heard, with the metadata the protocol carries beside it.
+    """
+    @property
+    def frequency_hz(self) -> builtins.int:
+        r"""
+        The carrier it arrived on, in hertz.
+        """
+    @property
+    def link(self) -> typing.Optional[LoraLink]:
+        r"""
+        The spreading factor, bandwidth, and coding rate, for a LoRa packet.
+        """
+    @property
+    def bitrate_bps(self) -> typing.Optional[builtins.int]:
+        r"""
+        The bitrate in bits per second, for an FSK packet.
+        """
+    @property
+    def crc(self) -> builtins.str:
+        r"""
+        What the CRC said: `"Ok"`, `"Failed"`, or `"Absent"`.
+        """
+    @property
+    def rssi_dbm(self) -> builtins.float:
+        r"""
+        The received signal strength in dBm.
+        """
+    @property
+    def snr_db(self) -> typing.Optional[builtins.float]:
+        r"""
+        The signal-to-noise ratio in dB, for a LoRa packet.
+        """
+    @property
+    def channel(self) -> builtins.int:
+        r"""
+        The concentrator channel it arrived on.
+        """
+    @property
+    def rf_chain(self) -> builtins.int:
+        r"""
+        The radio chain it arrived on.
+        """
+    @property
+    def timestamp_us(self) -> typing.Optional[builtins.int]:
+        r"""
+        The concentrator's own timestamp of the reception, in microseconds.
+        """
+    @property
+    def received_at_us(self) -> typing.Optional[builtins.int]:
+        r"""
+        When it arrived, in microseconds since 1970-01-01 UTC.
+        """
+    @property
+    def gps_millis(self) -> typing.Optional[builtins.int]:
+        r"""
+        When it arrived on the GPS clock, in milliseconds since 6 January 1980.
+        """
+    @property
+    def payload(self) -> bytes:
+        r"""
+        The packet itself.
+        """
+    def __new__(cls, frequency_hz: builtins.int, payload: typing.Sequence[builtins.int], *, link: typing.Optional[LoraLink] = None, bitrate_bps: typing.Optional[builtins.int] = None, crc: builtins.str = 'Ok', rssi_dbm: builtins.float = 0.0, snr_db: typing.Optional[builtins.float] = None, channel: builtins.int = 0, rf_chain: builtins.int = 0, timestamp_us: typing.Optional[builtins.int] = None, received_at_us: typing.Optional[builtins.int] = None, gps_millis: typing.Optional[builtins.int] = None) -> GatewayRxpk:
+        r"""
+        Describes a packet the gateway heard.
+        """
+
+@typing.final
+class GatewayStat:
+    r"""
+    A gateway's own status report.
+    """
+    @property
+    def time_s(self) -> typing.Optional[builtins.int]:
+        r"""
+        The gateway's clock, in seconds since 1970-01-01 UTC.
+        """
+    @property
+    def latitude_deg(self) -> typing.Optional[builtins.float]:
+        r"""
+        Its latitude in degrees, north positive.
+        """
+    @property
+    def longitude_deg(self) -> typing.Optional[builtins.float]:
+        r"""
+        Its longitude in degrees, east positive.
+        """
+    @property
+    def altitude_m(self) -> typing.Optional[builtins.int]:
+        r"""
+        Its altitude in meters.
+        """
+    @property
+    def received(self) -> builtins.int:
+        r"""
+        How many packets its radio received.
+        """
+    @property
+    def received_ok(self) -> builtins.int:
+        r"""
+        How many of those had a good CRC.
+        """
+    @property
+    def forwarded(self) -> builtins.int:
+        r"""
+        How many it forwarded.
+        """
+    @property
+    def acknowledged_percent(self) -> builtins.float:
+        r"""
+        What share of its datagrams were acknowledged, as a percentage.
+        """
+    @property
+    def downlinks(self) -> builtins.int:
+        r"""
+        How many downlink datagrams it received.
+        """
+    @property
+    def transmitted(self) -> builtins.int:
+        r"""
+        How many packets it transmitted.
+        """
+    def __new__(cls, *, time_s: typing.Optional[builtins.int] = None, latitude_deg: typing.Optional[builtins.float] = None, longitude_deg: typing.Optional[builtins.float] = None, altitude_m: typing.Optional[builtins.int] = None, received: builtins.int = 0, received_ok: builtins.int = 0, forwarded: builtins.int = 0, acknowledged_percent: builtins.float = 0.0, downlinks: builtins.int = 0, transmitted: builtins.int = 0) -> GatewayStat:
+        r"""
+        Describes a gateway's status report.
+        """
+
+@typing.final
+class GatewayTxpk:
+    r"""
+    A packet the server asks the gateway to transmit.
+    """
+    @property
+    def frequency_hz(self) -> builtins.int:
+        r"""
+        The carrier to transmit on, in hertz.
+        """
+    @property
+    def link(self) -> typing.Optional[LoraLink]:
+        r"""
+        The spreading factor, bandwidth, and coding rate, for a LoRa packet.
+        """
+    @property
+    def bitrate_bps(self) -> typing.Optional[builtins.int]:
+        r"""
+        The bitrate in bits per second, for an FSK packet.
+        """
+    @property
+    def immediate(self) -> builtins.bool:
+        r"""
+        Whether to transmit at once, which ignores the timestamps.
+        """
+    @property
+    def timestamp_us(self) -> typing.Optional[builtins.int]:
+        r"""
+        The concentrator timestamp to transmit at, in microseconds.
+        """
+    @property
+    def gps_millis(self) -> typing.Optional[builtins.int]:
+        r"""
+        The GPS time to transmit at, in milliseconds since 6 January 1980.
+        """
+    @property
+    def rf_chain(self) -> builtins.int:
+        r"""
+        The radio chain to transmit from.
+        """
+    @property
+    def power_dbm(self) -> builtins.int:
+        r"""
+        The power to transmit at, in dBm.
+        """
+    @property
+    def frequency_deviation_hz(self) -> typing.Optional[builtins.int]:
+        r"""
+        The FSK frequency deviation in hertz.
+        """
+    @property
+    def invert_polarity(self) -> builtins.bool:
+        r"""
+        Whether to invert the LoRa polarity, as a LoRaWAN downlink is sent.
+        """
+    @property
+    def preamble_symbols(self) -> typing.Optional[builtins.int]:
+        r"""
+        How long a preamble to send, in symbols.
+        """
+    @property
+    def without_crc(self) -> builtins.bool:
+        r"""
+        Whether to leave the physical CRC off, as LoRaWAN downlinks are.
+        """
+    @property
+    def payload(self) -> bytes:
+        r"""
+        The packet itself.
+        """
+    def __new__(cls, frequency_hz: builtins.int, payload: typing.Sequence[builtins.int], *, link: typing.Optional[LoraLink] = None, bitrate_bps: typing.Optional[builtins.int] = None, immediate: typing.Optional[builtins.bool] = None, timestamp_us: typing.Optional[builtins.int] = None, gps_millis: typing.Optional[builtins.int] = None, rf_chain: builtins.int = 0, power_dbm: builtins.int = 14, frequency_deviation_hz: typing.Optional[builtins.int] = None, invert_polarity: builtins.bool = False, preamble_symbols: typing.Optional[builtins.int] = None, without_crc: builtins.bool = False) -> GatewayTxpk:
+        r"""
+        Describes a packet to transmit.
         """
 
 @typing.final
@@ -6024,6 +6282,21 @@ def envelope_body(data: typing.Sequence[builtins.int]) -> builtins.list[builtins
 def fingerprint(public_key: typing.Sequence[builtins.int]) -> builtins.str:
     r"""
     Returns the short hex fingerprint of a public key.
+    """
+
+def gateway_acknowledgment(packet: GatewayPacket) -> typing.Optional[GatewayPacket]:
+    r"""
+    Returns the acknowledgment a server owes a datagram, or `None` for one that needs none.
+    """
+
+def gateway_encode(packet: GatewayPacket) -> bytes:
+    r"""
+    Writes a datagram to send over a socket.
+    """
+
+def gateway_parse(datagram: typing.Sequence[builtins.int]) -> GatewayPacket:
+    r"""
+    Reads a datagram that arrived.
     """
 
 def hdc1080_celsius(raw: builtins.int) -> builtins.float:

@@ -1324,3 +1324,17 @@ def test_an_rfm95w_transmission_plans_its_registers():
     assert sx127x.tx_power(sx127x.PaOutput.PA_BOOST, 20).pa_dac == sx127x.PA_DAC_HIGH_POWER
     with pytest.raises(PamojaError, match="SF5"):
         sx127x.modem(lora.link(5, 125_000), 868_100_000)
+
+
+def test_a_gateway_datagram_round_trips():
+    from pamoja import gateway
+
+    pull = gateway.encode(
+        gateway.Packet(gateway.PacketKind.PULL_DATA, 0x0102, gateway="b827ebfffe010203")
+    )
+    assert len(pull) == 12
+    assert gateway.parse(pull).gateway == "b827ebfffe010203"
+    assert len(gateway.encode(gateway.acknowledgment(gateway.parse(pull)))) == 4
+
+    with pytest.raises(PamojaError, match="version"):
+        gateway.parse(bytes([1, 0, 1, 0]))

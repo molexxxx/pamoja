@@ -142,6 +142,7 @@ fn main() {
         "lora": lora(),
         "loraRegions": lora_regions(),
         "radios": radios(),
+        "gateway": gateway(),
         "mavlink": mavlink(),
         "mavlinkSchema": mavlink_schema(),
         "mavlinkProtocol": mavlink_protocol(),
@@ -4161,6 +4162,128 @@ fn zenoh() -> Value {
             { "pattern": "fleet/*/battery", "key": "fleet/n7/rack/battery", "matches": false },
             { "pattern": "fleet/**/battery", "key": "fleet/n7/rack/battery", "matches": true },
             { "pattern": "fleet/**", "key": "fleet/n7/battery", "matches": true },
+        ],
+    })
+}
+
+/// The datagrams of the Semtech UDP packet forwarder protocol, each with the fields it
+/// carries, so every binding builds the same bytes and reads the same values back.
+fn gateway() -> Value {
+    use pamoja_gateway::udp::{Eui, Packet, Rxpk, Stat, TxStatus, Txpk, Uplink};
+
+    let hex = |bytes: &[u8]| {
+        bytes
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    };
+    let identifier = "b827ebfffe010203";
+    let gateway = Eui::from_hex(identifier).expect("sixteen hexadecimal digits");
+    let link = LinkSettings::new(7, 125_000).with_coding_rate(6);
+
+    // One packet heard, forwarded with the levels and timestamps a concentrator reports.
+    let heard = Rxpk::new(866_349_812, link, b"TEST_PACKET_1234".to_vec())
+        .with_rssi_dbm(-35)
+        .with_snr_db(5.1)
+        .with_timestamp_us(3_512_348_611)
+        .with_received_at(1_364_746_877_528_002)
+        .on_channel(2, 0);
+    let report = Stat::new()
+        .at(1_389_517_168)
+        .at_position(46.24, 3.2523, 145)
+        .with_counts(2, 2, 2)
+        .with_downlinks(2, 2)
+        .with_acknowledged_percent(100.0);
+    let push = Packet::PushData {
+        token: 0x1234,
+        gateway,
+        uplink: Uplink {
+            packets: vec![heard],
+            status: Some(report),
+        },
+    };
+
+    // One packet to transmit, at the timestamp that hits a device's receive window.
+    let downlink = Txpk::at(
+        3_513_348_611,
+        869_525_000,
+        LinkSettings::new(9, 125_000),
+        b"downlink".to_vec(),
+    )
+    .with_power_dbm(27)
+    .with_inverted_polarity(true)
+    .without_crc();
+    let pull_resp = Packet::PullResp {
+        token: 0x00AB,
+        transmit: downlink,
+    };
+
+    json!({
+        "gateway": identifier,
+        "pushData": {
+            "token": 0x1234,
+            "datagram": hex(&push.to_bytes()),
+            "rxpk": {
+                "frequencyHz": 866_349_812,
+                "spreadingFactor": 7,
+                "bandwidthHz": 125_000,
+                "codingRateDenominator": 6,
+                "rssiDbm": -35,
+                "snrDb": 5.1,
+                "timestampUs": 3_512_348_611u64,
+                "receivedAtUs": 1_364_746_877_528_002u64,
+                "channel": 2,
+                "payload": "TEST_PACKET_1234",
+            },
+            "stat": {
+                "timeS": 1_389_517_168u64,
+                "latitudeDeg": 46.24,
+                "longitudeDeg": 3.2523,
+                "altitudeM": 145,
+                "received": 2,
+                "receivedOk": 2,
+                "forwarded": 2,
+                "acknowledgedPercent": 100.0,
+                "downlinks": 2,
+                "transmitted": 2,
+            },
+        },
+        "pushAck": hex(&Packet::PushAck { token: 0x1234 }.to_bytes()),
+        "pullData": hex(&Packet::PullData { token: 0x0304, gateway }.to_bytes()),
+        "pullAck": hex(&Packet::PullAck { token: 0x0304 }.to_bytes()),
+        "pullResp": {
+            "token": 0x00AB,
+            "datagram": hex(&pull_resp.to_bytes()),
+            "txpk": {
+                "frequencyHz": 869_525_000,
+                "spreadingFactor": 9,
+                "bandwidthHz": 125_000,
+                "timestampUs": 3_513_348_611u64,
+                "powerDbm": 27,
+                "invertPolarity": true,
+                "withoutCrc": true,
+                "payload": "downlink",
+            },
+        },
+        "txAck": {
+            "token": 0x00AB,
+            "status": "COLLISION_PACKET",
+            "datagram": hex(&Packet::TxAck {
+                token: 0x00AB,
+                gateway,
+                status: TxStatus::CollisionPacket,
+            }
+            .to_bytes()),
+        },
+        "statuses": [
+            TxStatus::None.as_str(),
+            TxStatus::TooLate.as_str(),
+            TxStatus::TooEarly.as_str(),
+            TxStatus::CollisionPacket.as_str(),
+            TxStatus::CollisionBeacon.as_str(),
+            TxStatus::TxFreq.as_str(),
+            TxStatus::TxPower.as_str(),
+            TxStatus::GpsUnlocked.as_str(),
         ],
     })
 }

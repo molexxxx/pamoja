@@ -17,6 +17,7 @@ using Pamoja.Actuators;
 using Pamoja.Lora;
 using Pamoja.Lorawan;
 using Pamoja.Radios;
+using Pamoja.Gateway;
 using Pamoja.Mesh;
 using Pamoja.Routing;
 using Pamoja.Mavlink;
@@ -74,6 +75,7 @@ FieldIo();
 SensingAndActuation();
 LaterSensors();
 RadioAndReach();
+Gateways();
 TrustAndOperation();
 await AsyncTransports();
 ProfilesAndRobotics();
@@ -1250,6 +1252,7 @@ static void Conformance()
     ConformLoraRegions(vectors.GetProperty("loraRegions"));
     ConformRadios(vectors.GetProperty("radios"), vectors.GetProperty("lora"));
     ConformSx127x(vectors.GetProperty("radios"), vectors.GetProperty("lora"));
+    ConformGateway(vectors.GetProperty("gateway"));
     ConformMavlink(vectors.GetProperty("mavlink"));
     ConformMavlinkSchema(vectors.GetProperty("mavlinkSchema"));
     ConformMavlinkProtocol(vectors.GetProperty("mavlinkProtocol"));
@@ -4971,6 +4974,152 @@ static async Task ConformSimulation(JsonElement vector)
 }
 
 /// <summary>A link over two queues, standing in for a vendor SDK.</summary>
+static string HexLower(byte[] bytes) => Convert.ToHexString(bytes).ToLowerInvariant();
+
+static void Gateways()
+{
+    // A datagram this protocol does not define is refused, and one it does round trips.
+    try
+    {
+        Gateway.Parse([1, 0, 1, 0]);
+        Fail("protocol version 1 is not this protocol");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    byte[] datagram = Gateway.Encode(new GatewayPacket(GatewayPacketKind.PullData, 0x0102)
+    {
+        GatewayEui = "b827ebfffe010203",
+    });
+    Assert(datagram.Length == 12, "a PULL_DATA is twelve bytes");
+    Assert(
+        Gateway.Parse(datagram).GatewayEui == "b827ebfffe010203",
+        "and carries the gateway's identifier");
+    Assert(
+        Gateway.Encode(Gateway.Acknowledgment(Gateway.Parse(datagram))!).Length == 4,
+        "whose acknowledgment is four bytes");
+}
+
+static void ConformGateway(JsonElement vector)
+{
+    string identifier = vector.GetProperty("gateway").GetString()!;
+    JsonElement heard = vector.GetProperty("pushData").GetProperty("rxpk");
+    JsonElement reported = vector.GetProperty("pushData").GetProperty("stat");
+    var link = new LoraLink(
+        heard.GetProperty("spreadingFactor").GetByte(),
+        heard.GetProperty("bandwidthHz").GetUInt32())
+        .WithCodingRate(heard.GetProperty("codingRateDenominator").GetByte());
+
+    byte[] push = Gateway.Encode(new GatewayPacket(
+        GatewayPacketKind.PushData,
+        vector.GetProperty("pushData").GetProperty("token").GetUInt16())
+    {
+        GatewayEui = identifier,
+        Packets =
+        [
+            new GatewayRxpk(
+                heard.GetProperty("frequencyHz").GetUInt32(),
+                Encoding.UTF8.GetBytes(heard.GetProperty("payload").GetString()!))
+            {
+                Link = link,
+                RssiDbm = heard.GetProperty("rssiDbm").GetDouble(),
+                SnrDb = heard.GetProperty("snrDb").GetDouble(),
+                TimestampMicros = heard.GetProperty("timestampUs").GetUInt32(),
+                ReceivedAtMicros = heard.GetProperty("receivedAtUs").GetUInt64(),
+                Channel = heard.GetProperty("channel").GetByte(),
+            },
+        ],
+        Status = new GatewayStat
+        {
+            TimeSeconds = reported.GetProperty("timeS").GetUInt64(),
+            LatitudeDeg = reported.GetProperty("latitudeDeg").GetDouble(),
+            LongitudeDeg = reported.GetProperty("longitudeDeg").GetDouble(),
+            AltitudeM = reported.GetProperty("altitudeM").GetInt32(),
+            Received = reported.GetProperty("received").GetUInt32(),
+            ReceivedOk = reported.GetProperty("receivedOk").GetUInt32(),
+            Forwarded = reported.GetProperty("forwarded").GetUInt32(),
+            AcknowledgedPercent = reported.GetProperty("acknowledgedPercent").GetDouble(),
+            Downlinks = reported.GetProperty("downlinks").GetUInt32(),
+            Transmitted = reported.GetProperty("transmitted").GetUInt32(),
+        },
+    });
+    Assert(
+        HexLower(push) == vector.GetProperty("pushData").GetProperty("datagram").GetString(),
+        "the PUSH_DATA datagram");
+
+    GatewayPacket read = Gateway.Parse(push);
+    Assert(read.GatewayEui == identifier, "the gateway identifier");
+    Assert(
+        read.Packets[0].FrequencyHz == heard.GetProperty("frequencyHz").GetUInt32(),
+        "the carrier in hertz");
+    Assert(
+        Encoding.UTF8.GetString(read.Packets[0].Payload) == heard.GetProperty("payload").GetString(),
+        "the payload in bytes");
+    Assert(read.Status!.AltitudeM == reported.GetProperty("altitudeM").GetInt32(), "the altitude");
+    Assert(
+        HexLower(Gateway.Encode(Gateway.Acknowledgment(read)!))
+            == vector.GetProperty("pushAck").GetString(),
+        "the PUSH_ACK datagram");
+
+    Assert(
+        HexLower(Gateway.Encode(
+            new GatewayPacket(GatewayPacketKind.PullData, 0x0304) { GatewayEui = identifier }))
+            == vector.GetProperty("pullData").GetString(),
+        "the PULL_DATA datagram");
+    Assert(
+        HexLower(Gateway.Encode(new GatewayPacket(GatewayPacketKind.PullAck, 0x0304)))
+            == vector.GetProperty("pullAck").GetString(),
+        "the PULL_ACK datagram");
+
+    JsonElement asked = vector.GetProperty("pullResp").GetProperty("txpk");
+    byte[] downlink = Gateway.Encode(new GatewayPacket(
+        GatewayPacketKind.PullResp,
+        vector.GetProperty("pullResp").GetProperty("token").GetUInt16())
+    {
+        Transmit = new GatewayTxpk(
+            asked.GetProperty("frequencyHz").GetUInt32(),
+            Encoding.UTF8.GetBytes(asked.GetProperty("payload").GetString()!))
+        {
+            Link = new LoraLink(
+                asked.GetProperty("spreadingFactor").GetByte(),
+                asked.GetProperty("bandwidthHz").GetUInt32()),
+            TimestampMicros = asked.GetProperty("timestampUs").GetUInt32(),
+            PowerDbm = asked.GetProperty("powerDbm").GetSByte(),
+            InvertPolarity = asked.GetProperty("invertPolarity").GetBoolean(),
+            WithoutCrc = asked.GetProperty("withoutCrc").GetBoolean(),
+        },
+    });
+    Assert(
+        HexLower(downlink) == vector.GetProperty("pullResp").GetProperty("datagram").GetString(),
+        "the PULL_RESP datagram");
+    Assert(
+        Gateway.Parse(downlink).Transmit!.PowerDbm == asked.GetProperty("powerDbm").GetSByte(),
+        "the transmit power");
+
+    string refusal = vector.GetProperty("txAck").GetProperty("status").GetString()!;
+    byte[] refused = Gateway.Encode(new GatewayPacket(
+        GatewayPacketKind.TxAck,
+        vector.GetProperty("txAck").GetProperty("token").GetUInt16())
+    {
+        GatewayEui = identifier,
+        TxStatus = GatewayTxStatus.CollisionPacket,
+    });
+    Assert(
+        HexLower(refused) == vector.GetProperty("txAck").GetProperty("datagram").GetString(),
+        "the TX_ACK datagram");
+    Assert(Gateway.NameOf(Gateway.Parse(refused).TxStatus!.Value) == refusal, "the refusal");
+
+    int code = 0;
+    foreach (JsonElement status in vector.GetProperty("statuses").EnumerateArray())
+    {
+        Assert(
+            Gateway.NameOf((GatewayTxStatus)code) == status.GetString(),
+            $"the {status.GetString()} status");
+        code++;
+    }
+}
+
 sealed class QueueLink : IReceivingTransportHandlers
 {
     private readonly System.Threading.Channels.Channel<TransportMessage?> _inbox =

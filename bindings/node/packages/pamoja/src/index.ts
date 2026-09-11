@@ -59,6 +59,8 @@ export * as can from '@pamoja/can'
 
 export * as coap from '@pamoja/coap'
 
+export * as gateway from '@pamoja/gateway'
+
 export * as gpio from '@pamoja/gpio'
 
 export * as ladder from '@pamoja/ladder'
