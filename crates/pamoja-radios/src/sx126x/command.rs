@@ -140,7 +140,10 @@ impl Command {
     ///
     /// Panics if `params` is longer than nine bytes.
     pub const fn new(opcode: u8, params: &[u8]) -> Command {
-        assert!(params.len() < MAX_LEN, "an SX126x command carries at most nine parameter bytes");
+        assert!(
+            params.len() < MAX_LEN,
+            "an SX126x command carries at most nine parameter bytes"
+        );
         let mut bytes = [0u8; MAX_LEN];
         bytes[0] = opcode;
         let mut index = 0;
@@ -758,9 +761,7 @@ pub const fn reset_stats() -> Command {
 
 #[cfg(test)]
 mod tests {
-    use super::super::config::{
-        CodingRate, LoraBandwidth, NO_TIMEOUT, RX_CONTINUOUS,
-    };
+    use super::super::config::{CodingRate, LoraBandwidth, NO_TIMEOUT, RX_CONTINUOUS};
     use super::*;
 
     #[test]
@@ -781,7 +782,10 @@ mod tests {
         assert_eq!(set_cad().as_bytes(), [0xC5]);
         assert_eq!(set_tx_continuous_wave().as_bytes(), [0xD1]);
         assert_eq!(set_tx_infinite_preamble().as_bytes(), [0xD2]);
-        assert_eq!(set_regulator_mode(RegulatorMode::DcDc).as_bytes(), [0x96, 0x01]);
+        assert_eq!(
+            set_regulator_mode(RegulatorMode::DcDc).as_bytes(),
+            [0x96, 0x01]
+        );
         assert_eq!(calibrate(CALIBRATE_ALL).as_bytes(), [0x89, 0x7F]);
         assert_eq!(calibrate_image([0xD7, 0xDA]).as_bytes(), [0x98, 0xD7, 0xDA]);
         assert_eq!(
@@ -827,8 +831,14 @@ mod tests {
     fn the_rf_and_packet_commands_follow_tables_13_36_to_13_75() {
         assert_eq!(set_packet_type(PacketType::Lora).as_bytes(), [0x8A, 0x01]);
         assert_eq!(get_packet_type().command.as_bytes(), [0x11, 0x00]);
-        assert_eq!(set_tx_params(22, RampTime::Us200).as_bytes(), [0x8E, 0x16, 0x04]);
-        assert_eq!(set_tx_params(-9, RampTime::Us10).as_bytes(), [0x8E, 0xF7, 0x00]);
+        assert_eq!(
+            set_tx_params(22, RampTime::Us200).as_bytes(),
+            [0x8E, 0x16, 0x04]
+        );
+        assert_eq!(
+            set_tx_params(-9, RampTime::Us10).as_bytes(),
+            [0x8E, 0xF7, 0x00]
+        );
         let modulation = LoraModulation {
             spreading_factor: 9,
             bandwidth: LoraBandwidth::Khz125,
@@ -854,7 +864,10 @@ mod tests {
             set_cad_params(0x02, 22, 10, 0x00, 0).as_bytes(),
             [0x88, 0x02, 0x16, 0x0A, 0x00, 0x00, 0x00, 0x00]
         );
-        assert_eq!(set_buffer_base_address(0x00, 0x80).as_bytes(), [0x8F, 0x00, 0x80]);
+        assert_eq!(
+            set_buffer_base_address(0x00, 0x80).as_bytes(),
+            [0x8F, 0x00, 0x80]
+        );
         assert_eq!(set_lora_symbol_timeout(6).as_bytes(), [0xA0, 0x06]);
     }
 

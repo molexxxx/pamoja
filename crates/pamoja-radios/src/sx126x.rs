@@ -16,7 +16,7 @@
 //!
 //! The SX1261 has a low power amplifier for up to +15 dBm, and the SX1262 and the LLCC68
 //! a high power one for up to +22 dBm; the SPI interface cannot tell them apart, so the
-//! caller names the amplifier. With the `embedded-hal` feature, the `Sx126x` driver puts
+//! caller names the amplifier. With the `embedded-hal` feature, the [`Sx126x`] driver puts
 //! the commands in the order chapter 14 gives for a transmission and a reception, with
 //! the chapter 15 workarounds applied.
 
@@ -24,3 +24,12 @@ pub mod command;
 pub mod config;
 pub mod irq;
 pub mod status;
+
+#[cfg(feature = "embedded-hal")]
+mod driver;
+
+#[cfg(feature = "embedded-hal")]
+pub use driver::{
+    Board, RadioConfig, RadioError, Reception, Sx126x, BUSY_LIMIT_US, BUSY_POLL_US, IRQ_POLL_US,
+    RESET_HOLD_US, RESET_SETTLE_US, SLEEP_ENTRY_US, TIMEOUT_MARGIN_US, WAKE_SETUP_NS,
+};

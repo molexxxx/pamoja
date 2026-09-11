@@ -940,10 +940,7 @@ mod tests {
         for bandwidth in LoraBandwidth::ALL {
             assert_eq!(LoraBandwidth::from_hz(bandwidth.hz()), Some(bandwidth));
         }
-        assert_eq!(
-            LoraBandwidth::from_hz(10_420),
-            Some(LoraBandwidth::Khz10_4)
-        );
+        assert_eq!(LoraBandwidth::from_hz(10_420), Some(LoraBandwidth::Khz10_4));
         assert_eq!(LoraBandwidth::from_hz(7_810), Some(LoraBandwidth::Khz7_8));
         assert_eq!(LoraBandwidth::from_hz(200_000), None);
     }
@@ -1002,21 +999,54 @@ mod tests {
 
     #[test]
     fn the_amplifier_settings_follow_table_13_21_and_section_13_4_4() {
-        assert_eq!(PaConfig::SX1262_22_DBM.to_params(), [0x04, 0x07, 0x00, 0x01]);
-        assert_eq!(PaConfig::SX1262_20_DBM.to_params(), [0x03, 0x05, 0x00, 0x01]);
-        assert_eq!(PaConfig::SX1262_17_DBM.to_params(), [0x02, 0x03, 0x00, 0x01]);
-        assert_eq!(PaConfig::SX1262_14_DBM.to_params(), [0x02, 0x02, 0x00, 0x01]);
-        assert_eq!(PaConfig::SX1261_15_DBM.to_params(), [0x06, 0x00, 0x01, 0x01]);
-        assert_eq!(PaConfig::SX1261_14_DBM.to_params(), [0x04, 0x00, 0x01, 0x01]);
-        assert_eq!(PaConfig::SX1261_10_DBM.to_params(), [0x01, 0x00, 0x01, 0x01]);
+        assert_eq!(
+            PaConfig::SX1262_22_DBM.to_params(),
+            [0x04, 0x07, 0x00, 0x01]
+        );
+        assert_eq!(
+            PaConfig::SX1262_20_DBM.to_params(),
+            [0x03, 0x05, 0x00, 0x01]
+        );
+        assert_eq!(
+            PaConfig::SX1262_17_DBM.to_params(),
+            [0x02, 0x03, 0x00, 0x01]
+        );
+        assert_eq!(
+            PaConfig::SX1262_14_DBM.to_params(),
+            [0x02, 0x02, 0x00, 0x01]
+        );
+        assert_eq!(
+            PaConfig::SX1261_15_DBM.to_params(),
+            [0x06, 0x00, 0x01, 0x01]
+        );
+        assert_eq!(
+            PaConfig::SX1261_14_DBM.to_params(),
+            [0x04, 0x00, 0x01, 0x01]
+        );
+        assert_eq!(
+            PaConfig::SX1261_10_DBM.to_params(),
+            [0x01, 0x00, 0x01, 0x01]
+        );
 
         let high = |dbm| TxPower::for_output(PowerAmplifier::HighPower, dbm);
         assert_eq!(high(22).setting_dbm, 22);
         assert_eq!(high(30).setting_dbm, 22);
         assert_eq!(high(-20).setting_dbm, -9);
         let low = |dbm| TxPower::for_output(PowerAmplifier::LowPower, dbm);
-        assert_eq!(low(15), TxPower { pa: PaConfig::SX1261_15_DBM, setting_dbm: 14 });
-        assert_eq!(low(14), TxPower { pa: PaConfig::SX1261_14_DBM, setting_dbm: 14 });
+        assert_eq!(
+            low(15),
+            TxPower {
+                pa: PaConfig::SX1261_15_DBM,
+                setting_dbm: 14
+            }
+        );
+        assert_eq!(
+            low(14),
+            TxPower {
+                pa: PaConfig::SX1261_14_DBM,
+                setting_dbm: 14
+            }
+        );
         assert_eq!(low(-30).setting_dbm, -17);
         assert_eq!(PowerAmplifier::LowPower.setting_range_dbm(), (-17, 14));
     }

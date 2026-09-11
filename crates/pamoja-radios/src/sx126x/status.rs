@@ -101,7 +101,9 @@ impl Status {
     pub const fn is_error(&self) -> bool {
         matches!(
             self.command_status,
-            CommandStatus::Timeout | CommandStatus::ProcessingError | CommandStatus::ExecutionFailure
+            CommandStatus::Timeout
+                | CommandStatus::ProcessingError
+                | CommandStatus::ExecutionFailure
         )
     }
 }

@@ -119,9 +119,7 @@ impl DutyCycle {
             return airtime;
         }
         let off_time = link.min_off_time_us(payload_len, self.permille.min(1000));
-        self.earliest_us = started_us
-            .saturating_add(airtime)
-            .saturating_add(off_time);
+        self.earliest_us = started_us.saturating_add(airtime).saturating_add(off_time);
         airtime
     }
 }
