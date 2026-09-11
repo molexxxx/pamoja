@@ -4,10 +4,11 @@ version = "0.0.0"
 edition = "2021"
 publish = false
 license = "MIT"
-description = "Programs for an ESP32-C3: a BME280 on I2C0, and a thermostat that decides on the chip and switches a relay on a GPIO line."
+description = "Programs for an ESP32-C3: a BME280 on I2C0, a thermostat that decides on the chip and switches a relay, and an RFM95W LoRa radio on SPI2."
 
 [dependencies]
 embedded-hal = "1.0"
+embedded-hal-bus = "0.3"
 esp-alloc = { version = "0.11", features = ["esp32c3"] }
 esp-hal = { version = "1.2", features = ["esp32c3"] }
 esp-println = { version = "0.18", features = ["esp32c3"] }
@@ -15,6 +16,8 @@ pamoja-core = { path = "../../../crates/pamoja-core", default-features = false }
 pamoja-gpio = { path = "../../../crates/pamoja-gpio" }
 pamoja-hal = { path = "../../../crates/pamoja-hal", default-features = false }
 pamoja-kit = { path = "../../../crates/pamoja-kit", default-features = false }
+pamoja-lora = { path = "../../../crates/pamoja-lora", default-features = false }
+pamoja-radios = { path = "../../../crates/pamoja-radios" }
 pamoja-sensors = { path = "../../../crates/pamoja-sensors" }
 
 [profile.dev]

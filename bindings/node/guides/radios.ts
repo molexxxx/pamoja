@@ -116,3 +116,37 @@ assert.equal(rfm95w.paConfig, 0xfc)
 assert.equal(modem.modemConfig2, 0x94)
 assert.equal(received && !corrupt, true)
 assert.equal(fits(3) && !fits(2), true)
+
+// ANCHOR: hardware
+import { LoraRadio } from '@pamoja/radios'
+
+async function onALinuxBoard(): Promise<void> {
+  // An RFM95W on a Raspberry Pi: the header's first chip select, with the module's reset pin
+  // on GPIO25. The SX1276 family has no BUSY line, so the wiring names none.
+  const wiring = { spi: '/dev/spidev0.0', gpioChip: '/dev/gpiochip0', resetLine: 25 }
+  console.log(`radio     an RFM95W on ${wiring.spi}, reset on GPIO${wiring.resetLine}`)
+  console.log(`plan      ${channel} Hz at DR3, ${rfm95w.outputDbm} dBm on PA_BOOST`)
+
+  // Opening resets the chip and reads its version back, so a wiring mistake is caught here
+  // rather than on the first frame. With no radio wired, this is the line that prints.
+  let radio
+  try {
+    radio = LoraRadio.openSx127x(wiring, { output: sx127x.PaOutput.PaBoost })
+  } catch {
+    console.log('absent    no radio answered, so nothing went out')
+    return
+  }
+  try {
+    await radio.configure({ frequencyHz: channel, link: dr3, outputDbm: rfm95w.outputDbm })
+    const airtimeUs = await radio.transmit(Buffer.from('21.5'))
+    console.log(`sent      a reading in ${airtimeUs} us on air`)
+  } finally {
+    radio.close()
+  }
+}
+// ANCHOR_END: hardware
+
+onALinuxBoard().catch((error) => {
+  console.error(error)
+  process.exitCode = 1
+})

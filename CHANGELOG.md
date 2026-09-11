@@ -63,6 +63,18 @@ released together, so one entry covers all of them.
   the LLCC68 supports, up to SF9 at 125 kHz, SF10 at 250 kHz and SF11 at 500 kHz, from
   its datasheet and Semtech's LLCC68 driver, and every binding can ask the same
   question.
+- A LoRa radio on a Linux board, in every language. `pamoja_radios::radio::Radio` holds
+  a chip of either family behind one set of calls, and `pamoja_radios::linux` opens one
+  over the kernel's spidev and GPIO character devices, resets it, and hands it back
+  ready to configure. The C ABI, TypeScript, Python and C# carry that radio as a handle
+  with configure, transmit, receive, listen, standby, sleep, and register access; the
+  calls compile on every platform and report plainly that only Linux has those devices,
+  and each language runs them off its main thread or with the interpreter lock released.
+  The Raspberry Pi, RP2040 and ESP32 board pages each gain a radio program built in CI:
+  an RFM95W breakout on a Pi's SPI bus, the Waveshare Pico-LoRa-SX1262 on a Pico, and an
+  RFM95W on an ESP32-C3, each beaconing under its duty-cycle guard and printing what it
+  hears with the levels it heard at. The SX1262 card lists the Pico board at The Pi Hut
+  and at Waveshare.
 
 ### Changed
 

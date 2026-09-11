@@ -636,6 +636,55 @@ export declare class LoraPlanBuilder {
   build(): LoraChannelPlan
 }
 
+/** A LoRa radio opened on a Linux board. */
+export declare class LoraRadio {
+  /**
+   * Opens an SX1261, SX1262, SX1268, or LLCC68 module and resets it.
+   *
+   * Throws when the platform is not Linux, a device cannot be opened, the wiring names no
+   * BUSY line, or no chip answers.
+   */
+  static openSx126x(wiring: LoraRadioWiring, board: Sx126xBoard): LoraRadio
+  /**
+   * Opens an SX1276, SX1277, SX1278, or SX1279 module, such as an RFM95W, and resets it
+   * into LoRa mode.
+   *
+   * Throws when the platform is not Linux, a device cannot be opened, or no chip answers.
+   */
+  static openSx127x(wiring: LoraRadioWiring, board: Sx127xBoard): LoraRadio
+  /** The family of the radio's chip. */
+  get family(): LoraRadioFamily
+  /** Tunes the radio to a configuration. */
+  configure(config: LoraRadioConfig): Promise<void>
+  /** Sends one frame and resolves with its airtime in microseconds once it has left. */
+  transmit(payload: Buffer): Promise<number>
+  /** Listens for one frame for up to a timeout in microseconds. */
+  receive(timeoutUs: number): Promise<LoraReception>
+  /** Starts listening, frame after frame, until another call changes the mode. */
+  listen(): Promise<void>
+  /**
+   * Takes the frame a listening radio has received, or resolves `null` when nothing has
+   * arrived.
+   */
+  takeFrame(): Promise<LoraReception | null>
+  /** Puts the radio in standby, which stops a transmission or a reception. */
+  standby(): Promise<void>
+  /**
+   * Puts the radio to sleep until the next call wakes it. An SX126x is configured again
+   * before its next frame; an SX127x keeps its registers.
+   */
+  sleep(): Promise<void>
+  /** Reads one register: a 16-bit address on the SX126x, 0x00 to 0x7F on the SX127x. */
+  readRegister(address: number): Promise<number>
+  /** Writes one register: a 16-bit address on the SX126x, 0x00 to 0x7F on the SX127x. */
+  writeRegister(address: number, value: number): Promise<void>
+  /**
+   * Closes the radio's device files, after any call in progress finishes. Calls after this
+   * reject.
+   */
+  close(): void
+}
+
 /** The root credentials over-the-air activation is built on. */
 export declare class LorawanDevice {
   /** Creates a device from its two 8-byte EUIs and its 16-byte application key. */
@@ -2969,8 +3018,80 @@ export interface LoraPlanInfo {
   hasDwellLimitedRx1: boolean
 }
 
+/** What a radio sends and listens with. */
+export interface LoraRadioConfig {
+  /** The carrier frequency in hertz. */
+  frequencyHz: number
+  /** The spreading factor, bandwidth, coding rate, preamble, header, and CRC. */
+  link: LoraLink
+  /** The output power asked of the amplifier, in dBm, clamped to its range. */
+  outputDbm: number
+  /**
+   * The sync word byte: `0x34` for a public network such as LoRaWAN, and `0x12`, the
+   * default, for a private one.
+   */
+  syncWord?: number
+  /**
+   * The lower edge of the band an SX126x calibrates its receiver for, in hertz, with
+   * `bandHighHz`; the carrier alone when omitted.
+   */
+  bandLowHz?: number
+  /** The upper edge of that band in hertz. */
+  bandHighHz?: number
+  /** Whether frames go out with inverted IQ, as a LoRaWAN gateway sends downlinks. */
+  invertIqTransmit?: boolean
+  /** Whether frames are expected with inverted IQ, as a LoRaWAN device hears downlinks. */
+  invertIqReceive?: boolean
+}
+
+/** Which family a radio's chip belongs to. */
+export declare const enum LoraRadioFamily {
+  /** The SX1261, SX1262, SX1268, and LLCC68. */
+  Sx126x = 'Sx126x',
+  /** The SX1276, SX1277, SX1278, and SX1279. */
+  Sx127x = 'Sx127x'
+}
+
+/** Where a radio module is wired on a Linux board. */
+export interface LoraRadioWiring {
+  /** The SPI device file, one per chip select, such as `/dev/spidev0.0`. */
+  spi: string
+  /** The GPIO chip the lines are on, `/dev/gpiochip0` for a Raspberry Pi's header. */
+  gpioChip: string
+  /** The line the module's reset pin is on, the BCM GPIO number on a Raspberry Pi. */
+  resetLine: number
+  /** The line an SX126x's BUSY pin is on. The SX127x has no BUSY pin. */
+  busyLine?: number
+  /** The SPI clock in hertz, 2 MHz when omitted. */
+  spiHz?: number
+}
+
 /** Returns the power that reaches the receiving radio across a path, in dBm. */
 export declare function loraReceivedDbm(budget: LoraLinkBudget, pathLossDb: number): number
+
+/** How a reception ended, with the frame and its signal levels when one arrived. */
+export interface LoraReception {
+  /** How the reception ended. */
+  outcome: LoraReceptionOutcome
+  /** The frame's payload, or `null` without a frame. */
+  payload?: Buffer
+  /** The received signal strength averaged over the frame, in dBm. */
+  rssiDbm?: number
+  /** The estimated signal-to-noise ratio, in dB. */
+  snrDb?: number
+  /** The estimated strength of the LoRa signal itself, in dBm. */
+  signalRssiDbm?: number
+}
+
+/** How a reception ended. */
+export declare const enum LoraReceptionOutcome {
+  /** A frame arrived and checked. */
+  Frame = 'Frame',
+  /** No frame arrived before the timeout. */
+  Timeout = 'Timeout',
+  /** A frame arrived whose header or CRC failed its check, and was dropped. */
+  Corrupt = 'Corrupt'
+}
 
 /** A band with a published channel plan. */
 export declare const enum LoraRegion {
@@ -4354,6 +4475,22 @@ export declare const enum Sx126xAmplifier {
   HighPower = 'HighPower'
 }
 
+/** How a module wires its SX126x, from its schematic or its maker's example code. */
+export interface Sx126xBoard {
+  /** The chip's power amplifier: `HighPower` for the SX1262, SX1268, and LLCC68. */
+  amplifier: Sx126xAmplifier
+  /** The voltage DIO3 supplies a TCXO with, such as `1.7`, when a TCXO clocks the chip. */
+  tcxoVolts?: number
+  /** How long the TCXO takes to settle, in microseconds, 5 ms when omitted. */
+  tcxoSettleUs?: number
+  /** Whether DIO2 drives the antenna switch. */
+  dio2RfSwitch?: boolean
+  /** Whether the module fits the inductor the DC-DC regulator needs. */
+  dcDc?: boolean
+  /** Whether the chip is an LLCC68, which is held to the rates it supports. */
+  llcc68?: boolean
+}
+
 /** CalibrateImage over a band given by its edges in hertz. */
 export declare function sx126xCalibrateImage(lowHz: number, highHz: number): Buffer
 
@@ -4581,6 +4718,14 @@ export declare function sx126xWriteRegister(address: number, values: Buffer): Bu
 
 /** RegDetectOptimize with AutomaticIFOn set or clear. */
 export declare function sx127xAutomaticIf(current: number, automaticIf: boolean): number
+
+/** How a module wires its SX127x. */
+export interface Sx127xBoard {
+  /** The amplifier output the antenna is on: `PaBoost` on an RFM95W. */
+  output: Sx127xPaOutput
+  /** Whether a TCXO drives the XTA pin instead of a crystal. */
+  tcxo?: boolean
+}
 
 /**
  * The SX127x register values with a name: the version, the write bit, the DIO0 mappings,

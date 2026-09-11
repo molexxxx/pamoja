@@ -1285,6 +1285,34 @@ def test_an_sx1262_transmission_plans_its_bytes_under_the_ceiling():
     assert guard.wait_us(0) == airtime * 100
 
 
+def test_a_radio_is_opened_over_spidev_or_says_why_not():
+    import sys
+
+    from pamoja import radios
+
+    # A radio is reached over spidev and the GPIO character device, so opening one says
+    # either that this platform has neither or which device it could not open.
+    absent = "/dev/spidev-pamoja-absent" if sys.platform == "linux" else "only Linux"
+    with pytest.raises(PamojaError, match=absent):
+        radios.LoraRadio.open_sx127x(
+            "/dev/spidev-pamoja-absent",
+            "/dev/gpiochip0",
+            25,
+            radios.sx127x.PaOutput.PA_BOOST,
+        )
+
+    # Settings the chip has no value for are refused before any device is opened.
+    with pytest.raises(ValueError, match="1.9 V"):
+        radios.LoraRadio.open_sx126x(
+            "/dev/spidev0.0",
+            "/dev/gpiochip0",
+            24,
+            25,
+            radios.sx126x.Amplifier.HIGH_POWER,
+            tcxo_volts=1.9,
+        )
+
+
 def test_an_rfm95w_transmission_plans_its_registers():
     from pamoja import lora, radios
 

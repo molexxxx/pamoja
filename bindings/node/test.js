@@ -837,6 +837,25 @@ function radioAndReach() {
 
   assert.ok(sx126x.llcc68Supports(lora.link(9, 125_000)), "an LLCC68 has SF9 at 125 kHz");
   assert.ok(!sx126x.llcc68Supports(lora.link(10, 125_000)), "but not SF10");
+
+  // A radio is reached over spidev and the GPIO character device, so opening one says
+  // either that this platform has neither or which device it could not open.
+  assert.throws(
+    () => radios.LoraRadio.openSx127x(
+      { spi: "/dev/spidev-pamoja-absent", gpioChip: "/dev/gpiochip0", resetLine: 25 },
+      { output: "PaBoost" },
+    ),
+    /spidev-pamoja-absent|only Linux/,
+    "a radio that is not there is reported with the device or the platform",
+  );
+  assert.throws(
+    () => radios.LoraRadio.openSx126x(
+      { spi: "/dev/spidev0.0", gpioChip: "/dev/gpiochip0", resetLine: 25, busyLine: 24 },
+      { amplifier: sx126x.Amplifier.HighPower, tcxoVolts: 1.9 },
+    ),
+    /1\.9 V/,
+    "and a TCXO voltage DIO3 cannot supply is refused before any device is opened",
+  );
   const { sx127x } = radios;
   assert.strictEqual(sx127x.frequencyWord(868_100_000), 0xd90666, "the SX1276 carrier word");
   assert.strictEqual(sx127x.loraOpMode(sx127x.Mode.Tx), 0x8b, "TX mode on the LoRa page");

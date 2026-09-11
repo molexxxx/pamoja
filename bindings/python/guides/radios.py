@@ -116,3 +116,29 @@ assert rfm95w.pa_config == 0xFC
 assert modem.modem_config_2 == 0x94
 assert received and not corrupt
 assert fits(3) and not fits(2)
+
+# ANCHOR: hardware
+from pamoja.core import PamojaError
+from pamoja.radios import LoraRadio
+
+# An RFM95W on a Raspberry Pi: the header's first chip select, with the module's reset pin on
+# GPIO25. The SX1276 family has no BUSY line, so the wiring names none.
+spi, gpio_chip, reset_line = "/dev/spidev0.0", "/dev/gpiochip0", 25
+print(f"radio     an RFM95W on {spi}, reset on GPIO{reset_line}")
+print(f"plan      {channel} Hz at DR3, {rfm95w.output_dbm} dBm on PA_BOOST")
+
+# Opening resets the chip and reads its version back, so a wiring mistake is caught here rather
+# than on the first frame. With no radio wired, this is the line that prints.
+try:
+    radio = LoraRadio.open_sx127x(spi, gpio_chip, reset_line, sx127x.PaOutput.PA_BOOST)
+except PamojaError:
+    radio = None
+
+if radio is None:
+    print("absent    no radio answered, so nothing went out")
+else:
+    with radio:
+        radio.configure(channel, dr3, rfm95w.output_dbm)
+        airtime_us = radio.transmit(b"21.5")
+        print(f"sent      a reading in {airtime_us} us on air")
+# ANCHOR_END: hardware

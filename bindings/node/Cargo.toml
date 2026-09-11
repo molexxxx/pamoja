@@ -74,7 +74,7 @@ lora = ["dep:pamoja-lora"]
 lorawan = ["dep:pamoja-lorawan"]
 # The SX126x command set and decoders, and the duty-cycle guard; the embedded-hal driver
 # stays Rust-only.
-radios = ["dep:pamoja-radios", "lora"]
+radios = ["dep:pamoja-radios", "lora", "pamoja-radios/linux"]
 mavlink = ["dep:pamoja-mavlink", "pamoja-mavlink/alloc"]
 mesh = ["dep:pamoja-mesh"]
 routing = ["dep:pamoja-routing"]

@@ -2231,8 +2231,44 @@ static void ConformWindows(JsonElement vector, double tolerance)
 
 // Budgeting airtime, framing a mesh packet, routing it, and securing a LoRaWAN
 // uplink: everything a node needs to reach a network it cannot see.
+static void LoraRadios()
+{
+    // A radio is reached over spidev and the GPIO character device, so opening one says
+    // either that this platform has neither or which device it could not open.
+    var wiring = new LoraRadioWiring("/dev/spidev-pamoja-absent", "/dev/gpiochip0", 25);
+    try
+    {
+        using LoraRadio radio = LoraRadio.OpenSx127x(wiring, new Sx127xBoard(Sx127xPaOutput.PaBoost));
+        Fail("no radio is wired to the machine running these tests");
+    }
+    catch (PlatformNotSupportedException error)
+    {
+        Assert(error.Message.Contains("Linux"), "a radio opens only on Linux");
+    }
+    catch (PamojaException error)
+    {
+        Assert(
+            error.Message.Contains("/dev/spidev-pamoja-absent"),
+            "the failure names the device that could not be opened");
+    }
+
+    // Settings the chip has no value for are refused before any device is opened.
+    try
+    {
+        LoraRadio.OpenSx126x(
+            wiring with { BusyLine = 24 },
+            new Sx126xBoard(Sx126xAmplifier.HighPower) { TcxoVolts = 1.9 });
+        Fail("DIO3 cannot supply a TCXO with 1.9 V");
+    }
+    catch (ArgumentOutOfRangeException)
+    {
+    }
+}
+
 static void RadioAndReach()
 {
+    LoraRadios();
+
     var link = new LoraLink(12, 125_000);
     Assert(link.SpreadingFactor == 12, "SF12 is the longest-range setting");
     Assert(link.AirtimeMicros(10) == 991_232, "the published LoRa airtime");

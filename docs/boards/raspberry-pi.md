@@ -274,6 +274,132 @@ one clean change.
 every other output and input in pamoja, so the relay on GPIO17 can be handed
 straight to a profile's control loop. Which is the next program.
 
+## A LoRa radio on the SPI bus
+
+The fourth program puts the Pi on the air. An
+[RFM95W breakout](../hardware.md#sx1276), which carries an SX1276, wires to SPI0:
+VIN to a 3V3 pin, GND to ground, SCK to GPIO11, MISO to GPIO9, MOSI to GPIO10,
+CS to GPIO8, and RST to GPIO25. The breakout regulates its own supply and level
+shifts every input, so 3.3 V logic reaches it unchanged. Screw the antenna on
+before powering it: a transmitter with nothing on its output reflects its own
+power back into the amplifier.
+
+`dtparam=spi=on` makes CS the kernel's own chip select on `/dev/spidev0.0`, and
+the reset line is an ordinary GPIO the driver pulses.
+
+<!-- snippet: examples/boards/raspberry-pi/src/bin/radio.rs#example -->
+From [`examples/boards/raspberry-pi/src/bin/radio.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/boards/raspberry-pi/src/bin/radio.rs):
+
+```rust
+use pamoja_lora::budget::{Decibels, LinkBudget};
+use pamoja_lora::region::Region;
+use pamoja_radios::duty::DutyCycle;
+use pamoja_radios::linux::{self, Wiring};
+use pamoja_radios::radio::{RadioConfig, Reception};
+use pamoja_radios::sx127x::config::PaOutput;
+use pamoja_radios::sx127x::Board;
+
+/// The header's first SPI chip select, the GPIO chip its lines are on, and the line the
+/// breakout's reset pin is wired to.
+const SPI: &str = "/dev/spidev0.0";
+const CHIP: &str = "/dev/gpiochip0";
+const RESET_LINE: u32 = 25;
+
+/// The channel this node uses, the data rate it sends at, and how long it listens between
+/// beacons.
+const FREQUENCY_HZ: u32 = 868_100_000;
+const DATA_RATE: u8 = 3;
+const LISTEN: Duration = Duration::from_secs(10);
+
+fn main() -> Result<(), Box<dyn Error>> {
+    // The regional plan decides the channel's power ceiling and its duty cycle, so no limit
+    // below is a number anyone has to remember.
+    let plan = Region::Eu868.plan();
+    let link = plan
+        .link_settings(DATA_RATE)
+        .expect("every LoRa data rate of the plan has link settings");
+    let ceiling_dbm = plan.max_eirp_dbm(FREQUENCY_HZ);
+    let permille = plan
+        .duty_cycle_permille(FREQUENCY_HZ)
+        .expect("the plan holds this channel");
+
+    // A 2.15 dBi whip on half a decibel of pigtail. The antenna's gain counts against the
+    // ceiling and the pigtail's loss counts for it, so the amplifier takes what is left.
+    let whip = LinkBudget {
+        transmit_antenna_gain_dbi: Decibels::from_hundredths(215),
+        transmit_cable_loss_db: Decibels::from_tenths(5),
+        ..LinkBudget::default()
+    };
+    let output_dbm = whip
+        .max_transmit_power_dbm(Decibels::from_db(i32::from(ceiling_dbm)))
+        .floor_db() as i8;
+
+    // Opening resets the chip and reads its version back, so a wiring mistake is caught here
+    // rather than on the first frame.
+    let mut radio = linux::open_sx127x(
+        &Wiring::new(SPI, CHIP, RESET_LINE),
+        Board::new(PaOutput::PaBoost),
+    )?;
+    radio.configure(RadioConfig::new(FREQUENCY_HZ, link, output_dbm))?;
+    println!("beacon on {FREQUENCY_HZ} Hz at DR{DATA_RATE}, {output_dbm} dBm under a {ceiling_dbm} dBm ceiling");
+
+    // The duty cycle is the radio's other budget: each frame buys silence in proportion to its
+    // airtime, and the guard says when the next one may go out.
+    let mut duty = DutyCycle::new(permille);
+    let clock = Instant::now();
+    let mut buffer = [0u8; 255];
+    let mut reading = 0u32;
+
+    loop {
+        // Listening returns as soon as a frame arrives, and a frame comes with the levels it
+        // was heard at: how strong it was, and how far above the noise.
+        match radio.receive(&mut buffer, LISTEN.as_micros() as u64)? {
+            Reception::Frame { len, levels } => println!(
+                "heard  {} at {:.0} dBm, SNR {:.1} dB",
+                String::from_utf8_lossy(&buffer[..len]),
+                decibels(levels.rssi_dbm),
+                decibels(levels.snr_db)
+            ),
+            Reception::Corrupt => println!("heard  a frame whose CRC failed"),
+            Reception::Timeout => {}
+        }
+
+        let now_us = clock.elapsed().as_micros() as u64;
+        if duty.ready(now_us) {
+            let frame = format!("pi reading {reading}");
+            let airtime_us = radio.transmit(frame.as_bytes())?;
+            duty.transmitted(now_us, &link, frame.len());
+            println!("sent   {frame} in {airtime_us} us on air");
+            reading += 1;
+        }
+    }
+}
+
+/// Returns a level in decibels, for printing.
+fn decibels(value: Decibels) -> f64 {
+    f64::from(value.hundredths()) / 100.0
+}
+```
+<!-- end -->
+
+```sh
+cargo run --release --bin radio
+```
+
+Four things in it are the whole lesson. The regional plan decides the channel's
+power ceiling and its duty cycle, so the program names neither. The link budget
+takes the antenna's gain off that ceiling and adds the pigtail's loss back, which
+leaves what the amplifier may be set to. Opening the radio resets the chip and
+reads its version back, so a swapped MISO and MOSI is caught there rather than on
+the first frame. And every frame buys silence in proportion to its airtime, which
+the duty-cycle guard hands back as the earliest time the next may go out.
+
+Two Pis running this hear each other, and each prints the other's frames with the
+RSSI and SNR it heard them at. That pair is the field test the
+[radio page](../radio.md) describes, and the
+[radio guide](../guides/radios.md) opens the same radio from TypeScript, Python,
+and C#.
+
 ## The whole node
 
 The third program is what a deployed node looks like. It loads a profile from a

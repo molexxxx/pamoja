@@ -30,6 +30,11 @@ itself against, so this page prints each command beside its name instead of
 asserting it. The only hex typed out is the chip's answers, which on a real node
 come back over the same SPI bus.
 
+The third part opens a radio rather than planning for one: the same RFM95W on a
+Raspberry Pi's SPI bus, reached through the kernel's spidev and GPIO character
+devices. It prints the channel and the power it would use, then opens the chip,
+which with nothing wired says so instead of pretending.
+
 The second part plans the same reading on an RFM95W, whose SX1276 is driven
 through registers rather than commands: the amplifier settings on its PA_BOOST
 output, the carrier and modem registers, the transmit mode, a received packet's
@@ -59,6 +64,10 @@ It proves:
   heard at -109 dBm with an SNR of -2.5 dB, so its own strength was -111.5 dBm.
 - An LLCC68 carries DR3, at SF9, but not DR2, at SF10, the first rate it gives up
   at 125 kHz.
+- Opening a radio resets the chip and reads its version back, so a swapped MISO and
+  MOSI is caught there rather than on the first frame.
+- Where no radio is wired, and on every platform that has no spidev, opening one
+  says so in a line rather than failing later or pretending it worked.
 
 ## Run it
 
@@ -264,6 +273,60 @@ println!("llcc68    DR3 {}, DR2 {}", fits(3), fits(2));
 ```
 <!-- end -->
 
+The same radio opened on a Linux board:
+
+<!-- snippet: examples/tests/guides/radios.rs#hardware -->
+From [`examples/tests/guides/radios.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/radios.rs):
+
+```rust
+use pamoja_lora::budget::{Decibels, LinkBudget};
+use pamoja_lora::region::Region;
+use pamoja_radios::linux::{self, Wiring};
+use pamoja_radios::radio::RadioConfig;
+use pamoja_radios::sx127x::config::{PaOutput, TxPower};
+use pamoja_radios::sx127x::Board;
+
+// An RFM95W on a Raspberry Pi: the header's first chip select, with the module's reset pin
+// on GPIO25. The SX1276 family has no BUSY line, so the wiring names none.
+let wiring = Wiring::new("/dev/spidev0.0", "/dev/gpiochip0", 25);
+println!(
+    "radio     an RFM95W on {}, reset on GPIO{}",
+    wiring.spi.display(),
+    wiring.reset_line
+);
+
+// The channel and the power the same whip leaves under the same ceiling, now as the number
+// the radio is set to rather than the registers it goes into.
+let band = Region::Eu868.plan();
+let channel = 868_100_000;
+let dr3 = band.link_settings(3).expect("DR3 is a LoRa data rate");
+let antenna = LinkBudget {
+    transmit_antenna_gain_dbi: Decibels::from_hundredths(215),
+    transmit_cable_loss_db: Decibels::from_tenths(5),
+    ..LinkBudget::default()
+};
+let ceiling = Decibels::from_db(i32::from(band.max_eirp_dbm(channel)));
+let rfm95w = TxPower::under_ceiling(PaOutput::PaBoost, &antenna, ceiling);
+println!(
+    "plan      {channel} Hz at DR3, {} dBm on PA_BOOST",
+    rfm95w.output_dbm
+);
+
+// Opening resets the chip and reads its version back, so a wiring mistake is caught here
+// rather than on the first frame. With no radio wired, this is the line that prints.
+match linux::open_sx127x(&wiring, Board::new(PaOutput::PaBoost)) {
+    Ok(mut radio) => {
+        radio
+            .configure(RadioConfig::new(channel, dr3, rfm95w.output_dbm))
+            .expect("the chip takes the settings");
+        let airtime_us = radio.transmit(b"21.5").expect("the frame goes out");
+        println!("sent      a reading in {airtime_us} us on air");
+    }
+    Err(_) => println!("absent    no radio answered, so nothing went out"),
+}
+```
+<!-- end -->
+
 ## TypeScript
 
 <!-- snippet: bindings/node/guides/radios.ts#example -->
@@ -372,6 +435,41 @@ console.log(
 // An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
 const fits = (dataRate: number): boolean => sx126x.llcc68Supports(band.linkSettings(dataRate)!)
 console.log(`llcc68    DR3 ${fits(3)}, DR2 ${fits(2)}`)
+```
+<!-- end -->
+
+The same radio opened on a Linux board:
+
+<!-- snippet: bindings/node/guides/radios.ts#hardware -->
+From [`bindings/node/guides/radios.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/radios.ts):
+
+```typescript
+import { LoraRadio } from '@pamoja/radios'
+
+async function onALinuxBoard(): Promise<void> {
+  // An RFM95W on a Raspberry Pi: the header's first chip select, with the module's reset pin
+  // on GPIO25. The SX1276 family has no BUSY line, so the wiring names none.
+  const wiring = { spi: '/dev/spidev0.0', gpioChip: '/dev/gpiochip0', resetLine: 25 }
+  console.log(`radio     an RFM95W on ${wiring.spi}, reset on GPIO${wiring.resetLine}`)
+  console.log(`plan      ${channel} Hz at DR3, ${rfm95w.outputDbm} dBm on PA_BOOST`)
+
+  // Opening resets the chip and reads its version back, so a wiring mistake is caught here
+  // rather than on the first frame. With no radio wired, this is the line that prints.
+  let radio
+  try {
+    radio = LoraRadio.openSx127x(wiring, { output: sx127x.PaOutput.PaBoost })
+  } catch {
+    console.log('absent    no radio answered, so nothing went out')
+    return
+  }
+  try {
+    await radio.configure({ frequencyHz: channel, link: dr3, outputDbm: rfm95w.outputDbm })
+    const airtimeUs = await radio.transmit(Buffer.from('21.5'))
+    console.log(`sent      a reading in ${airtimeUs} us on air`)
+  } finally {
+    radio.close()
+  }
+}
 ```
 <!-- end -->
 
@@ -489,6 +587,38 @@ print(f"llcc68    DR3 {fits(3)}, DR2 {fits(2)}")
 ```
 <!-- end -->
 
+The same radio opened on a Linux board:
+
+<!-- snippet: bindings/python/guides/radios.py#hardware -->
+From [`bindings/python/guides/radios.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/radios.py):
+
+```python
+from pamoja.core import PamojaError
+from pamoja.radios import LoraRadio
+
+# An RFM95W on a Raspberry Pi: the header's first chip select, with the module's reset pin on
+# GPIO25. The SX1276 family has no BUSY line, so the wiring names none.
+spi, gpio_chip, reset_line = "/dev/spidev0.0", "/dev/gpiochip0", 25
+print(f"radio     an RFM95W on {spi}, reset on GPIO{reset_line}")
+print(f"plan      {channel} Hz at DR3, {rfm95w.output_dbm} dBm on PA_BOOST")
+
+# Opening resets the chip and reads its version back, so a wiring mistake is caught here rather
+# than on the first frame. With no radio wired, this is the line that prints.
+try:
+    radio = LoraRadio.open_sx127x(spi, gpio_chip, reset_line, sx127x.PaOutput.PA_BOOST)
+except PamojaError:
+    radio = None
+
+if radio is None:
+    print("absent    no radio answered, so nothing went out")
+else:
+    with radio:
+        radio.configure(channel, dr3, rfm95w.output_dbm)
+        airtime_us = radio.transmit(b"21.5")
+        print(f"sent      a reading in {airtime_us} us on air")
+```
+<!-- end -->
+
 ## C#
 
 <!-- snippet: bindings/dotnet/samples/Pamoja.Guides/RadiosGuide.cs#example -->
@@ -590,6 +720,56 @@ Console.WriteLine(
 // An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
 bool Fits(byte dataRate) => Sx126x.Llcc68Supports(band.LinkSettings(dataRate)!);
 Console.WriteLine($"llcc68    DR3 {Fits(3)}, DR2 {Fits(2)}");
+```
+<!-- end -->
+
+The same radio opened on a Linux board:
+
+<!-- snippet: bindings/dotnet/samples/Pamoja.Guides/RadiosGuide.cs#hardware -->
+From [`bindings/dotnet/samples/Pamoja.Guides/RadiosGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/RadiosGuide.cs):
+
+```csharp
+// An RFM95W on a Raspberry Pi: the header's first chip select, with the module's
+// reset pin on GPIO25. The SX1276 family has no BUSY line, so the wiring names none.
+var wiring = new LoraRadioWiring("/dev/spidev0.0", "/dev/gpiochip0", 25);
+Console.WriteLine($"radio     an RFM95W on {wiring.Spi}, reset on GPIO{wiring.ResetLine}");
+
+// The channel and the power the same whip leaves under the same ceiling, now as the
+// number the radio is set to rather than the registers it goes into.
+using LoraChannelPlan band = LoraChannelPlan.ForRegion(LoraRegion.Eu868);
+const uint Channel = 868_100_000;
+LoraLink dr3 = band.LinkSettings(3)!;
+var antenna = new LoraLinkBudget { TransmitAntennaGainDbi = 2.15, TransmitCableLossDb = 0.5 };
+Sx127xTxPower rfm95w = Sx127x.TxPowerUnderCeiling(
+    Sx127xPaOutput.PaBoost, antenna, band.MaxEirpDbm(Channel));
+Console.WriteLine($"plan      {Channel} Hz at DR3, {rfm95w.OutputDbm} dBm on PA_BOOST");
+
+// Opening resets the chip and reads its version back, so a wiring mistake is caught
+// here rather than on the first frame. With no radio wired, this line prints.
+LoraRadio? radio = null;
+try
+{
+    radio = LoraRadio.OpenSx127x(wiring, new Sx127xBoard(Sx127xPaOutput.PaBoost));
+}
+catch (PlatformNotSupportedException)
+{
+}
+catch (PamojaException)
+{
+}
+
+if (radio is null)
+{
+    Console.WriteLine("absent    no radio answered, so nothing went out");
+    return;
+}
+
+using (radio)
+{
+    radio.Configure(new LoraRadioConfig(Channel, dr3, rfm95w.OutputDbm));
+    ulong airtimeUs = radio.Transmit("21.5"u8);
+    Console.WriteLine($"sent      a reading in {airtimeUs} us on air");
+}
 ```
 <!-- end -->
 

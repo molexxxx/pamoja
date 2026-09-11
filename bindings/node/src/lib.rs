@@ -39,6 +39,8 @@ pub mod ladder;
 pub mod loopback;
 #[cfg(feature = "lora")]
 pub mod lora;
+#[cfg(feature = "radios")]
+pub mod lora_radio;
 #[cfg(feature = "lora")]
 pub mod lora_region;
 #[cfg(feature = "lorawan")]

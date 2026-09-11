@@ -81,6 +81,8 @@ pub mod ladder;
 pub mod loopback;
 #[cfg(feature = "lora")]
 pub mod lora;
+#[cfg(feature = "radios")]
+pub mod lora_radio;
 #[cfg(feature = "lora")]
 pub mod lora_region;
 #[cfg(feature = "lorawan")]
@@ -525,6 +527,7 @@ pub unsafe extern "C" fn pamoja_string_free(string: *mut PamojaString) {
     feature = "mavlink",
     feature = "mqtt",
     feature = "profile",
+    feature = "radios",
     feature = "ros2",
     feature = "runtime",
     feature = "sync",

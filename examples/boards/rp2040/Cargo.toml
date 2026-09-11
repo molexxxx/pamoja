@@ -4,18 +4,21 @@ version = "0.0.0"
 edition = "2021"
 publish = false
 license = "MIT"
-description = "The first program on a Raspberry Pi Pico: a BME280 on I2C0, read through pamoja, reported over UART0."
+description = "Programs for a Raspberry Pi Pico: a BME280 on I2C0 read through pamoja, and an SX1262 LoRa radio on SPI1, both reported over UART0."
 
 [dependencies]
 cortex-m = "0.7"
 cortex-m-rt = "0.7"
 embedded-alloc = "0.5"
 embedded-hal = "1.0"
+embedded-hal-bus = "0.3"
 panic-halt = "0.2"
 rp2040-boot2 = "0.3"
 rp2040-hal = { version = "0.12", features = ["rt", "critical-section-impl"] }
 pamoja-core = { path = "../../../crates/pamoja-core", default-features = false }
 pamoja-hal = { path = "../../../crates/pamoja-hal", default-features = false }
+pamoja-lora = { path = "../../../crates/pamoja-lora", default-features = false }
+pamoja-radios = { path = "../../../crates/pamoja-radios" }
 pamoja-sensors = { path = "../../../crates/pamoja-sensors" }
 
 [profile.release]

@@ -116,7 +116,7 @@ profiles = ["profile", "ros2", "zenoh"]
 # The fleet dashboard is a web server, so it is opt-in rather than part of the default set.
 dashboard = ["dep:pamoja-dashboard"]
 # The Linux bus backends and the kernel thermometer file, for a gateway; Linux only.
-linux = ["std", "pamoja-hal?/linux", "pamoja-sensors?/linux"]
+linux = ["std", "pamoja-hal?/linux", "pamoja-radios?/linux", "pamoja-sensors?/linux"]
 
 [dependencies]
 # The core and MAVLink take their std layer from this crate's `std` feature, so a

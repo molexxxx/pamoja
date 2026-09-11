@@ -32,6 +32,8 @@ mod ladder;
 mod loopback;
 #[cfg(feature = "lora")]
 mod lora;
+#[cfg(feature = "radios")]
+mod lora_radio;
 #[cfg(feature = "lora")]
 mod lora_region;
 #[cfg(feature = "lorawan")]
@@ -607,6 +609,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(radios::sx127x_packet_status, m)?)?;
         m.add_function(wrap_pyfunction!(radios::sx127x_rssi_dbm, m)?)?;
         m.add_function(wrap_pyfunction!(radios::sx127x_modem_status, m)?)?;
+        m.add_class::<lora_radio::LoraRadio>()?;
+        m.add_class::<lora_radio::LoraReception>()?;
     }
     #[cfg(feature = "routing")]
     {
