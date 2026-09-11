@@ -350,7 +350,7 @@ p.source + figure.code { margin-top: 0.4rem; }
 
 /* Tables */
 .table-scroll { margin: 1.1rem 0 1.6rem; overflow-x: auto; }
-.article table, table.order, table.caps, table.tracks, table.milestones {
+.article table, table.order, table.caps, table.lanes, table.milestones {
   width: 100%; border-collapse: collapse; font-size: var(--t-sm);
   border-top: 1.5px solid var(--frame); border-bottom: 1.5px solid var(--frame);
 }
@@ -731,7 +731,7 @@ tbody tr:nth-child(even) td, tbody tr:nth-child(even) th[scope="row"] { backgrou
   /* A table stacks into labelled rows. */
   .article .table-scroll { overflow: visible; }
   .article table, .article tbody, .article tr, .article td,
-  table.order, table.caps, table.tracks, table.milestones,
+  table.order, table.caps, table.lanes, table.milestones,
   .tbl tbody, .tbl tr, .tbl td, .tbl th[scope="row"] { display: block; width: 100%; }
   .article thead, .tbl thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .article tr, .tbl tr { padding: 0.6rem 0; border-top: 1px solid var(--rule); }

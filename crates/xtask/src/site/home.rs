@@ -62,46 +62,51 @@ struct Track {
 
 struct Tag {
     text: String,
-    ships: bool,
+    state: String,
     krate: Option<String>,
     href: Option<String>,
 }
 
+impl Tag {
+    // Whether the entry ships today, rather than being committed next or later.
+    fn ships(&self) -> bool {
+        self.state == "ships"
+    }
+}
+
 impl Track {
-    // What the track has committed, as tags, or a plain statement when it has none.
-    fn committed(&self) -> String {
-        let tags: Vec<String> = self
-            .tags
-            .iter()
-            .filter(|tag| !tag.ships)
-            .map(|tag| format!("<span class=\"tag\">{}</span>", escape(&tag.text)))
-            .collect();
-        if tags.is_empty() {
-            "<span class=\"nothing\">Nothing committed yet</span>".to_owned()
-        } else {
-            tags.join(" ")
-        }
+    // How many of the track's entries are in `state`.
+    fn count(&self, state: &str) -> usize {
+        self.tags.iter().filter(|tag| tag.state == state).count()
     }
 
-    // What the track ships today as one line, each entry linked to where it lives: its
-    // crate's reference, or the part of the sheet its `href` names.
-    fn ships(&self) -> String {
-        self.tags
+    // The track's entries in `state` as a list of marks. A shipped entry links to where it
+    // lives: the part of the sheet its `href` names, or its crate's reference.
+    fn marks(&self, state: &str) -> String {
+        let items: String = self
+            .tags
             .iter()
-            .filter(|tag| tag.ships)
-            .map(|tag| match (&tag.href, &tag.krate) {
-                (Some(href), _) => {
-                    format!("<a href=\"{}\">{}</a>", escape(href), escape(&tag.text))
-                }
-                (None, Some(krate)) => format!(
-                    "<a href=\"docs/reference/rust/{}/index.html\">{}</a>",
-                    krate.replace('-', "_"),
-                    escape(&tag.text)
-                ),
-                (None, None) => escape(&tag.text),
+            .filter(|tag| tag.state == state)
+            .map(|tag| {
+                let label = match (&tag.href, &tag.krate) {
+                    (Some(href), _) => {
+                        format!("<a href=\"{}\">{}</a>", escape(href), escape(&tag.text))
+                    }
+                    (None, Some(krate)) if tag.ships() => format!(
+                        "<a href=\"docs/reference/rust/{}/index.html\">{}</a>",
+                        krate.replace('-', "_"),
+                        escape(&tag.text)
+                    ),
+                    _ => escape(&tag.text),
+                };
+                format!("<li>{label}</li>")
             })
-            .collect::<Vec<_>>()
-            .join(", ")
+            .collect();
+        if items.is_empty() {
+            String::new()
+        } else {
+            format!("<ul class=\"marks\">{items}</ul>")
+        }
     }
 }
 
@@ -223,10 +228,14 @@ impl Home {
                             .and_then(|v| v.as_str())
                             .ok_or_else(|| format!("{at}: a tag needs `text`"))?
                             .to_owned(),
-                        ships: tag
-                            .get("ships")
-                            .and_then(|v| v.as_bool())
-                            .ok_or_else(|| format!("{at}: a tag needs `ships`"))?,
+                        state: match tag.get("state").and_then(|v| v.as_str()) {
+                            Some(state @ ("ships" | "next" | "later")) => state.to_owned(),
+                            _ => {
+                                return Err(format!(
+                                    "{at}: a tag's `state` must be ships, next, or later"
+                                ));
+                            }
+                        },
                         krate: tag.get("crate").and_then(|v| v.as_str()).map(str::to_owned),
                         href: tag.get("href").and_then(|v| v.as_str()).map(str::to_owned),
                     })
@@ -328,7 +337,7 @@ impl Home {
                 let Some(krate) = &tag.krate else {
                     continue;
                 };
-                match (tag.ships, is_crate(krate)) {
+                match (tag.ships(), is_crate(krate)) {
                     (true, false) => problems.push(format!(
                         "track {}: {} is marked as shipping but {krate} is not a library crate",
                         track.title, tag.text
@@ -550,26 +559,30 @@ impl Home {
         out
     }
 
-    // Where the project is going, as a table: what each track has committed, and what it
-    // builds on today.
+    // Where the project is going: each track as a lane, from what ships today across the
+    // line at today to what is committed next and later.
     fn roadmap(&self) -> String {
         let mut out = String::from(
             "<section class=\"sec sec-turn\" id=\"roadmap\" aria-labelledby=\"roadmap-title\">\n\
              <h2 id=\"roadmap-title\"><span class=\"num\">6</span>Direction</h2>\n\
-             <p class=\"sec-lead\">Not a sensor library: a platform for physical things. Each track names what is committed next and what it builds on today.</p>\n\
+             <p class=\"sec-lead\">Not a sensor library: a platform for physical things. Each track runs from what ships today, across the line at today, to what is committed next and what comes after it.</p>\n\
              <div class=\"tbl\" id=\"table-6-1\">\n\
-             <p class=\"tbl-caption\"><b>Table 6-1.</b> Tracks, what each has committed, and what it builds on today</p>\n\
-             <table class=\"tracks\">\n\
-             <thead><tr><th scope=\"col\">Track</th><th scope=\"col\">Committed</th><th scope=\"col\">Builds on</th></tr></thead>\n\
+             <p class=\"tbl-caption\"><b>Table 6-1.</b> Each track from what ships to what is committed. A filled mark ships today, an open mark is committed next, and a light mark comes later.</p>\n\
+             <table class=\"lanes\">\n\
+             <thead><tr><th scope=\"col\">Track</th><th scope=\"col\" class=\"lane-ships\">Ships</th><th scope=\"col\" class=\"lane-next\"><span class=\"today\" aria-hidden=\"true\">Today</span>Next</th><th scope=\"col\" class=\"lane-later\">Later</th></tr></thead>\n\
              <tbody>\n",
         );
         for track in &self.tracks {
             out.push_str(&format!(
-                "<tr><th scope=\"row\" data-label=\"Track\"><b>{}</b><span class=\"what\">{}</span></th><td data-label=\"Committed\">{}</td><td class=\"ships\" data-label=\"Builds on\">{}</td></tr>\n",
+                "<tr><th scope=\"row\" data-label=\"Track\"><b>{}</b><span class=\"what\">{}</span><span class=\"lane-count\">{} shipping, {} next, {} later</span></th><td class=\"lane-ships\" data-label=\"Ships\">{}</td><td class=\"lane-next\" data-label=\"Next\">{}</td><td class=\"lane-later\" data-label=\"Later\">{}</td></tr>\n",
                 escape(&track.title),
                 escape(&track.lead),
-                track.committed(),
-                track.ships(),
+                track.count("ships"),
+                track.count("next"),
+                track.count("later"),
+                track.marks("ships"),
+                track.marks("next"),
+                track.marks("later"),
             ));
         }
         out.push_str("</tbody>\n</table>\n</div>\n</section>\n");
@@ -717,15 +730,13 @@ fn covers(catalog: &Catalog, descriptions: &BTreeMap<String, String>) -> String 
         .iter()
         .map(|language| {
             let abi = match (language.key, catalog.abi.as_deref()) {
-                ("dotnet", Some(abi)) => format!(", over the C ABI in {}", crate_links(&[abi])),
+                ("dotnet", Some(abi)) => format!(", over {}", crate_links(&[abi])),
                 _ => String::new(),
             };
             format!(
-                "<article class=\"chapter\">\n\
-                 <h3><a href=\"docs/reference/{}.html\">{}</a></h3>\n\
-                 <p class=\"chapter-what\">Every {} with its API pages, generated by {}{abi}.</p>\n\
-                 </article>\n",
+                "<li><a href=\"docs/reference/{}.html\" aria-label=\"{} reference\">{}</a><span>every {}, by {}{abi}</span></li>\n",
                 language.key,
+                language.name,
                 language.name,
                 language.unit(),
                 language.generator(),
@@ -797,7 +808,7 @@ fn covers(catalog: &Catalog, descriptions: &BTreeMap<String, String>) -> String 
          <p class=\"sec-lead\">Every capability is a crate in Rust and a package in each binding, behind the traits in <code>pamoja-core</code>. On a microcontroller you bring in two crates and nothing else.</p>\n\
          <div class=\"tbl\" id=\"table-4-1\">\n\
          <p class=\"tbl-caption\"><b>Table 4-1.</b> The four bindings over the engine, {} capabilities under {} headings, and the dashboard. A heading that holds more than one is also one thing to install.</p>\n\
-         <div class=\"chapters bindings\">\n{bindings}</div>\n\
+         <div class=\"bindings\">\n<p class=\"bindings-label\">Bindings</p>\n<ul class=\"bindings-list\">\n{bindings}</ul>\n</div>\n\
          <div class=\"chapters\">\n{cells}</div>\n\
          </div>\n\
          <p class=\"sec-note\">Every capability, with its package on crates.io, npm, PyPI, and NuGet and its API pages in all four languages, is on the <a href=\"docs/reference/index.html\">reference</a>. How a call reaches a crate, from a binding down through the engine, is drawn on the <a href=\"docs/about/architecture.html\">architecture</a> page.</p>\n\
@@ -959,8 +970,8 @@ key = "radio"
 title = "Radio"
 lead = "The cheapest link first."
 tags = [
-  { text = "MQTT", ships = true, crate = "pamoja-mqtt" },
-  { text = "satellite", ships = false, crate = "pamoja-satellite" },
+  { text = "MQTT", state = "ships", crate = "pamoja-mqtt" },
+  { text = "satellite", state = "later", crate = "pamoja-satellite" },
 ]
 
 [backing]
@@ -980,22 +991,25 @@ detail = "With partners."
     const CONSOLES: &str = "const SPECS = {\n  farm: {\n    id: 'x',\n  },\n};\n";
 
     #[test]
-    fn a_track_leads_with_what_it_has_committed() {
+    fn a_track_runs_from_what_ships_to_what_is_committed() {
         let table = Home::parse(SAMPLE).unwrap().roadmap();
+        assert!(table.contains("1 shipping, 0 next, 1 later"), "{table}");
         assert!(
-            table.contains("<span class=\"tag\">satellite</span>"),
+            table.contains("<td class=\"lane-ships\" data-label=\"Ships\"><ul class=\"marks\"><li><a href=\"docs/reference/rust/pamoja_mqtt/index.html\">MQTT</a></li></ul></td>"),
             "{table}"
         );
         assert!(
-            table.contains("<a href=\"docs/reference/rust/pamoja_mqtt/index.html\">MQTT</a>"),
+            table.contains("<td class=\"lane-next\" data-label=\"Next\"></td>"),
             "{table}"
         );
-        let shipped_only = SAMPLE.replace(
-            "  { text = \"satellite\", ships = false, crate = \"pamoja-satellite\" },\n",
-            "",
+        assert!(
+            table.contains("<td class=\"lane-later\" data-label=\"Later\"><ul class=\"marks\"><li>satellite</li></ul></td>"),
+            "a planned entry never links: {table}"
         );
-        let table = Home::parse(&shipped_only).unwrap().roadmap();
-        assert!(table.contains("Nothing committed yet"), "{table}");
+        let err = Home::parse(&SAMPLE.replace("state = \"later\"", "state = \"soon\""))
+            .err()
+            .expect("an unknown state is an error");
+        assert!(err.contains("must be ships, next, or later"), "{err}");
     }
 
     #[test]
@@ -1012,7 +1026,16 @@ detail = "With partners."
             !engine.contains("pamoja-ffi") && !engine.contains("pamoja-dashboard"),
             "{engine}"
         );
-        assert!(cell(">C#</a>").contains("pamoja-ffi"));
+        let strip_start = map.find("<div class=\"bindings\">").unwrap();
+        let strip = &map[strip_start..strip_start + map[strip_start..].find("</div>").unwrap()];
+        assert!(!strip.contains("<article"), "{strip}");
+        assert!(strip.contains("pamoja-ffi"), "{strip}");
+        for language in &LANGUAGES {
+            assert!(
+                strip.contains(&format!(">{}</a>", language.name)),
+                "{strip}"
+            );
+        }
         assert!(cell(">Dashboard</a>").contains("pamoja-dashboard"));
         assert_eq!(
             map.matches("<p class=\"chapter-id\">").count(),

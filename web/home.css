@@ -107,23 +107,35 @@
 .scene-text p { margin: 0 0 0.9rem; max-width: 56ch; font-size: var(--t-sm); line-height: 1.6; color: var(--ink); }
 .scene-crates { font-size: var(--t-xs); color: var(--ink-soft); }
 .scene-crates code { font-family: var(--mono); font-size: 0.95em; }
-.crate { color: var(--accent); text-decoration: none; }
-.crate:hover { text-decoration: underline; }
+.crate { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent); text-underline-offset: 0.2em; }
+.crate:hover { text-decoration-color: currentColor; }
 
 /* Direction and backing tables */
-.tracks th:first-child, .tracks td:first-child { width: 16rem; }
-/* A track's entries are English, so they are set in the sheet's own label face; mono is
-   kept for what is measured or typed. */
-.tag {
-  display: inline-block; margin: 0 0.2rem 0.2rem 0; padding: 0.15rem 0.45rem;
-  font: 600 var(--t-xs) var(--sans); font-stretch: var(--cond); letter-spacing: 0.02em; color: var(--ink);
-  background: var(--paper-tint); border: 1px solid var(--rule); border-radius: var(--r);
+.lanes { table-layout: fixed; }
+.lanes thead th:first-child, .lanes tbody th[scope="row"] { width: 15rem; }
+.lanes tbody tr:nth-child(even) td, .lanes tbody tr:nth-child(even) th[scope="row"] { background: none; }
+.lanes td { padding: 0.65rem 0.75rem; }
+.lanes tbody tr td.lane-ships { background: var(--paper-tint); }
+.lanes .lane-next { border-left: 1.5px solid var(--frame); }
+.lanes .lane-later { border-left: 1px dashed var(--rule); }
+.lanes thead .lane-next { position: relative; padding-left: 2.6rem; }
+.today {
+  position: absolute; left: 0; top: 50%; translate: -50% -50%; padding: 0.12rem 0.4rem;
+  font: 700 var(--t-2xs) var(--sans); font-stretch: var(--cond); text-transform: uppercase; letter-spacing: var(--track);
+  color: var(--paper); background: var(--accent); border-radius: var(--r);
 }
-.tracks th:last-child, .tracks td:last-child { width: 40%; }
-.tracks .ships { font-size: var(--t-xs); line-height: 1.6; color: var(--ink-soft); }
-.tracks .ships a { color: var(--accent); text-decoration: none; }
-.tracks .ships a:hover { text-decoration: underline; }
-.nothing { display: inline-block; padding: 0.15rem 0; font-size: var(--t-xs); color: var(--ink-soft); border: 1px solid transparent; }
+.lane-count { display: block; margin-top: 0.45rem; font: 500 var(--t-2xs) var(--mono); color: var(--ink-soft); }
+.marks { display: flex; flex-wrap: wrap; gap: 0.3rem 0.95rem; margin: 0; padding: 0; list-style: none; font-size: var(--t-xs); line-height: 1.45; }
+.marks li { position: relative; padding-left: 0.8rem; color: var(--ink); }
+.marks li::before { content: ""; position: absolute; left: 0; top: 0.42em; width: 6px; height: 6px; box-sizing: border-box; }
+.lane-ships .marks { justify-content: flex-end; }
+.lane-ships .marks li::before { background: var(--accent); }
+.lane-ships .marks a { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent); text-underline-offset: 0.2em; }
+.lane-ships .marks a:hover { text-decoration-color: currentColor; }
+.lane-next .marks li { font-weight: 600; }
+.lane-next .marks li::before { border: 1.5px solid var(--ink); }
+.lane-later .marks li { color: var(--ink-soft); }
+.lane-later .marks li::before { border: 1px solid var(--ink-soft); }
 .milestones { max-width: 58rem; table-layout: fixed; }
 .milestones th:first-child, .milestones td:first-child { width: 6rem; }
 .milestones th:nth-child(2), .milestones td:nth-child(2) { width: 15rem; }
@@ -231,8 +243,21 @@ tr[data-state="later"] .state { color: var(--ink-soft); background: none; border
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px;
   margin-top: 0.6rem; background: var(--rule); border: 1px solid var(--frame);
 }
-.chapters.bindings { grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 0; }
-.chapters.bindings + .chapters { margin-top: 0; }
+.bindings {
+  display: flex; align-items: baseline; gap: 0.4rem 1.5rem;
+  margin-top: 0.6rem; padding: 0.75rem 1rem; background: var(--paper); border: 1px solid var(--frame); border-bottom: 0;
+}
+.bindings + .chapters { margin-top: 0; }
+.bindings-label {
+  flex: none; margin: 0; font: 700 var(--t-2xs) var(--sans); font-stretch: var(--cond); text-transform: uppercase; letter-spacing: var(--track); color: var(--ink-soft);
+}
+.bindings-list { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.75rem; margin: 0; padding: 0; list-style: none; }
+.bindings-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.45rem; }
+.bindings-list a { font-size: var(--t-sm); font-weight: 700; color: var(--ink); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--ink) 35%, transparent); text-underline-offset: 0.2em; }
+.bindings-list a:hover { color: var(--accent); text-decoration-color: currentColor; }
+.bindings-list span { font-size: var(--t-xs); color: var(--ink-soft); }
+.bindings-list span a { font-size: inherit; font-weight: 400; color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent); text-underline-offset: 0.2em; }
+.bindings-list code { font-family: var(--mono); background: none; border: 0; padding: 0; }
 .chapter {
   display: flex; flex-direction: column; gap: 0.3rem;
   padding: 0.85rem 1rem 0.7rem; background: var(--paper);
@@ -247,8 +272,8 @@ tr[data-state="later"] .state { color: var(--ink-soft); background: none; border
   margin: auto 0 0; padding-top: 0.5rem;
   font: 500 var(--t-2xs) / 1.6 var(--mono); color: var(--ink-soft); border-top: 1px solid var(--rule);
 }
-.chapter-list a { color: var(--accent); text-decoration: none; }
-.chapter-list a:hover { text-decoration: underline; }
+.chapter-list a { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent); text-underline-offset: 0.2em; }
+.chapter-list a:hover { text-decoration-color: currentColor; }
 .chapter-list code { font: inherit; background: none; border: 0; padding: 0; }
 
 /* The block diagram, the one drawing on the sheet. */
@@ -424,7 +449,7 @@ tr[data-state="later"] .state { color: var(--ink-soft); background: none; border
 
 @media (max-width: 900px) {
   .front { grid-template-columns: minmax(0, 1fr); grid-template-areas: "id" "fig" "cols"; }
-  .chapters, .chapters.bindings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .chapters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .front-id, .front-cols { padding-right: 0; }
   .front-fig { padding-left: 0; padding-top: 1.75rem; border-left: 0; }
   .front-cols { padding-top: 2rem; }
@@ -436,7 +461,8 @@ tr[data-state="later"] .state { color: var(--ink-soft); background: none; border
   /* On a phone a long enumeration is printed as rows, not as a stack of cards: the number
      keeps a column of its own so every heading starts at the same edge, and the intent and
      the capabilities run under the heading. */
-  .chapters, .chapters.bindings { grid-template-columns: minmax(0, 1fr); }
+  .chapters { grid-template-columns: minmax(0, 1fr); }
+  .bindings, .bindings-list { flex-direction: column; align-items: flex-start; }
   .chapter {
     display: grid; grid-template-columns: 2.25rem minmax(0, 1fr); gap: 0.15rem 0;
     align-items: baseline; padding: 0.6rem 0.85rem 0.65rem;
@@ -447,9 +473,13 @@ tr[data-state="later"] .state { color: var(--ink-soft); background: none; border
   .chapter-what { grid-row: 2; }
   .chapter-list { grid-row: 3; margin: 0.15rem 0 0; padding: 0; border-top: 0; }
 
-  /* A track keeps its lead; its tags print tighter. */
-  .tracks .tag { font-size: var(--t-2xs); padding: 0.1rem 0.35rem; }
-  .tracks td { padding-block: 0.15rem; }
+  /* A lane stacks: what ships on the tint, the rule at today, then what comes next and later. */
+  .lanes td { padding: 0.2rem 0; }
+  .lanes tbody tr td.lane-ships { margin-top: 0.35rem; padding: 0.45rem 0.6rem; }
+  .lanes .lane-ships .marks { justify-content: flex-start; }
+  .lanes .lane-next { border-left: 0; border-top: 1.5px solid var(--frame); margin-top: 0.5rem; padding-top: 0.5rem; }
+  .lanes .lane-later { border-left: 0; }
+  .lanes td:empty { display: none; }
 
   .front { padding-top: 1.25rem; }
   .sheet-title { font-size: clamp(2rem, 9.4vw, 2.75rem); font-stretch: 100%; letter-spacing: -0.035em; }
@@ -462,7 +492,7 @@ tr[data-state="later"] .state { color: var(--ink-soft); background: none; border
   .stage-tab[data-group="robotics"]:first-of-type { margin-left: 0; }
   .order th:first-child, .order td:first-child,
   .caps th:first-child, .caps td:first-child,
-  .tracks th:first-child, .tracks td:first-child, .tracks td:last-child,
+  .lanes thead th:first-child, .lanes tbody th[scope="row"],
   .milestones th:first-child, .milestones td:first-child { width: auto; }
   .caps tr.group th { display: block; padding: 0.6rem 0 0.3rem; }
   .caps td:has(.none) { display: none; }
