@@ -203,6 +203,9 @@ What to get right: the airtime of each packet and the wait it obliges before
 the next; the region's plan; and the keys, since a frame with a wrong integrity
 code is dropped without a word.
 
+The antenna, the feed line, the connectors, and the power a region allows are on
+[Radios and antennas](radio.md).
+
 pamoja: [`pamoja-lora`](guides/lora.md) carries exact time-on-air and
 duty-cycle off-time; [`pamoja-lorawan`](guides/lorawan.md) carries the MAC
 framing, the integrity code, the encryption, the join, and the regional plans.

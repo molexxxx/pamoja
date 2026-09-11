@@ -17,6 +17,11 @@ guess is worse than none.
 | Drones | MAVLink v1 and v2 framing, CRC-16/MCRF4XX, per-message CRC_EXTRA, MAVLink 2 signing |
 | Robotics | ROS 2 names, RIHS01 type hashes, CDR encoding, rmw_zenoh key expressions |
 
+The [Radios and antennas](../radio.md) page quotes its power limits and duty cycles from
+ETSI EN 300 220-2 V3.3.1 and the February 2025 edition of CEPT ERC Recommendation
+70-03, the United States limits from 47 CFR 15.247, and its bonding and surge
+protection guidance from ITU-T K.71.
+
 That rigor is also what makes dependency upgrades safe to take. When the
 primitives underneath change, every vector still matches or the build fails.
 
