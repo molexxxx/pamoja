@@ -1,6 +1,6 @@
 # @pamoja/radios
 
-The Semtech SX126x LoRa command set and its decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+The Semtech SX126x and SX127x LoRa radios: their commands, registers, and decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/radios.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)

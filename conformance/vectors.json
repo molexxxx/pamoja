@@ -3815,6 +3815,53 @@
         ]
       }
     ],
+    "llcc68": [
+      {
+        "bandwidthHz": 125000,
+        "spreadingFactor": 9,
+        "supported": true
+      },
+      {
+        "bandwidthHz": 125000,
+        "spreadingFactor": 10,
+        "supported": false
+      },
+      {
+        "bandwidthHz": 125000,
+        "spreadingFactor": 11,
+        "supported": false
+      },
+      {
+        "bandwidthHz": 250000,
+        "spreadingFactor": 10,
+        "supported": true
+      },
+      {
+        "bandwidthHz": 250000,
+        "spreadingFactor": 11,
+        "supported": false
+      },
+      {
+        "bandwidthHz": 500000,
+        "spreadingFactor": 11,
+        "supported": true
+      },
+      {
+        "bandwidthHz": 500000,
+        "spreadingFactor": 12,
+        "supported": false
+      },
+      {
+        "bandwidthHz": 125000,
+        "spreadingFactor": 5,
+        "supported": true
+      },
+      {
+        "bandwidthHz": 62500,
+        "spreadingFactor": 7,
+        "supported": false
+      }
+    ],
     "packetStatuses": [
       {
         "bytes": "dbf6e0",
@@ -3948,6 +3995,591 @@
         "error": false
       }
     ],
+    "sx127x": {
+      "addresses": [
+        {
+          "address": 0,
+          "read": 0,
+          "write": 128
+        },
+        {
+          "address": 1,
+          "read": 1,
+          "write": 129
+        },
+        {
+          "address": 66,
+          "read": 66,
+          "write": 194
+        },
+        {
+          "address": 77,
+          "read": 77,
+          "write": 205
+        }
+      ],
+      "automaticIf": [
+        {
+          "current": 195,
+          "on": false,
+          "register": 67
+        },
+        {
+          "current": 67,
+          "on": true,
+          "register": 195
+        }
+      ],
+      "constants": {
+        "dio0CadDone": 128,
+        "dio0RxDone": 0,
+        "dio0TxDone": 64,
+        "imageCalRunning": 32,
+        "imageCalStart": 64,
+        "lnaBoosted": 35,
+        "paDacDefault": 132,
+        "paDacHighPower": 135,
+        "syncWordPrivate": 18,
+        "syncWordPublic": 52,
+        "tcxoInputOn": 25,
+        "version": 18,
+        "write": 128
+      },
+      "frequencyWords": [
+        {
+          "frequencyHz": 137000000,
+          "word": 2244608
+        },
+        {
+          "frequencyHz": 433175000,
+          "word": 7097139
+        },
+        {
+          "frequencyHz": 868100000,
+          "word": 14222950
+        },
+        {
+          "frequencyHz": 915000000,
+          "word": 14991360
+        },
+        {
+          "frequencyHz": 1020000000,
+          "word": 16711680
+        }
+      ],
+      "highBwOptimize": [
+        {
+          "bandwidthHz": 500000,
+          "frequencyHz": 915000000,
+          "optimize1": 2,
+          "optimize2": 100
+        },
+        {
+          "bandwidthHz": 500000,
+          "frequencyHz": 433000000,
+          "optimize1": 2,
+          "optimize2": 127
+        },
+        {
+          "bandwidthHz": 125000,
+          "frequencyHz": 868100000,
+          "optimize1": 3,
+          "optimize2": null
+        }
+      ],
+      "imageCalStart": [
+        {
+          "current": 130,
+          "register": 66
+        },
+        {
+          "current": 2,
+          "register": 66
+        }
+      ],
+      "invertIq": [
+        {
+          "receive": false,
+          "register": 39,
+          "transmit": false
+        },
+        {
+          "receive": true,
+          "register": 103,
+          "transmit": false
+        },
+        {
+          "receive": false,
+          "register": 38,
+          "transmit": true
+        },
+        {
+          "receive": true,
+          "register": 102,
+          "transmit": true
+        }
+      ],
+      "invertIq2": [
+        {
+          "inverted": false,
+          "register": 29
+        },
+        {
+          "inverted": true,
+          "register": 25
+        }
+      ],
+      "irqFlags": {
+        "cadDetected": 1,
+        "cadDone": 4,
+        "fhssChangeChannel": 2,
+        "payloadCrcError": 32,
+        "rxDone": 64,
+        "rxTimeout": 128,
+        "txDone": 8,
+        "validHeader": 16
+      },
+      "modemRefusals": [
+        {
+          "bandwidthHz": 125000,
+          "frequencyHz": 868100000,
+          "spreadingFactor": 5
+        },
+        {
+          "bandwidthHz": 500000,
+          "frequencyHz": 169400000,
+          "spreadingFactor": 7
+        },
+        {
+          "bandwidthHz": 203125,
+          "frequencyHz": 868100000,
+          "spreadingFactor": 7
+        }
+      ],
+      "modemStatuses": [
+        {
+          "byte": 15,
+          "clear": false,
+          "codingRateDenominator": null,
+          "headerValid": true,
+          "rxOngoing": true,
+          "signalDetected": true,
+          "signalSynchronized": true
+        },
+        {
+          "byte": 48,
+          "clear": true,
+          "codingRateDenominator": 5,
+          "headerValid": false,
+          "rxOngoing": false,
+          "signalDetected": false,
+          "signalSynchronized": false
+        },
+        {
+          "byte": 144,
+          "clear": true,
+          "codingRateDenominator": 8,
+          "headerValid": false,
+          "rxOngoing": false,
+          "signalDetected": false,
+          "signalSynchronized": false
+        },
+        {
+          "byte": 16,
+          "clear": true,
+          "codingRateDenominator": null,
+          "headerValid": false,
+          "rxOngoing": false,
+          "signalDetected": false,
+          "signalSynchronized": false
+        },
+        {
+          "byte": 0,
+          "clear": false,
+          "codingRateDenominator": null,
+          "headerValid": false,
+          "rxOngoing": false,
+          "signalDetected": false,
+          "signalSynchronized": false
+        }
+      ],
+      "modems": [
+        {
+          "detectionOptimize": 3,
+          "detectionThreshold": 10,
+          "frequencyHz": 868100000,
+          "link": "sf12-125k",
+          "modemConfig1": 114,
+          "modemConfig2": 196,
+          "modemConfig3": 12,
+          "symbolTimeout": 4
+        },
+        {
+          "detectionOptimize": 3,
+          "detectionThreshold": 10,
+          "frequencyHz": 868100000,
+          "link": "sf7-125k",
+          "modemConfig1": 114,
+          "modemConfig2": 116,
+          "modemConfig3": 4,
+          "symbolTimeout": 98
+        },
+        {
+          "detectionOptimize": 3,
+          "detectionThreshold": 10,
+          "frequencyHz": 868100000,
+          "link": "sf9-250k-cr48",
+          "modemConfig1": 136,
+          "modemConfig2": 148,
+          "modemConfig3": 4,
+          "symbolTimeout": 49
+        },
+        {
+          "detectionOptimize": 3,
+          "detectionThreshold": 10,
+          "frequencyHz": 868100000,
+          "link": "sf10-125k-bare",
+          "modemConfig1": 115,
+          "modemConfig2": 160,
+          "modemConfig3": 4,
+          "symbolTimeout": 13
+        }
+      ],
+      "modes": [
+        {
+          "code": 0,
+          "fsk": 8,
+          "lora": 136,
+          "mode": "sleep"
+        },
+        {
+          "code": 1,
+          "fsk": 9,
+          "lora": 137,
+          "mode": "standby"
+        },
+        {
+          "code": 2,
+          "fsk": 10,
+          "lora": 138,
+          "mode": "fsTx"
+        },
+        {
+          "code": 3,
+          "fsk": 11,
+          "lora": 139,
+          "mode": "tx"
+        },
+        {
+          "code": 4,
+          "fsk": 12,
+          "lora": 140,
+          "mode": "fsRx"
+        },
+        {
+          "code": 5,
+          "fsk": 13,
+          "lora": 141,
+          "mode": "rxContinuous"
+        },
+        {
+          "code": 6,
+          "fsk": 14,
+          "lora": 142,
+          "mode": "rxSingle"
+        },
+        {
+          "code": 7,
+          "fsk": 15,
+          "lora": 143,
+          "mode": "cad"
+        }
+      ],
+      "ocp": [
+        {
+          "milliamps": 45,
+          "register": 32
+        },
+        {
+          "milliamps": 100,
+          "register": 43
+        },
+        {
+          "milliamps": 120,
+          "register": 47
+        },
+        {
+          "milliamps": 130,
+          "register": 48
+        },
+        {
+          "milliamps": 140,
+          "register": 49
+        },
+        {
+          "milliamps": 240,
+          "register": 59
+        },
+        {
+          "milliamps": 300,
+          "register": 60
+        }
+      ],
+      "packetStatuses": [
+        {
+          "bytes": "f630",
+          "frequencyHz": 868100000,
+          "rssiHundredths": -10900,
+          "signalRssiHundredths": -11150,
+          "snrHundredths": -250
+        },
+        {
+          "bytes": "1c7d",
+          "frequencyHz": 915000000,
+          "rssiHundredths": -3200,
+          "signalRssiHundredths": -3200,
+          "snrHundredths": 700
+        },
+        {
+          "bytes": "8020",
+          "frequencyHz": 433175000,
+          "rssiHundredths": -13200,
+          "signalRssiHundredths": -16400,
+          "snrHundredths": -3200
+        }
+      ],
+      "registers": {
+        "detectOptimize": 49,
+        "detectionThreshold": 55,
+        "dioMapping1": 64,
+        "dioMapping2": 65,
+        "fifo": 0,
+        "fifoAddrPtr": 13,
+        "fifoRxBaseAddr": 15,
+        "fifoRxCurrentAddr": 16,
+        "fifoTxBaseAddr": 14,
+        "frfLsb": 8,
+        "frfMid": 7,
+        "frfMsb": 6,
+        "highBwOptimize1": 54,
+        "highBwOptimize2": 58,
+        "hopChannel": 28,
+        "ifFreq1": 48,
+        "ifFreq2": 47,
+        "imageCal": 59,
+        "invertIq": 51,
+        "invertIq2": 59,
+        "irqFlags": 18,
+        "irqFlagsMask": 17,
+        "lna": 12,
+        "maxPayloadLength": 35,
+        "modemConfig1": 29,
+        "modemConfig2": 30,
+        "modemConfig3": 38,
+        "modemStat": 24,
+        "ocp": 11,
+        "opMode": 1,
+        "paConfig": 9,
+        "paDac": 77,
+        "paRamp": 10,
+        "payloadLength": 34,
+        "pktRssiValue": 26,
+        "pktSnrValue": 25,
+        "preambleLsb": 33,
+        "preambleMsb": 32,
+        "rssiValue": 27,
+        "rssiWideband": 44,
+        "rxNbBytes": 19,
+        "symbTimeoutLsb": 31,
+        "syncWord": 57,
+        "tcxo": 75,
+        "version": 66
+      },
+      "rssi": [
+        {
+          "byte": 48,
+          "frequencyHz": 868100000,
+          "hundredths": -10900
+        },
+        {
+          "byte": 48,
+          "frequencyHz": 433175000,
+          "hundredths": -11600
+        },
+        {
+          "byte": 0,
+          "frequencyHz": 915000000,
+          "hundredths": -15700
+        }
+      ],
+      "spuriousReception": [
+        {
+          "automaticIf": false,
+          "bandwidthHz": 7813,
+          "ifFreq2": 72,
+          "offsetHz": 7810
+        },
+        {
+          "automaticIf": false,
+          "bandwidthHz": 10417,
+          "ifFreq2": 68,
+          "offsetHz": 10420
+        },
+        {
+          "automaticIf": false,
+          "bandwidthHz": 15625,
+          "ifFreq2": 68,
+          "offsetHz": 15620
+        },
+        {
+          "automaticIf": false,
+          "bandwidthHz": 20833,
+          "ifFreq2": 68,
+          "offsetHz": 20830
+        },
+        {
+          "automaticIf": false,
+          "bandwidthHz": 31250,
+          "ifFreq2": 68,
+          "offsetHz": 31250
+        },
+        {
+          "automaticIf": false,
+          "bandwidthHz": 41667,
+          "ifFreq2": 68,
+          "offsetHz": 41670
+        },
+        {
+          "automaticIf": false,
+          "bandwidthHz": 62500,
+          "ifFreq2": 64,
+          "offsetHz": 0
+        },
+        {
+          "automaticIf": false,
+          "bandwidthHz": 125000,
+          "ifFreq2": 64,
+          "offsetHz": 0
+        },
+        {
+          "automaticIf": false,
+          "bandwidthHz": 250000,
+          "ifFreq2": 64,
+          "offsetHz": 0
+        },
+        {
+          "automaticIf": true,
+          "bandwidthHz": 500000,
+          "ifFreq2": null,
+          "offsetHz": 0
+        }
+      ],
+      "symbolTimeouts": [
+        {
+          "link": "sf7-125k",
+          "symbols": 4,
+          "timeoutUs": 0
+        },
+        {
+          "link": "sf7-125k",
+          "symbols": 98,
+          "timeoutUs": 100000
+        },
+        {
+          "link": "sf12-125k",
+          "symbols": 306,
+          "timeoutUs": 10000000
+        }
+      ],
+      "txPowers": [
+        {
+          "ocp": 49,
+          "output": "paBoost",
+          "outputDbm": 20,
+          "paConfig": 255,
+          "paDac": 135,
+          "requestedDbm": 20
+        },
+        {
+          "ocp": 49,
+          "output": "paBoost",
+          "outputDbm": 18,
+          "paConfig": 253,
+          "paDac": 135,
+          "requestedDbm": 18
+        },
+        {
+          "ocp": 43,
+          "output": "paBoost",
+          "outputDbm": 17,
+          "paConfig": 255,
+          "paDac": 132,
+          "requestedDbm": 17
+        },
+        {
+          "ocp": 43,
+          "output": "paBoost",
+          "outputDbm": 2,
+          "paConfig": 240,
+          "paDac": 132,
+          "requestedDbm": 0
+        },
+        {
+          "ocp": 43,
+          "output": "rfo",
+          "outputDbm": 14,
+          "paConfig": 126,
+          "paDac": 132,
+          "requestedDbm": 14
+        },
+        {
+          "ocp": 43,
+          "output": "rfo",
+          "outputDbm": 0,
+          "paConfig": 4,
+          "paDac": 132,
+          "requestedDbm": 0
+        },
+        {
+          "ocp": 43,
+          "output": "rfo",
+          "outputDbm": -4,
+          "paConfig": 0,
+          "paDac": 132,
+          "requestedDbm": -9
+        },
+        {
+          "ocp": 43,
+          "output": "rfo",
+          "outputDbm": 15,
+          "paConfig": 127,
+          "paDac": 132,
+          "requestedDbm": 30
+        }
+      ],
+      "underCeilings": [
+        {
+          "ceilingHundredths": 1600,
+          "ocp": 43,
+          "output": "paBoost",
+          "outputDbm": 14,
+          "paConfig": 252,
+          "paDac": 132,
+          "transmitAntennaGainHundredths": 215,
+          "transmitCableLossHundredths": 50
+        },
+        {
+          "ceilingHundredths": 3000,
+          "ocp": 43,
+          "output": "rfo",
+          "outputDbm": 15,
+          "paConfig": 127,
+          "paDac": 132,
+          "transmitAntennaGainHundredths": 900,
+          "transmitCableLossHundredths": 0
+        }
+      ]
+    },
     "syncWords": {
       "private": "1424",
       "public": "3444"

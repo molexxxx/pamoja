@@ -56,6 +56,7 @@ import {
   sx126xGetStatus,
   sx126xImageCalibration,
   sx126xIrq,
+  sx126xLlcc68Supports,
   sx126xPacketStatus,
   sx126xRampTimeUs,
   sx126xReadBuffer,
@@ -560,4 +561,17 @@ export function rxBufferStatus(answer: Uint8Array): RxBufferStatus {
  */
 export function rssiInstDbm(byte: number): number {
   return sx126xRssiInstDbm(byte)
+}
+
+/**
+ * Reports whether an LLCC68 supports a link's spreading factor at its bandwidth.
+ *
+ * The LLCC68 takes the SX1262's commands but not all its settings: up to SF9 at 125 kHz,
+ * SF10 at 250 kHz, and SF11 at 500 kHz, and no bandwidth below 125 kHz.
+ *
+ * @param link - The link settings.
+ * @returns `true` when an LLCC68 can use the link.
+ */
+export function llcc68Supports(link: LoraLink): boolean {
+  return sx126xLlcc68Supports(link)
 }

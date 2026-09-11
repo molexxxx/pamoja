@@ -127,3 +127,79 @@ fn a_reading_planned_for_an_sx1262() {
     assert!(!guard.ready(0));
     assert!(guard.ready(held * 100));
 }
+
+/// The same reading from an RFM95W, whose SX1276 is driven through registers: the amplifier
+/// setting on PA_BOOST, the carrier and modem registers, the transmit mode, a received packet
+/// decoded, and whether an LLCC68 could carry the same data rates.
+#[test]
+fn the_same_reading_from_an_rfm95w() {
+    // ANCHOR: rfm95w
+    use pamoja_lora::budget::{Decibels, LinkBudget};
+    use pamoja_lora::region::Region;
+    use pamoja_radios::sx126x::config::{llcc68_supports, LoraModulation as Sx126xModulation};
+    use pamoja_radios::sx127x::config::{frequency_word, LoraModulation, PaOutput, TxPower};
+    use pamoja_radios::sx127x::irq::IrqFlags;
+    use pamoja_radios::sx127x::register::{lora_op_mode, Mode};
+    use pamoja_radios::sx127x::status::{PacketStatus, Port};
+
+    // An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and the
+    // same 16 dBm ceiling leave it the same 14 dBm, set through three registers.
+    let band = Region::Eu868.plan();
+    let channel = 868_100_000;
+    let dr3 = band.link_settings(3).expect("DR3 is a LoRa data rate");
+    let antenna = LinkBudget {
+        transmit_antenna_gain_dbi: Decibels::from_hundredths(215),
+        transmit_cable_loss_db: Decibels::from_tenths(5),
+        ..LinkBudget::default()
+    };
+    let limit = Decibels::from_db(band.max_eirp_dbm(channel).into());
+    let rfm95w = TxPower::under_ceiling(PaOutput::PaBoost, &antenna, limit);
+    println!(
+        "rfm95w    {} dBm on PA_BOOST: RegPaConfig {:02x}, RegPaDac {:02x}, RegOcp {:02x}",
+        rfm95w.output_dbm, rfm95w.pa_config, rfm95w.pa_dac, rfm95w.ocp
+    );
+
+    // The carrier and the modem go into registers while the chip stands by, and TX mode sends
+    // the frame the FIFO holds.
+    let modem = LoraModulation::from_link(&dr3).expect("DR3 fits an SX1276");
+    println!("carrier   RegFrf {:06x}", frequency_word(channel));
+    println!(
+        "modem     RegModemConfig {:02x} {:02x} {:02x}",
+        modem.modem_config_1(),
+        modem.modem_config_2(0),
+        modem.modem_config_3()
+    );
+    println!("tx mode   RegOpMode {:02x}", lora_op_mode(Mode::Tx));
+
+    // A packet that arrives raises RxDone and ValidHeader, and the SNR and RSSI registers give
+    // its levels on the high frequency port.
+    let flags = IrqFlags::from_bits(0x50);
+    let received = flags.contains(IrqFlags::RX_DONE);
+    let corrupt = flags.contains(IrqFlags::PAYLOAD_CRC_ERROR);
+    println!("irq       rx done {received}, crc error {corrupt}");
+    let packet = PacketStatus::from_bytes([0xF6, 0x30], Port::for_frequency(channel));
+    let db = |value: Decibels| f64::from(value.hundredths()) / 100.0;
+    println!(
+        "received  RSSI {} dBm, SNR {} dB, signal {} dBm",
+        db(packet.rssi_dbm),
+        db(packet.snr_db),
+        db(packet.signal_rssi_dbm)
+    );
+
+    // An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
+    let fits = |data_rate: u8| {
+        band.link_settings(data_rate)
+            .and_then(|link| Sx126xModulation::from_link(&link))
+            .is_some_and(|modulation| {
+                llcc68_supports(modulation.spreading_factor, modulation.bandwidth)
+            })
+    };
+    println!("llcc68    DR3 {}, DR2 {}", fits(3), fits(2));
+    // ANCHOR_END: rfm95w
+
+    assert_eq!(rfm95w.output_dbm, 14);
+    assert_eq!(rfm95w.pa_config, 0xFC);
+    assert_eq!(modem.modem_config_2(0), 0x94);
+    assert!(received && !corrupt);
+    assert!(fits(3) && !fits(2));
+}

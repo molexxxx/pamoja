@@ -50,6 +50,9 @@ use pamoja_radios::duty::DutyCycle as RadioDutyCycle;
 use pamoja_radios::sx126x::{
     command as sx126x_command, config as sx126x_config, irq as sx126x_irq, status as sx126x_status,
 };
+use pamoja_radios::sx127x::{
+    config as sx127x_config, register as sx127x_register, status as sx127x_status,
+};
 use pamoja_ros2::key::entity_key;
 use pamoja_ros2::msg::{CdrReader, Twist as Ros2Twist, Vector3};
 use pamoja_ros2::name::{dds_topic, is_fully_qualified, is_valid_name, percent_mangle, EntityKind};
@@ -1913,6 +1916,159 @@ fn radios_vectors_match() {
             guard.ready(now_us),
             check["ready"].as_bool().expect("a flag")
         );
+    }
+}
+
+#[test]
+fn sx127x_and_llcc68_vectors_match() {
+    use pamoja_lora::budget::{Decibels, LinkBudget};
+    use sx127x_config::{LoraBandwidth, LoraModulation, PaOutput, TxPower};
+    use sx127x_register::Mode;
+    use sx127x_status::{ModemStatus, PacketStatus, Port};
+
+    let vectors = vectors();
+    let case = &vectors["radios"]["sx127x"];
+    let links = &vectors["lora"]["links"];
+    let int = |value: &Value| value.as_i64().expect("an integer");
+    let byte = |value: &Value| value.as_u64().expect("a byte") as u8;
+    let link = |name: &str| {
+        let described = links
+            .as_array()
+            .expect("an array")
+            .iter()
+            .find(|entry| entry["name"] == name)
+            .expect("a named link");
+        let mut settings = LinkSettings::new(
+            byte(&described["spreadingFactor"]),
+            int(&described["bandwidthHz"]) as u32,
+        )
+        .with_coding_rate(byte(&described["codingRateDenominator"]))
+        .with_preamble(int(&described["preambleSymbols"]) as u16);
+        if !described["explicitHeader"].as_bool().expect("a flag") {
+            settings = settings.implicit_header();
+        }
+        if !described["crc"].as_bool().expect("a flag") {
+            settings = settings.without_crc();
+        }
+        settings
+    };
+    let output = |value: &Value| match value.as_str().expect("an output") {
+        "rfo" => PaOutput::Rfo,
+        _ => PaOutput::PaBoost,
+    };
+
+    assert_eq!(int(&case["registers"]["opMode"]), 0x01);
+    assert_eq!(int(&case["registers"]["paDac"]), 0x4D);
+    assert_eq!(int(&case["constants"]["version"]), 0x12);
+    for entry in case["modes"].as_array().expect("an array") {
+        let mode = Mode::from_op_mode(byte(&entry["code"]));
+        assert_eq!(
+            int(&entry["lora"]),
+            i64::from(sx127x_register::lora_op_mode(mode))
+        );
+        assert_eq!(
+            int(&entry["fsk"]),
+            i64::from(sx127x_register::fsk_op_mode(mode))
+        );
+    }
+    for entry in case["frequencyWords"].as_array().expect("an array") {
+        let frequency_hz = int(&entry["frequencyHz"]) as u32;
+        assert_eq!(
+            int(&entry["word"]),
+            i64::from(sx127x_config::frequency_word(frequency_hz))
+        );
+    }
+    for entry in case["modems"].as_array().expect("an array") {
+        let settings = link(entry["link"].as_str().expect("a link"));
+        let modulation = LoraModulation::from_link(&settings).expect("an SX127x link");
+        let symbols = int(&entry["symbolTimeout"]) as u16;
+        assert_eq!(symbols, sx127x_config::symbol_timeout(&settings, 100_000));
+        assert_eq!(
+            int(&entry["modemConfig1"]),
+            i64::from(modulation.modem_config_1())
+        );
+        assert_eq!(
+            int(&entry["modemConfig2"]),
+            i64::from(modulation.modem_config_2(symbols))
+        );
+        assert_eq!(
+            int(&entry["modemConfig3"]),
+            i64::from(modulation.modem_config_3())
+        );
+    }
+    for entry in case["txPowers"].as_array().expect("an array") {
+        let power =
+            TxPower::for_output(output(&entry["output"]), int(&entry["requestedDbm"]) as i8);
+        assert_eq!(int(&entry["paConfig"]), i64::from(power.pa_config));
+        assert_eq!(int(&entry["paDac"]), i64::from(power.pa_dac));
+        assert_eq!(int(&entry["ocp"]), i64::from(power.ocp));
+        assert_eq!(int(&entry["outputDbm"]), i64::from(power.output_dbm));
+    }
+    for entry in case["underCeilings"].as_array().expect("an array") {
+        let budget = LinkBudget {
+            transmit_antenna_gain_dbi: Decibels::from_hundredths(int(
+                &entry["transmitAntennaGainHundredths"]
+            ) as i32),
+            transmit_cable_loss_db: Decibels::from_hundredths(int(
+                &entry["transmitCableLossHundredths"]
+            ) as i32),
+            ..LinkBudget::default()
+        };
+        let power = TxPower::under_ceiling(
+            output(&entry["output"]),
+            &budget,
+            Decibels::from_hundredths(int(&entry["ceilingHundredths"]) as i32),
+        );
+        assert_eq!(int(&entry["paConfig"]), i64::from(power.pa_config));
+        assert_eq!(int(&entry["outputDbm"]), i64::from(power.output_dbm));
+    }
+    for entry in case["spuriousReception"].as_array().expect("an array") {
+        let bandwidth =
+            LoraBandwidth::from_hz(int(&entry["bandwidthHz"]) as u32).expect("a bandwidth");
+        let erratum = sx127x_config::spurious_reception(bandwidth);
+        assert_eq!(entry["automaticIf"].as_bool(), Some(erratum.automatic_if));
+        assert_eq!(entry["ifFreq2"].as_u64(), erratum.if_freq_2.map(u64::from));
+        assert_eq!(int(&entry["offsetHz"]), i64::from(erratum.offset_hz));
+    }
+    for entry in case["packetStatuses"].as_array().expect("an array") {
+        let hex = entry["bytes"].as_str().expect("hex");
+        let bytes = [
+            u8::from_str_radix(&hex[0..2], 16).expect("hex"),
+            u8::from_str_radix(&hex[2..4], 16).expect("hex"),
+        ];
+        let port = Port::for_frequency(int(&entry["frequencyHz"]) as u32);
+        let status = PacketStatus::from_bytes(bytes, port);
+        assert_eq!(
+            int(&entry["rssiHundredths"]),
+            i64::from(status.rssi_dbm.hundredths())
+        );
+        assert_eq!(
+            int(&entry["snrHundredths"]),
+            i64::from(status.snr_db.hundredths())
+        );
+        assert_eq!(
+            int(&entry["signalRssiHundredths"]),
+            i64::from(status.signal_rssi_dbm.hundredths())
+        );
+    }
+    for entry in case["modemStatuses"].as_array().expect("an array") {
+        let status = ModemStatus::from_byte(byte(&entry["byte"]));
+        assert_eq!(
+            entry["codingRateDenominator"].as_u64(),
+            status.coding_rate_denominator.map(u64::from)
+        );
+        assert_eq!(entry["rxOngoing"].as_bool(), Some(status.rx_ongoing));
+    }
+    for entry in vectors["radios"]["llcc68"].as_array().expect("an array") {
+        let settings = LinkSettings::new(
+            byte(&entry["spreadingFactor"]),
+            int(&entry["bandwidthHz"]) as u32,
+        );
+        let supported =
+            sx126x_config::LoraModulation::from_link(&settings).is_some_and(|modulation| {
+                sx126x_config::llcc68_supports(modulation.spreading_factor, modulation.bandwidth)
+            });
+        assert_eq!(entry["supported"].as_bool(), Some(supported));
     }
 }
 

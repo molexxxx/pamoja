@@ -32,6 +32,7 @@ from pamoja._native import sx126x_get_rx_buffer_status as _get_rx_buffer_status
 from pamoja._native import sx126x_get_status as _get_status
 from pamoja._native import sx126x_image_calibration as _image_calibration
 from pamoja._native import sx126x_irq as _irq
+from pamoja._native import sx126x_llcc68_supports as _llcc68_supports
 from pamoja._native import sx126x_packet_status as _packet_status
 from pamoja._native import sx126x_ramp_time_us as _ramp_time_us
 from pamoja._native import sx126x_read_buffer as _read_buffer
@@ -82,6 +83,7 @@ __all__ = [
     "get_status",
     "image_calibration",
     "irq",
+    "llcc68_supports",
     "packet_status",
     "ramp_time_us",
     "read_buffer",
@@ -507,3 +509,15 @@ def rssi_inst_dbm(byte: int) -> float:
     :returns: The signal power the receiver hears right now, in dBm.
     """
     return _rssi_inst_dbm(byte)
+
+
+def llcc68_supports(link: LoraLink) -> bool:
+    """Report whether an LLCC68 supports a link's spreading factor at its bandwidth.
+
+    The LLCC68 takes the SX1262's commands but not all its settings: up to SF9 at 125 kHz,
+    SF10 at 250 kHz, and SF11 at 500 kHz, and no bandwidth below 125 kHz.
+
+    :param link: The link settings.
+    :returns: ``True`` when an LLCC68 can use the link.
+    """
+    return _llcc68_supports(link)

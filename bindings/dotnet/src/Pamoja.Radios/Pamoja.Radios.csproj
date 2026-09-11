@@ -4,7 +4,7 @@
     <PackageId>Pamoja.Radios</PackageId>
     <AssemblyName>Pamoja.Radios</AssemblyName>
     <RootNamespace>Pamoja.Radios</RootNamespace>
-    <Description>The Semtech SX126x LoRa command set and its decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard.</Description>
+    <Description>The Semtech SX126x and SX127x LoRa radios: their commands, registers, and decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard.</Description>
     <PackageTags>pamoja;iot;robotics;radios</PackageTags>
     <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/radios.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>

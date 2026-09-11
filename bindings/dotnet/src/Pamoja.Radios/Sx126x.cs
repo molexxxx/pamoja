@@ -486,6 +486,19 @@ public static class Sx126x
     public static double RssiInstDbm(byte value) =>
         NativeLora.Db(NativeMethods.pamoja_sx126x_rssi_inst_centi_dbm(value));
 
+    /// <summary>Reports whether an LLCC68 supports a link's spreading factor at its bandwidth.</summary>
+    /// <param name="link">The link settings.</param>
+    /// <returns>
+    /// <c>true</c> when an LLCC68 can use the link: up to SF9 at 125 kHz, SF10 at 250 kHz, and
+    /// SF11 at 500 kHz, and no bandwidth below 125 kHz.
+    /// </returns>
+    public static bool Llcc68Supports(LoraLink link)
+    {
+        ArgumentNullException.ThrowIfNull(link);
+
+        return NativeMethods.pamoja_sx126x_llcc68_supports(NativeLora.Link(link));
+    }
+
     /// <summary>Describes an amplifier setting from the C ABI.</summary>
     /// <param name="power">The setting as the C ABI carries it.</param>
     /// <returns>The setting.</returns>

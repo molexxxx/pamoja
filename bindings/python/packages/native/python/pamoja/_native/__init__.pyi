@@ -129,6 +129,12 @@ __all__ = [
     "Sx126xRxBufferStatus",
     "Sx126xStatus",
     "Sx126xTxPower",
+    "Sx127xHighBwOptimize",
+    "Sx127xModem",
+    "Sx127xModemStatus",
+    "Sx127xPacketStatus",
+    "Sx127xSpuriousReception",
+    "Sx127xTxPower",
     "Theme",
     "Thermostat",
     "Tmp117Config",
@@ -405,6 +411,7 @@ __all__ = [
     "sx126x_get_status",
     "sx126x_image_calibration",
     "sx126x_irq",
+    "sx126x_llcc68_supports",
     "sx126x_packet_status",
     "sx126x_ramp_time_us",
     "sx126x_read_buffer",
@@ -429,6 +436,30 @@ __all__ = [
     "sx126x_tx_power_under_ceiling",
     "sx126x_write_buffer",
     "sx126x_write_register",
+    "sx127x_automatic_if",
+    "sx127x_constants",
+    "sx127x_frequency_from_word",
+    "sx127x_frequency_word",
+    "sx127x_fsk_op_mode",
+    "sx127x_high_bw_optimize",
+    "sx127x_image_cal_start",
+    "sx127x_invert_iq",
+    "sx127x_invert_iq_2",
+    "sx127x_irq_flags",
+    "sx127x_lora_op_mode",
+    "sx127x_mode_from_op_mode",
+    "sx127x_modem",
+    "sx127x_modem_status",
+    "sx127x_ocp_register",
+    "sx127x_packet_status",
+    "sx127x_read_address",
+    "sx127x_registers",
+    "sx127x_rssi_dbm",
+    "sx127x_spurious_reception",
+    "sx127x_symbol_timeout",
+    "sx127x_tx_power",
+    "sx127x_tx_power_under_ceiling",
+    "sx127x_write_address",
     "tmp117_averaging_conversions",
     "tmp117_averaging_micros",
     "tmp117_celsius",
@@ -5121,6 +5152,157 @@ class Sx126xTxPower:
         """
 
 @typing.final
+class Sx127xHighBwOptimize:
+    r"""
+    The writes of the SX127x 500 kHz sensitivity erratum.
+    """
+    @property
+    def optimize_1(self) -> builtins.int:
+        r"""
+        The RegHighBwOptimize1 value.
+        """
+    @property
+    def optimize_2(self) -> typing.Optional[builtins.int]:
+        r"""
+        The RegHighBwOptimize2 value, or `None` when it is not written.
+        """
+
+@typing.final
+class Sx127xModem:
+    r"""
+    The LoRa modem registers of an SX127x for a link.
+    """
+    @property
+    def modem_config_1(self) -> builtins.int:
+        r"""
+        RegModemConfig1: bandwidth, coding rate, and header mode.
+        """
+    @property
+    def modem_config_2(self) -> builtins.int:
+        r"""
+        RegModemConfig2: spreading factor, CRC, and the top bits of the symbol timeout.
+        """
+    @property
+    def modem_config_3(self) -> builtins.int:
+        r"""
+        RegModemConfig3: low data rate optimization and the AGC.
+        """
+    @property
+    def detection_optimize(self) -> builtins.int:
+        r"""
+        The DetectionOptimize bits for the low three bits of RegDetectOptimize.
+        """
+    @property
+    def detection_threshold(self) -> builtins.int:
+        r"""
+        RegDetectionThreshold.
+        """
+
+@typing.final
+class Sx127xModemStatus:
+    r"""
+    The live state of an SX127x LoRa modem.
+    """
+    @property
+    def coding_rate_denominator(self) -> typing.Optional[builtins.int]:
+        r"""
+        The coding rate denominator the last header announced, or `None` for a reserved value.
+        """
+    @property
+    def clear(self) -> builtins.bool:
+        r"""
+        The modem is clear.
+        """
+    @property
+    def header_valid(self) -> builtins.bool:
+        r"""
+        The header of the packet under way is valid.
+        """
+    @property
+    def rx_ongoing(self) -> builtins.bool:
+        r"""
+        A reception is under way.
+        """
+    @property
+    def signal_synchronized(self) -> builtins.bool:
+        r"""
+        The modem has synchronized on the end of the preamble.
+        """
+    @property
+    def signal_detected(self) -> builtins.bool:
+        r"""
+        A LoRa preamble has been detected.
+        """
+
+@typing.final
+class Sx127xPacketStatus:
+    r"""
+    The signal levels of a packet an SX127x received.
+    """
+    @property
+    def rssi_dbm(self) -> builtins.float:
+        r"""
+        The RSSI averaged over the packet, in dBm.
+        """
+    @property
+    def snr_db(self) -> builtins.float:
+        r"""
+        The estimated signal-to-noise ratio, in dB.
+        """
+    @property
+    def signal_rssi_dbm(self) -> builtins.float:
+        r"""
+        The strength of the packet itself, in dBm.
+        """
+
+@typing.final
+class Sx127xSpuriousReception:
+    r"""
+    The receive settings of the SX127x spurious reception erratum.
+    """
+    @property
+    def automatic_if(self) -> builtins.bool:
+        r"""
+        Whether AutomaticIFOn stays on.
+        """
+    @property
+    def if_freq_2(self) -> typing.Optional[builtins.int]:
+        r"""
+        The RegIfFreq2 value, with RegIfFreq1 cleared, or `None` when the IF stays automatic.
+        """
+    @property
+    def offset_hz(self) -> builtins.int:
+        r"""
+        How far above the carrier to receive, in hertz.
+        """
+
+@typing.final
+class Sx127xTxPower:
+    r"""
+    The amplifier settings of an SX127x.
+    """
+    @property
+    def pa_config(self) -> builtins.int:
+        r"""
+        RegPaConfig: PaSelect, MaxPower, and OutputPower.
+        """
+    @property
+    def pa_dac(self) -> builtins.int:
+        r"""
+        RegPaDac: the +20 dBm setting above +17 dBm on PA_BOOST, else its reset value.
+        """
+    @property
+    def ocp(self) -> builtins.int:
+        r"""
+        RegOcp: the current limit.
+        """
+    @property
+    def output_dbm(self) -> builtins.int:
+        r"""
+        The output power the settings produce, in dBm.
+        """
+
+@typing.final
 class Theme:
     r"""
     The theme tokens a profile sets on the dashboard; each is any CSS color.
@@ -6910,6 +7092,12 @@ def sx126x_irq(answer: typing.Sequence[builtins.int]) -> builtins.int:
     Raises `ValueError` unless the answer is two bytes.
     """
 
+def sx126x_llcc68_supports(link: LoraLink) -> builtins.bool:
+    r"""
+    Reports whether an LLCC68 supports a link's spreading factor at its bandwidth: up to SF9
+    at 125 kHz, SF10 at 250 kHz, and SF11 at 500 kHz.
+    """
+
 def sx126x_packet_status(answer: typing.Sequence[builtins.int]) -> Sx126xPacketStatus:
     r"""
     Decodes a LoRa GetPacketStatus answer.
@@ -7036,6 +7224,145 @@ def sx126x_write_buffer(offset: builtins.int, payload: typing.Sequence[builtins.
 def sx126x_write_register(address: builtins.int, values: typing.Sequence[builtins.int]) -> bytes:
     r"""
     A whole WriteRegister transaction: the opcode, the address, and the values.
+    """
+
+def sx127x_automatic_if(current: builtins.int, automatic_if: builtins.bool) -> builtins.int:
+    r"""
+    RegDetectOptimize with AutomaticIFOn set or clear.
+    """
+
+def sx127x_constants() -> builtins.dict[builtins.str, builtins.int]:
+    r"""
+    The SX127x register values with a name: the version, the write bit, the DIO0 mappings,
+    the amplifier and calibration bits, the sync words, and the LNA and TCXO settings.
+    """
+
+def sx127x_frequency_from_word(word: builtins.int) -> builtins.int:
+    r"""
+    The frequency in hertz an SX127x RegFrf word selects.
+    """
+
+def sx127x_frequency_word(frequency_hz: builtins.int) -> builtins.int:
+    r"""
+    The 24-bit RegFrf word an SX127x takes for a frequency in hertz.
+    """
+
+def sx127x_fsk_op_mode(mode: builtins.str) -> builtins.int:
+    r"""
+    The RegOpMode value for an FSK operating mode, which image calibration needs.
+    
+    Raises `ValueError` for a name that is not a mode.
+    """
+
+def sx127x_high_bw_optimize(link: LoraLink, frequency_hz: builtins.int) -> Sx127xHighBwOptimize:
+    r"""
+    The writes of the 500 kHz sensitivity erratum for a link at a carrier.
+    
+    Raises `PamojaError` when the SX127x has no such bandwidth.
+    """
+
+def sx127x_image_cal_start(current: builtins.int) -> builtins.int:
+    r"""
+    RegImageCal with a calibration started and the automatic recalibration off.
+    """
+
+def sx127x_invert_iq(receive: builtins.bool, transmit: builtins.bool) -> builtins.int:
+    r"""
+    RegInvertIQ for the IQ polarity of each path.
+    """
+
+def sx127x_invert_iq_2(inverted: builtins.bool) -> builtins.int:
+    r"""
+    RegInvertIQ2 for the path in use.
+    """
+
+def sx127x_irq_flags() -> builtins.dict[builtins.str, builtins.int]:
+    r"""
+    The SX127x LoRa interrupt flags, by name.
+    """
+
+def sx127x_lora_op_mode(mode: builtins.str) -> builtins.int:
+    r"""
+    The RegOpMode value for a LoRa operating mode, named as in `Sx127xMode`.
+    
+    Raises `ValueError` for a name that is not a mode.
+    """
+
+def sx127x_mode_from_op_mode(op_mode: builtins.int) -> builtins.str:
+    r"""
+    The name of the operating mode a RegOpMode value holds.
+    """
+
+def sx127x_modem(link: LoraLink, frequency_hz: builtins.int, symbol_timeout: builtins.int) -> Sx127xModem:
+    r"""
+    The LoRa modem registers for a link at a carrier, with a single reception timeout in
+    symbols.
+    
+    Raises `PamojaError` when the SX127x cannot use the link at the carrier.
+    """
+
+def sx127x_modem_status(byte: builtins.int) -> Sx127xModemStatus:
+    r"""
+    Decodes RegModemStat.
+    """
+
+def sx127x_ocp_register(milliamps: builtins.int) -> builtins.int:
+    r"""
+    RegOcp for a current limit in milliamps.
+    """
+
+def sx127x_packet_status(answer: typing.Sequence[builtins.int], frequency_hz: builtins.int) -> Sx127xPacketStatus:
+    r"""
+    Decodes RegPktSnrValue and RegPktRssiValue, read together, for a packet heard at a
+    carrier.
+    
+    Raises `ValueError` when the answer is not two bytes.
+    """
+
+def sx127x_read_address(address: builtins.int) -> builtins.int:
+    r"""
+    The SX127x address byte that reads a register.
+    """
+
+def sx127x_registers() -> builtins.dict[builtins.str, builtins.int]:
+    r"""
+    The SX127x register addresses, by name.
+    """
+
+def sx127x_rssi_dbm(byte: builtins.int, frequency_hz: builtins.int) -> builtins.float:
+    r"""
+    Decodes RegRssiValue for a receiver tuned to a carrier, in dBm.
+    """
+
+def sx127x_spurious_reception(link: LoraLink) -> Sx127xSpuriousReception:
+    r"""
+    The receive settings of the spurious reception erratum for a link.
+    
+    Raises `PamojaError` when the SX127x has no such bandwidth.
+    """
+
+def sx127x_symbol_timeout(link: LoraLink, timeout_us: builtins.int) -> builtins.int:
+    r"""
+    The SX127x single reception timeout for a duration in microseconds, in the link's symbols.
+    """
+
+def sx127x_tx_power(output: builtins.str, output_dbm: builtins.int) -> Sx127xTxPower:
+    r"""
+    The SX127x amplifier settings for an output power on an output named "Rfo" or "PaBoost".
+    
+    Raises `ValueError` for another output name.
+    """
+
+def sx127x_tx_power_under_ceiling(output: builtins.str, budget: LinkBudget, eirp_ceiling_dbm: builtins.float) -> Sx127xTxPower:
+    r"""
+    The SX127x amplifier settings that keep a link's EIRP at or under a ceiling in dBm.
+    
+    Raises `ValueError` for an output name other than "Rfo" or "PaBoost".
+    """
+
+def sx127x_write_address(address: builtins.int) -> builtins.int:
+    r"""
+    The SX127x address byte that writes a register.
     """
 
 def tmp117_averaging_conversions(code: builtins.int) -> builtins.int:

@@ -283,4 +283,339 @@ public static partial class NativeMethods
     /// <summary>Releases a duty-cycle guard handle. Passing null is a no-op.</summary>
     [LibraryImport(Library)]
     public static partial void pamoja_radio_duty_cycle_free(IntPtr guard);
+
+    /// <summary>The RegVersion value of an SX1276, SX1277, SX1278, or SX1279.</summary>
+    public const byte Sx127xVersion = 0x12;
+
+    /// <summary>The bit of an SX127x address byte that makes an access a write.</summary>
+    public const byte Sx127xWrite = 0x80;
+
+    /// <summary>RegDioMapping1 with DIO0 signaling RxDone.</summary>
+    public const byte Sx127xDio0RxDone = 0x00;
+
+    /// <summary>RegDioMapping1 with DIO0 signaling TxDone.</summary>
+    public const byte Sx127xDio0TxDone = 0x40;
+
+    /// <summary>RegDioMapping1 with DIO0 signaling CadDone.</summary>
+    public const byte Sx127xDio0CadDone = 0x80;
+
+    /// <summary>RegPaDac at its reset value.</summary>
+    public const byte Sx127xPaDacDefault = 0x84;
+
+    /// <summary>RegPaDac with the +20 dBm setting on PA_BOOST.</summary>
+    public const byte Sx127xPaDacHighPower = 0x87;
+
+    /// <summary>The RegImageCal bit that starts a calibration.</summary>
+    public const byte Sx127xImageCalStart = 0x40;
+
+    /// <summary>The RegImageCal bit set while a calibration runs.</summary>
+    public const byte Sx127xImageCalRunning = 0x20;
+
+    /// <summary>The SX127x sync word reserved for LoRaWAN.</summary>
+    public const byte Sx127xSyncWordPublic = 0x34;
+
+    /// <summary>The SX127x private sync word, and the chip's reset value.</summary>
+    public const byte Sx127xSyncWordPrivate = 0x12;
+
+    /// <summary>RegLna with maximum gain and the high frequency LNA boost.</summary>
+    public const byte Sx127xLnaBoosted = 0x23;
+
+    /// <summary>RegTcxo for a module clocked by a TCXO.</summary>
+    public const byte Sx127xTcxoInputOn = 0x19;
+
+    /// <summary>The SX127x register at 0x00.</summary>
+    public const byte Sx127xRegFifo = 0x00;
+
+    /// <summary>The SX127x register at 0x01.</summary>
+    public const byte Sx127xRegOpMode = 0x01;
+
+    /// <summary>The SX127x register at 0x06.</summary>
+    public const byte Sx127xRegFrfMsb = 0x06;
+
+    /// <summary>The SX127x register at 0x07.</summary>
+    public const byte Sx127xRegFrfMid = 0x07;
+
+    /// <summary>The SX127x register at 0x08.</summary>
+    public const byte Sx127xRegFrfLsb = 0x08;
+
+    /// <summary>The SX127x register at 0x09.</summary>
+    public const byte Sx127xRegPaConfig = 0x09;
+
+    /// <summary>The SX127x register at 0x0A.</summary>
+    public const byte Sx127xRegPaRamp = 0x0A;
+
+    /// <summary>The SX127x register at 0x0B.</summary>
+    public const byte Sx127xRegOcp = 0x0B;
+
+    /// <summary>The SX127x register at 0x0C.</summary>
+    public const byte Sx127xRegLna = 0x0C;
+
+    /// <summary>The SX127x register at 0x0D.</summary>
+    public const byte Sx127xRegFifoAddrPtr = 0x0D;
+
+    /// <summary>The SX127x register at 0x0E.</summary>
+    public const byte Sx127xRegFifoTxBaseAddr = 0x0E;
+
+    /// <summary>The SX127x register at 0x0F.</summary>
+    public const byte Sx127xRegFifoRxBaseAddr = 0x0F;
+
+    /// <summary>The SX127x register at 0x10.</summary>
+    public const byte Sx127xRegFifoRxCurrentAddr = 0x10;
+
+    /// <summary>The SX127x register at 0x11.</summary>
+    public const byte Sx127xRegIrqFlagsMask = 0x11;
+
+    /// <summary>The SX127x register at 0x12.</summary>
+    public const byte Sx127xRegIrqFlags = 0x12;
+
+    /// <summary>The SX127x register at 0x13.</summary>
+    public const byte Sx127xRegRxNbBytes = 0x13;
+
+    /// <summary>The SX127x register at 0x18.</summary>
+    public const byte Sx127xRegModemStat = 0x18;
+
+    /// <summary>The SX127x register at 0x19.</summary>
+    public const byte Sx127xRegPktSnrValue = 0x19;
+
+    /// <summary>The SX127x register at 0x1A.</summary>
+    public const byte Sx127xRegPktRssiValue = 0x1A;
+
+    /// <summary>The SX127x register at 0x1B.</summary>
+    public const byte Sx127xRegRssiValue = 0x1B;
+
+    /// <summary>The SX127x register at 0x1C.</summary>
+    public const byte Sx127xRegHopChannel = 0x1C;
+
+    /// <summary>The SX127x register at 0x1D.</summary>
+    public const byte Sx127xRegModemConfig1 = 0x1D;
+
+    /// <summary>The SX127x register at 0x1E.</summary>
+    public const byte Sx127xRegModemConfig2 = 0x1E;
+
+    /// <summary>The SX127x register at 0x1F.</summary>
+    public const byte Sx127xRegSymbTimeoutLsb = 0x1F;
+
+    /// <summary>The SX127x register at 0x20.</summary>
+    public const byte Sx127xRegPreambleMsb = 0x20;
+
+    /// <summary>The SX127x register at 0x21.</summary>
+    public const byte Sx127xRegPreambleLsb = 0x21;
+
+    /// <summary>The SX127x register at 0x22.</summary>
+    public const byte Sx127xRegPayloadLength = 0x22;
+
+    /// <summary>The SX127x register at 0x23.</summary>
+    public const byte Sx127xRegMaxPayloadLength = 0x23;
+
+    /// <summary>The SX127x register at 0x26.</summary>
+    public const byte Sx127xRegModemConfig3 = 0x26;
+
+    /// <summary>The SX127x register at 0x2C.</summary>
+    public const byte Sx127xRegRssiWideband = 0x2C;
+
+    /// <summary>The SX127x register at 0x2F.</summary>
+    public const byte Sx127xRegIfFreq2 = 0x2F;
+
+    /// <summary>The SX127x register at 0x30.</summary>
+    public const byte Sx127xRegIfFreq1 = 0x30;
+
+    /// <summary>The SX127x register at 0x31.</summary>
+    public const byte Sx127xRegDetectOptimize = 0x31;
+
+    /// <summary>The SX127x register at 0x33.</summary>
+    public const byte Sx127xRegInvertIq = 0x33;
+
+    /// <summary>The SX127x register at 0x36.</summary>
+    public const byte Sx127xRegHighBwOptimize1 = 0x36;
+
+    /// <summary>The SX127x register at 0x37.</summary>
+    public const byte Sx127xRegDetectionThreshold = 0x37;
+
+    /// <summary>The SX127x register at 0x39.</summary>
+    public const byte Sx127xRegSyncWord = 0x39;
+
+    /// <summary>The SX127x register at 0x3A.</summary>
+    public const byte Sx127xRegHighBwOptimize2 = 0x3A;
+
+    /// <summary>The SX127x register at 0x3B.</summary>
+    public const byte Sx127xRegInvertIq2 = 0x3B;
+
+    /// <summary>The SX127x register at 0x3B.</summary>
+    public const byte Sx127xRegImageCal = 0x3B;
+
+    /// <summary>The SX127x register at 0x40.</summary>
+    public const byte Sx127xRegDioMapping1 = 0x40;
+
+    /// <summary>The SX127x register at 0x41.</summary>
+    public const byte Sx127xRegDioMapping2 = 0x41;
+
+    /// <summary>The SX127x register at 0x42.</summary>
+    public const byte Sx127xRegVersion = 0x42;
+
+    /// <summary>The SX127x register at 0x4B.</summary>
+    public const byte Sx127xRegTcxo = 0x4B;
+
+    /// <summary>The SX127x register at 0x4D.</summary>
+    public const byte Sx127xRegPaDac = 0x4D;
+
+    /// <summary>The SX127x operating mode code 0.</summary>
+    public const byte Sx127xModeSleep = 0;
+
+    /// <summary>The SX127x operating mode code 1.</summary>
+    public const byte Sx127xModeStandby = 1;
+
+    /// <summary>The SX127x operating mode code 2.</summary>
+    public const byte Sx127xModeFsTx = 2;
+
+    /// <summary>The SX127x operating mode code 3.</summary>
+    public const byte Sx127xModeTx = 3;
+
+    /// <summary>The SX127x operating mode code 4.</summary>
+    public const byte Sx127xModeFsRx = 4;
+
+    /// <summary>The SX127x operating mode code 5.</summary>
+    public const byte Sx127xModeRxContinuous = 5;
+
+    /// <summary>The SX127x operating mode code 6.</summary>
+    public const byte Sx127xModeRxSingle = 6;
+
+    /// <summary>The SX127x operating mode code 7.</summary>
+    public const byte Sx127xModeCad = 7;
+
+    /// <summary>The SX127x interrupt flag 0x01.</summary>
+    public const byte Sx127xIrqCadDetected = 0x01;
+
+    /// <summary>The SX127x interrupt flag 0x02.</summary>
+    public const byte Sx127xIrqFhssChangeChannel = 0x02;
+
+    /// <summary>The SX127x interrupt flag 0x04.</summary>
+    public const byte Sx127xIrqCadDone = 0x04;
+
+    /// <summary>The SX127x interrupt flag 0x08.</summary>
+    public const byte Sx127xIrqTxDone = 0x08;
+
+    /// <summary>The SX127x interrupt flag 0x10.</summary>
+    public const byte Sx127xIrqValidHeader = 0x10;
+
+    /// <summary>The SX127x interrupt flag 0x20.</summary>
+    public const byte Sx127xIrqPayloadCrcError = 0x20;
+
+    /// <summary>The SX127x interrupt flag 0x40.</summary>
+    public const byte Sx127xIrqRxDone = 0x40;
+
+    /// <summary>The SX127x interrupt flag 0x80.</summary>
+    public const byte Sx127xIrqRxTimeout = 0x80;
+
+    /// <summary>The SX127x interrupt flag 0xFF.</summary>
+    public const byte Sx127xIrqAll = 0xFF;
+
+    /// <summary>Reports whether an LLCC68 supports a link's spreading factor at its bandwidth.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_sx126x_llcc68_supports(PamojaLoraLink link);
+
+    /// <summary>Returns the 24-bit RegFrf word an SX127x takes for a frequency.</summary>
+    [LibraryImport(Library)]
+    public static partial uint pamoja_sx127x_frequency_word(uint frequencyHz);
+
+    /// <summary>Returns the frequency an SX127x RegFrf word selects.</summary>
+    [LibraryImport(Library)]
+    public static partial uint pamoja_sx127x_frequency_from_word(uint word);
+
+    /// <summary>Returns the SX127x address byte that reads a register.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_sx127x_read_address(byte address);
+
+    /// <summary>Returns the SX127x address byte that writes a register.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_sx127x_write_address(byte address);
+
+    /// <summary>Returns the RegOpMode value for a LoRa operating mode code.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_sx127x_lora_op_mode(byte mode);
+
+    /// <summary>Returns the RegOpMode value for an FSK operating mode code.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_sx127x_fsk_op_mode(byte mode);
+
+    /// <summary>Returns the operating mode code a RegOpMode value holds.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_sx127x_mode_from_op_mode(byte opMode);
+
+    /// <summary>Returns the LoRa modem registers for a link at a carrier.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_sx127x_modem(
+        PamojaLoraLink link,
+        uint frequencyHz,
+        ushort symbolTimeout,
+        out PamojaSx127xModem outModem);
+
+    /// <summary>Returns a single reception timeout in a link's symbols.</summary>
+    [LibraryImport(Library)]
+    public static partial ushort pamoja_sx127x_symbol_timeout(PamojaLoraLink link, ulong timeoutUs);
+
+    /// <summary>Returns the SX127x amplifier settings for an output power.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaSx127xTxPower pamoja_sx127x_tx_power_for_output(
+        [MarshalAs(UnmanagedType.U1)] bool paBoost,
+        sbyte outputDbm);
+
+    /// <summary>Returns the SX127x amplifier settings that keep a link under an EIRP ceiling.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaSx127xTxPower pamoja_sx127x_tx_power_under_ceiling(
+        [MarshalAs(UnmanagedType.U1)] bool paBoost,
+        PamojaLoraLinkBudget budget,
+        int eirpCeilingCentiDbm);
+
+    /// <summary>Returns RegOcp for a current limit.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_sx127x_ocp_register(ushort milliamps);
+
+    /// <summary>Returns RegInvertIQ for the IQ polarity of each path.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_sx127x_invert_iq(
+        [MarshalAs(UnmanagedType.U1)] bool receive,
+        [MarshalAs(UnmanagedType.U1)] bool transmit);
+
+    /// <summary>Returns RegInvertIQ2 for the path in use.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_sx127x_invert_iq_2([MarshalAs(UnmanagedType.U1)] bool inverted);
+
+    /// <summary>Returns the writes of the 500 kHz sensitivity erratum.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_sx127x_high_bw_optimize(
+        PamojaLoraLink link,
+        uint frequencyHz,
+        out PamojaSx127xHighBwOptimize outOptimize);
+
+    /// <summary>Returns the receive settings of the spurious reception erratum.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_sx127x_spurious_reception(
+        PamojaLoraLink link,
+        out PamojaSx127xSpuriousReception outErratum);
+
+    /// <summary>Returns RegImageCal to start a calibration.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_sx127x_image_cal_start(byte current);
+
+    /// <summary>Returns RegDetectOptimize with AutomaticIFOn set or clear.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_sx127x_automatic_if(
+        byte current,
+        [MarshalAs(UnmanagedType.U1)] bool automaticIf);
+
+    /// <summary>Decodes RegPktSnrValue and RegPktRssiValue for a carrier.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaSx127xPacketStatus pamoja_sx127x_packet_status_from_bytes(
+        byte pktSnr,
+        byte pktRssi,
+        uint frequencyHz);
+
+    /// <summary>Decodes RegRssiValue for a carrier, in hundredths of a dBm.</summary>
+    [LibraryImport(Library)]
+    public static partial int pamoja_sx127x_rssi_centi_dbm(byte value, uint frequencyHz);
+
+    /// <summary>Decodes RegModemStat.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaSx127xModemStatus pamoja_sx127x_modem_status_from_byte(byte value);
 }

@@ -576,6 +576,37 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(radios::sx126x_packet_status, m)?)?;
         m.add_function(wrap_pyfunction!(radios::sx126x_rx_buffer_status, m)?)?;
         m.add_function(wrap_pyfunction!(radios::sx126x_rssi_inst_dbm, m)?)?;
+        m.add_class::<radios::Sx127xTxPower>()?;
+        m.add_class::<radios::Sx127xModem>()?;
+        m.add_class::<radios::Sx127xPacketStatus>()?;
+        m.add_class::<radios::Sx127xModemStatus>()?;
+        m.add_class::<radios::Sx127xHighBwOptimize>()?;
+        m.add_class::<radios::Sx127xSpuriousReception>()?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_llcc68_supports, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_registers, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_constants, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_irq_flags, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_frequency_word, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_frequency_from_word, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_read_address, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_write_address, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_lora_op_mode, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_fsk_op_mode, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_mode_from_op_mode, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_modem, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_symbol_timeout, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_tx_power, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_tx_power_under_ceiling, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_ocp_register, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_invert_iq, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_invert_iq_2, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_high_bw_optimize, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_spurious_reception, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_image_cal_start, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_automatic_if, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_packet_status, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_rssi_dbm, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx127x_modem_status, m)?)?;
     }
     #[cfg(feature = "routing")]
     {

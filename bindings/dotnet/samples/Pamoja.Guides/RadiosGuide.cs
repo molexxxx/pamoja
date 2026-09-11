@@ -74,5 +74,48 @@ public static class RadiosGuide
         Expect(held == airtime, "the guard records the frame's own airtime");
         Expect(!guard.Ready(0), "a 1% sub-band owes silence after a frame");
         Expect(guard.Ready(held * 100), "and allows the next once it has passed");
+
+        // ANCHOR: rfm95w
+        // An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and
+        // the same 16 dBm ceiling leave it the same 14 dBm, set through three registers.
+        using LoraChannelPlan band = LoraChannelPlan.ForRegion(LoraRegion.Eu868);
+        const uint Channel = 868_100_000;
+        LoraLink dr3 = band.LinkSettings(3)!;
+        var antenna = new LoraLinkBudget { TransmitAntennaGainDbi = 2.15, TransmitCableLossDb = 0.5 };
+        Sx127xTxPower rfm95w = Sx127x.TxPowerUnderCeiling(
+            Sx127xPaOutput.PaBoost, antenna, band.MaxEirpDbm(Channel));
+        Console.WriteLine(
+            $"rfm95w    {rfm95w.OutputDbm} dBm on PA_BOOST: RegPaConfig {rfm95w.PaConfig:x2}, " +
+            $"RegPaDac {rfm95w.PaDac:x2}, RegOcp {rfm95w.Ocp:x2}");
+
+        // The carrier and the modem go into registers while the chip stands by, and TX mode
+        // sends the frame the FIFO holds.
+        Sx127xModem modem = Sx127x.Modem(dr3, Channel);
+        Console.WriteLine($"carrier   RegFrf {Sx127x.FrequencyWord(Channel):x6}");
+        Console.WriteLine(
+            $"modem     RegModemConfig {modem.ModemConfig1:x2} {modem.ModemConfig2:x2} " +
+            $"{modem.ModemConfig3:x2}");
+        Console.WriteLine($"tx mode   RegOpMode {Sx127x.LoraOpMode(Sx127xMode.Tx):x2}");
+
+        // A packet that arrives raises RxDone and ValidHeader, and the SNR and RSSI registers
+        // give its levels on the high frequency port.
+        var flags = (Sx127xIrq)0x50;
+        bool received = flags.HasFlag(Sx127xIrq.RxDone);
+        bool corrupt = flags.HasFlag(Sx127xIrq.PayloadCrcError);
+        Console.WriteLine($"irq       rx done {received}, crc error {corrupt}");
+        Sx127xPacketStatus packet = Sx127x.PacketStatus([0xF6, 0x30], Channel);
+        Console.WriteLine(
+            $"received  RSSI {packet.RssiDbm} dBm, SNR {packet.SnrDb} dB, signal {packet.SignalRssiDbm} dBm");
+
+        // An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
+        bool Fits(byte dataRate) => Sx126x.Llcc68Supports(band.LinkSettings(dataRate)!);
+        Console.WriteLine($"llcc68    DR3 {Fits(3)}, DR2 {Fits(2)}");
+        // ANCHOR_END: rfm95w
+
+        Expect(rfm95w.OutputDbm == 14, "PA_BOOST takes the same 14 dBm under the ceiling");
+        Expect(rfm95w.PaConfig == 0xFC, "on PA_BOOST with OutputPower 12");
+        Expect(modem.ModemConfig2 == 0x94, "SF9 with a CRC");
+        Expect(received && !corrupt, "the packet arrived whole");
+        Expect(Fits(3) && !Fits(2), "an LLCC68 carries DR3 but not DR2");
     }
 }

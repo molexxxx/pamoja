@@ -4,6 +4,9 @@
 //! chip's answers decoded, the amplifier settings a regional power ceiling allows, and the
 //! silence a duty-cycle limit forces after each transmission.
 //!
+//! For the SX1276 family, which is driven through registers, they give the register
+//! addresses, the values a link and an output power put in them, and the readings decoded.
+//!
 //! A command is a few bytes, so it crosses as `bytes`, and the settings and the decoded
 //! answers are read-only objects. The duty-cycle guard keeps state between calls, so it is a
 //! class.
@@ -24,6 +27,18 @@ use pamoja_radios::sx126x::config::{
 use pamoja_radios::sx126x::irq::Irq;
 use pamoja_radios::sx126x::status::{
     rssi_inst_dbm, ChipMode, CommandStatus, DeviceErrors, PacketStatus, RxBufferStatus, Status,
+};
+
+use pamoja_radios::sx126x::config::llcc68_supports;
+use pamoja_radios::sx127x::config::{
+    self as sx127x_config, LoraBandwidth as Sx127xBandwidth, LoraModulation as Sx127xModulation,
+    ModulationError, PaOutput, TxPower as Sx127xPower,
+};
+use pamoja_radios::sx127x::irq::IrqFlags;
+use pamoja_radios::sx127x::register::{self as sx127x_register, Mode as Sx127xMode};
+use pamoja_radios::sx127x::status::{
+    rssi_dbm as decoded_rssi_dbm, ModemStatus as DecodedModemStatus,
+    PacketStatus as DecodedPacketStatus, Port,
 };
 
 use crate::lora::{db, decibels, LinkBudget, LoraLink};
@@ -673,4 +688,496 @@ fn command_status(status: CommandStatus) -> &'static str {
     } else {
         "Other"
     }
+}
+
+/// Reports whether an LLCC68 supports a link's spreading factor at its bandwidth: up to SF9
+/// at 125 kHz, SF10 at 250 kHz, and SF11 at 500 kHz.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx126x_llcc68_supports(link: PyRef<'_, LoraLink>) -> bool {
+    LoraModulation::from_link(&link.settings()).is_some_and(|modulation| {
+        llcc68_supports(modulation.spreading_factor, modulation.bandwidth)
+    })
+}
+
+/// The amplifier settings of an SX127x.
+#[gen_stub_pyclass]
+#[pyclass(frozen)]
+pub struct Sx127xTxPower {
+    /// RegPaConfig: PaSelect, MaxPower, and OutputPower.
+    #[pyo3(get)]
+    pub pa_config: u8,
+    /// RegPaDac: the +20 dBm setting above +17 dBm on PA_BOOST, else its reset value.
+    #[pyo3(get)]
+    pub pa_dac: u8,
+    /// RegOcp: the current limit.
+    #[pyo3(get)]
+    pub ocp: u8,
+    /// The output power the settings produce, in dBm.
+    #[pyo3(get)]
+    pub output_dbm: i8,
+}
+
+/// The LoRa modem registers of an SX127x for a link.
+#[gen_stub_pyclass]
+#[pyclass(frozen)]
+pub struct Sx127xModem {
+    /// RegModemConfig1: bandwidth, coding rate, and header mode.
+    #[pyo3(get)]
+    pub modem_config_1: u8,
+    /// RegModemConfig2: spreading factor, CRC, and the top bits of the symbol timeout.
+    #[pyo3(get)]
+    pub modem_config_2: u8,
+    /// RegModemConfig3: low data rate optimization and the AGC.
+    #[pyo3(get)]
+    pub modem_config_3: u8,
+    /// The DetectionOptimize bits for the low three bits of RegDetectOptimize.
+    #[pyo3(get)]
+    pub detection_optimize: u8,
+    /// RegDetectionThreshold.
+    #[pyo3(get)]
+    pub detection_threshold: u8,
+}
+
+/// The signal levels of a packet an SX127x received.
+#[gen_stub_pyclass]
+#[pyclass(frozen)]
+pub struct Sx127xPacketStatus {
+    /// The RSSI averaged over the packet, in dBm.
+    #[pyo3(get)]
+    pub rssi_dbm: f64,
+    /// The estimated signal-to-noise ratio, in dB.
+    #[pyo3(get)]
+    pub snr_db: f64,
+    /// The strength of the packet itself, in dBm.
+    #[pyo3(get)]
+    pub signal_rssi_dbm: f64,
+}
+
+/// The live state of an SX127x LoRa modem.
+#[gen_stub_pyclass]
+#[pyclass(frozen)]
+pub struct Sx127xModemStatus {
+    /// The coding rate denominator the last header announced, or `None` for a reserved value.
+    #[pyo3(get)]
+    pub coding_rate_denominator: Option<u8>,
+    /// The modem is clear.
+    #[pyo3(get)]
+    pub clear: bool,
+    /// The header of the packet under way is valid.
+    #[pyo3(get)]
+    pub header_valid: bool,
+    /// A reception is under way.
+    #[pyo3(get)]
+    pub rx_ongoing: bool,
+    /// The modem has synchronized on the end of the preamble.
+    #[pyo3(get)]
+    pub signal_synchronized: bool,
+    /// A LoRa preamble has been detected.
+    #[pyo3(get)]
+    pub signal_detected: bool,
+}
+
+/// The writes of the SX127x 500 kHz sensitivity erratum.
+#[gen_stub_pyclass]
+#[pyclass(frozen)]
+pub struct Sx127xHighBwOptimize {
+    /// The RegHighBwOptimize1 value.
+    #[pyo3(get)]
+    pub optimize_1: u8,
+    /// The RegHighBwOptimize2 value, or `None` when it is not written.
+    #[pyo3(get)]
+    pub optimize_2: Option<u8>,
+}
+
+/// The receive settings of the SX127x spurious reception erratum.
+#[gen_stub_pyclass]
+#[pyclass(frozen)]
+pub struct Sx127xSpuriousReception {
+    /// Whether AutomaticIFOn stays on.
+    #[pyo3(get)]
+    pub automatic_if: bool,
+    /// The RegIfFreq2 value, with RegIfFreq1 cleared, or `None` when the IF stays automatic.
+    #[pyo3(get)]
+    pub if_freq_2: Option<u8>,
+    /// How far above the carrier to receive, in hertz.
+    #[pyo3(get)]
+    pub offset_hz: u32,
+}
+
+/// The SX127x register addresses, by name.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_registers() -> HashMap<&'static str, u8> {
+    HashMap::from([
+        ("fifo", sx127x_register::FIFO),
+        ("opMode", sx127x_register::OP_MODE),
+        ("frfMsb", sx127x_register::FRF_MSB),
+        ("frfMid", sx127x_register::FRF_MID),
+        ("frfLsb", sx127x_register::FRF_LSB),
+        ("paConfig", sx127x_register::PA_CONFIG),
+        ("paRamp", sx127x_register::PA_RAMP),
+        ("ocp", sx127x_register::OCP),
+        ("lna", sx127x_register::LNA),
+        ("fifoAddrPtr", sx127x_register::FIFO_ADDR_PTR),
+        ("fifoTxBaseAddr", sx127x_register::FIFO_TX_BASE_ADDR),
+        ("fifoRxBaseAddr", sx127x_register::FIFO_RX_BASE_ADDR),
+        ("fifoRxCurrentAddr", sx127x_register::FIFO_RX_CURRENT_ADDR),
+        ("irqFlagsMask", sx127x_register::IRQ_FLAGS_MASK),
+        ("irqFlags", sx127x_register::IRQ_FLAGS),
+        ("rxNbBytes", sx127x_register::RX_NB_BYTES),
+        ("modemStat", sx127x_register::MODEM_STAT),
+        ("pktSnrValue", sx127x_register::PKT_SNR_VALUE),
+        ("pktRssiValue", sx127x_register::PKT_RSSI_VALUE),
+        ("rssiValue", sx127x_register::RSSI_VALUE),
+        ("hopChannel", sx127x_register::HOP_CHANNEL),
+        ("modemConfig1", sx127x_register::MODEM_CONFIG_1),
+        ("modemConfig2", sx127x_register::MODEM_CONFIG_2),
+        ("symbTimeoutLsb", sx127x_register::SYMB_TIMEOUT_LSB),
+        ("preambleMsb", sx127x_register::PREAMBLE_MSB),
+        ("preambleLsb", sx127x_register::PREAMBLE_LSB),
+        ("payloadLength", sx127x_register::PAYLOAD_LENGTH),
+        ("maxPayloadLength", sx127x_register::MAX_PAYLOAD_LENGTH),
+        ("modemConfig3", sx127x_register::MODEM_CONFIG_3),
+        ("rssiWideband", sx127x_register::RSSI_WIDEBAND),
+        ("ifFreq2", sx127x_register::IF_FREQ_2),
+        ("ifFreq1", sx127x_register::IF_FREQ_1),
+        ("detectOptimize", sx127x_register::DETECT_OPTIMIZE),
+        ("invertIq", sx127x_register::INVERT_IQ),
+        ("highBwOptimize1", sx127x_register::HIGH_BW_OPTIMIZE_1),
+        ("detectionThreshold", sx127x_register::DETECTION_THRESHOLD),
+        ("syncWord", sx127x_register::SYNC_WORD),
+        ("highBwOptimize2", sx127x_register::HIGH_BW_OPTIMIZE_2),
+        ("invertIq2", sx127x_register::INVERT_IQ_2),
+        ("imageCal", sx127x_register::IMAGE_CAL),
+        ("dioMapping1", sx127x_register::DIO_MAPPING_1),
+        ("dioMapping2", sx127x_register::DIO_MAPPING_2),
+        ("version", sx127x_register::VERSION),
+        ("tcxo", sx127x_register::TCXO),
+        ("paDac", sx127x_register::PA_DAC),
+    ])
+}
+
+/// The SX127x register values with a name: the version, the write bit, the DIO0 mappings,
+/// the amplifier and calibration bits, the sync words, and the LNA and TCXO settings.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_constants() -> HashMap<&'static str, u8> {
+    HashMap::from([
+        ("version", sx127x_register::VERSION_SX1276),
+        ("write", sx127x_register::WRITE),
+        ("dio0RxDone", sx127x_config::DIO0_RX_DONE),
+        ("dio0TxDone", sx127x_config::DIO0_TX_DONE),
+        ("dio0CadDone", sx127x_config::DIO0_CAD_DONE),
+        ("paDacDefault", sx127x_config::PA_DAC_DEFAULT),
+        ("paDacHighPower", sx127x_config::PA_DAC_HIGH_POWER),
+        ("imageCalStart", sx127x_config::IMAGE_CAL_START),
+        ("imageCalRunning", sx127x_config::IMAGE_CAL_RUNNING),
+        ("syncWordPublic", sx127x_config::SyncWord::Public.to_byte()),
+        (
+            "syncWordPrivate",
+            sx127x_config::SyncWord::Private.to_byte(),
+        ),
+        ("lnaBoosted", sx127x_config::LNA_BOOSTED),
+        ("tcxoInputOn", sx127x_config::TCXO_INPUT_ON),
+    ])
+}
+
+/// The SX127x LoRa interrupt flags, by name.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_irq_flags() -> HashMap<&'static str, u8> {
+    HashMap::from([
+        ("rxTimeout", IrqFlags::RX_TIMEOUT.bits()),
+        ("rxDone", IrqFlags::RX_DONE.bits()),
+        ("payloadCrcError", IrqFlags::PAYLOAD_CRC_ERROR.bits()),
+        ("validHeader", IrqFlags::VALID_HEADER.bits()),
+        ("txDone", IrqFlags::TX_DONE.bits()),
+        ("cadDone", IrqFlags::CAD_DONE.bits()),
+        ("fhssChangeChannel", IrqFlags::FHSS_CHANGE_CHANNEL.bits()),
+        ("cadDetected", IrqFlags::CAD_DETECTED.bits()),
+    ])
+}
+
+/// The 24-bit RegFrf word an SX127x takes for a frequency in hertz.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_frequency_word(frequency_hz: u32) -> u32 {
+    sx127x_config::frequency_word(frequency_hz)
+}
+
+/// The frequency in hertz an SX127x RegFrf word selects.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_frequency_from_word(word: u32) -> u32 {
+    sx127x_config::frequency_from_word(word)
+}
+
+/// The SX127x address byte that reads a register.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_read_address(address: u8) -> u8 {
+    sx127x_register::read_address(address)
+}
+
+/// The SX127x address byte that writes a register.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_write_address(address: u8) -> u8 {
+    sx127x_register::write_address(address)
+}
+
+/// The RegOpMode value for a LoRa operating mode, named as in `Sx127xMode`.
+///
+/// Raises `ValueError` for a name that is not a mode.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_lora_op_mode(mode: &str) -> PyResult<u8> {
+    Ok(sx127x_register::lora_op_mode(mode_named(mode)?))
+}
+
+/// The RegOpMode value for an FSK operating mode, which image calibration needs.
+///
+/// Raises `ValueError` for a name that is not a mode.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_fsk_op_mode(mode: &str) -> PyResult<u8> {
+    Ok(sx127x_register::fsk_op_mode(mode_named(mode)?))
+}
+
+/// The name of the operating mode a RegOpMode value holds.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_mode_from_op_mode(op_mode: u8) -> &'static str {
+    MODES
+        .iter()
+        .find(|(_, mode)| *mode == Sx127xMode::from_op_mode(op_mode))
+        .map_or("Cad", |(name, _)| *name)
+}
+
+/// The LoRa modem registers for a link at a carrier, with a single reception timeout in
+/// symbols.
+///
+/// Raises `PamojaError` when the SX127x cannot use the link at the carrier.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_modem(
+    link: PyRef<'_, LoraLink>,
+    frequency_hz: u32,
+    symbol_timeout: u16,
+) -> PyResult<Sx127xModem> {
+    let settings = link.settings();
+    let modulation = Sx127xModulation::from_link(&settings).map_err(modulation_error)?;
+    if !modulation.bandwidth.in_band(frequency_hz) {
+        return Err(modulation_error(ModulationError::Bandwidth(
+            settings.bandwidth_hz(),
+        )));
+    }
+    Ok(Sx127xModem {
+        modem_config_1: modulation.modem_config_1(),
+        modem_config_2: modulation.modem_config_2(symbol_timeout),
+        modem_config_3: modulation.modem_config_3(),
+        detection_optimize: modulation.detect_optimize(0),
+        detection_threshold: modulation.detection_threshold(),
+    })
+}
+
+/// The SX127x single reception timeout for a duration in microseconds, in the link's symbols.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_symbol_timeout(link: PyRef<'_, LoraLink>, timeout_us: u64) -> u16 {
+    sx127x_config::symbol_timeout(&link.settings(), timeout_us)
+}
+
+/// The SX127x amplifier settings for an output power on an output named "Rfo" or "PaBoost".
+///
+/// Raises `ValueError` for another output name.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_tx_power(output: &str, output_dbm: i32) -> PyResult<Sx127xTxPower> {
+    Ok(sx127x_power(Sx127xPower::for_output(
+        output_named(output)?,
+        dbm(output_dbm),
+    )))
+}
+
+/// The SX127x amplifier settings that keep a link's EIRP at or under a ceiling in dBm.
+///
+/// Raises `ValueError` for an output name other than "Rfo" or "PaBoost".
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_tx_power_under_ceiling(
+    output: &str,
+    budget: PyRef<'_, LinkBudget>,
+    eirp_ceiling_dbm: f64,
+) -> PyResult<Sx127xTxPower> {
+    Ok(sx127x_power(Sx127xPower::under_ceiling(
+        output_named(output)?,
+        &budget.budget(),
+        decibels(eirp_ceiling_dbm),
+    )))
+}
+
+/// RegOcp for a current limit in milliamps.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_ocp_register(milliamps: u16) -> u8 {
+    sx127x_config::ocp_register(milliamps)
+}
+
+/// RegInvertIQ for the IQ polarity of each path.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_invert_iq(receive: bool, transmit: bool) -> u8 {
+    sx127x_config::invert_iq(receive, transmit)
+}
+
+/// RegInvertIQ2 for the path in use.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_invert_iq_2(inverted: bool) -> u8 {
+    sx127x_config::invert_iq_2(inverted)
+}
+
+/// The writes of the 500 kHz sensitivity erratum for a link at a carrier.
+///
+/// Raises `PamojaError` when the SX127x has no such bandwidth.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_high_bw_optimize(
+    link: PyRef<'_, LoraLink>,
+    frequency_hz: u32,
+) -> PyResult<Sx127xHighBwOptimize> {
+    let (optimize_1, optimize_2) =
+        sx127x_config::high_bw_optimize(sx127x_bandwidth(&link)?, frequency_hz);
+    Ok(Sx127xHighBwOptimize {
+        optimize_1,
+        optimize_2,
+    })
+}
+
+/// The receive settings of the spurious reception erratum for a link.
+///
+/// Raises `PamojaError` when the SX127x has no such bandwidth.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_spurious_reception(link: PyRef<'_, LoraLink>) -> PyResult<Sx127xSpuriousReception> {
+    let erratum = sx127x_config::spurious_reception(sx127x_bandwidth(&link)?);
+    Ok(Sx127xSpuriousReception {
+        automatic_if: erratum.automatic_if,
+        if_freq_2: erratum.if_freq_2,
+        offset_hz: erratum.offset_hz,
+    })
+}
+
+/// RegImageCal with a calibration started and the automatic recalibration off.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_image_cal_start(current: u8) -> u8 {
+    sx127x_config::image_cal_start(current)
+}
+
+/// RegDetectOptimize with AutomaticIFOn set or clear.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_automatic_if(current: u8, automatic_if: bool) -> u8 {
+    sx127x_config::automatic_if(current, automatic_if)
+}
+
+/// Decodes RegPktSnrValue and RegPktRssiValue, read together, for a packet heard at a
+/// carrier.
+///
+/// Raises `ValueError` when the answer is not two bytes.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_packet_status(answer: Vec<u8>, frequency_hz: u32) -> PyResult<Sx127xPacketStatus> {
+    let bytes = exactly::<2>(&answer, "RegPktSnrValue and RegPktRssiValue")?;
+    let status = DecodedPacketStatus::from_bytes(bytes, Port::for_frequency(frequency_hz));
+    Ok(Sx127xPacketStatus {
+        rssi_dbm: db(status.rssi_dbm),
+        snr_db: db(status.snr_db),
+        signal_rssi_dbm: db(status.signal_rssi_dbm),
+    })
+}
+
+/// Decodes RegRssiValue for a receiver tuned to a carrier, in dBm.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_rssi_dbm(byte: u8, frequency_hz: u32) -> f64 {
+    db(decoded_rssi_dbm(byte, Port::for_frequency(frequency_hz)))
+}
+
+/// Decodes RegModemStat.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn sx127x_modem_status(byte: u8) -> Sx127xModemStatus {
+    let status = DecodedModemStatus::from_byte(byte);
+    Sx127xModemStatus {
+        coding_rate_denominator: status.coding_rate_denominator,
+        clear: status.clear,
+        header_valid: status.header_valid,
+        rx_ongoing: status.rx_ongoing,
+        signal_synchronized: status.signal_synchronized,
+        signal_detected: status.signal_detected,
+    }
+}
+
+/// The operating modes by the names Python uses.
+const MODES: [(&str, Sx127xMode); 8] = [
+    ("Sleep", Sx127xMode::Sleep),
+    ("Standby", Sx127xMode::Standby),
+    ("FsTx", Sx127xMode::FsTx),
+    ("Tx", Sx127xMode::Tx),
+    ("FsRx", Sx127xMode::FsRx),
+    ("RxContinuous", Sx127xMode::RxContinuous),
+    ("RxSingle", Sx127xMode::RxSingle),
+    ("Cad", Sx127xMode::Cad),
+];
+
+/// Finds the operating mode a name selects.
+fn mode_named(name: &str) -> PyResult<Sx127xMode> {
+    MODES
+        .iter()
+        .find(|(named, _)| *named == name)
+        .map(|(_, mode)| *mode)
+        .ok_or_else(|| PyValueError::new_err(format!("no SX127x mode is named {name}")))
+}
+
+/// Finds the amplifier output a name selects.
+fn output_named(name: &str) -> PyResult<PaOutput> {
+    match name {
+        "Rfo" => Ok(PaOutput::Rfo),
+        "PaBoost" => Ok(PaOutput::PaBoost),
+        other => Err(PyValueError::new_err(format!(
+            "no amplifier output is named {other}; use Rfo or PaBoost"
+        ))),
+    }
+}
+
+/// Flattens SX127x power settings into the object Python sees.
+fn sx127x_power(power: Sx127xPower) -> Sx127xTxPower {
+    Sx127xTxPower {
+        pa_config: power.pa_config,
+        pa_dac: power.pa_dac,
+        ocp: power.ocp,
+        output_dbm: power.output_dbm,
+    }
+}
+
+/// Finds a link's SX127x bandwidth.
+fn sx127x_bandwidth(link: &LoraLink) -> PyResult<Sx127xBandwidth> {
+    let hz = link.settings().bandwidth_hz();
+    Sx127xBandwidth::from_hz(hz)
+        .ok_or_else(|| PamojaError::new_err(format!("the SX127x has no {hz} Hz LoRa bandwidth")))
+}
+
+/// Says why an SX127x cannot use a link.
+fn modulation_error(error: ModulationError) -> PyErr {
+    PamojaError::new_err(match error {
+        ModulationError::Bandwidth(hz) => {
+            format!("the SX127x has no {hz} Hz LoRa bandwidth at this carrier")
+        }
+        ModulationError::SpreadingFactor(sf) => format!("the SX127x has no SF{sf}"),
+        ModulationError::ExplicitHeaderAtSf6 => "SF6 needs an implicit header".to_owned(),
+    })
 }

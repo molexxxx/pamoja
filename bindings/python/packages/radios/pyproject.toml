@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "pamoja-radios"
 version = "0.1.18"
-description = "The Semtech SX126x LoRa command set and its decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard."
+description = "The Semtech SX126x and SX127x LoRa radios: their commands, registers, and decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard."
 readme = "README.md"
 license = { text = "MIT" }
 license-files = ["LICENSE-MIT"]
