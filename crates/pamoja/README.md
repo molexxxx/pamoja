@@ -108,6 +108,7 @@ on by default:
 | `actuators` | `pamoja::actuators` | [pamoja-actuators](https://docs.rs/pamoja-actuators) |
 | `lora` | `pamoja::lora` | [pamoja-lora](https://docs.rs/pamoja-lora) |
 | `lorawan` | `pamoja::lorawan` | [pamoja-lorawan](https://docs.rs/pamoja-lorawan) |
+| `radios` | `pamoja::radios` | [pamoja-radios](https://docs.rs/pamoja-radios) |
 | `mesh` | `pamoja::mesh` | [pamoja-mesh](https://docs.rs/pamoja-mesh) |
 | `routing` | `pamoja::routing` | [pamoja-routing](https://docs.rs/pamoja-routing) |
 | `mavlink` | `pamoja::mavlink` | [pamoja-mavlink](https://docs.rs/pamoja-mavlink) |
@@ -137,7 +138,7 @@ out of its group:
 | --- | --- |
 | `field-io` | `serial`, `modbus`, `can`, `gpio`, `hal` |
 | `sensing` | `sensors`, `actuators` |
-| `radio` | `lora`, `lorawan`, `mesh`, `routing` |
+| `radio` | `lora`, `lorawan`, `radios`, `mesh`, `routing` |
 | `trust` | `audit`, `session`, `update`, `power`, `telemetry` |
 | `transports` | `mqtt`, `coap`, `loopback`, `sync`, `ladder`, `bus`, `sim` |
 | `profiles` | `profile`, `ros2`, `zenoh` |
@@ -148,12 +149,12 @@ pamoja = { version = "0.1", default-features = false, features = ["std", "field-
 ```
 
 `std`, on by default, turns on the standard-library layer of the crates that
-have one (`pamoja-core`, `pamoja-lora`, `pamoja-mavlink`, `pamoja-hal`,
-`pamoja-sensors`, `pamoja-actuators`, `pamoja-gpio`) and implies `alloc`,
-which adds the owned channel plans, tables, and message shapes of `pamoja-lora`,
-`pamoja-mesh`, `pamoja-routing`, and `pamoja-mavlink`. With both off and only
-`no_std` capabilities named, the crate builds for a bare-metal target; CI
-compiles it for `thumbv7em-none-eabihf`. The crates keep their finer switches
+have one (`pamoja-core`, `pamoja-lora`, `pamoja-radios`, `pamoja-mavlink`,
+`pamoja-hal`, `pamoja-sensors`, `pamoja-actuators`, `pamoja-gpio`) and implies
+`alloc`, which adds the owned channel plans, tables, and message shapes of
+`pamoja-lora`, `pamoja-mesh`, `pamoja-routing`, and `pamoja-mavlink`. With both
+off and only `no_std` capabilities named, the crate builds for a bare-metal
+target; CI compiles it for `thumbv7em-none-eabihf`. The crates keep their finer switches
 (the LoRa region set, the kit's helper groups, the MAVLink serial driver), so
 depend on the crate itself when you need one of those. `dashboard` adds the
 fleet dashboard, a web server, and is off by default. `linux` adds the bus

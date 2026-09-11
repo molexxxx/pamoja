@@ -88,6 +88,7 @@ pamoja-session = { path = "../crates/pamoja-session" }
 pamoja-lora = { path = "../crates/pamoja-lora", features = ["alloc"] }
 pamoja-lorawan = { path = "../crates/pamoja-lorawan" }
 pamoja-mesh = { path = "../crates/pamoja-mesh", features = ["alloc"] }
+pamoja-radios = { path = "../crates/pamoja-radios" }
 pamoja-routing = { path = "../crates/pamoja-routing", features = ["alloc"] }
 pamoja-serial = { path = "../crates/pamoja-serial" }
 pamoja-modbus = { path = "../crates/pamoja-modbus" }

@@ -82,7 +82,7 @@ pub fn lora_min_off_time_us(
 }
 
 /// Rebuilds the Rust link settings, clamping every value to its LoRa range.
-fn settings(link: &LoraLink) -> LinkSettings {
+pub(crate) fn settings(link: &LoraLink) -> LinkSettings {
     let mut settings = LinkSettings::new(link.spreading_factor, link.bandwidth_hz)
         .with_coding_rate(link.coding_rate_denominator)
         .with_preamble(link.preamble_symbols);
@@ -209,7 +209,7 @@ pub fn lora_fcc_max_conducted_dbm(
 }
 
 /// Rebuilds the Rust link budget from the decibels JavaScript holds.
-fn link_budget(budget: &LoraLinkBudget) -> LinkBudget {
+pub(crate) fn link_budget(budget: &LoraLinkBudget) -> LinkBudget {
     LinkBudget {
         transmit_power_dbm: decibels(budget.transmit_power_dbm),
         transmit_antenna_gain_dbi: decibels(budget.transmit_antenna_gain_dbi),
@@ -221,11 +221,11 @@ fn link_budget(budget: &LoraLinkBudget) -> LinkBudget {
 }
 
 /// Resolves a number of decibels to the hundredth of a decibel Rust holds.
-fn decibels(value: f64) -> Decibels {
+pub(crate) fn decibels(value: f64) -> Decibels {
     Decibels::from_hundredths((value * 100.0).round() as i32)
 }
 
 /// Returns a level as a number of decibels.
-fn db(value: Decibels) -> f64 {
+pub(crate) fn db(value: Decibels) -> f64 {
     f64::from(value.hundredths()) / 100.0
 }

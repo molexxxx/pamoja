@@ -97,6 +97,7 @@ __all__ = [
     "Progress",
     "PyTransport",
     "Quantizer",
+    "RadioDutyCycle",
     "Ramp",
     "Reaction",
     "ReceiverStep",
@@ -123,6 +124,11 @@ __all__ = [
     "Stepper",
     "Store",
     "Surge",
+    "Sx126xPacketStatus",
+    "Sx126xQuery",
+    "Sx126xRxBufferStatus",
+    "Sx126xStatus",
+    "Sx126xTxPower",
     "Theme",
     "Thermostat",
     "Tmp117Config",
@@ -386,6 +392,43 @@ __all__ = [
     "spi_mode_from_clock",
     "stepper_step_count",
     "stepper_steps_for_degrees",
+    "sx126x_calibrate_image",
+    "sx126x_clear_irq_status",
+    "sx126x_constants",
+    "sx126x_device_errors",
+    "sx126x_frequency_word",
+    "sx126x_get_device_errors",
+    "sx126x_get_irq_status",
+    "sx126x_get_packet_status",
+    "sx126x_get_rssi_inst",
+    "sx126x_get_rx_buffer_status",
+    "sx126x_get_status",
+    "sx126x_image_calibration",
+    "sx126x_irq",
+    "sx126x_packet_status",
+    "sx126x_ramp_time_us",
+    "sx126x_read_buffer",
+    "sx126x_read_register",
+    "sx126x_rssi_inst_dbm",
+    "sx126x_rx_buffer_status",
+    "sx126x_set_dio_irq_params",
+    "sx126x_set_lora_modulation_params",
+    "sx126x_set_lora_packet_params",
+    "sx126x_set_pa_config",
+    "sx126x_set_packet_type_lora",
+    "sx126x_set_rf_frequency",
+    "sx126x_set_rx",
+    "sx126x_set_rx_continuous",
+    "sx126x_set_sleep",
+    "sx126x_set_standby",
+    "sx126x_set_tx",
+    "sx126x_set_tx_params",
+    "sx126x_status",
+    "sx126x_timeout_steps",
+    "sx126x_tx_power",
+    "sx126x_tx_power_under_ceiling",
+    "sx126x_write_buffer",
+    "sx126x_write_register",
     "tmp117_averaging_conversions",
     "tmp117_averaging_micros",
     "tmp117_celsius",
@@ -4148,6 +4191,43 @@ class Quantizer:
         """
 
 @typing.final
+class RadioDutyCycle:
+    r"""
+    The silence a radio owes after its transmissions under a duty-cycle limit.
+    """
+    @property
+    def permille(self) -> builtins.int:
+        r"""
+        The limit the guard enforces, in parts per thousand.
+        """
+    @property
+    def earliest_us(self) -> typing.Optional[builtins.int]:
+        r"""
+        The earliest time the next transmission may start, in microseconds on the caller's
+        clock, or `None` when the limit forbids transmitting.
+        """
+    def __new__(cls, permille: builtins.int) -> RadioDutyCycle:
+        r"""
+        Creates a guard for a limit in parts per thousand, ready to transmit at once.
+        
+        `10` is 1%; `0` forbids transmitting and `1000` or more imposes no silence.
+        """
+    def wait_us(self, now_us: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        How long the radio must still stay silent, in microseconds, or `None` when the limit
+        forbids transmitting.
+        """
+    def ready(self, now_us: builtins.int) -> builtins.bool:
+        r"""
+        Whether a transmission may start at a time in microseconds on the caller's clock.
+        """
+    def transmitted(self, started_us: builtins.int, link: LoraLink, payload_len: builtins.int) -> builtins.int:
+        r"""
+        Records a transmission and the silence it owes, returning its airtime in
+        microseconds.
+        """
+
+@typing.final
 class Ramp:
     r"""
     Limits how fast a value may change, so a load is never slammed.
@@ -4932,6 +5012,112 @@ class Surge:
     def update(self, value: builtins.float) -> typing.Optional[builtins.float]:
         r"""
         Feeds a value in and returns the size of a qualifying step, or `None`.
+        """
+
+@typing.final
+class Sx126xPacketStatus:
+    r"""
+    The signal levels of the last LoRa packet received.
+    """
+    @property
+    def rssi_dbm(self) -> builtins.float:
+        r"""
+        The RSSI averaged over the packet, in dBm.
+        """
+    @property
+    def snr_db(self) -> builtins.float:
+        r"""
+        The estimated signal-to-noise ratio, in dB.
+        """
+    @property
+    def signal_rssi_dbm(self) -> builtins.float:
+        r"""
+        The estimated RSSI of the LoRa signal after despreading, in dBm.
+        """
+
+@typing.final
+class Sx126xQuery:
+    r"""
+    A command the chip answers in the same SPI transaction.
+    """
+    @property
+    def answer_len(self) -> builtins.int:
+        r"""
+        How many bytes of answer to read after the query's bytes.
+        """
+    @property
+    def bytes(self) -> bytes:
+        r"""
+        The bytes to send, ending with the NOP during which the status byte comes back.
+        """
+
+@typing.final
+class Sx126xRxBufferStatus:
+    r"""
+    Where a received payload sits in the data buffer.
+    """
+    @property
+    def payload_len(self) -> builtins.int:
+        r"""
+        The length of the payload in bytes.
+        """
+    @property
+    def start(self) -> builtins.int:
+        r"""
+        The buffer offset of its first byte.
+        """
+
+@typing.final
+class Sx126xStatus:
+    r"""
+    A decoded SX126x status byte.
+    """
+    @property
+    def chip_mode(self) -> builtins.str:
+        r"""
+        The mode the chip is in: `StandbyRc`, `StandbyXosc`, `Fs`, `Rx`, `Tx`, or `Other`.
+        """
+    @property
+    def command_status(self) -> builtins.str:
+        r"""
+        How the last command went: `DataAvailable`, `Timeout`, `ProcessingError`,
+        `ExecutionFailure`, `TxDone`, or `Other`.
+        """
+    @property
+    def error(self) -> builtins.bool:
+        r"""
+        Whether the last command timed out, could not be processed, or failed.
+        """
+
+@typing.final
+class Sx126xTxPower:
+    r"""
+    The amplifier configuration and power setting that produce an output power.
+    """
+    @property
+    def pa_duty_cycle(self) -> builtins.int:
+        r"""
+        paDutyCycle, the conduction angle of the amplifier.
+        """
+    @property
+    def hp_max(self) -> builtins.int:
+        r"""
+        hpMax, the size of the SX1262 amplifier; no effect on the SX1261.
+        """
+    @property
+    def device_sel(self) -> builtins.int:
+        r"""
+        deviceSel: 0 for the SX1262 and the LLCC68, 1 for the SX1261.
+        """
+    @property
+    def pa_lut(self) -> builtins.int:
+        r"""
+        paLut, reserved and always 1.
+        """
+    @property
+    def setting_dbm(self) -> builtins.int:
+        r"""
+        The power byte of SetTxParams, in dBm.
         """
 
 @typing.final
@@ -6652,6 +6838,204 @@ def stepper_step_count(drive: builtins.str) -> builtins.int:
 def stepper_steps_for_degrees(degrees: builtins.float, steps_per_revolution: builtins.int) -> builtins.int:
     r"""
     Returns how many steps a rotation of `degrees` takes on a given motor.
+    """
+
+def sx126x_calibrate_image(low_hz: builtins.int, high_hz: builtins.int) -> bytes:
+    r"""
+    CalibrateImage over a band given by its edges in hertz.
+    """
+
+def sx126x_clear_irq_status(irq: builtins.int) -> bytes:
+    r"""
+    ClearIrqStatus for a set of interrupts.
+    """
+
+def sx126x_constants() -> builtins.dict[builtins.str, builtins.int]:
+    r"""
+    The SX126x constants: the continuous receive word, the sync words and their register,
+    and every IRQ and device error bit, by name.
+    """
+
+def sx126x_device_errors(answer: typing.Sequence[builtins.int]) -> builtins.int:
+    r"""
+    Decodes a GetDeviceErrors answer into its error bits.
+    
+    Raises `ValueError` unless the answer is two bytes.
+    """
+
+def sx126x_frequency_word(frequency_hz: builtins.int) -> builtins.int:
+    r"""
+    The word SetRfFrequency takes for a frequency in hertz.
+    """
+
+def sx126x_get_device_errors() -> Sx126xQuery:
+    r"""
+    GetDeviceErrors, answered by the two device error bytes.
+    """
+
+def sx126x_get_irq_status() -> Sx126xQuery:
+    r"""
+    GetIrqStatus, answered by the two IRQ bytes.
+    """
+
+def sx126x_get_packet_status() -> Sx126xQuery:
+    r"""
+    GetPacketStatus, answered by the three LoRa signal level bytes.
+    """
+
+def sx126x_get_rssi_inst() -> Sx126xQuery:
+    r"""
+    GetRssiInst, answered by the instantaneous RSSI byte.
+    """
+
+def sx126x_get_rx_buffer_status() -> Sx126xQuery:
+    r"""
+    GetRxBufferStatus, answered by the payload length and its offset.
+    """
+
+def sx126x_get_status() -> Sx126xQuery:
+    r"""
+    GetStatus, answered by the status byte.
+    """
+
+def sx126x_image_calibration(low_hz: builtins.int, high_hz: builtins.int) -> bytes:
+    r"""
+    The two CalibrateImage codes that cover a band given by its edges in hertz.
+    """
+
+def sx126x_irq(answer: typing.Sequence[builtins.int]) -> builtins.int:
+    r"""
+    Decodes a GetIrqStatus answer into its IRQ bits.
+    
+    Raises `ValueError` unless the answer is two bytes.
+    """
+
+def sx126x_packet_status(answer: typing.Sequence[builtins.int]) -> Sx126xPacketStatus:
+    r"""
+    Decodes a LoRa GetPacketStatus answer.
+    
+    Raises `ValueError` unless the answer is three bytes.
+    """
+
+def sx126x_ramp_time_us(at_least_us: builtins.int) -> builtins.int:
+    r"""
+    The shortest amplifier ramp time the chip offers that lasts at least a duration, in
+    microseconds.
+    """
+
+def sx126x_read_buffer(offset: builtins.int, length: builtins.int) -> Sx126xQuery:
+    r"""
+    ReadBuffer for a run of the data buffer.
+    """
+
+def sx126x_read_register(address: builtins.int, length: builtins.int) -> Sx126xQuery:
+    r"""
+    ReadRegister for a run of consecutive registers.
+    """
+
+def sx126x_rssi_inst_dbm(byte: builtins.int) -> builtins.float:
+    r"""
+    Decodes a GetRssiInst answer, in dBm.
+    """
+
+def sx126x_rx_buffer_status(answer: typing.Sequence[builtins.int]) -> Sx126xRxBufferStatus:
+    r"""
+    Decodes a GetRxBufferStatus answer.
+    
+    Raises `ValueError` unless the answer is two bytes.
+    """
+
+def sx126x_set_dio_irq_params(irq: builtins.int, dio1: builtins.int, dio2: builtins.int = 0, dio3: builtins.int = 0) -> bytes:
+    r"""
+    SetDioIrqParams: which interrupts are enabled, and which DIO lines raise them.
+    """
+
+def sx126x_set_lora_modulation_params(link: LoraLink) -> bytes:
+    r"""
+    SetModulationParams for a LoRa link.
+    
+    Raises `PamojaError` when the link's bandwidth is not one the SX126x offers.
+    """
+
+def sx126x_set_lora_packet_params(link: LoraLink, payload_len: builtins.int, invert_iq: builtins.bool) -> bytes:
+    r"""
+    SetPacketParams for a LoRa link, a payload length, and an IQ polarity.
+    """
+
+def sx126x_set_pa_config(power: Sx126xTxPower) -> bytes:
+    r"""
+    SetPaConfig for a power setting.
+    """
+
+def sx126x_set_packet_type_lora() -> bytes:
+    r"""
+    SetPacketType for LoRa.
+    """
+
+def sx126x_set_rf_frequency(frequency_hz: builtins.int) -> bytes:
+    r"""
+    SetRfFrequency for a carrier frequency in hertz.
+    """
+
+def sx126x_set_rx(timeout_us: builtins.int) -> bytes:
+    r"""
+    SetRx with a timeout in microseconds; `0` listens for one packet with no timeout.
+    """
+
+def sx126x_set_rx_continuous() -> bytes:
+    r"""
+    SetRx in continuous mode, receiving packet after packet until another command.
+    """
+
+def sx126x_set_sleep(warm_start: builtins.bool) -> bytes:
+    r"""
+    SetSleep without an RTC wake-up; a warm start keeps the configuration in retention.
+    """
+
+def sx126x_set_standby() -> bytes:
+    r"""
+    SetStandby into STDBY_RC.
+    """
+
+def sx126x_set_tx(timeout_us: builtins.int) -> bytes:
+    r"""
+    SetTx with a timeout in microseconds; `0` disables the timeout.
+    """
+
+def sx126x_set_tx_params(power: Sx126xTxPower, ramp_us: builtins.int) -> bytes:
+    r"""
+    SetTxParams for a power setting and the least ramp time wanted, in microseconds.
+    """
+
+def sx126x_status(byte: builtins.int) -> Sx126xStatus:
+    r"""
+    Decodes a status byte.
+    """
+
+def sx126x_timeout_steps(timeout_us: builtins.int) -> builtins.int:
+    r"""
+    The 24-bit timeout word SetTx and SetRx take for a duration in microseconds.
+    """
+
+def sx126x_tx_power(amplifier: builtins.str, output_dbm: builtins.int) -> Sx126xTxPower:
+    r"""
+    The amplifier settings for an output power, clamped to what the amplifier allows.
+    """
+
+def sx126x_tx_power_under_ceiling(amplifier: builtins.str, budget: LinkBudget, eirp_ceiling_dbm: builtins.float) -> Sx126xTxPower:
+    r"""
+    The amplifier settings that keep a link's EIRP at or under a ceiling, rounded down to
+    whole decibels.
+    """
+
+def sx126x_write_buffer(offset: builtins.int, payload: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    A whole WriteBuffer transaction: the opcode, the offset, and the payload.
+    """
+
+def sx126x_write_register(address: builtins.int, values: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    A whole WriteRegister transaction: the opcode, the address, and the values.
     """
 
 def tmp117_averaging_conversions(code: builtins.int) -> builtins.int:

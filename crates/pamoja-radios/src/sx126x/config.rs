@@ -311,6 +311,64 @@ impl RampTime {
             RampTime::Us3400 => 0x07,
         }
     }
+
+    /// Returns the ramp time in microseconds.
+    ///
+    /// # Returns
+    ///
+    /// The duration Table 13-41 gives.
+    pub const fn micros(self) -> u32 {
+        match self {
+            RampTime::Us10 => 10,
+            RampTime::Us20 => 20,
+            RampTime::Us40 => 40,
+            RampTime::Us80 => 80,
+            RampTime::Us200 => 200,
+            RampTime::Us800 => 800,
+            RampTime::Us1700 => 1_700,
+            RampTime::Us3400 => 3_400,
+        }
+    }
+
+    /// Returns the shortest ramp time that lasts at least a duration.
+    ///
+    /// # Arguments
+    ///
+    /// * `micros` - the least ramp time wanted, in microseconds; past 3400 us, the longest
+    ///   ramp the chip offers.
+    ///
+    /// # Returns
+    ///
+    /// The ramp time.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_radios::sx126x::config::RampTime;
+    ///
+    /// assert_eq!(RampTime::at_least(40), RampTime::Us40);
+    /// assert_eq!(RampTime::at_least(100), RampTime::Us200);
+    /// assert_eq!(RampTime::at_least(5_000).micros(), 3_400);
+    /// ```
+    pub const fn at_least(micros: u32) -> RampTime {
+        if micros <= 10 {
+            RampTime::Us10
+        } else if micros <= 20 {
+            RampTime::Us20
+        } else if micros <= 40 {
+            RampTime::Us40
+        } else if micros <= 80 {
+            RampTime::Us80
+        } else if micros <= 200 {
+            RampTime::Us200
+        } else if micros <= 800 {
+            RampTime::Us800
+        } else if micros <= 1_700 {
+            RampTime::Us1700
+        } else {
+            RampTime::Us3400
+        }
+    }
 }
 
 /// A LoRa signal bandwidth, from Table 13-48.

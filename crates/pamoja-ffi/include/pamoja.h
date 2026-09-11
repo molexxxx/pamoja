@@ -268,6 +268,81 @@
 // included; a longer code is cut to fit.
 #define PAMOJA_ALERT_CODE_LEN 32
 
+// The most bytes one SX126x command takes, opcode included.
+#define PAMOJA_SX126X_COMMAND_MAX 10
+
+// The receive timeout word that keeps an SX126x listening until another command stops it.
+#define PAMOJA_SX126X_RX_CONTINUOUS 16777215
+
+// The LoRa sync word of a public network such as LoRaWAN.
+#define PAMOJA_SX126X_SYNC_WORD_PUBLIC 13380
+
+// The LoRa sync word of a private network, and the chip's reset value.
+#define PAMOJA_SX126X_SYNC_WORD_PRIVATE 5156
+
+// The register that holds the most significant byte of the LoRa sync word.
+#define PAMOJA_SX126X_REGISTER_LORA_SYNC_WORD 1856
+
+// The IRQ bit raised when a packet has been sent.
+#define PAMOJA_SX126X_IRQ_TX_DONE (1 << 0)
+
+// The IRQ bit raised when a packet has been received.
+#define PAMOJA_SX126X_IRQ_RX_DONE (1 << 1)
+
+// The IRQ bit raised when a preamble has been detected.
+#define PAMOJA_SX126X_IRQ_PREAMBLE_DETECTED (1 << 2)
+
+// The IRQ bit raised when a valid (G)FSK sync word has been detected.
+#define PAMOJA_SX126X_IRQ_SYNC_WORD_VALID (1 << 3)
+
+// The IRQ bit raised when a valid LoRa header has been received.
+#define PAMOJA_SX126X_IRQ_HEADER_VALID (1 << 4)
+
+// The IRQ bit raised when a LoRa header failed its CRC.
+#define PAMOJA_SX126X_IRQ_HEADER_ERROR (1 << 5)
+
+// The IRQ bit raised when a packet failed its CRC.
+#define PAMOJA_SX126X_IRQ_CRC_ERROR (1 << 6)
+
+// The IRQ bit raised when channel activity detection has finished.
+#define PAMOJA_SX126X_IRQ_CAD_DONE (1 << 7)
+
+// The IRQ bit raised when channel activity detection heard LoRa.
+#define PAMOJA_SX126X_IRQ_CAD_DETECTED (1 << 8)
+
+// The IRQ bit raised when a transmission or reception timed out.
+#define PAMOJA_SX126X_IRQ_TIMEOUT (1 << 9)
+
+// The IRQ bit raised at each long-range FHSS hop.
+#define PAMOJA_SX126X_IRQ_LR_FHSS_HOP (1 << 14)
+
+// Every IRQ bit the chip defines.
+#define PAMOJA_SX126X_IRQ_ALL 17407
+
+// The device error bit for a failed RC64k calibration.
+#define PAMOJA_SX126X_ERROR_RC64K_CALIBRATION (1 << 0)
+
+// The device error bit for a failed RC13M calibration.
+#define PAMOJA_SX126X_ERROR_RC13M_CALIBRATION (1 << 1)
+
+// The device error bit for a failed PLL calibration.
+#define PAMOJA_SX126X_ERROR_PLL_CALIBRATION (1 << 2)
+
+// The device error bit for a failed ADC calibration.
+#define PAMOJA_SX126X_ERROR_ADC_CALIBRATION (1 << 3)
+
+// The device error bit for a failed image calibration.
+#define PAMOJA_SX126X_ERROR_IMAGE_CALIBRATION (1 << 4)
+
+// The device error bit for a crystal oscillator that failed to start.
+#define PAMOJA_SX126X_ERROR_XOSC_START (1 << 5)
+
+// The device error bit for a PLL that failed to lock.
+#define PAMOJA_SX126X_ERROR_PLL_LOCK (1 << 6)
+
+// The device error bit for a power amplifier that failed to ramp.
+#define PAMOJA_SX126X_ERROR_PA_RAMP (1 << 8)
+
 // The number of bytes in a RIHS01 type hash digest.
 #define PAMOJA_TYPE_HASH_LEN 32
 
@@ -982,6 +1057,60 @@ typedef enum {
   PamojaAlertKind_Custom = 4,
 } PamojaAlertKind;
 
+// The mode an SX126x reports in its status byte.
+enum PamojaSx126xChipMode
+#if defined(__cplusplus) || __STDC_VERSION__ >= 202311L
+  : uint8_t
+#endif // defined(__cplusplus) || __STDC_VERSION__ >= 202311L
+ {
+  // A value the datasheet leaves unused.
+  PamojaSx126xChipMode_Other = 0,
+  // Standby on the 13 MHz RC oscillator.
+  PamojaSx126xChipMode_StandbyRc = 2,
+  // Standby on the 32 MHz crystal.
+  PamojaSx126xChipMode_StandbyXosc = 3,
+  // Frequency synthesis.
+  PamojaSx126xChipMode_Fs = 4,
+  // Receiving.
+  PamojaSx126xChipMode_Rx = 5,
+  // Transmitting.
+  PamojaSx126xChipMode_Tx = 6,
+};
+#ifndef __cplusplus
+#if __STDC_VERSION__ >= 202311L
+typedef enum PamojaSx126xChipMode PamojaSx126xChipMode;
+#else
+typedef uint8_t PamojaSx126xChipMode;
+#endif // __STDC_VERSION__ >= 202311L
+#endif // __cplusplus
+
+// How the last command went, as an SX126x reports it in its status byte.
+enum PamojaSx126xCommandStatus
+#if defined(__cplusplus) || __STDC_VERSION__ >= 202311L
+  : uint8_t
+#endif // defined(__cplusplus) || __STDC_VERSION__ >= 202311L
+ {
+  // A value the datasheet leaves unused, which includes a command that went well.
+  PamojaSx126xCommandStatus_Other = 0,
+  // A packet has been received and waits in the data buffer.
+  PamojaSx126xCommandStatus_DataAvailable = 2,
+  // A command timed out.
+  PamojaSx126xCommandStatus_Timeout = 3,
+  // A command could not be processed.
+  PamojaSx126xCommandStatus_ProcessingError = 4,
+  // A command failed to execute.
+  PamojaSx126xCommandStatus_ExecutionFailure = 5,
+  // A transmission has finished.
+  PamojaSx126xCommandStatus_TxDone = 6,
+};
+#ifndef __cplusplus
+#if __STDC_VERSION__ >= 202311L
+typedef enum PamojaSx126xCommandStatus PamojaSx126xCommandStatus;
+#else
+typedef uint8_t PamojaSx126xCommandStatus;
+#endif // __STDC_VERSION__ >= 202311L
+#endif // __cplusplus
+
 // The ROS 2 subsystem a name belongs to, which fixes its DDS prefix.
 typedef enum {
   // A topic, which takes the `rt` prefix.
@@ -1343,6 +1472,13 @@ typedef struct PamojaPid PamojaPid;
 
 // An opaque handle to a device profile.
 typedef struct PamojaProfile PamojaProfile;
+
+// An opaque handle to a duty-cycle guard.
+//
+// Record each transmission with [`pamoja_radio_duty_cycle_transmitted`], ask
+// [`pamoja_radio_duty_cycle_ready`] before the next, and release it with
+// [`pamoja_radio_duty_cycle_free`].
+typedef struct PamojaRadioDutyCycle PamojaRadioDutyCycle;
 
 // An opaque handle to a rate limiter.
 typedef struct PamojaRamp PamojaRamp;
@@ -1933,6 +2069,65 @@ typedef struct {
   // The measurement behind the condition, for [`PamojaAlertKind::Custom`].
   float value;
 } PamojaReaction;
+
+// The amplifier configuration and power setting that produce an output power, from
+// Table 13-21 of the SX1261/2 datasheet.
+typedef struct {
+  // paDutyCycle, the conduction angle of the amplifier.
+  uint8_t pa_duty_cycle;
+  // hpMax, the size of the SX1262 amplifier; no effect on the SX1261.
+  uint8_t hp_max;
+  // deviceSel: `0` for the SX1262 and the LLCC68, `1` for the SX1261.
+  uint8_t device_sel;
+  // paLut, reserved and always `1`.
+  uint8_t pa_lut;
+  // The power byte of SetTxParams, in dBm.
+  int8_t setting_dbm;
+} PamojaSx126xTxPower;
+
+// The bytes of one SX126x command, in the order the chip receives them.
+typedef struct {
+  // The opcode and its parameters; only the first `len` bytes are the command.
+  uint8_t bytes[PAMOJA_SX126X_COMMAND_MAX];
+  // How many bytes the command takes.
+  uint8_t len;
+} PamojaSx126xCommand;
+
+// A command the chip answers in the same SPI transaction.
+typedef struct {
+  // The bytes to send, ending with the NOP during which the status byte comes back.
+  PamojaSx126xCommand command;
+  // How many bytes of answer to read after them.
+  uint32_t answer_len;
+} PamojaSx126xQuery;
+
+// A decoded SX126x status byte.
+typedef struct {
+  // The mode the chip is in.
+  PamojaSx126xChipMode chip_mode;
+  // How the last command went.
+  PamojaSx126xCommandStatus command_status;
+  // `true` for a timeout, a processing error, or an execution failure.
+  bool error;
+} PamojaSx126xStatus;
+
+// The signal levels of the last LoRa packet received, in hundredths of a decibel.
+typedef struct {
+  // The RSSI averaged over the packet, in hundredths of a dBm.
+  int32_t rssi_centi_dbm;
+  // The estimated signal-to-noise ratio, in hundredths of a dB.
+  int32_t snr_centi_db;
+  // The estimated RSSI of the LoRa signal after despreading, in hundredths of a dBm.
+  int32_t signal_rssi_centi_dbm;
+} PamojaSx126xPacketStatus;
+
+// Where a received payload sits in the data buffer.
+typedef struct {
+  // The length of the payload in bytes.
+  uint8_t payload_len;
+  // The buffer offset of its first byte.
+  uint8_t start;
+} PamojaSx126xRxBufferStatus;
 
 // A RIHS01 type hash: the 32-byte digest that identifies a message definition.
 typedef struct {
@@ -9743,6 +9938,501 @@ PamojaStatus pamoja_controller_evaluate(PamojaController *controller,
 // `controller` must be a handle from a call that produced one and that has not
 // already been freed, or null. After this call it must not be used again.
 void pamoja_controller_free(PamojaController *controller);
+
+// Returns the word SetRfFrequency takes for a frequency.
+//
+// # Arguments
+//
+// * `frequency_hz` - the carrier frequency in hertz.
+//
+// # Returns
+//
+// The frequency times 2^25 over the 32 MHz crystal, rounded to the nearest step.
+uint32_t pamoja_sx126x_frequency_word(uint32_t frequency_hz);
+
+// Returns the 24-bit timeout word SetTx and SetRx take for a duration.
+//
+// # Arguments
+//
+// * `timeout_us` - the duration in microseconds.
+//
+// # Returns
+//
+// The number of 15.625 us steps; a nonzero duration never becomes the zero word that
+// disables the timeout, and nothing reaches [`PAMOJA_SX126X_RX_CONTINUOUS`].
+uint32_t pamoja_sx126x_timeout_steps(uint64_t timeout_us);
+
+// Returns the two CalibrateImage codes that cover a band.
+//
+// # Arguments
+//
+// * `low_hz` - the lower edge of the band in hertz.
+// * `high_hz` - the upper edge of the band in hertz.
+//
+// # Returns
+//
+// `freq1` in the high byte and `freq2` in the low byte.
+uint16_t pamoja_sx126x_image_calibration(uint32_t low_hz, uint32_t high_hz);
+
+// Returns the shortest amplifier ramp time the chip offers that lasts at least a duration.
+//
+// # Arguments
+//
+// * `at_least_us` - the least ramp time wanted, in microseconds.
+//
+// # Returns
+//
+// The ramp time in microseconds, one of the eight Table 13-41 gives.
+uint32_t pamoja_sx126x_ramp_time_us(uint32_t at_least_us);
+
+// Chooses the amplifier settings for an output power.
+//
+// # Arguments
+//
+// * `high_power` - `true` for the high power amplifier of the SX1262 and the LLCC68,
+//   `false` for the low power amplifier of the SX1261.
+// * `output_dbm` - the output power wanted at the antenna port.
+//
+// # Returns
+//
+// The configuration and the power setting, clamped to what the amplifier allows.
+PamojaSx126xTxPower pamoja_sx126x_tx_power_for_output(bool high_power, int8_t output_dbm);
+
+// Chooses the amplifier settings that keep a link's EIRP at or under a ceiling.
+//
+// # Arguments
+//
+// * `high_power` - `true` for the high power amplifier, `false` for the low power one.
+// * `budget` - the link budget, whose transmitting antenna and cable apply.
+// * `eirp_ceiling_centi_dbm` - the EIRP limit, in hundredths of a dBm.
+//
+// # Returns
+//
+// The configuration and the power setting, rounded down to whole decibels.
+PamojaSx126xTxPower pamoja_sx126x_tx_power_under_ceiling(bool high_power,
+                                                         PamojaLoraLinkBudget budget,
+                                                         int32_t eirp_ceiling_centi_dbm);
+
+// SetStandby into STDBY_RC.
+//
+// # Returns
+//
+// The command.
+PamojaSx126xCommand pamoja_sx126x_set_standby(void);
+
+// SetPacketType for LoRa.
+//
+// # Returns
+//
+// The command.
+PamojaSx126xCommand pamoja_sx126x_set_packet_type_lora(void);
+
+// SetRfFrequency for a carrier frequency.
+//
+// # Arguments
+//
+// * `frequency_hz` - the carrier frequency in hertz.
+//
+// # Returns
+//
+// The command.
+PamojaSx126xCommand pamoja_sx126x_set_rf_frequency(uint32_t frequency_hz);
+
+// CalibrateImage over a band.
+//
+// # Arguments
+//
+// * `low_hz` - the lower edge of the band in hertz.
+// * `high_hz` - the upper edge of the band in hertz.
+//
+// # Returns
+//
+// The command.
+PamojaSx126xCommand pamoja_sx126x_calibrate_image(uint32_t low_hz, uint32_t high_hz);
+
+// SetPaConfig for a power setting.
+//
+// # Arguments
+//
+// * `power` - the settings from [`pamoja_sx126x_tx_power_for_output`] or
+//   [`pamoja_sx126x_tx_power_under_ceiling`].
+//
+// # Returns
+//
+// The command.
+PamojaSx126xCommand pamoja_sx126x_set_pa_config(PamojaSx126xTxPower power);
+
+// SetTxParams for a power setting and a ramp time.
+//
+// # Arguments
+//
+// * `power` - the power settings.
+// * `ramp_us` - the least amplifier ramp time wanted, in microseconds; the chip takes the
+//   shortest of its eight ramp times that lasts at least this long.
+//
+// # Returns
+//
+// The command.
+PamojaSx126xCommand pamoja_sx126x_set_tx_params(PamojaSx126xTxPower power, uint32_t ramp_us);
+
+// SetModulationParams for a LoRa link.
+//
+// # Arguments
+//
+// * `link` - the link settings.
+// * `out_command` - receives the command.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with `*out_command` set, or [`PamojaStatus::InvalidArgument`] if
+// the link's bandwidth is not one the SX126x offers or `out_command` is null.
+//
+// # Safety
+//
+// `out_command` must point to a writable [`PamojaSx126xCommand`], or be null.
+PamojaStatus pamoja_sx126x_set_lora_modulation_params(PamojaLoraLink link,
+                                                      PamojaSx126xCommand *out_command);
+
+// SetPacketParams for a LoRa link and a payload.
+//
+// # Arguments
+//
+// * `link` - the link settings, whose preamble, header, and CRC the frame uses.
+// * `payload_len` - the payload length to send, or the most a receiver accepts.
+// * `invert_iq` - `true` for inverted IQ, as a LoRaWAN gateway sends downlinks.
+//
+// # Returns
+//
+// The command.
+PamojaSx126xCommand pamoja_sx126x_set_lora_packet_params(PamojaLoraLink link,
+                                                         uint8_t payload_len,
+                                                         bool invert_iq);
+
+// SetDioIrqParams: which interrupts are enabled and which DIO line each raises.
+//
+// # Arguments
+//
+// * `irq` - the interrupts to enable, as `PAMOJA_SX126X_IRQ_*` bits.
+// * `dio1` - the interrupts routed to DIO1.
+// * `dio2` - the interrupts routed to DIO2.
+// * `dio3` - the interrupts routed to DIO3.
+//
+// # Returns
+//
+// The command.
+PamojaSx126xCommand pamoja_sx126x_set_dio_irq_params(uint16_t irq,
+                                                     uint16_t dio1,
+                                                     uint16_t dio2,
+                                                     uint16_t dio3);
+
+// ClearIrqStatus for a set of interrupts.
+//
+// # Arguments
+//
+// * `irq` - the interrupts to clear, as `PAMOJA_SX126X_IRQ_*` bits.
+//
+// # Returns
+//
+// The command.
+PamojaSx126xCommand pamoja_sx126x_clear_irq_status(uint16_t irq);
+
+// SetTx with a timeout.
+//
+// # Arguments
+//
+// * `timeout_us` - how long the chip may transmit before it raises TIMEOUT, in
+//   microseconds; `0` disables the timeout.
+//
+// # Returns
+//
+// The command.
+PamojaSx126xCommand pamoja_sx126x_set_tx(uint64_t timeout_us);
+
+// SetRx with a timeout.
+//
+// # Arguments
+//
+// * `timeout_us` - how long the chip listens for a packet to start, in microseconds;
+//   `0` listens for a single packet with no timeout.
+//
+// # Returns
+//
+// The command.
+PamojaSx126xCommand pamoja_sx126x_set_rx(uint64_t timeout_us);
+
+// SetRx in continuous mode, receiving packet after packet until another command.
+//
+// # Returns
+//
+// The command.
+PamojaSx126xCommand pamoja_sx126x_set_rx_continuous(void);
+
+// SetSleep, without an RTC wake-up.
+//
+// # Arguments
+//
+// * `warm_start` - `true` to keep the configuration in retention.
+//
+// # Returns
+//
+// The command.
+PamojaSx126xCommand pamoja_sx126x_set_sleep(bool warm_start);
+
+// The start of a WriteRegister transaction; the register values follow it in the same
+// transaction.
+//
+// # Arguments
+//
+// * `address` - the first register's address.
+//
+// # Returns
+//
+// The opcode and the address.
+PamojaSx126xCommand pamoja_sx126x_write_register_header(uint16_t address);
+
+// The start of a WriteBuffer transaction; the payload follows it in the same transaction.
+//
+// # Arguments
+//
+// * `offset` - where in the data buffer the first byte goes.
+//
+// # Returns
+//
+// The opcode and the offset.
+PamojaSx126xCommand pamoja_sx126x_write_buffer_header(uint8_t offset);
+
+// GetStatus, answered by the status byte.
+//
+// # Returns
+//
+// The query.
+PamojaSx126xQuery pamoja_sx126x_get_status(void);
+
+// GetIrqStatus, answered by the two IRQ bytes.
+//
+// # Returns
+//
+// The query.
+PamojaSx126xQuery pamoja_sx126x_get_irq_status(void);
+
+// GetRxBufferStatus, answered by the payload length and its offset.
+//
+// # Returns
+//
+// The query.
+PamojaSx126xQuery pamoja_sx126x_get_rx_buffer_status(void);
+
+// GetPacketStatus, answered by the three LoRa signal level bytes.
+//
+// # Returns
+//
+// The query.
+PamojaSx126xQuery pamoja_sx126x_get_packet_status(void);
+
+// GetRssiInst, answered by the instantaneous RSSI byte.
+//
+// # Returns
+//
+// The query.
+PamojaSx126xQuery pamoja_sx126x_get_rssi_inst(void);
+
+// GetDeviceErrors, answered by the two device error bytes.
+//
+// # Returns
+//
+// The query.
+PamojaSx126xQuery pamoja_sx126x_get_device_errors(void);
+
+// ReadRegister for consecutive registers.
+//
+// # Arguments
+//
+// * `address` - the first register's address.
+// * `len` - how many registers to read.
+//
+// # Returns
+//
+// The query.
+PamojaSx126xQuery pamoja_sx126x_read_register(uint16_t address, uint8_t len);
+
+// ReadBuffer for a run of the data buffer.
+//
+// # Arguments
+//
+// * `offset` - where in the buffer the first byte is.
+// * `len` - how many bytes to read.
+//
+// # Returns
+//
+// The query.
+PamojaSx126xQuery pamoja_sx126x_read_buffer(uint8_t offset, uint8_t len);
+
+// Decodes a status byte.
+//
+// # Arguments
+//
+// * `byte` - the status byte.
+//
+// # Returns
+//
+// The chip mode, how the last command went, and whether that was an error.
+PamojaSx126xStatus pamoja_sx126x_status_from_byte(uint8_t byte);
+
+// Decodes a GetIrqStatus answer.
+//
+// # Arguments
+//
+// * `high` - the first answer byte, IrqStatus(15:8).
+// * `low` - the second answer byte, IrqStatus(7:0).
+//
+// # Returns
+//
+// The pending interrupts, as `PAMOJA_SX126X_IRQ_*` bits.
+uint16_t pamoja_sx126x_irq_from_bytes(uint8_t high, uint8_t low);
+
+// Decodes a GetDeviceErrors answer.
+//
+// # Arguments
+//
+// * `high` - the first answer byte.
+// * `low` - the second answer byte.
+//
+// # Returns
+//
+// The flagged errors, as `PAMOJA_SX126X_ERROR_*` bits.
+uint16_t pamoja_sx126x_device_errors_from_bytes(uint8_t high, uint8_t low);
+
+// Decodes a LoRa GetPacketStatus answer.
+//
+// # Arguments
+//
+// * `rssi_pkt` - RssiPkt.
+// * `snr_pkt` - SnrPkt.
+// * `signal_rssi_pkt` - SignalRssiPkt.
+//
+// # Returns
+//
+// The three signal levels, exact to a hundredth of a decibel.
+PamojaSx126xPacketStatus pamoja_sx126x_packet_status_from_bytes(uint8_t rssi_pkt,
+                                                                uint8_t snr_pkt,
+                                                                uint8_t signal_rssi_pkt);
+
+// Decodes a GetRxBufferStatus answer.
+//
+// # Arguments
+//
+// * `payload_len` - PayloadLengthRx.
+// * `start` - RxStartBufferPointer.
+//
+// # Returns
+//
+// The payload length and where it starts in the data buffer.
+PamojaSx126xRxBufferStatus pamoja_sx126x_rx_buffer_status_from_bytes(uint8_t payload_len,
+                                                                     uint8_t start);
+
+// Decodes a GetRssiInst answer.
+//
+// # Arguments
+//
+// * `byte` - RssiInst.
+//
+// # Returns
+//
+// The instantaneous RSSI in hundredths of a dBm.
+int32_t pamoja_sx126x_rssi_inst_centi_dbm(uint8_t byte);
+
+// Creates a duty-cycle guard, ready to transmit at once.
+//
+// # Arguments
+//
+// * `permille` - the limit in parts per thousand, so `10` is 1%; `0` forbids
+//   transmitting and `1000` or more imposes no silence.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_radio_duty_cycle_free`].
+PamojaRadioDutyCycle *pamoja_radio_duty_cycle_new(uint32_t permille);
+
+// Records a transmission and the silence it owes.
+//
+// # Arguments
+//
+// * `guard` - the duty-cycle guard.
+// * `started_us` - when the transmission started, in microseconds on the caller's clock.
+// * `link` - the settings the frame was sent with.
+// * `payload_len` - the payload length in bytes.
+//
+// # Returns
+//
+// The frame's time on air in microseconds, or 0 if `guard` is null.
+//
+// # Safety
+//
+// `guard` must be a live handle from [`pamoja_radio_duty_cycle_new`], or null.
+uint64_t pamoja_radio_duty_cycle_transmitted(PamojaRadioDutyCycle *guard,
+                                             uint64_t started_us,
+                                             PamojaLoraLink link,
+                                             uintptr_t payload_len);
+
+// Returns how long the radio must still stay silent.
+//
+// # Arguments
+//
+// * `guard` - the duty-cycle guard.
+// * `now_us` - the current time in microseconds on the caller's clock.
+//
+// # Returns
+//
+// The remaining silence in microseconds, zero when a transmission may start, or
+// `UINT64_MAX` when the limit forbids transmitting or `guard` is null.
+//
+// # Safety
+//
+// `guard` must be a live handle from [`pamoja_radio_duty_cycle_new`], or null.
+uint64_t pamoja_radio_duty_cycle_wait_us(const PamojaRadioDutyCycle *guard, uint64_t now_us);
+
+// Reports whether a transmission may start now.
+//
+// # Arguments
+//
+// * `guard` - the duty-cycle guard.
+// * `now_us` - the current time in microseconds on the caller's clock.
+//
+// # Returns
+//
+// `true` once the silence the last transmission owed has passed, or `false` if `guard`
+// is null.
+//
+// # Safety
+//
+// `guard` must be a live handle from [`pamoja_radio_duty_cycle_new`], or null.
+bool pamoja_radio_duty_cycle_ready(const PamojaRadioDutyCycle *guard, uint64_t now_us);
+
+// Returns the earliest time the next transmission may start.
+//
+// # Arguments
+//
+// * `guard` - the duty-cycle guard.
+//
+// # Returns
+//
+// A time in microseconds on the caller's clock, or `UINT64_MAX` when the limit forbids
+// transmitting or `guard` is null.
+//
+// # Safety
+//
+// `guard` must be a live handle from [`pamoja_radio_duty_cycle_new`], or null.
+uint64_t pamoja_radio_duty_cycle_earliest_us(const PamojaRadioDutyCycle *guard);
+
+// Releases a duty-cycle guard handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `guard` must be a handle from [`pamoja_radio_duty_cycle_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_radio_duty_cycle_free(PamojaRadioDutyCycle *guard);
 
 // Reports whether a string is a valid ROS 2 topic or service name.
 //

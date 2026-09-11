@@ -37,6 +37,7 @@
     "@pamoja/lora": "0.1.18",
     "@pamoja/lorawan": "0.1.18",
     "@pamoja/mesh": "0.1.18",
+    "@pamoja/radios": "0.1.18",
     "@pamoja/routing": "0.1.18"
   }
 }

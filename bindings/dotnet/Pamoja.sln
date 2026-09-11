@@ -50,6 +50,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pamoja.Profiles", "src\Pamo
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pamoja.Radio", "src\Pamoja.Radio\Pamoja.Radio.csproj", "{B348DF02-9680-5594-A7D3-547F9CEFA060}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pamoja.Radios", "src\Pamoja.Radios\Pamoja.Radios.csproj", "{C5B1AAA2-539B-5BED-87F6-07DAB76B46B2}"
+EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pamoja.Ros2", "src\Pamoja.Ros2\Pamoja.Ros2.csproj", "{4AE2A394-3957-5A82-BBA2-68EAD774B27F}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pamoja.Routing", "src\Pamoja.Routing\Pamoja.Routing.csproj", "{010D88C4-E06F-54D7-90E2-9A5A41F40810}"
@@ -184,6 +186,10 @@ Global
 		{B348DF02-9680-5594-A7D3-547F9CEFA060}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B348DF02-9680-5594-A7D3-547F9CEFA060}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B348DF02-9680-5594-A7D3-547F9CEFA060}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C5B1AAA2-539B-5BED-87F6-07DAB76B46B2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C5B1AAA2-539B-5BED-87F6-07DAB76B46B2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C5B1AAA2-539B-5BED-87F6-07DAB76B46B2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C5B1AAA2-539B-5BED-87F6-07DAB76B46B2}.Release|Any CPU.Build.0 = Release|Any CPU
 		{4AE2A394-3957-5A82-BBA2-68EAD774B27F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4AE2A394-3957-5A82-BBA2-68EAD774B27F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4AE2A394-3957-5A82-BBA2-68EAD774B27F}.Release|Any CPU.ActiveCfg = Release|Any CPU

@@ -752,7 +752,8 @@ specs = [
   "Receive current: 4.6 mA, with an integrated DC-DC converter and LDO",
 ]
 cost = "$5 to $20"
-crates = ["pamoja-lora"]
+crates = ["pamoja-lora", "pamoja-radios"]
+modules = ["pamoja-radios/src/sx126x.rs"]
 source_name = "SX1262 product page, Semtech LoRa Connect"
 source_label = "Semtech SX1262"
 source = "https://www.semtech.com/products/wireless-rf/lora-connect/sx1262"
@@ -796,7 +797,8 @@ specs = [
   "Channel activity detection: automatic, with ultra-fast AFC",
 ]
 cost = "$5 to $20"
-crates = ["pamoja-lora"]
+crates = ["pamoja-lora", "pamoja-radios"]
+modules = ["pamoja-radios/src/sx126x.rs"]
 source_name = "LLCC68 product page, Semtech LoRa Connect"
 source_label = "Semtech LLCC68"
 source = "https://www.semtech.com/products/wireless-rf/lora-connect/llcc68"

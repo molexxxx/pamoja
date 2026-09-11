@@ -2,7 +2,7 @@
 
 Budgeting airtime, framing a mesh packet, routing it, and securing a LoRaWAN uplink: everything a node needs to reach a network it cannot see.
 
-One install for the 4 capabilities of this domain. Each is also its own
+One install for the 5 capabilities of this domain. Each is also its own
 distribution, and `pamoja` is the whole framework in one.
 
 ```sh
@@ -17,6 +17,7 @@ from pamoja.radio import lora
 | --- | --- | --- |
 | [LoRa airtime and range](https://pamoja.molex.cloud/docs/guides/lora.html) | `pamoja.lora` | Time-on-air, duty-cycle off-time, the regional channel plans a LoRa node must keep to, and the link budget that sets its range |
 | [LoRaWAN](https://pamoja.molex.cloud/docs/guides/lorawan.html) | `pamoja.lorawan` | LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join |
+| [LoRa radios](https://pamoja.molex.cloud/docs/guides/radios.html) | `pamoja.radios` | The Semtech SX126x LoRa command set and its decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard |
 | [Mesh frames](https://pamoja.molex.cloud/docs/guides/mesh.html) | `pamoja.mesh` | Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once |
 | [Routing](https://pamoja.molex.cloud/docs/guides/routing.html) | `pamoja.routing` | Reverse-path routing that learns the cheapest route from overheard traffic |
 

@@ -716,6 +716,7 @@ dependencies = [
  "pamoja-mqtt",
  "pamoja-power",
  "pamoja-profile",
+ "pamoja-radios",
  "pamoja-ros2",
  "pamoja-routing",
  "pamoja-security",
@@ -744,6 +745,13 @@ dependencies = [
  "pamoja-power",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "pamoja-radios"
+version = "0.1.18"
+dependencies = [
+ "pamoja-lora",
 ]
 
 [[package]]

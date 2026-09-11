@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Pamoja.Radios</PackageId>
+    <AssemblyName>Pamoja.Radios</AssemblyName>
+    <RootNamespace>Pamoja.Radios</RootNamespace>
+    <Description>The Semtech SX126x LoRa command set and its decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard.</Description>
+    <PackageTags>pamoja;iot;robotics;radios</PackageTags>
+    <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/radios.html</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Pamoja.Lora/Pamoja.Lora.csproj" />
+    <ProjectReference Include="../Pamoja.Native/Pamoja.Native.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -30,10 +30,10 @@ pub const BANDS: &[&str] = &[
 ];
 
 /// The driver crates whose modules must each be documented by an entry.
-const DRIVERS: &[&str] = &["pamoja-sensors", "pamoja-actuators"];
+const DRIVERS: &[&str] = &["pamoja-sensors", "pamoja-actuators", "pamoja-radios"];
 
 /// Module files that carry no driver, so no entry describes them.
-const NOT_DRIVERS: &[&str] = &["lib.rs", "error.rs", "driver.rs"];
+const NOT_DRIVERS: &[&str] = &["lib.rs", "error.rs", "driver.rs", "duty.rs", "mesh.rs"];
 
 /// A group of entries that share a heading on the page.
 pub struct Group {

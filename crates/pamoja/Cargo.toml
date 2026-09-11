@@ -30,6 +30,7 @@ default = [
     "actuators",
     "lora",
     "lorawan",
+    "radios",
     "mesh",
     "routing",
     "mavlink",
@@ -55,6 +56,7 @@ std = [
     "alloc",
     "pamoja-core/std",
     "pamoja-lora?/std",
+    "pamoja-radios?/std",
     "pamoja-mavlink?/std",
     "pamoja-hal?/std",
     "pamoja-sensors?/std",
@@ -81,6 +83,7 @@ sensors = ["dep:pamoja-sensors"]
 actuators = ["dep:pamoja-actuators"]
 lora = ["dep:pamoja-lora"]
 lorawan = ["dep:pamoja-lorawan"]
+radios = ["dep:pamoja-radios"]
 mesh = ["dep:pamoja-mesh"]
 routing = ["dep:pamoja-routing"]
 mavlink = ["dep:pamoja-mavlink"]
@@ -105,7 +108,7 @@ zenoh = ["dep:pamoja-zenoh"]
 # chapter, and is checked against docs/capabilities.toml.
 field-io = ["serial", "modbus", "can", "gpio", "hal"]
 sensing = ["sensors", "actuators"]
-radio = ["lora", "lorawan", "mesh", "routing"]
+radio = ["lora", "lorawan", "radios", "mesh", "routing"]
 trust = ["audit", "session", "update", "power", "telemetry"]
 transports = ["mqtt", "coap", "loopback", "sync", "ladder", "bus", "sim"]
 profiles = ["profile", "ros2", "zenoh"]
@@ -132,6 +135,7 @@ pamoja-sensors = { path = "../pamoja-sensors", version = "0.1.18", optional = tr
 pamoja-actuators = { path = "../pamoja-actuators", version = "0.1.18", optional = true }
 pamoja-lora = { path = "../pamoja-lora", version = "0.1.18", optional = true }
 pamoja-lorawan = { path = "../pamoja-lorawan", version = "0.1.18", optional = true }
+pamoja-radios = { path = "../pamoja-radios", version = "0.1.18", optional = true }
 pamoja-mesh = { path = "../pamoja-mesh", version = "0.1.18", optional = true }
 pamoja-routing = { path = "../pamoja-routing", version = "0.1.18", optional = true }
 pamoja-mavlink = { path = "../pamoja-mavlink", version = "0.1.18", default-features = false, optional = true }

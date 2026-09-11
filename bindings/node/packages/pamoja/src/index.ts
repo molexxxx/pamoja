@@ -78,6 +78,8 @@ export * as power from '@pamoja/power'
 
 export * as profile from '@pamoja/profile'
 
+export * as radios from '@pamoja/radios'
+
 export * as ros2 from '@pamoja/ros2'
 
 export * as routing from '@pamoja/routing'

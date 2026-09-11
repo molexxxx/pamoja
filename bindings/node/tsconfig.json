@@ -38,6 +38,9 @@
       "path": "packages/lorawan"
     },
     {
+      "path": "packages/radios"
+    },
+    {
       "path": "packages/mesh"
     },
     {

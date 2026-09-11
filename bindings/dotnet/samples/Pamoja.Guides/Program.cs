@@ -19,6 +19,7 @@ var guides = new Dictionary<string, Func<Task>>(StringComparer.Ordinal)
     ["device"] = async () => await DeviceGuide.RunAsync(),
     ["lora"] = () => { LoraGuide.Run(); return Task.CompletedTask; },
     ["lorawan"] = () => { LorawanGuide.Run(); return Task.CompletedTask; },
+    ["radios"] = () => { RadiosGuide.Run(); return Task.CompletedTask; },
     ["mesh"] = () => { MeshGuide.Run(); return Task.CompletedTask; },
     ["routing"] = () => { RoutingGuide.Run(); return Task.CompletedTask; },
     ["mavlink"] = () => { MavlinkGuide.Run(); return Task.CompletedTask; },

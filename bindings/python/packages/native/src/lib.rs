@@ -52,6 +52,8 @@ mod mqtt;
 mod power;
 #[cfg(feature = "profile")]
 mod profile;
+#[cfg(feature = "radios")]
+mod radios;
 #[cfg(feature = "ros2")]
 mod ros2;
 #[cfg(feature = "routing")]
@@ -525,6 +527,55 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(mesh::mesh_relayed, m)?)?;
         m.add_function(wrap_pyfunction!(mesh::mesh_crc16, m)?)?;
         m.add_function(wrap_pyfunction!(mesh::mesh_limits, m)?)?;
+    }
+    #[cfg(feature = "radios")]
+    {
+        m.add_class::<radios::Sx126xTxPower>()?;
+        m.add_class::<radios::Sx126xQuery>()?;
+        m.add_class::<radios::Sx126xStatus>()?;
+        m.add_class::<radios::Sx126xPacketStatus>()?;
+        m.add_class::<radios::Sx126xRxBufferStatus>()?;
+        m.add_class::<radios::RadioDutyCycle>()?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_constants, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_frequency_word, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_timeout_steps, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_image_calibration, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_ramp_time_us, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_tx_power, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_tx_power_under_ceiling, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_set_standby, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_set_packet_type_lora, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_set_rf_frequency, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_calibrate_image, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_set_pa_config, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_set_tx_params, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            radios::sx126x_set_lora_modulation_params,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_set_lora_packet_params, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_set_dio_irq_params, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_clear_irq_status, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_set_tx, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_set_rx, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_set_rx_continuous, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_set_sleep, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_write_register, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_write_buffer, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_get_status, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_get_irq_status, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_get_rx_buffer_status, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_get_packet_status, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_get_rssi_inst, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_get_device_errors, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_read_register, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_read_buffer, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_status, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_irq, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_device_errors, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_packet_status, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_rx_buffer_status, m)?)?;
+        m.add_function(wrap_pyfunction!(radios::sx126x_rssi_inst_dbm, m)?)?;
     }
     #[cfg(feature = "routing")]
     {

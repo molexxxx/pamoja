@@ -217,6 +217,21 @@ dotnet = [
 guide = "guides/lorawan.md"
 
 [[capability]]
+key = "radios"
+chapter = "radio"
+title = "LoRa radios"
+summary = "The Semtech SX126x LoRa command set and its decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard"
+crates = ["pamoja-radios"]
+node = "radios"
+python = "radios"
+dotnet = [
+    "Sx126x", "Sx126xAmplifier", "Sx126xIrq", "Sx126xDeviceErrors", "Sx126xChipMode",
+    "Sx126xCommandStatus", "Sx126xTxPower", "Sx126xQuery", "Sx126xStatus",
+    "Sx126xPacketStatus", "Sx126xRxBufferStatus", "RadioDutyCycle",
+]
+guide = "guides/radios.md"
+
+[[capability]]
 key = "mesh"
 chapter = "radio"
 title = "Mesh frames"

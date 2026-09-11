@@ -32,6 +32,20 @@ released together, so one entry covers all of them.
   SparkFun for the gateway antennas, Rokland for the concentrators and the
   arrestor, The Pi Hut for an LLCC68 unit, Pimoroni and Adafruit for a u.FL to SMA
   cable, and L-com for a gas tube arrestor.
+- LoRa radios in `pamoja-radios`, starting with the Semtech SX126x family: the
+  SX1261, SX1262 and SX1268, and the LLCC68 that shares their commands. Every
+  command the chip takes is built to its bytes and every answer decoded, from the
+  IRQ and status bytes to the RSSI and SNR of a received frame, with the frequency
+  word, timeout steps, image calibration and amplifier tables of the datasheet.
+  The crate picks the amplifier setting a regional EIRP ceiling allows behind an
+  antenna, and a duty-cycle guard holds the radio silent for the off time each
+  frame owes. In Rust, an `embedded-hal` driver brings the chip up, transmits and
+  receives, and `MeshRadio` carries `pamoja-mesh` frames over it as a pamoja
+  transport that relays what it hears. The command set, the decoders and the
+  guard reach TypeScript, Python and C# as `@pamoja/radios`, `pamoja-radios` and
+  `Pamoja.Radios`, checked against shared conformance vectors, and a new guide
+  plans one transmission in all four languages. The SX1262 and LLCC68 cards on
+  the hardware page name the driver.
 
 ### Changed
 
