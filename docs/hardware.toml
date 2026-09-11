@@ -31,12 +31,12 @@ intent = "The wires between a gateway and the parts above, and the framing each 
 [[group]]
 key = "radios"
 title = "Radios and long-range links"
-intent = "Reaching a network that is not there: the transceivers, the channel plans they must obey, and the short-range meshes."
+intent = "Reaching a network that is not there: the transceivers, the gateway concentrators, and the short-range meshes."
 
 [[group]]
 key = "antennas"
 title = "Antennas, cables and protection"
-intent = "What stands between a radio and the air: the antenna, the feed line and pigtail that reach it, and the arrestor on the mast."
+intent = "What stands between a radio and the air: the antenna, the pigtail that reaches it, and the arrestor on the mast."
 
 [[group]]
 key = "targets"
@@ -808,6 +808,13 @@ url = "https://shop.m5stack.com/products/lora-unit-433mhz-with-antenna-e220"
 price = "US$12.95"
 checked = "2026-09-11"
 
+[[entry.buy]]
+vendor = "The Pi Hut"
+name = "LoRa Unit with Antenna (E220), 920 MHz, an LLCC68 module"
+url = "https://thepihut.com/products/lora-unit-with-antenna-e220"
+price = "£33.80"
+checked = "2026-09-11"
+
 [[entry]]
 key = "sx1302"
 group = "radios"
@@ -867,6 +874,13 @@ vendor = "RAKwireless"
 name = "RAK5146 concentrator module, SPI"
 url = "https://store.rakwireless.com/products/wislink-concentrator-module-sx1303-rak5146-lorawan"
 price = "US$83.00"
+checked = "2026-09-11"
+
+[[entry.buy]]
+vendor = "Rokland"
+name = "RAK5146 WisLink LPWAN Concentrator, USB, no LBT, with GPS, US915 (516011)"
+url = "https://store.rokland.com/products/rak-wireless-rak5146-wislink-lpwan-concentrator-for-lorawan?variant=43285563441235"
+price = "US$114.97"
 checked = "2026-09-11"
 
 [[entry]]
@@ -937,6 +951,13 @@ url = "https://store.rakwireless.com/products/wislink-concentrator-module-sx1302
 price = "US$84.00"
 checked = "2026-09-11"
 
+[[entry.buy]]
+vendor = "Rokland"
+name = "RAK2287 concentrator module, SPI with GPS, US915 (516000)"
+url = "https://store.rokland.com/products/rak2287-gateway-concentrator-module-for-lorawan-sx1302-lora-core-spi-us-915-mhz-516019?variant=43041812414547"
+price = "US$109.97"
+checked = "2026-09-11"
+
 [[entry]]
 key = "rak5146"
 group = "radios"
@@ -962,6 +983,13 @@ vendor = "RAKwireless"
 name = "RAK5146, SPI, no LBT and no GPS, 8XX MHz for EU868/RU864/IN865"
 url = "https://store.rakwireless.com/products/wislink-concentrator-module-sx1303-rak5146-lorawan"
 price = "US$83.00"
+checked = "2026-09-11"
+
+[[entry.buy]]
+vendor = "Rokland"
+name = "RAK5146 WisLink LPWAN Concentrator, USB, no LBT, with GPS, US915 (516011)"
+url = "https://store.rokland.com/products/rak-wireless-rak5146-wislink-lpwan-concentrator-for-lorawan?variant=43285563441235"
+price = "US$114.97"
 checked = "2026-09-11"
 
 [[entry]]
@@ -997,46 +1025,6 @@ name = "WM1302 LoRaWAN Gateway Module (SPI), US915, with SKY66420"
 url = "https://www.seeedstudio.com/WM1302-LoRaWAN-Gateway-Module-SPI-US915-SKY66420-p-5455.html"
 price = "US$25.00"
 checked = "2026-09-11"
-
-[[entry]]
-key = "corecell"
-group = "radios"
-name = "LoRa Corecell reference design"
-vendor = "Semtech"
-interface = "SPI or USB"
-summary = "Semtech's gateway reference design around the SX1302 and SX1250, for the ISM bands of Europe, the U.S., Japan and China, with listen before talk and spectral scan."
-specs = [
-  "Transmit power: +27 dBm at EU868 and US915, +17 dBm at CN490, +10 dBm at AS923",
-  "Receive: 8 LoRa channels at SF5 to SF12 and 125 kHz simultaneously, plus a 250 or 500 kHz LoRa channel and FSK at 50 kbps",
-  "Typical sensitivity at CN490: -141 dBm at SF12 and -126 dBm at SF7, BW 125 kHz",
-  "Power: a tenth of the consumption of legacy products",
-]
-cost = "not applicable"
-crates = ["pamoja-lora"]
-source_name = "SX1302CSSXXXGW1 LoRa Corecell Gateway Reference Design for Listen Before Talk and Spectral Scan, Semtech"
-source_label = "Semtech Corecell"
-source = "https://www.semtech.com/products/wireless-rf/lora-core/sx1302cssxxxgw1"
-
-[[entry]]
-key = "lorawan-rp002"
-group = "radios"
-name = "LoRaWAN Regional Parameters"
-vendor = "LoRa Alliance"
-interface = "LoRaWAN over sub-GHz LoRa"
-summary = "The document that fixes the channel plan, data rates, transmit limits and maximum payload a LoRaWAN device must obey in each regulatory region."
-specs = [
-  "Revision cited: RP002-1.0.5, October 2025, Final",
-  "Fixes per region: channel frequencies, data rates, output power encoding, join CFList, receive windows and maximum payload",
-  "Limits: duty cycle in the dynamic-plan regions, dwell time where frequency-hopping rules apply",
-  "EU863-870: at least 24 stored channels, with 868.1, 868.3 and 868.5 MHz at DR0 to DR5 mandatory",
-  "pamoja implements nine of its plans: EU863-870, US902-928, EU433, AU915-928, CN470-510, AS923, KR920-923, IN865-867 and RU864-870",
-]
-cost = "not applicable"
-crates = ["pamoja-lora", "pamoja-lorawan"]
-regions = ["EU868", "US915", "EU433", "AU915", "CN470", "AS923", "KR920", "IN865", "RU864"]
-source_name = "RP002-1.0.5 LoRaWAN Regional Parameters, LoRa Alliance Technical Committee, October 2025"
-source_label = "LoRa Alliance RP002-1.0.5"
-source = "https://resources.lora-alliance.org/technical-specifications/rp002-1-0-5-lorawan-regional-parameters"
 
 [[entry]]
 key = "esp-now"
@@ -1510,79 +1498,74 @@ checked = "2026-09-07"
 verified = true
 
 [[entry]]
-key = "rakarg18"
+key = "rakarg13"
 group = "antennas"
-name = "5 dBi fiberglass antenna, 863 to 870 MHz"
+name = "5.8 dBi fiberglass antenna, 863 to 870 MHz"
 vendor = "RAKwireless"
 interface = "N-type male"
-summary = "An outdoor fiberglass gateway antenna for the European band, vertically polarized, with the connector built into the body."
+summary = "An outdoor fiberglass gateway antenna for the European band, an omnidirectional, vertically polarized dipole that comes with its installation kit."
 specs = [
   "Band: 863 to 870 MHz",
-  "Gain: 5.0 dBi, VSWR 1.63 or better",
-  "Pattern: 360 degree beamwidth, vertical polarization, 50 ohms",
-  "Size: 27.0 mm by 480.0 mm, fiberglass radome",
-  "Environment: IP67, operating from -40 to +75 C",
+  "Gain: 5.8 dBi peak as specified; 6.15 to 6.33 dBi measured from 864 to 870 MHz",
+  "VSWR: 2.0 or better; 1.13 measured at 868 MHz",
+  "Pattern: omnidirectional, vertical polarization, 50 ohms, efficiency up to 79%",
+  "Size: 29.8 mm by 800.0 mm, white fiberglass radome",
+  "Environment: operating from -30 to +65 C, 5 to 95% humidity",
 ]
 cost = "$20 to $60"
 crates = ["pamoja-lora"]
-source_name = "863-870 MHz 5 dBi Fiberglass Antenna Datasheet (RAKARG18), RAKwireless Documentation Center"
-source_label = "RAKwireless RAKARG18"
-source = "https://docs.rakwireless.com/product-categories/accessories/rakarg18/datasheet/"
+source_name = "863-870MHz 5.8dBi Fiberglass Antenna Datasheet (RAKARG13), RAKwireless Documentation Center"
+source_label = "RAKwireless RAKARG13"
+source = "https://docs.rakwireless.com/product-categories/accessories/rakarg13/datasheet/"
+
+[[entry.buy]]
+vendor = "SparkFun"
+name = "LoRa Fiberglass Antenna Type N - 5.8dBi (863-870MHz), with mounting hardware and no cable"
+url = "https://www.sparkfun.com/lora-fiberglass-antenna-type-n-5-8dbi-863-870mhz.html"
+price = "US$29.95"
+checked = "2026-09-11"
 
 [[entry.buy]]
 vendor = "RAKwireless"
-name = "5dBi Fiberglass Antenna, 863-870MHz"
-url = "https://store.rakwireless.com/products/5dbi-fiber-glass-antenna-supports-863-870mhz?variant=43034795081926"
-price = "US$35.00"
+name = "5.8dBi Fiberglass Antenna, N-Type to RP-SMA, White, 863MHz-870MHz, with brackets and an indoor pigtail"
+url = "https://store.rakwireless.com/products/5-8dbi-fiber-glass-antenna?variant=41100705267910"
+price = "US$40.00"
 checked = "2026-09-11"
 
 [[entry]]
-key = "rakarg19"
+key = "rakarg14"
 group = "antennas"
-name = "5 dBi fiberglass antenna, 902 to 928 MHz"
+name = "5.8 dBi fiberglass antenna, 902 to 928 MHz"
 vendor = "RAKwireless"
 interface = "N-type male"
-summary = "An outdoor fiberglass gateway antenna for the 902 to 928 MHz band, vertically polarized, with the connector built into the body."
+summary = "An outdoor fiberglass gateway antenna for the 902 to 928 MHz band, an omnidirectional, vertically polarized dipole that comes with its installation kit."
 specs = [
-  "Band: 902 to 928 MHz",
-  "Gain: 5 dBi, VSWR 1.47 or better",
-  "Pattern: 360 degree beamwidth, vertical polarization, 50 ohms",
-  "Length: 480 mm",
-  "Environment: IP67, operating from -40 to +75 C",
+  "Band: 902 to 930 MHz",
+  "Gain: 5.8 dBi peak as specified; 5.4 to 6.1 dBi measured from 902 to 930 MHz",
+  "VSWR: 2.0 or better; 1.33 measured at 902 MHz and 1.47 at 930 MHz",
+  "Pattern: omnidirectional, vertical polarization, 50 ohms, efficiency up to 79%",
+  "Size: 29.8 mm by 800.0 mm, white fiberglass radome",
+  "Environment: operating from -20 to +65 C, 5 to 95% humidity",
 ]
 cost = "$20 to $60"
 crates = ["pamoja-lora"]
-source_name = "902-928 MHz 5 dBi Fiberglass Antenna Datasheet (RAKARG19), RAKwireless Documentation Center"
-source_label = "RAKwireless RAKARG19"
-source = "https://docs.rakwireless.com/product-categories/accessories/rakarg19/datasheet/"
+source_name = "902-928MHz 5.8dBi Fiberglass Antenna Datasheet (RAKARG14), RAKwireless Documentation Center"
+source_label = "RAKwireless RAKARG14"
+source = "https://docs.rakwireless.com/product-categories/accessories/rakarg14/datasheet/"
+
+[[entry.buy]]
+vendor = "SparkFun"
+name = "LoRa Fiberglass Antenna Type N - 5.8dBi (902-928MHz), with mounting hardware and no cable"
+url = "https://www.sparkfun.com/lora-fiberglass-antenna-type-n-5-8dbi-902-928mhz.html"
+price = "US$14.95"
+checked = "2026-09-11"
 
 [[entry.buy]]
 vendor = "RAKwireless"
-name = "5dBi Fiberglass Antenna, 902-928MHz"
-url = "https://store.rakwireless.com/products/5dbi-fiber-glass-antenna-supports-902-928mhz"
-price = "US$35.00"
+name = "5.8dBi Fiberglass Antenna, N-Type to RP-SMA, White, 902MHz-928MHz, with brackets and an indoor pigtail"
+url = "https://store.rakwireless.com/products/5-8dbi-fiber-glass-antenna?variant=39942855033030"
+price = "US$40.00"
 checked = "2026-09-11"
-
-[[entry]]
-key = "lmr-loss"
-group = "antennas"
-name = "LMR coaxial cable loss"
-vendor = "Times Microwave Systems"
-interface = "50 ohm coaxial cable"
-summary = "The attenuation table for the LMR feed lines a gateway runs to its antenna, from the thin LMR-195 to the LMR-600."
-specs = [
-  "LMR-195 at 900 MHz: 11.1 dB per 100 ft, 36.5 dB per 100 m",
-  "LMR-240 at 900 MHz: 7.6 dB per 100 ft, 24.8 dB per 100 m",
-  "LMR-400 at 900 MHz: 3.9 dB per 100 ft, 12.8 dB per 100 m",
-  "LMR-600 at 900 MHz: 2.5 dB per 100 ft, 8.2 dB per 100 m",
-  "LMR-195: 50 ohms, 4.95 mm over the jacket, velocity of propagation 80%",
-]
-cost = "not applicable"
-crates = ["pamoja-lora"]
-source_name = "LMR 195, 240, 400 and 600 Coaxial Cables, Connectors and Hardware, Times Microwave Systems"
-source_label = "Times Microwave LMR"
-source = "https://timesmicrowave.com/wp-content/uploads/2022/06/lmr-brochure-r.pdf"
-manual_check = "timesmicrowave.com answers 403 to scripted clients; the brochure opens in a browser"
 
 [[entry]]
 key = "rak-mhf-sma-pigtail"
@@ -1610,6 +1593,38 @@ price = "US$5.00"
 checked = "2026-09-11"
 
 [[entry]]
+key = "adafruit-sma-ufl-cable"
+group = "antennas"
+name = "SMA to u.FL adapter cable"
+vendor = "Adafruit"
+interface = "u.FL to panel-mount SMA"
+summary = "A short RG178 lead from a board's u.FL socket to an SMA connector fixed through the enclosure wall, where an SMA antenna screws on."
+specs = [
+  "Cable: RG178, 15 cm (5.9 in) long, not counting the SMA connector",
+  "Connectors: u.FL, also sold as IPEX, IPX or MHF, to a panel-mount SMA",
+  "Fit: SMA only; SMA and RP-SMA do not mate, so check the antenna first",
+]
+cost = "under $5"
+crates = ["pamoja-lora"]
+source_name = "SMA to uFL/u.FL/IPX/IPEX RF Adapter Cable, product 851, Adafruit"
+source_label = "Adafruit 851"
+source = "https://www.adafruit.com/product/851"
+
+[[entry.buy]]
+vendor = "Pimoroni"
+name = "SMA to uFL/u.FL/IPX/IPEX RF Adapter Cable (Adafruit 851)"
+url = "https://shop.pimoroni.com/products/adafruit-sma-to-ufl-u-fl-ipx-ipex-rf-adapter-cable"
+price = "£3.25"
+checked = "2026-09-11"
+
+[[entry.buy]]
+vendor = "Adafruit"
+name = "SMA to uFL/u.FL/IPX/IPEX RF Adapter Cable"
+url = "https://www.adafruit.com/product/851"
+price = "US$3.95"
+checked = "2026-09-11"
+
+[[entry]]
 key = "rak-lightning-arrestor"
 group = "antennas"
 name = "N-type lightning arrestor"
@@ -1630,8 +1645,42 @@ source_label = "RAKwireless arrestor"
 source = "https://store.rakwireless.com/products/lightning-arrestor"
 
 [[entry.buy]]
+vendor = "Rokland"
+name = "RAKwireless lightning arrestor N-Male N-Female 0-2700 MHz (PID 910033)"
+url = "https://store.rokland.com/products/rakwireless-lightning-arrestor-n-male-n-female-0-2700-mhz-pid-910033"
+price = "US$24.97"
+checked = "2026-09-11"
+
+[[entry.buy]]
 vendor = "RAKwireless"
 name = "Lightning Arrestor, N-type"
 url = "https://store.rakwireless.com/products/lightning-arrestor"
 price = "US$32.00"
+checked = "2026-09-11"
+
+[[entry]]
+key = "l-com-lightning-protector"
+group = "antennas"
+name = "N-type lightning surge protector, DC to 6 GHz"
+vendor = "L-com"
+interface = "N-type male to bulkhead N-type female"
+summary = "A gas discharge tube surge protector for an antenna line, with a replaceable tube, DC passing through, and a bulkhead port that seals through an enclosure wall with an O-ring."
+specs = [
+  "Frequency range: DC to 6 GHz, 50 ohms",
+  "Loss: insertion loss of 0.6 dB or less and VSWR of 1.2:1 or better, DC to 6 GHz",
+  "Gas tube: 90 V breakdown, plus or minus 20%, replaceable (LPX090-6), multi-strike",
+  "Protection: bidirectional, so either port can face the antenna, with a ground lug on the housing",
+  "Size: 68 by 23 by 31 mm, 0.11 kg, nickel-plated brass body",
+]
+cost = "$60 to $200"
+crates = ["pamoja-lora"]
+source_name = "AL6-NMNFBW-9 0-6 GHz Lightning Surge Protector, N-Male to N-Female Bulkhead, datasheet, L-com"
+source_label = "L-com AL6-NMNFBW-9"
+source = "https://www.l-com.com/Images/Downloadables/Datasheets/ds_AL6-NMNFBW-9.pdf"
+
+[[entry.buy]]
+vendor = "L-com"
+name = "N-Male to N-Female Bulkhead 0-6 GHz 90V Lightning Protector (AL6-NMNFBW-9)"
+url = "https://www.l-com.com/surge-protector-n-male-to-n-female-bulkhead-0-6-ghz-90v-lightning-protector"
+price = "US$78.99"
 checked = "2026-09-11"

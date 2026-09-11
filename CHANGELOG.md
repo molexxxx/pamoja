@@ -23,11 +23,15 @@ released together, so one entry covers all of them.
   ground planes, SMA, RP-SMA and U.FL connectors with pigtail loss, LMR feed line
   loss, VSWR and testing with a network analyzer, a paired field test, Fresnel
   clearance, lightning bonding under ITU-T K.71, weatherproofing, and the power
-  limits of ETSI EN 300 220-2, CEPT ERC Recommendation 70-03 and 47 CFR 15.247.
-  The hardware page gains the LLCC68, SX1302, SX1303 and SX1250, the RAK2287,
-  RAK5146 and WM1302 concentrator cards, the Semtech Corecell reference design,
-  and a new group for gateway antennas, feed line loss, pigtails and a lightning
-  arrestor, each figure quoted from its manufacturer's document.
+  limits of ETSI EN 300 220-2, CEPT ERC Recommendation 70-03 and 47 CFR 15.247,
+  with the nine LoRaWAN regional plans pamoja carries from RP002-1.0.5. The
+  hardware page gains the LLCC68, SX1302, SX1303 and SX1250, the RAK2287, RAK5146
+  and WM1302 concentrator cards, and a new group for gateway antennas, pigtails
+  and lightning arrestors, each figure quoted from its manufacturer's document.
+  The parts are priced beyond the RAKwireless store where others stock them:
+  SparkFun for the gateway antennas, Rokland for the concentrators and the
+  arrestor, The Pi Hut for an LLCC68 unit, Pimoroni and Adafruit for a u.FL to SMA
+  cable, and L-com for a gas tube arrestor.
 
 ### Changed
 
