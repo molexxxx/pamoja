@@ -4,14 +4,13 @@
 //! as a broadcast [`Frame`] whose payload is the topic's length in one byte, the topic, and
 //! the payload. Every node that hears it drops copies it has already seen, delivers what
 //! its subscriptions match, and relays the frame onward while hops remain, so a message
-//! crosses a mesh of radios that each hear only their neighbors. A
-//! [`DutyCycle`](crate::duty::DutyCycle) holds the radio silent for the off time the region
-//! requires after each transmission, its own messages and its relays alike.
+//! crosses a mesh of radios that each hear only their neighbors. A [`DutyCycle`] holds the
+//! radio silent for the off time the region requires after each transmission, its own
+//! messages and its relays alike.
 //!
 //! The radio is driven from the task that awaits the transport. It is read every [`POLL`],
 //! with the tokio timer sleeping in between, so neither a frame's airtime nor a quiet
-//! channel blocks the runtime. Topic filters follow MQTT, through
-//! [`topic_matches`](pamoja_core::topic_matches).
+//! channel blocks the runtime. Topic filters follow MQTT, through [`topic_matches`].
 //!
 //! # Examples
 //!
