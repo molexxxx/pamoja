@@ -213,9 +213,13 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
     catalog.check(&root, &crates, true)?;
 
     // The hardware reference names the parts the drivers target; the check fails when a
-    // driver module or a LoRaWAN channel plan has no entry beside it.
+    // driver module has no entry beside it.
     let hardware = Hardware::load(&root)?;
     hardware.check(&root)?;
+
+    // The radio page lists the LoRaWAN channel plans; the check fails when `pamoja-lora`
+    // defines a plan the page does not name.
+    check_plans(&root)?;
 
     // The shared profiles are read by the parser a device uses and checked for what a
     // hand-written manifest gets wrong, so the catalog never lists one a node would refuse.
@@ -735,9 +739,68 @@ fn verify_files(readmes: &[(String, String)]) -> bool {
     }
 }
 
+// Every LoRaWAN channel plan `pamoja-lora` defines is named on the radio page, so a plan
+// added to the crate cannot go unlisted there.
+fn check_plans(root: &Path) -> Result<(), String> {
+    let path = root.join("crates/pamoja-lora/src/region/plans.rs");
+    let source =
+        fs::read_to_string(&path).map_err(|e| format!("reading {}: {e}", path.display()))?;
+    let page = fs::read_to_string(root.join("docs/radio.md"))
+        .map_err(|e| format!("reading docs/radio.md: {e}"))?;
+    for name in plan_names(&source)? {
+        if !page.contains(&name) {
+            return Err(format!(
+                "docs/radio.md: pamoja-lora defines the {name} channel plan, which the page does \
+                 not name"
+            ));
+        }
+    }
+    Ok(())
+}
+
+// The name of every `ChannelPlan` a source file declares as a static.
+fn plan_names(source: &str) -> Result<Vec<String>, String> {
+    let file = syn::parse_file(source).map_err(|e| format!("parsing the channel plans: {e}"))?;
+    let mut names = Vec::new();
+    for item in file.items {
+        let Item::Static(item) = item else {
+            continue;
+        };
+        let syn::Expr::Struct(plan) = *item.expr else {
+            continue;
+        };
+        if !plan.path.is_ident("ChannelPlan") {
+            continue;
+        }
+        for field in plan.fields {
+            if let (syn::Member::Named(member), syn::Expr::Lit(lit)) = (&field.member, &field.expr)
+            {
+                if let (true, syn::Lit::Str(name)) = (member == "name", &lit.lit) {
+                    names.push(name.value());
+                }
+            }
+        }
+    }
+    if names.is_empty() {
+        return Err("the channel plans source declares no `ChannelPlan`".to_owned());
+    }
+    Ok(names)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_channel_plan_is_read_by_its_name() {
+        let source = r#"
+            pub static EU868: ChannelPlan = ChannelPlan { name: "EU863-870", max_eirp_dbm: 16 };
+            static EU868_SUB_BANDS: [SubBand; 1] = [SubBand::new(868_000_000, 868_600_000, 10, 16)];
+            pub static US915: ChannelPlan = ChannelPlan { name: "US902-928", max_eirp_dbm: 30 };
+        "#;
+        assert_eq!(plan_names(source).unwrap(), ["EU863-870", "US902-928"]);
+        assert!(plan_names("static LIMIT: u8 = 1;").is_err());
+    }
 
     #[test]
     fn intra_doc_links_become_plain_code() {

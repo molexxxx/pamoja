@@ -38,8 +38,9 @@ host through an STM32 bridge rather than bare SPI.
 pamoja: [`pamoja-lora`](guides/lora.md) works out the airtime, the channel plans,
 and the link budget for all of these radios. Sources: the
 [SX1302](hardware.md#sx1302), [SX1303](hardware.md#sx1303),
-[SX1250](hardware.md#sx1250), [LLCC68](hardware.md#llcc68), and
-[Corecell](hardware.md#corecell) cards, and the
+[SX1250](hardware.md#sx1250), and [LLCC68](hardware.md#llcc68) cards, Semtech's
+[Corecell reference design](https://www.semtech.com/products/wireless-rf/lora-core/sx1302cssxxxgw1)
+page, and the
 [`sx1302_hal` readme](https://github.com/Lora-net/sx1302_hal/blob/master/readme.md).
 
 ## Antennas
@@ -63,8 +64,9 @@ the directivity, the narrower the pattern, so an antenna with more gain is stron
 where it points and weaker elsewhere. Published figures make the spread concrete. TE's
 ANT-868-CW-HWR, a center-fed half-wave whip, has a peak gain of -2.3 dBi at 868 MHz,
 and its 916 MHz sibling 1.2 dBi. The RAKwireless fiberglass antennas for 863 to
-870 MHz and 902 to 928 MHz each state 5 dBi, vertical polarization, and a 360 degree
-beamwidth.
+870 MHz and 902 to 928 MHz each state a peak gain of 5.8 dBi, vertical polarization,
+and an omnidirectional pattern, and their own measured tables reach 6.33 dBi at 870 MHz
+and 6.1 dBi at 918 MHz.
 
 Every antenna is built for a band. Its VSWR, covered below, rises away from the
 frequency it was tuned for, and the range over which it stays within the specified
@@ -78,8 +80,8 @@ pamoja: an antenna is `transmit_antenna_gain_dbi` or `receive_antenna_gain_dbi` 
 [TE AN-00501](https://www.te.com/content/dam/te-com/documents/appliances/global/AN-00501%20-%20Understanding%20Antenna%20Specifications%20and%20Operation%20-%208-20-12.pdf),
 the [ANT-868-CW-HWR](https://www.te.com/commerce/DocumentDelivery/DDEController?Action=srchrtrv&DocNm=ANT-868-CW-HWR-ccc&DocType=Data+Sheet&DocLang=English&DocFormat=pdf&PartCntxt=ANT-868-CW-HWR-SMA)
 and [ANT-916-CW-HWR](https://www.te.com/commerce/DocumentDelivery/DDEController?Action=srchrtrv&DocNm=ANT-916-CW-HWR-ccc&DocType=Data+Sheet&DocLang=English&DocFormat=pdf&PartCntxt=ANT-916-CW-HWR-SMA)
-datasheets, and the [863 to 870 MHz](hardware.md#rakarg18) and
-[902 to 928 MHz](hardware.md#rakarg19) antenna cards.
+datasheets, and the [863 to 870 MHz](hardware.md#rakarg13) and
+[902 to 928 MHz](hardware.md#rakarg14) antenna cards.
 
 ## Ground planes and enclosures
 
@@ -144,7 +146,8 @@ added to the feed line it connects to. Sources:
 [TE AN-00601](https://www.te.com/content/dam/te-com/documents/appliances/global/AN-00601%20RF%20Coaxial%20Connector%20Gender%20Naming.pdf),
 the [Hirose U.FL series](https://www.hirose.com/en/product/series/U.FL), the
 [TE CSI-SGFE drawing](https://www.te.com/commerce/DocumentDelivery/DDEController?Action=showdoc&DocId=Customer+Drawing%7FC-CSI-SGFE-ccc-UFFR-p%7FC%7Fpdf%7FEnglish%7FENG_CD_C-CSI-SGFE-ccc-UFFR-p_C.pdf%7FCSI-SGFE-100-UFFR),
-and the [MHF to SMA pigtail](hardware.md#rak-mhf-sma-pigtail) card.
+and the [MHF to SMA pigtail](hardware.md#rak-mhf-sma-pigtail) and
+[SMA to u.FL cable](hardware.md#adafruit-sma-ufl-cable) cards.
 
 ## Feed line
 
@@ -171,9 +174,8 @@ What to get right: the thickest cable the run allows, and the shortest run, sinc
 meter at the gateway comes off both directions.
 
 pamoja: the feed line is `receive_cable_loss_db` at the gateway, or
-`transmit_cable_loss_db` when the gateway sends. Sources:
-[Times Microwave LMR brochure](https://timesmicrowave.com/wp-content/uploads/2022/06/lmr-brochure-r.pdf)
-and the [LMR loss](hardware.md#lmr-loss) card.
+`transmit_cable_loss_db` when the gateway sends. Source: the
+[Times Microwave LMR brochure](https://timesmicrowave.com/wp-content/uploads/2022/06/lmr-brochure-r.pdf).
 
 ## Matching and VSWR
 
@@ -262,18 +264,23 @@ protective devices are chosen for the overcurrent expected where they are instal
 RAKwireless recommends a lightning arrestor on every N-type antenna terminal of a
 gateway. The one it sells is rated for 10 kA of nominal and 20 kA of maximum discharge
 current, a voltage protection level of 1200 V or less, and 0.2 dB of loss or less up to
-2000 MHz, which a budget carries as one more connector.
+2000 MHz, which a budget carries as one more connector. L-com's AL6-NMNFBW-9 is built
+around a gas discharge tube instead: the tube breaks down at 90 V and can be replaced,
+and DC passes through for equipment powered up the coax, at up to 0.6 dB of insertion
+loss from DC to 6 GHz.
 
 Keep water out of the feed line and its connectors. Times Microwave makes LMR in a
 watertight version, suffixed DB, flooded with a compound that stops water migrating
 along the cable, and sells tape and cold-shrink kits for sealing connectors. The
-RAKwireless fiberglass antennas mold the connector into the body and are rated IP67.
+RAKwireless fiberglass antennas are sold for outdoor use, but their datasheets give no
+ingress protection rating, so the joint at the antenna is sealed like any other.
 
 What to get right: the risk assessment first, then a straight bond from the mast to
 earth, the cable shield bonded, and a sealed connector at every joint outdoors.
 
 Sources: [ITU-T K.71](https://www.itu.int/rec/T-REC-K.71-201106-I/en), the
-[lightning arrestor](hardware.md#rak-lightning-arrestor) card, and the
+[RAKwireless](hardware.md#rak-lightning-arrestor) and
+[L-com](hardware.md#l-com-lightning-protector) arrestor cards, and the
 [Times Microwave LMR brochure](https://timesmicrowave.com/wp-content/uploads/2022/06/lmr-brochure-r.pdf).
 
 ## Power limits and duty cycle
@@ -331,9 +338,19 @@ antenna of no more than 6 dBi. Past that, the conducted power comes down by ever
 decibel the gain exceeds 6 dBi, so a 9 dBi Yagi on a 1 W system leaves 27 dBm at the
 connector.
 
+### LoRaWAN regional plans
+
+A LoRaWAN device keeps to one more document on top of the national rules. The LoRa
+Alliance's RP002-1.0.5 regional parameters give each region a channel plan: its channel
+frequencies, data rates, output power encoding, the channel list a join accept carries,
+receive windows, and maximum payload, with duty cycle limits in the regions with a
+dynamic channel plan and dwell time limits where frequency hopping rules apply.
+`pamoja-lora` carries nine of those plans: EU863-870, US902-928, EU433, AU915-928,
+CN470-510, AS923, KR920-923, IN865, and RU864-870.
+
 What to get right: which limit applies, conducted or radiated, e.r.p. or e.i.r.p.; the
-antenna gain taken off before the radio's setting; and the duty cycle counted over the
-whole hour.
+antenna gain taken off before the radio's setting; the duty cycle counted over the
+whole hour; and the plan the network runs.
 
 pamoja: `LinkBudget::max_transmit_power_dbm` takes an EIRP ceiling back to the radio's
 setting, and `Fcc15247` applies the United States rule, both in the
@@ -341,4 +358,5 @@ setting, and `Fcc15247` applies the United States rule, both in the
 [ERC Recommendation 70-03](https://docdb.cept.org/download/4635),
 [ETSI EN 300 220-2 V3.3.1](https://www.etsi.org/deliver/etsi_en/300200_300299/30022002/03.03.01_60/en_30022002v030301p.pdf),
 [ETSI EN 300 220-1 V3.1.1](https://www.etsi.org/deliver/etsi_en/300200_300299/30022001/03.01.01_60/en_30022001v030101p.pdf),
-and [47 CFR 15.247](https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247).
+[47 CFR 15.247](https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247),
+and [LoRa Alliance RP002-1.0.5](https://resources.lora-alliance.org/technical-specifications/rp002-1-0-5-lorawan-regional-parameters).

@@ -209,5 +209,6 @@ The antenna, the feed line, the connectors, and the power a region allows are on
 pamoja: [`pamoja-lora`](guides/lora.md) carries exact time-on-air and
 duty-cycle off-time; [`pamoja-lorawan`](guides/lorawan.md) carries the MAC
 framing, the integrity code, the encryption, the join, and the regional plans.
-Sources: the Semtech SX1276 and SX1262 pages and the LoRa Alliance
-specifications on the [hardware page](hardware.md#radios-and-long-range-links).
+Sources: the Semtech SX1276 and SX1262 cards on the
+[hardware page](hardware.md#radios-and-long-range-links), and the LoRa Alliance
+[RP002-1.0.5 regional parameters](https://resources.lora-alliance.org/technical-specifications/rp002-1-0-5-lorawan-regional-parameters).

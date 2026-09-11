@@ -1,9 +1,8 @@
 //! The hardware reference in `docs/hardware.toml`: the parts, buses, radios and targets
 //! pamoja drives, each described from the manufacturer's own document or the standard that
 //! defines it. [`Hardware::table`] renders the page, and [`Hardware::check`] ties the entries
-//! to the code: every driver module must be claimed by an entry, and the LoRaWAN
-//! entry must name every regional plan the crate implements, so a driver or a plan cannot be
-//! added without the page following it. `cargo xtask links` fetches every `source`.
+//! to the code: every driver module must be claimed by an entry, so a driver cannot be added
+//! without the page following it. `cargo xtask links` fetches every `source`.
 //! [`Hardware::for_guide`] gives a guide the parts its crates drive, so the two pages point
 //! at each other.
 
@@ -68,8 +67,6 @@ pub struct Entry {
     pub crates: Vec<String>,
     /// The driver modules that target it, as `<crate>/src/<file>.rs`.
     pub modules: Vec<String>,
-    /// The LoRaWAN regional plans it covers, checked against the `Region` enum.
-    pub regions: Vec<String>,
     /// The page under `docs/` that wires a part to this board and runs the first program
     /// on it, as `boards/<board>.md`. Empty for everything but a board.
     pub page: String,
@@ -178,7 +175,6 @@ impl Hardware {
                 cost: string(table, "cost", &context)?,
                 crates: optional_strings(table, "crates", &context)?,
                 modules: optional_strings(table, "modules", &context)?,
-                regions: optional_strings(table, "regions", &context)?,
                 page: optional(table, "page"),
                 source_name: string(table, "source_name", &context)?,
                 source_label: string(table, "source_label", &context)?,
@@ -306,8 +302,7 @@ impl Hardware {
     /// # Errors
     ///
     /// When an entry names an unknown group, crate, module, or price band, when two entries
-    /// share a key, when a driver module has no entry, or when the LoRaWAN entry does not
-    /// name every regional plan the crate implements.
+    /// share a key, or when a driver module has no entry.
     pub fn check(&self, root: &Path) -> Result<(), String> {
         let groups: BTreeSet<&str> = self.groups.iter().map(|g| g.key.as_str()).collect();
         let mut seen = BTreeSet::new();
@@ -399,29 +394,6 @@ impl Hardware {
             }
         }
 
-        self.check_regions(root)
-    }
-
-    // Every variant of the LoRaWAN `Region` enum must appear on the page, so a plan added to
-    // the crate cannot go unlisted.
-    fn check_regions(&self, root: &Path) -> Result<(), String> {
-        let listed: BTreeSet<&str> = self
-            .entries
-            .iter()
-            .flat_map(|entry| entry.regions.iter())
-            .map(String::as_str)
-            .collect();
-        if listed.is_empty() {
-            return Err("hardware.toml: no entry lists the LoRaWAN regional plans".to_owned());
-        }
-        for region in regions(root)? {
-            if !listed.contains(region.as_str()) {
-                return Err(format!(
-                    "hardware.toml: the crate implements the {region} channel plan, which no \
-                     entry lists"
-                ));
-            }
-        }
         Ok(())
     }
 }
@@ -688,27 +660,6 @@ fn driver_modules(root: &Path) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
-// The variants of the `Region` enum, read from the crate that defines the channel plans.
-fn regions(root: &Path) -> Result<Vec<String>, String> {
-    let path = root.join("crates/pamoja-lora/src/region/plans.rs");
-    let source =
-        fs::read_to_string(&path).map_err(|err| format!("reading {}: {err}", path.display()))?;
-    let file =
-        syn::parse_file(&source).map_err(|err| format!("parsing {}: {err}", path.display()))?;
-    for item in file.items {
-        if let syn::Item::Enum(item) = item {
-            if item.ident == "Region" {
-                return Ok(item
-                    .variants
-                    .iter()
-                    .map(|variant| variant.ident.to_string().to_uppercase())
-                    .collect());
-            }
-        }
-    }
-    Err(format!("{} declares no `Region` enum", path.display()))
-}
-
 fn tables<'a>(
     doc: &'a DocumentMut,
     name: &str,
@@ -817,7 +768,6 @@ specs = ["Temperature: -40 to 85 C"]
 cost = "$5 to $20"
 crates = ["pamoja-sensors"]
 modules = ["pamoja-sensors/src/bme280.rs"]
-regions = ["EU868"]
 source_name = "BME280 datasheet"
 source_label = "datasheet"
 source = "https://example.invalid/bme280"
