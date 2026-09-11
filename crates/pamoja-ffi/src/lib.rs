@@ -69,6 +69,8 @@ pub mod can;
 pub mod coap;
 #[cfg(feature = "codec")]
 pub mod codec;
+#[cfg(feature = "gateway")]
+pub mod gateway;
 #[cfg(feature = "gpio")]
 pub mod gpio;
 #[cfg(feature = "runtime")]
@@ -233,6 +235,7 @@ pub extern "C" fn pamoja_last_error_message() -> *const c_char {
     feature = "audit",
     feature = "can",
     feature = "codec",
+    feature = "gateway",
     feature = "lora",
     feature = "lorawan",
     feature = "mavlink",
@@ -268,6 +271,7 @@ pub(crate) unsafe fn read_bytes(ptr: *const u8, len: usize) -> Result<Vec<u8>, P
     feature = "audit",
     feature = "bus",
     feature = "codec",
+    feature = "gateway",
     feature = "lorawan",
     feature = "modbus",
     feature = "ros2",
@@ -284,6 +288,7 @@ pub struct PamojaBuffer {
     feature = "audit",
     feature = "bus",
     feature = "codec",
+    feature = "gateway",
     feature = "lorawan",
     feature = "modbus",
     feature = "ros2",
@@ -323,6 +328,7 @@ impl PamojaBuffer {
     feature = "audit",
     feature = "bus",
     feature = "codec",
+    feature = "gateway",
     feature = "lorawan",
     feature = "modbus",
     feature = "ros2",
@@ -352,6 +358,7 @@ pub unsafe extern "C" fn pamoja_buffer_data(buffer: *const PamojaBuffer) -> *con
     feature = "audit",
     feature = "bus",
     feature = "codec",
+    feature = "gateway",
     feature = "lorawan",
     feature = "modbus",
     feature = "ros2",
@@ -380,6 +387,7 @@ pub unsafe extern "C" fn pamoja_buffer_len(buffer: *const PamojaBuffer) -> usize
     feature = "audit",
     feature = "bus",
     feature = "codec",
+    feature = "gateway",
     feature = "lorawan",
     feature = "modbus",
     feature = "ros2",

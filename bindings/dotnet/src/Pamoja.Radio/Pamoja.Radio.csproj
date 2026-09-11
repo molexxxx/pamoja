@@ -19,6 +19,7 @@
     <ProjectReference Include="../Pamoja.Lora/Pamoja.Lora.csproj" />
     <ProjectReference Include="../Pamoja.Lorawan/Pamoja.Lorawan.csproj" />
     <ProjectReference Include="../Pamoja.Radios/Pamoja.Radios.csproj" />
+    <ProjectReference Include="../Pamoja.Gateway/Pamoja.Gateway.csproj" />
     <ProjectReference Include="../Pamoja.Mesh/Pamoja.Mesh.csproj" />
     <ProjectReference Include="../Pamoja.Routing/Pamoja.Routing.csproj" />
   </ItemGroup>

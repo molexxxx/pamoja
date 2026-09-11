@@ -381,6 +381,69 @@
     ],
     "threshold": 10.0
   },
+  "gateway": {
+    "gateway": "b827ebfffe010203",
+    "pullAck": "02030404",
+    "pullData": "02030402b827ebfffe010203",
+    "pullResp": {
+      "datagram": "0200ab037b227478706b223a7b22636f6472223a22342f35222c2264617461223a225a473933626d7870626d733d222c2264617472223a225346394257313235222c2266726571223a3836392e3532352c22696d6d65223a66616c73652c2269706f6c223a747275652c226d6f6475223a224c4f5241222c226e637263223a747275652c22706f7765223a32372c2272666368223a302c2273697a65223a382c22746d7374223a333531333334383631317d7d",
+      "token": 171,
+      "txpk": {
+        "bandwidthHz": 125000,
+        "frequencyHz": 869525000,
+        "invertPolarity": true,
+        "payload": "downlink",
+        "powerDbm": 27,
+        "spreadingFactor": 9,
+        "timestampUs": 3513348611,
+        "withoutCrc": true
+      }
+    },
+    "pushAck": "02123401",
+    "pushData": {
+      "datagram": "02123400b827ebfffe0102037b227278706b223a5b7b226368616e223a322c22636f6472223a22342f36222c2264617461223a22564556545646395151554e4c525652664d54497a4e413d3d222c2264617472223a225346374257313235222c2266726571223a3836362e3334393831322c226c736e72223a352e312c226d6f6475223a224c4f5241222c2272666368223a302c2272737369223a2d33352c2273697a65223a31362c2273746174223a312c2274696d65223a22323031332d30332d33315431363a32313a31372e3532383030325a222c22746d7374223a333531323334383631317d5d2c2273746174223a7b2261636b72223a3130302e302c22616c7469223a3134352c2264776e62223a322c226c617469223a34362e32342c226c6f6e67223a332e323532332c2272786677223a322c2272786e62223a322c2272786f6b223a322c2274696d65223a22323031342d30312d31322030383a35393a323820474d54222c2274786e62223a327d7d",
+      "rxpk": {
+        "bandwidthHz": 125000,
+        "channel": 2,
+        "codingRateDenominator": 6,
+        "frequencyHz": 866349812,
+        "payload": "TEST_PACKET_1234",
+        "receivedAtUs": 1364746877528002,
+        "rssiDbm": -35,
+        "snrDb": 5.1,
+        "spreadingFactor": 7,
+        "timestampUs": 3512348611
+      },
+      "stat": {
+        "acknowledgedPercent": 100.0,
+        "altitudeM": 145,
+        "downlinks": 2,
+        "forwarded": 2,
+        "latitudeDeg": 46.24,
+        "longitudeDeg": 3.2523,
+        "received": 2,
+        "receivedOk": 2,
+        "timeS": 1389517168,
+        "transmitted": 2
+      },
+      "token": 4660
+    },
+    "statuses": [
+      "NONE",
+      "TOO_LATE",
+      "TOO_EARLY",
+      "COLLISION_PACKET",
+      "COLLISION_BEACON",
+      "TX_FREQ",
+      "TX_POWER",
+      "GPS_UNLOCKED"
+    ],
+    "txAck": {
+      "datagram": "0200ab05b827ebfffe0102037b227478706b5f61636b223a7b226572726f72223a22434f4c4c4953494f4e5f5041434b4554227d7d",
+      "status": "COLLISION_PACKET",
+      "token": 171
+    }
+  },
   "geofence": {
     "boundaries": [
       "Inside",

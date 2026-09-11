@@ -34,6 +34,7 @@ default = [
     "regions",
     "lorawan",
     "radios",
+    "gateway",
     "mavlink",
     "mesh",
     "routing",
@@ -92,6 +93,7 @@ lorawan = ["dep:pamoja-lorawan"]
 # The SX126x command set and decoders, and the duty-cycle guard; the embedded-hal driver
 # stays Rust-only.
 radios = ["dep:pamoja-radios", "lora", "pamoja-radios/linux"]
+gateway = ["dep:pamoja-gateway", "lora"]
 # The MAVLink wire layer; the vehicle model and its live drivers stay Rust-only.
 mavlink = ["dep:pamoja-mavlink", "pamoja-mavlink/alloc"]
 mesh = ["dep:pamoja-mesh"]
@@ -125,6 +127,7 @@ pamoja-actuators = { path = "../pamoja-actuators", version = "0.1.18", optional 
 pamoja-lora = { path = "../pamoja-lora", version = "0.1.18", default-features = false, optional = true }
 pamoja-lorawan = { path = "../pamoja-lorawan", version = "0.1.18", optional = true }
 pamoja-radios = { path = "../pamoja-radios", version = "0.1.18", default-features = false, optional = true }
+pamoja-gateway = { path = "../pamoja-gateway", version = "0.1.18", optional = true }
 # Default features off: the wire core is what crosses, not the tokio drivers.
 pamoja-mavlink = { path = "../pamoja-mavlink", version = "0.1.18", default-features = false, optional = true }
 pamoja-mesh = { path = "../pamoja-mesh", version = "0.1.18", features = ["alloc"], optional = true }

@@ -20,6 +20,7 @@ var guides = new Dictionary<string, Func<Task>>(StringComparer.Ordinal)
     ["lora"] = () => { LoraGuide.Run(); return Task.CompletedTask; },
     ["lorawan"] = () => { LorawanGuide.Run(); return Task.CompletedTask; },
     ["radios"] = () => { RadiosGuide.Run(); return Task.CompletedTask; },
+    ["gateway"] = () => { GatewayGuide.Run(); return Task.CompletedTask; },
     ["mesh"] = () => { MeshGuide.Run(); return Task.CompletedTask; },
     ["routing"] = () => { RoutingGuide.Run(); return Task.CompletedTask; },
     ["mavlink"] = () => { MavlinkGuide.Run(); return Task.CompletedTask; },

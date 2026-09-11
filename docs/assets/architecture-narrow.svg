@@ -54,8 +54,9 @@
   <text x="44" y="988" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">lora</text>
   <text x="180" y="988" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">lorawan</text>
   <text x="44" y="1006" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">radios</text>
-  <text x="180" y="1006" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">mesh</text>
-  <text x="44" y="1024" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">routing</text>
+  <text x="180" y="1006" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">gateway</text>
+  <text x="44" y="1024" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">mesh</text>
+  <text x="180" y="1024" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">routing</text>
   <rect x="30" y="1066" width="300" height="70" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="44" y="1088" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">MAVLink</text>
   <text x="44" y="1108" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">mavlink</text>

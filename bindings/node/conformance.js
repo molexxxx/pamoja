@@ -31,6 +31,7 @@ const {
   sim,
   sync,
   transport,
+  gateway,
   gpio,
   lora,
   lorawan,
@@ -2096,6 +2097,7 @@ meshVectors();
 routingVectors();
 radiosVectors();
 sx127xVectors();
+gatewayVectors();
 
 function headerVectors() {
   const vector = VECTORS.header;
@@ -2738,3 +2740,104 @@ zenohVectors();
   console.error(err);
   process.exit(1);
 });
+
+function gatewayVectors() {
+  const vector = VECTORS.gateway;
+  const hex = (bytes) => Buffer.from(bytes).toString("hex");
+  const heard = vector.pushData.rxpk;
+  const reported = vector.pushData.stat;
+  const link = {
+    ...lora.link(heard.spreadingFactor, heard.bandwidthHz),
+    codingRateDenominator: heard.codingRateDenominator,
+  };
+
+  const push = gateway.encode({
+    kind: gateway.PacketKind.PushData,
+    token: vector.pushData.token,
+    gateway: vector.gateway,
+    packets: [
+      {
+        frequencyHz: heard.frequencyHz,
+        payload: Buffer.from(heard.payload),
+        link,
+        rssiDbm: heard.rssiDbm,
+        snrDb: heard.snrDb,
+        timestampUs: heard.timestampUs,
+        receivedAtUs: heard.receivedAtUs,
+        channel: heard.channel,
+      },
+    ],
+    status: {
+      timeS: reported.timeS,
+      latitudeDeg: reported.latitudeDeg,
+      longitudeDeg: reported.longitudeDeg,
+      altitudeM: reported.altitudeM,
+      received: reported.received,
+      receivedOk: reported.receivedOk,
+      forwarded: reported.forwarded,
+      acknowledgedPercent: reported.acknowledgedPercent,
+      downlinks: reported.downlinks,
+      transmitted: reported.transmitted,
+    },
+  });
+  assert.strictEqual(hex(push), vector.pushData.datagram, "the PUSH_DATA datagram");
+
+  const read = gateway.parse(push);
+  assert.strictEqual(read.gateway, vector.gateway, "the gateway identifier");
+  assert.strictEqual(read.packets[0].frequencyHz, heard.frequencyHz, "the carrier in hertz");
+  assert.strictEqual(read.packets[0].payload.toString(), heard.payload, "the payload in bytes");
+  assert.strictEqual(read.packets[0].link.spreadingFactor, heard.spreadingFactor, "the spreading factor");
+  assert.strictEqual(read.status.altitudeM, reported.altitudeM, "the gateway's altitude");
+  assert.strictEqual(
+    hex(gateway.encode(gateway.acknowledgment(read))),
+    vector.pushAck,
+    "the PUSH_ACK datagram",
+  );
+
+  assert.strictEqual(
+    hex(gateway.encode({ kind: gateway.PacketKind.PullData, token: 0x0304, gateway: vector.gateway })),
+    vector.pullData,
+    "the PULL_DATA datagram",
+  );
+  assert.strictEqual(
+    hex(gateway.encode({ kind: gateway.PacketKind.PullAck, token: 0x0304 })),
+    vector.pullAck,
+    "the PULL_ACK datagram",
+  );
+
+  const asked = vector.pullResp.txpk;
+  const downlink = gateway.encode({
+    kind: gateway.PacketKind.PullResp,
+    token: vector.pullResp.token,
+    transmit: {
+      frequencyHz: asked.frequencyHz,
+      payload: Buffer.from(asked.payload),
+      link: lora.link(asked.spreadingFactor, asked.bandwidthHz),
+      timestampUs: asked.timestampUs,
+      powerDbm: asked.powerDbm,
+      invertPolarity: asked.invertPolarity,
+      withoutCrc: asked.withoutCrc,
+    },
+  });
+  assert.strictEqual(hex(downlink), vector.pullResp.datagram, "the PULL_RESP datagram");
+  assert.strictEqual(gateway.parse(downlink).transmit.powerDbm, asked.powerDbm, "the transmit power");
+
+  const refused = gateway.encode({
+    kind: gateway.PacketKind.TxAck,
+    token: vector.txAck.token,
+    gateway: vector.gateway,
+    txStatus: vector.txAck.status,
+  });
+  assert.strictEqual(hex(refused), vector.txAck.datagram, "the TX_ACK datagram");
+  assert.strictEqual(gateway.parse(refused).txStatus, vector.txAck.status, "the refusal");
+
+  for (const status of vector.statuses) {
+    const datagram = gateway.encode({
+      kind: gateway.PacketKind.TxAck,
+      token: 1,
+      gateway: vector.gateway,
+      txStatus: status,
+    });
+    assert.strictEqual(gateway.parse(datagram).txStatus, status, `the ${status} status`);
+  }
+}

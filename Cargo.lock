@@ -2949,6 +2949,7 @@ dependencies = [
  "pamoja-codec",
  "pamoja-core",
  "pamoja-dashboard",
+ "pamoja-gateway",
  "pamoja-gpio",
  "pamoja-hal",
  "pamoja-kit",
@@ -3060,6 +3061,7 @@ dependencies = [
  "pamoja-coap",
  "pamoja-codec",
  "pamoja-core",
+ "pamoja-gateway",
  "pamoja-gpio",
  "pamoja-hal",
  "pamoja-kit",
@@ -3104,6 +3106,7 @@ dependencies = [
  "pamoja-coap",
  "pamoja-codec",
  "pamoja-core",
+ "pamoja-gateway",
  "pamoja-gpio",
  "pamoja-kit",
  "pamoja-ladder",
@@ -3130,6 +3133,14 @@ dependencies = [
  "pamoja-zenoh",
  "sha2 0.11.0",
  "tokio",
+]
+
+[[package]]
+name = "pamoja-gateway"
+version = "0.1.18"
+dependencies = [
+ "pamoja-lora",
+ "serde_json",
 ]
 
 [[package]]

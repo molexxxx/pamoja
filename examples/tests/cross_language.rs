@@ -13,6 +13,10 @@ use pamoja_audit::{verify_chain, AuditLog, Entry};
 use pamoja_can::{dlc_to_len, len_to_dlc, CanId, Frame, J1939Id};
 use pamoja_codec::{cbor_to_json, decode_deltas, encode_deltas, json_to_cbor, Quantizer};
 use pamoja_core::{Actuator as _, Sensor as _, Transport as _};
+use pamoja_gateway::udp::{
+    Eui as GatewayEui, Packet as GatewayPacket, Rxpk as GatewayRxpk, Stat as GatewayStat,
+    TxStatus as GatewayTxStatus, Txpk as GatewayTxpk, Uplink as GatewayUplink,
+};
 use pamoja_gpio::i2c::{Address, Direction};
 use pamoja_gpio::pin::{Edge, Level, Polarity};
 use pamoja_gpio::spi::Mode;
@@ -4004,4 +4008,146 @@ fn mavlink_protocol_vectors_match() {
         global["frame"].as_str().expect("hex"),
         "a global setpoint"
     );
+}
+
+/// Every datagram of the packet forwarder protocol builds the committed bytes, and reading
+/// those bytes gives back the fields the vectors describe.
+#[test]
+fn gateway_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["gateway"];
+    let int = |value: &Value| value.as_i64().expect("an integer");
+    let text = |value: &Value| value.as_str().expect("text").to_owned();
+    let hex = |bytes: &[u8]| {
+        bytes
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    };
+    let gateway = GatewayEui::from_hex(&text(&case["gateway"])).expect("an identifier");
+
+    // The uplink: one packet heard and the gateway's own report, in one datagram.
+    let described = &case["pushData"]["rxpk"];
+    let link = LinkSettings::new(
+        int(&described["spreadingFactor"]) as u8,
+        int(&described["bandwidthHz"]) as u32,
+    )
+    .with_coding_rate(int(&described["codingRateDenominator"]) as u8);
+    let heard = GatewayRxpk::new(
+        int(&described["frequencyHz"]) as u32,
+        link,
+        text(&described["payload"]).into_bytes(),
+    )
+    .with_rssi_dbm(int(&described["rssiDbm"]) as i32)
+    .with_snr_db(described["snrDb"].as_f64().expect("a number"))
+    .with_timestamp_us(int(&described["timestampUs"]) as u32)
+    .with_received_at(int(&described["receivedAtUs"]) as u64)
+    .on_channel(int(&described["channel"]) as u8, 0);
+    let reported = &case["pushData"]["stat"];
+    let report = GatewayStat::new()
+        .at(int(&reported["timeS"]) as u64)
+        .at_position(
+            reported["latitudeDeg"].as_f64().expect("a number"),
+            reported["longitudeDeg"].as_f64().expect("a number"),
+            int(&reported["altitudeM"]) as i32,
+        )
+        .with_counts(
+            int(&reported["received"]) as u32,
+            int(&reported["receivedOk"]) as u32,
+            int(&reported["forwarded"]) as u32,
+        )
+        .with_downlinks(
+            int(&reported["downlinks"]) as u32,
+            int(&reported["transmitted"]) as u32,
+        )
+        .with_acknowledged_percent(reported["acknowledgedPercent"].as_f64().expect("a number"));
+    let push = GatewayPacket::PushData {
+        token: int(&case["pushData"]["token"]) as u16,
+        gateway,
+        uplink: GatewayUplink {
+            packets: vec![heard],
+            status: Some(report),
+        },
+    };
+    assert_eq!(hex(&push.to_bytes()), text(&case["pushData"]["datagram"]));
+
+    // Reading it back gives the same fields, with the frequency in hertz and the payload in
+    // bytes rather than the megahertz and base64 the protocol writes.
+    let GatewayPacket::PushData { uplink, .. } =
+        GatewayPacket::parse(&push.to_bytes()).expect("it parses")
+    else {
+        panic!("a PUSH_DATA parses as one");
+    };
+    let read = &uplink.packets[0];
+    assert_eq!(read.frequency_hz, int(&described["frequencyHz"]) as u32);
+    assert_eq!(read.payload, text(&described["payload"]).into_bytes());
+    assert_eq!(read.rssi_dbm.round_db(), int(&described["rssiDbm"]) as i32);
+    assert_eq!(
+        read.modulation
+            .link()
+            .expect("a LoRa packet")
+            .bandwidth_hz(),
+        int(&described["bandwidthHz"]) as u32
+    );
+
+    // The acknowledgments, which carry only a token.
+    assert_eq!(
+        hex(&GatewayPacket::PushAck {
+            token: int(&case["pushData"]["token"]) as u16
+        }
+        .to_bytes()),
+        text(&case["pushAck"])
+    );
+    assert_eq!(
+        hex(&GatewayPacket::PullAck { token: 0x0304 }.to_bytes()),
+        text(&case["pullAck"])
+    );
+    assert_eq!(
+        hex(&GatewayPacket::PullData {
+            token: 0x0304,
+            gateway
+        }
+        .to_bytes()),
+        text(&case["pullData"])
+    );
+
+    // The downlink, and what became of it.
+    let asked = &case["pullResp"]["txpk"];
+    let transmit = GatewayTxpk::at(
+        int(&asked["timestampUs"]) as u32,
+        int(&asked["frequencyHz"]) as u32,
+        LinkSettings::new(
+            int(&asked["spreadingFactor"]) as u8,
+            int(&asked["bandwidthHz"]) as u32,
+        ),
+        text(&asked["payload"]).into_bytes(),
+    )
+    .with_power_dbm(int(&asked["powerDbm"]) as i8)
+    .with_inverted_polarity(asked["invertPolarity"].as_bool().expect("a flag"))
+    .without_crc();
+    let pull_resp = GatewayPacket::PullResp {
+        token: int(&case["pullResp"]["token"]) as u16,
+        transmit,
+    };
+    assert_eq!(
+        hex(&pull_resp.to_bytes()),
+        text(&case["pullResp"]["datagram"])
+    );
+
+    let refused = GatewayPacket::TxAck {
+        token: int(&case["txAck"]["token"]) as u16,
+        gateway,
+        status: GatewayTxStatus::named(&text(&case["txAck"]["status"])).expect("a status"),
+    };
+    assert_eq!(hex(&refused.to_bytes()), text(&case["txAck"]["datagram"]));
+
+    for (index, status) in case["statuses"]
+        .as_array()
+        .expect("an array")
+        .iter()
+        .enumerate()
+    {
+        let named = GatewayTxStatus::named(&text(status)).expect("a status the protocol lists");
+        assert_eq!(named.as_str(), text(status), "status {index}");
+    }
 }

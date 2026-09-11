@@ -75,6 +75,15 @@ released together, so one entry covers all of them.
   RFM95W on an ESP32-C3, each beaconing under its duty-cycle guard and printing what it
   hears with the levels it heard at. The SX1262 card lists the Pico board at The Pi Hut
   and at Waveshare.
+- LoRaWAN gateways in `pamoja-gateway`, a new crate, starting with the Semtech UDP packet
+  forwarder protocol on both sides: the PUSH_DATA and PULL_DATA a gateway sends, the
+  PUSH_ACK, PULL_ACK and PULL_RESP a server answers with, the TX_ACK that reports what
+  became of a downlink, and the `rxpk`, `stat`, `txpk` and `txpk_ack` objects they carry,
+  from PROTOCOL.TXT in Semtech's `packet_forwarder`. A frequency crosses in hertz, a
+  payload as bytes, and a datarate identifier as the same link settings the airtime and
+  range math takes, with the base64 of RFC 4648 and the protocol's two timestamp formats
+  written in the crate rather than pulled in. TypeScript, Python and C# build and read the
+  same datagrams, checked against new conformance vectors and the protocol's own examples.
 
 ### Changed
 

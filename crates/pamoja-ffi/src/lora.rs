@@ -18,7 +18,7 @@ use pamoja_lora::LinkSettings;
 /// link is used: the spreading factor to 5-12 and the coding-rate denominator to
 /// 5-8.
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PamojaLoraLink {
     /// The channel bandwidth in hertz, such as `125000`.
     pub bandwidth_hz: u32,

@@ -22,6 +22,8 @@ mod can;
 mod coap;
 #[cfg(feature = "codec")]
 mod codec;
+#[cfg(feature = "gateway")]
+mod gateway;
 #[cfg(feature = "gpio")]
 mod gpio;
 #[cfg(feature = "kit")]
@@ -611,6 +613,16 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(radios::sx127x_modem_status, m)?)?;
         m.add_class::<lora_radio::LoraRadio>()?;
         m.add_class::<lora_radio::LoraReception>()?;
+    }
+    #[cfg(feature = "gateway")]
+    {
+        m.add_class::<gateway::GatewayPacket>()?;
+        m.add_class::<gateway::GatewayRxpk>()?;
+        m.add_class::<gateway::GatewayStat>()?;
+        m.add_class::<gateway::GatewayTxpk>()?;
+        m.add_function(wrap_pyfunction!(gateway::gateway_encode, m)?)?;
+        m.add_function(wrap_pyfunction!(gateway::gateway_parse, m)?)?;
+        m.add_function(wrap_pyfunction!(gateway::gateway_acknowledgment, m)?)?;
     }
     #[cfg(feature = "routing")]
     {

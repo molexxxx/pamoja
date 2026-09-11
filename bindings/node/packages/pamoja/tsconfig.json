@@ -31,6 +31,9 @@
       "path": "../core"
     },
     {
+      "path": "../gateway"
+    },
+    {
       "path": "../gpio"
     },
     {

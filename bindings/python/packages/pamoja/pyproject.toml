@@ -26,6 +26,7 @@ dependencies = [
     "pamoja-coap==0.1.18",
     "pamoja-codec==0.1.18",
     "pamoja-core==0.1.18",
+    "pamoja-gateway==0.1.18",
     "pamoja-gpio==0.1.18",
     "pamoja-kit==0.1.18",
     "pamoja-ladder==0.1.18",

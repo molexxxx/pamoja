@@ -39,6 +39,69 @@
 // The priority that yields to everything else on the bus.
 #define PAMOJA_J1939_PRIORITY_LOWEST 7
 
+// The protocol version every datagram starts with.
+#define PAMOJA_GATEWAY_PROTOCOL_VERSION 2
+
+// The length of a gateway's unique identifier.
+#define PAMOJA_GATEWAY_EUI_LEN 8
+
+// The gateway forwarding what it heard.
+#define PAMOJA_GATEWAY_PUSH_DATA 0
+
+// The server acknowledging a PUSH_DATA.
+#define PAMOJA_GATEWAY_PUSH_ACK 1
+
+// The gateway holding its route open.
+#define PAMOJA_GATEWAY_PULL_DATA 2
+
+// The server sending a packet to transmit.
+#define PAMOJA_GATEWAY_PULL_RESP 3
+
+// The server acknowledging a PULL_DATA.
+#define PAMOJA_GATEWAY_PULL_ACK 4
+
+// The gateway reporting what became of a PULL_RESP.
+#define PAMOJA_GATEWAY_TX_ACK 5
+
+// A LoRa packet, whose settings are in the link.
+#define PAMOJA_GATEWAY_MODULATION_LORA 0
+
+// An FSK packet, whose bitrate is in `bitrate_bps`.
+#define PAMOJA_GATEWAY_MODULATION_FSK 1
+
+// The CRC checked.
+#define PAMOJA_GATEWAY_CRC_OK 1
+
+// The CRC failed.
+#define PAMOJA_GATEWAY_CRC_FAILED -1
+
+// The packet carried no CRC.
+#define PAMOJA_GATEWAY_CRC_ABSENT 0
+
+// The downlink was scheduled, which the protocol writes as `NONE`.
+#define PAMOJA_GATEWAY_TX_NONE 0
+
+// It arrived too late to schedule.
+#define PAMOJA_GATEWAY_TX_TOO_LATE 1
+
+// Its timestamp is too far ahead.
+#define PAMOJA_GATEWAY_TX_TOO_EARLY 2
+
+// Another packet was already scheduled then.
+#define PAMOJA_GATEWAY_TX_COLLISION_PACKET 3
+
+// A beacon was already scheduled then.
+#define PAMOJA_GATEWAY_TX_COLLISION_BEACON 4
+
+// The radio chain cannot reach that frequency.
+#define PAMOJA_GATEWAY_TX_FREQ 5
+
+// The gateway cannot transmit at that power.
+#define PAMOJA_GATEWAY_TX_POWER 6
+
+// A GPS timestamp was asked for while the GPS is unlocked.
+#define PAMOJA_GATEWAY_TX_GPS_UNLOCKED 7
+
 // The largest I2C address frame, in bytes: the two a 10-bit address needs.
 #define PAMOJA_I2C_FRAME_MAX 2
 
@@ -1564,6 +1627,18 @@ typedef struct PamojaEventBus PamojaEventBus;
 // [`pamoja_frames_len`], then release it with [`pamoja_frames_free`].
 typedef struct PamojaFrames PamojaFrames;
 
+// An opaque handle to one datagram of the protocol.
+//
+// Read it with the `pamoja_gateway_packet_*` calls, then release it with
+// [`pamoja_gateway_packet_free`].
+typedef struct PamojaGatewayPacket PamojaGatewayPacket;
+
+// An opaque handle to what a PUSH_DATA carries: the packets heard, and the report.
+//
+// Fill it with [`pamoja_gateway_uplink_add_rxpk`] and [`pamoja_gateway_uplink_set_stat`],
+// then hand it to [`pamoja_gateway_push_data`], which takes it over.
+typedef struct PamojaGatewayUplink PamojaGatewayUplink;
+
 // An opaque handle to a circular geofence.
 typedef struct PamojaGeofence PamojaGeofence;
 
@@ -1905,6 +1980,131 @@ typedef struct {
   uint32_t max_retransmits;
 } PamojaCoapConfig;
 
+// The radio settings of a LoRa link.
+//
+// Build one with [`pamoja_lora_link_default`] and adjust the fields that differ
+// from the defaults. Values outside the ranges LoRa defines are clamped when the
+// link is used: the spreading factor to 5-12 and the coding-rate denominator to
+// 5-8.
+typedef struct {
+  // The channel bandwidth in hertz, such as `125000`.
+  uint32_t bandwidth_hz;
+  // The preamble length in symbols; the LoRa default is 8.
+  uint16_t preamble_symbols;
+  // The spreading factor, 5 (fastest) to 12 (longest range).
+  uint8_t spreading_factor;
+  // The coding-rate denominator, 5 to 8, for 4/5 to 4/8.
+  uint8_t coding_rate_denominator;
+  // `1` for an explicit header, `0` to omit the header symbols.
+  uint8_t explicit_header;
+  // `1` to append the frame CRC, `0` to leave it off.
+  uint8_t crc;
+} PamojaLoraLink;
+
+// A packet the gateway heard, without its payload, which crosses beside it.
+typedef struct {
+  // When it arrived, in microseconds since 1970-01-01 UTC, when `has_received_at`.
+  uint64_t received_at_us;
+  // When it arrived on the GPS clock, in milliseconds, when `has_gps_millis`.
+  uint64_t gps_millis;
+  // The carrier it arrived on, in hertz.
+  uint32_t frequency_hz;
+  // The concentrator's own timestamp of the reception, when `has_timestamp`.
+  uint32_t timestamp_us;
+  // The spreading factor, bandwidth, coding rate, header, and CRC, for a LoRa packet.
+  PamojaLoraLink link;
+  // The bitrate in bits per second, for an FSK packet.
+  uint32_t bitrate_bps;
+  // The received signal strength, in hundredths of a dBm.
+  int32_t rssi_centi_dbm;
+  // The signal-to-noise ratio, in hundredths of a dB, when `has_snr`.
+  int32_t snr_centi_db;
+  // The concentrator channel it arrived on.
+  uint8_t channel;
+  // The radio chain it arrived on.
+  uint8_t rf_chain;
+  // What the CRC said: [`PAMOJA_GATEWAY_CRC_OK`], `_FAILED`, or `_ABSENT`.
+  int8_t crc;
+  // [`PAMOJA_GATEWAY_MODULATION_LORA`] or `_FSK`.
+  uint8_t modulation;
+  // Whether the datagram carried a reception time.
+  bool has_received_at;
+  // Whether it carried a GPS time.
+  bool has_gps_millis;
+  // Whether it carried the concentrator's timestamp.
+  bool has_timestamp;
+  // Whether it carried a signal-to-noise ratio.
+  bool has_snr;
+} PamojaGatewayRxpk;
+
+// A gateway's own status report.
+typedef struct {
+  // The gateway's clock, in seconds since 1970-01-01 UTC, when `has_time`.
+  uint64_t time_s;
+  // Its latitude in degrees, north positive, when `has_position`.
+  double latitude_deg;
+  // Its longitude in degrees, east positive, when `has_position`.
+  double longitude_deg;
+  // What share of its datagrams were acknowledged, as a percentage.
+  double acknowledged_percent;
+  // Its altitude in meters, when `has_altitude`.
+  int32_t altitude_m;
+  // How many packets its radio received.
+  uint32_t received;
+  // How many of those had a good CRC.
+  uint32_t received_ok;
+  // How many it forwarded.
+  uint32_t forwarded;
+  // How many downlink datagrams it received.
+  uint32_t downlinks;
+  // How many packets it transmitted.
+  uint32_t transmitted;
+  // Whether the report carried a clock reading.
+  bool has_time;
+  // Whether it carried a position.
+  bool has_position;
+  // Whether it carried an altitude.
+  bool has_altitude;
+} PamojaGatewayStat;
+
+// A packet the server asks the gateway to transmit, without its payload.
+typedef struct {
+  // The GPS time to transmit at, in milliseconds, when `has_gps_millis`.
+  uint64_t gps_millis;
+  // The carrier to transmit on, in hertz.
+  uint32_t frequency_hz;
+  // The concentrator timestamp to transmit at, when `has_timestamp`.
+  uint32_t timestamp_us;
+  // The spreading factor, bandwidth, and coding rate, for a LoRa packet.
+  PamojaLoraLink link;
+  // The bitrate in bits per second, for an FSK packet.
+  uint32_t bitrate_bps;
+  // The FSK frequency deviation in hertz, when `has_deviation`.
+  uint32_t frequency_deviation_hz;
+  // How long a preamble to send, in symbols, when `has_preamble`.
+  uint16_t preamble_symbols;
+  // The radio chain to transmit from.
+  uint8_t rf_chain;
+  // The power to transmit at, in dBm.
+  int8_t power_dbm;
+  // [`PAMOJA_GATEWAY_MODULATION_LORA`] or `_FSK`.
+  uint8_t modulation;
+  // Whether to transmit at once, which ignores the timestamps.
+  bool immediate;
+  // Whether to invert the LoRa polarity, as a LoRaWAN downlink is sent.
+  bool invert_polarity;
+  // Whether to leave the physical CRC off, as LoRaWAN downlinks are.
+  bool without_crc;
+  // Whether a concentrator timestamp was given.
+  bool has_timestamp;
+  // Whether a GPS time was given.
+  bool has_gps_millis;
+  // Whether an FSK deviation was given.
+  bool has_deviation;
+  // Whether a preamble length was given.
+  bool has_preamble;
+} PamojaGatewayTxpk;
+
 // A validated I2C device address.
 //
 // Build one with [`pamoja_i2c_address_seven_bit`] or
@@ -1949,27 +2149,6 @@ typedef struct {
   // Degrees east of the prime meridian, negative for west.
   double longitude;
 } PamojaCoordinate;
-
-// The radio settings of a LoRa link.
-//
-// Build one with [`pamoja_lora_link_default`] and adjust the fields that differ
-// from the defaults. Values outside the ranges LoRa defines are clamped when the
-// link is used: the spreading factor to 5-12 and the coding-rate denominator to
-// 5-8.
-typedef struct {
-  // The channel bandwidth in hertz, such as `125000`.
-  uint32_t bandwidth_hz;
-  // The preamble length in symbols; the LoRa default is 8.
-  uint16_t preamble_symbols;
-  // The spreading factor, 5 (fastest) to 12 (longest range).
-  uint8_t spreading_factor;
-  // The coding-rate denominator, 5 to 8, for 4/5 to 4/8.
-  uint8_t coding_rate_denominator;
-  // `1` for an explicit header, `0` to omit the header symbols.
-  uint8_t explicit_header;
-  // `1` to append the frame CRC, `0` to leave it off.
-  uint8_t crc;
-} PamojaLoraLink;
 
 // The gains and losses of a LoRa link, from the transmitting radio to the receiving one.
 //
@@ -4168,6 +4347,442 @@ uintptr_t pamoja_readings_len(const PamojaReadings *readings);
 // `readings` must be a handle from [`pamoja_codec_quantizer_decode`] that has
 // not already been freed, or null. After this call it must not be used again.
 void pamoja_readings_free(PamojaReadings *readings);
+
+// Creates an empty uplink for a PUSH_DATA to carry.
+//
+// # Returns
+//
+// A handle the caller releases with [`pamoja_gateway_uplink_free`], or hands to
+// [`pamoja_gateway_push_data`], which takes it over.
+PamojaGatewayUplink *pamoja_gateway_uplink_new(void);
+
+// Adds a packet the gateway heard.
+//
+// # Arguments
+//
+// * `uplink` - the uplink being built.
+// * `packet` - the metadata, whose `modulation` says how to read its link or bitrate.
+// * `payload` - the packet itself.
+// * `payload_len` - its length.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null handle or a null
+// payload with a length.
+//
+// # Safety
+//
+// `uplink` must be a live handle from [`pamoja_gateway_uplink_new`], and `payload` must
+// point at `payload_len` readable bytes or be null.
+PamojaStatus pamoja_gateway_uplink_add_rxpk(PamojaGatewayUplink *uplink,
+                                            PamojaGatewayRxpk packet,
+                                            const uint8_t *payload,
+                                            uintptr_t payload_len);
+
+// Sets the gateway's status report on an uplink.
+//
+// # Arguments
+//
+// * `uplink` - the uplink being built.
+// * `status` - the report.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null handle.
+//
+// # Safety
+//
+// `uplink` must be a live handle from [`pamoja_gateway_uplink_new`].
+PamojaStatus pamoja_gateway_uplink_set_stat(PamojaGatewayUplink *uplink, PamojaGatewayStat status);
+
+// Releases an uplink that will not be sent.
+//
+// # Arguments
+//
+// * `uplink` - the uplink, which must not be used again.
+//
+// # Safety
+//
+// `uplink` must be a live handle from [`pamoja_gateway_uplink_new`] that was not handed to
+// [`pamoja_gateway_push_data`], or null.
+void pamoja_gateway_uplink_free(PamojaGatewayUplink *uplink);
+
+// Builds the PUSH_DATA that forwards an uplink.
+//
+// # Arguments
+//
+// * `token` - the random token the acknowledgment carries back.
+// * `gateway` - the gateway's eight-byte identifier.
+// * `uplink` - the uplink, which this call takes over and releases.
+// * `out_packet` - receives the packet.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `gateway` must point at [`PAMOJA_GATEWAY_EUI_LEN`] readable bytes, `uplink` must be a live
+// handle that is not used again, and `out_packet` must be writable.
+PamojaStatus pamoja_gateway_push_data(uint16_t token,
+                                      const uint8_t *gateway,
+                                      PamojaGatewayUplink *uplink,
+                                      PamojaGatewayPacket **out_packet);
+
+// Builds the PUSH_ACK that answers a PUSH_DATA.
+//
+// # Arguments
+//
+// * `token` - the token of the datagram being acknowledged.
+//
+// # Returns
+//
+// A handle the caller releases with [`pamoja_gateway_packet_free`].
+PamojaGatewayPacket *pamoja_gateway_push_ack(uint16_t token);
+
+// Builds the PULL_DATA that holds a route open.
+//
+// # Arguments
+//
+// * `token` - the random token the acknowledgment carries back.
+// * `gateway` - the gateway's eight-byte identifier.
+// * `out_packet` - receives the packet.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `gateway` must point at [`PAMOJA_GATEWAY_EUI_LEN`] readable bytes and `out_packet` must be
+// writable.
+PamojaStatus pamoja_gateway_pull_data(uint16_t token,
+                                      const uint8_t *gateway,
+                                      PamojaGatewayPacket **out_packet);
+
+// Builds the PULL_ACK that answers a PULL_DATA.
+//
+// # Arguments
+//
+// * `token` - the token of the datagram being acknowledged.
+//
+// # Returns
+//
+// A handle the caller releases with [`pamoja_gateway_packet_free`].
+PamojaGatewayPacket *pamoja_gateway_pull_ack(uint16_t token);
+
+// Builds the PULL_RESP that asks a gateway to transmit.
+//
+// # Arguments
+//
+// * `token` - the random token the TX_ACK carries back.
+// * `transmit` - what to transmit, and when.
+// * `payload` - the packet itself.
+// * `payload_len` - its length.
+// * `out_packet` - receives the packet.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `payload` must point at `payload_len` readable bytes or be null, and `out_packet` must be
+// writable.
+PamojaStatus pamoja_gateway_pull_resp(uint16_t token,
+                                      PamojaGatewayTxpk transmit,
+                                      const uint8_t *payload,
+                                      uintptr_t payload_len,
+                                      PamojaGatewayPacket **out_packet);
+
+// Builds the TX_ACK that reports what became of a PULL_RESP.
+//
+// # Arguments
+//
+// * `token` - the token of the PULL_RESP being answered.
+// * `gateway` - the gateway's eight-byte identifier.
+// * `status` - [`PAMOJA_GATEWAY_TX_NONE`] when it was scheduled, or why it was refused.
+// * `out_packet` - receives the packet.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument or a status
+// the protocol does not define.
+//
+// # Safety
+//
+// `gateway` must point at [`PAMOJA_GATEWAY_EUI_LEN`] readable bytes and `out_packet` must be
+// writable.
+PamojaStatus pamoja_gateway_tx_ack(uint16_t token,
+                                   const uint8_t *gateway,
+                                   uint8_t status,
+                                   PamojaGatewayPacket **out_packet);
+
+// Reads a datagram.
+//
+// # Arguments
+//
+// * `bytes` - the datagram as it arrived.
+// * `len` - its length.
+// * `out_packet` - receives the packet.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::Codec`] for a datagram this protocol does not
+// describe, with the reason in the last error message.
+//
+// # Safety
+//
+// `bytes` must point at `len` readable bytes or be null, and `out_packet` must be writable.
+PamojaStatus pamoja_gateway_packet_parse(const uint8_t *bytes,
+                                         uintptr_t len,
+                                         PamojaGatewayPacket **out_packet);
+
+// Returns which kind of datagram a packet is.
+//
+// # Arguments
+//
+// * `packet` - the packet.
+//
+// # Returns
+//
+// One of [`PAMOJA_GATEWAY_PUSH_DATA`] through [`PAMOJA_GATEWAY_TX_ACK`], or 255 if `packet`
+// is null.
+//
+// # Safety
+//
+// `packet` must be a live handle, or null.
+uint8_t pamoja_gateway_packet_kind(const PamojaGatewayPacket *packet);
+
+// Returns a packet's token, which pairs it with its answer.
+//
+// # Arguments
+//
+// * `packet` - the packet.
+//
+// # Returns
+//
+// The token, or 0 if `packet` is null.
+//
+// # Safety
+//
+// `packet` must be a live handle, or null.
+uint16_t pamoja_gateway_packet_token(const PamojaGatewayPacket *packet);
+
+// Writes the gateway's identifier, for the datagrams that carry one.
+//
+// # Arguments
+//
+// * `packet` - the packet.
+// * `out_gateway` - receives [`PAMOJA_GATEWAY_EUI_LEN`] bytes.
+//
+// # Returns
+//
+// `true` when the packet carries an identifier, which the datagrams a server sends do not.
+//
+// # Safety
+//
+// `packet` must be a live handle or null, and `out_gateway` must point at
+// [`PAMOJA_GATEWAY_EUI_LEN`] writable bytes or be null.
+bool pamoja_gateway_packet_gateway(const PamojaGatewayPacket *packet, uint8_t *out_gateway);
+
+// Returns how many packets a PUSH_DATA forwards.
+//
+// # Arguments
+//
+// * `packet` - the packet.
+//
+// # Returns
+//
+// The count, or 0 for any other kind.
+//
+// # Safety
+//
+// `packet` must be a live handle, or null.
+uintptr_t pamoja_gateway_packet_rxpk_count(const PamojaGatewayPacket *packet);
+
+// Reads one of the packets a PUSH_DATA forwards.
+//
+// # Arguments
+//
+// * `packet` - the packet.
+// * `index` - which forwarded packet, from zero.
+// * `out_rxpk` - receives its metadata.
+//
+// # Returns
+//
+// `true` when there is a packet at that index.
+//
+// # Safety
+//
+// `packet` must be a live handle or null, and `out_rxpk` must be writable or null.
+bool pamoja_gateway_packet_rxpk(const PamojaGatewayPacket *packet,
+                                uintptr_t index,
+                                PamojaGatewayRxpk *out_rxpk);
+
+// Returns a pointer to one forwarded packet's payload.
+//
+// Use [`pamoja_gateway_packet_rxpk_payload_len`] for its length. The pointer is valid until
+// the packet is freed.
+//
+// # Arguments
+//
+// * `packet` - the packet.
+// * `index` - which forwarded packet, from zero.
+//
+// # Returns
+//
+// The pointer, or null when there is no packet at that index.
+//
+// # Safety
+//
+// `packet` must be a live handle, or null.
+const uint8_t *pamoja_gateway_packet_rxpk_payload(const PamojaGatewayPacket *packet,
+                                                  uintptr_t index);
+
+// Returns the length of one forwarded packet's payload.
+//
+// # Arguments
+//
+// * `packet` - the packet.
+// * `index` - which forwarded packet, from zero.
+//
+// # Returns
+//
+// The length, or 0 when there is no packet at that index.
+//
+// # Safety
+//
+// `packet` must be a live handle, or null.
+uintptr_t pamoja_gateway_packet_rxpk_payload_len(const PamojaGatewayPacket *packet,
+                                                 uintptr_t index);
+
+// Reads the gateway's status report, when a PUSH_DATA carries one.
+//
+// # Arguments
+//
+// * `packet` - the packet.
+// * `out_stat` - receives the report.
+//
+// # Returns
+//
+// `true` when the datagram carried a report.
+//
+// # Safety
+//
+// `packet` must be a live handle or null, and `out_stat` must be writable or null.
+bool pamoja_gateway_packet_stat(const PamojaGatewayPacket *packet, PamojaGatewayStat *out_stat);
+
+// Reads what a PULL_RESP asks the gateway to transmit.
+//
+// # Arguments
+//
+// * `packet` - the packet.
+// * `out_txpk` - receives the request.
+//
+// # Returns
+//
+// `true` when the packet is a PULL_RESP.
+//
+// # Safety
+//
+// `packet` must be a live handle or null, and `out_txpk` must be writable or null.
+bool pamoja_gateway_packet_txpk(const PamojaGatewayPacket *packet, PamojaGatewayTxpk *out_txpk);
+
+// Returns a pointer to the payload a PULL_RESP carries.
+//
+// Use [`pamoja_gateway_packet_txpk_payload_len`] for its length. The pointer is valid until
+// the packet is freed.
+//
+// # Arguments
+//
+// * `packet` - the packet.
+//
+// # Returns
+//
+// The pointer, or null when the packet is not a PULL_RESP.
+//
+// # Safety
+//
+// `packet` must be a live handle, or null.
+const uint8_t *pamoja_gateway_packet_txpk_payload(const PamojaGatewayPacket *packet);
+
+// Returns the length of the payload a PULL_RESP carries.
+//
+// # Arguments
+//
+// * `packet` - the packet.
+//
+// # Returns
+//
+// The length, or 0 when the packet is not a PULL_RESP.
+//
+// # Safety
+//
+// `packet` must be a live handle, or null.
+uintptr_t pamoja_gateway_packet_txpk_payload_len(const PamojaGatewayPacket *packet);
+
+// Returns what a TX_ACK reports.
+//
+// # Arguments
+//
+// * `packet` - the packet.
+//
+// # Returns
+//
+// One of [`PAMOJA_GATEWAY_TX_NONE`] through [`PAMOJA_GATEWAY_TX_GPS_UNLOCKED`], or 255 when
+// the packet is not a TX_ACK.
+//
+// # Safety
+//
+// `packet` must be a live handle, or null.
+uint8_t pamoja_gateway_packet_tx_status(const PamojaGatewayPacket *packet);
+
+// Builds the acknowledgment a server owes a datagram.
+//
+// # Arguments
+//
+// * `packet` - the datagram that arrived.
+// * `out_packet` - receives the acknowledgment.
+//
+// # Returns
+//
+// `true` for a PUSH_DATA or a PULL_DATA, which are the datagrams a server acknowledges. A
+// PULL_RESP is answered with a TX_ACK, which names the gateway, so the gateway builds that
+// one with [`pamoja_gateway_tx_ack`].
+//
+// # Safety
+//
+// `packet` must be a live handle or null, and `out_packet` must be writable or null.
+bool pamoja_gateway_packet_acknowledgment(const PamojaGatewayPacket *packet,
+                                          PamojaGatewayPacket **out_packet);
+
+// Writes a packet as the datagram to send.
+//
+// # Arguments
+//
+// * `packet` - the packet.
+//
+// # Returns
+//
+// A buffer the caller releases with `pamoja_buffer_free`, or null if `packet` is null.
+//
+// # Safety
+//
+// `packet` must be a live handle, or null.
+PamojaBuffer *pamoja_gateway_packet_to_buffer(const PamojaGatewayPacket *packet);
+
+// Releases a packet.
+//
+// # Arguments
+//
+// * `packet` - the packet, which must not be used again.
+//
+// # Safety
+//
+// `packet` must be a live handle from one of the builders or from
+// [`pamoja_gateway_packet_parse`], or null.
+void pamoja_gateway_packet_free(PamojaGatewayPacket *packet);
 
 // Validates a 7-bit I2C address.
 //

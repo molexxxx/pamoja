@@ -236,6 +236,20 @@ dotnet = [
 guide = "guides/radios.md"
 
 [[capability]]
+key = "gateway"
+chapter = "radio"
+title = "LoRaWAN gateways"
+summary = "The Semtech UDP packet forwarder protocol on both sides: the datagrams a gateway and a network server exchange, and the packets, reports and downlinks they carry"
+crates = ["pamoja-gateway"]
+node = "gateway"
+python = "gateway"
+dotnet = [
+    "Gateway", "GatewayPacket", "GatewayPacketKind", "GatewayRxpk", "GatewayStat",
+    "GatewayTxpk", "GatewayCrc", "GatewayTxStatus",
+]
+guide = "guides/gateway.md"
+
+[[capability]]
 key = "mesh"
 chapter = "radio"
 title = "Mesh frames"
