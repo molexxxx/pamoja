@@ -160,8 +160,8 @@ pub fn gateway_encode(packet: GatewayPacket) -> napi::Result<Buffer> {
 /// Reads a datagram that arrived.
 #[napi(js_name = "gatewayParse")]
 pub fn gateway_parse(datagram: Buffer) -> napi::Result<GatewayPacket> {
-    let packet = Packet::parse(&datagram)
-        .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+    let packet =
+        Packet::parse(&datagram).map_err(|error| napi::Error::from_reason(error.to_string()))?;
     Ok(packet_to_js(&packet))
 }
 
