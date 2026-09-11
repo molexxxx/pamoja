@@ -64,6 +64,45 @@ struct Tag {
     text: String,
     ships: bool,
     krate: Option<String>,
+    href: Option<String>,
+}
+
+impl Track {
+    // What the track has committed, as tags, or a plain statement when it has none.
+    fn committed(&self) -> String {
+        let tags: Vec<String> = self
+            .tags
+            .iter()
+            .filter(|tag| !tag.ships)
+            .map(|tag| format!("<span class=\"tag\">{}</span>", escape(&tag.text)))
+            .collect();
+        if tags.is_empty() {
+            "<span class=\"nothing\">Nothing committed yet</span>".to_owned()
+        } else {
+            tags.join(" ")
+        }
+    }
+
+    // What the track ships today as one line, each entry linked to where it lives: its
+    // crate's reference, or the part of the sheet its `href` names.
+    fn ships(&self) -> String {
+        self.tags
+            .iter()
+            .filter(|tag| tag.ships)
+            .map(|tag| match (&tag.href, &tag.krate) {
+                (Some(href), _) => {
+                    format!("<a href=\"{}\">{}</a>", escape(href), escape(&tag.text))
+                }
+                (None, Some(krate)) => format!(
+                    "<a href=\"docs/reference/rust/{}/index.html\">{}</a>",
+                    krate.replace('-', "_"),
+                    escape(&tag.text)
+                ),
+                (None, None) => escape(&tag.text),
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
 }
 
 struct Backing {
@@ -189,6 +228,7 @@ impl Home {
                             .and_then(|v| v.as_bool())
                             .ok_or_else(|| format!("{at}: a tag needs `ships`"))?,
                         krate: tag.get("crate").and_then(|v| v.as_str()).map(str::to_owned),
+                        href: tag.get("href").and_then(|v| v.as_str()).map(str::to_owned),
                     })
                 })
                 .collect::<Result<Vec<Tag>, String>>()?;
@@ -349,7 +389,6 @@ impl Home {
         out.push_str(&quickstart(root)?);
         out.push_str(&covers(catalog, descriptions));
         out.push_str(&self.runs());
-        out.push_str(&reach(catalog));
         out.push_str(&self.roadmap());
         out.push_str(&self.backing());
         out.push_str("</main>\n");
@@ -511,34 +550,26 @@ impl Home {
         out
     }
 
-    // Where the project is going, as a table: what ships in each track and what is committed.
+    // Where the project is going, as a table: what each track has committed, and what it
+    // builds on today.
     fn roadmap(&self) -> String {
         let mut out = String::from(
-            "<section class=\"sec\" id=\"roadmap\" aria-labelledby=\"roadmap-title\">\n\
-             <h2 id=\"roadmap-title\"><span class=\"num\">7</span>Direction</h2>\n\
-             <p class=\"sec-lead\">Not a sensor library: a platform for physical things. What ships today is in the crates named above; the committed direction is beside it.</p>\n\
-             <div class=\"tbl\" id=\"table-7-1\">\n\
-             <p class=\"tbl-caption\"><b>Table 7-1.</b> Tracks, what ships, and what is committed</p>\n\
+            "<section class=\"sec sec-turn\" id=\"roadmap\" aria-labelledby=\"roadmap-title\">\n\
+             <h2 id=\"roadmap-title\"><span class=\"num\">6</span>Direction</h2>\n\
+             <p class=\"sec-lead\">Not a sensor library: a platform for physical things. Each track names what is committed next and what it builds on today.</p>\n\
+             <div class=\"tbl\" id=\"table-6-1\">\n\
+             <p class=\"tbl-caption\"><b>Table 6-1.</b> Tracks, what each has committed, and what it builds on today</p>\n\
              <table class=\"tracks\">\n\
-             <thead><tr><th scope=\"col\">Track</th><th scope=\"col\">Ships today</th><th scope=\"col\">Committed</th></tr></thead>\n\
+             <thead><tr><th scope=\"col\">Track</th><th scope=\"col\">Committed</th><th scope=\"col\">Builds on</th></tr></thead>\n\
              <tbody>\n",
         );
         for track in &self.tracks {
-            let list = |ships: bool| -> String {
-                track
-                    .tags
-                    .iter()
-                    .filter(|tag| tag.ships == ships)
-                    .map(|tag| format!("<span class=\"tag\">{}</span>", escape(&tag.text)))
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            };
             out.push_str(&format!(
-                "<tr><th scope=\"row\" data-label=\"Track\"><b>{}</b><span class=\"what\">{}</span></th><td data-label=\"Ships today\">{}</td><td data-label=\"Committed\">{}</td></tr>\n",
+                "<tr><th scope=\"row\" data-label=\"Track\"><b>{}</b><span class=\"what\">{}</span></th><td data-label=\"Committed\">{}</td><td class=\"ships\" data-label=\"Builds on\">{}</td></tr>\n",
                 escape(&track.title),
                 escape(&track.lead),
-                list(true),
-                list(false),
+                track.committed(),
+                track.ships(),
             ));
         }
         out.push_str("</tbody>\n</table>\n</div>\n</section>\n");
@@ -588,17 +619,17 @@ impl Home {
             .collect();
         format!(
             "<section class=\"sec\" id=\"back\" aria-labelledby=\"back-title\">\n\
-             <h2 id=\"back-title\"><span class=\"num\">8</span>Backing<span class=\"stamp\">Not open</span></h2>\n\
+             <h2 id=\"back-title\"><span class=\"num\">7</span>Backing<span class=\"stamp\">Not open</span></h2>\n\
              <div class=\"back-open\">\n\
              <p class=\"sec-lead\">{}</p>\n\
-             <div class=\"tbl\" id=\"table-8-1\">\n\
-             <p class=\"tbl-caption\"><b>Table 8-1.</b> What backing will open</p>\n\
+             <div class=\"tbl\" id=\"table-7-1\">\n\
+             <p class=\"tbl-caption\"><b>Table 7-1.</b> What backing will open</p>\n\
              <table class=\"offers\">\n<tbody>\n{offers}</tbody>\n</table>\n\
              <p class=\"tbl-note\">{}</p>\n\
              </div>\n\
              </div>\n\
-             <div class=\"tbl\" id=\"table-8-2\">\n\
-             <p class=\"tbl-caption\"><b>Table 8-2.</b> How it opens, in order</p>\n\
+             <div class=\"tbl\" id=\"table-7-2\">\n\
+             <p class=\"tbl-caption\"><b>Table 7-2.</b> How it opens, in order</p>\n\
              <table class=\"milestones\">\n\
              <thead><tr><th scope=\"col\">State</th><th scope=\"col\">Milestone</th><th scope=\"col\">Detail</th></tr></thead>\n\
              <tbody>\n{milestones}</tbody>\n\
@@ -606,12 +637,12 @@ impl Home {
              </div>\n\
              <div class=\"back-cost\">\n\
              <div class=\"back-why\">\n\
-             <h3 id=\"paid-for\">8.1 {}</h3>\n\
+             <h3 id=\"paid-for\">7.1 {}</h3>\n\
              <p class=\"prose\">{}</p>\n\
              </div>\n\
-             <figure class=\"fig fig-ladder\" id=\"figure-8-1\">\n\
+             <figure class=\"fig fig-ladder\" id=\"figure-7-1\">\n\
              <ol class=\"ladder\">\n{rungs}</ol>\n\
-             <figcaption><b>Figure 8-1.</b> The ladder a message climbs, cheapest rung first. A rung is reached only when every rung under it is gone, which is what keeps the dear ones rare.</figcaption>\n\
+             <figcaption><b>Figure 7-1.</b> The ladder a message climbs, cheapest rung first. A rung is reached only when every rung under it is gone, which is what keeps the dear ones rare.</figcaption>\n\
              </figure>\n\
              </div>\n\
              </section>\n",
@@ -660,38 +691,61 @@ fn quickstart(root: &Path) -> Result<String, String> {
     ))
 }
 
-// Every capability as a row of one table, grouped by chapter, with the package in each
-// language and the guide; the engine crates open the table.
+// The capability map: the four bindings across the top, then the engine, a cell per chapter
+// listing its capabilities, and the dashboard.
 fn covers(catalog: &Catalog, descriptions: &BTreeMap<String, String>) -> String {
-    let engine: String = catalog
-        .engine
+    let crate_links = |crates: &[&str]| -> String {
+        crates
+            .iter()
+            .map(|krate| {
+                format!(
+                    "<a href=\"https://crates.io/crates/{krate}\"><code>{}</code></a>",
+                    escape(krate)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let described = |krate: Option<&str>| -> String {
+        krate
+            .and_then(|krate| descriptions.get(krate))
+            .map(|what| escape(what))
+            .unwrap_or_default()
+    };
+
+    let bindings: String = LANGUAGES
         .iter()
-        .map(|krate| {
+        .map(|language| {
+            let abi = match (language.key, catalog.abi.as_deref()) {
+                ("dotnet", Some(abi)) => format!(", over the C ABI in {}", crate_links(&[abi])),
+                _ => String::new(),
+            };
             format!(
-                "<a href=\"https://crates.io/crates/{krate}\"><code>{}</code></a>",
-                escape(krate)
+                "<article class=\"chapter\">\n\
+                 <h3><a href=\"docs/reference/{}.html\">{}</a></h3>\n\
+                 <p class=\"chapter-what\">Every {} with its API pages, generated by {}{abi}.</p>\n\
+                 </article>\n",
+                language.key,
+                language.name,
+                language.unit(),
+                language.generator(),
             )
         })
-        .collect::<Vec<_>>()
-        .join(", ");
-    let engine_what = catalog
-        .engine
-        .first()
-        .and_then(|krate| descriptions.get(krate).cloned())
-        .map(|what| what.trim_end_matches('.').to_owned())
-        .unwrap_or_default();
-    let mut cards = format!(
+        .collect();
+
+    let core = catalog.core_crates();
+    let mut cells = format!(
         "<article class=\"chapter chapter-engine\">\n\
          <p class=\"chapter-id\">4.1</p>\n\
          <h3><a href=\"docs/reference/rust.html\">Engine</a></h3>\n\
          <p class=\"chapter-what\">{}</p>\n\
-         <p class=\"chapter-n\">{engine}</p>\n\
+         <p class=\"chapter-list\">{}</p>\n\
          </article>\n",
-        escape(&engine_what)
+        described(core.first().copied()),
+        crate_links(&core)
     );
     for (index, chapter) in catalog.chapters.iter().enumerate() {
         let members: Vec<&Capability> = catalog.in_chapter(&chapter.key).collect();
-        let count = members.len();
         // A heading opens the first guide under it, which is where a reader who wants the
         // heading itself starts; the sidebar then holds the rest of that heading's guides.
         let href = members
@@ -699,21 +753,41 @@ fn covers(catalog: &Catalog, descriptions: &BTreeMap<String, String>) -> String 
             .and_then(|capability| capability.guide.as_ref())
             .map(|guide| format!("docs/{}.html", guide.strip_suffix(".md").unwrap_or(guide)))
             .unwrap_or_else(|| "docs/reference/index.html".to_owned());
-        cards.push_str(&format!(
+        let list = members
+            .iter()
+            .map(|capability| match &capability.guide {
+                Some(guide) => format!(
+                    "<a href=\"docs/{}.html\"><code>{}</code></a>",
+                    guide.strip_suffix(".md").unwrap_or(guide),
+                    escape(&capability.key)
+                ),
+                None => format!("<code>{}</code>", escape(&capability.key)),
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        cells.push_str(&format!(
             "<article class=\"chapter\">\n\
              <p class=\"chapter-id\">4.{}</p>\n\
              <h3><a href=\"{href}\">{}</a></h3>\n\
              <p class=\"chapter-what\">{}</p>\n\
-             <p class=\"chapter-n\">{count} {}</p>\n\
+             <p class=\"chapter-list\">{list}</p>\n\
              </article>\n",
             index + 2,
             escape(&chapter.title),
             escape(&chapter.intent),
-            if count == 1 {
-                "capability"
-            } else {
-                "capabilities"
-            }
+        ));
+    }
+    if let Some(dashboard) = catalog.dashboard.as_deref() {
+        cells.push_str(&format!(
+            "<article class=\"chapter\">\n\
+             <p class=\"chapter-id\">4.{}</p>\n\
+             <h3><a href=\"https://pamoja.molex.cloud/dashboard/\">Dashboard</a></h3>\n\
+             <p class=\"chapter-what\">{}</p>\n\
+             <p class=\"chapter-list\">{}</p>\n\
+             </article>\n",
+            catalog.chapters.len() + 2,
+            described(Some(dashboard)),
+            crate_links(&[dashboard])
         ));
     }
 
@@ -722,45 +796,15 @@ fn covers(catalog: &Catalog, descriptions: &BTreeMap<String, String>) -> String 
          <h2 id=\"covers-title\"><span class=\"num\">4</span>Capabilities</h2>\n\
          <p class=\"sec-lead\">Every capability is a crate in Rust and a package in each binding, behind the traits in <code>pamoja-core</code>. On a microcontroller you bring in two crates and nothing else.</p>\n\
          <div class=\"tbl\" id=\"table-4-1\">\n\
-         <p class=\"tbl-caption\"><b>Table 4-1.</b> The engine, then {} capabilities under {} headings. A heading that holds more than one is also one thing to install.</p>\n\
-         <div class=\"chapters\">\n{cards}</div>\n\
+         <p class=\"tbl-caption\"><b>Table 4-1.</b> The four bindings over the engine, {} capabilities under {} headings, and the dashboard. A heading that holds more than one is also one thing to install.</p>\n\
+         <div class=\"chapters bindings\">\n{bindings}</div>\n\
+         <div class=\"chapters\">\n{cells}</div>\n\
          </div>\n\
          <p class=\"sec-note\">Every capability, with its package on crates.io, npm, PyPI, and NuGet and its API pages in all four languages, is on the <a href=\"docs/reference/index.html\">reference</a>. How a call reaches a crate, from a binding down through the engine, is drawn on the <a href=\"docs/about/architecture.html\">architecture</a> page.</p>\n\
          </section>\n",
         catalog.capabilities.len(),
         catalog.chapters.len()
     )
-}
-
-// The four languages as a table: the install line, the reference, and the guides.
-fn reach(catalog: &Catalog) -> String {
-    let guides = catalog
-        .capabilities
-        .iter()
-        .filter(|capability| capability.guide.is_some())
-        .count();
-    let mut out = String::from(
-        "<section class=\"sec sec-turn\" id=\"reach\" aria-labelledby=\"reach-title\">\n\
-         <h2 id=\"reach-title\"><span class=\"num\">6</span>Language bindings</h2>\n\
-         <p class=\"sec-lead\">One memory-safe engine, idiomatic bindings on top. Every capability is a package in each, and every guide shows the same task in all four. The install line for each is in Table 1.</p>\n\
-         <div class=\"tbl\" id=\"table-6-1\">\n\
-         <p class=\"tbl-caption\"><b>Table 6-1.</b> Bindings, their reference, and their guides</p>\n\
-         <table class=\"bindings\">\n\
-         <thead><tr><th scope=\"col\">Language</th><th scope=\"col\">Reference</th><th scope=\"col\">Guides</th></tr></thead>\n\
-         <tbody>\n",
-    );
-    for language in &LANGUAGES {
-        out.push_str(&format!(
-            "<tr><th scope=\"row\" data-label=\"Language\"><b>{}</b></th><td data-label=\"Reference\"><a href=\"docs/reference/{}.html\">{} reference</a><span class=\"what\">Every {} with its API pages, generated by {}</span></td><td data-label=\"Guides\"><a href=\"docs/index.html\">{guides} guides</a></td></tr>\n",
-            language.name,
-            language.key,
-            language.name,
-            language.unit(),
-            language.generator(),
-        ));
-    }
-    out.push_str("</tbody>\n</table>\n</div>\n</section>\n");
-    out
 }
 
 // A scenario's opening state as a table, so the figure reads before any script runs and
@@ -934,6 +978,54 @@ detail = "With partners."
 "#;
 
     const CONSOLES: &str = "const SPECS = {\n  farm: {\n    id: 'x',\n  },\n};\n";
+
+    #[test]
+    fn a_track_leads_with_what_it_has_committed() {
+        let table = Home::parse(SAMPLE).unwrap().roadmap();
+        assert!(
+            table.contains("<span class=\"tag\">satellite</span>"),
+            "{table}"
+        );
+        assert!(
+            table.contains("<a href=\"docs/reference/rust/pamoja_mqtt/index.html\">MQTT</a>"),
+            "{table}"
+        );
+        let shipped_only = SAMPLE.replace(
+            "  { text = \"satellite\", ships = false, crate = \"pamoja-satellite\" },\n",
+            "",
+        );
+        let table = Home::parse(&shipped_only).unwrap().roadmap();
+        assert!(table.contains("Nothing committed yet"), "{table}");
+    }
+
+    #[test]
+    fn the_map_puts_each_engine_crate_where_it_belongs() {
+        let catalog = Catalog::load(&crate::docs::repo_root()).unwrap();
+        let map = covers(&catalog, &BTreeMap::new());
+        let cell = |from: &str| {
+            let start = map.find(from).unwrap();
+            map[start..start + map[start..].find("</article>").unwrap()].to_owned()
+        };
+        let engine = cell("chapter-engine");
+        assert!(engine.contains("pamoja-core"), "{engine}");
+        assert!(
+            !engine.contains("pamoja-ffi") && !engine.contains("pamoja-dashboard"),
+            "{engine}"
+        );
+        assert!(cell(">C#</a>").contains("pamoja-ffi"));
+        assert!(cell(">Dashboard</a>").contains("pamoja-dashboard"));
+        assert_eq!(
+            map.matches("<p class=\"chapter-id\">").count(),
+            catalog.chapters.len() + 2
+        );
+        for capability in &catalog.capabilities {
+            assert!(
+                map.contains(&format!("<code>{}</code>", capability.key)),
+                "{} is not listed under its heading",
+                capability.key
+            );
+        }
+    }
 
     #[test]
     fn parses_and_checks_the_data() {

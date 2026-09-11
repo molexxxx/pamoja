@@ -186,7 +186,7 @@ tags = [
   { text = "sensor drivers", ships = true, crate = "pamoja-sensors" },
   { text = "actuator drivers", ships = true, crate = "pamoja-actuators" },
   { text = "device profiles", ships = true, crate = "pamoja-profile" },
-  { text = "more parts", ships = false },
+  { text = "drivers for more parts", ships = false },
 ]
 
 [[track]]
@@ -236,10 +236,7 @@ key = "reach"
 title = "Reach"
 lead = "One engine, idiomatic in every language a device developer actually uses, plus plain-language helpers."
 tags = [
-  { text = "Rust", ships = true },
-  { text = "TypeScript", ships = true },
-  { text = "Python", ships = true },
-  { text = "C# / .NET", ships = true },
+  { text = "the four language bindings", ships = true, href = "#table-4-1" },
   { text = "Lua", ships = false },
   { text = "WebAssembly", ships = false },
   { text = "Kotlin", ships = false },

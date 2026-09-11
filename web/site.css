@@ -350,7 +350,7 @@ p.source + figure.code { margin-top: 0.4rem; }
 
 /* Tables */
 .table-scroll { margin: 1.1rem 0 1.6rem; overflow-x: auto; }
-.article table, table.order, table.caps, table.tracks, table.milestones, table.bindings {
+.article table, table.order, table.caps, table.tracks, table.milestones {
   width: 100%; border-collapse: collapse; font-size: var(--t-sm);
   border-top: 1.5px solid var(--frame); border-bottom: 1.5px solid var(--frame);
 }
@@ -373,12 +373,6 @@ tbody tr:nth-child(even) td, tbody tr:nth-child(even) th[scope="row"] { backgrou
 .tbl-caption { margin: 0 0 0.35rem; padding-block: 0.15rem; max-width: 80ch; font-size: var(--t-xs); line-height: 1.5; color: var(--ink-soft); }
 .tbl-caption b { color: var(--ink); font-weight: 700; }
 .tbl table { margin: 0; }
-/* The table holds three short columns, so it takes its own measure rather than stretching
-   across the sheet with a dead gutter inside it. */
-@media (min-width: 641px) {
-  table.bindings { max-width: 58rem; }
-  table.bindings td[data-label="Guides"] { width: 1%; white-space: nowrap; }
-}
 
 /* Figures */
 .fig { margin: 1.2rem 0 1.6rem; }
@@ -737,7 +731,7 @@ tbody tr:nth-child(even) td, tbody tr:nth-child(even) th[scope="row"] { backgrou
   /* A table stacks into labelled rows. */
   .article .table-scroll { overflow: visible; }
   .article table, .article tbody, .article tr, .article td,
-  table.order, table.caps, table.tracks, table.milestones, table.bindings,
+  table.order, table.caps, table.tracks, table.milestones,
   .tbl tbody, .tbl tr, .tbl td, .tbl th[scope="row"] { display: block; width: 100%; }
   .article thead, .tbl thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .article tr, .tbl tr { padding: 0.6rem 0; border-top: 1px solid var(--rule); }
@@ -749,9 +743,6 @@ tbody tr:nth-child(even) td, tbody tr:nth-child(even) th[scope="row"] { backgrou
     content: attr(data-label); display: block; margin-bottom: 0.1rem;
     font-size: var(--t-2xs); font-weight: 700; font-stretch: var(--cond); text-transform: uppercase; letter-spacing: var(--track); color: var(--ink-soft);
   }
-  /* A generator's name is reference detail; on a phone the install line and the link are
-     what the reader came for. */
-  table.bindings .what { display: none; }
   .article td:first-child { color: var(--ink); font-weight: 600; }
   .article td:first-child[data-label]::before { display: none; }
   .tbl th[scope="row"][data-label]::before { display: none; }
