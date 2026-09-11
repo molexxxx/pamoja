@@ -16,6 +16,8 @@
 //! - [`sx126x`] - Semtech's SX1261, SX1262, and LLCC68, from the SX1261/2 datasheet.
 //! - [`duty`] - a guard that holds a radio silent for the off time a regional duty-cycle
 //!   limit requires after each transmission.
+//! - `mesh`, with the `std` feature - a pamoja transport over a radio, carrying topics in
+//!   pamoja-mesh frames that each node relays onward, under the duty-cycle guard.
 //!
 //! # Examples
 //!
@@ -34,4 +36,6 @@
 //! ```
 
 pub mod duty;
+#[cfg(feature = "std")]
+pub mod mesh;
 pub mod sx126x;

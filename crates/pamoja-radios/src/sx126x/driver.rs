@@ -585,11 +585,9 @@ where
 
     /// Sends one frame and waits for it to leave.
     ///
-    /// The steps are those of section 14.2 after configuration: the payload into the data
-    /// buffer, the packet parameters, the inverted IQ workaround of section 15.4, TxDone and
-    /// TIMEOUT routed to DIO1, the 500 kHz workaround of section 15.1, and SetTx with a
-    /// timeout of the frame's airtime and [`TIMEOUT_MARGIN_US`]. The driver waits out the
-    /// airtime, reads the IRQ register until TxDone or TIMEOUT, and clears it.
+    /// This is [`start_transmit`](Sx126x::start_transmit), a wait for the frame's airtime,
+    /// and [`finish_transmit`](Sx126x::finish_transmit) read every [`IRQ_POLL_US`] until the
+    /// chip reports the frame sent or timed out.
     ///
     /// # Arguments
     ///
@@ -602,11 +600,47 @@ where
     ///
     /// # Errors
     ///
-    /// Returns [`RadioError::NotConfigured`] before [`configure`](Sx126x::configure),
-    /// [`RadioError::PayloadTooLong`] past 255 bytes, [`RadioError::TxTimeout`] if the chip
-    /// times out, [`RadioError::NoInterrupt`] if it never answers, and the bus errors of
-    /// [`command`](Sx126x::command).
+    /// Returns the errors of [`start_transmit`](Sx126x::start_transmit) and
+    /// [`finish_transmit`](Sx126x::finish_transmit), and [`RadioError::NoInterrupt`] if the
+    /// chip reports neither outcome within its own timeout and [`TIMEOUT_MARGIN_US`] more.
     pub fn transmit(&mut self, payload: &[u8]) -> Result<u64, RadioError<SPI::Error>> {
+        let airtime_us = self.start_transmit(payload)?;
+        let limit_us = airtime_us.saturating_add(2 * TIMEOUT_MARGIN_US);
+        let mut waited_us = airtime_us;
+        self.pause_us(airtime_us);
+        while !self.finish_transmit()? {
+            if waited_us >= limit_us {
+                return Err(RadioError::NoInterrupt);
+            }
+            self.delay.delay_us(IRQ_POLL_US);
+            waited_us = waited_us.saturating_add(u64::from(IRQ_POLL_US));
+        }
+        Ok(airtime_us)
+    }
+
+    /// Starts sending one frame and returns once the chip is transmitting.
+    ///
+    /// The steps are those of section 14.2 after configuration: the payload into the data
+    /// buffer, the packet parameters, the inverted IQ workaround of section 15.4, TxDone and
+    /// TIMEOUT routed to DIO1, the 500 kHz workaround of section 15.1, and SetTx with a
+    /// timeout of the frame's airtime and [`TIMEOUT_MARGIN_US`]. A caller with its own
+    /// scheduler waits out the airtime and then calls
+    /// [`finish_transmit`](Sx126x::finish_transmit), or watches DIO1.
+    ///
+    /// # Arguments
+    ///
+    /// * `payload` - the frame's payload, at most 255 bytes.
+    ///
+    /// # Returns
+    ///
+    /// The frame's airtime in microseconds.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RadioError::NotConfigured`] before [`configure`](Sx126x::configure),
+    /// [`RadioError::PayloadTooLong`] past 255 bytes, and the bus errors of
+    /// [`command`](Sx126x::command).
+    pub fn start_transmit(&mut self, payload: &[u8]) -> Result<u64, RadioError<SPI::Error>> {
         let settings = self.config.ok_or(RadioError::NotConfigured)?;
         let len =
             u8::try_from(payload.len()).map_err(|_| RadioError::PayloadTooLong(payload.len()))?;
@@ -637,11 +671,29 @@ where
         let airtime_us = settings.link.airtime_us(payload.len());
         let timeout_us = airtime_us.saturating_add(TIMEOUT_MARGIN_US);
         self.command(command::set_tx(timeout_steps(timeout_us)))?;
-        let limit_us = timeout_us.saturating_add(TIMEOUT_MARGIN_US);
-        let irq = self.wait_for(events, airtime_us, limit_us)?;
+        Ok(airtime_us)
+    }
+
+    /// Reports whether the frame [`start_transmit`](Sx126x::start_transmit) began has left.
+    ///
+    /// The IRQ register is read once, and on TxDone or TIMEOUT the interrupts are cleared.
+    ///
+    /// # Returns
+    ///
+    /// `true` once the frame has been sent, `false` while it is still going out.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RadioError::TxTimeout`] if the chip timed out, and the bus errors of
+    /// [`command`](Sx126x::command).
+    pub fn finish_transmit(&mut self) -> Result<bool, RadioError<SPI::Error>> {
+        let irq = self.irq_status()?;
+        if !irq.intersects(Irq::TX_DONE | Irq::TIMEOUT) {
+            return Ok(false);
+        }
         self.command(command::clear_irq_status(Irq::ALL))?;
         if irq.contains(Irq::TX_DONE) {
-            Ok(airtime_us)
+            Ok(true)
         } else {
             Err(RadioError::TxTimeout)
         }
@@ -678,20 +730,8 @@ where
     ) -> Result<Reception, RadioError<SPI::Error>> {
         let settings = self.config.ok_or(RadioError::NotConfigured)?;
         let most = u8::try_from(buffer.len()).unwrap_or(u8::MAX);
-
-        self.command(command::set_standby(StandbyMode::Rc))?;
-        let invert = settings.invert_iq_receive;
-        let packet = LoraPacket::from_link(&settings.link, most, invert);
-        self.command(command::set_lora_packet_params(packet))?;
-        self.update_register(register::IQ_POLARITY, |value| iq_polarity(value, invert))?;
         let events = Irq::RX_DONE | Irq::TIMEOUT | Irq::CRC_ERROR | Irq::HEADER_ERROR;
-        self.command(command::set_dio_irq_params(
-            events,
-            events,
-            Irq::NONE,
-            Irq::NONE,
-        ))?;
-        self.command(command::clear_irq_status(Irq::ALL))?;
+        self.prepare_reception(&settings, most, events)?;
 
         let timeout_us = timeout_us.max(1);
         self.command(command::set_rx(timeout_steps(timeout_us)))?;
@@ -710,22 +750,59 @@ where
         if !irq.contains(Irq::RX_DONE) {
             return Ok(Reception::Timeout);
         }
-        let mut position = [0u8; 2];
-        self.query(command::get_rx_buffer_status(), &mut position)?;
-        let position = RxBufferStatus::from_bytes(position);
-        let len = usize::from(position.payload_len);
-        let frame = buffer
-            .get_mut(..len)
-            .ok_or(RadioError::BufferTooSmall(len))?;
-        if len > 0 {
-            self.read_buffer(position.start, frame)?;
+        self.read_frame(buffer)
+    }
+
+    /// Starts listening with no timeout, so the chip receives frame after frame until
+    /// another command stops it: the Rx Continuous mode of Table 13-9.
+    ///
+    /// The setup is that of [`receive`](Sx126x::receive), accepting the 255 bytes a frame
+    /// may carry, with RxDone, CrcErr, and HeaderErr routed to DIO1. Each frame is read with
+    /// [`take_frame`](Sx126x::take_frame).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RadioError::NotConfigured`] before [`configure`](Sx126x::configure), and the
+    /// bus errors of [`command`](Sx126x::command).
+    pub fn listen(&mut self) -> Result<(), RadioError<SPI::Error>> {
+        let settings = self.config.ok_or(RadioError::NotConfigured)?;
+        let events = Irq::RX_DONE | Irq::CRC_ERROR | Irq::HEADER_ERROR;
+        self.prepare_reception(&settings, u8::MAX, events)?;
+        self.command(command::set_rx(config::RX_CONTINUOUS))
+    }
+
+    /// Takes the frame a [`listen`](Sx126x::listen) has received, if one has arrived.
+    ///
+    /// The IRQ register is read once. On RxDone, CrcErr, or HeaderErr those interrupts are
+    /// cleared, and a frame that checked is copied out with its signal levels while the chip
+    /// goes on listening.
+    ///
+    /// # Arguments
+    ///
+    /// * `buffer` - where the payload goes.
+    ///
+    /// # Returns
+    ///
+    /// The frame, a corrupt frame, or `None` when nothing has arrived.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RadioError::BufferTooSmall`] if the payload does not fit, and the bus errors
+    /// of [`command`](Sx126x::command).
+    pub fn take_frame(
+        &mut self,
+        buffer: &mut [u8],
+    ) -> Result<Option<Reception>, RadioError<SPI::Error>> {
+        let events = Irq::RX_DONE | Irq::CRC_ERROR | Irq::HEADER_ERROR;
+        let irq = self.irq_status()?;
+        if !irq.intersects(events) {
+            return Ok(None);
         }
-        let mut levels = [0u8; 3];
-        self.query(command::get_packet_status(), &mut levels)?;
-        Ok(Reception::Frame {
-            len,
-            status: PacketStatus::from_bytes(levels),
-        })
+        self.command(command::clear_irq_status(events))?;
+        if irq.intersects(Irq::CRC_ERROR | Irq::HEADER_ERROR) {
+            return Ok(Some(Reception::Corrupt));
+        }
+        self.read_frame(buffer).map(Some)
     }
 
     /// Puts the chip in STDBY_RC, which stops a transmission or a reception.
@@ -969,6 +1046,45 @@ where
         bytes: &mut [u8],
     ) -> Result<(), RadioError<SPI::Error>> {
         self.query(command::read_buffer(offset, bytes.len()), bytes)
+    }
+
+    fn prepare_reception(
+        &mut self,
+        settings: &RadioConfig,
+        most: u8,
+        events: Irq,
+    ) -> Result<(), RadioError<SPI::Error>> {
+        self.command(command::set_standby(StandbyMode::Rc))?;
+        let invert = settings.invert_iq_receive;
+        let packet = LoraPacket::from_link(&settings.link, most, invert);
+        self.command(command::set_lora_packet_params(packet))?;
+        self.update_register(register::IQ_POLARITY, |value| iq_polarity(value, invert))?;
+        self.command(command::set_dio_irq_params(
+            events,
+            events,
+            Irq::NONE,
+            Irq::NONE,
+        ))?;
+        self.command(command::clear_irq_status(Irq::ALL))
+    }
+
+    fn read_frame(&mut self, buffer: &mut [u8]) -> Result<Reception, RadioError<SPI::Error>> {
+        let mut position = [0u8; 2];
+        self.query(command::get_rx_buffer_status(), &mut position)?;
+        let position = RxBufferStatus::from_bytes(position);
+        let len = usize::from(position.payload_len);
+        let frame = buffer
+            .get_mut(..len)
+            .ok_or(RadioError::BufferTooSmall(len))?;
+        if len > 0 {
+            self.read_buffer(position.start, frame)?;
+        }
+        let mut levels = [0u8; 3];
+        self.query(command::get_packet_status(), &mut levels)?;
+        Ok(Reception::Frame {
+            len,
+            status: PacketStatus::from_bytes(levels),
+        })
     }
 
     fn update_register(
@@ -1385,6 +1501,37 @@ mod tests {
             radio.status().expect("wakes").chip_mode,
             ChipMode::StandbyRc
         );
+        assert!(radio.release().0.done());
+    }
+
+    #[test]
+    fn listen_keeps_receiving_and_take_frame_reads_each_frame_as_it_lands() {
+        let mut steps = vec![
+            SpiStep::write([0x80, 0x00]),
+            SpiStep::write([0x8C, 0x00, 0x08, 0x00, 0xFF, 0x01, 0x00]),
+        ];
+        steps.extend(register_read(0x0736, 0x0D));
+        steps.extend(register_write(0x0736, &[0x0D]));
+        steps.push(SpiStep::write([
+            0x08, 0x00, 0x62, 0x00, 0x62, 0x00, 0x00, 0x00, 0x00,
+        ]));
+        steps.push(SpiStep::write([0x02, 0x43, 0xFF]));
+        steps.push(SpiStep::write([0x82, 0xFF, 0xFF, 0xFF]));
+        steps.extend(irq(0x0000));
+        steps.extend(irq(0x0002));
+        steps.push(SpiStep::write([0x02, 0x00, 0x62]));
+        steps.extend(asked(command::get_rx_buffer_status(), &[0x02, 0x00]));
+        steps.push(SpiStep::write([0x1E, 0x00, 0x00]));
+        steps.push(SpiStep::read(*b"ok"));
+        steps.extend(asked(command::get_packet_status(), &[0x80, 0x1C, 0x82]));
+        let mut radio = configured(steps);
+
+        radio.listen().expect("listens");
+        let mut buffer = [0u8; 255];
+        assert_eq!(radio.take_frame(&mut buffer), Ok(None));
+        let frame = radio.take_frame(&mut buffer).expect("takes the frame");
+        assert!(matches!(frame, Some(Reception::Frame { len: 2, .. })));
+        assert_eq!(&buffer[..2], b"ok");
         assert!(radio.release().0.done());
     }
 }

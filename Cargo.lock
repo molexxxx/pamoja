@@ -3247,6 +3247,7 @@ dependencies = [
  "pamoja-hal",
  "pamoja-lora",
  "pamoja-mesh",
+ "tokio",
 ]
 
 [[package]]
