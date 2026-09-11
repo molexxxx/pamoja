@@ -25,6 +25,15 @@ released together, so one entry covers all of them.
 - The front page says what a node is: the profile as a file, the four pieces that
   sit around it, and the two programs that put the whole thing together.
 
+### Fixed
+
+- Two examples still taught that `with_presentation` adds to a shipped preset.
+  Since 0.1.18 every preset carries a presentation, so the call on
+  `Profile::well_level()` replaced the well-level bar and the battery stat, and
+  the asserts passed only because the originals were gone. Both examples now say
+  the call replaces, check the element count, and point at `with_element` for
+  adding. One of them generates the crates.io page for `pamoja-profile`.
+
 ## [0.1.18] - 2026-09-10
 
 What a node does between reading and reporting, and what a console makes of a
