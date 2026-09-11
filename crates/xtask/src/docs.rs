@@ -274,7 +274,7 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
         files.push((path, processed));
     }
 
-    files.extend(buttons::render());
+    files.extend(buttons::render(&version::current()?));
     files.extend(diagram::render(&catalog, &root)?);
     files.extend(theme::render(&root)?);
     files.extend(licenses::render(&root)?);

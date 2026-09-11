@@ -31,6 +31,13 @@ const CHIP_PAD: f64 = 11.0;
 const MARK: f64 = 5.0;
 const MARK_GAP: f64 = 8.0;
 
+/// The height of a badge's face, which is the chip's, so a row of badges and a row of
+/// chips sit on one baseline.
+const BADGE: f64 = CHIP;
+const BADGE_SIZE: f64 = 10.5;
+const BADGE_TRACK: f64 = 0.7;
+const BADGE_PAD: f64 = 9.0;
+
 const FONT: &str =
     "Segoe UI, Inter, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif";
 
@@ -58,6 +65,49 @@ enum Kind {
     /// A chip with a square mark, for something to look up.
     Reference,
 }
+
+/// A rated value, the way a datasheet prints one: the parameter on the tint, its value on
+/// the sheet beside it, both inside one hairline.
+struct Badge {
+    file: &'static str,
+    label: &'static str,
+    /// The value, or `None` to take the workspace version with a leading `v`.
+    value: Option<&'static str>,
+}
+
+/// The badges the README carries: where the release can be had, and under what license.
+///
+/// A version is written from the workspace version rather than read back from a registry,
+/// so it is whatever `cargo xtask docs` last wrote and cannot drift from the tree it was
+/// generated in. Nothing here claims a build passed, since an image cannot know that and a
+/// stale claim is worse than none.
+const BADGES: &[Badge] = &[
+    Badge {
+        file: "badge-crates.svg",
+        label: "crates.io",
+        value: None,
+    },
+    Badge {
+        file: "badge-npm.svg",
+        label: "npm",
+        value: None,
+    },
+    Badge {
+        file: "badge-pypi.svg",
+        label: "PyPI",
+        value: None,
+    },
+    Badge {
+        file: "badge-nuget.svg",
+        label: "NuGet",
+        value: None,
+    },
+    Badge {
+        file: "badge-license.svg",
+        label: "license",
+        value: Some("MIT"),
+    },
+];
 
 /// One button: the file it is written to, its label, and which of the three kinds it is.
 struct Button {
@@ -160,7 +210,8 @@ const BUTTONS: &[Button] = &[
 /// # Returns
 ///
 /// One SVG per button, under `.github/badges/`.
-pub fn render() -> Vec<(String, String)> {
+pub fn render(version: &str) -> Vec<(String, String)> {
+    let released = format!("v{version}");
     BUTTONS
         .iter()
         .map(|button| {
@@ -171,7 +222,48 @@ pub fn render() -> Vec<(String, String)> {
             };
             (format!(".github/badges/{}", button.file), svg)
         })
+        .chain(BADGES.iter().map(|badge| {
+            let value = badge.value.unwrap_or(&released);
+            (
+                format!(".github/badges/{}", badge.file),
+                rated(badge.label, value),
+            )
+        }))
         .collect()
+}
+
+// A rated value: the parameter on the tint, a hairline between, the value on the sheet.
+// The left cell keeps the outer radius on its own two corners and squares off against the
+// divider, which is what makes the pair read as one part rather than two shapes.
+fn rated(label: &str, value: &str) -> String {
+    let name = escape(&label.to_uppercase());
+    let reading = escape(value);
+    let name_span = advance(&label.to_uppercase(), BADGE_SIZE, BADGE_TRACK) * CAPS;
+    let reading_span = advance(value, BADGE_SIZE, BADGE_TRACK);
+    let left = (name_span + BADGE_PAD * 2.0).round();
+    let width = (left + reading_span + BADGE_PAD * 2.0).round();
+    let mid = BOX / 2.0;
+    let top = (BOX - BADGE) / 2.0 + 0.5;
+    let height = BADGE - 1.0;
+    let radius = RADIUS;
+    let run = left - radius - 0.5;
+    let side = height - radius * 2.0;
+    format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{BOX}" viewBox="0 0 {width} {BOX}" role="img" aria-label="{plain}: {reading}">
+{style}
+  <path d="M{corner} {top}h{run}v{height}h-{run}a{radius} {radius} 0 0 1 -{radius} -{radius}v-{side}a{radius} {radius} 0 0 1 {radius} -{radius}z" class="tint"/>
+  <rect x="0.5" y="{top}" width="{inner}" height="{height}" rx="{radius}" class="rule" fill="none" stroke-width="1"/>
+  <path d="M{left} {top}v{height}" class="rule" stroke-width="1"/>
+  <text x="{BADGE_PAD}" y="{mid}" dominant-baseline="central" font-family="{FONT}" font-size="{BADGE_SIZE}" font-weight="700" letter-spacing="{BADGE_TRACK}" class="ink">{name}</text>
+  <text x="{value_x}" y="{mid}" dominant-baseline="central" font-family="{FONT}" font-size="{BADGE_SIZE}" font-weight="700" letter-spacing="{BADGE_TRACK}" class="accent">{reading}</text>
+</svg>
+"##,
+        plain = escape(label),
+        style = sheet(),
+        corner = 0.5 + radius,
+        inner = width - 1.0,
+        value_x = left + BADGE_PAD,
+    )
 }
 
 // A label as it can appear inside an SVG, which is XML and takes none of these raw. The
@@ -391,12 +483,49 @@ mod tests {
     }
 
     #[test]
-    fn renders_one_file_per_button() {
-        let files = render();
-        assert_eq!(files.len(), BUTTONS.len());
+    fn renders_one_file_per_button_and_badge() {
+        let files = render("0.1.0");
+        assert_eq!(files.len(), BUTTONS.len() + BADGES.len());
         assert!(files
             .iter()
             .all(|(path, _)| path.starts_with(".github/badges/") && path.ends_with(".svg")));
+    }
+
+    #[test]
+    fn a_badge_without_a_value_of_its_own_carries_the_workspace_version() {
+        let files = render("9.8.7");
+        let versioned: Vec<&String> = files
+            .iter()
+            .filter(|(path, _)| path.contains("badge-") && !path.contains("license"))
+            .map(|(_, svg)| svg)
+            .collect();
+        assert_eq!(versioned.len(), 4);
+        assert!(versioned.iter().all(|svg| svg.contains("v9.8.7")));
+
+        let license = files
+            .iter()
+            .find(|(path, _)| path.ends_with("badge-license.svg"))
+            .expect("a license badge");
+        assert!(license.1.contains(">MIT<"), "{}", license.1);
+        assert!(!license.1.contains("9.8.7"));
+    }
+
+    #[test]
+    fn a_badge_reads_as_one_part_on_one_baseline_with_a_chip() {
+        let (_, svg) = render("0.1.0")
+            .into_iter()
+            .find(|(path, _)| path.ends_with("badge-crates.svg"))
+            .expect("a crates badge");
+        // One outer hairline, one divider, and the tint behind the parameter only.
+        assert_eq!(svg.matches("class=\"rule\"").count(), 2);
+        assert_eq!(svg.matches("class=\"tint\"").count(), 1);
+        // The face is the chip's, so the two align when a row of each sits together.
+        let top = (BOX - BADGE) / 2.0 + 0.5;
+        assert!(
+            svg.contains(&format!("height=\"{}\"", BADGE - 1.0)),
+            "{svg}"
+        );
+        assert!(svg.contains(&format!("y=\"{top}\"")), "{svg}");
     }
 
     #[test]
@@ -414,7 +543,7 @@ mod tests {
 
     #[test]
     fn a_label_clears_the_shape_it_sits_in() {
-        for (button, (_, svg)) in BUTTONS.iter().zip(render()) {
+        for (button, (_, svg)) in BUTTONS.iter().zip(render("0.1.0")) {
             let label = button.label.to_uppercase();
             let taken = match button.kind {
                 Kind::Reference => {
@@ -453,7 +582,7 @@ mod tests {
 
     #[test]
     fn every_button_carries_both_sheets_and_no_other_palette() {
-        for (path, svg) in render() {
+        for (path, svg) in render("0.1.0") {
             assert!(
                 svg.contains(LIGHT.accent) && svg.contains(DARK.accent),
                 "{path} carries only one sheet"
@@ -479,7 +608,7 @@ mod tests {
                 .expect("the root element carries a height")
         };
         assert_eq!(height(&action("website", true)), height(&reference("npm")));
-        assert!(render()
+        assert!(render("0.1.0")
             .iter()
             .all(|(_, svg)| height(svg) == BOX.to_string()));
     }
@@ -489,7 +618,9 @@ mod tests {
         assert!(action("website", true).contains("class=\"s-on-band\""));
         assert!(action("documentation", false).contains("class=\"s-accent\""));
         assert!(!reference("npm").contains("stroke-linecap"));
-        assert!(render().iter().all(|(_, svg)| svg.contains("role=\"img\"")));
+        assert!(render("0.1.0")
+            .iter()
+            .all(|(_, svg)| svg.contains("role=\"img\"")));
     }
 
     #[test]

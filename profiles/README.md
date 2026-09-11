@@ -8,8 +8,14 @@ loads one with `Profile::from_json` in any of the four languages, and the
 the loop it runs.
 
 The four presets the library ships (`vaccine-fridge-monitor`, `irrigation-node`,
-`well-level`, `flood-sensor`) are here in the same form, and a test holds each file
-equal to what its constructor writes. The rest were shared by people who ran them.
+`well-level`, `flood-sensor`) are here in the same form, written from the
+constructors that build them, so the code stays the one source for those four. The
+rest were shared by people who ran them.
+
+Every file here is proved to run, not only to parse: a test loads each one with the
+parser a device uses, feeds it readings that cross its own lines, and checks that
+the output switches both ways, the alerts its policy promises fire, and the
+sampling interval stretches as the battery drains.
 
 ## Adding one
 

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="132" height="44" viewBox="0 0 132 44" role="img" aria-label="crates.io: v0.1.18">
+  <style>
+    .paper { fill: #fbfaf6; }
+    .rule { stroke: #d7d4cc; }
+    .band { fill: #0f5f56; }
+    .ink { fill: #141414; }
+    .accent { fill: #0f5f56; }
+    .accent-rule { stroke: rgba(15, 95, 86, 0.45); }
+    .tint { fill: rgba(15, 95, 86, 0.1); }
+    .s-accent { stroke: #0f5f56; }
+    .on-band { fill: #ffffff; }
+    .s-on-band { stroke: #ffffff; }
+    @media (prefers-color-scheme: dark) {
+      .paper { fill: #191a17; }
+      .rule { stroke: #3a3b35; }
+      .band { fill: #0d4d46; }
+      .ink { fill: #eae8e1; }
+      .accent { fill: #5ec6b0; }
+      .accent-rule { stroke: rgba(94, 198, 176, 0.45); }
+      .tint { fill: rgba(94, 198, 176, 0.1); }
+      .s-accent { stroke: #5ec6b0; }
+    }
+  </style>
+  <path d="M2.5 9.5h76.5v25h-76.5a2 2 0 0 1 -2 -2v-21a2 2 0 0 1 2 -2z" class="tint"/>
+  <rect x="0.5" y="9.5" width="131" height="25" rx="2" class="rule" fill="none" stroke-width="1"/>
+  <path d="M79 9.5v25" class="rule" stroke-width="1"/>
+  <text x="9" y="22" dominant-baseline="central" font-family="Segoe UI, Inter, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="10.5" font-weight="700" letter-spacing="0.7" class="ink">CRATES.IO</text>
+  <text x="88" y="22" dominant-baseline="central" font-family="Segoe UI, Inter, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="10.5" font-weight="700" letter-spacing="0.7" class="accent">v0.1.18</text>
+</svg>
