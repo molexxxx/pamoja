@@ -586,15 +586,17 @@ impl Profile {
     /// ```
     /// use pamoja_profile::{ElementSpec, Presentation, Profile, Viz};
     ///
-    /// // A water-monitoring profile that adds a turbidity gauge the dashboard would not
-    /// // otherwise know how to draw.
-    /// let profile = Profile::well_level().with_presentation(
+    /// // `with_presentation` sets the whole presentation, so on a shipped preset it
+    /// // replaces the elements the preset came with: a well-level profile drawn this
+    /// // way shows only the turbidity gauge. `with_element` adds one and keeps the rest.
+    /// let replaced = Profile::well_level().with_presentation(
     ///     Presentation::new().with_element(
     ///         ElementSpec::new("water_turbidity", "ntu", "Turbidity", Viz::Gauge)
     ///             .with_band(0.0, 5.0),
     ///     ),
     /// );
-    /// let elements = &profile.presentation.unwrap().elements;
+    /// let elements = &replaced.presentation.unwrap().elements;
+    /// assert_eq!(elements.len(), 1);
     /// assert_eq!(elements[0].viz.kind(), "radial");
     /// ```
     pub fn with_presentation(mut self, presentation: Presentation) -> Self {
