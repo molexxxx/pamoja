@@ -61,6 +61,8 @@ __all__ = [
     "LoraLink",
     "LoraMaxPayload",
     "LoraPlanInfo",
+    "LoraRadio",
+    "LoraReception",
     "LoraSubBand",
     "LorawanDevice",
     "LorawanGrant",
@@ -2752,6 +2754,123 @@ class LoraPlanInfo:
         downlink.
         """
     def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LoraRadio:
+    r"""
+    A LoRa radio opened on a Linux board.
+    """
+    @property
+    def family(self) -> builtins.str:
+        r"""
+        The family of the radio's chip: `"Sx126x"` or `"Sx127x"`.
+        """
+    @staticmethod
+    def open_sx126x(spi: builtins.str, gpio_chip: builtins.str, busy_line: builtins.int, reset_line: builtins.int, amplifier: builtins.str, *, spi_hz: typing.Optional[builtins.int] = None, tcxo_volts: typing.Optional[builtins.float] = None, tcxo_settle_us: typing.Optional[builtins.int] = None, dio2_rf_switch: builtins.bool = False, dc_dc: builtins.bool = False, llcc68: builtins.bool = False) -> LoraRadio:
+        r"""
+        Opens an SX1261, SX1262, SX1268, or LLCC68 module and resets it, which takes a few
+        tens of milliseconds.
+        
+        Raises `PamojaError` when the platform is not Linux, a device cannot be opened, or no
+        chip answers, and `ValueError` for an amplifier name or a TCXO voltage the chip has no
+        setting for.
+        """
+    @staticmethod
+    def open_sx127x(spi: builtins.str, gpio_chip: builtins.str, reset_line: builtins.int, output: builtins.str, *, spi_hz: typing.Optional[builtins.int] = None, tcxo: builtins.bool = False) -> LoraRadio:
+        r"""
+        Opens an SX1276, SX1277, SX1278, or SX1279 module, such as an RFM95W, and resets it
+        into LoRa mode.
+        
+        Raises `PamojaError` when the platform is not Linux, a device cannot be opened, or no
+        chip answers, and `ValueError` for an amplifier output name the chip has no setting
+        for.
+        """
+    def configure(self, frequency_hz: builtins.int, link: LoraLink, output_dbm: builtins.int, *, sync_word: typing.Optional[builtins.int] = None, band_low_hz: typing.Optional[builtins.int] = None, band_high_hz: typing.Optional[builtins.int] = None, invert_iq_transmit: builtins.bool = False, invert_iq_receive: builtins.bool = False) -> None:
+        r"""
+        Tunes the radio to a carrier, a link, and an output power.
+        
+        The sync word is one byte, `0x34` for a public network such as LoRaWAN and `0x12`, the
+        default, for a private one. An SX126x calibrates its receiver for the carrier alone
+        unless a band is given.
+        """
+    def transmit(self, payload: typing.Sequence[builtins.int]) -> builtins.int:
+        r"""
+        Sends one frame and returns its airtime in microseconds once it has left.
+        """
+    def receive(self, timeout_us: builtins.int) -> LoraReception:
+        r"""
+        Listens for one frame for up to a timeout in microseconds.
+        """
+    def listen(self) -> None:
+        r"""
+        Starts listening, frame after frame, until another call changes the mode.
+        """
+    def take_frame(self) -> typing.Optional[LoraReception]:
+        r"""
+        Takes the frame a listening radio has received, or `None` when nothing has arrived.
+        """
+    def standby(self) -> None:
+        r"""
+        Puts the radio in standby, which stops a transmission or a reception.
+        """
+    def sleep(self) -> None:
+        r"""
+        Puts the radio to sleep until the next call wakes it. An SX126x is configured again
+        before its next frame; an SX127x keeps its registers.
+        """
+    def read_register(self, address: builtins.int) -> builtins.int:
+        r"""
+        Reads one register: a 16-bit address on the SX126x, 0x00 to 0x7F on the SX127x.
+        """
+    def write_register(self, address: builtins.int, value: builtins.int) -> None:
+        r"""
+        Writes one register: a 16-bit address on the SX126x, 0x00 to 0x7F on the SX127x.
+        """
+    def close(self) -> None:
+        r"""
+        Closes the radio's device files, after any call in progress finishes. Calls after this
+        raise `PamojaError`.
+        """
+    def __enter__(self) -> LoraRadio:
+        r"""
+        Returns the radio, so it can be opened in a `with` block.
+        """
+    def __exit__(self, exception_type: typing.Optional[typing.Any] = None, exception: typing.Optional[typing.Any] = None, traceback: typing.Optional[typing.Any] = None) -> builtins.bool:
+        r"""
+        Closes the radio at the end of a `with` block, letting any exception through.
+        """
+
+@typing.final
+class LoraReception:
+    r"""
+    How a reception ended, with the frame and its signal levels when one arrived.
+    """
+    @property
+    def outcome(self) -> builtins.str:
+        r"""
+        How it ended: `"Frame"`, `"Timeout"`, or `"Corrupt"`.
+        """
+    @property
+    def rssi_dbm(self) -> typing.Optional[builtins.float]:
+        r"""
+        The received signal strength averaged over the frame, in dBm, or `None` without a
+        frame.
+        """
+    @property
+    def snr_db(self) -> typing.Optional[builtins.float]:
+        r"""
+        The estimated signal-to-noise ratio, in dB, or `None` without a frame.
+        """
+    @property
+    def signal_rssi_dbm(self) -> typing.Optional[builtins.float]:
+        r"""
+        The estimated strength of the LoRa signal itself, in dBm, or `None` without a frame.
+        """
+    @property
+    def payload(self) -> typing.Optional[bytes]:
+        r"""
+        The frame's payload, or `None` without a frame.
+        """
 
 @typing.final
 class LoraSubBand:

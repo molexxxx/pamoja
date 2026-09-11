@@ -56,6 +56,33 @@
 // caller who needs another size has the Rust crate.
 #define PAMOJA_WINDOW_CAPACITY 32
 
+// The family of an SX1261, SX1262, SX1268, or LLCC68.
+#define PAMOJA_LORA_RADIO_SX126X 0
+
+// The family of an SX1276, SX1277, SX1278, or SX1279.
+#define PAMOJA_LORA_RADIO_SX127X 1
+
+// A reception outcome: a frame arrived and checked.
+#define PAMOJA_LORA_RADIO_FRAME 0
+
+// A reception outcome: no frame arrived before the timeout.
+#define PAMOJA_LORA_RADIO_TIMEOUT 1
+
+// A reception outcome: a frame arrived whose header or CRC failed its check, and was dropped.
+#define PAMOJA_LORA_RADIO_CORRUPT 2
+
+// A reception outcome: nothing has arrived since the last frame was taken.
+#define PAMOJA_LORA_RADIO_NOTHING 3
+
+// The sync word of a public network such as LoRaWAN.
+#define PAMOJA_LORA_RADIO_SYNC_WORD_PUBLIC 52
+
+// The sync word of a private network, and both families' reset value.
+#define PAMOJA_LORA_RADIO_SYNC_WORD_PRIVATE 18
+
+// The SPI clock a radio opens at when the call passes 0, in hertz.
+#define PAMOJA_LORA_RADIO_DEFAULT_SPI_HZ 2000000
+
 // The EU863-870 band.
 #define PAMOJA_LORA_REGION_EU868 1
 
@@ -1581,6 +1608,9 @@ typedef struct PamojaLoraPlan PamojaLoraPlan;
 // hand to [`pamoja_lora_plan_builder_build`], which consumes it.
 typedef struct PamojaLoraPlanBuilder PamojaLoraPlanBuilder;
 
+// A LoRa radio opened on a Linux board, released with [`pamoja_lora_radio_free`].
+typedef struct PamojaLoraRadio PamojaLoraRadio;
+
 // An opaque handle to the root credentials of a device.
 //
 // Holds the EUIs and the application key that over-the-air activation is built
@@ -1966,6 +1996,66 @@ typedef struct {
   // The noise figure of the receiver, in hundredths of a dB.
   int32_t noise_figure_centi_db;
 } PamojaLoraLinkBudget;
+
+// What a radio of either family sends and listens with.
+typedef struct {
+  // The carrier frequency in hertz.
+  uint32_t frequency_hz;
+  // The lower edge of the band an SX126x calibrates its receiver for, in hertz, or 0 with
+  // `band_high_hz` 0 to calibrate for the carrier alone.
+  uint32_t band_low_hz;
+  // The upper edge of that band in hertz.
+  uint32_t band_high_hz;
+  // The spreading factor, bandwidth, coding rate, preamble, header, and CRC.
+  PamojaLoraLink link;
+  // The output power asked of the amplifier, in dBm, clamped to its range.
+  int8_t output_dbm;
+  // The sync word byte: [`PAMOJA_LORA_RADIO_SYNC_WORD_PUBLIC`],
+  // [`PAMOJA_LORA_RADIO_SYNC_WORD_PRIVATE`], or another value.
+  uint8_t sync_word;
+  // `true` to send frames with inverted IQ, as a LoRaWAN gateway sends downlinks.
+  bool invert_iq_transmit;
+  // `true` to expect frames with inverted IQ, as a LoRaWAN device hears downlinks.
+  bool invert_iq_receive;
+} PamojaLoraRadioConfig;
+
+// How a module wires its SX126x.
+//
+// The SPI interface cannot see the parts around the chip, so these come from the module's
+// schematic or its maker's example code.
+typedef struct {
+  // `true` for the high power amplifier of the SX1262, SX1268, and LLCC68, `false` for the
+  // SX1261's low power amplifier.
+  bool high_power;
+  // `true` when a TCXO powered from DIO3 clocks the chip instead of a crystal.
+  bool tcxo;
+  // The TCXO supply voltage as SetDIO3AsTCXOCtrl takes it: 0 for 1.6 V, 1 for 1.7 V, 2 for
+  // 1.8 V, 3 for 2.2 V, 4 for 2.4 V, 5 for 2.7 V, 6 for 3.0 V, and 7 for 3.3 V.
+  uint8_t tcxo_voltage;
+  // `true` when DIO2 drives the antenna switch.
+  bool dio2_rf_switch;
+  // `true` when the module fits the inductor the DC-DC regulator needs.
+  bool dc_dc;
+  // `true` for an LLCC68, which is held to the rates it supports.
+  bool llcc68;
+  // How long the TCXO takes to settle, in microseconds.
+  uint32_t tcxo_settle_us;
+} PamojaSx126xBoard;
+
+// How a reception ended, with the frame's signal levels when one arrived.
+typedef struct {
+  // [`PAMOJA_LORA_RADIO_FRAME`], [`PAMOJA_LORA_RADIO_TIMEOUT`],
+  // [`PAMOJA_LORA_RADIO_CORRUPT`], or [`PAMOJA_LORA_RADIO_NOTHING`].
+  uint8_t outcome;
+  // The payload length, at the start of the buffer, for a frame; 0 otherwise.
+  uintptr_t len;
+  // The received signal strength averaged over the frame, in hundredths of a dBm.
+  int32_t rssi_centi_dbm;
+  // The estimated signal-to-noise ratio, in hundredths of a dB.
+  int32_t snr_centi_db;
+  // The estimated strength of the LoRa signal itself, in hundredths of a dBm.
+  int32_t signal_rssi_centi_dbm;
+} PamojaLoraRadioReception;
 
 // The Class B beacon settings of a plan.
 typedef struct {
@@ -5605,6 +5695,295 @@ int32_t pamoja_lora_fcc_digital_max_conducted_centi_dbm(int32_t antenna_gain_cen
 // dBm, or `INT32_MIN` for fewer than 25 channels, which that paragraph sets no limit for.
 int32_t pamoja_lora_fcc_hopping_max_conducted_centi_dbm(uint16_t hopping_channels,
                                                         int32_t antenna_gain_centi_dbi);
+
+// Returns a configuration with a private sync word, standard IQ both ways, and an SX126x
+// calibrating for the carrier alone.
+//
+// # Arguments
+//
+// * `frequency_hz` - the carrier frequency in hertz.
+// * `link` - the LoRa link settings.
+// * `output_dbm` - the output power asked of the amplifier, in dBm.
+//
+// # Returns
+//
+// The configuration.
+PamojaLoraRadioConfig pamoja_lora_radio_config_default(uint32_t frequency_hz,
+                                                       PamojaLoraLink link,
+                                                       int8_t output_dbm);
+
+// Opens an SX1261, SX1262, SX1268, or LLCC68 module on a Linux board and resets it.
+//
+// # Arguments
+//
+// * `spi` - the SPI device file, such as `/dev/spidev0.0`.
+// * `spi_hz` - the SPI clock in hertz, or 0 for [`PAMOJA_LORA_RADIO_DEFAULT_SPI_HZ`].
+// * `gpio_chip` - the GPIO chip the lines are on, such as `/dev/gpiochip0`.
+// * `busy_line` - the line the BUSY pin is on.
+// * `reset_line` - the line the reset pin is on.
+// * `board` - how the module wires the chip.
+// * `out_radio` - receives the radio, or null when opening fails.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the radio in `out_radio`; [`PamojaStatus::Unsupported`] on any
+// platform but Linux; [`PamojaStatus::InvalidArgument`] for a null or non-UTF-8 argument or a
+// TCXO voltage past 7; or [`PamojaStatus::Io`] when a device cannot be opened or no chip
+// answers. The last error message says which.
+//
+// # Safety
+//
+// `spi` and `gpio_chip` must be null-terminated strings or null, and `out_radio` a writable
+// pointer or null.
+PamojaStatus pamoja_lora_radio_open_sx126x(const char *spi,
+                                           uint32_t spi_hz,
+                                           const char *gpio_chip,
+                                           uint32_t busy_line,
+                                           uint32_t reset_line,
+                                           PamojaSx126xBoard board,
+                                           PamojaLoraRadio **out_radio);
+
+// Opens an SX1276, SX1277, SX1278, or SX1279 module on a Linux board, such as an RFM95W,
+// and resets it into LoRa mode.
+//
+// # Arguments
+//
+// * `spi` - the SPI device file, such as `/dev/spidev0.0`.
+// * `spi_hz` - the SPI clock in hertz, or 0 for [`PAMOJA_LORA_RADIO_DEFAULT_SPI_HZ`].
+// * `gpio_chip` - the GPIO chip the reset line is on, such as `/dev/gpiochip0`.
+// * `reset_line` - the line the reset pin is on.
+// * `pa_boost` - `true` when the antenna is on the PA_BOOST output, as on the RFM95W, and
+//   `false` for RFO.
+// * `tcxo` - `true` when a TCXO drives the XTA pin instead of a crystal.
+// * `out_radio` - receives the radio, or null when opening fails.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the radio in `out_radio`; [`PamojaStatus::Unsupported`] on any
+// platform but Linux; [`PamojaStatus::InvalidArgument`] for a null or non-UTF-8 argument; or
+// [`PamojaStatus::Io`] when a device cannot be opened or no chip answers. The last error
+// message says which.
+//
+// # Safety
+//
+// `spi` and `gpio_chip` must be null-terminated strings or null, and `out_radio` a writable
+// pointer or null.
+PamojaStatus pamoja_lora_radio_open_sx127x(const char *spi,
+                                           uint32_t spi_hz,
+                                           const char *gpio_chip,
+                                           uint32_t reset_line,
+                                           bool pa_boost,
+                                           bool tcxo,
+                                           PamojaLoraRadio **out_radio);
+
+// Returns the family of a radio's chip.
+//
+// # Arguments
+//
+// * `radio` - the radio.
+//
+// # Returns
+//
+// [`PAMOJA_LORA_RADIO_SX126X`] or [`PAMOJA_LORA_RADIO_SX127X`], or 255 if `radio` is null.
+//
+// # Safety
+//
+// `radio` must be a live handle from one of the open functions, or null.
+uint8_t pamoja_lora_radio_family(const PamojaLoraRadio *radio);
+
+// Tunes a radio to a configuration.
+//
+// # Arguments
+//
+// * `radio` - the radio.
+// * `config` - the configuration, such as one from [`pamoja_lora_radio_config_default`].
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null radio or settings the
+// chip cannot use, such as a bandwidth it lacks; or [`PamojaStatus::Io`] when the chip does
+// not answer.
+//
+// # Safety
+//
+// `radio` must be a live handle from one of the open functions, or null.
+PamojaStatus pamoja_lora_radio_configure(PamojaLoraRadio *radio, PamojaLoraRadioConfig config);
+
+// Sends one frame and waits for it to leave.
+//
+// # Arguments
+//
+// * `radio` - the radio.
+// * `payload` - the payload bytes, 1 to 255 of them.
+// * `len` - the payload length.
+// * `out_airtime_us` - receives the frame's airtime in microseconds, or null.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null radio, a null payload
+// with a length, a payload the chip cannot send, or a radio not yet configured; or
+// [`PamojaStatus::Io`] when the chip does not report the frame sent.
+//
+// # Safety
+//
+// `radio` must be a live handle or null, `payload` must point at `len` readable bytes or be
+// null, and `out_airtime_us` must be writable or null.
+PamojaStatus pamoja_lora_radio_transmit(PamojaLoraRadio *radio,
+                                        const uint8_t *payload,
+                                        uintptr_t len,
+                                        uint64_t *out_airtime_us);
+
+// Listens for one frame.
+//
+// # Arguments
+//
+// * `radio` - the radio.
+// * `buffer` - where the payload goes.
+// * `capacity` - the buffer's length; up to 255 bytes are accepted.
+// * `timeout_us` - how long to listen for a frame to start, in microseconds.
+// * `out_reception` - receives how the reception ended.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the outcome in `out_reception`, a timeout and a corrupt frame
+// included; [`PamojaStatus::InvalidArgument`] for a null argument, a payload longer than
+// `capacity`, or a radio not yet configured; or [`PamojaStatus::Io`] when the chip does not
+// answer.
+//
+// # Safety
+//
+// `radio` must be a live handle or null, `buffer` must point at `capacity` writable bytes or
+// be null, and `out_reception` must be writable or null.
+PamojaStatus pamoja_lora_radio_receive(PamojaLoraRadio *radio,
+                                       uint8_t *buffer,
+                                       uintptr_t capacity,
+                                       uint64_t timeout_us,
+                                       PamojaLoraRadioReception *out_reception);
+
+// Starts listening, frame after frame, until another call changes the mode.
+//
+// # Arguments
+//
+// * `radio` - the radio.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null radio or one not yet
+// configured; or [`PamojaStatus::Io`] when the chip does not answer.
+//
+// # Safety
+//
+// `radio` must be a live handle from one of the open functions, or null.
+PamojaStatus pamoja_lora_radio_listen(PamojaLoraRadio *radio);
+
+// Takes the frame a listening radio has received, if one has arrived.
+//
+// # Arguments
+//
+// * `radio` - the radio.
+// * `buffer` - where the payload goes.
+// * `capacity` - the buffer's length.
+// * `out_reception` - receives the frame, a corrupt frame, or
+//   [`PAMOJA_LORA_RADIO_NOTHING`].
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the outcome in `out_reception`; [`PamojaStatus::InvalidArgument`]
+// for a null argument or a payload longer than `capacity`; or [`PamojaStatus::Io`] when the
+// chip does not answer.
+//
+// # Safety
+//
+// `radio` must be a live handle or null, `buffer` must point at `capacity` writable bytes or
+// be null, and `out_reception` must be writable or null.
+PamojaStatus pamoja_lora_radio_take_frame(PamojaLoraRadio *radio,
+                                          uint8_t *buffer,
+                                          uintptr_t capacity,
+                                          PamojaLoraRadioReception *out_reception);
+
+// Puts a radio in standby, which stops a transmission or a reception.
+//
+// # Arguments
+//
+// * `radio` - the radio.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null radio; or
+// [`PamojaStatus::Io`] when the chip does not answer.
+//
+// # Safety
+//
+// `radio` must be a live handle from one of the open functions, or null.
+PamojaStatus pamoja_lora_radio_standby(PamojaLoraRadio *radio);
+
+// Puts a radio to sleep until the next call wakes it. An SX126x is configured again before
+// its next frame; an SX127x keeps its registers.
+//
+// # Arguments
+//
+// * `radio` - the radio.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null radio; or
+// [`PamojaStatus::Io`] when the chip does not answer.
+//
+// # Safety
+//
+// `radio` must be a live handle from one of the open functions, or null.
+PamojaStatus pamoja_lora_radio_sleep(PamojaLoraRadio *radio);
+
+// Reads one register of a radio's chip.
+//
+// # Arguments
+//
+// * `radio` - the radio.
+// * `address` - the register address: 16 bits on the SX126x, 0x00 to 0x7F on the SX127x.
+// * `out_value` - receives the value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null argument or an SX127x
+// address past 0x7F; or [`PamojaStatus::Io`] when the chip does not answer.
+//
+// # Safety
+//
+// `radio` must be a live handle or null, and `out_value` writable or null.
+PamojaStatus pamoja_lora_radio_read_register(PamojaLoraRadio *radio,
+                                             uint16_t address,
+                                             uint8_t *out_value);
+
+// Writes one register of a radio's chip.
+//
+// # Arguments
+//
+// * `radio` - the radio.
+// * `address` - the register address: 16 bits on the SX126x, 0x00 to 0x7F on the SX127x.
+// * `value` - the value to write.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null radio or an SX127x
+// address past 0x7F; or [`PamojaStatus::Io`] when the chip does not answer.
+//
+// # Safety
+//
+// `radio` must be a live handle from one of the open functions, or null.
+PamojaStatus pamoja_lora_radio_write_register(PamojaLoraRadio *radio,
+                                              uint16_t address,
+                                              uint8_t value);
+
+// Closes a radio's device files and releases it.
+//
+// # Arguments
+//
+// * `radio` - the radio, which must not be used again.
+//
+// # Safety
+//
+// `radio` must be a live handle from one of the open functions, or null.
+void pamoja_lora_radio_free(PamojaLoraRadio *radio);
 
 // Returns the published channel plan for a region.
 //

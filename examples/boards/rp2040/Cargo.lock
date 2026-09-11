@@ -85,8 +85,11 @@ dependencies = [
  "cortex-m-rt",
  "embedded-alloc",
  "embedded-hal 1.0.0",
+ "embedded-hal-bus",
  "pamoja-core",
  "pamoja-hal",
+ "pamoja-lora",
+ "pamoja-radios",
  "pamoja-sensors",
  "panic-halt",
  "rp2040-boot2",
@@ -258,6 +261,16 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c4c685bbef7fe13c3c6dd4da26841ed3980ef33e841cddfa15ce8a8fb3f1884"
 dependencies = [
+ "embedded-hal 1.0.0",
+]
+
+[[package]]
+name = "embedded-hal-bus"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "513e0b3a8fb7d3013a8ae17a834283f170deaf7d0eeab0a7c1a36ad4dd356d22"
+dependencies = [
+ "critical-section",
  "embedded-hal 1.0.0",
 ]
 
@@ -546,6 +559,18 @@ name = "pamoja-hal"
 version = "0.1.18"
 dependencies = [
  "embedded-hal 1.0.0",
+]
+
+[[package]]
+name = "pamoja-lora"
+version = "0.1.18"
+
+[[package]]
+name = "pamoja-radios"
+version = "0.1.18"
+dependencies = [
+ "embedded-hal 1.0.0",
+ "pamoja-lora",
 ]
 
 [[package]]

@@ -15,8 +15,12 @@
 //! - [`sx126x`] - Semtech's SX1261, SX1262, and LLCC68, from the SX1261/2 datasheet.
 //! - [`sx127x`] - Semtech's SX1276, SX1277, SX1278, and SX1279, and modules such as the
 //!   RFM95W, from the SX1276/77/78/79 datasheet.
+//! - [`radio`] - one radio of either family behind the same calls: configure from a
+//!   carrier, a link, and an output power, then transmit, receive, and listen.
 //! - [`duty`] - a guard that holds a radio silent for the off time a regional duty-cycle
 //!   limit requires after each transmission.
+//! - `linux`, with the `linux` feature - opening a radio on a Linux board over spidev and
+//!   the GPIO character device, with a plain error on every other platform.
 //! - `mesh`, with the `std` feature - a pamoja transport over a radio, carrying topics in
 //!   pamoja-mesh frames that each node relays onward, under the duty-cycle guard.
 //!
@@ -37,7 +41,11 @@
 //! ```
 
 pub mod duty;
+#[cfg(feature = "linux")]
+pub mod linux;
 #[cfg(feature = "std")]
 pub mod mesh;
+#[cfg(feature = "embedded-hal")]
+pub mod radio;
 pub mod sx126x;
 pub mod sx127x;

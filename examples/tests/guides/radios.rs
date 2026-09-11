@@ -203,3 +203,58 @@ fn the_same_reading_from_an_rfm95w() {
     assert!(received && !corrupt);
     assert!(fits(3) && !fits(2));
 }
+
+/// The same radio opened on a Linux board, over the kernel's spidev and GPIO character
+/// devices, which says what it found where no radio is wired.
+#[test]
+fn a_radio_on_a_linux_board() {
+    // ANCHOR: hardware
+    use pamoja_lora::budget::{Decibels, LinkBudget};
+    use pamoja_lora::region::Region;
+    use pamoja_radios::linux::{self, Wiring};
+    use pamoja_radios::radio::RadioConfig;
+    use pamoja_radios::sx127x::config::{PaOutput, TxPower};
+    use pamoja_radios::sx127x::Board;
+
+    // An RFM95W on a Raspberry Pi: the header's first chip select, with the module's reset pin
+    // on GPIO25. The SX1276 family has no BUSY line, so the wiring names none.
+    let wiring = Wiring::new("/dev/spidev0.0", "/dev/gpiochip0", 25);
+    println!(
+        "radio     an RFM95W on {}, reset on GPIO{}",
+        wiring.spi.display(),
+        wiring.reset_line
+    );
+
+    // The channel and the power the same whip leaves under the same ceiling, now as the number
+    // the radio is set to rather than the registers it goes into.
+    let band = Region::Eu868.plan();
+    let channel = 868_100_000;
+    let dr3 = band.link_settings(3).expect("DR3 is a LoRa data rate");
+    let antenna = LinkBudget {
+        transmit_antenna_gain_dbi: Decibels::from_hundredths(215),
+        transmit_cable_loss_db: Decibels::from_tenths(5),
+        ..LinkBudget::default()
+    };
+    let ceiling = Decibels::from_db(i32::from(band.max_eirp_dbm(channel)));
+    let rfm95w = TxPower::under_ceiling(PaOutput::PaBoost, &antenna, ceiling);
+    println!(
+        "plan      {channel} Hz at DR3, {} dBm on PA_BOOST",
+        rfm95w.output_dbm
+    );
+
+    // Opening resets the chip and reads its version back, so a wiring mistake is caught here
+    // rather than on the first frame. With no radio wired, this is the line that prints.
+    match linux::open_sx127x(&wiring, Board::new(PaOutput::PaBoost)) {
+        Ok(mut radio) => {
+            radio
+                .configure(RadioConfig::new(channel, dr3, rfm95w.output_dbm))
+                .expect("the chip takes the settings");
+            let airtime_us = radio.transmit(b"21.5").expect("the frame goes out");
+            println!("sent      a reading in {airtime_us} us on air");
+        }
+        Err(_) => println!("absent    no radio answered, so nothing went out"),
+    }
+    // ANCHOR_END: hardware
+
+    assert_eq!(rfm95w.output_dbm, 14);
+}

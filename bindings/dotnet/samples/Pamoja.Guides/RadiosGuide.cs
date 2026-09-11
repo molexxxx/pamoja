@@ -1,3 +1,4 @@
+using Pamoja;
 using Pamoja.Lora;
 using Pamoja.Radios;
 
@@ -117,5 +118,55 @@ public static class RadiosGuide
         Expect(modem.ModemConfig2 == 0x94, "SF9 with a CRC");
         Expect(received && !corrupt, "the packet arrived whole");
         Expect(Fits(3) && !Fits(2), "an LLCC68 carries DR3 but not DR2");
+
+        OnALinuxBoard();
+    }
+
+    /// <summary>Opens the same radio on a Linux board, over spidev and a GPIO line.</summary>
+    private static void OnALinuxBoard()
+    {
+        // ANCHOR: hardware
+        // An RFM95W on a Raspberry Pi: the header's first chip select, with the module's
+        // reset pin on GPIO25. The SX1276 family has no BUSY line, so the wiring names none.
+        var wiring = new LoraRadioWiring("/dev/spidev0.0", "/dev/gpiochip0", 25);
+        Console.WriteLine($"radio     an RFM95W on {wiring.Spi}, reset on GPIO{wiring.ResetLine}");
+
+        // The channel and the power the same whip leaves under the same ceiling, now as the
+        // number the radio is set to rather than the registers it goes into.
+        using LoraChannelPlan band = LoraChannelPlan.ForRegion(LoraRegion.Eu868);
+        const uint Channel = 868_100_000;
+        LoraLink dr3 = band.LinkSettings(3)!;
+        var antenna = new LoraLinkBudget { TransmitAntennaGainDbi = 2.15, TransmitCableLossDb = 0.5 };
+        Sx127xTxPower rfm95w = Sx127x.TxPowerUnderCeiling(
+            Sx127xPaOutput.PaBoost, antenna, band.MaxEirpDbm(Channel));
+        Console.WriteLine($"plan      {Channel} Hz at DR3, {rfm95w.OutputDbm} dBm on PA_BOOST");
+
+        // Opening resets the chip and reads its version back, so a wiring mistake is caught
+        // here rather than on the first frame. With no radio wired, this line prints.
+        LoraRadio? radio = null;
+        try
+        {
+            radio = LoraRadio.OpenSx127x(wiring, new Sx127xBoard(Sx127xPaOutput.PaBoost));
+        }
+        catch (PlatformNotSupportedException)
+        {
+        }
+        catch (PamojaException)
+        {
+        }
+
+        if (radio is null)
+        {
+            Console.WriteLine("absent    no radio answered, so nothing went out");
+            return;
+        }
+
+        using (radio)
+        {
+            radio.Configure(new LoraRadioConfig(Channel, dr3, rfm95w.OutputDbm));
+            ulong airtimeUs = radio.Transmit("21.5"u8);
+            Console.WriteLine($"sent      a reading in {airtimeUs} us on air");
+        }
+        // ANCHOR_END: hardware
     }
 }

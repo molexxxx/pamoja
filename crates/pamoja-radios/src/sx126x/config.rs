@@ -253,6 +253,38 @@ pub enum TcxoVoltage {
 }
 
 impl TcxoVoltage {
+    /// Names the TCXO voltage DIO3 supplies at a number of millivolts.
+    ///
+    /// # Arguments
+    ///
+    /// * `millivolts` - the supply voltage, such as `1700` for 1.7 V.
+    ///
+    /// # Returns
+    ///
+    /// The voltage, or `None` for one DIO3 cannot supply.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_radios::sx126x::config::TcxoVoltage;
+    ///
+    /// assert_eq!(TcxoVoltage::from_millivolts(1700), Some(TcxoVoltage::V1_7));
+    /// assert_eq!(TcxoVoltage::from_millivolts(1900), None);
+    /// ```
+    pub const fn from_millivolts(millivolts: u16) -> Option<TcxoVoltage> {
+        match millivolts {
+            1600 => Some(TcxoVoltage::V1_6),
+            1700 => Some(TcxoVoltage::V1_7),
+            1800 => Some(TcxoVoltage::V1_8),
+            2200 => Some(TcxoVoltage::V2_2),
+            2400 => Some(TcxoVoltage::V2_4),
+            2700 => Some(TcxoVoltage::V2_7),
+            3000 => Some(TcxoVoltage::V3_0),
+            3300 => Some(TcxoVoltage::V3_3),
+            _ => None,
+        }
+    }
+
     /// Returns the parameter byte.
     ///
     /// # Returns

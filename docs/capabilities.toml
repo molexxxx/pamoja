@@ -230,6 +230,8 @@ dotnet = [
     "Sx126xPacketStatus", "Sx126xRxBufferStatus", "RadioDutyCycle", "Sx127x", "Sx127xRegister",
     "Sx127xPaOutput", "Sx127xMode", "Sx127xIrq", "Sx127xTxPower", "Sx127xModem",
     "Sx127xPacketStatus", "Sx127xModemStatus", "Sx127xHighBwOptimize", "Sx127xSpuriousReception",
+    "LoraRadio", "LoraRadioWiring", "LoraRadioConfig", "LoraRadioFamily", "LoraReception",
+    "LoraReceptionOutcome", "Sx126xBoard", "Sx127xBoard",
 ]
 guide = "guides/radios.md"
 

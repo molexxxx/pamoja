@@ -30,6 +30,7 @@ mod driver;
 
 #[cfg(feature = "embedded-hal")]
 pub use driver::{
-    Board, RadioConfig, RadioError, Reception, Sx126x, BUSY_LIMIT_US, BUSY_POLL_US, IRQ_POLL_US,
-    RESET_HOLD_US, RESET_SETTLE_US, SLEEP_ENTRY_US, TIMEOUT_MARGIN_US, WAKE_SETUP_NS,
+    Board, RadioConfig, RadioError, Reception, Sx126x, BUSY_LIMIT_US, BUSY_POLL_US,
+    DEFAULT_TCXO_SETTLE_US, IRQ_POLL_US, RESET_HOLD_US, RESET_SETTLE_US, SLEEP_ENTRY_US,
+    TIMEOUT_MARGIN_US, WAKE_SETUP_NS,
 };

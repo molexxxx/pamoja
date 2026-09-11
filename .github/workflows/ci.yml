@@ -60,13 +60,16 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
-      # The Linux bus backends and the kernel thermometer file only build on Linux, so
-      # the default-feature graph the rest of this job covers never compiles them.
+      # The Linux bus backends, the kernel thermometer file, and the Linux side of the
+      # radio opener only build on Linux, so the default-feature graph the rest of this
+      # job covers never compiles them.
       - name: Linux bus backends
         run: |
           cargo clippy -p pamoja-hal --features linux --all-targets -- -D warnings
           cargo test -p pamoja-hal --features linux
           cargo test -p pamoja-sensors --features linux
+          cargo clippy -p pamoja-radios --features linux --all-targets -- -D warnings
+          cargo test -p pamoja-radios --features linux
           (cd examples/boards/raspberry-pi && cargo build --release)
 
       # Every example under examples/ runs to completion with nothing plugged in, except the

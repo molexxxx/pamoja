@@ -23,8 +23,10 @@ dependencies = [
  "pamoja-gpio",
  "pamoja-hal",
  "pamoja-kit",
+ "pamoja-lora",
  "pamoja-mqtt",
  "pamoja-profile",
+ "pamoja-radios",
  "pamoja-sensors",
  "tokio",
 ]
@@ -335,6 +337,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pamoja-lora"
+version = "0.1.18"
+
+[[package]]
+name = "pamoja-mesh"
+version = "0.1.18"
+
+[[package]]
 name = "pamoja-mqtt"
 version = "0.1.18"
 dependencies = [
@@ -357,6 +367,18 @@ dependencies = [
  "pamoja-power",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "pamoja-radios"
+version = "0.1.18"
+dependencies = [
+ "embedded-hal",
+ "pamoja-core",
+ "pamoja-hal",
+ "pamoja-lora",
+ "pamoja-mesh",
+ "tokio",
 ]
 
 [[package]]

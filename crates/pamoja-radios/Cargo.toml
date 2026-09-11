@@ -23,10 +23,14 @@ embedded-hal = ["dep:embedded-hal"]
 # A pamoja Transport over pamoja-mesh frames, for a node or a gateway with an
 # operating system clock.
 std = ["embedded-hal", "dep:pamoja-core", "dep:pamoja-mesh", "dep:tokio", "pamoja-core/std", "pamoja-mesh/alloc"]
+# Opening a radio on a Linux board through the spidev and GPIO character device backends
+# of pamoja-hal. Every other platform builds it and reports that no radio opens there.
+linux = ["std", "dep:pamoja-hal", "pamoja-hal/linux"]
 
 [dependencies]
 pamoja-lora = { path = "../pamoja-lora", version = "0.1.18", default-features = false }
 embedded-hal = { version = "1.0", optional = true }
+pamoja-hal = { path = "../pamoja-hal", version = "0.1.18", default-features = false, optional = true }
 pamoja-core = { path = "../pamoja-core", version = "0.1.18", default-features = false, optional = true }
 pamoja-mesh = { path = "../pamoja-mesh", version = "0.1.18", optional = true }
 tokio = { version = "1", default-features = false, features = ["time"], optional = true }

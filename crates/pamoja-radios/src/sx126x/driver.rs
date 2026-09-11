@@ -52,6 +52,11 @@ pub const WAKE_SETUP_NS: u32 = 100_000;
 /// "around 500 us" section 13.1.1 cautions it is unresponsive for.
 pub const SLEEP_ENTRY_US: u32 = 1_000;
 
+/// How long a TCXO is given to settle when a board description does not say, in
+/// microseconds: the `BOARD_TCXO_WAKEUP_TIME` of 5 ms that Semtech's LoRaMac-node board
+/// files give their TCXO radios.
+pub const DEFAULT_TCXO_SETTLE_US: u32 = 5_000;
+
 /// How a module wires its SX126x: the amplifier, the clock, the antenna switch, and the
 /// regulator.
 ///

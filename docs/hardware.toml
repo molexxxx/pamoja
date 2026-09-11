@@ -783,6 +783,22 @@ price = "US$17.90 to US$19.90"
 checked = "2026-09-06"
 verified = true
 
+[[entry.buy]]
+vendor = "The Pi Hut"
+name = "SX1262 868 MHz LoRa node module for Raspberry Pi Pico, with antenna and battery holder"
+url = "https://thepihut.com/products/sx1262-868mhz-lora-node-module-for-raspberry-pi-pico"
+price = "£14.40"
+checked = "2026-09-11"
+verified = true
+
+[[entry.buy]]
+vendor = "Waveshare"
+name = "Pico-LoRa-SX1262, SX1262 LoRa node module for Raspberry Pi Pico, EU868 and other bands"
+url = "https://www.waveshare.com/pico-lora-sx1262-868m.htm"
+price = "US$19.99"
+checked = "2026-09-11"
+verified = true
+
 [[entry]]
 key = "llcc68"
 group = "radios"

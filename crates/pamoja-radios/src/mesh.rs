@@ -86,6 +86,7 @@ use pamoja_mesh::{DynamicSeenCache, Frame};
 use tokio::time::{sleep, Instant};
 
 use crate::duty::DutyCycle;
+use crate::radio::{self, Radio};
 use crate::sx126x::{RadioError, Reception, Sx126x};
 use crate::sx127x::{self, Sx127x};
 
@@ -105,8 +106,8 @@ pub const SEEN_CAPACITY: usize = 64;
 /// A radio a [`MeshRadio`] carries frames over.
 ///
 /// Each method returns at once, so the transport can sleep on the runtime's timer between
-/// calls rather than block it. [`Sx126x`] implements it; a radio of another family, or a
-/// simulated one, implements the same five methods.
+/// calls rather than block it. [`Sx126x`], [`Sx127x`], and [`Radio`] implement it, and a
+/// simulated radio implements the same five methods.
 pub trait LoraRadio {
     /// What the radio reports when it or the bus under it fails.
     type Error: core::fmt::Debug;
@@ -230,6 +231,39 @@ where
     fn take_frame(&mut self, buffer: &mut [u8]) -> std::result::Result<Option<usize>, Self::Error> {
         match Sx127x::take_frame(self, buffer)? {
             Some(sx127x::Reception::Frame { len, .. }) => Ok(Some(len)),
+            _ => Ok(None),
+        }
+    }
+}
+
+impl<SPI, BUSY, RESET, D> LoraRadio for Radio<SPI, BUSY, RESET, D>
+where
+    SPI: SpiDevice,
+    BUSY: InputPin,
+    RESET: OutputPin,
+    D: DelayNs,
+{
+    type Error = radio::RadioError<SPI::Error>;
+
+    fn link(&self) -> Option<LinkSettings> {
+        Radio::link(self)
+    }
+
+    fn start_transmit(&mut self, frame: &[u8]) -> std::result::Result<u64, Self::Error> {
+        Radio::start_transmit(self, frame)
+    }
+
+    fn finish_transmit(&mut self) -> std::result::Result<bool, Self::Error> {
+        Radio::finish_transmit(self)
+    }
+
+    fn listen(&mut self) -> std::result::Result<(), Self::Error> {
+        Radio::listen(self)
+    }
+
+    fn take_frame(&mut self, buffer: &mut [u8]) -> std::result::Result<Option<usize>, Self::Error> {
+        match Radio::take_frame(self, buffer)? {
+            Some(radio::Reception::Frame { len, .. }) => Ok(Some(len)),
             _ => Ok(None),
         }
     }
