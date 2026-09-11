@@ -3239,6 +3239,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pamoja-radios"
+version = "0.1.18"
+dependencies = [
+ "embedded-hal",
+ "pamoja-core",
+ "pamoja-hal",
+ "pamoja-lora",
+ "pamoja-mesh",
+]
+
+[[package]]
 name = "pamoja-ros2"
 version = "0.1.18"
 dependencies = [
