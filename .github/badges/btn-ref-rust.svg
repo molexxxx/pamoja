@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="140" height="44" viewBox="0 0 140 44" role="img" aria-label="Rust reference">
   <style>
-    .paper { fill: #fbfaf6; }
-    .rule { stroke: #d7d4cc; }
+    .paper { fill: #faf5eb; }
+    .rule { stroke: #d4cdc1; }
     .band { fill: #0f5f56; }
     .ink { fill: #141414; }
     .accent { fill: #0f5f56; }

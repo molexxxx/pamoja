@@ -72,7 +72,7 @@ fn main() -> std::process::ExitCode {
             "web/ (hot reload)"
         }
     );
-    println!("switch scenarios, locale, theme, and tier live from the page or with ?scenario=&locale=&theme=&tier=");
+    println!("switch the scenario, locale, and theme live from the page or with ?scenario=&locale=&theme=; the tier is a build feature");
 
     // The field device shows this on its own screen or as a QR; the dev server prints it
     // to stand in for that. Enter it in the dashboard to unlock control.

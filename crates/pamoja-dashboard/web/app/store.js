@@ -1,4 +1,4 @@
-import { known } from './lib/theme.js';
+import { known, THEMES } from './lib/theme.js';
 
 /**
  * Reads a persisted preference from localStorage, with a default.
@@ -10,6 +10,16 @@ import { known } from './lib/theme.js';
 const get = (k, d) => { const v = $.storage.get(k); return v == null ? d : v; };
 
 /**
+ * Reads a view a link names in its query string, so a shared link opens on that view
+ * without changing what the reader saved.
+ *
+ * @param {string} name - the query parameter.
+ * @param {(value: string) => boolean} accept - whether a value is one this build can show.
+ * @returns {string|null} the named value, or null when absent or not accepted.
+ */
+const fromQuery = (name, accept) => { const v = new URLSearchParams(location.search).get(name); return v != null && accept(v) ? v : null; };
+
+/**
  * Builds an empty edit set (no added/removed groups or sensors, no orderings).
  *
  * @returns {object} a fresh, empty edit set.
@@ -18,9 +28,9 @@ const blankEdits = () => ({ addGroups: [], addSensors: [], rmGroups: [], rmSenso
 
 export const store = $.store('app', {
   state: {
-    theme: known(get('theme', 'system')),
-    locale: get('locale', 'en'),
-    scenario: get('scenario', 'normal'),
+    theme: known(fromQuery('theme', (v) => THEMES.includes(v)) ?? get('theme', 'system')),
+    locale: fromQuery('locale', (v) => /^[a-z]{2}$/.test(v)) ?? get('locale', 'en'),
+    scenario: fromQuery('scenario', (v) => /^[a-z][a-z-]*$/.test(v)) ?? get('scenario', 'normal'),
     selected: null,
     editing: false,
     create: null,

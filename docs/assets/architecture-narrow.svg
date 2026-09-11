@@ -5,7 +5,7 @@
       <path d="M0,0.5 L7,4 L0,7.5" fill="none" stroke="#585856" stroke-width="1.5"/>
     </marker>
   </defs>
-  <rect width="360" height="1672" fill="#fbfaf6"/>
+  <rect width="360" height="1672" fill="#faf5eb"/>
   <rect x="0.5" y="0.5" width="359" height="1671" fill="none" stroke="rgba(20, 20, 20, 0.16)" stroke-width="1"/>
   <rect x="16" y="16" width="328" height="74" rx="10" fill="rgba(15, 95, 86, 0.09)" stroke="rgba(15, 95, 86, 0.5)"/>
   <text x="28" y="41" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="15" font-weight="600" fill="#141414">TypeScript</text>
@@ -29,43 +29,43 @@
   <rect x="16" y="434" width="328" height="1164" rx="12" fill="rgba(20, 20, 20, 0.035)" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="30" y="457" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#585856" letter-spacing="1.2">CAPABILITIES BY CHAPTER</text>
   <text x="30" y="477" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12.5" font-weight="500" fill="#0f5f56">Rust: cargo add pamoja-&lt;name&gt;</text>
-  <rect x="30" y="490" width="300" height="70" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="30" y="490" width="300" height="70" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="44" y="512" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Identity</text>
   <text x="44" y="532" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">security</text>
-  <rect x="30" y="574" width="300" height="70" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="30" y="574" width="300" height="70" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="44" y="596" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Codecs</text>
   <text x="44" y="616" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">codec</text>
-  <rect x="30" y="658" width="300" height="70" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="30" y="658" width="300" height="70" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="44" y="680" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Helpers</text>
   <text x="44" y="700" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">kit</text>
-  <rect x="30" y="742" width="300" height="106" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="30" y="742" width="300" height="106" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="44" y="764" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Field I/O</text>
   <text x="44" y="784" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">serial</text>
   <text x="180" y="784" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">modbus</text>
   <text x="44" y="802" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">can</text>
   <text x="180" y="802" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">gpio</text>
   <text x="44" y="820" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">hal</text>
-  <rect x="30" y="862" width="300" height="70" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="30" y="862" width="300" height="70" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="44" y="884" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Sensing and actuation</text>
   <text x="44" y="904" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">sensors</text>
   <text x="180" y="904" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">actuators</text>
-  <rect x="30" y="946" width="300" height="88" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="30" y="946" width="300" height="88" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="44" y="968" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Radio and reach</text>
   <text x="44" y="988" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">lora</text>
   <text x="180" y="988" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">lorawan</text>
   <text x="44" y="1006" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">mesh</text>
   <text x="180" y="1006" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">routing</text>
-  <rect x="30" y="1048" width="300" height="70" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="30" y="1048" width="300" height="70" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="44" y="1070" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">MAVLink</text>
   <text x="44" y="1090" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">mavlink</text>
-  <rect x="30" y="1132" width="300" height="106" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="30" y="1132" width="300" height="106" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="44" y="1154" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Trust and operation</text>
   <text x="44" y="1174" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">audit</text>
   <text x="180" y="1174" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">session</text>
   <text x="44" y="1192" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">update</text>
   <text x="180" y="1192" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">power</text>
   <text x="44" y="1210" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#141414">telemetry</text>
-  <rect x="30" y="1252" width="300" height="124" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="30" y="1252" width="300" height="124" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="44" y="1274" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Transports and testing</text>
   <text x="44" y="1294" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">mqtt</text>
   <text x="180" y="1294" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">coap</text>
@@ -74,7 +74,7 @@
   <text x="44" y="1330" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">ladder</text>
   <text x="180" y="1330" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">bus</text>
   <text x="44" y="1348" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">sim</text>
-  <rect x="30" y="1390" width="300" height="88" rx="10" fill="#f1efe7" stroke="rgba(20, 20, 20, 0.16)"/>
+  <rect x="30" y="1390" width="300" height="88" rx="10" fill="#ede3d2" stroke="rgba(20, 20, 20, 0.16)"/>
   <text x="44" y="1412" font-family="Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#141414">Profiles and robotics</text>
   <text x="44" y="1432" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">profile</text>
   <text x="180" y="1432" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="13" font-weight="500" fill="#0f5f56">ros2</text>

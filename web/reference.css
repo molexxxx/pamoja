@@ -31,7 +31,8 @@ body.rustdoc { flex-wrap: wrap; }
 body.rustdoc > .pamoja-bar { flex: 0 0 100%; }
 .has-pamoja-bar body.rustdoc .sidebar { top: 56px; height: calc(100vh - 56px); }
 
-.has-pamoja-bar nav.pdoc { top: 56px; height: calc(100vh - 56px); }
+@media (min-width: 770px) { .has-pamoja-bar nav.pdoc { top: 56px; height: calc(100vh - 56px); } }
+@media (max-width: 769px) { .has-pamoja-bar #navtoggle { top: calc(56px + 1rem); } }
 .has-pamoja-bar .tsd-page-toolbar { top: 56px; }
 .has-pamoja-bar body > header:not(.pamoja-bar) { top: 56px; }
 
