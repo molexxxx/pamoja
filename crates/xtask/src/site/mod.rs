@@ -404,7 +404,7 @@ mod tests {
 
     /// Whether `text` holds a `#rrggbb`-style color literal: a hash, three to eight hex
     /// digits, and then something that is not a word character.
-    fn has_colour_literal(text: &str) -> bool {
+    fn has_color_literal(text: &str) -> bool {
         let bytes = text.as_bytes();
         let mut at = 0;
         while let Some(offset) = text[at..].find('#') {
@@ -425,19 +425,17 @@ mod tests {
     }
 
     #[test]
-    fn the_token_sheet_is_the_only_place_colours_live() {
+    fn the_token_sheet_is_the_only_place_colors_live() {
         for sheet in ["web/site.css", "web/home.css", "web/reference.css"] {
             let css = fs::read_to_string(docs::repo_root().join(sheet)).unwrap();
             assert!(
-                !has_colour_literal(&css),
+                !has_color_literal(&css),
                 "{sheet} names a color instead of a token from theme.css"
             );
         }
-        assert!(has_colour_literal("color: #fff;"));
-        assert!(has_colour_literal("border: 1px solid #16263f"));
-        assert!(!has_colour_literal(
-            "a[href^=\"#\"] { color: var(--teal); }"
-        ));
+        assert!(has_color_literal("color: #fff;"));
+        assert!(has_color_literal("border: 1px solid #16263f"));
+        assert!(!has_color_literal("a[href^=\"#\"] { color: var(--teal); }"));
     }
 
     #[test]

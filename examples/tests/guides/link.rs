@@ -89,9 +89,12 @@ async fn a_link_of_your_own_composes_like_a_shipped_one() {
     ladder.connect().await.expect("the ladder connects");
 
     // A reading out through the ladder lands in the link, topic and bytes intact.
-    ladder.send("sensors/1", b"21.5").await.expect("a delivery");
+    ladder
+        .send_text("sensors/1", "21.5")
+        .await
+        .expect("a delivery");
     let carried = vendor.lock().expect("the vendor").sent[0].clone();
-    let reading = String::from_utf8_lossy(&carried.payload);
+    let reading = carried.text().expect("text");
     println!("link carried: {} {reading}", carried.topic);
 
     // A subscription placed on the ladder reaches the link.
@@ -107,7 +110,7 @@ async fn a_link_of_your_own_composes_like_a_shipped_one() {
         .push_back(Message::new("commands/1", b"open"));
     delivered.notify_one();
     let command = ladder.recv().await.expect("recv").expect("a command");
-    let order = String::from_utf8_lossy(&command.payload);
+    let order = command.text().expect("text");
     println!("command over the ladder: {} {order}", command.topic);
     // ANCHOR_END: example
 

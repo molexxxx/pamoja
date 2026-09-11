@@ -196,7 +196,7 @@ impl Fleet {
     }
 
     /// Adds a group to an organization at runtime, so a gateway can surface a node the moment
-    /// it is discovered (a LoRa join, a new mesh neighbour). A no-op if the org is unknown.
+    /// it is discovered (a LoRa join, a new mesh neighbor). A no-op if the org is unknown.
     ///
     /// # Arguments
     ///

@@ -3,7 +3,7 @@
 /// A fixed-size memory of the most recently seen packets, so a node relays each one once.
 ///
 /// In a flood every node rebroadcasts what it hears, so the same packet reaches a node
-/// from several neighbours. Without a memory of what it has already handled, a node would
+/// from several neighbors. Without a memory of what it has already handled, a node would
 /// relay every copy and the flood would multiply without bound. This cache remembers the
 /// last `N` packet keys (a [`dedup_key`](crate::Frame::dedup_key), the source and sequence
 /// id) in a ring, evicting the oldest as new ones arrive, so the test for "have I seen

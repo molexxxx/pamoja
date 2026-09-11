@@ -70,7 +70,7 @@ async function main() {
     const moisture = await probe.read()
     await valve.apply(rule.update(moisture))
     const report = moisture.toFixed(1)
-    const delivery = await ladder.send(TOPIC, Buffer.from(report))
+    const delivery = await ladder.send(TOPIC, report)
     console.log(`bed at ${report}%, valve ${valve.open ? 'open' : 'closed'}, ${delivery}`)
     if ((await ladder.buffered()) > 0) {
       const caughtUp = await ladder.flush()
@@ -82,7 +82,7 @@ async function main() {
   // On the gateway, in the order they were read, outage included.
   const got: string[] = []
   for (let n = 0; n < 6; n += 1) {
-    got.push((await gateway.recv())!.payload.toString())
+    got.push((await gateway.recv())!.text!)
   }
   console.log(`gateway got ${got.join(', ')}`)
 

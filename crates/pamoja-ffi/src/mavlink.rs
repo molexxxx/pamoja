@@ -1677,7 +1677,7 @@ mod tests {
     }
 
     #[test]
-    fn the_checksum_matches_the_catalogue_check_value() {
+    fn the_checksum_matches_the_catalog_check_value() {
         unsafe {
             let data = b"123456789";
             assert_eq!(

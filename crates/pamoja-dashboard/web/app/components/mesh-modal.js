@@ -129,7 +129,7 @@ $.component('mesh-modal', {
    * Reads a node-stat value by reading key, rounded, or a default when the stat is absent.
    *
    * @param {object} group - the group to read from.
-   * @param {string} key - the stat reading key, such as `"neighbours"`.
+   * @param {string} key - the stat reading key, such as `"neighbors"`.
    * @param {number} dflt - the value to use when the stat is missing.
    * @returns {number} the rounded stat value.
    */
@@ -157,18 +157,18 @@ $.component('mesh-modal', {
    * gateway (length from the `hops` stat), and its mesh peers. Each peer is a station hosting
    * the node's sensors (grouped by their `peer` name); when the node and its stations carry
    * coordinates they are placed by real position, otherwise fanned. Remaining slots up to the
-   * `neighbours` count are routing-only peers, so a sensor relay and a bare routing node draw
+   * `neighbors` count are routing-only peers, so a sensor relay and a bare routing node draw
    * different graphs.
    *
    * @param {object} group - the group to lay out.
-   * @returns {{nodes: Array, links: Array, packets: Array, pos: object, neighbours: number, hops: number, geo: boolean}} the topology.
+   * @returns {{nodes: Array, links: Array, packets: Array, pos: object, neighbors: number, hops: number, geo: boolean}} the topology.
    */
   topology(group)
   {
     const { W, H } = dims();
     const cx = W * 0.5, hubY = H * 0.6, gwY = H * 0.12;
     const stations = meshStations(group);
-    const neighbours = meshPeerCount(group);
+    const neighbors = meshPeerCount(group);
     const hops = $.clamp(this.statVal(group, 'hops', 2), 1, 8);
     // Geo layout when the node and all its stations have coordinates; else the fanned arc.
     const geo = group.lat != null && stations.length > 0 && stations.every((st) => st.lat != null);
@@ -201,14 +201,14 @@ $.component('mesh-modal', {
 
     const fanPos = (j) =>
     {
-      const tt = neighbours === 1 ? 0.5 : j / (neighbours - 1);
+      const tt = neighbors === 1 ? 0.5 : j / (neighbors - 1);
       const a = Math.PI * 0.14 + tt * Math.PI * 0.72;
       const jit = 0.9 + 0.1 * Math.abs(Math.sin(j * 2.3));
       return { x: cx + Math.cos(a) * W * 0.31 * jit, y: hubY + Math.sin(a) * H * 0.3 * jit };
     };
 
-    // The first peers are the sensor stations; the rest are routing-only neighbours.
-    for (let j = 0; j < neighbours; j++)
+    // The first peers are the sensor stations; the rest are routing-only neighbors.
+    for (let j = 0; j < neighbors; j++)
     {
       const st = stations[j] || null;
       const p = st && geo ? proj[j] : fanPos(j);
@@ -225,13 +225,13 @@ $.component('mesh-modal', {
 
     const links = [];
     for (let i = 0; i < routeKeys.length - 1; i++) links.push([routeKeys[i], routeKeys[i + 1]]);
-    for (let j = 0; j < neighbours; j++) links.push(['hub', 'n' + j]);
+    for (let j = 0; j < neighbors; j++) links.push(['hub', 'n' + j]);
 
     const packets = [routeKeys.slice()];
-    for (let j = 0; j < neighbours; j++) packets.push(['n' + j, 'hub']);
+    for (let j = 0; j < neighbors; j++) packets.push(['n' + j, 'hub']);
 
     const pos = {}; nodes.forEach((nd) => { pos[nd.key] = nd; });
-    return { nodes, links, packets, pos, neighbours, hops, geo };
+    return { nodes, links, packets, pos, neighbors, hops, geo };
   },
 
   /**
@@ -240,7 +240,7 @@ $.component('mesh-modal', {
    *
    * @param {object} group - the group being inspected.
    * @param {object} [node] - the selected node; an empty node renders nothing.
-   * @param {{neighbours: number, hops: number}} topo - the topology counts.
+   * @param {{neighbors: number, hops: number}} topo - the topology counts.
    * @returns {string} the inspector markup.
    */
   inspector(group, node, topo)
@@ -257,7 +257,7 @@ $.component('mesh-modal', {
     } else if (node.role === 'hub')
     {
       title = group.name; sub = `${LINK_NAMES[group.link.kind] || group.link.kind} · ${t('status.' + group.status)}`;
-      body = row(t('ui.signal'), `${dbm} dBm`) + row(t('label.neighbours'), nf(topo.neighbours)) + row(t('label.hops'), nf(topo.hops));
+      body = row(t('ui.signal'), `${dbm} dBm`) + row(t('label.neighbors'), nf(topo.neighbors)) + row(t('label.hops'), nf(topo.hops));
     } else if (node.role === 'relay')
     {
       title = t('ui.meshRelay'); sub = t('ui.meshHopOf', { n: node.idx, total: node.total });
@@ -275,7 +275,7 @@ $.component('mesh-modal', {
       }).join('');
     } else
     {
-      title = t('ui.meshPeer'); sub = t('ui.meshPeerOf', { n: node.idx, total: topo.neighbours });
+      title = t('ui.meshPeer'); sub = t('ui.meshPeerOf', { n: node.idx, total: topo.neighbors });
       const traffic = 3 + (node.idx % 5);
       body = row(t('ui.signal'), `${dbm + 4 - node.idx} dBm`) + row(t('ui.throughput'), `${traffic}/s`) + row(t('ui.latency'), `${40 + traffic * 6} ms`);
     }
@@ -302,7 +302,7 @@ $.component('mesh-modal', {
     const group = found.group;
     const { W, H } = dims();
     const color = LINK_COLORS[group.link.kind] || '#38e1ff';
-    const { nodes, links, packets, pos, neighbours, hops } = this.topology(group);
+    const { nodes, links, packets, pos, neighbors, hops } = this.topology(group);
     const sel = store.state.meshNode;
 
     const linkSvg = links.map((l) => `<line x1="${pos[l[0]].x.toFixed(1)}" y1="${pos[l[0]].y.toFixed(1)}" x2="${pos[l[1]].x.toFixed(1)}" y2="${pos[l[1]].y.toFixed(1)}" class="mm-link"/>`).join('');
@@ -329,7 +329,7 @@ $.component('mesh-modal', {
           <div class="net-head">
             <div>
               <h2 class="net-title">${esc(group.name)}</h2>
-              <div class="net-subtitle">${LINK_NAMES[group.link.kind] || group.link.kind} · ${nf(neighbours)} ${t('label.neighbours')} · ${nf(hops)} ${t('label.hops')}</div>
+              <div class="net-subtitle">${LINK_NAMES[group.link.kind] || group.link.kind} · ${nf(neighbors)} ${t('label.neighbors')} · ${nf(hops)} ${t('label.hops')}</div>
             </div>
             <div class="spacer"></div>
             <button class="modal-close" type="button" @click="close" aria-label="${esc(t('ui.cancel'))}">✕</button>
@@ -343,7 +343,7 @@ $.component('mesh-modal', {
               <button type="button" @click="zoomOut" aria-label="zoom out">−</button>
               <button type="button" @click="resetView" aria-label="reset">⟲</button>
             </div>
-            ${this.inspector(group, sel ? pos[sel] : null, { neighbours, hops })}
+            ${this.inspector(group, sel ? pos[sel] : null, { neighbors, hops })}
           </div>
         </div>
       </div>`;

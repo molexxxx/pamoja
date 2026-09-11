@@ -47,8 +47,20 @@
         "stat": false,
         "scope": "always",
         "span": false,
-        "state": "state.online"
+        "state": "state.lamp_off"
       }
-    ]
+    ],
+    "messages": {
+      "state.lamp_off": {
+        "en": "Off",
+        "fr": "Éteinte",
+        "sw": "Imezimwa"
+      },
+      "state.lamp_on": {
+        "en": "On",
+        "fr": "Allumée",
+        "sw": "Imewashwa"
+      }
+    }
   }
 }

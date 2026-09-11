@@ -29,30 +29,30 @@ async function main() {
   // a node uses to survive a reboot with its backlog intact.
   const outbox = Store.memory()
   for (const reading of ['20.1', '20.4', '20.2']) {
-    await outbox.append(Buffer.from(reading))
+    await outbox.append(reading)
   }
   console.log(`queued    ${await outbox.len()} readings with no link`)
 
   // Peek reads the oldest record without taking it, so a send that fails part-way leaves
   // the queue exactly as it was.
-  const oldest = (await outbox.peek())!
-  console.log(`oldest    ${oldest.toString()} and still ${await outbox.len()} held`)
+  const oldest = (await outbox.peekText())!
+  console.log(`oldest    ${oldest} and still ${await outbox.len()} held`)
 
   // The link returns and the queue drains oldest first, in the order the readings were
   // taken rather than the order they happen to come back off a buffer.
   const drained: string[] = []
-  for (let record = await outbox.pop(); record !== null; record = await outbox.pop()) {
-    drained.push(record.toString())
+  for (let record = await outbox.popText(); record !== null; record = await outbox.popText()) {
+    drained.push(record)
   }
   console.log(`drained   ${drained.join(', ')}`)
 
   // A bounded queue refuses the append that would overflow it. A full store is
   // backpressure the caller is told about, not a reading dropped behind its back.
   const bounded = Store.memory(2)
-  await bounded.append(Buffer.from('20.1'))
-  await bounded.append(Buffer.from('20.4'))
+  await bounded.append('20.1')
+  await bounded.append('20.4')
   try {
-    await bounded.append(Buffer.from('20.2'))
+    await bounded.append('20.2')
     console.log('a full queue took a third reading, which should never happen')
   } catch (error) {
     console.log(`full      refused the third reading: ${(error as Error).message}`)

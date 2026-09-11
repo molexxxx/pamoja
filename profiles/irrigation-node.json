@@ -15,5 +15,40 @@
     "critical_secs": 3600,
     "saver_below": 0.5,
     "critical_below": 0.2
+  },
+  "presentation": {
+    "elements": [
+      {
+        "key": "soil_moisture",
+        "unit": "percent",
+        "label": "Soil moisture",
+        "labels": {
+          "fr": "Humidité du sol",
+          "sw": "Unyevu wa udongo"
+        },
+        "viz": "droplet",
+        "band": [
+          10.0,
+          60.0
+        ],
+        "stat": false,
+        "scope": "always",
+        "span": false
+      },
+      {
+        "key": "drip_valve",
+        "unit": "state",
+        "label": "Drip valve",
+        "labels": {
+          "fr": "Vanne goutte-à-goutte",
+          "sw": "Vali ya matone"
+        },
+        "viz": "valve",
+        "stat": false,
+        "scope": "always",
+        "span": false,
+        "state": "state.closed"
+      }
+    ]
   }
 }

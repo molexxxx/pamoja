@@ -32,7 +32,7 @@ async def main() -> None:
     # The gateway receives it with the topic attached, which is how it knows which node
     # sent the reading without the payload having to repeat it.
     received = await gateway.recv()
-    print(f"gateway   got {received.payload.decode()} on {received.topic}")
+    print(f"gateway   got {received.text} on {received.topic}")
 
     # Disconnecting leaves the client reusable, so a node that loses its link can
     # reconnect the same object when the broker comes back.

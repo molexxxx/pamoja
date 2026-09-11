@@ -91,7 +91,7 @@ pub struct Delegation {
     pub epoch: f64,
     /// The public key that may sign manifests while this delegation stands.
     pub release_key: Buffer,
-    /// When the delegation stops being honoured, in seconds since the Unix
+    /// When the delegation stops being honored, in seconds since the Unix
     /// epoch, or `0` to never expire.
     pub expires: f64,
 }
@@ -340,7 +340,7 @@ impl Updater {
             .map_err(refusal)
     }
 
-    /// The delegation this updater currently honours, or `null` when releases
+    /// The delegation this updater currently honors, or `null` when releases
     /// must be signed by the anchor itself.
     #[napi(getter)]
     pub fn delegation(&self) -> Option<Delegation> {

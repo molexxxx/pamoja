@@ -204,7 +204,7 @@ static void TrustAndOperation()
     using var delegated = new Updater(vendor, deviceClass, anchor.PublicKey, 2, 4096);
     delegated.Provision(0, 1);
     delegated.Adopt(statement);
-    Assert(delegated.CurrentDelegation is not null, "the device now honours it");
+    Assert(delegated.CurrentDelegation is not null, "the device now honors it");
     Assert(
         delegated.Stage(Update.SignManifest(manifest, releases), image) == 1,
         "so a release the anchor never touched is accepted");
@@ -773,7 +773,9 @@ static void ProfilesAndRobotics()
         reloaded.PowerPlan.ActiveUs == fridge.Power.ActiveSecs * 1_000_000,
         "and its schedule assembles into a governor");
     Assert(fridge.Description?.Contains("safe range") == true, "a preset says what it is for");
-    Assert(fridge.Presentation is null, "and declares no presentation");
+    Assert(
+        fridge.Presentation?.Elements.Any(element => element.Key == "fridge_temp") == true,
+        "and says how it should be drawn");
 
     // A presentation is typed on the way in and on the way out, and travels in the manifest.
     using var described = fridge.WithDescription("Holds the clinic fridge at 5 C.");
@@ -2271,7 +2273,7 @@ static void RadioAndReach()
     router.Observe(0x09, 0x05, 2);
     Assert(router.Forward(0x09).NextHop == 0x05, "a learned route relays");
     router.Observe(0x09, 0x07, 1);
-    Assert(router.Forward(0x09).NextHop == 0x07, "a cheaper neighbour wins");
+    Assert(router.Forward(0x09).NextHop == 0x07, "a cheaper neighbor wins");
     Assert(
         router.Forward(0x01).Action == ForwardAction.Deliver,
         "a packet for this node is delivered");
@@ -3545,7 +3547,7 @@ static void AssertDecision(Router router, JsonElement want)
     }
     else
     {
-        Assert(decision.NextHop == nextHop.GetUInt32(), "the neighbour to unicast to");
+        Assert(decision.NextHop == nextHop.GetUInt32(), "the neighbor to unicast to");
     }
 }
 

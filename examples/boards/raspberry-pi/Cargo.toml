@@ -4,11 +4,17 @@ version = "0.0.0"
 edition = "2021"
 publish = false
 license = "MIT"
-description = "The first program on a Raspberry Pi: a BME280 on the header's I2C bus, read through pamoja."
+description = "Programs for a Raspberry Pi: a sensor on the header's I2C bus, a relay and a switch on its GPIO lines, and a whole profile-driven node."
 
 [dependencies]
+pamoja-codec = { path = "../../../crates/pamoja-codec" }
 pamoja-core = { path = "../../../crates/pamoja-core" }
+pamoja-gpio = { path = "../../../crates/pamoja-gpio", features = ["std"] }
 pamoja-hal = { path = "../../../crates/pamoja-hal", features = ["linux"] }
+pamoja-kit = { path = "../../../crates/pamoja-kit" }
+pamoja-mqtt = { path = "../../../crates/pamoja-mqtt" }
+pamoja-profile = { path = "../../../crates/pamoja-profile" }
 pamoja-sensors = { path = "../../../crates/pamoja-sensors", features = ["std"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 
 [workspace]

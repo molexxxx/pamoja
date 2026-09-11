@@ -2,7 +2,7 @@
 
 Flooding always works but costs every node airtime and power on every packet.
 Once a mesh has settled, most traffic goes to a few known places, and a node that
-remembers the way can forward to one neighbour instead of shouting at the whole
+remembers the way can forward to one neighbor instead of shouting at the whole
 network. Routing is that optimization, and it falls back to flooding rather than
 failing whenever it does not know the way.
 """

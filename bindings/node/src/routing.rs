@@ -26,12 +26,12 @@ pub enum ForwardAction {
     Flood,
 }
 
-/// A routing decision, and the neighbour it names when there is one.
+/// A routing decision, and the neighbor it names when there is one.
 #[napi(object)]
 pub struct ForwardDecision {
     /// What to do with the packet.
     pub action: ForwardAction,
-    /// The neighbour to unicast to, or `null` unless the action is `Relay`.
+    /// The neighbor to unicast to, or `null` unless the action is `Relay`.
     pub next_hop: Option<u32>,
 }
 
@@ -40,7 +40,7 @@ pub struct ForwardDecision {
 pub struct Route {
     /// The node this route reaches.
     pub dst: u32,
-    /// The neighbour to send a packet to on the way there.
+    /// The neighbor to send a packet to on the way there.
     pub next_hop: u32,
     /// What the route costs, usually in hops.
     pub cost: u16,
@@ -77,14 +77,14 @@ impl Router {
 
     /// Learns a route from a packet that arrived.
     ///
-    /// When a packet from `origin` comes in through neighbour `via` at `cost`,
-    /// that neighbour is the way back. Returns whether the table changed.
+    /// When a packet from `origin` comes in through neighbor `via` at `cost`,
+    /// that neighbor is the way back. Returns whether the table changed.
     #[napi]
     pub fn observe(&mut self, origin: u32, via: u32, cost: u16) -> bool {
         self.inner.observe(origin, via, cost)
     }
 
-    /// Returns the neighbour to send a packet to on the way to `dst`, or `null`.
+    /// Returns the neighbor to send a packet to on the way to `dst`, or `null`.
     #[napi]
     pub fn next_hop(&self, dst: u32) -> Option<u32> {
         self.inner.next_hop(dst)

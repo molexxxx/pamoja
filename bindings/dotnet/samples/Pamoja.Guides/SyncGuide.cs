@@ -21,24 +21,23 @@ public static class SyncGuide
         using var outbox = Store.Memory();
         foreach (string reading in new[] { "20.1", "20.4", "20.2" })
         {
-            await outbox.AppendAsync(Encoding.UTF8.GetBytes(reading));
+            await outbox.AppendAsync(reading);
         }
 
         Console.WriteLine($"queued    {await outbox.CountAsync()} readings with no link");
 
         // Peek reads the oldest record without taking it, so a send that fails part-way
         // leaves the queue exactly as it was.
-        byte[] oldest = (await outbox.PeekAsync())!;
+        string oldest = (await outbox.PeekTextAsync())!;
         Console.WriteLine(
-            $"oldest    {Encoding.UTF8.GetString(oldest)}"
-            + $" and still {await outbox.CountAsync()} held");
+            $"oldest    {oldest} and still {await outbox.CountAsync()} held");
 
         // The link returns and the queue drains oldest first, in the order the readings
         // were taken rather than the order they happen to come back off a buffer.
         List<string> drained = [];
-        while (await outbox.PopAsync() is { } record)
+        while (await outbox.PopTextAsync() is { } record)
         {
-            drained.Add(Encoding.UTF8.GetString(record));
+            drained.Add(record);
         }
 
         Console.WriteLine($"drained   {string.Join(", ", drained)}");
@@ -46,11 +45,11 @@ public static class SyncGuide
         // A bounded queue refuses the append that would overflow it. A full store is
         // backpressure the caller is told about, not a reading dropped behind its back.
         using var bounded = Store.Memory(2);
-        await bounded.AppendAsync("20.1"u8.ToArray());
-        await bounded.AppendAsync("20.4"u8.ToArray());
+        await bounded.AppendAsync("20.1");
+        await bounded.AppendAsync("20.4");
         try
         {
-            await bounded.AppendAsync("20.2"u8.ToArray());
+            await bounded.AppendAsync("20.2");
             Console.WriteLine("a full queue took a third reading, which should never happen");
         }
         catch (PamojaException error)
@@ -59,7 +58,7 @@ public static class SyncGuide
         }
         // ANCHOR_END: example
 
-        Expect(oldest.AsSpan().SequenceEqual("20.1"u8), "peek reads the oldest record");
+        Expect(oldest == "20.1", "peek reads the oldest record");
         Expect(drained.SequenceEqual(["20.1", "20.4", "20.2"]), "drained oldest first");
         Expect(await outbox.CountAsync() == 0, "leaving the queue empty");
         Expect(await bounded.CountAsync() == 2, "and a full queue keeps what it took");

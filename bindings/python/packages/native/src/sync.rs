@@ -15,6 +15,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use tokio::sync::Mutex;
 
+use crate::transport::Payload;
 use crate::PamojaError;
 
 /// One buffer, whichever kind it was created as.
@@ -151,8 +152,9 @@ impl Store {
     }
 
     /// Adds a record to the end of the buffer.
-    fn append<'py>(&self, py: Python<'py>, record: Vec<u8>) -> PyResult<Bound<'py, PyAny>> {
+    fn append<'py>(&self, py: Python<'py>, record: Payload) -> PyResult<Bound<'py, PyAny>> {
         let inner = self.borrow()?;
+        let record = record.into_bytes();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let mut store = inner;
             store.append(&record).await.map_err(to_pyerr)
@@ -173,6 +175,27 @@ impl Store {
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let mut store = inner;
             store.pop().await.map_err(to_pyerr)
+        })
+    }
+
+    /// Reads the oldest record as text without removing it, or `None` when empty.
+    ///
+    /// Raises `ValueError` if the record is not UTF-8 text.
+    fn peek_text<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let inner = self.borrow()?;
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            inner.peek_text().await.map_err(to_pyerr)
+        })
+    }
+
+    /// Removes and returns the oldest record as text, or `None` when empty.
+    ///
+    /// Raises `ValueError` if the record is not UTF-8 text.
+    fn pop_text<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let inner = self.borrow()?;
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let mut store = inner;
+            store.pop_text().await.map_err(to_pyerr)
         })
     }
 

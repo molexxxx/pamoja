@@ -371,7 +371,7 @@
     else addEventListener('resize', stick);
   }
 
-  // The colour scheme: the reader's system until the control says otherwise, and the
+  // The color scheme: the reader's system until the control says otherwise, and the
   // choice is remembered. The header is never swapped, so this binds once.
   const scheme = document.querySelector('.scheme');
   if (scheme)

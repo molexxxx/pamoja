@@ -15,5 +15,69 @@
     "critical_secs": 900,
     "saver_below": 0.5,
     "critical_below": 0.2
+  },
+  "presentation": {
+    "elements": [
+      {
+        "key": "fridge_temp",
+        "unit": "celsius",
+        "label": "Fridge temperature",
+        "labels": {
+          "fr": "Température du réfrigérateur",
+          "sw": "Joto la friji"
+        },
+        "viz": "thermometer",
+        "band": [
+          2.0,
+          8.0
+        ],
+        "stat": false,
+        "scope": "always",
+        "span": false
+      },
+      {
+        "key": "cooler",
+        "unit": "state",
+        "label": "Cooler",
+        "labels": {
+          "fr": "Groupe froid",
+          "sw": "Kipoza"
+        },
+        "viz": "switch",
+        "stat": false,
+        "scope": "always",
+        "span": false,
+        "state": "state.cooler_off"
+      },
+      {
+        "key": "compressor_duty",
+        "unit": "percent",
+        "label": "Compressor duty",
+        "labels": {
+          "fr": "Cycle du compresseur",
+          "sw": "Utendaji wa kompresa"
+        },
+        "viz": "bar",
+        "band": [
+          0.0,
+          60.0
+        ],
+        "stat": true,
+        "scope": "always",
+        "span": false
+      }
+    ],
+    "messages": {
+      "state.cooler_off": {
+        "en": "Off",
+        "fr": "Arrêt",
+        "sw": "Imezimwa"
+      },
+      "state.cooler_on": {
+        "en": "Running",
+        "fr": "En marche",
+        "sw": "Inafanya kazi"
+      }
+    }
   }
 }

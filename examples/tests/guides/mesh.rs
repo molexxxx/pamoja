@@ -18,7 +18,7 @@ fn a_reading_flooded_across_a_mesh() {
     println!("sent      {on_the_air} bytes to every node in range");
     println!("addressed to broadcast: {to_everyone}");
 
-    // A neighbour hears it. Every node in range rebroadcasts, so the same packet arrives
+    // A neighbor hears it. Every node in range rebroadcasts, so the same packet arrives
     // several times over; the source and sequence id decide which copy is the first.
     let received = Frame::parse(reading.as_bytes()).expect("the checksum matches");
     println!("payload   {}", String::from_utf8_lossy(received.payload()));

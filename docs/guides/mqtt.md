@@ -88,7 +88,7 @@ let node_config = MqttConfig::new("node-1", "127.0.0.1", port)
     .keep_alive(Duration::from_secs(5))
     .qos(QualityOfService::AtLeastOnce);
 let mut node = connect(node_config).await;
-node.send("sensors/1/temperature", b"21.5")
+node.send_text("sensors/1/temperature", "21.5")
     .await
     .expect("the broker takes the reading");
 println!("node      published 21.5 to sensors/1/temperature");
@@ -100,7 +100,7 @@ let received = gateway
     .await
     .expect("the link is up")
     .expect("a message arrives");
-let reading = String::from_utf8_lossy(&received.payload);
+let reading = received.text().expect("text");
 let topic = &received.topic;
 println!("gateway   got {reading} on {topic}");
 
@@ -137,7 +137,7 @@ import { MqttClient, Qos } from '@pamoja/mqtt'
 const BROKER = '127.0.0.1'
 const PORT = 1883
 
-async function main(): Promise<{ topic: string; payload: Buffer }> {
+async function main(): Promise<{ topic: string; text?: string }> {
   // The gateway takes every temperature on the site. A `+` stands for exactly one level,
   // so this matches every node's temperature and nothing deeper.
   const gateway = new MqttClient({
@@ -165,7 +165,7 @@ async function main(): Promise<{ topic: string; payload: Buffer }> {
   // The gateway receives it with the topic attached, which is how it knows which node
   // sent the reading without the payload having to repeat it.
   const received = (await gateway.recv())!
-  console.log(`gateway   got ${received.payload.toString()} on ${received.topic}`)
+  console.log(`gateway   got ${received.text!} on ${received.topic}`)
 
   // Disconnecting leaves the client reusable, so a node that loses its link can reconnect
   // the same object when the broker comes back.
@@ -227,7 +227,7 @@ async def main() -> None:
     # The gateway receives it with the topic attached, which is how it knows which node
     # sent the reading without the payload having to repeat it.
     received = await gateway.recv()
-    print(f"gateway   got {received.payload.decode()} on {received.topic}")
+    print(f"gateway   got {received.text} on {received.topic}")
 
     # Disconnecting leaves the client reusable, so a node that loses its link can
     # reconnect the same object when the broker comes back.
@@ -292,7 +292,7 @@ Console.WriteLine("node      published 21.5 to sensors/1/temperature");
 // node sent the reading without the payload having to repeat it.
 MqttMessage received = (await gateway.RecvAsync())!;
 Console.WriteLine(
-    $"gateway   got {System.Text.Encoding.UTF8.GetString(received.Payload.Span)}"
+    $"gateway   got {received.Text}"
     + $" on {received.Topic}");
 
 // Disconnecting leaves the client reusable, so a node that loses its link can

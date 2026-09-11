@@ -1,5 +1,6 @@
 //! Durable local storage backing the offline-first synchronization layer.
 
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::future::Future;
 
@@ -34,6 +35,27 @@ pub trait Store {
     /// durable storage.
     fn append(&mut self, record: &[u8]) -> impl Future<Output = Result<()>> + Send;
 
+    /// Appends text to the back of the queue: a reading or a line written out.
+    ///
+    /// This is [`append`](Self::append) with the text's UTF-8 bytes, so a queue of
+    /// readings needs no encoding step; [`peek_text`](Self::peek_text) and
+    /// [`pop_text`](Self::pop_text) read them back.
+    ///
+    /// # Arguments
+    ///
+    /// * `text` - the text to persist.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once the record is durably stored.
+    ///
+    /// # Errors
+    ///
+    /// Whatever [`append`](Self::append) returns.
+    fn append_text(&mut self, text: &str) -> impl Future<Output = Result<()>> + Send {
+        self.append(text.as_bytes())
+    }
+
     /// Returns the oldest record without removing it.
     ///
     /// This lets a forwarder send a record before committing to its removal, so a
@@ -49,6 +71,26 @@ pub trait Store {
     /// Returns [`Error::Io`](crate::Error::Io) if the queue cannot be read.
     fn peek(&self) -> impl Future<Output = Result<Option<Vec<u8>>>> + Send;
 
+    /// Returns the oldest record as text, without removing it.
+    ///
+    /// It borrows the store across an await, so it asks for `Sync`, which a store
+    /// whose own futures are `Send` already is.
+    ///
+    /// # Returns
+    ///
+    /// `Some(text)` for the oldest record, or `None` if the queue is empty.
+    ///
+    /// # Errors
+    ///
+    /// Whatever [`peek`](Self::peek) returns, or
+    /// [`Error::Codec`](crate::Error::Codec) if the record is not UTF-8 text.
+    fn peek_text(&self) -> impl Future<Output = Result<Option<String>>> + Send
+    where
+        Self: Sync,
+    {
+        async { as_text(self.peek().await?) }
+    }
+
     /// Removes and returns the oldest record in the queue.
     ///
     /// # Returns
@@ -60,6 +102,23 @@ pub trait Store {
     ///
     /// Returns [`Error::Io`](crate::Error::Io) if the queue cannot be read.
     fn pop(&mut self) -> impl Future<Output = Result<Option<Vec<u8>>>> + Send;
+
+    /// Removes and returns the oldest record as text.
+    ///
+    /// # Returns
+    ///
+    /// `Some(text)` for the oldest record, or `None` if the queue is empty.
+    ///
+    /// # Errors
+    ///
+    /// Whatever [`pop`](Self::pop) returns, or
+    /// [`Error::Codec`](crate::Error::Codec) if the record is not UTF-8 text.
+    fn pop_text(&mut self) -> impl Future<Output = Result<Option<String>>> + Send
+    where
+        Self: Send,
+    {
+        async { as_text(self.pop().await?) }
+    }
 
     /// Returns the number of records currently buffered.
     ///
@@ -92,5 +151,15 @@ pub trait Store {
         Self: Sync,
     {
         async { Ok(self.len().await? == 0) }
+    }
+}
+
+// A buffered record read as text, for the `_text` helpers above.
+fn as_text(record: Option<Vec<u8>>) -> Result<Option<String>> {
+    match record {
+        Some(bytes) => String::from_utf8(bytes)
+            .map(Some)
+            .map_err(|_| crate::Error::Codec("the record is not UTF-8 text".into())),
+        None => Ok(None),
     }
 }

@@ -803,7 +803,7 @@ function radioAndReach() {
   router.observe(0x09, 0x05, 2);
   assert.strictEqual(router.forward(0x09).nextHop, 0x05, "a learned route relays");
   router.observe(0x09, 0x07, 1);
-  assert.strictEqual(router.forward(0x09).nextHop, 0x07, "a cheaper neighbour wins");
+  assert.strictEqual(router.forward(0x09).nextHop, 0x07, "a cheaper neighbor wins");
   assert.strictEqual(
     router.forward(0x01).action,
     routing.ForwardAction.Deliver,
@@ -1250,7 +1250,10 @@ async function asyncTransports() {
   assert.strictEqual(reloaded.topic, fridge.topic, "a manifest round-trips");
   assert.throws(() => profile.Profile.fromJson("{"), "a malformed manifest throws");
   assert.ok(fridge.description.includes("safe range"), "a preset says what it is for");
-  assert.strictEqual(fridge.presentation, null, "and declares no presentation");
+  assert.ok(
+    fridge.presentation.elements.some((element) => element.key === "fridge_temp"),
+    "and says how it should be drawn"
+  );
 
   // A presentation is typed on the way in and on the way out, and travels in the manifest.
   const drawn = fridge

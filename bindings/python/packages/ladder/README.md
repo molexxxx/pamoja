@@ -53,12 +53,12 @@ async def main() -> None:
 
     # The mesh hop refuses, so the reading goes out over the backhaul and arrives on the
     # broker only that rung publishes to.
-    first = await ladder.send(TOPIC, b"21.5")
+    first = await ladder.send(TOPIC, "21.5")
     arrived = await gateway.recv()
-    print(f"first reading: {first}, gateway got {arrived.payload.decode()}")
+    print(f"first reading: {first}, gateway got {arrived.text}")
 
     # Now nothing will take a send, so the next reading is buffered rather than lost.
-    second = await ladder.send(TOPIC, b"21.6")
+    second = await ladder.send(TOPIC, "21.6")
     waiting = await ladder.buffered()
     print(f"second reading: {second}, {waiting} waiting in the queue")
 
@@ -70,15 +70,15 @@ async def main() -> None:
     # The backhaul is reachable again, so the buffered reading goes out exactly once.
     when_up = await ladder.flush()
     late = await gateway.recv()
-    print(f"flush when up forwarded {when_up}, gateway got {late.payload.decode()}")
+    print(f"flush when up forwarded {when_up}, gateway got {late.text}")
 
     # The ladder is a link both ways. A subscription placed on it goes onto every rung
     # that listens, and a receive takes whichever rung delivers, so a command reaches
     # the node over whatever link is up. This one comes back over the backhaul.
     await ladder.subscribe("actuators/1/valve")
-    await gateway.send("actuators/1/valve", b"open")
+    await gateway.send("actuators/1/valve", "open")
     command = await ladder.recv()
-    print(f"command back over the ladder: {command.payload.decode()}")
+    print(f"command back over the ladder: {command.text}")
 
     left = await ladder.buffered()
     return first, second, waiting, while_down, when_up, left, late, command

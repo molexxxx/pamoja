@@ -17,7 +17,7 @@ async function main(): Promise<void> {
 
   // Non-confirmable delivery is at most once: the datagram leaves unacknowledged, which is
   // what a battery-powered node sends when one missed reading costs nothing.
-  await reporter.send('sensors/1/temperature', Buffer.from('21.5'))
+  await reporter.send('sensors/1/temperature', '21.5')
   console.log('reporter  sent 21.5 and did not wait for an answer')
 
   // A command is different: it has to arrive. Confirmable delivery retransmits until an
@@ -32,7 +32,7 @@ async function main(): Promise<void> {
   })
   await commander.connect()
   try {
-    await commander.send('actuators/valve', Buffer.from('open'))
+    await commander.send('actuators/valve', 'open')
     console.log('commander the valve acknowledged the command')
   } catch (error) {
     console.log(`commander gave up unacknowledged: ${(error as Error).message}`)

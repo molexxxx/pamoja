@@ -12,17 +12,17 @@ async function main() {
   const control = await hub.subscribe()
   const logger = await hub.subscribe()
 
-  await hub.publish(Buffer.from('battery.low'))
-  const toControl = (await control.next())!
-  const toLogger = (await logger.next())!
-  console.log(`control saw ${toControl.toString()}, the logger saw ${toLogger.toString()}`)
+  await hub.publish('battery.low')
+  const toControl = (await control.nextText())!
+  const toLogger = (await logger.nextText())!
+  console.log(`control saw ${toControl}, the logger saw ${toLogger}`)
 
   // A subscriber taken later starts from the next event, so it never sees what went out
   // before it existed.
   const late = await hub.subscribe()
-  await hub.publish(Buffer.from('link.up'))
-  const firstSeen = (await late.next())!
-  console.log(`the late subscriber's first event is ${firstSeen.toString()}`)
+  await hub.publish('link.up')
+  const firstSeen = (await late.nextText())!
+  console.log(`the late subscriber's first event is ${firstSeen}`)
 
   // The buffer is per subscriber and bounded, so one further behind than the capacity
   // drops what it missed and resumes with the most recent events. A slow reader costs
@@ -30,10 +30,10 @@ async function main() {
   const slow = new EventBus(2)
   const reader = await slow.subscribe()
   for (let count = 0; count < 5; count += 1) {
-    await slow.publish(Buffer.from([count]))
+    await slow.publish(String(count))
   }
-  const resumed = (await reader.next())!
-  console.log(`after five events into a buffer of two, the reader resumes at ${resumed[0]}`)
+  const resumed = (await reader.nextText())!
+  console.log(`after five events into a buffer of two, the reader resumes at ${resumed}`)
 
   return { toControl, toLogger, firstSeen, resumed }
 }
@@ -43,13 +43,13 @@ main()
   .then(check)
 
 function check(seen: {
-  toControl: Buffer
-  toLogger: Buffer
-  firstSeen: Buffer
-  resumed: Buffer
+  toControl: string
+  toLogger: string
+  firstSeen: string
+  resumed: string
 }): void {
-  assert.equal(seen.toControl.toString(), 'battery.low')
-  assert.equal(seen.toLogger.toString(), 'battery.low')
-  assert.equal(seen.firstSeen.toString(), 'link.up')
-  assert.deepEqual([...seen.resumed], [3])
+  assert.equal(seen.toControl, 'battery.low')
+  assert.equal(seen.toLogger, 'battery.low')
+  assert.equal(seen.firstSeen, 'link.up')
+  assert.equal(seen.resumed, '3')
 }

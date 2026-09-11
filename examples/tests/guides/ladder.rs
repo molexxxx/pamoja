@@ -30,13 +30,13 @@ async fn a_reading_falls_through_a_dead_rung_and_then_waits_for_a_link() {
 
     // The mesh hop refuses, so the reading goes out over the backhaul and arrives on the
     // broker only that rung publishes to.
-    let first = ladder.send(topic, b"21.5").await.expect("a delivery");
+    let first = ladder.send_text(topic, "21.5").await.expect("a delivery");
     let arrived = gateway.recv().await.expect("recv").expect("a message");
-    let reading = String::from_utf8_lossy(&arrived.payload);
+    let reading = arrived.text().expect("text");
     println!("first reading: {first:?}, gateway got {reading}");
 
     // Now nothing will take a send, so the next reading is buffered rather than lost.
-    let second = ladder.send(topic, b"21.6").await.expect("a delivery");
+    let second = ladder.send_text(topic, "21.6").await.expect("a delivery");
     let waiting = ladder.buffered().await.expect("a count");
     println!("second reading: {second:?}, {waiting} waiting in the queue");
 
@@ -49,7 +49,7 @@ async fn a_reading_falls_through_a_dead_rung_and_then_waits_for_a_link() {
     // The backhaul is reachable again, so the buffered reading goes out exactly once.
     let when_up = ladder.flush().await.expect("a flush");
     let late = gateway.recv().await.expect("recv").expect("a message");
-    let buffered_reading = String::from_utf8_lossy(&late.payload);
+    let buffered_reading = late.text().expect("text");
     println!("flush when up forwarded {when_up}, gateway got {buffered_reading}");
 
     // The ladder is a link both ways. A subscription placed on it goes onto every rung
@@ -60,11 +60,11 @@ async fn a_reading_falls_through_a_dead_rung_and_then_waits_for_a_link() {
         .await
         .expect("subscribe");
     gateway
-        .send("actuators/1/valve", b"open")
+        .send_text("actuators/1/valve", "open")
         .await
         .expect("send");
     let command = ladder.recv().await.expect("recv").expect("a command");
-    let order = String::from_utf8_lossy(&command.payload);
+    let order = command.text().expect("text");
     println!("command back over the ladder: {order}");
     // ANCHOR_END: example
 

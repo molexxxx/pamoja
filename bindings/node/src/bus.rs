@@ -11,7 +11,9 @@
 
 use std::sync::Arc;
 
+use crate::transport::bytes_of;
 use napi::bindgen_prelude::Buffer;
+use napi::Either;
 use napi_derive::napi;
 use pamoja_bus::BroadcastBus;
 use pamoja_core::EventBus as CoreEventBus;
@@ -52,13 +54,13 @@ impl EventBus {
         }
     }
 
-    /// Publishes an event to every subscriber.
+    /// Publishes an event to every subscriber: bytes, or text such as an event name.
     #[napi]
-    pub async fn publish(&self, event: Buffer) -> napi::Result<()> {
+    pub async fn publish(&self, event: Either<Buffer, String>) -> napi::Result<()> {
         self.inner
             .lock()
             .await
-            .publish(event.to_vec())
+            .publish(bytes_of(event))
             .await
             .map_err(to_napi)
     }
@@ -73,6 +75,26 @@ impl EventBus {
             .await
             .map(|event| event.map(Buffer::from))
             .map_err(to_napi)
+    }
+
+    /// Waits for the next event as text, or `null` once the bus closes.
+    ///
+    /// Throws if the event is not UTF-8 text.
+    #[napi]
+    pub async fn next_text(&self) -> napi::Result<Option<String>> {
+        let event = self
+            .inner
+            .lock()
+            .await
+            .next_event()
+            .await
+            .map_err(to_napi)?;
+        match event {
+            Some(bytes) => String::from_utf8(bytes)
+                .map(Some)
+                .map_err(|_| napi::Error::from_reason("the event is not UTF-8 text")),
+            None => Ok(None),
+        }
     }
 }
 

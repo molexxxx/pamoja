@@ -544,8 +544,8 @@ const SPECS = {
     id: 'mesh node · pokhara-04', link: 'mesh', dbm: -83,
     init: { neighbors: 5, hops: 3, relayed: 318 },
     tiles: [
-      { type: 'mesh', label: 'neighbour mesh', note: (s) => (s.flags.reroute ? 'rerouting' : `cost ${s.v.hops}`), cfg: { nodes: [[20, 60], [80, 30], [80, 95], [150, 55], [200, 80, 'gw']], links: [[0, 1], [0, 2], [1, 3], [2, 3], [3, 4], [1, 4, 1]], packets: [[0, 1, 3, 4], [0, 2, 3, 4]] } },
-      { type: 'kpi', label: 'neighbours', key: 'neighbors', unit: '' },
+      { type: 'mesh', label: 'neighbor mesh', note: (s) => (s.flags.reroute ? 'rerouting' : `cost ${s.v.hops}`), cfg: { nodes: [[20, 60], [80, 30], [80, 95], [150, 55], [200, 80, 'gw']], links: [[0, 1], [0, 2], [1, 3], [2, 3], [3, 4], [1, 4, 1]], packets: [[0, 1, 3, 4], [0, 2, 3, 4]] } },
+      { type: 'kpi', label: 'neighbors', key: 'neighbors', unit: '' },
       { type: 'kpi', label: 'hops to gateway', key: 'hops', unit: '' },
       { type: 'chip', label: 'routing', state: (s) => (s.flags.reroute ? ['learning', 'warn'] : ['optimized', 'ok']) },
       { type: 'spark', label: 'messages relayed', key: 'relayed', max: 360, start: 300 },

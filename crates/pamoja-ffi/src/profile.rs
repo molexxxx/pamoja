@@ -1063,10 +1063,8 @@ mod tests {
         let profile = pamoja_profile_well_level();
         let description = text_of(unsafe { pamoja_profile_description(profile) });
         assert!(description.contains("runs dry"), "{description}");
-        assert!(
-            unsafe { pamoja_profile_presentation_json(profile) }.is_null(),
-            "a preset declares no presentation"
-        );
+        let shipped = text_of(unsafe { pamoja_profile_presentation_json(profile) });
+        assert!(shipped.contains("well_level"), "{shipped}");
 
         let presentation = CString::new(
             r#"{ "elements": [ { "key": "water_turbidity", "unit": "ntu", "label": "Turbidity", "viz": "gauge", "band": [0.0, 5.0] } ], "messages": { "state.flushing": "Flushing" } }"#,

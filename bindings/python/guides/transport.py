@@ -27,19 +27,19 @@ async def main() -> None:
     await ladder.connect()
 
     # The injected failure lands, so the reading is buffered rather than lost.
-    first = await ladder.send(TOPIC, b"20.1")
+    first = await ladder.send(TOPIC, "20.1")
     print(f"first reading: {first}, {await ladder.buffered()} queued")
 
     # The next reading joins the back of the queue instead of overtaking it, even though
     # the link would take it now. Order on the wire is the order the readings were taken.
-    second = await ladder.send(TOPIC, b"20.4")
+    second = await ladder.send(TOPIC, "20.4")
     queued = await ladder.buffered()
     print(f"second reading: {second}, {queued} queued")
 
     # Flushing forwards the backlog oldest first, and the subscriber sees it in order.
     forwarded = await ladder.flush()
-    earlier = (await gateway.recv()).payload.decode()
-    later = (await gateway.recv()).payload.decode()
+    earlier = (await gateway.recv()).text
+    later = (await gateway.recv()).text
     print(f"flush forwarded {forwarded}, gateway saw {earlier} then {later}")
 
     return first, second, queued, forwarded, await ladder.buffered(), earlier, later

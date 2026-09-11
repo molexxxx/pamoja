@@ -68,7 +68,7 @@ let to_everyone = reading.dst() == BROADCAST;
 println!("sent      {on_the_air} bytes to every node in range");
 println!("addressed to broadcast: {to_everyone}");
 
-// A neighbour hears it. Every node in range rebroadcasts, so the same packet arrives
+// A neighbor hears it. Every node in range rebroadcasts, so the same packet arrives
 // several times over; the source and sequence id decide which copy is the first.
 let received = Frame::parse(reading.as_bytes()).expect("the checksum matches");
 println!("payload   {}", String::from_utf8_lossy(received.payload()));
@@ -119,7 +119,7 @@ const reading = broadcast(RIVER_GAUGE, 1, Buffer.from('level=high'))
 console.log(`sent      ${reading.bytes.length} bytes to every node in range`)
 console.log(`addressed to broadcast: ${reading.dst === BROADCAST}`)
 
-// A neighbour hears it. Every node in range rebroadcasts, so the same packet arrives
+// A neighbor hears it. Every node in range rebroadcasts, so the same packet arrives
 // several times over; the source and sequence id decide which copy is the first.
 const received = parse(reading.bytes)
 console.log(`payload   ${received.payload.toString()}`)
@@ -175,7 +175,7 @@ reading = broadcast(RIVER_GAUGE, 1, b"level=high")
 print(f"sent      {len(reading.bytes)} bytes to every node in range")
 print(f"addressed to broadcast: {reading.dst == BROADCAST}")
 
-# A neighbour hears it. Every node in range rebroadcasts, so the same packet arrives
+# A neighbor hears it. Every node in range rebroadcasts, so the same packet arrives
 # several times over; the source and sequence id decide which copy is the first.
 received = parse(reading.bytes)
 print(f"payload   {received.payload.decode()}")
@@ -226,7 +226,7 @@ MeshFrame reading = Mesh.BroadcastFrame(RiverGauge, 1, "level=high"u8);
 Console.WriteLine($"sent      {reading.Bytes.Length} bytes to every node in range");
 Console.WriteLine($"addressed to broadcast: {reading.Dst == Mesh.Broadcast}");
 
-// A neighbour hears it. Every node in range rebroadcasts, so the same packet
+// A neighbor hears it. Every node in range rebroadcasts, so the same packet
 // arrives several times over; the source and sequence id decide which copy is
 // the first.
 MeshFrame received = Mesh.Parse(reading.Bytes);

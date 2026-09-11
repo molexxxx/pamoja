@@ -472,7 +472,7 @@ impl MaskEnable {
     /// Returns the alert function the pin actually responds to.
     ///
     /// Only one limit function can drive the pin at a time; when several are
-    /// enabled the chip honours the most significant bit.
+    /// enabled the chip honors the most significant bit.
     ///
     /// # Returns
     ///

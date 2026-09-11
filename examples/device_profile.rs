@@ -94,9 +94,27 @@ async fn main() -> Result<()> {
     let runs = cooler_log.commands().iter().filter(|&&on| on).count();
     println!("\ncooler ran in {runs} of {} cycles", cooler_log.len());
 
-    // The profile that drove all of this is plain data: a community could ship it as
-    // the manifest below, and a device would load it with `Profile::from_json`.
-    println!("shareable manifest:\n{}", node.profile().to_json()?);
+    // The profile that drove all of this is plain data. The same manifest is in
+    // profiles/vaccine-fridge-monitor.json, and a device loads it with
+    // `Profile::from_json`; nothing here is recompiled to change a threshold.
+    let profile = node.profile();
+    println!(
+        "\nthe manifest behind it, in {} lines of JSON:",
+        profile.to_json()?.lines().count()
+    );
+    println!("  a {} policy on {}", profile.control.kind(), profile.topic);
+    println!(
+        "  a schedule of {}s, {}s, and {}s as the battery drains",
+        profile.power.active_secs, profile.power.saver_secs, profile.power.critical_secs
+    );
+    if let Some(presentation) = &profile.presentation {
+        let drawn: Vec<&str> = presentation
+            .elements
+            .iter()
+            .map(|element| element.label.as_str())
+            .collect();
+        println!("  and a dashboard that draws {}", drawn.join(", "));
+    }
 
     println!("done");
     Ok(())

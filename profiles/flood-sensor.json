@@ -13,5 +13,43 @@
     "critical_secs": 900,
     "saver_below": 0.5,
     "critical_below": 0.2
+  },
+  "presentation": {
+    "elements": [
+      {
+        "key": "river_level",
+        "unit": "meter",
+        "label": "River level",
+        "labels": {
+          "fr": "Niveau de la rivière",
+          "sw": "Kina cha mto"
+        },
+        "viz": "wave",
+        "band": [
+          0.2,
+          2.5
+        ],
+        "stat": false,
+        "scope": "always",
+        "span": true
+      },
+      {
+        "key": "rainfall",
+        "unit": "millimeter",
+        "label": "Rainfall",
+        "labels": {
+          "fr": "Précipitations",
+          "sw": "Mvua iliyonyesha"
+        },
+        "viz": "bar",
+        "band": [
+          0.0,
+          25.0
+        ],
+        "stat": false,
+        "scope": "always",
+        "span": false
+      }
+    ]
   }
 }

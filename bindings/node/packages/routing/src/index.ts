@@ -3,7 +3,7 @@
  *
  * Flooding always works but costs every node airtime and power on every packet.
  * Once a mesh has settled, most traffic goes to a few known places, and a node
- * that remembers the way can forward to one neighbour instead of shouting at the
+ * that remembers the way can forward to one neighbor instead of shouting at the
  * whole network. Routing is that optimization, and it falls back to flooding
  * rather than failing whenever it does not know the way.
  *
@@ -38,11 +38,11 @@ export const ForwardAction = {
 /** One of the {@link ForwardAction} choices. */
 export type ForwardAction = ForwardActionName
 
-/** A routing decision, and the neighbour it names when there is one. */
+/** A routing decision, and the neighbor it names when there is one. */
 export interface ForwardDecision {
   /** What to do with the packet. */
   action: ForwardAction
-  /** The neighbour to unicast to, or `null` unless the action is `Relay`. */
+  /** The neighbor to unicast to, or `null` unless the action is `Relay`. */
   nextHop: number | null
 }
 
@@ -50,7 +50,7 @@ export interface ForwardDecision {
 export interface Route {
   /** The node this route reaches. */
   dst: number
-  /** The neighbour to send a packet to on the way there. */
+  /** The neighbor to send a packet to on the way there. */
   nextHop: number
   /** What the route costs, usually in hops. */
   cost: number
@@ -101,7 +101,7 @@ export class Router {
    * Learns a route from a packet that arrived.
    *
    * @param origin - The node the packet came from.
-   * @param via - The neighbour it arrived through.
+   * @param via - The neighbor it arrived through.
    * @param cost - What that path costs, usually a hop count.
    * @returns Whether the table changed. It keeps the cheapest way it knows to
    *   each node, and when full gives up the most expensive route to make room.
@@ -111,7 +111,7 @@ export class Router {
   }
 
   /**
-   * Returns the neighbour on the way to a node.
+   * Returns the neighbor on the way to a node.
    *
    * @param dst - The node to reach.
    * @returns The next hop, or `null` when no route is known.

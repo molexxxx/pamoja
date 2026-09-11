@@ -11,7 +11,9 @@
 
 use std::sync::{Arc, Mutex as SyncMutex};
 
+use crate::transport::bytes_of;
 use napi::bindgen_prelude::Buffer;
+use napi::Either;
 use napi_derive::napi;
 use pamoja_core::Store as CoreStore;
 use pamoja_sync::{FileStore, MemoryStore};
@@ -151,10 +153,11 @@ impl Store {
             .map_err(to_napi)
     }
 
-    /// Adds a record to the end of the buffer.
+    /// Adds a record to the end of the buffer: bytes, or text such as a reading
+    /// written out.
     #[napi]
-    pub async fn append(&self, record: Buffer) -> napi::Result<()> {
-        let record = record.to_vec();
+    pub async fn append(&self, record: Either<Buffer, String>) -> napi::Result<()> {
+        let record = bytes_of(record);
         self.borrow()?.append(&record).await.map_err(to_napi)
     }
 
@@ -176,6 +179,22 @@ impl Store {
             .await
             .map(|record| record.map(Buffer::from))
             .map_err(to_napi)
+    }
+
+    /// Reads the oldest record as text without removing it, or `null` when empty.
+    ///
+    /// Throws if the record is not UTF-8 text.
+    #[napi]
+    pub async fn peek_text(&self) -> napi::Result<Option<String>> {
+        self.borrow()?.peek_text().await.map_err(to_napi)
+    }
+
+    /// Removes and returns the oldest record as text, or `null` when empty.
+    ///
+    /// Throws if the record is not UTF-8 text.
+    #[napi]
+    pub async fn pop_text(&self) -> napi::Result<Option<String>> {
+        self.borrow()?.pop_text().await.map_err(to_napi)
     }
 
     /// Whether this store is still holdable, or has been given to a ladder.

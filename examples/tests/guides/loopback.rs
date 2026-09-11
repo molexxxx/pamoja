@@ -24,16 +24,16 @@ async fn a_round_trip_through_an_in_process_broker() {
         .await
         .expect("subscribe");
     publisher
-        .send("line/mixer/temp/raw", b"2150")
+        .send_text("line/mixer/temp/raw", "2150")
         .await
         .expect("send");
     publisher
-        .send("line/mixer/temp", b"21.5")
+        .send_text("line/mixer/temp", "21.5")
         .await
         .expect("send");
 
     let message = subscriber.recv().await.expect("recv").expect("a message");
-    let reading = String::from_utf8_lossy(&message.payload);
+    let reading = message.text().expect("text");
     println!("line/+/temp took {reading} from {}", message.topic);
 
     // A `#` covers every level that remains, so a second link takes the whole subtree,
@@ -42,18 +42,18 @@ async fn a_round_trip_through_an_in_process_broker() {
     watcher.connect().await.expect("the watcher connects");
     watcher.subscribe("line/#").await.expect("subscribe");
     publisher
-        .send("line/mixer/temp/raw", b"2150")
+        .send_text("line/mixer/temp/raw", "2150")
         .await
         .expect("send");
 
     let deep = watcher.recv().await.expect("recv").expect("a message");
-    let raw = String::from_utf8_lossy(&deep.payload);
+    let raw = deep.text().expect("text");
     println!("line/#     took {raw} from {}", deep.topic);
 
     // A link that has been disconnected reports the failure instead of dropping the
     // reading, which is the case a test wants to reach without unplugging anything.
     publisher.disconnect();
-    match publisher.send("line/mixer/temp", b"21.6").await {
+    match publisher.send_text("line/mixer/temp", "21.6").await {
         Ok(_) => println!("a disconnected link took a reading, which should never happen"),
         Err(error) => println!("disconnected refused the reading: {error}"),
     }
@@ -63,5 +63,8 @@ async fn a_round_trip_through_an_in_process_broker() {
     assert_eq!(message.payload, b"21.5");
     assert_eq!(deep.topic, "line/mixer/temp/raw");
     assert_eq!(deep.payload, b"2150");
-    assert!(publisher.send("line/mixer/temp", b"21.6").await.is_err());
+    assert!(publisher
+        .send_text("line/mixer/temp", "21.6")
+        .await
+        .is_err());
 }

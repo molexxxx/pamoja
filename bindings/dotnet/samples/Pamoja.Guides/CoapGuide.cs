@@ -27,7 +27,7 @@ public static class CoapGuide
 
         // Non-confirmable delivery is at most once: the datagram leaves unacknowledged,
         // which is what a battery-powered node sends when a missed reading costs nothing.
-        await reporter.SendAsync("sensors/1/temperature", "21.5"u8.ToArray());
+        await reporter.SendAsync("sensors/1/temperature", "21.5");
         Console.WriteLine("reporter  sent 21.5 and did not wait for an answer");
 
         // A command is different: it has to arrive. Confirmable delivery retransmits until
@@ -45,7 +45,7 @@ public static class CoapGuide
         await commander.ConnectAsync();
         try
         {
-            await commander.SendAsync("actuators/valve", "open"u8.ToArray());
+            await commander.SendAsync("actuators/valve", "open");
             Console.WriteLine("commander the valve acknowledged the command");
         }
         catch (PamojaException error)

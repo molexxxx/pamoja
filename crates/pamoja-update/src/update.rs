@@ -238,7 +238,7 @@ impl<S: SlotStore> Updater<S> {
     /// # Errors
     ///
     /// Returns whatever [`begin_at`](Self::begin_at) refuses. A manifest that
-    /// carries an expiry is refused, because a device with no clock cannot honour
+    /// carries an expiry is refused, because a device with no clock cannot honor
     /// one; call [`begin_at`](Self::begin_at) with the time if it has one.
     pub fn begin(&mut self, envelope: &[u8]) -> Result<Staging<'_, S>> {
         self.begin_at(envelope, None)

@@ -27,13 +27,13 @@ async fn one_transport_contract_carries_every_link() {
     ladder.connect().await.expect("the ladder connects");
 
     // The injected failure lands, so the reading is buffered rather than lost.
-    let first = ladder.send(topic, b"20.1").await.expect("a delivery");
+    let first = ladder.send_text(topic, "20.1").await.expect("a delivery");
     let after_first = ladder.buffered().await.expect("a count");
     println!("first reading: {first:?}, {after_first} queued");
 
     // The next reading joins the back of the queue instead of overtaking it, even though
     // the link would take it now. Order on the wire is the order the readings were taken.
-    let second = ladder.send(topic, b"20.4").await.expect("a delivery");
+    let second = ladder.send_text(topic, "20.4").await.expect("a delivery");
     let queued = ladder.buffered().await.expect("a count");
     println!("second reading: {second:?}, {queued} queued");
 
@@ -41,8 +41,8 @@ async fn one_transport_contract_carries_every_link() {
     let forwarded = ladder.flush().await.expect("a flush");
     let first_out = gateway.recv().await.expect("recv").expect("a message");
     let second_out = gateway.recv().await.expect("recv").expect("a message");
-    let earlier = String::from_utf8_lossy(&first_out.payload);
-    let later = String::from_utf8_lossy(&second_out.payload);
+    let earlier = first_out.text().expect("text");
+    let later = second_out.text().expect("text");
     println!("flush forwarded {forwarded}, gateway saw {earlier} then {later}");
     // ANCHOR_END: example
 

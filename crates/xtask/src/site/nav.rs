@@ -2,7 +2,7 @@
 //!
 //! The pages come first (introduction, install, hardware, buses, examples, profiles, community), the boards, then a group per
 //! chapter holding its guides in the order the map gives them, then the reference hub and
-//! the four references, and the pages about the project. The same order gives every page its previous and next neighbour.
+//! the four references, and the pages about the project. The same order gives every page its previous and next neighbor.
 
 use crate::catalog::Catalog;
 
@@ -123,7 +123,7 @@ impl Nav {
     }
 
     /// The pages before and after `url` in reading order.
-    pub fn neighbours(&self, url: &str) -> (Option<&Item>, Option<&Item>) {
+    pub fn neighbors(&self, url: &str) -> (Option<&Item>, Option<&Item>) {
         let items: Vec<&Item> = self.items().collect();
         let Some(at) = items.iter().position(|item| item.url == url) else {
             return (None, None);
@@ -263,9 +263,9 @@ guide = "guides/can.md"
     }
 
     #[test]
-    fn neighbours_follow_reading_order_across_groups() {
+    fn neighbors_follow_reading_order_across_groups() {
         let nav = Nav::from(&Catalog::parse(SAMPLE).unwrap());
-        let (previous, next) = nav.neighbours("docs/guides/can.html");
+        let (previous, next) = nav.neighbors("docs/guides/can.html");
         assert_eq!(
             previous.map(|i| i.url.as_str()),
             Some("docs/guides/modbus.html")
@@ -274,9 +274,9 @@ guide = "guides/can.md"
             next.map(|i| i.url.as_str()),
             Some("docs/reference/index.html")
         );
-        assert!(nav.neighbours("docs/index.html").0.is_none());
-        assert!(nav.neighbours("docs/about/notices.html").1.is_none());
-        assert_eq!(nav.neighbours("docs/nowhere.html"), (None, None));
+        assert!(nav.neighbors("docs/index.html").0.is_none());
+        assert!(nav.neighbors("docs/about/notices.html").1.is_none());
+        assert_eq!(nav.neighbors("docs/nowhere.html"), (None, None));
         assert_eq!(
             nav.group_of("docs/guides/can.html")
                 .and_then(|g| g.title.as_deref()),

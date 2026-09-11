@@ -1,6 +1,6 @@
 //! The routing table and the per-packet forwarding decision.
 
-/// A learned route to a destination: the neighbour to send through, and the cost.
+/// A learned route to a destination: the neighbor to send through, and the cost.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Route {
     dst: u32,
@@ -18,7 +18,7 @@ impl Route {
         self.dst
     }
 
-    /// Returns the neighbour to send through to reach the destination.
+    /// Returns the neighbor to send through to reach the destination.
     ///
     /// # Returns
     ///
@@ -100,7 +100,7 @@ impl<const N: usize> Router<N> {
 
     /// Learns the way to a node from a packet heard from it.
     ///
-    /// A packet that originated at `origin` and reached this node via the neighbour `via`
+    /// A packet that originated at `origin` and reached this node via the neighbor `via`
     /// proves `via` is a way back to `origin` at the reported `cost`. The router adopts the
     /// route if it is cheaper than what it knows, or if it refreshes the cost of the route
     /// it is already using, and ignores a route to itself.
@@ -108,7 +108,7 @@ impl<const N: usize> Router<N> {
     /// # Arguments
     ///
     /// * `origin` - the node the packet came from, the destination this route reaches.
-    /// * `via` - the neighbour the packet arrived through, the next hop for this route.
+    /// * `via` - the neighbor the packet arrived through, the next hop for this route.
     /// * `cost` - the cost the packet reports for reaching `origin` through `via`.
     ///
     /// # Returns
@@ -346,7 +346,7 @@ impl DynamicRouter {
     /// # Arguments
     ///
     /// * `origin` - the node the packet came from, the destination this route reaches.
-    /// * `via` - the neighbour the packet arrived through, the next hop for this route.
+    /// * `via` - the neighbor the packet arrived through, the next hop for this route.
     /// * `cost` - the cost the packet reports for reaching `origin` through `via`.
     ///
     /// # Returns
@@ -483,7 +483,7 @@ mod tests {
     fn the_current_next_hop_can_refresh_its_cost() {
         let mut router: Router<8> = Router::new(1);
         router.observe(9, 7, 1);
-        // The same neighbour now reports a higher cost; we trust our current path.
+        // The same neighbor now reports a higher cost; we trust our current path.
         assert!(router.observe(9, 7, 3));
         assert_eq!(router.cost(9), Some(3));
     }

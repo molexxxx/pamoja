@@ -52,7 +52,7 @@ pub enum Viz {
     Valve,
     /// A row of hash-chained blocks, for a tamper-evident record count.
     Chain,
-    /// A neighbour-mesh topology map, for a mesh node's peers.
+    /// A neighbor-mesh topology map, for a mesh node's peers.
     Mesh,
     /// A plain numeric counter, for a node or network stat.
     Count,
@@ -78,6 +78,65 @@ impl Viz {
         Viz::Mesh,
         Viz::Count,
     ];
+
+    /// Returns the graphic as a manifest writes it.
+    ///
+    /// [`kind`](Viz::kind) is the token the dashboard renderer dispatches on, which for
+    /// three graphics is not the word a manifest uses. This is the word.
+    ///
+    /// # Returns
+    ///
+    /// The manifest name, such as `"thermometer"` or `"switch"`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::Viz;
+    ///
+    /// assert_eq!(Viz::Thermometer.name(), "thermometer");
+    /// assert_eq!(Viz::Thermometer.kind(), "therm");
+    /// ```
+    pub fn name(self) -> &'static str {
+        match self {
+            Viz::Spark => "spark",
+            Viz::Gauge => "gauge",
+            Viz::Dial => "dial",
+            Viz::Bar => "bar",
+            Viz::Thermometer => "thermometer",
+            Viz::Droplet => "droplet",
+            Viz::Battery => "battery",
+            Viz::Wind => "wind",
+            Viz::Sun => "sun",
+            Viz::Wave => "wave",
+            Viz::Switch => "switch",
+            Viz::Valve => "valve",
+            Viz::Chain => "chain",
+            Viz::Mesh => "mesh",
+            Viz::Count => "count",
+        }
+    }
+
+    /// Returns the graphic a manifest name refers to.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - the manifest name, such as `"droplet"`.
+    ///
+    /// # Returns
+    ///
+    /// The graphic, or `None` for a name no graphic has.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::Viz;
+    ///
+    /// assert_eq!(Viz::from_name("droplet"), Some(Viz::Droplet));
+    /// assert_eq!(Viz::from_name("hologram"), None);
+    /// ```
+    pub fn from_name(name: &str) -> Option<Viz> {
+        Viz::ALL.into_iter().find(|viz| viz.name() == name)
+    }
 
     /// Returns the dashboard visualization kind this graphic renders as.
     ///
@@ -346,6 +405,49 @@ pub enum LocalizedText {
     PerLocale(BTreeMap<String, String>),
 }
 
+impl LocalizedText {
+    /// Text written out in several locales at once.
+    ///
+    /// # Arguments
+    ///
+    /// * `texts` - `(locale tag, text)` pairs, such as `[("en", "Open"), ("sw", "Wazi")]`.
+    ///   A locale that is missing falls back to `"en"`.
+    ///
+    /// # Returns
+    ///
+    /// The per-locale text.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::{LocalizedText, Presentation};
+    ///
+    /// let presentation = Presentation::new().with_message(
+    ///     "state.lamp_on",
+    ///     LocalizedText::per_locale([("en", "On"), ("fr", "Allumée"), ("sw", "Imewashwa")]),
+    /// );
+    /// assert_eq!(presentation.messages.len(), 1);
+    /// ```
+    pub fn per_locale<K, V>(texts: impl IntoIterator<Item = (K, V)>) -> Self
+    where
+        K: Into<String>,
+        V: Into<String>,
+    {
+        LocalizedText::PerLocale(
+            texts
+                .into_iter()
+                .map(|(locale, text)| (locale.into(), text.into()))
+                .collect(),
+        )
+    }
+}
+
+impl<K: Into<String>, V: Into<String>, const N: usize> From<[(K, V); N]> for LocalizedText {
+    fn from(texts: [(K, V); N]) -> Self {
+        LocalizedText::per_locale(texts)
+    }
+}
+
 impl From<String> for LocalizedText {
     fn from(text: String) -> Self {
         LocalizedText::Plain(text)
@@ -445,6 +547,32 @@ impl Presentation {
         self
     }
 
+    /// Declares several custom elements at once.
+    ///
+    /// # Arguments
+    ///
+    /// * `elements` - the elements to declare, in the order they should be offered.
+    ///
+    /// # Returns
+    ///
+    /// The presentation, for chaining.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::{ElementSpec, Presentation, Viz};
+    ///
+    /// let presentation = Presentation::new().with_elements([
+    ///     ElementSpec::new("ph", "ph", "Acidity", Viz::Dial).with_band(6.0, 8.0),
+    ///     ElementSpec::new("water_turbidity", "ntu", "Turbidity", Viz::Gauge),
+    /// ]);
+    /// assert_eq!(presentation.elements.len(), 2);
+    /// ```
+    pub fn with_elements(mut self, elements: impl IntoIterator<Item = ElementSpec>) -> Self {
+        self.elements.extend(elements);
+        self
+    }
+
     /// Sets the theme that tints the dashboard.
     ///
     /// # Arguments
@@ -481,6 +609,15 @@ impl Presentation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_graphic_name_is_the_word_the_manifest_carries() {
+        for viz in Viz::ALL {
+            let written = serde_json::to_value(viz).expect("a graphic serializes");
+            assert_eq!(written.as_str(), Some(viz.name()), "{viz:?}");
+            assert_eq!(Viz::from_name(viz.name()), Some(viz));
+        }
+    }
 
     #[test]
     fn every_viz_maps_to_its_documented_render_kind() {

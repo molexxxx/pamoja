@@ -102,6 +102,15 @@ It also shows the gaps a real deployment fills: an added sensor carries an optio
 `Fleet::add_sensor`/`add_group` surface a node the moment it is discovered; and
 `Fleet::from_state` + `State::from_json` restore a fleet across restarts.
 
+For the other shape - a district console rather than one node -
+[`examples/fleet.rs`](examples/fleet.rs) reads every manifest in [`profiles/`](../../profiles)
+and stands the whole set up side by side, one group per deployment, with each group's sensors
+built from the elements its own profile declares:
+
+```
+cargo run -p pamoja-dashboard --example fleet
+```
+
 ## Custom sensors and node stats (profile-driven)
 
 The page draws a built-in set of sensor types out of the box. When a deployment measures
@@ -112,15 +121,15 @@ label, and which groups it is offered on (`Scope`). The gateway turns those into
 serves:
 
 ```rust
-use pamoja_dashboard::{Assets, Catalog, ElementSpec, Presentation, Scope, Server, Viz};
+use pamoja_dashboard::{Assets, Catalog, ElementSpec, Scope, Server, Viz};
 use pamoja_profile::Profile;
 
-let profile = Profile::well_level().with_presentation(
-    Presentation::new().with_element(
-        ElementSpec::new("water_turbidity", "ntu", "Turbidity", Viz::Gauge)
-            .with_band(0.0, 5.0)
-            .on(Scope::Links(vec!["mesh".into()])),
-    ),
+// `with_element` adds to what the profile already declares; `with_presentation`
+// replaces the lot, which drops the elements a shipped profile came with.
+let profile = Profile::well_level().with_element(
+    ElementSpec::new("water_turbidity", "ntu", "Turbidity", Viz::Gauge)
+        .with_band(0.0, 5.0)
+        .on(Scope::Links(vec!["mesh".into()])),
 );
 
 Server::new(fleet, Assets::Embedded)
@@ -261,6 +270,7 @@ tier and reachable from the top bar's Lite control.
 
 - `cargo xtask dashboard dev [scenario]` - run the mock-backed dev server (hot reload).
 - `cargo run -p pamoja-dashboard --example gateway` - run the real-`Fleet` reference gateway.
+- `cargo run -p pamoja-dashboard --example fleet` - run every shipped profile on one console.
 - `cargo xtask dashboard i18n --check` - validate the locale bundles.
 - `cargo xtask dashboard footprint [--tier a|b|c]` - check each tier's gzipped page-load budget.
 - `cargo xtask docs` - regenerate the crate READMEs and the workspace API index under `docs/`.

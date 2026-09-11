@@ -28,7 +28,7 @@ export const catalog = {
     { id: 'light', key: 'illuminance', unit: 'lux', band: [0, 100000] },
     // Mesh-node stats: telemetry about the node, not measurements - flagged as stats and
     // only offered on mesh-link groups.
-    { id: 'neighbours', key: 'neighbours', unit: 'count', value: 5, band: [1, 12], stat: true, meshOnly: true },
+    { id: 'neighbors', key: 'neighbors', unit: 'count', value: 5, band: [1, 12], stat: true, meshOnly: true },
     { id: 'hops', key: 'hops', unit: 'count', value: 3, band: [1, 8], stat: true, meshOnly: true },
     { id: 'relayed', key: 'messages_relayed', unit: 'count', value: 300, band: [0, 99999], stat: true, meshOnly: true },
   ],

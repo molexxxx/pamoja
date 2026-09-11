@@ -2219,7 +2219,7 @@ export const ina226 = {
    * Returns the limit comparison the alert pin actually responds to.
    *
    * Only one limit function drives the pin at a time; with several enabled the
-   * part honours the most significant bit.
+   * part honors the most significant bit.
    *
    * @param mask - The enables in force.
    * @returns The highest-priority enabled function, or `null` if none is enabled.

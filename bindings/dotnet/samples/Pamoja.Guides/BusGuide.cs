@@ -18,40 +18,36 @@ public static class BusGuide
         using EventBus control = hub.Subscribe();
         using EventBus logger = hub.Subscribe();
 
-        await hub.PublishAsync("battery.low"u8.ToArray());
-        byte[] toControl = (await control.NextAsync())!;
-        byte[] toLogger = (await logger.NextAsync())!;
-        Console.WriteLine(
-            $"control saw {System.Text.Encoding.UTF8.GetString(toControl)},"
-            + $" the logger saw {System.Text.Encoding.UTF8.GetString(toLogger)}");
+        await hub.PublishAsync("battery.low");
+        string toControl = (await control.NextTextAsync())!;
+        string toLogger = (await logger.NextTextAsync())!;
+        Console.WriteLine($"control saw {toControl}, the logger saw {toLogger}");
 
         // A subscriber taken later starts from the next event, so it never sees what went
         // out before it existed.
         using EventBus late = hub.Subscribe();
-        await hub.PublishAsync("link.up"u8.ToArray());
-        byte[] firstSeen = (await late.NextAsync())!;
-        Console.WriteLine(
-            $"the late subscriber's first event is"
-            + $" {System.Text.Encoding.UTF8.GetString(firstSeen)}");
+        await hub.PublishAsync("link.up");
+        string firstSeen = (await late.NextTextAsync())!;
+        Console.WriteLine($"the late subscriber's first event is {firstSeen}");
 
         // The buffer is per subscriber and bounded, so one further behind than the
         // capacity drops what it missed and resumes with the most recent events. A slow
         // reader costs itself, not the publisher.
         using EventBus slow = new EventBus(2);
         using EventBus reader = slow.Subscribe();
-        for (byte count = 0; count < 5; count++)
+        for (int count = 0; count < 5; count++)
         {
-            await slow.PublishAsync(new byte[] { count });
+            await slow.PublishAsync(count.ToString());
         }
 
-        byte[] resumed = (await reader.NextAsync())!;
+        string resumed = (await reader.NextTextAsync())!;
         Console.WriteLine(
-            $"after five events into a buffer of two, the reader resumes at {resumed[0]}");
+            $"after five events into a buffer of two, the reader resumes at {resumed}");
         // ANCHOR_END: example
 
-        Expect(toControl.AsSpan().SequenceEqual("battery.low"u8), "control heard it");
-        Expect(toLogger.AsSpan().SequenceEqual("battery.low"u8), "and so did the logger");
-        Expect(firstSeen.AsSpan().SequenceEqual("link.up"u8), "a late subscriber starts fresh");
-        Expect(resumed[0] == 3, "a slow reader resumes at the oldest event still buffered");
+        Expect(toControl == "battery.low", "control heard it");
+        Expect(toLogger == "battery.low", "and so did the logger");
+        Expect(firstSeen == "link.up", "a late subscriber starts fresh");
+        Expect(resumed == "3", "a slow reader resumes at the oldest event still buffered");
     }
 }

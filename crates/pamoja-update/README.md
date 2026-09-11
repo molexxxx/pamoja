@@ -85,7 +85,7 @@ only arises for differential updates, which this crate does not do.
 
 **A retired key stays trusted until the device hears otherwise.** Rotation
 takes effect when a device adopts the new delegation, and a device that has
-been out of contact since a key was compromised still honours that key until
+been out of contact since a key was compromised still honors that key until
 it is reached. There is no way to revoke faster than you can deliver, which
 RFC 9124 acknowledges by leaving revocation outside the manifest format.
 Setting an expiry on a delegation bounds the exposure for devices that have a

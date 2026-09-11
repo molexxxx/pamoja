@@ -43,6 +43,12 @@ public sealed class EventBus : IDisposable
     public EventBus Subscribe() =>
         new(_handle.Use(NativeMethods.pamoja_event_bus_subscribe));
 
+    /// <summary>Publishes text to every subscriber: an event name, or a reading written out.</summary>
+    /// <param name="text">The event text, as UTF-8.</param>
+    /// <exception cref="PamojaException">The bus has shut down.</exception>
+    public Task PublishAsync(string text) =>
+        PublishAsync(System.Text.Encoding.UTF8.GetBytes(text));
+
     /// <summary>Publishes an event to every subscriber.</summary>
     /// <param name="payload">The event bytes.</param>
     /// <exception cref="PamojaException">The bus has shut down.</exception>
@@ -63,6 +69,12 @@ public sealed class EventBus : IDisposable
             NativeMethods.pamoja_event_bus_next(handle, out next)));
         return next == IntPtr.Zero ? null : Pamoja.Codec.Codec.TakeBytes(next);
     });
+
+    /// <summary>Waits for the next event on this endpoint, as text.</summary>
+    /// <returns>The event, or <c>null</c> once the bus has closed.</returns>
+    /// <exception cref="PamojaException">The native call failed.</exception>
+    public async Task<string?> NextTextAsync() =>
+        await NextAsync() is { } next ? System.Text.Encoding.UTF8.GetString(next) : null;
 
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();

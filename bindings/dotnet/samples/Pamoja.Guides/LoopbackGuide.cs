@@ -26,12 +26,12 @@ public static class LoopbackGuide
         // A `+` stands for exactly one level, so this takes the mixer's temperature but
         // not the raw reading a level below it.
         await subscriber.SubscribeAsync("line/+/temp");
-        await publisher.SendAsync("line/mixer/temp/raw", "2150"u8.ToArray());
-        await publisher.SendAsync("line/mixer/temp", "21.5"u8.ToArray());
+        await publisher.SendAsync("line/mixer/temp/raw", "2150");
+        await publisher.SendAsync("line/mixer/temp", "21.5");
 
         TransportMessage message = (await subscriber.ReceiveAsync())!;
         Console.WriteLine(
-            $"line/+/temp took {System.Text.Encoding.UTF8.GetString(message.Payload)}"
+            $"line/+/temp took {message.Text}"
             + $" from {message.Topic}");
 
         // A `#` covers every level that remains, so a second link takes the whole subtree,
@@ -39,11 +39,11 @@ public static class LoopbackGuide
         using LoopbackTransport watcher = broker.Link();
         await watcher.ConnectAsync();
         await watcher.SubscribeAsync("line/#");
-        await publisher.SendAsync("line/mixer/temp/raw", "2150"u8.ToArray());
+        await publisher.SendAsync("line/mixer/temp/raw", "2150");
 
         TransportMessage deep = (await watcher.ReceiveAsync())!;
         Console.WriteLine(
-            $"line/#     took {System.Text.Encoding.UTF8.GetString(deep.Payload)}"
+            $"line/#     took {deep.Text}"
             + $" from {deep.Topic}");
 
         // A link that has been disconnected reports the failure instead of dropping the
@@ -51,7 +51,7 @@ public static class LoopbackGuide
         await publisher.DisconnectAsync();
         try
         {
-            await publisher.SendAsync("line/mixer/temp", "21.6"u8.ToArray());
+            await publisher.SendAsync("line/mixer/temp", "21.6");
             Console.WriteLine("a disconnected link took a reading, which should never happen");
         }
         catch (PamojaException error)

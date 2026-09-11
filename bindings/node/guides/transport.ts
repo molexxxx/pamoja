@@ -26,19 +26,19 @@ async function main() {
   await ladder.connect()
 
   // The injected failure lands, so the reading is buffered rather than lost.
-  const first = await ladder.send(TOPIC, Buffer.from('20.1'))
+  const first = await ladder.send(TOPIC, '20.1')
   console.log(`first reading: ${first}, ${await ladder.buffered()} queued`)
 
   // The next reading joins the back of the queue instead of overtaking it, even though the
   // link would take it now. Order on the wire is the order the readings were taken.
-  const second = await ladder.send(TOPIC, Buffer.from('20.4'))
+  const second = await ladder.send(TOPIC, '20.4')
   const queued = await ladder.buffered()
   console.log(`second reading: ${second}, ${queued} queued`)
 
   // Flushing forwards the backlog oldest first, and the subscriber sees it in order.
   const forwarded = await ladder.flush()
-  const earlier = (await gateway.recv())!.payload.toString()
-  const later = (await gateway.recv())!.payload.toString()
+  const earlier = (await gateway.recv())!.text!
+  const later = (await gateway.recv())!.text!
   console.log(`flush forwarded ${forwarded}, gateway saw ${earlier} then ${later}`)
 
   return { first, second, queued, forwarded, left: await ladder.buffered(), earlier, later }

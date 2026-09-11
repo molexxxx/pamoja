@@ -68,11 +68,42 @@ impl Manifest {
     ///
     /// When the profile cannot be serialized.
     pub fn canonical(&self) -> Result<String, String> {
-        self.profile
+        // A profile the crate also ships as a constructor is written from the
+        // constructor, so the code stays the one source of truth for it; every other
+        // manifest is written from what the file itself parsed to.
+        let profile = preset(&self.stem).unwrap_or_else(|| self.profile.clone());
+        profile
             .to_json()
             .map(|json| json + "\n")
             .map_err(|err| format!("{DIR}/{}.json cannot be serialized: {err}", self.stem))
     }
+}
+
+/// The profiles the crate ships as constructors, which their manifests are written from.
+///
+/// # Returns
+///
+/// Every preset, in the order the crate declares them.
+pub fn presets() -> Vec<Profile> {
+    vec![
+        Profile::vaccine_fridge_monitor(),
+        Profile::irrigation_node(),
+        Profile::well_level(),
+        Profile::flood_sensor(),
+    ]
+}
+
+/// Returns the preset a manifest file name belongs to, if the crate ships one.
+///
+/// # Arguments
+///
+/// * `stem` - the manifest file name without `.json`.
+///
+/// # Returns
+///
+/// The preset, or `None` when the manifest is not one the crate constructs.
+fn preset(stem: &str) -> Option<Profile> {
+    presets().into_iter().find(|preset| preset.name == stem)
 }
 
 /// Every manifest under `profiles/`, in file-name order.
@@ -605,7 +636,7 @@ fn presentation_sentence(presentation: &Presentation) -> Option<String> {
             let mut text = format!(
                 "{} as a {} in {}",
                 escape(&element.label),
-                viz_name(element),
+                element.viz.name(),
                 escape(&element.unit)
             );
             if let Some([low, high]) = element.band {
@@ -622,14 +653,6 @@ fn presentation_sentence(presentation: &Presentation) -> Option<String> {
         })
         .collect();
     Some(format!("Draws {}.", elements.join("; ")))
-}
-
-// The graphic's manifest name, from the same serializer the manifest uses.
-fn viz_name(element: &ElementSpec) -> String {
-    serde_json::to_value(element.viz)
-        .ok()
-        .and_then(|value| value.as_str().map(str::to_owned))
-        .unwrap_or_default()
 }
 
 fn number(value: f32) -> String {
@@ -697,12 +720,7 @@ mod tests {
     #[test]
     fn the_presets_and_their_manifests_cannot_drift() {
         let root = repo_root();
-        for preset in [
-            Profile::vaccine_fridge_monitor(),
-            Profile::irrigation_node(),
-            Profile::well_level(),
-            Profile::flood_sensor(),
-        ] {
+        for preset in presets() {
             let path = root.join(DIR).join(format!("{}.json", preset.name));
             let text = fs::read_to_string(&path).expect("the preset ships as a manifest");
             assert_eq!(text, preset.to_json().unwrap() + "\n", "{}", path.display());

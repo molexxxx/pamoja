@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-sensors"
-version = "0.1.17"
+version = "0.1.18"
 description = "Datasheet-anchored decoders for eleven parts: the BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, and TMP117."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,7 +19,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-native==0.1.17",
+    "pamoja-native==0.1.18",
 ]
 
 [project.urls]

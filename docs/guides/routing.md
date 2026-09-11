@@ -3,7 +3,7 @@
 A mesh gets a packet across by flooding it: every node rebroadcasts, which always
 works and spends every node's airtime and battery on every packet. Once a network
 settles, most traffic goes to a few known places, and a node that remembers the
-way can send to one neighbour instead of shouting at all of them. pamoja keeps
+way can send to one neighbor instead of shouting at all of them. pamoja keeps
 that memory as a table of fixed size, filled from the traffic the node already
 hears, and answers one question per packet: deliver, relay, or flood. It owns no
 radio, so the same table runs on a microcontroller, on a gateway, or in a test
@@ -84,7 +84,7 @@ let (hop, cost) = (route.next_hop(), route.cost());
 println!("to the pump   via {hop} at cost {cost}");
 println!("routes held   {}", router.len());
 
-// Every packet gets one of three answers: deliver it here, relay it to the neighbour
+// Every packet gets one of three answers: deliver it here, relay it to the neighbor
 // on the way, or flood it because no route is known yet.
 for (name, address) in [("gateway", GATEWAY), ("pump", PUMP), ("silo", SILO)] {
     match router.forward(address) {
@@ -137,7 +137,7 @@ const route = router.route(PUMP)
 console.log(`to the pump   via ${route?.nextHop} at cost ${route?.cost}`)
 console.log(`routes held   ${router.size}`)
 
-// Every packet gets one of three answers: deliver it here, relay it to the neighbour on
+// Every packet gets one of three answers: deliver it here, relay it to the neighbor on
 // the way, or flood it because no route is known yet.
 for (const [name, address] of [
   ['gateway', GATEWAY],
@@ -196,7 +196,7 @@ route = router.route(PUMP)
 print(f"to the pump   via {route.next_hop} at cost {route.cost}")
 print(f"routes held   {len(router)}")
 
-# Every packet gets one of three answers: deliver it here, relay it to the neighbour on
+# Every packet gets one of three answers: deliver it here, relay it to the neighbor on
 # the way, or flood it because no route is known yet.
 for name, address in [("gateway", GATEWAY), ("pump", PUMP), ("silo", SILO)]:
     decision = router.forward(address)
@@ -248,7 +248,7 @@ Console.WriteLine($"to the pump   via {route?.NextHop} at cost {route?.Cost}");
 Console.WriteLine($"routes held   {router.Count}");
 
 // Every packet gets one of three answers: deliver it here, relay it to the
-// neighbour on the way, or flood it because no route is known yet.
+// neighbor on the way, or flood it because no route is known yet.
 foreach ((string name, byte address) in
     new[] { ("gateway", Gateway), ("pump", Pump), ("silo", Silo) })
 {

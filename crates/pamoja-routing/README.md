@@ -23,7 +23,7 @@ Cost-aware mesh routing for the pamoja SDK.
 Flooding gets a packet across a mesh by having every node rebroadcast it, which always
 works but is expensive: every node spends airtime and power on every packet. Once a
 mesh has settled, most traffic goes to a few known places, and a node that remembers
-the way can forward a packet to just the right neighbour instead of shouting it to the
+the way can forward a packet to just the right neighbor instead of shouting it to the
 whole network. That is routing, and on the cheap radios this SDK targets the saving in
 airtime and battery is the difference between a network that lasts and one that does
 not.
@@ -32,8 +32,8 @@ This crate is the decision layer for that, as pure logic with no radio and no
 allocation:
 
 - `Router` - a fixed-size table that learns the way to a node from the traffic it
-  already hears: when a packet from a distant node arrives via a neighbour, that
-  neighbour is the way back, at the cost the packet reports. The table keeps the
+  already hears: when a packet from a distant node arrives via a neighbor, that
+  neighbor is the way back, at the cost the packet reports. The table keeps the
   cheapest way it knows to each destination and forgets the most expensive when it runs
   out of room.
 - `Router::forward` - the per-packet decision: deliver a packet that is for this
@@ -44,7 +44,7 @@ allocation:
 
 Nodes are identified by the same address a [`pamoja-mesh`](https://docs.rs/pamoja-mesh)
 frame carries, so the two compose directly: learn from a received frame's source and
-the neighbour it came from, then ask `forward` where the next one
+the neighbor it came from, then ask `forward` where the next one
 should go.
 
 **Examples**
@@ -54,11 +54,11 @@ use pamoja_routing::{Forward, Router};
 
 let mut router: Router<16> = Router::new(0x01);
 
-// We hear node 0x09's traffic arrive via neighbour 0x05, two hops out.
+// We hear node 0x09's traffic arrive via neighbor 0x05, two hops out.
 router.observe(0x09, 0x05, 2);
 assert_eq!(router.forward(0x09), Forward::Relay(0x05));
 
-// A cheaper way to 0x09 turns up via neighbour 0x07; the router prefers it.
+// A cheaper way to 0x09 turns up via neighbor 0x07; the router prefers it.
 router.observe(0x09, 0x07, 1);
 assert_eq!(router.forward(0x09), Forward::Relay(0x07));
 

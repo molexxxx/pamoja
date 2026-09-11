@@ -732,11 +732,11 @@ h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: var(--head-wei
 @keyframes eqhot { 0%, 100% { transform: scaleY(0.16); } 50% { transform: scaleY(1); } }
 @media (prefers-reduced-motion: reduce) { .wv-bars i { animation: none; } }
 
-/* KPI figure (neighbours, hops, messages relayed) */
+/* KPI figure (neighbors, hops, messages relayed) */
 .cnt { font-family: var(--mono); font-weight: var(--val-weight); font-size: var(--cnt-size); line-height: 1; color: var(--text); display: flex; align-items: center; justify-content: center; }
 .cnt.big { font-size: var(--t-4xl); }
 
-/* Neighbour-mesh schematic with traveling packets */
+/* Neighbor-mesh schematic with traveling packets */
 .msh { inline-size: 100%; block-size: 92px; display: block; overflow: visible; }
 .msh.big { block-size: 150px; }
 .msh-link { stroke: var(--line-2); stroke-width: 1.5; }

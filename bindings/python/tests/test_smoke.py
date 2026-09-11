@@ -834,7 +834,8 @@ def test_a_presentation_is_typed_both_ways():
 
     fridge = profile.Profile.vaccine_fridge_monitor()
     assert "safe range" in fridge.description, "a preset says what it is for"
-    assert fridge.presentation is None, "and declares no presentation"
+    drawn_keys = [element.key for element in fridge.presentation.elements]
+    assert "fridge_temp" in drawn_keys, "and says how it should be drawn"
 
     drawn = fridge.with_description("Holds the clinic fridge at 5 C.").with_presentation(
         profile.Presentation(

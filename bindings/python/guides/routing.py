@@ -29,7 +29,7 @@ route = router.route(PUMP)
 print(f"to the pump   via {route.next_hop} at cost {route.cost}")
 print(f"routes held   {len(router)}")
 
-# Every packet gets one of three answers: deliver it here, relay it to the neighbour on
+# Every packet gets one of three answers: deliver it here, relay it to the neighbor on
 # the way, or flood it because no route is known yet.
 for name, address in [("gateway", GATEWAY), ("pump", PUMP), ("silo", SILO)]:
     decision = router.forward(address)

@@ -34,7 +34,7 @@ fn a_node_learns_the_way_from_what_it_hears() {
     println!("to the pump   via {hop} at cost {cost}");
     println!("routes held   {}", router.len());
 
-    // Every packet gets one of three answers: deliver it here, relay it to the neighbour
+    // Every packet gets one of three answers: deliver it here, relay it to the neighbor
     // on the way, or flood it because no route is known yet.
     for (name, address) in [("gateway", GATEWAY), ("pump", PUMP), ("silo", SILO)] {
         match router.forward(address) {

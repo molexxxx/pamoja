@@ -32,7 +32,7 @@ pub struct PamojaRouter {
 pub struct PamojaRoute {
     /// The node this route reaches.
     pub dst: u32,
-    /// The neighbour to send a packet to on the way there.
+    /// The neighbor to send a packet to on the way there.
     pub next_hop: u32,
     /// What the route costs, usually in hops.
     pub cost: u16,
@@ -89,7 +89,7 @@ pub unsafe extern "C" fn pamoja_router_address(router: *const PamojaRouter) -> u
 
 /// Learns a route from a packet that arrived.
 ///
-/// When a packet from a distant node comes in via a neighbour, that neighbour is
+/// When a packet from a distant node comes in via a neighbor, that neighbor is
 /// the way back to it. The table keeps the cheapest way it knows to each node, and
 /// when full gives up the most expensive route to make room for a cheaper one.
 ///
@@ -97,7 +97,7 @@ pub unsafe extern "C" fn pamoja_router_address(router: *const PamojaRouter) -> u
 ///
 /// * `router` - the routing table.
 /// * `origin` - the node the packet came from.
-/// * `via` - the neighbour it arrived through.
+/// * `via` - the neighbor it arrived through.
 /// * `cost` - what that path costs, usually a hop count.
 ///
 /// # Returns
@@ -121,13 +121,13 @@ pub unsafe extern "C" fn pamoja_router_observe(
     (*router).router.observe(origin, via, cost)
 }
 
-/// Returns the neighbour to send a packet to on the way to a node.
+/// Returns the neighbor to send a packet to on the way to a node.
 ///
 /// # Arguments
 ///
 /// * `router` - the routing table.
 /// * `dst` - the node to reach.
-/// * `out_next_hop` - receives the neighbour address.
+/// * `out_next_hop` - receives the neighbor address.
 ///
 /// # Returns
 ///
@@ -235,7 +235,7 @@ pub unsafe extern "C" fn pamoja_router_route(
 ///
 /// * `router` - the routing table.
 /// * `dst` - the node the packet is addressed to.
-/// * `out_next_hop` - receives the neighbour to unicast to, written only when the
+/// * `out_next_hop` - receives the neighbor to unicast to, written only when the
 ///   answer is [`PamojaForward::Relay`].
 ///
 /// # Returns
@@ -347,7 +347,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_cheaper_neighbour_replaces_the_route() {
+    fn a_cheaper_neighbor_replaces_the_route() {
         let router = pamoja_router_new(0x01, PAMOJA_ROUTING_DEFAULT_CAPACITY);
         // Safety: the handle was just created and the out-pointers are valid.
         unsafe {

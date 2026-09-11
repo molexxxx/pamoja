@@ -1502,7 +1502,7 @@ class Delegation:
     @property
     def expires(self) -> builtins.int:
         r"""
-        When the delegation stops being honoured, in seconds since the Unix
+        When the delegation stops being honored, in seconds since the Unix
         epoch, or `0` to never expire.
         """
     def __new__(cls, epoch: builtins.int, release_key: typing.Sequence[builtins.int], expires: builtins.int = 0) -> Delegation:
@@ -1752,7 +1752,7 @@ class EventBus:
         The new endpoint sees events published from now on, not those already
         sent, so subscribe before publishing anything it needs to see.
         """
-    def publish(self, event: typing.Sequence[builtins.int]) -> typing.Any:
+    def publish(self, event: builtins.str | typing.Sequence[builtins.int]) -> typing.Any:
         r"""
         Publishes an event to every subscriber.
         """
@@ -1760,11 +1760,17 @@ class EventBus:
         r"""
         Waits for the next event on this endpoint, or `None` once the bus closes.
         """
+    def next_text(self) -> typing.Any:
+        r"""
+        Waits for the next event as text, or `None` once the bus closes.
+        
+        Raises `ValueError` if the event is not UTF-8 text.
+        """
 
 @typing.final
 class ForwardDecision:
     r"""
-    A routing decision, and the neighbour it names when there is one.
+    A routing decision, and the neighbor it names when there is one.
     """
     @property
     def action(self) -> builtins.str:
@@ -1774,7 +1780,7 @@ class ForwardDecision:
     @property
     def next_hop(self) -> typing.Optional[builtins.int]:
         r"""
-        The neighbour to unicast to, or `None` unless the action is `Relay`.
+        The neighbor to unicast to, or `None` unless the action is `Relay`.
         """
 
 @typing.final
@@ -3350,9 +3356,11 @@ class Message:
         
         Raises `ValueError` if the payload is not text or the text is not a number.
         """
-    def __new__(cls, topic: builtins.str, payload: typing.Sequence[builtins.int]) -> Message:
+    def __new__(cls, topic: builtins.str, payload: builtins.str | typing.Sequence[builtins.int]) -> Message:
         r"""
         Creates a message, which is what a transport handler returns from `recv`.
+        
+        The payload is bytes, or text such as a reading written out.
         """
     def __repr__(self) -> builtins.str: ...
 
@@ -4224,7 +4232,7 @@ class Route:
     @property
     def next_hop(self) -> builtins.int:
         r"""
-        The neighbour to send a packet to on the way there.
+        The neighbor to send a packet to on the way there.
         """
     @property
     def cost(self) -> builtins.int:
@@ -4261,7 +4269,7 @@ class Router:
         """
     def next_hop(self, dst: builtins.int) -> typing.Optional[builtins.int]:
         r"""
-        The neighbour to send a packet to on the way to `dst`, or `None`.
+        The neighbor to send a packet to on the way to `dst`, or `None`.
         """
     def cost(self, dst: builtins.int) -> typing.Optional[builtins.int]:
         r"""
@@ -4792,7 +4800,7 @@ class Store:
         r"""
         Opens a buffer backed by a directory, so it survives a restart.
         """
-    def append(self, record: typing.Sequence[builtins.int]) -> typing.Any:
+    def append(self, record: builtins.str | typing.Sequence[builtins.int]) -> typing.Any:
         r"""
         Adds a record to the end of the buffer.
         """
@@ -4803,6 +4811,18 @@ class Store:
     def pop(self) -> typing.Any:
         r"""
         Removes and returns the oldest record, or `None` when empty.
+        """
+    def peek_text(self) -> typing.Any:
+        r"""
+        Reads the oldest record as text without removing it, or `None` when empty.
+        
+        Raises `ValueError` if the record is not UTF-8 text.
+        """
+    def pop_text(self) -> typing.Any:
+        r"""
+        Removes and returns the oldest record as text, or `None` when empty.
+        
+        Raises `ValueError` if the record is not UTF-8 text.
         """
     def len(self) -> typing.Any:
         r"""
@@ -5092,7 +5112,7 @@ class Updater:
     @property
     def delegation(self) -> typing.Optional[Delegation]:
         r"""
-        The delegation this updater currently honours, or `None` when releases
+        The delegation this updater currently honors, or `None` when releases
         must be signed by the anchor itself.
         """
     def __new__(cls, vendor_id: typing.Sequence[builtins.int], class_id: typing.Sequence[builtins.int], anchor_public_key: typing.Sequence[builtins.int], slot_count: builtins.int, slot_capacity: builtins.int) -> Updater:

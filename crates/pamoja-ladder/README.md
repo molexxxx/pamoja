@@ -196,6 +196,33 @@ but the store cannot be written.
 async fn send(&mut self, topic: &str, payload: &[u8]) -> Result <Delivery>
 ```
 
+### `TransportLadder <S>::send_text`
+
+Sends text down the ladder: a reading or a command written out.
+
+This is `send` with the text's UTF-8 bytes, so a reading that is
+already a number in words needs no encoding step; the far side reads it back with
+`Message::text` or
+`Message::number`.
+
+**Arguments**
+
+* `topic` - the destination topic.
+* `text` - the text to send.
+
+**Returns**
+
+`Delivery::Sent` if a rung delivered the message, or `Delivery::Buffered`
+if it was queued for a later `flush`.
+
+**Errors**
+
+Whatever `send` returns.
+
+```rust
+async fn send_text(&mut self, topic: &str, text: &str) -> Result <Delivery>
+```
+
 ### `TransportLadder <S>::flush`
 
 Drains the buffer across the rungs, oldest record first.
