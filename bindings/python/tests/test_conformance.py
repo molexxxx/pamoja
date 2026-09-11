@@ -609,6 +609,57 @@ def _check_plan(plan, want: dict) -> None:
         assert band.max_eirp_dbm == entry["maxEirpDbm"], where
 
 
+def test_lora_budget_vectors_match():
+    vector = VECTORS["lora"]["budget"]
+    links = {entry["name"]: entry for entry in VECTORS["lora"]["links"]}
+
+    def hundredths(value: float) -> int:
+        return round(value * 100)
+
+    assert hundredths(lora.RADIO_NOISE_FIGURE_DB) == vector["radioNoiseFigureHundredths"]
+    assert hundredths(lora.GATEWAY_NOISE_FIGURE_DB) == vector["gatewayNoiseFigureHundredths"]
+    assert hundredths(lora.LinkBudget().noise_figure_db) == vector["radioNoiseFigureHundredths"]
+
+    for floor in vector["noiseFloors"]:
+        assert hundredths(lora.noise_floor_dbm(floor["bandwidthHz"])) == floor["hundredths"], floor
+    for snr in vector["demodulatorSnrs"]:
+        got = lora.demodulator_snr_db(snr["spreadingFactor"])
+        assert hundredths(got) == snr["hundredths"], snr
+    for loss in vector["freeSpaceLosses"]:
+        got = lora.free_space_loss_db(loss["distanceM"], loss["frequencyHz"])
+        assert hundredths(got) == loss["hundredths"], loss
+    for radius in vector["fresnelRadii"]:
+        got = lora.fresnel_radius_mm(radius["nearM"], radius["farM"], radius["frequencyHz"])
+        assert got == radius["radiusMm"], radius
+
+    for described in vector["budgets"]:
+        where = described["name"]
+        link = _link_of(links[described["link"]])
+        budget = lora.LinkBudget(
+            transmit_power_dbm=described["transmitPowerHundredths"] / 100,
+            transmit_antenna_gain_dbi=described["transmitAntennaGainHundredths"] / 100,
+            transmit_cable_loss_db=described["transmitCableLossHundredths"] / 100,
+            receive_antenna_gain_dbi=described["receiveAntennaGainHundredths"] / 100,
+            receive_cable_loss_db=described["receiveCableLossHundredths"] / 100,
+            noise_figure_db=described["noiseFigureHundredths"] / 100,
+        )
+        path = described["pathLossHundredths"] / 100
+        ceiling = described["ceilingHundredths"] / 100
+        assert hundredths(budget.eirp_dbm()) == described["eirpHundredths"], where
+        assert hundredths(budget.received_dbm(path)) == described["receivedHundredths"], where
+        assert hundredths(budget.sensitivity_dbm(link)) == described["sensitivityHundredths"], where
+        assert hundredths(budget.max_path_loss_db(link)) == described["maxPathLossHundredths"], where
+        assert hundredths(budget.margin_db(link, path)) == described["marginHundredths"], where
+        assert (
+            hundredths(budget.max_transmit_power_dbm(ceiling))
+            == described["maxTransmitPowerHundredths"]
+        ), where
+
+    for rule in vector["fcc"]:
+        got = lora.fcc_max_conducted_dbm(rule["antennaGainHundredths"] / 100, rule["hoppingChannels"])
+        assert (None if got is None else hundredths(got)) == rule["maxConductedHundredths"], rule
+
+
 def test_lora_region_vectors_match():
     vector = VECTORS["loraRegions"]
 

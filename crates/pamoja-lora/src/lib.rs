@@ -16,6 +16,10 @@
 //!   options of a link, with [`airtime_us`](LinkSettings::airtime_us) for a payload's
 //!   exact time on air and [`min_off_time_us`](LinkSettings::min_off_time_us) for the
 //!   silence a duty-cycle limit then forces.
+//! - [`budget`] - the link budget, in hundredths of a decibel: EIRP, free-space loss,
+//!   the first Fresnel zone, receiver sensitivity from the noise floor and the
+//!   demodulator SNR, the margin a path leaves, and the transmit power a regional
+//!   ceiling or 47 CFR 15.247 allows through an antenna.
 //!
 //! The time-on-air calculation is the published LoRa formula, evaluated with exact
 //! integer arithmetic, so the same numbers a deployment planner uses are available on
@@ -23,8 +27,8 @@
 //! `pamoja-codec` - pack a batch, then ask what it costs to send - and with the
 //! duty-cycling in `pamoja-power`.
 //!
-//! This is the link-budget half of LoRa support; driving the radio arrives with the
-//! hardware-I/O layer.
+//! The crate drives no radio. It is the arithmetic a radio driver and a deployment
+//! plan both work from.
 //!
 //! # Examples
 //!
@@ -43,6 +47,7 @@ extern crate alloc;
 
 mod link;
 
+pub mod budget;
 pub mod region;
 
 pub use link::LinkSettings;

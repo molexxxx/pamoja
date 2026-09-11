@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "pamoja-lora"
 version = "0.1.18"
-description = "Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to."
+description = "Time-on-air, duty-cycle off-time, the regional channel plans a LoRa node must keep to, and the link budget that sets its range."
 readme = "README.md"
 license = { text = "MIT" }
 license-files = ["LICENSE-MIT"]

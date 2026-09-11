@@ -689,6 +689,217 @@
     }
   },
   "lora": {
+    "budget": {
+      "budgets": [
+        {
+          "ceilingHundredths": 1600,
+          "eirpHundredths": 1565,
+          "link": "sf12-125k",
+          "marginHundredths": 5498,
+          "maxPathLossHundredths": 16018,
+          "maxTransmitPowerHundredths": 1435,
+          "name": "whip-to-gateway",
+          "noiseFigureHundredths": 300,
+          "pathLossHundredths": 10520,
+          "receiveAntennaGainHundredths": 600,
+          "receiveCableLossHundredths": 150,
+          "receivedHundredths": -8505,
+          "sensitivityHundredths": -14003,
+          "transmitAntennaGainHundredths": 215,
+          "transmitCableLossHundredths": 50,
+          "transmitPowerHundredths": 1400
+        },
+        {
+          "ceilingHundredths": 1400,
+          "eirpHundredths": 0,
+          "link": "sf7-125k",
+          "marginHundredths": 3331,
+          "maxPathLossHundredths": 12453,
+          "maxTransmitPowerHundredths": 1400,
+          "name": "isotropic",
+          "noiseFigureHundredths": 600,
+          "pathLossHundredths": 9122,
+          "receiveAntennaGainHundredths": 0,
+          "receiveCableLossHundredths": 0,
+          "receivedHundredths": -9122,
+          "sensitivityHundredths": -12453,
+          "transmitAntennaGainHundredths": 0,
+          "transmitCableLossHundredths": 0,
+          "transmitPowerHundredths": 0
+        }
+      ],
+      "demodulatorSnrs": [
+        {
+          "hundredths": -250,
+          "spreadingFactor": 4
+        },
+        {
+          "hundredths": -250,
+          "spreadingFactor": 5
+        },
+        {
+          "hundredths": -500,
+          "spreadingFactor": 6
+        },
+        {
+          "hundredths": -750,
+          "spreadingFactor": 7
+        },
+        {
+          "hundredths": -1000,
+          "spreadingFactor": 8
+        },
+        {
+          "hundredths": -1250,
+          "spreadingFactor": 9
+        },
+        {
+          "hundredths": -1500,
+          "spreadingFactor": 10
+        },
+        {
+          "hundredths": -1750,
+          "spreadingFactor": 11
+        },
+        {
+          "hundredths": -2000,
+          "spreadingFactor": 12
+        },
+        {
+          "hundredths": -2000,
+          "spreadingFactor": 13
+        }
+      ],
+      "fcc": [
+        {
+          "antennaGainHundredths": 215,
+          "hoppingChannels": null,
+          "maxConductedHundredths": 3000
+        },
+        {
+          "antennaGainHundredths": 900,
+          "hoppingChannels": null,
+          "maxConductedHundredths": 2700
+        },
+        {
+          "antennaGainHundredths": 900,
+          "hoppingChannels": 64,
+          "maxConductedHundredths": 2700
+        },
+        {
+          "antennaGainHundredths": 0,
+          "hoppingChannels": 49,
+          "maxConductedHundredths": 2398
+        },
+        {
+          "antennaGainHundredths": 800,
+          "hoppingChannels": 25,
+          "maxConductedHundredths": 2198
+        },
+        {
+          "antennaGainHundredths": 0,
+          "hoppingChannels": 24,
+          "maxConductedHundredths": null
+        }
+      ],
+      "freeSpaceLosses": [
+        {
+          "distanceM": 0,
+          "frequencyHz": 868100000,
+          "hundredths": 3122
+        },
+        {
+          "distanceM": 1,
+          "frequencyHz": 868100000,
+          "hundredths": 3122
+        },
+        {
+          "distanceM": 1000,
+          "frequencyHz": 868100000,
+          "hundredths": 9122
+        },
+        {
+          "distanceM": 5000,
+          "frequencyHz": 868100000,
+          "hundredths": 10520
+        },
+        {
+          "distanceM": 15000,
+          "frequencyHz": 915000000,
+          "hundredths": 11520
+        },
+        {
+          "distanceM": 100000,
+          "frequencyHz": 433175000,
+          "hundredths": 12518
+        },
+        {
+          "distanceM": 4294967295,
+          "frequencyHz": 2400000000,
+          "hundredths": 23271
+        }
+      ],
+      "fresnelRadii": [
+        {
+          "farM": 2500,
+          "frequencyHz": 868100000,
+          "nearM": 2500,
+          "radiusMm": 20777
+        },
+        {
+          "farM": 9000,
+          "frequencyHz": 915000000,
+          "nearM": 1000,
+          "radiusMm": 17172
+        },
+        {
+          "farM": 50000,
+          "frequencyHz": 433175000,
+          "nearM": 50000,
+          "radiusMm": 131537
+        },
+        {
+          "farM": 0,
+          "frequencyHz": 868100000,
+          "nearM": 0,
+          "radiusMm": 0
+        },
+        {
+          "farM": 2500,
+          "frequencyHz": 0,
+          "nearM": 2500,
+          "radiusMm": 0
+        }
+      ],
+      "gatewayNoiseFigureHundredths": 300,
+      "noiseFloors": [
+        {
+          "bandwidthHz": 7810,
+          "hundredths": -13507
+        },
+        {
+          "bandwidthHz": 10420,
+          "hundredths": -13382
+        },
+        {
+          "bandwidthHz": 62500,
+          "hundredths": -12604
+        },
+        {
+          "bandwidthHz": 125000,
+          "hundredths": -12303
+        },
+        {
+          "bandwidthHz": 250000,
+          "hundredths": -12002
+        },
+        {
+          "bandwidthHz": 500000,
+          "hundredths": -11701
+        }
+      ],
+      "radioNoiseFigureHundredths": 600
+    },
     "clamped": [
       {
         "asked": 2,

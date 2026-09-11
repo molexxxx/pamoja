@@ -60,3 +60,93 @@ fn what_one_reading_costs_on_a_european_band() {
     assert_eq!(per_hour, 36);
     assert_eq!(plan.duty_cycle_permille(700_000_000), None);
 }
+
+/// How far a reading reaches from a European node: the power the plan leaves the radio
+/// behind a real antenna, the weakest signal a gateway still hears, and the margin a path
+/// leaves at a few distances.
+#[test]
+fn how_far_a_reading_reaches() {
+    // ANCHOR: range
+    use pamoja_lora::budget::{self, Decibels, Fcc15247, LinkBudget, GATEWAY_NOISE_FIGURE_DB};
+    use pamoja_lora::region::Region;
+
+    let eu868 = Region::Eu868.plan();
+    let dr0 = eu868.link_settings(0).expect("DR0 is a LoRa data rate");
+    let frequency = 868_100_000;
+
+    // A node with a 2.15 dBi whip on half a decibel of pigtail, heard by a gateway with a
+    // 6 dBi collinear antenna behind 1.5 dB of cable and a 3 dB noise figure.
+    let whip = LinkBudget {
+        transmit_antenna_gain_dbi: Decibels::from_hundredths(215),
+        transmit_cable_loss_db: Decibels::from_tenths(5),
+        ..LinkBudget::default()
+    };
+
+    // The plan caps what leaves the antenna, so the antenna and cable decide how hard the
+    // radio may drive. A radio takes whole decibels, so the setting rounds down.
+    let ceiling = Decibels::from_db(eu868.max_eirp_dbm(frequency).into());
+    let most = whip.max_transmit_power_dbm(ceiling);
+    let node = LinkBudget {
+        transmit_power_dbm: Decibels::from_db(most.floor_db()),
+        receive_antenna_gain_dbi: Decibels::from_db(6),
+        receive_cable_loss_db: Decibels::from_tenths(15),
+        noise_figure_db: GATEWAY_NOISE_FIGURE_DB,
+        ..whip
+    };
+    println!(
+        "radio     {most} dBm allowed, set to {} dBm",
+        node.transmit_power_dbm.round_db()
+    );
+    println!(
+        "eirp      {} dBm under a {} dBm ceiling",
+        node.eirp_dbm(),
+        ceiling.round_db()
+    );
+
+    // The weakest signal the gateway still hears at SF12 and 125 kHz, and so the most path
+    // loss the link survives.
+    let sensitivity = node.sensitivity_dbm(dr0);
+    let survives = node.max_path_loss_db(dr0);
+    println!("gateway   hears down to {sensitivity} dBm, so {survives} dB of path loss");
+
+    // Free space at three distances, and what each path leaves to spare.
+    let mut margins = Vec::new();
+    for distance_m in [2_000, 5_000, 15_000] {
+        let loss = budget::free_space_loss_db(distance_m, frequency);
+        let margin = node.margin_db(dr0, loss);
+        println!(
+            "{:>2} km     {loss} dB lost, {margin} dB to spare",
+            distance_m / 1_000
+        );
+        margins.push(margin);
+    }
+
+    // Free space assumes nothing is in the way. Terrain inside the first Fresnel zone adds
+    // diffraction loss, which starts once the clearance falls below 60% of its radius.
+    let radius = budget::fresnel_radius_mm(2_500, 2_500, frequency);
+    println!(
+        "fresnel   {:.1} m at the middle of 5 km, keep {:.1} m clear",
+        f64::from(radius) / 1000.0,
+        f64::from(radius * 6 / 10) / 1000.0
+    );
+
+    // In the United States, 47 CFR 15.247 caps conducted power instead, and takes off every
+    // decibel an antenna has over 6 dBi.
+    let limit = Fcc15247::FrequencyHopping { channels: 64 }
+        .max_conducted_dbm(Decibels::from_db(9))
+        .expect("64 hopping channels have a limit");
+    println!("fcc       a 9 dBi Yagi on 64 hopping channels may carry {limit} dBm");
+    // ANCHOR_END: range
+
+    assert_eq!(most, Decibels::from_hundredths(1_435));
+    assert_eq!(node.transmit_power_dbm, Decibels::from_db(14));
+    assert_eq!(node.eirp_dbm(), Decibels::from_hundredths(1_565));
+    assert_eq!(sensitivity, Decibels::from_hundredths(-14_003));
+    assert_eq!(survives, Decibels::from_hundredths(16_018));
+    assert_eq!(
+        margins,
+        [6_294, 5_498, 4_544].map(Decibels::from_hundredths)
+    );
+    assert_eq!(radius, 20_777);
+    assert_eq!(limit, Decibels::from_db(27));
+}

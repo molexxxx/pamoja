@@ -4,7 +4,7 @@
     <PackageId>Pamoja.Lora</PackageId>
     <AssemblyName>Pamoja.Lora</AssemblyName>
     <RootNamespace>Pamoja.Lora</RootNamespace>
-    <Description>Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to.</Description>
+    <Description>Time-on-air, duty-cycle off-time, the regional channel plans a LoRa node must keep to, and the link budget that sets its range.</Description>
     <PackageTags>pamoja;iot;robotics;lora</PackageTags>
     <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/lora.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>

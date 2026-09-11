@@ -2758,6 +2758,9 @@ export interface LoraDataRate {
   codingRateDenominator?: number
 }
 
+/** Returns the signal-to-noise ratio the LoRa demodulator needs at a spreading factor, in dB. */
+export declare function loraDemodulatorSnrDb(spreadingFactor: number): number
+
 /**
  * Which direction a data-rate table describes.
  *
@@ -2770,6 +2773,25 @@ export declare const enum LoraDirection {
   /** From the network to the device. */
   Downlink = 'Downlink'
 }
+
+/** Returns the equivalent isotropically radiated power of a budget, in dBm. */
+export declare function loraEirpDbm(budget: LoraLinkBudget): number
+
+/**
+ * Returns the most conducted power 47 CFR 15.247 allows a 902-928 MHz transmitter
+ * through an antenna, in dBm.
+ *
+ * Without a channel count the transmitter uses digital modulation. A frequency hopping
+ * system on fewer than 25 channels comes back as `null`, because paragraph (b)(2) sets
+ * no limit for it.
+ */
+export declare function loraFccMaxConductedDbm(antennaGainDbi: number, hoppingChannels?: number | undefined | null): number | null
+
+/** Returns the free-space basic transmission loss between isotropic antennas, in dB. */
+export declare function loraFreeSpaceLossDb(distanceM: number, frequencyHz: number): number
+
+/** Returns the radius of the first Fresnel ellipsoid at a point on a path, in millimeters. */
+export declare function loraFresnelRadiusMm(nearM: number, farM: number, frequencyHz: number): number
 
 /** The radio settings of a LoRa link. */
 export interface LoraLink {
@@ -2787,6 +2809,35 @@ export interface LoraLink {
   crc: boolean
 }
 
+/** The gains and losses of a LoRa link, from the transmitting radio to the receiving one. */
+export interface LoraLinkBudget {
+  /** The power the transmitting radio delivers at its antenna port, in dBm. */
+  transmitPowerDbm: number
+  /** The gain of the transmitting antenna over an isotropic antenna, in dBi. */
+  transmitAntennaGainDbi: number
+  /**
+   * The loss in the cable and connectors between the transmitting radio and its
+   * antenna, in dB.
+   */
+  transmitCableLossDb: number
+  /** The gain of the receiving antenna over an isotropic antenna, in dBi. */
+  receiveAntennaGainDbi: number
+  /**
+   * The loss in the cable and connectors between the receiving antenna and its radio,
+   * in dB.
+   */
+  receiveCableLossDb: number
+  /** The noise figure of the receiver, in dB. */
+  noiseFigureDb: number
+}
+
+/**
+ * Returns a budget of 0 dBm between isotropic antennas with no cable loss.
+ *
+ * The receiver has the 6 dB noise figure typical of a Semtech sub-GHz radio.
+ */
+export declare function loraLinkBudgetDefault(): LoraLinkBudget
+
 /**
  * Returns the settings for a spreading factor and bandwidth, with LoRa defaults.
  *
@@ -2795,6 +2846,12 @@ export interface LoraLink {
  */
 export declare function loraLinkDefault(spreadingFactor: number, bandwidthHz: number): LoraLink
 
+/** Returns how far above the sensitivity a signal arrives across a path, in dB. */
+export declare function loraMarginDb(budget: LoraLinkBudget, link: LoraLink, pathLossDb: number): number
+
+/** Returns the most path loss a link survives, in dB. */
+export declare function loraMaxPathLossDb(budget: LoraLinkBudget, link: LoraLink): number
+
 /** What one data rate may carry in a single frame. */
 export interface LoraMaxPayload {
   /** The largest MAC payload, frame options included, in bytes. */
@@ -2802,6 +2859,9 @@ export interface LoraMaxPayload {
   /** The largest application payload, in bytes. */
   application: number
 }
+
+/** Returns the most transmit power that keeps the EIRP of a budget under a ceiling, in dBm. */
+export declare function loraMaxTransmitPowerDbm(budget: LoraLinkBudget, eirpCeilingDbm: number): number
 
 /**
  * Returns the minimum silence after a transmission to honor a duty-cycle limit.
@@ -2823,6 +2883,9 @@ export declare const enum LoraModulation {
   /** A data-rate number the region reserves, which carries nothing. */
   Reserved = 'Reserved'
 }
+
+/** Returns the thermal noise power in a channel, in dBm. */
+export declare function loraNoiseFloorDbm(bandwidthHz: number): number
 
 /** Which of a plan's payload tables to read. */
 export declare const enum LoraPayloadTable {
@@ -2877,6 +2940,9 @@ export interface LoraPlanInfo {
   hasDwellLimitedRx1: boolean
 }
 
+/** Returns the power that reaches the receiving radio across a path, in dBm. */
+export declare function loraReceivedDbm(budget: LoraLinkBudget, pathLossDb: number): number
+
 /** A band with a published channel plan. */
 export declare const enum LoraRegion {
   /** Europe, 863-870 MHz. */
@@ -2906,6 +2972,9 @@ export interface LoraRx2 {
   /** The data rate. */
   dataRate: number
 }
+
+/** Returns the weakest signal the receiver of a budget can demodulate on a link, in dBm. */
+export declare function loraSensitivityDbm(budget: LoraLinkBudget, link: LoraLink): number
 
 /** A slice of a band with its own transmit limits. */
 export interface LoraSubBand {

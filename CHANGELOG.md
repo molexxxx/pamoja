@@ -7,6 +7,19 @@ released together, so one entry covers all of them.
 
 ## [Unreleased]
 
+### Added
+
+- LoRa link budgets in `pamoja_lora::budget`, in every language: the EIRP an
+  antenna and cable leave, the free-space loss of ITU-R P.525-5, the first Fresnel
+  zone of ITU-R P.526-16, receiver sensitivity from the thermal noise floor of
+  Semtech AN1200.22 and the demodulator SNR of the SX1261/2 datasheet, the margin
+  a path leaves, the transmit power a regional EIRP ceiling allows behind an
+  antenna, and the conducted power limit and antenna gain rule of 47 CFR 15.247.
+  The math is integer and `no_std`, held to a hundredth of a decibel, and its
+  tests are anchored to the ITU equations, the FCC text, and the SX1261/2 and
+  SX1276 sensitivity tables. The LoRa guide gains a second example that works out
+  how far a reading reaches from a European node.
+
 ### Changed
 
 - The version badges on the front page are drawn on the same sheet as the

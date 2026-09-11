@@ -2,7 +2,7 @@
 
 # pamoja-lora
 
-LoRa link math for pamoja: exact time-on-air and duty-cycle off-time, so a long-range node stays within regulations and budgets its power, no_std and allocation-free.
+LoRa link math for pamoja: exact time-on-air, duty-cycle off-time, regional channel plans, and link budgets, so a long-range node stays within regulations and knows its range, no_std and allocation-free.
 
 <a href="https://pamoja.molex.cloud/docs/guides/lora.html"><img height="36" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_lora/index.html"><img height="36" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
@@ -34,6 +34,10 @@ radio and no floating point:
   options of a link, with `airtime_us` for a payload's
   exact time on air and `min_off_time_us` for the
   silence a duty-cycle limit then forces.
+- `budget` - the link budget, in hundredths of a decibel: EIRP, free-space loss,
+  the first Fresnel zone, receiver sensitivity from the noise floor and the
+  demodulator SNR, the margin a path leaves, and the transmit power a regional
+  ceiling or 47 CFR 15.247 allows through an antenna.
 
 The time-on-air calculation is the published LoRa formula, evaluated with exact
 integer arithmetic, so the same numbers a deployment planner uses are available on
@@ -41,8 +45,8 @@ the node itself. It pairs naturally with the metered-link batch encoding in
 `pamoja-codec` - pack a batch, then ask what it costs to send - and with the
 duty-cycling in `pamoja-power`.
 
-This is the link-budget half of LoRa support; driving the radio arrives with the
-hardware-I/O layer.
+The crate drives no radio. It is the arithmetic a radio driver and a deployment
+plan both work from.
 
 **Examples**
 

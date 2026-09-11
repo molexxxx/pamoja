@@ -24,6 +24,7 @@ use pamoja_kit::{
 };
 use pamoja_ladder::{Delivery, TransportLadder};
 use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
+use pamoja_lora::budget::{self, Decibels, Fcc15247, LinkBudget};
 use pamoja_lora::region::{
     ChannelPlan, ChannelPlanBuilder, DataRate, MaxPayload, Modulation, Region, SubBand,
 };
@@ -2004,6 +2005,156 @@ fn lora() -> Value {
         // A duty cycle of zero forbids transmitting; each binding reports that in
         // its own idiom, so only the inputs are pinned here.
         "forbidden": { "link": "sf12-125k", "payloadLen": 20, "permille": 0 },
+        "budget": lora_budget(),
+    })
+}
+
+/// LoRa link budgets: the noise floor, the demodulator SNR, free-space loss, the first
+/// Fresnel zone, budgets from radio to radio, and the 47 CFR 15.247 antenna gain rule.
+///
+/// Every level is pinned in hundredths of a decibel, the precision the Rust type holds,
+/// so a binding that carries decibels as floating point compares after rounding.
+fn lora_budget() -> Value {
+    let noise_floors: Vec<Value> = [7_810u32, 10_420, 62_500, 125_000, 250_000, 500_000]
+        .iter()
+        .map(|&bandwidth_hz| {
+            json!({
+                "bandwidthHz": bandwidth_hz,
+                "hundredths": budget::noise_floor_dbm(bandwidth_hz).hundredths(),
+            })
+        })
+        .collect();
+    let snrs: Vec<Value> = (4u8..=13)
+        .map(|spreading_factor| {
+            json!({
+                "spreadingFactor": spreading_factor,
+                "hundredths": budget::demodulator_snr_db(spreading_factor).hundredths(),
+            })
+        })
+        .collect();
+    let losses: Vec<Value> = [
+        (0u32, 868_100_000u32),
+        (1, 868_100_000),
+        (1_000, 868_100_000),
+        (5_000, 868_100_000),
+        (15_000, 915_000_000),
+        (100_000, 433_175_000),
+        (u32::MAX, 2_400_000_000),
+    ]
+    .iter()
+    .map(|&(distance_m, frequency_hz)| {
+        json!({
+            "distanceM": distance_m,
+            "frequencyHz": frequency_hz,
+            "hundredths": budget::free_space_loss_db(distance_m, frequency_hz).hundredths(),
+        })
+    })
+    .collect();
+    let radii: Vec<Value> = [
+        (2_500u32, 2_500u32, 868_100_000u32),
+        (1_000, 9_000, 915_000_000),
+        (50_000, 50_000, 433_175_000),
+        (0, 0, 868_100_000),
+        (2_500, 2_500, 0),
+    ]
+    .iter()
+    .map(|&(near_m, far_m, frequency_hz)| {
+        json!({
+            "nearM": near_m,
+            "farM": far_m,
+            "frequencyHz": frequency_hz,
+            "radiusMm": budget::fresnel_radius_mm(near_m, far_m, frequency_hz),
+        })
+    })
+    .collect();
+
+    // A node heard by a gateway through real antennas and cable, and the default budget
+    // between isotropic antennas at the fastest 125 kHz rate.
+    let whip_to_gateway = LinkBudget {
+        transmit_power_dbm: Decibels::from_db(14),
+        transmit_antenna_gain_dbi: Decibels::from_hundredths(215),
+        transmit_cable_loss_db: Decibels::from_tenths(5),
+        receive_antenna_gain_dbi: Decibels::from_db(6),
+        receive_cable_loss_db: Decibels::from_tenths(15),
+        noise_figure_db: budget::GATEWAY_NOISE_FIGURE_DB,
+    };
+    let budgets: Vec<Value> = [
+        (
+            "whip-to-gateway",
+            whip_to_gateway,
+            "sf12-125k",
+            LinkSettings::new(12, 125_000),
+            10_520,
+            1_600,
+        ),
+        (
+            "isotropic",
+            LinkBudget::default(),
+            "sf7-125k",
+            LinkSettings::new(7, 125_000),
+            9_122,
+            1_400,
+        ),
+    ]
+    .iter()
+    .map(|&(name, described, link_name, link, path_loss, ceiling)| {
+        let path = Decibels::from_hundredths(path_loss);
+        let ceiling = Decibels::from_hundredths(ceiling);
+        json!({
+            "name": name,
+            "link": link_name,
+            "transmitPowerHundredths": described.transmit_power_dbm.hundredths(),
+            "transmitAntennaGainHundredths": described.transmit_antenna_gain_dbi.hundredths(),
+            "transmitCableLossHundredths": described.transmit_cable_loss_db.hundredths(),
+            "receiveAntennaGainHundredths": described.receive_antenna_gain_dbi.hundredths(),
+            "receiveCableLossHundredths": described.receive_cable_loss_db.hundredths(),
+            "noiseFigureHundredths": described.noise_figure_db.hundredths(),
+            "pathLossHundredths": path.hundredths(),
+            "ceilingHundredths": ceiling.hundredths(),
+            "eirpHundredths": described.eirp_dbm().hundredths(),
+            "receivedHundredths": described.received_dbm(path).hundredths(),
+            "sensitivityHundredths": described.sensitivity_dbm(link).hundredths(),
+            "maxPathLossHundredths": described.max_path_loss_db(link).hundredths(),
+            "marginHundredths": described.margin_db(link, path).hundredths(),
+            "maxTransmitPowerHundredths": described.max_transmit_power_dbm(ceiling).hundredths(),
+        })
+    })
+    .collect();
+
+    // A null channel count is a digitally modulated system under paragraph (b)(3).
+    let fcc: Vec<Value> = [
+        (None, 215),
+        (None, 900),
+        (Some(64u16), 900),
+        (Some(49), 0),
+        (Some(25), 800),
+        (Some(24), 0),
+    ]
+    .iter()
+    .map(|&(channels, gain)| {
+        let rule = match channels {
+            None => Fcc15247::DigitalModulation,
+            Some(channels) => Fcc15247::FrequencyHopping { channels },
+        };
+        json!({
+            "hoppingChannels": channels,
+            "antennaGainHundredths": gain,
+            "maxConductedHundredths": rule
+                .max_conducted_dbm(Decibels::from_hundredths(gain))
+                .map(Decibels::hundredths),
+        })
+    })
+    .collect();
+
+    json!({
+        "radioNoiseFigureHundredths": budget::RADIO_NOISE_FIGURE_DB.hundredths(),
+        "gatewayNoiseFigureHundredths": budget::GATEWAY_NOISE_FIGURE_DB.hundredths(),
+        "noiseFloors": noise_floors,
+        "demodulatorSnrs": snrs,
+        "freeSpaceLosses": losses,
+        "fresnelRadii": radii,
+        "budgets": budgets,
+        "fcc": fcc,
     })
 }
 

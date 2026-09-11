@@ -167,6 +167,7 @@ tags = [
   { text = "LoRa", state = "ships", crate = "pamoja-lora" },
   { text = "LoRaWAN", state = "ships", crate = "pamoja-lorawan" },
   { text = "LoRaWAN regional parameters", state = "ships", crate = "pamoja-lora" },
+  { text = "LoRa link budgets", state = "ships", crate = "pamoja-lora" },
   { text = "mesh", state = "ships", crate = "pamoja-mesh" },
   { text = "routing", state = "ships", crate = "pamoja-routing" },
   { text = "transport ladder", state = "ships", crate = "pamoja-ladder" },

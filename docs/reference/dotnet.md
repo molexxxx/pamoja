@@ -56,7 +56,7 @@ each under its own name:
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
 <summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
 </details><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet.html#radio-and-reach">API reference</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Radio">NuGet</a></div></div>
 </div>
 <div class="domain">
@@ -264,7 +264,7 @@ reference pages, one step away.
 <div class="pkgs">
 <div class="pkg" id="dotnet-lora">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime</a><code class="pkg-import">Pamoja.Lora</code><p>Time-on-air, duty-cycle off-time, and the regional channel plans a LoRa node must keep to</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a><code class="pkg-import">Pamoja.Lora</code><p>Time-on-air, duty-cycle off-time, the regional channel plans a LoRa node must keep to, and the link budget that sets its range</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Lora</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Lora" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

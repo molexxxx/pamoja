@@ -32,6 +32,9 @@ public sealed class LoraLink
     /// <returns>The link settings.</returns>
     internal static LoraLink FromNative(PamojaLoraLink link) => new(link);
 
+    /// <summary>The settings as the C ABI describes them.</summary>
+    internal PamojaLoraLink Native => _link;
+
     /// <summary>The spreading factor, 5 (fastest) to 12 (longest range).</summary>
     public byte SpreadingFactor => _link.SpreadingFactor;
 

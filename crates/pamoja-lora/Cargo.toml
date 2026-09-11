@@ -1,6 +1,6 @@
 [package]
 name = "pamoja-lora"
-description = "LoRa link math for pamoja: exact time-on-air and duty-cycle off-time, so a long-range node stays within regulations and budgets its power, no_std and allocation-free."
+description = "LoRa link math for pamoja: exact time-on-air, duty-cycle off-time, regional channel plans, and link budgets, so a long-range node stays within regulations and knows its range, no_std and allocation-free."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

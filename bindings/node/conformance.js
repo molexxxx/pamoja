@@ -1041,6 +1041,113 @@ function mavlinkProtocolVectors() {
   );
 }
 
+function loraBudgetVectors() {
+  const vector = VECTORS.lora.budget;
+  const links = new Map(VECTORS.lora.links.map((entry) => [entry.name, entry]));
+  const hundredths = (value) => Math.round(value * 100);
+
+  assert.strictEqual(
+    hundredths(lora.RADIO_NOISE_FIGURE_DB),
+    vector.radioNoiseFigureHundredths,
+    "the radio noise figure",
+  );
+  assert.strictEqual(
+    hundredths(lora.GATEWAY_NOISE_FIGURE_DB),
+    vector.gatewayNoiseFigureHundredths,
+    "the gateway noise figure",
+  );
+  assert.strictEqual(
+    hundredths(lora.linkBudget().noiseFigureDb),
+    vector.radioNoiseFigureHundredths,
+    "a default budget hears with the radio noise figure",
+  );
+
+  for (const { bandwidthHz, hundredths: want } of vector.noiseFloors) {
+    assert.strictEqual(
+      hundredths(lora.noiseFloorDbm(bandwidthHz)),
+      want,
+      `noise floor in ${bandwidthHz} Hz`,
+    );
+  }
+
+  for (const { spreadingFactor, hundredths: want } of vector.demodulatorSnrs) {
+    assert.strictEqual(
+      hundredths(lora.demodulatorSnrDb(spreadingFactor)),
+      want,
+      `demodulator SNR at SF${spreadingFactor}`,
+    );
+  }
+
+  for (const { distanceM, frequencyHz, hundredths: want } of vector.freeSpaceLosses) {
+    assert.strictEqual(
+      hundredths(lora.freeSpaceLossDb(distanceM, frequencyHz)),
+      want,
+      `free-space loss over ${distanceM} m at ${frequencyHz} Hz`,
+    );
+  }
+
+  for (const { nearM, farM, frequencyHz, radiusMm } of vector.fresnelRadii) {
+    assert.strictEqual(
+      lora.fresnelRadiusMm(nearM, farM, frequencyHz),
+      radiusMm,
+      `Fresnel radius ${nearM} m and ${farM} m along at ${frequencyHz} Hz`,
+    );
+  }
+
+  for (const described of vector.budgets) {
+    const link = linkOf(links.get(described.link));
+    const budget = lora.linkBudget({
+      transmitPowerDbm: described.transmitPowerHundredths / 100,
+      transmitAntennaGainDbi: described.transmitAntennaGainHundredths / 100,
+      transmitCableLossDb: described.transmitCableLossHundredths / 100,
+      receiveAntennaGainDbi: described.receiveAntennaGainHundredths / 100,
+      receiveCableLossDb: described.receiveCableLossHundredths / 100,
+      noiseFigureDb: described.noiseFigureHundredths / 100,
+    });
+    const path = described.pathLossHundredths / 100;
+    const ceiling = described.ceilingHundredths / 100;
+    const name = described.name;
+    assert.strictEqual(hundredths(lora.eirpDbm(budget)), described.eirpHundredths, `EIRP of ${name}`);
+    assert.strictEqual(
+      hundredths(lora.receivedDbm(budget, path)),
+      described.receivedHundredths,
+      `received power of ${name}`,
+    );
+    assert.strictEqual(
+      hundredths(lora.sensitivityDbm(budget, link)),
+      described.sensitivityHundredths,
+      `sensitivity of ${name}`,
+    );
+    assert.strictEqual(
+      hundredths(lora.maxPathLossDb(budget, link)),
+      described.maxPathLossHundredths,
+      `most path loss ${name} survives`,
+    );
+    assert.strictEqual(
+      hundredths(lora.marginDb(budget, link, path)),
+      described.marginHundredths,
+      `margin of ${name}`,
+    );
+    assert.strictEqual(
+      hundredths(lora.maxTransmitPowerDbm(budget, ceiling)),
+      described.maxTransmitPowerHundredths,
+      `most transmit power ${name} allows under its ceiling`,
+    );
+  }
+
+  for (const rule of vector.fcc) {
+    const got = lora.fccMaxConductedDbm(
+      rule.antennaGainHundredths / 100,
+      rule.hoppingChannels ?? undefined,
+    );
+    assert.strictEqual(
+      got === null ? null : hundredths(got),
+      rule.maxConductedHundredths,
+      `the FCC limit for ${JSON.stringify(rule)}`,
+    );
+  }
+}
+
 function loraRegionVectors() {
   const vectors = VECTORS.loraRegions;
   const dataRateOf = (rate) => {
@@ -1619,6 +1726,7 @@ function lorawanVectors() {
 
 windowedVectors();
 loraVectors();
+loraBudgetVectors();
 loraRegionVectors();
 mavlinkVectors();
 mavlinkSchemaVectors();

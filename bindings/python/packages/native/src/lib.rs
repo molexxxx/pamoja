@@ -500,6 +500,12 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(feature = "lora")]
     {
         m.add_class::<lora::LoraLink>()?;
+        m.add_class::<lora::LinkBudget>()?;
+        m.add_function(wrap_pyfunction!(lora::lora_noise_floor_dbm, m)?)?;
+        m.add_function(wrap_pyfunction!(lora::lora_demodulator_snr_db, m)?)?;
+        m.add_function(wrap_pyfunction!(lora::lora_free_space_loss_db, m)?)?;
+        m.add_function(wrap_pyfunction!(lora::lora_fresnel_radius_mm, m)?)?;
+        m.add_function(wrap_pyfunction!(lora::lora_fcc_max_conducted_dbm, m)?)?;
         m.add_class::<lora_region::ChannelPlan>()?;
         m.add_class::<lora_region::ChannelPlanBuilder>()?;
         m.add_class::<lora_region::LoraDataRate>()?;

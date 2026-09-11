@@ -1580,6 +1580,32 @@ typedef struct {
   uint8_t crc;
 } PamojaLoraLink;
 
+// The gains and losses of a LoRa link, from the transmitting radio to the receiving one.
+//
+// Every field is in hundredths of a decibel, so `1400` is 14 dBm and `215` is 2.15 dBi.
+// Build one with [`pamoja_lora_link_budget_default`] and set the fields a deployment
+// chooses: the transmit power, the antenna and cable at each end, and the noise figure of
+// the receiver.
+typedef struct {
+  // The power the transmitting radio delivers at its antenna port, in hundredths of a
+  // dBm.
+  int32_t transmit_power_centi_dbm;
+  // The gain of the transmitting antenna over an isotropic antenna, in hundredths of a
+  // dBi.
+  int32_t transmit_antenna_gain_centi_dbi;
+  // The loss in the cable and connectors between the transmitting radio and its
+  // antenna, in hundredths of a dB.
+  int32_t transmit_cable_loss_centi_db;
+  // The gain of the receiving antenna over an isotropic antenna, in hundredths of a
+  // dBi.
+  int32_t receive_antenna_gain_centi_dbi;
+  // The loss in the cable and connectors between the receiving antenna and its radio,
+  // in hundredths of a dB.
+  int32_t receive_cable_loss_centi_db;
+  // The noise figure of the receiver, in hundredths of a dB.
+  int32_t noise_figure_centi_db;
+} PamojaLoraLinkBudget;
+
 // The Class B beacon settings of a plan.
 typedef struct {
   // The frequency the beacon is broadcast on, in hertz.
@@ -4912,6 +4938,177 @@ uint64_t pamoja_lora_airtime_us(PamojaLoraLink link, uintptr_t payload_len);
 uint64_t pamoja_lora_min_off_time_us(PamojaLoraLink link,
                                      uintptr_t payload_len,
                                      uint32_t duty_cycle_permille);
+
+// Returns a link budget of 0 dBm between isotropic antennas with no cable loss.
+//
+// # Returns
+//
+// The budget, heard with the 6 dB noise figure typical of a Semtech sub-GHz radio.
+PamojaLoraLinkBudget pamoja_lora_link_budget_default(void);
+
+// Returns the equivalent isotropically radiated power of a budget.
+//
+// # Arguments
+//
+// * `budget` - the link budget.
+//
+// # Returns
+//
+// The transmit power plus the transmitting antenna gain, less the transmitting cable
+// loss, in hundredths of a dBm.
+int32_t pamoja_lora_link_budget_eirp_centi_dbm(PamojaLoraLinkBudget budget);
+
+// Returns the power that reaches the receiving radio across a path.
+//
+// # Arguments
+//
+// * `budget` - the link budget.
+// * `path_loss_centi_db` - the loss between the two antennas, in hundredths of a dB.
+//
+// # Returns
+//
+// The received power in hundredths of a dBm.
+int32_t pamoja_lora_link_budget_received_centi_dbm(PamojaLoraLinkBudget budget,
+                                                   int32_t path_loss_centi_db);
+
+// Returns the weakest signal the receiver of a budget can demodulate on a link.
+//
+// # Arguments
+//
+// * `budget` - the link budget, whose noise figure applies.
+// * `link` - the link settings, whose spreading factor and bandwidth set the floor.
+//
+// # Returns
+//
+// The sensitivity in hundredths of a dBm.
+int32_t pamoja_lora_link_budget_sensitivity_centi_dbm(PamojaLoraLinkBudget budget,
+                                                      PamojaLoraLink link);
+
+// Returns the most path loss a link survives.
+//
+// # Arguments
+//
+// * `budget` - the link budget.
+// * `link` - the link settings, whose spreading factor and bandwidth set the sensitivity.
+//
+// # Returns
+//
+// The loss in hundredths of a dB above which the link does not close.
+int32_t pamoja_lora_link_budget_max_path_loss_centi_db(PamojaLoraLinkBudget budget,
+                                                       PamojaLoraLink link);
+
+// Returns how far above the sensitivity a signal arrives across a path.
+//
+// # Arguments
+//
+// * `budget` - the link budget.
+// * `link` - the link settings, whose spreading factor and bandwidth set the sensitivity.
+// * `path_loss_centi_db` - the loss between the two antennas, in hundredths of a dB.
+//
+// # Returns
+//
+// The link margin in hundredths of a dB, which is negative where the path loses more
+// than the link survives.
+int32_t pamoja_lora_link_budget_margin_centi_db(PamojaLoraLinkBudget budget,
+                                                PamojaLoraLink link,
+                                                int32_t path_loss_centi_db);
+
+// Returns the most transmit power that keeps the EIRP of a budget at or under a ceiling.
+//
+// # Arguments
+//
+// * `budget` - the link budget, whose transmitting antenna and cable apply.
+// * `eirp_ceiling_centi_dbm` - the EIRP limit, such as the ceiling a channel plan
+//   publishes for a frequency, in hundredths of a dBm.
+//
+// # Returns
+//
+// The ceiling less the transmitting antenna gain, plus the transmitting cable loss, in
+// hundredths of a dBm.
+int32_t pamoja_lora_link_budget_max_transmit_power_centi_dbm(PamojaLoraLinkBudget budget,
+                                                             int32_t eirp_ceiling_centi_dbm);
+
+// Returns the thermal noise power in a channel.
+//
+// # Arguments
+//
+// * `bandwidth_hz` - the channel bandwidth in hertz; `0` counts as one hertz.
+//
+// # Returns
+//
+// -174 dBm/Hz plus `10 log10` of the bandwidth, in hundredths of a dBm.
+int32_t pamoja_lora_noise_floor_centi_dbm(uint32_t bandwidth_hz);
+
+// Returns the signal-to-noise ratio the LoRa demodulator needs at a spreading factor.
+//
+// # Arguments
+//
+// * `spreading_factor` - the spreading factor, clamped to 5-12.
+//
+// # Returns
+//
+// The typical figure from Table 6-1 of the SX1261/2 datasheet, in hundredths of a dB.
+int32_t pamoja_lora_demodulator_snr_centi_db(uint8_t spreading_factor);
+
+// Returns the free-space basic transmission loss between isotropic antennas.
+//
+// This is Recommendation ITU-R P.525-5, equation (5).
+//
+// # Arguments
+//
+// * `distance_m` - the distance between the antennas in meters; `0` counts as one meter.
+// * `frequency_hz` - the carrier frequency in hertz; `0` counts as one hertz.
+//
+// # Returns
+//
+// The loss in hundredths of a dB.
+int32_t pamoja_lora_free_space_loss_centi_db(uint32_t distance_m, uint32_t frequency_hz);
+
+// Returns the radius of the first Fresnel ellipsoid at a point on a path.
+//
+// This is Recommendation ITU-R P.526-16, equation (2). The radius is widest halfway
+// along the path.
+//
+// # Arguments
+//
+// * `near_m` - the distance from one antenna to the point, in meters.
+// * `far_m` - the distance from the point to the other antenna, in meters.
+// * `frequency_hz` - the carrier frequency in hertz.
+//
+// # Returns
+//
+// The radius in millimeters, or `0` for a path of no length or a frequency of zero.
+uint32_t pamoja_lora_fresnel_radius_mm(uint32_t near_m, uint32_t far_m, uint32_t frequency_hz);
+
+// Returns the most conducted power 47 CFR 15.247 allows a digitally modulated
+// 902-928 MHz transmitter through an antenna.
+//
+// # Arguments
+//
+// * `antenna_gain_centi_dbi` - the directional gain of the transmitting antenna, in
+//   hundredths of a dBi.
+//
+// # Returns
+//
+// The 1 W limit of paragraph (b)(3), less whatever the gain exceeds 6 dBi, in hundredths
+// of a dBm.
+int32_t pamoja_lora_fcc_digital_max_conducted_centi_dbm(int32_t antenna_gain_centi_dbi);
+
+// Returns the most conducted power 47 CFR 15.247 allows a 902-928 MHz frequency hopping
+// transmitter through an antenna.
+//
+// # Arguments
+//
+// * `hopping_channels` - the number of hopping channels the system uses.
+// * `antenna_gain_centi_dbi` - the directional gain of the transmitting antenna, in
+//   hundredths of a dBi.
+//
+// # Returns
+//
+// The limit of paragraph (b)(2), less whatever the gain exceeds 6 dBi, in hundredths of a
+// dBm, or `INT32_MIN` for fewer than 25 channels, which that paragraph sets no limit for.
+int32_t pamoja_lora_fcc_hopping_max_conducted_centi_dbm(uint16_t hopping_channels,
+                                                        int32_t antenna_gain_centi_dbi);
 
 // Returns the published channel plan for a region.
 //

@@ -1245,6 +1245,7 @@ static void Conformance()
     ConformActuators(vectors.GetProperty("actuators"));
     ConformWindows(vectors.GetProperty("windows"), tolerance);
     ConformLora(vectors.GetProperty("lora"));
+    ConformLoraBudget(vectors.GetProperty("lora"));
     ConformLoraRegions(vectors.GetProperty("loraRegions"));
     ConformMavlink(vectors.GetProperty("mavlink"));
     ConformMavlinkSchema(vectors.GetProperty("mavlinkSchema"));
@@ -3364,6 +3365,117 @@ static MavlinkHeader HeaderOf(JsonElement described) =>
         described.GetProperty("systemId").GetByte(),
         described.GetProperty("componentId").GetByte(),
         described.GetProperty("sequence").GetByte());
+
+static void ConformLoraBudget(JsonElement lora)
+{
+    JsonElement vector = lora.GetProperty("budget");
+    static int Hundredths(double value) => (int)Math.Round(value * 100, MidpointRounding.AwayFromZero);
+    static double Level(JsonElement value) => value.GetInt32() / 100.0;
+
+    Assert(
+        Hundredths(LoraLinkBudget.RadioNoiseFigureDb)
+            == vector.GetProperty("radioNoiseFigureHundredths").GetInt32(),
+        "the radio noise figure");
+    Assert(
+        Hundredths(LoraLinkBudget.GatewayNoiseFigureDb)
+            == vector.GetProperty("gatewayNoiseFigureHundredths").GetInt32(),
+        "the gateway noise figure");
+    Assert(
+        Hundredths(new LoraLinkBudget().NoiseFigureDb)
+            == vector.GetProperty("radioNoiseFigureHundredths").GetInt32(),
+        "a default budget hears with the radio noise figure");
+
+    foreach (JsonElement floor in vector.GetProperty("noiseFloors").EnumerateArray())
+    {
+        Assert(
+            Hundredths(LoraLinkBudget.NoiseFloorDbm(floor.GetProperty("bandwidthHz").GetUInt32()))
+                == floor.GetProperty("hundredths").GetInt32(),
+            "the noise floor of a channel");
+    }
+
+    foreach (JsonElement snr in vector.GetProperty("demodulatorSnrs").EnumerateArray())
+    {
+        Assert(
+            Hundredths(LoraLinkBudget.DemodulatorSnrDb(snr.GetProperty("spreadingFactor").GetByte()))
+                == snr.GetProperty("hundredths").GetInt32(),
+            "the demodulator SNR at a spreading factor");
+    }
+
+    foreach (JsonElement loss in vector.GetProperty("freeSpaceLosses").EnumerateArray())
+    {
+        Assert(
+            Hundredths(LoraLinkBudget.FreeSpaceLossDb(
+                loss.GetProperty("distanceM").GetUInt32(),
+                loss.GetProperty("frequencyHz").GetUInt32()))
+                == loss.GetProperty("hundredths").GetInt32(),
+            "the free-space loss of a path");
+    }
+
+    foreach (JsonElement radius in vector.GetProperty("fresnelRadii").EnumerateArray())
+    {
+        Assert(
+            LoraLinkBudget.FresnelRadiusMillimeters(
+                radius.GetProperty("nearM").GetUInt32(),
+                radius.GetProperty("farM").GetUInt32(),
+                radius.GetProperty("frequencyHz").GetUInt32())
+                == radius.GetProperty("radiusMm").GetUInt32(),
+            "the first Fresnel radius");
+    }
+
+    foreach (JsonElement described in vector.GetProperty("budgets").EnumerateArray())
+    {
+        string linkName = described.GetProperty("link").GetString()!;
+        LoraLink link = LinkOf(lora.GetProperty("links").EnumerateArray()
+            .First(entry => entry.GetProperty("name").GetString() == linkName));
+        var budget = new LoraLinkBudget
+        {
+            TransmitPowerDbm = Level(described.GetProperty("transmitPowerHundredths")),
+            TransmitAntennaGainDbi = Level(described.GetProperty("transmitAntennaGainHundredths")),
+            TransmitCableLossDb = Level(described.GetProperty("transmitCableLossHundredths")),
+            ReceiveAntennaGainDbi = Level(described.GetProperty("receiveAntennaGainHundredths")),
+            ReceiveCableLossDb = Level(described.GetProperty("receiveCableLossHundredths")),
+            NoiseFigureDb = Level(described.GetProperty("noiseFigureHundredths")),
+        };
+        double path = Level(described.GetProperty("pathLossHundredths"));
+        double ceiling = Level(described.GetProperty("ceilingHundredths"));
+        Assert(
+            Hundredths(budget.EirpDbm) == described.GetProperty("eirpHundredths").GetInt32(),
+            "the EIRP of a budget");
+        Assert(
+            Hundredths(budget.ReceivedDbm(path))
+                == described.GetProperty("receivedHundredths").GetInt32(),
+            "the power a path delivers");
+        Assert(
+            Hundredths(budget.SensitivityDbm(link))
+                == described.GetProperty("sensitivityHundredths").GetInt32(),
+            "the sensitivity of a receiver");
+        Assert(
+            Hundredths(budget.MaxPathLossDb(link))
+                == described.GetProperty("maxPathLossHundredths").GetInt32(),
+            "the most path loss a link survives");
+        Assert(
+            Hundredths(budget.MarginDb(link, path))
+                == described.GetProperty("marginHundredths").GetInt32(),
+            "the margin a path leaves");
+        Assert(
+            Hundredths(budget.MaxTransmitPowerDbm(ceiling))
+                == described.GetProperty("maxTransmitPowerHundredths").GetInt32(),
+            "the most transmit power under a ceiling");
+    }
+
+    foreach (JsonElement rule in vector.GetProperty("fcc").EnumerateArray())
+    {
+        JsonElement channels = rule.GetProperty("hoppingChannels");
+        double? limit = LoraLinkBudget.FccMaxConductedDbm(
+            Level(rule.GetProperty("antennaGainHundredths")),
+            channels.ValueKind == JsonValueKind.Null ? null : channels.GetUInt16());
+        JsonElement want = rule.GetProperty("maxConductedHundredths");
+        int? expected = want.ValueKind == JsonValueKind.Null ? null : want.GetInt32();
+        Assert(
+            (limit is null ? null : Hundredths(limit.Value)) == expected,
+            "the 47 CFR 15.247 conducted power limit");
+    }
+}
 
 static LoraLink LinkOf(JsonElement described)
 {
