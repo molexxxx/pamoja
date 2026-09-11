@@ -208,6 +208,52 @@ pub trait Receive {
     fn recv(&mut self) -> impl Future<Output = Result<Option<Message>>> + Send;
 }
 
+/// Returns whether an MQTT topic filter matches a topic.
+///
+/// `+` matches exactly one level and `#` matches the remaining levels, including none, as
+/// the OASIS MQTT specification defines them. A filter that begins with a wildcard does not
+/// match a topic that begins with `$`, which MQTT reserves for server topics. A transport
+/// that delivers by topic itself, rather than through a broker, filters with this.
+///
+/// # Arguments
+///
+/// * `filter` - the subscription filter, which may hold wildcards.
+/// * `topic` - the topic a message was published to.
+///
+/// # Returns
+///
+/// `true` when the filter selects the topic.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_core::topic_matches;
+///
+/// assert!(topic_matches("sensors/+/temperature", "sensors/1/temperature"));
+/// assert!(topic_matches("sensors/#", "sensors"));
+/// assert!(!topic_matches("#", "$SYS/broker/uptime"));
+/// ```
+pub fn topic_matches(filter: &str, topic: &str) -> bool {
+    if topic.starts_with('$') {
+        if let Some(first) = filter.split('/').next() {
+            if first == "#" || first == "+" {
+                return false;
+            }
+        }
+    }
+    let mut filter_levels = filter.split('/');
+    let mut topic_levels = topic.split('/');
+    loop {
+        match (filter_levels.next(), topic_levels.next()) {
+            (Some("#"), _) => return true,
+            (Some("+"), Some(_)) => {}
+            (Some(filter_level), Some(topic_level)) if filter_level == topic_level => {}
+            (None, None) => return true,
+            _ => return false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -235,5 +281,40 @@ mod tests {
             message,
             Message::new(String::from("sensors/1"), vec![0x32, 0x31, 0x2E, 0x35])
         );
+    }
+
+    #[test]
+    fn exact_topics_match() {
+        assert!(topic_matches("a/b/c", "a/b/c"));
+        assert!(!topic_matches("a/b/c", "a/b/d"));
+        assert!(!topic_matches("a/b", "a/b/c"));
+        assert!(!topic_matches("a/b/c", "a/b"));
+    }
+
+    #[test]
+    fn single_level_wildcard_matches_one_level() {
+        assert!(topic_matches("a/+/c", "a/b/c"));
+        assert!(topic_matches(
+            "sensors/+/temperature",
+            "sensors/1/temperature"
+        ));
+        assert!(!topic_matches("a/+/c", "a/b/c/d"));
+        assert!(!topic_matches("a/+", "a"));
+    }
+
+    #[test]
+    fn multi_level_wildcard_matches_the_rest() {
+        assert!(topic_matches("a/#", "a/b/c"));
+        assert!(topic_matches("a/#", "a"));
+        assert!(topic_matches("#", "a/b/c"));
+        assert!(!topic_matches("a/#", "b/c"));
+    }
+
+    #[test]
+    fn leading_wildcards_do_not_match_dollar_topics() {
+        assert!(!topic_matches("#", "$SYS/broker/uptime"));
+        assert!(!topic_matches("+/broker", "$SYS/broker"));
+        assert!(topic_matches("$SYS/#", "$SYS/broker/uptime"));
+        assert!(topic_matches("$SYS/+", "$SYS/uptime"));
     }
 }

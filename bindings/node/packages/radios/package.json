@@ -1,0 +1,39 @@
+{
+  "name": "@pamoja/radios",
+  "version": "0.1.18",
+  "description": "The Semtech SX126x LoRa command set and its decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard.",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/molexxxx/pamoja.git",
+    "directory": "bindings/node/packages/radios"
+  },
+  "homepage": "https://pamoja.molex.cloud/docs/guides/radios.html",
+  "keywords": [
+    "pamoja",
+    "iot",
+    "robotics",
+    "radios"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "LICENSE-MIT"
+  ],
+  "engines": {
+    "node": ">= 16"
+  },
+  "dependencies": {
+    "@pamoja/native": "0.1.18"
+  }
+}

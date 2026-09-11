@@ -1267,3 +1267,19 @@ def test_mavlink_protocols_carry_a_plan_and_match_a_command():
         mavlink.schema_for("SET_POSITION_TARGET_LOCAL_NED"), setpoint.payload
     )
     assert read.get_int("type_mask") == mavlink.type_mask(mavlink.TypeMask.VELOCITY)
+
+
+def test_an_sx1262_transmission_plans_its_bytes_under_the_ceiling():
+    from pamoja import lora, radios
+
+    sx126x = radios.sx126x
+    whip = lora.LinkBudget(transmit_antenna_gain_dbi=2.15, transmit_cable_loss_db=0.5)
+    power = sx126x.tx_power_under_ceiling(sx126x.Amplifier.HIGH_POWER, whip, 16)
+    assert power.setting_dbm == 14
+    assert sx126x.set_rf_frequency(868_100_000) == bytes([0x86, 0x36, 0x41, 0x99, 0x9A])
+    with pytest.raises(PamojaError, match="bandwidth"):
+        sx126x.set_lora_modulation_params(lora.link(7, 203_125))
+    assert sx126x.status(0x2C).chip_mode == "StandbyRc"
+    guard = radios.DutyCycle(10)
+    airtime = guard.transmitted(0, lora.link(12, 125_000), 10)
+    assert guard.wait_us(0) == airtime * 100

@@ -51,8 +51,8 @@ that holds more than one:
 <div class="pkg-get"><code class="cmd">cargo add pamoja --features radio</code><button class="copy" type="button" data-copy="cargo add pamoja --features radio" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
-<summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
+<summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/radios.html">LoRa radios</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
 </details><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust.html#radio-and-reach">API reference</a></div></div>
 </div>
 <div class="domain">
@@ -279,6 +279,16 @@ reference pages, one step away.
 <div class="pkg-foot">
 <div class="pkg-btns"><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_lorawan/index.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/lorawan.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/lorawan.html#rust">Worked example</a><a class="pkg-btn ext" href="https://crates.io/crates/pamoja-lorawan">crates.io</a><a class="pkg-btn ext" href="https://docs.rs/pamoja-lorawan">docs.rs</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-lorawan" title="@pamoja/lorawan">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-lorawan" title="pamoja-lorawan">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-lorawan" title="Pamoja.Lorawan">C#</a></p>
+</div>
+</div>
+<div class="pkg" id="rust-radios">
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/radios.html">LoRa radios</a><code class="pkg-import">pamoja-radios</code><p>The Semtech SX126x LoRa command set and its decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard</p></div>
+<div class="pkg-get"><code class="cmd">cargo add pamoja-radios</code><button class="copy" type="button" data-copy="cargo add pamoja-radios" aria-label="Copy the install command">copy</button></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_radios/index.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/radios.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/radios.html#rust">Worked example</a><a class="pkg-btn ext" href="https://crates.io/crates/pamoja-radios">crates.io</a><a class="pkg-btn ext" href="https://docs.rs/pamoja-radios">docs.rs</a></div>
+<p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-radios" title="@pamoja/radios">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-radios" title="pamoja-radios">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-radios" title="Pamoja.Radios">C#</a></p>
 </div>
 </div>
 <div class="pkg" id="rust-mesh">

@@ -59,6 +59,8 @@ pub mod mqtt;
 pub mod power;
 #[cfg(feature = "profile")]
 pub mod profile;
+#[cfg(feature = "radios")]
+pub mod radios;
 #[cfg(feature = "ros2")]
 pub mod ros2;
 #[cfg(feature = "routing")]

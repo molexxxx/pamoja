@@ -98,8 +98,8 @@ name two of them share stays unambiguous. Pick a language:
 <div class="pkg-get"><code class="cmd">cargo add pamoja --features radio</code><button class="copy" type="button" data-copy="cargo add pamoja --features radio" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
-<summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
+<summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/radios.html">LoRa radios</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
 </details><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust.html#radio-and-reach">API reference</a></div></div>
 </div>
 <div class="domain">
@@ -162,8 +162,8 @@ name two of them share stays unambiguous. Pick a language:
 <div class="pkg-get"><code class="cmd">npm install @pamoja/radio</code><button class="copy" type="button" data-copy="npm install @pamoja/radio" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
-<summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
+<summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/radios.html">LoRa radios</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
 </details><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node.html#radio-and-reach">API reference</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/radio">npm</a></div></div>
 </div>
 <div class="domain">
@@ -226,8 +226,8 @@ name two of them share stays unambiguous. Pick a language:
 <div class="pkg-get"><code class="cmd">pip install pamoja-radio</code><button class="copy" type="button" data-copy="pip install pamoja-radio" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
-<summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
+<summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/radios.html">LoRa radios</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
 </details><a class="pkg-btn api python" href="https://pamoja.molex.cloud/docs/reference/python.html#radio-and-reach">API reference</a><a class="pkg-btn ext" href="https://pypi.org/project/pamoja-radio/">PyPI</a></div></div>
 </div>
 <div class="domain">
@@ -290,8 +290,8 @@ name two of them share stays unambiguous. Pick a language:
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Radio</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Radio" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
-<summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
+<summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/lora.html">LoRa airtime and range</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/lorawan.html">LoRaWAN</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/radios.html">LoRa radios</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/mesh.html">Mesh frames</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/routing.html">Routing</a></li></ul>
 </details><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet.html#radio-and-reach">API reference</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Radio">NuGet</a></div></div>
 </div>
 <div class="domain">
@@ -359,7 +359,7 @@ dependency graph, for a `x86_64-unknown-linux-gnu` build:
 <!-- table: builds -->
 | Build | What you write | Crates compiled | From this workspace | External |
 | --- | --- | --- | --- | --- |
-| Every capability | `cargo add pamoja` | 109 | 32 | 77 |
+| Every capability | `cargo add pamoja` | 110 | 33 | 77 |
 | Codecs and identity | `cargo add pamoja --no-default-features --features codec,security` | 36 | 4 | 32 |
 | Field I/O | `cargo add pamoja --no-default-features --features field-io` | 8 | 7 | 1 |
 | One capability | `cargo add pamoja --no-default-features --features modbus` | 3 | 3 | 0 |

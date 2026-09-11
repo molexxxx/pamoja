@@ -132,6 +132,55 @@ impl LinkSettings {
         self.bandwidth_hz
     }
 
+    /// Returns the coding-rate denominator.
+    ///
+    /// # Returns
+    ///
+    /// The denominator, from 5 to 8, for coding rates 4/5 to 4/8.
+    pub fn coding_rate_denominator(&self) -> u8 {
+        self.cr_denominator
+    }
+
+    /// Returns the preamble length.
+    ///
+    /// # Returns
+    ///
+    /// The number of preamble symbols.
+    pub fn preamble_symbols(&self) -> u16 {
+        self.preamble_symbols
+    }
+
+    /// Reports whether each frame carries an explicit header.
+    ///
+    /// # Returns
+    ///
+    /// `true` for an explicit header, `false` when the header is implicit.
+    pub fn explicit_header(&self) -> bool {
+        self.explicit_header
+    }
+
+    /// Reports whether each frame carries a CRC.
+    ///
+    /// # Returns
+    ///
+    /// `true` when the frame CRC is on.
+    pub fn crc(&self) -> bool {
+        self.crc
+    }
+
+    /// Reports whether the link uses low data rate optimization.
+    ///
+    /// It is on when a symbol lasts longer than 16 ms, which is SF11 and SF12 at
+    /// 125 kHz and SF12 at 250 kHz. The airtime assumes it, so a radio configured from
+    /// these settings must enable it too.
+    ///
+    /// # Returns
+    ///
+    /// `true` when the symbol time exceeds 16 ms.
+    pub fn low_data_rate_optimization(&self) -> bool {
+        self.symbol_time_us() > LOW_DATA_RATE_THRESHOLD_US
+    }
+
     /// Returns the duration of one symbol in microseconds.
     ///
     /// # Returns
@@ -144,7 +193,7 @@ impl LinkSettings {
     // The number of symbols in the payload portion of the frame.
     fn payload_symbols(&self, payload_len: usize) -> u32 {
         let sf = i32::from(self.spreading_factor);
-        let low_data_rate = self.symbol_time_us() > LOW_DATA_RATE_THRESHOLD_US;
+        let low_data_rate = self.low_data_rate_optimization();
         let de = i32::from(low_data_rate);
         let ih = i32::from(!self.explicit_header);
         let crc = i32::from(self.crc);
@@ -209,6 +258,23 @@ impl LinkSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_settings_report_what_a_radio_is_configured_with() {
+        let link = LinkSettings::new(9, 250_000)
+            .with_coding_rate(8)
+            .with_preamble(12)
+            .implicit_header()
+            .without_crc();
+        assert_eq!(link.coding_rate_denominator(), 8);
+        assert_eq!(link.preamble_symbols(), 12);
+        assert!(!link.explicit_header());
+        assert!(!link.crc());
+        assert!(!link.low_data_rate_optimization());
+        assert!(LinkSettings::new(11, 125_000).low_data_rate_optimization());
+        assert!(LinkSettings::new(12, 250_000).low_data_rate_optimization());
+        assert!(!LinkSettings::new(10, 125_000).low_data_rate_optimization());
+    }
 
     #[test]
     fn airtime_matches_the_reference_sf12() {

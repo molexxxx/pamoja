@@ -63,4 +63,4 @@ pub use bus::EventBus;
 pub use device::{Actuator, Device, Sensor, Telemetry};
 pub use error::{Error, Result};
 pub use store::Store;
-pub use transport::{Message, Receive, Transport};
+pub use transport::{topic_matches, Message, Receive, Transport};

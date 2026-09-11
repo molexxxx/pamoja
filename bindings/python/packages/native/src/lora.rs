@@ -126,7 +126,7 @@ impl LoraLink {
 
 impl LoraLink {
     /// Rebuilds the Rust link settings from the fields Python holds.
-    fn settings(&self) -> LinkSettings {
+    pub(crate) fn settings(&self) -> LinkSettings {
         let mut settings = LinkSettings::new(self.spreading_factor, self.bandwidth_hz)
             .with_coding_rate(self.coding_rate_denominator)
             .with_preamble(self.preamble_symbols);
@@ -247,7 +247,7 @@ impl LinkBudget {
 
 impl LinkBudget {
     /// Rebuilds the Rust link budget from the decibels Python holds.
-    fn budget(&self) -> pamoja_lora::budget::LinkBudget {
+    pub(crate) fn budget(&self) -> pamoja_lora::budget::LinkBudget {
         pamoja_lora::budget::LinkBudget {
             transmit_power_dbm: decibels(self.transmit_power_dbm),
             transmit_antenna_gain_dbi: decibels(self.transmit_antenna_gain_dbi),
@@ -308,11 +308,11 @@ pub fn lora_fcc_max_conducted_dbm(
 }
 
 /// Resolves a number of decibels to the hundredth of a decibel Rust holds.
-fn decibels(value: f64) -> Decibels {
+pub(crate) fn decibels(value: f64) -> Decibels {
     Decibels::from_hundredths((value * 100.0).round() as i32)
 }
 
 /// Returns a level as a number of decibels.
-fn db(value: Decibels) -> f64 {
+pub(crate) fn db(value: Decibels) -> f64 {
     f64::from(value.hundredths()) / 100.0
 }

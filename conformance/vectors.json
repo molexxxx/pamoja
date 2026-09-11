@@ -3507,6 +3507,546 @@
       "reading": 21.5
     }
   },
+  "radios": {
+    "commands": {
+      "calibrateImage": {
+        "bytes": "98d7da",
+        "highHz": 870000000,
+        "lowHz": 863000000
+      },
+      "clearIrqStatus": {
+        "bytes": "0243ff",
+        "irq": 17407
+      },
+      "setDioIrqParams": [
+        {
+          "bytes": "080201020100000000",
+          "dio1": 513,
+          "irq": 513
+        },
+        {
+          "bytes": "080262026200000000",
+          "dio1": 610,
+          "irq": 610
+        }
+      ],
+      "setLoraModulationParams": [
+        {
+          "bytes": "8b0c040101",
+          "link": "sf12-125k"
+        },
+        {
+          "bytes": "8b07040100",
+          "link": "sf7-125k"
+        },
+        {
+          "bytes": "8b09050400",
+          "link": "sf9-250k-cr48"
+        },
+        {
+          "bytes": "8b0a040100",
+          "link": "sf10-125k-bare"
+        }
+      ],
+      "setLoraPacketParams": [
+        {
+          "bytes": "8c0008000a0100",
+          "invertIq": false,
+          "link": "sf7-125k",
+          "payloadLen": 10
+        },
+        {
+          "bytes": "8c000801140001",
+          "invertIq": true,
+          "link": "sf10-125k-bare",
+          "payloadLen": 20
+        },
+        {
+          "bytes": "8c000c00330100",
+          "invertIq": false,
+          "link": "sf9-250k-cr48",
+          "payloadLen": 51
+        }
+      ],
+      "setPaConfig": {
+        "amplifier": "high",
+        "bytes": "9504070001",
+        "outputDbm": 14
+      },
+      "setPacketTypeLora": "8a01",
+      "setRfFrequency": {
+        "bytes": "863641999a",
+        "frequencyHz": 868100000
+      },
+      "setRx": {
+        "bytes": "8201f400",
+        "timeoutUs": 2000000
+      },
+      "setRxContinuous": "82ffffff",
+      "setSleep": {
+        "bytes": "8404",
+        "warmStart": true
+      },
+      "setStandby": "8000",
+      "setSyncWord": {
+        "bytes": "0d07403444",
+        "syncWord": "public"
+      },
+      "setTx": {
+        "bytes": "8301044d",
+        "timeoutUs": 1041216
+      },
+      "setTxParams": {
+        "amplifier": "high",
+        "bytes": "8e0e02",
+        "outputDbm": 14,
+        "rampUs": 40
+      },
+      "writeBuffer": {
+        "bytes": "0e0068656c6c6f",
+        "offset": 0,
+        "payload": "68656c6c6f"
+      },
+      "writeRegister": {
+        "address": 2220,
+        "bytes": "0d08ac96",
+        "values": "96"
+      }
+    },
+    "deviceErrors": [
+      {
+        "bits": 0,
+        "bytes": "0000",
+        "flags": []
+      },
+      {
+        "bits": 32,
+        "bytes": "0020",
+        "flags": [
+          "xoscStart"
+        ]
+      },
+      {
+        "bits": 324,
+        "bytes": "0144",
+        "flags": [
+          "pllCalibration",
+          "pllLock",
+          "paRamp"
+        ]
+      },
+      {
+        "bits": 383,
+        "bytes": "017f",
+        "flags": [
+          "rc64kCalibration",
+          "rc13mCalibration",
+          "pllCalibration",
+          "adcCalibration",
+          "imageCalibration",
+          "xoscStart",
+          "pllLock",
+          "paRamp"
+        ]
+      }
+    ],
+    "dutyCycle": {
+      "airtimeUs": 991232,
+      "checks": [
+        {
+          "nowUs": 5000000,
+          "ready": false,
+          "waitUs": 99123200
+        },
+        {
+          "nowUs": 104123199,
+          "ready": false,
+          "waitUs": 1
+        },
+        {
+          "nowUs": 104123200,
+          "ready": true,
+          "waitUs": 0
+        },
+        {
+          "nowUs": 104123201,
+          "ready": true,
+          "waitUs": 0
+        }
+      ],
+      "earliestUs": 104123200,
+      "forbidden": {
+        "permille": 0,
+        "ready": false,
+        "readyAt": [
+          0,
+          104123200
+        ]
+      },
+      "link": "sf12-125k",
+      "payloadLen": 10,
+      "permille": 10,
+      "startedUs": 5000000
+    },
+    "frequencyWords": [
+      {
+        "frequencyHz": 433175000,
+        "word": 454216909
+      },
+      {
+        "frequencyHz": 470300000,
+        "word": 493145293
+      },
+      {
+        "frequencyHz": 868100000,
+        "word": 910268826
+      },
+      {
+        "frequencyHz": 915000000,
+        "word": 959447040
+      },
+      {
+        "frequencyHz": 923200000,
+        "word": 968045363
+      }
+    ],
+    "imageCalibrations": [
+      {
+        "codes": "6b6e",
+        "highHz": 440000000,
+        "lowHz": 430000000
+      },
+      {
+        "codes": "7580",
+        "highHz": 510000000,
+        "lowHz": 470000000
+      },
+      {
+        "codes": "d7da",
+        "highHz": 870000000,
+        "lowHz": 863000000
+      },
+      {
+        "codes": "e1e8",
+        "highHz": 928000000,
+        "lowHz": 902000000
+      },
+      {
+        "codes": "d9da",
+        "highHz": 868100000,
+        "lowHz": 868100000
+      }
+    ],
+    "irqFlags": {
+      "cadDetected": 256,
+      "cadDone": 128,
+      "crcError": 64,
+      "headerError": 32,
+      "headerValid": 16,
+      "lrFhssHop": 16384,
+      "preambleDetected": 4,
+      "rxDone": 2,
+      "syncWordValid": 8,
+      "timeout": 512,
+      "txDone": 1
+    },
+    "irqs": [
+      {
+        "bits": 1,
+        "bytes": "0001",
+        "flags": [
+          "txDone"
+        ]
+      },
+      {
+        "bits": 2,
+        "bytes": "0002",
+        "flags": [
+          "rxDone"
+        ]
+      },
+      {
+        "bits": 66,
+        "bytes": "0042",
+        "flags": [
+          "rxDone",
+          "crcError"
+        ]
+      },
+      {
+        "bits": 512,
+        "bytes": "0200",
+        "flags": [
+          "timeout"
+        ]
+      },
+      {
+        "bits": 610,
+        "bytes": "0262",
+        "flags": [
+          "rxDone",
+          "headerError",
+          "crcError",
+          "timeout"
+        ]
+      },
+      {
+        "bits": 16384,
+        "bytes": "4000",
+        "flags": [
+          "lrFhssHop"
+        ]
+      },
+      {
+        "bits": 65535,
+        "bytes": "ffff",
+        "flags": [
+          "txDone",
+          "rxDone",
+          "preambleDetected",
+          "syncWordValid",
+          "headerValid",
+          "headerError",
+          "crcError",
+          "cadDone",
+          "cadDetected",
+          "timeout",
+          "lrFhssHop"
+        ]
+      }
+    ],
+    "packetStatuses": [
+      {
+        "bytes": "dbf6e0",
+        "rssiHundredths": -10950,
+        "signalRssiHundredths": -11200,
+        "snrHundredths": -250
+      },
+      {
+        "bytes": "401c42",
+        "rssiHundredths": -3200,
+        "signalRssiHundredths": -3300,
+        "snrHundredths": 700
+      },
+      {
+        "bytes": "008000",
+        "rssiHundredths": 0,
+        "signalRssiHundredths": 0,
+        "snrHundredths": -3200
+      }
+    ],
+    "queries": {
+      "getDeviceErrors": {
+        "answerLen": 2,
+        "bytes": "1700"
+      },
+      "getIrqStatus": {
+        "answerLen": 2,
+        "bytes": "1200"
+      },
+      "getPacketStatus": {
+        "answerLen": 3,
+        "bytes": "1400"
+      },
+      "getRssiInst": {
+        "answerLen": 1,
+        "bytes": "1500"
+      },
+      "getRxBufferStatus": {
+        "answerLen": 2,
+        "bytes": "1300"
+      },
+      "getStatus": {
+        "answerLen": 1,
+        "bytes": "c0"
+      },
+      "readBuffer": {
+        "length": 3,
+        "offset": 128,
+        "query": {
+          "answerLen": 3,
+          "bytes": "1e8000"
+        }
+      },
+      "readRegister": {
+        "address": 1856,
+        "length": 2,
+        "query": {
+          "answerLen": 2,
+          "bytes": "1d074000"
+        }
+      }
+    },
+    "rssiInst": [
+      {
+        "byte": 0,
+        "hundredths": 0
+      },
+      {
+        "byte": 90,
+        "hundredths": -4500
+      },
+      {
+        "byte": 219,
+        "hundredths": -10950
+      }
+    ],
+    "rxBufferStatuses": [
+      {
+        "bytes": "0380",
+        "payloadLen": 3,
+        "start": 128
+      },
+      {
+        "bytes": "ff00",
+        "payloadLen": 255,
+        "start": 0
+      }
+    ],
+    "rxContinuous": 16777215,
+    "statuses": [
+      {
+        "byte": 44,
+        "chipMode": "standbyRc",
+        "commandStatus": "txDone",
+        "error": false
+      },
+      {
+        "byte": 34,
+        "chipMode": "standbyRc",
+        "commandStatus": "other",
+        "error": false
+      },
+      {
+        "byte": 84,
+        "chipMode": "rx",
+        "commandStatus": "dataAvailable",
+        "error": false
+      },
+      {
+        "byte": 108,
+        "chipMode": "tx",
+        "commandStatus": "txDone",
+        "error": false
+      },
+      {
+        "byte": 56,
+        "chipMode": "standbyXosc",
+        "commandStatus": "processingError",
+        "error": true
+      },
+      {
+        "byte": 58,
+        "chipMode": "standbyXosc",
+        "commandStatus": "executionFailure",
+        "error": true
+      },
+      {
+        "byte": 0,
+        "chipMode": "other",
+        "commandStatus": "other",
+        "error": false
+      }
+    ],
+    "syncWords": {
+      "private": "1424",
+      "public": "3444"
+    },
+    "timeouts": [
+      {
+        "steps": 0,
+        "timeoutUs": 0
+      },
+      {
+        "steps": 1,
+        "timeoutUs": 1
+      },
+      {
+        "steps": 1,
+        "timeoutUs": 15
+      },
+      {
+        "steps": 1,
+        "timeoutUs": 16
+      },
+      {
+        "steps": 64000,
+        "timeoutUs": 1000000
+      },
+      {
+        "steps": 16777152,
+        "timeoutUs": 262143000
+      },
+      {
+        "steps": 16777214,
+        "timeoutUs": 300000000
+      }
+    ],
+    "txPowers": [
+      {
+        "amplifier": "high",
+        "outputDbm": 30,
+        "paConfig": "04070001",
+        "settingDbm": 22
+      },
+      {
+        "amplifier": "high",
+        "outputDbm": 14,
+        "paConfig": "04070001",
+        "settingDbm": 14
+      },
+      {
+        "amplifier": "high",
+        "outputDbm": -20,
+        "paConfig": "04070001",
+        "settingDbm": -9
+      },
+      {
+        "amplifier": "low",
+        "outputDbm": 15,
+        "paConfig": "06000101",
+        "settingDbm": 14
+      },
+      {
+        "amplifier": "low",
+        "outputDbm": 10,
+        "paConfig": "04000101",
+        "settingDbm": 10
+      },
+      {
+        "amplifier": "low",
+        "outputDbm": -30,
+        "paConfig": "04000101",
+        "settingDbm": -17
+      }
+    ],
+    "underCeilings": [
+      {
+        "amplifier": "high",
+        "ceilingHundredths": 1600,
+        "paConfig": "04070001",
+        "settingDbm": 14,
+        "transmitAntennaGainHundredths": 215,
+        "transmitCableLossHundredths": 50
+      },
+      {
+        "amplifier": "high",
+        "ceilingHundredths": 3000,
+        "paConfig": "04070001",
+        "settingDbm": 21,
+        "transmitAntennaGainHundredths": 900,
+        "transmitCableLossHundredths": 0
+      },
+      {
+        "amplifier": "low",
+        "ceilingHundredths": 1600,
+        "paConfig": "04000101",
+        "settingDbm": 14,
+        "transmitAntennaGainHundredths": 215,
+        "transmitCableLossHundredths": 50
+      }
+    ]
+  },
   "ros2": {
     "ddsTopics": [
       {

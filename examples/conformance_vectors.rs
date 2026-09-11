@@ -44,6 +44,10 @@ use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
 use pamoja_modbus::{crc16, Adu, Pdu, Response};
 use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
 use pamoja_profile::{Alert, ControlSpec, Controller, PowerSchedule, Profile, Reaction};
+use pamoja_radios::duty::DutyCycle as RadioDutyCycle;
+use pamoja_radios::sx126x::{
+    command as sx126x_command, config as sx126x_config, irq as sx126x_irq, status as sx126x_status,
+};
 use pamoja_ros2::key::entity_key;
 use pamoja_ros2::msg::{CdrWriter, Twist as Ros2Twist, Vector3};
 use pamoja_ros2::name::{percent_mangle, EntityKind};
@@ -133,6 +137,7 @@ fn main() {
         "windows": windows(),
         "lora": lora(),
         "loraRegions": lora_regions(),
+        "radios": radios(),
         "mavlink": mavlink(),
         "mavlinkSchema": mavlink_schema(),
         "mavlinkProtocol": mavlink_protocol(),
@@ -2537,6 +2542,455 @@ fn name(boundary: Boundary) -> &'static str {
 }
 
 /// Renders bytes as lowercase hex, the form every binding can parse.
+fn radios() -> Value {
+    use sx126x_config::{
+        LoraModulation, LoraPacket, PacketType, PowerAmplifier, RampTime, StandbyMode, SyncWord,
+        TxPower,
+    };
+    use sx126x_irq::Irq;
+    use sx126x_status::{
+        ChipMode, CommandStatus, DeviceErrors, PacketStatus, RxBufferStatus, Status,
+    };
+
+    // The same four links the LoRa vectors describe, so a binding rebuilds each from there.
+    let links = [
+        ("sf12-125k", LinkSettings::new(12, 125_000)),
+        ("sf7-125k", LinkSettings::new(7, 125_000)),
+        (
+            "sf9-250k-cr48",
+            LinkSettings::new(9, 250_000)
+                .with_coding_rate(8)
+                .with_preamble(12),
+        ),
+        (
+            "sf10-125k-bare",
+            LinkSettings::new(10, 125_000)
+                .implicit_header()
+                .without_crc(),
+        ),
+    ];
+    let link = |name: &str| {
+        links
+            .iter()
+            .find(|(named, _)| *named == name)
+            .map(|(_, settings)| *settings)
+            .expect("a link the LoRa vectors name")
+    };
+    let amplifier_name = |amplifier: PowerAmplifier| match amplifier {
+        PowerAmplifier::LowPower => "low",
+        PowerAmplifier::HighPower => "high",
+    };
+
+    let frequency_words: Vec<Value> = [
+        433_175_000u32,
+        470_300_000,
+        868_100_000,
+        915_000_000,
+        923_200_000,
+    ]
+    .iter()
+    .map(|&frequency_hz| {
+        json!({
+            "frequencyHz": frequency_hz,
+            "word": sx126x_config::frequency_word(frequency_hz),
+        })
+    })
+    .collect();
+    let timeouts: Vec<Value> = [0u64, 1, 15, 16, 1_000_000, 262_143_000, 300_000_000]
+        .iter()
+        .map(|&timeout_us| {
+            json!({
+                "timeoutUs": timeout_us,
+                "steps": sx126x_config::timeout_steps(timeout_us),
+            })
+        })
+        .collect();
+    let calibrations: Vec<Value> = [
+        (430_000_000u32, 440_000_000u32),
+        (470_000_000, 510_000_000),
+        (863_000_000, 870_000_000),
+        (902_000_000, 928_000_000),
+        (868_100_000, 868_100_000),
+    ]
+    .iter()
+    .map(|&(low_hz, high_hz)| {
+        json!({
+            "lowHz": low_hz,
+            "highHz": high_hz,
+            "codes": hex(&sx126x_config::image_calibration(low_hz, high_hz)),
+        })
+    })
+    .collect();
+
+    // Table 13-21: the high power amplifier keeps its +22 dBm configuration and takes the
+    // power in SetTxParams; the low power one switches configuration at +15 dBm.
+    let powers: Vec<Value> = [
+        (PowerAmplifier::HighPower, 30i8),
+        (PowerAmplifier::HighPower, 14),
+        (PowerAmplifier::HighPower, -20),
+        (PowerAmplifier::LowPower, 15),
+        (PowerAmplifier::LowPower, 10),
+        (PowerAmplifier::LowPower, -30),
+    ]
+    .iter()
+    .map(|&(amplifier, output_dbm)| {
+        let power = TxPower::for_output(amplifier, output_dbm);
+        json!({
+            "amplifier": amplifier_name(amplifier),
+            "outputDbm": output_dbm,
+            "paConfig": hex(&power.pa.to_params()),
+            "settingDbm": power.setting_dbm,
+        })
+    })
+    .collect();
+    let whip = LinkBudget {
+        transmit_antenna_gain_dbi: Decibels::from_hundredths(215),
+        transmit_cable_loss_db: Decibels::from_hundredths(50),
+        ..LinkBudget::default()
+    };
+    let yagi = LinkBudget {
+        transmit_antenna_gain_dbi: Decibels::from_hundredths(900),
+        ..LinkBudget::default()
+    };
+    let ceilings: Vec<Value> = [
+        (PowerAmplifier::HighPower, &whip, 1_600),
+        (PowerAmplifier::HighPower, &yagi, 3_000),
+        (PowerAmplifier::LowPower, &whip, 1_600),
+    ]
+    .iter()
+    .map(|&(amplifier, budget, ceiling)| {
+        let power = TxPower::under_ceiling(amplifier, budget, Decibels::from_hundredths(ceiling));
+        json!({
+            "amplifier": amplifier_name(amplifier),
+            "transmitAntennaGainHundredths": budget.transmit_antenna_gain_dbi.hundredths(),
+            "transmitCableLossHundredths": budget.transmit_cable_loss_db.hundredths(),
+            "ceilingHundredths": ceiling,
+            "paConfig": hex(&power.pa.to_params()),
+            "settingDbm": power.setting_dbm,
+        })
+    })
+    .collect();
+
+    let tx_events = Irq::TX_DONE | Irq::TIMEOUT;
+    let rx_events = Irq::RX_DONE | Irq::TIMEOUT | Irq::CRC_ERROR | Irq::HEADER_ERROR;
+    let high_14 = TxPower::for_output(PowerAmplifier::HighPower, 14);
+    let tx_timeout_us = link("sf7-125k").airtime_us(10) + 1_000_000;
+    let modulations: Vec<Value> = links
+        .iter()
+        .map(|(name, settings)| {
+            let modulation = LoraModulation::from_link(settings).expect("an SX126x bandwidth");
+            json!({
+                "link": name,
+                "bytes": hex(sx126x_command::set_lora_modulation_params(modulation).as_bytes()),
+            })
+        })
+        .collect();
+    let packets: Vec<Value> = [
+        ("sf7-125k", 10u8, false),
+        ("sf10-125k-bare", 20, true),
+        ("sf9-250k-cr48", 51, false),
+    ]
+    .iter()
+    .map(|&(name, payload_len, invert_iq)| {
+        let packet = LoraPacket::from_link(&link(name), payload_len, invert_iq);
+        json!({
+            "link": name,
+            "payloadLen": payload_len,
+            "invertIq": invert_iq,
+            "bytes": hex(sx126x_command::set_lora_packet_params(packet).as_bytes()),
+        })
+    })
+    .collect();
+    let written = |address: u16, values: &[u8]| {
+        let mut bytes = sx126x_command::write_register(address).as_bytes().to_vec();
+        bytes.extend_from_slice(values);
+        hex(&bytes)
+    };
+    let mut buffer = sx126x_command::write_buffer(0).as_bytes().to_vec();
+    buffer.extend_from_slice(b"hello");
+    let irq_params = |events: Irq| {
+        json!({
+            "irq": events.bits(),
+            "dio1": events.bits(),
+            "bytes": hex(sx126x_command::set_dio_irq_params(events, events, Irq::NONE, Irq::NONE).as_bytes()),
+        })
+    };
+    let commands = json!({
+        "setStandby": hex(sx126x_command::set_standby(StandbyMode::Rc).as_bytes()),
+        "setPacketTypeLora": hex(sx126x_command::set_packet_type(PacketType::Lora).as_bytes()),
+        "setRfFrequency": {
+            "frequencyHz": 868_100_000u32,
+            "bytes": hex(sx126x_command::set_rf_frequency(sx126x_config::frequency_word(868_100_000)).as_bytes()),
+        },
+        "calibrateImage": {
+            "lowHz": 863_000_000u32,
+            "highHz": 870_000_000u32,
+            "bytes": hex(sx126x_command::calibrate_image(sx126x_config::image_calibration(863_000_000, 870_000_000)).as_bytes()),
+        },
+        "setPaConfig": {
+            "amplifier": "high",
+            "outputDbm": 14,
+            "bytes": hex(sx126x_command::set_pa_config(high_14.pa).as_bytes()),
+        },
+        "setTxParams": {
+            "amplifier": "high",
+            "outputDbm": 14,
+            "rampUs": 40,
+            "bytes": hex(sx126x_command::set_tx_params(high_14.setting_dbm, RampTime::Us40).as_bytes()),
+        },
+        "setLoraModulationParams": modulations,
+        "setLoraPacketParams": packets,
+        "setDioIrqParams": [irq_params(tx_events), irq_params(rx_events)],
+        "clearIrqStatus": {
+            "irq": Irq::ALL.bits(),
+            "bytes": hex(sx126x_command::clear_irq_status(Irq::ALL).as_bytes()),
+        },
+        "setTx": {
+            "timeoutUs": tx_timeout_us,
+            "bytes": hex(sx126x_command::set_tx(sx126x_config::timeout_steps(tx_timeout_us)).as_bytes()),
+        },
+        "setRx": {
+            "timeoutUs": 2_000_000u64,
+            "bytes": hex(sx126x_command::set_rx(sx126x_config::timeout_steps(2_000_000)).as_bytes()),
+        },
+        "setRxContinuous": hex(sx126x_command::set_rx(sx126x_config::RX_CONTINUOUS).as_bytes()),
+        "setSleep": {
+            "warmStart": true,
+            "bytes": hex(sx126x_command::set_sleep(true, false).as_bytes()),
+        },
+        "setSyncWord": {
+            "syncWord": "public",
+            "bytes": written(sx126x_config::register::LORA_SYNC_WORD, &SyncWord::Public.to_bytes()),
+        },
+        "writeRegister": {
+            "address": sx126x_config::register::RX_GAIN,
+            "values": hex(&[sx126x_config::RX_GAIN_BOOSTED]),
+            "bytes": written(sx126x_config::register::RX_GAIN, &[sx126x_config::RX_GAIN_BOOSTED]),
+        },
+        "writeBuffer": {
+            "offset": 0,
+            "payload": hex(b"hello"),
+            "bytes": hex(&buffer),
+        },
+    });
+
+    let queried = |query: sx126x_command::Query| {
+        json!({
+            "bytes": hex(query.command.as_bytes()),
+            "answerLen": query.answer_len,
+        })
+    };
+    let queries = json!({
+        "getStatus": queried(sx126x_command::get_status()),
+        "getIrqStatus": queried(sx126x_command::get_irq_status()),
+        "getRxBufferStatus": queried(sx126x_command::get_rx_buffer_status()),
+        "getPacketStatus": queried(sx126x_command::get_packet_status()),
+        "getRssiInst": queried(sx126x_command::get_rssi_inst()),
+        "getDeviceErrors": queried(sx126x_command::get_device_errors()),
+        "readRegister": {
+            "address": sx126x_config::register::LORA_SYNC_WORD,
+            "length": 2,
+            "query": queried(sx126x_command::read_register(sx126x_config::register::LORA_SYNC_WORD, 2)),
+        },
+        "readBuffer": {
+            "offset": 128,
+            "length": 3,
+            "query": queried(sx126x_command::read_buffer(128, 3)),
+        },
+    });
+
+    // Table 13-29: the interrupt bits, by the name each binding gives them.
+    let flags = [
+        ("txDone", Irq::TX_DONE),
+        ("rxDone", Irq::RX_DONE),
+        ("preambleDetected", Irq::PREAMBLE_DETECTED),
+        ("syncWordValid", Irq::SYNC_WORD_VALID),
+        ("headerValid", Irq::HEADER_VALID),
+        ("headerError", Irq::HEADER_ERROR),
+        ("crcError", Irq::CRC_ERROR),
+        ("cadDone", Irq::CAD_DONE),
+        ("cadDetected", Irq::CAD_DETECTED),
+        ("timeout", Irq::TIMEOUT),
+        ("lrFhssHop", Irq::LR_FHSS_HOP),
+    ];
+    let irq_flags: serde_json::Map<String, Value> = flags
+        .iter()
+        .map(|(name, flag)| ((*name).to_owned(), json!(flag.bits())))
+        .collect();
+    let irqs: Vec<Value> = [0x0001u16, 0x0002, 0x0042, 0x0200, 0x0262, 0x4000, 0xFFFF]
+        .iter()
+        .map(|&bits| {
+            let irq = Irq::from_bytes(bits.to_be_bytes());
+            let set: Vec<&str> = flags
+                .iter()
+                .filter(|(_, flag)| irq.contains(*flag))
+                .map(|(name, _)| *name)
+                .collect();
+            json!({
+                "bytes": hex(&bits.to_be_bytes()),
+                "bits": irq.bits(),
+                "flags": set,
+            })
+        })
+        .collect();
+
+    let chip_mode = |mode: ChipMode| {
+        if mode == ChipMode::StandbyRc {
+            "standbyRc"
+        } else if mode == ChipMode::StandbyXosc {
+            "standbyXosc"
+        } else if mode == ChipMode::Fs {
+            "fs"
+        } else if mode == ChipMode::Rx {
+            "rx"
+        } else if mode == ChipMode::Tx {
+            "tx"
+        } else {
+            "other"
+        }
+    };
+    let command_status = |status: CommandStatus| {
+        if status == CommandStatus::DataAvailable {
+            "dataAvailable"
+        } else if status == CommandStatus::Timeout {
+            "timeout"
+        } else if status == CommandStatus::ProcessingError {
+            "processingError"
+        } else if status == CommandStatus::ExecutionFailure {
+            "executionFailure"
+        } else if status == CommandStatus::TxDone {
+            "txDone"
+        } else {
+            "other"
+        }
+    };
+    let statuses: Vec<Value> = [0x2Cu8, 0x22, 0x54, 0x6C, 0x38, 0x3A, 0x00]
+        .iter()
+        .map(|&byte| {
+            let status = Status::from_byte(byte);
+            json!({
+                "byte": byte,
+                "chipMode": chip_mode(status.chip_mode),
+                "commandStatus": command_status(status.command_status),
+                "error": status.is_error(),
+            })
+        })
+        .collect();
+    let packet_statuses: Vec<Value> =
+        [[0xDBu8, 0xF6, 0xE0], [0x40, 0x1C, 0x42], [0x00, 0x80, 0x00]]
+            .iter()
+            .map(|&bytes| {
+                let status = PacketStatus::from_bytes(bytes);
+                json!({
+                    "bytes": hex(&bytes),
+                    "rssiHundredths": status.rssi_dbm.hundredths(),
+                    "snrHundredths": status.snr_db.hundredths(),
+                    "signalRssiHundredths": status.signal_rssi_dbm.hundredths(),
+                })
+            })
+            .collect();
+    let rx_buffers: Vec<Value> = [[0x03u8, 0x80], [0xFF, 0x00]]
+        .iter()
+        .map(|&bytes| {
+            let status = RxBufferStatus::from_bytes(bytes);
+            json!({
+                "bytes": hex(&bytes),
+                "payloadLen": status.payload_len,
+                "start": status.start,
+            })
+        })
+        .collect();
+    let rssi: Vec<Value> = [0x00u8, 0x5A, 0xDB]
+        .iter()
+        .map(|&byte| {
+            json!({
+                "byte": byte,
+                "hundredths": sx126x_status::rssi_inst_dbm(byte).hundredths(),
+            })
+        })
+        .collect();
+    let error_flags = [
+        ("rc64kCalibration", DeviceErrors::RC64K_CALIBRATION),
+        ("rc13mCalibration", DeviceErrors::RC13M_CALIBRATION),
+        ("pllCalibration", DeviceErrors::PLL_CALIBRATION),
+        ("adcCalibration", DeviceErrors::ADC_CALIBRATION),
+        ("imageCalibration", DeviceErrors::IMAGE_CALIBRATION),
+        ("xoscStart", DeviceErrors::XOSC_START),
+        ("pllLock", DeviceErrors::PLL_LOCK),
+        ("paRamp", DeviceErrors::PA_RAMP),
+    ];
+    let device_errors: Vec<Value> = [[0x00u8, 0x00], [0x00, 0x20], [0x01, 0x44], [0x01, 0x7F]]
+        .iter()
+        .map(|&bytes| {
+            let errors = DeviceErrors::from_bytes(bytes);
+            let set: Vec<&str> = error_flags
+                .iter()
+                .filter(|(_, flag)| errors.contains(*flag))
+                .map(|(name, _)| *name)
+                .collect();
+            json!({
+                "bytes": hex(&bytes),
+                "bits": errors.bits(),
+                "flags": set,
+            })
+        })
+        .collect();
+
+    // A ten-byte reading at SF12 under a 1% limit, and a limit of zero, which never clears.
+    let started_us = 5_000_000u64;
+    let mut guard = RadioDutyCycle::new(10);
+    let airtime_us = guard.transmitted(started_us, &link("sf12-125k"), 10);
+    let earliest_us = guard.earliest_us();
+    let checks: Vec<Value> = [started_us, earliest_us - 1, earliest_us, earliest_us + 1]
+        .iter()
+        .map(|&now_us| {
+            json!({
+                "nowUs": now_us,
+                "waitUs": guard.wait_us(now_us),
+                "ready": guard.ready(now_us),
+            })
+        })
+        .collect();
+    let forbidden = RadioDutyCycle::new(0);
+    let duty = json!({
+        "permille": 10,
+        "link": "sf12-125k",
+        "payloadLen": 10,
+        "startedUs": started_us,
+        "airtimeUs": airtime_us,
+        "earliestUs": earliest_us,
+        "checks": checks,
+        "forbidden": {
+            "permille": 0,
+            "readyAt": [0u64, earliest_us],
+            "ready": forbidden.ready(0) || forbidden.ready(earliest_us),
+        },
+    });
+
+    json!({
+        "frequencyWords": frequency_words,
+        "timeouts": timeouts,
+        "rxContinuous": sx126x_config::RX_CONTINUOUS,
+        "imageCalibrations": calibrations,
+        "txPowers": powers,
+        "underCeilings": ceilings,
+        "syncWords": {
+            "public": hex(&SyncWord::Public.to_bytes()),
+            "private": hex(&SyncWord::Private.to_bytes()),
+        },
+        "commands": commands,
+        "queries": queries,
+        "irqFlags": irq_flags,
+        "irqs": irqs,
+        "statuses": statuses,
+        "packetStatuses": packet_statuses,
+        "rxBufferStatuses": rx_buffers,
+        "rssiInst": rssi,
+        "deviceErrors": device_errors,
+        "dutyCycle": duty,
+    })
+}
+
 fn hex(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
     for byte in bytes {

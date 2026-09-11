@@ -1200,6 +1200,35 @@ export declare class Quantizer {
   decode(bytes: Buffer): Array<number>
 }
 
+/** The silence a radio owes after its transmissions under a duty-cycle limit. */
+export declare class RadioDutyCycle {
+  /**
+   * Creates a guard for a limit in parts per thousand, ready to transmit at once.
+   *
+   * `10` is 1%; `0` forbids transmitting and `1000` or more imposes no silence.
+   */
+  constructor(permille: number)
+  /** The limit the guard enforces, in parts per thousand. */
+  get permille(): number
+  /**
+   * The earliest time the next transmission may start, in microseconds on the caller's
+   * clock, or `null` when the limit forbids transmitting.
+   */
+  get earliestUs(): number | null
+  /**
+   * How long the radio must still stay silent, in microseconds, or `null` when the
+   * limit forbids transmitting.
+   */
+  waitUs(nowUs: number): number | null
+  /** Whether a transmission may start at a time in microseconds on the caller's clock. */
+  ready(nowUs: number): boolean
+  /**
+   * Records a transmission and the silence it owes, returning its airtime in
+   * microseconds.
+   */
+  transmitted(startedUs: number, link: LoraLink, payloadLength: number): number
+}
+
 /** Limits how fast a value may change, so a load is never slammed. */
 export declare class Ramp {
   /** Creates a limiter starting at `start` and moving at most `maxStep` a step. */
@@ -4244,6 +4273,305 @@ export declare function stepperStepCount(drive: StepDrive): number
 
 /** Returns how many steps a rotation of `degrees` takes on a given motor. */
 export declare function stepperStepsForDegrees(degrees: number, stepsPerRevolution: number): number
+
+/** The device error bit for a failed ADC calibration. */
+export const SX126X_ERROR_ADC_CALIBRATION: number
+
+/** The device error bit for a failed image calibration. */
+export const SX126X_ERROR_IMAGE_CALIBRATION: number
+
+/** The device error bit for a power amplifier that failed to ramp. */
+export const SX126X_ERROR_PA_RAMP: number
+
+/** The device error bit for a failed PLL calibration. */
+export const SX126X_ERROR_PLL_CALIBRATION: number
+
+/** The device error bit for a PLL that failed to lock. */
+export const SX126X_ERROR_PLL_LOCK: number
+
+/** The device error bit for a failed RC13M calibration. */
+export const SX126X_ERROR_RC13M_CALIBRATION: number
+
+/** The device error bit for a failed RC64k calibration. */
+export const SX126X_ERROR_RC64K_CALIBRATION: number
+
+/** The device error bit for a crystal oscillator that failed to start. */
+export const SX126X_ERROR_XOSC_START: number
+
+/** Every IRQ bit the chip defines. */
+export const SX126X_IRQ_ALL: number
+
+/** The IRQ bit raised when channel activity detection heard LoRa. */
+export const SX126X_IRQ_CAD_DETECTED: number
+
+/** The IRQ bit raised when channel activity detection has finished. */
+export const SX126X_IRQ_CAD_DONE: number
+
+/** The IRQ bit raised when a packet failed its CRC. */
+export const SX126X_IRQ_CRC_ERROR: number
+
+/** The IRQ bit raised when a LoRa header failed its CRC. */
+export const SX126X_IRQ_HEADER_ERROR: number
+
+/** The IRQ bit raised when a valid LoRa header has been received. */
+export const SX126X_IRQ_HEADER_VALID: number
+
+/** The IRQ bit raised at each long-range FHSS hop. */
+export const SX126X_IRQ_LR_FHSS_HOP: number
+
+/** The IRQ bit raised when a preamble has been detected. */
+export const SX126X_IRQ_PREAMBLE_DETECTED: number
+
+/** The IRQ bit raised when a packet has been received. */
+export const SX126X_IRQ_RX_DONE: number
+
+/** The IRQ bit raised when a valid (G)FSK sync word has been detected. */
+export const SX126X_IRQ_SYNC_WORD_VALID: number
+
+/** The IRQ bit raised when a transmission or reception timed out. */
+export const SX126X_IRQ_TIMEOUT: number
+
+/** The IRQ bit raised when a packet has been sent. */
+export const SX126X_IRQ_TX_DONE: number
+
+/** The register that holds the most significant byte of the LoRa sync word. */
+export const SX126X_REGISTER_LORA_SYNC_WORD: number
+
+/** The receive timeout word that keeps an SX126x listening until another command stops it. */
+export const SX126X_RX_CONTINUOUS: number
+
+/** The LoRa sync word of a private network, and the chip's reset value. */
+export const SX126X_SYNC_WORD_PRIVATE: number
+
+/** The LoRa sync word of a public network such as LoRaWAN. */
+export const SX126X_SYNC_WORD_PUBLIC: number
+
+/** Which power amplifier a chip has. */
+export declare const enum Sx126xAmplifier {
+  /** The low power amplifier of the SX1261, up to +15 dBm. */
+  LowPower = 'LowPower',
+  /** The high power amplifier of the SX1262 and the LLCC68, up to +22 dBm. */
+  HighPower = 'HighPower'
+}
+
+/** CalibrateImage over a band given by its edges in hertz. */
+export declare function sx126xCalibrateImage(lowHz: number, highHz: number): Buffer
+
+/** The mode an SX126x reports in its status byte. */
+export declare const enum Sx126xChipMode {
+  /** Standby on the 13 MHz RC oscillator. */
+  StandbyRc = 'StandbyRc',
+  /** Standby on the 32 MHz crystal. */
+  StandbyXosc = 'StandbyXosc',
+  /** Frequency synthesis. */
+  Fs = 'Fs',
+  /** Receiving. */
+  Rx = 'Rx',
+  /** Transmitting. */
+  Tx = 'Tx',
+  /** A value the datasheet leaves unused. */
+  Other = 'Other'
+}
+
+/** ClearIrqStatus for a set of interrupts. */
+export declare function sx126xClearIrqStatus(irq: number): Buffer
+
+/** How the last command went, as an SX126x reports it in its status byte. */
+export declare const enum Sx126xCommandStatus {
+  /** A packet has been received and waits in the data buffer. */
+  DataAvailable = 'DataAvailable',
+  /** A command timed out. */
+  Timeout = 'Timeout',
+  /** A command could not be processed. */
+  ProcessingError = 'ProcessingError',
+  /** A command failed to execute. */
+  ExecutionFailure = 'ExecutionFailure',
+  /** A transmission has finished. */
+  TxDone = 'TxDone',
+  /** A value the datasheet leaves unused, which includes a command that went well. */
+  Other = 'Other'
+}
+
+/**
+ * Decodes a GetDeviceErrors answer into its error bits.
+ *
+ * Throws unless the answer is two bytes.
+ */
+export declare function sx126xDeviceErrors(answer: Buffer): number
+
+/** Returns the word SetRfFrequency takes for a frequency. */
+export declare function sx126xFrequencyWord(frequencyHz: number): number
+
+/** GetDeviceErrors, answered by the two device error bytes. */
+export declare function sx126xGetDeviceErrors(): Sx126xQuery
+
+/** GetIrqStatus, answered by the two IRQ bytes. */
+export declare function sx126xGetIrqStatus(): Sx126xQuery
+
+/** GetPacketStatus, answered by the three LoRa signal level bytes. */
+export declare function sx126xGetPacketStatus(): Sx126xQuery
+
+/** GetRssiInst, answered by the instantaneous RSSI byte. */
+export declare function sx126xGetRssiInst(): Sx126xQuery
+
+/** GetRxBufferStatus, answered by the payload length and its offset. */
+export declare function sx126xGetRxBufferStatus(): Sx126xQuery
+
+/** GetStatus, answered by the status byte. */
+export declare function sx126xGetStatus(): Sx126xQuery
+
+/** Returns the two CalibrateImage codes that cover a band. */
+export declare function sx126xImageCalibration(lowHz: number, highHz: number): Buffer
+
+/**
+ * Decodes a GetIrqStatus answer into its IRQ bits.
+ *
+ * Throws unless the answer is two bytes.
+ */
+export declare function sx126xIrq(answer: Buffer): number
+
+/**
+ * Decodes a LoRa GetPacketStatus answer.
+ *
+ * Throws unless the answer is three bytes.
+ */
+export declare function sx126xPacketStatus(answer: Buffer): Sx126xPacketStatus
+
+/** The signal levels of the last LoRa packet received. */
+export interface Sx126xPacketStatus {
+  /** The RSSI averaged over the packet, in dBm. */
+  rssiDbm: number
+  /** The estimated signal-to-noise ratio, in dB. */
+  snrDb: number
+  /** The estimated RSSI of the LoRa signal after despreading, in dBm. */
+  signalRssiDbm: number
+}
+
+/** A command the chip answers in the same SPI transaction. */
+export interface Sx126xQuery {
+  /** The bytes to send, ending with the NOP during which the status byte comes back. */
+  bytes: Buffer
+  /** How many bytes of answer to read after them. */
+  answerLength: number
+}
+
+/**
+ * Returns the shortest amplifier ramp time the chip offers that lasts at least a
+ * duration, in microseconds.
+ */
+export declare function sx126xRampTimeUs(atLeastUs: number): number
+
+/** ReadBuffer for a run of the data buffer. */
+export declare function sx126xReadBuffer(offset: number, length: number): Sx126xQuery
+
+/** ReadRegister for a run of consecutive registers. */
+export declare function sx126xReadRegister(address: number, length: number): Sx126xQuery
+
+/** Decodes a GetRssiInst answer, in dBm. */
+export declare function sx126xRssiInstDbm(byte: number): number
+
+/**
+ * Decodes a GetRxBufferStatus answer.
+ *
+ * Throws unless the answer is two bytes.
+ */
+export declare function sx126xRxBufferStatus(answer: Buffer): Sx126xRxBufferStatus
+
+/** Where a received payload sits in the data buffer. */
+export interface Sx126xRxBufferStatus {
+  /** The length of the payload in bytes. */
+  payloadLength: number
+  /** The buffer offset of its first byte. */
+  start: number
+}
+
+/** SetDioIrqParams: which interrupts are enabled, and which DIO lines raise them. */
+export declare function sx126xSetDioIrqParams(irq: number, dio1: number, dio2?: number | undefined | null, dio3?: number | undefined | null): Buffer
+
+/**
+ * SetModulationParams for a LoRa link.
+ *
+ * Throws when the link's bandwidth is not one the SX126x offers.
+ */
+export declare function sx126xSetLoraModulationParams(link: LoraLink): Buffer
+
+/** SetPacketParams for a LoRa link, a payload length, and an IQ polarity. */
+export declare function sx126xSetLoraPacketParams(link: LoraLink, payloadLength: number, invertIq: boolean): Buffer
+
+/** SetPacketType for LoRa. */
+export declare function sx126xSetPacketTypeLora(): Buffer
+
+/** SetPaConfig for a power setting. */
+export declare function sx126xSetPaConfig(power: Sx126xTxPower): Buffer
+
+/** SetRfFrequency for a carrier frequency in hertz. */
+export declare function sx126xSetRfFrequency(frequencyHz: number): Buffer
+
+/** SetRx with a timeout in microseconds; `0` listens for one packet with no timeout. */
+export declare function sx126xSetRx(timeoutUs: number): Buffer
+
+/** SetRx in continuous mode, receiving packet after packet until another command. */
+export declare function sx126xSetRxContinuous(): Buffer
+
+/** SetSleep without an RTC wake-up; a warm start keeps the configuration in retention. */
+export declare function sx126xSetSleep(warmStart: boolean): Buffer
+
+/** SetStandby into STDBY_RC. */
+export declare function sx126xSetStandby(): Buffer
+
+/** SetTx with a timeout in microseconds; `0` disables the timeout. */
+export declare function sx126xSetTx(timeoutUs: number): Buffer
+
+/** SetTxParams for a power setting and the least ramp time wanted, in microseconds. */
+export declare function sx126xSetTxParams(power: Sx126xTxPower, rampUs: number): Buffer
+
+/** Decodes a status byte. */
+export declare function sx126xStatus(byte: number): Sx126xStatus
+
+/** A decoded SX126x status byte. */
+export interface Sx126xStatus {
+  /** The mode the chip is in. */
+  chipMode: Sx126xChipMode
+  /** How the last command went. */
+  commandStatus: Sx126xCommandStatus
+  /** Whether the last command timed out, could not be processed, or failed. */
+  error: boolean
+}
+
+/** Returns the 24-bit timeout word SetTx and SetRx take for a duration in microseconds. */
+export declare function sx126xTimeoutSteps(timeoutUs: number): number
+
+/**
+ * Chooses the amplifier settings for an output power, clamped to what the amplifier
+ * allows.
+ */
+export declare function sx126xTxPower(amplifier: Sx126xAmplifier, outputDbm: number): Sx126xTxPower
+
+/** The amplifier configuration and power setting that produce an output power. */
+export interface Sx126xTxPower {
+  /** paDutyCycle, the conduction angle of the amplifier. */
+  paDutyCycle: number
+  /** hpMax, the size of the SX1262 amplifier; no effect on the SX1261. */
+  hpMax: number
+  /** deviceSel: 0 for the SX1262 and the LLCC68, 1 for the SX1261. */
+  deviceSel: number
+  /** paLut, reserved and always 1. */
+  paLut: number
+  /** The power byte of SetTxParams, in dBm. */
+  settingDbm: number
+}
+
+/**
+ * Chooses the amplifier settings that keep a link's EIRP at or under a ceiling, rounded
+ * down to whole decibels.
+ */
+export declare function sx126xTxPowerUnderCeiling(amplifier: Sx126xAmplifier, budget: LoraLinkBudget, eirpCeilingDbm: number): Sx126xTxPower
+
+/** A whole WriteBuffer transaction: the opcode, the offset, and the payload. */
+export declare function sx126xWriteBuffer(offset: number, payload: Buffer): Buffer
+
+/** A whole WriteRegister transaction: the opcode, the address, and the values. */
+export declare function sx126xWriteRegister(address: number, values: Buffer): Buffer
 
 /** The theme tokens a profile sets on the dashboard; each is any CSS color. */
 export interface Theme {

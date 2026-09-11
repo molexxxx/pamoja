@@ -46,6 +46,10 @@ use pamoja_modbus::Pdu;
 use pamoja_modbus::{crc16, Adu};
 use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
 use pamoja_profile::{Alert, ControlSpec, Controller, Profile};
+use pamoja_radios::duty::DutyCycle as RadioDutyCycle;
+use pamoja_radios::sx126x::{
+    command as sx126x_command, config as sx126x_config, irq as sx126x_irq, status as sx126x_status,
+};
 use pamoja_ros2::key::entity_key;
 use pamoja_ros2::msg::{CdrReader, Twist as Ros2Twist, Vector3};
 use pamoja_ros2::name::{dds_topic, is_fully_qualified, is_valid_name, percent_mangle, EntityKind};
@@ -1716,6 +1720,200 @@ fn named<'a>(case: &'a Value, name: &str) -> &'a Value {
         .iter()
         .find(|link| link["name"] == name)
         .unwrap_or_else(|| panic!("no link named {name}"))
+}
+
+#[test]
+fn radios_vectors_match() {
+    use sx126x_config::{LoraModulation, LoraPacket, PowerAmplifier, TxPower};
+
+    let vectors = vectors();
+    let case = &vectors["radios"];
+    let lora = &vectors["lora"];
+    let int = |value: &Value| value.as_i64().expect("an integer");
+    let text = |value: &Value| value.as_str().expect("text").to_owned();
+    let amplifier = |value: &Value| match value.as_str().expect("an amplifier") {
+        "low" => PowerAmplifier::LowPower,
+        _ => PowerAmplifier::HighPower,
+    };
+
+    for entry in case["frequencyWords"].as_array().expect("an array") {
+        let frequency_hz = int(&entry["frequencyHz"]) as u32;
+        assert_eq!(
+            i64::from(sx126x_config::frequency_word(frequency_hz)),
+            int(&entry["word"]),
+            "frequency word for {frequency_hz} Hz"
+        );
+    }
+    for entry in case["timeouts"].as_array().expect("an array") {
+        let timeout_us = entry["timeoutUs"].as_u64().expect("microseconds");
+        assert_eq!(
+            i64::from(sx126x_config::timeout_steps(timeout_us)),
+            int(&entry["steps"]),
+            "timeout steps for {timeout_us} us"
+        );
+    }
+    assert_eq!(
+        i64::from(sx126x_config::RX_CONTINUOUS),
+        int(&case["rxContinuous"])
+    );
+    for entry in case["imageCalibrations"].as_array().expect("an array") {
+        let codes = sx126x_config::image_calibration(
+            int(&entry["lowHz"]) as u32,
+            int(&entry["highHz"]) as u32,
+        );
+        assert_eq!(hex(&codes), text(&entry["codes"]), "{entry}");
+    }
+    for entry in case["txPowers"].as_array().expect("an array") {
+        let power = TxPower::for_output(
+            amplifier(&entry["amplifier"]),
+            int(&entry["outputDbm"]) as i8,
+        );
+        assert_eq!(
+            hex(&power.pa.to_params()),
+            text(&entry["paConfig"]),
+            "{entry}"
+        );
+        assert_eq!(
+            i64::from(power.setting_dbm),
+            int(&entry["settingDbm"]),
+            "{entry}"
+        );
+    }
+    for entry in case["underCeilings"].as_array().expect("an array") {
+        let budget = LinkBudget {
+            transmit_antenna_gain_dbi: Decibels::from_hundredths(int(
+                &entry["transmitAntennaGainHundredths"]
+            ) as i32),
+            transmit_cable_loss_db: Decibels::from_hundredths(int(
+                &entry["transmitCableLossHundredths"]
+            ) as i32),
+            ..LinkBudget::default()
+        };
+        let power = TxPower::under_ceiling(
+            amplifier(&entry["amplifier"]),
+            &budget,
+            Decibels::from_hundredths(int(&entry["ceilingHundredths"]) as i32),
+        );
+        assert_eq!(
+            hex(&power.pa.to_params()),
+            text(&entry["paConfig"]),
+            "{entry}"
+        );
+        assert_eq!(
+            i64::from(power.setting_dbm),
+            int(&entry["settingDbm"]),
+            "{entry}"
+        );
+    }
+
+    let commands = &case["commands"];
+    for entry in commands["setLoraModulationParams"]
+        .as_array()
+        .expect("an array")
+    {
+        let settings = link_of(named(lora, entry["link"].as_str().expect("a link")));
+        let modulation = LoraModulation::from_link(&settings).expect("an SX126x bandwidth");
+        assert_eq!(
+            hex(sx126x_command::set_lora_modulation_params(modulation).as_bytes()),
+            text(&entry["bytes"]),
+            "{entry}"
+        );
+    }
+    for entry in commands["setLoraPacketParams"]
+        .as_array()
+        .expect("an array")
+    {
+        let settings = link_of(named(lora, entry["link"].as_str().expect("a link")));
+        let packet = LoraPacket::from_link(
+            &settings,
+            int(&entry["payloadLen"]) as u8,
+            entry["invertIq"].as_bool().expect("a flag"),
+        );
+        assert_eq!(
+            hex(sx126x_command::set_lora_packet_params(packet).as_bytes()),
+            text(&entry["bytes"]),
+            "{entry}"
+        );
+    }
+    let set_tx = &commands["setTx"];
+    let steps = sx126x_config::timeout_steps(set_tx["timeoutUs"].as_u64().expect("microseconds"));
+    assert_eq!(
+        hex(sx126x_command::set_tx(steps).as_bytes()),
+        text(&set_tx["bytes"])
+    );
+    for (name, built) in [
+        ("getStatus", sx126x_command::get_status()),
+        ("getIrqStatus", sx126x_command::get_irq_status()),
+        ("getPacketStatus", sx126x_command::get_packet_status()),
+    ] {
+        let want = &case["queries"][name];
+        assert_eq!(
+            hex(built.command.as_bytes()),
+            text(&want["bytes"]),
+            "{name}"
+        );
+        assert_eq!(built.answer_len as i64, int(&want["answerLen"]), "{name}");
+    }
+
+    for entry in case["irqs"].as_array().expect("an array") {
+        let bytes: [u8; 2] = unhex(&entry["bytes"]).try_into().expect("two bytes");
+        let irq = sx126x_irq::Irq::from_bytes(bytes);
+        assert_eq!(i64::from(irq.bits()), int(&entry["bits"]), "{entry}");
+        let set: Vec<&str> = entry["flags"]
+            .as_array()
+            .expect("an array")
+            .iter()
+            .map(|flag| flag.as_str().expect("a name"))
+            .collect();
+        for (name, bits) in case["irqFlags"].as_object().expect("an object") {
+            let flag = sx126x_irq::Irq::from_bits(bits.as_u64().expect("bits") as u16);
+            assert_eq!(
+                irq.contains(flag),
+                set.contains(&name.as_str()),
+                "{name} in {entry}"
+            );
+        }
+    }
+    for entry in case["packetStatuses"].as_array().expect("an array") {
+        let bytes: [u8; 3] = unhex(&entry["bytes"]).try_into().expect("three bytes");
+        let status = sx126x_status::PacketStatus::from_bytes(bytes);
+        assert_eq!(
+            i64::from(status.rssi_dbm.hundredths()),
+            int(&entry["rssiHundredths"])
+        );
+        assert_eq!(
+            i64::from(status.snr_db.hundredths()),
+            int(&entry["snrHundredths"])
+        );
+        assert_eq!(
+            i64::from(status.signal_rssi_dbm.hundredths()),
+            int(&entry["signalRssiHundredths"])
+        );
+    }
+
+    let duty = &case["dutyCycle"];
+    let settings = link_of(named(lora, duty["link"].as_str().expect("a link")));
+    let started_us = duty["startedUs"].as_u64().expect("microseconds");
+    let mut guard = RadioDutyCycle::new(int(&duty["permille"]) as u32);
+    assert_eq!(
+        guard.transmitted(started_us, &settings, int(&duty["payloadLen"]) as usize),
+        duty["airtimeUs"].as_u64().expect("microseconds")
+    );
+    assert_eq!(
+        guard.earliest_us(),
+        duty["earliestUs"].as_u64().expect("microseconds")
+    );
+    for check in duty["checks"].as_array().expect("an array") {
+        let now_us = check["nowUs"].as_u64().expect("microseconds");
+        assert_eq!(
+            guard.wait_us(now_us),
+            check["waitUs"].as_u64().expect("microseconds")
+        );
+        assert_eq!(
+            guard.ready(now_us),
+            check["ready"].as_bool().expect("a flag")
+        );
+    }
 }
 
 #[test]

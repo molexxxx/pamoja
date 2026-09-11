@@ -16,6 +16,7 @@ using Pamoja.Sensors;
 using Pamoja.Actuators;
 using Pamoja.Lora;
 using Pamoja.Lorawan;
+using Pamoja.Radios;
 using Pamoja.Mesh;
 using Pamoja.Routing;
 using Pamoja.Mavlink;
@@ -1247,6 +1248,7 @@ static void Conformance()
     ConformLora(vectors.GetProperty("lora"));
     ConformLoraBudget(vectors.GetProperty("lora"));
     ConformLoraRegions(vectors.GetProperty("loraRegions"));
+    ConformRadios(vectors.GetProperty("radios"), vectors.GetProperty("lora"));
     ConformMavlink(vectors.GetProperty("mavlink"));
     ConformMavlinkSchema(vectors.GetProperty("mavlinkSchema"));
     ConformMavlinkProtocol(vectors.GetProperty("mavlinkProtocol"));
@@ -2321,6 +2323,20 @@ static void RadioAndReach()
     catch (PamojaException)
     {
     }
+
+    var radioWhip = new LoraLinkBudget { TransmitAntennaGainDbi = 2.15, TransmitCableLossDb = 0.5 };
+    Sx126xTxPower radioPower = Sx126x.TxPowerUnderCeiling(Sx126xAmplifier.HighPower, radioWhip, 16);
+    Assert(radioPower.SettingDbm == 14, "a whip and pigtail leave 14 dBm under a 16 dBm ceiling");
+    Assert(
+        Sx126x.SetRfFrequency(868_100_000).AsSpan().SequenceEqual(new byte[] { 0x86, 0x36, 0x41, 0x99, 0x9A }),
+        "SetRfFrequency carries the frequency word");
+    Refuses(
+        () => Sx126x.SetLoraModulationParams(new LoraLink(7, 203_125)),
+        "the SX126x has no 203.125 kHz bandwidth");
+    Assert(Sx126x.Status(0x2C).ChipMode == Sx126xChipMode.StandbyRc, "0x2C is RC standby");
+    using var radioGuard = new RadioDutyCycle(10);
+    ulong radioAirtime = radioGuard.Transmitted(0, new LoraLink(12, 125_000), 10);
+    Assert(radioGuard.WaitMicros(0) == radioAirtime * 100, "a 1% limit owes a hundred airtimes from a frame's start");
 }
 
 
@@ -3495,6 +3511,302 @@ static LoraLink LinkOf(JsonElement described)
     }
 
     return link;
+}
+
+static void ConformRadios(JsonElement vector, JsonElement lora)
+{
+    var links = new Dictionary<string, LoraLink>(StringComparer.Ordinal);
+    foreach (JsonElement described in lora.GetProperty("links").EnumerateArray())
+    {
+        links[described.GetProperty("name").GetString()!] = LinkOf(described);
+    }
+
+    static string Hex(ReadOnlySpan<byte> bytes) => Convert.ToHexString(bytes).ToLowerInvariant();
+    static byte[] Unhex(JsonElement value) => Convert.FromHexString(value.GetString()!);
+    static string Text(JsonElement value) => value.GetString()!;
+    static string Pascal(string name) => char.ToUpperInvariant(name[0]) + name[1..];
+    static int Hundredths(double value) => (int)Math.Round(value * 100, MidpointRounding.AwayFromZero);
+    static Sx126xAmplifier AmplifierOf(JsonElement value) =>
+        value.GetString() == "low" ? Sx126xAmplifier.LowPower : Sx126xAmplifier.HighPower;
+    static string PaConfigOf(Sx126xTxPower power) =>
+        Hex([power.PaDutyCycle, power.HpMax, power.DeviceSel, power.PaLut]);
+
+    foreach (JsonElement entry in vector.GetProperty("frequencyWords").EnumerateArray())
+    {
+        Assert(
+            Sx126x.FrequencyWord(entry.GetProperty("frequencyHz").GetUInt32())
+                == entry.GetProperty("word").GetUInt32(),
+            "the SX126x frequency word");
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("timeouts").EnumerateArray())
+    {
+        Assert(
+            Sx126x.TimeoutSteps(entry.GetProperty("timeoutUs").GetUInt64())
+                == entry.GetProperty("steps").GetUInt32(),
+            "the SX126x timeout steps");
+    }
+
+    Assert(
+        Sx126x.RxContinuous == vector.GetProperty("rxContinuous").GetUInt32(),
+        "the continuous receive timeout");
+
+    foreach (JsonElement entry in vector.GetProperty("imageCalibrations").EnumerateArray())
+    {
+        byte[] codes = Sx126x.ImageCalibration(
+            entry.GetProperty("lowHz").GetUInt32(),
+            entry.GetProperty("highHz").GetUInt32());
+        Assert(Hex(codes) == Text(entry.GetProperty("codes")), "the image calibration codes for a band");
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("txPowers").EnumerateArray())
+    {
+        Sx126xTxPower power = Sx126x.TxPower(
+            AmplifierOf(entry.GetProperty("amplifier")),
+            entry.GetProperty("outputDbm").GetSByte());
+        Assert(PaConfigOf(power) == Text(entry.GetProperty("paConfig")), "the SetPaConfig bytes for an output power");
+        Assert(power.SettingDbm == entry.GetProperty("settingDbm").GetSByte(), "the SetTxParams power for an output power");
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("underCeilings").EnumerateArray())
+    {
+        var budget = new LoraLinkBudget
+        {
+            TransmitAntennaGainDbi = entry.GetProperty("transmitAntennaGainHundredths").GetInt32() / 100.0,
+            TransmitCableLossDb = entry.GetProperty("transmitCableLossHundredths").GetInt32() / 100.0,
+        };
+        Sx126xTxPower power = Sx126x.TxPowerUnderCeiling(
+            AmplifierOf(entry.GetProperty("amplifier")),
+            budget,
+            entry.GetProperty("ceilingHundredths").GetInt32() / 100.0);
+        Assert(PaConfigOf(power) == Text(entry.GetProperty("paConfig")), "the SetPaConfig bytes under a ceiling");
+        Assert(power.SettingDbm == entry.GetProperty("settingDbm").GetSByte(), "the SetTxParams power under a ceiling");
+    }
+
+    JsonElement syncWords = vector.GetProperty("syncWords");
+    Assert(Sx126x.SyncWordPublic.ToString("x4") == Text(syncWords.GetProperty("public")), "the public sync word");
+    Assert(Sx126x.SyncWordPrivate.ToString("x4") == Text(syncWords.GetProperty("private")), "the private sync word");
+
+    JsonElement commands = vector.GetProperty("commands");
+    Assert(Hex(Sx126x.SetStandby()) == Text(commands.GetProperty("setStandby")), "SetStandby");
+    Assert(Hex(Sx126x.SetPacketTypeLora()) == Text(commands.GetProperty("setPacketTypeLora")), "SetPacketType");
+
+    JsonElement frequency = commands.GetProperty("setRfFrequency");
+    Assert(
+        Hex(Sx126x.SetRfFrequency(frequency.GetProperty("frequencyHz").GetUInt32()))
+            == Text(frequency.GetProperty("bytes")),
+        "SetRfFrequency");
+
+    JsonElement calibration = commands.GetProperty("calibrateImage");
+    Assert(
+        Hex(Sx126x.CalibrateImage(
+            calibration.GetProperty("lowHz").GetUInt32(),
+            calibration.GetProperty("highHz").GetUInt32()))
+            == Text(calibration.GetProperty("bytes")),
+        "CalibrateImage");
+
+    JsonElement paConfig = commands.GetProperty("setPaConfig");
+    Sx126xTxPower high14 = Sx126x.TxPower(Sx126xAmplifier.HighPower, paConfig.GetProperty("outputDbm").GetSByte());
+    Assert(Hex(Sx126x.SetPaConfig(high14)) == Text(paConfig.GetProperty("bytes")), "SetPaConfig");
+
+    JsonElement txParams = commands.GetProperty("setTxParams");
+    Assert(
+        Hex(Sx126x.SetTxParams(high14, txParams.GetProperty("rampUs").GetUInt32()))
+            == Text(txParams.GetProperty("bytes")),
+        "SetTxParams");
+
+    foreach (JsonElement entry in commands.GetProperty("setLoraModulationParams").EnumerateArray())
+    {
+        Assert(
+            Hex(Sx126x.SetLoraModulationParams(links[Text(entry.GetProperty("link"))]))
+                == Text(entry.GetProperty("bytes")),
+            "SetModulationParams for a link");
+    }
+
+    foreach (JsonElement entry in commands.GetProperty("setLoraPacketParams").EnumerateArray())
+    {
+        byte[] packet = Sx126x.SetLoraPacketParams(
+            links[Text(entry.GetProperty("link"))],
+            entry.GetProperty("payloadLen").GetByte(),
+            entry.GetProperty("invertIq").GetBoolean());
+        Assert(Hex(packet) == Text(entry.GetProperty("bytes")), "SetPacketParams for a link");
+    }
+
+    foreach (JsonElement entry in commands.GetProperty("setDioIrqParams").EnumerateArray())
+    {
+        byte[] routing = Sx126x.SetDioIrqParams(
+            (Sx126xIrq)entry.GetProperty("irq").GetUInt16(),
+            (Sx126xIrq)entry.GetProperty("dio1").GetUInt16());
+        Assert(Hex(routing) == Text(entry.GetProperty("bytes")), "SetDioIrqParams");
+    }
+
+    JsonElement clear = commands.GetProperty("clearIrqStatus");
+    Assert(
+        Hex(Sx126x.ClearIrqStatus((Sx126xIrq)clear.GetProperty("irq").GetUInt16()))
+            == Text(clear.GetProperty("bytes")),
+        "ClearIrqStatus");
+
+    JsonElement transmit = commands.GetProperty("setTx");
+    Assert(
+        Hex(Sx126x.SetTx(transmit.GetProperty("timeoutUs").GetUInt64())) == Text(transmit.GetProperty("bytes")),
+        "SetTx");
+
+    JsonElement receive = commands.GetProperty("setRx");
+    Assert(
+        Hex(Sx126x.SetRx(receive.GetProperty("timeoutUs").GetUInt64())) == Text(receive.GetProperty("bytes")),
+        "SetRx");
+    Assert(Hex(Sx126x.SetRxContinuous()) == Text(commands.GetProperty("setRxContinuous")), "SetRx continuous");
+
+    JsonElement sleep = commands.GetProperty("setSleep");
+    Assert(
+        Hex(Sx126x.SetSleep(sleep.GetProperty("warmStart").GetBoolean())) == Text(sleep.GetProperty("bytes")),
+        "SetSleep");
+
+    Assert(
+        Hex(Sx126x.WriteRegister(Sx126x.RegisterLoraSyncWord, Unhex(syncWords.GetProperty("public"))))
+            == Text(commands.GetProperty("setSyncWord").GetProperty("bytes")),
+        "the sync word write");
+
+    JsonElement register = commands.GetProperty("writeRegister");
+    Assert(
+        Hex(Sx126x.WriteRegister(
+            register.GetProperty("address").GetUInt16(),
+            Unhex(register.GetProperty("values"))))
+            == Text(register.GetProperty("bytes")),
+        "WriteRegister");
+
+    JsonElement buffer = commands.GetProperty("writeBuffer");
+    Assert(
+        Hex(Sx126x.WriteBuffer(buffer.GetProperty("offset").GetByte(), Unhex(buffer.GetProperty("payload"))))
+            == Text(buffer.GetProperty("bytes")),
+        "WriteBuffer");
+
+    void SameQuery(Sx126xQuery got, JsonElement want, string name)
+    {
+        Assert(Hex(got.Bytes) == Text(want.GetProperty("bytes")), name);
+        Assert(got.AnswerLength == want.GetProperty("answerLen").GetInt32(), name);
+    }
+
+    JsonElement queries = vector.GetProperty("queries");
+    SameQuery(Sx126x.GetStatus(), queries.GetProperty("getStatus"), "GetStatus");
+    SameQuery(Sx126x.GetIrqStatus(), queries.GetProperty("getIrqStatus"), "GetIrqStatus");
+    SameQuery(Sx126x.GetRxBufferStatus(), queries.GetProperty("getRxBufferStatus"), "GetRxBufferStatus");
+    SameQuery(Sx126x.GetPacketStatus(), queries.GetProperty("getPacketStatus"), "GetPacketStatus");
+    SameQuery(Sx126x.GetRssiInst(), queries.GetProperty("getRssiInst"), "GetRssiInst");
+    SameQuery(Sx126x.GetDeviceErrors(), queries.GetProperty("getDeviceErrors"), "GetDeviceErrors");
+
+    JsonElement readRegister = queries.GetProperty("readRegister");
+    SameQuery(
+        Sx126x.ReadRegister(
+            readRegister.GetProperty("address").GetUInt16(),
+            readRegister.GetProperty("length").GetByte()),
+        readRegister.GetProperty("query"),
+        "ReadRegister");
+
+    JsonElement readBuffer = queries.GetProperty("readBuffer");
+    SameQuery(
+        Sx126x.ReadBuffer(readBuffer.GetProperty("offset").GetByte(), readBuffer.GetProperty("length").GetByte()),
+        readBuffer.GetProperty("query"),
+        "ReadBuffer");
+
+    var irqFlags = new Dictionary<string, Sx126xIrq>(StringComparer.Ordinal);
+    foreach (JsonProperty named in vector.GetProperty("irqFlags").EnumerateObject())
+    {
+        Sx126xIrq flag = Enum.Parse<Sx126xIrq>(Pascal(named.Name));
+        Assert((ushort)flag == named.Value.GetUInt16(), $"the {named.Name} interrupt bit");
+        irqFlags[named.Name] = flag;
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("irqs").EnumerateArray())
+    {
+        Sx126xIrq bits = Sx126x.Irq(Unhex(entry.GetProperty("bytes")));
+        Assert((ushort)bits == entry.GetProperty("bits").GetUInt16(), "the interrupt bits of an answer");
+        string[] raised = entry.GetProperty("flags").EnumerateArray().Select(Text).ToArray();
+        foreach ((string name, Sx126xIrq flag) in irqFlags)
+        {
+            Assert(bits.HasFlag(flag) == raised.Contains(name), $"{name} in an interrupt answer");
+        }
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("statuses").EnumerateArray())
+    {
+        Sx126xStatus status = Sx126x.Status(entry.GetProperty("byte").GetByte());
+        Assert(
+            status.ChipMode.ToString() == Pascal(Text(entry.GetProperty("chipMode"))),
+            "the chip mode of a status byte");
+        Assert(
+            status.CommandStatus.ToString() == Pascal(Text(entry.GetProperty("commandStatus"))),
+            "the command status of a status byte");
+        Assert(status.Error == entry.GetProperty("error").GetBoolean(), "whether a status byte reports a failure");
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("packetStatuses").EnumerateArray())
+    {
+        Sx126xPacketStatus status = Sx126x.PacketStatus(Unhex(entry.GetProperty("bytes")));
+        Assert(Hundredths(status.RssiDbm) == entry.GetProperty("rssiHundredths").GetInt32(), "the RSSI of a frame");
+        Assert(Hundredths(status.SnrDb) == entry.GetProperty("snrHundredths").GetInt32(), "the SNR of a frame");
+        Assert(
+            Hundredths(status.SignalRssiDbm) == entry.GetProperty("signalRssiHundredths").GetInt32(),
+            "the signal RSSI of a frame");
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("rxBufferStatuses").EnumerateArray())
+    {
+        Sx126xRxBufferStatus status = Sx126x.RxBufferStatus(Unhex(entry.GetProperty("bytes")));
+        Assert(status.PayloadLength == entry.GetProperty("payloadLen").GetByte(), "the length of a received payload");
+        Assert(status.Start == entry.GetProperty("start").GetByte(), "where a received payload starts");
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("rssiInst").EnumerateArray())
+    {
+        Assert(
+            Hundredths(Sx126x.RssiInstDbm(entry.GetProperty("byte").GetByte()))
+                == entry.GetProperty("hundredths").GetInt32(),
+            "the instantaneous RSSI");
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("deviceErrors").EnumerateArray())
+    {
+        Sx126xDeviceErrors bits = Sx126x.DeviceErrors(Unhex(entry.GetProperty("bytes")));
+        Assert((ushort)bits == entry.GetProperty("bits").GetUInt16(), "the device error bits");
+        string[] reported = entry.GetProperty("flags").EnumerateArray().Select(Text).ToArray();
+        foreach (Sx126xDeviceErrors fault in Enum.GetValues<Sx126xDeviceErrors>())
+        {
+            if (fault == Sx126xDeviceErrors.None)
+            {
+                continue;
+            }
+
+            string name = char.ToLowerInvariant(fault.ToString()[0]) + fault.ToString()[1..];
+            Assert(bits.HasFlag(fault) == reported.Contains(name), $"{name} in a device error answer");
+        }
+    }
+
+    JsonElement duty = vector.GetProperty("dutyCycle");
+    using var guard = new RadioDutyCycle(duty.GetProperty("permille").GetUInt32());
+    Assert(
+        guard.Transmitted(
+            duty.GetProperty("startedUs").GetUInt64(),
+            links[Text(duty.GetProperty("link"))],
+            duty.GetProperty("payloadLen").GetInt32())
+            == duty.GetProperty("airtimeUs").GetUInt64(),
+        "the airtime a transmission records");
+    Assert(guard.EarliestMicros == duty.GetProperty("earliestUs").GetUInt64(), "the earliest next transmission");
+    foreach (JsonElement check in duty.GetProperty("checks").EnumerateArray())
+    {
+        ulong nowMicros = check.GetProperty("nowUs").GetUInt64();
+        Assert(guard.WaitMicros(nowMicros) == check.GetProperty("waitUs").GetUInt64(), "the silence still owed");
+        Assert(guard.Ready(nowMicros) == check.GetProperty("ready").GetBoolean(), "whether a frame may start");
+    }
+
+    JsonElement forbidden = duty.GetProperty("forbidden");
+    using var never = new RadioDutyCycle(forbidden.GetProperty("permille").GetUInt32());
+    foreach (JsonElement at in forbidden.GetProperty("readyAt").EnumerateArray())
+    {
+        Assert(never.Ready(at.GetUInt64()) == forbidden.GetProperty("ready").GetBoolean(), "a zero limit at any time");
+    }
+
+    Assert(never.EarliestMicros is null, "a zero limit never clears");
 }
 
 static void ConformLora(JsonElement vector)

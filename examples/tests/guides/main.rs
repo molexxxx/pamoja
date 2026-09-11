@@ -24,6 +24,7 @@ mod mqtt;
 mod power;
 mod profile;
 mod quickstart;
+mod radios;
 mod ros2;
 mod routing;
 mod rules;

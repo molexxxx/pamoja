@@ -37,6 +37,7 @@ const {
   loopback,
   power,
   profile,
+  radios,
   ros2,
   routing,
   serial,
@@ -814,6 +815,25 @@ function radioAndReach() {
     routing.ForwardAction.Flood,
     "and an unknown destination falls back to flooding",
   );
+
+  const { sx126x } = radios;
+  const whip = lora.linkBudget({ transmitAntennaGainDbi: 2.15, transmitCableLossDb: 0.5 });
+  const power = sx126x.txPowerUnderCeiling(sx126x.Amplifier.HighPower, whip, 16);
+  assert.strictEqual(power.settingDbm, 14, "the amplifier drives as hard as the EIRP ceiling allows");
+  assert.deepStrictEqual(
+    [...sx126x.setRfFrequency(868_100_000)],
+    [0x86, 0x36, 0x41, 0x99, 0x9a],
+    "the frequency word goes out most significant byte first",
+  );
+  assert.throws(
+    () => sx126x.setLoraModulationParams(lora.link(7, 203_125)),
+    /bandwidth/,
+    "a bandwidth the chip lacks is refused",
+  );
+  assert.strictEqual(sx126x.status(0x2c).chipMode, "StandbyRc", "the status byte decodes");
+  const guard = new radios.DutyCycle(10);
+  const airtime = guard.transmitted(0, lora.link(12, 125_000), 10);
+  assert.strictEqual(guard.waitUs(0), airtime * 100, "a 1% duty cycle holds the radio silent");
 
   const session = lorawan.session(0x2601_1bda, Buffer.alloc(16, 0x2b), Buffer.alloc(16, 0x99));
   const uplink = session.encodeUplink(42, 1, Buffer.from("temp=4.8"), { confirmed: true });

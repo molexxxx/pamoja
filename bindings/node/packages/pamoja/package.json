@@ -56,6 +56,7 @@
     "@pamoja/native": "0.1.18",
     "@pamoja/power": "0.1.18",
     "@pamoja/profile": "0.1.18",
+    "@pamoja/radios": "0.1.18",
     "@pamoja/ros2": "0.1.18",
     "@pamoja/routing": "0.1.18",
     "@pamoja/security": "0.1.18",

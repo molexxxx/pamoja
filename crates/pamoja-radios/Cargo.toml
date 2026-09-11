@@ -1,0 +1,40 @@
+[package]
+name = "pamoja-radios"
+description = "LoRa radio drivers for pamoja: the Semtech SX126x command set, its IRQ, status and packet status decoding, the frequency, modulation, packet and transmit power settings a pamoja-lora link and channel plan turn into, a duty-cycle guard, an embedded-hal driver, and a mesh transport over it, no_std at its core."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+# The driver, which reaches a radio over embedded-hal SPI and pins. The command set,
+# the decoders, and the settings need nothing and build with the feature off.
+default = ["embedded-hal"]
+embedded-hal = ["dep:embedded-hal"]
+# A pamoja Transport over pamoja-mesh frames, for a node or a gateway with an
+# operating system clock.
+std = ["embedded-hal", "dep:pamoja-core", "dep:pamoja-mesh", "dep:tokio", "pamoja-core/std", "pamoja-mesh/alloc"]
+
+[dependencies]
+pamoja-lora = { path = "../pamoja-lora", version = "0.1.18", default-features = false }
+embedded-hal = { version = "1.0", optional = true }
+pamoja-core = { path = "../pamoja-core", version = "0.1.18", default-features = false, optional = true }
+pamoja-mesh = { path = "../pamoja-mesh", version = "0.1.18", optional = true }
+tokio = { version = "1", default-features = false, features = ["time"], optional = true }
+
+[dev-dependencies]
+pamoja-hal = { path = "../pamoja-hal", features = ["alloc"] }
+pamoja-lora = { path = "../pamoja-lora" }
+tokio = { version = "1", default-features = false, features = ["macros", "rt", "time", "test-util"] }
+
+[lints]
+workspace = true

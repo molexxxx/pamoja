@@ -38,6 +38,7 @@ const {
   mesh,
   modbus,
   power,
+  radios,
   routing,
   serial: serialFraming,
   session,
@@ -1524,6 +1525,203 @@ function linkOf(described) {
   };
 }
 
+function radiosVectors() {
+  const vector = VECTORS.radios;
+  const links = new Map(VECTORS.lora.links.map((entry) => [entry.name, entry]));
+  const { sx126x, DutyCycle } = radios;
+  const hex = (bytes) => Buffer.from(bytes).toString("hex");
+  const amplifier = (name) =>
+    name === "low" ? sx126x.Amplifier.LowPower : sx126x.Amplifier.HighPower;
+  const paConfig = (power) =>
+    hex([power.paDutyCycle, power.hpMax, power.deviceSel, power.paLut]);
+  const pascal = (name) => name.charAt(0).toUpperCase() + name.slice(1);
+
+  for (const { frequencyHz, word } of vector.frequencyWords) {
+    assert.strictEqual(sx126x.frequencyWord(frequencyHz), word, `frequency word for ${frequencyHz} Hz`);
+  }
+  for (const { timeoutUs, steps } of vector.timeouts) {
+    assert.strictEqual(sx126x.timeoutSteps(timeoutUs), steps, `timeout steps for ${timeoutUs} us`);
+  }
+  assert.strictEqual(sx126x.RX_CONTINUOUS, vector.rxContinuous, "the continuous receive word");
+  for (const { lowHz, highHz, codes } of vector.imageCalibrations) {
+    assert.strictEqual(hex(sx126x.imageCalibration(lowHz, highHz)), codes, `image calibration ${lowHz} to ${highHz}`);
+  }
+  for (const entry of vector.txPowers) {
+    const power = sx126x.txPower(amplifier(entry.amplifier), entry.outputDbm);
+    assert.strictEqual(paConfig(power), entry.paConfig, JSON.stringify(entry));
+    assert.strictEqual(power.settingDbm, entry.settingDbm, JSON.stringify(entry));
+  }
+  for (const entry of vector.underCeilings) {
+    const budget = lora.linkBudget({
+      transmitAntennaGainDbi: entry.transmitAntennaGainHundredths / 100,
+      transmitCableLossDb: entry.transmitCableLossHundredths / 100,
+    });
+    const power = sx126x.txPowerUnderCeiling(
+      amplifier(entry.amplifier),
+      budget,
+      entry.ceilingHundredths / 100,
+    );
+    assert.strictEqual(paConfig(power), entry.paConfig, JSON.stringify(entry));
+    assert.strictEqual(power.settingDbm, entry.settingDbm, JSON.stringify(entry));
+  }
+  assert.strictEqual(sx126x.SYNC_WORD_PUBLIC.toString(16).padStart(4, "0"), vector.syncWords.public);
+  assert.strictEqual(sx126x.SYNC_WORD_PRIVATE.toString(16).padStart(4, "0"), vector.syncWords.private);
+
+  const commands = vector.commands;
+  assert.strictEqual(hex(sx126x.setStandby()), commands.setStandby, "SetStandby");
+  assert.strictEqual(hex(sx126x.setPacketTypeLora()), commands.setPacketTypeLora, "SetPacketType");
+  assert.strictEqual(
+    hex(sx126x.setRfFrequency(commands.setRfFrequency.frequencyHz)),
+    commands.setRfFrequency.bytes,
+    "SetRfFrequency",
+  );
+  assert.strictEqual(
+    hex(sx126x.calibrateImage(commands.calibrateImage.lowHz, commands.calibrateImage.highHz)),
+    commands.calibrateImage.bytes,
+    "CalibrateImage",
+  );
+  const high14 = sx126x.txPower(sx126x.Amplifier.HighPower, commands.setPaConfig.outputDbm);
+  assert.strictEqual(hex(sx126x.setPaConfig(high14)), commands.setPaConfig.bytes, "SetPaConfig");
+  assert.strictEqual(
+    hex(sx126x.setTxParams(high14, commands.setTxParams.rampUs)),
+    commands.setTxParams.bytes,
+    "SetTxParams",
+  );
+  for (const entry of commands.setLoraModulationParams) {
+    assert.strictEqual(
+      hex(sx126x.setLoraModulationParams(linkOf(links.get(entry.link)))),
+      entry.bytes,
+      `SetModulationParams for ${entry.link}`,
+    );
+  }
+  for (const entry of commands.setLoraPacketParams) {
+    assert.strictEqual(
+      hex(sx126x.setLoraPacketParams(linkOf(links.get(entry.link)), entry.payloadLen, entry.invertIq)),
+      entry.bytes,
+      `SetPacketParams for ${entry.link}`,
+    );
+  }
+  for (const entry of commands.setDioIrqParams) {
+    assert.strictEqual(hex(sx126x.setDioIrqParams(entry.irq, entry.dio1)), entry.bytes, "SetDioIrqParams");
+  }
+  assert.strictEqual(
+    hex(sx126x.clearIrqStatus(commands.clearIrqStatus.irq)),
+    commands.clearIrqStatus.bytes,
+    "ClearIrqStatus",
+  );
+  assert.strictEqual(hex(sx126x.setTx(commands.setTx.timeoutUs)), commands.setTx.bytes, "SetTx");
+  assert.strictEqual(hex(sx126x.setRx(commands.setRx.timeoutUs)), commands.setRx.bytes, "SetRx");
+  assert.strictEqual(hex(sx126x.setRxContinuous()), commands.setRxContinuous, "SetRx continuous");
+  assert.strictEqual(hex(sx126x.setSleep(commands.setSleep.warmStart)), commands.setSleep.bytes, "SetSleep");
+  assert.strictEqual(
+    hex(sx126x.writeRegister(sx126x.REGISTER_LORA_SYNC_WORD, Buffer.from(vector.syncWords.public, "hex"))),
+    commands.setSyncWord.bytes,
+    "the sync word write",
+  );
+  assert.strictEqual(
+    hex(sx126x.writeRegister(commands.writeRegister.address, Buffer.from(commands.writeRegister.values, "hex"))),
+    commands.writeRegister.bytes,
+    "WriteRegister",
+  );
+  assert.strictEqual(
+    hex(sx126x.writeBuffer(commands.writeBuffer.offset, Buffer.from(commands.writeBuffer.payload, "hex"))),
+    commands.writeBuffer.bytes,
+    "WriteBuffer",
+  );
+
+  const queries = vector.queries;
+  const sameQuery = (got, want, name) => {
+    assert.strictEqual(hex(got.bytes), want.bytes, name);
+    assert.strictEqual(got.answerLength, want.answerLen, name);
+  };
+  sameQuery(sx126x.getStatus(), queries.getStatus, "GetStatus");
+  sameQuery(sx126x.getIrqStatus(), queries.getIrqStatus, "GetIrqStatus");
+  sameQuery(sx126x.getRxBufferStatus(), queries.getRxBufferStatus, "GetRxBufferStatus");
+  sameQuery(sx126x.getPacketStatus(), queries.getPacketStatus, "GetPacketStatus");
+  sameQuery(sx126x.getRssiInst(), queries.getRssiInst, "GetRssiInst");
+  sameQuery(sx126x.getDeviceErrors(), queries.getDeviceErrors, "GetDeviceErrors");
+  sameQuery(
+    sx126x.readRegister(queries.readRegister.address, queries.readRegister.length),
+    queries.readRegister.query,
+    "ReadRegister",
+  );
+  sameQuery(
+    sx126x.readBuffer(queries.readBuffer.offset, queries.readBuffer.length),
+    queries.readBuffer.query,
+    "ReadBuffer",
+  );
+
+  for (const [name, bits] of Object.entries(vector.irqFlags)) {
+    assert.strictEqual(sx126x.Irq[pascal(name)], bits, `the ${name} bit`);
+  }
+  for (const entry of vector.irqs) {
+    const bits = sx126x.irq(Buffer.from(entry.bytes, "hex"));
+    assert.strictEqual(bits, entry.bits, `IRQ ${entry.bytes}`);
+    for (const [name, flag] of Object.entries(vector.irqFlags)) {
+      assert.strictEqual((bits & flag) !== 0, entry.flags.includes(name), `${name} in ${entry.bytes}`);
+    }
+  }
+  for (const entry of vector.statuses) {
+    const status = sx126x.status(entry.byte);
+    assert.strictEqual(status.chipMode, pascal(entry.chipMode), `chip mode of ${entry.byte}`);
+    assert.strictEqual(status.commandStatus, pascal(entry.commandStatus), `command status of ${entry.byte}`);
+    assert.strictEqual(status.error, entry.error, `error of ${entry.byte}`);
+  }
+  for (const entry of vector.packetStatuses) {
+    const status = sx126x.packetStatus(Buffer.from(entry.bytes, "hex"));
+    assert.strictEqual(Math.round(status.rssiDbm * 100), entry.rssiHundredths, `RSSI of ${entry.bytes}`);
+    assert.strictEqual(Math.round(status.snrDb * 100), entry.snrHundredths, `SNR of ${entry.bytes}`);
+    assert.strictEqual(
+      Math.round(status.signalRssiDbm * 100),
+      entry.signalRssiHundredths,
+      `signal RSSI of ${entry.bytes}`,
+    );
+  }
+  for (const entry of vector.rxBufferStatuses) {
+    const status = sx126x.rxBufferStatus(Buffer.from(entry.bytes, "hex"));
+    assert.strictEqual(status.payloadLength, entry.payloadLen, `payload length of ${entry.bytes}`);
+    assert.strictEqual(status.start, entry.start, `start of ${entry.bytes}`);
+  }
+  for (const entry of vector.rssiInst) {
+    assert.strictEqual(Math.round(sx126x.rssiInstDbm(entry.byte) * 100), entry.hundredths, `RSSI ${entry.byte}`);
+  }
+  const errorFlags = {
+    rc64kCalibration: sx126x.DeviceError.Rc64kCalibration,
+    rc13mCalibration: sx126x.DeviceError.Rc13mCalibration,
+    pllCalibration: sx126x.DeviceError.PllCalibration,
+    adcCalibration: sx126x.DeviceError.AdcCalibration,
+    imageCalibration: sx126x.DeviceError.ImageCalibration,
+    xoscStart: sx126x.DeviceError.XoscStart,
+    pllLock: sx126x.DeviceError.PllLock,
+    paRamp: sx126x.DeviceError.PaRamp,
+  };
+  for (const entry of vector.deviceErrors) {
+    const bits = sx126x.deviceErrors(Buffer.from(entry.bytes, "hex"));
+    assert.strictEqual(bits, entry.bits, `device errors ${entry.bytes}`);
+    for (const [name, flag] of Object.entries(errorFlags)) {
+      assert.strictEqual((bits & flag) !== 0, entry.flags.includes(name), `${name} in ${entry.bytes}`);
+    }
+  }
+
+  const duty = vector.dutyCycle;
+  const guard = new DutyCycle(duty.permille);
+  assert.strictEqual(
+    guard.transmitted(duty.startedUs, linkOf(links.get(duty.link)), duty.payloadLen),
+    duty.airtimeUs,
+    "the airtime a transmission records",
+  );
+  assert.strictEqual(guard.earliestUs, duty.earliestUs, "the earliest next transmission");
+  for (const check of duty.checks) {
+    assert.strictEqual(guard.waitUs(check.nowUs), check.waitUs, `the wait at ${check.nowUs} us`);
+    assert.strictEqual(guard.ready(check.nowUs), check.ready, `readiness at ${check.nowUs} us`);
+  }
+  const forbidden = new DutyCycle(duty.forbidden.permille);
+  for (const nowUs of duty.forbidden.readyAt) {
+    assert.strictEqual(forbidden.ready(nowUs), duty.forbidden.ready, `a zero limit at ${nowUs} us`);
+  }
+  assert.strictEqual(forbidden.earliestUs, null, "a zero limit never clears");
+}
+
 function meshVectors() {
   const vector = VECTORS.mesh;
 
@@ -1733,6 +1931,7 @@ mavlinkSchemaVectors();
 mavlinkProtocolVectors();
 meshVectors();
 routingVectors();
+radiosVectors();
 
 function headerVectors() {
   const vector = VECTORS.header;

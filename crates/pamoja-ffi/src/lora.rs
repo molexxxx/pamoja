@@ -405,7 +405,7 @@ pub extern "C" fn pamoja_lora_fcc_hopping_max_conducted_centi_dbm(
 /// # Returns
 ///
 /// The equivalent [`LinkBudget`].
-fn link_budget(budget: PamojaLoraLinkBudget) -> LinkBudget {
+pub(crate) fn link_budget(budget: PamojaLoraLinkBudget) -> LinkBudget {
     LinkBudget {
         transmit_power_dbm: Decibels::from_hundredths(budget.transmit_power_centi_dbm),
         transmit_antenna_gain_dbi: Decibels::from_hundredths(
@@ -427,7 +427,7 @@ fn link_budget(budget: PamojaLoraLinkBudget) -> LinkBudget {
 /// # Returns
 ///
 /// The equivalent [`LinkSettings`], with every value clamped to its LoRa range.
-fn settings(link: PamojaLoraLink) -> LinkSettings {
+pub(crate) fn settings(link: PamojaLoraLink) -> LinkSettings {
     let mut settings = LinkSettings::new(link.spreading_factor, link.bandwidth_hz)
         .with_coding_rate(link.coding_rate_denominator)
         .with_preamble(link.preamble_symbols);

@@ -13,7 +13,7 @@ import pytest
 from pamoja.codec import Quantizer, from_cbor, pack_samples, to_cbor, unpack_samples
 from pamoja.kit import Calibration, Coordinate, Depletion, Geofence, Pid, Smoother, Thermostat, Trigger, deadband
 from pamoja.security import DeviceIdentity, verify
-from pamoja import actuators, audit, can, gpio, lora, lorawan, mesh, modbus, power, profile, ros2, routing, sensors, serial, session, telemetry, update, zenoh
+from pamoja import actuators, audit, can, gpio, lora, lorawan, mesh, modbus, power, profile, radios, ros2, routing, sensors, serial, session, telemetry, update, zenoh
 from pamoja.core import PamojaError
 from pamoja.kit import WINDOW_CAPACITY, Anomaly, Median, Trend, Window
 
@@ -658,6 +658,169 @@ def test_lora_budget_vectors_match():
     for rule in vector["fcc"]:
         got = lora.fcc_max_conducted_dbm(rule["antennaGainHundredths"] / 100, rule["hoppingChannels"])
         assert (None if got is None else hundredths(got)) == rule["maxConductedHundredths"], rule
+
+
+def test_radios_vectors_match():
+    vector = VECTORS["radios"]
+    links = {entry["name"]: entry for entry in VECTORS["lora"]["links"]}
+    sx126x = radios.sx126x
+
+    def hundredths(value: float) -> int:
+        return round(value * 100)
+
+    def amplifier(name: str) -> sx126x.Amplifier:
+        return sx126x.Amplifier.LOW_POWER if name == "low" else sx126x.Amplifier.HIGH_POWER
+
+    def pa_config(power) -> str:
+        return bytes([power.pa_duty_cycle, power.hp_max, power.device_sel, power.pa_lut]).hex()
+
+    def pascal(name: str) -> str:
+        return name[0].upper() + name[1:]
+
+    for entry in vector["frequencyWords"]:
+        assert sx126x.frequency_word(entry["frequencyHz"]) == entry["word"], entry
+    for entry in vector["timeouts"]:
+        assert sx126x.timeout_steps(entry["timeoutUs"]) == entry["steps"], entry
+    assert sx126x.RX_CONTINUOUS == vector["rxContinuous"]
+    for entry in vector["imageCalibrations"]:
+        assert sx126x.image_calibration(entry["lowHz"], entry["highHz"]).hex() == entry["codes"], entry
+    for entry in vector["txPowers"]:
+        power = sx126x.tx_power(amplifier(entry["amplifier"]), entry["outputDbm"])
+        assert pa_config(power) == entry["paConfig"], entry
+        assert power.setting_dbm == entry["settingDbm"], entry
+    for entry in vector["underCeilings"]:
+        budget = lora.LinkBudget(
+            transmit_antenna_gain_dbi=entry["transmitAntennaGainHundredths"] / 100,
+            transmit_cable_loss_db=entry["transmitCableLossHundredths"] / 100,
+        )
+        power = sx126x.tx_power_under_ceiling(
+            amplifier(entry["amplifier"]), budget, entry["ceilingHundredths"] / 100
+        )
+        assert pa_config(power) == entry["paConfig"], entry
+        assert power.setting_dbm == entry["settingDbm"], entry
+    assert f"{sx126x.SYNC_WORD_PUBLIC:04x}" == vector["syncWords"]["public"]
+    assert f"{sx126x.SYNC_WORD_PRIVATE:04x}" == vector["syncWords"]["private"]
+
+    commands = vector["commands"]
+    assert sx126x.set_standby().hex() == commands["setStandby"]
+    assert sx126x.set_packet_type_lora().hex() == commands["setPacketTypeLora"]
+    wanted = commands["setRfFrequency"]
+    assert sx126x.set_rf_frequency(wanted["frequencyHz"]).hex() == wanted["bytes"]
+    wanted = commands["calibrateImage"]
+    assert sx126x.calibrate_image(wanted["lowHz"], wanted["highHz"]).hex() == wanted["bytes"]
+    high_14 = sx126x.tx_power(sx126x.Amplifier.HIGH_POWER, commands["setPaConfig"]["outputDbm"])
+    assert sx126x.set_pa_config(high_14).hex() == commands["setPaConfig"]["bytes"]
+    wanted = commands["setTxParams"]
+    assert sx126x.set_tx_params(high_14, wanted["rampUs"]).hex() == wanted["bytes"]
+    for entry in commands["setLoraModulationParams"]:
+        link = _link_of(links[entry["link"]])
+        assert sx126x.set_lora_modulation_params(link).hex() == entry["bytes"], entry
+    for entry in commands["setLoraPacketParams"]:
+        link = _link_of(links[entry["link"]])
+        got = sx126x.set_lora_packet_params(link, entry["payloadLen"], entry["invertIq"])
+        assert got.hex() == entry["bytes"], entry
+    for entry in commands["setDioIrqParams"]:
+        assert sx126x.set_dio_irq_params(entry["irq"], entry["dio1"]).hex() == entry["bytes"], entry
+    wanted = commands["clearIrqStatus"]
+    assert sx126x.clear_irq_status(wanted["irq"]).hex() == wanted["bytes"]
+    assert sx126x.set_tx(commands["setTx"]["timeoutUs"]).hex() == commands["setTx"]["bytes"]
+    assert sx126x.set_rx(commands["setRx"]["timeoutUs"]).hex() == commands["setRx"]["bytes"]
+    assert sx126x.set_rx_continuous().hex() == commands["setRxContinuous"]
+    wanted = commands["setSleep"]
+    assert sx126x.set_sleep(wanted["warmStart"]).hex() == wanted["bytes"]
+    public_word = bytes.fromhex(vector["syncWords"]["public"])
+    assert (
+        sx126x.write_register(sx126x.REGISTER_LORA_SYNC_WORD, public_word).hex()
+        == commands["setSyncWord"]["bytes"]
+    )
+    wanted = commands["writeRegister"]
+    got = sx126x.write_register(wanted["address"], bytes.fromhex(wanted["values"]))
+    assert got.hex() == wanted["bytes"]
+    wanted = commands["writeBuffer"]
+    got = sx126x.write_buffer(wanted["offset"], bytes.fromhex(wanted["payload"]))
+    assert got.hex() == wanted["bytes"]
+
+    queries = vector["queries"]
+
+    def same(query, want: dict) -> None:
+        assert query.bytes.hex() == want["bytes"], want
+        assert query.answer_len == want["answerLen"], want
+
+    same(sx126x.get_status(), queries["getStatus"])
+    same(sx126x.get_irq_status(), queries["getIrqStatus"])
+    same(sx126x.get_rx_buffer_status(), queries["getRxBufferStatus"])
+    same(sx126x.get_packet_status(), queries["getPacketStatus"])
+    same(sx126x.get_rssi_inst(), queries["getRssiInst"])
+    same(sx126x.get_device_errors(), queries["getDeviceErrors"])
+    wanted = queries["readRegister"]
+    same(sx126x.read_register(wanted["address"], wanted["length"]), wanted["query"])
+    wanted = queries["readBuffer"]
+    same(sx126x.read_buffer(wanted["offset"], wanted["length"]), wanted["query"])
+
+    flags = {
+        "txDone": sx126x.Irq.TX_DONE,
+        "rxDone": sx126x.Irq.RX_DONE,
+        "preambleDetected": sx126x.Irq.PREAMBLE_DETECTED,
+        "syncWordValid": sx126x.Irq.SYNC_WORD_VALID,
+        "headerValid": sx126x.Irq.HEADER_VALID,
+        "headerError": sx126x.Irq.HEADER_ERROR,
+        "crcError": sx126x.Irq.CRC_ERROR,
+        "cadDone": sx126x.Irq.CAD_DONE,
+        "cadDetected": sx126x.Irq.CAD_DETECTED,
+        "timeout": sx126x.Irq.TIMEOUT,
+        "lrFhssHop": sx126x.Irq.LR_FHSS_HOP,
+    }
+    for name, bits in vector["irqFlags"].items():
+        assert int(flags[name]) == bits, name
+    for entry in vector["irqs"]:
+        bits = sx126x.irq(bytes.fromhex(entry["bytes"]))
+        assert int(bits) == entry["bits"], entry
+        for name, flag in flags.items():
+            assert bool(bits & flag) == (name in entry["flags"]), (name, entry)
+    for entry in vector["statuses"]:
+        status = sx126x.status(entry["byte"])
+        assert status.chip_mode == pascal(entry["chipMode"]), entry
+        assert status.command_status == pascal(entry["commandStatus"]), entry
+        assert status.error == entry["error"], entry
+    for entry in vector["packetStatuses"]:
+        status = sx126x.packet_status(bytes.fromhex(entry["bytes"]))
+        assert hundredths(status.rssi_dbm) == entry["rssiHundredths"], entry
+        assert hundredths(status.snr_db) == entry["snrHundredths"], entry
+        assert hundredths(status.signal_rssi_dbm) == entry["signalRssiHundredths"], entry
+    for entry in vector["rxBufferStatuses"]:
+        status = sx126x.rx_buffer_status(bytes.fromhex(entry["bytes"]))
+        assert status.payload_len == entry["payloadLen"], entry
+        assert status.start == entry["start"], entry
+    for entry in vector["rssiInst"]:
+        assert hundredths(sx126x.rssi_inst_dbm(entry["byte"])) == entry["hundredths"], entry
+    errors = {
+        "rc64kCalibration": sx126x.DeviceError.RC64K_CALIBRATION,
+        "rc13mCalibration": sx126x.DeviceError.RC13M_CALIBRATION,
+        "pllCalibration": sx126x.DeviceError.PLL_CALIBRATION,
+        "adcCalibration": sx126x.DeviceError.ADC_CALIBRATION,
+        "imageCalibration": sx126x.DeviceError.IMAGE_CALIBRATION,
+        "xoscStart": sx126x.DeviceError.XOSC_START,
+        "pllLock": sx126x.DeviceError.PLL_LOCK,
+        "paRamp": sx126x.DeviceError.PA_RAMP,
+    }
+    for entry in vector["deviceErrors"]:
+        bits = sx126x.device_errors(bytes.fromhex(entry["bytes"]))
+        assert int(bits) == entry["bits"], entry
+        for name, flag in errors.items():
+            assert bool(bits & flag) == (name in entry["flags"]), (name, entry)
+
+    duty = vector["dutyCycle"]
+    guard = radios.DutyCycle(duty["permille"])
+    link = _link_of(links[duty["link"]])
+    assert guard.transmitted(duty["startedUs"], link, duty["payloadLen"]) == duty["airtimeUs"]
+    assert guard.earliest_us == duty["earliestUs"]
+    for check in duty["checks"]:
+        assert guard.wait_us(check["nowUs"]) == check["waitUs"], check
+        assert guard.ready(check["nowUs"]) == check["ready"], check
+    forbidden = radios.DutyCycle(duty["forbidden"]["permille"])
+    for now_us in duty["forbidden"]["readyAt"]:
+        assert forbidden.ready(now_us) == duty["forbidden"]["ready"], now_us
+    assert forbidden.earliest_us is None
 
 
 def test_lora_region_vectors_match():

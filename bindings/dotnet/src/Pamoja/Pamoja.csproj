@@ -38,6 +38,7 @@
     <ProjectReference Include="../Pamoja.Native/Pamoja.Native.csproj" />
     <ProjectReference Include="../Pamoja.Power/Pamoja.Power.csproj" />
     <ProjectReference Include="../Pamoja.Profile/Pamoja.Profile.csproj" />
+    <ProjectReference Include="../Pamoja.Radios/Pamoja.Radios.csproj" />
     <ProjectReference Include="../Pamoja.Ros2/Pamoja.Ros2.csproj" />
     <ProjectReference Include="../Pamoja.Routing/Pamoja.Routing.csproj" />
     <ProjectReference Include="../Pamoja.Security/Pamoja.Security.csproj" />

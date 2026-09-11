@@ -2962,6 +2962,7 @@ dependencies = [
  "pamoja-mqtt",
  "pamoja-power",
  "pamoja-profile",
+ "pamoja-radios",
  "pamoja-ros2",
  "pamoja-routing",
  "pamoja-security",
@@ -3072,6 +3073,7 @@ dependencies = [
  "pamoja-mqtt",
  "pamoja-power",
  "pamoja-profile",
+ "pamoja-radios",
  "pamoja-ros2",
  "pamoja-routing",
  "pamoja-security",
@@ -3114,6 +3116,7 @@ dependencies = [
  "pamoja-mqtt",
  "pamoja-power",
  "pamoja-profile",
+ "pamoja-radios",
  "pamoja-ros2",
  "pamoja-routing",
  "pamoja-security",
@@ -3235,6 +3238,18 @@ dependencies = [
  "pamoja-power",
  "serde",
  "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "pamoja-radios"
+version = "0.1.18"
+dependencies = [
+ "embedded-hal",
+ "pamoja-core",
+ "pamoja-hal",
+ "pamoja-lora",
+ "pamoja-mesh",
  "tokio",
 ]
 
