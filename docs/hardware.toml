@@ -34,6 +34,11 @@ title = "Radios and long-range links"
 intent = "Reaching a network that is not there: the transceivers, the channel plans they must obey, and the short-range meshes."
 
 [[group]]
+key = "antennas"
+title = "Antennas, cables and protection"
+intent = "What stands between a radio and the air: the antenna, the feed line and pigtail that reach it, and the arrestor on the mast."
+
+[[group]]
 key = "targets"
 title = "Boards, targets and autopilots"
 intent = "Where pamoja itself runs, and what it has been built and tested against."
@@ -777,6 +782,242 @@ checked = "2026-09-06"
 verified = true
 
 [[entry]]
+key = "llcc68"
+group = "radios"
+name = "LLCC68"
+vendor = "Semtech"
+interface = "SPI"
+summary = "A sub-GHz LoRa transceiver for medium-range indoor and indoor-to-outdoor links, pin-to-pin compatible with the SX1262."
+specs = [
+  "Transmit power: +22 dBm high efficiency amplifier",
+  "Receive current: 4.6 mA",
+  "Sensitivity: down to -129 dBm",
+  "Blocking immunity: 88 dB at 1 MHz offset; co-channel rejection 19 dB in LoRa mode",
+  "Channel activity detection: automatic, with ultra-fast AFC",
+]
+cost = "$5 to $20"
+crates = ["pamoja-lora"]
+source_name = "LLCC68 product page, Semtech LoRa Connect"
+source_label = "Semtech LLCC68"
+source = "https://www.semtech.com/products/wireless-rf/lora-connect/llcc68"
+
+[[entry.buy]]
+vendor = "M5Stack"
+name = "LoRa Unit 433MHz with Antenna (E220), an LLCC68 module"
+url = "https://shop.m5stack.com/products/lora-unit-433mhz-with-antenna-e220"
+price = "US$12.95"
+checked = "2026-09-11"
+
+[[entry]]
+key = "sx1302"
+group = "radios"
+name = "SX1302"
+vendor = "Semtech"
+interface = "SPI"
+summary = "The LoRa baseband chip for gateways: it listens across many channels and spreading factors at once, behind separate RF front ends, and draws far less current than the chips before it."
+specs = [
+  "Sensitivity: up to -141 dBm with the SX1250 front end",
+  "125 kHz reception: 8 x 8 channel packet detectors, 8 SF5 to SF12 and 8 SF5 to SF10 demodulators",
+  "Also: one 125, 250 or 500 kHz LoRa demodulator and one (G)FSK demodulator",
+  "Front ends: direct interface to the SX1250, SX1255, SX1257 and SX1258",
+  "Clock and package: a single 32 MHz clock, QFN68",
+]
+cost = "$5 to $20"
+crates = ["pamoja-lora"]
+source_name = "SX1302 product page, Semtech LoRa Core"
+source_label = "Semtech SX1302"
+source = "https://www.semtech.com/products/wireless-rf/lora-core/sx1302"
+
+[[entry.buy]]
+vendor = "Seeed Studio"
+name = "Wio-WM1302 Long Range Gateway Module (SPI), EU868"
+url = "https://www.seeedstudio.com/WM1302-LoRaWAN-Gateway-Module-SPI-EU868-p-4889.html"
+price = "US$12.99"
+checked = "2026-09-11"
+
+[[entry.buy]]
+vendor = "RAKwireless"
+name = "RAK2287 concentrator module, SPI"
+url = "https://store.rakwireless.com/products/wislink-concentrator-module-sx1302-rak2287-lorawan"
+price = "US$84.00"
+checked = "2026-09-11"
+
+[[entry]]
+key = "sx1303"
+group = "radios"
+name = "SX1303"
+vendor = "Semtech"
+interface = "SPI"
+summary = "The SX1302's size and pin compatible successor, which adds a fine timestamp so a network can locate a node by time difference of arrival."
+specs = [
+  "Fine timestamp for time difference of arrival (TDOA) network geolocation",
+  "Sensitivity: up to -141 dBm with the SX1250 front end",
+  "125 kHz reception: 8 x 8 channel packet detectors, 8 SF5 to SF12 and 8 SF5 to SF10 demodulators",
+  "Also: one 125, 250 or 500 kHz LoRa demodulator",
+  "Compatibility: size and pin compatible with the SX1302, with all of its features",
+]
+cost = "$60 to $200"
+crates = ["pamoja-lora"]
+source_name = "SX1303 product page, Semtech LoRa Core"
+source_label = "Semtech SX1303"
+source = "https://www.semtech.com/products/wireless-rf/lora-core/sx1303"
+
+[[entry.buy]]
+vendor = "RAKwireless"
+name = "RAK5146 concentrator module, SPI"
+url = "https://store.rakwireless.com/products/wislink-concentrator-module-sx1303-rak5146-lorawan"
+price = "US$83.00"
+checked = "2026-09-11"
+
+[[entry]]
+key = "sx1250"
+group = "radios"
+name = "SX1250"
+vendor = "Semtech"
+interface = "SPI"
+summary = "The sub-GHz RF front end a gateway pairs with the SX1302, covering any license-free band below 1 GHz."
+specs = [
+  "Coverage: 150 to 960 MHz ISM bands",
+  "Operation: half duplex, capable of low power operation",
+  "Modulation: constant-envelope schemes such as LoRa or FSK",
+  "Receiver: a built-in differential low noise amplifier",
+  "Control: SPI and a set of general purpose DIO lines",
+]
+cost = "$5 to $20"
+crates = ["pamoja-lora"]
+source_name = "SX1250 product page, Semtech LoRa Core"
+source_label = "Semtech SX1250"
+source = "https://www.semtech.com/products/wireless-rf/lora-core/sx1250"
+
+[[entry.buy]]
+vendor = "Seeed Studio"
+name = "Wio-WM1302 Long Range Gateway Module (SPI), EU868"
+url = "https://www.seeedstudio.com/WM1302-LoRaWAN-Gateway-Module-SPI-EU868-p-4889.html"
+price = "US$12.99"
+checked = "2026-09-11"
+
+[[entry.buy]]
+vendor = "RAKwireless"
+name = "RAK5146 concentrator module, SPI"
+url = "https://store.rakwireless.com/products/wislink-concentrator-module-sx1303-rak5146-lorawan"
+price = "US$83.00"
+checked = "2026-09-11"
+
+[[entry.buy]]
+vendor = "RAKwireless"
+name = "RAK2287 concentrator module, SPI"
+url = "https://store.rakwireless.com/products/wislink-concentrator-module-sx1302-rak2287-lorawan"
+price = "US$84.00"
+checked = "2026-09-11"
+
+[[entry]]
+key = "rak2287"
+group = "radios"
+name = "RAK2287 WisLink concentrator"
+vendor = "RAKwireless"
+interface = "mini PCIe, SPI"
+summary = "An SX1302 concentrator on a mini PCIe card, with two SX1250 front ends, a U.FL antenna connector and a GPS for timing."
+specs = [
+  "Chips: one SX1302 and two SX1250",
+  "Radio: Tx power up to 27 dBm, Rx sensitivity down to -139 dBm at SF12, BW 125 kHz",
+  "Demodulation: up to 10 parallel paths, an 8 x 8 channel packet detector, 8 SF5 to SF12 and 8 SF5 to SF10 demodulators",
+  "Bands: EU868, EU433, CN470, US915, AS923, AU915, KR920 and IN865",
+  "Host: SPI and 3.3 V aux through the mini PCIe connector; ZOE-M8Q GPS with its PPS wired to the SX1302",
+]
+cost = "$60 to $200"
+crates = ["pamoja-lora"]
+source_name = "RAK2287 WisLink LPWAN Concentrator Datasheet, RAKwireless Documentation Center"
+source_label = "RAKwireless RAK2287"
+source = "https://docs.rakwireless.com/product-categories/wislink/rak2287/datasheet/"
+
+[[entry.buy]]
+vendor = "RAKwireless"
+name = "RAK2287, SPI without GPS, 8XX MHz for EU868/RU864/IN865"
+url = "https://store.rakwireless.com/products/wislink-concentrator-module-sx1302-rak2287-lorawan"
+price = "US$84.00"
+checked = "2026-09-11"
+
+[[entry]]
+key = "rak5146"
+group = "radios"
+name = "RAK5146 WisLink concentrator"
+vendor = "RAKwireless"
+interface = "mini PCIe, SPI or USB"
+summary = "An SX1303 concentrator on a mini PCIe card, with two SX1250 front ends, an SX126x for listen before talk, and an onboard GPS."
+specs = [
+  "Chips: one SX1303 and two SX1250, with an SX126x for listen before talk",
+  "Radio: Tx power up to 27 dBm, Rx sensitivity down to -139 dBm at SF12, BW 125 kHz",
+  "Demodulation: up to 10 parallel paths, an 8 x 8 channel packet detector, 8 SF5 to SF12 and 8 SF5 to SF10 demodulators",
+  "Bands: EU868, EU433, RU864, CN470, US915, AS923, AU915, KR920 and IN865",
+  "Host: SPI or USB through the mini PCIe connector, powered from 3.3 V aux",
+]
+cost = "$60 to $200"
+crates = ["pamoja-lora"]
+source_name = "RAK5146 WisLink LoRaWAN Concentrator Datasheet, RAKwireless Documentation Center"
+source_label = "RAKwireless RAK5146"
+source = "https://docs.rakwireless.com/product-categories/wislink/rak5146/datasheet/"
+
+[[entry.buy]]
+vendor = "RAKwireless"
+name = "RAK5146, SPI, no LBT and no GPS, 8XX MHz for EU868/RU864/IN865"
+url = "https://store.rakwireless.com/products/wislink-concentrator-module-sx1303-rak5146-lorawan"
+price = "US$83.00"
+checked = "2026-09-11"
+
+[[entry]]
+key = "wm1302"
+group = "radios"
+name = "WM1302 LoRaWAN gateway module"
+vendor = "Seeed Studio"
+interface = "mini PCIe, SPI or USB"
+summary = "An SX1302 gateway module on a mini PCIe card with the standard 52-pin edge connector, in SPI and USB versions for EU868 and US915."
+specs = [
+  "Chip: the SX1302 baseband with an SX1250 front end",
+  "Radio: sensitivity down to -139 dBm at SF12; TX power up to 26 dBm at 3.3 V",
+  "Versions: SPI and USB, each on US915 and EU868",
+  "Plans: EU868, US915, AS923, AS920, AU915, KR920 and IN865",
+  "Form factor: mini PCIe with a 52-pin edge connector",
+]
+cost = "$5 to $20"
+crates = ["pamoja-lora"]
+source_name = "LoRaWAN Gateway Module WM1302, Seeed Studio Wiki"
+source_label = "Seeed Studio WM1302"
+source = "https://wiki.seeedstudio.com/WM1302_module/"
+
+[[entry.buy]]
+vendor = "Seeed Studio"
+name = "Wio-WM1302 Long Range Gateway Module (SPI), EU868"
+url = "https://www.seeedstudio.com/WM1302-LoRaWAN-Gateway-Module-SPI-EU868-p-4889.html"
+price = "US$12.99"
+checked = "2026-09-11"
+
+[[entry.buy]]
+vendor = "Seeed Studio"
+name = "WM1302 LoRaWAN Gateway Module (SPI), US915, with SKY66420"
+url = "https://www.seeedstudio.com/WM1302-LoRaWAN-Gateway-Module-SPI-US915-SKY66420-p-5455.html"
+price = "US$25.00"
+checked = "2026-09-11"
+
+[[entry]]
+key = "corecell"
+group = "radios"
+name = "LoRa Corecell reference design"
+vendor = "Semtech"
+interface = "SPI or USB"
+summary = "Semtech's gateway reference design around the SX1302 and SX1250, for the ISM bands of Europe, the U.S., Japan and China, with listen before talk and spectral scan."
+specs = [
+  "Transmit power: +27 dBm at EU868 and US915, +17 dBm at CN490, +10 dBm at AS923",
+  "Receive: 8 LoRa channels at SF5 to SF12 and 125 kHz simultaneously, plus a 250 or 500 kHz LoRa channel and FSK at 50 kbps",
+  "Typical sensitivity at CN490: -141 dBm at SF12 and -126 dBm at SF7, BW 125 kHz",
+  "Power: a tenth of the consumption of legacy products",
+]
+cost = "not applicable"
+crates = ["pamoja-lora"]
+source_name = "SX1302CSSXXXGW1 LoRa Corecell Gateway Reference Design for Listen Before Talk and Spectral Scan, Semtech"
+source_label = "Semtech Corecell"
+source = "https://www.semtech.com/products/wireless-rf/lora-core/sx1302cssxxxgw1"
+
+[[entry]]
 key = "lorawan-rp002"
 group = "radios"
 name = "LoRaWAN Regional Parameters"
@@ -1268,3 +1509,129 @@ price = "£15.90"
 checked = "2026-09-07"
 verified = true
 
+[[entry]]
+key = "rakarg18"
+group = "antennas"
+name = "5 dBi fiberglass antenna, 863 to 870 MHz"
+vendor = "RAKwireless"
+interface = "N-type male"
+summary = "An outdoor fiberglass gateway antenna for the European band, vertically polarized, with the connector built into the body."
+specs = [
+  "Band: 863 to 870 MHz",
+  "Gain: 5.0 dBi, VSWR 1.63 or better",
+  "Pattern: 360 degree beamwidth, vertical polarization, 50 ohms",
+  "Size: 27.0 mm by 480.0 mm, fiberglass radome",
+  "Environment: IP67, operating from -40 to +75 C",
+]
+cost = "$20 to $60"
+crates = ["pamoja-lora"]
+source_name = "863-870 MHz 5 dBi Fiberglass Antenna Datasheet (RAKARG18), RAKwireless Documentation Center"
+source_label = "RAKwireless RAKARG18"
+source = "https://docs.rakwireless.com/product-categories/accessories/rakarg18/datasheet/"
+
+[[entry.buy]]
+vendor = "RAKwireless"
+name = "5dBi Fiberglass Antenna, 863-870MHz"
+url = "https://store.rakwireless.com/products/5dbi-fiber-glass-antenna-supports-863-870mhz?variant=43034795081926"
+price = "US$35.00"
+checked = "2026-09-11"
+
+[[entry]]
+key = "rakarg19"
+group = "antennas"
+name = "5 dBi fiberglass antenna, 902 to 928 MHz"
+vendor = "RAKwireless"
+interface = "N-type male"
+summary = "An outdoor fiberglass gateway antenna for the 902 to 928 MHz band, vertically polarized, with the connector built into the body."
+specs = [
+  "Band: 902 to 928 MHz",
+  "Gain: 5 dBi, VSWR 1.47 or better",
+  "Pattern: 360 degree beamwidth, vertical polarization, 50 ohms",
+  "Length: 480 mm",
+  "Environment: IP67, operating from -40 to +75 C",
+]
+cost = "$20 to $60"
+crates = ["pamoja-lora"]
+source_name = "902-928 MHz 5 dBi Fiberglass Antenna Datasheet (RAKARG19), RAKwireless Documentation Center"
+source_label = "RAKwireless RAKARG19"
+source = "https://docs.rakwireless.com/product-categories/accessories/rakarg19/datasheet/"
+
+[[entry.buy]]
+vendor = "RAKwireless"
+name = "5dBi Fiberglass Antenna, 902-928MHz"
+url = "https://store.rakwireless.com/products/5dbi-fiber-glass-antenna-supports-902-928mhz"
+price = "US$35.00"
+checked = "2026-09-11"
+
+[[entry]]
+key = "lmr-loss"
+group = "antennas"
+name = "LMR coaxial cable loss"
+vendor = "Times Microwave Systems"
+interface = "50 ohm coaxial cable"
+summary = "The attenuation table for the LMR feed lines a gateway runs to its antenna, from the thin LMR-195 to the LMR-600."
+specs = [
+  "LMR-195 at 900 MHz: 11.1 dB per 100 ft, 36.5 dB per 100 m",
+  "LMR-240 at 900 MHz: 7.6 dB per 100 ft, 24.8 dB per 100 m",
+  "LMR-400 at 900 MHz: 3.9 dB per 100 ft, 12.8 dB per 100 m",
+  "LMR-600 at 900 MHz: 2.5 dB per 100 ft, 8.2 dB per 100 m",
+  "LMR-195: 50 ohms, 4.95 mm over the jacket, velocity of propagation 80%",
+]
+cost = "not applicable"
+crates = ["pamoja-lora"]
+source_name = "LMR 195, 240, 400 and 600 Coaxial Cables, Connectors and Hardware, Times Microwave Systems"
+source_label = "Times Microwave LMR"
+source = "https://timesmicrowave.com/wp-content/uploads/2022/06/lmr-brochure-r.pdf"
+manual_check = "timesmicrowave.com answers 403 to scripted clients; the brochure opens in a browser"
+
+[[entry]]
+key = "rak-mhf-sma-pigtail"
+group = "antennas"
+name = "MHF to SMA or RP-SMA pigtail"
+vendor = "RAKwireless"
+interface = "MHF-1 or MHF-4 to SMA or RP-SMA"
+summary = "The short coaxial lead from a module's MHF (U.FL-type) socket to a bulkhead connector on the enclosure wall, where the antenna screws on."
+specs = [
+  "Connectors: MHF-1 or MHF-4 on one end, RP-SMA or SMA with a nut and washer on the other",
+  "Lengths: 65, 100 and 220 mm",
+  "MHF-1 fits the RAK2287 and RAK5146 concentrators; MHF-4 fits the RAK5166 and RAK5167",
+]
+cost = "$5 to $20"
+crates = ["pamoja-lora"]
+source_name = "MHF to RP-SMA / SMA Connector, RAKwireless"
+source_label = "RAKwireless MHF pigtail"
+source = "https://store.rakwireless.com/products/mhf-to-sma-connector"
+
+[[entry.buy]]
+vendor = "RAKwireless"
+name = "MHF to RP-SMA / SMA Connector"
+url = "https://store.rakwireless.com/products/mhf-to-sma-connector"
+price = "US$5.00"
+checked = "2026-09-11"
+
+[[entry]]
+key = "rak-lightning-arrestor"
+group = "antennas"
+name = "N-type lightning arrestor"
+vendor = "RAKwireless"
+interface = "N-type male to N-type female"
+summary = "A surge protective device for a gateway's antenna line, fitted on each N-type antenna terminal."
+specs = [
+  "Frequency range: 0 to 2700 MHz, 50 ohms",
+  "Loss: 0.2 dB or less from 0 to 2000 MHz",
+  "Discharge current: 10 kA nominal, 20 kA maximum",
+  "Voltage protection level: 1200 V or less",
+  "Ingress protection: IP67",
+]
+cost = "$20 to $60"
+crates = ["pamoja-lora"]
+source_name = "Lightning Arrestor, RAKwireless"
+source_label = "RAKwireless arrestor"
+source = "https://store.rakwireless.com/products/lightning-arrestor"
+
+[[entry.buy]]
+vendor = "RAKwireless"
+name = "Lightning Arrestor, N-type"
+url = "https://store.rakwireless.com/products/lightning-arrestor"
+price = "US$32.00"
+checked = "2026-09-11"
