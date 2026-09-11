@@ -7,6 +7,33 @@ released together, so one entry covers all of them.
 
 ## [Unreleased]
 
+### Changed
+
+- The version badges on the front page are drawn on the same sheet as the
+  buttons beside them, which they had not been: they were the old palette at a
+  different height, generated in another repository. `cargo xtask docs` writes
+  them now, in the site's own inks, as a datasheet prints a rated value, with the
+  parameter on the tint and the version beside it. Each carries both color
+  schemes, so a reader on a dark registry page gets the dark sheet.
+- The front page reads on a phone. The buttons were glued together with
+  non-breaking spaces, which stopped the row wrapping where it should and left
+  ragged gaps down a narrow screen, and there were nine of them where three are
+  ways in and six were links the page already carries further down. It keeps the
+  three, at the height every other README asks for.
+- The architecture drawing is on the architecture page, which is where the walk
+  through it is, rather than also in the middle of the front page.
+- The front page says what a node is: the profile as a file, the four pieces that
+  sit around it, and the two programs that put the whole thing together.
+
+### Fixed
+
+- Two examples still taught that `with_presentation` adds to a shipped preset.
+  Since 0.1.18 every preset carries a presentation, so the call on
+  `Profile::well_level()` replaced the well-level bar and the battery stat, and
+  the asserts passed only because the originals were gone. Both examples now say
+  the call replaces, check the element count, and point at `with_element` for
+  adding. One of them generates the crates.io page for `pamoja-profile`.
+
 ## [0.1.18] - 2026-09-10
 
 What a node does between reading and reporting, and what a console makes of a

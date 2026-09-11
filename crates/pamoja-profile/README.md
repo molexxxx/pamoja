@@ -249,6 +249,8 @@ The full set of graphics is `Viz::ALL`, fifteen hand-drawn instruments: a
 ```rust
 use pamoja_profile::{ElementSpec, Presentation, Profile, Scope, Theme, Viz};
 
+// `with_presentation` sets the whole presentation, so on a shipped preset it replaces
+// the elements the preset came with. `Profile::with_element` adds one and keeps them.
 let profile = Profile::well_level().with_presentation(
     Presentation::new()
         // A turbidity probe drawn as a gauge. WHO drinking-water turbidity stays under 5 NTU.
@@ -268,8 +270,9 @@ let profile = Profile::well_level().with_presentation(
         .with_theme(Theme { accent: Some("#3fb1c8".to_owned()), ..Theme::default() }),
 );
 
-let turbidity = &profile.presentation.as_ref().unwrap().elements[0];
-assert_eq!(turbidity.viz.kind(), "radial"); // Gauge draws as the radial arch
+let elements = &profile.presentation.as_ref().unwrap().elements;
+assert_eq!(elements.len(), 2); // the preset's own two are replaced, not added to
+assert_eq!(elements[0].viz.kind(), "radial"); // Gauge draws as the radial arch
 assert_eq!(Viz::ALL.len(), 15);             // fifteen graphics to choose from
 ```
 

@@ -4,23 +4,15 @@
 
 **One memory-safe Rust core. Every language. For the devices that change lives.**
 
-<a href="https://crates.io/crates/pamoja"><img height="22" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/molexxxx/main/.github/badges/pamoja-crates-pamoja.svg?v=21ebfb2d"></a>
-&nbsp;<a href="https://www.npmjs.com/package/pamoja"><img height="22" alt="npm" src="https://raw.githubusercontent.com/molexxxx/molexxxx/main/.github/badges/pamoja-npm-pamoja.svg?v=251ba560"></a>
-&nbsp;<a href="https://pypi.org/project/pamoja/"><img height="22" alt="PyPI" src="https://raw.githubusercontent.com/molexxxx/molexxxx/main/.github/badges/pamoja-pypi-pamoja.svg?v=7b1567cc"></a>
-&nbsp;<a href="https://www.nuget.org/packages/Pamoja"><img height="22" alt="NuGet" src="https://raw.githubusercontent.com/molexxxx/molexxxx/main/.github/badges/pamoja-nuget-pamoja.svg?v=cdd1b61a"></a>
-&nbsp;<a href="https://github.com/molexxxx/pamoja/actions/workflows/ci.yml"><img height="22" alt="CI" src="https://raw.githubusercontent.com/molexxxx/molexxxx/main/.github/badges/pamoja-ci-pamoja.svg?v=2d04e663"></a>
-&nbsp;<a href="LICENSE-MIT"><img height="22" alt="license MIT" src="https://raw.githubusercontent.com/molexxxx/molexxxx/main/.github/badges/pamoja-license-pamoja.svg?v=79a1d17d"></a>
+<a href="https://crates.io/crates/pamoja"><img height="36" alt="crates.io" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/badge-crates.svg"></a>
+<a href="https://www.npmjs.com/package/pamoja"><img height="36" alt="npm" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/badge-npm.svg"></a>
+<a href="https://pypi.org/project/pamoja/"><img height="36" alt="PyPI" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/badge-pypi.svg"></a>
+<a href="https://www.nuget.org/packages/Pamoja"><img height="36" alt="NuGet" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/badge-nuget.svg"></a>
+<a href="LICENSE-MIT"><img height="36" alt="license MIT" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/badge-license.svg"></a>
 
-<a href="https://pamoja.molex.cloud"><img height="44" alt="website" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-website.svg"></a>
-&nbsp;<a href="https://pamoja.molex.cloud/docs/"><img height="44" alt="documentation" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg"></a>
-&nbsp;<a href="https://pamoja.molex.cloud/docs/examples.html"><img height="44" alt="examples &amp; guides" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-examples.svg"></a>
-
-<a href="https://pamoja.molex.cloud/docs/hardware.html"><img height="44" alt="hardware" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-hardware.svg"></a>
-&nbsp;<a href="https://pamoja.molex.cloud/docs/reference/rust.html"><img height="44" alt="Rust reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-ref-rust.svg"></a>
-&nbsp;<a href="https://pamoja.molex.cloud/docs/reference/node.html"><img height="44" alt="TypeScript reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-ref-node.svg"></a>
-&nbsp;<a href="https://pamoja.molex.cloud/docs/reference/python.html"><img height="44" alt="Python reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-ref-python.svg"></a>
-&nbsp;<a href="https://pamoja.molex.cloud/docs/reference/dotnet.html"><img height="44" alt=".NET reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-ref-dotnet.svg"></a>
-&nbsp;<a href="https://pamoja.molex.cloud/dashboard/"><img height="44" alt="dashboard demo" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-dashboard.svg"></a>
+<a href="https://pamoja.molex.cloud"><img height="36" alt="website" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-website.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/"><img height="36" alt="documentation" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg"></a>
+<a href="https://pamoja.molex.cloud/docs/examples.html"><img height="36" alt="examples and guides" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-examples.svg"></a>
 
 </div>
 
@@ -368,18 +360,55 @@ else
 
 </details>
 
+## A node, end to end
+
+A reading on its own is the start. What a deployment needs is the loop around it:
+read a sensor, decide, drive something, report, and wait the right amount of time
+before the next sample. That loop is a **profile**, which is a JSON file rather
+than code:
+
+```json
+{
+  "name": "brooder-heater",
+  "topic": "poultry/brooder/temperature",
+  "control": { "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5, "cooling": false, "safe_band": 4.0 },
+  "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
+}
+```
+
+A node loads that file and runs it. The manifest holds the target, the deadband,
+the alert range, and how often to sample as the battery drains, so changing any of
+them is an edit rather than a build. It also says how it should be drawn, which is
+what lets a dashboard render a node it has never seen, in the reader's language.
+
+Four pieces sit around it, each usable on its own:
+
+| Piece | What it does |
+| --- | --- |
+| [Profiles](https://pamoja.molex.cloud/docs/guides/profile.html) | the read, decide, act, publish loop, from a file or from code |
+| [Rules](https://pamoja.molex.cloud/docs/guides/rules.html) | one node's reading drives another node's actuator, also a file |
+| [The transport ladder](https://pamoja.molex.cloud/docs/guides/ladder.html) | tries each link in turn and keeps what none of them would take |
+| [The dashboard](https://pamoja.molex.cloud/dashboard/) | a gateway serves the fleet over its own WiFi, with no internet and no app |
+
+Two programs put the whole thing together, and both run with nothing plugged in.
+[`brooder_node`](examples/brooder_node.rs) runs one shed through a cold night: a
+probe, a heat lamp on an active-low relay, a radio that comes and goes so the cold
+hours are held and sent later in order, and a vent fan at the far end of a rule
+file. [`fleet`](crates/pamoja-dashboard/examples/fleet.rs) is the other shape, every
+shipped profile stood up side by side on one console.
+
+On real hardware the same code runs with two lines changed, the ones that open the
+bus and take the pin. The [Raspberry Pi](https://pamoja.molex.cloud/docs/boards/raspberry-pi.html)
+and [ESP32](https://pamoja.molex.cloud/docs/boards/esp32.html) pages carry those
+programs, along with what a GPIO pin can actually drive and which pins are safe to
+use.
+
 ## What it covers
 
 Every capability is a crate over one core, and a package in each binding over
-one compiled engine. The [architecture page](https://pamoja.molex.cloud/docs/about/architecture.html)
-walks through the drawing.
-
-<a href="https://pamoja.molex.cloud/docs/about/architecture.html"><picture>
-<source media="(prefers-color-scheme: dark) and (max-width: 640px)" srcset="docs/assets/architecture-narrow-dark.svg">
-<source media="(max-width: 640px)" srcset="docs/assets/architecture-narrow.svg">
-<source media="(prefers-color-scheme: dark)" srcset="docs/assets/architecture-dark.svg">
-<img alt="How a call reaches a crate: the three bindings over the compiled engine, Rust straight to the crates, and every capability crate over pamoja-core" src="docs/assets/architecture.svg" width="100%">
-</picture></a>
+one compiled engine. The
+[architecture page](https://pamoja.molex.cloud/docs/about/architecture.html)
+draws how a call reaches a crate and walks through it.
 
 <!-- table: chapters -->
 | Chapter | Guides | Crates |
@@ -431,6 +460,8 @@ page on any registry links to the same capability on the other three.
   shared, each a node as a JSON file checked in CI, and the
   [community page](https://pamoja.molex.cloud/docs/community.html) on adding a
   profile, an example, a driver, or a board of your own.
+- [The dashboard](https://pamoja.molex.cloud/dashboard/), which a gateway serves
+  over its own WiFi so a fleet can be read with no internet and no app to install.
 - [Why it exists](https://pamoja.molex.cloud/docs/about/why.html),
   [how it is put together](https://pamoja.molex.cloud/docs/about/architecture.html),
   and [which standards it is held to](https://pamoja.molex.cloud/docs/about/standards.html).

@@ -1,3 +1,6 @@
+# The badges on molexxxx's profile page, which reads this repository's registries and
+# CI. This repository's own badges are not these: `cargo xtask docs` draws them into
+# .github/badges/ in the site's palette, and they change when the version does.
 name: badges
 
 on:

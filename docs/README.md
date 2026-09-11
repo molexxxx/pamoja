@@ -26,7 +26,9 @@ If you are here with a part in hand rather than a language in mind,
 and radios the crates implement, and the boards this is built and tested on.
 With a board on the desk, its page wires a sensor to it, turns the bus on, and
 runs a first program: [Raspberry Pi](boards/raspberry-pi.md),
-[ESP32](boards/esp32.md), or [RP2040](boards/rp2040.md). [Buses and links](buses.md)
+[ESP32](boards/esp32.md), or [RP2040](boards/rp2040.md). The Raspberry Pi and
+ESP32 pages go on to drive a relay from a GPIO line and run a whole node.
+[Buses and links](buses.md)
 explains the buses and links themselves, from I2C to LoRa, and names the crate
 that carries each one's logic.
 
