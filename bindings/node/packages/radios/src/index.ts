@@ -3,7 +3,8 @@
  *
  * `@pamoja/lora` works out what a link costs and how far it reaches; this puts a radio chip
  * on the air to match. For the Semtech SX1261, SX1262, and LLCC68 it builds the bytes of
- * every command and decodes every answer, chooses the amplifier setting a regional EIRP
+ * every command and decodes every answer, and for the SX1276 family it gives the register
+ * values and decodes the readings. It chooses the amplifier setting a regional EIRP
  * ceiling allows behind an antenna, and holds the radio silent for the off time a duty-cycle
  * limit owes after each frame.
  *
@@ -11,6 +12,7 @@
  */
 
 export * as sx126x from './sx126x'
+export * as sx127x from './sx127x'
 
 export {
   /**

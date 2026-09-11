@@ -1283,3 +1283,16 @@ def test_an_sx1262_transmission_plans_its_bytes_under_the_ceiling():
     guard = radios.DutyCycle(10)
     airtime = guard.transmitted(0, lora.link(12, 125_000), 10)
     assert guard.wait_us(0) == airtime * 100
+
+
+def test_an_rfm95w_transmission_plans_its_registers():
+    from pamoja import lora, radios
+
+    sx127x = radios.sx127x
+    assert radios.sx126x.llcc68_supports(lora.link(9, 125_000))
+    assert not radios.sx126x.llcc68_supports(lora.link(10, 125_000))
+    assert sx127x.frequency_word(868_100_000) == 0xD90666
+    assert sx127x.lora_op_mode(sx127x.Mode.TX) == 0x8B
+    assert sx127x.tx_power(sx127x.PaOutput.PA_BOOST, 20).pa_dac == sx127x.PA_DAC_HIGH_POWER
+    with pytest.raises(PamojaError, match="SF5"):
+        sx127x.modem(lora.link(5, 125_000), 868_100_000)

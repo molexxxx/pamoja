@@ -1,6 +1,6 @@
 [package]
 name = "pamoja-radios"
-description = "LoRa radio drivers for pamoja: the Semtech SX126x command set, its IRQ, status and packet status decoding, the frequency, modulation, packet and transmit power settings a pamoja-lora link and channel plan turn into, a duty-cycle guard, an embedded-hal driver, and a mesh transport over it, no_std at its core."
+description = "LoRa radio drivers for pamoja: the Semtech SX126x command set and SX127x register map, their interrupt, status and packet status decoding, the frequency, modulation, packet and transmit power settings a pamoja-lora link and channel plan turn into, a duty-cycle guard, embedded-hal drivers, and a mesh transport over them, no_std at its core."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -835,6 +835,22 @@ function radioAndReach() {
   const airtime = guard.transmitted(0, lora.link(12, 125_000), 10);
   assert.strictEqual(guard.waitUs(0), airtime * 100, "a 1% duty cycle holds the radio silent");
 
+  assert.ok(sx126x.llcc68Supports(lora.link(9, 125_000)), "an LLCC68 has SF9 at 125 kHz");
+  assert.ok(!sx126x.llcc68Supports(lora.link(10, 125_000)), "but not SF10");
+  const { sx127x } = radios;
+  assert.strictEqual(sx127x.frequencyWord(868_100_000), 0xd90666, "the SX1276 carrier word");
+  assert.strictEqual(sx127x.loraOpMode(sx127x.Mode.Tx), 0x8b, "TX mode on the LoRa page");
+  assert.strictEqual(
+    sx127x.txPower(sx127x.PaOutput.PaBoost, 20).paDac,
+    sx127x.PA_DAC_HIGH_POWER,
+    "+20 dBm on PA_BOOST needs the high power setting",
+  );
+  assert.throws(
+    () => sx127x.modem(lora.link(5, 125_000), 868_100_000),
+    /SF5/,
+    "the SX1276 has no SF5",
+  );
+
   const session = lorawan.session(0x2601_1bda, Buffer.alloc(16, 0x2b), Buffer.alloc(16, 0x99));
   const uplink = session.encodeUplink(42, 1, Buffer.from("temp=4.8"), { confirmed: true });
   const rx = session.decode(uplink, 42);

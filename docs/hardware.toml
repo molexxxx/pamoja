@@ -708,7 +708,8 @@ specs = [
   "Receive current: 9.9 mA, with 200 nA register retention",
 ]
 cost = "$5 to $20"
-crates = ["pamoja-lora"]
+crates = ["pamoja-lora", "pamoja-radios"]
+modules = ["pamoja-radios/src/sx127x.rs"]
 source_name = "SX1276 product page, Semtech LoRa Connect"
 source_label = "Semtech SX1276"
 source = "https://www.semtech.com/products/wireless-rf/lora-connect/sx1276"

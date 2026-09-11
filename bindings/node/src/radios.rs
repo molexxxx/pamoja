@@ -4,6 +4,9 @@
 //! the chip's answers decoded, the amplifier settings a regional power ceiling allows, and
 //! the silence a duty-cycle limit forces after each transmission.
 //!
+//! For the SX1276 family, which is driven through registers, they give the register
+//! addresses, the values a link and an output power put in them, and the readings decoded.
+//!
 //! A command is a few bytes, so it crosses as a `Buffer`, and the settings and the decoded
 //! answers are plain objects. The duty-cycle guard keeps state between calls, so it is a
 //! class. Microsecond clocks cross as numbers, exact far past any deployment's uptime.
@@ -19,6 +22,20 @@ use pamoja_radios::sx126x::config::{
 use pamoja_radios::sx126x::irq::Irq;
 use pamoja_radios::sx126x::status::{
     rssi_inst_dbm, ChipMode, CommandStatus, DeviceErrors, PacketStatus, RxBufferStatus, Status,
+};
+
+use std::collections::HashMap;
+
+use pamoja_radios::sx126x::config::llcc68_supports;
+use pamoja_radios::sx127x::config::{
+    self as sx127x_config, LoraBandwidth as Sx127xBandwidth, LoraModulation as Sx127xModulation,
+    ModulationError, PaOutput, TxPower as Sx127xPower,
+};
+use pamoja_radios::sx127x::irq::IrqFlags;
+use pamoja_radios::sx127x::register::{self as sx127x_register, Mode as Sx127xModeCode};
+use pamoja_radios::sx127x::status::{
+    rssi_dbm as decoded_rssi_dbm, ModemStatus as DecodedModemStatus,
+    PacketStatus as DecodedPacketStatus, Port,
 };
 
 use crate::lora::{db, decibels, link_budget, settings, LoraLink, LoraLinkBudget};
@@ -655,4 +672,477 @@ fn command_status(status: CommandStatus) -> Sx126xCommandStatus {
     } else {
         Sx126xCommandStatus::Other
     }
+}
+
+/// Reports whether an LLCC68 supports a link's spreading factor at its bandwidth: up to SF9
+/// at 125 kHz, SF10 at 250 kHz, and SF11 at 500 kHz.
+#[napi(js_name = "sx126xLlcc68Supports")]
+pub fn sx126x_llcc68_supports(link: LoraLink) -> bool {
+    LoraModulation::from_link(&settings(&link)).is_some_and(|modulation| {
+        llcc68_supports(modulation.spreading_factor, modulation.bandwidth)
+    })
+}
+
+/// The amplifier output an SX127x module wires to its antenna.
+#[napi(string_enum, js_name = "Sx127xPaOutput")]
+pub enum Sx127xPaOutput {
+    /// The high efficiency amplifier on RFO_LF or RFO_HF, -4 to +15 dBm.
+    Rfo,
+    /// The regulated amplifier on PA_BOOST, +2 to +20 dBm, as on the RFM95W.
+    PaBoost,
+}
+
+/// An SX127x operating mode, the Mode bits of RegOpMode.
+#[napi(string_enum, js_name = "Sx127xMode")]
+pub enum Sx127xMode {
+    /// Only the SPI interface and the registers are powered.
+    Sleep,
+    /// The oscillator and the baseband are on.
+    Standby,
+    /// The PLL is locked for transmit.
+    FsTx,
+    /// One packet goes out.
+    Tx,
+    /// The PLL is locked for receive.
+    FsRx,
+    /// The receiver takes packet after packet.
+    RxContinuous,
+    /// The receiver waits for one packet.
+    RxSingle,
+    /// Channel activity detection.
+    Cad,
+}
+
+/// The amplifier settings of an SX127x.
+#[napi(object, js_name = "Sx127xTxPower")]
+pub struct Sx127xTxPower {
+    /// RegPaConfig: PaSelect, MaxPower, and OutputPower.
+    pub pa_config: u32,
+    /// RegPaDac: the +20 dBm setting above +17 dBm on PA_BOOST, else its reset value.
+    pub pa_dac: u32,
+    /// RegOcp: the current limit.
+    pub ocp: u32,
+    /// The output power the settings produce, in dBm.
+    pub output_dbm: i32,
+}
+
+/// The LoRa modem registers of an SX127x for a link.
+#[napi(object, js_name = "Sx127xModem")]
+pub struct Sx127xModem {
+    /// RegModemConfig1: bandwidth, coding rate, and header mode.
+    pub modem_config_1: u32,
+    /// RegModemConfig2: spreading factor, CRC, and the top bits of the symbol timeout.
+    pub modem_config_2: u32,
+    /// RegModemConfig3: low data rate optimization and the AGC.
+    pub modem_config_3: u32,
+    /// The DetectionOptimize bits for the low three bits of RegDetectOptimize.
+    pub detection_optimize: u32,
+    /// RegDetectionThreshold.
+    pub detection_threshold: u32,
+}
+
+/// The signal levels of a packet an SX127x received.
+#[napi(object, js_name = "Sx127xPacketStatus")]
+pub struct Sx127xPacketStatus {
+    /// The RSSI averaged over the packet, in dBm.
+    pub rssi_dbm: f64,
+    /// The estimated signal-to-noise ratio, in dB.
+    pub snr_db: f64,
+    /// The strength of the packet itself, in dBm.
+    pub signal_rssi_dbm: f64,
+}
+
+/// The live state of an SX127x LoRa modem.
+#[napi(object, js_name = "Sx127xModemStatus")]
+pub struct Sx127xModemStatus {
+    /// The coding rate denominator the last header announced, or `null` for a reserved value.
+    pub coding_rate_denominator: Option<u32>,
+    /// The modem is clear.
+    pub clear: bool,
+    /// The header of the packet under way is valid.
+    pub header_valid: bool,
+    /// A reception is under way.
+    pub rx_ongoing: bool,
+    /// The modem has synchronized on the end of the preamble.
+    pub signal_synchronized: bool,
+    /// A LoRa preamble has been detected.
+    pub signal_detected: bool,
+}
+
+/// The writes of the SX127x 500 kHz sensitivity erratum.
+#[napi(object, js_name = "Sx127xHighBwOptimize")]
+pub struct Sx127xHighBwOptimize {
+    /// The RegHighBwOptimize1 value.
+    pub optimize_1: u32,
+    /// The RegHighBwOptimize2 value, or `null` when it is not written.
+    pub optimize_2: Option<u32>,
+}
+
+/// The receive settings of the SX127x spurious reception erratum.
+#[napi(object, js_name = "Sx127xSpuriousReception")]
+pub struct Sx127xSpuriousReception {
+    /// Whether AutomaticIFOn stays on.
+    pub automatic_if: bool,
+    /// The RegIfFreq2 value, with RegIfFreq1 cleared, or `null` when the IF stays automatic.
+    pub if_freq_2: Option<u32>,
+    /// How far above the carrier to receive, in hertz.
+    pub offset_hz: u32,
+}
+
+/// The SX127x register addresses, by name.
+#[napi(js_name = "sx127xRegisters")]
+pub fn sx127x_registers() -> HashMap<String, u32> {
+    [
+        ("fifo", sx127x_register::FIFO),
+        ("opMode", sx127x_register::OP_MODE),
+        ("frfMsb", sx127x_register::FRF_MSB),
+        ("frfMid", sx127x_register::FRF_MID),
+        ("frfLsb", sx127x_register::FRF_LSB),
+        ("paConfig", sx127x_register::PA_CONFIG),
+        ("paRamp", sx127x_register::PA_RAMP),
+        ("ocp", sx127x_register::OCP),
+        ("lna", sx127x_register::LNA),
+        ("fifoAddrPtr", sx127x_register::FIFO_ADDR_PTR),
+        ("fifoTxBaseAddr", sx127x_register::FIFO_TX_BASE_ADDR),
+        ("fifoRxBaseAddr", sx127x_register::FIFO_RX_BASE_ADDR),
+        ("fifoRxCurrentAddr", sx127x_register::FIFO_RX_CURRENT_ADDR),
+        ("irqFlagsMask", sx127x_register::IRQ_FLAGS_MASK),
+        ("irqFlags", sx127x_register::IRQ_FLAGS),
+        ("rxNbBytes", sx127x_register::RX_NB_BYTES),
+        ("modemStat", sx127x_register::MODEM_STAT),
+        ("pktSnrValue", sx127x_register::PKT_SNR_VALUE),
+        ("pktRssiValue", sx127x_register::PKT_RSSI_VALUE),
+        ("rssiValue", sx127x_register::RSSI_VALUE),
+        ("hopChannel", sx127x_register::HOP_CHANNEL),
+        ("modemConfig1", sx127x_register::MODEM_CONFIG_1),
+        ("modemConfig2", sx127x_register::MODEM_CONFIG_2),
+        ("symbTimeoutLsb", sx127x_register::SYMB_TIMEOUT_LSB),
+        ("preambleMsb", sx127x_register::PREAMBLE_MSB),
+        ("preambleLsb", sx127x_register::PREAMBLE_LSB),
+        ("payloadLength", sx127x_register::PAYLOAD_LENGTH),
+        ("maxPayloadLength", sx127x_register::MAX_PAYLOAD_LENGTH),
+        ("modemConfig3", sx127x_register::MODEM_CONFIG_3),
+        ("rssiWideband", sx127x_register::RSSI_WIDEBAND),
+        ("ifFreq2", sx127x_register::IF_FREQ_2),
+        ("ifFreq1", sx127x_register::IF_FREQ_1),
+        ("detectOptimize", sx127x_register::DETECT_OPTIMIZE),
+        ("invertIq", sx127x_register::INVERT_IQ),
+        ("highBwOptimize1", sx127x_register::HIGH_BW_OPTIMIZE_1),
+        ("detectionThreshold", sx127x_register::DETECTION_THRESHOLD),
+        ("syncWord", sx127x_register::SYNC_WORD),
+        ("highBwOptimize2", sx127x_register::HIGH_BW_OPTIMIZE_2),
+        ("invertIq2", sx127x_register::INVERT_IQ_2),
+        ("imageCal", sx127x_register::IMAGE_CAL),
+        ("dioMapping1", sx127x_register::DIO_MAPPING_1),
+        ("dioMapping2", sx127x_register::DIO_MAPPING_2),
+        ("version", sx127x_register::VERSION),
+        ("tcxo", sx127x_register::TCXO),
+        ("paDac", sx127x_register::PA_DAC),
+    ]
+    .into_iter()
+    .map(|(name, address)| (name.to_owned(), u32::from(address)))
+    .collect()
+}
+
+/// The SX127x register values with a name: the version, the write bit, the DIO0 mappings,
+/// the amplifier and calibration bits, the sync words, and the LNA and TCXO settings.
+#[napi(js_name = "sx127xConstants")]
+pub fn sx127x_constants() -> HashMap<String, u32> {
+    [
+        ("version", sx127x_register::VERSION_SX1276),
+        ("write", sx127x_register::WRITE),
+        ("dio0RxDone", sx127x_config::DIO0_RX_DONE),
+        ("dio0TxDone", sx127x_config::DIO0_TX_DONE),
+        ("dio0CadDone", sx127x_config::DIO0_CAD_DONE),
+        ("paDacDefault", sx127x_config::PA_DAC_DEFAULT),
+        ("paDacHighPower", sx127x_config::PA_DAC_HIGH_POWER),
+        ("imageCalStart", sx127x_config::IMAGE_CAL_START),
+        ("imageCalRunning", sx127x_config::IMAGE_CAL_RUNNING),
+        ("syncWordPublic", sx127x_config::SyncWord::Public.to_byte()),
+        (
+            "syncWordPrivate",
+            sx127x_config::SyncWord::Private.to_byte(),
+        ),
+        ("lnaBoosted", sx127x_config::LNA_BOOSTED),
+        ("tcxoInputOn", sx127x_config::TCXO_INPUT_ON),
+    ]
+    .into_iter()
+    .map(|(name, value)| (name.to_owned(), u32::from(value)))
+    .collect()
+}
+
+/// The SX127x LoRa interrupt flags, by name.
+#[napi(js_name = "sx127xIrqFlags")]
+pub fn sx127x_irq_flags() -> HashMap<String, u32> {
+    [
+        ("rxTimeout", IrqFlags::RX_TIMEOUT),
+        ("rxDone", IrqFlags::RX_DONE),
+        ("payloadCrcError", IrqFlags::PAYLOAD_CRC_ERROR),
+        ("validHeader", IrqFlags::VALID_HEADER),
+        ("txDone", IrqFlags::TX_DONE),
+        ("cadDone", IrqFlags::CAD_DONE),
+        ("fhssChangeChannel", IrqFlags::FHSS_CHANGE_CHANNEL),
+        ("cadDetected", IrqFlags::CAD_DETECTED),
+    ]
+    .into_iter()
+    .map(|(name, flag)| (name.to_owned(), u32::from(flag.bits())))
+    .collect()
+}
+
+/// The 24-bit RegFrf word an SX127x takes for a frequency in hertz.
+#[napi(js_name = "sx127xFrequencyWord")]
+pub fn sx127x_frequency_word(frequency_hz: u32) -> u32 {
+    sx127x_config::frequency_word(frequency_hz)
+}
+
+/// The frequency in hertz an SX127x RegFrf word selects.
+#[napi(js_name = "sx127xFrequencyFromWord")]
+pub fn sx127x_frequency_from_word(word: u32) -> u32 {
+    sx127x_config::frequency_from_word(word)
+}
+
+/// The SX127x address byte that reads a register.
+#[napi(js_name = "sx127xReadAddress")]
+pub fn sx127x_read_address(address: u32) -> u32 {
+    u32::from(sx127x_register::read_address(address as u8))
+}
+
+/// The SX127x address byte that writes a register.
+#[napi(js_name = "sx127xWriteAddress")]
+pub fn sx127x_write_address(address: u32) -> u32 {
+    u32::from(sx127x_register::write_address(address as u8))
+}
+
+/// The RegOpMode value for a LoRa operating mode.
+#[napi(js_name = "sx127xLoraOpMode")]
+pub fn sx127x_lora_op_mode(mode: Sx127xMode) -> u32 {
+    u32::from(sx127x_register::lora_op_mode(mode_code(mode)))
+}
+
+/// The RegOpMode value for an FSK operating mode, which image calibration needs.
+#[napi(js_name = "sx127xFskOpMode")]
+pub fn sx127x_fsk_op_mode(mode: Sx127xMode) -> u32 {
+    u32::from(sx127x_register::fsk_op_mode(mode_code(mode)))
+}
+
+/// The operating mode a RegOpMode value holds.
+#[napi(js_name = "sx127xModeFromOpMode")]
+pub fn sx127x_mode_from_op_mode(op_mode: u32) -> Sx127xMode {
+    match Sx127xModeCode::from_op_mode(op_mode as u8) {
+        Sx127xModeCode::Sleep => Sx127xMode::Sleep,
+        Sx127xModeCode::Standby => Sx127xMode::Standby,
+        Sx127xModeCode::FsTx => Sx127xMode::FsTx,
+        Sx127xModeCode::Tx => Sx127xMode::Tx,
+        Sx127xModeCode::FsRx => Sx127xMode::FsRx,
+        Sx127xModeCode::RxContinuous => Sx127xMode::RxContinuous,
+        Sx127xModeCode::RxSingle => Sx127xMode::RxSingle,
+        Sx127xModeCode::Cad => Sx127xMode::Cad,
+    }
+}
+
+/// The LoRa modem registers for a link at a carrier, with a single reception timeout in
+/// symbols.
+///
+/// Throws when the SX127x cannot use the link at the carrier.
+#[napi(js_name = "sx127xModem")]
+pub fn sx127x_modem(
+    link: LoraLink,
+    frequency_hz: u32,
+    symbol_timeout: u32,
+) -> napi::Result<Sx127xModem> {
+    let modulation = Sx127xModulation::from_link(&settings(&link)).map_err(modulation_error)?;
+    if !modulation.bandwidth.in_band(frequency_hz) {
+        return Err(modulation_error(ModulationError::Bandwidth(
+            link.bandwidth_hz,
+        )));
+    }
+    let symbols = symbol_timeout.min(u32::from(u16::MAX)) as u16;
+    Ok(Sx127xModem {
+        modem_config_1: u32::from(modulation.modem_config_1()),
+        modem_config_2: u32::from(modulation.modem_config_2(symbols)),
+        modem_config_3: u32::from(modulation.modem_config_3()),
+        detection_optimize: u32::from(modulation.detect_optimize(0)),
+        detection_threshold: u32::from(modulation.detection_threshold()),
+    })
+}
+
+/// The SX127x single reception timeout for a duration in microseconds, in the link's symbols.
+#[napi(js_name = "sx127xSymbolTimeout")]
+pub fn sx127x_symbol_timeout(link: LoraLink, timeout_us: f64) -> u32 {
+    u32::from(sx127x_config::symbol_timeout(
+        &settings(&link),
+        micros(timeout_us),
+    ))
+}
+
+/// The SX127x amplifier settings for an output power on an amplifier output.
+#[napi(js_name = "sx127xTxPower")]
+pub fn sx127x_tx_power(output: Sx127xPaOutput, output_dbm: i32) -> Sx127xTxPower {
+    sx127x_power(Sx127xPower::for_output(pa_output(output), dbm(output_dbm)))
+}
+
+/// The SX127x amplifier settings that keep a link's EIRP at or under a ceiling in dBm.
+#[napi(js_name = "sx127xTxPowerUnderCeiling")]
+pub fn sx127x_tx_power_under_ceiling(
+    output: Sx127xPaOutput,
+    budget: LoraLinkBudget,
+    eirp_ceiling_dbm: f64,
+) -> Sx127xTxPower {
+    sx127x_power(Sx127xPower::under_ceiling(
+        pa_output(output),
+        &link_budget(&budget),
+        decibels(eirp_ceiling_dbm),
+    ))
+}
+
+/// RegOcp for a current limit in milliamps.
+#[napi(js_name = "sx127xOcpRegister")]
+pub fn sx127x_ocp_register(milliamps: u32) -> u32 {
+    u32::from(sx127x_config::ocp_register(
+        milliamps.min(u32::from(u16::MAX)) as u16,
+    ))
+}
+
+/// RegInvertIQ for the IQ polarity of each path.
+#[napi(js_name = "sx127xInvertIq")]
+pub fn sx127x_invert_iq(receive: bool, transmit: bool) -> u32 {
+    u32::from(sx127x_config::invert_iq(receive, transmit))
+}
+
+/// RegInvertIQ2 for the path in use.
+#[napi(js_name = "sx127xInvertIq2")]
+pub fn sx127x_invert_iq_2(inverted: bool) -> u32 {
+    u32::from(sx127x_config::invert_iq_2(inverted))
+}
+
+/// The writes of the 500 kHz sensitivity erratum for a link at a carrier.
+///
+/// Throws when the SX127x has no such bandwidth.
+#[napi(js_name = "sx127xHighBwOptimize")]
+pub fn sx127x_high_bw_optimize(
+    link: LoraLink,
+    frequency_hz: u32,
+) -> napi::Result<Sx127xHighBwOptimize> {
+    let (optimize_1, optimize_2) =
+        sx127x_config::high_bw_optimize(sx127x_bandwidth(&link)?, frequency_hz);
+    Ok(Sx127xHighBwOptimize {
+        optimize_1: u32::from(optimize_1),
+        optimize_2: optimize_2.map(u32::from),
+    })
+}
+
+/// The receive settings of the spurious reception erratum for a link.
+///
+/// Throws when the SX127x has no such bandwidth.
+#[napi(js_name = "sx127xSpuriousReception")]
+pub fn sx127x_spurious_reception(link: LoraLink) -> napi::Result<Sx127xSpuriousReception> {
+    let erratum = sx127x_config::spurious_reception(sx127x_bandwidth(&link)?);
+    Ok(Sx127xSpuriousReception {
+        automatic_if: erratum.automatic_if,
+        if_freq_2: erratum.if_freq_2.map(u32::from),
+        offset_hz: erratum.offset_hz,
+    })
+}
+
+/// RegImageCal with a calibration started and the automatic recalibration off.
+#[napi(js_name = "sx127xImageCalStart")]
+pub fn sx127x_image_cal_start(current: u32) -> u32 {
+    u32::from(sx127x_config::image_cal_start(current as u8))
+}
+
+/// RegDetectOptimize with AutomaticIFOn set or clear.
+#[napi(js_name = "sx127xAutomaticIf")]
+pub fn sx127x_automatic_if(current: u32, automatic_if: bool) -> u32 {
+    u32::from(sx127x_config::automatic_if(current as u8, automatic_if))
+}
+
+/// Decodes RegPktSnrValue and RegPktRssiValue, read together, for a packet heard at a
+/// carrier.
+///
+/// Throws when the answer is not two bytes.
+#[napi(js_name = "sx127xPacketStatus")]
+pub fn sx127x_packet_status(answer: Buffer, frequency_hz: u32) -> napi::Result<Sx127xPacketStatus> {
+    let bytes = exactly::<2>(&answer, "RegPktSnrValue and RegPktRssiValue")?;
+    let status = DecodedPacketStatus::from_bytes(bytes, Port::for_frequency(frequency_hz));
+    Ok(Sx127xPacketStatus {
+        rssi_dbm: db(status.rssi_dbm),
+        snr_db: db(status.snr_db),
+        signal_rssi_dbm: db(status.signal_rssi_dbm),
+    })
+}
+
+/// Decodes RegRssiValue for a receiver tuned to a carrier, in dBm.
+#[napi(js_name = "sx127xRssiDbm")]
+pub fn sx127x_rssi_dbm(byte: u32, frequency_hz: u32) -> f64 {
+    db(decoded_rssi_dbm(
+        byte as u8,
+        Port::for_frequency(frequency_hz),
+    ))
+}
+
+/// Decodes RegModemStat.
+#[napi(js_name = "sx127xModemStatus")]
+pub fn sx127x_modem_status(byte: u32) -> Sx127xModemStatus {
+    let status = DecodedModemStatus::from_byte(byte as u8);
+    Sx127xModemStatus {
+        coding_rate_denominator: status.coding_rate_denominator.map(u32::from),
+        clear: status.clear,
+        header_valid: status.header_valid,
+        rx_ongoing: status.rx_ongoing,
+        signal_synchronized: status.signal_synchronized,
+        signal_detected: status.signal_detected,
+    }
+}
+
+/// Maps the JavaScript mode to the chip's.
+fn mode_code(mode: Sx127xMode) -> Sx127xModeCode {
+    match mode {
+        Sx127xMode::Sleep => Sx127xModeCode::Sleep,
+        Sx127xMode::Standby => Sx127xModeCode::Standby,
+        Sx127xMode::FsTx => Sx127xModeCode::FsTx,
+        Sx127xMode::Tx => Sx127xModeCode::Tx,
+        Sx127xMode::FsRx => Sx127xModeCode::FsRx,
+        Sx127xMode::RxContinuous => Sx127xModeCode::RxContinuous,
+        Sx127xMode::RxSingle => Sx127xModeCode::RxSingle,
+        Sx127xMode::Cad => Sx127xModeCode::Cad,
+    }
+}
+
+/// Names the amplifier output the JavaScript enum selects.
+fn pa_output(output: Sx127xPaOutput) -> PaOutput {
+    match output {
+        Sx127xPaOutput::Rfo => PaOutput::Rfo,
+        Sx127xPaOutput::PaBoost => PaOutput::PaBoost,
+    }
+}
+
+/// Flattens SX127x power settings into the object JavaScript sees.
+fn sx127x_power(power: Sx127xPower) -> Sx127xTxPower {
+    Sx127xTxPower {
+        pa_config: u32::from(power.pa_config),
+        pa_dac: u32::from(power.pa_dac),
+        ocp: u32::from(power.ocp),
+        output_dbm: i32::from(power.output_dbm),
+    }
+}
+
+/// Finds a link's SX127x bandwidth.
+fn sx127x_bandwidth(link: &LoraLink) -> napi::Result<Sx127xBandwidth> {
+    Sx127xBandwidth::from_hz(link.bandwidth_hz).ok_or_else(|| {
+        napi::Error::from_reason(format!(
+            "the SX127x has no {} Hz LoRa bandwidth",
+            link.bandwidth_hz
+        ))
+    })
+}
+
+/// Says why an SX127x cannot use a link.
+fn modulation_error(error: ModulationError) -> napi::Error {
+    napi::Error::from_reason(match error {
+        ModulationError::Bandwidth(hz) => {
+            format!("the SX127x has no {hz} Hz LoRa bandwidth at this carrier")
+        }
+        ModulationError::SpreadingFactor(sf) => format!("the SX127x has no SF{sf}"),
+        ModulationError::ExplicitHeaderAtSf6 => "SF6 needs an implicit header".to_owned(),
+    })
 }

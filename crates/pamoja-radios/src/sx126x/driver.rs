@@ -13,9 +13,9 @@ use pamoja_lora::LinkSettings;
 
 use super::command::{self, Command, Query, CALIBRATE_ALL};
 use super::config::{
-    self, frequency_word, image_calibration, iq_polarity, register, timeout_steps, tx_clamp,
-    tx_modulation, LoraModulation, LoraPacket, PacketType, PowerAmplifier, RampTime, RegulatorMode,
-    StandbyMode, SyncWord, TcxoVoltage, TxPower,
+    self, frequency_word, image_calibration, iq_polarity, llcc68_supports, register, timeout_steps,
+    tx_clamp, tx_modulation, LoraModulation, LoraPacket, PacketType, PowerAmplifier, RampTime,
+    RegulatorMode, StandbyMode, SyncWord, TcxoVoltage, TxPower,
 };
 use super::irq::Irq;
 use super::status::{rssi_inst_dbm, ChipMode, DeviceErrors, PacketStatus, RxBufferStatus, Status};
@@ -83,6 +83,9 @@ pub struct Board {
     pub dio2_rf_switch: bool,
     /// The regulator: the DC-DC converter where the module fits its inductor, else the LDO.
     pub regulator: RegulatorMode,
+    /// Whether the chip is an LLCC68, which [`Sx126x::configure`] holds to the spreading
+    /// factors and bandwidths [`llcc68_supports`] allows.
+    pub llcc68: bool,
 }
 
 impl Board {
@@ -101,6 +104,7 @@ impl Board {
             tcxo: None,
             dio2_rf_switch: false,
             regulator: RegulatorMode::Ldo,
+            llcc68: false,
         }
     }
 
@@ -136,6 +140,16 @@ impl Board {
     /// The board.
     pub const fn with_dc_dc(mut self) -> Board {
         self.regulator = RegulatorMode::DcDc;
+        self
+    }
+
+    /// Returns the board with an LLCC68, whose high power amplifier it must also name.
+    ///
+    /// # Returns
+    ///
+    /// The board.
+    pub const fn with_llcc68(mut self) -> Board {
+        self.llcc68 = true;
         self
     }
 }
@@ -312,6 +326,14 @@ pub enum RadioError<E> {
     Absent(Status),
     /// The link settings use a bandwidth the SX126x does not offer, in hertz.
     Bandwidth(u32),
+    /// The board has an LLCC68, which does not support the link's spreading factor at its
+    /// bandwidth.
+    Llcc68 {
+        /// The link's spreading factor.
+        spreading_factor: u8,
+        /// The link's bandwidth in hertz.
+        bandwidth_hz: u32,
+    },
     /// The power settings are for the other amplifier than the board has.
     Amplifier,
     /// A payload longer than the 255 bytes a LoRa frame carries, with its length.
@@ -334,6 +356,13 @@ impl<E: core::fmt::Debug> core::fmt::Display for RadioError<E> {
             RadioError::Busy => f.write_str("the radio held BUSY high past the time allowed"),
             RadioError::Absent(status) => write!(f, "no SX126x answered, status {status:?}"),
             RadioError::Bandwidth(hz) => write!(f, "the SX126x has no {hz} Hz LoRa bandwidth"),
+            RadioError::Llcc68 {
+                spreading_factor,
+                bandwidth_hz,
+            } => write!(
+                f,
+                "the LLCC68 does not support SF{spreading_factor} at {bandwidth_hz} Hz"
+            ),
             RadioError::Amplifier => {
                 f.write_str("the power settings are for the other power amplifier")
             }
@@ -548,11 +577,19 @@ where
     /// # Errors
     ///
     /// Returns [`RadioError::Bandwidth`] if the link's bandwidth is not one the SX126x has,
+    /// [`RadioError::Llcc68`] if the board has an LLCC68 that does not support the link,
     /// [`RadioError::Amplifier`] if the power settings are for the other amplifier, and the
     /// bus errors of [`command`](Sx126x::command).
     pub fn configure(&mut self, config: RadioConfig) -> Result<(), RadioError<SPI::Error>> {
         let modulation = LoraModulation::from_link(&config.link)
             .ok_or(RadioError::Bandwidth(config.link.bandwidth_hz()))?;
+        if self.board.llcc68 && !llcc68_supports(modulation.spreading_factor, modulation.bandwidth)
+        {
+            return Err(RadioError::Llcc68 {
+                spreading_factor: modulation.spreading_factor,
+                bandwidth_hz: config.link.bandwidth_hz(),
+            });
+        }
         let low_power = self.board.amplifier == PowerAmplifier::LowPower;
         if (config.power.pa.device == 1) != low_power {
             return Err(RadioError::Amplifier);
@@ -1335,6 +1372,25 @@ mod tests {
         };
         assert_eq!(radio.configure(sx1261), Err(RadioError::Amplifier));
         assert_eq!(radio.tx_power(14).pa, PaConfig::SX1262_22_DBM);
+    }
+
+    #[test]
+    fn configure_holds_an_llcc68_to_the_rates_it_supports() {
+        let board = Board::new(PowerAmplifier::HighPower).with_llcc68();
+        let mut radio = radio(Vec::new(), board);
+        let sf10 = RadioConfig {
+            link: LinkSettings::new(10, 125_000),
+            ..eu868()
+        };
+        assert_eq!(
+            radio.configure(sf10),
+            Err(RadioError::Llcc68 {
+                spreading_factor: 10,
+                bandwidth_hz: 125_000
+            })
+        );
+        let (spi, _, _, _) = radio.release();
+        assert_eq!(spi.consumed(), 0, "nothing reaches the bus");
     }
 
     #[test]

@@ -823,6 +823,121 @@ def test_radios_vectors_match():
     assert forbidden.earliest_us is None
 
 
+def test_sx127x_and_llcc68_vectors_match():
+    import re
+
+    vector = VECTORS["radios"]["sx127x"]
+    links = {entry["name"]: entry for entry in VECTORS["lora"]["links"]}
+    sx127x = radios.sx127x
+
+    def upper(name: str) -> str:
+        return re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[a-z])(?=[0-9])", "_", name).upper()
+
+    def output(name: str) -> sx127x.PaOutput:
+        return sx127x.PaOutput.RFO if name == "rfo" else sx127x.PaOutput.PA_BOOST
+
+    def hundredths(value: float) -> int:
+        return round(value * 100)
+
+    for name, address in vector["registers"].items():
+        assert int(sx127x.Register[upper(name)]) == address, name
+    assert {
+        "version": sx127x.VERSION,
+        "write": sx127x.WRITE,
+        "dio0RxDone": int(sx127x.Dio0.RX_DONE),
+        "dio0TxDone": int(sx127x.Dio0.TX_DONE),
+        "dio0CadDone": int(sx127x.Dio0.CAD_DONE),
+        "paDacDefault": sx127x.PA_DAC_DEFAULT,
+        "paDacHighPower": sx127x.PA_DAC_HIGH_POWER,
+        "imageCalStart": sx127x.IMAGE_CAL_START,
+        "imageCalRunning": sx127x.IMAGE_CAL_RUNNING,
+        "syncWordPublic": sx127x.SYNC_WORD_PUBLIC,
+        "syncWordPrivate": sx127x.SYNC_WORD_PRIVATE,
+        "lnaBoosted": sx127x.LNA_BOOSTED,
+        "tcxoInputOn": sx127x.TCXO_INPUT_ON,
+    } == vector["constants"]
+    for name, bits in vector["irqFlags"].items():
+        assert int(sx127x.Irq[upper(name)]) == bits, name
+    for entry in vector["modes"]:
+        mode = sx127x.Mode[upper(entry["mode"])]
+        assert sx127x.lora_op_mode(mode) == entry["lora"], entry
+        assert sx127x.fsk_op_mode(mode) == entry["fsk"], entry
+        assert sx127x.mode_from_op_mode(entry["lora"]) is mode, entry
+    for entry in vector["addresses"]:
+        assert sx127x.read_address(entry["address"]) == entry["read"], entry
+        assert sx127x.write_address(entry["address"]) == entry["write"], entry
+    for entry in vector["frequencyWords"]:
+        assert sx127x.frequency_word(entry["frequencyHz"]) == entry["word"], entry
+    for entry in vector["modems"]:
+        link = _link_of(links[entry["link"]])
+        assert sx127x.symbol_timeout(link, 100_000) == entry["symbolTimeout"], entry
+        modem = sx127x.modem(link, entry["frequencyHz"], entry["symbolTimeout"])
+        assert modem.modem_config_1 == entry["modemConfig1"], entry
+        assert modem.modem_config_2 == entry["modemConfig2"], entry
+        assert modem.modem_config_3 == entry["modemConfig3"], entry
+        assert modem.detection_optimize == entry["detectionOptimize"], entry
+        assert modem.detection_threshold == entry["detectionThreshold"], entry
+    for entry in vector["modemRefusals"]:
+        with pytest.raises(PamojaError):
+            sx127x.modem(
+                lora.link(entry["spreadingFactor"], entry["bandwidthHz"]), entry["frequencyHz"]
+            )
+    for entry in vector["symbolTimeouts"]:
+        link = _link_of(links[entry["link"]])
+        assert sx127x.symbol_timeout(link, entry["timeoutUs"]) == entry["symbols"], entry
+    for entry in vector["txPowers"]:
+        power = sx127x.tx_power(output(entry["output"]), entry["requestedDbm"])
+        got = (power.pa_config, power.pa_dac, power.ocp, power.output_dbm)
+        assert got == (entry["paConfig"], entry["paDac"], entry["ocp"], entry["outputDbm"]), entry
+    for entry in vector["underCeilings"]:
+        budget = lora.LinkBudget(
+            transmit_antenna_gain_dbi=entry["transmitAntennaGainHundredths"] / 100,
+            transmit_cable_loss_db=entry["transmitCableLossHundredths"] / 100,
+        )
+        power = sx127x.tx_power_under_ceiling(
+            output(entry["output"]), budget, entry["ceilingHundredths"] / 100
+        )
+        got = (power.pa_config, power.pa_dac, power.ocp, power.output_dbm)
+        assert got == (entry["paConfig"], entry["paDac"], entry["ocp"], entry["outputDbm"]), entry
+    for entry in vector["ocp"]:
+        assert sx127x.ocp_register(entry["milliamps"]) == entry["register"], entry
+    for entry in vector["invertIq"]:
+        assert sx127x.invert_iq(entry["receive"], entry["transmit"]) == entry["register"], entry
+    for entry in vector["invertIq2"]:
+        assert sx127x.invert_iq_2(entry["inverted"]) == entry["register"], entry
+    for entry in vector["highBwOptimize"]:
+        optimize = sx127x.high_bw_optimize(lora.link(7, entry["bandwidthHz"]), entry["frequencyHz"])
+        assert optimize.optimize_1 == entry["optimize1"], entry
+        assert optimize.optimize_2 == entry["optimize2"], entry
+    for entry in vector["spuriousReception"]:
+        erratum = sx127x.spurious_reception(lora.link(7, entry["bandwidthHz"]))
+        assert erratum.automatic_if == entry["automaticIf"], entry
+        assert erratum.if_freq_2 == entry["ifFreq2"], entry
+        assert erratum.offset_hz == entry["offsetHz"], entry
+    for entry in vector["imageCalStart"]:
+        assert sx127x.image_cal_start(entry["current"]) == entry["register"], entry
+    for entry in vector["automaticIf"]:
+        assert sx127x.automatic_if(entry["current"], entry["on"]) == entry["register"], entry
+    for entry in vector["packetStatuses"]:
+        status = sx127x.packet_status(bytes.fromhex(entry["bytes"]), entry["frequencyHz"])
+        assert hundredths(status.rssi_dbm) == entry["rssiHundredths"], entry
+        assert hundredths(status.snr_db) == entry["snrHundredths"], entry
+        assert hundredths(status.signal_rssi_dbm) == entry["signalRssiHundredths"], entry
+    for entry in vector["rssi"]:
+        assert hundredths(sx127x.rssi_dbm(entry["byte"], entry["frequencyHz"])) == entry["hundredths"]
+    for entry in vector["modemStatuses"]:
+        status = sx127x.modem_status(entry["byte"])
+        assert status.coding_rate_denominator == entry["codingRateDenominator"], entry
+        assert status.clear == entry["clear"], entry
+        assert status.header_valid == entry["headerValid"], entry
+        assert status.rx_ongoing == entry["rxOngoing"], entry
+        assert status.signal_synchronized == entry["signalSynchronized"], entry
+        assert status.signal_detected == entry["signalDetected"], entry
+    for entry in VECTORS["radios"]["llcc68"]:
+        link = lora.link(entry["spreadingFactor"], entry["bandwidthHz"])
+        assert radios.sx126x.llcc68_supports(link) == entry["supported"], entry
+
+
 def test_lora_region_vectors_match():
     vector = VECTORS["loraRegions"]
 

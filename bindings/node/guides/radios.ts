@@ -68,3 +68,51 @@ assert.equal(timedOut, false)
 assert.equal(held, airtime)
 assert.equal(guard.ready(0), false)
 assert.equal(guard.ready(held * 100), true)
+
+// ANCHOR: rfm95w
+import { sx127x } from '@pamoja/radios'
+
+// An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and the same
+// 16 dBm ceiling leave it the same 14 dBm, set through three registers.
+const band = planFor(LoraRegion.Eu868)
+const channel = 868_100_000
+const dr3 = band.linkSettings(3)!
+const antenna = linkBudget({ transmitAntennaGainDbi: 2.15, transmitCableLossDb: 0.5 })
+const rfm95w = sx127x.txPowerUnderCeiling(sx127x.PaOutput.PaBoost, antenna, band.maxEirpDbm(channel))
+const byte = (value: number): string => value.toString(16).padStart(2, '0')
+console.log(
+  `rfm95w    ${rfm95w.outputDbm} dBm on PA_BOOST: RegPaConfig ${byte(rfm95w.paConfig)}, ` +
+    `RegPaDac ${byte(rfm95w.paDac)}, RegOcp ${byte(rfm95w.ocp)}`,
+)
+
+// The carrier and the modem go into registers while the chip stands by, and TX mode sends
+// the frame the FIFO holds.
+const modem = sx127x.modem(dr3, channel)
+console.log(`carrier   RegFrf ${sx127x.frequencyWord(channel).toString(16).padStart(6, '0')}`)
+console.log(
+  `modem     RegModemConfig ${byte(modem.modemConfig1)} ${byte(modem.modemConfig2)} ` +
+    `${byte(modem.modemConfig3)}`,
+)
+console.log(`tx mode   RegOpMode ${byte(sx127x.loraOpMode(sx127x.Mode.Tx))}`)
+
+// A packet that arrives raises RxDone and ValidHeader, and the SNR and RSSI registers give
+// its levels on the high frequency port.
+const flags = 0x50
+const received = (flags & sx127x.Irq.RxDone) !== 0
+const corrupt = (flags & sx127x.Irq.PayloadCrcError) !== 0
+console.log(`irq       rx done ${received}, crc error ${corrupt}`)
+const packet = sx127x.packetStatus(Buffer.from([0xf6, 0x30]), channel)
+console.log(
+  `received  RSSI ${packet.rssiDbm} dBm, SNR ${packet.snrDb} dB, signal ${packet.signalRssiDbm} dBm`,
+)
+
+// An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
+const fits = (dataRate: number): boolean => sx126x.llcc68Supports(band.linkSettings(dataRate)!)
+console.log(`llcc68    DR3 ${fits(3)}, DR2 ${fits(2)}`)
+// ANCHOR_END: rfm95w
+
+assert.equal(rfm95w.outputDbm, 14)
+assert.equal(rfm95w.paConfig, 0xfc)
+assert.equal(modem.modemConfig2, 0x94)
+assert.equal(received && !corrupt, true)
+assert.equal(fits(3) && !fits(2), true)

@@ -61,3 +61,58 @@ assert sent and not timed_out
 assert held == airtime
 assert not guard.ready(0)
 assert guard.ready(held * 100)
+
+# ANCHOR: rfm95w
+from pamoja.lora import LinkBudget, plan_for
+from pamoja.radios import sx126x, sx127x
+
+# An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and the same
+# 16 dBm ceiling leave it the same 14 dBm, set through three registers.
+band = plan_for("EU868")
+channel = 868_100_000
+dr3 = band.link_settings(3)
+antenna = LinkBudget(transmit_antenna_gain_dbi=2.15, transmit_cable_loss_db=0.5)
+rfm95w = sx127x.tx_power_under_ceiling(
+    sx127x.PaOutput.PA_BOOST, antenna, band.max_eirp_dbm(channel)
+)
+print(
+    f"rfm95w    {rfm95w.output_dbm} dBm on PA_BOOST: RegPaConfig {rfm95w.pa_config:02x}, "
+    f"RegPaDac {rfm95w.pa_dac:02x}, RegOcp {rfm95w.ocp:02x}"
+)
+
+# The carrier and the modem go into registers while the chip stands by, and TX mode sends the
+# frame the FIFO holds.
+modem = sx127x.modem(dr3, channel)
+print(f"carrier   RegFrf {sx127x.frequency_word(channel):06x}")
+print(
+    f"modem     RegModemConfig {modem.modem_config_1:02x} {modem.modem_config_2:02x} "
+    f"{modem.modem_config_3:02x}"
+)
+print(f"tx mode   RegOpMode {sx127x.lora_op_mode(sx127x.Mode.TX):02x}")
+
+# A packet that arrives raises RxDone and ValidHeader, and the SNR and RSSI registers give its
+# levels on the high frequency port.
+flags = sx127x.Irq(0x50)
+received = sx127x.Irq.RX_DONE in flags
+corrupt = sx127x.Irq.PAYLOAD_CRC_ERROR in flags
+print(f"irq       rx done {received}, crc error {corrupt}")
+packet = sx127x.packet_status(bytes([0xF6, 0x30]), channel)
+print(
+    f"received  RSSI {packet.rssi_dbm} dBm, SNR {packet.snr_db} dB, "
+    f"signal {packet.signal_rssi_dbm} dBm"
+)
+
+
+# An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
+def fits(data_rate: int) -> bool:
+    return sx126x.llcc68_supports(band.link_settings(data_rate))
+
+
+print(f"llcc68    DR3 {fits(3)}, DR2 {fits(2)}")
+# ANCHOR_END: rfm95w
+
+assert rfm95w.output_dbm == 14
+assert rfm95w.pa_config == 0xFC
+assert modem.modem_config_2 == 0x94
+assert received and not corrupt
+assert fits(3) and not fits(2)

@@ -6,10 +6,12 @@ SX1262, and SX1268, and the LLCC68 that shares their command set, sit on boards
 such as the Heltec WiFi LoRa 32 V3 and the Wio-SX1262 for XIAO. pamoja builds the
 bytes of every command they take and decodes every answer they give, chooses the
 amplifier setting a regional EIRP ceiling allows behind a given antenna, and holds
-the radio silent for the off time a duty-cycle limit owes.
+the radio silent for the off time a duty-cycle limit owes. The older SX1276 family,
+inside the RFM95W, is driven through registers instead, and for it pamoja gives the
+value each register takes and decodes what the chip reads back.
 
-In Rust, `pamoja-radios` also drives the chip over any `embedded-hal` SPI bus and
-carries mesh frames on it as a pamoja transport. The other languages bind the
+In Rust, `pamoja-radios` also drives either family over any `embedded-hal` SPI bus
+and carries mesh frames on it as a pamoja transport. The other languages bind the
 command set, the decoders, and the duty-cycle guard, so a host can plan a
 transmission, check a logic-analyzer capture, or drive the chip over a bus of its
 own.
@@ -28,6 +30,11 @@ itself against, so this page prints each command beside its name instead of
 asserting it. The only hex typed out is the chip's answers, which on a real node
 come back over the same SPI bus.
 
+The second part plans the same reading on an RFM95W, whose SX1276 is driven
+through registers rather than commands: the amplifier settings on its PA_BOOST
+output, the carrier and modem registers, the transmit mode, a received packet's
+interrupts and signal levels, and whether an LLCC68 could carry the same data rate.
+
 It proves:
 
 - The plan's 16 dBm EIRP ceiling, less 2.15 dBi of antenna gain and plus 0.5 dB of
@@ -43,6 +50,15 @@ It proves:
 - A GetPacketStatus answer turns into the RSSI and SNR a frame was heard at.
 - A 1% sub-band owes ninety-nine times the frame's airtime in silence, and the
   guard refuses the next frame until that has passed.
+- An RFM95W behind the same whip takes the same 14 dBm on its PA_BOOST amplifier,
+  which RegPaConfig carries as OutputPower 12 with RegPaDac at its default and the
+  100 mA current limit.
+- DR3 turns into RegModemConfig1 0x72, RegModemConfig2 0x94 and RegModemConfig3
+  0x04, and TX mode on the LoRa register page is RegOpMode 0x8B.
+- A packet read back with PacketSnr 0xF6 and PacketRssi 0x30 at 868.1 MHz was
+  heard at -109 dBm with an SNR of -2.5 dB, so its own strength was -111.5 dBm.
+- An LLCC68 carries DR3, at SF9, but not DR2, at SF10, the first rate it gives up
+  at 125 kHz.
 
 ## Run it
 
@@ -178,6 +194,76 @@ println!(
 ```
 <!-- end -->
 
+The same reading from an RFM95W:
+
+<!-- snippet: examples/tests/guides/radios.rs#rfm95w -->
+From [`examples/tests/guides/radios.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/radios.rs):
+
+```rust
+use pamoja_lora::budget::{Decibels, LinkBudget};
+use pamoja_lora::region::Region;
+use pamoja_radios::sx126x::config::{llcc68_supports, LoraModulation as Sx126xModulation};
+use pamoja_radios::sx127x::config::{frequency_word, LoraModulation, PaOutput, TxPower};
+use pamoja_radios::sx127x::irq::IrqFlags;
+use pamoja_radios::sx127x::register::{lora_op_mode, Mode};
+use pamoja_radios::sx127x::status::{PacketStatus, Port};
+
+// An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and the
+// same 16 dBm ceiling leave it the same 14 dBm, set through three registers.
+let band = Region::Eu868.plan();
+let channel = 868_100_000;
+let dr3 = band.link_settings(3).expect("DR3 is a LoRa data rate");
+let antenna = LinkBudget {
+    transmit_antenna_gain_dbi: Decibels::from_hundredths(215),
+    transmit_cable_loss_db: Decibels::from_tenths(5),
+    ..LinkBudget::default()
+};
+let limit = Decibels::from_db(band.max_eirp_dbm(channel).into());
+let rfm95w = TxPower::under_ceiling(PaOutput::PaBoost, &antenna, limit);
+println!(
+    "rfm95w    {} dBm on PA_BOOST: RegPaConfig {:02x}, RegPaDac {:02x}, RegOcp {:02x}",
+    rfm95w.output_dbm, rfm95w.pa_config, rfm95w.pa_dac, rfm95w.ocp
+);
+
+// The carrier and the modem go into registers while the chip stands by, and TX mode sends
+// the frame the FIFO holds.
+let modem = LoraModulation::from_link(&dr3).expect("DR3 fits an SX1276");
+println!("carrier   RegFrf {:06x}", frequency_word(channel));
+println!(
+    "modem     RegModemConfig {:02x} {:02x} {:02x}",
+    modem.modem_config_1(),
+    modem.modem_config_2(0),
+    modem.modem_config_3()
+);
+println!("tx mode   RegOpMode {:02x}", lora_op_mode(Mode::Tx));
+
+// A packet that arrives raises RxDone and ValidHeader, and the SNR and RSSI registers give
+// its levels on the high frequency port.
+let flags = IrqFlags::from_bits(0x50);
+let received = flags.contains(IrqFlags::RX_DONE);
+let corrupt = flags.contains(IrqFlags::PAYLOAD_CRC_ERROR);
+println!("irq       rx done {received}, crc error {corrupt}");
+let packet = PacketStatus::from_bytes([0xF6, 0x30], Port::for_frequency(channel));
+let db = |value: Decibels| f64::from(value.hundredths()) / 100.0;
+println!(
+    "received  RSSI {} dBm, SNR {} dB, signal {} dBm",
+    db(packet.rssi_dbm),
+    db(packet.snr_db),
+    db(packet.signal_rssi_dbm)
+);
+
+// An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
+let fits = |data_rate: u8| {
+    band.link_settings(data_rate)
+        .and_then(|link| Sx126xModulation::from_link(&link))
+        .is_some_and(|modulation| {
+            llcc68_supports(modulation.spreading_factor, modulation.bandwidth)
+        })
+};
+println!("llcc68    DR3 {}, DR2 {}", fits(3), fits(2));
+```
+<!-- end -->
+
 ## TypeScript
 
 <!-- snippet: bindings/node/guides/radios.ts#example -->
@@ -241,6 +327,54 @@ console.log(`airtime   ${held} us, next frame after ${guard.waitUs(0)} us`)
 ```
 <!-- end -->
 
+The same reading from an RFM95W:
+
+<!-- snippet: bindings/node/guides/radios.ts#rfm95w -->
+From [`bindings/node/guides/radios.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/radios.ts):
+
+```typescript
+import { sx127x } from '@pamoja/radios'
+
+// An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and the same
+// 16 dBm ceiling leave it the same 14 dBm, set through three registers.
+const band = planFor(LoraRegion.Eu868)
+const channel = 868_100_000
+const dr3 = band.linkSettings(3)!
+const antenna = linkBudget({ transmitAntennaGainDbi: 2.15, transmitCableLossDb: 0.5 })
+const rfm95w = sx127x.txPowerUnderCeiling(sx127x.PaOutput.PaBoost, antenna, band.maxEirpDbm(channel))
+const byte = (value: number): string => value.toString(16).padStart(2, '0')
+console.log(
+  `rfm95w    ${rfm95w.outputDbm} dBm on PA_BOOST: RegPaConfig ${byte(rfm95w.paConfig)}, ` +
+    `RegPaDac ${byte(rfm95w.paDac)}, RegOcp ${byte(rfm95w.ocp)}`,
+)
+
+// The carrier and the modem go into registers while the chip stands by, and TX mode sends
+// the frame the FIFO holds.
+const modem = sx127x.modem(dr3, channel)
+console.log(`carrier   RegFrf ${sx127x.frequencyWord(channel).toString(16).padStart(6, '0')}`)
+console.log(
+  `modem     RegModemConfig ${byte(modem.modemConfig1)} ${byte(modem.modemConfig2)} ` +
+    `${byte(modem.modemConfig3)}`,
+)
+console.log(`tx mode   RegOpMode ${byte(sx127x.loraOpMode(sx127x.Mode.Tx))}`)
+
+// A packet that arrives raises RxDone and ValidHeader, and the SNR and RSSI registers give
+// its levels on the high frequency port.
+const flags = 0x50
+const received = (flags & sx127x.Irq.RxDone) !== 0
+const corrupt = (flags & sx127x.Irq.PayloadCrcError) !== 0
+console.log(`irq       rx done ${received}, crc error ${corrupt}`)
+const packet = sx127x.packetStatus(Buffer.from([0xf6, 0x30]), channel)
+console.log(
+  `received  RSSI ${packet.rssiDbm} dBm, SNR ${packet.snrDb} dB, signal ${packet.signalRssiDbm} dBm`,
+)
+
+// An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
+const fits = (dataRate: number): boolean => sx126x.llcc68Supports(band.linkSettings(dataRate)!)
+console.log(`llcc68    DR3 ${fits(3)}, DR2 ${fits(2)}`)
+```
+<!-- end -->
+
 ## Python
 
 <!-- snippet: bindings/python/guides/radios.py#example -->
@@ -297,6 +431,61 @@ print(f"received  RSSI {heard.rssi_dbm} dBm, SNR {heard.snr_db} dB")
 guard = DutyCycle(eu868.duty_cycle_permille(frequency))
 held = guard.transmitted(0, link, 10)
 print(f"airtime   {held} us, next frame after {guard.wait_us(0)} us")
+```
+<!-- end -->
+
+The same reading from an RFM95W:
+
+<!-- snippet: bindings/python/guides/radios.py#rfm95w -->
+From [`bindings/python/guides/radios.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/radios.py):
+
+```python
+from pamoja.lora import LinkBudget, plan_for
+from pamoja.radios import sx126x, sx127x
+
+# An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and the same
+# 16 dBm ceiling leave it the same 14 dBm, set through three registers.
+band = plan_for("EU868")
+channel = 868_100_000
+dr3 = band.link_settings(3)
+antenna = LinkBudget(transmit_antenna_gain_dbi=2.15, transmit_cable_loss_db=0.5)
+rfm95w = sx127x.tx_power_under_ceiling(
+    sx127x.PaOutput.PA_BOOST, antenna, band.max_eirp_dbm(channel)
+)
+print(
+    f"rfm95w    {rfm95w.output_dbm} dBm on PA_BOOST: RegPaConfig {rfm95w.pa_config:02x}, "
+    f"RegPaDac {rfm95w.pa_dac:02x}, RegOcp {rfm95w.ocp:02x}"
+)
+
+# The carrier and the modem go into registers while the chip stands by, and TX mode sends the
+# frame the FIFO holds.
+modem = sx127x.modem(dr3, channel)
+print(f"carrier   RegFrf {sx127x.frequency_word(channel):06x}")
+print(
+    f"modem     RegModemConfig {modem.modem_config_1:02x} {modem.modem_config_2:02x} "
+    f"{modem.modem_config_3:02x}"
+)
+print(f"tx mode   RegOpMode {sx127x.lora_op_mode(sx127x.Mode.TX):02x}")
+
+# A packet that arrives raises RxDone and ValidHeader, and the SNR and RSSI registers give its
+# levels on the high frequency port.
+flags = sx127x.Irq(0x50)
+received = sx127x.Irq.RX_DONE in flags
+corrupt = sx127x.Irq.PAYLOAD_CRC_ERROR in flags
+print(f"irq       rx done {received}, crc error {corrupt}")
+packet = sx127x.packet_status(bytes([0xF6, 0x30]), channel)
+print(
+    f"received  RSSI {packet.rssi_dbm} dBm, SNR {packet.snr_db} dB, "
+    f"signal {packet.signal_rssi_dbm} dBm"
+)
+
+
+# An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
+def fits(data_rate: int) -> bool:
+    return sx126x.llcc68_supports(band.link_settings(data_rate))
+
+
+print(f"llcc68    DR3 {fits(3)}, DR2 {fits(2)}")
 ```
 <!-- end -->
 
@@ -361,6 +550,49 @@ Console.WriteLine($"airtime   {held} us, next frame after {guard.WaitMicros(0)} 
 ```
 <!-- end -->
 
+The same reading from an RFM95W:
+
+<!-- snippet: bindings/dotnet/samples/Pamoja.Guides/RadiosGuide.cs#rfm95w -->
+From [`bindings/dotnet/samples/Pamoja.Guides/RadiosGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/RadiosGuide.cs):
+
+```csharp
+// An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and
+// the same 16 dBm ceiling leave it the same 14 dBm, set through three registers.
+using LoraChannelPlan band = LoraChannelPlan.ForRegion(LoraRegion.Eu868);
+const uint Channel = 868_100_000;
+LoraLink dr3 = band.LinkSettings(3)!;
+var antenna = new LoraLinkBudget { TransmitAntennaGainDbi = 2.15, TransmitCableLossDb = 0.5 };
+Sx127xTxPower rfm95w = Sx127x.TxPowerUnderCeiling(
+    Sx127xPaOutput.PaBoost, antenna, band.MaxEirpDbm(Channel));
+Console.WriteLine(
+    $"rfm95w    {rfm95w.OutputDbm} dBm on PA_BOOST: RegPaConfig {rfm95w.PaConfig:x2}, " +
+    $"RegPaDac {rfm95w.PaDac:x2}, RegOcp {rfm95w.Ocp:x2}");
+
+// The carrier and the modem go into registers while the chip stands by, and TX mode
+// sends the frame the FIFO holds.
+Sx127xModem modem = Sx127x.Modem(dr3, Channel);
+Console.WriteLine($"carrier   RegFrf {Sx127x.FrequencyWord(Channel):x6}");
+Console.WriteLine(
+    $"modem     RegModemConfig {modem.ModemConfig1:x2} {modem.ModemConfig2:x2} " +
+    $"{modem.ModemConfig3:x2}");
+Console.WriteLine($"tx mode   RegOpMode {Sx127x.LoraOpMode(Sx127xMode.Tx):x2}");
+
+// A packet that arrives raises RxDone and ValidHeader, and the SNR and RSSI registers
+// give its levels on the high frequency port.
+var flags = (Sx127xIrq)0x50;
+bool received = flags.HasFlag(Sx127xIrq.RxDone);
+bool corrupt = flags.HasFlag(Sx127xIrq.PayloadCrcError);
+Console.WriteLine($"irq       rx done {received}, crc error {corrupt}");
+Sx127xPacketStatus packet = Sx127x.PacketStatus([0xF6, 0x30], Channel);
+Console.WriteLine(
+    $"received  RSSI {packet.RssiDbm} dBm, SNR {packet.SnrDb} dB, signal {packet.SignalRssiDbm} dBm");
+
+// An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
+bool Fits(byte dataRate) => Sx126x.Llcc68Supports(band.LinkSettings(dataRate)!);
+Console.WriteLine($"llcc68    DR3 {Fits(3)}, DR2 {Fits(2)}");
+```
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference radios -->
@@ -368,5 +600,5 @@ Console.WriteLine($"airtime   {held} us, next frame after {guard.WaitMicros(0)} 
 - TypeScript: [`@pamoja/radios`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_radios.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-radios)
 - Python: [`pamoja.radios`](https://pamoja.molex.cloud/docs/reference/python/pamoja/radios.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-radios)
 - C#: [`Pamoja.Radios`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Radios.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-radios)
-- Hardware: [SX1262](https://pamoja.molex.cloud/docs/hardware.html#sx1262), [LLCC68](https://pamoja.molex.cloud/docs/hardware.html#llcc68)
+- Hardware: [SX1276](https://pamoja.molex.cloud/docs/hardware.html#sx1276), [SX1262](https://pamoja.molex.cloud/docs/hardware.html#sx1262), [LLCC68](https://pamoja.molex.cloud/docs/hardware.html#llcc68)
 <!-- end -->

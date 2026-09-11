@@ -343,6 +343,231 @@
 // The device error bit for a power amplifier that failed to ramp.
 #define PAMOJA_SX126X_ERROR_PA_RAMP (1 << 8)
 
+// The RegVersion value of an SX1276, SX1277, SX1278, or SX1279.
+#define PAMOJA_SX127X_VERSION 18
+
+// The bit of an SX127x address byte that makes an access a write.
+#define PAMOJA_SX127X_WRITE 128
+
+// RegDioMapping1 with DIO0 signaling RxDone.
+#define PAMOJA_SX127X_DIO0_RX_DONE 0
+
+// RegDioMapping1 with DIO0 signaling TxDone.
+#define PAMOJA_SX127X_DIO0_TX_DONE 64
+
+// RegDioMapping1 with DIO0 signaling CadDone.
+#define PAMOJA_SX127X_DIO0_CAD_DONE 128
+
+// RegPaDac at its reset value.
+#define PAMOJA_SX127X_PA_DAC_DEFAULT 132
+
+// RegPaDac with the +20 dBm setting on PA_BOOST.
+#define PAMOJA_SX127X_PA_DAC_HIGH_POWER 135
+
+// The RegImageCal bit that starts a calibration.
+#define PAMOJA_SX127X_IMAGE_CAL_START 64
+
+// The RegImageCal bit set while a calibration runs.
+#define PAMOJA_SX127X_IMAGE_CAL_RUNNING 32
+
+// The sync word the datasheet reserves for LoRaWAN.
+#define PAMOJA_SX127X_SYNC_WORD_PUBLIC 52
+
+// The private sync word, and the chip's reset value.
+#define PAMOJA_SX127X_SYNC_WORD_PRIVATE 18
+
+// RegLna with maximum gain and the high frequency LNA boost.
+#define PAMOJA_SX127X_LNA_BOOSTED 35
+
+// RegTcxo for a module clocked by a TCXO.
+#define PAMOJA_SX127X_TCXO_INPUT_ON 25
+
+// The SX127x register RegFifo, the LoRa data buffer read or written at RegFifoAddrPtr.
+#define PAMOJA_SX127X_REG_FIFO 0
+
+// The SX127x register RegOpMode: LoRa or FSK, the register page, and the operating mode.
+#define PAMOJA_SX127X_REG_OP_MODE 1
+
+// The SX127x register RegFrfMsb, the top byte of the carrier word.
+#define PAMOJA_SX127X_REG_FRF_MSB 6
+
+// The SX127x register RegFrfMid, the middle byte of the carrier word.
+#define PAMOJA_SX127X_REG_FRF_MID 7
+
+// The SX127x register RegFrfLsb, the low byte of the carrier word.
+#define PAMOJA_SX127X_REG_FRF_LSB 8
+
+// The SX127x register RegPaConfig: the amplifier output, its maximum, and the power.
+#define PAMOJA_SX127X_REG_PA_CONFIG 9
+
+// The SX127x register RegPaRamp, the amplifier ramp time.
+#define PAMOJA_SX127X_REG_PA_RAMP 10
+
+// The SX127x register RegOcp, the amplifier current limit.
+#define PAMOJA_SX127X_REG_OCP 11
+
+// The SX127x register RegLna, the LNA gain and current.
+#define PAMOJA_SX127X_REG_LNA 12
+
+// The SX127x register RegFifoAddrPtr, where the next RegFifo access lands.
+#define PAMOJA_SX127X_REG_FIFO_ADDR_PTR 13
+
+// The SX127x register RegFifoTxBaseAddr, where a transmitted payload starts.
+#define PAMOJA_SX127X_REG_FIFO_TX_BASE_ADDR 14
+
+// The SX127x register RegFifoRxBaseAddr, where received payloads start.
+#define PAMOJA_SX127X_REG_FIFO_RX_BASE_ADDR 15
+
+// The SX127x register RegFifoRxCurrentAddr, where the last packet starts.
+#define PAMOJA_SX127X_REG_FIFO_RX_CURRENT_ADDR 16
+
+// The SX127x register RegIrqFlagsMask, the interrupts masked off.
+#define PAMOJA_SX127X_REG_IRQ_FLAGS_MASK 17
+
+// The SX127x register RegIrqFlags, the interrupts raised.
+#define PAMOJA_SX127X_REG_IRQ_FLAGS 18
+
+// The SX127x register RegRxNbBytes, the payload length of the last packet.
+#define PAMOJA_SX127X_REG_RX_NB_BYTES 19
+
+// The SX127x register RegModemStat, the live state of the modem.
+#define PAMOJA_SX127X_REG_MODEM_STAT 24
+
+// The SX127x register RegPktSnrValue, the SNR of the last packet.
+#define PAMOJA_SX127X_REG_PKT_SNR_VALUE 25
+
+// The SX127x register RegPktRssiValue, the RSSI of the last packet.
+#define PAMOJA_SX127X_REG_PKT_RSSI_VALUE 26
+
+// The SX127x register RegRssiValue, the RSSI heard right now.
+#define PAMOJA_SX127X_REG_RSSI_VALUE 27
+
+// The SX127x register RegHopChannel, the PLL lock and the CRC the header announced.
+#define PAMOJA_SX127X_REG_HOP_CHANNEL 28
+
+// The SX127x register RegModemConfig1: bandwidth, coding rate, and header mode.
+#define PAMOJA_SX127X_REG_MODEM_CONFIG_1 29
+
+// The SX127x register RegModemConfig2: spreading factor, CRC, and the timeout's top bits.
+#define PAMOJA_SX127X_REG_MODEM_CONFIG_2 30
+
+// The SX127x register RegSymbTimeoutLsb, the low byte of the symbol timeout.
+#define PAMOJA_SX127X_REG_SYMB_TIMEOUT_LSB 31
+
+// The SX127x register RegPreambleMsb, the high byte of the preamble length.
+#define PAMOJA_SX127X_REG_PREAMBLE_MSB 32
+
+// The SX127x register RegPreambleLsb, the low byte of the preamble length.
+#define PAMOJA_SX127X_REG_PREAMBLE_LSB 33
+
+// The SX127x register RegPayloadLength, the payload length to send.
+#define PAMOJA_SX127X_REG_PAYLOAD_LENGTH 34
+
+// The SX127x register RegMaxPayloadLength, the longest payload accepted.
+#define PAMOJA_SX127X_REG_MAX_PAYLOAD_LENGTH 35
+
+// The SX127x register RegModemConfig3: low data rate optimization and the AGC.
+#define PAMOJA_SX127X_REG_MODEM_CONFIG_3 38
+
+// The SX127x register RegRssiWideband, a wideband RSSI sample.
+#define PAMOJA_SX127X_REG_RSSI_WIDEBAND 44
+
+// The SX127x register RegIfFreq2, which the spurious reception erratum sets.
+#define PAMOJA_SX127X_REG_IF_FREQ_2 47
+
+// The SX127x register RegIfFreq1, which the spurious reception erratum clears.
+#define PAMOJA_SX127X_REG_IF_FREQ_1 48
+
+// The SX127x register RegDetectOptimize: the automatic IF and detection optimization.
+#define PAMOJA_SX127X_REG_DETECT_OPTIMIZE 49
+
+// The SX127x register RegInvertIQ, the IQ polarity of each path.
+#define PAMOJA_SX127X_REG_INVERT_IQ 51
+
+// The SX127x register RegHighBwOptimize1, which the 500 kHz erratum sets.
+#define PAMOJA_SX127X_REG_HIGH_BW_OPTIMIZE_1 54
+
+// The SX127x register RegDetectionThreshold, the LoRa detection threshold.
+#define PAMOJA_SX127X_REG_DETECTION_THRESHOLD 55
+
+// The SX127x register RegSyncWord, the LoRa sync word.
+#define PAMOJA_SX127X_REG_SYNC_WORD 57
+
+// The SX127x register RegHighBwOptimize2, which the 500 kHz erratum sets.
+#define PAMOJA_SX127X_REG_HIGH_BW_OPTIMIZE_2 58
+
+// The SX127x register RegInvertIQ2, which completes an IQ inversion.
+#define PAMOJA_SX127X_REG_INVERT_IQ_2 59
+
+// The SX127x register RegImageCal, at the address of RegInvertIQ2 on the FSK page.
+#define PAMOJA_SX127X_REG_IMAGE_CAL 59
+
+// The SX127x register RegDioMapping1, the events DIO0 to DIO3 signal.
+#define PAMOJA_SX127X_REG_DIO_MAPPING_1 64
+
+// The SX127x register RegDioMapping2, the events DIO4 and DIO5 signal.
+#define PAMOJA_SX127X_REG_DIO_MAPPING_2 65
+
+// The SX127x register RegVersion, the silicon revision.
+#define PAMOJA_SX127X_REG_VERSION 66
+
+// The SX127x register RegTcxo, a crystal or a TCXO on XTA.
+#define PAMOJA_SX127X_REG_TCXO 75
+
+// The SX127x register RegPaDac, the +20 dBm setting of PA_BOOST.
+#define PAMOJA_SX127X_REG_PA_DAC 77
+
+// The SX127x operating mode code for sleep, the only mode that may switch between LoRa and FSK.
+#define PAMOJA_SX127X_MODE_SLEEP 0
+
+// The SX127x operating mode code for standby.
+#define PAMOJA_SX127X_MODE_STANDBY 1
+
+// The SX127x operating mode code for frequency synthesis for transmit.
+#define PAMOJA_SX127X_MODE_FS_TX 2
+
+// The SX127x operating mode code for transmit one packet.
+#define PAMOJA_SX127X_MODE_TX 3
+
+// The SX127x operating mode code for frequency synthesis for receive.
+#define PAMOJA_SX127X_MODE_FS_RX 4
+
+// The SX127x operating mode code for receive packet after packet.
+#define PAMOJA_SX127X_MODE_RX_CONTINUOUS 5
+
+// The SX127x operating mode code for receive one packet or time out.
+#define PAMOJA_SX127X_MODE_RX_SINGLE 6
+
+// The SX127x operating mode code for channel activity detection.
+#define PAMOJA_SX127X_MODE_CAD 7
+
+// The SX127x interrupt flag: channel activity detection heard a LoRa signal.
+#define PAMOJA_SX127X_IRQ_CAD_DETECTED 1
+
+// The SX127x interrupt flag: frequency hopping moved to the next channel.
+#define PAMOJA_SX127X_IRQ_FHSS_CHANGE_CHANNEL 2
+
+// The SX127x interrupt flag: channel activity detection finished.
+#define PAMOJA_SX127X_IRQ_CAD_DONE 4
+
+// The SX127x interrupt flag: the payload has been transmitted.
+#define PAMOJA_SX127X_IRQ_TX_DONE 8
+
+// The SX127x interrupt flag: a valid header was received.
+#define PAMOJA_SX127X_IRQ_VALID_HEADER 16
+
+// The SX127x interrupt flag: the payload failed its CRC.
+#define PAMOJA_SX127X_IRQ_PAYLOAD_CRC_ERROR 32
+
+// The SX127x interrupt flag: a packet has been received.
+#define PAMOJA_SX127X_IRQ_RX_DONE 64
+
+// The SX127x interrupt flag: a single reception timed out.
+#define PAMOJA_SX127X_IRQ_RX_TIMEOUT 128
+
+// The SX127x interrupt flag: every interrupt, which writing back clears.
+#define PAMOJA_SX127X_IRQ_ALL 255
+
 // The number of bytes in a RIHS01 type hash digest.
 #define PAMOJA_TYPE_HASH_LEN 32
 
@@ -2128,6 +2353,82 @@ typedef struct {
   // The buffer offset of its first byte.
   uint8_t start;
 } PamojaSx126xRxBufferStatus;
+
+// The LoRa modem registers of an SX127x for a link.
+typedef struct {
+  // RegModemConfig1: bandwidth, coding rate, and header mode.
+  uint8_t modem_config_1;
+  // RegModemConfig2: spreading factor, CRC, and the top bits of the symbol timeout.
+  uint8_t modem_config_2;
+  // RegModemConfig3: low data rate optimization and the AGC.
+  uint8_t modem_config_3;
+  // The DetectionOptimize bits of RegDetectOptimize, 0x05 for SF6 and 0x03 otherwise, to
+  // put in its low three bits.
+  uint8_t detection_optimize;
+  // RegDetectionThreshold.
+  uint8_t detection_threshold;
+} PamojaSx127xModem;
+
+// The amplifier settings of an SX127x: RegPaConfig, RegPaDac, and RegOcp.
+typedef struct {
+  // RegPaConfig: PaSelect, MaxPower, and OutputPower.
+  uint8_t pa_config;
+  // RegPaDac: the +20 dBm setting above +17 dBm on PA_BOOST, else its reset value.
+  uint8_t pa_dac;
+  // RegOcp: the current limit.
+  uint8_t ocp;
+  // The output power the settings produce, in dBm.
+  int8_t output_dbm;
+} PamojaSx127xTxPower;
+
+// The writes of the SX127x 500 kHz sensitivity erratum.
+typedef struct {
+  // The RegHighBwOptimize1 value.
+  uint8_t optimize_1;
+  // The RegHighBwOptimize2 value, when `has_optimize_2` is set.
+  uint8_t optimize_2;
+  // Whether RegHighBwOptimize2 is written.
+  bool has_optimize_2;
+} PamojaSx127xHighBwOptimize;
+
+// The receive settings of the SX127x spurious reception erratum.
+typedef struct {
+  // Whether AutomaticIFOn, bit 7 of RegDetectOptimize, stays on.
+  bool automatic_if;
+  // Whether RegIfFreq2 is set by hand, with RegIfFreq1 cleared.
+  bool has_if_freq_2;
+  // The RegIfFreq2 value, when `has_if_freq_2` is set.
+  uint8_t if_freq_2;
+  // How far above the carrier to receive, in hertz.
+  uint32_t offset_hz;
+} PamojaSx127xSpuriousReception;
+
+// The signal levels of a packet an SX127x received, in hundredths of a decibel.
+typedef struct {
+  // The RSSI averaged over the packet, in hundredths of a dBm.
+  int32_t rssi_centi_dbm;
+  // The estimated signal-to-noise ratio, in hundredths of a dB.
+  int32_t snr_centi_db;
+  // The strength of the packet itself, in hundredths of a dBm.
+  int32_t signal_rssi_centi_dbm;
+} PamojaSx127xPacketStatus;
+
+// The live state of an SX127x LoRa modem, from RegModemStat.
+typedef struct {
+  // The coding rate denominator the last header announced, 5 to 8, or 0 for a reserved
+  // value.
+  uint8_t coding_rate_denominator;
+  // The modem is clear.
+  bool clear;
+  // The header of the packet under way is valid.
+  bool header_valid;
+  // A reception is under way.
+  bool rx_ongoing;
+  // The modem has synchronized on the end of the preamble.
+  bool signal_synchronized;
+  // A LoRa preamble has been detected.
+  bool signal_detected;
+} PamojaSx127xModemStatus;
 
 // A RIHS01 type hash: the 32-byte digest that identifies a message definition.
 typedef struct {
@@ -10433,6 +10734,293 @@ uint64_t pamoja_radio_duty_cycle_earliest_us(const PamojaRadioDutyCycle *guard);
 // `guard` must be a handle from [`pamoja_radio_duty_cycle_new`] that has not already been
 // freed, or null. After this call it must not be used again.
 void pamoja_radio_duty_cycle_free(PamojaRadioDutyCycle *guard);
+
+// Reports whether an LLCC68 supports a link's spreading factor at its bandwidth.
+//
+// # Arguments
+//
+// * `link` - the link settings.
+//
+// # Returns
+//
+// `true` when the SX126x offers the bandwidth and the LLCC68 supports the pair: up to SF9
+// at 125 kHz, SF10 at 250 kHz, and SF11 at 500 kHz.
+bool pamoja_sx126x_llcc68_supports(PamojaLoraLink link);
+
+// Returns the 24-bit RegFrf word an SX127x takes for a frequency.
+//
+// # Arguments
+//
+// * `frequency_hz` - the carrier frequency in hertz.
+//
+// # Returns
+//
+// The word, in steps of 32 MHz over 2^19, rounded to the nearest step.
+uint32_t pamoja_sx127x_frequency_word(uint32_t frequency_hz);
+
+// Returns the frequency an SX127x RegFrf word selects.
+//
+// # Arguments
+//
+// * `word` - the 24-bit frequency word.
+//
+// # Returns
+//
+// The carrier frequency in hertz, rounded to the nearest hertz.
+uint32_t pamoja_sx127x_frequency_from_word(uint32_t word);
+
+// Returns the SX127x address byte that reads a register.
+//
+// # Arguments
+//
+// * `address` - the register address.
+//
+// # Returns
+//
+// The address with the write bit clear.
+uint8_t pamoja_sx127x_read_address(uint8_t address);
+
+// Returns the SX127x address byte that writes a register.
+//
+// # Arguments
+//
+// * `address` - the register address.
+//
+// # Returns
+//
+// The address with the write bit set.
+uint8_t pamoja_sx127x_write_address(uint8_t address);
+
+// Returns the RegOpMode value for a LoRa operating mode.
+//
+// # Arguments
+//
+// * `mode` - a `PAMOJA_SX127X_MODE_` code; only its low three bits are read.
+//
+// # Returns
+//
+// The RegOpMode value, with the LoRa register page selected.
+uint8_t pamoja_sx127x_lora_op_mode(uint8_t mode);
+
+// Returns the RegOpMode value for an FSK operating mode, which image calibration needs.
+//
+// # Arguments
+//
+// * `mode` - a `PAMOJA_SX127X_MODE_` code; only its low three bits are read.
+//
+// # Returns
+//
+// The RegOpMode value.
+uint8_t pamoja_sx127x_fsk_op_mode(uint8_t mode);
+
+// Returns the operating mode a RegOpMode value holds.
+//
+// # Arguments
+//
+// * `op_mode` - the RegOpMode value.
+//
+// # Returns
+//
+// The `PAMOJA_SX127X_MODE_` code.
+uint8_t pamoja_sx127x_mode_from_op_mode(uint8_t op_mode);
+
+// Returns the LoRa modem registers for a link at a carrier.
+//
+// # Arguments
+//
+// * `link` - the link settings.
+// * `frequency_hz` - the carrier frequency in hertz, which rules out 250 and 500 kHz in the
+//   lowest band.
+// * `symbol_timeout` - the single reception timeout in symbols, whose top bits go in
+//   RegModemConfig2.
+// * `out_modem` - receives the registers.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with `*out_modem` set, or [`PamojaStatus::InvalidArgument`] if the
+// SX127x cannot use the link at the carrier or `out_modem` is null.
+//
+// # Safety
+//
+// `out_modem` must point to a writable [`PamojaSx127xModem`], or be null.
+PamojaStatus pamoja_sx127x_modem(PamojaLoraLink link,
+                                 uint32_t frequency_hz,
+                                 uint16_t symbol_timeout,
+                                 PamojaSx127xModem *out_modem);
+
+// Returns the SX127x single reception timeout for a duration, in the link's symbols.
+//
+// # Arguments
+//
+// * `link` - the link settings.
+// * `timeout_us` - how long to listen for a preamble, in microseconds.
+//
+// # Returns
+//
+// The timeout rounded up to whole symbols, from 4 to 1023.
+uint16_t pamoja_sx127x_symbol_timeout(PamojaLoraLink link, uint64_t timeout_us);
+
+// Returns the SX127x amplifier settings for an output power.
+//
+// # Arguments
+//
+// * `pa_boost` - `true` for the PA_BOOST output, `false` for RFO.
+// * `output_dbm` - the output power wanted, clamped to what the output delivers.
+//
+// # Returns
+//
+// The settings.
+PamojaSx127xTxPower pamoja_sx127x_tx_power_for_output(bool pa_boost, int8_t output_dbm);
+
+// Returns the SX127x amplifier settings that keep a link's EIRP at or under a ceiling.
+//
+// # Arguments
+//
+// * `pa_boost` - `true` for the PA_BOOST output, `false` for RFO.
+// * `budget` - the link budget, whose transmitting antenna and cable apply.
+// * `eirp_ceiling_centi_dbm` - the EIRP limit in hundredths of a dBm.
+//
+// # Returns
+//
+// The settings, rounded down to whole decibels.
+PamojaSx127xTxPower pamoja_sx127x_tx_power_under_ceiling(bool pa_boost,
+                                                         PamojaLoraLinkBudget budget,
+                                                         int32_t eirp_ceiling_centi_dbm);
+
+// Returns RegOcp for a current limit.
+//
+// # Arguments
+//
+// * `milliamps` - the most current the amplifier may draw.
+//
+// # Returns
+//
+// The register value with the protection on.
+uint8_t pamoja_sx127x_ocp_register(uint16_t milliamps);
+
+// Returns RegInvertIQ for the IQ polarity of each path.
+//
+// # Arguments
+//
+// * `receive` - whether to invert the receive path.
+// * `transmit` - whether to invert the transmit path.
+//
+// # Returns
+//
+// The register value, with the transmit bit set for normal IQ as the reference drivers
+// have it.
+uint8_t pamoja_sx127x_invert_iq(bool receive, bool transmit);
+
+// Returns RegInvertIQ2 for the path in use.
+//
+// # Arguments
+//
+// * `inverted` - whether that path is inverted.
+//
+// # Returns
+//
+// 0x19 when inverted, else 0x1D.
+uint8_t pamoja_sx127x_invert_iq_2(bool inverted);
+
+// Returns the writes of the 500 kHz sensitivity erratum for a link at a carrier.
+//
+// # Arguments
+//
+// * `link` - the link settings, whose bandwidth decides.
+// * `frequency_hz` - the carrier frequency in hertz.
+// * `out_optimize` - receives the writes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with `*out_optimize` set, or [`PamojaStatus::InvalidArgument`] if the
+// SX127x has no such bandwidth or `out_optimize` is null.
+//
+// # Safety
+//
+// `out_optimize` must point to a writable [`PamojaSx127xHighBwOptimize`], or be null.
+PamojaStatus pamoja_sx127x_high_bw_optimize(PamojaLoraLink link,
+                                            uint32_t frequency_hz,
+                                            PamojaSx127xHighBwOptimize *out_optimize);
+
+// Returns the receive settings of the spurious reception erratum for a link.
+//
+// # Arguments
+//
+// * `link` - the link settings, whose bandwidth decides.
+// * `out_erratum` - receives the settings.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with `*out_erratum` set, or [`PamojaStatus::InvalidArgument`] if the
+// SX127x has no such bandwidth or `out_erratum` is null.
+//
+// # Safety
+//
+// `out_erratum` must point to a writable [`PamojaSx127xSpuriousReception`], or be null.
+PamojaStatus pamoja_sx127x_spurious_reception(PamojaLoraLink link,
+                                              PamojaSx127xSpuriousReception *out_erratum);
+
+// Returns RegImageCal to start a calibration.
+//
+// # Arguments
+//
+// * `current` - the register's current value.
+//
+// # Returns
+//
+// The value with ImageCalStart set and AutoImageCalOn clear.
+uint8_t pamoja_sx127x_image_cal_start(uint8_t current);
+
+// Returns RegDetectOptimize with AutomaticIFOn set or clear.
+//
+// # Arguments
+//
+// * `current` - the register's current value.
+// * `automatic_if` - whether the automatic IF stays on.
+//
+// # Returns
+//
+// The register value.
+uint8_t pamoja_sx127x_automatic_if(uint8_t current, bool automatic_if);
+
+// Decodes RegPktSnrValue and RegPktRssiValue.
+//
+// # Arguments
+//
+// * `pkt_snr` - the RegPktSnrValue byte.
+// * `pkt_rssi` - the RegPktRssiValue byte.
+// * `frequency_hz` - the carrier the packet was received on, which picks the RF port's
+//   offset.
+//
+// # Returns
+//
+// The three levels in hundredths of a decibel.
+PamojaSx127xPacketStatus pamoja_sx127x_packet_status_from_bytes(uint8_t pkt_snr,
+                                                                uint8_t pkt_rssi,
+                                                                uint32_t frequency_hz);
+
+// Decodes RegRssiValue.
+//
+// # Arguments
+//
+// * `byte` - the RegRssiValue byte.
+// * `frequency_hz` - the carrier the receiver is tuned to, which picks the RF port's offset.
+//
+// # Returns
+//
+// The RSSI in hundredths of a dBm.
+int32_t pamoja_sx127x_rssi_centi_dbm(uint8_t byte, uint32_t frequency_hz);
+
+// Decodes RegModemStat.
+//
+// # Arguments
+//
+// * `byte` - the register value.
+//
+// # Returns
+//
+// The modem's state.
+PamojaSx127xModemStatus pamoja_sx127x_modem_status_from_byte(uint8_t byte);
 
 // Reports whether a string is a valid ROS 2 topic or service name.
 //

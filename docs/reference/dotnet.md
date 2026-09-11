@@ -284,7 +284,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="dotnet-radios">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/radios.html">LoRa radios</a><code class="pkg-import">Pamoja.Radios</code><p>The Semtech SX126x LoRa command set and its decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/radios.html">LoRa radios</a><code class="pkg-import">Pamoja.Radios</code><p>The Semtech SX126x and SX127x LoRa radios: their commands, registers, and decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Radios</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Radios" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

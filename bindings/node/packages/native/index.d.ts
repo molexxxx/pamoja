@@ -4431,6 +4431,12 @@ export declare function sx126xImageCalibration(lowHz: number, highHz: number): B
 export declare function sx126xIrq(answer: Buffer): number
 
 /**
+ * Reports whether an LLCC68 supports a link's spreading factor at its bandwidth: up to SF9
+ * at 125 kHz, SF10 at 250 kHz, and SF11 at 500 kHz.
+ */
+export declare function sx126xLlcc68Supports(link: LoraLink): boolean
+
+/**
  * Decodes a LoRa GetPacketStatus answer.
  *
  * Throws unless the answer is three bytes.
@@ -4572,6 +4578,197 @@ export declare function sx126xWriteBuffer(offset: number, payload: Buffer): Buff
 
 /** A whole WriteRegister transaction: the opcode, the address, and the values. */
 export declare function sx126xWriteRegister(address: number, values: Buffer): Buffer
+
+/** RegDetectOptimize with AutomaticIFOn set or clear. */
+export declare function sx127xAutomaticIf(current: number, automaticIf: boolean): number
+
+/**
+ * The SX127x register values with a name: the version, the write bit, the DIO0 mappings,
+ * the amplifier and calibration bits, the sync words, and the LNA and TCXO settings.
+ */
+export declare function sx127xConstants(): Record<string, number>
+
+/** The frequency in hertz an SX127x RegFrf word selects. */
+export declare function sx127xFrequencyFromWord(word: number): number
+
+/** The 24-bit RegFrf word an SX127x takes for a frequency in hertz. */
+export declare function sx127xFrequencyWord(frequencyHz: number): number
+
+/** The RegOpMode value for an FSK operating mode, which image calibration needs. */
+export declare function sx127xFskOpMode(mode: Sx127xMode): number
+
+/**
+ * The writes of the 500 kHz sensitivity erratum for a link at a carrier.
+ *
+ * Throws when the SX127x has no such bandwidth.
+ */
+export declare function sx127xHighBwOptimize(link: LoraLink, frequencyHz: number): Sx127xHighBwOptimize
+
+/** The writes of the SX127x 500 kHz sensitivity erratum. */
+export interface Sx127xHighBwOptimize {
+  /** The RegHighBwOptimize1 value. */
+  optimize1: number
+  /** The RegHighBwOptimize2 value, or `null` when it is not written. */
+  optimize2?: number
+}
+
+/** RegImageCal with a calibration started and the automatic recalibration off. */
+export declare function sx127xImageCalStart(current: number): number
+
+/** RegInvertIQ for the IQ polarity of each path. */
+export declare function sx127xInvertIq(receive: boolean, transmit: boolean): number
+
+/** RegInvertIQ2 for the path in use. */
+export declare function sx127xInvertIq2(inverted: boolean): number
+
+/** The SX127x LoRa interrupt flags, by name. */
+export declare function sx127xIrqFlags(): Record<string, number>
+
+/** The RegOpMode value for a LoRa operating mode. */
+export declare function sx127xLoraOpMode(mode: Sx127xMode): number
+
+/** An SX127x operating mode, the Mode bits of RegOpMode. */
+export declare const enum Sx127xMode {
+  /** Only the SPI interface and the registers are powered. */
+  Sleep = 'Sleep',
+  /** The oscillator and the baseband are on. */
+  Standby = 'Standby',
+  /** The PLL is locked for transmit. */
+  FsTx = 'FsTx',
+  /** One packet goes out. */
+  Tx = 'Tx',
+  /** The PLL is locked for receive. */
+  FsRx = 'FsRx',
+  /** The receiver takes packet after packet. */
+  RxContinuous = 'RxContinuous',
+  /** The receiver waits for one packet. */
+  RxSingle = 'RxSingle',
+  /** Channel activity detection. */
+  Cad = 'Cad'
+}
+
+/** The operating mode a RegOpMode value holds. */
+export declare function sx127xModeFromOpMode(opMode: number): Sx127xMode
+
+/**
+ * The LoRa modem registers for a link at a carrier, with a single reception timeout in
+ * symbols.
+ *
+ * Throws when the SX127x cannot use the link at the carrier.
+ */
+export declare function sx127xModem(link: LoraLink, frequencyHz: number, symbolTimeout: number): Sx127xModem
+
+/** The LoRa modem registers of an SX127x for a link. */
+export interface Sx127xModem {
+  /** RegModemConfig1: bandwidth, coding rate, and header mode. */
+  modemConfig1: number
+  /** RegModemConfig2: spreading factor, CRC, and the top bits of the symbol timeout. */
+  modemConfig2: number
+  /** RegModemConfig3: low data rate optimization and the AGC. */
+  modemConfig3: number
+  /** The DetectionOptimize bits for the low three bits of RegDetectOptimize. */
+  detectionOptimize: number
+  /** RegDetectionThreshold. */
+  detectionThreshold: number
+}
+
+/** Decodes RegModemStat. */
+export declare function sx127xModemStatus(byte: number): Sx127xModemStatus
+
+/** The live state of an SX127x LoRa modem. */
+export interface Sx127xModemStatus {
+  /** The coding rate denominator the last header announced, or `null` for a reserved value. */
+  codingRateDenominator?: number
+  /** The modem is clear. */
+  clear: boolean
+  /** The header of the packet under way is valid. */
+  headerValid: boolean
+  /** A reception is under way. */
+  rxOngoing: boolean
+  /** The modem has synchronized on the end of the preamble. */
+  signalSynchronized: boolean
+  /** A LoRa preamble has been detected. */
+  signalDetected: boolean
+}
+
+/** RegOcp for a current limit in milliamps. */
+export declare function sx127xOcpRegister(milliamps: number): number
+
+/**
+ * Decodes RegPktSnrValue and RegPktRssiValue, read together, for a packet heard at a
+ * carrier.
+ *
+ * Throws when the answer is not two bytes.
+ */
+export declare function sx127xPacketStatus(answer: Buffer, frequencyHz: number): Sx127xPacketStatus
+
+/** The signal levels of a packet an SX127x received. */
+export interface Sx127xPacketStatus {
+  /** The RSSI averaged over the packet, in dBm. */
+  rssiDbm: number
+  /** The estimated signal-to-noise ratio, in dB. */
+  snrDb: number
+  /** The strength of the packet itself, in dBm. */
+  signalRssiDbm: number
+}
+
+/** The amplifier output an SX127x module wires to its antenna. */
+export declare const enum Sx127xPaOutput {
+  /** The high efficiency amplifier on RFO_LF or RFO_HF, -4 to +15 dBm. */
+  Rfo = 'Rfo',
+  /** The regulated amplifier on PA_BOOST, +2 to +20 dBm, as on the RFM95W. */
+  PaBoost = 'PaBoost'
+}
+
+/** The SX127x address byte that reads a register. */
+export declare function sx127xReadAddress(address: number): number
+
+/** The SX127x register addresses, by name. */
+export declare function sx127xRegisters(): Record<string, number>
+
+/** Decodes RegRssiValue for a receiver tuned to a carrier, in dBm. */
+export declare function sx127xRssiDbm(byte: number, frequencyHz: number): number
+
+/**
+ * The receive settings of the spurious reception erratum for a link.
+ *
+ * Throws when the SX127x has no such bandwidth.
+ */
+export declare function sx127xSpuriousReception(link: LoraLink): Sx127xSpuriousReception
+
+/** The receive settings of the SX127x spurious reception erratum. */
+export interface Sx127xSpuriousReception {
+  /** Whether AutomaticIFOn stays on. */
+  automaticIf: boolean
+  /** The RegIfFreq2 value, with RegIfFreq1 cleared, or `null` when the IF stays automatic. */
+  ifFreq2?: number
+  /** How far above the carrier to receive, in hertz. */
+  offsetHz: number
+}
+
+/** The SX127x single reception timeout for a duration in microseconds, in the link's symbols. */
+export declare function sx127xSymbolTimeout(link: LoraLink, timeoutUs: number): number
+
+/** The SX127x amplifier settings for an output power on an amplifier output. */
+export declare function sx127xTxPower(output: Sx127xPaOutput, outputDbm: number): Sx127xTxPower
+
+/** The amplifier settings of an SX127x. */
+export interface Sx127xTxPower {
+  /** RegPaConfig: PaSelect, MaxPower, and OutputPower. */
+  paConfig: number
+  /** RegPaDac: the +20 dBm setting above +17 dBm on PA_BOOST, else its reset value. */
+  paDac: number
+  /** RegOcp: the current limit. */
+  ocp: number
+  /** The output power the settings produce, in dBm. */
+  outputDbm: number
+}
+
+/** The SX127x amplifier settings that keep a link's EIRP at or under a ceiling in dBm. */
+export declare function sx127xTxPowerUnderCeiling(output: Sx127xPaOutput, budget: LoraLinkBudget, eirpCeilingDbm: number): Sx127xTxPower
+
+/** The SX127x address byte that writes a register. */
+export declare function sx127xWriteAddress(address: number): number
 
 /** The theme tokens a profile sets on the dashboard; each is any CSS color. */
 export interface Theme {

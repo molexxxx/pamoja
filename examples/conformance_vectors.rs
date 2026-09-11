@@ -48,6 +48,10 @@ use pamoja_radios::duty::DutyCycle as RadioDutyCycle;
 use pamoja_radios::sx126x::{
     command as sx126x_command, config as sx126x_config, irq as sx126x_irq, status as sx126x_status,
 };
+use pamoja_radios::sx127x::{
+    config as sx127x_config, irq as sx127x_irq, register as sx127x_register,
+    status as sx127x_status,
+};
 use pamoja_ros2::key::entity_key;
 use pamoja_ros2::msg::{CdrWriter, Twist as Ros2Twist, Vector3};
 use pamoja_ros2::name::{percent_mangle, EntityKind};
@@ -2988,7 +2992,465 @@ fn radios() -> Value {
         "rssiInst": rssi,
         "deviceErrors": device_errors,
         "dutyCycle": duty,
+        "sx127x": sx127x_vectors(),
+        "llcc68": llcc68_vectors(),
     })
+}
+
+fn sx127x_vectors() -> Value {
+    use pamoja_lora::budget::{Decibels, LinkBudget};
+    use serde_json::Map;
+    use sx127x_config::{LoraBandwidth, LoraModulation, PaOutput, TxPower};
+    use sx127x_irq::IrqFlags;
+    use sx127x_register::Mode;
+    use sx127x_status::{ModemStatus, PacketStatus, Port};
+
+    // The same four links the LoRa vectors describe, so a binding rebuilds each from there.
+    let links = [
+        ("sf12-125k", LinkSettings::new(12, 125_000)),
+        ("sf7-125k", LinkSettings::new(7, 125_000)),
+        (
+            "sf9-250k-cr48",
+            LinkSettings::new(9, 250_000)
+                .with_coding_rate(8)
+                .with_preamble(12),
+        ),
+        (
+            "sf10-125k-bare",
+            LinkSettings::new(10, 125_000)
+                .implicit_header()
+                .without_crc(),
+        ),
+    ];
+    let link = |name: &str| {
+        links
+            .iter()
+            .find(|(named, _)| *named == name)
+            .map(|(_, settings)| *settings)
+            .expect("a link the LoRa vectors name")
+    };
+    let output_name = |output: PaOutput| match output {
+        PaOutput::Rfo => "rfo",
+        PaOutput::PaBoost => "paBoost",
+    };
+    let power_of = |power: TxPower| {
+        json!({
+            "paConfig": power.pa_config,
+            "paDac": power.pa_dac,
+            "ocp": power.ocp,
+            "outputDbm": power.output_dbm,
+        })
+    };
+
+    let registers: Map<String, Value> = [
+        ("fifo", sx127x_register::FIFO),
+        ("opMode", sx127x_register::OP_MODE),
+        ("frfMsb", sx127x_register::FRF_MSB),
+        ("frfMid", sx127x_register::FRF_MID),
+        ("frfLsb", sx127x_register::FRF_LSB),
+        ("paConfig", sx127x_register::PA_CONFIG),
+        ("paRamp", sx127x_register::PA_RAMP),
+        ("ocp", sx127x_register::OCP),
+        ("lna", sx127x_register::LNA),
+        ("fifoAddrPtr", sx127x_register::FIFO_ADDR_PTR),
+        ("fifoTxBaseAddr", sx127x_register::FIFO_TX_BASE_ADDR),
+        ("fifoRxBaseAddr", sx127x_register::FIFO_RX_BASE_ADDR),
+        ("fifoRxCurrentAddr", sx127x_register::FIFO_RX_CURRENT_ADDR),
+        ("irqFlagsMask", sx127x_register::IRQ_FLAGS_MASK),
+        ("irqFlags", sx127x_register::IRQ_FLAGS),
+        ("rxNbBytes", sx127x_register::RX_NB_BYTES),
+        ("modemStat", sx127x_register::MODEM_STAT),
+        ("pktSnrValue", sx127x_register::PKT_SNR_VALUE),
+        ("pktRssiValue", sx127x_register::PKT_RSSI_VALUE),
+        ("rssiValue", sx127x_register::RSSI_VALUE),
+        ("hopChannel", sx127x_register::HOP_CHANNEL),
+        ("modemConfig1", sx127x_register::MODEM_CONFIG_1),
+        ("modemConfig2", sx127x_register::MODEM_CONFIG_2),
+        ("symbTimeoutLsb", sx127x_register::SYMB_TIMEOUT_LSB),
+        ("preambleMsb", sx127x_register::PREAMBLE_MSB),
+        ("preambleLsb", sx127x_register::PREAMBLE_LSB),
+        ("payloadLength", sx127x_register::PAYLOAD_LENGTH),
+        ("maxPayloadLength", sx127x_register::MAX_PAYLOAD_LENGTH),
+        ("modemConfig3", sx127x_register::MODEM_CONFIG_3),
+        ("rssiWideband", sx127x_register::RSSI_WIDEBAND),
+        ("ifFreq2", sx127x_register::IF_FREQ_2),
+        ("ifFreq1", sx127x_register::IF_FREQ_1),
+        ("detectOptimize", sx127x_register::DETECT_OPTIMIZE),
+        ("invertIq", sx127x_register::INVERT_IQ),
+        ("highBwOptimize1", sx127x_register::HIGH_BW_OPTIMIZE_1),
+        ("detectionThreshold", sx127x_register::DETECTION_THRESHOLD),
+        ("syncWord", sx127x_register::SYNC_WORD),
+        ("highBwOptimize2", sx127x_register::HIGH_BW_OPTIMIZE_2),
+        ("invertIq2", sx127x_register::INVERT_IQ_2),
+        ("imageCal", sx127x_register::IMAGE_CAL),
+        ("dioMapping1", sx127x_register::DIO_MAPPING_1),
+        ("dioMapping2", sx127x_register::DIO_MAPPING_2),
+        ("version", sx127x_register::VERSION),
+        ("tcxo", sx127x_register::TCXO),
+        ("paDac", sx127x_register::PA_DAC),
+    ]
+    .into_iter()
+    .map(|(name, address)| (name.to_owned(), json!(address)))
+    .collect();
+    let constants: Map<String, Value> = [
+        ("version", sx127x_register::VERSION_SX1276),
+        ("write", sx127x_register::WRITE),
+        ("dio0RxDone", sx127x_config::DIO0_RX_DONE),
+        ("dio0TxDone", sx127x_config::DIO0_TX_DONE),
+        ("dio0CadDone", sx127x_config::DIO0_CAD_DONE),
+        ("paDacDefault", sx127x_config::PA_DAC_DEFAULT),
+        ("paDacHighPower", sx127x_config::PA_DAC_HIGH_POWER),
+        ("imageCalStart", sx127x_config::IMAGE_CAL_START),
+        ("imageCalRunning", sx127x_config::IMAGE_CAL_RUNNING),
+        ("syncWordPublic", sx127x_config::SyncWord::Public.to_byte()),
+        (
+            "syncWordPrivate",
+            sx127x_config::SyncWord::Private.to_byte(),
+        ),
+        ("lnaBoosted", sx127x_config::LNA_BOOSTED),
+        ("tcxoInputOn", sx127x_config::TCXO_INPUT_ON),
+    ]
+    .into_iter()
+    .map(|(name, value)| (name.to_owned(), json!(value)))
+    .collect();
+    let irq_flags: Map<String, Value> = [
+        ("rxTimeout", IrqFlags::RX_TIMEOUT),
+        ("rxDone", IrqFlags::RX_DONE),
+        ("payloadCrcError", IrqFlags::PAYLOAD_CRC_ERROR),
+        ("validHeader", IrqFlags::VALID_HEADER),
+        ("txDone", IrqFlags::TX_DONE),
+        ("cadDone", IrqFlags::CAD_DONE),
+        ("fhssChangeChannel", IrqFlags::FHSS_CHANGE_CHANNEL),
+        ("cadDetected", IrqFlags::CAD_DETECTED),
+    ]
+    .into_iter()
+    .map(|(name, flag)| (name.to_owned(), json!(flag.bits())))
+    .collect();
+
+    let modes: Vec<Value> = [
+        ("sleep", Mode::Sleep),
+        ("standby", Mode::Standby),
+        ("fsTx", Mode::FsTx),
+        ("tx", Mode::Tx),
+        ("fsRx", Mode::FsRx),
+        ("rxContinuous", Mode::RxContinuous),
+        ("rxSingle", Mode::RxSingle),
+        ("cad", Mode::Cad),
+    ]
+    .iter()
+    .map(|&(name, mode)| {
+        json!({
+            "mode": name,
+            "code": mode.code(),
+            "lora": sx127x_register::lora_op_mode(mode),
+            "fsk": sx127x_register::fsk_op_mode(mode),
+        })
+    })
+    .collect();
+    let addresses: Vec<Value> = [0x00u8, 0x01, 0x42, 0x4D]
+        .iter()
+        .map(|&address| {
+            json!({
+                "address": address,
+                "read": sx127x_register::read_address(address),
+                "write": sx127x_register::write_address(address),
+            })
+        })
+        .collect();
+    let frequency_words: Vec<Value> = [
+        137_000_000u32,
+        433_175_000,
+        868_100_000,
+        915_000_000,
+        1_020_000_000,
+    ]
+    .iter()
+    .map(|&frequency_hz| {
+        json!({
+            "frequencyHz": frequency_hz,
+            "word": sx127x_config::frequency_word(frequency_hz),
+        })
+    })
+    .collect();
+
+    let modems: Vec<Value> = links
+        .iter()
+        .map(|(name, settings)| {
+            let modulation = LoraModulation::from_link(settings).expect("an SX127x link");
+            let symbols = sx127x_config::symbol_timeout(settings, 100_000);
+            json!({
+                "link": name,
+                "frequencyHz": 868_100_000u32,
+                "symbolTimeout": symbols,
+                "modemConfig1": modulation.modem_config_1(),
+                "modemConfig2": modulation.modem_config_2(symbols),
+                "modemConfig3": modulation.modem_config_3(),
+                "detectionOptimize": modulation.detect_optimize(0),
+                "detectionThreshold": modulation.detection_threshold(),
+            })
+        })
+        .collect();
+    // SF5 is below the SX127x's range, 500 kHz is not offered in the 169 MHz band, and
+    // 203.125 kHz is no bandwidth at all.
+    let refusals: Vec<Value> = [
+        (5u8, 125_000u32, 868_100_000u32),
+        (7, 500_000, 169_400_000),
+        (7, 203_125, 868_100_000),
+    ]
+    .iter()
+    .map(|&(spreading_factor, bandwidth_hz, frequency_hz)| {
+        let refused = LoraModulation::from_link(&LinkSettings::new(spreading_factor, bandwidth_hz))
+            .ok()
+            .filter(|modulation| modulation.bandwidth.in_band(frequency_hz))
+            .is_none();
+        assert!(
+            refused,
+            "SF{spreading_factor} at {bandwidth_hz} Hz is refused"
+        );
+        json!({
+            "spreadingFactor": spreading_factor,
+            "bandwidthHz": bandwidth_hz,
+            "frequencyHz": frequency_hz,
+        })
+    })
+    .collect();
+    let symbol_timeouts: Vec<Value> = [
+        ("sf7-125k", 0u64),
+        ("sf7-125k", 100_000),
+        ("sf12-125k", 10_000_000),
+    ]
+    .iter()
+    .map(|&(name, timeout_us)| {
+        json!({
+            "link": name,
+            "timeoutUs": timeout_us,
+            "symbols": sx127x_config::symbol_timeout(&link(name), timeout_us),
+        })
+    })
+    .collect();
+
+    let powers: Vec<Value> = [
+        (PaOutput::PaBoost, 20i8),
+        (PaOutput::PaBoost, 18),
+        (PaOutput::PaBoost, 17),
+        (PaOutput::PaBoost, 0),
+        (PaOutput::Rfo, 14),
+        (PaOutput::Rfo, 0),
+        (PaOutput::Rfo, -9),
+        (PaOutput::Rfo, 30),
+    ]
+    .iter()
+    .map(|&(output, requested_dbm)| {
+        let mut entry = power_of(TxPower::for_output(output, requested_dbm));
+        entry["output"] = json!(output_name(output));
+        entry["requestedDbm"] = json!(requested_dbm);
+        entry
+    })
+    .collect();
+    let ceilings: Vec<Value> = [
+        (PaOutput::PaBoost, 215i32, 50i32, 1600i32),
+        (PaOutput::Rfo, 900, 0, 3000),
+    ]
+    .iter()
+    .map(|&(output, gain, loss, ceiling)| {
+        let budget = LinkBudget {
+            transmit_antenna_gain_dbi: Decibels::from_hundredths(gain),
+            transmit_cable_loss_db: Decibels::from_hundredths(loss),
+            ..LinkBudget::default()
+        };
+        let power = TxPower::under_ceiling(output, &budget, Decibels::from_hundredths(ceiling));
+        let mut entry = power_of(power);
+        entry["output"] = json!(output_name(output));
+        entry["transmitAntennaGainHundredths"] = json!(gain);
+        entry["transmitCableLossHundredths"] = json!(loss);
+        entry["ceilingHundredths"] = json!(ceiling);
+        entry
+    })
+    .collect();
+    let ocp: Vec<Value> = [45u16, 100, 120, 130, 140, 240, 300]
+        .iter()
+        .map(|&milliamps| {
+            json!({
+                "milliamps": milliamps,
+                "register": sx127x_config::ocp_register(milliamps),
+            })
+        })
+        .collect();
+    let invert_iq: Vec<Value> = [(false, false), (true, false), (false, true), (true, true)]
+        .iter()
+        .map(|&(receive, transmit)| {
+            json!({
+                "receive": receive,
+                "transmit": transmit,
+                "register": sx127x_config::invert_iq(receive, transmit),
+            })
+        })
+        .collect();
+    let invert_iq_2: Vec<Value> = [false, true]
+        .iter()
+        .map(|&inverted| {
+            json!({
+                "inverted": inverted,
+                "register": sx127x_config::invert_iq_2(inverted),
+            })
+        })
+        .collect();
+    let high_bw: Vec<Value> = [
+        (500_000u32, 915_000_000u32),
+        (500_000, 433_000_000),
+        (125_000, 868_100_000),
+    ]
+    .iter()
+    .map(|&(bandwidth_hz, frequency_hz)| {
+        let bandwidth = LoraBandwidth::from_hz(bandwidth_hz).expect("an SX127x bandwidth");
+        let (optimize_1, optimize_2) = sx127x_config::high_bw_optimize(bandwidth, frequency_hz);
+        json!({
+            "bandwidthHz": bandwidth_hz,
+            "frequencyHz": frequency_hz,
+            "optimize1": optimize_1,
+            "optimize2": optimize_2,
+        })
+    })
+    .collect();
+    let spurious: Vec<Value> = [
+        7_813u32, 10_417, 15_625, 20_833, 31_250, 41_667, 62_500, 125_000, 250_000, 500_000,
+    ]
+    .iter()
+    .map(|&bandwidth_hz| {
+        let bandwidth = LoraBandwidth::from_hz(bandwidth_hz).expect("an SX127x bandwidth");
+        let erratum = sx127x_config::spurious_reception(bandwidth);
+        json!({
+            "bandwidthHz": bandwidth_hz,
+            "automaticIf": erratum.automatic_if,
+            "ifFreq2": erratum.if_freq_2,
+            "offsetHz": erratum.offset_hz,
+        })
+    })
+    .collect();
+    let image_cal: Vec<Value> = [0x82u8, 0x02]
+        .iter()
+        .map(|&current| {
+            json!({
+                "current": current,
+                "register": sx127x_config::image_cal_start(current),
+            })
+        })
+        .collect();
+    let automatic_if: Vec<Value> = [(0xC3u8, false), (0x43, true)]
+        .iter()
+        .map(|&(current, on)| {
+            json!({
+                "current": current,
+                "on": on,
+                "register": sx127x_config::automatic_if(current, on),
+            })
+        })
+        .collect();
+
+    let packet_statuses: Vec<Value> = [
+        ([0xF6u8, 0x30], 868_100_000u32),
+        ([0x1C, 0x7D], 915_000_000),
+        ([0x80, 0x20], 433_175_000),
+    ]
+    .iter()
+    .map(|&(bytes, frequency_hz)| {
+        let status = PacketStatus::from_bytes(bytes, Port::for_frequency(frequency_hz));
+        json!({
+            "bytes": hex(&bytes),
+            "frequencyHz": frequency_hz,
+            "rssiHundredths": status.rssi_dbm.hundredths(),
+            "snrHundredths": status.snr_db.hundredths(),
+            "signalRssiHundredths": status.signal_rssi_dbm.hundredths(),
+        })
+    })
+    .collect();
+    let rssi: Vec<Value> = [(0x30u8, 868_100_000u32), (0x30, 433_175_000), (0x00, 915_000_000)]
+        .iter()
+        .map(|&(byte, frequency_hz)| {
+            json!({
+                "byte": byte,
+                "frequencyHz": frequency_hz,
+                "hundredths": sx127x_status::rssi_dbm(byte, Port::for_frequency(frequency_hz)).hundredths(),
+            })
+        })
+        .collect();
+    let modem_statuses: Vec<Value> = [0x0Fu8, 0x30, 0x90, 0x10, 0x00]
+        .iter()
+        .map(|&byte| {
+            let status = ModemStatus::from_byte(byte);
+            json!({
+                "byte": byte,
+                "codingRateDenominator": status.coding_rate_denominator,
+                "clear": status.clear,
+                "headerValid": status.header_valid,
+                "rxOngoing": status.rx_ongoing,
+                "signalSynchronized": status.signal_synchronized,
+                "signalDetected": status.signal_detected,
+            })
+        })
+        .collect();
+
+    json!({
+        "registers": registers,
+        "constants": constants,
+        "irqFlags": irq_flags,
+        "modes": modes,
+        "addresses": addresses,
+        "frequencyWords": frequency_words,
+        "modems": modems,
+        "modemRefusals": refusals,
+        "symbolTimeouts": symbol_timeouts,
+        "txPowers": powers,
+        "underCeilings": ceilings,
+        "ocp": ocp,
+        "invertIq": invert_iq,
+        "invertIq2": invert_iq_2,
+        "highBwOptimize": high_bw,
+        "spuriousReception": spurious,
+        "imageCalStart": image_cal,
+        "automaticIf": automatic_if,
+        "packetStatuses": packet_statuses,
+        "rssi": rssi,
+        "modemStatuses": modem_statuses,
+    })
+}
+
+fn llcc68_vectors() -> Value {
+    // The pairs either side of each limit: up to SF9 at 125 kHz, SF10 at 250 kHz, SF11 at
+    // 500 kHz, and no bandwidth below 125 kHz.
+    let pairs = [
+        (9u8, 125_000u32),
+        (10, 125_000),
+        (11, 125_000),
+        (10, 250_000),
+        (11, 250_000),
+        (11, 500_000),
+        (12, 500_000),
+        (5, 125_000),
+        (7, 62_500),
+    ];
+    Value::Array(
+        pairs
+            .iter()
+            .map(|&(spreading_factor, bandwidth_hz)| {
+                let supported = sx126x_config::LoraModulation::from_link(&LinkSettings::new(
+                    spreading_factor,
+                    bandwidth_hz,
+                ))
+                .is_some_and(|modulation| {
+                    sx126x_config::llcc68_supports(
+                        modulation.spreading_factor,
+                        modulation.bandwidth,
+                    )
+                });
+                json!({
+                    "spreadingFactor": spreading_factor,
+                    "bandwidthHz": bandwidth_hz,
+                    "supported": supported,
+                })
+            })
+            .collect(),
+    )
 }
 
 fn hex(bytes: &[u8]) -> String {

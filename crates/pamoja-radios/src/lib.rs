@@ -4,16 +4,17 @@
 //!
 //! `pamoja-lora` works out what a link costs and how far it reaches; this crate puts a
 //! radio on the air to match. Each chip family has a module in two halves. The first is
-//! the chip's command set and decoders: the bytes each command sends, the interrupt and
-//! status bits it answers with, the signal levels of a received packet, and the
-//! frequency, modulation, packet, and power settings that a
+//! the chip's commands or registers and its decoders: the bytes that configure it, the
+//! interrupt and status bits it answers with, the signal levels of a received packet,
+//! and the frequency, modulation, packet, and power settings that a
 //! [`LinkSettings`](pamoja_lora::LinkSettings) and a channel plan turn into. That half
 //! needs no bus and no allocation, so a test, a language binding, or a protocol
 //! analyzer can use it without a radio. The second half is an `embedded-hal` driver
-//! that sends the commands over SPI, waits on the chip's BUSY line, and transmits and
-//! receives frames.
+//! that talks to the chip over SPI and transmits and receives frames.
 //!
 //! - [`sx126x`] - Semtech's SX1261, SX1262, and LLCC68, from the SX1261/2 datasheet.
+//! - [`sx127x`] - Semtech's SX1276, SX1277, SX1278, and SX1279, and modules such as the
+//!   RFM95W, from the SX1276/77/78/79 datasheet.
 //! - [`duty`] - a guard that holds a radio silent for the off time a regional duty-cycle
 //!   limit requires after each transmission.
 //! - `mesh`, with the `std` feature - a pamoja transport over a radio, carrying topics in
@@ -39,3 +40,4 @@ pub mod duty;
 #[cfg(feature = "std")]
 pub mod mesh;
 pub mod sx126x;
+pub mod sx127x;

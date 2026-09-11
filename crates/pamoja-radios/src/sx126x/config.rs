@@ -588,6 +588,49 @@ impl LoraModulation {
     }
 }
 
+/// Reports whether an LLCC68 can use a spreading factor at a bandwidth.
+///
+/// The LLCC68 takes the SX1262's commands but not all of its settings. Its datasheet
+/// (DS.LLCC68.W.APP Rev 1.1) lists SF5 to SF11 in Table 13-47 and only the 125, 250, and
+/// 500 kHz bandwidths in Table 13-48, and notes under Table 6-1 that not every spreading
+/// factor is available at every bandwidth. Semtech's LLCC68 driver refuses SF10 and SF11 at
+/// 125 kHz and SF11 at 250 kHz, which leaves the LoRaWAN data rates the LLCC68 product page
+/// lists: up to SF9 at 125 kHz, SF10 at 250 kHz, and SF11 at 500 kHz.
+///
+/// # Arguments
+///
+/// * `spreading_factor` - the spreading factor.
+/// * `bandwidth` - the signal bandwidth.
+///
+/// # Returns
+///
+/// `true` when the LLCC68 supports the pair.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_radios::sx126x::config::{llcc68_supports, LoraBandwidth};
+///
+/// assert!(llcc68_supports(9, LoraBandwidth::Khz125));
+/// assert!(!llcc68_supports(10, LoraBandwidth::Khz125));
+/// assert!(llcc68_supports(10, LoraBandwidth::Khz250));
+/// assert!(!llcc68_supports(11, LoraBandwidth::Khz250));
+/// assert!(llcc68_supports(11, LoraBandwidth::Khz500));
+/// assert!(!llcc68_supports(12, LoraBandwidth::Khz500));
+/// assert!(!llcc68_supports(7, LoraBandwidth::Khz62_5));
+/// ```
+pub const fn llcc68_supports(spreading_factor: u8, bandwidth: LoraBandwidth) -> bool {
+    if spreading_factor < 5 || spreading_factor > 11 {
+        return false;
+    }
+    match bandwidth {
+        LoraBandwidth::Khz125 => spreading_factor <= 9,
+        LoraBandwidth::Khz250 => spreading_factor <= 10,
+        LoraBandwidth::Khz500 => true,
+        _ => false,
+    }
+}
+
 /// The LoRa parameters of a SetPacketParams command, from Tables 13-66 to 13-70.
 ///
 /// # Examples

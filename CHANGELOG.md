@@ -46,6 +46,23 @@ released together, so one entry covers all of them.
   `Pamoja.Radios`, checked against shared conformance vectors, and a new guide
   plans one transmission in all four languages. The SX1262 and LLCC68 cards on
   the hardware page name the driver.
+- The Semtech SX1276, SX1277, SX1278 and SX1279 in `pamoja-radios`, the family inside
+  most RFM95W modules. The register map, the carrier word, the modem settings a link
+  turns into, the RFO and PA_BOOST amplifier settings with the +20 dBm mode and a
+  current limit to match, the IRQ flags, and the packet RSSI and SNR with each RF
+  port's offset come from the SX1276/77/78/79 datasheet. The receiver's image
+  calibration runs at the first carrier on each port, and the 500 kHz sensitivity and
+  spurious reception errata are applied as Semtech's LoRaMac-node applies them. The IQ
+  polarity bit of the transmit path follows LoRaMac-node, RadioLib and arduino-LoRa
+  rather than the datasheet, which describes it the wrong way round. An `embedded-hal`
+  driver brings the chip up in LoRa mode, transmits, and receives in single or
+  continuous mode, and `MeshRadio` runs over it as it does over an SX1262. The register
+  values and decoders reach TypeScript, Python and C#, checked against new conformance
+  vectors, and the SX1276 card on the hardware page names the driver.
+- An LLCC68 check on the SX126x driver: `Board::with_llcc68` holds a link to the rates
+  the LLCC68 supports, up to SF9 at 125 kHz, SF10 at 250 kHz and SF11 at 500 kHz, from
+  its datasheet and Semtech's LLCC68 driver, and every binding can ask the same
+  question.
 
 ### Changed
 

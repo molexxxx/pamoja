@@ -16,7 +16,7 @@ namespace, so a type is named the way it is when the package is referenced direc
 | --- | --- | --- |
 | [LoRa airtime and range](https://pamoja.molex.cloud/docs/guides/lora.html) | `Pamoja.Lora` | Time-on-air, duty-cycle off-time, the regional channel plans a LoRa node must keep to, and the link budget that sets its range |
 | [LoRaWAN](https://pamoja.molex.cloud/docs/guides/lorawan.html) | `Pamoja.Lorawan` | LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join |
-| [LoRa radios](https://pamoja.molex.cloud/docs/guides/radios.html) | `Pamoja.Radios` | The Semtech SX126x LoRa command set and its decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard |
+| [LoRa radios](https://pamoja.molex.cloud/docs/guides/radios.html) | `Pamoja.Radios` | The Semtech SX126x and SX127x LoRa radios: their commands, registers, and decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard |
 | [Mesh frames](https://pamoja.molex.cloud/docs/guides/mesh.html) | `Pamoja.Mesh` | Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once |
 | [Routing](https://pamoja.molex.cloud/docs/guides/routing.html) | `Pamoja.Routing` | Reverse-path routing that learns the cheapest route from overheard traffic |
 

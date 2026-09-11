@@ -87,6 +87,7 @@ use tokio::time::{sleep, Instant};
 
 use crate::duty::DutyCycle;
 use crate::sx126x::{RadioError, Reception, Sx126x};
+use crate::sx127x::{self, Sx127x};
 
 /// The most topic and payload bytes one message carries together: a frame's payload less
 /// the byte that holds the topic's length.
@@ -197,6 +198,38 @@ where
     fn take_frame(&mut self, buffer: &mut [u8]) -> std::result::Result<Option<usize>, Self::Error> {
         match Sx126x::take_frame(self, buffer)? {
             Some(Reception::Frame { len, .. }) => Ok(Some(len)),
+            _ => Ok(None),
+        }
+    }
+}
+
+impl<SPI, RESET, D> LoraRadio for Sx127x<SPI, RESET, D>
+where
+    SPI: SpiDevice,
+    RESET: OutputPin,
+    D: DelayNs,
+{
+    type Error = sx127x::RadioError<SPI::Error>;
+
+    fn link(&self) -> Option<LinkSettings> {
+        self.config().map(|config| config.link)
+    }
+
+    fn start_transmit(&mut self, frame: &[u8]) -> std::result::Result<u64, Self::Error> {
+        Sx127x::start_transmit(self, frame)
+    }
+
+    fn finish_transmit(&mut self) -> std::result::Result<bool, Self::Error> {
+        Sx127x::finish_transmit(self)
+    }
+
+    fn listen(&mut self) -> std::result::Result<(), Self::Error> {
+        Sx127x::listen(self)
+    }
+
+    fn take_frame(&mut self, buffer: &mut [u8]) -> std::result::Result<Option<usize>, Self::Error> {
+        match Sx127x::take_frame(self, buffer)? {
+            Some(sx127x::Reception::Frame { len, .. }) => Ok(Some(len)),
             _ => Ok(None),
         }
     }

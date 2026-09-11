@@ -1722,6 +1722,169 @@ function radiosVectors() {
   assert.strictEqual(forbidden.earliestUs, null, "a zero limit never clears");
 }
 
+function sx127xVectors() {
+  const vector = VECTORS.radios.sx127x;
+  const links = new Map(VECTORS.lora.links.map((entry) => [entry.name, entry]));
+  const { sx126x, sx127x } = radios;
+  const pascal = (name) => name.charAt(0).toUpperCase() + name.slice(1);
+  const output = (name) => (name === "rfo" ? sx127x.PaOutput.Rfo : sx127x.PaOutput.PaBoost);
+  const hundredths = (value) => Math.round(value * 100);
+
+  for (const [name, address] of Object.entries(vector.registers)) {
+    assert.strictEqual(sx127x.Register[pascal(name)], address, `the ${name} register`);
+  }
+  assert.deepStrictEqual(
+    {
+      version: sx127x.VERSION,
+      write: sx127x.WRITE,
+      dio0RxDone: sx127x.Dio0.RxDone,
+      dio0TxDone: sx127x.Dio0.TxDone,
+      dio0CadDone: sx127x.Dio0.CadDone,
+      paDacDefault: sx127x.PA_DAC_DEFAULT,
+      paDacHighPower: sx127x.PA_DAC_HIGH_POWER,
+      imageCalStart: sx127x.IMAGE_CAL_START,
+      imageCalRunning: sx127x.IMAGE_CAL_RUNNING,
+      syncWordPublic: sx127x.SYNC_WORD_PUBLIC,
+      syncWordPrivate: sx127x.SYNC_WORD_PRIVATE,
+      lnaBoosted: sx127x.LNA_BOOSTED,
+      tcxoInputOn: sx127x.TCXO_INPUT_ON,
+    },
+    vector.constants,
+    "the named register values",
+  );
+  for (const [name, bits] of Object.entries(vector.irqFlags)) {
+    assert.strictEqual(sx127x.Irq[pascal(name)], bits, `the ${name} flag`);
+  }
+  for (const entry of vector.modes) {
+    const mode = sx127x.Mode[pascal(entry.mode)];
+    assert.strictEqual(sx127x.loraOpMode(mode), entry.lora, `LoRa ${entry.mode}`);
+    assert.strictEqual(sx127x.fskOpMode(mode), entry.fsk, `FSK ${entry.mode}`);
+    assert.strictEqual(sx127x.modeFromOpMode(entry.lora), mode, `the mode of ${entry.lora}`);
+  }
+  for (const entry of vector.addresses) {
+    assert.strictEqual(sx127x.readAddress(entry.address), entry.read, `read ${entry.address}`);
+    assert.strictEqual(sx127x.writeAddress(entry.address), entry.write, `write ${entry.address}`);
+  }
+  for (const entry of vector.frequencyWords) {
+    assert.strictEqual(sx127x.frequencyWord(entry.frequencyHz), entry.word, `${entry.frequencyHz} Hz`);
+  }
+  for (const entry of vector.modems) {
+    const link = linkOf(links.get(entry.link));
+    assert.strictEqual(sx127x.symbolTimeout(link, 100_000), entry.symbolTimeout, `symbols for ${entry.link}`);
+    const modem = sx127x.modem(link, entry.frequencyHz, entry.symbolTimeout);
+    assert.strictEqual(modem.modemConfig1, entry.modemConfig1, `RegModemConfig1 for ${entry.link}`);
+    assert.strictEqual(modem.modemConfig2, entry.modemConfig2, `RegModemConfig2 for ${entry.link}`);
+    assert.strictEqual(modem.modemConfig3, entry.modemConfig3, `RegModemConfig3 for ${entry.link}`);
+    assert.strictEqual(modem.detectionOptimize, entry.detectionOptimize, `detection for ${entry.link}`);
+    assert.strictEqual(modem.detectionThreshold, entry.detectionThreshold, `threshold for ${entry.link}`);
+  }
+  for (const entry of vector.modemRefusals) {
+    assert.throws(
+      () => sx127x.modem(lora.link(entry.spreadingFactor, entry.bandwidthHz), entry.frequencyHz),
+      `SF${entry.spreadingFactor} at ${entry.bandwidthHz} Hz is refused`,
+    );
+  }
+  for (const entry of vector.symbolTimeouts) {
+    assert.strictEqual(
+      sx127x.symbolTimeout(linkOf(links.get(entry.link)), entry.timeoutUs),
+      entry.symbols,
+      `${entry.timeoutUs} us on ${entry.link}`,
+    );
+  }
+  for (const entry of vector.txPowers) {
+    const power = sx127x.txPower(output(entry.output), entry.requestedDbm);
+    assert.deepStrictEqual(
+      [power.paConfig, power.paDac, power.ocp, power.outputDbm],
+      [entry.paConfig, entry.paDac, entry.ocp, entry.outputDbm],
+      JSON.stringify(entry),
+    );
+  }
+  for (const entry of vector.underCeilings) {
+    const budget = lora.linkBudget({
+      transmitAntennaGainDbi: entry.transmitAntennaGainHundredths / 100,
+      transmitCableLossDb: entry.transmitCableLossHundredths / 100,
+    });
+    const power = sx127x.txPowerUnderCeiling(output(entry.output), budget, entry.ceilingHundredths / 100);
+    assert.deepStrictEqual(
+      [power.paConfig, power.paDac, power.ocp, power.outputDbm],
+      [entry.paConfig, entry.paDac, entry.ocp, entry.outputDbm],
+      JSON.stringify(entry),
+    );
+  }
+  for (const entry of vector.ocp) {
+    assert.strictEqual(sx127x.ocpRegister(entry.milliamps), entry.register, `${entry.milliamps} mA`);
+  }
+  for (const entry of vector.invertIq) {
+    assert.strictEqual(sx127x.invertIq(entry.receive, entry.transmit), entry.register, JSON.stringify(entry));
+  }
+  for (const entry of vector.invertIq2) {
+    assert.strictEqual(sx127x.invertIq2(entry.inverted), entry.register, JSON.stringify(entry));
+  }
+  for (const entry of vector.highBwOptimize) {
+    const optimize = sx127x.highBwOptimize(lora.link(7, entry.bandwidthHz), entry.frequencyHz);
+    assert.strictEqual(optimize.optimize1, entry.optimize1, JSON.stringify(entry));
+    assert.strictEqual(optimize.optimize2 ?? null, entry.optimize2, JSON.stringify(entry));
+  }
+  for (const entry of vector.spuriousReception) {
+    const erratum = sx127x.spuriousReception(lora.link(7, entry.bandwidthHz));
+    assert.strictEqual(erratum.automaticIf, entry.automaticIf, JSON.stringify(entry));
+    assert.strictEqual(erratum.ifFreq2 ?? null, entry.ifFreq2, JSON.stringify(entry));
+    assert.strictEqual(erratum.offsetHz, entry.offsetHz, JSON.stringify(entry));
+  }
+  for (const entry of vector.imageCalStart) {
+    assert.strictEqual(sx127x.imageCalStart(entry.current), entry.register, JSON.stringify(entry));
+  }
+  for (const entry of vector.automaticIf) {
+    assert.strictEqual(sx127x.automaticIf(entry.current, entry.on), entry.register, JSON.stringify(entry));
+  }
+  for (const entry of vector.packetStatuses) {
+    const status = sx127x.packetStatus(Buffer.from(entry.bytes, "hex"), entry.frequencyHz);
+    assert.strictEqual(hundredths(status.rssiDbm), entry.rssiHundredths, `RSSI of ${entry.bytes}`);
+    assert.strictEqual(hundredths(status.snrDb), entry.snrHundredths, `SNR of ${entry.bytes}`);
+    assert.strictEqual(
+      hundredths(status.signalRssiDbm),
+      entry.signalRssiHundredths,
+      `signal RSSI of ${entry.bytes}`,
+    );
+  }
+  for (const entry of vector.rssi) {
+    assert.strictEqual(
+      hundredths(sx127x.rssiDbm(entry.byte, entry.frequencyHz)),
+      entry.hundredths,
+      JSON.stringify(entry),
+    );
+  }
+  for (const entry of vector.modemStatuses) {
+    const status = sx127x.modemStatus(entry.byte);
+    assert.deepStrictEqual(
+      {
+        codingRateDenominator: status.codingRateDenominator ?? null,
+        clear: status.clear,
+        headerValid: status.headerValid,
+        rxOngoing: status.rxOngoing,
+        signalSynchronized: status.signalSynchronized,
+        signalDetected: status.signalDetected,
+      },
+      {
+        codingRateDenominator: entry.codingRateDenominator,
+        clear: entry.clear,
+        headerValid: entry.headerValid,
+        rxOngoing: entry.rxOngoing,
+        signalSynchronized: entry.signalSynchronized,
+        signalDetected: entry.signalDetected,
+      },
+      `RegModemStat ${entry.byte}`,
+    );
+  }
+  for (const entry of VECTORS.radios.llcc68) {
+    assert.strictEqual(
+      sx126x.llcc68Supports(lora.link(entry.spreadingFactor, entry.bandwidthHz)),
+      entry.supported,
+      `LLCC68 SF${entry.spreadingFactor} at ${entry.bandwidthHz} Hz`,
+    );
+  }
+}
+
 function meshVectors() {
   const vector = VECTORS.mesh;
 
@@ -1932,6 +2095,7 @@ mavlinkProtocolVectors();
 meshVectors();
 routingVectors();
 radiosVectors();
+sx127xVectors();
 
 function headerVectors() {
   const vector = VECTORS.header;
