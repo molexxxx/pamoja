@@ -153,24 +153,33 @@ readings = [
   { label = "Link", value = "Zenoh -57", unit = "dBm" },
 ]
 
-# Where it is going. A tag that names a crate is checked against the workspace: one that
-# ships must exist, one that is planned must not.
+# Where it is going. Each tag is in one state: `ships`, `next`, or `later`. A tag that
+# names a crate is checked against the workspace: one that ships must exist, one that is
+# planned must not.
 
 [[track]]
 key = "radio"
 title = "Messaging and radio"
 lead = "A cost-aware ladder that tries the cheapest link first and buffers when there is none."
 tags = [
-  { text = "MQTT", ships = true, crate = "pamoja-mqtt" },
-  { text = "CoAP", ships = true, crate = "pamoja-coap" },
-  { text = "LoRa", ships = true, crate = "pamoja-lora" },
-  { text = "LoRaWAN", ships = true, crate = "pamoja-lorawan" },
-  { text = "mesh", ships = true, crate = "pamoja-mesh" },
-  { text = "routing", ships = true, crate = "pamoja-routing" },
-  { text = "transport ladder", ships = true, crate = "pamoja-ladder" },
-  { text = "Meshtastic bridge", ships = false, crate = "pamoja-meshtastic" },
-  { text = "cellular uplink", ships = false, crate = "pamoja-cellular" },
-  { text = "LoRa-to-satellite", ships = false, crate = "pamoja-satellite" },
+  { text = "MQTT", state = "ships", crate = "pamoja-mqtt" },
+  { text = "CoAP", state = "ships", crate = "pamoja-coap" },
+  { text = "LoRa", state = "ships", crate = "pamoja-lora" },
+  { text = "LoRaWAN", state = "ships", crate = "pamoja-lorawan" },
+  { text = "mesh", state = "ships", crate = "pamoja-mesh" },
+  { text = "routing", state = "ships", crate = "pamoja-routing" },
+  { text = "transport ladder", state = "ships", crate = "pamoja-ladder" },
+  { text = "ESP-NOW link", state = "next" },
+  { text = "nRF24 link", state = "next" },
+  { text = "Meshtastic bridge", state = "next", crate = "pamoja-meshtastic" },
+  { text = "cellular uplink (NB-IoT, LTE-M)", state = "next", crate = "pamoja-cellular" },
+  { text = "LoRaWAN regional parameters", state = "next" },
+  { text = "LoRaWAN MAC commands", state = "next" },
+  { text = "BLE and the phone as gateway", state = "later" },
+  { text = "Matter and Thread", state = "later" },
+  { text = "LoRaWAN network-server interop", state = "later" },
+  { text = "sub-GHz radios (CC1101, HC-12)", state = "later" },
+  { text = "LoRa-to-satellite", state = "later", crate = "pamoja-satellite" },
 ]
 
 [[track]]
@@ -178,31 +187,62 @@ key = "hardware"
 title = "Hardware and sensors"
 lead = "Talk to the cheap, salvageable parts the field already runs on, by name instead of by pin."
 tags = [
-  { text = "Modbus / RS485", ships = true, crate = "pamoja-modbus" },
-  { text = "CAN / J1939", ships = true, crate = "pamoja-can" },
-  { text = "serial (SLIP / COBS)", ships = true, crate = "pamoja-serial" },
-  { text = "GPIO / I2C / SPI", ships = true, crate = "pamoja-gpio" },
-  { text = "buses (embedded-hal, 1-Wire)", ships = true, crate = "pamoja-hal" },
-  { text = "sensor drivers", ships = true, crate = "pamoja-sensors" },
-  { text = "actuator drivers", ships = true, crate = "pamoja-actuators" },
-  { text = "device profiles", ships = true, crate = "pamoja-profile" },
-  { text = "drivers for more parts", ships = false },
+  { text = "Modbus / RS485", state = "ships", crate = "pamoja-modbus" },
+  { text = "CAN / J1939", state = "ships", crate = "pamoja-can" },
+  { text = "serial (SLIP / COBS)", state = "ships", crate = "pamoja-serial" },
+  { text = "GPIO / I2C / SPI", state = "ships", crate = "pamoja-gpio" },
+  { text = "buses (embedded-hal, 1-Wire)", state = "ships", crate = "pamoja-hal" },
+  { text = "sensor drivers", state = "ships", crate = "pamoja-sensors" },
+  { text = "actuator drivers", state = "ships", crate = "pamoja-actuators" },
+  { text = "device profiles", state = "ships", crate = "pamoja-profile" },
+  { text = "ultrasonic tank level (JSN-SR04T)", state = "next" },
+  { text = "GPS (NEO-M8N)", state = "next" },
+  { text = "relay, valve, and pump drivers", state = "next" },
+  { text = "DC motor drivers", state = "next" },
+  { text = "OLED and e-ink displays", state = "next" },
+  { text = "particulates (PMS5003)", state = "next" },
+  { text = "NDIR CO2 (MH-Z19)", state = "next" },
+  { text = "pulse oximetry (MAX30102)", state = "next" },
+  { text = "IR temperature (MLX90614)", state = "next" },
+  { text = "load cells (HX711)", state = "next" },
+  { text = "9-axis IMU (MPU9250)", state = "next" },
+  { text = "Linux CAN I/O (socketcan)", state = "next" },
+  { text = "humidity (DHT22)", state = "later" },
+  { text = "gas and VOC (MQ series, SGP40, BME680)", state = "later" },
+  { text = "AC energy metering (PZEM-004T)", state = "later" },
+  { text = "battery fuel gauge (MAX17043)", state = "later" },
+  { text = "compass (QMC5883)", state = "later" },
+  { text = "presence (PIR, microwave radar)", state = "later" },
+  { text = "time-of-flight distance (VL53L1X)", state = "later" },
+  { text = "ECG (AD8232)", state = "later" },
+  { text = "RFID, NFC, and fingerprint", state = "later" },
+  { text = "flow and leak sensing", state = "later" },
+  { text = "water quality (pH, TDS, turbidity)", state = "later" },
+  { text = "submersible pressure level", state = "later" },
+  { text = "weather station (rain, wind, light)", state = "later" },
+  { text = "thermocouples (MAX31855)", state = "later" },
+  { text = "LCD and TFT displays", state = "later" },
+  { text = "buzzers and RGB alerts", state = "later" },
 ]
 
 [[track]]
 key = "robotics"
 title = "Robotics and drones"
-lead = "Drive it, dead-reckon where it is, follow a path, and keep it safe: a robot as an ordinary pamoja device, bridged to ROS 2 over Zenoh."
+lead = "Drive it, dead-reckon where it is, follow a path, and keep it safe: a robot as an ordinary pamoja device, bridged to ROS 2 over Zenoh, and an autopilot driven over MAVLink."
 tags = [
-  { text = "motion / kinematics", ships = true, crate = "pamoja-kit" },
-  { text = "odometry", ships = true },
-  { text = "waypoint navigation", ships = true },
-  { text = "safety (e-stop / watchdog)", ships = true },
-  { text = "arm FK / IK", ships = true },
-  { text = "ROS 2 bridge", ships = true, crate = "pamoja-ros2" },
-  { text = "Zenoh transport", ships = true, crate = "pamoja-zenoh" },
-  { text = "robot sim", ships = true, crate = "pamoja-sim" },
-  { text = "MAVLink", ships = true, crate = "pamoja-mavlink" },
+  { text = "motion / kinematics", state = "ships", crate = "pamoja-kit" },
+  { text = "odometry", state = "ships" },
+  { text = "waypoint navigation", state = "ships" },
+  { text = "safety (e-stop / watchdog)", state = "ships" },
+  { text = "arm FK / IK", state = "ships" },
+  { text = "ROS 2 bridge", state = "ships", crate = "pamoja-ros2" },
+  { text = "Zenoh transport", state = "ships", crate = "pamoja-zenoh" },
+  { text = "robot sim", state = "ships", crate = "pamoja-sim" },
+  { text = "MAVLink", state = "ships", crate = "pamoja-mavlink" },
+  { text = "fleet and swarm orchestration", state = "next" },
+  { text = "mission planning", state = "later" },
+  { text = "numeric IK for longer arms", state = "later" },
+  { text = "micro-ROS on microcontrollers", state = "later" },
 ]
 
 [[track]]
@@ -210,12 +250,14 @@ key = "resilience"
 title = "Resilience and power"
 lead = "Offline-first by default, awake only when it must be, so a node lives on sun and a battery."
 tags = [
-  { text = "store-and-forward", ships = true, crate = "pamoja-sync" },
-  { text = "duty cycling", ships = true, crate = "pamoja-power" },
-  { text = "tamper-evident audit", ships = true, crate = "pamoja-audit" },
-  { text = "telemetry that fits the link", ships = true, crate = "pamoja-telemetry" },
-  { text = "local-first dashboards", ships = true, crate = "pamoja-dashboard" },
-  { text = "data-mule sync", ships = false },
+  { text = "store-and-forward", state = "ships", crate = "pamoja-sync" },
+  { text = "duty cycling", state = "ships", crate = "pamoja-power" },
+  { text = "tamper-evident audit", state = "ships", crate = "pamoja-audit" },
+  { text = "telemetry that fits the link", state = "ships", crate = "pamoja-telemetry" },
+  { text = "local-first dashboards", state = "ships", crate = "pamoja-dashboard" },
+  { text = "data-mule sync", state = "next" },
+  { text = "field timekeeping (RTC, GPS time)", state = "later" },
+  { text = "telemetry export to common backends", state = "later" },
 ]
 
 [[track]]
@@ -223,12 +265,15 @@ key = "security"
 title = "Security and trust"
 lead = "Memory-safe by construction, with identity, a secured channel, and signed updates that survive a hostile link."
 tags = [
-  { text = "memory safety", ships = true },
-  { text = "device identity", ships = true, crate = "pamoja-security" },
-  { text = "secured channel", ships = true, crate = "pamoja-session" },
-  { text = "signed updates + rollback", ships = true, crate = "pamoja-update" },
-  { text = "TLS 1.3 / DTLS", ships = false, crate = "pamoja-tls" },
-  { text = "X.509 identity", ships = false },
+  { text = "memory safety", state = "ships" },
+  { text = "device identity", state = "ships", crate = "pamoja-security" },
+  { text = "secured channel", state = "ships", crate = "pamoja-session" },
+  { text = "signed updates + rollback", state = "ships", crate = "pamoja-update" },
+  { text = "TLS 1.3 and DTLS", state = "next", crate = "pamoja-tls" },
+  { text = "X.509 certificates", state = "next" },
+  { text = "secure-element key storage", state = "next" },
+  { text = "attestation and secure boot", state = "next" },
+  { text = "encrypted updates", state = "next" },
 ]
 
 [[track]]
@@ -236,12 +281,17 @@ key = "reach"
 title = "Reach"
 lead = "One engine, idiomatic in every language a device developer actually uses, plus plain-language helpers."
 tags = [
-  { text = "the four language bindings", ships = true, href = "#table-4-1" },
-  { text = "Lua", ships = false },
-  { text = "WebAssembly", ships = false },
-  { text = "Kotlin", ships = false },
-  { text = "Swift", ships = false },
-  { text = "Go", ships = false },
+  { text = "the four language bindings", state = "ships", href = "#table-4-1" },
+  { text = "Lua", state = "next" },
+  { text = "WebAssembly", state = "next" },
+  { text = "Kotlin and Java", state = "later" },
+  { text = "Swift", state = "later" },
+  { text = "Go", state = "later" },
+  { text = "Ruby", state = "later" },
+  { text = "Sema, a language written in sentences", state = "later" },
+  { text = "visual block editor", state = "later" },
+  { text = "in-browser simulator", state = "later" },
+  { text = "offline cookbook", state = "later" },
 ]
 
 # Back the mission. The software is free; what costs money is the hardware and the link.
