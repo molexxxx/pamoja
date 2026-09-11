@@ -45,12 +45,15 @@ impl Capability {
     }
 }
 
-/// The whole map: chapters in order, capabilities in order, the engine crates, and the
-/// crate that bundles every capability behind a feature each.
+/// The whole map: chapters in order, capabilities in order, the engine crates and which
+/// of them are the C ABI and the dashboard, and the crate that bundles every capability
+/// behind a feature each.
 pub struct Catalog {
     pub chapters: Vec<Chapter>,
     pub capabilities: Vec<Capability>,
     pub engine: Vec<String>,
+    pub abi: Option<String>,
+    pub dashboard: Option<String>,
     pub bundle: Option<String>,
 }
 
@@ -103,12 +106,19 @@ impl Catalog {
             });
         }
 
-        let engine = doc
-            .get("engine")
-            .and_then(Item::as_table_like)
+        let engine_table = doc.get("engine").and_then(Item::as_table_like);
+        let engine = engine_table
             .map(|engine| strings_of(engine, "crates", "engine"))
             .transpose()?
             .unwrap_or_default();
+        let engine_role = |key: &str| {
+            engine_table
+                .and_then(|engine| engine.get(key))
+                .and_then(Item::as_str)
+                .map(str::to_owned)
+        };
+        let abi = engine_role("abi");
+        let dashboard = engine_role("dashboard");
 
         let bundle = doc
             .get("bundle")
@@ -120,8 +130,22 @@ impl Catalog {
             chapters,
             capabilities,
             engine,
+            abi,
+            dashboard,
             bundle,
         })
+    }
+
+    /// The engine crates that are the engine itself: every crate `[engine]` lists except
+    /// the one it names as the C ABI and the one it names as the dashboard.
+    pub fn core_crates(&self) -> Vec<&str> {
+        self.engine
+            .iter()
+            .map(String::as_str)
+            .filter(|krate| {
+                Some(*krate) != self.abi.as_deref() && Some(*krate) != self.dashboard.as_deref()
+            })
+            .collect()
     }
 
     /// Every capability in table order: the engine's own surface first, then the
@@ -278,6 +302,13 @@ impl Catalog {
         }
         for krate in &self.engine {
             claimed.entry(krate.as_str()).or_default().push("engine");
+        }
+        for (role, named) in [("abi", &self.abi), ("dashboard", &self.dashboard)] {
+            if let Some(krate) = named.as_ref().filter(|krate| !self.engine.contains(*krate)) {
+                problems.push(format!(
+                    "[engine] names {krate} as its {role}, which is not one of its crates"
+                ));
+            }
         }
         if let Some(name) = &self.bundle {
             claimed.entry(name.as_str()).or_default().push("bundle");
@@ -1552,6 +1583,22 @@ crate = "pamoja"
         assert_eq!(modbus.dotnet, ["Modbus", "ModbusFrame"]);
         assert_eq!(modbus.guide.as_deref(), Some("guides/modbus.md"));
         assert!(catalog.capability("transport").unwrap().guide.is_none());
+    }
+
+    #[test]
+    fn the_engine_names_its_abi_and_its_dashboard() {
+        let text = SAMPLE.replace(
+            "[engine]\ncrates = [\"pamoja-core\"]\n",
+            "[engine]\ncrates = [\"pamoja-core\", \"pamoja-ffi\", \"pamoja-dashboard\"]\nabi = \"pamoja-ffi\"\ndashboard = \"pamoja-dashboard\"\n",
+        );
+        let catalog = Catalog::parse(&text).unwrap();
+        assert_eq!(catalog.abi.as_deref(), Some("pamoja-ffi"));
+        assert_eq!(catalog.dashboard.as_deref(), Some("pamoja-dashboard"));
+        assert_eq!(catalog.core_crates(), ["pamoja-core"]);
+        assert_eq!(
+            Catalog::parse(SAMPLE).unwrap().core_crates(),
+            ["pamoja-core"]
+        );
     }
 
     #[test]

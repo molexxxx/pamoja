@@ -457,9 +457,13 @@ dotnet = ["KeyExpression"]
 guide = "guides/zenoh.md"
 
 # The crates that are not a capability of their own: the trait core every capability
-# implements, the C ABI the .NET binding rides on, and the fleet dashboard.
+# implements, the C ABI the .NET binding rides on, and the fleet dashboard. `abi` and
+# `dashboard` name which is which, so the site draws the core as the engine, the C ABI
+# under C#, and the dashboard as a cell of its own.
 [engine]
 crates = ["pamoja-core", "pamoja-ffi", "pamoja-dashboard"]
+abi = "pamoja-ffi"
+dashboard = "pamoja-dashboard"
 
 # The crate that bundles every capability behind a feature each, all on by default,
 # so `cargo add pamoja` is the whole framework. Its manifest is checked against the

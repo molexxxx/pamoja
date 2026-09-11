@@ -38,6 +38,18 @@ released together, so one entry covers all of them.
 - `cargo xtask docs` writes the dashboard's copies of the palette, in its
   stylesheet and in the two pages that render without scripts, from the site's
   palette, and `--check` fails when a copy drifts.
+- The capability map on the front page carries the four bindings across its top,
+  over the engine, a cell for each heading, and the dashboard. Every heading
+  lists its capabilities, each linked to its guide, and the grid holds four,
+  three, two, or one column, so no row is left short. The engine cell names
+  `pamoja-core` alone. `docs/capabilities.toml` now says which engine crate is
+  the C ABI and which is the dashboard, so the C# binding names the first and
+  the dashboard has a cell of its own. The language bindings section is gone
+  with that, and Direction and Backing are sections 6 and 7.
+- Direction leads each track with what is committed, then what the track builds
+  on today, linked to each crate's reference, instead of repeating the
+  capability map. A track with nothing committed says so, and Reach points at
+  the bindings rather than listing the four languages again.
 
 ### Fixed
 
@@ -65,6 +77,11 @@ released together, so one entry covers all of them.
 - The sheets no longer glow. The alarm count, a gauge bar, and a newly seen link
   each drew a fixed glow that ignored the theme, and they now take the theme's
   own. Faint text on a tile on the light sheet reaches a 4.9:1 contrast.
+- The ink frame around the capability map showed only on its right and bottom
+  edges, because the hairlines between cells were drawn over the other two. The
+  cells sit on a hairline ground now, so the frame holds on all four sides.
+- Direction's tags printed at 10px on a phone, from a size token that was never
+  defined. They print at 11px, the smallest label size the sheet uses.
 
 ## [0.1.18] - 2026-09-10
 
