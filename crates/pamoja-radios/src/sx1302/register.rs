@@ -729,6 +729,12 @@ pub const fn arbiter_status(register: u8) -> Register {
     Register::new(ARB_MCU_BASE + 13 + register, 0, 8, true)
 }
 
+/// Whether the counter listens to a pulse per second line.
+pub const TIMESTAMP_PPS_ENABLE: Register = Register::new(TIMESTAMP_BASE, 0, 1, false);
+
+/// Which edge of that line the counter takes.
+pub const TIMESTAMP_PPS_POLARITY: Register = Register::new(TIMESTAMP_BASE, 1, 1, false);
+
 #[cfg(test)]
 mod tests {
     use super::*;

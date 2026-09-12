@@ -29,6 +29,8 @@
 //!   channel before the gateway is allowed to talk on it.
 //! - [`sx1250`] - the front ends the concentrator listens through, which are what a
 //!   carrier is tuned to, and the order one is brought up in.
+//! - [`timestamp`] - the counter packets are stamped against and receive windows are
+//!   measured from, and how it is widened past a rollover.
 //!
 //! With the `embedded-hal` feature, the [`Sx1302`] driver walks all of that against a real
 //! bus: it resets the board, reads the version, resets the front ends, and gives each
@@ -73,6 +75,7 @@ pub mod register;
 pub mod rx;
 pub mod spi;
 pub mod sx1250;
+pub mod timestamp;
 pub mod tx;
 
 #[cfg(feature = "embedded-hal")]

@@ -23,6 +23,7 @@ use super::mcu;
 use super::register::{self, Register};
 use super::spi as frame;
 use super::sx1250;
+use super::timestamp;
 use super::tx::{self, Chain, FrontEnd, Trigger, TxStatus};
 
 /// How long the reset line is held, in microseconds.
@@ -811,6 +812,42 @@ where
         Err(ConcentratorError::Stalled { wanted, reading })
     }
 
+    /// Reads the counter packets are stamped against.
+    ///
+    /// Both counters come back in one burst, and the burst is read twice, because a read can
+    /// catch a counter mid-step. When the two agree the first is kept; when a high byte has
+    /// moved between them a third read settles it. That is what the reference does, and it
+    /// is a different guard from the one on the receive byte count, where the larger of two
+    /// readings is kept instead.
+    ///
+    /// # Arguments
+    ///
+    /// * `counter` - the state carried between readings, which is what widens a counter of
+    ///   27 bits past its rollover.
+    ///
+    /// # Returns
+    ///
+    /// The free running counter and then the pulse one, in microseconds.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn counter(
+        &mut self,
+        counter: &mut timestamp::Counter,
+    ) -> Result<(u32, u32), ConcentratorError<SPI::Error>> {
+        let mut bytes = [0u8; timestamp::COUNTERS_LEN];
+        self.read_memory(timestamp::COUNTERS, &mut bytes)?;
+
+        let mut again = [0u8; timestamp::COUNTERS_LEN];
+        self.read_memory(timestamp::COUNTERS, &mut again)?;
+
+        if timestamp::disagrees(&bytes, &again) {
+            self.read_memory(timestamp::COUNTERS, &mut bytes)?;
+        }
+        Ok(counter.read(&bytes))
+    }
+
     /// Sends a command to the front end on a chain.
     ///
     /// A front end answers on the same bus as the concentrator, with the first byte of the
@@ -1124,6 +1161,32 @@ mod tests {
             channel::steps(&plan).last().expect("there are steps");
         assert_eq!(last, register::COMMON_GLOBAL_ENABLE);
         assert_eq!(value, 0x01);
+    }
+
+    #[test]
+    fn the_counter_is_read_twice_and_kept_from_the_first() {
+        // The counter runs at 32 MHz, so 64 ticks is two microseconds and 32 is one.
+        let mut steps = fetches(0x6101, vec![0, 0, 0, 32, 0, 0, 0, 64]);
+        steps.extend(fetches(0x6101, vec![0, 0, 0, 32, 0, 0, 0, 64]));
+        let mut chip = driven(steps);
+
+        let mut counter = timestamp::Counter::new();
+        let (free, pulse) = chip.counter(&mut counter).expect("the bus answers");
+        assert_eq!((free, pulse), (2, 1));
+    }
+
+    #[test]
+    fn a_counter_that_stepped_between_readings_is_read_again() {
+        // The second reading carries a different high byte, so neither is trusted and a
+        // third is taken.
+        let mut steps = fetches(0x6101, vec![0, 0, 0, 32, 0, 0, 0, 64]);
+        steps.extend(fetches(0x6101, vec![0, 0, 0, 32, 1, 0, 0, 0]));
+        steps.extend(fetches(0x6101, vec![0, 0, 0, 32, 0, 0, 1, 0]));
+        let mut chip = driven(steps);
+
+        let mut counter = timestamp::Counter::new();
+        let (free, _) = chip.counter(&mut counter).expect("the bus answers");
+        assert_eq!(free, 8);
     }
 
     /// The transfers that send one command to a front end.
