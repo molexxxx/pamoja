@@ -81,7 +81,7 @@
   <text x="52" y="512" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#141414">lora</text>
   <text x="125.2" y="512" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#141414">lorawan</text>
   <text x="52" y="530" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#0f5f56">radios</text>
-  <text x="125.2" y="530" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#141414">gateway</text>
+  <text x="125.2" y="530" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#0f5f56">gateway</text>
   <text x="52" y="548" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#141414">mesh</text>
   <text x="125.2" y="548" font-family="'JetBrains Mono', Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#141414">routing</text>
   <line x1="52" y1="588" x2="198.4" y2="588" stroke="rgba(20, 20, 20, 0.16)"/>

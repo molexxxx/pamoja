@@ -46,6 +46,10 @@ name = "lora_budget"
 path = "lora_budget.rs"
 
 [[example]]
+name = "gateway_fleet"
+path = "gateway_fleet.rs"
+
+[[example]]
 name = "conformance"
 path = "conformance.rs"
 
@@ -89,7 +93,12 @@ pamoja-lora = { path = "../crates/pamoja-lora", features = ["alloc"] }
 pamoja-lorawan = { path = "../crates/pamoja-lorawan" }
 pamoja-mesh = { path = "../crates/pamoja-mesh", features = ["alloc"] }
 pamoja-radios = { path = "../crates/pamoja-radios", features = ["linux"] }
-pamoja-gateway = { path = "../crates/pamoja-gateway" }
+pamoja-gateway = { path = "../crates/pamoja-gateway", features = ["bridge"] }
+# The fleet feed shows a gateway driving a console. Fleet comes with the serving layer, so
+# that is the feature to ask for; the embedded app and its locales are not needed here.
+pamoja-dashboard = { path = "../crates/pamoja-dashboard", default-features = false, features = [
+    "serve",
+] }
 pamoja-routing = { path = "../crates/pamoja-routing", features = ["alloc"] }
 pamoja-serial = { path = "../crates/pamoja-serial" }
 pamoja-modbus = { path = "../crates/pamoja-modbus" }

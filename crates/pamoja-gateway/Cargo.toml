@@ -12,6 +12,15 @@ keywords.workspace = true
 categories.workspace = true
 authors.workspace = true
 
+[features]
+default = ["network"]
+# The single-site network side: admit a join, read an uplink, and answer it in a
+# receive window. It carries no sockets, so it binds and tests like the codec does.
+network = ["dep:pamoja-lorawan"]
+# Carrying messages between a LoRa radio and an upstream link. Both are pamoja
+# transports and one task drives them, which is why this pulls a runtime timer.
+bridge = ["dep:pamoja-core", "dep:tokio", "pamoja-core/std"]
+
 [dependencies]
 # The link a datarate identifier names is the same one the airtime and range math takes,
 # so a forwarded packet and its budget are described by one type.
@@ -19,6 +28,22 @@ pamoja-lora = { path = "../pamoja-lora", version = "0.1.18", default-features = 
 # The protocol's payload is a JSON object, built and read field by field so a datagram
 # from a gateway in the field is refused with the name of what is wrong with it.
 serde_json = "1"
+# A join request and a data frame are read with the same crate a device builds them
+# with, so both ends of a session agree by construction rather than by agreement.
+pamoja-lorawan = { path = "../pamoja-lorawan", version = "0.1.18", optional = true }
+# A bridge moves topics between two pamoja transports, so it speaks the core traits.
+pamoja-core = { path = "../pamoja-core", version = "0.1.18", default-features = false, optional = true }
+# The timer a bridge polls its radio on.
+tokio = { version = "1", default-features = false, features = ["time", "macros"], optional = true }
+
+[dev-dependencies]
+# The tests and the guide examples need a published band to answer in, while the crate
+# itself stays region-free: a network is built on whatever plan the caller holds.
+pamoja-lora = { path = "../pamoja-lora", features = ["eu868"] }
+# Both sides of a bridge in a test are the in-process broker, so a pass can be driven and
+# read without a radio, a socket, or a clock.
+pamoja-loopback = { path = "../pamoja-loopback", version = "0.1.18" }
+tokio = { version = "1", default-features = false, features = ["macros", "rt", "time"] }
 
 [lints]
 workspace = true

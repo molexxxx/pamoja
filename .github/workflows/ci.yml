@@ -60,6 +60,13 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+      # A bridge drives a radio and an upstream link from one task, so it needs a runtime
+      # and stays off the default graph the step above covers.
+      - name: Gateway bridge
+        run: |
+          cargo clippy -p pamoja-gateway --features bridge --all-targets -- -D warnings
+          cargo test -p pamoja-gateway --features bridge
+
       # The Linux bus backends, the kernel thermometer file, and the Linux side of the
       # radio opener only build on Linux, so the default-feature graph the rest of this
       # job covers never compiles them.
