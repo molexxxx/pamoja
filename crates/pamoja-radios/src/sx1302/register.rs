@@ -221,6 +221,12 @@ pub const RX_BUFFER_NB_BYTES_MSB: Register = Register::new(RX_TOP_BASE + 200, 0,
 /// The low bits of that count.
 pub const RX_BUFFER_NB_BYTES_LSB: Register = Register::new(RX_TOP_BASE + 201, 0, 8, true);
 
+/// Whether the counter listens to a pulse per second line.
+pub const TIMESTAMP_PPS_ENABLE: Register = Register::new(TIMESTAMP_BASE, 0, 1, false);
+
+/// Which edge of that line the counter takes.
+pub const TIMESTAMP_PPS_POLARITY: Register = Register::new(TIMESTAMP_BASE, 1, 1, false);
+
 #[cfg(test)]
 mod tests {
     use super::*;
