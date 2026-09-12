@@ -136,6 +136,9 @@ echo "chirpstack: application $APPLICATION_ID, device $DEV_EUI"
 
 cd "$REPO" || exit 1
 export PAMOJA_CHIRPSTACK_UDP="127.0.0.1:1700"
+# The Basics Station half of the same bridge. A station asks it on /router-info for the
+# address its session runs on, over a websocket, and opens the one it is given.
+export PAMOJA_CHIRPSTACK_STATION="ws://127.0.0.1:3001"
 export PAMOJA_CHIRPSTACK_MQTT="127.0.0.1:1883"
 export PAMOJA_CHIRPSTACK_GATEWAY_EUI="$GATEWAY_EUI"
 export PAMOJA_CHIRPSTACK_DEV_EUI="$DEV_EUI"
@@ -145,5 +148,6 @@ export PAMOJA_CHIRPSTACK_APPLICATION_ID="$APPLICATION_ID"
 
 echo
 echo "chirpstack: running the interop test"
-cargo test -p pamoja-examples --test chirpstack -- --ignored --nocapture
+# Both interop tests share one stack, one gateway, and one device, so they run in turn.
+cargo test -p pamoja-examples --test chirpstack -- --ignored --nocapture --test-threads=1
 exit $?

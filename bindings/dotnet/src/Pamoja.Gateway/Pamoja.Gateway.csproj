@@ -4,7 +4,7 @@
     <PackageId>Pamoja.Gateway</PackageId>
     <AssemblyName>Pamoja.Gateway</AssemblyName>
     <RootNamespace>Pamoja.Gateway</RootNamespace>
-    <Description>The Semtech UDP packet forwarder protocol on both sides: the datagrams a gateway and a network server exchange, and the packets, reports and downlinks they carry.</Description>
+    <Description>What a LoRaWAN gateway speaks: the Semtech packet forwarder protocol and the Basics Station protocol on both sides, the network side of a single site, and a bridge from the radio to the link that leaves it.</Description>
     <PackageTags>pamoja;iot;robotics;gateway</PackageTags>
     <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/gateway.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>

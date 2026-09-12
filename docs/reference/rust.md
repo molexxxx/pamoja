@@ -293,7 +293,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="rust-gateway">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/gateway.html">LoRaWAN gateways</a><code class="pkg-import">pamoja-gateway</code><p>The Semtech UDP packet forwarder protocol on both sides: the datagrams a gateway and a network server exchange, and the packets, reports and downlinks they carry</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/gateway.html">LoRaWAN gateways</a><code class="pkg-import">pamoja-gateway</code><p>What a LoRaWAN gateway speaks: the Semtech packet forwarder protocol and the Basics Station protocol on both sides, the network side of a single site, and a bridge from the radio to the link that leaves it</p></div>
 <div class="pkg-get"><code class="cmd">cargo add pamoja-gateway</code><button class="copy" type="button" data-copy="cargo add pamoja-gateway" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

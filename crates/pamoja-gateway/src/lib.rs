@@ -18,6 +18,8 @@
 //!   reading an uplink, and working out where and when to answer it.
 //! - `bridge`, with the `bridge` feature - carrying messages between the radio the nodes are
 //!   on and the link that leaves the site, under a prefix that names the site.
+//! - [`station`] - the LoRa Basics Station protocol: the discovery request that finds a
+//!   network server, and the messages the websocket carries once one is open.
 //!
 //! Every datagram is data: the crate builds and parses them, and leaves the socket, the
 //! keepalive, and the scheduling to the program that owns them.
@@ -54,5 +56,6 @@ pub mod base64;
 pub mod bridge;
 #[cfg(feature = "network")]
 pub mod network;
+pub mod station;
 pub mod time;
 pub mod udp;
