@@ -133,8 +133,15 @@ Anything the file is missing or cannot use is refused by name, so a gateway that
 will not start says which field to fix rather than that the file is wrong.
 
 `listen_before_talk` tells the gain control that an SX1261 is fitted. The scan
-itself is not driven yet, so leave it off for now. Naming a `station` upstream
-instead of a `forwarder` is likewise read but not yet run by the daemon.
+itself is not driven yet, so leave it off for now.
+
+Naming a `station` upstream instead of a `forwarder` runs the other protocol.
+The gateway asks that address where its network server is, opens the websocket
+it names, and is told the region, the band and the data rates to count in. After
+that a packet is reported by a data rate index rather than a spreading factor,
+and a downlink is timed against the uplink it answers rather than against a
+concentrator count, so the two upstreams need no different wiring and no
+different configuration beyond the address.
 
 A gain table entry says what the board reaches and how. `radiated_dbm` is the
 reference implementation's `rf_power`, `amplifier` is its `pa_gain`,
