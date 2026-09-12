@@ -1690,7 +1690,7 @@ mod tests {
     #[test]
     fn a_narrow_register_is_read_before_it_is_written() {
         // The clock control shares its byte with the radio control beside it, so writing it
-        // costs a read first and must leave the neighbour alone.
+        // costs a read first and must leave the neighbor alone.
         let held = 0b0000_1000; // the host radio control bit, which must survive
         let mut chip = driven(vec![
             reads(0x5601, held),

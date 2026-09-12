@@ -138,7 +138,7 @@ pub enum Step {
 ///
 /// The exchange is strictly ordered: every group is written, announced, acknowledged and read
 /// back before the next begins, and the status the microcontroller reports rises by one at
-/// each acknowledgement. Skipping a read-back would let a setting that never took pass for
+/// each acknowledgment. Skipping a read-back would let a setting that never took pass for
 /// one that did.
 ///
 /// # Arguments
