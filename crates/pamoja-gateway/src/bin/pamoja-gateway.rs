@@ -20,9 +20,7 @@ use pamoja_radios::linux::{self, LinuxConcentrator, Wiring};
 use pamoja_radios::sx1302::channel::Plan;
 use pamoja_radios::sx1302::rx::{self, BUFFER_LEN};
 use pamoja_radios::sx1302::timestamp::Counter;
-use pamoja_radios::sx1302::tx::{
-    gain_for, start_delay, Chain, FrontEnd, Transmit, Trigger, DEFAULT_GAINS,
-};
+use pamoja_radios::sx1302::tx::{gain_for, start_delay, Chain, FrontEnd, Transmit, Trigger};
 use tokio::net::UdpSocket;
 
 /// How long to wait between asking the concentrator what it heard.
@@ -36,6 +34,23 @@ const REPORT: Duration = Duration::from_secs(30);
 
 /// The filter setting the channels are configured with, which the start delay is worked from.
 const CHIRP_LOWPASS: u8 = 6;
+
+/// How close to its window a downlink can arrive and still be programmed, in microseconds.
+///
+/// The reference forwarder refuses anything inside its start delay, its overlap margin and
+/// the delay it programs a queued packet by, which is 42500 us together. This daemon
+/// programs the chain as a downlink arrives rather than queueing it, so that last part is
+/// margin rather than a wait, and it is kept: configuring a chain is dozens of transfers and
+/// a payload burst, and a packet that misses its window is answered as sent while the device
+/// hears nothing.
+const TOO_LATE_US: u32 = 1_500 + 1_000 + 40_000;
+
+/// How far ahead of now a downlink can be scheduled, in microseconds.
+///
+/// A class A window is a second or two out and a class B one falls inside 128 seconds, so
+/// the reference treats anything past four beacon periods as a timestamp that is wrong
+/// rather than early.
+const TOO_EARLY_US: u32 = 4 * 128 * 1_000_000;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -117,7 +132,13 @@ async fn forwarding(
     let mut heard = 0u32;
     let mut checked = 0u32;
     let mut forwarded = 0u32;
+    let mut downlinks = 0u32;
     let mut sent = 0u32;
+
+    // When the band is free again, in the concentrator's own microseconds. A duty cycle is a
+    // share of time rather than a count of packets, so honoring one means staying quiet
+    // after a transmission for as long as its airtime owes.
+    let mut band_free_at: Option<u32> = None;
 
     let mut keepalive = tokio::time::interval(KEEPALIVE);
     let mut report = tokio::time::interval(REPORT);
@@ -172,7 +193,7 @@ async fn forwarding(
                 let status = Stat::new()
                     .at(seconds_now())
                     .with_counts(heard, checked, forwarded)
-                    .with_downlinks(sent, sent);
+                    .with_downlinks(downlinks, sent);
                 let push = Datagram::PushData {
                     token,
                     gateway: config.gateway,
@@ -185,14 +206,21 @@ async fn forwarding(
                 if let Ok(Datagram::PullResp { token: asked, transmit }) =
                     Datagram::parse(&datagram[..len])
                 {
-                    let status = match transmit_one(&mut chip, config, &transmit) {
+                    downlinks += 1;
+                    let status = match transmit_one(
+                        &mut chip,
+                        config,
+                        &transmit,
+                        &mut counter,
+                        &mut band_free_at,
+                    ) {
                         Ok(()) => {
                             sent += 1;
                             TxStatus::None
                         }
-                        Err(why) => {
+                        Err((status, why)) => {
                             eprintln!("pamoja-gateway: {why}");
-                            TxStatus::TxFreq
+                            status
                         }
                     };
                     let answer = Datagram::TxAck {
@@ -207,34 +235,121 @@ async fn forwarding(
     }
 }
 
-/// Puts one downlink on the air.
+/// Puts one downlink on the air, or says why it did not.
+///
+/// The protocol answers with one of eight words and no others, so not every refusal here has
+/// an exact one. A modulation this daemon does not drive has no word at all, and a duty
+/// cycle that is not yet spent is reported as a collision, because the slot genuinely is
+/// taken: by the silence the last transmission owes.
 fn transmit_one(
     chip: &mut LinuxConcentrator,
     config: &Config,
     transmit: &pamoja_gateway::udp::Txpk,
-) -> Result<(), String> {
-    let link = transmit
-        .modulation
-        .link()
-        .ok_or_else(|| "a downlink that is not LoRa is not driven by this program".to_owned())?;
+    counter: &mut Counter,
+    band_free_at: &mut Option<u32>,
+) -> Result<(), (TxStatus, String)> {
+    let link = transmit.modulation.link().ok_or_else(|| {
+        (
+            TxStatus::TxFreq,
+            "a downlink that is not LoRa is not driven by this program".to_owned(),
+        )
+    })?;
+
+    // A GPS time can only be kept by a gateway with a GPS, and this one drives none.
+    if transmit.gps_millis.is_some() {
+        return Err((
+            TxStatus::GpsUnlocked,
+            "a downlink asked for a GPS time and this gateway has no GPS".to_owned(),
+        ));
+    }
+
+    if let Some((lowest, highest)) = config.radio.tx_bounds {
+        if transmit.frequency_hz < lowest || transmit.frequency_hz > highest {
+            return Err((
+                TxStatus::TxFreq,
+                format!(
+                    "{} Hz is outside the {lowest} to {highest} Hz this board transmits in",
+                    transmit.frequency_hz
+                ),
+            ));
+        }
+    }
+
     let delay =
         start_delay(FrontEnd::Sx1250, link.bandwidth_hz(), CHIRP_LOWPASS).ok_or_else(|| {
-            format!(
-                "{} Hz is a bandwidth no front end covers",
-                link.bandwidth_hz()
+            (
+                TxStatus::TxFreq,
+                format!(
+                    "{} Hz is a bandwidth no front end covers",
+                    link.bandwidth_hz()
+                ),
             )
         })?;
 
-    // Which amplifier setting and power step reach a wanted number of decibels is a property
-    // of the board. This is the reference design's table.
-    let gain = gain_for(&DEFAULT_GAINS, transmit.power_dbm)
-        .ok_or_else(|| "the transmit gain table is empty".to_owned())?;
+    // The strongest entry that does not exceed what was asked for, which is what the
+    // reference does: a request above the table transmits at the most the board reaches
+    // rather than being refused.
+    let gain = gain_for(&config.radio.gains, transmit.power_dbm).ok_or_else(|| {
+        (
+            TxStatus::TxPower,
+            "the board names an empty transmit gain table".to_owned(),
+        )
+    })?;
+
+    // Read the counter here rather than trusting the keepalive beat. A receive window is a
+    // matter of microseconds, and a reading seconds old decides nothing.
+    let (now, _) = chip.counter(counter).map_err(|error| {
+        (
+            TxStatus::TooLate,
+            format!("the counter stopped answering: {error}"),
+        )
+    })?;
 
     let trigger = match (transmit.immediate, transmit.timestamp_us) {
-        (true, _) => Trigger::Immediate,
-        (false, Some(at)) => Trigger::At(at),
-        (false, None) => Trigger::Immediate,
+        (true, _) | (false, None) => Trigger::Immediate,
+        (false, Some(at)) => {
+            // Unsigned throughout, so a counter that has rolled over still subtracts right.
+            let ahead = at.wrapping_sub(now);
+            if ahead <= TOO_LATE_US {
+                return Err((
+                    TxStatus::TooLate,
+                    format!("a window {ahead} us away is too close to program"),
+                ));
+            }
+            if ahead > TOO_EARLY_US {
+                return Err((
+                    TxStatus::TooEarly,
+                    format!("a window {ahead} us away is further out than a downlink is sent"),
+                ));
+            }
+            Trigger::At(at)
+        }
     };
+
+    // Still owed while the remaining time reads as less than half the counter, which is what
+    // parts a moment not yet reached from one long past.
+    if let Some(free_at) = *band_free_at {
+        let owed = free_at.wrapping_sub(now);
+        if owed != 0 && owed < u32::MAX / 2 {
+            return Err((
+                TxStatus::CollisionPacket,
+                format!("the duty cycle owes this band another {owed} us of silence"),
+            ));
+        }
+    }
+
+    let holding = chip.tx_status(Chain::A).map_err(|error| {
+        (
+            TxStatus::TooLate,
+            format!("the chain stopped answering: {error}"),
+        )
+    })?;
+    if !holding.is_free() {
+        return Err((
+            TxStatus::CollisionPacket,
+            format!("the chain is {holding:?} with the packet before this one"),
+        ));
+    }
 
     let request = Transmit {
         frequency_hz: transmit.frequency_hz,
@@ -246,7 +361,21 @@ fn transmit_one(
     };
 
     chip.transmit(Chain::A, &request, trigger, delay)
-        .map_err(|error| format!("the downlink was refused: {error}"))
+        .map_err(|error| {
+            (
+                TxStatus::TxFreq,
+                format!("the downlink was refused: {error}"),
+            )
+        })?;
+
+    // The band owes silence from the end of this packet, not the start of it.
+    if let Some(permille) = config.radio.duty_cycle_permille {
+        let quiet = link.airtime_us(transmit.payload.len())
+            + link.min_off_time_us(transmit.payload.len(), permille);
+        *band_free_at = Some(now.wrapping_add(u32::try_from(quiet).unwrap_or(u32::MAX)));
+    }
+
+    Ok(())
 }
 
 /// Sends one datagram.
