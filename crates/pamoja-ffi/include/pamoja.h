@@ -118,6 +118,36 @@
 // channel number modulo how many the run holds.
 #define PAMOJA_GATEWAY_NETWORK_RX1_DOWNSTREAM 1
 
+// A join request the station heard.
+#define PAMOJA_GATEWAY_STATION_JOIN_REQUEST 0
+
+// A data frame the station heard.
+#define PAMOJA_GATEWAY_STATION_UPLINK 1
+
+// A frame of a kind this protocol does not describe, carried whole.
+#define PAMOJA_GATEWAY_STATION_PROPRIETARY 2
+
+// What the station reports about itself when a session opens.
+#define PAMOJA_GATEWAY_STATION_VERSION 3
+
+// How the server tells the station to configure its radios.
+#define PAMOJA_GATEWAY_STATION_ROUTER_CONFIG 4
+
+// A frame the server asks the station to transmit.
+#define PAMOJA_GATEWAY_STATION_DOWNLINK 5
+
+// Frames the server asks the station to transmit to a group.
+#define PAMOJA_GATEWAY_STATION_SCHEDULE 6
+
+// What became of a frame the station was asked to transmit.
+#define PAMOJA_GATEWAY_STATION_TRANSMITTED 7
+
+// The clock the two keep between them.
+#define PAMOJA_GATEWAY_STATION_TIME_SYNC 8
+
+// A kind this build does not model, readable only as its text.
+#define PAMOJA_GATEWAY_STATION_OTHER 9
+
 // The largest I2C address frame, in bytes: the two a 10-bit address needs.
 #define PAMOJA_I2C_FRAME_MAX 2
 
@@ -1652,6 +1682,9 @@ typedef struct PamojaGatewayNetwork PamojaGatewayNetwork;
 // [`pamoja_gateway_packet_free`].
 typedef struct PamojaGatewayPacket PamojaGatewayPacket;
 
+// A message either side of a session sends.
+typedef struct PamojaGatewayStationMessage PamojaGatewayStationMessage;
+
 // An opaque handle to what a PUSH_DATA carries: the packets heard, and the report.
 //
 // Fill it with [`pamoja_gateway_uplink_add_rxpk`] and [`pamoja_gateway_uplink_set_stat`],
@@ -2183,6 +2216,64 @@ typedef struct {
   // The packet that carries the accept, for a join.
   PamojaGatewayTxpk accept;
 } PamojaGatewayNetworkEvent;
+
+// How a station heard a packet, as it reports it.
+typedef struct {
+  // The radio the packet arrived on, which an answer goes back out on.
+  int64_t rctx;
+  // The station clock, in microseconds.
+  int64_t xtime;
+  // The GPS time, when `has_gpstime`.
+  int64_t gpstime;
+  // Whether the station has a GPS time.
+  bool has_gpstime;
+  // The received signal strength, in dBm.
+  double rssi;
+  // The signal-to-noise ratio, in dB.
+  double snr;
+} PamojaGatewayStationLevels;
+
+// The fields a message carries, for the kinds built from fixed fields.
+typedef struct {
+  // Which kind this is, one of the `PAMOJA_GATEWAY_STATION_*` constants.
+  uint8_t kind;
+  // The MAC header byte, for a join request or a data frame.
+  uint8_t mhdr;
+  // The application being joined, for a join request.
+  uint8_t join_eui[8];
+  // The device, for a join request, a downlink, or a transmission report.
+  uint8_t dev_eui[8];
+  // The nonce a join request used.
+  uint16_t dev_nonce;
+  // The address a data frame came from.
+  int32_t dev_addr;
+  // The frame control byte.
+  uint8_t fctrl;
+  // The frame counter, as the sixteen bits on the air.
+  uint16_t fcnt;
+  // The port a data frame was sent on, when `has_fport`.
+  uint8_t fport;
+  // Whether the frame carried a port at all.
+  bool has_fport;
+  // The message integrity code.
+  int32_t mic;
+  // The data rate it arrived at, or is to be sent at.
+  uint8_t data_rate;
+  // The frequency in hertz.
+  uint32_t frequency_hz;
+  // How it was heard, for the kinds a station sends up.
+  PamojaGatewayStationLevels levels;
+  // Which class of downlink this is.
+  uint8_t class_;
+  // The identifier a transmission report carries back.
+  int64_t diid;
+  // The delay before the first receive window, in seconds, when `has_rx_delay`.
+  uint8_t rx_delay;
+  // Whether a downlink named a receive delay.
+  bool has_rx_delay;
+  // How urgent a downlink is.
+  uint8_t priority;
+} PamojaGatewayStationFields;
 
 // A validated I2C device address.
 //
@@ -5000,6 +5091,222 @@ PamojaStatus pamoja_gateway_network_answer(PamojaGatewayNetwork *network,
 //
 // `network` must be a live handle from [`pamoja_gateway_network_open`], or null.
 void pamoja_gateway_network_free(PamojaGatewayNetwork *network);
+
+// Reads a frame the radio heard into the message that reports it.
+//
+// # Arguments
+//
+// * `frame` - the bytes as they arrived, header through integrity code.
+// * `frame_len` - how many bytes `frame` holds.
+// * `data_rate` - the data rate it arrived at.
+// * `frequency_hz` - the frequency it arrived on, in hertz.
+// * `levels` - how it was heard.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_gateway_station_message_free`], or null on
+// failure with the reason available from
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+//
+// # Safety
+//
+// `frame` must point to `frame_len` readable bytes.
+PamojaGatewayStationMessage *pamoja_gateway_station_heard(const uint8_t *frame,
+                                                          uintptr_t frame_len,
+                                                          uint8_t data_rate,
+                                                          uint32_t frequency_hz,
+                                                          PamojaGatewayStationLevels levels);
+
+// Reads a message that arrived over the websocket.
+//
+// # Arguments
+//
+// * `text` - the message text.
+// * `text_len` - how many bytes `text` holds.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_gateway_station_message_free`], or null on
+// failure.
+//
+// # Safety
+//
+// `text` must point to `text_len` readable bytes.
+PamojaGatewayStationMessage *pamoja_gateway_station_message_parse(const uint8_t *text,
+                                                                  uintptr_t text_len);
+
+// Writes a message as the websocket carries it.
+//
+// # Arguments
+//
+// * `message` - the message.
+// * `out_text` - receives the text, which the caller releases with
+//   [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once written.
+//
+// # Safety
+//
+// `message` must be a live handle, and `out_text` must point to writable storage.
+PamojaStatus pamoja_gateway_station_message_json(const PamojaGatewayStationMessage *message,
+                                                 PamojaBuffer **out_text);
+
+// Returns which kind a message is.
+//
+// # Arguments
+//
+// * `message` - the message.
+//
+// # Returns
+//
+// One of the `PAMOJA_GATEWAY_STATION_*` constants, or
+// [`PAMOJA_GATEWAY_STATION_OTHER`] when `message` is null.
+//
+// # Safety
+//
+// `message` must be a live handle or null.
+uint8_t pamoja_gateway_station_message_kind(const PamojaGatewayStationMessage *message);
+
+// Reads the fields a message carries.
+//
+// # Arguments
+//
+// * `message` - the message.
+// * `out_fields` - receives the fields.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once read.
+//
+// # Safety
+//
+// `message` must be a live handle, and `out_fields` must point to writable storage.
+PamojaStatus pamoja_gateway_station_message_fields(const PamojaGatewayStationMessage *message,
+                                                   PamojaGatewayStationFields *out_fields);
+
+// Returns the bytes a message carries: the payload of a frame, or the frame to transmit.
+//
+// # Arguments
+//
+// * `message` - the message.
+// * `out_payload` - receives the bytes, which the caller releases with
+//   [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once written, with an empty buffer for a kind carrying none.
+//
+// # Safety
+//
+// `message` must be a live handle, and `out_payload` must point to writable storage.
+PamojaStatus pamoja_gateway_station_message_payload(const PamojaGatewayStationMessage *message,
+                                                    PamojaBuffer **out_payload);
+
+// Returns the frame options a data frame carries.
+//
+// # Arguments
+//
+// * `message` - the message.
+// * `out_options` - receives the bytes, which the caller releases with
+//   [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once written, with an empty buffer for a kind carrying none.
+//
+// # Safety
+//
+// `message` must be a live handle, and `out_options` must point to writable storage.
+PamojaStatus pamoja_gateway_station_message_options(const PamojaGatewayStationMessage *message,
+                                                    PamojaBuffer **out_options);
+
+// Releases a message.
+//
+// # Arguments
+//
+// * `message` - the message, or null.
+//
+// # Safety
+//
+// `message` must be a live handle from a call that produced one, or null, and must not be
+// used again afterwards.
+void pamoja_gateway_station_message_free(PamojaGatewayStationMessage *message);
+
+// Writes the request a station sends to find its network server.
+//
+// # Arguments
+//
+// * `router` - the station asking, eight bytes.
+// * `out_text` - receives the text, which the caller releases with
+//   [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once written.
+//
+// # Safety
+//
+// `router` must point to eight readable bytes, and `out_text` to writable storage.
+PamojaStatus pamoja_gateway_station_discovery(const uint8_t *router, PamojaBuffer **out_text);
+
+// Reads the answer a discovery endpoint gives.
+//
+// # Arguments
+//
+// * `text` - the answer text.
+// * `text_len` - how many bytes `text` holds.
+// * `out_uri` - receives the websocket address to open, empty when the station was refused.
+// * `out_error` - receives why the station was refused, empty when it was not.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once read. Both buffers are released by the caller with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Safety
+//
+// `text` must point to `text_len` readable bytes, and both out pointers to writable storage.
+PamojaStatus pamoja_gateway_station_router_parse(const uint8_t *text,
+                                                 uintptr_t text_len,
+                                                 PamojaBuffer **out_uri,
+                                                 PamojaBuffer **out_error);
+
+// Writes an identifier in the ID6 form the protocol prefers.
+//
+// # Arguments
+//
+// * `eui` - the identifier, eight bytes.
+// * `out_text` - receives the text, which the caller releases with
+//   [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once written.
+//
+// # Safety
+//
+// `eui` must point to eight readable bytes, and `out_text` to writable storage.
+PamojaStatus pamoja_gateway_station_id6(const uint8_t *eui, PamojaBuffer **out_text);
+
+// Reads an identifier written in any form the protocol accepts.
+//
+// # Arguments
+//
+// * `text` - the identifier, null-terminated.
+// * `out_eui` - receives the eight bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once read, or [`PamojaStatus::Codec`] when the text is not an
+// identifier.
+//
+// # Safety
+//
+// `text` must be a valid null-terminated UTF-8 string, and `out_eui` must point to eight
+// writable bytes.
+PamojaStatus pamoja_gateway_station_eui_of(const char *text, uint8_t *out_eui);
 
 // Validates a 7-bit I2C address.
 //

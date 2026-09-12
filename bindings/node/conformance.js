@@ -2099,6 +2099,7 @@ radiosVectors();
 sx127xVectors();
 gatewayVectors();
 gatewayNetworkVectors();
+stationVectors();
 
 function headerVectors() {
   const vector = VECTORS.header;
@@ -2741,6 +2742,58 @@ zenohVectors();
   console.error(err);
   process.exit(1);
 });
+
+function stationVectors() {
+  const vector = VECTORS.station;
+  const hex = (bytes) => Buffer.from(bytes).toString("hex");
+
+  // The station names itself the way the protocol prefers, and reads any form back.
+  assert.strictEqual(gateway.stationId6(vector.router), vector.routerId6, "the station in ID6");
+  assert.strictEqual(gateway.stationEuiOf(vector.routerId6), vector.router, "the ID6 read back");
+  assert.strictEqual(
+    gateway.stationDiscovery(vector.router),
+    vector.discovery,
+    "the discovery request",
+  );
+
+  const routed = gateway.stationRouterParse(vector.routerAnswer);
+  assert.strictEqual(routed.router, vector.router, "the station the server answered");
+  assert.ok(routed.uri, "an accepted station is sent somewhere");
+
+  // A join request the radio heard, split into the fields the protocol names.
+  const join = gateway.stationHeard(
+    Buffer.from(vector.join.frame, "hex"),
+    vector.dataRate,
+    vector.frequencyHz,
+    { rctx: 0, xtime: 1_000_000, rssi: -35, snr: 5.1 },
+  );
+  assert.strictEqual(join.kind, "JoinRequest", "a join request is read as one");
+  assert.strictEqual(join.joinEui, vector.join.joinEui, "the application it joins");
+  assert.strictEqual(join.devEui, vector.join.devEui, "the device asking");
+  assert.strictEqual(join.devNonce, vector.join.devNonce, "the nonce it used");
+  assert.strictEqual(join.mic, vector.join.mic, "its integrity code");
+  assert.strictEqual(gateway.stationEncode(join), vector.join.message, "the jreq it sends");
+
+  // Then a data frame, whose payload stays encrypted as it passes through.
+  const uplink = gateway.stationHeard(
+    Buffer.from(vector.uplink.frame, "hex"),
+    vector.dataRate,
+    vector.frequencyHz,
+    { rctx: 0, xtime: 1_000_000, rssi: -35, snr: 5.1 },
+  );
+  assert.strictEqual(uplink.kind, "Uplink", "a data frame is read as one");
+  assert.strictEqual(uplink.devAddr, vector.uplink.devAddr, "the address it came from");
+  assert.strictEqual(uplink.fcnt, vector.uplink.fcnt, "the counter it carried");
+  assert.strictEqual(uplink.fport, vector.uplink.fport, "the port it was sent on");
+  assert.strictEqual(hex(uplink.payload), vector.uplink.payload, "the payload, still encrypted");
+  assert.strictEqual(uplink.mic, vector.uplink.mic, "its integrity code");
+  assert.strictEqual(gateway.stationEncode(uplink), vector.uplink.message, "the updf it sends");
+
+  // What arrives on the websocket reads back into the same fields.
+  const read = gateway.stationParse(vector.uplink.message);
+  assert.strictEqual(read.devAddr, vector.uplink.devAddr, "the address read back");
+  assert.strictEqual(read.fcnt, vector.uplink.fcnt, "the counter read back");
+}
 
 function gatewayNetworkVectors() {
   const vector = VECTORS.gatewayNetwork;

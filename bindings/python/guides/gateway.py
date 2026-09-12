@@ -127,3 +127,60 @@ print(f"foreign   {stranger.dev_addr:#010x} belongs to another network")
 assert carried.payload == b"21.5"
 assert carried.slot.timestamp_us == 10_000_000
 assert stranger.outcome == "foreign"
+
+# ANCHOR: station
+from pamoja.gateway import (
+    DISCOVERY_PATH,
+    STATION_PROTOCOL_VERSION,
+    StationKind,
+    StationLevels,
+    station_discovery,
+    station_heard,
+    station_parse,
+    station_router_parse,
+)
+from pamoja.lorawan import session
+
+# The same gateway, now speaking the other protocol. It is configured with an address, and
+# asks on that path for the websocket its session runs on.
+station_eui = "b827ebfffe010203"
+ask = station_discovery(station_eui)
+print(f"ask       {DISCOVERY_PATH} {ask}")
+
+# The server answers with where to connect, or with why it will not have this station.
+answer = station_router_parse(
+    '{"router":"b827:ebff:fe01:203","muxs":"::0","uri":"ws://lns.example.invalid:3001/router"}'
+)
+print(f"open      {answer.uri}")
+
+# A station opens with what it is, which is how the server knows what it can do.
+hello = station_parse(
+    '{"msgtype":"version","station":"pamoja","firmware":"0.1.18",'
+    '"package":"pamoja-gateway","model":"linux",'
+    f'"protocol":{STATION_PROTOCOL_VERSION},"features":"gps"}}'
+)
+print(f"version   {hello.msgtype} {hello.station} {hello.firmware}")
+
+# Now a device sends a reading, and the radio hears the frame. A station holds no key, so it
+# does not read the payload: it splits the frame into the fields the protocol names and lets
+# the server judge them.
+active = session(0x26010001, bytes([0x44] * 16), bytes([0x55] * 16))
+frame = active.encode_uplink(7, 2, b"21.5")
+heard = station_heard(
+    frame,
+    5,
+    868_100_000,
+    StationLevels(rctx=0, xtime=1_000_000, rssi=-35.0, snr=5.1),
+)
+print(f"updf      {heard.msgtype} on {heard.frequency_hz} Hz at DR{heard.data_rate}")
+print(f"heard     {heard.dev_addr:#010x} counter {heard.fcnt} on port {heard.fport}")
+print(f"payload   {len(heard.payload)} bytes, still encrypted")
+# ANCHOR_END: station
+
+assert ask == '{"router":"b827:ebff:fe01:203"}'
+assert answer.uri == "ws://lns.example.invalid:3001/router"
+assert hello.msgtype == StationKind.VERSION
+assert heard.dev_addr == 0x26010001
+assert heard.fcnt == 7
+assert heard.fport == 2
+assert heard.payload != b"21.5"

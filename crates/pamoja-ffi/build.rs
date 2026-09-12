@@ -23,6 +23,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src/codec.rs");
     println!("cargo:rerun-if-changed=src/gateway.rs");
     println!("cargo:rerun-if-changed=src/gateway_network.rs");
+    println!("cargo:rerun-if-changed=src/gateway_station.rs");
     println!("cargo:rerun-if-changed=src/gpio.rs");
     println!("cargo:rerun-if-changed=src/kit.rs");
     println!("cargo:rerun-if-changed=src/ladder.rs");

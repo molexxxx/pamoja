@@ -151,6 +151,49 @@ public static class GatewayGuide
         Expect(
             stranger.Outcome == GatewayNetworkOutcome.Foreign,
             "another network is reported, not refused");
+
+        // ANCHOR: station
+        // The same gateway, now speaking the other protocol. It is configured with an
+        // address, and asks on that path for the websocket its session runs on.
+        byte[] stationEui = Convert.FromHexString("b827ebfffe010203");
+        string ask = GatewayStation.Discovery(stationEui);
+        Console.WriteLine($"ask       {GatewayStation.DiscoveryPath} {ask}");
+
+        // The server answers with where to connect, or with why it will not have this station.
+        GatewayStationRouter routed = GatewayStation.RouterParse(
+            """{"router":"b827:ebff:fe01:203","muxs":"::0","uri":"ws://lns.example.invalid:3001/router"}""");
+        Console.WriteLine($"open      {routed.Uri}");
+
+        // An identifier is written the way the protocol prefers, which folds zero groups.
+        Console.WriteLine($"id6       {GatewayStation.Id6(stationEui)}");
+
+        // Now a device sends a reading, and the radio hears the frame. A station holds no
+        // key, so it does not read the payload: it splits the frame into the fields the
+        // protocol names and lets the server judge them.
+        using var active = new LorawanSession(0x26010001, NetworkKey(0x44), NetworkKey(0x55));
+        byte[] frame = active.EncodeUplink(7, 2, "21.5"u8);
+        GatewayStationMessage heard = GatewayStation.Heard(
+            frame,
+            5,
+            868_100_000,
+            new GatewayStationLevels(0, 1_000_000) { Rssi = -35.0, Snr = 5.1 });
+        Console.WriteLine($"updf      {heard.Json}");
+        Console.WriteLine(
+            $"heard     0x{heard.DevAddr:x8} counter {heard.Fcnt} on port {heard.Fport}");
+        Console.WriteLine($"payload   {heard.Payload.Length} bytes, still encrypted");
+        // ANCHOR_END: station
+
+        Expect(ask == """{"router":"b827:ebff:fe01:203"}""", "the station names itself");
+        Expect(
+            routed.Uri == "ws://lns.example.invalid:3001/router",
+            "an accepted station is sent somewhere");
+        Expect(heard.Kind == GatewayStationKind.Uplink, "a data frame going up is read as one");
+        Expect(heard.DevAddr == 0x26010001, "the address it came from");
+        Expect(heard.Fcnt == 7, "the counter it carried");
+        Expect(heard.Fport == 2, "the port it was sent on");
+        Expect(
+            Encoding.UTF8.GetString(heard.Payload) != "21.5",
+            "the payload stays encrypted");
     }
 
     /// <summary>Builds a session key of one repeated byte.</summary>

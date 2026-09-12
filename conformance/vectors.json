@@ -5486,6 +5486,32 @@
     ],
     "weight": 0.5
   },
+  "station": {
+    "dataRate": 5,
+    "discovery": "{\"router\":\"b827:ebff:fe01:203\"}",
+    "frequencyHz": 868100000,
+    "join": {
+      "devEui": "1111111111111111",
+      "devNonce": 258,
+      "frame": "002222222222222222111111111111111102018689a11a",
+      "joinEui": "2222222222222222",
+      "message": "{\"DR\":5,\"DevEui\":\"1111:1111:1111:1111\",\"DevNonce\":258,\"Freq\":868100000,\"JoinEui\":\"2222:2222:2222:2222\",\"MHdr\":0,\"MIC\":446794118,\"msgtype\":\"jreq\",\"upinfo\":{\"rctx\":0,\"rssi\":-35.0,\"snr\":5.1,\"xtime\":1000000}}",
+      "mic": 446794118
+    },
+    "muxsId6": "::",
+    "router": "b827ebfffe010203",
+    "routerAnswer": "{\"muxs\":\"::\",\"router\":\"b827:ebff:fe01:203\",\"uri\":\"ws://lns.example.invalid:3001/router\"}",
+    "routerId6": "b827:ebff:fe01:203",
+    "uplink": {
+      "devAddr": 637599745,
+      "fcnt": 7,
+      "fport": 2,
+      "frame": "4001000126000700025871195db0f82a2c",
+      "message": "{\"DR\":5,\"DevAddr\":637599745,\"FCnt\":7,\"FCtrl\":0,\"FOpts\":\"\",\"FPort\":2,\"FRMPayload\":\"5871195d\",\"Freq\":868100000,\"MHdr\":64,\"MIC\":741013680,\"msgtype\":\"updf\",\"upinfo\":{\"rctx\":0,\"rssi\":-35.0,\"snr\":5.1,\"xtime\":1000000}}",
+      "mic": 741013680,
+      "payload": "5871195d"
+    }
+  },
   "telemetry": {
     "adaptedTo": "Expensive",
     "costs": [

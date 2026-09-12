@@ -26,6 +26,8 @@ mod codec;
 mod gateway;
 #[cfg(feature = "gateway")]
 mod gateway_network;
+#[cfg(feature = "gateway")]
+mod gateway_station;
 #[cfg(feature = "gpio")]
 mod gpio;
 #[cfg(feature = "kit")]
@@ -628,6 +630,17 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<gateway_network::GatewayNetwork>()?;
         m.add_class::<gateway_network::GatewayNetworkEvent>()?;
         m.add_class::<gateway_network::GatewaySlot>()?;
+        m.add_class::<gateway_station::GatewayStationMessage>()?;
+        m.add_class::<gateway_station::GatewayStationLevels>()?;
+        m.add_class::<gateway_station::GatewayStationBroadcast>()?;
+        m.add_class::<gateway_station::GatewayStationRouter>()?;
+        m.add_function(wrap_pyfunction!(gateway_station::station_heard, m)?)?;
+        m.add_function(wrap_pyfunction!(gateway_station::station_encode, m)?)?;
+        m.add_function(wrap_pyfunction!(gateway_station::station_parse, m)?)?;
+        m.add_function(wrap_pyfunction!(gateway_station::station_discovery, m)?)?;
+        m.add_function(wrap_pyfunction!(gateway_station::station_router_parse, m)?)?;
+        m.add_function(wrap_pyfunction!(gateway_station::station_id6, m)?)?;
+        m.add_function(wrap_pyfunction!(gateway_station::station_eui_of, m)?)?;
     }
     #[cfg(feature = "routing")]
     {
