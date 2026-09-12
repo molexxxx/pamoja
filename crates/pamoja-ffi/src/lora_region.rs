@@ -237,7 +237,7 @@ impl PamojaLoraPlan {
     /// # Returns
     ///
     /// Whatever the query returned.
-    fn with<R>(&self, f: impl FnOnce(&ChannelPlan<'_>) -> R) -> R {
+    pub(crate) fn with<R>(&self, f: impl FnOnce(&ChannelPlan<'_>) -> R) -> R {
         self.plan.with_plan(f)
     }
 }

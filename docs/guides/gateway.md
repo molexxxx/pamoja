@@ -133,6 +133,100 @@ println!("txack     {status}, scheduled {}", status.scheduled());
 ```
 <!-- end -->
 
+
+And the network side of the same site, which admits the device and answers it:
+
+<!-- snippet: examples/tests/guides/gateway.rs#network -->
+From [`examples/tests/guides/gateway.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/gateway.rs):
+
+```rust
+use pamoja_gateway::network::{Event, Network, Registration};
+use pamoja_gateway::udp::Rxpk;
+use pamoja_lora::region::Region;
+use pamoja_lora::LinkSettings;
+use pamoja_lorawan::{Device, Uplink};
+
+// One site, on the band it operates in, admitting one device it was told about.
+let dev_eui = [0x11; 8];
+let app_eui = [0x22; 8];
+let app_key = [0x33; 16];
+let mut site = Network::new(Region::Eu868.plan(), 0x00_00_2A).with_first_dev_addr(0x2601_0001);
+site.register(Registration::new(dev_eui, app_eui, app_key));
+
+// The gateway forwards a join request it heard. Nothing about the device is known here
+// beyond the key it was provisioned with, which is what verifies the request.
+let link = LinkSettings::new(7, 125_000);
+let device = Device::new(dev_eui, app_eui, app_key);
+let request = device.join_request(0x0102);
+let heard =
+    Rxpk::new(868_100_000, link, request.as_bytes().to_vec()).with_timestamp_us(1_000_000);
+let Event::Joined {
+    dev_addr, accept, ..
+} = site.uplink(&heard).expect("the request verifies")
+else {
+    panic!("a join request is admitted");
+};
+println!(
+    "joined    {dev_addr:#010x} at {} us, inverted IQ {}",
+    accept.timestamp_us.expect("the accept is scheduled"),
+    accept.invert_polarity
+);
+
+// The device reads the accept and sends a reading. The site decrypts it and says where an
+// answer goes, which is the uplink window plus the delay the region recommends.
+let session = device
+    .accept_join(&accept.payload, 0x0102)
+    .expect("the accept verifies")
+    .session();
+let sent = session
+    .encode_uplink(&Uplink::new(0, 2, b"21.5"))
+    .expect("it fits one frame");
+let carried =
+    Rxpk::new(868_100_000, link, sent.as_bytes().to_vec()).with_timestamp_us(9_000_000);
+let Event::Data {
+    fcnt,
+    payload,
+    slot,
+    ..
+} = site.uplink(&carried).expect("the frame verifies")
+else {
+    panic!("a data frame is read");
+};
+println!(
+    "uplink    frame {fcnt}, {} bytes, answer at {} us on {} Hz",
+    payload.len(),
+    slot.timestamp_us,
+    slot.frequency_hz
+);
+
+// The answer goes out in that window, encrypted with the session the join granted.
+let downlink = site
+    .answer(dev_addr, slot, 2, b"ok")
+    .expect("the session is held");
+println!(
+    "downlink  {} bytes at {} us",
+    downlink.payload.len(),
+    downlink.timestamp_us.expect("the downlink is scheduled")
+);
+
+// A gateway hears every network in range, and a frame from one this site never granted is
+// reported rather than refused.
+let stranger = pamoja_lorawan::Session::new(0x1234_5678, [9; 16], [8; 16])
+    .encode_uplink(&Uplink::new(0, 1, b"hello"))
+    .expect("it fits one frame");
+let event = site
+    .uplink(&Rxpk::new(868_100_000, link, stranger.as_bytes().to_vec()))
+    .expect("a frame from elsewhere is not an error");
+let Event::Foreign {
+    dev_addr: heard_from,
+} = event
+else {
+    panic!("a frame from another network is reported as one");
+};
+println!("foreign   {heard_from:#010x} belongs to another network");
+```
+<!-- end -->
+
 ## TypeScript
 
 <!-- snippet: bindings/node/guides/gateway.ts#example -->
@@ -203,6 +297,73 @@ const refused = encode({
 })
 const status = parse(refused).txStatus!
 console.log(`txack     ${status}, scheduled ${status === TxStatus.None}`)
+```
+<!-- end -->
+
+
+And the network side of the same site, which admits the device and answers it:
+
+<!-- snippet: bindings/node/guides/gateway.ts#network -->
+From [`bindings/node/guides/gateway.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/gateway.ts):
+
+```typescript
+import { Network } from '@pamoja/gateway'
+import { planFor, LoraRegion } from '@pamoja/lora'
+import { device, session } from '@pamoja/lorawan'
+
+// One site, on the band it operates in, admitting one device it was told about.
+const devEui = Buffer.alloc(8, 0x11)
+const appEui = Buffer.alloc(8, 0x22)
+const appKey = Buffer.alloc(16, 0x33)
+const site = new Network(planFor(LoraRegion.Eu868), 0x00002a, null, 0x26010001)
+site.register(devEui, appEui, appKey)
+
+// The gateway forwards a join request it heard. Nothing about the device is known here beyond
+// the key it was provisioned with, which is what verifies the request.
+const joiner = device(devEui, appEui, appKey)
+const joined = site.uplink({
+  frequencyHz: 868_100_000,
+  payload: joiner.joinRequest(0x0102),
+  link: dr5,
+  timestampUs: 1_000_000,
+})
+console.log(
+  `joined    0x${joined.devAddr.toString(16).padStart(8, '0')} at ${joined.accept!.timestampUs} us, ` +
+    `inverted IQ ${joined.accept!.invertPolarity}`,
+)
+
+// The device reads the accept and sends a reading. The site decrypts it and says where an
+// answer goes, which is the uplink window plus the delay the region recommends.
+const granted = joiner.acceptJoin(joined.accept!.payload, 0x0102)
+const carried = site.uplink({
+  frequencyHz: 868_100_000,
+  payload: granted.session().encodeUplink(0, 2, Buffer.from('21.5')),
+  link: dr5,
+  timestampUs: 9_000_000,
+})
+console.log(
+  `uplink    frame ${carried.fcnt}, ${carried.payload!.length} bytes, ` +
+    `answer at ${carried.slot!.timestampUs} us on ${carried.slot!.frequencyHz} Hz`,
+)
+
+// The answer goes out in that window, encrypted with the session the join granted.
+const answer = site.answer(carried.devAddr, carried.slot!, 2, Buffer.from('ok'))
+console.log(`downlink  ${answer.payload.length} bytes at ${answer.timestampUs} us`)
+
+// A gateway hears every network in range, and a frame from one this site never granted is
+// reported rather than refused.
+const stranger = site.uplink({
+  frequencyHz: 868_100_000,
+  payload: session(0x12345678, Buffer.alloc(16, 0x09), Buffer.alloc(16, 0x08)).encodeUplink(
+    0,
+    1,
+    Buffer.from('hello'),
+  ),
+  link: dr5,
+})
+console.log(
+  `foreign   0x${stranger.devAddr.toString(16).padStart(8, '0')} belongs to another network`,
+)
 ```
 <!-- end -->
 
@@ -278,6 +439,68 @@ print(f"txack     {status}, scheduled {status == TxStatus.NONE}")
 ```
 <!-- end -->
 
+
+And the network side of the same site, which admits the device and answers it:
+
+<!-- snippet: bindings/python/guides/gateway.py#network -->
+From [`bindings/python/guides/gateway.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/gateway.py):
+
+```python
+from pamoja.gateway import Network
+from pamoja.lora import plan_for
+from pamoja.lorawan import device, session
+
+# One site, on the band it operates in, admitting one device it was told about.
+dev_eui = bytes([0x11]) * 8
+app_eui = bytes([0x22]) * 8
+app_key = bytes([0x33]) * 16
+site = Network(plan_for("EU868"), 0x00002A, first_dev_addr=0x26010001)
+site.register(dev_eui, app_eui, app_key)
+
+# The gateway forwards a join request it heard. Nothing about the device is known here beyond
+# the key it was provisioned with, which is what verifies the request.
+joiner = device(dev_eui, app_eui, app_key)
+joined = site.uplink(
+    Rxpk(868_100_000, joiner.join_request(0x0102), link=dr5, timestamp_us=1_000_000)
+)
+print(
+    f"joined    {joined.dev_addr:#010x} at {joined.accept.timestamp_us} us, "
+    f"inverted IQ {joined.accept.invert_polarity}"
+)
+
+# The device reads the accept and sends a reading. The site decrypts it and says where an
+# answer goes, which is the uplink window plus the delay the region recommends.
+granted = joiner.accept_join(joined.accept.payload, 0x0102)
+carried = site.uplink(
+    Rxpk(
+        868_100_000,
+        granted.session().encode_uplink(0, 2, b"21.5"),
+        link=dr5,
+        timestamp_us=9_000_000,
+    )
+)
+print(
+    f"uplink    frame {carried.fcnt}, {len(carried.payload)} bytes, "
+    f"answer at {carried.slot.timestamp_us} us on {carried.slot.frequency_hz} Hz"
+)
+
+# The answer goes out in that window, encrypted with the session the join granted.
+answer = site.answer(carried.dev_addr, carried.slot, 2, b"ok")
+print(f"downlink  {len(answer.payload)} bytes at {answer.timestamp_us} us")
+
+# A gateway hears every network in range, and a frame from one this site never granted is
+# reported rather than refused.
+stranger = site.uplink(
+    Rxpk(
+        868_100_000,
+        session(0x12345678, bytes([0x09]) * 16, bytes([0x08]) * 16).encode_uplink(0, 1, b"hello"),
+        link=dr5,
+    )
+)
+print(f"foreign   {stranger.dev_addr:#010x} belongs to another network")
+```
+<!-- end -->
+
 ## C#
 
 <!-- snippet: bindings/dotnet/samples/Pamoja.Guides/GatewayGuide.cs#example -->
@@ -345,6 +568,67 @@ byte[] refused = Gateway.Encode(new GatewayPacket(GatewayPacketKind.TxAck, 0x00A
 GatewayTxStatus status = Gateway.Parse(refused).TxStatus!.Value;
 Console.WriteLine(
     $"txack     {Gateway.NameOf(status)}, scheduled {status == GatewayTxStatus.None}");
+```
+<!-- end -->
+
+
+And the network side of the same site, which admits the device and answers it:
+
+<!-- snippet: bindings/dotnet/samples/Pamoja.Guides/GatewayGuide.cs#network -->
+From [`bindings/dotnet/samples/Pamoja.Guides/GatewayGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/GatewayGuide.cs):
+
+```csharp
+// One site, on the band it operates in, admitting one device it was told about.
+byte[] devEui = new byte[8];
+Array.Fill(devEui, (byte)0x11);
+byte[] appEui = new byte[8];
+Array.Fill(appEui, (byte)0x22);
+byte[] appKey = new byte[16];
+Array.Fill(appKey, (byte)0x33);
+
+var dr5 = new LoraLink(7, 125_000);
+using LoraChannelPlan plan = LoraChannelPlan.ForRegion(LoraRegion.Eu868);
+using var site = new GatewayNetwork(plan, 0x00002A, firstDevAddr: 0x26010001);
+site.Register(devEui, appEui, appKey);
+
+// The gateway forwards a join request it heard. Nothing about the device is known here
+// beyond the key it was provisioned with, which is what verifies the request.
+using var joiner = new LorawanDevice(devEui, appEui, appKey);
+GatewayNetworkEvent joined = site.Uplink(
+    new GatewayRxpk(868_100_000, joiner.JoinRequest(0x0102))
+    {
+        Link = dr5,
+        TimestampMicros = 1_000_000,
+    });
+Console.WriteLine(
+    $"joined    0x{joined.DevAddr:x8} at {joined.Accept!.TimestampMicros} us, " +
+    $"inverted IQ {joined.Accept!.InvertPolarity.ToString().ToLowerInvariant()}");
+
+// The device reads the accept and sends a reading. The site decrypts it and says where
+// an answer goes, which is the uplink window plus the delay the region recommends.
+using LorawanJoinAccept granted = joiner.AcceptJoin(joined.Accept!.Payload, 0x0102);
+using LorawanSession activated = granted.Session();
+GatewayNetworkEvent carried = site.Uplink(
+    new GatewayRxpk(868_100_000, activated.EncodeUplink(0, 2, "21.5"u8))
+    {
+        Link = dr5,
+        TimestampMicros = 9_000_000,
+    });
+Console.WriteLine(
+    $"uplink    frame {carried.Fcnt}, {carried.Payload!.Length} bytes, " +
+    $"answer at {carried.Slot!.TimestampUs} us on {carried.Slot!.FrequencyHz} Hz");
+
+// The answer goes out in that window, encrypted with the session the join granted.
+GatewayTxpk answer = site.Answer(carried.DevAddr, carried.Slot!, 2, "ok"u8);
+Console.WriteLine(
+    $"downlink  {answer.Payload.Length} bytes at {answer.TimestampMicros} us");
+
+// A gateway hears every network in range, and a frame from one this site never granted
+// is reported rather than refused.
+using LorawanSession elsewhere = new LorawanSession(0x12345678, NetworkKey(0x09), NetworkKey(0x08));
+GatewayNetworkEvent stranger = site.Uplink(
+    new GatewayRxpk(868_100_000, elsewhere.EncodeUplink(0, 1, "hello"u8)) { Link = dr5 });
+Console.WriteLine($"foreign   0x{stranger.DevAddr:x8} belongs to another network");
 ```
 <!-- end -->
 

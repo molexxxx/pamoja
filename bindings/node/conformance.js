@@ -2098,6 +2098,7 @@ routingVectors();
 radiosVectors();
 sx127xVectors();
 gatewayVectors();
+gatewayNetworkVectors();
 
 function headerVectors() {
   const vector = VECTORS.header;
@@ -2740,6 +2741,61 @@ zenohVectors();
   console.error(err);
   process.exit(1);
 });
+
+function gatewayNetworkVectors() {
+  const vector = VECTORS.gatewayNetwork;
+  const hex = (bytes) => Buffer.from(bytes).toString("hex");
+  const dr = lora.link(vector.spreadingFactor, vector.bandwidthHz);
+
+  const site = new gateway.Network(
+    lora.planFor(lora.LoraRegion.Eu868),
+    vector.netId,
+    null,
+    vector.devAddr,
+  );
+  site.register(unhex(vector.devEui), unhex(vector.appEui), unhex(vector.appKey));
+
+  const joiner = lorawan.device(unhex(vector.devEui), unhex(vector.appEui), unhex(vector.appKey));
+  const request = joiner.joinRequest(vector.devNonce);
+  assert.strictEqual(hex(request), vector.join.request, "the join request the device sends");
+
+  const joined = site.uplink({
+    frequencyHz: vector.frequencyHz,
+    payload: request,
+    link: dr,
+    timestampUs: vector.join.heardAtUs,
+  });
+  assert.strictEqual(joined.outcome, "Joined", "a join request is admitted");
+  assert.strictEqual(joined.devAddr, vector.devAddr, "the address granted");
+  assert.strictEqual(hex(joined.accept.payload), vector.join.accept, "the accept it answers with");
+  assert.strictEqual(
+    joined.accept.timestampUs,
+    vector.join.timestampUs,
+    "the join window it goes out in",
+  );
+
+  const granted = joiner.acceptJoin(joined.accept.payload, vector.devNonce);
+  const sent = granted.session().encodeUplink(vector.uplink.fcnt, vector.uplink.fport, Buffer.from(vector.uplink.payload));
+  assert.strictEqual(hex(sent), vector.uplink.frame, "the frame the device sends");
+
+  const carried = site.uplink({
+    frequencyHz: vector.frequencyHz,
+    payload: sent,
+    link: dr,
+    timestampUs: vector.uplink.heardAtUs,
+  });
+  assert.strictEqual(carried.outcome, "Data", "a session frame is read");
+  assert.strictEqual(carried.payload.toString(), vector.uplink.payload, "what the node sent");
+  assert.strictEqual(
+    carried.slot.timestampUs,
+    vector.uplink.slotTimestampUs,
+    "the window its answer goes in",
+  );
+
+  const answer = site.answer(carried.devAddr, carried.slot, vector.uplink.fport, Buffer.from("ok"));
+  assert.strictEqual(hex(answer.payload), vector.downlink.frame, "the downlink frame");
+  assert.strictEqual(answer.timestampUs, vector.downlink.timestampUs, "when it transmits");
+}
 
 function gatewayVectors() {
   const vector = VECTORS.gateway;

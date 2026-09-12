@@ -38,7 +38,7 @@
 //! assert!(matches!(joined, Event::Joined { .. }));
 //! ```
 
-use pamoja_lora::region::{ChannelBlock, ChannelPlan};
+use pamoja_lora::region::{ChannelBlock, ChannelPlan, OwnedChannelPlan};
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::{
     Downlink, FrameHeader, JoinGrant, JoinRequest, LorawanError, MessageType, Session,
@@ -459,8 +459,8 @@ struct Admitted {
 /// It admits the devices it is told about, grants sessions, follows frame counters, and
 /// decides where an answer goes. Everything it needs about the band comes from the
 /// [`ChannelPlan`] it is built with, so the same type serves any region.
-pub struct Network<'a> {
-    plan: &'a ChannelPlan<'a>,
+pub struct Network {
+    plan: OwnedChannelPlan,
     windows: Windows,
     net_id: u32,
     registrations: Vec<Registration>,
@@ -469,8 +469,11 @@ pub struct Network<'a> {
     next_app_nonce: u32,
 }
 
-impl<'a> Network<'a> {
+impl Network {
     /// Builds a network on a channel plan.
+    ///
+    /// The plan is copied into the network, so one holds its band for as long as it runs
+    /// rather than borrowing a table that lives somewhere else.
     ///
     /// # Arguments
     ///
@@ -481,9 +484,9 @@ impl<'a> Network<'a> {
     /// # Returns
     ///
     /// The network, with the recommended windows and no devices registered.
-    pub fn new(plan: &'a ChannelPlan<'a>, net_id: u32) -> Network<'a> {
+    pub fn new(plan: &ChannelPlan<'_>, net_id: u32) -> Network {
         Network {
-            plan,
+            plan: OwnedChannelPlan::from_plan(plan),
             windows: Windows::new(),
             net_id,
             registrations: Vec::new(),
@@ -502,7 +505,7 @@ impl<'a> Network<'a> {
     /// # Returns
     ///
     /// The updated network, for chaining.
-    pub fn with_windows(mut self, windows: Windows) -> Network<'a> {
+    pub fn with_windows(mut self, windows: Windows) -> Network {
         self.windows = windows;
         self
     }
@@ -516,7 +519,7 @@ impl<'a> Network<'a> {
     /// # Returns
     ///
     /// The updated network, for chaining.
-    pub fn with_first_dev_addr(mut self, dev_addr: u32) -> Network<'a> {
+    pub fn with_first_dev_addr(mut self, dev_addr: u32) -> Network {
         self.next_dev_addr = dev_addr;
         self
     }
@@ -647,7 +650,10 @@ impl<'a> Network<'a> {
         let dev_addr = self.next_dev_addr;
         let app_nonce = self.next_app_nonce;
         let grant = JoinGrant::new(app_nonce, self.net_id, dev_addr)
-            .with_dl_settings(self.windows.dl_settings_byte(self.plan.rx2_data_rate))
+            .with_dl_settings(
+                self.windows
+                    .dl_settings_byte(self.plan.with_plan(|plan| plan.rx2_data_rate)),
+            )
             .with_rx_delay(self.windows.rx_delay_byte());
         let accept = grant.accept(&registration.app_key, request.dev_nonce());
         let session = grant.session(&registration.app_key, request.dev_nonce());
@@ -743,13 +749,12 @@ impl<'a> Network<'a> {
         let uplink_rate = self
             .data_rate_of(link)
             .ok_or(NetworkError::UnknownDataRate)?;
-        let downlink_rate = self
-            .plan
-            .rx1_data_rate(uplink_rate, self.windows.rx1_data_rate_offset)
-            .ok_or(NetworkError::NoWindow)?;
         let settings = self
             .plan
-            .link_settings(downlink_rate)
+            .with_plan(|plan| {
+                plan.rx1_data_rate(uplink_rate, self.windows.rx1_data_rate_offset)
+                    .and_then(|downlink_rate| plan.link_settings(downlink_rate))
+            })
             .ok_or(NetworkError::NoWindow)?;
 
         Ok(Slot {
@@ -775,32 +780,35 @@ impl<'a> Network<'a> {
     // Finds which channel of the plan a frequency is, counting through the default blocks
     // in the order the channel numbering follows.
     fn channel_of(&self, frequency_hz: u32) -> Option<u16> {
-        let mut first = 0u16;
-        for block in self.plan.default_channels {
-            for index in 0..block.count {
-                if block.frequency_hz(index) == Some(frequency_hz) {
-                    return Some(first + index);
+        self.plan.with_plan(|plan| {
+            let mut first = 0u16;
+            for block in plan.default_channels {
+                for index in 0..block.count {
+                    if block.frequency_hz(index) == Some(frequency_hz) {
+                        return Some(first + index);
+                    }
                 }
+                first += block.count;
             }
-            first += block.count;
-        }
-        None
+            None
+        })
     }
 
     // Finds the data rate number whose settings a packet arrived with. Only the spreading
     // factor and the bandwidth name a rate; the coding rate and the frame options a radio
     // reports alongside them do not.
     fn data_rate_of(&self, link: LinkSettings) -> Option<u8> {
-        self.plan
-            .uplink_data_rates
-            .iter()
-            .enumerate()
-            .find_map(|(number, rate)| {
-                let settings = rate.as_ref()?.link_settings()?;
-                (settings.spreading_factor() == link.spreading_factor()
-                    && settings.bandwidth_hz() == link.bandwidth_hz())
-                .then_some(number as u8)
-            })
+        self.plan.with_plan(|plan| {
+            plan.uplink_data_rates
+                .iter()
+                .enumerate()
+                .find_map(|(number, rate)| {
+                    let settings = rate.as_ref()?.link_settings()?;
+                    (settings.spreading_factor() == link.spreading_factor()
+                        && settings.bandwidth_hz() == link.bandwidth_hz())
+                    .then_some(number as u8)
+                })
+        })
     }
 }
 
@@ -835,7 +843,7 @@ mod tests {
         0x3C,
     ];
 
-    fn site() -> Network<'static> {
+    fn site() -> Network {
         let mut network =
             Network::new(Region::Eu868.plan(), 0x00_00_2A).with_first_dev_addr(0x2601_0001);
         network.register(Registration::new(DEV_EUI, APP_EUI, APP_KEY));

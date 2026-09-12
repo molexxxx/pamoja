@@ -468,7 +468,7 @@ public static class Gateway
     /// <summary>Describes a forwarded packet for the C ABI.</summary>
     /// <param name="heard">The packet.</param>
     /// <returns>Its metadata as the C ABI carries it.</returns>
-    private static PamojaGatewayRxpk Native(GatewayRxpk heard) => new()
+    internal static PamojaGatewayRxpk Native(GatewayRxpk heard) => new()
     {
         ReceivedAtUs = heard.ReceivedAtMicros ?? 0,
         GpsMillis = heard.GpsMillis ?? 0,
@@ -586,7 +586,7 @@ public static class Gateway
     /// <param name="request">The request as the C ABI carries it.</param>
     /// <param name="payload">Its payload.</param>
     /// <returns>The request.</returns>
-    private static GatewayTxpk Managed(PamojaGatewayTxpk request, byte[] payload) =>
+    internal static GatewayTxpk Managed(PamojaGatewayTxpk request, byte[] payload) =>
         new(request.FrequencyHz, payload)
         {
             Link = request.Modulation == NativeMethods.GatewayModulationFsk ? null : ManagedLink(request.Link),
@@ -605,7 +605,7 @@ public static class Gateway
     /// <summary>Describes link settings for the C ABI, defaulting an FSK packet's unused link.</summary>
     /// <param name="link">The settings, or <c>null</c> for an FSK packet.</param>
     /// <returns>The settings as the C ABI carries them.</returns>
-    private static PamojaLoraLink NativeLink(LoraLink? link)
+    internal static PamojaLoraLink NativeLink(LoraLink? link)
     {
         LoraLink settings = link ?? new LoraLink(7, 125_000);
         return new PamojaLoraLink
@@ -622,7 +622,7 @@ public static class Gateway
     /// <summary>Reads link settings from the C ABI.</summary>
     /// <param name="link">The settings as the C ABI carries them.</param>
     /// <returns>The settings.</returns>
-    private static LoraLink ManagedLink(PamojaLoraLink link)
+    internal static LoraLink ManagedLink(PamojaLoraLink link)
     {
         LoraLink settings = new LoraLink(link.SpreadingFactor, link.BandwidthHz)
             .WithCodingRate(link.CodingRateDenominator)

@@ -277,6 +277,15 @@ public sealed class LoraChannelPlan : IDisposable
     internal LoraChannelPlan(IntPtr handle) =>
         _handle = NativeHandle.Create(handle, NativeMethods.pamoja_lora_plan_free, "channel plan");
 
+    /// <summary>Returns the native plan pointer, for a package that builds on a plan.</summary>
+    /// <returns>The pointer, valid until this plan is disposed.</returns>
+    /// <remarks>
+    /// A plan is one of the few things another pamoja package needs to hand back to the
+    /// native core, which is why this is here; nothing else should reach for it, and the
+    /// pointer must never outlive the plan it came from.
+    /// </remarks>
+    public IntPtr DangerousGetHandle() => _handle.DangerousGetHandle();
+
     /// <summary>Returns the published plan for a region.</summary>
     /// <param name="region">The band to describe.</param>
     /// <returns>The plan, which answers every question about that band.</returns>

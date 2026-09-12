@@ -243,7 +243,7 @@ fn packet_to_js(packet: &Packet) -> GatewayPacket {
 }
 
 /// Reads a gateway identifier JavaScript passes.
-fn gateway_of(text: Option<&str>) -> napi::Result<Eui> {
+pub(crate) fn gateway_of(text: Option<&str>) -> napi::Result<Eui> {
     let text = text.ok_or_else(|| {
         napi::Error::from_reason("this kind of datagram carries the gateway's identifier")
     })?;
@@ -284,7 +284,7 @@ fn modulation_to_js(modulation: Modulation) -> (Option<LoraLink>, Option<u32>) {
 }
 
 /// Reads a forwarded packet JavaScript describes.
-fn rxpk_of(heard: GatewayRxpk) -> Rxpk {
+pub(crate) fn rxpk_of(heard: GatewayRxpk) -> Rxpk {
     Rxpk {
         received_at: heard
             .received_at_us
@@ -393,7 +393,7 @@ fn txpk_of(request: GatewayTxpk) -> Txpk {
 }
 
 /// Describes a transmission request for JavaScript.
-fn txpk_to_js(request: &Txpk) -> GatewayTxpk {
+pub(crate) fn txpk_to_js(request: &Txpk) -> GatewayTxpk {
     let (link, bitrate_bps) = modulation_to_js(request.modulation);
     GatewayTxpk {
         frequency_hz: request.frequency_hz,

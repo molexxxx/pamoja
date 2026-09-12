@@ -18,10 +18,24 @@ import type {
 } from '@pamoja/native'
 
 export type {
+  GatewayNetworkEvent as NetworkEvent,
+  GatewayNetworkWindows as NetworkWindows,
   GatewayPacket as Packet,
   GatewayRxpk as Rxpk,
+  GatewaySlot as Slot,
   GatewayStat as Stat,
   GatewayTxpk as Txpk,
+} from '@pamoja/native'
+
+export {
+  /**
+   * The network side of one site: what a server does with what a gateway forwarded.
+   *
+   * It holds the devices it admits, the sessions it has granted and the counters it has
+   * seen, so a packet handed to it comes back as a join it answered, a frame it decrypted,
+   * or traffic belonging to a network this site never granted.
+   */
+  GatewayNetwork as Network,
 } from '@pamoja/native'
 
 export {

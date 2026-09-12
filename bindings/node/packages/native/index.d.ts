@@ -361,6 +361,22 @@ export declare class EventBus {
   nextText(): Promise<string | null>
 }
 
+/** The network side of one site: what a server does with what a gateway forwarded. */
+export declare class GatewayNetwork {
+  /**
+   * Opens the network side of a site on a channel plan.
+   *
+   * The plan is copied into the network, so it holds its band for as long as it runs.
+   */
+  constructor(plan: LoraChannelPlan, netId: number, windows?: GatewayNetworkWindows | undefined | null, firstDevAddr?: number | undefined | null)
+  /** Admits a device, so a join request signed with its key is accepted. */
+  register(devEui: Buffer, appEui: Buffer, appKey: Buffer): void
+  /** Reads a packet the gateway forwarded. */
+  uplink(heard: GatewayRxpk): GatewayNetworkEvent
+  /** Builds a downlink for a device, encrypted with its session. */
+  answer(devAddr: number, slot: GatewaySlot, fport: number, payload: Buffer): GatewayTxpk
+}
+
 /** Keeps a tracked point inside an area, and notices when it leaves. */
 export declare class Geofence {
   /** Creates a circular fence of `radiusM` meters around `center`. */
@@ -2362,6 +2378,56 @@ export declare const enum GatewayCrc {
 /** Writes a datagram to send over a socket. */
 export declare function gatewayEncode(packet: GatewayPacket): Buffer
 
+/** What a forwarded packet turned out to be, and where its answer goes. */
+export interface GatewayNetworkEvent {
+  /** Which of the three this was. */
+  outcome: GatewayNetworkOutcome
+  /** The device that joined, as sixteen hexadecimal digits. */
+  devEui?: string
+  /** The address granted, or the address a frame claimed. */
+  devAddr: number
+  /** The counter the frame carried, reconstructed to its full width. */
+  fcnt?: number
+  /** The port the frame was sent on, absent for a frame carrying only options. */
+  fport?: number
+  /** What the device sent, decrypted. */
+  payload?: Buffer
+  /** Whether the device asked to be acknowledged. */
+  confirmed?: boolean
+  /** Where an answer goes, for a join or for data. */
+  slot?: GatewaySlot
+  /** The packet carrying the accept, for a join. */
+  accept?: GatewayTxpk
+}
+
+/** What a forwarded packet turned out to be. */
+export declare const enum GatewayNetworkOutcome {
+  /** A device joined, and its accept is ready to transmit. */
+  Joined = 'Joined',
+  /** A session frame arrived, decrypted. */
+  Data = 'Data',
+  /** The frame belongs to a device this site never granted. */
+  Foreign = 'Foreign'
+}
+
+/** When and where a network answers, and at what rate. */
+export interface GatewayNetworkWindows {
+  /** The delay before the first receive window, in microseconds; one second by default. */
+  receiveDelayUs?: number
+  /** The delay before the window a join accept is sent in; five seconds by default. */
+  joinDelayUs?: number
+  /** The offset between the uplink data rate and the rate the first window answers at. */
+  rx1DataRateOffset?: number
+  /** Which channels the first window answers on; the uplink frequency by default. */
+  rx1Channels?: GatewayRx1Channels
+  /** The first downlink channel, in hertz, when the channels are downstream. */
+  downstreamStartHz?: number
+  /** The spacing between those channels, in hertz. */
+  downstreamStepHz?: number
+  /** How many there are. */
+  downstreamCount?: number
+}
+
 /** One datagram of the protocol, with the fields its kind carries. */
 export interface GatewayPacket {
   /** Which kind of datagram. */
@@ -2402,6 +2468,17 @@ export declare const enum GatewayPacketKind {
 /** Reads a datagram that arrived. */
 export declare function gatewayParse(datagram: Buffer): GatewayPacket
 
+/** The channels the first receive window answers on, which the region decides. */
+export declare const enum GatewayRx1Channels {
+  /** The window answers on the frequency the uplink arrived on. */
+  SameAsUplink = 'SameAsUplink',
+  /**
+   * The window answers on a run of downlink channels, chosen by the uplink channel number
+   * modulo how many the run holds.
+   */
+  Downstream = 'Downstream'
+}
+
 /** A packet the gateway heard, with the metadata the protocol carries beside it. */
 export interface GatewayRxpk {
   /** The carrier it arrived on, in hertz. */
@@ -2428,6 +2505,16 @@ export interface GatewayRxpk {
   receivedAtUs?: number
   /** When it arrived on the GPS clock, in milliseconds since 6 January 1980. */
   gpsMillis?: number
+}
+
+/** Where and when a downlink answers an uplink, in the concentrator's own terms. */
+export interface GatewaySlot {
+  /** The concentrator timestamp to transmit at, in microseconds. */
+  timestampUs: number
+  /** The frequency to transmit on, in hertz. */
+  frequencyHz: number
+  /** The settings to transmit with. */
+  link: LoraLink
 }
 
 /** A gateway's own status report. */

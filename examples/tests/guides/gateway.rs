@@ -89,3 +89,98 @@ fn a_packet_forwarded_and_a_downlink_answered() {
     assert_eq!(acknowledgment.to_bytes(), [2, 0x12, 0x34, 0x01]);
     assert!(!status.scheduled());
 }
+/// A device joining a site, and the reading it sends once it has, as the network side of one
+/// gateway admits and answers them.
+#[test]
+fn a_device_joins_a_site_and_is_answered() {
+    // ANCHOR: network
+    use pamoja_gateway::network::{Event, Network, Registration};
+    use pamoja_gateway::udp::Rxpk;
+    use pamoja_lora::region::Region;
+    use pamoja_lora::LinkSettings;
+    use pamoja_lorawan::{Device, Uplink};
+
+    // One site, on the band it operates in, admitting one device it was told about.
+    let dev_eui = [0x11; 8];
+    let app_eui = [0x22; 8];
+    let app_key = [0x33; 16];
+    let mut site = Network::new(Region::Eu868.plan(), 0x00_00_2A).with_first_dev_addr(0x2601_0001);
+    site.register(Registration::new(dev_eui, app_eui, app_key));
+
+    // The gateway forwards a join request it heard. Nothing about the device is known here
+    // beyond the key it was provisioned with, which is what verifies the request.
+    let link = LinkSettings::new(7, 125_000);
+    let device = Device::new(dev_eui, app_eui, app_key);
+    let request = device.join_request(0x0102);
+    let heard =
+        Rxpk::new(868_100_000, link, request.as_bytes().to_vec()).with_timestamp_us(1_000_000);
+    let Event::Joined {
+        dev_addr, accept, ..
+    } = site.uplink(&heard).expect("the request verifies")
+    else {
+        panic!("a join request is admitted");
+    };
+    println!(
+        "joined    {dev_addr:#010x} at {} us, inverted IQ {}",
+        accept.timestamp_us.expect("the accept is scheduled"),
+        accept.invert_polarity
+    );
+
+    // The device reads the accept and sends a reading. The site decrypts it and says where an
+    // answer goes, which is the uplink window plus the delay the region recommends.
+    let session = device
+        .accept_join(&accept.payload, 0x0102)
+        .expect("the accept verifies")
+        .session();
+    let sent = session
+        .encode_uplink(&Uplink::new(0, 2, b"21.5"))
+        .expect("it fits one frame");
+    let carried =
+        Rxpk::new(868_100_000, link, sent.as_bytes().to_vec()).with_timestamp_us(9_000_000);
+    let Event::Data {
+        fcnt,
+        payload,
+        slot,
+        ..
+    } = site.uplink(&carried).expect("the frame verifies")
+    else {
+        panic!("a data frame is read");
+    };
+    println!(
+        "uplink    frame {fcnt}, {} bytes, answer at {} us on {} Hz",
+        payload.len(),
+        slot.timestamp_us,
+        slot.frequency_hz
+    );
+
+    // The answer goes out in that window, encrypted with the session the join granted.
+    let downlink = site
+        .answer(dev_addr, slot, 2, b"ok")
+        .expect("the session is held");
+    println!(
+        "downlink  {} bytes at {} us",
+        downlink.payload.len(),
+        downlink.timestamp_us.expect("the downlink is scheduled")
+    );
+
+    // A gateway hears every network in range, and a frame from one this site never granted is
+    // reported rather than refused.
+    let stranger = pamoja_lorawan::Session::new(0x1234_5678, [9; 16], [8; 16])
+        .encode_uplink(&Uplink::new(0, 1, b"hello"))
+        .expect("it fits one frame");
+    let event = site
+        .uplink(&Rxpk::new(868_100_000, link, stranger.as_bytes().to_vec()))
+        .expect("a frame from elsewhere is not an error");
+    let Event::Foreign {
+        dev_addr: heard_from,
+    } = event
+    else {
+        panic!("a frame from another network is reported as one");
+    };
+    println!("foreign   {heard_from:#010x} belongs to another network");
+    // ANCHOR_END: network
+
+    assert_eq!(payload, b"21.5");
+    assert_eq!(slot.timestamp_us, 10_000_000);
+    assert_eq!(heard_from, 0x1234_5678);
+}

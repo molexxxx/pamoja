@@ -320,6 +320,24 @@ pub struct LoraChannelPlan {
     inner: OwnedChannelPlan,
 }
 
+impl LoraChannelPlan {
+    /// Runs a query against the plan it holds.
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - what to read from the plan.
+    ///
+    /// # Returns
+    ///
+    /// Whatever the query returned.
+    pub(crate) fn with<R>(
+        &self,
+        query: impl FnOnce(&pamoja_lora::region::ChannelPlan<'_>) -> R,
+    ) -> R {
+        self.inner.with_plan(query)
+    }
+}
+
 #[napi]
 impl LoraChannelPlan {
     /// Returns the published plan for a region.

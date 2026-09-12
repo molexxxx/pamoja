@@ -22,8 +22,11 @@ from __future__ import annotations
 
 import enum
 
+from pamoja._native import GatewayNetwork as Network
+from pamoja._native import GatewayNetworkEvent as NetworkEvent
 from pamoja._native import GatewayPacket as Packet
 from pamoja._native import GatewayRxpk as Rxpk
+from pamoja._native import GatewaySlot as Slot
 from pamoja._native import GatewayStat as Stat
 from pamoja._native import GatewayTxpk as Txpk
 from pamoja._native import gateway_acknowledgment as acknowledgment
@@ -33,9 +36,12 @@ from pamoja._native import gateway_parse as parse
 __all__ = [
     "Crc",
     "DEFAULT_PORT",
+    "Network",
+    "NetworkEvent",
     "Packet",
     "PacketKind",
     "Rxpk",
+    "Slot",
     "Stat",
     "TxStatus",
     "Txpk",

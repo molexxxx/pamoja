@@ -69,3 +69,61 @@ print(f"txack     {status}, scheduled {status == TxStatus.NONE}")
 assert received.payload == b"TEST_PACKET_1234"
 assert list(encode(ack)) == [2, 0x12, 0x34, 0x01]
 assert status == "COLLISION_PACKET"
+# ANCHOR: network
+from pamoja.gateway import Network
+from pamoja.lora import plan_for
+from pamoja.lorawan import device, session
+
+# One site, on the band it operates in, admitting one device it was told about.
+dev_eui = bytes([0x11]) * 8
+app_eui = bytes([0x22]) * 8
+app_key = bytes([0x33]) * 16
+site = Network(plan_for("EU868"), 0x00002A, first_dev_addr=0x26010001)
+site.register(dev_eui, app_eui, app_key)
+
+# The gateway forwards a join request it heard. Nothing about the device is known here beyond
+# the key it was provisioned with, which is what verifies the request.
+joiner = device(dev_eui, app_eui, app_key)
+joined = site.uplink(
+    Rxpk(868_100_000, joiner.join_request(0x0102), link=dr5, timestamp_us=1_000_000)
+)
+print(
+    f"joined    {joined.dev_addr:#010x} at {joined.accept.timestamp_us} us, "
+    f"inverted IQ {joined.accept.invert_polarity}"
+)
+
+# The device reads the accept and sends a reading. The site decrypts it and says where an
+# answer goes, which is the uplink window plus the delay the region recommends.
+granted = joiner.accept_join(joined.accept.payload, 0x0102)
+carried = site.uplink(
+    Rxpk(
+        868_100_000,
+        granted.session().encode_uplink(0, 2, b"21.5"),
+        link=dr5,
+        timestamp_us=9_000_000,
+    )
+)
+print(
+    f"uplink    frame {carried.fcnt}, {len(carried.payload)} bytes, "
+    f"answer at {carried.slot.timestamp_us} us on {carried.slot.frequency_hz} Hz"
+)
+
+# The answer goes out in that window, encrypted with the session the join granted.
+answer = site.answer(carried.dev_addr, carried.slot, 2, b"ok")
+print(f"downlink  {len(answer.payload)} bytes at {answer.timestamp_us} us")
+
+# A gateway hears every network in range, and a frame from one this site never granted is
+# reported rather than refused.
+stranger = site.uplink(
+    Rxpk(
+        868_100_000,
+        session(0x12345678, bytes([0x09]) * 16, bytes([0x08]) * 16).encode_uplink(0, 1, b"hello"),
+        link=dr5,
+    )
+)
+print(f"foreign   {stranger.dev_addr:#010x} belongs to another network")
+# ANCHOR_END: network
+
+assert carried.payload == b"21.5"
+assert carried.slot.timestamp_us == 10_000_000
+assert stranger.outcome == "foreign"

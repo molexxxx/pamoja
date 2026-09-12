@@ -950,7 +950,7 @@ unsafe fn clear(out_packet: *mut *mut PamojaGatewayPacket) -> bool {
 }
 
 /// Records a null argument and reports it.
-fn missing(name: &str) -> PamojaStatus {
+pub(crate) fn missing(name: &str) -> PamojaStatus {
     set_last_error(format!("{name} must not be null"));
     PamojaStatus::InvalidArgument
 }
@@ -1032,7 +1032,7 @@ fn modulation_to_c(modulation: Modulation) -> (u8, PamojaLoraLink, u32) {
 }
 
 /// Flattens link settings for the boundary.
-fn link_to_c(link: LinkSettings) -> PamojaLoraLink {
+pub(crate) fn link_to_c(link: LinkSettings) -> PamojaLoraLink {
     PamojaLoraLink {
         bandwidth_hz: link.bandwidth_hz(),
         preamble_symbols: link.preamble_symbols(),
@@ -1044,7 +1044,7 @@ fn link_to_c(link: LinkSettings) -> PamojaLoraLink {
 }
 
 /// Reads a forwarded packet from the boundary.
-fn rxpk_of(packet: PamojaGatewayRxpk, payload: Vec<u8>) -> Rxpk {
+pub(crate) fn rxpk_of(packet: PamojaGatewayRxpk, payload: Vec<u8>) -> Rxpk {
     Rxpk {
         received_at: packet
             .has_received_at
@@ -1153,7 +1153,7 @@ fn txpk_of(request: PamojaGatewayTxpk, payload: Vec<u8>) -> Txpk {
 }
 
 /// Flattens a transmission request for the boundary.
-fn txpk_to_c(request: &Txpk) -> PamojaGatewayTxpk {
+pub(crate) fn txpk_to_c(request: &Txpk) -> PamojaGatewayTxpk {
     let (modulation, link, bitrate_bps) = modulation_to_c(request.modulation);
     PamojaGatewayTxpk {
         gps_millis: request.gps_millis.unwrap_or(0),

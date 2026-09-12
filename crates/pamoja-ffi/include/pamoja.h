@@ -102,6 +102,22 @@
 // A GPS timestamp was asked for while the GPS is unlocked.
 #define PAMOJA_GATEWAY_TX_GPS_UNLOCKED 7
 
+// A device joined, and its accept is in the event.
+#define PAMOJA_GATEWAY_NETWORK_JOINED 0
+
+// A session frame arrived, decrypted into the caller buffer.
+#define PAMOJA_GATEWAY_NETWORK_DATA 1
+
+// The frame belongs to a device this site never granted.
+#define PAMOJA_GATEWAY_NETWORK_FOREIGN 2
+
+// The first receive window answers on the frequency the uplink arrived on.
+#define PAMOJA_GATEWAY_NETWORK_RX1_SAME 0
+
+// The first receive window answers on a run of downlink channels, chosen by the uplink
+// channel number modulo how many the run holds.
+#define PAMOJA_GATEWAY_NETWORK_RX1_DOWNSTREAM 1
+
 // The largest I2C address frame, in bytes: the two a 10-bit address needs.
 #define PAMOJA_I2C_FRAME_MAX 2
 
@@ -1627,6 +1643,9 @@ typedef struct PamojaEventBus PamojaEventBus;
 // [`pamoja_frames_len`], then release it with [`pamoja_frames_free`].
 typedef struct PamojaFrames PamojaFrames;
 
+// The network side of one site, released with [`pamoja_gateway_network_free`].
+typedef struct PamojaGatewayNetwork PamojaGatewayNetwork;
+
 // An opaque handle to one datagram of the protocol.
 //
 // Read it with the `pamoja_gateway_packet_*` calls, then release it with
@@ -2104,6 +2123,66 @@ typedef struct {
   // Whether a preamble length was given.
   bool has_preamble;
 } PamojaGatewayTxpk;
+
+// When and where a network answers, and at what rate.
+//
+// The recommended values are the delays above, no offset between the uplink data rate and
+// the downlink one, and a first window on the frequency the uplink arrived on.
+typedef struct {
+  // The delay before the first receive window, in microseconds.
+  uint32_t receive_delay_us;
+  // The delay before the window a join accept is sent in, in microseconds.
+  uint32_t join_delay_us;
+  // The offset between the uplink data rate and the rate the first window answers at.
+  uint8_t rx1_data_rate_offset;
+  // [`PAMOJA_GATEWAY_NETWORK_RX1_SAME`] or
+  // [`PAMOJA_GATEWAY_NETWORK_RX1_DOWNSTREAM`].
+  uint8_t rx1_channels;
+  // The first downlink channel, in hertz, when the channels are downstream.
+  uint32_t downstream_start_hz;
+  // The spacing between those channels, in hertz.
+  uint32_t downstream_step_hz;
+  // How many there are.
+  uint16_t downstream_count;
+} PamojaGatewayNetworkWindows;
+
+// Where and when a downlink answers an uplink, in the concentrator's own terms.
+typedef struct {
+  // The concentrator timestamp to transmit at, in microseconds.
+  uint32_t timestamp_us;
+  // The frequency to transmit on, in hertz.
+  uint32_t frequency_hz;
+  // The settings to transmit with.
+  PamojaLoraLink link;
+} PamojaGatewayNetworkSlot;
+
+// What a forwarded packet turned out to be.
+typedef struct {
+  // [`PAMOJA_GATEWAY_NETWORK_JOINED`], [`PAMOJA_GATEWAY_NETWORK_DATA`], or
+  // [`PAMOJA_GATEWAY_NETWORK_FOREIGN`].
+  uint8_t outcome;
+  // The device that joined, for a join.
+  uint8_t dev_eui[8];
+  // The address granted, or the address a frame claimed.
+  uint32_t dev_addr;
+  // The counter the frame carried, reconstructed to its full width, for data.
+  uint32_t fcnt;
+  // The port the frame was sent on, for data on a port.
+  uint8_t fport;
+  // Whether the frame carried a port at all.
+  bool has_fport;
+  // Whether the device asked to be acknowledged.
+  bool confirmed;
+  // How many bytes were written into the caller buffer: the decrypted payload for data,
+  // and the accept to transmit for a join.
+  uintptr_t len;
+  // Whether the payload was longer than the buffer, in which case nothing was written.
+  bool truncated;
+  // Where an answer goes, for a join or for data.
+  PamojaGatewayNetworkSlot slot;
+  // The packet that carries the accept, for a join.
+  PamojaGatewayTxpk accept;
+} PamojaGatewayNetworkEvent;
 
 // A validated I2C device address.
 //
@@ -4783,6 +4862,144 @@ PamojaBuffer *pamoja_gateway_packet_to_buffer(const PamojaGatewayPacket *packet)
 // `packet` must be a live handle from one of the builders or from
 // [`pamoja_gateway_packet_parse`], or null.
 void pamoja_gateway_packet_free(PamojaGatewayPacket *packet);
+
+// Returns the windows a network answers in by default.
+//
+// # Returns
+//
+// The recommended delays, no data-rate offset, and a first window on the uplink frequency.
+PamojaGatewayNetworkWindows pamoja_gateway_network_windows_default(void);
+
+// Opens the network side of a site on a channel plan.
+//
+// # Arguments
+//
+// * `plan` - the band this site operates in, which is copied into the network.
+// * `net_id` - the network identifier granted addresses carry; only its low 24 bits travel.
+// * `windows` - when and where to answer, from
+//   [`pamoja_gateway_network_windows_default`].
+// * `first_dev_addr` - the first address to grant; later joins take the ones after it.
+// * `out_network` - receives the handle.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null plan or output.
+//
+// # Safety
+//
+// `plan` must be a live handle from the region calls, and `out_network` must point at a
+// writable pointer.
+PamojaStatus pamoja_gateway_network_open(const PamojaLoraPlan *plan,
+                                         uint32_t net_id,
+                                         PamojaGatewayNetworkWindows windows,
+                                         uint32_t first_dev_addr,
+                                         PamojaGatewayNetwork **out_network);
+
+// Admits a device, so a join request signed with its key is accepted.
+//
+// # Arguments
+//
+// * `network` - the network.
+// * `dev_eui` - the device identifier, eight bytes.
+// * `app_eui` - the application identifier, eight bytes.
+// * `app_key` - the root key, sixteen bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `network` must be a live handle, and each identifier must point at its own length in
+// readable bytes.
+PamojaStatus pamoja_gateway_network_register(PamojaGatewayNetwork *network,
+                                             const uint8_t *dev_eui,
+                                             const uint8_t *app_eui,
+                                             const uint8_t *app_key);
+
+// Reads a packet the gateway forwarded.
+//
+// A join request is verified against every registered key, granted an address and a session,
+// and answered with an accept written into the buffer and described by `event.accept`. A
+// data frame is routed by its address, checked against the counter last seen, and decrypted
+// into the buffer. A frame for a device this site never granted is reported rather than
+// refused, because a gateway hears every network in range.
+//
+// # Arguments
+//
+// * `network` - the network.
+// * `packet` - the metadata of what the gateway heard.
+// * `payload` - the frame as it came off the air.
+// * `payload_len` - its length.
+// * `buffer` - where to write the decrypted payload, or the accept to transmit.
+// * `capacity` - how many bytes the buffer holds.
+// * `out_event` - receives what the packet turned out to be.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], [`PamojaStatus::InvalidArgument`] for a null argument, or
+// [`PamojaStatus::Codec`] when the frame is refused, whose reason is available from
+// `pamoja_last_error_message`.
+//
+// # Safety
+//
+// `network` must be a live handle, `payload` must point at `payload_len` readable bytes or
+// be null, `buffer` must point at `capacity` writable bytes or be null, and `out_event` must
+// point at a writable event.
+PamojaStatus pamoja_gateway_network_uplink(PamojaGatewayNetwork *network,
+                                           PamojaGatewayRxpk packet,
+                                           const uint8_t *payload,
+                                           uintptr_t payload_len,
+                                           uint8_t *buffer,
+                                           uintptr_t capacity,
+                                           PamojaGatewayNetworkEvent *out_event);
+
+// Builds a downlink for a device, encrypted with its session.
+//
+// # Arguments
+//
+// * `network` - the network.
+// * `dev_addr` - the device to answer.
+// * `slot` - where and when to transmit, from the event that reported the uplink.
+// * `fport` - the port to answer on.
+// * `payload` - what to send.
+// * `payload_len` - its length.
+// * `buffer` - where to write the frame to transmit.
+// * `capacity` - how many bytes the buffer holds.
+// * `out_txpk` - receives the packet that carries it.
+// * `out_len` - receives how many bytes were written.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], [`PamojaStatus::InvalidArgument`] for a null argument or a buffer
+// too small, or [`PamojaStatus::Codec`] when no session is held for the address.
+//
+// # Safety
+//
+// `network` must be a live handle, `payload` must point at `payload_len` readable bytes or
+// be null, `buffer` must point at `capacity` writable bytes or be null, and both outputs
+// must be writable.
+PamojaStatus pamoja_gateway_network_answer(PamojaGatewayNetwork *network,
+                                           uint32_t dev_addr,
+                                           PamojaGatewayNetworkSlot slot,
+                                           uint8_t fport,
+                                           const uint8_t *payload,
+                                           uintptr_t payload_len,
+                                           uint8_t *buffer,
+                                           uintptr_t capacity,
+                                           PamojaGatewayTxpk *out_txpk,
+                                           uintptr_t *out_len);
+
+// Releases a network.
+//
+// # Arguments
+//
+// * `network` - the network, which must not be used again.
+//
+// # Safety
+//
+// `network` must be a live handle from [`pamoja_gateway_network_open`], or null.
+void pamoja_gateway_network_free(PamojaGatewayNetwork *network);
 
 // Validates a 7-bit I2C address.
 //

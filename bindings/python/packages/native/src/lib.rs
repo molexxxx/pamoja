@@ -24,6 +24,8 @@ mod coap;
 mod codec;
 #[cfg(feature = "gateway")]
 mod gateway;
+#[cfg(feature = "gateway")]
+mod gateway_network;
 #[cfg(feature = "gpio")]
 mod gpio;
 #[cfg(feature = "kit")]
@@ -623,6 +625,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(gateway::gateway_encode, m)?)?;
         m.add_function(wrap_pyfunction!(gateway::gateway_parse, m)?)?;
         m.add_function(wrap_pyfunction!(gateway::gateway_acknowledgment, m)?)?;
+        m.add_class::<gateway_network::GatewayNetwork>()?;
+        m.add_class::<gateway_network::GatewayNetworkEvent>()?;
+        m.add_class::<gateway_network::GatewaySlot>()?;
     }
     #[cfg(feature = "routing")]
     {

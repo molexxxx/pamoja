@@ -245,7 +245,8 @@ node = "gateway"
 python = "gateway"
 dotnet = [
     "Gateway", "GatewayPacket", "GatewayPacketKind", "GatewayRxpk", "GatewayStat",
-    "GatewayTxpk", "GatewayCrc", "GatewayTxStatus",
+    "GatewayTxpk", "GatewayCrc", "GatewayTxStatus", "GatewayNetwork", "GatewayNetworkEvent",
+    "GatewayNetworkWindows", "GatewayNetworkOutcome", "GatewayRx1Channels", "GatewaySlot",
 ]
 guide = "guides/gateway.md"
 

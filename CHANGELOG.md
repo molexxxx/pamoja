@@ -96,6 +96,14 @@ released together, so one entry covers all of them.
   segment that keeps a forwarded reading from coming back as a command, and it
   reports what crossed, so a console is fed by the same pass that carries the
   traffic. A new example, `gateway_fleet`, runs a site end to end and draws it.
+- The network side of a site in every language. `pamoja-gateway`'s `network` module
+  reaches the C ABI, TypeScript, Python and C#, so a server that admits a device,
+  answers its join, decrypts what it sends and builds the downlink for the window
+  the uplink opened is written the same way in all four. A network now owns the
+  channel plan it runs on rather than borrowing one, which is what lets a binding
+  hold it. New conformance vectors pin the whole exchange, so the four languages
+  produce the same join request, join accept, uplink frame and downlink bytes, and
+  the gateway guide gains a second example that runs in each of them.
 
 ### Changed
 

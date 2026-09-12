@@ -541,7 +541,7 @@ fn modulation_to_py(
 }
 
 /// Reads a forwarded packet Python describes.
-fn rxpk_of(py: Python<'_>, heard: PyRef<'_, GatewayRxpk>) -> PyResult<Rxpk> {
+pub(crate) fn rxpk_of(py: Python<'_>, heard: PyRef<'_, GatewayRxpk>) -> PyResult<Rxpk> {
     Ok(Rxpk {
         received_at: heard.received_at_us.map(pamoja_gateway::time::compact),
         gps_millis: heard.gps_millis,
@@ -647,7 +647,7 @@ fn txpk_of(py: Python<'_>, request: PyRef<'_, GatewayTxpk>) -> PyResult<Txpk> {
 }
 
 /// Describes a transmission request for Python.
-fn txpk_to_py(py: Python<'_>, request: &Txpk) -> PyResult<GatewayTxpk> {
+pub(crate) fn txpk_to_py(py: Python<'_>, request: &Txpk) -> PyResult<GatewayTxpk> {
     let (link, bitrate_bps) = modulation_to_py(py, request.modulation)?;
     Ok(GatewayTxpk {
         frequency_hz: request.frequency_hz,

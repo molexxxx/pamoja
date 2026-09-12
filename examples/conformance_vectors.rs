@@ -7,6 +7,10 @@
 //!
 //! Run with: `cargo run -p pamoja-examples --example conformance_vectors`
 
+// One literal holds every section, and each one added unfolds further, so the macro needs
+// more room than the default allows.
+#![recursion_limit = "256"]
+
 use std::fs;
 use std::path::PathBuf;
 
@@ -143,6 +147,7 @@ fn main() {
         "loraRegions": lora_regions(),
         "radios": radios(),
         "gateway": gateway(),
+        "gatewayNetwork": gateway_network(),
         "mavlink": mavlink(),
         "mavlinkSchema": mavlink_schema(),
         "mavlinkProtocol": mavlink_protocol(),
@@ -4168,6 +4173,106 @@ fn zenoh() -> Value {
 
 /// The datagrams of the Semtech UDP packet forwarder protocol, each with the fields it
 /// carries, so every binding builds the same bytes and reads the same values back.
+/// The network side of a site: a join admitted and answered, and an uplink read.
+fn gateway_network() -> Value {
+    use pamoja_gateway::network::{Event, Network, Registration};
+    use pamoja_gateway::udp::Rxpk;
+    use pamoja_lora::region::Region;
+    use pamoja_lorawan::{Device, Uplink as LorawanUplink};
+
+    let hex = |bytes: &[u8]| {
+        bytes
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    };
+
+    let dev_eui = [0x11u8; 8];
+    let app_eui = [0x22u8; 8];
+    let app_key = [0x33u8; 16];
+    let dev_nonce = 0x0102u16;
+    let dev_addr = 0x2601_0001u32;
+    let net_id = 0x00_00_2Au32;
+    let link = LinkSettings::new(7, 125_000);
+
+    let mut site = Network::new(Region::Eu868.plan(), net_id).with_first_dev_addr(dev_addr);
+    site.register(Registration::new(dev_eui, app_eui, app_key));
+
+    // The device asks to join, and the site answers in the join window.
+    let device = Device::new(dev_eui, app_eui, app_key);
+    let request = device.join_request(dev_nonce);
+    let heard =
+        Rxpk::new(868_100_000, link, request.as_bytes().to_vec()).with_timestamp_us(1_000_000);
+    let Event::Joined { accept, .. } = site.uplink(&heard).expect("the request verifies") else {
+        panic!("a join request is admitted");
+    };
+
+    // It reads the accept, then sends a reading the site decrypts.
+    let session = device
+        .accept_join(&accept.payload, dev_nonce)
+        .expect("the accept verifies")
+        .session();
+    let sent = session
+        .encode_uplink(&LorawanUplink::new(0, 2, b"21.5"))
+        .expect("it fits one frame");
+    let carried =
+        Rxpk::new(868_100_000, link, sent.as_bytes().to_vec()).with_timestamp_us(9_000_000);
+    let Event::Data {
+        fcnt,
+        fport,
+        payload,
+        slot,
+        ..
+    } = site.uplink(&carried).expect("the frame verifies")
+    else {
+        panic!("a data frame is read");
+    };
+
+    let downlink = site
+        .answer(dev_addr, slot, 2, b"ok")
+        .expect("the session is held");
+
+    // Each half is built on its own, because one literal holding them all is deeper than the
+    // json macro unfolds.
+    let join = json!({
+        "heardAtUs": 1_000_000,
+        "request": hex(request.as_bytes()),
+        "accept": hex(&accept.payload),
+        "timestampUs": accept.timestamp_us.expect("the accept is scheduled"),
+        "frequencyHz": accept.frequency_hz,
+        "invertPolarity": accept.invert_polarity,
+    });
+    let uplink = json!({
+        "heardAtUs": 9_000_000,
+        "frame": hex(sent.as_bytes()),
+        "fcnt": fcnt,
+        "fport": fport.expect("the frame carries a port"),
+        "payload": String::from_utf8(payload).expect("the payload is text"),
+        "slotTimestampUs": slot.timestamp_us,
+        "slotFrequencyHz": slot.frequency_hz,
+    });
+    let answer = json!({
+        "frame": hex(&downlink.payload),
+        "timestampUs": downlink.timestamp_us.expect("the downlink is scheduled"),
+        "invertPolarity": downlink.invert_polarity,
+    });
+
+    json!({
+        "devEui": hex(&dev_eui),
+        "appEui": hex(&app_eui),
+        "appKey": hex(&app_key),
+        "devNonce": dev_nonce,
+        "netId": net_id,
+        "devAddr": dev_addr,
+        "frequencyHz": 868_100_000,
+        "spreadingFactor": link.spreading_factor(),
+        "bandwidthHz": link.bandwidth_hz(),
+        "join": join,
+        "uplink": uplink,
+        "downlink": answer,
+    })
+}
+
 fn gateway() -> Value {
     use pamoja_gateway::udp::{Eui, Packet, Rxpk, Stat, TxStatus, Txpk, Uplink};
 
