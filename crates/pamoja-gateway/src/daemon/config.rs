@@ -103,6 +103,9 @@ pub struct Radio {
     /// Demodulating twice buys a finer timestamp and costs capacity, so a gateway that does
     /// not need one leaves this at zero.
     pub dual_demodulation: u8,
+    /// Whether the network is a public one, which decides the sync word the receivers look
+    /// for. Every LoRaWAN network is public, and the chip powers up expecting a private one.
+    pub lorawan_public: bool,
 }
 
 /// Where a gateway sends what it hears.
@@ -325,11 +328,19 @@ fn radio(object: &Map<String, Value>) -> Result<Radio, ConfigError> {
         }
     };
 
+    // Every LoRaWAN network is public, and a gateway that assumes otherwise hears none of
+    // them, so this is the default rather than something each configuration has to say.
+    let lorawan_public = held
+        .get("lorawan_public")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+
     Ok(Radio {
         carrier_hz,
         channels,
         spreading_factors,
         dual_demodulation,
+        lorawan_public,
     })
 }
 

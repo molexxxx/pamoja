@@ -71,7 +71,8 @@ async fn run(path: &Path) -> Result<(), String> {
     let mut chip = linux::open_sx1302(&wiring).map_err(|error| error.to_string())?;
 
     let plan = Plan::new(config.radio.carrier_hz, &config.radio.channels)
-        .looking_for(&config.radio.spreading_factors);
+        .looking_for(&config.radio.spreading_factors)
+        .network(config.radio.lorawan_public);
 
     if let Some(model) =
         walk(&mut chip, &config, &plan, &gain_control, &arbiter).map_err(|why| why.to_string())?

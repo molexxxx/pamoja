@@ -284,6 +284,25 @@ pub const RX_PREAMBLE_SYMBOLS_MSB: Register = Register::new(RX_TOP_BASE + 132, 0
 /// Which peaks the frequency transform takes.
 pub const RX_DFT_PEAK_MODE: Register = Register::new(RX_TOP_BASE + 135, 4, 2, false);
 
+/// Where the first sync symbol sits for SF5, which has only the private form.
+pub const RX_SYNC_SF5_PEAK1: Register = Register::new(RX_TOP_BASE + 138, 0, 5, false);
+
+/// Where the second one sits.
+pub const RX_SYNC_SF5_PEAK2: Register = Register::new(RX_TOP_BASE + 139, 0, 5, false);
+
+/// The same for SF6.
+pub const RX_SYNC_SF6_PEAK1: Register = Register::new(RX_TOP_BASE + 140, 0, 5, false);
+
+/// And its second symbol.
+pub const RX_SYNC_SF6_PEAK2: Register = Register::new(RX_TOP_BASE + 141, 0, 5, false);
+
+/// Where the first sync symbol sits for SF7 through SF12, which is what says whether the
+/// receivers are listening to a public network or a private one.
+pub const RX_SYNC_SF7_TO_SF12_PEAK1: Register = Register::new(RX_TOP_BASE + 142, 0, 5, false);
+
+/// Where the second one sits.
+pub const RX_SYNC_SF7_TO_SF12_PEAK2: Register = Register::new(RX_TOP_BASE + 143, 0, 5, false);
+
 /// The proportional gain the fine timing uses while it is finding a packet.
 pub const RX_FINE_TIMING_GAIN_AUTO: Register = Register::new(RX_TOP_BASE + 146, 6, 2, false);
 
@@ -379,6 +398,14 @@ pub const SERVICE_FREQUENCY_LSB: Register =
 /// Which radio that demodulator takes its samples from.
 pub const SERVICE_RADIO_SELECT: Register =
     Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 2, 0, 1, false);
+
+/// Where the first sync symbol sits for the fixed demodulator.
+pub const SERVICE_SYNC_PEAK1: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 46, 0, 5, false);
+
+/// Where the second one sits.
+pub const SERVICE_SYNC_PEAK2: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 47, 0, 5, false);
 
 /// The high bits of the intermediate frequency the keying demodulator listens on.
 pub const FSK_FREQUENCY_MSB: Register =

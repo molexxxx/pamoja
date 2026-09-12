@@ -47,7 +47,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     // A concentrator tunes once and listens around that carrier, so a channel is an offset
     // from it rather than a frequency of its own.
     let plan = Plan::new(config.radio.carrier_hz, &config.radio.channels)
-        .looking_for(&config.radio.spreading_factors);
+        .looking_for(&config.radio.spreading_factors)
+        .network(config.radio.lorawan_public);
 
     // One call walks the whole start-up order. A board that stops partway names the step it
     // stopped on, which is the difference between a wiring fault and a firmware one.
