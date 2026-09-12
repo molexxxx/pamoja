@@ -178,6 +178,28 @@ pub const ARB_MCU_CLK_EN: Register = Register::new(ARB_MCU_BASE, 5, 1, false);
 /// Set by the chip when the arbiter firmware does not check out.
 pub const ARB_MCU_PARITY_ERROR: Register = Register::new(ARB_MCU_BASE, 0, 1, true);
 
+/// Runs the radios from the host clock rather than their own.
+///
+/// A front end is reset with this cleared, so the concentrator is still clocked while the
+/// radio it drives is held down.
+pub const COMMON_CLK32_RIF_CTRL: Register = Register::new(COMMON_BASE + 1, 4, 1, false);
+
+/// Whether the host drives the front ends directly rather than the gain control
+/// microcontroller.
+pub const COMMON_HOST_RADIO_CTRL: Register = Register::new(COMMON_BASE + 1, 3, 1, false);
+
+/// Powers the front end on the first chain.
+pub const RF_EN_A_RADIO_EN: Register = Register::new(AGC_MCU_BASE + 3, 2, 1, false);
+
+/// Holds the front end on the first chain in reset.
+pub const RF_EN_A_RADIO_RST: Register = Register::new(AGC_MCU_BASE + 3, 3, 1, false);
+
+/// Powers the front end on the second chain.
+pub const RF_EN_B_RADIO_EN: Register = Register::new(AGC_MCU_BASE + 4, 2, 1, false);
+
+/// Holds the front end on the second chain in reset.
+pub const RF_EN_B_RADIO_RST: Register = Register::new(AGC_MCU_BASE + 4, 3, 1, false);
+
 /// Which byte of the one-time programmable memory the read register answers with.
 pub const OTP_BYTE_ADDR: Register = Register::new(OTP_BASE, 0, 8, false);
 
@@ -269,6 +291,30 @@ mod tests {
         ] {
             assert!(!register.read_only, "{register:?} is set by the host");
         }
+    }
+
+    #[test]
+    fn the_front_end_controls_sit_where_the_table_puts_them() {
+        assert_eq!(COMMON_CLK32_RIF_CTRL, Register::new(0x5601, 4, 1, false));
+        assert_eq!(COMMON_HOST_RADIO_CTRL, Register::new(0x5601, 3, 1, false));
+        assert_eq!(RF_EN_A_RADIO_EN, Register::new(0x5783, 2, 1, false));
+        assert_eq!(RF_EN_A_RADIO_RST, Register::new(0x5783, 3, 1, false));
+        assert_eq!(RF_EN_B_RADIO_EN, Register::new(0x5784, 2, 1, false));
+        assert_eq!(RF_EN_B_RADIO_RST, Register::new(0x5784, 3, 1, false));
+
+        // The two chains have controls of their own, one byte apart.
+        assert_eq!(RF_EN_B_RADIO_EN.address - RF_EN_A_RADIO_EN.address, 1);
+        assert_ne!(RF_EN_A_RADIO_RST, RF_EN_B_RADIO_RST);
+
+        // Enable and reset share a byte, so writing one must not disturb the other.
+        let byte = RF_EN_A_RADIO_EN.encode(0, 1);
+        let byte = RF_EN_A_RADIO_RST.encode(byte, 1);
+        assert_eq!(
+            RF_EN_A_RADIO_EN.decode(byte),
+            1,
+            "the front end stayed powered"
+        );
+        assert_eq!(RF_EN_A_RADIO_RST.decode(byte), 1);
     }
 
     #[test]

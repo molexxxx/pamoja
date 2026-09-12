@@ -24,6 +24,10 @@
 //! - [`lbt`] - the commands for the SX1261 beside the concentrator, which listens to a
 //!   channel before the gateway is allowed to talk on it.
 //!
+//! With the `embedded-hal` feature, the [`Sx1302`] driver walks all of that against a real
+//! bus: it resets the board, reads the version, resets the front ends, and gives each
+//! microcontroller its firmware.
+//!
 //! None of it opens a bus, so a frame can be checked against the reference implementation,
 //! or against a capture from a working gateway, with no hardware present.
 //!
@@ -61,3 +65,12 @@ pub mod register;
 pub mod rx;
 pub mod spi;
 pub mod tx;
+
+#[cfg(feature = "embedded-hal")]
+mod driver;
+
+#[cfg(feature = "embedded-hal")]
+pub use driver::{
+    ConcentratorError, Sx1302, RADIO_CALIBRATE_US, RADIO_RESET_HOLD_US, RADIO_RESET_SETTLE_US,
+    RESET_HOLD_US,
+};
