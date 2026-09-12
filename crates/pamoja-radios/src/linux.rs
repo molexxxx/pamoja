@@ -396,7 +396,7 @@ mod platform {
     use embedded_hal::digital::PinState;
     use pamoja_hal::linux;
 
-    use super::{LinuxConcentrator, LinuxRadio, OpenError, Wiring, CONSUMER, SPI_MODE};
+    use super::{Line, LinuxConcentrator, LinuxRadio, OpenError, Wiring, CONSUMER, SPI_MODE};
     use crate::radio::Radio;
     use crate::sx1302::Sx1302;
     use crate::{sx126x, sx127x};
@@ -435,7 +435,7 @@ mod platform {
 
     pub(super) fn open_sx1302(
         wiring: &Wiring,
-    ) -> Result<(super::LinuxConcentrator, Option<super::Line>), OpenError> {
+    ) -> Result<(LinuxConcentrator, Option<Line>), OpenError> {
         // The supply comes first, before the bus and before the reset, which is the order the
         // reference platform script uses. A board that gates its concentrator answers nothing
         // until this is raised.
