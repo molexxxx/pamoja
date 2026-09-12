@@ -46,6 +46,10 @@ const TASKS: &[(&str, &str)] = &[
         "build an autopilot SITL image and run the MAVLink interop test (sitl [ardupilot|px4|all])",
     ),
     (
+        "chirpstack",
+        "run a ChirpStack network server in Docker and test the gateway against it",
+    ),
+    (
         "dashboard",
         "run the local-first dashboard dev server with mock data (dashboard dev [scenario])",
     ),
@@ -103,6 +107,10 @@ fn main() -> ExitCode {
 
     if task == "sitl" {
         return sitl(&args.collect::<Vec<_>>());
+    }
+
+    if task == "chirpstack" {
+        return chirpstack();
     }
 
     if task == "dashboard" {
@@ -282,6 +290,63 @@ fn ros(args: &[String]) -> ExitCode {
         eprintln!("xtask ros: tests failed");
         ExitCode::FAILURE
     }
+}
+
+/// Run a ChirpStack network server in Docker and test the gateway against it.
+///
+/// `pamoja-gateway` speaks the packet forwarder protocol and the network side of a site, and both
+/// halves are only worth as much as their interop: this brings up a pinned ChirpStack stack,
+/// registers a gateway and an OTAA device with it, and forwards a real join and uplink into it,
+/// so the protocol is proven against a network server rather than against our own types. The
+/// stack runs under `docker compose` while the test runs here, which is also how CI runs it.
+/// Requires Docker Desktop.
+fn chirpstack() -> ExitCode {
+    if !run(Command::new("docker").arg("--version")) {
+        eprintln!("xtask chirpstack: Docker is required (Docker Desktop); install it and retry.");
+        return ExitCode::FAILURE;
+    }
+
+    let Some(shell) = bourne_shell() else {
+        eprintln!("xtask chirpstack: a bash shell is required; on Windows it ships with Git.");
+        return ExitCode::FAILURE;
+    };
+
+    println!(
+        "xtask chirpstack: bringing the stack up and running the interop test
+"
+    );
+    if run(Command::new(shell).arg("chirpstack/run-chirpstack.sh")) {
+        ExitCode::SUCCESS
+    } else {
+        eprintln!("xtask chirpstack: the interop test failed");
+        ExitCode::FAILURE
+    }
+}
+
+/// Finds a bash that can run a script on this machine.
+///
+/// On Windows the `bash` on PATH is usually the WSL launcher, which fails when no distribution
+/// is installed, so the shell Git ships is tried first and the PATH is the fallback.
+fn bourne_shell() -> Option<&'static str> {
+    let candidates: &[&str] = if cfg!(windows) {
+        &[
+            "C:/Program Files/Git/bin/bash.exe",
+            "C:/Program Files (x86)/Git/bin/bash.exe",
+            "bash",
+        ]
+    } else {
+        &["bash"]
+    };
+
+    candidates.iter().copied().find(|candidate| {
+        Command::new(candidate)
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
+    })
 }
 
 /// The autopilots `sitl` can build and test against, each with a `sitl/<target>.Dockerfile` and

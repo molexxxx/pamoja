@@ -301,3 +301,17 @@ jobs:
           docker run --rm -v "${{ github.workspace }}:/work" -w /work \
             pamoja-sitl-${{ matrix.autopilot }} \
             bash sitl/run-${{ matrix.autopilot }}.sh
+
+  chirpstack:
+    name: ChirpStack LoRaWAN interop
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      # A gateway that only speaks the protocol to our own types proves nothing about interop, so
+      # the forwarder and the network side are driven against a pinned ChirpStack stack: the
+      # script brings it up, registers a gateway and an OTAA device, forwards a join and an
+      # uplink, and asserts both reached the network server over its MQTT integration.
+      - name: Run the interop test against ChirpStack
+        run: bash chirpstack/run-chirpstack.sh

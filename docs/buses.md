@@ -37,8 +37,9 @@ pamoja: the address-frame encoding and the reserved-address checks are in
 [`pamoja-gpio`](guides/gpio.md); the bus traits, the scripted bus, and the
 Linux backend are in [`pamoja-hal`](guides/hal.md); the drivers for the
 [shipped sensors](guides/sensors.md) and [actuators](guides/actuators.md) run
-over it. Source: NXP UM10204, the I2C-bus specification, on the
-[hardware page](hardware.md#i2c).
+over it. Source: NXP's
+[UM10204](https://www.nxp.com/docs/en/user-guide/UM10204.pdf), the I2C-bus
+specification and user manual, revision 7.0.
 
 ## SPI
 
@@ -57,8 +58,10 @@ speed the part accepts.
 pamoja: the mode-to-polarity-and-phase mapping is in
 [`pamoja-gpio`](guides/gpio.md); the bus traits and the Linux backend are in
 [`pamoja-hal`](guides/hal.md); the BME280 and BMP280 drivers run over it as
-well as over I2C. Source: Microchip's SPI reference manual, DS70005185, on the
-[hardware page](hardware.md#spi).
+well as over I2C. Source: Microchip's SPI reference manual,
+[DS70005185A](https://ww1.microchip.com/downloads/en/DeviceDoc/70005185a.pdf).
+No standards body defines SPI, so pin names, timing and rate come from each
+device's own datasheet.
 
 ## 1-Wire
 
@@ -163,8 +166,9 @@ adapter that carries one.
 pamoja: [`pamoja-modbus`](guides/modbus.md) carries the CRC, the RTU frame,
 the standard requests, and response decoding. Sources: TI's RS-485 design
 guide, [SLLA272](https://www.ti.com/lit/an/slla272d/slla272d.pdf), and the
-Modbus over serial line specification on the
-[hardware page](hardware.md#modbus-rtu).
+[Modbus over serial line specification](https://www.modbus.org/file/secure/modbusoverserial.pdf),
+V1.02, which fixes the addresses at 1 to 247 with 0 as broadcast, and the frame
+at 256 bytes.
 
 ## CAN
 
@@ -184,8 +188,9 @@ together, such as an MCP2515 over SPI.
 
 pamoja: [`pamoja-can`](guides/can.md) carries classic and FD frames with both
 identifier widths, the FD length encoding, and J1939 identifier decoding.
-Sources: ISO 11898-1 and the SAE J1939 document set on the
-[hardware page](hardware.md#can).
+Sources: [ISO 11898-1:2024](https://www.iso.org/standard/86384.html), whose
+own text is paid, and the SAE J1939 document set under
+[J1939_202603](https://www.sae.org/standards/content/j1939_202603/).
 
 ## LoRa
 

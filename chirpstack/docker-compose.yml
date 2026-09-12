@@ -1,0 +1,82 @@
+# A ChirpStack network server for the gateway interop test.
+#
+# The images are pinned to the major tags ChirpStack publishes its own compose project with, and
+# the configuration beside this file is theirs, trimmed to the one region this test operates in.
+# Nothing here is a deployment: the stack lives for the length of one test run, holds no real
+# keys, and leaves no volumes behind.
+services:
+  chirpstack:
+    image: chirpstack/chirpstack:4
+    command: -c /etc/chirpstack
+    volumes:
+      - ./configuration/chirpstack:/etc/chirpstack
+    # Postgres runs its first-boot initialization before it accepts connections, and the server
+    # exits rather than waits when it cannot reach the database. Waiting for the health check is
+    # what makes this deterministic; the restart is the backstop if it loses the race anyway.
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+      redis:
+        condition: service_started
+    environment:
+      - MQTT_BROKER_HOST=mosquitto
+      - REDIS_HOST=redis
+      - POSTGRESQL_HOST=postgres
+    # The gRPC port is reached over the compose network by the REST proxy beside it, so nothing
+    # publishes it: a host port here is one more thing to collide with, and on Windows 8080 often
+    # falls inside a reserved range.
+
+  # The half that speaks the Semtech packet forwarder protocol. It listens on 1700/udp with the
+  # backend defaults, which is what pamoja-gateway sends to, and republishes what it hears onto
+  # MQTT for the network server.
+  chirpstack-gateway-bridge:
+    image: chirpstack/chirpstack-gateway-bridge:4
+    ports:
+      - "1700:1700/udp"
+    volumes:
+      - ./configuration/chirpstack-gateway-bridge:/etc/chirpstack-gateway-bridge
+    environment:
+      - INTEGRATION__MQTT__EVENT_TOPIC_TEMPLATE=eu868/gateway/{{ .GatewayID }}/event/{{ .EventType }}
+      - INTEGRATION__MQTT__STATE_TOPIC_TEMPLATE=eu868/gateway/{{ .GatewayID }}/state/{{ .StateType }}
+      - INTEGRATION__MQTT__COMMAND_TOPIC_TEMPLATE=eu868/gateway/{{ .GatewayID }}/command/#
+    depends_on:
+      - mosquitto
+
+  # ChirpStack 4 serves gRPC only; this proxy is how the provisioning in run-chirpstack.sh
+  # registers a gateway and a device over plain HTTP.
+  chirpstack-rest-api:
+    image: chirpstack/chirpstack-rest-api:4
+    command: --server chirpstack:8080 --bind 0.0.0.0:8090 --insecure
+    ports:
+      - "8090:8090"
+    depends_on:
+      - chirpstack
+
+  postgres:
+    image: postgres:14-alpine
+    volumes:
+      - ./configuration/postgresql:/docker-entrypoint-initdb.d
+    environment:
+      - POSTGRES_USER=chirpstack
+      - POSTGRES_PASSWORD=chirpstack
+      - POSTGRES_DB=chirpstack
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chirpstack -d chirpstack"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+
+  # The test subscribes here to prove a forwarded frame reached the network server, rather than
+  # only that the datagram left.
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./configuration/mosquitto:/mosquitto/config

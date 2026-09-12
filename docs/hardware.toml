@@ -24,11 +24,6 @@ title = "Actuators"
 intent = "Parts pamoja drives: a PWM generator for servos, and the step-and-direction carriers a stepper sequence walks."
 
 [[group]]
-key = "buses"
-title = "Buses and field protocols"
-intent = "The wires between a gateway and the parts above, and the framing each one carries."
-
-[[group]]
 key = "radios"
 title = "Radios and long-range links"
 intent = "Reaching a network that is not there: the transceivers, the gateway concentrators, and the short-range meshes."
@@ -1088,105 +1083,6 @@ url = "https://www.adafruit.com/product/5337"
 price = "US$9.95"
 checked = "2026-09-07"
 verified = true
-
-[[entry]]
-key = "i2c"
-group = "buses"
-name = "I2C"
-vendor = "NXP Semiconductors"
-interface = "two open-drain lines, SDA and SCL"
-summary = "The two-wire addressable bus that hangs sensors and peripherals off one controller; the address a chip answers on is what the gpio crate carries."
-specs = [
-  "Rates: 100 kbit/s standard, 400 kbit/s fast, 1 Mbit/s fast-mode plus, 3.4 Mbit/s high speed",
-  "Addressing: 7-bit and 10-bit targets, which may share a bus in every speed mode",
-  "Lines: SDA and SCL, both bidirectional, pulled up and driven open-drain for wired-AND",
-  "Loading: bus capacitance, not a device count, limits how many hang on it",
-]
-cost = "not applicable"
-crates = ["pamoja-gpio", "pamoja-sensors", "pamoja-actuators"]
-source_name = "UM10204 I2C-bus specification and user manual, Rev. 7.0"
-source_label = "NXP UM10204"
-source = "https://www.nxp.com/docs/en/user-guide/UM10204.pdf"
-
-[[entry]]
-key = "spi"
-group = "buses"
-name = "SPI"
-vendor = "No standards body; described from Microchip's reference manual"
-interface = "four wires: data in, data out, clock, select"
-summary = "A full-duplex synchronous link between a controller and one selected peripheral at a time; no standard defines it, so pin names, timing and rate come from each device's own datasheet."
-specs = [
-  "Signals: serial data in, serial data out, a shift clock, and an active-low select",
-  "Clock: driven by the controller, and only while there is data to move",
-  "Modes: four combinations of clock polarity and clock edge, any of which may be chosen",
-  "Rate: set by the controller's clock prescalers; no standard fixes one",
-  "Words: 8 or 16 bits per transfer",
-]
-cost = "not applicable"
-crates = ["pamoja-gpio"]
-source_name = "Serial Peripheral Interface (SPI), dsPIC33/PIC24 Family Reference Manual, DS70005185A"
-source_label = "Microchip DS70005185A"
-source = "https://ww1.microchip.com/downloads/en/DeviceDoc/70005185a.pdf"
-
-[[entry]]
-key = "modbus-rtu"
-group = "buses"
-name = "Modbus RTU over RS-485"
-vendor = "Modbus Organization"
-interface = "RS-485 balanced pair, half duplex"
-summary = "Request and reply in binary frames over a two-wire trunk, the way meters, drives and PLCs are wired along one cable."
-specs = [
-  "Physical layer: a two-wire EIA/TIA-485 interface, terminated at both ends of the trunk",
-  "Devices: 32 on a segment without a repeater",
-  "Addresses: 1 to 247, with 0 as broadcast",
-  "Rates: 9600 and 19200 bit/s required, 19200 the default; 1200 to 115200 optional",
-  "Length: 1000 m at 9600 baud on AWG26 or heavier; drops no more than 20 m",
-  "Framing: address, function, data and a 16-bit CRC in at most 256 bytes; frames separated by 3.5 character times, and a gap over 1.5 discards one",
-]
-cost = "not applicable"
-crates = ["pamoja-modbus", "pamoja-serial"]
-source_name = "MODBUS over Serial Line Specification and Implementation Guide V1.02"
-source_label = "Modbus.org V1.02"
-source = "https://www.modbus.org/file/secure/modbusoverserial.pdf"
-
-[[entry]]
-key = "can"
-group = "buses"
-name = "CAN 2.0 and CAN FD"
-vendor = "ISO"
-interface = "differential bus"
-summary = "The multi-master vehicle bus whose identifier both labels a message and arbitrates access. The standard itself is paid, so the figures below are what its catalog page states and what the crate implements."
-specs = [
-  "Document: ISO 11898-1:2024, edition 3, published May 2024",
-  "Scope: the data link layer and the physical coding sublayer",
-  "pamoja-can: standard 11-bit and extended 29-bit identifiers, always masked to their width",
-  "pamoja-can: classic frames up to 8 bytes, and CAN FD frames up to 64 bytes at the discrete FD lengths",
-]
-cost = "not applicable"
-crates = ["pamoja-can"]
-source_name = "ISO 11898-1:2024 Road vehicles, Controller area network (CAN), Part 1: Data link layer and physical coding sublayer"
-source_label = "ISO 11898-1:2024"
-source = "https://www.iso.org/standard/86384.html"
-manual_check = "iso.org answers 403 to scripted clients most of the time; the catalog page renders in a browser"
-
-[[entry]]
-key = "j1939"
-group = "buses"
-name = "SAE J1939"
-vendor = "SAE International"
-interface = "CAN"
-summary = "The higher-layer protocol trucks, buses and off-highway machines run over CAN, defined as a set of SAE documents under one top-level recommended practice."
-specs = [
-  "Top-level document: J1939_202603, revised March 2026, first issued April 2000",
-  "Structure: the top-level document describes the subordinate documents and defines the terms they share",
-  "Committee: Truck and Bus Control and Communications Network",
-]
-cost = "not applicable"
-crates = ["pamoja-can"]
-source_name = "SAE J1939 document set, top-level document J1939_202603"
-source_label = "SAE J1939"
-source = "https://www.sae.org/standards/content/j1939_202603/"
-manual_check = "sae.org serves its standards pages as a JavaScript shell that answers 202 to any scripted client; the page renders in a browser"
 
 [[entry]]
 key = "raspberry-pi-5"
