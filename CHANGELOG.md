@@ -104,9 +104,38 @@ released together, so one entry covers all of them.
   hold it. New conformance vectors pin the whole exchange, so the four languages
   produce the same join request, join accept, uplink frame and downlink bytes, and
   the gateway guide gains a second example that runs in each of them.
+- The LoRa Basics Station protocol in `pamoja-gateway`, both sides of it: the
+  discovery a station asks for, the router configuration a server answers with,
+  and the uplink, join, downlink, transmit confirmation and time synchronization
+  messages that follow over the websocket the two hold open. A downlink is placed
+  against the station clock rather than the host clock, because the two do not
+  agree, and a receive window is measured from the uplink that opened it. The
+  protocol reaches the C ABI, TypeScript, Python and C#, with conformance vectors
+  pinning every message in all four.
+- Interop against a network server somebody else wrote. A continuous integration
+  job runs ChirpStack with Postgres, Redis, Mosquitto and the gateway bridge, and
+  pamoja carries an OTAA join and an uplink to it over both the packet forwarder
+  and Basics Station, then takes the downlink back. `cargo xtask chirpstack` runs
+  the same stack locally.
+- The Semtech SX1302 and SX1303 concentrators in `pamoja-radios`, which is what
+  separates a gateway from a node: eight receivers listening across every
+  spreading factor at once rather than one. The crate carries the transfers the
+  chip answers, the register map, the firmware the two microcontrollers inside it
+  run, the channels the receivers are pointed at, the front ends they listen
+  through, the packets they hand back, what a transmission is told to send, and
+  the counter a receive window is measured from. A driver walks all of that over
+  a real bus, and `pamoja-gateway` gains a daemon that runs a concentrator
+  against either upstream from a file it is given. The SX1261 that listens beside
+  the concentrator for a carrier check has its commands, its patch loading and
+  its decoders carried as well, though nothing drives it over a bus yet.
 
 ### Changed
 
+- The guide examples are programs rather than tests. Each one has a `main`, runs
+  with `cargo run -p pamoja-examples --example <name>` or the equivalent in the
+  other three languages, and the line printed beside it on the site is the line
+  that runs it. They still run on every change; they are no longer spliced out of
+  a test harness, which is what the pages had been showing a reader.
 - The version badges on the front page are drawn on the same sheet as the
   buttons beside them, which they had not been: they were the old palette at a
   different height, generated in another repository. `cargo xtask docs` writes
