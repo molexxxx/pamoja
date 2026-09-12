@@ -17,8 +17,8 @@
 //!   downlinks it is asked to transmit and what became of them, and the clock the two keep
 //!   between them.
 //!
-//! Identifiers cross as [`Eui`](crate::udp::Eui), and are written in the ID6 form the protocol
-//! prefers, which folds a run of zero groups the way an IPv6 address does.
+//! Identifiers cross as [`Eui`], and are written in the ID6 form the protocol prefers,
+//! which folds a run of zero groups the way an IPv6 address does.
 //!
 //! # Examples
 //!
