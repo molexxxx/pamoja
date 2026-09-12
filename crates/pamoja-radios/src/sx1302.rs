@@ -20,6 +20,8 @@
 //!   look for, and the order all of that is set in.
 //! - [`firmware`] - the order the two microcontrollers are loaded in, and what to check
 //!   afterwards.
+//! - [`mcu`] - configuring those two microcontrollers once they are loaded, which is
+//!   the other half of bringing one up.
 //! - [`rx`] - the packets the receive buffer holds, and what the receiver made of each.
 //! - [`tx`] - where a payload is written, how far ahead of its window a send starts, and
 //!   the three ways a transmission is triggered.
@@ -66,6 +68,7 @@ pub mod channel;
 pub mod chip;
 pub mod firmware;
 pub mod lbt;
+pub mod mcu;
 pub mod register;
 pub mod rx;
 pub mod spi;
