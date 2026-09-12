@@ -20,7 +20,9 @@ use pamoja_radios::linux::{self, LinuxConcentrator, Wiring};
 use pamoja_radios::sx1302::channel::Plan;
 use pamoja_radios::sx1302::rx::{self, BUFFER_LEN};
 use pamoja_radios::sx1302::timestamp::Counter;
-use pamoja_radios::sx1302::tx::{start_delay, Chain, Trigger};
+use pamoja_radios::sx1302::tx::{
+    gain_for, start_delay, Chain, FrontEnd, Transmit, Trigger, DEFAULT_GAINS,
+};
 use tokio::net::UdpSocket;
 
 /// How long to wait between asking the concentrator what it heard.
@@ -183,7 +185,7 @@ async fn forwarding(
                 if let Ok(Datagram::PullResp { token: asked, transmit }) =
                     Datagram::parse(&datagram[..len])
                 {
-                    let status = match transmit_one(&mut chip, &transmit) {
+                    let status = match transmit_one(&mut chip, config, &transmit) {
                         Ok(()) => {
                             sent += 1;
                             TxStatus::None
@@ -208,23 +210,25 @@ async fn forwarding(
 /// Puts one downlink on the air.
 fn transmit_one(
     chip: &mut LinuxConcentrator,
+    config: &Config,
     transmit: &pamoja_gateway::udp::Txpk,
 ) -> Result<(), String> {
     let link = transmit
         .modulation
         .link()
         .ok_or_else(|| "a downlink that is not LoRa is not driven by this program".to_owned())?;
-    let delay = start_delay(
-        pamoja_radios::sx1302::tx::FrontEnd::Sx1250,
-        link.bandwidth_hz(),
-        CHIRP_LOWPASS,
-    )
-    .ok_or_else(|| {
-        format!(
-            "{} Hz is a bandwidth no front end covers",
-            link.bandwidth_hz()
-        )
-    })?;
+    let delay =
+        start_delay(FrontEnd::Sx1250, link.bandwidth_hz(), CHIRP_LOWPASS).ok_or_else(|| {
+            format!(
+                "{} Hz is a bandwidth no front end covers",
+                link.bandwidth_hz()
+            )
+        })?;
+
+    // Which amplifier setting and power step reach a wanted number of decibels is a property
+    // of the board. This is the reference design's table.
+    let gain = gain_for(&DEFAULT_GAINS, transmit.power_dbm)
+        .ok_or_else(|| "the transmit gain table is empty".to_owned())?;
 
     let trigger = match (transmit.immediate, transmit.timestamp_us) {
         (true, _) => Trigger::Immediate,
@@ -232,7 +236,16 @@ fn transmit_one(
         (false, None) => Trigger::Immediate,
     };
 
-    chip.transmit(Chain::A, &transmit.payload, trigger, delay)
+    let request = Transmit {
+        frequency_hz: transmit.frequency_hz,
+        link,
+        gain,
+        invert_polarity: transmit.invert_polarity,
+        public: config.radio.lorawan_public,
+        payload: &transmit.payload,
+    };
+
+    chip.transmit(Chain::A, &request, trigger, delay)
         .map_err(|error| format!("the downlink was refused: {error}"))
 }
 
