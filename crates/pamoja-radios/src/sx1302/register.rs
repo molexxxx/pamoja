@@ -419,6 +419,130 @@ pub const FSK_FREQUENCY_LSB: Register =
 pub const FSK_RADIO_SELECT: Register =
     Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 84, 1, 1, false);
 
+/// Whether the service receiver runs its notch filter.
+pub const SERVICE_DC_NOTCH_ENABLE: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 3, 0, 1, false);
+
+/// Holds the service receiver to the default filter rather than one chosen for the rate.
+pub const SERVICE_FORCE_DEFAULT_FIR: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 24, 3, 1, false);
+
+/// Compensates the service receiver gain into its detector.
+pub const SERVICE_DAGC_IN_COMP: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 25, 6, 1, false);
+
+/// What signal level the service receiver gain aims for.
+pub const SERVICE_DAGC_TARGET_LEVEL: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 27, 6, 2, false);
+
+/// Whether a gain drop is compensated for in the service receiver.
+pub const SERVICE_DAGC_GAIN_DROP_COMP: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 27, 4, 1, false);
+
+/// The bandwidth the service receiver runs at.
+pub const SERVICE_BANDWIDTH: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 33, 4, 4, false);
+
+/// The one spreading factor the service receiver looks for.
+pub const SERVICE_SPREADING_FACTOR: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 33, 0, 4, false);
+
+/// Whether the service receiver expects a low data rate optimization.
+pub const SERVICE_PPM_OFFSET: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 34, 4, 2, false);
+
+/// Whether the service receiver is clocked at all.
+pub const SERVICE_MODEM_ENABLE: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 34, 3, 1, false);
+
+/// The coding rate the service receiver assumes when a header does not carry one.
+pub const SERVICE_CODING_RATE: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 34, 0, 3, false);
+
+/// Whether the service receiver runs the finer synchronization the fast rates need.
+pub const SERVICE_FINE_SYNC: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 35, 5, 1, false);
+
+/// Starts the service receiver once it is configured.
+pub const SERVICE_MODEM_START: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 35, 4, 1, false);
+
+/// Whether the service receiver listens, rather than checking for activity.
+pub const SERVICE_CAD_RX_TX: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 35, 2, 2, false);
+
+/// Whether the service receiver expects packets without a header.
+pub const SERVICE_IMPLICIT_HEADER: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 35, 1, 1, false);
+
+/// Whether the service receiver expects a checksum on a packet without a header.
+pub const SERVICE_CRC_ENABLE: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 35, 0, 1, false);
+
+/// How long a packet without a header is.
+pub const SERVICE_PAYLOAD_LENGTH: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 36, 0, 8, false);
+
+/// How many preamble symbols the service receiver expects, low byte.
+pub const SERVICE_PREAMBLE_LSB: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 39, 0, 8, false);
+
+/// How many preamble symbols the service receiver expects, high byte.
+pub const SERVICE_PREAMBLE_MSB: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 40, 0, 8, false);
+
+/// How the service receiver picks a peak out of its transform.
+pub const SERVICE_DFT_PEAK_MODE: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 42, 4, 2, false);
+
+/// How hard the service receiver corrects timing on its own.
+pub const SERVICE_TIMING_GAIN_AUTOMATIC: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 50, 6, 2, false);
+
+/// How hard the service receiver corrects timing through a preamble.
+pub const SERVICE_TIMING_GAIN_PREAMBLE: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 50, 0, 3, false);
+
+/// Whether the service receiver accumulates a timing correction, and over what.
+pub const SERVICE_TIMING_GAIN_INTEGRAL: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 51, 6, 2, false);
+
+/// How hard the service receiver corrects timing through a payload.
+pub const SERVICE_TIMING_GAIN_PAYLOAD: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 51, 3, 3, false);
+
+/// How far the service receiver expects a carrier to drift, high bits.
+pub const SERVICE_DRIFT_MANTISSA_MSB: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 54, 0, 4, false);
+
+/// How far the service receiver expects a carrier to drift, low byte.
+pub const SERVICE_DRIFT_MANTISSA_LSB: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 55, 0, 8, false);
+
+/// What the service receiver drift is scaled by.
+pub const SERVICE_DRIFT_EXPONENT: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 56, 0, 3, false);
+
+/// Which way the service receiver applies a drift over a symbol.
+pub const SERVICE_DRIFT_INVERT_SYMBOL_TIME: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 57, 2, 1, false);
+
+/// How many peaks the service receiver counts before it believes a preamble.
+pub const SERVICE_DETECT_PEAK_COUNT: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 64, 0, 3, false);
+
+/// How many peaks the service receiver counts on its second pass.
+pub const SERVICE_DETECT_PEAK_COUNT2: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 64, 4, 3, false);
+
+/// Whether the service receiver weighs a symbol gain into detection.
+pub const SERVICE_DETECT_USE_GAIN_SYMBOL: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 66, 7, 1, false);
+
+/// How far above the noise a peak has to be for the service receiver to take it.
+pub const SERVICE_DETECT_PEAK_TO_NOISE: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 66, 0, 7, false);
+
 /// The settings that decide how hard a correlator looks for one spreading factor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Correlator {

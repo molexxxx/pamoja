@@ -95,6 +95,13 @@ pub enum ConcentratorError<E> {
         /// The offset asked for, in hertz.
         offset_hz: i32,
     },
+    /// A rate the fixed-rate receiver cannot be set to.
+    ServiceRate {
+        /// The spreading factor asked for.
+        spreading_factor: u8,
+        /// The bandwidth asked for, in hertz.
+        bandwidth_hz: u32,
+    },
     /// A packet the transmit chain cannot be told to send.
     Transmit(tx::TransmitError),
     /// A microcontroller never reached the state it was waited for.
@@ -148,6 +155,13 @@ impl<E: core::fmt::Debug> core::fmt::Display for ConcentratorError<E> {
                 f,
                 "a channel {offset_hz} Hz from the carrier is outside the {} Hz a radio hears",
                 channel::RX_BANDWIDTH_HZ
+            ),
+            ConcentratorError::ServiceRate {
+                spreading_factor,
+                bandwidth_hz,
+            } => write!(
+                f,
+                "the service channel cannot run spreading factor {spreading_factor} at {bandwidth_hz} Hz"
             ),
             ConcentratorError::Transmit(error) => error.fmt(f),
             ConcentratorError::Stalled { wanted, reading } => write!(
@@ -687,6 +701,22 @@ where
             if listener.enabled && !channel::reachable(listener.offset_hz) {
                 return Err(ConcentratorError::ChannelOutOfReach {
                     offset_hz: listener.offset_hz,
+                });
+            }
+        }
+
+        // The fixed-rate receiver takes a spreading factor and a bandwidth of its own, and
+        // silently keeps its last ones for a pair it cannot be set to.
+        if let Some(service) = plan.service {
+            if !channel::reachable(service.offset_hz) {
+                return Err(ConcentratorError::ChannelOutOfReach {
+                    offset_hz: service.offset_hz,
+                });
+            }
+            if !service.supported() {
+                return Err(ConcentratorError::ServiceRate {
+                    spreading_factor: service.spreading_factor,
+                    bandwidth_hz: service.bandwidth_hz,
                 });
             }
         }
