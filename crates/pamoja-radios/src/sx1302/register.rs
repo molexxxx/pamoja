@@ -212,6 +212,15 @@ pub const OTP_FSM_READY: Register = Register::new(OTP_BASE + 2, 0, 1, true);
 /// What the one-time programmable memory made of its own checksum.
 pub const OTP_CHECKSUM_STATUS: Register = Register::new(OTP_BASE + 2, 4, 4, true);
 
+/// How many bytes the receive buffer is holding, the high bits of the count.
+///
+/// Read this pair twice and take the larger answer. A read of the two bytes can report a
+/// count below the true one, and the reference guards against it the same way.
+pub const RX_BUFFER_NB_BYTES_MSB: Register = Register::new(RX_TOP_BASE + 200, 0, 5, true);
+
+/// The low bits of that count.
+pub const RX_BUFFER_NB_BYTES_LSB: Register = Register::new(RX_TOP_BASE + 201, 0, 8, true);
+
 #[cfg(test)]
 mod tests {
     use super::*;

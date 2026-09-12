@@ -20,7 +20,7 @@ use super::chip::{self, Model};
 use super::firmware::{self, LoadError, Mcu};
 use super::register::{self, Register};
 use super::spi as frame;
-use super::tx::{Chain, FrontEnd};
+use super::tx::{self, Chain, FrontEnd, Trigger, TxStatus};
 
 /// How long the reset line is held, in microseconds.
 ///
@@ -57,6 +57,11 @@ pub enum ConcentratorError<E> {
     },
     /// The firmware did not load.
     Firmware(LoadError),
+    /// The receive buffer holds more than the caller left room for.
+    Overrun {
+        /// How many bytes are waiting.
+        waiting: u16,
+    },
 }
 
 impl<E: core::fmt::Debug> core::fmt::Display for ConcentratorError<E> {
@@ -73,6 +78,10 @@ impl<E: core::fmt::Debug> core::fmt::Display for ConcentratorError<E> {
                 write!(f, "part number {byte:#04x} is not one this crate drives")
             }
             ConcentratorError::Firmware(error) => error.fmt(f),
+            ConcentratorError::Overrun { waiting } => write!(
+                f,
+                "the receive buffer holds {waiting} bytes, which is more than there is room for"
+            ),
         }
     }
 }
@@ -386,6 +395,169 @@ where
         address: u16,
         into: &mut [u8],
     ) -> Result<(), ConcentratorError<SPI::Error>> {
+        self.burst_read(address, into, true)
+    }
+
+    /// Reads a port rather than a window, so every chunk comes from the same address.
+    ///
+    /// The receive buffer is a port: reading it moves the chip pointer along by itself. A
+    /// reader that moves the address as well walks past the packets it came for, which only
+    /// shows once there is more waiting than one chunk holds.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - the port to read.
+    /// * `into` - where the bytes go, filled to its length.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once it is filled.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn read_fifo(
+        &mut self,
+        address: u16,
+        into: &mut [u8],
+    ) -> Result<(), ConcentratorError<SPI::Error>> {
+        self.burst_read(address, into, false)
+    }
+
+    /// How many bytes the receive buffer is holding.
+    ///
+    /// The count is read twice and the larger kept. A read of the pair can answer with less
+    /// than is really there, and the reference guards against it the same way.
+    ///
+    /// # Returns
+    ///
+    /// The number of bytes waiting, which is zero when nothing has been heard.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn waiting(&mut self) -> Result<u16, ConcentratorError<SPI::Error>> {
+        let first = self.buffer_count()?;
+        let second = self.buffer_count()?;
+        Ok(if second > first { second } else { first })
+    }
+
+    /// Takes everything the receive buffer is holding.
+    ///
+    /// What comes back is packets back to back, each wrapped in the metadata the chip writes
+    /// around it, which [`packets`](super::rx::packets) walks.
+    ///
+    /// # Arguments
+    ///
+    /// * `into` - where the bytes go. [`BUFFER_LEN`](super::rx::BUFFER_LEN) always fits.
+    ///
+    /// # Returns
+    ///
+    /// What was read, which is empty when nothing has been heard.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::Overrun`] if more is waiting than there is room for,
+    /// having read nothing, so a larger buffer still gets it. Returns
+    /// [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn receive<'a>(
+        &mut self,
+        into: &'a mut [u8],
+    ) -> Result<&'a [u8], ConcentratorError<SPI::Error>> {
+        let waiting = self.waiting()?;
+        let wanted = usize::from(waiting);
+        if wanted == 0 {
+            return Ok(&[]);
+        }
+        if wanted > into.len() {
+            return Err(ConcentratorError::Overrun { waiting });
+        }
+        self.read_fifo(register::RX_BUFFER_BASE, &mut into[..wanted])?;
+        Ok(&into[..wanted])
+    }
+
+    /// Loads a packet and arms the trigger that sends it.
+    ///
+    /// The chip is not handed the packet and the moment together. The payload goes into the
+    /// buffer of the chain, the delay it starts early by is programmed, and only then is the
+    /// trigger armed. [`steps`](super::tx::steps) holds that order and this walks it.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain` - which transmit chain sends it.
+    /// * `payload` - the bytes the chain sends. For frequency shift keying the length byte
+    ///   goes first, as the chip reads it out of the buffer.
+    /// * `trigger` - what the send waits for.
+    /// * `start_delay` - what [`start_delay`](super::tx::start_delay) worked out.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once the trigger is armed. The packet leaves when the trigger says.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn transmit(
+        &mut self,
+        chain: Chain,
+        payload: &[u8],
+        trigger: Trigger,
+        start_delay: u16,
+    ) -> Result<(), ConcentratorError<SPI::Error>> {
+        for step in tx::steps(chain, trigger, start_delay) {
+            match step {
+                tx::Send::SetStartDelay(delay) => {
+                    let bytes = tx::start_delay_bytes(delay);
+                    self.write_register(chain.start_delay_msb(), bytes[0])?;
+                    self.write_register(chain.start_delay_lsb(), bytes[1])?;
+                }
+                tx::Send::OpenBuffer(register) => self.write_register(register, 1)?,
+                tx::Send::WritePayload(address) => self.write_memory(address, payload)?,
+                tx::Send::CloseBuffer(register) => self.write_register(register, 0)?,
+                tx::Send::SetTimerTrigger(value) => {
+                    for (index, byte) in tx::trigger_bytes(value).into_iter().enumerate() {
+                        self.write_register(chain.timer_byte(index as u8), byte)?;
+                    }
+                }
+                tx::Send::ResetTrigger(register) => self.write_register(register, 0)?,
+                tx::Send::ArmTrigger(register) => self.write_register(register, 1)?,
+            }
+        }
+        Ok(())
+    }
+
+    /// What a transmit chain is doing.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain` - the chain to ask.
+    ///
+    /// # Returns
+    ///
+    /// Its state, which is [`TxStatus::Free`] when it will take another packet.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn tx_status(&mut self, chain: Chain) -> Result<TxStatus, ConcentratorError<SPI::Error>> {
+        let value = self.read_register(chain.status())?;
+        Ok(TxStatus::of(value))
+    }
+
+    /// Reads the byte count once, high bits first.
+    fn buffer_count(&mut self) -> Result<u16, ConcentratorError<SPI::Error>> {
+        let high = self.read_register(register::RX_BUFFER_NB_BYTES_MSB)?;
+        let low = self.read_register(register::RX_BUFFER_NB_BYTES_LSB)?;
+        Ok((u16::from(high) << 8) | u16::from(low))
+    }
+
+    /// Reads a run of bytes a chunk at a time, moving the address on only for a window.
+    fn burst_read(
+        &mut self,
+        address: u16,
+        into: &mut [u8],
+        advance: bool,
+    ) -> Result<(), ConcentratorError<SPI::Error>> {
         let mut at = address;
         let mut read = 0usize;
         while read < into.len() {
@@ -397,7 +569,9 @@ where
                     Operation::Read(&mut into[read..read + take]),
                 ])
                 .map_err(ConcentratorError::Spi)?;
-            at = at.wrapping_add(take as u16);
+            if advance {
+                at = at.wrapping_add(take as u16);
+            }
             read += take;
         }
         Ok(())
@@ -477,6 +651,153 @@ mod tests {
     /// The transfer that writes one byte.
     fn writes(address: u16, value: u8) -> SpiStep {
         SpiStep::write(frame::write(frame::TARGET_CONCENTRATOR, address, value).to_vec())
+    }
+
+    /// The two transfers that read a run of bytes out of one address.
+    fn fetches(address: u16, reply: Vec<u8>) -> Vec<SpiStep> {
+        vec![
+            SpiStep::write(frame::burst_read_header(frame::TARGET_CONCENTRATOR, address).to_vec()),
+            SpiStep::read(reply),
+        ]
+    }
+
+    /// The two transfers that write a run of bytes to one address.
+    fn sends(address: u16, payload: Vec<u8>) -> Vec<SpiStep> {
+        vec![
+            SpiStep::write(frame::burst_write_header(frame::TARGET_CONCENTRATOR, address).to_vec()),
+            SpiStep::write(payload),
+        ]
+    }
+
+    #[test]
+    fn a_quiet_concentrator_hands_back_nothing() {
+        let mut chip = driven(vec![
+            reads(0x58c8, 0),
+            reads(0x58c9, 0),
+            reads(0x58c8, 0),
+            reads(0x58c9, 0),
+        ]);
+
+        let mut buffer = [0u8; 32];
+        assert!(chip
+            .receive(&mut buffer)
+            .expect("the bus answers")
+            .is_empty());
+    }
+
+    #[test]
+    fn the_byte_count_is_read_twice_and_the_larger_kept() {
+        // A read of the pair can answer with less than is really there, so two are taken and
+        // the larger wins. Here the second read sees three more bytes, and all five arrive.
+        let mut steps = vec![
+            reads(0x58c8, 0),
+            reads(0x58c9, 2),
+            reads(0x58c8, 0),
+            reads(0x58c9, 5),
+        ];
+        steps.extend(fetches(0x4000, vec![1, 2, 3, 4, 5]));
+        let mut chip = driven(steps);
+
+        let mut buffer = [0u8; 32];
+        let heard = chip.receive(&mut buffer).expect("the bus answers");
+        assert_eq!(heard, [1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn more_than_fits_is_refused_before_a_byte_is_read() {
+        // Nothing is taken out of the buffer, so the same packets are still there for a
+        // caller that comes back with room for them.
+        let mut chip = driven(vec![
+            reads(0x58c8, 0),
+            reads(0x58c9, 16),
+            reads(0x58c8, 0),
+            reads(0x58c9, 16),
+        ]);
+
+        let mut buffer = [0u8; 8];
+        match chip.receive(&mut buffer) {
+            Err(ConcentratorError::Overrun { waiting }) => assert_eq!(waiting, 16),
+            other => panic!("a buffer too small is refused, not filled: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_fetch_larger_than_one_chunk_reads_the_same_port_again() {
+        // The receive buffer is a port, not a window. Reading it moves the chip pointer
+        // along, so the second chunk comes from the same address. A reader that advanced
+        // would ask for the address a chunk higher and get the wrong bytes.
+        let mut steps = fetches(0x4000, vec![0xa5; frame::BURST_CHUNK]);
+        steps.extend(fetches(0x4000, vec![0xc0; 100]));
+        let mut chip = driven(steps);
+
+        let mut buffer = [0u8; frame::BURST_CHUNK + 100];
+        chip.read_fifo(0x4000, &mut buffer)
+            .expect("the bus answers");
+        assert_eq!(buffer[0], 0xa5);
+        assert_eq!(buffer[frame::BURST_CHUNK], 0xc0);
+    }
+
+    #[test]
+    fn a_send_loads_the_payload_before_it_arms_the_trigger() {
+        // The delay is programmed, the buffer is opened and written and closed, and only
+        // then is the trigger cleared and set. Arming first would send whatever was there.
+        let mut steps = vec![
+            writes(0x5205, 0x01),
+            writes(0x5206, 0x02),
+            reads(0x5207, 0),
+            writes(0x5207, 1),
+        ];
+        steps.extend(sends(0x5300, vec![0xde, 0xad]));
+        steps.extend(vec![
+            reads(0x5207, 1),
+            writes(0x5207, 0),
+            reads(0x5200, 0),
+            writes(0x5200, 0),
+            reads(0x5200, 0),
+            writes(0x5200, 1),
+        ]);
+        let mut chip = driven(steps);
+
+        chip.transmit(Chain::A, &[0xde, 0xad], Trigger::Immediate, 0x0102)
+            .expect("the bus answers");
+    }
+
+    #[test]
+    fn a_timed_send_counts_down_the_addresses() {
+        // A send one second out at this delay is 1000000 * 32 - 258 ticks, which is
+        // 0x01e846fe. The least significant byte goes to the highest of the four addresses,
+        // which is the one thing about this register that is easy to get backward.
+        let mut steps = vec![
+            writes(0x5205, 0x01),
+            writes(0x5206, 0x02),
+            reads(0x5207, 0),
+            writes(0x5207, 1),
+        ];
+        steps.extend(sends(0x5300, vec![0x01]));
+        steps.extend(vec![
+            reads(0x5207, 1),
+            writes(0x5207, 0),
+            writes(0x5204, 0xfe),
+            writes(0x5203, 0x46),
+            writes(0x5202, 0xe8),
+            writes(0x5201, 0x01),
+            reads(0x5200, 0),
+            writes(0x5200, 0),
+            reads(0x5200, 0),
+            writes(0x5200, 0b10),
+        ]);
+        let mut chip = driven(steps);
+
+        chip.transmit(Chain::A, &[0x01], Trigger::At(1_000_000), 0x0102)
+            .expect("the bus answers");
+    }
+
+    #[test]
+    fn a_chain_that_will_take_a_packet_reads_free() {
+        let mut chip = driven(vec![reads(0x5211, tx::STATUS_FREE)]);
+
+        let status = chip.tx_status(Chain::A).expect("the bus answers");
+        assert!(status.is_free(), "{status:?}");
     }
 
     #[test]
