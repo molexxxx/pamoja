@@ -16,12 +16,13 @@ use embedded_hal::delay::DelayNs;
 use embedded_hal::digital::{self, OutputPin};
 use embedded_hal::spi::{Operation, SpiDevice};
 
+use super::channel;
 use super::chip::{self, Model};
 use super::firmware::{self, LoadError, Mcu};
 use super::register::{self, Register};
 use super::spi as frame;
-use super::sx1250;
 use super::timestamp;
+use super::sx1250;
 use super::tx::{self, Chain, FrontEnd, Trigger, TxStatus};
 
 /// How long the reset line is held, in microseconds.
@@ -571,6 +572,34 @@ where
         Ok(TxStatus::of(value))
     }
 
+    /// Points a concentrator at the channels it is to listen on.
+    ///
+    /// A concentrator that has been reset and given firmware still hears nothing until this
+    /// has run. Its receivers have been given no frequencies, no radio to take samples from,
+    /// no spreading factors to look for, and no permission to run at all.
+    /// [`steps`](super::channel::steps) holds that order and this walks it.
+    ///
+    /// # Arguments
+    ///
+    /// * `plan` - what to listen for.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once the receivers are running.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn configure_channels(
+        &mut self,
+        plan: &channel::Plan,
+    ) -> Result<(), ConcentratorError<SPI::Error>> {
+        for channel::Step::Write(register, value) in channel::steps(plan) {
+            self.write_register(register, value)?;
+        }
+        Ok(())
+    }
+
     /// Reads the counter packets are stamped against.
     ///
     /// Both counters come back in one burst, and the burst is read twice, because a read can
@@ -894,6 +923,32 @@ mod tests {
             SpiStep::write(frame::burst_write_header(frame::TARGET_CONCENTRATOR, address).to_vec()),
             SpiStep::write(payload),
         ]
+    }
+
+    #[test]
+    fn pointing_a_concentrator_at_its_channels_ends_by_switching_them_on() {
+        let plan = channel::Plan::new(867_500_000, &[-400_000, -200_000, 0]);
+
+        // A register that owns its byte is one write. One that shares a byte is read first,
+        // so the neighbors beside it survive, which is two transfers rather than one.
+        let mut steps = Vec::new();
+        for channel::Step::Write(held, value) in channel::steps(&plan) {
+            if held.is_whole_byte() {
+                steps.push(writes(held.address, value));
+            } else {
+                steps.push(reads(held.address, 0));
+                steps.push(writes(held.address, held.encode(0, value)));
+            }
+        }
+
+        // The bus refuses anything the driver issues out of order or in the wrong shape.
+        let mut chip = driven(steps);
+        chip.configure_channels(&plan).expect("the bus answers");
+
+        let channel::Step::Write(last, value) =
+            channel::steps(&plan).last().expect("there are steps");
+        assert_eq!(last, register::COMMON_GLOBAL_ENABLE);
+        assert_eq!(value, 0x01);
     }
 
     #[test]
