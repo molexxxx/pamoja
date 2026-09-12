@@ -27,6 +27,8 @@
 //!   the three ways a transmission is triggered.
 //! - [`lbt`] - the commands for the SX1261 beside the concentrator, which listens to a
 //!   channel before the gateway is allowed to talk on it.
+//! - [`sx1261`] - bringing that radio up, which has to happen before those commands
+//!   mean anything to it.
 //! - [`sx1250`] - the front ends the concentrator listens through, which are what a
 //!   carrier is tuned to, and the order one is brought up in.
 //! - [`timestamp`] - the counter packets are stamped against and receive windows are
@@ -75,6 +77,7 @@ pub mod register;
 pub mod rx;
 pub mod spi;
 pub mod sx1250;
+pub mod sx1261;
 pub mod timestamp;
 pub mod tx;
 

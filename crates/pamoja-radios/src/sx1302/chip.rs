@@ -202,7 +202,7 @@ mod tests {
         // The two ways a bus reads when nothing is driving it.
         assert!(!answers(0x00));
         assert!(!answers(0xff));
-        // And a neighbouring value is still not a match.
+        // And a neighboring value is still not a match.
         assert!(!answers(0x11));
     }
 }

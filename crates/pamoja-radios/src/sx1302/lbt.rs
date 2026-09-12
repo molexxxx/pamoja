@@ -26,12 +26,11 @@ pub const OP_WRITE_REGISTER: u8 = 0x0d;
 /// The command that puts the radio in frequency synthesis mode, which ends a check.
 pub const OP_SET_FS: u8 = 0xc1;
 
-/// The register that holds the radio to the carrier check, cleared to stop it.
-pub const REG_LBT_ENABLE: u16 = 0x089b;
+pub use super::sx1261::REG_RSSI_WINDOW;
 
 /// How long the radio waits between the samples it takes, as the radio counts it.
 ///
-/// Eleven is about 8.2 microseconds. Ten and twelve are the neighbouring settings the
+/// Eleven is about 8.2 microseconds. Ten and twelve are the neighboring settings the
 /// reference mentions, at roughly 7.68 and 8.68.
 pub const SAMPLE_INTERVAL: u8 = 11;
 
@@ -241,8 +240,8 @@ pub const fn stop() -> ((u8, [u8; 3]), (u8, [u8; 0])) {
         (
             OP_WRITE_REGISTER,
             [
-                (REG_LBT_ENABLE >> 8) as u8,
-                (REG_LBT_ENABLE & 0xff) as u8,
+                (REG_RSSI_WINDOW >> 8) as u8,
+                (REG_RSSI_WINDOW & 0xff) as u8,
                 0x00,
             ],
         ),
@@ -351,10 +350,13 @@ mod tests {
 
         // The register that holds the check is cleared by address, most significant first.
         assert_eq!(release_op, OP_WRITE_REGISTER);
-        assert_eq!(release[0], (REG_LBT_ENABLE >> 8) as u8);
-        assert_eq!(release[1], (REG_LBT_ENABLE & 0xff) as u8);
+        assert_eq!(release[0], (REG_RSSI_WINDOW >> 8) as u8);
+        assert_eq!(release[1], (REG_RSSI_WINDOW & 0xff) as u8);
         assert_eq!(release[2], 0x00, "cleared, not set");
-        assert_eq!(u16::from_be_bytes([release[0], release[1]]), REG_LBT_ENABLE);
+        assert_eq!(
+            u16::from_be_bytes([release[0], release[1]]),
+            REG_RSSI_WINDOW
+        );
 
         // Parking takes no payload at all.
         assert_eq!(park_op, OP_SET_FS);
