@@ -78,6 +78,107 @@ impl Chain {
             Chain::B => TX_TOP_B_BASE,
         }
     }
+
+    /// The control that hands this chain's buffer to the host to write.
+    ///
+    /// # Returns
+    ///
+    /// The register, set before the payload is written and cleared after it.
+    #[must_use]
+    pub const fn write_buffer(&self) -> Register {
+        Register::new(self.base() + 7, 0, 1, false)
+    }
+
+    /// Where the chain reports what it is doing.
+    ///
+    /// # Returns
+    ///
+    /// The register [`TxStatus::of`] reads.
+    #[must_use]
+    pub const fn status(&self) -> Register {
+        Register::new(self.base() + 17, 0, 8, true)
+    }
+
+    /// The bit that starts a send of this kind.
+    ///
+    /// # Arguments
+    ///
+    /// * `trigger` - what the send waits for.
+    ///
+    /// # Returns
+    ///
+    /// The register, which is cleared and then set to arm it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_radios::sx1302::tx::{Chain, Trigger};
+    ///
+    /// // All three share a byte and differ only in which bit they are.
+    /// let immediate = Chain::A.trigger(Trigger::Immediate);
+    /// let gps = Chain::A.trigger(Trigger::OnGps);
+    /// assert_eq!(immediate.address, gps.address);
+    /// assert_eq!((immediate.offset, gps.offset), (0, 2));
+    /// ```
+    #[must_use]
+    pub const fn trigger(&self, trigger: Trigger) -> Register {
+        let offset = match trigger {
+            Trigger::Immediate => 0,
+            Trigger::At(_) => 1,
+            Trigger::OnGps => 2,
+        };
+        Register::new(self.base(), offset, 1, false)
+    }
+
+    /// One of the four bytes a timed send is programmed across.
+    ///
+    /// The bytes run backward: the least significant sits at the highest address. So index
+    /// zero is the first byte [`trigger_bytes`] hands back, and each one after it is written
+    /// an address lower.
+    ///
+    /// # Arguments
+    ///
+    /// * `index` - which byte, from zero to three. Anything higher is clamped to three.
+    ///
+    /// # Returns
+    ///
+    /// The register that byte is written to.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_radios::sx1302::tx::{trigger_bytes, Chain};
+    ///
+    /// let bytes = trigger_bytes(0x1234_5678);
+    /// // The least significant byte goes to the highest of the four addresses.
+    /// assert_eq!(bytes[0], 0x78);
+    /// assert!(Chain::A.timer_byte(0).address > Chain::A.timer_byte(3).address);
+    /// ```
+    #[must_use]
+    pub const fn timer_byte(&self, index: u8) -> Register {
+        let index = if index > 3 { 3 } else { index };
+        Register::new(self.base() + 4 - index as u16, 0, 8, false)
+    }
+
+    /// The high byte of the delay the chain starts early by.
+    ///
+    /// # Returns
+    ///
+    /// The register the first of [`start_delay_bytes`] is written to.
+    #[must_use]
+    pub const fn start_delay_msb(&self) -> Register {
+        Register::new(self.base() + 5, 0, 8, false)
+    }
+
+    /// The low byte of that delay.
+    ///
+    /// # Returns
+    ///
+    /// The register the second of [`start_delay_bytes`] is written to.
+    #[must_use]
+    pub const fn start_delay_lsb(&self) -> Register {
+        Register::new(self.base() + 6, 0, 8, false)
+    }
 }
 
 /// Which front end is wired to a chain, since each settles at its own pace.
@@ -296,6 +397,56 @@ pub const fn trigger_bytes(value: u32) -> [u8; 4] {
 #[must_use]
 pub const fn start_delay_bytes(delay: u16) -> [u8; 2] {
     delay.to_be_bytes()
+}
+
+/// The order a packet is loaded and sent in.
+///
+/// A timed send carries one step the other two do not, since only it programs the counter
+/// value to go out at.
+///
+/// # Arguments
+///
+/// * `chain` - which transmit chain is sending.
+/// * `trigger` - what the send waits for.
+/// * `start_delay` - what [`start_delay`] worked out for this packet.
+///
+/// # Returns
+///
+/// The steps, in the order the chip takes them.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_radios::sx1302::tx::{steps, Chain, Send, Trigger};
+///
+/// // A send that goes out now: delay, buffer, trigger.
+/// assert_eq!(steps(Chain::A, Trigger::Immediate, 1_000).count(), 6);
+///
+/// // A timed one programs the counter as well.
+/// assert_eq!(steps(Chain::A, Trigger::At(1_000_000), 1_000).count(), 7);
+///
+/// let mut order = steps(Chain::A, Trigger::Immediate, 1_000);
+/// assert!(matches!(order.next(), Some(Send::SetStartDelay(1_000))));
+/// assert!(matches!(order.next(), Some(Send::OpenBuffer(_))));
+/// assert!(matches!(order.next(), Some(Send::WritePayload(0x5300))));
+/// ```
+pub fn steps(chain: Chain, trigger: Trigger, start_delay: u16) -> impl Iterator<Item = Send> {
+    let arm = chain.trigger(trigger);
+    let timed = match trigger {
+        Trigger::At(at_us) => Some(Send::SetTimerTrigger(trigger_value(at_us, start_delay))),
+        Trigger::Immediate | Trigger::OnGps => None,
+    };
+    [
+        Some(Send::SetStartDelay(start_delay)),
+        Some(Send::OpenBuffer(chain.write_buffer())),
+        Some(Send::WritePayload(chain.buffer())),
+        Some(Send::CloseBuffer(chain.write_buffer())),
+        timed,
+        Some(Send::ResetTrigger(arm)),
+        Some(Send::ArmTrigger(arm)),
+    ]
+    .into_iter()
+    .flatten()
 }
 
 #[cfg(test)]
