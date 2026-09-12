@@ -55,7 +55,7 @@ pub struct Page {
     pub body: String,
     /// The headings the table of contents lists.
     pub toc: Vec<markdown::Heading>,
-    /// The page split at its second-level headings, for the search index.
+    /// The page split at its second- and third-level headings, for the search index.
     pub sections: Vec<markdown::Section>,
 }
 

@@ -252,7 +252,7 @@ impl<'a> Walk<'a> {
         if level == 1 && self.title.is_empty() {
             self.title.clone_from(&open.text);
         }
-        if level == 2 {
+        if level == 2 || level == 3 {
             self.sections.push(Section {
                 id: Some(id.clone()),
                 heading: open.text.clone(),
