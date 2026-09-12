@@ -20,9 +20,11 @@ network = ["dep:pamoja-lorawan"]
 # Carrying messages between a LoRa radio and an upstream link. Both are pamoja
 # transports and one task drives them, which is why this pulls a runtime timer.
 bridge = ["dep:pamoja-core", "dep:tokio", "pamoja-core/std"]
-# A gateway that drives a concentrator and forwards what it hears. It reaches a real bus
-# through the Linux backends, so it is off by default and never enters the graph a caller
-# gets for the codecs alone.
+# A gateway that drives a concentrator and forwards what it hears, over either upstream.
+# It reaches a real bus through the Linux backends, so it is off by default and never enters
+# the graph a caller gets for the codecs alone. Taking the station client with it brings a
+# websocket stack along, which is why that stays true: a caller who wants the message layer
+# alone never asks for this.
 daemon = [
     "dep:pamoja-radios",
     "pamoja-radios/linux",
@@ -32,6 +34,7 @@ daemon = [
     "tokio/macros",
     "tokio/net",
     "network",
+    "station-client",
 ]
 # The live Basics Station client: the discovery request and the muxs websocket. Off by
 # default so the message layer stays dependency-free and binds like the codec does, and so
