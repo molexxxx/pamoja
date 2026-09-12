@@ -19,6 +19,10 @@
 //! - [`firmware`] - the order the two microcontrollers are loaded in, and what to check
 //!   afterwards.
 //! - [`rx`] - the packets the receive buffer holds, and what the receiver made of each.
+//! - [`tx`] - where a payload is written, how far ahead of its window a send starts, and
+//!   the three ways a transmission is triggered.
+//! - [`lbt`] - the commands for the SX1261 beside the concentrator, which listens to a
+//!   channel before the gateway is allowed to talk on it.
 //!
 //! None of it opens a bus, so a frame can be checked against the reference implementation,
 //! or against a capture from a working gateway, with no hardware present.
@@ -52,6 +56,8 @@
 
 pub mod chip;
 pub mod firmware;
+pub mod lbt;
 pub mod register;
 pub mod rx;
 pub mod spi;
+pub mod tx;

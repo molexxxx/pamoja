@@ -131,9 +131,10 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-The firmware images the two on-chip microcontrollers run are Semtech's own, and are not
-carried in this repository. A caller supplies them, which is why the loading sequence takes
-the bytes rather than holding them.
+The firmware the concentrator runs is Semtech's own and is not carried in this repository:
+the two on-chip microcontrollers take an image each, and the SX1261 a gateway uses for
+listen-before-talk takes a patch for its own memory. A caller supplies all three, which is
+why the loading sequences take the bytes rather than holding them.
 
 ## Standards and third-party names
 
