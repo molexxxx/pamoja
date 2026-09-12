@@ -16,7 +16,7 @@
 //! with no hardware present.
 
 use super::register::{self, Bank, Register};
-use super::tx::Chain;
+use super::tx::{bandwidth_value, Chain};
 
 /// The bandwidth every multi-spreading-factor receiver runs at, in hertz.
 ///
@@ -74,6 +74,21 @@ pub const TIMING_LINEAR: u8 = 0x02;
 
 /// Peak selection left to the receiver.
 pub const DFT_PEAK_AUTOMATIC: u8 = 0x03;
+
+/// How many preamble symbols the fixed-rate receiver expects at the usual spreading factors.
+pub const SERVICE_PREAMBLE_SYMBOLS: u16 = 8;
+
+/// How many it expects at the two fastest, which is what end device drivers send there.
+pub const SERVICE_PREAMBLE_SYMBOLS_FAST: u16 = 12;
+
+/// How far above the noise a peak has to be for the fixed-rate receiver to take it.
+pub const SERVICE_PEAK_TO_NOISE: u8 = 52;
+
+/// How many peaks the fixed-rate receiver counts before it believes a preamble.
+pub const SERVICE_PEAK_COUNT: u8 = 7;
+
+/// How many peaks it counts on the second pass.
+pub const SERVICE_SECOND_PEAK_COUNT: u8 = 5;
 
 /// One of the receivers that takes any spreading factor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -149,6 +164,147 @@ impl Default for Listener {
     }
 }
 
+/// What a receiver is told when the packets it hears carry no header of their own.
+///
+/// A header carries the length, the coding rate, and whether a checksum follows. Without one
+/// the receiver has to be told all three up front, and it hears nothing from a sender that
+/// disagrees with any of them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Implicit {
+    /// How long every packet is.
+    pub payload_length: u8,
+    /// The coding rate, as the denominator less four, so 4/5 is 1 and 4/8 is 4.
+    pub coding_rate: u8,
+    /// Whether a checksum follows the payload.
+    pub crc: bool,
+}
+
+/// The receiver fixed to one spreading factor, which is what a network calls its service
+/// channel.
+///
+/// The eight receivers beside it take any spreading factor and share a bandwidth fixed in
+/// hardware at 125 kHz. This one takes exactly one spreading factor and a bandwidth of its
+/// own, which is what lets a network carry a faster rate on a channel of its own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Service {
+    /// How far from the carrier it listens, in hertz, which is signed.
+    pub offset_hz: i32,
+    /// Which radio it takes its samples from.
+    pub chain: Chain,
+    /// The one spreading factor it looks for.
+    pub spreading_factor: u8,
+    /// The bandwidth it runs at, in hertz. It is the only receiver that takes its own.
+    pub bandwidth_hz: u32,
+    /// What it assumes when a packet carries no header, or `None` when packets carry one.
+    pub implicit: Option<Implicit>,
+}
+
+impl Service {
+    /// A service channel on the first radio, at 125 kHz, hearing packets that carry a header.
+    ///
+    /// # Arguments
+    ///
+    /// * `offset_hz` - how far from the carrier it listens, which is signed.
+    /// * `spreading_factor` - the one spreading factor it looks for.
+    ///
+    /// # Returns
+    ///
+    /// The service channel.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_radios::sx1302::channel::Service;
+    /// use pamoja_radios::sx1302::tx::Chain;
+    ///
+    /// // The channel a European network runs at its fast rate: SF7 on 250 kHz.
+    /// let service = Service::at(300_000, 7).bandwidth(250_000);
+    /// assert_eq!(service.chain, Chain::A);
+    /// assert!(service.implicit.is_none(), "packets carry their own header");
+    /// ```
+    #[must_use]
+    pub const fn at(offset_hz: i32, spreading_factor: u8) -> Service {
+        Service {
+            offset_hz,
+            chain: Chain::A,
+            spreading_factor,
+            bandwidth_hz: MULTI_BANDWIDTH_HZ,
+            implicit: None,
+        }
+    }
+
+    /// The same channel, on the other radio.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain` - the radio it takes its samples from.
+    ///
+    /// # Returns
+    ///
+    /// The service channel.
+    #[must_use]
+    pub const fn on(mut self, chain: Chain) -> Service {
+        self.chain = chain;
+        self
+    }
+
+    /// The same channel, at a bandwidth of its own.
+    ///
+    /// # Arguments
+    ///
+    /// * `bandwidth_hz` - 125000, 250000, or 500000. Anything else leaves a plan a
+    ///   concentrator refuses rather than one it quietly narrows.
+    ///
+    /// # Returns
+    ///
+    /// The service channel.
+    #[must_use]
+    pub const fn bandwidth(mut self, bandwidth_hz: u32) -> Service {
+        self.bandwidth_hz = bandwidth_hz;
+        self
+    }
+
+    /// The same channel, hearing packets that carry no header.
+    ///
+    /// # Arguments
+    ///
+    /// * `implicit` - what every packet is, since nothing on the air will say.
+    ///
+    /// # Returns
+    ///
+    /// The service channel.
+    #[must_use]
+    pub const fn without_header(mut self, implicit: Implicit) -> Service {
+        self.implicit = Some(implicit);
+        self
+    }
+
+    /// Whether the concentrator can be set to this channel at all.
+    ///
+    /// # Returns
+    ///
+    /// Whether the spreading factor and the bandwidth are ones the chip takes, and the
+    /// offset is one the radio hears.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_radios::sx1302::channel::Service;
+    ///
+    /// assert!(Service::at(300_000, 7).bandwidth(250_000).supported());
+    /// assert!(!Service::at(300_000, 7).bandwidth(200_000).supported(), "not a bandwidth");
+    /// assert!(!Service::at(300_000, 13).supported(), "not a spreading factor");
+    /// assert!(!Service::at(900_000, 7).supported(), "past what the radio hears");
+    /// ```
+    #[must_use]
+    pub const fn supported(&self) -> bool {
+        reachable(self.offset_hz)
+            && bandwidth_value(self.bandwidth_hz).is_some()
+            && self.spreading_factor >= MIN_SPREADING_FACTOR
+            && self.spreading_factor <= MAX_SPREADING_FACTOR
+    }
+}
+
 /// What a concentrator is to listen for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Plan {
@@ -163,6 +319,8 @@ pub struct Plan {
     /// Whether the network is a public one, which decides the sync word the receivers look
     /// for. LoRaWAN networks are public; the chip powers up expecting a private one.
     pub public: bool,
+    /// The receiver fixed to one spreading factor, or `None` to leave it where reset left it.
+    pub service: Option<Service>,
 }
 
 impl Plan {
@@ -206,6 +364,7 @@ impl Plan {
             channels,
             spreading_factors: every_spreading_factor(),
             public: true,
+            service: None,
         }
     }
 
@@ -231,6 +390,34 @@ impl Plan {
     #[must_use]
     pub const fn network(mut self, public: bool) -> Plan {
         self.public = public;
+        self
+    }
+
+    /// The same plan, with the fixed-rate receiver pointed at a channel.
+    ///
+    /// That receiver is switched on whatever a plan says, so one never given a channel
+    /// listens wherever reset left it. This is what gives it somewhere to listen.
+    ///
+    /// # Arguments
+    ///
+    /// * `service` - the channel it runs on.
+    ///
+    /// # Returns
+    ///
+    /// The plan.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_radios::sx1302::channel::{Plan, Service};
+    ///
+    /// let plan = Plan::new(867_800_000, &[-300_000])
+    ///     .serving(Service::at(500_000, 7).bandwidth(250_000));
+    /// assert_eq!(plan.service.map(|service| service.spreading_factor), Some(7));
+    /// ```
+    #[must_use]
+    pub const fn serving(mut self, service: Service) -> Plan {
+        self.service = Some(service);
         self
     }
 
@@ -484,6 +671,7 @@ pub fn steps(plan: &Plan) -> impl Iterator<Item = Step> + '_ {
         .chain(correlators(plan))
         .chain(demodulators(plan))
         .chain(syncword(plan))
+        .chain(service(plan))
         .chain(enables())
 }
 
@@ -504,6 +692,13 @@ fn syncword(plan: &Plan) -> impl Iterator<Item = Step> {
     };
     let (low_first, low_second) = PRIVATE_PEAKS;
 
+    // The fixed-rate receiver follows the network, except at the two fastest spreading
+    // factors, which have no public form however public the network is.
+    let (service_first, service_second) = match plan.service {
+        Some(service) if matches!(service.spreading_factor, 5 | 6) => PRIVATE_PEAKS,
+        _ => (first, second),
+    };
+
     [
         Step::Write(register::RX_SYNC_SF5_PEAK1, low_first),
         Step::Write(register::RX_SYNC_SF5_PEAK2, low_second),
@@ -511,10 +706,48 @@ fn syncword(plan: &Plan) -> impl Iterator<Item = Step> {
         Step::Write(register::RX_SYNC_SF6_PEAK2, low_second),
         Step::Write(register::RX_SYNC_SF7_TO_SF12_PEAK1, first),
         Step::Write(register::RX_SYNC_SF7_TO_SF12_PEAK2, second),
-        Step::Write(register::SERVICE_SYNC_PEAK1, first),
-        Step::Write(register::SERVICE_SYNC_PEAK2, second),
+        Step::Write(register::SERVICE_SYNC_PEAK1, service_first),
+        Step::Write(register::SERVICE_SYNC_PEAK2, service_second),
     ]
     .into_iter()
+}
+
+/// Whether a rate is slow enough to need the low data rate optimization.
+///
+/// A symbol that lasts long enough drifts against the receiver clock before it ends, and the
+/// two ends have to agree to carry fewer bits in it. Which rates those are depends on the
+/// bandwidth as well as the spreading factor.
+///
+/// # Arguments
+///
+/// * `spreading_factor` - the spreading factor.
+/// * `bandwidth_hz` - the bandwidth, in hertz.
+///
+/// # Returns
+///
+/// Whether the optimization is on for that pair.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_radios::sx1302::channel::low_rate_optimize;
+///
+/// assert!(low_rate_optimize(11, 125_000));
+/// assert!(low_rate_optimize(12, 125_000));
+/// assert!(!low_rate_optimize(10, 125_000));
+///
+/// // The same spreading factor twice as wide halves the symbol, so it is only on at SF12.
+/// assert!(!low_rate_optimize(11, 250_000));
+/// assert!(low_rate_optimize(12, 250_000));
+/// assert!(!low_rate_optimize(12, 500_000));
+/// ```
+#[must_use]
+pub const fn low_rate_optimize(spreading_factor: u8, bandwidth_hz: u32) -> bool {
+    match bandwidth_hz {
+        125_000 => matches!(spreading_factor, 11 | 12),
+        250_000 => spreading_factor == 12,
+        _ => false,
+    }
 }
 
 /// Whether a channel offset is one the radio can actually hear.
@@ -658,6 +891,110 @@ fn demodulators(plan: &Plan) -> impl Iterator<Item = Step> + '_ {
         Step::Write(register::RX_DRIFT_INVERT_SYMBOL_TIME, 1),
         Step::Write(register::RX_DFT_PEAK_MODE, DFT_PEAK_AUTOMATIC),
     ])
+}
+
+/// Pointing the fixed-rate receiver at its channel, when a plan gives it one.
+///
+/// A plan without one writes nothing here, which leaves that receiver switched on and
+/// listening wherever reset left it.
+fn service(plan: &Plan) -> impl Iterator<Item = Step> + '_ {
+    plan.service.into_iter().flat_map(move |service| {
+        let spreading_factor = service.spreading_factor;
+        let [high, low] = offset_bytes(service.offset_hz);
+
+        // A bandwidth the chip has no encoding for is refused before a plan reaches a bus,
+        // so this only decides what a plan that never will looks like.
+        let bandwidth = bandwidth_value(service.bandwidth_hz).unwrap_or(0);
+
+        let fast = matches!(spreading_factor, 5 | 6);
+        let preamble = if fast {
+            SERVICE_PREAMBLE_SYMBOLS_FAST
+        } else {
+            SERVICE_PREAMBLE_SYMBOLS
+        }
+        .to_be_bytes();
+
+        // A slower spreading factor holds a symbol longer, so timing is corrected harder
+        // through the preamble and, at the two slowest, accumulated through the payload.
+        let preamble_gain = match spreading_factor {
+            5 | 6 => 4,
+            7..=10 => 6,
+            _ => 7,
+        };
+        let integral_gain = match (spreading_factor, service.bandwidth_hz) {
+            (5..=10, _) => 0,
+            (_, 125_000) => 1,
+            (_, 250_000) => 2,
+            (_, 500_000) => 3,
+            _ => 0,
+        };
+
+        let implicit = service.implicit.unwrap_or(Implicit {
+            payload_length: 0,
+            coding_rate: 0,
+            crc: false,
+        });
+        let (mantissa, shift) = drift(service.bandwidth_hz, plan.carrier_hz).unwrap_or((2048, 0));
+
+        [
+            Step::Write(register::SERVICE_FREQUENCY_MSB, high),
+            Step::Write(register::SERVICE_FREQUENCY_LSB, low),
+            Step::Write(
+                register::SERVICE_RADIO_SELECT,
+                u8::from(matches!(service.chain, Chain::B)),
+            ),
+            Step::Write(register::SERVICE_DETECT_PEAK_COUNT, SERVICE_PEAK_COUNT),
+            Step::Write(
+                register::SERVICE_DETECT_PEAK_COUNT2,
+                SERVICE_SECOND_PEAK_COUNT,
+            ),
+            Step::Write(register::SERVICE_DETECT_USE_GAIN_SYMBOL, 1),
+            Step::Write(register::SERVICE_FINE_SYNC, u8::from(fast)),
+            Step::Write(
+                register::SERVICE_DETECT_PEAK_TO_NOISE,
+                SERVICE_PEAK_TO_NOISE,
+            ),
+            Step::Write(register::SERVICE_DC_NOTCH_ENABLE, 0x00),
+            Step::Write(register::SERVICE_FORCE_DEFAULT_FIR, 0x01),
+            Step::Write(register::SERVICE_DAGC_GAIN_DROP_COMP, 0x01),
+            Step::Write(register::SERVICE_DAGC_TARGET_LEVEL, 0x01),
+            Step::Write(register::SERVICE_TIMING_GAIN_AUTOMATIC, 0x03),
+            Step::Write(register::SERVICE_TIMING_GAIN_PAYLOAD, 0x03),
+            Step::Write(register::SERVICE_TIMING_GAIN_PREAMBLE, preamble_gain),
+            Step::Write(register::SERVICE_TIMING_GAIN_INTEGRAL, integral_gain),
+            Step::Write(
+                register::SERVICE_IMPLICIT_HEADER,
+                u8::from(service.implicit.is_some()),
+            ),
+            Step::Write(register::SERVICE_CRC_ENABLE, u8::from(implicit.crc)),
+            Step::Write(register::SERVICE_CODING_RATE, implicit.coding_rate),
+            Step::Write(register::SERVICE_PAYLOAD_LENGTH, implicit.payload_length),
+            Step::Write(register::SERVICE_SPREADING_FACTOR, spreading_factor),
+            Step::Write(register::SERVICE_BANDWIDTH, bandwidth),
+            Step::Write(
+                register::SERVICE_PPM_OFFSET,
+                u8::from(low_rate_optimize(spreading_factor, service.bandwidth_hz)),
+            ),
+            Step::Write(register::SERVICE_PREAMBLE_MSB, preamble[0]),
+            Step::Write(register::SERVICE_PREAMBLE_LSB, preamble[1]),
+            Step::Write(
+                register::SERVICE_DRIFT_MANTISSA_MSB,
+                ((mantissa >> 8) & 0x0f) as u8,
+            ),
+            Step::Write(
+                register::SERVICE_DRIFT_MANTISSA_LSB,
+                (mantissa & 0xff) as u8,
+            ),
+            Step::Write(register::SERVICE_DRIFT_EXPONENT, shift),
+            Step::Write(register::SERVICE_DRIFT_INVERT_SYMBOL_TIME, 1),
+            Step::Write(register::SERVICE_DAGC_IN_COMP, 1),
+            Step::Write(register::SERVICE_MODEM_ENABLE, 1),
+            Step::Write(register::SERVICE_CAD_RX_TX, 1),
+            Step::Write(register::SERVICE_MODEM_START, 1),
+            Step::Write(register::SERVICE_DFT_PEAK_MODE, DFT_PEAK_AUTOMATIC),
+        ]
+        .into_iter()
+    })
 }
 
 /// Switching the receivers on, which is the last thing done.
@@ -869,5 +1206,126 @@ mod tests {
                 "SF{spreading_factor} was left untuned"
             );
         }
+    }
+
+    /// What one register was written, out of a whole plan.
+    fn written(plan: &Plan, want: register::Register) -> Option<u8> {
+        steps(plan).find_map(|Step::Write(named, value)| (named == want).then_some(value))
+    }
+
+    /// The European plan, with the fast channel a network runs beside it.
+    fn with_service() -> Plan {
+        eu868().serving(Service::at(-200_000, 7).bandwidth(250_000))
+    }
+
+    #[test]
+    fn a_service_channel_is_given_a_frequency_and_a_radio() {
+        let plan = with_service();
+        let [high, low] = offset_bytes(-200_000);
+
+        assert_eq!(written(&plan, register::SERVICE_FREQUENCY_MSB), Some(high));
+        assert_eq!(written(&plan, register::SERVICE_FREQUENCY_LSB), Some(low));
+        assert_eq!(written(&plan, register::SERVICE_RADIO_SELECT), Some(0));
+        assert_eq!(written(&plan, register::SERVICE_SPREADING_FACTOR), Some(7));
+        assert_eq!(written(&plan, register::SERVICE_BANDWIDTH), Some(5));
+        assert_eq!(written(&plan, register::SERVICE_MODEM_START), Some(1));
+
+        let other = eu868().serving(Service::at(0, 7).on(Chain::B));
+        assert_eq!(written(&other, register::SERVICE_RADIO_SELECT), Some(1));
+    }
+
+    #[test]
+    fn a_plan_without_a_service_channel_leaves_its_rate_alone() {
+        let plan = eu868();
+        assert_eq!(plan.service, None);
+        assert_eq!(written(&plan, register::SERVICE_FREQUENCY_MSB), None);
+        assert_eq!(written(&plan, register::SERVICE_SPREADING_FACTOR), None);
+        assert_eq!(written(&plan, register::SERVICE_MODEM_START), None);
+    }
+
+    #[test]
+    fn the_two_fastest_spreading_factors_stay_private_on_a_public_network() {
+        // Everything else on a public network moves its sync symbols out.
+        let fast = eu868().serving(Service::at(0, 5));
+        assert_eq!(written(&fast, register::SERVICE_SYNC_PEAK1), Some(2));
+        assert_eq!(written(&fast, register::SERVICE_SYNC_PEAK2), Some(4));
+        assert_eq!(written(&fast, register::RX_SYNC_SF7_TO_SF12_PEAK1), Some(6));
+
+        let slow = eu868().serving(Service::at(0, 7));
+        assert_eq!(written(&slow, register::SERVICE_SYNC_PEAK1), Some(6));
+        assert_eq!(written(&slow, register::SERVICE_SYNC_PEAK2), Some(8));
+
+        // A private network is private for every receiver.
+        let private = eu868().network(false).serving(Service::at(0, 7));
+        assert_eq!(written(&private, register::SERVICE_SYNC_PEAK1), Some(2));
+    }
+
+    #[test]
+    fn the_fast_spreading_factors_expect_a_longer_preamble() {
+        let fast = eu868().serving(Service::at(0, 6));
+        let usual = eu868().serving(Service::at(0, 9));
+
+        assert_eq!(written(&fast, register::SERVICE_PREAMBLE_LSB), Some(12));
+        assert_eq!(written(&usual, register::SERVICE_PREAMBLE_LSB), Some(8));
+
+        // They are also the only ones that synchronize finely.
+        assert_eq!(written(&fast, register::SERVICE_FINE_SYNC), Some(1));
+        assert_eq!(written(&usual, register::SERVICE_FINE_SYNC), Some(0));
+    }
+
+    #[test]
+    fn the_low_rate_optimization_follows_the_bandwidth_as_well_as_the_rate() {
+        let narrow = eu868().serving(Service::at(0, 11));
+        let wide = eu868().serving(Service::at(0, 11).bandwidth(250_000));
+
+        assert_eq!(written(&narrow, register::SERVICE_PPM_OFFSET), Some(1));
+        assert_eq!(
+            written(&wide, register::SERVICE_PPM_OFFSET),
+            Some(0),
+            "the same spreading factor twice as wide does not need it"
+        );
+    }
+
+    #[test]
+    fn a_packet_without_a_header_carries_what_the_header_would_have() {
+        let explicit = eu868().serving(Service::at(0, 7));
+        assert_eq!(
+            written(&explicit, register::SERVICE_IMPLICIT_HEADER),
+            Some(0)
+        );
+        assert_eq!(
+            written(&explicit, register::SERVICE_PAYLOAD_LENGTH),
+            Some(0)
+        );
+
+        let implicit = eu868().serving(Service::at(0, 7).without_header(Implicit {
+            payload_length: 23,
+            coding_rate: 1,
+            crc: true,
+        }));
+        assert_eq!(
+            written(&implicit, register::SERVICE_IMPLICIT_HEADER),
+            Some(1)
+        );
+        assert_eq!(
+            written(&implicit, register::SERVICE_PAYLOAD_LENGTH),
+            Some(23)
+        );
+        assert_eq!(written(&implicit, register::SERVICE_CODING_RATE), Some(1));
+        assert_eq!(written(&implicit, register::SERVICE_CRC_ENABLE), Some(1));
+    }
+
+    #[test]
+    fn a_rate_the_receiver_cannot_run_is_refused_rather_than_narrowed() {
+        assert!(Service::at(0, 7).supported());
+        assert!(Service::at(0, 12).bandwidth(500_000).supported());
+
+        assert!(!Service::at(0, 4).supported(), "below the slowest");
+        assert!(!Service::at(0, 13).supported(), "past the fastest");
+        assert!(
+            !Service::at(0, 7).bandwidth(62_500).supported(),
+            "not a width"
+        );
+        assert!(!Service::at(MAX_OFFSET_HZ + 1, 7).supported(), "not heard");
     }
 }
