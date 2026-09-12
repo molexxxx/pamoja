@@ -19,6 +19,7 @@ use embedded_hal::spi::{Operation, SpiDevice};
 use super::channel;
 use super::chip::{self, Model};
 use super::firmware::{self, LoadError, Mcu};
+use super::mcu;
 use super::register::{self, Register};
 use super::spi as frame;
 use super::sx1250;
@@ -35,6 +36,15 @@ pub const RADIO_RESET_HOLD_US: u32 = 500_000;
 
 /// How long a front end is given to come out of reset, in microseconds.
 pub const RADIO_RESET_SETTLE_US: u32 = 10_000;
+
+/// How long to wait between asking a microcontroller what it is doing, in microseconds.
+pub const MCU_POLL_US: u32 = 1_000;
+
+/// How many times to ask before giving up on it.
+///
+/// The reference waits forever. A gateway that hangs on a board which never came up is worse
+/// than one that says so, which is why this ends.
+pub const MCU_ATTEMPTS: u32 = 1_000;
 
 /// How long an SX1250 is given to finish calibrating itself, in microseconds.
 pub const RADIO_CALIBRATE_US: u32 = 10_000;
@@ -78,6 +88,20 @@ pub enum ConcentratorError<E> {
         /// The carrier asked for, in hertz.
         hertz: u32,
     },
+    /// A microcontroller never reached the state it was waited for.
+    Stalled {
+        /// The state it was waited for.
+        wanted: u8,
+        /// The state it was last reporting.
+        reading: u8,
+    },
+    /// A microcontroller is running firmware this crate does not drive.
+    WrongFirmware {
+        /// The version expected.
+        wanted: u8,
+        /// The version it reported.
+        running: u8,
+    },
 }
 
 impl<E: core::fmt::Debug> core::fmt::Display for ConcentratorError<E> {
@@ -108,6 +132,14 @@ impl<E: core::fmt::Debug> core::fmt::Display for ConcentratorError<E> {
             ConcentratorError::UnsupportedBand { hertz } => write!(
                 f,
                 "{hertz} Hz is outside every band a front end calibrates over"
+            ),
+            ConcentratorError::Stalled { wanted, reading } => write!(
+                f,
+                "a microcontroller stopped at {reading} rather than reaching {wanted}"
+            ),
+            ConcentratorError::WrongFirmware { wanted, running } => write!(
+                f,
+                "a microcontroller is running firmware {running} rather than {wanted}"
             ),
         }
     }
@@ -599,6 +631,186 @@ where
         Ok(())
     }
 
+    /// Takes the concentrator clock from the front end on a chain.
+    ///
+    /// Until this runs the chip is clocked by the bus, which is enough to answer registers
+    /// and nothing else. The front end it takes the clock from has to be in receive, which
+    /// is where [`setup_front_end`](Self::setup_front_end) leaves it.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain` - the chain whose front end carries the clock.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once the chip is running on the radio clock.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn select_clock(&mut self, chain: Chain) -> Result<(), ConcentratorError<SPI::Error>> {
+        let (a, b) = match chain {
+            Chain::A => (1, 0),
+            Chain::B => (0, 1),
+        };
+        self.write_register(register::CLOCK_RADIO_A_SELECT, a)?;
+        self.write_register(register::CLOCK_RADIO_B_SELECT, b)?;
+        self.write_register(register::CLOCK_DIVIDER_ENABLE, 1)?;
+        self.write_register(register::COMMON_CLK32_RIF_CTRL, 1)
+    }
+
+    /// Hands the front ends back to the gain control.
+    ///
+    /// The host drives them while they are being reset and tuned. From here on the gain
+    /// control owns them, which is what lets it move gains while packets are arriving.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once the host has let go.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn release_front_ends(&mut self) -> Result<(), ConcentratorError<SPI::Error>> {
+        self.write_register(register::COMMON_HOST_RADIO_CTRL, 0)
+    }
+
+    /// Configures the gain control microcontroller and lets it run.
+    ///
+    /// Loading its firmware is only half of bringing it up: it comes out of reset waiting to
+    /// be told what gains to use, one group of settings at a time, and a concentrator whose
+    /// gain control was never configured hears very little.
+    /// [`start_gain_control`](super::mcu::start_gain_control) holds that exchange and this
+    /// walks it against the mailboxes.
+    ///
+    /// # Arguments
+    ///
+    /// * `front_end` - which front end the board carries, which decides the gains and the
+    ///   firmware version expected.
+    /// * `listen_before_talk` - whether the SX1261 beside the concentrator checks a channel
+    ///   before the gateway talks on it.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once the microcontroller has taken every group and been told there is no
+    /// more to come.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::WrongFirmware`] if it is running an image this crate does
+    /// not drive, [`ConcentratorError::Stalled`] if it stops acknowledging, and
+    /// [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn start_gain_control(
+        &mut self,
+        front_end: FrontEnd,
+        listen_before_talk: bool,
+    ) -> Result<(), ConcentratorError<SPI::Error>> {
+        for step in mcu::start_gain_control(front_end, listen_before_talk) {
+            self.take(step, register::AGC_MCU_STATUS, true)?;
+        }
+        Ok(())
+    }
+
+    /// Configures the arbiter microcontroller and lets it run.
+    ///
+    /// The arbiter shares the receivers between the channels. It comes up halted and stays
+    /// halted until it is told to resume.
+    ///
+    /// # Arguments
+    ///
+    /// * `dual_demodulation` - which spreading factors are demodulated twice over, one bit
+    ///   each counting from SF5. Demodulating twice buys a finer timestamp and costs
+    ///   capacity, so a gateway that does not need one passes zero.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once the arbiter reports it is running again.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::WrongFirmware`] if it is running an image this crate does
+    /// not drive, [`ConcentratorError::Stalled`] if it never resumes, and
+    /// [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn start_arbiter(
+        &mut self,
+        dual_demodulation: u8,
+    ) -> Result<(), ConcentratorError<SPI::Error>> {
+        for step in mcu::start_arbiter(dual_demodulation) {
+            self.take(step, register::ARB_MCU_STATUS, false)?;
+        }
+        Ok(())
+    }
+
+    /// Walks one step of a microcontroller exchange.
+    ///
+    /// The gain control answers through mailboxes and the arbiter through its own registers,
+    /// which is the only difference between the two exchanges.
+    fn take(
+        &mut self,
+        step: mcu::Step,
+        status: Register,
+        mailboxes: bool,
+    ) -> Result<(), ConcentratorError<SPI::Error>> {
+        match step {
+            mcu::Step::Await(wanted) => self.settle(status, wanted),
+            mcu::Step::Version(wanted) => {
+                let running = if mailboxes {
+                    self.read_register(register::agc_mailbox_read(0))?
+                } else {
+                    self.read_register(register::arbiter_status(0))?
+                };
+                if running == wanted {
+                    Ok(())
+                } else {
+                    Err(ConcentratorError::WrongFirmware { wanted, running })
+                }
+            }
+            mcu::Step::Write(index, value) => {
+                let held = if mailboxes {
+                    register::agc_mailbox_write(index)
+                } else {
+                    register::arbiter_config(index)
+                };
+                self.write_register(held, value)
+            }
+            // Only the gain control announces a group and is read back; the arbiter takes
+            // its settings directly and reports through its own registers.
+            mcu::Step::Notify(code) => self.write_register(register::agc_mailbox_write(3), code),
+            mcu::Step::Verify(mailbox, wanted) => {
+                let read = self.read_register(register::agc_mailbox_read(mailbox))?;
+                if read == wanted {
+                    Ok(())
+                } else {
+                    Err(ConcentratorError::Stalled {
+                        wanted,
+                        reading: read,
+                    })
+                }
+            }
+        }
+    }
+
+    /// Waits for a microcontroller to reach a state, and gives up rather than hanging.
+    ///
+    /// The reference spins here with no way out. A board that is unpowered, half loaded or
+    /// wired to the wrong device would stop a gateway dead, so this bounds the wait and
+    /// reports the state it was stuck on.
+    fn settle(
+        &mut self,
+        status: Register,
+        wanted: u8,
+    ) -> Result<(), ConcentratorError<SPI::Error>> {
+        let mut reading = 0;
+        for _ in 0..MCU_ATTEMPTS {
+            reading = self.read_register(status)?;
+            if reading == wanted {
+                return Ok(());
+            }
+            self.delay.delay_us(MCU_POLL_US);
+        }
+        Err(ConcentratorError::Stalled { wanted, reading })
+    }
+
     /// Sends a command to the front end on a chain.
     ///
     /// A front end answers on the same bus as the concentrator, with the first byte of the
@@ -928,6 +1140,82 @@ mod tests {
             SpiStep::write(sx1250::header(chain, opcode).to_vec()),
             SpiStep::read(reply),
         ]
+    }
+
+    #[test]
+    fn the_clock_moves_to_the_radio_before_anything_is_configured() {
+        // Three bits share the byte at the clock block, so each is read before it is
+        // written, and the last write moves the internal clock over to the radio.
+        let mut chip = driven(vec![
+            reads(0x57c0, 0),
+            writes(0x57c0, 0b0000_0001),
+            reads(0x57c0, 0b0000_0001),
+            writes(0x57c0, 0b0000_0001),
+            reads(0x57c0, 0b0000_0001),
+            writes(0x57c0, 0b0000_0101),
+            reads(0x5601, 0),
+            writes(0x5601, 0b0001_0000),
+        ]);
+
+        chip.select_clock(Chain::A).expect("the bus answers");
+    }
+
+    #[test]
+    fn the_second_radio_carries_the_clock_when_it_is_asked_to() {
+        let mut chip = driven(vec![
+            reads(0x57c0, 0b0000_0001),
+            writes(0x57c0, 0b0000_0000),
+            reads(0x57c0, 0),
+            writes(0x57c0, 0b0000_0010),
+            reads(0x57c0, 0b0000_0010),
+            writes(0x57c0, 0b0000_0110),
+            reads(0x5601, 0),
+            writes(0x5601, 0b0001_0000),
+        ]);
+
+        chip.select_clock(Chain::B).expect("the bus answers");
+    }
+
+    #[test]
+    fn a_microcontroller_that_never_answers_is_given_up_on() {
+        // The reference waits here forever. A board that is unpowered or half loaded would
+        // stop a gateway dead, so this ends and says what it was stuck on.
+        let steps = vec![reads(0x5781, 0x00); MCU_ATTEMPTS as usize];
+        let mut chip = driven(steps);
+
+        match chip.start_gain_control(FrontEnd::Sx1250, false) {
+            Err(ConcentratorError::Stalled { wanted, reading }) => {
+                assert_eq!((wanted, reading), (mcu::STATUS_RUNNING, 0x00));
+            }
+            other => panic!("a silent microcontroller is reported: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn firmware_the_crate_does_not_drive_is_named() {
+        // It came up and answered, but it is not the image this crate knows how to talk to.
+        let mut chip = driven(vec![reads(0x5781, mcu::STATUS_RUNNING), reads(0x5790, 3)]);
+
+        match chip.start_gain_control(FrontEnd::Sx1250, false) {
+            Err(ConcentratorError::WrongFirmware { wanted, running }) => {
+                assert_eq!((wanted, running), (mcu::AGC_VERSION_SX1250, 3));
+            }
+            other => panic!("the version it is running is reported: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_arbiter_reads_its_version_from_its_own_register() {
+        // The arbiter answers through debug registers rather than mailboxes, which is the
+        // only difference between the two exchanges.
+        let mut chip = driven(vec![reads(0x6081, mcu::STATUS_RUNNING), reads(0x608d, 1)]);
+
+        match chip.start_arbiter(0x00) {
+            Err(ConcentratorError::WrongFirmware { wanted, running }) => {
+                assert_eq!((wanted, running), (mcu::ARB_VERSION, 1));
+            }
+            other => panic!("the arbiter version is read from 0x608d: {other:?}"),
+        }
     }
 
     #[test]

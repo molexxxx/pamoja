@@ -605,6 +605,130 @@ pub const fn channel_sync_offset(channel: u8) -> Register {
     Register::new(address, offset, 4, false)
 }
 
+/// What the gain control microcontroller is doing.
+///
+/// It counts up as the microcontroller takes each group of settings, which is how a host
+/// knows a group was received rather than merely sent.
+pub const AGC_MCU_STATUS: Register = Register::new(AGC_MCU_BASE + 1, 0, 8, true);
+
+/// What the arbiter microcontroller is doing.
+pub const ARB_MCU_STATUS: Register = Register::new(ARB_MCU_BASE + 1, 0, 8, true);
+
+/// Whether the concentrator takes its clock from the front end on the first chain.
+pub const CLOCK_RADIO_A_SELECT: Register = Register::new(CLK_CTRL_BASE, 0, 1, false);
+
+/// Whether it takes it from the second.
+pub const CLOCK_RADIO_B_SELECT: Register = Register::new(CLK_CTRL_BASE, 1, 1, false);
+
+/// Whether the dividers that make the other clocks from it are running.
+pub const CLOCK_DIVIDER_ENABLE: Register = Register::new(CLK_CTRL_BASE, 2, 1, false);
+
+/// One of the four mailboxes the host writes settings into.
+///
+/// The four count downward: mailbox zero sits at the highest address and mailbox three, the
+/// one that says which group was just written, at the lowest. Reading them in address order
+/// would number them backward.
+///
+/// # Arguments
+///
+/// * `mailbox` - which of the four, from zero. Higher is clamped to three.
+///
+/// # Returns
+///
+/// The register.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_radios::sx1302::register::agc_mailbox_write;
+///
+/// // Mailbox three is the one the host announces a group with, and it is the lowest.
+/// assert!(agc_mailbox_write(3).address < agc_mailbox_write(0).address);
+/// assert_eq!(agc_mailbox_write(0).address - agc_mailbox_write(3).address, 3);
+/// ```
+#[must_use]
+pub const fn agc_mailbox_write(mailbox: u8) -> Register {
+    let mailbox = if mailbox > 3 { 3 } else { mailbox } as u16;
+    Register::new(AGC_MCU_BASE + 12 - mailbox, 0, 8, false)
+}
+
+/// One of the four mailboxes the microcontroller answers through.
+///
+/// These count downward as well, and sit above the ones the host writes.
+///
+/// # Arguments
+///
+/// * `mailbox` - which of the four, from zero. Higher is clamped to three.
+///
+/// # Returns
+///
+/// The register.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_radios::sx1302::register::{agc_mailbox_read, agc_mailbox_write};
+///
+/// // A setting is written to one mailbox and read back from another.
+/// assert!(agc_mailbox_read(0).address > agc_mailbox_write(0).address);
+/// assert!(agc_mailbox_read(0).read_only);
+/// ```
+#[must_use]
+pub const fn agc_mailbox_read(mailbox: u8) -> Register {
+    let mailbox = if mailbox > 3 { 3 } else { mailbox } as u16;
+    Register::new(AGC_MCU_BASE + 16 - mailbox, 0, 8, true)
+}
+
+/// One of the four registers the arbiter is configured through.
+///
+/// Unlike the mailboxes, these count upward.
+///
+/// # Arguments
+///
+/// * `register` - which of the four, from zero. Higher is clamped to three.
+///
+/// # Returns
+///
+/// The register.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_radios::sx1302::register::arbiter_config;
+///
+/// assert_eq!(arbiter_config(1).address - arbiter_config(0).address, 1);
+/// ```
+#[must_use]
+pub const fn arbiter_config(register: u8) -> Register {
+    let register = if register > 3 { 3 } else { register } as u16;
+    Register::new(ARB_MCU_BASE + 9 + register, 0, 8, false)
+}
+
+/// One of the sixteen registers the arbiter reports through.
+///
+/// # Arguments
+///
+/// * `register` - which of the sixteen, from zero. Higher is clamped to fifteen.
+///
+/// # Returns
+///
+/// The register.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_radios::sx1302::register::arbiter_status;
+///
+/// // The first carries the firmware version the arbiter is running.
+/// assert!(arbiter_status(0).read_only);
+/// assert_eq!(arbiter_status(15).address - arbiter_status(0).address, 15);
+/// ```
+#[must_use]
+pub const fn arbiter_status(register: u8) -> Register {
+    let register = if register > 15 { 15 } else { register } as u16;
+    Register::new(ARB_MCU_BASE + 13 + register, 0, 8, true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
