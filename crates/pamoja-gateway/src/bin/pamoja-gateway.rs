@@ -14,7 +14,7 @@ use std::path::Path;
 use std::process::ExitCode;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use pamoja_gateway::daemon::{bring_up, forward, Bring, Config, Upstream};
+use pamoja_gateway::daemon::{forward, image, walk, Config, Upstream};
 use pamoja_gateway::udp::{CrcStatus, Packet as Datagram, Stat, TxStatus, Uplink};
 use pamoja_radios::linux::{self, LinuxConcentrator, Wiring};
 use pamoja_radios::sx1302::channel::Plan;
@@ -58,8 +58,10 @@ async fn run(path: &Path) -> Result<(), String> {
         std::fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
     let config = Config::parse(&text).map_err(|error| error.to_string())?;
 
-    let gain_control = read_image(&config.concentrator.gain_control_firmware)?;
-    let arbiter = read_image(&config.concentrator.arbiter_firmware)?;
+    let gain_control = image(Path::new(&config.concentrator.gain_control_firmware))
+        .map_err(|error| error.to_string())?;
+    let arbiter = image(Path::new(&config.concentrator.arbiter_firmware))
+        .map_err(|error| error.to_string())?;
 
     let wiring = Wiring::new(
         &config.concentrator.spi,
@@ -71,7 +73,11 @@ async fn run(path: &Path) -> Result<(), String> {
     let plan = Plan::new(config.radio.carrier_hz, &config.radio.channels)
         .looking_for(&config.radio.spreading_factors);
 
-    walk(&mut chip, &config, &plan, &gain_control, &arbiter)?;
+    if let Some(model) =
+        walk(&mut chip, &config, &plan, &gain_control, &arbiter).map_err(|why| why.to_string())?
+    {
+        println!("pamoja-gateway: {model:?} answering");
+    }
     println!(
         "pamoja-gateway: concentrator is listening on {} channels",
         config.radio.channels.len()
@@ -85,50 +91,6 @@ async fn run(path: &Path) -> Result<(), String> {
             "{endpoint}: the Basics Station uplink is not driven by this program yet; name a forwarder instead"
         )),
     }
-}
-
-/// Reads one microcontroller image.
-fn read_image(path: &str) -> Result<Vec<u8>, String> {
-    std::fs::read(path).map_err(|error| format!("{path}: {error}"))
-}
-
-/// Walks the bring-up against the concentrator.
-fn walk(
-    chip: &mut LinuxConcentrator,
-    config: &Config,
-    plan: &Plan,
-    gain_control: &[u8],
-    arbiter: &[u8],
-) -> Result<(), String> {
-    for step in bring_up(config) {
-        let outcome = match step {
-            Bring::Reset => chip.reset(),
-            Bring::Check => chip.check(),
-            Bring::Identify => chip.identify().map(|model| {
-                println!("pamoja-gateway: {model:?} answering");
-            }),
-            Bring::ResetFrontEnd(chain, front_end) => chip.reset_front_end(chain, front_end),
-            Bring::Calibrate(chain, hertz) => chip.calibrate_front_end(chain, hertz),
-            Bring::Tune(chain, hertz, single) => chip.setup_front_end(chain, hertz, single),
-            Bring::Clock(chain) => chip.select_clock(chain),
-            Bring::Release => chip.release_front_ends(),
-            Bring::Channels => chip.configure_channels(plan),
-            Bring::Load(mcu) => {
-                let image = match mcu {
-                    pamoja_radios::sx1302::firmware::Mcu::Agc => gain_control,
-                    pamoja_radios::sx1302::firmware::Mcu::Arb => arbiter,
-                };
-                chip.load_firmware(mcu, image)
-            }
-            Bring::GainControl(front_end, listening) => {
-                chip.start_gain_control(front_end, listening)
-            }
-            Bring::Arbiter(mask) => chip.start_arbiter(mask),
-        };
-
-        outcome.map_err(|error| format!("{step:?}: {error}"))?;
-    }
-    Ok(())
 }
 
 /// Forwards uplinks to a packet forwarder, and transmits what it sends back.

@@ -26,6 +26,7 @@ bridge = ["dep:pamoja-core", "dep:tokio", "pamoja-core/std"]
 daemon = [
     "dep:pamoja-radios",
     "pamoja-radios/linux",
+    "dep:embedded-hal",
     "dep:tokio",
     "tokio/rt-multi-thread",
     "tokio/macros",
@@ -60,6 +61,9 @@ pamoja-lorawan = { path = "../pamoja-lorawan", version = "0.1.18", optional = tr
 # The concentrator the daemon drives. A gateway is the only thing here that touches a
 # radio, so this stays optional and takes the publish order with it.
 pamoja-radios = { path = "../pamoja-radios", version = "0.1.18", optional = true }
+# The bus traits the bring-up is written against, so it drives a concentrator on a scripted
+# bus in a test and on a real one in the daemon without knowing which it has.
+embedded-hal = { version = "1.0", optional = true }
 # A bridge moves topics between two pamoja transports, so it speaks the core traits.
 pamoja-core = { path = "../pamoja-core", version = "0.1.18", default-features = false, optional = true }
 # The timer a bridge polls its radio on, and the runtime the station client connects with.
@@ -86,6 +90,9 @@ required-features = ["daemon"]
 # The tests and the guide examples need a published band to answer in, while the crate
 # itself stays region-free: a network is built on whatever plan the caller holds.
 pamoja-lora = { path = "../pamoja-lora", features = ["eu868"] }
+# The scripted bus the bring-up is walked against, so the order a concentrator is started
+# in is checked with no board present.
+pamoja-hal = { path = "../pamoja-hal", features = ["alloc"] }
 # Both sides of a bridge in a test are the in-process broker, so a pass can be driven and
 # read without a radio, a socket, or a clock.
 pamoja-loopback = { path = "../pamoja-loopback", version = "0.1.18" }

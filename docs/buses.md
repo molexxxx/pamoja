@@ -7,8 +7,8 @@ plain terms the guides use, for every bus and link pamoja speaks. Each section
 says what the bus is for, what to get right, and which crate carries the logic,
 and links the document the figures come from. The [Hardware](hardware.md) page
 holds the same documents as cards, and the board pages show the wiring on a
-[Raspberry Pi](boards/raspberry-pi.md), an [ESP32](boards/esp32.md), and an
-[RP2040](boards/rp2040.md).
+[Raspberry Pi](boards/raspberry-pi.md), an [ESP32](boards/esp32.md), an
+[RP2040](boards/rp2040.md), and a [gateway](boards/gateway.md).
 
 One idea runs through all of them. pamoja carries the part of each bus that is
 exact and easy to get wrong, the address byte, the clock mode, the checksum, the

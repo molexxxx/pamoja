@@ -12,7 +12,9 @@
 //!
 //! The firmware images themselves are not in this crate. They belong to Semtech and are
 //! carried by the caller, so a [`Load`] says what to do with the bytes rather than holding
-//! them.
+//! them. The reference implementation distributes them as C source rather than as files of
+//! bytes, so [`read_source`] reads that form directly and a gateway points at the file it
+//! already has.
 
 use super::register::{self, Register};
 
@@ -217,6 +219,91 @@ pub const fn check_size(firmware: &[u8]) -> Result<(), LoadError> {
     }
 }
 
+/// Reads an image out of the C source the reference implementation carries it in.
+///
+/// Semtech distributes each image as an array of byte literals rather than as a file of
+/// bytes, so converting it by hand is the first thing that stands between a new board and a
+/// running gateway. This reads the literals in the order they are written, which turns that
+/// step into naming the file.
+///
+/// Anything that is not a byte literal is skipped, so the declaration around the array, the
+/// commas, and the closing brace need no stripping.
+///
+/// # Arguments
+///
+/// * `text` - the file, as text.
+/// * `into` - where the bytes go, which is exactly what a microcontroller holds.
+///
+/// # Returns
+///
+/// `Ok(())` once every byte is in place.
+///
+/// # Errors
+///
+/// Returns [`LoadError::WrongSize`] carrying how many literals the text holds when that is
+/// not [`FIRMWARE_LEN`], rather than loading a partial image. A count below it means the file
+/// is truncated, and one above means it carries more than the single array.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_radios::sx1302::firmware::{read_source, FIRMWARE_LEN};
+///
+/// // The shape Semtech ships, shortened here to what fits on the page.
+/// let mut source = String::from("static uint8_t arb_firmware[8192] = {\n");
+/// for at in 0..FIRMWARE_LEN {
+///     source.push_str(&format!("0x{:02X}, ", at % 256));
+/// }
+/// source.push_str("\n};\n");
+///
+/// let mut image = [0u8; FIRMWARE_LEN];
+/// read_source(&source, &mut image).expect("the array holds a whole image");
+/// assert_eq!(image[0], 0x00);
+/// assert_eq!(image[255], 0xFF);
+/// ```
+pub fn read_source(text: &str, into: &mut [u8; FIRMWARE_LEN]) -> Result<(), LoadError> {
+    let raw = text.as_bytes();
+    let mut found = 0usize;
+    let mut at = 0usize;
+
+    while at + 2 < raw.len() {
+        let prefixed = raw[at] == b'0' && (raw[at + 1] | 0x20) == b'x';
+        let Some(high) = hex_digit(raw[at + 2]).filter(|_| prefixed) else {
+            at += 1;
+            continue;
+        };
+
+        // A literal is written with two digits throughout the reference files, but one is
+        // still a byte, so a single digit is read rather than silently dropped.
+        let (value, width) = match raw.get(at + 3).copied().and_then(hex_digit) {
+            Some(low) => (high * 16 + low, 4),
+            None => (high, 3),
+        };
+
+        if let Some(slot) = into.get_mut(found) {
+            *slot = value;
+        }
+        found += 1;
+        at += width;
+    }
+
+    if found == FIRMWARE_LEN {
+        Ok(())
+    } else {
+        Err(LoadError::WrongSize { offered: found })
+    }
+}
+
+/// Reads one hexadecimal digit.
+const fn hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
 /// Compares what was read back with what was written.
 ///
 /// # Arguments
@@ -250,6 +337,69 @@ pub fn compare(written: &[u8], read_back: &[u8]) -> Result<(), LoadError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_image_is_read_out_of_the_source_it_is_distributed_as() {
+        let mut source = String::from("static uint8_t agc_firmware_sx1250[8192] = { \n");
+        for at in 0..FIRMWARE_LEN {
+            source.push_str(&format!("0x{:02X}, ", at % 251));
+            if at % 16 == 15 {
+                source.push('\n');
+            }
+        }
+        source.push_str("};\n");
+
+        let mut image = [0u8; FIRMWARE_LEN];
+        read_source(&source, &mut image).expect("the array holds a whole image");
+
+        // The declaration, the commas and the closing brace carry no literals, so none of
+        // them shift the bytes.
+        for (at, byte) in image.iter().enumerate() {
+            assert_eq!(*byte, (at % 251) as u8, "byte {at}");
+        }
+    }
+
+    #[test]
+    fn a_truncated_file_is_refused_with_what_it_held() {
+        let source = "static uint8_t arb_firmware[8192] = { 0x01, 0x02, 0x03 };";
+
+        let mut image = [0u8; FIRMWARE_LEN];
+        assert_eq!(
+            read_source(source, &mut image),
+            Err(LoadError::WrongSize { offered: 3 })
+        );
+    }
+
+    #[test]
+    fn a_file_carrying_more_than_one_array_is_refused() {
+        let mut source = String::new();
+        for _ in 0..=FIRMWARE_LEN {
+            source.push_str("0x00, ");
+        }
+
+        // Counting past the end rather than stopping at it is what lets the error say how
+        // much the file actually holds.
+        let mut image = [0u8; FIRMWARE_LEN];
+        assert_eq!(
+            read_source(&source, &mut image),
+            Err(LoadError::WrongSize {
+                offered: FIRMWARE_LEN + 1
+            })
+        );
+    }
+
+    #[test]
+    fn the_case_of_a_literal_does_not_matter() {
+        let mut source = String::new();
+        for at in 0..FIRMWARE_LEN {
+            source.push_str(if at % 2 == 0 { "0xab, " } else { "0XCD, " });
+        }
+
+        let mut image = [0u8; FIRMWARE_LEN];
+        read_source(&source, &mut image).expect("both cases are literals");
+        assert_eq!(image[0], 0xAB);
+        assert_eq!(image[1], 0xCD);
+    }
 
     #[test]
     fn each_microcontroller_has_its_own_memory_and_controls() {

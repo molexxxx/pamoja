@@ -15,8 +15,17 @@ pub mod forward;
 
 pub use config::{Config, ConfigError, Upstream};
 
-use pamoja_radios::sx1302::firmware::Mcu;
+use std::path::Path;
+
+use embedded_hal::delay::DelayNs;
+use embedded_hal::digital::OutputPin;
+use embedded_hal::spi::SpiDevice;
+
+use pamoja_radios::sx1302::channel::Plan;
+use pamoja_radios::sx1302::chip::Model;
+use pamoja_radios::sx1302::firmware::{self, LoadError, Mcu, FIRMWARE_LEN};
 use pamoja_radios::sx1302::tx::{Chain, FrontEnd};
+use pamoja_radios::sx1302::{ConcentratorError, Sx1302};
 
 /// A step in bringing a concentrator up.
 ///
@@ -126,9 +135,211 @@ pub fn bring_up(config: &Config) -> impl Iterator<Item = Bring> + '_ {
         ])
 }
 
+impl core::fmt::Display for Bring {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Bring::Reset => f.write_str("pulsing the reset line"),
+            Bring::Check => f.write_str("reading the version register"),
+            Bring::Identify => f.write_str("reading the part number"),
+            Bring::ResetFrontEnd(chain, front_end) => {
+                write!(
+                    f,
+                    "resetting the {front_end:?} front end on chain {chain:?}"
+                )
+            }
+            Bring::Calibrate(chain, hertz) => {
+                write!(f, "calibrating chain {chain:?} over {hertz} Hz")
+            }
+            Bring::Tune(chain, hertz, _) => write!(f, "tuning chain {chain:?} to {hertz} Hz"),
+            Bring::Clock(chain) => write!(f, "taking the clock from chain {chain:?}"),
+            Bring::Release => f.write_str("handing the front ends to the gain control"),
+            Bring::Channels => f.write_str("giving the receivers their channels"),
+            Bring::Load(mcu) => write!(f, "loading the {} firmware", mcu.name()),
+            Bring::GainControl(_, _) => f.write_str("starting the gain control"),
+            Bring::Arbiter(_) => f.write_str("starting the arbiter"),
+        }
+    }
+}
+
+/// A bring-up that stopped, and what it was doing.
+///
+/// A concentrator that fails halfway is not a concentrator that failed: it is one that got
+/// as far as a particular step. Carrying the step means an operator is told what was being
+/// asked of the board, rather than only what the bus answered.
+#[derive(Debug)]
+pub struct BringError<E> {
+    /// What was being done.
+    pub step: Bring,
+    /// What the concentrator answered.
+    pub error: ConcentratorError<E>,
+}
+
+impl<E: core::fmt::Debug> core::fmt::Display for BringError<E> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}: {}", self.step, self.error)
+    }
+}
+
+impl<E: core::fmt::Debug> std::error::Error for BringError<E> {}
+
+/// Brings a concentrator up, in the order [`bring_up`] gives.
+///
+/// Every caller that drives a real board walks the same steps, so the order lives here rather
+/// than in each program. A step that fails stops the walk, because each one rests on the ones
+/// before it: tuning a front end that never came out of reset writes to nothing, and starting
+/// the gain control over receivers with no channels leaves a board that hears silence and
+/// reports no fault.
+///
+/// # Arguments
+///
+/// * `chip` - the concentrator, already open on its bus.
+/// * `config` - what the gateway was told.
+/// * `plan` - the channels the receivers are given.
+/// * `gain_control` - the gain control firmware, which [`image`] reads from a file.
+/// * `arbiter` - the arbiter firmware.
+///
+/// # Returns
+///
+/// The part number the chip reported on the way through, so a caller can say what answered
+/// without asking the bus again.
+///
+/// # Errors
+///
+/// Returns [`BringError`] naming the step that stopped and what the concentrator answered.
+pub fn walk<SPI, RESET, D>(
+    chip: &mut Sx1302<SPI, RESET, D>,
+    config: &Config,
+    plan: &Plan,
+    gain_control: &[u8],
+    arbiter: &[u8],
+) -> Result<Option<Model>, BringError<SPI::Error>>
+where
+    SPI: SpiDevice,
+    RESET: OutputPin,
+    D: DelayNs,
+{
+    let mut model = None;
+
+    for step in bring_up(config) {
+        let outcome = match step {
+            Bring::Reset => chip.reset(),
+            Bring::Check => chip.check(),
+            Bring::Identify => chip.identify().map(|found| model = Some(found)),
+            Bring::ResetFrontEnd(chain, front_end) => chip.reset_front_end(chain, front_end),
+            Bring::Calibrate(chain, hertz) => chip.calibrate_front_end(chain, hertz),
+            Bring::Tune(chain, hertz, single) => chip.setup_front_end(chain, hertz, single),
+            Bring::Clock(chain) => chip.select_clock(chain),
+            Bring::Release => chip.release_front_ends(),
+            Bring::Channels => chip.configure_channels(plan),
+            Bring::Load(Mcu::Agc) => chip.load_firmware(Mcu::Agc, gain_control),
+            Bring::Load(Mcu::Arb) => chip.load_firmware(Mcu::Arb, arbiter),
+            Bring::GainControl(front_end, listening) => {
+                chip.start_gain_control(front_end, listening)
+            }
+            Bring::Arbiter(mask) => chip.start_arbiter(mask),
+        };
+
+        outcome.map_err(|error| BringError { step, error })?;
+    }
+
+    Ok(model)
+}
+
+/// Why a firmware image could not be taken from a file.
+#[derive(Debug)]
+pub enum ImageError {
+    /// The file could not be read at all.
+    Unreadable {
+        /// The file named.
+        path: String,
+        /// What the operating system said.
+        why: String,
+    },
+    /// The file holds neither an image nor the source of one.
+    Unusable {
+        /// The file named.
+        path: String,
+        /// What is wrong with what it holds.
+        why: LoadError,
+    },
+}
+
+impl core::fmt::Display for ImageError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ImageError::Unreadable { path, why } => write!(f, "{path}: {why}"),
+            ImageError::Unusable { path, why } => write!(f, "{path}: {why}"),
+        }
+    }
+}
+
+impl std::error::Error for ImageError {}
+
+/// Reads one microcontroller image, in either form it is distributed in.
+///
+/// Semtech ships these images as C source rather than as files of bytes, and a gateway
+/// usually has whichever form it downloaded. This takes both: a file that is exactly
+/// [`FIRMWARE_LEN`] bytes is the image itself, and anything else is read as the source it is
+/// written in. Nothing has to be converted before a gateway runs.
+///
+/// # Arguments
+///
+/// * `path` - the file to read.
+///
+/// # Returns
+///
+/// The image, ready for [`walk`].
+///
+/// # Errors
+///
+/// Returns [`ImageError::Unreadable`] if the file cannot be read, and
+/// [`ImageError::Unusable`] if what it holds is neither an image nor an array of one.
+pub fn image(path: &Path) -> Result<Vec<u8>, ImageError> {
+    let named = || path.display().to_string();
+    let raw = std::fs::read(path).map_err(|error| ImageError::Unreadable {
+        path: named(),
+        why: error.to_string(),
+    })?;
+
+    if raw.len() == FIRMWARE_LEN {
+        return Ok(raw);
+    }
+
+    // Anything else is source, which is text. A file of the wrong length that is not text
+    // is neither, and is reported by its length rather than by where its bytes stop parsing.
+    let text = core::str::from_utf8(&raw).map_err(|_| ImageError::Unusable {
+        path: named(),
+        why: LoadError::WrongSize { offered: raw.len() },
+    })?;
+
+    let mut held = [0u8; FIRMWARE_LEN];
+    firmware::read_source(text, &mut held)
+        .map_err(|why| ImageError::Unusable { path: named(), why })?;
+
+    Ok(held.to_vec())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_walk_that_stops_names_the_step_it_stopped_on() {
+        use pamoja_hal::script::{DelayLog, PinScript, SpiScript};
+
+        let config = configured();
+        let plan = Plan::new(config.radio.carrier_hz, &config.radio.channels);
+        let mut chip = Sx1302::new(SpiScript::new([]), PinScript::new([]), DelayLog::new());
+
+        // Nothing is scripted, so the first transfer fails. Resetting the chip is a line and
+        // a wait, which needs no bus, so the walk gets that far and stops on the register
+        // read after it rather than reporting a board that never started.
+        let stopped = walk(&mut chip, &config, &plan, &[], &[]).expect_err("nothing answers");
+        assert_eq!(stopped.step, Bring::Check);
+        assert!(stopped
+            .to_string()
+            .starts_with("reading the version register"));
+    }
 
     fn configured() -> Config {
         Config::parse(
