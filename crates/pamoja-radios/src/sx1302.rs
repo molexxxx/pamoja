@@ -16,6 +16,8 @@
 //! - [`register`] - where the blocks are and which bits inside a byte each register owns.
 //! - [`chip`] - the version that says a board is answering, and the part number that says
 //!   whether it is an SX1302 or an SX1303.
+//! - [`channel`] - the frequencies the receivers listen on, the spreading factors they
+//!   look for, and the order all of that is set in.
 //! - [`firmware`] - the order the two microcontrollers are loaded in, and what to check
 //!   afterwards.
 //! - [`rx`] - the packets the receive buffer holds, and what the receiver made of each.
@@ -60,6 +62,7 @@
 //! assert_eq!(chip::Model::of(0x03), chip::Model::Sx1303);
 //! ```
 
+pub mod channel;
 pub mod chip;
 pub mod firmware;
 pub mod lbt;
