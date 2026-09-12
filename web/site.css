@@ -184,6 +184,33 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
   align-items: start;
 }
 .side, .toc { position: sticky; top: 6rem; max-height: calc(100vh - 7rem); overflow-y: auto; }
+/* A rail long enough to scroll gets the sheet's own scrollbar rather than the platform's: no
+   track, a 6px soft-ink thumb on the sheet's corner. Setting scrollbar-width would switch
+   Chromium to its native thin bar and ignore these, so the standard properties are declared
+   only where the pseudo-elements are not understood. */
+.side::-webkit-scrollbar,
+.toc::-webkit-scrollbar,
+.table-scroll::-webkit-scrollbar,
+.article figure.code pre::-webkit-scrollbar,
+.search-results::-webkit-scrollbar { width: 6px; height: 6px; background: transparent; }
+.side::-webkit-scrollbar-track,
+.toc::-webkit-scrollbar-track,
+.table-scroll::-webkit-scrollbar-track,
+.article figure.code pre::-webkit-scrollbar-track,
+.search-results::-webkit-scrollbar-track { background: transparent; }
+.side::-webkit-scrollbar-thumb,
+.toc::-webkit-scrollbar-thumb,
+.table-scroll::-webkit-scrollbar-thumb,
+.article figure.code pre::-webkit-scrollbar-thumb,
+.search-results::-webkit-scrollbar-thumb {
+  background: var(--ink-soft); border-radius: var(--r); border: 1px solid transparent; background-clip: content-box;
+}
+@supports not selector(::-webkit-scrollbar) {
+  .side, .toc, .table-scroll, .article figure.code pre, .search-results {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ink-soft) transparent;
+  }
+}
 .side { padding-right: 1.25rem; border-right: 1px solid var(--rule); }
 .content { min-width: 0; }
 .content.lone { max-width: 44rem; margin: 3rem auto; padding: 0 var(--gutter); }

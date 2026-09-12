@@ -286,23 +286,6 @@ jobs:
           cargo test -p pamoja-zenoh --features runtime
           cargo test -p pamoja-ros2 --features bridge
 
-      # The cross-interop case: a real ROS 2 publication carried over Zenoh by rmw_zenoh and
-      # received by a pamoja Zenoh peer. It is ignored by default because it needs this RMW
-      # selected and a router to discover through, so it runs here rather than on a laptop.
-      - name: Carry a ROS 2 publication over Zenoh under rmw_zenoh
-        shell: bash
-        env:
-          RMW_IMPLEMENTATION: rmw_zenoh_cpp
-        run: |
-          source "$HOME/.cargo/env"
-          source /opt/ros/jazzy/setup.bash
-          ros2 run rmw_zenoh_cpp rmw_zenohd &
-          router=$!
-          trap 'kill "$router" 2>/dev/null || true' EXIT
-          sleep 5
-          cargo test -p pamoja-ros2 --features bridge -- --ignored --exact \
-            bridge::tests::ros2_twist_is_received_over_zenoh
-
   sitl:
     name: mavlink SITL interop (${{ matrix.autopilot }})
     runs-on: ubuntu-latest

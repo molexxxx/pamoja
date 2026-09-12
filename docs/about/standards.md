@@ -257,7 +257,7 @@ The buses and framings that reach a part on the end of a wire.
 <p class="hw-summary">Consistent Overhead Byte Stuffing</p>
 </header>
 <p class="hw-summary">COBS has no published standard; the paper is the authority. All eleven of its example encodings are asserted.</p><div class="hw-foot">
-<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://ieeexplore.ieee.org/document/769765"><span class="hw-main"><b>The document</b><small>Cheshire and Baker 1999</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://ieeexplore.ieee.org/document/769765"><span class="hw-main"><b>The document</b><small>Cheshire and Baker 1999</small><small class="hw-note">IEEE Xplore answers 202 to a scripted client rather than serving the record, so a person opens this one.</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 <section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-serial/src/cobs.rs#L415"><span class="hw-main"><b>The test</b><small><code>cobs.rs</code> line 415</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
@@ -283,7 +283,7 @@ The buses and framings that reach a part on the end of a wire.
 <p class="hw-summary">The RTU frame, its function codes and its exception responses</p>
 </header>
 <p class="hw-summary">The specification's own request and response examples.</p><div class="hw-foot">
-<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://www.modbus.org/docs/Modbus_over_serial_line_V1_02.pdf"><span class="hw-main"><b>The document</b><small>Modbus over Serial Line V1.02</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://modbus.org/specs.php"><span class="hw-main"><b>The document</b><small>Modbus over Serial Line V1.02</small><small class="hw-note">modbus.org answers 403 to a scripted client, so a person opens the specification index.</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 <section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-modbus/src/pdu.rs#L337"><span class="hw-main"><b>The test</b><small><code>pdu.rs</code> line 337</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
@@ -296,7 +296,7 @@ The buses and framings that reach a part on the end of a wire.
 <p class="hw-summary">The CAN data link layer, classical and CAN FD</p>
 </header>
 <p class="hw-summary">Edition 3 supersedes the 2015 edition and the 1991 Bosch CAN 2.0 document.</p><div class="hw-foot">
-<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://www.iso.org/standard/86384.html"><span class="hw-main"><b>The document</b><small>ISO 11898-1:2024</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://www.iso.org/standard/86384.html"><span class="hw-main"><b>The document</b><small>ISO 11898-1:2024</small><small class="hw-note">iso.org answers 403 to a scripted client, so a person opens this one.</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 <section class="hw-learn"><h4>Round trip only</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-can/src/frame.rs#L1"><span class="hw-main"><b>The test</b><small><code>frame.rs</code> line 1</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
@@ -546,7 +546,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 <p class="hw-summary">The duty cycle and power limits per European sub-band</p>
 </header>
 <p class="hw-summary">Revised often; the link resolves to the current edition rather than a dated one.</p><div class="hw-foot">
-<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://docdb.cept.org/document/845"><span class="hw-main"><b>The document</b><small>CEPT ERC Recommendation 70-03</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://docdb.cept.org/document/845"><span class="hw-main"><b>The document</b><small>CEPT ERC Recommendation 70-03</small><small class="hw-note">docdb.cept.org refuses a scripted connection outright, so a person opens this one.</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 <section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/docs/radio.md#L294"><span class="hw-main"><b>The test</b><small><code>radio.md</code> line 294</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
@@ -774,10 +774,12 @@ ArduPilot build advertises none and answers `NO_SPACE`, which the test records r
 asserts around.
 
 The ROS 2 bridge exchanges topics, services and actions with
-[ROS 2 Jazzy](https://docs.ros.org/en/jazzy/), and a further case carries a ROS 2
-publication over Zenoh under `rmw_zenoh` with that RMW selected and a router running. The
-LoRa gateway registers a device with a [ChirpStack](https://www.chirpstack.io/) network
-server and forwards a join and an uplink through it.
+[ROS 2 Jazzy](https://docs.ros.org/en/jazzy/) in the official image, under the RMW that
+image selects. Carrying a ROS 2 publication over Zenoh through `rmw_zenoh` is written but
+not yet proven: the case needs that RMW and a router, and does not pass today, so it stays
+ignored rather than counted. The LoRa gateway registers a device with a
+[ChirpStack](https://www.chirpstack.io/) network server and forwards a join and an uplink
+through it.
 
 Every `no_std` crate is cross-compiled for a Cortex-M4F microcontroller, since a host
 `no_std` build still links the host `std`.

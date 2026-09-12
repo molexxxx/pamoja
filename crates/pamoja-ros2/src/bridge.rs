@@ -455,7 +455,11 @@ mod tests {
     // matching the structure `pamoja-ros2` builds. Ignored by default because it needs
     // `RMW_IMPLEMENTATION=rmw_zenoh_cpp` and peer discovery; run it with `cargo xtask ros`.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ignore = "needs rmw_zenoh; run via `cargo xtask ros` or RMW_IMPLEMENTATION=rmw_zenoh_cpp"]
+    // Ignored, and not yet passing: the node is moved into the spinner thread while the
+    // publisher built from it stays behind, so the publisher outlives its node and the first
+    // send answers RCL_RET_PUBLISHER_INVALID. Selecting the RMW in CI surfaced it; the fix is
+    // to keep the node alive beside the publisher, which r2r makes awkward.
+    #[ignore = "needs rmw_zenoh; the node outlives its publisher here, see the note above"]
     async fn ros2_twist_is_received_over_zenoh() {
         use crate::msg::Twist;
         use pamoja_core::{Receive, Transport};

@@ -243,6 +243,7 @@ subject = "Consistent Overhead Byte Stuffing"
 url = "https://ieeexplore.ieee.org/document/769765"
 evidence = "crates/pamoja-serial/src/cobs.rs#L415"
 anchor = "vector"
+manual_check = "IEEE Xplore answers 202 to a scripted client rather than serving the record, so a person opens this one."
 note = "COBS has no published standard; the paper is the authority. All eleven of its example encodings are asserted."
 
 [[entry]]
@@ -262,9 +263,10 @@ chapter = "field-io"
 designation = "Modbus over Serial Line V1.02"
 body = "Modbus Organization"
 subject = "The RTU frame, its function codes and its exception responses"
-url = "https://www.modbus.org/docs/Modbus_over_serial_line_V1_02.pdf"
+url = "https://modbus.org/specs.php"
 evidence = "crates/pamoja-modbus/src/pdu.rs#L337"
 anchor = "vector"
+manual_check = "modbus.org answers 403 to a scripted client, so a person opens the specification index."
 note = "The specification's own request and response examples."
 
 [[entry]]
@@ -276,6 +278,7 @@ subject = "The CAN data link layer, classical and CAN FD"
 url = "https://www.iso.org/standard/86384.html"
 evidence = "crates/pamoja-can/src/frame.rs#L1"
 anchor = "internal"
+manual_check = "iso.org answers 403 to a scripted client, so a person opens this one."
 note = "Edition 3 supersedes the 2015 edition and the 1991 Bosch CAN 2.0 document."
 
 [[entry]]
@@ -478,6 +481,7 @@ subject = "The duty cycle and power limits per European sub-band"
 url = "https://docdb.cept.org/document/845"
 evidence = "docs/radio.md#L294"
 anchor = "rule"
+manual_check = "docdb.cept.org refuses a scripted connection outright, so a person opens this one."
 note = "Revised often; the link resolves to the current edition rather than a dated one."
 
 [[entry]]
