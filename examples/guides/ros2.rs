@@ -1,0 +1,60 @@
+//! The ROS 2 naming guide example; see docs/guides/ros2.md.
+//!
+//! Run: `cargo run -p pamoja-examples --example ros2`
+
+use std::error::Error;
+
+/// The names a ROS 2 node uses and the DDS topics they become, which is what has to line
+/// up before two endpoints can find each other on the wire.
+fn main() -> std::result::Result<(), Box<dyn Error>> {
+    // ANCHOR: example
+    use pamoja_ros2::name::{dds_topic, is_fully_qualified, is_valid_name, EntityKind};
+    use pamoja_ros2::typehash::dds_type_name;
+
+    // A name is slash-separated tokens. A token may hold letters, digits, and underscores,
+    // and may not begin with a digit, which is the rule that catches most generated names.
+    for name in ["/robot1/camera_left/image_raw", "/2foo"] {
+        println!("{name} is a valid name: {}", is_valid_name(name));
+    }
+    println!(
+        "chatter is fully qualified: {}",
+        is_fully_qualified("chatter")
+    );
+    println!(
+        "/chatter is fully qualified: {}",
+        is_fully_qualified("/chatter")
+    );
+
+    // On the wire a topic carries a prefix that says what kind of endpoint it is, so a
+    // subscription and a service request never collide in the same DDS partition.
+    let published = dds_topic("/robot1/cmd_vel", EntityKind::Topic).expect("a valid name");
+    let asked = dds_topic("/robot1/add", EntityKind::ServiceRequest).expect("a valid name");
+    let answered = dds_topic("/robot1/add", EntityKind::ServiceResponse).expect("a valid name");
+    println!("a topic    becomes {published}");
+    println!("a request  becomes {asked}");
+    println!("a response becomes {answered}");
+
+    // A message type maps to a DDS type name the same way, so both ends agree on what is
+    // being carried before a byte is exchanged. A name that is not well formed maps to
+    // nothing rather than to something plausible.
+    let carried = dds_type_name("std_msgs/msg/String").expect("a well-formed type name");
+    let malformed = dds_type_name("not a type");
+    println!("std_msgs/msg/String becomes {carried}");
+    println!(
+        "a malformed type name becomes {}",
+        malformed.as_deref().unwrap_or("nothing")
+    );
+    // ANCHOR_END: example
+
+    assert!(is_valid_name("/robot1/camera_left/image_raw"));
+    assert!(!is_valid_name("/2foo"));
+    assert!(is_fully_qualified("/chatter"));
+    assert!(!is_fully_qualified("chatter"));
+    assert_eq!(published, "rt/robot1/cmd_vel");
+    assert_eq!(asked, "rq/robot1/add");
+    assert_eq!(answered, "rr/robot1/add");
+    assert_eq!(carried, "std_msgs::msg::dds_::String_");
+    assert_eq!(malformed, None);
+
+    Ok(())
+}

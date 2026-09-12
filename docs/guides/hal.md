@@ -57,13 +57,13 @@ It proves:
 
 ## Run it
 
-The example below is a test that runs in CI, in each language, from a clone of the
+The example below is a program CI runs on every change, in each language, from a clone of the
 repository:
 
 <!-- table: run -->
 <div class="run">
-<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo test -p pamoja-examples --test guides hal -- --nocapture" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo test -p pamoja-examples --test guides hal -- --nocapture</code></div>
-<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run test:guides -- hal" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run test:guides -- hal</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo run -p pamoja-examples --example hal" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo run -p pamoja-examples --example hal</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run guides -- hal" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run guides -- hal</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">Python</span><button class="copy" type="button" data-copy="python bindings/python/guides/hal.py" aria-label="Copy the command that runs the Python example">copy</button></p><code class="run-cmd">python bindings/python/guides/hal.py</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">C#</span><button class="copy" type="button" data-copy="dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- hal" aria-label="Copy the command that runs the C# example">copy</button></p><code class="run-cmd">dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- hal</code></div>
 </div>
@@ -71,8 +71,8 @@ repository:
 
 ## Rust
 
-<!-- snippet: examples/tests/guides/hal.rs#example -->
-From [`examples/tests/guides/hal.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/hal.rs):
+<!-- snippet: examples/guides/hal.rs#example -->
+From [`examples/guides/hal.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/hal.rs):
 
 ```rust
 use pamoja_core::Sensor;

@@ -40,13 +40,13 @@ It proves:
 
 ## Run it
 
-The example below is a test that runs in CI, in each language, from a clone of the
+The example below is a program CI runs on every change, in each language, from a clone of the
 repository:
 
 <!-- table: run -->
 <div class="run">
-<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo test -p pamoja-examples --test guides rules -- --nocapture" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo test -p pamoja-examples --test guides rules -- --nocapture</code></div>
-<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run test:guides -- rules" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run test:guides -- rules</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo run -p pamoja-examples --example rules" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo run -p pamoja-examples --example rules</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run guides -- rules" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run guides -- rules</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">Python</span><button class="copy" type="button" data-copy="python bindings/python/guides/rules.py" aria-label="Copy the command that runs the Python example">copy</button></p><code class="run-cmd">python bindings/python/guides/rules.py</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">C#</span><button class="copy" type="button" data-copy="dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- rules" aria-label="Copy the command that runs the C# example">copy</button></p><code class="run-cmd">dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- rules</code></div>
 </div>
@@ -54,8 +54,8 @@ repository:
 
 ## Rust
 
-<!-- snippet: examples/tests/guides/rules.rs#example -->
-From [`examples/tests/guides/rules.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/rules.rs):
+<!-- snippet: examples/guides/rules.rs#example -->
+From [`examples/guides/rules.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/rules.rs):
 
 ```rust
 use pamoja_codec::JsonCodec;
@@ -95,8 +95,8 @@ println!(
 let broker = LoopbackBroker::new();
 let mut probe = LoopbackTransport::new(broker.clone());
 let mut watcher = LoopbackTransport::new(broker.clone());
-probe.connect().await.expect("the probe connects");
-watcher.connect().await.expect("the watcher connects");
+probe.connect().await?;
+watcher.connect().await?;
 watcher
     .subscribe("garden/bed-1/valve")
     .await
@@ -105,7 +105,7 @@ watcher
 let valve = Valve::default();
 let mut engine = RuleEngine::new(rules, LoopbackTransport::new(broker), JsonCodec)
     .with_actuator("bed-valve", valve.clone());
-engine.connect().await.expect("the engine connects");
+engine.connect().await?;
 
 // The bed dries out and is watered back: the rule fires once on the way down and
 // once on the way back, and holds its state for the readings in between.
@@ -132,7 +132,7 @@ for reading in [42.0f32, 31.0, 28.0, 33.0, 36.0] {
 // The watcher on the other topic heard each edge as the rule published it.
 let mut heard = Vec::new();
 for _ in 0..2 {
-    let message = watcher.recv().await.expect("recv").expect("a message");
+    let message = watcher.recv().await?.expect("a message");
     heard.push(message.text().expect("words").to_owned());
 }
 println!("the watcher heard {}", heard.join(", "));

@@ -47,13 +47,13 @@ It proves:
 
 ## Run it
 
-The example below is a test that runs in CI, in each language, from a clone of the
+The example below is a program CI runs on every change, in each language, from a clone of the
 repository:
 
 <!-- table: run -->
 <div class="run">
-<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo test -p pamoja-examples --test guides transport -- --nocapture" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo test -p pamoja-examples --test guides transport -- --nocapture</code></div>
-<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run test:guides -- transport" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run test:guides -- transport</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo run -p pamoja-examples --example transport" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo run -p pamoja-examples --example transport</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run guides -- transport" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run guides -- transport</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">Python</span><button class="copy" type="button" data-copy="python bindings/python/guides/transport.py" aria-label="Copy the command that runs the Python example">copy</button></p><code class="run-cmd">python bindings/python/guides/transport.py</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">C#</span><button class="copy" type="button" data-copy="dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- transport" aria-label="Copy the command that runs the C# example">copy</button></p><code class="run-cmd">dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- transport</code></div>
 </div>
@@ -61,8 +61,8 @@ repository:
 
 ## Rust
 
-<!-- snippet: examples/tests/guides/transport.rs#example -->
-From [`examples/tests/guides/transport.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/transport.rs):
+<!-- snippet: examples/guides/transport.rs#example -->
+From [`examples/guides/transport.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/transport.rs):
 
 ```rust
 use pamoja_core::{Receive, Transport};
@@ -76,30 +76,30 @@ use pamoja_sync::MemoryStore;
 let broker = LoopbackBroker::new();
 let topic = "sensors/1/temperature";
 let mut gateway = LoopbackTransport::new(broker.clone());
-gateway.connect().await.expect("the gateway connects");
-gateway.subscribe(topic).await.expect("subscribe");
+gateway.connect().await?;
+gateway.subscribe(topic).await?;
 
 // The fault injector is itself a transport wrapping a transport, so it composes
 // anywhere a link does. This one fails its next send and passes the rest through.
 let mut ladder = TransportLadder::new(MemoryStore::new())
     .rung(Faulty::new(LoopbackTransport::new(broker), 1));
-ladder.connect().await.expect("the ladder connects");
+ladder.connect().await?;
 
 // The injected failure lands, so the reading is buffered rather than lost.
-let first = ladder.send_text(topic, "20.1").await.expect("a delivery");
+let first = ladder.send_text(topic, "20.1").await?;
 let after_first = ladder.buffered().await.expect("a count");
 println!("first reading: {first:?}, {after_first} queued");
 
 // The next reading joins the back of the queue instead of overtaking it, even though
 // the link would take it now. Order on the wire is the order the readings were taken.
-let second = ladder.send_text(topic, "20.4").await.expect("a delivery");
+let second = ladder.send_text(topic, "20.4").await?;
 let queued = ladder.buffered().await.expect("a count");
 println!("second reading: {second:?}, {queued} queued");
 
 // Flushing forwards the backlog oldest first, and the subscriber sees it in order.
-let forwarded = ladder.flush().await.expect("a flush");
-let first_out = gateway.recv().await.expect("recv").expect("a message");
-let second_out = gateway.recv().await.expect("recv").expect("a message");
+let forwarded = ladder.flush().await?;
+let first_out = gateway.recv().await?.expect("a message");
+let second_out = gateway.recv().await?.expect("a message");
 let earlier = first_out.text().expect("text");
 let later = second_out.text().expect("text");
 println!("flush forwarded {forwarded}, gateway saw {earlier} then {later}");

@@ -44,8 +44,8 @@ the same MIT license. Quote them, translate them, print them, and build on them,
 the notice with what you take.
 
 The examples are the exception worth naming, because they are not illustrations. Each one
-is spliced from a test that runs in continuous integration on every change, so an example
-here is the code that ran. That makes it accurate. It does not make it fit for your
+is spliced from a program that runs in continuous integration on every change, so an
+example here is the code that ran. That makes it accurate. It does not make it fit for your
 hardware, your link, or your load.
 
 ## The name and the mark

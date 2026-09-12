@@ -85,8 +85,8 @@ canonical form through `Profile::to_json`.
 
 ## Guide examples
 
-Every code block in a guide is spliced from a test that ran in CI. A guide page
-holds a region such as
+Every code block in a guide is spliced from a program CI runs on every change. A
+guide page holds a region such as
 
 ```md
 <!-- snippet: bindings/python/guides/modbus.py#example -->
@@ -147,7 +147,7 @@ per guide and language:
 
 | Language | File | Run with |
 | --- | --- | --- |
-| Rust | [`examples/tests/guides/`](https://github.com/molexxxx/pamoja/tree/main/examples/tests/guides)`<name>.rs`, one `#[test]`, declared in `main.rs` | `cargo test -p pamoja-examples --test guides` |
+| Rust | [`examples/guides/`](https://github.com/molexxxx/pamoja/tree/main/examples/guides)`<name>.rs`, a program with a `main`, declared in `Cargo.toml` | `cargo run -p pamoja-examples --example <name>` |
 | TypeScript | [`bindings/node/guides/`](https://github.com/molexxxx/pamoja/tree/main/bindings/node/guides)`<name>.ts`, top-level statements with `node:assert/strict` | `npm run test:guides` in `bindings/node` |
 | Python | [`bindings/python/guides/`](https://github.com/molexxxx/pamoja/tree/main/bindings/python/guides)`<name>.py`, a script with plain `assert` | `python -m pytest tests/test_guides.py` in `bindings/python` |
 | C# | [`bindings/dotnet/samples/Pamoja.Guides/`](https://github.com/molexxxx/pamoja/tree/main/bindings/dotnet/samples/Pamoja.Guides)`<Name>Guide.cs`, a static `Run()` called from `Program.cs` | `dotnet run --project bindings/dotnet/samples/Pamoja.Guides` |

@@ -51,13 +51,13 @@ It proves:
 
 ## Run it
 
-The example below is a test that runs in CI, in each language, from a clone of the
+The example below is a program CI runs on every change, in each language, from a clone of the
 repository:
 
 <!-- table: run -->
 <div class="run">
-<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo test -p pamoja-examples --test guides device -- --nocapture" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo test -p pamoja-examples --test guides device -- --nocapture</code></div>
-<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run test:guides -- device" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run test:guides -- device</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo run -p pamoja-examples --example device" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo run -p pamoja-examples --example device</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run guides -- device" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run guides -- device</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">Python</span><button class="copy" type="button" data-copy="python bindings/python/guides/device.py" aria-label="Copy the command that runs the Python example">copy</button></p><code class="run-cmd">python bindings/python/guides/device.py</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">C#</span><button class="copy" type="button" data-copy="dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- device" aria-label="Copy the command that runs the C# example">copy</button></p><code class="run-cmd">dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- device</code></div>
 </div>
@@ -67,8 +67,8 @@ repository:
 
 The parts:
 
-<!-- snippet: examples/tests/guides/device.rs#parts -->
-From [`examples/tests/guides/device.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/device.rs):
+<!-- snippet: examples/guides/device.rs#parts -->
+From [`examples/guides/device.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/device.rs):
 
 ```rust
 use pamoja_core::{Actuator, Result, Sensor};
@@ -116,8 +116,8 @@ impl Actuator for Valve {
 
 The loop:
 
-<!-- snippet: examples/tests/guides/device.rs#example -->
-From [`examples/tests/guides/device.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/device.rs):
+<!-- snippet: examples/guides/device.rs#example -->
+From [`examples/guides/device.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/device.rs):
 
 ```rust
 use pamoja_core::{Receive, Transport};
@@ -146,11 +146,11 @@ let mut rule = Thermostat::heating(37.5, 7.5);
 // keeps what it could not send and replays it in order once a send goes through.
 let broker = LoopbackBroker::new();
 let mut gateway = LoopbackTransport::new(broker.clone());
-gateway.connect().await.expect("the gateway connects");
-gateway.subscribe(topic).await.expect("the gateway listens");
+gateway.connect().await?;
+gateway.subscribe(topic).await?;
 let flaky = Faulty::new(LoopbackTransport::new(broker), 2);
 let mut ladder = TransportLadder::new(MemoryStore::new()).rung(flaky);
-ladder.connect().await.expect("the ladder connects");
+ladder.connect().await?;
 
 // The loop: read, decide, act, publish. Nothing in it knows the probe is homemade.
 for _ in 0..6 {
@@ -159,11 +159,11 @@ for _ in 0..6 {
     valve.apply(wanted).await.expect("the valve answers");
     let report = format!("{moisture:.1}");
     let payload = report.as_bytes();
-    let delivery = ladder.send(topic, payload).await.expect("a delivery");
+    let delivery = ladder.send(topic, payload).await?;
     let state = if valve.open { "open" } else { "closed" };
     println!("bed at {report}%, valve {state}, {delivery:?}");
     if ladder.buffered().await.expect("a count") > 0 {
-        let caught_up = ladder.flush().await.expect("a flush");
+        let caught_up = ladder.flush().await?;
         if caught_up > 0 {
             println!("link back, {caught_up} readings caught up");
         }
@@ -175,7 +175,7 @@ println!("the valve switched {switched} times");
 // On the gateway, in the order they were read, outage included.
 let mut got = Vec::new();
 for _ in 0..6 {
-    let message = gateway.recv().await.expect("recv").expect("a message");
+    let message = gateway.recv().await?.expect("a message");
     got.push(message.text().expect("text").to_owned());
 }
 let readings = got.join(", ");
@@ -185,8 +185,8 @@ println!("gateway got {readings}");
 
 The same parts under a profile of the maker's own:
 
-<!-- snippet: examples/tests/guides/device.rs#node -->
-From [`examples/tests/guides/device.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/device.rs):
+<!-- snippet: examples/guides/device.rs#node -->
+From [`examples/guides/device.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/device.rs):
 
 ```rust
 use pamoja_codec::CborCodec;
@@ -216,7 +216,7 @@ let probe = SoilProbe {
     calibration: Calibration::two_point(3200.0, 0.0, 1400.0, 100.0),
 };
 let mut link = LoopbackTransport::new(LoopbackBroker::new());
-link.connect().await.expect("the link connects");
+link.connect().await?;
 
 // A node reads, decides, drives the valve, and publishes on every tick. The parts are
 // the ones above; only the loop moved into the library.

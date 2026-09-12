@@ -54,13 +54,13 @@ import, because one compiled engine sits under every package. The
 
 A reading taken off a wire on a field node, sent over a link, and checked on the
 gateway that receives it, with nothing plugged in and nothing running. Each of
-these is spliced from a test that runs in CI.
+these is spliced from a program CI runs on every change.
 
 <details open>
 <summary><b>Rust</b></summary>
 
-<!-- snippet: examples/tests/guides/quickstart.rs#example -->
-From [`examples/tests/guides/quickstart.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/quickstart.rs):
+<!-- snippet: examples/guides/quickstart.rs#example -->
+From [`examples/guides/quickstart.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/quickstart.rs):
 
 ```rust
 use pamoja_codec::{decode_deltas, encode_deltas};
@@ -75,10 +75,10 @@ use pamoja_sensors::ds18b20::{temperature_from_celsius, Resolution, Scratchpad};
 let broker = LoopbackBroker::new();
 let mut node = LoopbackTransport::new(broker.clone());
 let mut gateway = LoopbackTransport::new(broker);
-node.connect().await.expect("the node connects");
-gateway.connect().await.expect("the gateway connects");
+node.connect().await?;
+gateway.connect().await?;
 let topic = "sensors/1/temperature";
-gateway.subscribe(topic).await.expect("the gateway listens");
+gateway.subscribe(topic).await?;
 
 // The device's identity is provisioned once and never leaves it. The gateway is told
 // only the public half, which is how it recognizes this device later.
@@ -124,11 +124,7 @@ node.send(topic, &message)
 
 // On the gateway. Verifying returns the payload, so a reading that was altered on the
 // way, or signed by some other device, never reaches the code that unpacks it.
-let received = gateway
-    .recv()
-    .await
-    .expect("a delivery")
-    .expect("a message");
+let received = gateway.recv().await?.expect("a message");
 match known.verify_message(&received.payload) {
     Ok(payload) => {
         let readings = decode_deltas(payload).expect("a valid batch");

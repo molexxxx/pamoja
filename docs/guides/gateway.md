@@ -39,8 +39,8 @@ It proves:
 
 <!-- table: run -->
 <div class="run">
-<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo test -p pamoja-examples --test guides gateway -- --nocapture" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo test -p pamoja-examples --test guides gateway -- --nocapture</code></div>
-<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run test:guides -- gateway" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run test:guides -- gateway</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo run -p pamoja-examples --example gateway" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo run -p pamoja-examples --example gateway</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run guides -- gateway" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run guides -- gateway</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">Python</span><button class="copy" type="button" data-copy="python bindings/python/guides/gateway.py" aria-label="Copy the command that runs the Python example">copy</button></p><code class="run-cmd">python bindings/python/guides/gateway.py</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">C#</span><button class="copy" type="button" data-copy="dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- gateway" aria-label="Copy the command that runs the C# example">copy</button></p><code class="run-cmd">dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- gateway</code></div>
 </div>
@@ -48,8 +48,8 @@ It proves:
 
 ## Rust
 
-<!-- snippet: examples/tests/guides/gateway.rs#example -->
-From [`examples/tests/guides/gateway.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/gateway.rs):
+<!-- snippet: examples/guides/gateway.rs#example -->
+From [`examples/guides/gateway.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/gateway.rs):
 
 ```rust
 use pamoja_gateway::udp::{Eui, Packet, Rxpk, TxStatus, Txpk, Uplink};
@@ -75,8 +75,7 @@ println!("push      {} bytes, token {:04x}", datagram.len(), 0x1234);
 
 // The server reads it. Nothing about the packet has to be decoded by hand: the frequency
 // is in hertz, the datarate identifier is the link settings, and the payload is bytes.
-let Packet::PushData { uplink, .. } = Packet::parse(&datagram).expect("it is well formed")
-else {
+let Packet::PushData { uplink, .. } = Packet::parse(&datagram)? else {
     panic!("a PUSH_DATA parses as one");
 };
 let received = &uplink.packets[0];
@@ -92,8 +91,7 @@ println!(
 );
 
 // Every uplink is acknowledged at once, by token, before anything is processed.
-let acknowledgment = Packet::parse(&datagram)
-    .expect("it is well formed")
+let acknowledgment = Packet::parse(&datagram)?
     .acknowledgment()
     .expect("a PUSH_DATA is acknowledged");
 println!("ack       {} bytes", acknowledgment.to_bytes().len());
@@ -107,9 +105,7 @@ let downlink = Packet::PullResp {
         .with_inverted_polarity(true)
         .without_crc(),
 };
-let Packet::PullResp { transmit, .. } =
-    Packet::parse(&downlink.to_bytes()).expect("it is well formed")
-else {
+let Packet::PullResp { transmit, .. } = Packet::parse(&downlink.to_bytes())? else {
     panic!("a PULL_RESP parses as one");
 };
 println!(
@@ -124,9 +120,7 @@ let refused = Packet::TxAck {
     gateway,
     status: TxStatus::CollisionPacket,
 };
-let Packet::TxAck { status, .. } =
-    Packet::parse(&refused.to_bytes()).expect("it is well formed")
-else {
+let Packet::TxAck { status, .. } = Packet::parse(&refused.to_bytes())? else {
     panic!("a TX_ACK parses as one");
 };
 println!("txack     {status}, scheduled {}", status.scheduled());
@@ -136,8 +130,8 @@ println!("txack     {status}, scheduled {}", status.scheduled());
 
 And the network side of the same site, which admits the device and answers it:
 
-<!-- snippet: examples/tests/guides/gateway.rs#network -->
-From [`examples/tests/guides/gateway.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/gateway.rs):
+<!-- snippet: examples/guides/gateway.rs#network -->
+From [`examples/guides/gateway.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/gateway.rs):
 
 ```rust
 use pamoja_gateway::network::{Event, Network, Registration};
@@ -231,8 +225,8 @@ And the same site reached over the Basics Station protocol instead, where the st
 finds its network server, says what it is, and reports a frame it heard as the fields the
 protocol names:
 
-<!-- snippet: examples/tests/guides/gateway.rs#station -->
-From [`examples/tests/guides/gateway.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/gateway.rs):
+<!-- snippet: examples/guides/gateway.rs#station -->
+From [`examples/guides/gateway.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/gateway.rs):
 
 ```rust
 use pamoja_gateway::station::{Discovery, Levels, Message, Router, DISCOVERY_PATH};

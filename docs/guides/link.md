@@ -36,13 +36,13 @@ It proves:
 
 ## Run it
 
-The example below is a test that runs in CI, in each language, from a clone of the
+The example below is a program CI runs on every change, in each language, from a clone of the
 repository:
 
 <!-- table: run -->
 <div class="run">
-<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo test -p pamoja-examples --test guides link -- --nocapture" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo test -p pamoja-examples --test guides link -- --nocapture</code></div>
-<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run test:guides -- link" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run test:guides -- link</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo run -p pamoja-examples --example link" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo run -p pamoja-examples --example link</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run guides -- link" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run guides -- link</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">Python</span><button class="copy" type="button" data-copy="python bindings/python/guides/link.py" aria-label="Copy the command that runs the Python example">copy</button></p><code class="run-cmd">python bindings/python/guides/link.py</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">C#</span><button class="copy" type="button" data-copy="dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- link" aria-label="Copy the command that runs the C# example">copy</button></p><code class="run-cmd">dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- link</code></div>
 </div>
@@ -50,8 +50,8 @@ repository:
 
 ## Rust
 
-<!-- snippet: examples/tests/guides/link.rs#parts -->
-From [`examples/tests/guides/link.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/link.rs):
+<!-- snippet: examples/guides/link.rs#parts -->
+From [`examples/guides/link.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/link.rs):
 
 ```rust
 /// The vendor's side of a link: what it was given to send, what it was told to
@@ -112,8 +112,8 @@ impl Receive for QueueLink {
 ```
 <!-- end -->
 
-<!-- snippet: examples/tests/guides/link.rs#example -->
-From [`examples/tests/guides/link.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/link.rs):
+<!-- snippet: examples/guides/link.rs#example -->
+From [`examples/guides/link.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/link.rs):
 
 ```rust
 use pamoja_ladder::TransportLadder;
@@ -132,19 +132,16 @@ let link = QueueLink {
 // The link is a rung like any shipped transport, and the ladder is the link a
 // node is written against.
 let mut ladder = TransportLadder::new(MemoryStore::new()).rung(link);
-ladder.connect().await.expect("the ladder connects");
+ladder.connect().await?;
 
 // A reading out through the ladder lands in the link, topic and bytes intact.
-ladder
-    .send_text("sensors/1", "21.5")
-    .await
-    .expect("a delivery");
+ladder.send_text("sensors/1", "21.5").await?;
 let carried = vendor.lock().expect("the vendor").sent[0].clone();
 let reading = carried.text().expect("text");
 println!("link carried: {} {reading}", carried.topic);
 
 // A subscription placed on the ladder reaches the link.
-ladder.subscribe("commands/#").await.expect("subscribe");
+ladder.subscribe("commands/#").await?;
 let filter = vendor.lock().expect("the vendor").filters[0].clone();
 println!("link subscribed to: {filter}");
 
@@ -155,7 +152,7 @@ vendor
     .inbox
     .push_back(Message::new("commands/1", b"open"));
 delivered.notify_one();
-let command = ladder.recv().await.expect("recv").expect("a command");
+let command = ladder.recv().await?.expect("a command");
 let order = command.text().expect("text");
 println!("command over the ladder: {} {order}", command.topic);
 ```

@@ -245,8 +245,13 @@ pub fn run_block(text: &str) -> String {
     let mut out = String::from("<div class=\"run\">\n");
     for (_, kind, language) in &files {
         let line = match *kind {
-            "rust" => format!("cargo test -p pamoja-examples --test guides {key} -- --nocapture"),
-            "node" => format!("npm --prefix bindings/node run test:guides -- {key}"),
+            // One guide shares a name with an example that is not a guide, and cargo target
+            // names are unique across the package, so that one carries a suffix.
+            "rust" => match key {
+                "telemetry" => "cargo run -p pamoja-examples --example telemetry_guide".to_owned(),
+                _ => format!("cargo run -p pamoja-examples --example {key}"),
+            },
+            "node" => format!("npm --prefix bindings/node run guides -- {key}"),
             "python" => format!("python bindings/python/guides/{key}.py"),
             _ => format!("dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- {key}"),
         };
@@ -319,10 +324,10 @@ mod tests {
 
     #[test]
     fn a_guide_gives_what_it_proves_and_the_files_that_run_it() {
-        let text = "# Modbus RTU\n\nIt proves:\n\n- A request is eight bytes: the address,\n  the code, and the checksum.\n- A reply validates its checksum.\n\n## Rust\n\n<!-- snippet: examples/tests/guides/modbus.rs#example -->\n```rust\n```\n<!-- end -->\n\n<!-- snippet: examples/tests/guides/modbus.rs#frame -->\n<!-- snippet: bindings/node/guides/modbus.ts#example -->\n<!-- snippet: bindings/python/guides/modbus.py#example -->\n<!-- snippet: bindings/dotnet/samples/Pamoja.Guides/ModbusGuide.cs#example -->\n";
+        let text = "# Modbus RTU\n\nIt proves:\n\n- A request is eight bytes: the address,\n  the code, and the checksum.\n- A reply validates its checksum.\n\n## Rust\n\n<!-- snippet: examples/guides/modbus.rs#example -->\n```rust\n```\n<!-- end -->\n\n<!-- snippet: examples/guides/modbus.rs#frame -->\n<!-- snippet: bindings/node/guides/modbus.ts#example -->\n<!-- snippet: bindings/python/guides/modbus.py#example -->\n<!-- snippet: bindings/dotnet/samples/Pamoja.Guides/ModbusGuide.cs#example -->\n";
         let files = runners(text);
         assert_eq!(files.len(), 4);
-        assert_eq!(files[0].0, "examples/tests/guides/modbus.rs");
+        assert_eq!(files[0].0, "examples/guides/modbus.rs");
         assert_eq!(files[3].2, "C#");
         let run = run_block(text);
         assert!(
@@ -330,11 +335,11 @@ mod tests {
             "{run}"
         );
         assert!(
-            run.contains("cargo test -p pamoja-examples --test guides modbus -- --nocapture"),
+            run.contains("cargo run -p pamoja-examples --example modbus"),
             "{run}"
         );
         assert!(
-            run.contains("npm --prefix bindings/node run test:guides -- modbus")
+            run.contains("npm --prefix bindings/node run guides -- modbus")
                 && run.contains("python bindings/python/guides/modbus.py")
                 && run.contains(
                     "dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- modbus"

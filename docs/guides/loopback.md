@@ -39,13 +39,13 @@ It proves:
 
 ## Run it
 
-The example below is a test that runs in CI, in each language, from a clone of the
+The example below is a program CI runs on every change, in each language, from a clone of the
 repository:
 
 <!-- table: run -->
 <div class="run">
-<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo test -p pamoja-examples --test guides loopback -- --nocapture" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo test -p pamoja-examples --test guides loopback -- --nocapture</code></div>
-<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run test:guides -- loopback" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run test:guides -- loopback</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo run -p pamoja-examples --example loopback" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo run -p pamoja-examples --example loopback</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run guides -- loopback" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run guides -- loopback</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">Python</span><button class="copy" type="button" data-copy="python bindings/python/guides/loopback.py" aria-label="Copy the command that runs the Python example">copy</button></p><code class="run-cmd">python bindings/python/guides/loopback.py</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">C#</span><button class="copy" type="button" data-copy="dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- loopback" aria-label="Copy the command that runs the C# example">copy</button></p><code class="run-cmd">dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- loopback</code></div>
 </div>
@@ -53,8 +53,8 @@ repository:
 
 ## Rust
 
-<!-- snippet: examples/tests/guides/loopback.rs#example -->
-From [`examples/tests/guides/loopback.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/loopback.rs):
+<!-- snippet: examples/guides/loopback.rs#example -->
+From [`examples/guides/loopback.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/loopback.rs):
 
 ```rust
 use pamoja_core::{Receive, Transport};
@@ -66,39 +66,27 @@ use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 let broker = LoopbackBroker::new();
 let mut publisher = LoopbackTransport::new(broker.clone());
 let mut subscriber = LoopbackTransport::new(broker.clone());
-publisher.connect().await.expect("the publisher connects");
-subscriber.connect().await.expect("the subscriber connects");
+publisher.connect().await?;
+subscriber.connect().await?;
 
 // A `+` stands for exactly one level, so this takes the mixer's temperature but not
 // the raw reading a level below it.
-subscriber
-    .subscribe("line/+/temp")
-    .await
-    .expect("subscribe");
-publisher
-    .send_text("line/mixer/temp/raw", "2150")
-    .await
-    .expect("send");
-publisher
-    .send_text("line/mixer/temp", "21.5")
-    .await
-    .expect("send");
+subscriber.subscribe("line/+/temp").await?;
+publisher.send_text("line/mixer/temp/raw", "2150").await?;
+publisher.send_text("line/mixer/temp", "21.5").await?;
 
-let message = subscriber.recv().await.expect("recv").expect("a message");
+let message = subscriber.recv().await?.expect("a message");
 let reading = message.text().expect("text");
 println!("line/+/temp took {reading} from {}", message.topic);
 
 // A `#` covers every level that remains, so a second link takes the whole subtree,
 // including the reading the single-level filter passed over.
 let mut watcher = LoopbackTransport::new(broker);
-watcher.connect().await.expect("the watcher connects");
-watcher.subscribe("line/#").await.expect("subscribe");
-publisher
-    .send_text("line/mixer/temp/raw", "2150")
-    .await
-    .expect("send");
+watcher.connect().await?;
+watcher.subscribe("line/#").await?;
+publisher.send_text("line/mixer/temp/raw", "2150").await?;
 
-let deep = watcher.recv().await.expect("recv").expect("a message");
+let deep = watcher.recv().await?.expect("a message");
 let raw = deep.text().expect("text");
 println!("line/#     took {raw} from {}", deep.topic);
 

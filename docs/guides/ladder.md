@@ -59,13 +59,13 @@ It proves:
 
 ## Run it
 
-The example below is a test that runs in CI, in each language, from a clone of the
+The example below is a program CI runs on every change, in each language, from a clone of the
 repository:
 
 <!-- table: run -->
 <div class="run">
-<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo test -p pamoja-examples --test guides ladder -- --nocapture" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo test -p pamoja-examples --test guides ladder -- --nocapture</code></div>
-<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run test:guides -- ladder" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run test:guides -- ladder</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo run -p pamoja-examples --example ladder" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo run -p pamoja-examples --example ladder</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run guides -- ladder" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run guides -- ladder</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">Python</span><button class="copy" type="button" data-copy="python bindings/python/guides/ladder.py" aria-label="Copy the command that runs the Python example">copy</button></p><code class="run-cmd">python bindings/python/guides/ladder.py</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">C#</span><button class="copy" type="button" data-copy="dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- ladder" aria-label="Copy the command that runs the C# example">copy</button></p><code class="run-cmd">dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- ladder</code></div>
 </div>
@@ -73,8 +73,8 @@ repository:
 
 ## Rust
 
-<!-- snippet: examples/tests/guides/ladder.rs#example -->
-From [`examples/tests/guides/ladder.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/ladder.rs):
+<!-- snippet: examples/guides/ladder.rs#example -->
+From [`examples/guides/ladder.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/ladder.rs):
 
 ```rust
 use pamoja_core::{Receive, Transport};
@@ -89,52 +89,46 @@ let mesh = LoopbackBroker::new();
 let backhaul = LoopbackBroker::new();
 let topic = "sensors/1/temperature";
 let mut gateway = LoopbackTransport::new(backhaul.clone());
-gateway.connect().await.expect("the gateway connects");
-gateway.subscribe(topic).await.expect("subscribe");
+gateway.connect().await?;
+gateway.subscribe(topic).await?;
 
 // Rungs are tried in the order they are added, cheapest first. The mesh hop loses
 // every packet here; the backhaul carries one send, then drops the next two.
 let mut ladder = TransportLadder::new(MemoryStore::new())
     .rung(DegradedLink::new(LoopbackTransport::new(mesh)).drop_every(1))
     .rung(DegradedLink::new(LoopbackTransport::new(backhaul)).intermittent(1, 2));
-ladder.connect().await.expect("the ladder connects");
+ladder.connect().await?;
 
 // The mesh hop refuses, so the reading goes out over the backhaul and arrives on the
 // broker only that rung publishes to.
-let first = ladder.send_text(topic, "21.5").await.expect("a delivery");
-let arrived = gateway.recv().await.expect("recv").expect("a message");
+let first = ladder.send_text(topic, "21.5").await?;
+let arrived = gateway.recv().await?.expect("a message");
 let reading = arrived.text().expect("text");
 println!("first reading: {first:?}, gateway got {reading}");
 
 // Now nothing will take a send, so the next reading is buffered rather than lost.
-let second = ladder.send_text(topic, "21.6").await.expect("a delivery");
+let second = ladder.send_text(topic, "21.6").await?;
 let waiting = ladder.buffered().await.expect("a count");
 println!("second reading: {second:?}, {waiting} waiting in the queue");
 
 // A flush while the links are still down forwards nothing and leaves the backlog
 // intact, because a record is removed only once a rung has accepted it.
-let while_down = ladder.flush().await.expect("a flush");
+let while_down = ladder.flush().await?;
 let still_queued = ladder.buffered().await.expect("a count");
 println!("flush while down forwarded {while_down}, queue still {still_queued}");
 
 // The backhaul is reachable again, so the buffered reading goes out exactly once.
-let when_up = ladder.flush().await.expect("a flush");
-let late = gateway.recv().await.expect("recv").expect("a message");
+let when_up = ladder.flush().await?;
+let late = gateway.recv().await?.expect("a message");
 let buffered_reading = late.text().expect("text");
 println!("flush when up forwarded {when_up}, gateway got {buffered_reading}");
 
 // The ladder is a link both ways. A subscription placed on it goes onto every rung
 // that listens, and a receive takes whichever rung delivers, so a command reaches
 // the node over whatever link is up. This one comes back over the backhaul.
-ladder
-    .subscribe("actuators/1/valve")
-    .await
-    .expect("subscribe");
-gateway
-    .send_text("actuators/1/valve", "open")
-    .await
-    .expect("send");
-let command = ladder.recv().await.expect("recv").expect("a command");
+ladder.subscribe("actuators/1/valve").await?;
+gateway.send_text("actuators/1/valve", "open").await?;
+let command = ladder.recv().await?.expect("a command");
 let order = command.text().expect("text");
 println!("command back over the ladder: {order}");
 ```
