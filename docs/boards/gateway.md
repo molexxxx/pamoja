@@ -88,6 +88,7 @@ without a default is required.
 | `radio.carrier_hz` | The carrier every channel offset is measured from. | |
 | `radio.channels` | One to eight offsets from it, in hertz, signed. | |
 | `radio.spreading_factors` | Which factors to look for, each 5 to 12. | all of them |
+| `radio.lorawan_public` | Whether the network is public, which picks the sync word the receivers look for. | `true` |
 | `radio.dual_demodulation` | A mask of factors to demodulate twice over, one bit each from SF5. | `0` |
 | `upstream.forwarder` | The host to send uplinks to. | |
 | `upstream.port` | Its port. | `1700` |

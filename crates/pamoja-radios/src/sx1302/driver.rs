@@ -89,6 +89,12 @@ pub enum ConcentratorError<E> {
         /// The carrier asked for, in hertz.
         hertz: u32,
     },
+    /// A channel too far from the carrier for the radio to hear, however the register that
+    /// carries the offset holds it.
+    ChannelOutOfReach {
+        /// The offset asked for, in hertz.
+        offset_hz: i32,
+    },
     /// A microcontroller never reached the state it was waited for.
     Stalled {
         /// The state it was waited for.
@@ -135,6 +141,11 @@ impl<E: core::fmt::Debug> core::fmt::Display for ConcentratorError<E> {
             ConcentratorError::UnsupportedBand { hertz } => write!(
                 f,
                 "{hertz} Hz is outside every band a front end calibrates over"
+            ),
+            ConcentratorError::ChannelOutOfReach { offset_hz } => write!(
+                f,
+                "a channel {offset_hz} Hz from the carrier is outside the {} Hz a radio hears",
+                channel::RX_BANDWIDTH_HZ
             ),
             ConcentratorError::Stalled { wanted, reading } => write!(
                 f,
@@ -628,6 +639,16 @@ where
         &mut self,
         plan: &channel::Plan,
     ) -> Result<(), ConcentratorError<SPI::Error>> {
+        // The offset register reaches far past what the radio hears, so a channel outside
+        // the window is refused here rather than configured into silence.
+        for listener in &plan.channels {
+            if listener.enabled && !channel::reachable(listener.offset_hz) {
+                return Err(ConcentratorError::ChannelOutOfReach {
+                    offset_hz: listener.offset_hz,
+                });
+            }
+        }
+
         for channel::Step::Write(register, value) in channel::steps(plan) {
             self.write_register(register, value)?;
         }
@@ -1106,6 +1127,25 @@ mod tests {
     /// A concentrator whose bus answers with exactly these steps.
     fn driven(steps: Vec<SpiStep>) -> Sx1302<SpiScript, PinScript, DelayLog> {
         Sx1302::new(SpiScript::new(steps), PinScript::new([]), DelayLog::new())
+    }
+
+    #[test]
+    fn a_channel_the_radio_cannot_hear_is_refused_before_the_bus_is_touched() {
+        // Nothing is scripted, so any transfer at all would fail the script. The refusal
+        // comes first, which is the point: the chip would take this offset and then hear
+        // nothing on that channel.
+        let mut chip = driven(Vec::new());
+        let plan = channel::Plan::new(867_800_000, &[1_000_000]);
+
+        let refused = chip
+            .configure_channels(&plan)
+            .expect_err("a megahertz is past the radio window");
+        assert!(matches!(
+            refused,
+            ConcentratorError::ChannelOutOfReach {
+                offset_hz: 1_000_000
+            }
+        ));
     }
 
     /// The transfer that reads one byte, and the answer it brings back.

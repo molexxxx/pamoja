@@ -23,6 +23,25 @@ use super::tx::Chain;
 /// It is fixed in hardware. Only the service receiver takes a bandwidth of its own.
 pub const MULTI_BANDWIDTH_HZ: u32 = 125_000;
 
+/// How much spectrum one radio hears in total, in hertz.
+///
+/// A concentrator tunes its radios once and every channel sits inside this window. It is a
+/// property of the radio rather than of the register that carries a channel offset.
+pub const RX_BANDWIDTH_HZ: u32 = 1_600_000;
+
+/// How far from the carrier a channel can sit, in hertz.
+///
+/// Half the radio's window, less half the channel's own width. The register that carries an
+/// offset is thirteen bits and reaches far past this, so a channel beyond it is accepted by
+/// the chip and then hears nothing at all.
+pub const MAX_OFFSET_HZ: i32 = (RX_BANDWIDTH_HZ as i32 - MULTI_BANDWIDTH_HZ as i32) / 2;
+
+/// The sync symbol positions a public network uses.
+const PUBLIC_PEAKS: (u8, u8) = (6, 8);
+
+/// The ones a private network uses, which is also what the chip powers up looking for.
+const PRIVATE_PEAKS: (u8, u8) = (2, 4);
+
 /// How many receivers take any spreading factor.
 pub const MULTI_CHANNELS: usize = 8;
 
@@ -141,6 +160,9 @@ pub struct Plan {
     /// Which spreading factors to look for, one bit each counting from
     /// [`MIN_SPREADING_FACTOR`].
     pub spreading_factors: u8,
+    /// Whether the network is a public one, which decides the sync word the receivers look
+    /// for. LoRaWAN networks are public; the chip powers up expecting a private one.
+    pub public: bool,
 }
 
 impl Plan {
@@ -183,7 +205,33 @@ impl Plan {
             carrier_hz,
             channels,
             spreading_factors: every_spreading_factor(),
+            public: true,
         }
+    }
+
+    /// The same plan, on a public network or a private one.
+    ///
+    /// # Arguments
+    ///
+    /// * `public` - whether the network is public. Every LoRaWAN network is.
+    ///
+    /// # Returns
+    ///
+    /// The plan.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_radios::sx1302::channel::Plan;
+    ///
+    /// // A plan listens to a public network unless it is told otherwise.
+    /// assert!(Plan::new(867_800_000, &[0]).public);
+    /// assert!(!Plan::new(867_800_000, &[0]).network(false).public);
+    /// ```
+    #[must_use]
+    pub const fn network(mut self, public: bool) -> Plan {
+        self.public = public;
+        self
     }
 
     /// The same plan, looking only for these spreading factors.
@@ -435,7 +483,64 @@ pub fn steps(plan: &Plan) -> impl Iterator<Item = Step> + '_ {
     channelizer(plan)
         .chain(correlators(plan))
         .chain(demodulators(plan))
+        .chain(syncword(plan))
         .chain(enables())
+}
+
+/// Telling the receivers which network they are listening to.
+///
+/// A LoRa preamble ends in two symbols whose positions say which network a frame belongs to,
+/// and the chip looks for them where it is told. It powers up looking for a private network,
+/// so receivers that are never given this hear nothing from a public one however well
+/// everything else is configured.
+///
+/// The two lowest spreading factors have no public form and always take the private
+/// positions, which is what the reference does.
+fn syncword(plan: &Plan) -> impl Iterator<Item = Step> {
+    let (first, second) = if plan.public {
+        PUBLIC_PEAKS
+    } else {
+        PRIVATE_PEAKS
+    };
+    let (low_first, low_second) = PRIVATE_PEAKS;
+
+    [
+        Step::Write(register::RX_SYNC_SF5_PEAK1, low_first),
+        Step::Write(register::RX_SYNC_SF5_PEAK2, low_second),
+        Step::Write(register::RX_SYNC_SF6_PEAK1, low_first),
+        Step::Write(register::RX_SYNC_SF6_PEAK2, low_second),
+        Step::Write(register::RX_SYNC_SF7_TO_SF12_PEAK1, first),
+        Step::Write(register::RX_SYNC_SF7_TO_SF12_PEAK2, second),
+        Step::Write(register::SERVICE_SYNC_PEAK1, first),
+        Step::Write(register::SERVICE_SYNC_PEAK2, second),
+    ]
+    .into_iter()
+}
+
+/// Whether a channel offset is one the radio can actually hear.
+///
+/// # Arguments
+///
+/// * `offset_hz` - how far from the carrier the channel sits.
+///
+/// # Returns
+///
+/// Whether it falls inside the radio's window.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_radios::sx1302::channel::{reachable, MAX_OFFSET_HZ};
+///
+/// assert_eq!(MAX_OFFSET_HZ, 737_500);
+/// assert!(reachable(700_000));
+///
+/// // The register carries this happily. The radio does not hear it.
+/// assert!(!reachable(1_000_000));
+/// ```
+#[must_use]
+pub const fn reachable(offset_hz: i32) -> bool {
+    offset_hz >= -MAX_OFFSET_HZ && offset_hz <= MAX_OFFSET_HZ
 }
 
 /// Giving each receiver its frequency, its radio, and the gain it reads power against.
@@ -581,6 +686,70 @@ mod tests {
                 -700_000, -500_000, -300_000, -100_000, 100_000, 300_000, 500_000, 700_000,
             ],
         )
+    }
+
+    #[test]
+    fn the_receivers_are_told_which_network_they_are_on() {
+        let public: Vec<Step> = steps(&eu868()).collect();
+        let private: Vec<Step> = steps(&eu868().network(false)).collect();
+
+        let written = |order: &[Step], want: register::Register| {
+            order
+                .iter()
+                .find_map(|Step::Write(named, value)| (*named == want).then_some(*value))
+                .expect("the sync word is written")
+        };
+
+        // A public network moves both sync symbols out. A private one leaves them where the
+        // chip powers up, which is why a gateway that never writes these hears nothing from
+        // a public network however well everything else is configured.
+        assert_eq!(written(&public, register::RX_SYNC_SF7_TO_SF12_PEAK1), 6);
+        assert_eq!(written(&public, register::RX_SYNC_SF7_TO_SF12_PEAK2), 8);
+        assert_eq!(written(&private, register::RX_SYNC_SF7_TO_SF12_PEAK1), 2);
+        assert_eq!(written(&private, register::RX_SYNC_SF7_TO_SF12_PEAK2), 4);
+
+        // The two lowest spreading factors have no public form, on either kind of network.
+        assert_eq!(written(&public, register::RX_SYNC_SF5_PEAK1), 2);
+        assert_eq!(written(&public, register::RX_SYNC_SF5_PEAK2), 4);
+        assert_eq!(written(&public, register::RX_SYNC_SF6_PEAK1), 2);
+        assert_eq!(written(&public, register::RX_SYNC_SF6_PEAK2), 4);
+    }
+
+    #[test]
+    fn the_sync_word_is_written_before_anything_is_switched_on() {
+        let order: Vec<Step> = steps(&eu868()).collect();
+
+        let sync = order
+            .iter()
+            .position(|step| {
+                matches!(step, Step::Write(named, _) if *named == register::RX_SYNC_SF7_TO_SF12_PEAK1)
+            })
+            .expect("the sync word is written");
+        let enable = order
+            .iter()
+            .position(|step| {
+                matches!(step, Step::Write(named, _) if *named == register::COMMON_GLOBAL_ENABLE)
+            })
+            .expect("the receivers are switched on");
+
+        assert!(sync < enable);
+    }
+
+    #[test]
+    fn a_channel_past_the_radio_window_is_not_reachable() {
+        // Half the radio's window, less half a channel. The plan this file used to carry
+        // reached a megahertz, which is past it on both counts.
+        assert_eq!(MAX_OFFSET_HZ, 737_500);
+        assert!(reachable(MAX_OFFSET_HZ));
+        assert!(reachable(-MAX_OFFSET_HZ));
+        assert!(!reachable(MAX_OFFSET_HZ + 1));
+        assert!(!reachable(800_000));
+        assert!(!reachable(-1_000_000));
+
+        // And every channel the shipped plan uses is inside it.
+        for listener in &eu868().channels {
+            assert!(reachable(listener.offset_hz), "{}", listener.offset_hz);
+        }
     }
 
     #[test]
