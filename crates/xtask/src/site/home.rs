@@ -140,7 +140,7 @@ struct Milestone {
 
 /// The four first examples, one per language, as (tab label, panel id, file, anchor).
 const QUICKSTARTS: [(&str, &str, &str); 4] = [
-    ("Rust", "rust", "examples/tests/guides/quickstart.rs"),
+    ("Rust", "rust", "examples/guides/quickstart.rs"),
     (
         "TypeScript",
         "typescript",

@@ -14,7 +14,8 @@
     "build:facade": "tsc -b",
     "check:packaging": "node scripts/check-packaging.mjs",
     "test": "node test.js && node conformance.js && npm run test:guides",
-    "test:guides": "tsc -p guides/tsconfig.json && node guides/run.js"
+    "guides": "tsc -p guides/tsconfig.json && node guides/run.js",
+    "test:guides": "npm run guides"
   },
   "devDependencies": {
     "@napi-rs/cli": "^3.9.0",

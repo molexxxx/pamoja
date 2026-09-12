@@ -43,13 +43,13 @@ It proves:
 
 ## Run it
 
-The example below is a test that runs in CI, in each language, from a clone of the
+The example below is a program CI runs on every change, in each language, from a clone of the
 repository:
 
 <!-- table: run -->
 <div class="run">
-<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo test -p pamoja-examples --test guides bus -- --nocapture" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo test -p pamoja-examples --test guides bus -- --nocapture</code></div>
-<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run test:guides -- bus" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run test:guides -- bus</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">Rust</span><button class="copy" type="button" data-copy="cargo run -p pamoja-examples --example bus" aria-label="Copy the command that runs the Rust example">copy</button></p><code class="run-cmd">cargo run -p pamoja-examples --example bus</code></div>
+<div class="run-row"><p class="run-head"><span class="run-lang">TypeScript</span><button class="copy" type="button" data-copy="npm --prefix bindings/node run guides -- bus" aria-label="Copy the command that runs the TypeScript example">copy</button></p><code class="run-cmd">npm --prefix bindings/node run guides -- bus</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">Python</span><button class="copy" type="button" data-copy="python bindings/python/guides/bus.py" aria-label="Copy the command that runs the Python example">copy</button></p><code class="run-cmd">python bindings/python/guides/bus.py</code></div>
 <div class="run-row"><p class="run-head"><span class="run-lang">C#</span><button class="copy" type="button" data-copy="dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- bus" aria-label="Copy the command that runs the C# example">copy</button></p><code class="run-cmd">dotnet run --project bindings/dotnet/samples/Pamoja.Guides -- bus</code></div>
 </div>
@@ -57,8 +57,8 @@ repository:
 
 ## Rust
 
-<!-- snippet: examples/tests/guides/bus.rs#example -->
-From [`examples/tests/guides/bus.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/bus.rs):
+<!-- snippet: examples/guides/bus.rs#example -->
+From [`examples/guides/bus.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/bus.rs):
 
 ```rust
 use pamoja_bus::BroadcastBus;
@@ -74,12 +74,12 @@ hub.publish("battery.low").await.expect("published");
 let to_control = control
     .next_event()
     .await
-    .expect("a live bus")
+    ?
     .expect("an event");
 let to_logger = logger
     .next_event()
     .await
-    .expect("a live bus")
+    ?
     .expect("an event");
 println!("control saw {to_control}, the logger saw {to_logger}");
 
@@ -90,7 +90,7 @@ hub.publish("link.up").await.expect("published");
 let first_seen = late
     .next_event()
     .await
-    .expect("a live bus")
+    ?
     .expect("an event");
 println!("the late subscriber's first event is {first_seen}");
 
@@ -105,7 +105,7 @@ for count in 0..5u8 {
 let resumed = reader
     .next_event()
     .await
-    .expect("a live bus")
+    ?
     .expect("an event");
 println!("after five events into a buffer of two, the reader resumes at {resumed}");
 ```

@@ -122,6 +122,154 @@ path = "signed_update.rs"
 name = "conformance_vectors"
 path = "conformance_vectors.rs"
 
+[[example]]
+name = "actuators"
+path = "guides/actuators.rs"
+
+[[example]]
+name = "audit"
+path = "guides/audit.rs"
+
+[[example]]
+name = "bus"
+path = "guides/bus.rs"
+
+[[example]]
+name = "can"
+path = "guides/can.rs"
+
+[[example]]
+name = "coap"
+path = "guides/coap.rs"
+
+[[example]]
+name = "codec"
+path = "guides/codec.rs"
+
+[[example]]
+name = "device"
+path = "guides/device.rs"
+
+[[example]]
+name = "gateway"
+path = "guides/gateway.rs"
+
+[[example]]
+name = "gpio"
+path = "guides/gpio.rs"
+
+[[example]]
+name = "hal"
+path = "guides/hal.rs"
+
+[[example]]
+name = "kit"
+path = "guides/kit.rs"
+
+[[example]]
+name = "ladder"
+path = "guides/ladder.rs"
+
+[[example]]
+name = "link"
+path = "guides/link.rs"
+
+[[example]]
+name = "loopback"
+path = "guides/loopback.rs"
+
+[[example]]
+name = "lora"
+path = "guides/lora.rs"
+
+[[example]]
+name = "lorawan"
+path = "guides/lorawan.rs"
+
+[[example]]
+name = "mavlink"
+path = "guides/mavlink.rs"
+
+[[example]]
+name = "mesh"
+path = "guides/mesh.rs"
+
+[[example]]
+name = "modbus"
+path = "guides/modbus.rs"
+
+[[example]]
+name = "mqtt"
+path = "guides/mqtt.rs"
+
+[[example]]
+name = "power"
+path = "guides/power.rs"
+
+[[example]]
+name = "profile"
+path = "guides/profile.rs"
+
+[[example]]
+name = "quickstart"
+path = "guides/quickstart.rs"
+
+[[example]]
+name = "radios"
+path = "guides/radios.rs"
+
+[[example]]
+name = "ros2"
+path = "guides/ros2.rs"
+
+[[example]]
+name = "routing"
+path = "guides/routing.rs"
+
+[[example]]
+name = "rules"
+path = "guides/rules.rs"
+
+[[example]]
+name = "security"
+path = "guides/security.rs"
+
+[[example]]
+name = "sensors"
+path = "guides/sensors.rs"
+
+[[example]]
+name = "serial"
+path = "guides/serial.rs"
+
+[[example]]
+name = "session"
+path = "guides/session.rs"
+
+[[example]]
+name = "sim"
+path = "guides/sim.rs"
+
+[[example]]
+name = "sync"
+path = "guides/sync.rs"
+
+[[example]]
+name = "telemetry_guide"
+path = "guides/telemetry.rs"
+
+[[example]]
+name = "transport"
+path = "guides/transport.rs"
+
+[[example]]
+name = "update"
+path = "guides/update.rs"
+
+[[example]]
+name = "zenoh"
+path = "guides/zenoh.rs"
+
 [lints]
 workspace = true
 

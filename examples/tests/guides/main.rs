@@ -1,41 +1,7 @@
-//! The guide examples: one module per page of the documentation site, each a test
-//! whose marked region is spliced into that page by `cargo xtask docs`.
+//! The import lines the install page shows.
+//!
+//! Every other guide is a program under `examples/guides`, run with
+//! `cargo run -p pamoja-examples --example <name>`. This one stays a test because what the
+//! page splices from it is two `use` lines rather than anything that runs.
 
-mod actuators;
-mod audit;
-mod bus;
-mod can;
-mod coap;
-mod codec;
-mod device;
-mod gateway;
-mod gpio;
-mod hal;
 mod imports;
-mod kit;
-mod ladder;
-mod link;
-mod loopback;
-mod lora;
-mod lorawan;
-mod mavlink;
-mod mesh;
-mod modbus;
-mod mqtt;
-mod power;
-mod profile;
-mod quickstart;
-mod radios;
-mod ros2;
-mod routing;
-mod rules;
-mod security;
-mod sensors;
-mod serial;
-mod session;
-mod sim;
-mod sync;
-mod telemetry;
-mod transport;
-mod update;
-mod zenoh;

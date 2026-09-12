@@ -99,8 +99,13 @@ jobs:
       # conformance vectors, and the diff fails if the committed file no longer matches.
       - name: Examples run and the conformance vectors are current
         run: |
+          # Target names are unique across the package, so the one guide that shares a name
+          # with another example carries a suffix; every other target is its file name.
           for example in $(ls examples/*.rs examples/community/*.rs 2>/dev/null | xargs -n1 basename | sed 's/\.rs$//' | grep -v '^mavlink_sitl$'); do
             cargo run -p pamoja-examples --example "$example" > /dev/null
+          done
+          for guide in $(ls examples/guides/*.rs | xargs -n1 basename | sed 's/\.rs$//' | sed 's/^telemetry$/telemetry_guide/'); do
+            cargo run -p pamoja-examples --example "$guide" > /dev/null
           done
           git diff --exit-code -- conformance/vectors.json
 
