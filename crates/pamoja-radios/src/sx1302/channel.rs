@@ -161,13 +161,15 @@ impl Plan {
     /// ```
     /// use pamoja_radios::sx1302::channel::Plan;
     ///
-    /// // The eight channels a European gateway usually runs.
+    /// // The eight channels a European gateway usually runs, 867.1 MHz through 868.5 MHz.
+    /// // The carrier sits in the middle of them, because a radio only hears so far either
+    /// // side of what it is tuned to.
     /// let plan = Plan::new(
-    ///     867_500_000,
-    ///     &[-400_000, -200_000, 0, 200_000, 400_000, 600_000, 800_000, 1_000_000],
+    ///     867_800_000,
+    ///     &[-700_000, -500_000, -300_000, -100_000, 100_000, 300_000, 500_000, 700_000],
     /// );
     /// assert!(plan.channels[0].enabled);
-    /// assert_eq!(plan.channels[2].offset_hz, 0);
+    /// assert_eq!(plan.channels[4].offset_hz, 100_000);
     /// ```
     #[must_use]
     pub fn new(carrier_hz: u32, offsets_hz: &[i32]) -> Plan {
@@ -569,11 +571,14 @@ mod tests {
     use super::*;
 
     /// The eight channels a European gateway usually runs, around one carrier.
+    ///
+    /// The carrier sits in the middle of the band rather than at its low end, because a
+    /// radio only hears so far either side of what it is tuned to.
     fn eu868() -> Plan {
         Plan::new(
-            867_500_000,
+            867_800_000,
             &[
-                -400_000, -200_000, 0, 200_000, 400_000, 600_000, 800_000, 1_000_000,
+                -700_000, -500_000, -300_000, -100_000, 100_000, 300_000, 500_000, 700_000,
             ],
         )
     }

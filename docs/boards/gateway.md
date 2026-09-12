@@ -107,8 +107,8 @@ A gateway on the European band, listening on the eight channels around 867.5 MHz
     }
   },
   "radio": {
-    "carrier_hz": 867500000,
-    "channels": [-400000, -200000, 0, 200000, 400000, 600000, 800000, 1000000]
+    "carrier_hz": 867800000,
+    "channels": [-700000, -500000, -300000, -100000, 100000, 300000, 500000, 700000]
   },
   "upstream": { "forwarder": "router.example.net" }
 }
@@ -116,7 +116,13 @@ A gateway on the European band, listening on the eight channels around 867.5 MHz
 
 Channels are offsets rather than frequencies because a concentrator tunes its
 front ends once and listens around them. The eight above are the standard EU868
-plan: 868.1 through 867.9 MHz, spread either side of the carrier.
+plan, 867.1 MHz through 868.5 MHz, with the carrier in the middle of them.
+
+Putting the carrier in the middle is not a stylistic choice. A radio hears
+1.6 MHz in total, so a 125 kHz channel has to sit within 737.5 kHz of the
+carrier, counting half the channel's own width. Tuning to 867.5 MHz and reaching
+for 868.5 MHz asks for an offset of a megahertz, which is outside that window:
+the chip accepts the number, and those channels then hear nothing at all.
 
 Anything the file is missing or cannot use is refused by name, so a gateway that
 will not start says which field to fix rather than that the file is wrong.
