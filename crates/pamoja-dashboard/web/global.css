@@ -326,8 +326,6 @@
   --lk-mesh: #ff9c82;
 }
 
-}
-
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 /* The gutter is reserved on the end edge only. `both-edges` keeps content centered when a
