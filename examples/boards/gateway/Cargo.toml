@@ -1,0 +1,14 @@
+[package]
+name = "board-gateway"
+version = "0.0.0"
+edition = "2021"
+publish = false
+license = "MIT"
+description = "Programs for a LoRaWAN gateway: a concentrator brought up from the same configuration the daemon reads and printing every packet it hears, and the converter that turns Semtech's firmware arrays into the images the concentrator is loaded with."
+
+[dependencies]
+pamoja-gateway = { path = "../../../crates/pamoja-gateway", features = ["daemon"] }
+pamoja-lora = { path = "../../../crates/pamoja-lora" }
+pamoja-radios = { path = "../../../crates/pamoja-radios", features = ["linux"] }
+
+[workspace]

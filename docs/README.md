@@ -27,7 +27,9 @@ and radios the crates implement, and the boards this is built and tested on.
 With a board on the desk, its page wires a sensor to it, turns the bus on, and
 runs a first program: [Raspberry Pi](boards/raspberry-pi.md),
 [ESP32](boards/esp32.md), or [RP2040](boards/rp2040.md). The Raspberry Pi and
-ESP32 pages go on to drive a relay from a GPIO line and run a whole node.
+ESP32 pages go on to drive a relay from a GPIO line and run a whole node, and the
+[gateway](boards/gateway.md) page seats a concentrator card on a Linux host and
+listens to a whole band at once.
 [Buses and links](buses.md)
 explains the buses and links themselves, from I2C to LoRa, and names the crate
 that carries each one's logic.

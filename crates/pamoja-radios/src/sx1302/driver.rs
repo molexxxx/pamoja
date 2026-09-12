@@ -105,6 +105,8 @@ pub enum ConcentratorError<E> {
     },
 }
 
+impl<E: core::fmt::Debug> core::error::Error for ConcentratorError<E> {}
+
 impl<E: core::fmt::Debug> core::fmt::Display for ConcentratorError<E> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {

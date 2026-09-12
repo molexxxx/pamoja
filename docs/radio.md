@@ -29,7 +29,8 @@ timestamp, which lets a network locate a node by time difference of arrival.
 The RAK2287, the RAK5146, and the Seeed WM1302 put those chips on mini PCIe cards
 with a U.FL antenna connector. The RAK5146 adds an SX126x radio for listen before
 talk, and Semtech's `sx1302_hal` software uses the additional SX1261 on the Corecell
-reference design to scan the spectrum.
+reference design to scan the spectrum. The [gateway](boards/gateway.md) page seats one
+of those cards on a Raspberry Pi and brings it up.
 
 What to get right: a concentrator decodes what reaches it, so everything below still
 applies to the gateway's antenna and feed line, and a USB concentrator talks to its

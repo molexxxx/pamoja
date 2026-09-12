@@ -61,6 +61,7 @@ impl Nav {
                 item("Raspberry Pi", "docs/boards/raspberry-pi.html"),
                 item("ESP32", "docs/boards/esp32.html"),
                 item("RP2040", "docs/boards/rp2040.html"),
+                item("Gateway", "docs/boards/gateway.html"),
             ],
         });
         for chapter in &catalog.chapters {
@@ -247,7 +248,7 @@ guide = "guides/can.md"
         );
         let urls: Vec<&str> = nav.items().map(|item| item.url.as_str()).collect();
         assert_eq!(
-            &urls[..11],
+            &urls[..12],
             [
                 "docs/index.html",
                 "docs/install.html",
@@ -260,6 +261,7 @@ guide = "guides/can.md"
                 "docs/boards/raspberry-pi.html",
                 "docs/boards/esp32.html",
                 "docs/boards/rp2040.html",
+                "docs/boards/gateway.html",
             ]
         );
     }

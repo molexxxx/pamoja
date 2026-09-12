@@ -49,6 +49,7 @@ exclude = [
     "examples/boards/raspberry-pi",
     "examples/boards/rp2040",
     "examples/boards/esp32c3",
+    "examples/boards/gateway",
 ]
 
 [workspace.package]
