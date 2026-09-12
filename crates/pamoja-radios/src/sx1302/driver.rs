@@ -95,6 +95,8 @@ pub enum ConcentratorError<E> {
         /// The offset asked for, in hertz.
         offset_hz: i32,
     },
+    /// A packet the transmit chain cannot be told to send.
+    Transmit(tx::TransmitError),
     /// A microcontroller never reached the state it was waited for.
     Stalled {
         /// The state it was waited for.
@@ -147,6 +149,7 @@ impl<E: core::fmt::Debug> core::fmt::Display for ConcentratorError<E> {
                 "a channel {offset_hz} Hz from the carrier is outside the {} Hz a radio hears",
                 channel::RX_BANDWIDTH_HZ
             ),
+            ConcentratorError::Transmit(error) => error.fmt(f),
             ConcentratorError::Stalled { wanted, reading } => write!(
                 f,
                 "a microcontroller stopped at {reading} rather than reaching {wanted}"
@@ -558,6 +561,45 @@ where
     /// # Arguments
     ///
     /// * `chain` - which transmit chain sends it.
+    /// * `transmit` - the packet and everything the modulator has to be told about it. A
+    ///   chain given a payload without this sends it on whatever it was last set to.
+    /// * `trigger` - what the send waits for.
+    /// * `start_delay` - what [`start_delay`](super::tx::start_delay) worked out.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once the trigger is armed. The packet leaves when the trigger says.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn transmit(
+        &mut self,
+        chain: Chain,
+        transmit: &tx::Transmit<'_>,
+        trigger: Trigger,
+        start_delay: u16,
+    ) -> Result<(), ConcentratorError<SPI::Error>> {
+        // The modulator is configured and started before the payload is loaded, which is
+        // the order the reference uses and the only one that describes the packet.
+        for (register, value) in
+            tx::settings(chain, transmit).map_err(ConcentratorError::Transmit)?
+        {
+            self.write_register(register, value)?;
+        }
+
+        self.send(chain, transmit.payload, trigger, start_delay)
+    }
+
+    /// Loads a payload into a chain that is already configured, and arms its trigger.
+    ///
+    /// [`transmit`](Self::transmit) describes a packet and then calls this. A caller answering
+    /// on settings the chain already holds can call it directly, which is every downlink
+    /// after the first on one channel.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain` - which transmit chain sends it.
     /// * `payload` - the bytes the chain sends. For frequency shift keying the length byte
     ///   goes first, as the chip reads it out of the buffer.
     /// * `trigger` - what the send waits for.
@@ -570,7 +612,7 @@ where
     /// # Errors
     ///
     /// Returns [`ConcentratorError::Spi`] if a transfer fails.
-    pub fn transmit(
+    pub fn send(
         &mut self,
         chain: Chain,
         payload: &[u8],
@@ -1520,6 +1562,30 @@ mod tests {
     }
 
     #[test]
+    fn a_packet_the_chain_cannot_describe_never_reaches_the_bus() {
+        // Nothing is scripted, so any transfer at all would fail the script. The refusal
+        // comes first, which matters more here than it looks: a chain left half configured
+        // would put the next packet on the air with whatever it was given for this one.
+        let mut chip = driven(Vec::new());
+        let request = tx::Transmit {
+            frequency_hz: 868_100_000,
+            link: pamoja_lora::LinkSettings::new(7, 62_500),
+            gain: tx::DEFAULT_GAINS[0],
+            invert_polarity: true,
+            public: true,
+            payload: &[0x01],
+        };
+
+        let refused = chip
+            .transmit(Chain::A, &request, Trigger::Immediate, 0x0102)
+            .expect_err("a chain does not transmit at 62500 Hz");
+        assert!(matches!(
+            refused,
+            ConcentratorError::Transmit(tx::TransmitError::Bandwidth { hertz: 62_500 })
+        ));
+    }
+
+    #[test]
     fn a_send_loads_the_payload_before_it_arms_the_trigger() {
         // The delay is programmed, the buffer is opened and written and closed, and only
         // then is the trigger cleared and set. Arming first would send whatever was there.
@@ -1540,7 +1606,7 @@ mod tests {
         ]);
         let mut chip = driven(steps);
 
-        chip.transmit(Chain::A, &[0xde, 0xad], Trigger::Immediate, 0x0102)
+        chip.send(Chain::A, &[0xde, 0xad], Trigger::Immediate, 0x0102)
             .expect("the bus answers");
     }
 
@@ -1570,7 +1636,7 @@ mod tests {
         ]);
         let mut chip = driven(steps);
 
-        chip.transmit(Chain::A, &[0x01], Trigger::At(1_000_000), 0x0102)
+        chip.send(Chain::A, &[0x01], Trigger::At(1_000_000), 0x0102)
             .expect("the bus answers");
     }
 
