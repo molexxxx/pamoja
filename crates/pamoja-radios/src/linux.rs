@@ -41,6 +41,7 @@ use embedded_hal::digital::{self, InputPin, OutputPin};
 use embedded_hal::spi::{self, Operation, SpiDevice};
 
 use crate::radio::{Radio, RadioError};
+use crate::sx1302::Sx1302;
 use crate::{sx126x, sx127x};
 
 /// The SPI mode both families take: CPOL 0 and CPHA 0, the clock idling low and data sampled
@@ -100,6 +101,12 @@ pub type BusError = Unavailable;
 
 /// A radio opened on a Linux board.
 pub type LinuxRadio = Radio<Spi, Line, Line, Delay>;
+
+/// A concentrator opened on a Linux board.
+///
+/// A gateway part rather than a node one: it listens on many channels at once and is driven
+/// as a register map, so it is a handle of its own rather than a [`LinuxRadio`].
+pub type LinuxConcentrator = Sx1302<Spi, Line, Delay>;
 
 /// The bus, line, and delay of a platform with no spidev or GPIO character device.
 ///
@@ -252,13 +259,23 @@ pub enum OpenError {
     /// The chip did not come up after its reset, which is most often a wiring or a power
     /// problem.
     Radio(RadioError<SpiError>),
+    /// The reset line was opened but could not be driven, so the chip was never reset.
+    ResetLine {
+        /// The GPIO chip the line is on.
+        device: PathBuf,
+    },
 }
 
 impl fmt::Display for OpenError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             OpenError::Unsupported => f.write_str(
-                "a LoRa radio is opened through spidev and the GPIO character device, which only Linux has",
+                "a LoRa radio or concentrator is opened through spidev and the GPIO character device, which only Linux has",
+            ),
+            OpenError::ResetLine { device } => write!(
+                f,
+                "{}: the reset line opened but could not be driven",
+                device.display()
             ),
             OpenError::NoBusyLine => {
                 f.write_str("an SX126x needs its BUSY line, and the wiring names none")
@@ -274,7 +291,7 @@ impl std::error::Error for OpenError {
         match self {
             OpenError::Bus { error, .. } => Some(error),
             OpenError::Radio(error) => Some(error),
-            OpenError::Unsupported | OpenError::NoBusyLine => None,
+            OpenError::Unsupported | OpenError::NoBusyLine | OpenError::ResetLine { .. } => None,
         }
     }
 }
@@ -322,6 +339,31 @@ pub fn open_sx127x(wiring: &Wiring, board: sx127x::Board) -> Result<LinuxRadio, 
     platform::open_sx127x(wiring, board)
 }
 
+/// Opens an SX1302 or SX1303 concentrator and pulses its reset line.
+///
+/// Unlike a transceiver, a concentrator is not ready when this returns. It answers on the bus,
+/// which is what the reset buys, but it hears nothing until its two microcontrollers are given
+/// firmware, and those images belong to the caller. So this hands back a handle to check with
+/// [`Sx1302::check`] and load with [`Sx1302::load_firmware`], rather than pretending to an
+/// initialization it cannot finish.
+///
+/// # Arguments
+///
+/// * `wiring` - the SPI device and the reset line. The concentrator has no BUSY pin, so
+///   [`busy_line`](Wiring::busy_line) is ignored.
+///
+/// # Returns
+///
+/// The concentrator, reset and answering.
+///
+/// # Errors
+///
+/// Returns [`OpenError::Unsupported`] on any platform but Linux, and [`OpenError::Bus`] if
+/// the SPI device or the reset line cannot be opened.
+pub fn open_sx1302(wiring: &Wiring) -> Result<LinuxConcentrator, OpenError> {
+    platform::open_sx1302(wiring)
+}
+
 #[cfg(target_os = "linux")]
 mod platform {
     use std::path::Path;
@@ -329,8 +371,9 @@ mod platform {
     use embedded_hal::digital::PinState;
     use pamoja_hal::linux;
 
-    use super::{LinuxRadio, OpenError, Wiring, CONSUMER, SPI_MODE};
+    use super::{LinuxConcentrator, LinuxRadio, OpenError, Wiring, CONSUMER, SPI_MODE};
     use crate::radio::Radio;
+    use crate::sx1302::Sx1302;
     use crate::{sx126x, sx127x};
 
     pub(super) fn open_sx126x(
@@ -365,6 +408,18 @@ mod platform {
         )))
     }
 
+    pub(super) fn open_sx1302(wiring: &Wiring) -> Result<LinuxConcentrator, OpenError> {
+        let spi = spi(wiring)?;
+        let reset = reset(wiring)?;
+        let mut concentrator = Sx1302::new(spi, reset, linux::delay());
+
+        // The chip does not reset itself, and nothing it answers means anything until it has.
+        concentrator.reset().map_err(|_| OpenError::ResetLine {
+            device: wiring.gpio_chip.clone(),
+        })?;
+        Ok(concentrator)
+    }
+
     fn spi(wiring: &Wiring) -> Result<linux::SpidevDevice, OpenError> {
         linux::spi(&wiring.spi, SPI_MODE, wiring.spi_hz).map_err(|error| bus(&wiring.spi, error))
     }
@@ -394,7 +449,7 @@ mod platform {
 
 #[cfg(not(target_os = "linux"))]
 mod platform {
-    use super::{LinuxRadio, OpenError, Wiring};
+    use super::{LinuxConcentrator, LinuxRadio, OpenError, Wiring};
     use crate::{sx126x, sx127x};
 
     pub(super) fn open_sx126x(
@@ -406,6 +461,10 @@ mod platform {
     }
 
     pub(super) fn open_sx127x(_: &Wiring, _: sx127x::Board) -> Result<LinuxRadio, OpenError> {
+        Err(OpenError::Unsupported)
+    }
+
+    pub(super) fn open_sx1302(_: &Wiring) -> Result<LinuxConcentrator, OpenError> {
         Err(OpenError::Unsupported)
     }
 }
@@ -446,6 +505,29 @@ mod tests {
                 .starts_with("/dev/spidev-pamoja-absent: "),
             "{refused}"
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_concentrator_names_the_device_it_could_not_open() {
+        let wiring = Wiring::new("/dev/spidev-pamoja-absent", "/dev/gpiochip0", 23);
+        let refused = open_sx1302(&wiring).err().expect("no such device exists");
+        assert!(matches!(refused, OpenError::Bus { .. }));
+        assert!(
+            refused
+                .to_string()
+                .starts_with("/dev/spidev-pamoja-absent: "),
+            "{refused}"
+        );
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    #[test]
+    fn only_linux_opens_a_concentrator() {
+        // A concentrator needs no BUSY line, so the wiring that opens one names none.
+        let wiring = Wiring::new("/dev/spidev0.0", "/dev/gpiochip0", 23);
+        let refused = open_sx1302(&wiring).err();
+        assert!(matches!(refused, Some(OpenError::Unsupported)));
     }
 
     #[cfg(not(target_os = "linux"))]

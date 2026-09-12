@@ -618,7 +618,7 @@ unsafe fn open(
             match error {
                 OpenError::Unsupported => PamojaStatus::Unsupported,
                 OpenError::NoBusyLine => PamojaStatus::InvalidArgument,
-                OpenError::Bus { .. } => PamojaStatus::Io,
+                OpenError::Bus { .. } | OpenError::ResetLine { .. } => PamojaStatus::Io,
                 OpenError::Radio(error) => radio_status(&error),
             }
         }
