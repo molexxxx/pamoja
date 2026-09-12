@@ -20,6 +20,7 @@ use super::chip::{self, Model};
 use super::firmware::{self, LoadError, Mcu};
 use super::register::{self, Register};
 use super::spi as frame;
+use super::sx1250;
 use super::tx::{self, Chain, FrontEnd, Trigger, TxStatus};
 
 /// How long the reset line is held, in microseconds.
@@ -62,6 +63,20 @@ pub enum ConcentratorError<E> {
         /// How many bytes are waiting.
         waiting: u16,
     },
+    /// A front end did not settle into the mode it was put in.
+    FrontEndMode {
+        /// The mode it was asked for.
+        wanted: u8,
+        /// The mode its status reported.
+        read: u8,
+    },
+    /// A front end refused its own image calibration.
+    ImageCalibration,
+    /// A carrier outside every band a front end calibrates over.
+    UnsupportedBand {
+        /// The carrier asked for, in hertz.
+        hertz: u32,
+    },
 }
 
 impl<E: core::fmt::Debug> core::fmt::Display for ConcentratorError<E> {
@@ -81,6 +96,17 @@ impl<E: core::fmt::Debug> core::fmt::Display for ConcentratorError<E> {
             ConcentratorError::Overrun { waiting } => write!(
                 f,
                 "the receive buffer holds {waiting} bytes, which is more than there is room for"
+            ),
+            ConcentratorError::FrontEndMode { wanted, read } => write!(
+                f,
+                "the front end reports mode {read} rather than {wanted}, so it never settled"
+            ),
+            ConcentratorError::ImageCalibration => {
+                f.write_str("the front end refused its own image calibration")
+            }
+            ConcentratorError::UnsupportedBand { hertz } => write!(
+                f,
+                "{hertz} Hz is outside every band a front end calibrates over"
             ),
         }
     }
@@ -544,6 +570,170 @@ where
         Ok(TxStatus::of(value))
     }
 
+    /// Sends a command to the front end on a chain.
+    ///
+    /// A front end answers on the same bus as the concentrator, with the first byte of the
+    /// frame naming it rather than the concentrator. It gives the host no line to watch, so
+    /// this waits [`WAIT_BUSY_US`](super::sx1250::WAIT_BUSY_US) first, as the reference does.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain` - the chain the front end is on.
+    /// * `opcode` - the command.
+    /// * `data` - what the command carries.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once it has been sent.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::Spi`] if the transfer fails.
+    pub fn radio_command(
+        &mut self,
+        chain: Chain,
+        opcode: u8,
+        data: &[u8],
+    ) -> Result<(), ConcentratorError<SPI::Error>> {
+        self.delay.delay_us(sx1250::WAIT_BUSY_US);
+        let header = sx1250::header(chain, opcode);
+        self.spi
+            .transaction(&mut [Operation::Write(&header), Operation::Write(data)])
+            .map_err(ConcentratorError::Spi)
+    }
+
+    /// Asks the front end on a chain for an answer.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain` - the chain the front end is on.
+    /// * `opcode` - the command.
+    /// * `into` - where the answer goes, filled to its length.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once it is filled.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::Spi`] if the transfer fails.
+    pub fn radio_query(
+        &mut self,
+        chain: Chain,
+        opcode: u8,
+        into: &mut [u8],
+    ) -> Result<(), ConcentratorError<SPI::Error>> {
+        self.delay.delay_us(sx1250::WAIT_BUSY_US);
+        let header = sx1250::header(chain, opcode);
+        self.spi
+            .transaction(&mut [Operation::Write(&header), Operation::Read(into)])
+            .map_err(ConcentratorError::Spi)
+    }
+
+    /// Brings the front end on a chain up and leaves it listening.
+    ///
+    /// A concentrator hears nothing until this has run, because the carrier is set here
+    /// rather than on the concentrator. It also matters beyond receiving: the concentrator
+    /// takes its clock from a front end that is in receive, so one left idle stops the chip
+    /// beside it. [`setup`](super::sx1250::setup) holds the order and this walks it.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain` - the chain the front end is on.
+    /// * `hertz` - the carrier to tune to.
+    /// * `single_input` - whether the board wires the front end single ended rather than
+    ///   differential.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once it is tuned and listening.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::FrontEndMode`] if it does not settle into a standby it
+    /// was put in, which is what an unpowered or unclocked front end looks like, and
+    /// [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn setup_front_end(
+        &mut self,
+        chain: Chain,
+        hertz: u32,
+        single_input: bool,
+    ) -> Result<(), ConcentratorError<SPI::Error>> {
+        for step in sx1250::setup(hertz, single_input) {
+            match step {
+                sx1250::Step::Standby(standby) => {
+                    self.radio_command(chain, sx1250::OP_SET_STANDBY, &[standby.value()])?;
+                }
+                sx1250::Step::Wait(micros) => self.delay.delay_us(micros),
+                sx1250::Step::ExpectMode(wanted) => {
+                    let mut status = [0u8; 1];
+                    self.radio_query(chain, sx1250::OP_GET_STATUS, &mut status)?;
+                    let read = sx1250::mode(status[0]);
+                    if read != wanted {
+                        return Err(ConcentratorError::FrontEndMode { wanted, read });
+                    }
+                }
+                sx1250::Step::Calibrate(mask) => {
+                    self.radio_command(chain, sx1250::OP_CALIBRATE, &[mask])?;
+                }
+                sx1250::Step::Register(address, value) => {
+                    let [high, low] = address.to_be_bytes();
+                    self.radio_command(chain, sx1250::OP_WRITE_REGISTER, &[high, low, value])?;
+                }
+                sx1250::Step::ClearOffset(address) => {
+                    let [high, low] = address.to_be_bytes();
+                    self.radio_command(chain, sx1250::OP_WRITE_REGISTER, &[high, low, 0, 0, 0])?;
+                }
+                sx1250::Step::Tune(carrier) => {
+                    let bytes = sx1250::frequency_bytes(carrier);
+                    self.radio_command(chain, sx1250::OP_SET_RF_FREQUENCY, &bytes)?;
+                }
+                sx1250::Step::ListenContinuously => {
+                    self.radio_command(chain, sx1250::OP_SET_RX, &sx1250::RX_CONTINUOUS)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Calibrates the front end on a chain over the band a carrier falls in.
+    ///
+    /// The chip calibrates a band rather than a frequency, and it knows five of them. This
+    /// is the SX1250 half of radio calibration: it runs once the front ends have been reset
+    /// and while the host still drives them, before the receivers are given their channels.
+    /// The front ends that came before calibrate through a firmware image instead.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain` - the chain the front end is on.
+    /// * `hertz` - the carrier it will be tuned to.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once the chip reports no fault.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::UnsupportedBand`] for a carrier outside every band,
+    /// without sending anything, [`ConcentratorError::ImageCalibration`] if the chip reports
+    /// the calibration failed, and [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn calibrate_front_end(
+        &mut self,
+        chain: Chain,
+        hertz: u32,
+    ) -> Result<(), ConcentratorError<SPI::Error>> {
+        let band = sx1250::image_band(hertz).ok_or(ConcentratorError::UnsupportedBand { hertz })?;
+        self.radio_command(chain, sx1250::OP_CALIBRATE_IMAGE, &band)?;
+        self.delay.delay_us(sx1250::IMAGE_CALIBRATE_US);
+
+        let mut errors = [0u8; 3];
+        self.radio_query(chain, sx1250::OP_GET_DEVICE_ERRORS, &mut errors)?;
+        if sx1250::image_failed(errors[2]) {
+            return Err(ConcentratorError::ImageCalibration);
+        }
+        Ok(())
+    }
+
     /// Reads the byte count once, high bits first.
     fn buffer_count(&mut self) -> Result<u16, ConcentratorError<SPI::Error>> {
         let high = self.read_register(register::RX_BUFFER_NB_BYTES_MSB)?;
@@ -667,6 +857,150 @@ mod tests {
             SpiStep::write(frame::burst_write_header(frame::TARGET_CONCENTRATOR, address).to_vec()),
             SpiStep::write(payload),
         ]
+    }
+
+    /// The transfers that send one command to a front end.
+    fn a_front_end_is_told(chain: Chain, opcode: u8, data: Vec<u8>) -> Vec<SpiStep> {
+        vec![
+            SpiStep::write(sx1250::header(chain, opcode).to_vec()),
+            SpiStep::write(data),
+        ]
+    }
+
+    /// The transfers that ask a front end for an answer.
+    fn a_front_end_answers(chain: Chain, opcode: u8, reply: Vec<u8>) -> Vec<SpiStep> {
+        vec![
+            SpiStep::write(sx1250::header(chain, opcode).to_vec()),
+            SpiStep::read(reply),
+        ]
+    }
+
+    #[test]
+    fn bringing_a_front_end_up_tunes_it_and_leaves_it_listening() {
+        // Every transfer a bring-up issues, in order. The status reads answer with the mode
+        // in the top bits, which is what the chip does once it has settled.
+        let mut steps = a_front_end_is_told(Chain::A, sx1250::OP_SET_STANDBY, vec![0x00]);
+        steps.extend(a_front_end_answers(
+            Chain::A,
+            sx1250::OP_GET_STATUS,
+            vec![0x20],
+        ));
+        steps.extend(a_front_end_is_told(
+            Chain::A,
+            sx1250::OP_CALIBRATE,
+            vec![0x7f],
+        ));
+        steps.extend(a_front_end_is_told(
+            Chain::A,
+            sx1250::OP_SET_STANDBY,
+            vec![0x01],
+        ));
+        steps.extend(a_front_end_answers(
+            Chain::A,
+            sx1250::OP_GET_STATUS,
+            vec![0x30],
+        ));
+        for (high, low, value) in [
+            (0x06, 0xa1, 0x01),
+            (0x06, 0xa2, 0x00),
+            (0x06, 0xa3, 0x00),
+            (0x05, 0x82, 0x00),
+            (0x05, 0x83, 0x00),
+            (0x05, 0x84, 0x00),
+            (0x05, 0x85, 0x00),
+            (0x05, 0x80, 0x00),
+            (0x08, 0xb6, 0x2a),
+        ] {
+            steps.extend(a_front_end_is_told(
+                Chain::A,
+                sx1250::OP_WRITE_REGISTER,
+                vec![high, low, value],
+            ));
+        }
+        steps.extend(a_front_end_is_told(
+            Chain::A,
+            sx1250::OP_SET_RF_FREQUENCY,
+            vec![0x36, 0x41, 0x99, 0x99],
+        ));
+        steps.extend(a_front_end_is_told(
+            Chain::A,
+            sx1250::OP_WRITE_REGISTER,
+            vec![0x08, 0x8f, 0x00, 0x00, 0x00],
+        ));
+        steps.extend(a_front_end_is_told(
+            Chain::A,
+            sx1250::OP_SET_RX,
+            vec![0xff, 0xff, 0xff],
+        ));
+        steps.extend(a_front_end_is_told(
+            Chain::A,
+            sx1250::OP_WRITE_REGISTER,
+            vec![0x05, 0x87, 0x0b],
+        ));
+
+        let mut chip = driven(steps);
+        chip.setup_front_end(Chain::A, 868_100_000, false)
+            .expect("the bus answers");
+    }
+
+    #[test]
+    fn a_front_end_that_never_settles_says_what_it_read() {
+        // An unpowered or unclocked front end answers with a mode it was not put in, and
+        // going on to tune it would be tuning nothing.
+        let mut steps = a_front_end_is_told(Chain::B, sx1250::OP_SET_STANDBY, vec![0x00]);
+        steps.extend(a_front_end_answers(
+            Chain::B,
+            sx1250::OP_GET_STATUS,
+            vec![0x00],
+        ));
+
+        let mut chip = driven(steps);
+        match chip.setup_front_end(Chain::B, 868_100_000, false) {
+            Err(ConcentratorError::FrontEndMode { wanted, read }) => {
+                assert_eq!((wanted, read), (0x02, 0x00));
+            }
+            other => panic!("a front end that never settles is reported: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_carrier_outside_every_band_is_refused_before_the_bus() {
+        // Nothing is sent, so a configuration mistake is not mistaken for a bus fault.
+        let mut chip = driven(vec![]);
+        match chip.calibrate_front_end(Chain::A, 880_000_000) {
+            Err(ConcentratorError::UnsupportedBand { hertz }) => assert_eq!(hertz, 880_000_000),
+            other => panic!("a carrier between the bands is refused: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_front_end_that_refuses_its_calibration_is_reported() {
+        let mut steps = a_front_end_is_told(Chain::A, sx1250::OP_CALIBRATE_IMAGE, vec![0xd7, 0xdb]);
+        steps.extend(a_front_end_answers(
+            Chain::A,
+            sx1250::OP_GET_DEVICE_ERRORS,
+            vec![0x00, 0x00, 0b0001_0000],
+        ));
+
+        let mut chip = driven(steps);
+        assert!(matches!(
+            chip.calibrate_front_end(Chain::A, 868_100_000),
+            Err(ConcentratorError::ImageCalibration)
+        ));
+    }
+
+    #[test]
+    fn a_calibrated_front_end_reports_nothing() {
+        let mut steps = a_front_end_is_told(Chain::A, sx1250::OP_CALIBRATE_IMAGE, vec![0xe1, 0xe9]);
+        steps.extend(a_front_end_answers(
+            Chain::A,
+            sx1250::OP_GET_DEVICE_ERRORS,
+            vec![0x00, 0x00, 0x00],
+        ));
+
+        let mut chip = driven(steps);
+        chip.calibrate_front_end(Chain::A, 915_000_000)
+            .expect("the bus answers");
     }
 
     #[test]

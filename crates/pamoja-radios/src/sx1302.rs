@@ -23,6 +23,8 @@
 //!   the three ways a transmission is triggered.
 //! - [`lbt`] - the commands for the SX1261 beside the concentrator, which listens to a
 //!   channel before the gateway is allowed to talk on it.
+//! - [`sx1250`] - the front ends the concentrator listens through, which are what a
+//!   carrier is tuned to, and the order one is brought up in.
 //!
 //! With the `embedded-hal` feature, the [`Sx1302`] driver walks all of that against a real
 //! bus: it resets the board, reads the version, resets the front ends, and gives each
@@ -64,6 +66,7 @@ pub mod lbt;
 pub mod register;
 pub mod rx;
 pub mod spi;
+pub mod sx1250;
 pub mod tx;
 
 #[cfg(feature = "embedded-hal")]
