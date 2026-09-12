@@ -162,3 +162,89 @@ public struct PamojaGatewayTxpk
     /// <summary><c>1</c> when a preamble length was given.</summary>
     public byte HasPreamble;
 }
+/// <summary>
+/// When and where a network answers, mirroring <c>PamojaGatewayNetworkWindows</c> in
+/// <c>pamoja.h</c>.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct PamojaGatewayNetworkWindows
+{
+    /// <summary>The delay before the first receive window, in microseconds.</summary>
+    public uint ReceiveDelayUs;
+
+    /// <summary>The delay before the window a join accept is sent in, in microseconds.</summary>
+    public uint JoinDelayUs;
+
+    /// <summary>The offset between the uplink data rate and the rate the first window answers at.</summary>
+    public byte Rx1DataRateOffset;
+
+    /// <summary>Which channels the first window answers on: <c>0</c> the uplink, <c>1</c> downstream.</summary>
+    public byte Rx1Channels;
+
+    /// <summary>The first downlink channel, in hertz, when the channels are downstream.</summary>
+    public uint DownstreamStartHz;
+
+    /// <summary>The spacing between those channels, in hertz.</summary>
+    public uint DownstreamStepHz;
+
+    /// <summary>How many there are.</summary>
+    public ushort DownstreamCount;
+}
+
+/// <summary>
+/// Where and when a downlink answers an uplink, mirroring <c>PamojaGatewayNetworkSlot</c> in
+/// <c>pamoja.h</c>.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct PamojaGatewayNetworkSlot
+{
+    /// <summary>The concentrator timestamp to transmit at, in microseconds.</summary>
+    public uint TimestampUs;
+
+    /// <summary>The frequency to transmit on, in hertz.</summary>
+    public uint FrequencyHz;
+
+    /// <summary>The settings to transmit with.</summary>
+    public PamojaLoraLink Link;
+}
+
+/// <summary>
+/// What a forwarded packet turned out to be, mirroring <c>PamojaGatewayNetworkEvent</c> in
+/// <c>pamoja.h</c>.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct PamojaGatewayNetworkEvent
+{
+    /// <summary>Which of the three this was: joined, data, or foreign.</summary>
+    public byte Outcome;
+
+    /// <summary>The device that joined, for a join.</summary>
+    public PamojaEui DevEui;
+
+    /// <summary>The address granted, or the address a frame claimed.</summary>
+    public uint DevAddr;
+
+    /// <summary>The counter the frame carried, reconstructed to its full width, for data.</summary>
+    public uint Fcnt;
+
+    /// <summary>The port the frame was sent on, for data on a port.</summary>
+    public byte Fport;
+
+    /// <summary><c>1</c> when the frame carried a port at all.</summary>
+    public byte HasFport;
+
+    /// <summary><c>1</c> when the device asked to be acknowledged.</summary>
+    public byte Confirmed;
+
+    /// <summary>How many bytes were written into the caller buffer.</summary>
+    public nuint Len;
+
+    /// <summary><c>1</c> when the payload was longer than the buffer, in which case nothing was written.</summary>
+    public byte Truncated;
+
+    /// <summary>Where an answer goes, for a join or for data.</summary>
+    public PamojaGatewayNetworkSlot Slot;
+
+    /// <summary>The packet that carries the accept, for a join.</summary>
+    public PamojaGatewayTxpk Accept;
+}

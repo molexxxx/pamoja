@@ -903,6 +903,7 @@ name = "pamoja-gateway"
 version = "0.1.18"
 dependencies = [
  "pamoja-lora",
+ "pamoja-lorawan",
  "serde_json",
 ]
 

@@ -76,6 +76,7 @@ SensingAndActuation();
 LaterSensors();
 RadioAndReach();
 Gateways();
+GatewayNetworks();
 TrustAndOperation();
 await AsyncTransports();
 ProfilesAndRobotics();
@@ -1253,6 +1254,7 @@ static void Conformance()
     ConformRadios(vectors.GetProperty("radios"), vectors.GetProperty("lora"));
     ConformSx127x(vectors.GetProperty("radios"), vectors.GetProperty("lora"));
     ConformGateway(vectors.GetProperty("gateway"));
+    ConformGatewayNetwork(vectors.GetProperty("gatewayNetwork"));
     ConformMavlink(vectors.GetProperty("mavlink"));
     ConformMavlinkSchema(vectors.GetProperty("mavlinkSchema"));
     ConformMavlinkProtocol(vectors.GetProperty("mavlinkProtocol"));
@@ -4999,6 +5001,128 @@ static void Gateways()
     Assert(
         Gateway.Encode(Gateway.Acknowledgment(Gateway.Parse(datagram))!).Length == 4,
         "whose acknowledgment is four bytes");
+}
+
+static void GatewayNetworks()
+{
+    // The network side of a site admits a device, answers its join, and reads what it sends.
+    byte[] devEui = new byte[8];
+    Array.Fill(devEui, (byte)0x11);
+    byte[] appEui = new byte[8];
+    Array.Fill(appEui, (byte)0x22);
+    byte[] appKey = new byte[16];
+    Array.Fill(appKey, (byte)0x33);
+
+    using LoraChannelPlan plan = LoraChannelPlan.ForRegion(LoraRegion.Eu868);
+    using var site = new GatewayNetwork(plan, 0x00002A, firstDevAddr: 0x26010001);
+    site.Register(devEui, appEui, appKey);
+
+    using var joiner = new LorawanDevice(devEui, appEui, appKey);
+    GatewayNetworkEvent joined = site.Uplink(
+        new GatewayRxpk(868_100_000, joiner.JoinRequest(0x0102))
+        {
+            Link = new LoraLink(7, 125_000),
+            TimestampMicros = 1_000_000,
+        });
+    Assert(joined.Outcome == GatewayNetworkOutcome.Joined, "a join request is admitted");
+    Assert(joined.DevAddr == 0x26010001, "and granted the first address");
+    Assert(
+        joined.Accept!.TimestampMicros == 6_000_000,
+        "whose accept goes out five seconds later");
+    Assert(joined.Accept!.InvertPolarity, "with the polarity a device listens for");
+
+    using LorawanJoinAccept granted = joiner.AcceptJoin(joined.Accept!.Payload, 0x0102);
+    using LorawanSession activated = granted.Session();
+    GatewayNetworkEvent carried = site.Uplink(
+        new GatewayRxpk(868_100_000, activated.EncodeUplink(0, 2, "21.5"u8))
+        {
+            Link = new LoraLink(7, 125_000),
+            TimestampMicros = 9_000_000,
+        });
+    Assert(carried.Outcome == GatewayNetworkOutcome.Data, "a session frame is read");
+    Assert(
+        Encoding.UTF8.GetString(carried.Payload!) == "21.5",
+        "and decrypted into what the node sent");
+    Assert(carried.Slot!.TimestampUs == 10_000_000, "one second after the uplink");
+
+    GatewayTxpk answered = site.Answer(carried.DevAddr, carried.Slot!, 2, "ok"u8);
+    Assert(answered.InvertPolarity, "the answer is inverted too");
+}
+
+static void ConformGatewayNetwork(JsonElement vector)
+{
+    byte[] devEui = Convert.FromHexString(vector.GetProperty("devEui").GetString()!);
+    byte[] appEui = Convert.FromHexString(vector.GetProperty("appEui").GetString()!);
+    byte[] appKey = Convert.FromHexString(vector.GetProperty("appKey").GetString()!);
+    ushort devNonce = vector.GetProperty("devNonce").GetUInt16();
+    uint devAddr = vector.GetProperty("devAddr").GetUInt32();
+    uint frequencyHz = vector.GetProperty("frequencyHz").GetUInt32();
+    var dr = new LoraLink(
+        vector.GetProperty("spreadingFactor").GetByte(),
+        vector.GetProperty("bandwidthHz").GetUInt32());
+
+    JsonElement join = vector.GetProperty("join");
+    JsonElement uplink = vector.GetProperty("uplink");
+    JsonElement downlink = vector.GetProperty("downlink");
+
+    using LoraChannelPlan plan = LoraChannelPlan.ForRegion(LoraRegion.Eu868);
+    using var site = new GatewayNetwork(
+        plan, vector.GetProperty("netId").GetUInt32(), firstDevAddr: devAddr);
+    site.Register(devEui, appEui, appKey);
+
+    using var joiner = new LorawanDevice(devEui, appEui, appKey);
+    byte[] request = joiner.JoinRequest(devNonce);
+    Assert(
+        HexLower(request) == join.GetProperty("request").GetString(),
+        "the join request the device sends");
+
+    GatewayNetworkEvent joined = site.Uplink(
+        new GatewayRxpk(frequencyHz, request)
+        {
+            Link = dr,
+            TimestampMicros = join.GetProperty("heardAtUs").GetUInt32(),
+        });
+    Assert(joined.Outcome == GatewayNetworkOutcome.Joined, "a join request is admitted");
+    Assert(joined.DevAddr == devAddr, "the address granted");
+    Assert(
+        HexLower(joined.Accept!.Payload) == join.GetProperty("accept").GetString(),
+        "the accept it answers with");
+    Assert(
+        joined.Accept!.TimestampMicros == join.GetProperty("timestampUs").GetUInt32(),
+        "the join window it goes out in");
+
+    using LorawanJoinAccept granted = joiner.AcceptJoin(joined.Accept!.Payload, devNonce);
+    using LorawanSession activated = granted.Session();
+    byte[] sent = activated.EncodeUplink(
+        uplink.GetProperty("fcnt").GetUInt32(),
+        uplink.GetProperty("fport").GetByte(),
+        Encoding.UTF8.GetBytes(uplink.GetProperty("payload").GetString()!));
+    Assert(
+        HexLower(sent) == uplink.GetProperty("frame").GetString(),
+        "the frame the device sends");
+
+    GatewayNetworkEvent carried = site.Uplink(
+        new GatewayRxpk(frequencyHz, sent)
+        {
+            Link = dr,
+            TimestampMicros = uplink.GetProperty("heardAtUs").GetUInt32(),
+        });
+    Assert(carried.Outcome == GatewayNetworkOutcome.Data, "a session frame is read");
+    Assert(
+        Encoding.UTF8.GetString(carried.Payload!) == uplink.GetProperty("payload").GetString(),
+        "what the node sent");
+    Assert(
+        carried.Slot!.TimestampUs == uplink.GetProperty("slotTimestampUs").GetUInt32(),
+        "the window its answer goes in");
+
+    GatewayTxpk answer = site.Answer(
+        carried.DevAddr, carried.Slot!, uplink.GetProperty("fport").GetByte(), "ok"u8);
+    Assert(
+        HexLower(answer.Payload) == downlink.GetProperty("frame").GetString(),
+        "the downlink frame");
+    Assert(
+        answer.TimestampMicros == downlink.GetProperty("timestampUs").GetUInt32(),
+        "when it transmits");
 }
 
 static void ConformGateway(JsonElement vector)

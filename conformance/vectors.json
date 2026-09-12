@@ -444,6 +444,39 @@
       "token": 171
     }
   },
+  "gatewayNetwork": {
+    "appEui": "2222222222222222",
+    "appKey": "33333333333333333333333333333333",
+    "bandwidthHz": 125000,
+    "devAddr": 637599745,
+    "devEui": "1111111111111111",
+    "devNonce": 258,
+    "downlink": {
+      "frame": "6001000126000000021819c2cb682f",
+      "invertPolarity": true,
+      "timestampUs": 10000000
+    },
+    "frequencyHz": 868100000,
+    "join": {
+      "accept": "20186d4f3bfd02bf32ceb809f040d7d5bd",
+      "frequencyHz": 868100000,
+      "heardAtUs": 1000000,
+      "invertPolarity": true,
+      "request": "002222222222222222111111111111111102018689a11a",
+      "timestampUs": 6000000
+    },
+    "netId": 42,
+    "spreadingFactor": 7,
+    "uplink": {
+      "fcnt": 0,
+      "fport": 2,
+      "frame": "40010001260000000210e8b2552a364e85",
+      "heardAtUs": 9000000,
+      "payload": "21.5",
+      "slotFrequencyHz": 868100000,
+      "slotTimestampUs": 10000000
+    }
+  },
   "geofence": {
     "boundaries": [
       "Inside",

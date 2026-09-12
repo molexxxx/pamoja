@@ -1898,6 +1898,51 @@ def test_zenoh_vectors_match():
         assert zenoh.matches(want["pattern"], want["key"]) == want["matches"]
 
 
+def test_gateway_network_vectors_match():
+    vector = VECTORS["gatewayNetwork"]
+    dr = lora.link(vector["spreadingFactor"], vector["bandwidthHz"])
+
+    site = gateway.Network(
+        lora.plan_for("EU868"), vector["netId"], first_dev_addr=vector["devAddr"]
+    )
+    site.register(unhex(vector["devEui"]), unhex(vector["appEui"]), unhex(vector["appKey"]))
+
+    joiner = lorawan.device(
+        unhex(vector["devEui"]), unhex(vector["appEui"]), unhex(vector["appKey"])
+    )
+    request = joiner.join_request(vector["devNonce"])
+    assert request.hex() == vector["join"]["request"]
+
+    joined = site.uplink(
+        gateway.Rxpk(
+            vector["frequencyHz"], request, link=dr, timestamp_us=vector["join"]["heardAtUs"]
+        )
+    )
+    assert joined.outcome == "joined"
+    assert joined.dev_addr == vector["devAddr"]
+    assert joined.accept.payload.hex() == vector["join"]["accept"]
+    assert joined.accept.timestamp_us == vector["join"]["timestampUs"]
+
+    granted = joiner.accept_join(joined.accept.payload, vector["devNonce"])
+    sent = granted.session().encode_uplink(
+        vector["uplink"]["fcnt"], vector["uplink"]["fport"], vector["uplink"]["payload"].encode()
+    )
+    assert sent.hex() == vector["uplink"]["frame"]
+
+    carried = site.uplink(
+        gateway.Rxpk(
+            vector["frequencyHz"], sent, link=dr, timestamp_us=vector["uplink"]["heardAtUs"]
+        )
+    )
+    assert carried.outcome == "data"
+    assert carried.payload.decode() == vector["uplink"]["payload"]
+    assert carried.slot.timestamp_us == vector["uplink"]["slotTimestampUs"]
+
+    answer = site.answer(carried.dev_addr, carried.slot, vector["uplink"]["fport"], b"ok")
+    assert answer.payload.hex() == vector["downlink"]["frame"]
+    assert answer.timestamp_us == vector["downlink"]["timestampUs"]
+
+
 def test_gateway_vectors_match():
     vector = VECTORS["gateway"]
     heard = vector["pushData"]["rxpk"]

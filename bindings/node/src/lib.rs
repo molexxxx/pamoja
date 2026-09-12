@@ -31,6 +31,8 @@ pub mod coap;
 pub mod codec;
 #[cfg(feature = "gateway")]
 pub mod gateway;
+#[cfg(feature = "gateway")]
+pub mod gateway_network;
 #[cfg(feature = "gpio")]
 pub mod gpio;
 #[cfg(feature = "kit")]

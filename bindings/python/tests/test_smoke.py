@@ -1338,3 +1338,44 @@ def test_a_gateway_datagram_round_trips():
 
     with pytest.raises(PamojaError, match="version"):
         gateway.parse(bytes([1, 0, 1, 0]))
+
+
+def test_a_device_joins_a_site_and_is_answered():
+    from pamoja import gateway, lora, lorawan
+
+    site = gateway.Network(lora.plan_for("EU868"), 0x00002A, first_dev_addr=0x26010001)
+    dev_eui = bytes([0x11]) * 8
+    app_eui = bytes([0x22]) * 8
+    app_key = bytes([0x33]) * 16
+    site.register(dev_eui, app_eui, app_key)
+
+    node = lorawan.device(dev_eui, app_eui, app_key)
+    joined = site.uplink(
+        gateway.Rxpk(
+            868_100_000,
+            node.join_request(0x0102),
+            link=lora.link(7, 125_000),
+            timestamp_us=1_000_000,
+        )
+    )
+    assert joined.outcome == "joined"
+    assert joined.dev_addr == 0x26010001
+    # Five seconds after the uplink, with the polarity a device listens for.
+    assert joined.accept.timestamp_us == 6_000_000
+    assert joined.accept.invert_polarity
+
+    granted = node.accept_join(joined.accept.payload, 0x0102)
+    carried = site.uplink(
+        gateway.Rxpk(
+            868_100_000,
+            granted.session().encode_uplink(0, 2, b"21.5"),
+            link=lora.link(7, 125_000),
+            timestamp_us=9_000_000,
+        )
+    )
+    assert carried.outcome == "data"
+    assert carried.payload == b"21.5"
+    assert carried.slot.timestamp_us == 10_000_000
+
+    answered = site.answer(carried.dev_addr, carried.slot, 2, b"ok")
+    assert answered.invert_polarity

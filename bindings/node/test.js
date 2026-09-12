@@ -875,6 +875,57 @@ function radioAndReach() {
     "protocol version 1 is not this protocol",
   );
 
+  // The network side of a site admits a device, answers its join, and reads what it sends.
+  const site = new gateway.Network(lora.planFor(lora.LoraRegion.Eu868), 0x00002a, null, 0x26010001);
+  const devEui = Buffer.alloc(8, 0x11);
+  const appEui = Buffer.alloc(8, 0x22);
+  const appKey = Buffer.alloc(16, 0x33);
+  site.register(devEui, appEui, appKey);
+
+  const joiner = lorawan.device(devEui, appEui, appKey);
+  const joined = site.uplink({
+    frequencyHz: 868_100_000,
+    payload: joiner.joinRequest(0x0102),
+    link: lora.link(7, 125_000),
+    timestampUs: 1_000_000,
+  });
+  assert.strictEqual(joined.outcome, "Joined", "a join request is admitted");
+  assert.strictEqual(joined.devAddr, 0x26010001, "and granted the first address");
+  assert.strictEqual(
+    joined.accept.timestampUs,
+    6_000_000,
+    "whose accept goes out five seconds later",
+  );
+  assert.ok(joined.accept.invertPolarity, "with the polarity a device listens for");
+
+  const granted = joiner.acceptJoin(joined.accept.payload, 0x0102);
+  const carried = site.uplink({
+    frequencyHz: 868_100_000,
+    payload: granted.session().encodeUplink(0, 2, Buffer.from("21.5")),
+    link: lora.link(7, 125_000),
+    timestampUs: 9_000_000,
+  });
+  assert.strictEqual(carried.outcome, "Data", "a session frame is read");
+  assert.strictEqual(carried.payload.toString(), "21.5", "and decrypted");
+  assert.strictEqual(carried.slot.timestampUs, 10_000_000, "one second after the uplink");
+
+  const answered = site.answer(carried.devAddr, carried.slot, 2, Buffer.from("ok"));
+  assert.ok(answered.invertPolarity, "the answer is inverted too");
+
+  const stranger = site.uplink({
+    frequencyHz: 868_100_000,
+    payload: lorawan
+      .session(0x12345678, Buffer.alloc(16, 0x09), Buffer.alloc(16, 0x08))
+      .encodeUplink(0, 1, Buffer.from("hello")),
+    link: lora.link(7, 125_000),
+    timestampUs: 11_000_000,
+  });
+  assert.strictEqual(
+    stranger.outcome,
+    "Foreign",
+    "and a frame for another network is reported, not refused",
+  );
+
   const { sx127x } = radios;
   assert.strictEqual(sx127x.frequencyWord(868_100_000), 0xd90666, "the SX1276 carrier word");
   assert.strictEqual(sx127x.loraOpMode(sx127x.Mode.Tx), 0x8b, "TX mode on the LoRa page");

@@ -24,7 +24,11 @@ bridge = ["dep:pamoja-core", "dep:tokio", "pamoja-core/std"]
 [dependencies]
 # The link a datarate identifier names is the same one the airtime and range math takes,
 # so a forwarded packet and its budget are described by one type.
-pamoja-lora = { path = "../pamoja-lora", version = "0.1.18", default-features = false }
+# A network holds the band it runs in rather than borrowing a table elsewhere, which is
+# what the owned plan is for; the published regions themselves stay out of the build.
+pamoja-lora = { path = "../pamoja-lora", version = "0.1.18", default-features = false, features = [
+    "alloc",
+] }
 # The protocol's payload is a JSON object, built and read field by field so a datagram
 # from a gateway in the field is refused with the name of what is wrong with it.
 serde_json = "1"

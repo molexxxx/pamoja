@@ -42,8 +42,11 @@ __all__ = [
     "ElementSpec",
     "EventBus",
     "ForwardDecision",
+    "GatewayNetwork",
+    "GatewayNetworkEvent",
     "GatewayPacket",
     "GatewayRxpk",
+    "GatewaySlot",
     "GatewayStat",
     "GatewayTxpk",
     "Geofence",
@@ -1873,6 +1876,82 @@ class ForwardDecision:
         """
 
 @typing.final
+class GatewayNetwork:
+    r"""
+    The network side of one site: what a server does with what a gateway forwarded.
+    """
+    def __new__(cls, plan: ChannelPlan, net_id: builtins.int, receive_delay_us: typing.Optional[builtins.int] = None, join_delay_us: typing.Optional[builtins.int] = None, rx1_data_rate_offset: typing.Optional[builtins.int] = None, downstream: typing.Optional[tuple[builtins.int, builtins.int, builtins.int]] = None, first_dev_addr: typing.Optional[builtins.int] = None) -> GatewayNetwork:
+        r"""
+        Opens the network side of a site on a channel plan.
+        
+        The plan is copied into the network, so it holds its band for as long as it runs.
+        """
+    def register(self, dev_eui: typing.Sequence[builtins.int], app_eui: typing.Sequence[builtins.int], app_key: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Admits a device, so a join request signed with its key is accepted.
+        """
+    def uplink(self, heard: GatewayRxpk) -> GatewayNetworkEvent:
+        r"""
+        Reads a packet the gateway forwarded.
+        """
+    def answer(self, dev_addr: builtins.int, slot: GatewaySlot, fport: builtins.int, payload: typing.Sequence[builtins.int]) -> GatewayTxpk:
+        r"""
+        Builds a downlink for a device, encrypted with its session.
+        """
+
+@typing.final
+class GatewayNetworkEvent:
+    r"""
+    What a forwarded packet turned out to be, and where its answer goes.
+    """
+    @property
+    def outcome(self) -> builtins.str:
+        r"""
+        `joined`, `data`, or `foreign`.
+        """
+    @property
+    def dev_eui(self) -> typing.Optional[builtins.str]:
+        r"""
+        The device that joined, as sixteen hexadecimal digits.
+        """
+    @property
+    def dev_addr(self) -> builtins.int:
+        r"""
+        The address granted, or the address a frame claimed.
+        """
+    @property
+    def fcnt(self) -> typing.Optional[builtins.int]:
+        r"""
+        The counter the frame carried, reconstructed to its full width.
+        """
+    @property
+    def fport(self) -> typing.Optional[builtins.int]:
+        r"""
+        The port the frame was sent on, absent for a frame carrying only options.
+        """
+    @property
+    def payload(self) -> typing.Optional[bytes]:
+        r"""
+        What the device sent, decrypted.
+        """
+    @property
+    def confirmed(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the device asked to be acknowledged.
+        """
+    @property
+    def slot(self) -> typing.Optional[GatewaySlot]:
+        r"""
+        Where an answer goes, for a join or for data.
+        """
+    @property
+    def accept(self) -> typing.Optional[GatewayTxpk]:
+        r"""
+        The packet carrying the accept, for a join.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class GatewayPacket:
     r"""
     One datagram of the protocol, with the fields its kind carries.
@@ -1987,6 +2066,32 @@ class GatewayRxpk:
         r"""
         Describes a packet the gateway heard.
         """
+
+@typing.final
+class GatewaySlot:
+    r"""
+    Where and when a downlink answers an uplink, in the concentrator's own terms.
+    """
+    @property
+    def timestamp_us(self) -> builtins.int:
+        r"""
+        The concentrator timestamp to transmit at, in microseconds.
+        """
+    @property
+    def frequency_hz(self) -> builtins.int:
+        r"""
+        The frequency to transmit on, in hertz.
+        """
+    @property
+    def link(self) -> LoraLink:
+        r"""
+        The settings to transmit with.
+        """
+    def __new__(cls, timestamp_us: builtins.int, frequency_hz: builtins.int, link: LoraLink) -> GatewaySlot:
+        r"""
+        Builds a window to answer in.
+        """
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class GatewayStat:
