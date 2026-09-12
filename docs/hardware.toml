@@ -17,26 +17,43 @@
 key = "sensors"
 title = "Sensors"
 intent = "Parts pamoja decodes byte for byte, each with a driver written from the datasheet linked beside it."
+explains = "buses.md"
+explains_title = "Buses and links"
+explains_what = "what the interface line means, and how to wire it"
 
 [[group]]
 key = "actuators"
 title = "Actuators"
 intent = "Parts pamoja drives: a PWM generator for servos, and the step-and-direction carriers a stepper sequence walks."
+explains = "buses.md"
+explains_title = "Buses and links"
+explains_what = "what the interface line means, and how to wire it"
 
 [[group]]
 key = "radios"
 title = "Radios and long-range links"
 intent = "Reaching a network that is not there: the transceivers, the gateway concentrators, and the short-range meshes."
+explains = "radio.md"
+explains_title = "Radios and antennas"
+explains_what = "range, loss, duty cycle, and what the regulator allows"
 
 [[group]]
 key = "antennas"
 title = "Antennas, cables and protection"
 intent = "What stands between a radio and the air: the antenna, the pigtail that reaches it, and the arrestor on the mast."
+explains = "radio.md"
+explains_title = "Radios and antennas"
+explains_what = "gain, VSWR, feed line loss, height, and bonding"
 
 [[group]]
 key = "targets"
-title = "Boards, targets and autopilots"
-intent = "Where pamoja itself runs, and what it has been built and tested against."
+title = "Boards you can buy"
+intent = "Where pamoja itself runs, each with a page that wires a part to it and runs the first program."
+
+[[group]]
+key = "standards"
+title = "Autopilots, standards and targets"
+intent = "Firmware, an open hardware standard, and an instruction set. None of these is a thing you buy; each names the boards that carry it."
 
 [[entry]]
 key = "bme280"
@@ -839,7 +856,7 @@ summary = "The LoRa baseband chip for gateways: it listens across many channels 
 specs = [
   "Sensitivity: up to -141 dBm with the SX1250 front end",
   "125 kHz reception: 8 x 8 channel packet detectors, 8 SF5 to SF12 and 8 SF5 to SF10 demodulators",
-  "Also: one 125, 250 or 500 kHz LoRa demodulator and one (G)FSK demodulator",
+  "Wideband reception: one 125, 250 or 500 kHz LoRa demodulator and one (G)FSK demodulator",
   "Front ends: direct interface to the SX1250, SX1255, SX1257 and SX1258",
   "Clock and package: a single 32 MHz clock, QFN68",
 ]
@@ -874,7 +891,7 @@ specs = [
   "Fine timestamp for time difference of arrival (TDOA) network geolocation",
   "Sensitivity: up to -141 dBm with the SX1250 front end",
   "125 kHz reception: 8 x 8 channel packet detectors, 8 SF5 to SF12 and 8 SF5 to SF10 demodulators",
-  "Also: one 125, 250 or 500 kHz LoRa demodulator",
+  "Wideband reception: one 125, 250 or 500 kHz LoRa demodulator",
   "Compatibility: size and pin compatible with the SX1302, with all of its features",
 ]
 cost = "$60 to $200"
@@ -1055,6 +1072,7 @@ specs = [
   "Interfaces: sends over either the station or the SoftAP interface",
 ]
 cost = "$5 to $20"
+hosts = "Boards that speak it"
 crates = ["pamoja-mesh"]
 source_name = "ESP-NOW, ESP-IDF Programming Guide, stable, ESP32"
 source_label = "Espressif ESP-IDF"
@@ -1095,7 +1113,7 @@ specs = [
   "Memory: LPDDR4X, in 1, 2, 4, 8 and 16 GB",
   "Connectivity: gigabit Ethernet with PoE+ via a HAT, dual-band 802.11ac, Bluetooth 5.0",
   "I/O: the standard 40-pin header, two USB 3.0 and two USB 2.0 ports, a UART debug port",
-  "The page lists the 16 GB model at $305, above the band for the smaller ones",
+  "Note: the 16 GB model lists at $305, above the band the smaller ones fall in",
 ]
 cost = "$60 to $200"
 page = "boards/raspberry-pi.md"
@@ -1217,7 +1235,7 @@ verified = true
 
 [[entry]]
 key = "ardupilot"
-group = "targets"
+group = "standards"
 name = "ArduPilot"
 vendor = "ArduPilot Dev Team"
 interface = "MAVLink"
@@ -1229,6 +1247,7 @@ specs = [
   "Verified: the SITL interop job in CI flies it in simulation against pamoja-mavlink",
 ]
 cost = "$60 to $200"
+hosts = "Flight controllers that run it"
 crates = ["pamoja-mavlink"]
 source_name = "ArduPilot development site"
 source_label = "ArduPilot"
@@ -1252,7 +1271,7 @@ verified = true
 
 [[entry]]
 key = "px4"
-group = "targets"
+group = "standards"
 name = "PX4 Autopilot"
 vendor = "Dronecode Foundation"
 interface = "MAVLink"
@@ -1264,6 +1283,7 @@ specs = [
   "Verified: the SITL interop job in CI flies it in simulation against pamoja-mavlink",
 ]
 cost = "$60 to $200"
+hosts = "Flight controllers that run it"
 crates = ["pamoja-mavlink"]
 source_name = "PX4 Autopilot User Guide"
 source_label = "PX4"
@@ -1287,17 +1307,18 @@ verified = true
 
 [[entry]]
 key = "pixhawk"
-group = "targets"
+group = "standards"
 name = "Pixhawk standard"
 vendor = "Dronecode Foundation"
 interface = "standardized connectors and pin-outs"
 summary = "The open hardware standard that fixes flight controller pin-outs, connectors and layout so boards from different vendors interchange; a board built to it is what costs money."
 specs = [
-  "Autopilot standards listed: v5X (DS-011), v6X (DS-012), v6U (DS-016) and v6C (DS-018)",
-  "Also: the connector standard (DS-009), the autopilot bus standard (DS-010) and the payload bus standard (DS-014); a smart battery standard is in draft",
+  "Autopilot standards: v5X (DS-011), v6X (DS-012), v6U (DS-016) and v6C (DS-018)",
+  "Supporting standards: the connector standard (DS-009), the autopilot bus standard (DS-010) and the payload bus standard (DS-014); a smart battery standard is in draft",
   "Each fixes pin-outs, block diagrams, PCB layout guidelines and connector specifications",
 ]
 cost = "$60 to $200"
+hosts = "Boards built to it"
 crates = ["pamoja-mavlink"]
 source_name = "Pixhawk Reference Standards"
 source_label = "Pixhawk standards"
@@ -1372,7 +1393,7 @@ verified = true
 
 [[entry]]
 key = "cortex-m4f"
-group = "targets"
+group = "standards"
 name = "Cortex-M4 with FPU, bare metal"
 vendor = "Arm"
 summary = "The bare-metal target: CI cross-compiles every no_std crate for thumbv7em-none-eabihf, which is this core with its floating-point unit and no operating system."
@@ -1380,10 +1401,11 @@ specs = [
   "Architecture: Armv7-M",
   "Floating point: a built-in single-precision FPU, credited with 10x on single-precision operations",
   "DSP: integrated DSP, SIMD and MAC instructions",
-  "Use cases the page names: industrial control, IoT sensors, AI and ML, audio",
+  "Designed for: industrial control, IoT sensors, AI and ML, audio",
   "pamoja: the bare-metal job in CI builds pamoja-core, security, audit, update, zenoh, ros2 and mavlink for this target",
 ]
 cost = "$5 to $20"
+hosts = "Boards with this core"
 source_name = "Cortex-M4 product page, Arm"
 source_label = "Arm Cortex-M4"
 source = "https://www.arm.com/products/silicon-ip-cpu/cortex-m/cortex-m4"
