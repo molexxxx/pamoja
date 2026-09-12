@@ -2,7 +2,7 @@
 
 # pamoja-gateway
 
-LoRaWAN gateway protocols for pamoja: the Semtech UDP packet forwarder protocol on both sides, its PUSH_DATA, PULL_DATA, PULL_RESP and TX_ACK datagrams and the rxpk, stat, txpk and txpk_ack objects they carry, with the base64 payloads and the timestamps the protocol prescribes, so a gateway and a network server speak the same wire.
+LoRaWAN gateway protocols for pamoja: the Semtech UDP packet forwarder protocol and the LoRa Basics Station protocol, both sides of each, the network side of a single site that admits a join and answers an uplink, and a bridge from the radio the nodes are on to the link that leaves the site.
 
 <a href="https://pamoja.molex.cloud/docs/guides/gateway.html"><img height="36" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_gateway/index.html"><img height="36" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
@@ -38,6 +38,8 @@ both sides.
   reading an uplink, and working out where and when to answer it.
 - `bridge`, with the `bridge` feature - carrying messages between the radio the nodes are
   on and the link that leaves the site, under a prefix that names the site.
+- `station` - the LoRa Basics Station protocol: the discovery request that finds a
+  network server, and the messages the websocket carries once one is open.
 
 Every datagram is data: the crate builds and parses them, and leaves the socket, the
 keepalive, and the scheduling to the program that owns them.

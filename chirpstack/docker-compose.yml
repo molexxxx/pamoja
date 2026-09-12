@@ -45,6 +45,19 @@ services:
     depends_on:
       - mosquitto
 
+  # The same bridge again, speaking the Basics Station protocol instead. A station finds it
+  # at /router-info on this port, is told where to open its websocket, and the two exchange
+  # JSON from there. It publishes onto the same MQTT topics as the UDP half.
+  chirpstack-gateway-bridge-basicstation:
+    image: chirpstack/chirpstack-gateway-bridge:4
+    command: -c /etc/chirpstack-gateway-bridge/chirpstack-gateway-bridge-basicstation-eu868.toml
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./configuration/chirpstack-gateway-bridge:/etc/chirpstack-gateway-bridge
+    depends_on:
+      - mosquitto
+
   # ChirpStack 4 serves gRPC only; this proxy is how the provisioning in run-chirpstack.sh
   # registers a gateway and a device over plain HTTP.
   chirpstack-rest-api:

@@ -10,12 +10,14 @@
 //! registers the gateway and the device, and runs this with the endpoints set:
 //!
 //! - `PAMOJA_CHIRPSTACK_UDP` is the gateway bridge, which speaks the Semtech protocol.
+//! - `PAMOJA_CHIRPSTACK_STATION` is the same bridge again, speaking Basics Station.
 //! - `PAMOJA_CHIRPSTACK_MQTT` is the broker the network server publishes its events on.
 //! - The identifiers and the key are the ones the stack was provisioned with.
 
 use std::time::Duration;
 
 use pamoja_core::{Receive, Transport};
+use pamoja_gateway::station::{Levels, Message, Station};
 use pamoja_gateway::udp::{Eui, Packet, Rxpk, Uplink};
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::{Device, Uplink as LorawanUplink};
@@ -28,6 +30,9 @@ const BUDGET: Duration = Duration::from_secs(30);
 
 /// An EU868 uplink channel, at the data rate a device joins on.
 const FREQUENCY_HZ: u32 = 868_100_000;
+
+/// That same data rate, as the Basics Station protocol numbers them.
+const DATA_RATE: u8 = 5;
 
 /// What the device sends once it has joined.
 const READING: &[u8] = b"21.5";
@@ -186,6 +191,125 @@ async fn a_real_network_server_accepts_a_join_and_an_uplink() {
 
     // The server publishes what it decrypted, base64 encoded. Reading it back with our own
     // base64 closes the loop: their bytes are our bytes.
+    let encoded = pamoja_gateway::base64::encode(READING);
+    assert!(
+        uplink.contains(&encoded),
+        "the reading arrives as the device sent it, as {encoded}"
+    );
+    assert!(
+        uplink.contains(&format!("\"fPort\":{PORT}")),
+        "on the port it was sent on"
+    );
+
+    mqtt.disconnect().await.expect("the client closes cleanly");
+}
+
+/// How a station reports the way it heard something.
+fn heard_at(timestamp_us: i64) -> Levels {
+    Levels {
+        rctx: 0,
+        xtime: timestamp_us,
+        gpstime: None,
+        rssi: -35.0,
+        snr: 5.1,
+    }
+}
+
+/// Reads messages until the server sends one down to transmit, and returns that frame.
+async fn transmitted(station: &mut Station) -> Vec<u8> {
+    loop {
+        let message = timeout(BUDGET, station.recv())
+            .await
+            .expect("the server answers within the budget")
+            .expect("the session stays open");
+        if let Message::Downlink { pdu, .. } = message {
+            return pdu;
+        }
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs a running ChirpStack stack; run via `cargo xtask chirpstack`"]
+async fn a_real_network_server_accepts_a_station_join_and_uplink() {
+    // A nonce the forwarder test does not use: a server must never see one twice.
+    const NONCE: u16 = 0x0201;
+
+    let gateway = Eui::from_hex(&setting("PAMOJA_CHIRPSTACK_GATEWAY_EUI"))
+        .expect("sixteen hexadecimal digits");
+    let dev_eui = eight(&setting("PAMOJA_CHIRPSTACK_DEV_EUI"));
+    let join_eui = eight(&setting("PAMOJA_CHIRPSTACK_JOIN_EUI"));
+    let app_key = sixteen(&setting("PAMOJA_CHIRPSTACK_APP_KEY"));
+    let application = setting("PAMOJA_CHIRPSTACK_APPLICATION_ID");
+    let broker = setting("PAMOJA_CHIRPSTACK_MQTT");
+
+    // Listen for what the network server makes of what we send, before sending any of it.
+    let (host, port) = broker.rsplit_once(':').expect("host:port");
+    let mut mqtt = MqttTransport::new(MqttConfig::new(
+        "pamoja-interop-station",
+        host,
+        port.parse().expect("a port"),
+    ));
+    mqtt.connect().await.expect("the broker accepts a client");
+    mqtt.subscribe(&format!("application/{application}/device/+/event/+"))
+        .await
+        .expect("the subscription is accepted");
+
+    // Discovery sends the station on to its session, where it says what it is and is told
+    // how to configure its radios.
+    let mut station = Station::connect(&setting("PAMOJA_CHIRPSTACK_STATION"), gateway)
+        .await
+        .expect("the discovery endpoint sends the station on to its network server");
+    println!("config    {}", station.config().to_json());
+    assert_eq!(
+        station.config().msgtype(),
+        "router_config",
+        "a server answers a version with a configuration"
+    );
+
+    // The device asks to join, and the station sends up the fields it split out of the frame.
+    let device = Device::new(dev_eui, join_eui, app_key);
+    let request = device.join_request(NONCE);
+    let asking = Message::heard(
+        request.as_bytes(),
+        DATA_RATE,
+        FREQUENCY_HZ,
+        heard_at(1_000_000),
+    )
+    .expect("a station sends a join request up");
+    station.send(&asking).await.expect("the request is sent");
+
+    let joined = event(&mut mqtt, "/event/join").await;
+    println!("join      {joined}");
+    assert!(
+        joined.contains(&setting("PAMOJA_CHIRPSTACK_DEV_EUI")),
+        "the join is for the device we registered"
+    );
+
+    // The server sends the accept back for the station to transmit, and the device reads it
+    // with the same key it signed the request with.
+    let accept = transmitted(&mut station).await;
+    let session = device
+        .accept_join(&accept, NONCE)
+        .expect("the accept verifies against the key the server holds")
+        .session();
+    println!("accept    {} bytes, session granted", accept.len());
+
+    // Now a reading, encrypted with the session that join produced.
+    let frame = session
+        .encode_uplink(&LorawanUplink::new(0, PORT, READING))
+        .expect("it fits one frame");
+    let reporting = Message::heard(
+        frame.as_bytes(),
+        DATA_RATE,
+        FREQUENCY_HZ,
+        heard_at(9_000_000),
+    )
+    .expect("a station sends a data frame up");
+    station.send(&reporting).await.expect("the uplink is sent");
+
+    let uplink = event(&mut mqtt, "/event/up").await;
+    println!("uplink    {uplink}");
+
     let encoded = pamoja_gateway::base64::encode(READING);
     assert!(
         uplink.contains(&encoded),

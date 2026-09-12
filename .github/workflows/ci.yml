@@ -67,6 +67,13 @@ jobs:
           cargo clippy -p pamoja-gateway --features bridge --all-targets -- -D warnings
           cargo test -p pamoja-gateway --features bridge
 
+      # The Basics Station client opens a websocket to a network server, so it needs a
+      # runtime and is off by default like the bridge above.
+      - name: Basics Station client
+        run: |
+          cargo clippy -p pamoja-gateway --features station-client --all-targets -- -D warnings
+          cargo test -p pamoja-gateway --features station-client
+
       # The Linux bus backends, the kernel thermometer file, and the Linux side of the
       # radio opener only build on Linux, so the default-feature graph the rest of this
       # job covers never compiles them.

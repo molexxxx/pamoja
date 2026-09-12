@@ -25,7 +25,7 @@ pub struct Rendered {
     pub description: String,
     /// Every heading, in order, with the id it renders with.
     pub headings: Vec<Heading>,
-    /// The page split at its `h2` headings, for the search index.
+    /// The page split at its `h2` and `h3` headings, for the search index.
     pub sections: Vec<Section>,
 }
 
@@ -39,7 +39,7 @@ pub struct Heading {
     pub text: String,
 }
 
-/// A run of a page between two `h2` headings, as plain text.
+/// A run of a page between two `h2` or `h3` headings, as plain text.
 pub struct Section {
     /// The id of the heading that opens the section, or none for the text above the first.
     pub id: Option<String>,
