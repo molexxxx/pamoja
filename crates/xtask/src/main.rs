@@ -24,6 +24,7 @@ mod profiles;
 mod regions;
 mod release;
 mod site;
+mod standards;
 mod theme;
 mod version;
 

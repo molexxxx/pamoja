@@ -1242,6 +1242,7 @@ static void Conformance()
     ConformGeofence(vectors.GetProperty("geofence"));
     ConformSerial(vectors.GetProperty("serial"));
     ConformModbus(vectors.GetProperty("modbus"));
+    ConformPerturbation(vectors.GetProperty("modbus"));
     ConformCan(vectors.GetProperty("can"));
     ConformGpio(vectors.GetProperty("gpio"));
     ConformSensors(vectors.GetProperty("sensors"));
@@ -1494,6 +1495,27 @@ static void ConformSerial(JsonElement vector)
     Assert(
         decoder.Discarded == stream.GetProperty("discarded").GetUInt64(),
         "the discarded count matches");
+}
+
+// A suite that stopped comparing would pass every vector in the file, so this asserts the
+// comparison itself: the committed frame matches what the library builds, and a frame with
+// one bit moved does not. Every binding's runner carries the same case.
+static void ConformPerturbation(JsonElement vector)
+{
+    JsonElement read = vector.GetProperty("readHoldingRegisters");
+    byte[] built = Modbus.ReadHoldingRegisters(
+        read.GetProperty("address").GetByte(),
+        read.GetProperty("start").GetUInt16(),
+        read.GetProperty("count").GetUInt16());
+
+    byte[] committed = Convert.FromHexString(read.GetProperty("frame").GetString()!);
+    Assert(built.SequenceEqual(committed), "the committed vector still matches");
+
+    byte[] perturbed = (byte[])committed.Clone();
+    perturbed[^1] ^= 0x01;
+    Assert(
+        !built.SequenceEqual(perturbed),
+        "a vector with one bit moved must not compare equal");
 }
 
 static void ConformModbus(JsonElement vector)
