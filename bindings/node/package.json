@@ -17,8 +17,8 @@
     "test:guides": "tsc -p guides/tsconfig.json && node guides/run.js"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.8.0",
-    "@types/node": "^26.4.1",
+    "@napi-rs/cli": "^3.9.0",
+    "@types/node": "^26.5.0",
     "typescript": "^7.0.2"
   }
 }
