@@ -37,12 +37,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     let gain_control = image(Path::new(&config.concentrator.gain_control_firmware))?;
     let arbiter = image(Path::new(&config.concentrator.arbiter_firmware))?;
 
-    let wiring = Wiring::new(
+    let mut wiring = Wiring::new(
         &config.concentrator.spi,
         &config.concentrator.gpio_chip,
         config.concentrator.reset_line,
     );
-    let mut chip = linux::open_sx1302(&wiring)?;
+    if let Some(line) = config.concentrator.power_enable_line {
+        wiring = wiring.with_power_enable_line(line);
+    }
+
+    // Some boards gate the concentrator's supply behind a line. The handle holding it stays
+    // bound for the whole program, because dropping it releases the line and the card with it.
+    let (mut chip, _supply) = linux::open_sx1302(&wiring)?;
 
     // A concentrator tunes once and listens around that carrier, so a channel is an offset
     // from it rather than a frequency of its own.

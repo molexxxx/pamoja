@@ -188,6 +188,11 @@ pub struct Wiring {
     pub reset_line: u32,
     /// The line an SX126x's BUSY pin is on. The SX127x has no BUSY pin.
     pub busy_line: Option<u32>,
+    /// The line that switches a concentrator's supply on, for a board that gates it.
+    ///
+    /// A card wired this way answers nothing at all until the line is raised, and it has to
+    /// stay raised for as long as the card is used.
+    pub power_enable_line: Option<u32>,
 }
 
 impl Wiring {
@@ -210,7 +215,22 @@ impl Wiring {
             gpio_chip: gpio_chip.into(),
             reset_line,
             busy_line: None,
+            power_enable_line: None,
         }
+    }
+
+    /// Returns the wiring with a concentrator's supply gated behind a line.
+    ///
+    /// # Arguments
+    ///
+    /// * `line` - the line that switches the supply on.
+    ///
+    /// # Returns
+    ///
+    /// The wiring.
+    pub fn with_power_enable_line(mut self, line: u32) -> Wiring {
+        self.power_enable_line = Some(line);
+        self
     }
 
     /// Returns the wiring with an SX126x's BUSY pin on a line.
@@ -354,13 +374,18 @@ pub fn open_sx127x(wiring: &Wiring, board: sx127x::Board) -> Result<LinuxRadio, 
 ///
 /// # Returns
 ///
-/// The concentrator, reset and answering.
+/// The concentrator, reset and answering, and the supply line for a board that gates one.
+///
+/// That second value has to be kept for as long as the concentrator is used. A GPIO line is
+/// released when the handle holding it is dropped, so letting it go switches the card off
+/// again, and the card then answers nothing while every other part of the configuration
+/// looks right. Bind it to a name rather than to `_`.
 ///
 /// # Errors
 ///
 /// Returns [`OpenError::Unsupported`] on any platform but Linux, and [`OpenError::Bus`] if
-/// the SPI device or the reset line cannot be opened.
-pub fn open_sx1302(wiring: &Wiring) -> Result<LinuxConcentrator, OpenError> {
+/// the SPI device, the reset line, or the supply line cannot be opened.
+pub fn open_sx1302(wiring: &Wiring) -> Result<(LinuxConcentrator, Option<Line>), OpenError> {
     platform::open_sx1302(wiring)
 }
 
@@ -408,7 +433,20 @@ mod platform {
         )))
     }
 
-    pub(super) fn open_sx1302(wiring: &Wiring) -> Result<LinuxConcentrator, OpenError> {
+    pub(super) fn open_sx1302(
+        wiring: &Wiring,
+    ) -> Result<(super::LinuxConcentrator, Option<super::Line>), OpenError> {
+        // The supply comes first, before the bus and before the reset, which is the order the
+        // reference platform script uses. A board that gates its concentrator answers nothing
+        // until this is raised.
+        let power = match wiring.power_enable_line {
+            None => None,
+            Some(line) => Some(
+                linux::output(&wiring.gpio_chip, line, CONSUMER, PinState::High)
+                    .map_err(|error| bus(&wiring.gpio_chip, error))?,
+            ),
+        };
+
         let spi = spi(wiring)?;
         let reset = reset(wiring)?;
         let mut concentrator = Sx1302::new(spi, reset, linux::delay());
@@ -417,7 +455,7 @@ mod platform {
         concentrator.reset().map_err(|_| OpenError::ResetLine {
             device: wiring.gpio_chip.clone(),
         })?;
-        Ok(concentrator)
+        Ok((concentrator, power))
     }
 
     fn spi(wiring: &Wiring) -> Result<linux::SpidevDevice, OpenError> {
@@ -464,7 +502,9 @@ mod platform {
         Err(OpenError::Unsupported)
     }
 
-    pub(super) fn open_sx1302(_: &Wiring) -> Result<LinuxConcentrator, OpenError> {
+    pub(super) fn open_sx1302(
+        _: &Wiring,
+    ) -> Result<(LinuxConcentrator, Option<super::Line>), OpenError> {
         Err(OpenError::Unsupported)
     }
 }

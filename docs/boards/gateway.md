@@ -41,6 +41,14 @@ give the pin their own hats and adapters wire it to. Turning SPI on is the same
 covers, and the same `gpio` and `spi` group membership keeps the program from
 needing root.
 
+Some carrier boards gate the card's supply behind a second line rather than
+wiring it to the rail. Semtech's own reset script raises one before anything
+else on the reference design, and the Seeed WM1302's does the same. A card wired
+that way answers nothing at all until the line is up, which looks exactly like a
+wrong SPI device or a wrong reset line and is worth ruling out first. Name it as
+`power_enable_line` and the gateway raises it before it touches the bus, then
+holds it for as long as it runs.
+
 The USB versions of the RAK5146 and the WM1302 talk to their host through an
 STM32 bridge rather than over SPI, which this driver does not speak yet. Use an
 SPI version.
@@ -79,6 +87,7 @@ without a default is required.
 | `concentrator.spi` | The SPI device the card answers on. | |
 | `concentrator.gpio_chip` | The GPIO character device the reset line is on. | |
 | `concentrator.reset_line` | The line number within that chip. | |
+| `concentrator.power_enable_line` | The line that switches the card's supply on, for a board that gates it. | not driven |
 | `concentrator.firmware.gain_control` | The gain control image. | |
 | `concentrator.firmware.arbiter` | The arbiter image. | |
 | `concentrator.front_end` | `sx1250`, or `sx1255`, `sx1257`, `sx125x` for the older boards. | `sx1250` |
