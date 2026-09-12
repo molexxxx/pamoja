@@ -1194,10 +1194,7 @@ mod tests {
     #[test]
     fn firmware_the_crate_does_not_drive_is_named() {
         // It came up and answered, but it is not the image this crate knows how to talk to.
-        let mut chip = driven(vec![
-            reads(0x5781, mcu::STATUS_RUNNING),
-            reads(0x5790, 3),
-        ]);
+        let mut chip = driven(vec![reads(0x5781, mcu::STATUS_RUNNING), reads(0x5790, 3)]);
 
         match chip.start_gain_control(FrontEnd::Sx1250, false) {
             Err(ConcentratorError::WrongFirmware { wanted, running }) => {
@@ -1211,10 +1208,7 @@ mod tests {
     fn the_arbiter_reads_its_version_from_its_own_register() {
         // The arbiter answers through debug registers rather than mailboxes, which is the
         // only difference between the two exchanges.
-        let mut chip = driven(vec![
-            reads(0x6081, mcu::STATUS_RUNNING),
-            reads(0x608d, 1),
-        ]);
+        let mut chip = driven(vec![reads(0x6081, mcu::STATUS_RUNNING), reads(0x608d, 1)]);
 
         match chip.start_arbiter(0x00) {
             Err(ConcentratorError::WrongFirmware { wanted, running }) => {
