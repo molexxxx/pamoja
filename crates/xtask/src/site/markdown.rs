@@ -161,7 +161,10 @@ impl<'a> Walk<'a> {
             Event::Start(Tag::Table(alignment)) => {
                 self.table = Some(TableState::default());
                 self.out
-                    .push(Event::Html("<div class=\"table-scroll\">\n".into()));
+                    .push(Event::Html(
+                        "<div class=\"table-scroll\" role=\"region\" aria-label=\"Table\" tabindex=\"0\">\n"
+                            .into(),
+                    ));
                 self.out.push(Event::Start(Tag::Table(alignment)));
             }
             Event::End(TagEnd::Table) => {
@@ -399,7 +402,8 @@ fn label(lang: &str) -> &str {
         "yaml" | "yml" => "YAML",
         "html" => "HTML",
         "css" => "CSS",
-        "" | "text" => "",
+        "" | "text" => "Text",
+        "md" | "markdown" => "Markdown",
         other => other,
     }
 }
@@ -408,13 +412,14 @@ fn label(lang: &str) -> &str {
 fn figure(lang: &str, code: &str) -> String {
     let code = code.strip_suffix('\n').unwrap_or(code);
     let body = highlight::highlight(code, lang);
-    let caption = match label(lang) {
-        "" => String::new(),
-        name => format!("<span class=\"code-lang\">{}</span>", escape(name)),
-    };
+    let name = label(lang);
+    let caption = format!("<span class=\"code-lang\">{}</span>", escape(name));
+    // The body scrolls when a line is longer than the column, so it is a region a keyboard
+    // can reach and a screen reader can name.
     format!(
-        "<figure class=\"code\" data-lang=\"{lang}\"><figcaption>{caption}<button class=\"copy\" type=\"button\" aria-label=\"Copy this code\">copy</button></figcaption><pre><code>{body}</code></pre></figure>\n",
-        lang = escape(lang)
+        "<figure class=\"code\" data-lang=\"{lang}\"><figcaption>{caption}<button class=\"copy\" type=\"button\" aria-label=\"Copy this {name} code\">copy</button></figcaption><pre role=\"region\" aria-label=\"{name} code\" tabindex=\"0\"><code>{body}</code></pre></figure>\n",
+        lang = escape(lang),
+        name = escape(name)
     )
 }
 
@@ -483,9 +488,14 @@ mod tests {
             "<figure class=\"code\" data-lang=\"rust\"><figcaption><span class=\"code-lang\">Rust</span><button class=\"copy\""
         ));
         assert!(page.html.contains("<span class=\"hl-kw\">let</span>"));
+        // An unlabeled fence still names itself, so the caption bar is never an empty strip
+        // and the copy button says which block it copies.
+        assert!(page.html.contains(
+            "<figure class=\"code\" data-lang=\"\"><figcaption><span class=\"code-lang\">Text</span><button class=\"copy\" type=\"button\" aria-label=\"Copy this Text code\">"
+        ), "{}", page.html);
         assert!(page
             .html
-            .contains("<figure class=\"code\" data-lang=\"\"><figcaption><button"));
+            .contains("<pre role=\"region\" aria-label=\"Rust code\" tabindex=\"0\">"));
         assert!(page.html.contains("plain &lt;text&gt;</code>"));
         assert!(page.sections.is_empty(), "code is not indexed");
     }
@@ -493,9 +503,9 @@ mod tests {
     #[test]
     fn tables_scroll_and_raw_html_passes_through() {
         let page = render("| a | b |\n| --- | --- |\n| 1 | 2 |\n\n<div class=\"pkgs\">x</div>\n");
-        assert!(page
-            .html
-            .starts_with("<div class=\"table-scroll\">\n<table>"));
+        assert!(page.html.starts_with(
+            "<div class=\"table-scroll\" role=\"region\" aria-label=\"Table\" tabindex=\"0\">\n<table>"
+        ), "{}", page.html);
         assert!(page.html.contains("</table>\n</div>"));
         let table = render("| Build | Crates |\n| --- | --- |\n| All | 109 |\n");
         assert!(

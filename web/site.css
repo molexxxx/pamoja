@@ -369,7 +369,9 @@ tbody th[scope="row"] {
   vertical-align: top;
 }
 tbody tr:nth-child(even) td, tbody tr:nth-child(even) th[scope="row"] { background: color-mix(in srgb, var(--paper-tint) 55%, transparent); }
-.article td code { white-space: normal; }
+/* A long path in a cell has no break opportunity of its own, and a stacked table on a
+   phone gives it the whole column, so it drags the page sideways unless it may break. */
+.article td code { white-space: normal; overflow-wrap: anywhere; }
 .what { display: block; margin-top: 0.15rem; padding-block: 0.1rem; font-size: var(--t-xs); font-weight: 400; line-height: 1.45; color: var(--ink-soft); max-width: 44ch; }
 .none { color: var(--ink-soft); font-size: var(--t-xs); }
 .tbl { margin: 1rem 0 2rem; }

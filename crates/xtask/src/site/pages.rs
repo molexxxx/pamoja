@@ -76,22 +76,22 @@ pub fn page(source: &str, url: &str, text: &str) -> Page {
     } else {
         Kind::Article
     };
-    let (body, toc) = match kind {
-        Kind::Guide => match language_tabs(&rendered.html) {
-            Some(html) => {
-                let language_ids: BTreeSet<&str> = LANGUAGES.iter().map(|(_, id)| *id).collect();
-                let toc = rendered
-                    .headings
-                    .into_iter()
-                    .filter(|heading| {
-                        !(heading.level == 2 && language_ids.contains(heading.id.as_str()))
-                    })
-                    .collect();
-                (html, toc)
-            }
-            None => (rendered.html, rendered.headings),
-        },
-        Kind::Article => (rendered.html, rendered.headings),
+    // Any page that carries the four language sections in order gets the tab strip; the fold
+    // returns None for every page that does not, so a page opts in by its own headings.
+    let (body, toc) = match language_tabs(&rendered.html) {
+        Some(html) => {
+            let language_ids: BTreeSet<&str> = LANGUAGES.iter().map(|(_, id)| *id).collect();
+            let toc = rendered
+                .headings
+                .into_iter()
+                .filter(|heading| {
+                    !((heading.level == 2 || heading.level == 3)
+                        && language_ids.contains(heading.id.as_str()))
+                })
+                .collect();
+            (html, toc)
+        }
+        None => (rendered.html, rendered.headings),
     };
     Page {
         url: url.to_owned(),
@@ -117,16 +117,24 @@ pub fn page(source: &str, url: &str, text: &str) -> Page {
 /// The guide with the tab block in place of the four sections, or `None` when the four
 /// headings are not all present in order.
 pub fn language_tabs(html: &str) -> Option<String> {
+    ["h2", "h3"].iter().find_map(|level| fold(html, level))
+}
+
+// The fold at one heading level: the four languages in order, each becoming a panel, and
+// the run ends at the next heading of that level or above.
+fn fold(html: &str, level: &str) -> Option<String> {
     let mut starts = Vec::with_capacity(LANGUAGES.len());
     let mut from = 0;
     for (_, id) in LANGUAGES {
-        let marker = format!("<h2 id=\"{id}\">");
+        let marker = format!("<{level} id=\"{id}\">");
         let at = html[from..].find(&marker)? + from;
         starts.push(at);
         from = at + marker.len();
     }
-    let end = html[from..]
-        .find("<h2 id=\"")
+    let end = ["<h2 id=\"", "<h3 id=\""]
+        .iter()
+        .filter_map(|next| html[from..].find(next))
+        .min()
         .map_or(html.len(), |at| at + from);
 
     let mut out = String::with_capacity(html.len() + 1024);
@@ -141,8 +149,9 @@ pub fn language_tabs(html: &str) -> Option<String> {
     for (index, (_, id)) in LANGUAGES.iter().enumerate() {
         let start = starts[index];
         let stop = starts.get(index + 1).copied().unwrap_or(end);
-        let heading = format!("<h2 id=\"{id}\">");
-        let section = html[start..stop].replacen(&heading, "<h2 class=\"lang-heading\">", 1);
+        let heading = format!("<{level} id=\"{id}\">");
+        let section =
+            html[start..stop].replacen(&heading, &format!("<{level} class=\"lang-heading\">"), 1);
         out.push_str(&format!(
             "<section class=\"lang-panel\" id=\"{id}\" role=\"tabpanel\" aria-labelledby=\"tab-{id}\" data-lang=\"{id}\" tabindex=\"0\">\n{section}</section>\n"
         ));
