@@ -18,6 +18,7 @@
 //!   whether it is an SX1302 or an SX1303.
 //! - [`firmware`] - the order the two microcontrollers are loaded in, and what to check
 //!   afterwards.
+//! - [`rx`] - the packets the receive buffer holds, and what the receiver made of each.
 //!
 //! None of it opens a bus, so a frame can be checked against the reference implementation,
 //! or against a capture from a working gateway, with no hardware present.
@@ -52,4 +53,5 @@
 pub mod chip;
 pub mod firmware;
 pub mod register;
+pub mod rx;
 pub mod spi;
