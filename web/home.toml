@@ -184,7 +184,7 @@ tags = [
   { text = "Meshtastic bridge", state = "next", crate = "pamoja-meshtastic" },
   { text = "cellular uplink (NB-IoT, LTE-M)", state = "next", crate = "pamoja-cellular" },
   { text = "LoRaWAN MAC commands", state = "next" },
-  { text = "Basics Station gateway protocol", state = "next" },
+  { text = "Basics Station gateway protocol", state = "ships", crate = "pamoja-gateway" },
   { text = "SX1302 concentrator driver", state = "next" },
   { text = "BLE and the phone as gateway", state = "later" },
   { text = "Matter and Thread", state = "later" },

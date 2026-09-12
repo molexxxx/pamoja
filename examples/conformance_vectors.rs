@@ -148,6 +148,7 @@ fn main() {
         "radios": radios(),
         "gateway": gateway(),
         "gatewayNetwork": gateway_network(),
+        "station": station(),
         "mavlink": mavlink(),
         "mavlinkSchema": mavlink_schema(),
         "mavlinkProtocol": mavlink_protocol(),
@@ -4174,6 +4175,104 @@ fn zenoh() -> Value {
 /// The datagrams of the Semtech UDP packet forwarder protocol, each with the fields it
 /// carries, so every binding builds the same bytes and reads the same values back.
 /// The network side of a site: a join admitted and answered, and an uplink read.
+/// The Basics Station messages a session carries, built from a frame a radio heard.
+fn station() -> Value {
+    use pamoja_gateway::station::{id6, Discovery, Levels, Message, Router};
+    use pamoja_gateway::udp::Eui;
+    use pamoja_lorawan::{Device, Session, Uplink as LorawanUplink};
+
+    let hex = |bytes: &[u8]| {
+        bytes
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    };
+
+    let router = Eui::from_hex("b827ebfffe010203").expect("sixteen hexadecimal digits");
+    let muxs = Eui::new([0; 8]);
+    let dev_eui = [0x11u8; 8];
+    let app_eui = [0x22u8; 8];
+    let app_key = [0x33u8; 16];
+    let dev_nonce = 0x0102u16;
+    let dev_addr = 0x2601_0001u32;
+    let data_rate = 5u8;
+    let frequency_hz = 868_100_000u32;
+    let levels = Levels {
+        rctx: 0,
+        xtime: 1_000_000,
+        gpstime: None,
+        rssi: -35.0,
+        snr: 5.1,
+    };
+
+    // A station asks the discovery endpoint where its network server is, and is told.
+    let asking = Discovery::new(router);
+    let answered = Router::accepted(router, muxs, "ws://lns.example.invalid:3001/router");
+
+    // The device asks to join, and the station splits the frame into the fields it reports.
+    let device = Device::new(dev_eui, app_eui, app_key);
+    let request = device.join_request(dev_nonce);
+    let join = Message::heard(request.as_bytes(), data_rate, frequency_hz, levels)
+        .expect("a station sends a join request up");
+
+    // Then a reading, encrypted with a session, which stays encrypted as it passes through.
+    let session = Session::new(dev_addr, [0x44u8; 16], [0x55u8; 16]);
+    let frame = session
+        .encode_uplink(&LorawanUplink::new(7, 2, b"21.5"))
+        .expect("it fits one frame");
+    let uplink = Message::heard(frame.as_bytes(), data_rate, frequency_hz, levels)
+        .expect("a station sends a data frame up");
+
+    let (join_eui_read, dev_eui_read, nonce_read, join_mic) = match &join {
+        Message::JoinRequest {
+            join_eui,
+            dev_eui,
+            dev_nonce,
+            mic,
+            ..
+        } => (*join_eui, *dev_eui, *dev_nonce, *mic),
+        _ => panic!("a join request is read as one"),
+    };
+    let (addr_read, fcnt_read, port_read, payload_read, uplink_mic) = match &uplink {
+        Message::Uplink {
+            dev_addr,
+            fcnt,
+            fport,
+            payload,
+            mic,
+            ..
+        } => (*dev_addr, *fcnt, *fport, payload.clone(), *mic),
+        _ => panic!("a data frame is read as one"),
+    };
+
+    json!({
+        "router": router.to_hex(),
+        "routerId6": id6(router),
+        "muxsId6": id6(muxs),
+        "discovery": asking.to_json(),
+        "routerAnswer": answered.to_json(),
+        "dataRate": data_rate,
+        "frequencyHz": frequency_hz,
+        "join": {
+            "frame": hex(request.as_bytes()),
+            "message": join.to_json(),
+            "joinEui": join_eui_read.to_hex(),
+            "devEui": dev_eui_read.to_hex(),
+            "devNonce": nonce_read,
+            "mic": join_mic,
+        },
+        "uplink": {
+            "frame": hex(frame.as_bytes()),
+            "message": uplink.to_json(),
+            "devAddr": addr_read,
+            "fcnt": fcnt_read,
+            "fport": port_read,
+            "payload": hex(&payload_read),
+            "mic": uplink_mic,
+        },
+    })
+}
+
 fn gateway_network() -> Value {
     use pamoja_gateway::network::{Event, Network, Registration};
     use pamoja_gateway::udp::Rxpk;

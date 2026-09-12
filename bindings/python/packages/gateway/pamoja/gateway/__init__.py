@@ -29,13 +29,26 @@ from pamoja._native import GatewayRxpk as Rxpk
 from pamoja._native import GatewaySlot as Slot
 from pamoja._native import GatewayStat as Stat
 from pamoja._native import GatewayTxpk as Txpk
+from pamoja._native import GatewayStationBroadcast as StationBroadcast
+from pamoja._native import GatewayStationLevels as StationLevels
+from pamoja._native import GatewayStationMessage as StationMessage
+from pamoja._native import GatewayStationRouter as StationRouter
 from pamoja._native import gateway_acknowledgment as acknowledgment
 from pamoja._native import gateway_encode as encode
 from pamoja._native import gateway_parse as parse
+from pamoja._native import station_discovery
+from pamoja._native import station_encode
+from pamoja._native import station_eui_of
+from pamoja._native import station_heard
+from pamoja._native import station_id6
+from pamoja._native import station_parse
+from pamoja._native import station_router_parse
 
 __all__ = [
-    "Crc",
     "DEFAULT_PORT",
+    "DISCOVERY_PATH",
+    "STATION_PROTOCOL_VERSION",
+    "Crc",
     "Network",
     "NetworkEvent",
     "Packet",
@@ -43,15 +56,33 @@ __all__ = [
     "Rxpk",
     "Slot",
     "Stat",
+    "StationBroadcast",
+    "StationKind",
+    "StationLevels",
+    "StationMessage",
+    "StationRouter",
     "TxStatus",
     "Txpk",
     "acknowledgment",
     "encode",
     "parse",
+    "station_discovery",
+    "station_encode",
+    "station_eui_of",
+    "station_heard",
+    "station_id6",
+    "station_parse",
+    "station_router_parse",
 ]
 
 #: The port a packet forwarder sends to by convention, which the protocol itself does not fix.
 DEFAULT_PORT = 1700
+
+#: The path a station appends to its configured address to find its network server.
+DISCOVERY_PATH = "/router-info"
+
+#: The protocol version a station reports.
+STATION_PROTOCOL_VERSION = 2
 
 
 class PacketKind(str, enum.Enum):
@@ -101,3 +132,26 @@ class TxStatus(str, enum.Enum):
     TX_POWER = "TX_POWER"
     #: A GPS timestamp was asked for while the GPS is unlocked.
     GPS_UNLOCKED = "GPS_UNLOCKED"
+
+
+class StationKind(str, enum.Enum):
+    """Which kind of message a session carries, as the protocol writes it."""
+
+    #: What the station reports about itself when a session opens.
+    VERSION = "version"
+    #: How the server tells the station to configure its radios.
+    ROUTER_CONFIG = "router_config"
+    #: A join request the station heard.
+    JOIN_REQUEST = "jreq"
+    #: A data frame the station heard.
+    UPLINK = "updf"
+    #: A frame of a kind this protocol does not describe, carried whole.
+    PROPRIETARY = "propdf"
+    #: A frame the server asks the station to transmit.
+    DOWNLINK = "dnmsg"
+    #: Frames the server asks the station to transmit to a group.
+    SCHEDULE = "dnsched"
+    #: What became of a frame the station was asked to transmit.
+    TRANSMITTED = "dntxed"
+    #: The clock the two keep between them.
+    TIME_SYNC = "timesync"

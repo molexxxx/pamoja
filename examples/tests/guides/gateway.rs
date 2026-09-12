@@ -184,3 +184,88 @@ fn a_device_joins_a_site_and_is_answered() {
     assert_eq!(slot.timestamp_us, 10_000_000);
     assert_eq!(heard_from, 0x1234_5678);
 }
+
+/// The same site again, reached over the Basics Station protocol instead: the station finds
+/// its network server, says what it is, and reports a frame it heard as the fields the
+/// protocol names.
+#[test]
+fn a_station_finds_its_server_and_reports_what_it_heard() {
+    // ANCHOR: station
+    use pamoja_gateway::station::{Discovery, Levels, Message, Router, DISCOVERY_PATH};
+    use pamoja_gateway::udp::Eui;
+    use pamoja_lorawan::{Session, Uplink};
+
+    // The same gateway, now speaking the other protocol. It is configured with an address,
+    // and asks on that path for the websocket its session runs on.
+    let station = Eui::from_hex("b827ebfffe010203").expect("sixteen hexadecimal digits");
+    let asking = Discovery::new(station);
+    println!("ask       {DISCOVERY_PATH} {}", asking.to_json());
+
+    // The server answers with where to connect, or with why it will not have this station.
+    let answer = Router::from_json(
+        br#"{"router":"b827:ebff:fe01:203","muxs":"::0","uri":"ws://lns.example.invalid:3001/router"}"#,
+    )
+    .expect("the answer is well formed");
+    let uri = answer
+        .uri
+        .clone()
+        .expect("an accepted station is sent somewhere");
+    println!("open      {uri}");
+
+    // A station opens with what it is, which is how the server knows what it can do.
+    let hello = Message::Version {
+        station: "pamoja".to_owned(),
+        firmware: "0.1.18".to_owned(),
+        package: "pamoja-gateway".to_owned(),
+        model: "linux".to_owned(),
+        protocol: pamoja_gateway::station::PROTOCOL_VERSION,
+        features: "gps".to_owned(),
+    };
+    println!("version   {}", hello.to_json());
+
+    // Now a device sends a reading, and the radio hears the frame. A station holds no key,
+    // so it does not read the payload: it splits the frame into the fields the protocol
+    // names and lets the server judge them.
+    let session = Session::new(0x2601_0001, [0x44; 16], [0x55; 16]);
+    let frame = session
+        .encode_uplink(&Uplink::new(7, 2, b"21.5"))
+        .expect("it fits one frame");
+    let heard = Message::heard(
+        frame.as_bytes(),
+        5,
+        868_100_000,
+        Levels {
+            rctx: 0,
+            xtime: 1_000_000,
+            gpstime: None,
+            rssi: -35.0,
+            snr: 5.1,
+        },
+    )
+    .expect("a station sends a data frame up");
+    println!("updf      {}", heard.to_json());
+
+    let Message::Uplink {
+        dev_addr,
+        fcnt,
+        fport,
+        ref payload,
+        ..
+    } = heard
+    else {
+        panic!("a data frame going up is read as one");
+    };
+    println!(
+        "heard     {dev_addr:#010x} counter {fcnt} on port {}",
+        fport.unwrap_or(0)
+    );
+    println!("payload   {} bytes, still encrypted", payload.len());
+    // ANCHOR_END: station
+
+    assert_eq!(asking.to_json(), r#"{"router":"b827:ebff:fe01:203"}"#);
+    assert_eq!(uri, "ws://lns.example.invalid:3001/router");
+    assert_eq!(dev_addr, 0x2601_0001);
+    assert_eq!(fcnt, 7);
+    assert_eq!(fport, Some(2));
+    assert_ne!(payload.as_slice(), b"21.5");
+}

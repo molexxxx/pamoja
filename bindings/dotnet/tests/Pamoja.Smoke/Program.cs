@@ -1255,6 +1255,7 @@ static void Conformance()
     ConformSx127x(vectors.GetProperty("radios"), vectors.GetProperty("lora"));
     ConformGateway(vectors.GetProperty("gateway"));
     ConformGatewayNetwork(vectors.GetProperty("gatewayNetwork"));
+    ConformStation(vectors.GetProperty("station"));
     ConformMavlink(vectors.GetProperty("mavlink"));
     ConformMavlinkSchema(vectors.GetProperty("mavlinkSchema"));
     ConformMavlinkProtocol(vectors.GetProperty("mavlinkProtocol"));
@@ -5047,6 +5048,73 @@ static void GatewayNetworks()
 
     GatewayTxpk answered = site.Answer(carried.DevAddr, carried.Slot!, 2, "ok"u8);
     Assert(answered.InvertPolarity, "the answer is inverted too");
+}
+
+static void ConformStation(JsonElement vector)
+{
+    string router = vector.GetProperty("router").GetString()!;
+    byte[] identifier = Convert.FromHexString(router);
+    var levels = new GatewayStationLevels(0, 1_000_000) { Rssi = -35.0, Snr = 5.1 };
+    byte dataRate = vector.GetProperty("dataRate").GetByte();
+    uint frequencyHz = vector.GetProperty("frequencyHz").GetUInt32();
+
+    // The station names itself the way the protocol prefers, and reads any form back.
+    Assert(
+        GatewayStation.Id6(identifier) == vector.GetProperty("routerId6").GetString(),
+        "the station in ID6");
+    Assert(
+        HexLower(GatewayStation.EuiOf(vector.GetProperty("routerId6").GetString()!)) == router,
+        "the ID6 read back");
+    Assert(
+        GatewayStation.Discovery(identifier) == vector.GetProperty("discovery").GetString(),
+        "the discovery request");
+
+    GatewayStationRouter routed = GatewayStation.RouterParse(
+        vector.GetProperty("routerAnswer").GetString()!);
+    Assert(routed.Uri is not null, "an accepted station is sent somewhere");
+
+    // A join request the radio heard, split into the fields the protocol names.
+    JsonElement wanted = vector.GetProperty("join");
+    GatewayStationMessage join = GatewayStation.Heard(
+        Convert.FromHexString(wanted.GetProperty("frame").GetString()!),
+        dataRate,
+        frequencyHz,
+        levels);
+    Assert(join.Kind == GatewayStationKind.JoinRequest, "a join request is read as one");
+    Assert(
+        HexLower(join.JoinEui!) == wanted.GetProperty("joinEui").GetString(),
+        "the application it joins");
+    Assert(
+        HexLower(join.DevEui!) == wanted.GetProperty("devEui").GetString(),
+        "the device asking");
+    Assert(join.DevNonce == wanted.GetProperty("devNonce").GetUInt16(), "the nonce it used");
+    Assert(join.Mic == wanted.GetProperty("mic").GetInt32(), "its integrity code");
+    Assert(join.Json == wanted.GetProperty("message").GetString(), "the jreq it sends");
+
+    // Then a data frame, whose payload stays encrypted as it passes through.
+    JsonElement carried = vector.GetProperty("uplink");
+    GatewayStationMessage uplink = GatewayStation.Heard(
+        Convert.FromHexString(carried.GetProperty("frame").GetString()!),
+        dataRate,
+        frequencyHz,
+        levels);
+    Assert(uplink.Kind == GatewayStationKind.Uplink, "a data frame is read as one");
+    Assert(
+        uplink.DevAddr == carried.GetProperty("devAddr").GetInt32(),
+        "the address it came from");
+    Assert(uplink.Fcnt == carried.GetProperty("fcnt").GetUInt16(), "the counter it carried");
+    Assert(uplink.Fport == carried.GetProperty("fport").GetByte(), "the port it was sent on");
+    Assert(
+        HexLower(uplink.Payload) == carried.GetProperty("payload").GetString(),
+        "the payload, still encrypted");
+    Assert(uplink.Mic == carried.GetProperty("mic").GetInt32(), "its integrity code");
+    Assert(uplink.Json == carried.GetProperty("message").GetString(), "the updf it sends");
+
+    // What arrives on the websocket reads back into the same fields.
+    GatewayStationMessage read = GatewayStation.Parse(
+        carried.GetProperty("message").GetString()!);
+    Assert(read.DevAddr == uplink.DevAddr, "the address read back");
+    Assert(read.Fcnt == uplink.Fcnt, "the counter read back");
 }
 
 static void ConformGatewayNetwork(JsonElement vector)

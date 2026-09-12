@@ -48,6 +48,10 @@ __all__ = [
     "GatewayRxpk",
     "GatewaySlot",
     "GatewayStat",
+    "GatewayStationBroadcast",
+    "GatewayStationLevels",
+    "GatewayStationMessage",
+    "GatewayStationRouter",
     "GatewayTxpk",
     "Geofence",
     "Hdc1080Config",
@@ -408,6 +412,13 @@ __all__ = [
     "slip_max_encoded_len",
     "spi_mode_clock",
     "spi_mode_from_clock",
+    "station_discovery",
+    "station_encode",
+    "station_eui_of",
+    "station_heard",
+    "station_id6",
+    "station_parse",
+    "station_router_parse",
     "stepper_step_count",
     "stepper_steps_for_degrees",
     "sx126x_calibrate_image",
@@ -2152,6 +2163,300 @@ class GatewayStat:
         r"""
         Describes a gateway's status report.
         """
+
+@typing.final
+class GatewayStationBroadcast:
+    r"""
+    One frame of a schedule, transmitted to a group rather than a device.
+    """
+    @property
+    def data_rate(self) -> builtins.int:
+        r"""
+        The data rate to transmit at.
+        """
+    @property
+    def frequency_hz(self) -> builtins.int:
+        r"""
+        The frequency to transmit on, in hertz.
+        """
+    @property
+    def priority(self) -> builtins.int:
+        r"""
+        How urgent it is.
+        """
+    @property
+    def gpstime(self) -> typing.Optional[builtins.int]:
+        r"""
+        The GPS time to transmit at.
+        """
+    @property
+    def rctx(self) -> typing.Optional[builtins.int]:
+        r"""
+        The radio to transmit on.
+        """
+    @property
+    def pdu(self) -> bytes:
+        r"""
+        The frame to transmit.
+        """
+    def __new__(cls, pdu: typing.Sequence[builtins.int], data_rate: builtins.int = 0, frequency_hz: builtins.int = 0, priority: builtins.int = 0, gpstime: typing.Optional[builtins.int] = None, rctx: typing.Optional[builtins.int] = None) -> GatewayStationBroadcast:
+        r"""
+        Describes one frame of a schedule.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class GatewayStationLevels:
+    r"""
+    How a station heard a packet, as it reports it.
+    """
+    @property
+    def rctx(self) -> builtins.int:
+        r"""
+        The radio the packet arrived on, which an answer goes back out on.
+        """
+    @property
+    def xtime(self) -> builtins.int:
+        r"""
+        The station clock, in microseconds.
+        """
+    @property
+    def gpstime(self) -> typing.Optional[builtins.int]:
+        r"""
+        The GPS time, when the station has one.
+        """
+    @property
+    def rssi(self) -> builtins.float:
+        r"""
+        The received signal strength, in dBm.
+        """
+    @property
+    def snr(self) -> builtins.float:
+        r"""
+        The signal-to-noise ratio, in dB.
+        """
+    def __new__(cls, rctx: builtins.int = 0, xtime: builtins.int = 0, gpstime: typing.Optional[builtins.int] = None, rssi: builtins.float = 0.0, snr: builtins.float = 0.0) -> GatewayStationLevels:
+        r"""
+        Describes how a packet was heard.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class GatewayStationMessage:
+    r"""
+    A message either side of a session sends.
+    
+    Every message names its kind in `msgtype`, and carries the fields that kind uses. The rest
+    read as ``None``.
+    """
+    @property
+    def msgtype(self) -> builtins.str:
+        r"""
+        The kind as the protocol writes it, such as `jreq` or `updf`.
+        """
+    @property
+    def station(self) -> typing.Optional[builtins.str]:
+        r"""
+        The station software, for a version.
+        """
+    @property
+    def firmware(self) -> typing.Optional[builtins.str]:
+        r"""
+        Its firmware, for a version.
+        """
+    @property
+    def package(self) -> typing.Optional[builtins.str]:
+        r"""
+        The package it came from, for a version.
+        """
+    @property
+    def model(self) -> typing.Optional[builtins.str]:
+        r"""
+        The hardware model, for a version.
+        """
+    @property
+    def protocol(self) -> typing.Optional[builtins.int]:
+        r"""
+        The protocol version it speaks, for a version.
+        """
+    @property
+    def features(self) -> typing.Optional[builtins.str]:
+        r"""
+        What it can do, for a version.
+        """
+    @property
+    def net_id(self) -> typing.Optional[builtins.list[builtins.int]]:
+        r"""
+        The networks whose frames are carried, for a configuration.
+        """
+    @property
+    def region(self) -> typing.Optional[builtins.str]:
+        r"""
+        The region name, for a configuration.
+        """
+    @property
+    def max_eirp(self) -> typing.Optional[builtins.float]:
+        r"""
+        The highest radiated power the region allows, in dBm.
+        """
+    @property
+    def hwspec(self) -> typing.Optional[builtins.str]:
+        r"""
+        The concentrator the configuration is written for.
+        """
+    @property
+    def freq_min(self) -> typing.Optional[builtins.int]:
+        r"""
+        The lowest frequency the station may use, in hertz.
+        """
+    @property
+    def freq_max(self) -> typing.Optional[builtins.int]:
+        r"""
+        The highest frequency the station may use, in hertz.
+        """
+    @property
+    def mhdr(self) -> typing.Optional[builtins.int]:
+        r"""
+        The MAC header byte, for a join request or a data frame.
+        """
+    @property
+    def join_eui(self) -> typing.Optional[builtins.str]:
+        r"""
+        The application being joined, as sixteen hexadecimal digits.
+        """
+    @property
+    def dev_eui(self) -> typing.Optional[builtins.str]:
+        r"""
+        The device, as sixteen hexadecimal digits.
+        """
+    @property
+    def dev_nonce(self) -> typing.Optional[builtins.int]:
+        r"""
+        The nonce a join request used.
+        """
+    @property
+    def dev_addr(self) -> typing.Optional[builtins.int]:
+        r"""
+        The address a data frame came from.
+        """
+    @property
+    def fctrl(self) -> typing.Optional[builtins.int]:
+        r"""
+        The frame control byte.
+        """
+    @property
+    def fcnt(self) -> typing.Optional[builtins.int]:
+        r"""
+        The frame counter, as the sixteen bits on the air.
+        """
+    @property
+    def fport(self) -> typing.Optional[builtins.int]:
+        r"""
+        The port, ``None`` for a frame carrying only options.
+        """
+    @property
+    def mic(self) -> typing.Optional[builtins.int]:
+        r"""
+        The message integrity code.
+        """
+    @property
+    def data_rate(self) -> typing.Optional[builtins.int]:
+        r"""
+        The data rate it arrived at, or is to be sent at.
+        """
+    @property
+    def frequency_hz(self) -> typing.Optional[builtins.int]:
+        r"""
+        The frequency in hertz.
+        """
+    @property
+    def levels(self) -> typing.Optional[GatewayStationLevels]:
+        r"""
+        How it was heard, for the kinds a station sends up.
+        """
+    @property
+    def class_(self) -> typing.Optional[builtins.int]:
+        r"""
+        Which class of downlink this is.
+        """
+    @property
+    def diid(self) -> typing.Optional[builtins.int]:
+        r"""
+        The identifier a transmission report carries back.
+        """
+    @property
+    def rx_delay(self) -> typing.Optional[builtins.int]:
+        r"""
+        The delay before the first receive window, in seconds.
+        """
+    @property
+    def priority(self) -> typing.Optional[builtins.int]:
+        r"""
+        How urgent a downlink is.
+        """
+    @property
+    def xtime(self) -> typing.Optional[builtins.int]:
+        r"""
+        The station clock, for a downlink or a report.
+        """
+    @property
+    def rctx(self) -> typing.Optional[builtins.int]:
+        r"""
+        The radio, for a downlink or a report.
+        """
+    @property
+    def txtime(self) -> typing.Optional[builtins.float]:
+        r"""
+        When a frame went out, in seconds.
+        """
+    @property
+    def gpstime(self) -> typing.Optional[builtins.int]:
+        r"""
+        The GPS time, when the station has one.
+        """
+    @property
+    def schedule(self) -> typing.Optional[builtins.list[GatewayStationBroadcast]]:
+        r"""
+        What to transmit to a group, for a schedule.
+        """
+    @property
+    def fopts(self) -> bytes:
+        r"""
+        The frame options a data frame carries.
+        """
+    @property
+    def payload(self) -> bytes:
+        r"""
+        The payload a frame carries, still encrypted, or the frame a downlink transmits.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class GatewayStationRouter:
+    r"""
+    The answer a discovery endpoint gives.
+    """
+    @property
+    def router(self) -> typing.Optional[builtins.str]:
+        r"""
+        The station, as the server read it.
+        """
+    @property
+    def muxs(self) -> typing.Optional[builtins.str]:
+        r"""
+        The server endpoint carrying the session.
+        """
+    @property
+    def uri(self) -> typing.Optional[builtins.str]:
+        r"""
+        The websocket to open, absolute.
+        """
+    @property
+    def error(self) -> typing.Optional[builtins.str]:
+        r"""
+        Why the station was refused, when it was.
+        """
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class GatewayTxpk:
@@ -7507,6 +7812,41 @@ def spi_mode_clock(mode: builtins.int) -> SpiClock:
 def spi_mode_from_clock(cpol: builtins.bool, cpha: builtins.bool) -> builtins.int:
     r"""
     Returns the SPI mode number a `(CPOL, CPHA)` pair names.
+    """
+
+def station_discovery(router: builtins.str) -> builtins.str:
+    r"""
+    Writes the request a station sends to find its network server.
+    """
+
+def station_encode(message: GatewayStationMessage) -> builtins.str:
+    r"""
+    Writes a message the way the websocket carries it.
+    """
+
+def station_eui_of(text: builtins.str) -> builtins.str:
+    r"""
+    Reads an identifier written in any form the protocol accepts.
+    """
+
+def station_heard(frame: typing.Sequence[builtins.int], data_rate: builtins.int, frequency_hz: builtins.int, levels: typing.Optional[GatewayStationLevels] = None) -> GatewayStationMessage:
+    r"""
+    Reads a frame the radio heard into the message that reports it.
+    """
+
+def station_id6(eui: builtins.str) -> builtins.str:
+    r"""
+    Writes an identifier in the ID6 form the protocol prefers.
+    """
+
+def station_parse(text: builtins.str) -> GatewayStationMessage:
+    r"""
+    Reads a message that arrived over the websocket.
+    """
+
+def station_router_parse(text: builtins.str) -> GatewayStationRouter:
+    r"""
+    Reads the answer a discovery endpoint gives.
     """
 
 def stepper_step_count(drive: builtins.str) -> builtins.int:

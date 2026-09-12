@@ -1943,6 +1943,54 @@ def test_gateway_network_vectors_match():
     assert answer.timestamp_us == vector["downlink"]["timestampUs"]
 
 
+def test_station_vectors_match():
+    vector = VECTORS["station"]
+    levels = gateway.StationLevels(rctx=0, xtime=1_000_000, rssi=-35.0, snr=5.1)
+
+    # The station names itself the way the protocol prefers, and reads any form back.
+    assert gateway.station_id6(vector["router"]) == vector["routerId6"]
+    assert gateway.station_eui_of(vector["routerId6"]) == vector["router"]
+    assert gateway.station_discovery(vector["router"]) == vector["discovery"]
+
+    routed = gateway.station_router_parse(vector["routerAnswer"])
+    assert routed.router == vector["router"]
+    assert routed.uri
+
+    # A join request the radio heard, split into the fields the protocol names.
+    join = gateway.station_heard(
+        bytes.fromhex(vector["join"]["frame"]),
+        vector["dataRate"],
+        vector["frequencyHz"],
+        levels,
+    )
+    assert join.msgtype == "jreq"
+    assert join.join_eui == vector["join"]["joinEui"]
+    assert join.dev_eui == vector["join"]["devEui"]
+    assert join.dev_nonce == vector["join"]["devNonce"]
+    assert join.mic == vector["join"]["mic"]
+    assert gateway.station_encode(join) == vector["join"]["message"]
+
+    # Then a data frame, whose payload stays encrypted as it passes through.
+    uplink = gateway.station_heard(
+        bytes.fromhex(vector["uplink"]["frame"]),
+        vector["dataRate"],
+        vector["frequencyHz"],
+        levels,
+    )
+    assert uplink.msgtype == "updf"
+    assert uplink.dev_addr == vector["uplink"]["devAddr"]
+    assert uplink.fcnt == vector["uplink"]["fcnt"]
+    assert uplink.fport == vector["uplink"]["fport"]
+    assert uplink.payload.hex() == vector["uplink"]["payload"]
+    assert uplink.mic == vector["uplink"]["mic"]
+    assert gateway.station_encode(uplink) == vector["uplink"]["message"]
+
+    # What arrives on the websocket reads back into the same fields.
+    read = gateway.station_parse(vector["uplink"]["message"])
+    assert read.dev_addr == vector["uplink"]["devAddr"]
+    assert read.fcnt == vector["uplink"]["fcnt"]
+
+
 def test_gateway_vectors_match():
     vector = VECTORS["gateway"]
     heard = vector["pushData"]["rxpk"]

@@ -227,6 +227,86 @@ println!("foreign   {heard_from:#010x} belongs to another network");
 ```
 <!-- end -->
 
+And the same site reached over the Basics Station protocol instead, where the station
+finds its network server, says what it is, and reports a frame it heard as the fields the
+protocol names:
+
+<!-- snippet: examples/tests/guides/gateway.rs#station -->
+From [`examples/tests/guides/gateway.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/tests/guides/gateway.rs):
+
+```rust
+use pamoja_gateway::station::{Discovery, Levels, Message, Router, DISCOVERY_PATH};
+use pamoja_gateway::udp::Eui;
+use pamoja_lorawan::{Session, Uplink};
+
+// The same gateway, now speaking the other protocol. It is configured with an address,
+// and asks on that path for the websocket its session runs on.
+let station = Eui::from_hex("b827ebfffe010203").expect("sixteen hexadecimal digits");
+let asking = Discovery::new(station);
+println!("ask       {DISCOVERY_PATH} {}", asking.to_json());
+
+// The server answers with where to connect, or with why it will not have this station.
+let answer = Router::from_json(
+    br#"{"router":"b827:ebff:fe01:203","muxs":"::0","uri":"ws://lns.example.invalid:3001/router"}"#,
+)
+.expect("the answer is well formed");
+let uri = answer
+    .uri
+    .clone()
+    .expect("an accepted station is sent somewhere");
+println!("open      {uri}");
+
+// A station opens with what it is, which is how the server knows what it can do.
+let hello = Message::Version {
+    station: "pamoja".to_owned(),
+    firmware: "0.1.18".to_owned(),
+    package: "pamoja-gateway".to_owned(),
+    model: "linux".to_owned(),
+    protocol: pamoja_gateway::station::PROTOCOL_VERSION,
+    features: "gps".to_owned(),
+};
+println!("version   {}", hello.to_json());
+
+// Now a device sends a reading, and the radio hears the frame. A station holds no key,
+// so it does not read the payload: it splits the frame into the fields the protocol
+// names and lets the server judge them.
+let session = Session::new(0x2601_0001, [0x44; 16], [0x55; 16]);
+let frame = session
+    .encode_uplink(&Uplink::new(7, 2, b"21.5"))
+    .expect("it fits one frame");
+let heard = Message::heard(
+    frame.as_bytes(),
+    5,
+    868_100_000,
+    Levels {
+        rctx: 0,
+        xtime: 1_000_000,
+        gpstime: None,
+        rssi: -35.0,
+        snr: 5.1,
+    },
+)
+.expect("a station sends a data frame up");
+println!("updf      {}", heard.to_json());
+
+let Message::Uplink {
+    dev_addr,
+    fcnt,
+    fport,
+    ref payload,
+    ..
+} = heard
+else {
+    panic!("a data frame going up is read as one");
+};
+println!(
+    "heard     {dev_addr:#010x} counter {fcnt} on port {}",
+    fport.unwrap_or(0)
+);
+println!("payload   {} bytes, still encrypted", payload.len());
+```
+<!-- end -->
+
 ## TypeScript
 
 <!-- snippet: bindings/node/guides/gateway.ts#example -->
@@ -367,6 +447,67 @@ console.log(
 ```
 <!-- end -->
 
+And the same site reached over the Basics Station protocol instead, where the station
+finds its network server, says what it is, and reports a frame it heard as the fields the
+protocol names:
+
+<!-- snippet: bindings/node/guides/gateway.ts#station -->
+From [`bindings/node/guides/gateway.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/gateway.ts):
+
+```typescript
+import {
+  DISCOVERY_PATH,
+  STATION_PROTOCOL_VERSION,
+  StationKind,
+  stationDiscovery,
+  stationHeard,
+  stationEncode,
+  stationRouterParse,
+} from '@pamoja/gateway'
+
+// The same gateway, now speaking the other protocol. It is configured with an address, and
+// asks on that path for the websocket its session runs on.
+const stationEui = 'b827ebfffe010203'
+const ask = stationDiscovery(stationEui)
+console.log(`ask       ${DISCOVERY_PATH} ${ask}`)
+
+// The server answers with where to connect, or with why it will not have this station.
+const routed = stationRouterParse(
+  '{"router":"b827:ebff:fe01:203","muxs":"::0","uri":"ws://lns.example.invalid:3001/router"}',
+)
+console.log(`open      ${routed.uri}`)
+
+// A station opens with what it is, which is how the server knows what it can do.
+const hello = stationEncode({
+  kind: StationKind.Version,
+  station: 'pamoja',
+  firmware: '0.1.18',
+  package: 'pamoja-gateway',
+  model: 'linux',
+  protocol: STATION_PROTOCOL_VERSION,
+  features: 'gps',
+})
+console.log(`version   ${hello}`)
+
+// Now a device sends a reading, and the radio hears the frame. A station holds no key, so it
+// does not read the payload: it splits the frame into the fields the protocol names and lets
+// the server judge them.
+const active = session(0x26010001, Buffer.alloc(16, 0x44), Buffer.alloc(16, 0x55))
+const frame = active.encodeUplink(7, 2, Buffer.from('21.5'))
+const reported = stationHeard(frame, 5, 868_100_000, {
+  rctx: 0,
+  xtime: 1_000_000,
+  rssi: -35,
+  snr: 5.1,
+})
+console.log(`updf      ${stationEncode(reported)}`)
+console.log(
+  `heard     0x${(reported.devAddr ?? 0).toString(16).padStart(8, '0')} counter ${reported.fcnt} on port ${reported.fport}`,
+)
+console.log(`payload   ${reported.payload?.length} bytes, still encrypted`)
+```
+<!-- end -->
+
 ## Python
 
 <!-- snippet: bindings/python/guides/gateway.py#example -->
@@ -501,6 +642,63 @@ print(f"foreign   {stranger.dev_addr:#010x} belongs to another network")
 ```
 <!-- end -->
 
+And the same site reached over the Basics Station protocol instead, where the station
+finds its network server, says what it is, and reports a frame it heard as the fields the
+protocol names:
+
+<!-- snippet: bindings/python/guides/gateway.py#station -->
+From [`bindings/python/guides/gateway.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/gateway.py):
+
+```python
+from pamoja.gateway import (
+    DISCOVERY_PATH,
+    STATION_PROTOCOL_VERSION,
+    StationKind,
+    StationLevels,
+    station_discovery,
+    station_heard,
+    station_parse,
+    station_router_parse,
+)
+from pamoja.lorawan import session
+
+# The same gateway, now speaking the other protocol. It is configured with an address, and
+# asks on that path for the websocket its session runs on.
+station_eui = "b827ebfffe010203"
+ask = station_discovery(station_eui)
+print(f"ask       {DISCOVERY_PATH} {ask}")
+
+# The server answers with where to connect, or with why it will not have this station.
+answer = station_router_parse(
+    '{"router":"b827:ebff:fe01:203","muxs":"::0","uri":"ws://lns.example.invalid:3001/router"}'
+)
+print(f"open      {answer.uri}")
+
+# A station opens with what it is, which is how the server knows what it can do.
+hello = station_parse(
+    '{"msgtype":"version","station":"pamoja","firmware":"0.1.18",'
+    '"package":"pamoja-gateway","model":"linux",'
+    f'"protocol":{STATION_PROTOCOL_VERSION},"features":"gps"}}'
+)
+print(f"version   {hello.msgtype} {hello.station} {hello.firmware}")
+
+# Now a device sends a reading, and the radio hears the frame. A station holds no key, so it
+# does not read the payload: it splits the frame into the fields the protocol names and lets
+# the server judge them.
+active = session(0x26010001, bytes([0x44] * 16), bytes([0x55] * 16))
+frame = active.encode_uplink(7, 2, b"21.5")
+heard = station_heard(
+    frame,
+    5,
+    868_100_000,
+    StationLevels(rctx=0, xtime=1_000_000, rssi=-35.0, snr=5.1),
+)
+print(f"updf      {heard.msgtype} on {heard.frequency_hz} Hz at DR{heard.data_rate}")
+print(f"heard     {heard.dev_addr:#010x} counter {heard.fcnt} on port {heard.fport}")
+print(f"payload   {len(heard.payload)} bytes, still encrypted")
+```
+<!-- end -->
+
 ## C#
 
 <!-- snippet: bindings/dotnet/samples/Pamoja.Guides/GatewayGuide.cs#example -->
@@ -629,6 +827,45 @@ using LorawanSession elsewhere = new LorawanSession(0x12345678, NetworkKey(0x09)
 GatewayNetworkEvent stranger = site.Uplink(
     new GatewayRxpk(868_100_000, elsewhere.EncodeUplink(0, 1, "hello"u8)) { Link = dr5 });
 Console.WriteLine($"foreign   0x{stranger.DevAddr:x8} belongs to another network");
+```
+<!-- end -->
+
+And the same site reached over the Basics Station protocol instead, where the station
+finds its network server, says what it is, and reports a frame it heard as the fields the
+protocol names:
+
+<!-- snippet: bindings/dotnet/samples/Pamoja.Guides/GatewayGuide.cs#station -->
+From [`bindings/dotnet/samples/Pamoja.Guides/GatewayGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/GatewayGuide.cs):
+
+```csharp
+// The same gateway, now speaking the other protocol. It is configured with an
+// address, and asks on that path for the websocket its session runs on.
+byte[] stationEui = Convert.FromHexString("b827ebfffe010203");
+string ask = GatewayStation.Discovery(stationEui);
+Console.WriteLine($"ask       {GatewayStation.DiscoveryPath} {ask}");
+
+// The server answers with where to connect, or with why it will not have this station.
+GatewayStationRouter routed = GatewayStation.RouterParse(
+    """{"router":"b827:ebff:fe01:203","muxs":"::0","uri":"ws://lns.example.invalid:3001/router"}""");
+Console.WriteLine($"open      {routed.Uri}");
+
+// An identifier is written the way the protocol prefers, which folds zero groups.
+Console.WriteLine($"id6       {GatewayStation.Id6(stationEui)}");
+
+// Now a device sends a reading, and the radio hears the frame. A station holds no
+// key, so it does not read the payload: it splits the frame into the fields the
+// protocol names and lets the server judge them.
+using var active = new LorawanSession(0x26010001, NetworkKey(0x44), NetworkKey(0x55));
+byte[] frame = active.EncodeUplink(7, 2, "21.5"u8);
+GatewayStationMessage heard = GatewayStation.Heard(
+    frame,
+    5,
+    868_100_000,
+    new GatewayStationLevels(0, 1_000_000) { Rssi = -35.0, Snr = 5.1 });
+Console.WriteLine($"updf      {heard.Json}");
+Console.WriteLine(
+    $"heard     0x{heard.DevAddr:x8} counter {heard.Fcnt} on port {heard.Fport}");
+Console.WriteLine($"payload   {heard.Payload.Length} bytes, still encrypted");
 ```
 <!-- end -->
 

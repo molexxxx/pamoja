@@ -2541,6 +2541,159 @@ export interface GatewayStat {
   transmitted: number
 }
 
+/** One frame of a schedule, transmitted to a group rather than a device. */
+export interface GatewayStationBroadcast {
+  /** The frame to transmit. */
+  pdu: Buffer
+  /** The data rate to transmit at. */
+  dataRate: number
+  /** The frequency to transmit on, in hertz. */
+  frequencyHz: number
+  /** How urgent it is. */
+  priority: number
+  /** The GPS time to transmit at. */
+  gpstime?: number
+  /** The radio to transmit on. */
+  rctx?: number
+}
+
+/** Which kind of message this is. */
+export declare const enum GatewayStationKind {
+  /** What the station reports about itself when a session opens. */
+  Version = 'Version',
+  /** How the server tells the station to configure its radios. */
+  RouterConfig = 'RouterConfig',
+  /** A join request the station heard. */
+  JoinRequest = 'JoinRequest',
+  /** A data frame the station heard. */
+  Uplink = 'Uplink',
+  /** A frame of a kind this protocol does not describe, carried whole. */
+  Proprietary = 'Proprietary',
+  /** A frame the server asks the station to transmit. */
+  Downlink = 'Downlink',
+  /** Frames the server asks the station to transmit to a group. */
+  Schedule = 'Schedule',
+  /** What became of a frame the station was asked to transmit. */
+  Transmitted = 'Transmitted',
+  /** The clock the two keep between them. */
+  TimeSync = 'TimeSync',
+  /** A kind this build does not model, readable only as its text. */
+  Other = 'Other'
+}
+
+/** How a station heard a packet, as it reports it. */
+export interface GatewayStationLevels {
+  /** The radio the packet arrived on, which an answer goes back out on. */
+  rctx: number
+  /** The station clock, in microseconds. */
+  xtime: number
+  /** The GPS time, when the station has one. */
+  gpstime?: number
+  /** The received signal strength, in dBm. */
+  rssi: number
+  /** The signal-to-noise ratio, in dB. */
+  snr: number
+}
+
+/**
+ * A message either side of a session sends.
+ *
+ * Every message names its kind, and carries the fields that kind uses.
+ */
+export interface GatewayStationMessage {
+  /** Which kind of message. */
+  kind: GatewayStationKind
+  /**
+   * The kind as the protocol writes it, such as `jreq`, for a kind this build does not
+   * model.
+   */
+  msgtype?: string
+  /** The station software, for a version. */
+  station?: string
+  /** Its firmware, for a version. */
+  firmware?: string
+  /** The package it came from, for a version. */
+  package?: string
+  /** The hardware model, for a version. */
+  model?: string
+  /** The protocol version it speaks, for a version. */
+  protocol?: number
+  /** What it can do, for a version. */
+  features?: string
+  /** The networks whose frames are carried, for a configuration. */
+  netId?: Array<number>
+  /** The region name, for a configuration. */
+  region?: string
+  /** The highest radiated power the region allows, in dBm, for a configuration. */
+  maxEirp?: number
+  /** The concentrator the configuration is written for. */
+  hwspec?: string
+  /** The lowest frequency the station may use, in hertz, for a configuration. */
+  freqMin?: number
+  /** The highest frequency the station may use, in hertz, for a configuration. */
+  freqMax?: number
+  /** The MAC header byte, for a join request or a data frame. */
+  mhdr?: number
+  /** The application being joined, as sixteen hexadecimal digits. */
+  joinEui?: string
+  /** The device, as sixteen hexadecimal digits. */
+  devEui?: string
+  /** The nonce a join request used. */
+  devNonce?: number
+  /** The address a data frame came from. */
+  devAddr?: number
+  /** The frame control byte. */
+  fctrl?: number
+  /** The frame counter, as the sixteen bits on the air. */
+  fcnt?: number
+  /** The frame options, for a data frame. */
+  fopts?: Buffer
+  /** The port, absent for a frame carrying only options. */
+  fport?: number
+  /** The payload, still encrypted, or the whole frame for a proprietary one. */
+  payload?: Buffer
+  /** The message integrity code. */
+  mic?: number
+  /** The data rate it arrived at, or is to be sent at. */
+  dataRate?: number
+  /** The frequency in hertz. */
+  frequencyHz?: number
+  /** How it was heard, for the kinds a station sends up. */
+  levels?: GatewayStationLevels
+  /** Which class of downlink this is. */
+  class?: number
+  /** The identifier a transmission report carries back. */
+  diid?: number
+  /** The frame to transmit, for a downlink. */
+  pdu?: Buffer
+  /** The delay before the first receive window, in seconds. */
+  rxDelay?: number
+  /** How urgent a downlink is. */
+  priority?: number
+  /** The station clock, for a downlink or a report. */
+  xtime?: number
+  /** The radio, for a downlink or a report. */
+  rctx?: number
+  /** When a frame went out, in seconds. */
+  txtime?: number
+  /** The GPS time, when the station has one. */
+  gpstime?: number
+  /** What to transmit to a group, for a schedule. */
+  schedule?: Array<GatewayStationBroadcast>
+}
+
+/** The answer a discovery endpoint gives. */
+export interface GatewayStationRouter {
+  /** The station, as the server read it. */
+  router?: string
+  /** The server endpoint carrying the session. */
+  muxs?: string
+  /** The websocket to open, absolute. */
+  uri?: string
+  /** Why the station was refused, when it was. */
+  error?: string
+}
+
 /** A packet the server asks the gateway to transmit. */
 export interface GatewayTxpk {
   /** The carrier to transmit on, in hertz. */
@@ -4595,6 +4748,27 @@ export declare function spiModeClock(mode: number): SpiClock
 
 /** Returns the SPI mode number a `(CPOL, CPHA)` pair names. */
 export declare function spiModeFromClock(cpol: boolean, cpha: boolean): number
+
+/** Writes the request a station sends to find its network server. */
+export declare function stationDiscovery(router: string): string
+
+/** Writes a message as the websocket carries it. */
+export declare function stationEncode(message: GatewayStationMessage): string
+
+/** Reads an identifier written in any form the protocol accepts. */
+export declare function stationEuiOf(text: string): string
+
+/** Reads a frame the radio heard into the message that reports it. */
+export declare function stationHeard(frame: Buffer, dataRate: number, frequencyHz: number, levels: GatewayStationLevels): GatewayStationMessage
+
+/** Writes an identifier in the ID6 form the protocol prefers. */
+export declare function stationId6(eui: string): string
+
+/** Reads a message that arrived over the websocket. */
+export declare function stationParse(text: string): GatewayStationMessage
+
+/** Reads the answer a discovery endpoint gives. */
+export declare function stationRouterParse(text: string): GatewayStationRouter
 
 /** Which way to step a motor. */
 export declare const enum StepDirection {

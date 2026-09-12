@@ -247,6 +247,8 @@ dotnet = [
     "Gateway", "GatewayPacket", "GatewayPacketKind", "GatewayRxpk", "GatewayStat",
     "GatewayTxpk", "GatewayCrc", "GatewayTxStatus", "GatewayNetwork", "GatewayNetworkEvent",
     "GatewayNetworkWindows", "GatewayNetworkOutcome", "GatewayRx1Channels", "GatewaySlot",
+    "GatewayStation", "GatewayStationKind", "GatewayStationLevels", "GatewayStationMessage",
+    "GatewayStationRouter",
 ]
 guide = "guides/gateway.md"
 

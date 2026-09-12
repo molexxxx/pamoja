@@ -135,3 +135,63 @@ console.log(
 assert.equal(carried.payload!.toString(), '21.5')
 assert.equal(carried.slot!.timestampUs, 10_000_000)
 assert.equal(stranger.outcome, 'Foreign')
+
+// ANCHOR: station
+import {
+  DISCOVERY_PATH,
+  STATION_PROTOCOL_VERSION,
+  StationKind,
+  stationDiscovery,
+  stationHeard,
+  stationEncode,
+  stationRouterParse,
+} from '@pamoja/gateway'
+
+// The same gateway, now speaking the other protocol. It is configured with an address, and
+// asks on that path for the websocket its session runs on.
+const stationEui = 'b827ebfffe010203'
+const ask = stationDiscovery(stationEui)
+console.log(`ask       ${DISCOVERY_PATH} ${ask}`)
+
+// The server answers with where to connect, or with why it will not have this station.
+const routed = stationRouterParse(
+  '{"router":"b827:ebff:fe01:203","muxs":"::0","uri":"ws://lns.example.invalid:3001/router"}',
+)
+console.log(`open      ${routed.uri}`)
+
+// A station opens with what it is, which is how the server knows what it can do.
+const hello = stationEncode({
+  kind: StationKind.Version,
+  station: 'pamoja',
+  firmware: '0.1.18',
+  package: 'pamoja-gateway',
+  model: 'linux',
+  protocol: STATION_PROTOCOL_VERSION,
+  features: 'gps',
+})
+console.log(`version   ${hello}`)
+
+// Now a device sends a reading, and the radio hears the frame. A station holds no key, so it
+// does not read the payload: it splits the frame into the fields the protocol names and lets
+// the server judge them.
+const active = session(0x26010001, Buffer.alloc(16, 0x44), Buffer.alloc(16, 0x55))
+const frame = active.encodeUplink(7, 2, Buffer.from('21.5'))
+const reported = stationHeard(frame, 5, 868_100_000, {
+  rctx: 0,
+  xtime: 1_000_000,
+  rssi: -35,
+  snr: 5.1,
+})
+console.log(`updf      ${stationEncode(reported)}`)
+console.log(
+  `heard     0x${(reported.devAddr ?? 0).toString(16).padStart(8, '0')} counter ${reported.fcnt} on port ${reported.fport}`,
+)
+console.log(`payload   ${reported.payload?.length} bytes, still encrypted`)
+// ANCHOR_END: station
+
+assert.equal(ask, '{"router":"b827:ebff:fe01:203"}')
+assert.equal(routed.uri, 'ws://lns.example.invalid:3001/router')
+assert.equal(reported.devAddr, 0x26010001)
+assert.equal(reported.fcnt, 7)
+assert.equal(reported.fport, 2)
+assert.notEqual(reported.payload?.toString(), '21.5')
