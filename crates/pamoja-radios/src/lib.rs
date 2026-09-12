@@ -49,3 +49,4 @@ pub mod mesh;
 pub mod radio;
 pub mod sx126x;
 pub mod sx127x;
+pub mod sx1302;

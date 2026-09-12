@@ -861,7 +861,8 @@ specs = [
   "Clock and package: a single 32 MHz clock, QFN68",
 ]
 cost = "$5 to $20"
-crates = ["pamoja-lora"]
+crates = ["pamoja-lora", "pamoja-radios"]
+modules = ["pamoja-radios/src/sx1302.rs"]
 source_name = "SX1302 product page, Semtech LoRa Core"
 source_label = "Semtech SX1302"
 source = "https://www.semtech.com/products/wireless-rf/lora-core/sx1302"
@@ -895,7 +896,8 @@ specs = [
   "Compatibility: size and pin compatible with the SX1302, with all of its features",
 ]
 cost = "$60 to $200"
-crates = ["pamoja-lora"]
+crates = ["pamoja-lora", "pamoja-radios"]
+modules = ["pamoja-radios/src/sx1302.rs"]
 source_name = "SX1303 product page, Semtech LoRa Core"
 source_label = "Semtech SX1303"
 source = "https://www.semtech.com/products/wireless-rf/lora-core/sx1303"
