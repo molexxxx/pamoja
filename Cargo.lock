@@ -3152,6 +3152,7 @@ dependencies = [
  "pamoja-loopback",
  "pamoja-lora",
  "pamoja-lorawan",
+ "pamoja-radios",
  "serde_json",
  "tokio",
  "tokio-tungstenite 0.30.0",
