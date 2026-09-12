@@ -21,8 +21,8 @@ use super::chip::{self, Model};
 use super::firmware::{self, LoadError, Mcu};
 use super::register::{self, Register};
 use super::spi as frame;
-use super::timestamp;
 use super::sx1250;
+use super::timestamp;
 use super::tx::{self, Chain, FrontEnd, Trigger, TxStatus};
 
 /// How long the reset line is held, in microseconds.
