@@ -730,7 +730,7 @@ fn driver_modules(root: &Path) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
-fn tables<'a>(
+pub(crate) fn tables<'a>(
     doc: &'a DocumentMut,
     name: &str,
 ) -> Result<Vec<&'a dyn toml_edit::TableLike>, String> {
@@ -746,7 +746,11 @@ fn tables<'a>(
         .collect())
 }
 
-fn string(table: &dyn toml_edit::TableLike, key: &str, context: &str) -> Result<String, String> {
+pub(crate) fn string(
+    table: &dyn toml_edit::TableLike,
+    key: &str,
+    context: &str,
+) -> Result<String, String> {
     table
         .get(key)
         .and_then(Item::as_str)
@@ -754,7 +758,7 @@ fn string(table: &dyn toml_edit::TableLike, key: &str, context: &str) -> Result<
         .ok_or_else(|| format!("{context}: `{key}` must be a string"))
 }
 
-fn optional(table: &dyn toml_edit::TableLike, key: &str) -> String {
+pub(crate) fn optional(table: &dyn toml_edit::TableLike, key: &str) -> String {
     table
         .get(key)
         .and_then(Item::as_str)

@@ -161,6 +161,21 @@ def test_serial_vectors_match():
     assert cobs_frames == [unhex(frame) for frame in cobs_stream["frames"]]
 
 
+def test_a_perturbed_vector_is_rejected():
+    """A suite that stopped comparing would pass every vector in the file, so this asserts
+    the comparison itself: the committed frame matches what the library builds, and a frame
+    with one bit moved does not. Every binding's runner carries the same case."""
+    read = VECTORS["modbus"]["readHoldingRegisters"]
+    built = modbus.read_holding_registers(read["address"], read["start"], read["count"])
+
+    committed = unhex(read["frame"])
+    assert built == committed, "the committed vector still matches"
+
+    perturbed = bytearray(committed)
+    perturbed[-1] ^= 0x01
+    assert built != bytes(perturbed), "a vector with one bit moved must not compare equal"
+
+
 def test_modbus_vectors_match():
     vector = VECTORS["modbus"]
 

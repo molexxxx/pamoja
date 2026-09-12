@@ -750,8 +750,23 @@ function windowedVectors() {
   });
 }
 
+// A suite that stopped comparing would pass every vector in the file, so this asserts the
+// comparison itself: the committed frame matches what the library builds, and a frame with
+// one bit moved does not. Every binding's runner carries the same case.
+function perturbation() {
+  const read = VECTORS.modbus.readHoldingRegisters;
+  const built = modbus.readHoldingRegisters(read.address, read.start, read.count);
+  const committed = unhex(read.frame);
+  assert.deepStrictEqual(built, committed, "the committed vector still matches");
+
+  const perturbed = Buffer.from(committed);
+  perturbed[perturbed.length - 1] ^= 0x01;
+  assert.notDeepStrictEqual(built, perturbed, "a vector with one bit moved must not compare equal");
+}
+
 identity();
 codec();
+perturbation();
 helpers();
 geofence();
 serial();

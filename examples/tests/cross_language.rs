@@ -4151,3 +4151,30 @@ fn gateway_vectors_match() {
         assert_eq!(named.as_str(), text(status), "status {index}");
     }
 }
+
+/// A suite that stopped comparing would pass every vector in the file, so this asserts the
+/// comparison itself: the committed frame matches what the library builds, and a frame with
+/// one byte moved does not. Every binding's runner carries the same case.
+#[test]
+fn a_perturbed_vector_is_rejected() {
+    let vectors = vectors();
+    let read = &vectors["modbus"]["readHoldingRegisters"];
+    let built = Pdu::read_holding_registers(
+        read["start"].as_u64().expect("an address") as u16,
+        read["count"].as_u64().expect("a count") as u16,
+    )
+    .to_adu(read["address"].as_u64().expect("an address") as u8)
+    .as_bytes()
+    .to_vec();
+
+    let committed = unhex(&read["frame"]);
+    assert_eq!(built, committed, "the committed vector still matches");
+
+    let mut perturbed = committed.clone();
+    let last = perturbed.len() - 1;
+    perturbed[last] ^= 0x01;
+    assert_ne!(
+        built, perturbed,
+        "a vector with one bit moved must not compare equal"
+    );
+}

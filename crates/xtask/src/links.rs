@@ -37,7 +37,19 @@ pub fn run(root: &Path) -> ExitCode {
         }
     };
 
-    let sources = hardware.sources();
+    let standards = match crate::standards::Standards::load(root) {
+        Ok(standards) => standards,
+        Err(message) => {
+            eprintln!("xtask links: {message}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    // The parts' datasheets and the standards' own documents are checked together: a page
+    // claiming a figure came from a document is only as good as the document still being
+    // where it says.
+    let mut sources = hardware.sources();
+    sources.extend(standards.sources());
     println!("checking {} sources\n", sources.len());
 
     let mut failed = Vec::new();

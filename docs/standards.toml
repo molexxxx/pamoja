@@ -1,0 +1,626 @@
+# The standards register: every published specification pamoja implements, the document that
+# defines it, and the test in this repository that pins the implementation to that document's
+# own published vectors. `cargo xtask docs` renders docs/about/standards.md from this file and
+# `cargo xtask links` fetches every `url`, so a specification that moves takes the build with
+# it rather than sitting on the page looking authoritative.
+#
+# `chapter` is one of the capability chapters in docs/capabilities.toml, so a row points at the
+# crates that implement it. `designation` is the document as its publisher writes it, including
+# the revision where the publisher versions one. `evidence` is the test that asserts the
+# document's own reference vector, as `<path>#L<line>`; `anchor` says what that test pins:
+#   vector    the specification's published test vector or worked example
+#   rule      the specification's own constants, bit layout or equation, asserted directly
+#   interop   a live third-party implementation the test talks to
+#   internal  a round trip only, with no external vector to pin against
+
+[[group]]
+chapter = "trust"
+title = "Cryptography"
+intent = "The primitives under device identity, the secured session, and signed updates."
+
+[[group]]
+chapter = "identity"
+title = "Identity and signing"
+intent = "What names a device and what proves a message came from it."
+
+[[group]]
+chapter = "codecs"
+title = "Encodings"
+intent = "The wire formats readings and manifests are written in."
+
+[[group]]
+chapter = "field-io"
+title = "Field I/O"
+intent = "The buses and framings that reach a part on the end of a wire."
+
+[[group]]
+chapter = "sensing"
+title = "Sensors and actuators"
+intent = "Parts decoded byte for byte, each from the manufacturer's own datasheet."
+
+[[group]]
+chapter = "radio"
+title = "Radio, mesh and gateways"
+intent = "Reaching a network that is not there, and the rules a regulator sets for doing it."
+
+[[group]]
+chapter = "mavlink"
+title = "Drones"
+intent = "The protocol a ground station and a flight controller speak."
+
+[[group]]
+chapter = "profiles"
+title = "Robotics"
+intent = "Naming, typing and carrying messages the way ROS 2 and Zenoh do."
+
+[[group]]
+chapter = "transports"
+title = "Messaging"
+intent = "The protocols a node speaks to a broker or a server."
+
+
+# Cryptography
+
+[[entry]]
+key = "fips-197"
+chapter = "trust"
+designation = "FIPS 197-upd1"
+body = "NIST"
+subject = "AES-128, the block cipher under the LoRaWAN MIC and session keys"
+url = "https://csrc.nist.gov/pubs/fips/197/final"
+evidence = "crates/pamoja-lorawan/src/crypto.rs#L113"
+anchor = "vector"
+note = "Appendix C.1. The cipher itself is the RustCrypto `aes` crate; the vector is asserted through this crate's wrapper."
+
+[[entry]]
+key = "rfc-4493"
+chapter = "trust"
+designation = "RFC 4493"
+body = "IETF"
+subject = "AES-CMAC, the message integrity code on every LoRaWAN frame"
+url = "https://www.rfc-editor.org/info/rfc4493"
+evidence = "crates/pamoja-lorawan/src/crypto.rs#L136"
+anchor = "vector"
+note = "All four worked examples in section 4, including the 40 and 64 byte cases."
+
+[[entry]]
+key = "fips-180-4"
+chapter = "trust"
+designation = "FIPS 180-4"
+body = "NIST"
+subject = "SHA-256, under MAVLink signing, the audit chain and the dashboard pairing channel"
+url = "https://csrc.nist.gov/pubs/fips/180-4/upd1/final"
+evidence = "crates/pamoja-dashboard/web/app/lib/crypto/vectors.test.mjs#L28"
+anchor = "vector"
+note = "Both Appendix B worked examples, against the hand-written implementation the browser uses."
+
+[[entry]]
+key = "rfc-2104"
+chapter = "trust"
+designation = "RFC 2104"
+body = "IETF"
+subject = "HMAC, the construction the session key schedule is built on"
+url = "https://www.rfc-editor.org/info/rfc2104"
+evidence = "crates/pamoja-session/src/kdf.rs#L65"
+anchor = "vector"
+note = "Pinned through RFC 4231, which publishes the SHA-256 vectors RFC 2104 does not."
+
+[[entry]]
+key = "rfc-4231"
+chapter = "trust"
+designation = "RFC 4231"
+body = "IETF"
+subject = "The published HMAC-SHA-256 test vectors"
+url = "https://www.rfc-editor.org/info/rfc4231"
+evidence = "crates/pamoja-session/src/kdf.rs#L65"
+anchor = "vector"
+note = "Cases 1 and 2 in Rust, cases 1, 2 and 6 in the browser implementation."
+
+[[entry]]
+key = "rfc-5869"
+chapter = "trust"
+designation = "RFC 5869"
+body = "IETF"
+subject = "HKDF, which derives the session keys from the shared secret"
+url = "https://www.rfc-editor.org/info/rfc5869"
+evidence = "crates/pamoja-session/src/kdf.rs#L89"
+anchor = "vector"
+note = "The basic vector in Appendix A.1."
+
+[[entry]]
+key = "rfc-7748"
+chapter = "trust"
+designation = "RFC 7748"
+body = "IRTF"
+subject = "X25519, the key agreement that opens a secured session"
+url = "https://www.rfc-editor.org/info/rfc7748"
+evidence = "crates/pamoja-session/src/kex.rs#L171"
+anchor = "vector"
+note = "The Alice and Bob example in section 6.1, both public keys and the shared secret."
+
+[[entry]]
+key = "rfc-8439"
+chapter = "trust"
+designation = "RFC 8439"
+body = "IRTF"
+subject = "ChaCha20-Poly1305, which carries every sealed frame"
+url = "https://www.rfc-editor.org/info/rfc8439"
+evidence = "crates/pamoja-session/src/aead.rs#L92"
+anchor = "vector"
+note = "The worked example in section 2.8.2, sealed and opened."
+
+[[entry]]
+key = "rfc-9124"
+chapter = "trust"
+designation = "RFC 9124"
+body = "IETF"
+subject = "The information model a firmware manifest must answer"
+url = "https://www.rfc-editor.org/info/rfc9124"
+evidence = "crates/pamoja-update/tests/rules.rs#L356"
+anchor = "rule"
+note = "Each named threat is answered by a test named after it. The SUIT CBOR serialization is a deliberate deviation: draft-ietf-suit-manifest is still a draft."
+
+[[entry]]
+key = "rfc-9019"
+chapter = "trust"
+designation = "RFC 9019"
+body = "IETF"
+subject = "The firmware update architecture the update layer is built to"
+url = "https://www.rfc-editor.org/info/rfc9019"
+evidence = "crates/pamoja-update/src/lib.rs#L39"
+anchor = "rule"
+
+
+# Identity and signing
+
+[[entry]]
+key = "rfc-8032"
+chapter = "identity"
+designation = "RFC 8032"
+body = "IRTF"
+subject = "Ed25519, which signs a device identity, a telemetry batch, an audit entry and a release"
+url = "https://www.rfc-editor.org/info/rfc8032"
+evidence = "crates/pamoja-security/src/identity.rs#L222"
+anchor = "vector"
+note = "TEST 2 in section 7.1, asserting the full 64-byte signature."
+
+
+# Encodings
+
+[[entry]]
+key = "rfc-8949"
+chapter = "codecs"
+designation = "RFC 8949"
+body = "IETF"
+subject = "CBOR, the encoding a signed update manifest is written in"
+url = "https://www.rfc-editor.org/info/rfc8949"
+evidence = "crates/pamoja-update/src/cbor.rs#L203"
+anchor = "vector"
+note = "The Appendix A vectors, plus the shortest-form rule in 4.2.1 and the refusal of indefinite-length items."
+
+[[entry]]
+key = "protobuf-varint"
+chapter = "codecs"
+designation = "Protocol Buffers encoding"
+body = "Google"
+subject = "LEB128 varints and zigzag mapping, under the delta codec"
+url = "https://protobuf.dev/programming-guides/encoding/"
+evidence = "crates/pamoja-codec/src/delta.rs#L268"
+anchor = "vector"
+note = "The published signed-integer mapping, asserted value by value."
+
+[[entry]]
+key = "rfc-4648"
+chapter = "codecs"
+designation = "RFC 4648"
+body = "IETF"
+subject = "base64, which carries a radio payload through the packet forwarder"
+url = "https://www.rfc-editor.org/info/rfc4648"
+evidence = "crates/pamoja-gateway/src/base64.rs#L160"
+anchor = "vector"
+note = "All seven vectors in section 10, encoded and decoded, plus the unpadded form."
+
+
+# Field I/O
+
+[[entry]]
+key = "rfc-1055"
+chapter = "field-io"
+designation = "RFC 1055, STD 47"
+body = "IETF"
+subject = "SLIP framing over a serial line"
+url = "https://www.rfc-editor.org/info/rfc1055"
+evidence = "crates/pamoja-serial/src/slip.rs#L308"
+anchor = "rule"
+note = "The octal constants and the stuffing rule, asserted as the RFC prints them."
+
+[[entry]]
+key = "cobs"
+chapter = "field-io"
+designation = "Cheshire and Baker 1999"
+body = "IEEE/ACM Transactions on Networking 7(2)"
+subject = "Consistent Overhead Byte Stuffing"
+url = "https://ieeexplore.ieee.org/document/769765"
+evidence = "crates/pamoja-serial/src/cobs.rs#L415"
+anchor = "vector"
+note = "COBS has no published standard; the paper is the authority. All eleven of its example encodings are asserted."
+
+[[entry]]
+key = "crc-16-modbus"
+chapter = "field-io"
+designation = "CRC-16/MODBUS"
+body = "RevEng CRC catalogue"
+subject = "The frame check on every Modbus RTU frame"
+url = "https://reveng.sourceforge.io/crc-catalogue/16.htm#crc.cat.crc-16-modbus"
+evidence = "crates/pamoja-modbus/src/crc.rs#L48"
+anchor = "vector"
+note = "Check value 0x4B37 over the ASCII digits, plus a real six-byte request frame."
+
+[[entry]]
+key = "modbus-serial"
+chapter = "field-io"
+designation = "Modbus over Serial Line V1.02"
+body = "Modbus Organization"
+subject = "The RTU frame, its function codes and its exception responses"
+url = "https://www.modbus.org/docs/Modbus_over_serial_line_V1_02.pdf"
+evidence = "crates/pamoja-modbus/src/pdu.rs#L337"
+anchor = "vector"
+note = "The specification's own request and response examples."
+
+[[entry]]
+key = "iso-11898-1"
+chapter = "field-io"
+designation = "ISO 11898-1:2024"
+body = "ISO"
+subject = "The CAN data link layer, classical and CAN FD"
+url = "https://www.iso.org/standard/86384.html"
+evidence = "crates/pamoja-can/src/frame.rs#L1"
+anchor = "internal"
+note = "Edition 3 supersedes the 2015 edition and the 1991 Bosch CAN 2.0 document."
+
+[[entry]]
+key = "sae-j1939-21"
+chapter = "field-io"
+designation = "SAE J1939-21"
+body = "SAE International"
+subject = "The J1939 data link layer: PGNs, the data page bit, and the PDU1 and PDU2 boundary"
+url = "https://www.sae.org/standards/content/j1939/21_202409/"
+evidence = "crates/pamoja-can/src/j1939.rs#L226"
+anchor = "rule"
+manual_check = "sae.org serves a JavaScript shell to a scripted client, so a person opens this one."
+note = "Real published PGNs, including EEC1 at 61444 and the request PGN at 59904."
+
+[[entry]]
+key = "um10204"
+chapter = "field-io"
+designation = "UM10204 Rev. 7.0"
+body = "NXP"
+subject = "The I2C bus: addressing, the ten-bit form, and the reserved ranges"
+url = "https://www.nxp.com/docs/en/user-guide/UM10204.pdf"
+evidence = "crates/pamoja-gpio/src/i2c.rs#L317"
+anchor = "vector"
+note = "The manual's own ten-bit worked example, 0x2A5 framing as 0xF4 0xA5."
+
+[[entry]]
+key = "crc-8-maxim"
+chapter = "field-io"
+designation = "CRC-8/MAXIM-DOW"
+body = "RevEng CRC catalogue"
+subject = "The 1-Wire check byte, on every DS18B20 scratchpad and ROM code"
+url = "https://reveng.sourceforge.io/crc-catalogue/1-15.htm#crc.cat.crc-8-maxim-dow"
+evidence = "crates/pamoja-sensors/src/ds18b20.rs#L720"
+anchor = "vector"
+
+
+# Sensors and actuators
+
+[[entry]]
+key = "crc-8-sensirion"
+chapter = "sensing"
+designation = "Sensirion CRC-8"
+body = "Sensirion"
+subject = "The check byte on every SHT3x and SCD4x word"
+url = "https://sensirion.com/products/catalog/SHT31-DIS-B"
+evidence = "crates/pamoja-sensors/src/sht3x.rs#L739"
+anchor = "vector"
+note = "The datasheets' own worked examples, including every CRC in the SCD4x command tables."
+
+[[entry]]
+key = "sensor-datasheets"
+chapter = "sensing"
+designation = "Twelve manufacturer datasheets"
+body = "Bosch, Analog Devices, Texas Instruments, Sensirion, NXP"
+subject = "BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, TMP117 and PCA9685"
+url = "https://pamoja.molex.cloud/docs/hardware.html"
+evidence = "crates/pamoja-sensors/src/bme280.rs#L981"
+anchor = "vector"
+note = "Each driver asserts its datasheet's own worked compensation example. Every document is linked from the hardware page, part by part."
+
+
+# Radio, mesh and gateways
+
+[[entry]]
+key = "ts001-1-0-4"
+chapter = "radio"
+designation = "TS001-1.0.4"
+body = "LoRa Alliance"
+subject = "The LoRaWAN L2 specification: MAC framing and the OTAA join"
+url = "https://resources.lora-alliance.org/technical-specifications/ts001-1-0-4-lorawan-l2-1-0-4-specification"
+evidence = "crates/pamoja-gateway/src/network.rs#L870"
+anchor = "rule"
+note = "The join accept field positions in tables 44 and 55."
+
+[[entry]]
+key = "rp002-1-0-5"
+chapter = "radio"
+designation = "RP002-1.0.5"
+body = "LoRa Alliance"
+subject = "The regional parameters for nine channel plans"
+url = "https://resources.lora-alliance.org/technical-specifications/rp002-1-0-5-lorawan-regional-parameters"
+evidence = "crates/pamoja-lora/src/region/tests.rs#L15"
+anchor = "vector"
+note = "Each test is named after the table it checks: data rates, maximum payloads, the RX1 offset matrix."
+
+[[entry]]
+key = "itu-r-p525-5"
+chapter = "radio"
+designation = "ITU-R P.525-5"
+body = "ITU-R"
+subject = "Free-space attenuation, under the link budget"
+url = "https://www.itu.int/rec/R-REC-P.525-5-202411-I/en"
+evidence = "crates/pamoja-lora/src/budget.rs#L773"
+anchor = "rule"
+note = "Equations 5 and 6, reproduced and checked."
+
+[[entry]]
+key = "itu-r-p526-16"
+chapter = "radio"
+designation = "ITU-R P.526-16"
+body = "ITU-R"
+subject = "Propagation by diffraction, under the Fresnel zone clearance"
+url = "https://www.itu.int/rec/R-REC-P.526-16-202511-I/en"
+evidence = "crates/pamoja-lora/src/budget.rs#L835"
+anchor = "rule"
+note = "Equations 2 and 3."
+
+[[entry]]
+key = "an1200-22"
+chapter = "radio"
+designation = "AN1200.22"
+body = "Semtech"
+subject = "LoRa modulation: the noise floor and the demodulator SNR per spreading factor"
+url = "https://www.semtech.com/products/wireless-rf/lora-connect/sx1276"
+evidence = "crates/pamoja-lora/src/budget.rs#L673"
+anchor = "rule"
+manual_check = "Semtech serves its documents through share links that render page images, so a person opens this one."
+
+[[entry]]
+key = "sx126x"
+chapter = "radio"
+designation = "SX1261/SX1262 datasheet, Rev 2.2"
+body = "Semtech"
+subject = "The sub-GHz transceiver: its command set, its IRQ map and its calibration sequences"
+url = "https://www.semtech.com/products/wireless-rf/lora-connect/sx1262"
+evidence = "crates/pamoja-radios/src/sx126x/command.rs#L768"
+anchor = "vector"
+manual_check = "Semtech serves its documents through share links that render page images, so a person opens this one."
+
+[[entry]]
+key = "sx127x"
+chapter = "radio"
+designation = "SX1276/77/78/79 datasheet, Rev 7"
+body = "Semtech"
+subject = "The earlier sub-GHz transceiver, and the errata its driver works around"
+url = "https://www.semtech.com/products/wireless-rf/lora-connect/sx1276"
+evidence = "crates/pamoja-radios/src/sx127x/config.rs#L809"
+anchor = "vector"
+manual_check = "Semtech serves its documents through share links that render page images, so a person opens this one."
+
+[[entry]]
+key = "packet-forwarder"
+chapter = "radio"
+designation = "PROTOCOL.TXT"
+body = "Semtech, Lora-net/packet_forwarder"
+subject = "The UDP packet forwarder protocol, spoken from both the gateway and the server side"
+url = "https://github.com/Lora-net/packet_forwarder/blob/master/PROTOCOL.TXT"
+evidence = "crates/pamoja-gateway/src/udp/payload.rs#L1088"
+anchor = "vector"
+note = "The protocol's own printed example datagrams, and every TX_ACK error value."
+
+[[entry]]
+key = "basics-station"
+chapter = "radio"
+designation = "LoRa Basics Station 2.0.6"
+body = "Semtech"
+subject = "The LNS protocol a gateway speaks to a network server"
+url = "https://doc.sm.tc/station/"
+evidence = "crates/pamoja-gateway/src/station.rs#L1413"
+anchor = "vector"
+note = "The three ID6 identifier examples the protocol glossary prints."
+
+[[entry]]
+key = "crc-16-ibm-3740"
+chapter = "radio"
+designation = "CRC-16/IBM-3740"
+body = "RevEng CRC catalogue"
+subject = "The integrity check a mesh frame carries"
+url = "https://reveng.sourceforge.io/crc-catalogue/16.htm#crc.cat.crc-16-ibm-3740"
+evidence = "crates/pamoja-mesh/src/crc.rs#L100"
+anchor = "vector"
+note = "Check value 0x29B1. Also catalogued as CRC-16/CCITT-FALSE; the bare name CRC-16/CCITT means a different algorithm, KERMIT, which checks 0x2189."
+
+[[entry]]
+key = "cfr-15-247"
+chapter = "radio"
+designation = "47 CFR 15.247"
+body = "United States, FCC"
+subject = "Conducted power, and the antenna gain allowance above 6 dBi"
+url = "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/subject-group-ECFR2ea8a5f01db7c0b/section-15.247"
+evidence = "crates/pamoja-lora/src/budget.rs#L942"
+anchor = "rule"
+
+[[entry]]
+key = "en-300-220-2"
+chapter = "radio"
+designation = "ETSI EN 300 220-2 V3.3.1"
+body = "ETSI"
+subject = "The European short-range device limits the radio pages quote"
+url = "https://www.etsi.org/deliver/etsi_en/300200_300299/30022002/"
+evidence = "docs/radio.md#L359"
+anchor = "rule"
+
+[[entry]]
+key = "erc-70-03"
+chapter = "radio"
+designation = "CEPT ERC Recommendation 70-03"
+body = "CEPT/ECC"
+subject = "The duty cycle and power limits per European sub-band"
+url = "https://docdb.cept.org/document/845"
+evidence = "docs/radio.md#L294"
+anchor = "rule"
+note = "Revised often; the link resolves to the current edition rather than a dated one."
+
+[[entry]]
+key = "itu-t-k27"
+chapter = "radio"
+designation = "ITU-T K.27"
+body = "ITU-T"
+subject = "Bonding and earthing inside a building, behind the mast guidance"
+url = "https://www.itu.int/rec/T-REC-K.27/en"
+evidence = "docs/radio.md#L254"
+anchor = "rule"
+note = "With IEC 62305-2 for the risk assessment and IEC 62305-3 for the protection system itself."
+
+
+# Drones
+
+[[entry]]
+key = "mavlink-framing"
+chapter = "mavlink"
+designation = "MAVLink v1 and v2"
+body = "MAVLink project"
+subject = "The frame layout, its magic bytes and its extension fields"
+url = "https://mavlink.io/en/guide/serialization.html"
+evidence = "crates/pamoja-mavlink/src/frame.rs#L505"
+anchor = "rule"
+
+[[entry]]
+key = "crc-16-mcrf4xx"
+chapter = "mavlink"
+designation = "CRC-16/MCRF4XX"
+body = "RevEng CRC catalogue"
+subject = "The frame checksum MAVLink calls X.25 but is not"
+url = "https://reveng.sourceforge.io/crc-catalogue/16.htm#crc.cat.crc-16-mcrf4xx"
+evidence = "crates/pamoja-mavlink/src/crc.rs#L154"
+anchor = "vector"
+note = "Check value 0x6F91, with a second test asserting it is not the X-25 value 0x906E."
+
+[[entry]]
+key = "mavlink-crc-extra"
+chapter = "mavlink"
+designation = "CRC_EXTRA"
+body = "MAVLink project"
+subject = "The per-message byte that makes a dialect mismatch fail loudly"
+url = "https://mavlink.io/en/guide/serialization.html#crc_extra"
+evidence = "crates/pamoja-mavlink/src/crc.rs#L171"
+anchor = "vector"
+
+[[entry]]
+key = "mavlink-signing"
+chapter = "mavlink"
+designation = "MAVLink 2 signing"
+body = "MAVLink project"
+subject = "The thirteen-byte signature and its replay window"
+url = "https://mavlink.io/en/guide/message_signing.html"
+evidence = "crates/pamoja-mavlink/src/signing.rs#L335"
+anchor = "rule"
+
+
+# Robotics
+
+[[entry]]
+key = "ros2-names"
+chapter = "profiles"
+designation = "ROS 2 topic and service names"
+body = "Open Robotics"
+subject = "What a valid name is, and how it maps to a DDS topic"
+url = "https://design.ros2.org/articles/topic_and_service_names.html"
+evidence = "crates/pamoja-ros2/src/name.rs#L184"
+anchor = "rule"
+
+[[entry]]
+key = "rihs01"
+chapter = "profiles"
+designation = "REP-2011, RIHS01"
+body = "ROS 2 project"
+subject = "The type hash that tells two nodes they mean the same message"
+url = "https://ros.org/reps/rep-2011.html"
+evidence = "crates/pamoja-ros2/src/typehash.rs#L133"
+anchor = "vector"
+note = "The published hash for std_msgs/msg/String."
+
+[[entry]]
+key = "dds-xtypes"
+chapter = "profiles"
+designation = "DDS-XTypes 1.3, clause 7.4"
+body = "OMG"
+subject = "Extended CDR, the encoding a ROS 2 message travels in"
+url = "https://www.omg.org/spec/DDS-XTypes/1.3/"
+evidence = "crates/pamoja-ros2/src/msg.rs#L324"
+anchor = "internal"
+note = "Plain CDR is the CORBA transfer syntax; DDS and ROS 2 use the extended form."
+
+[[entry]]
+key = "rmw-zenoh"
+chapter = "profiles"
+designation = "rmw_zenoh key expressions"
+body = "ROS 2 project"
+subject = "The key a ROS 2 topic becomes when Zenoh carries it"
+url = "https://github.com/ros2/rmw_zenoh/blob/rolling/docs/design.md"
+evidence = "crates/pamoja-ros2/src/key.rs#L68"
+anchor = "rule"
+
+[[entry]]
+key = "zenoh-keyexpr"
+chapter = "profiles"
+designation = "Zenoh key expressions"
+body = "Zenoh project"
+subject = "Validity, canonical form, and how a wildcard matches"
+url = "https://zenoh.io/docs/manual/abstractions/"
+evidence = "crates/pamoja-zenoh/src/keyexpr.rs#L230"
+anchor = "vector"
+note = "The specification's own canonical-form reordering examples."
+
+
+# Messaging
+
+[[entry]]
+key = "mqtt-5"
+chapter = "transports"
+designation = "MQTT Version 5.0"
+body = "OASIS"
+subject = "Topic names, the single and multi-level wildcards, and the rule that a wildcard never matches a $-topic"
+url = "https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html#_Toc3901241"
+evidence = "crates/pamoja-core/src/transport.rs#L289"
+anchor = "rule"
+note = "Sections 4.7.1 and 4.7.2. The client itself speaks 3.1.1, whose topic rules are the same."
+
+[[entry]]
+key = "rfc-7252"
+chapter = "transports"
+designation = "RFC 7252"
+body = "IETF"
+subject = "CoAP: the message types, the code space and the Uri-Path option"
+url = "https://www.rfc-editor.org/info/rfc7252"
+evidence = "crates/pamoja-coap/tests/roundtrip.rs#L99"
+anchor = "internal"
+
+[[entry]]
+key = "rfc-7641"
+chapter = "transports"
+designation = "RFC 7641"
+body = "IETF"
+subject = "Observing a CoAP resource, so a server pushes a change"
+url = "https://www.rfc-editor.org/info/rfc7641"
+evidence = "crates/pamoja-coap/src/lib.rs#L349"
+anchor = "internal"

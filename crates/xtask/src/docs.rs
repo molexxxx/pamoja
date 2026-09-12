@@ -217,6 +217,11 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
     let hardware = Hardware::load(&root)?;
     hardware.check(&root)?;
 
+    // The standards register names the document behind every implementation and the test
+    // that pins it there; the check fails on a repeated key or an unknown chapter.
+    let standards = crate::standards::Standards::load(&root)?;
+    standards.check(&catalog)?;
+
     // The radio page lists the LoRaWAN channel plans; the check fails when `pamoja-lora`
     // defines a plan the page does not name.
     check_plans(&root)?;
@@ -257,6 +262,7 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
                 match table.trim() {
                     "builds" => builds::table(&root),
                     "hardware" => Ok(hardware.table(&catalog)),
+                    "standards" => Ok(standards.table(&catalog)),
                     "examples" => examples::table(&root),
                     "profiles" => Ok(profiles.table()),
                     "run" => Ok(examples::run_block(&text)),
