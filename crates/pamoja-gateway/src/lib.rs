@@ -18,6 +18,8 @@
 //!   reading an uplink, and working out where and when to answer it.
 //! - `bridge`, with the `bridge` feature - carrying messages between the radio the nodes are
 //!   on and the link that leaves the site, under a prefix that names the site.
+//! - `daemon`, with the `daemon` feature - what a gateway program is told to do, and the
+//!   order a concentrator is brought up and forwarded from.
 //! - [`station`] - the LoRa Basics Station protocol: the discovery request that finds a
 //!   network server, and the messages the websocket carries once one is open.
 //!
@@ -54,6 +56,8 @@
 pub mod base64;
 #[cfg(feature = "bridge")]
 pub mod bridge;
+#[cfg(feature = "daemon")]
+pub mod daemon;
 #[cfg(feature = "network")]
 pub mod network;
 pub mod station;

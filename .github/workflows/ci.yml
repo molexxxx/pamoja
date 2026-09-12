@@ -74,6 +74,13 @@ jobs:
           cargo clippy -p pamoja-gateway --features station-client --all-targets -- -D warnings
           cargo test -p pamoja-gateway --features station-client
 
+      # The gateway daemon drives a concentrator over a real bus, so it pulls the
+      # radio crate and its Linux backend and stays off the default graph as well.
+      - name: Gateway daemon
+        run: |
+          cargo clippy -p pamoja-gateway --features daemon --all-targets -- -D warnings
+          cargo test -p pamoja-gateway --features daemon
+
       # The Linux bus backends, the kernel thermometer file, and the Linux side of the
       # radio opener only build on Linux, so the default-feature graph the rest of this
       # job covers never compiles them.
