@@ -3061,6 +3061,7 @@ dependencies = [
  "pamoja-coap",
  "pamoja-codec",
  "pamoja-core",
+ "pamoja-dashboard",
  "pamoja-gateway",
  "pamoja-gpio",
  "pamoja-hal",
@@ -3139,8 +3140,12 @@ dependencies = [
 name = "pamoja-gateway"
 version = "0.1.18"
 dependencies = [
+ "pamoja-core",
+ "pamoja-loopback",
  "pamoja-lora",
+ "pamoja-lorawan",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

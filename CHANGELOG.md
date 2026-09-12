@@ -84,6 +84,18 @@ released together, so one entry covers all of them.
   range math takes, with the base64 of RFC 4648 and the protocol's two timestamp formats
   written in the crate rather than pulled in. TypeScript, Python and C# build and read the
   same datagrams, checked against new conformance vectors and the protocol's own examples.
+- The network and bridge sides of a site in `pamoja-gateway`. `network` is the
+  network server of one site: it admits a device from its join request, grants the
+  session, follows the frame counter through a wrap and refuses a replay, decrypts
+  what a node sent, and works out where and when to answer, with the receive
+  windows and delays RP002-1.0.5 recommends for every region and the DLSettings
+  and RXDelay bytes of TS001-1.0.4. A frame for an address the site has not
+  granted is reported rather than refused, because a gateway hears every network
+  in range. `bridge` carries messages between the radio the nodes are on and the
+  link that leaves the site, under a prefix naming the site and a direction
+  segment that keeps a forwarded reading from coming back as a command, and it
+  reports what crossed, so a console is fed by the same pass that carries the
+  traffic. A new example, `gateway_fleet`, runs a site end to end and draws it.
 
 ### Changed
 

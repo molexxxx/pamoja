@@ -34,6 +34,10 @@ both sides.
   way on the way in, because gateways in the field send both.
 - `time` - the two timestamp formats the protocol prescribes, to the microsecond for a
   reception and to the second for a gateway's own clock.
+- `network`, with the `network` feature - the network side of one site: admitting a join,
+  reading an uplink, and working out where and when to answer it.
+- `bridge`, with the `bridge` feature - carrying messages between the radio the nodes are
+  on and the link that leaves the site, under a prefix that names the site.
 
 Every datagram is data: the crate builds and parses them, and leaves the socket, the
 keepalive, and the scheduling to the program that owns them.
