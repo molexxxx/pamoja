@@ -82,12 +82,19 @@ async fn run(path: &Path) -> Result<(), String> {
     let arbiter = image(Path::new(&config.concentrator.arbiter_firmware))
         .map_err(|error| error.to_string())?;
 
-    let wiring = Wiring::new(
+    let mut wiring = Wiring::new(
         &config.concentrator.spi,
         &config.concentrator.gpio_chip,
         config.concentrator.reset_line,
     );
-    let mut chip = linux::open_sx1302(&wiring).map_err(|error| error.to_string())?;
+    if let Some(line) = config.concentrator.power_enable_line {
+        wiring = wiring.with_power_enable_line(line);
+    }
+
+    // The second binding is the supply line on a board that gates its concentrator. It stays
+    // bound on purpose: a GPIO line is released when its handle drops, so letting go of this
+    // one switches the card off while everything else still looks configured.
+    let (mut chip, _supply) = linux::open_sx1302(&wiring).map_err(|error| error.to_string())?;
 
     let plan = Plan::new(config.radio.carrier_hz, &config.radio.channels)
         .looking_for(&config.radio.spreading_factors)

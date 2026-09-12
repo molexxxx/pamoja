@@ -29,7 +29,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         &gpio_chip,
         number(&line).ok_or("the reset line is a number")?,
     );
-    let mut chip = linux::open_sx1302(&wiring)?;
+    // The second binding holds the supply line on a board that gates it. Dropping the handle
+    // releases the line, so it stays bound for as long as the chip is talked to.
+    let (mut chip, _supply) = linux::open_sx1302(&wiring)?;
 
     // Opening pulses reset, so the chip is answering by here and nothing else has been asked
     // of it. Both of these read the chip's own identity rather than anything configured.

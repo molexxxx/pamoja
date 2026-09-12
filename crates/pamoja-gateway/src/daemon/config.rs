@@ -75,6 +75,11 @@ pub struct Concentrator {
     pub gpio_chip: String,
     /// The line its reset pin is wired to.
     pub reset_line: u32,
+    /// The line that switches the concentrator's supply on, for a board that gates it.
+    ///
+    /// A board wired this way answers nothing at all until the line is raised, and the line
+    /// has to stay raised, so a gateway that names one keeps it held for as long as it runs.
+    pub power_enable_line: Option<u32>,
     /// Whether the board wires its front ends single ended rather than differential.
     pub single_input: bool,
     /// Which front end the board carries.
@@ -237,6 +242,10 @@ fn concentrator(object: &Map<String, Value>) -> Result<Concentrator, ConfigError
         spi: required_text(held, "concentrator.spi")?.to_owned(),
         gpio_chip: required_text(held, "concentrator.gpio_chip")?.to_owned(),
         reset_line: required_whole(held, "concentrator.reset_line")?,
+        power_enable_line: match held.get("power_enable_line") {
+            None => None,
+            Some(_) => Some(required_whole(held, "concentrator.power_enable_line")?),
+        },
         single_input: held
             .get("single_input")
             .and_then(Value::as_bool)
@@ -623,6 +632,40 @@ mod tests {
             r#""spreading_factors": [7, 8, 9]"#,
             &format!(r#""spreading_factors": [7, 8, 9], {extra}"#),
         )
+    }
+
+    #[test]
+    fn a_board_that_gates_its_supply_names_the_line() {
+        assert_eq!(
+            Config::parse(&complete())
+                .expect("complete")
+                .concentrator
+                .power_enable_line,
+            None
+        );
+
+        // Eighteen is the line the reference design gates its concentrator behind.
+        let gated = complete().replace(
+            r#""reset_line": 23,"#,
+            r#""reset_line": 23, "power_enable_line": 18,"#,
+        );
+        assert_eq!(
+            Config::parse(&gated)
+                .expect("a gated board")
+                .concentrator
+                .power_enable_line,
+            Some(18)
+        );
+
+        // A line that is not a number is refused by its name rather than quietly dropped,
+        // which on a board wired this way would look like a concentrator that never answers.
+        let wrong = complete().replace(
+            r#""reset_line": 23,"#,
+            r#""reset_line": 23, "power_enable_line": "eighteen","#,
+        );
+        assert!(
+            matches!(Config::parse(&wrong), Err(ConfigError::Refused { field, .. }) if field == "concentrator.power_enable_line")
+        );
     }
 
     #[test]
