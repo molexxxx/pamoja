@@ -89,6 +89,10 @@ without a default is required.
 | `radio.channels` | One to eight offsets from it, in hertz, signed. | |
 | `radio.spreading_factors` | Which factors to look for, each 5 to 12. | all of them |
 | `radio.lorawan_public` | Whether the network is public, which picks the sync word the receivers look for. | `true` |
+| `radio.tx_freq_min_hz` | The lowest frequency the board may transmit on. Name both bounds or neither. | not checked |
+| `radio.tx_freq_max_hz` | The highest. | not checked |
+| `radio.duty_cycle_permille` | The share of time the band allows a transmitter, in parts per thousand, so `10` is 1%. | not held to one |
+| `radio.gain_table` | What the board reaches at each power, strongest last. | the reference design's |
 | `radio.dual_demodulation` | A mask of factors to demodulate twice over, one bit each from SF5. | `0` |
 | `upstream.forwarder` | The host to send uplinks to. | |
 | `upstream.port` | Its port. | `1700` |
@@ -131,6 +135,41 @@ will not start says which field to fix rather than that the file is wrong.
 `listen_before_talk` tells the gain control that an SX1261 is fitted. The scan
 itself is not driven yet, so leave it off for now. Naming a `station` upstream
 instead of a `forwarder` is likewise read but not yet run by the daemon.
+
+A gain table entry says what the board reaches and how. `radiated_dbm` is the
+reference implementation's `rf_power`, `amplifier` is its `pa_gain`,
+`power_index` is its `pwr_idx`, and `digital_gain` is its `dig_gain`, so a table
+can be copied across from a Semtech configuration a field at a time. The two
+calibrated offsets, `offset_i` and `offset_q`, default to zero. A power asked for
+above the table transmits at the most the board reaches rather than being
+refused, which is what the reference does.
+
+## What the gateway can say about a downlink it refused
+
+The packet forwarder protocol answers a downlink with one of eight words, and
+not every reason has one. The daemon reports what it can:
+
+| What happened | What it answers |
+| --- | --- |
+| Sent | `NONE` |
+| The window is within 42.5 ms, too close to program a chain | `TOO_LATE` |
+| The window is more than 512 seconds out | `TOO_EARLY` |
+| The chain is still holding the packet before it | `COLLISION_PACKET` |
+| The duty cycle owes the band silence | `COLLISION_PACKET` |
+| The carrier is outside `tx_freq_min_hz` to `tx_freq_max_hz` | `TX_FREQ` |
+| A GPS time was asked for, and this gateway drives no GPS | `GPS_UNLOCKED` |
+
+The two thresholds are the reference forwarder's. Below 42.5 ms a chain cannot
+be configured and loaded before its moment passes, and beyond 512 seconds a
+timestamp is wrong rather than early, since a class A window is a second or two
+out and a class B one falls inside 128 seconds.
+
+Two of these are approximations, and it is worth knowing which. A duty cycle
+that is not yet spent is reported as a collision because the protocol has no
+word for it, and the slot is genuinely taken, by the silence the last
+transmission owes. A modulation the daemon cannot drive has no word at all.
+`TX_POWER` is never answered, because a power above the table is transmitted at
+the board's strongest setting rather than refused.
 
 ## Bringing it up and listening
 

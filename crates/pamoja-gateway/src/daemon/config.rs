@@ -14,7 +14,7 @@
 
 use serde_json::{Map, Value};
 
-use pamoja_radios::sx1302::tx::{Chain, FrontEnd};
+use pamoja_radios::sx1302::tx::{Chain, FrontEnd, Gain, DEFAULT_GAINS};
 
 use crate::udp::Eui;
 
@@ -106,6 +106,22 @@ pub struct Radio {
     /// Whether the network is a public one, which decides the sync word the receivers look
     /// for. Every LoRaWAN network is public, and the chip powers up expecting a private one.
     pub lorawan_public: bool,
+    /// The lowest and highest frequency the board may transmit on, in hertz.
+    ///
+    /// A board is built for a band, and asking it for a carrier outside that band radiates
+    /// badly or not at all. A gateway that names no bounds is not checked against any.
+    pub tx_bounds: Option<(u32, u32)>,
+    /// The share of the time the band allows a transmitter, in parts per thousand.
+    ///
+    /// `Some(10)` is the 1% that most of the European band runs under. A gateway that names
+    /// none is not held to one, which is right where the band has no such limit.
+    pub duty_cycle_permille: Option<u32>,
+    /// What the board reaches at each power, strongest last.
+    ///
+    /// Which amplifier setting and power step give which radiated power is a property of the
+    /// board rather than of the chip, so a gateway with hardware unlike the reference design
+    /// names its own.
+    pub gains: Vec<Gain>,
 }
 
 /// Where a gateway sends what it hears.
@@ -335,12 +351,69 @@ fn radio(object: &Map<String, Value>) -> Result<Radio, ConfigError> {
         .and_then(Value::as_bool)
         .unwrap_or(true);
 
+    // Both bounds or neither: one on its own reads like a limit and enforces nothing on the
+    // side it leaves open.
+    let tx_bounds = match (held.get("tx_freq_min_hz"), held.get("tx_freq_max_hz")) {
+        (None, None) => None,
+        (Some(_), None) => return Err(missing("radio.tx_freq_max_hz")),
+        (None, Some(_)) => return Err(missing("radio.tx_freq_min_hz")),
+        (Some(_), Some(_)) => {
+            let lowest = required_whole(held, "radio.tx_freq_min_hz")?;
+            let highest = required_whole(held, "radio.tx_freq_max_hz")?;
+            if lowest > highest {
+                return Err(refused(
+                    "radio.tx_freq_min_hz",
+                    &format!("{lowest} Hz is above the highest, {highest} Hz"),
+                ));
+            }
+            Some((lowest, highest))
+        }
+    };
+
+    let duty_cycle_permille = match held.get("duty_cycle_permille") {
+        None => None,
+        Some(value) => {
+            let permille = value.as_u64().ok_or_else(|| {
+                refused(
+                    "radio.duty_cycle_permille",
+                    "this is a whole number of parts per thousand",
+                )
+            })?;
+            if permille == 0 || permille > 1000 {
+                return Err(refused(
+                    "radio.duty_cycle_permille",
+                    &format!("{permille} is not a share between 1 and 1000"),
+                ));
+            }
+            Some(permille as u32)
+        }
+    };
+
+    let gains = match held.get("gain_table") {
+        None => DEFAULT_GAINS.to_vec(),
+        Some(value) => {
+            let listed = value
+                .as_array()
+                .ok_or_else(|| refused("radio.gain_table", "the gain table is a list"))?;
+            if listed.is_empty() {
+                return Err(refused(
+                    "radio.gain_table",
+                    "a table with no entries reaches no power at all",
+                ));
+            }
+            listed.iter().map(gain).collect::<Result<Vec<_>, _>>()?
+        }
+    };
+
     Ok(Radio {
         carrier_hz,
         channels,
         spreading_factors,
         dual_demodulation,
         lorawan_public,
+        tx_bounds,
+        duty_cycle_permille,
+        gains,
     })
 }
 
@@ -452,6 +525,55 @@ fn required_whole(held: &Map<String, Value>, field: &str) -> Result<u32, ConfigE
     u32::try_from(value).map_err(|_| refused(field, &format!("{value} is too large")))
 }
 
+/// Reads one entry of the board's transmit gain table.
+///
+/// The names are this crate's rather than the reference implementation's: `radiated_dbm` is
+/// its `rf_power`, `amplifier` its `pa_gain`, `power_index` its `pwr_idx`, and
+/// `digital_gain` its `dig_gain`. The two offsets are the calibrated ones and default to
+/// zero, which is what a board that has not been calibrated carries.
+fn gain(entry: &Value) -> Result<Gain, ConfigError> {
+    let held = entry
+        .as_object()
+        .ok_or_else(|| refused("radio.gain_table", "every entry is an object"))?;
+
+    let signed = |field: &str, name: &str| -> Result<i8, ConfigError> {
+        match held.get(name) {
+            None => Ok(0),
+            Some(value) => value
+                .as_i64()
+                .and_then(|held| i8::try_from(held).ok())
+                .ok_or_else(|| refused(field, "this is a small whole number")),
+        }
+    };
+    let small = |field: &str, name: &str| -> Result<u8, ConfigError> {
+        match held.get(name) {
+            None => Ok(0),
+            Some(value) => value
+                .as_u64()
+                .and_then(|held| u8::try_from(held).ok())
+                .ok_or_else(|| refused(field, "this is a small whole number")),
+        }
+    };
+
+    Ok(Gain {
+        radiated_dbm: held
+            .get("radiated_dbm")
+            .and_then(Value::as_i64)
+            .and_then(|held| i8::try_from(held).ok())
+            .ok_or_else(|| {
+                refused(
+                    "radio.gain_table.radiated_dbm",
+                    "every entry says what it radiates, in dBm",
+                )
+            })?,
+        amplifier: small("radio.gain_table.amplifier", "amplifier")?,
+        power_index: small("radio.gain_table.power_index", "power_index")?,
+        digital_gain: small("radio.gain_table.digital_gain", "digital_gain")?,
+        offset_i: signed("radio.gain_table.offset_i", "offset_i")?,
+        offset_q: signed("radio.gain_table.offset_q", "offset_q")?,
+    })
+}
+
 /// Builds the error an absent field reports.
 fn missing(field: &str) -> ConfigError {
     ConfigError::Missing {
@@ -493,6 +615,102 @@ mod tests {
           "upstream": { "forwarder": "router.example.net", "port": 1700 }
         }"#
         .to_owned()
+    }
+
+    /// The same configuration with something added to its radio.
+    fn radio_with(extra: &str) -> String {
+        complete().replace(
+            r#""spreading_factors": [7, 8, 9]"#,
+            &format!(r#""spreading_factors": [7, 8, 9], {extra}"#),
+        )
+    }
+
+    #[test]
+    fn the_transmit_bounds_are_named_together_or_not_at_all() {
+        assert_eq!(
+            Config::parse(&complete())
+                .expect("complete")
+                .radio
+                .tx_bounds,
+            None
+        );
+
+        let both = radio_with(r#""tx_freq_min_hz": 863000000, "tx_freq_max_hz": 870000000"#);
+        assert_eq!(
+            Config::parse(&both).expect("both bounds").radio.tx_bounds,
+            Some((863_000_000, 870_000_000))
+        );
+
+        // One on its own reads like a limit while enforcing nothing on the side it leaves
+        // open, so it is refused by the name of the one that is missing.
+        let half = radio_with(r#""tx_freq_min_hz": 863000000"#);
+        assert!(
+            matches!(Config::parse(&half), Err(ConfigError::Missing { field }) if field == "radio.tx_freq_max_hz")
+        );
+
+        let upside_down = radio_with(r#""tx_freq_min_hz": 870000000, "tx_freq_max_hz": 863000000"#);
+        assert!(
+            matches!(Config::parse(&upside_down), Err(ConfigError::Refused { field, .. }) if field == "radio.tx_freq_min_hz")
+        );
+    }
+
+    #[test]
+    fn a_duty_cycle_is_a_share_of_the_time() {
+        assert_eq!(
+            Config::parse(&complete())
+                .expect("complete")
+                .radio
+                .duty_cycle_permille,
+            None
+        );
+
+        let one_percent = radio_with(r#""duty_cycle_permille": 10"#);
+        assert_eq!(
+            Config::parse(&one_percent)
+                .expect("a share")
+                .radio
+                .duty_cycle_permille,
+            Some(10)
+        );
+
+        // A share of none would mean never transmitting, and a share above all of the time
+        // is not a share at all.
+        for share in ["0", "1001"] {
+            let refused = radio_with(&format!(r#""duty_cycle_permille": {share}"#));
+            assert!(
+                matches!(Config::parse(&refused), Err(ConfigError::Refused { field, .. }) if field == "radio.duty_cycle_permille"),
+                "{share} was accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn a_board_can_name_the_powers_it_reaches() {
+        assert_eq!(
+            Config::parse(&complete())
+                .expect("complete")
+                .radio
+                .gains
+                .len(),
+            DEFAULT_GAINS.len()
+        );
+
+        let own = radio_with(
+            r#""gain_table": [{"radiated_dbm": 14, "amplifier": 0, "power_index": 17}]"#,
+        );
+        let named = Config::parse(&own).expect("a table");
+        assert_eq!(named.radio.gains.len(), 1);
+        assert_eq!(named.radio.gains[0].radiated_dbm, 14);
+        assert_eq!(named.radio.gains[0].power_index, 17);
+
+        // The calibrated offsets default to none, which is what an uncalibrated board holds.
+        assert_eq!(named.radio.gains[0].offset_i, 0);
+        assert_eq!(named.radio.gains[0].offset_q, 0);
+
+        let empty = radio_with(r#""gain_table": []"#);
+        assert!(
+            matches!(Config::parse(&empty), Err(ConfigError::Refused { field, .. }) if field == "radio.gain_table")
+        );
     }
 
     #[test]
