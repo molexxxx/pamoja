@@ -66,8 +66,8 @@ use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 let broker = LoopbackBroker::new();
 let mut publisher = LoopbackTransport::new(broker.clone());
 let mut subscriber = LoopbackTransport::new(broker.clone());
-publisher.connect().await.expect("the publisher connects");
-subscriber.connect().await.expect("the subscriber connects");
+publisher.connect().await?;
+subscriber.connect().await?;
 
 // A `+` stands for exactly one level, so this takes the mixer's temperature but not
 // the raw reading a level below it.
@@ -91,7 +91,7 @@ println!("line/+/temp took {reading} from {}", message.topic);
 // A `#` covers every level that remains, so a second link takes the whole subtree,
 // including the reading the single-level filter passed over.
 let mut watcher = LoopbackTransport::new(broker);
-watcher.connect().await.expect("the watcher connects");
+watcher.connect().await?;
 watcher.subscribe("line/#").await?;
 publisher
     .send_text("line/mixer/temp/raw", "2150")

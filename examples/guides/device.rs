@@ -86,7 +86,7 @@ async fn a_homemade_probe_waters_a_bed_and_reports() -> std::result::Result<(), 
     let broker = LoopbackBroker::new();
     let mut gateway = LoopbackTransport::new(broker.clone());
     gateway.connect().await?;
-    gateway.subscribe(topic).await.expect("the gateway listens");
+    gateway.subscribe(topic).await?;
     let flaky = Faulty::new(LoopbackTransport::new(broker), 2);
     let mut ladder = TransportLadder::new(MemoryStore::new()).rung(flaky);
     ladder.connect().await?;
@@ -159,7 +159,7 @@ async fn the_same_parts_run_under_a_profile() -> std::result::Result<(), Box<dyn
         calibration: Calibration::two_point(3200.0, 0.0, 1400.0, 100.0),
     };
     let mut link = LoopbackTransport::new(LoopbackBroker::new());
-    link.connect().await.expect("the link connects");
+    link.connect().await?;
 
     // A node reads, decides, drives the valve, and publishes on every tick. The parts are
     // the ones above; only the loop moved into the library.

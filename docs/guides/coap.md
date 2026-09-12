@@ -78,7 +78,7 @@ use pamoja_core::Transport;
 let mut reporter = CoapTransport::new(
     CoapConfig::new("127.0.0.1", 5683).reliability(Reliability::NonConfirmable),
 );
-reporter.connect().await.expect("a local socket");
+reporter.connect().await?;
 println!("reporter  connected: {}", reporter.is_connected());
 
 // Non-confirmable delivery is at most once: the datagram leaves unacknowledged, which
@@ -98,7 +98,7 @@ let mut commander = CoapTransport::new(
         .ack_timeout(Duration::from_millis(20))
         .max_retransmits(1),
 );
-commander.connect().await.expect("a local socket");
+commander.connect().await?;
 match commander.send_text("actuators/valve", "open").await {
     Ok(()) => println!("commander the valve acknowledged the command"),
     Err(error) => println!("commander gave up unacknowledged: {error}"),

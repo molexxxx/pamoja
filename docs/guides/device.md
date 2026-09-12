@@ -147,7 +147,7 @@ let mut rule = Thermostat::heating(37.5, 7.5);
 let broker = LoopbackBroker::new();
 let mut gateway = LoopbackTransport::new(broker.clone());
 gateway.connect().await?;
-gateway.subscribe(topic).await.expect("the gateway listens");
+gateway.subscribe(topic).await?;
 let flaky = Faulty::new(LoopbackTransport::new(broker), 2);
 let mut ladder = TransportLadder::new(MemoryStore::new()).rung(flaky);
 ladder.connect().await?;
@@ -216,7 +216,7 @@ let probe = SoilProbe {
     calibration: Calibration::two_point(3200.0, 0.0, 1400.0, 100.0),
 };
 let mut link = LoopbackTransport::new(LoopbackBroker::new());
-link.connect().await.expect("the link connects");
+link.connect().await?;
 
 // A node reads, decides, drives the valve, and publishes on every tick. The parts are
 // the ones above; only the loop moved into the library.

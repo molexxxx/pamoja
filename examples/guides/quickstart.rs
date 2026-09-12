@@ -23,10 +23,10 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     let broker = LoopbackBroker::new();
     let mut node = LoopbackTransport::new(broker.clone());
     let mut gateway = LoopbackTransport::new(broker);
-    node.connect().await.expect("the node connects");
+    node.connect().await?;
     gateway.connect().await?;
     let topic = "sensors/1/temperature";
-    gateway.subscribe(topic).await.expect("the gateway listens");
+    gateway.subscribe(topic).await?;
 
     // The device's identity is provisioned once and never leaves it. The gateway is told
     // only the public half, which is how it recognizes this device later.

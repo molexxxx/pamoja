@@ -65,8 +65,8 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     let broker = LoopbackBroker::new();
     let mut probe = LoopbackTransport::new(broker.clone());
     let mut watcher = LoopbackTransport::new(broker.clone());
-    probe.connect().await.expect("the probe connects");
-    watcher.connect().await.expect("the watcher connects");
+    probe.connect().await?;
+    watcher.connect().await?;
     watcher
         .subscribe("garden/bed-1/valve")
         .await
@@ -75,7 +75,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     let valve = Valve::default();
     let mut engine = RuleEngine::new(rules, LoopbackTransport::new(broker), JsonCodec)
         .with_actuator("bed-valve", valve.clone());
-    engine.connect().await.expect("the engine connects");
+    engine.connect().await?;
 
     // The bed dries out and is watered back: the rule fires once on the way down and
     // once on the way back, and holds its state for the readings in between.
