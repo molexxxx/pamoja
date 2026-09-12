@@ -75,8 +75,7 @@ println!("push      {} bytes, token {:04x}", datagram.len(), 0x1234);
 
 // The server reads it. Nothing about the packet has to be decoded by hand: the frequency
 // is in hertz, the datarate identifier is the link settings, and the payload is bytes.
-let Packet::PushData { uplink, .. } = Packet::parse(&datagram)?
-else {
+let Packet::PushData { uplink, .. } = Packet::parse(&datagram)? else {
     panic!("a PUSH_DATA parses as one");
 };
 let received = &uplink.packets[0];
@@ -92,8 +91,7 @@ println!(
 );
 
 // Every uplink is acknowledged at once, by token, before anything is processed.
-let acknowledgment = Packet::parse(&datagram)
-    ?
+let acknowledgment = Packet::parse(&datagram)?
     .acknowledgment()
     .expect("a PUSH_DATA is acknowledged");
 println!("ack       {} bytes", acknowledgment.to_bytes().len());
@@ -107,9 +105,7 @@ let downlink = Packet::PullResp {
         .with_inverted_polarity(true)
         .without_crc(),
 };
-let Packet::PullResp { transmit, .. } =
-    Packet::parse(&downlink.to_bytes())?
-else {
+let Packet::PullResp { transmit, .. } = Packet::parse(&downlink.to_bytes())? else {
     panic!("a PULL_RESP parses as one");
 };
 println!(
@@ -124,9 +120,7 @@ let refused = Packet::TxAck {
     gateway,
     status: TxStatus::CollisionPacket,
 };
-let Packet::TxAck { status, .. } =
-    Packet::parse(&refused.to_bytes())?
-else {
+let Packet::TxAck { status, .. } = Packet::parse(&refused.to_bytes())? else {
     panic!("a TX_ACK parses as one");
 };
 println!("txack     {status}, scheduled {}", status.scheduled());

@@ -126,14 +126,8 @@ println!("flush when up forwarded {when_up}, gateway got {buffered_reading}");
 // The ladder is a link both ways. A subscription placed on it goes onto every rung
 // that listens, and a receive takes whichever rung delivers, so a command reaches
 // the node over whatever link is up. This one comes back over the backhaul.
-ladder
-    .subscribe("actuators/1/valve")
-    .await
-    ?;
-gateway
-    .send_text("actuators/1/valve", "open")
-    .await
-    ?;
+ladder.subscribe("actuators/1/valve").await?;
+gateway.send_text("actuators/1/valve", "open").await?;
 let command = ladder.recv().await?.expect("a command");
 let order = command.text().expect("text");
 println!("command back over the ladder: {order}");

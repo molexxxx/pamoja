@@ -71,18 +71,9 @@ subscriber.connect().await?;
 
 // A `+` stands for exactly one level, so this takes the mixer's temperature but not
 // the raw reading a level below it.
-subscriber
-    .subscribe("line/+/temp")
-    .await
-    ?;
-publisher
-    .send_text("line/mixer/temp/raw", "2150")
-    .await
-    ?;
-publisher
-    .send_text("line/mixer/temp", "21.5")
-    .await
-    ?;
+subscriber.subscribe("line/+/temp").await?;
+publisher.send_text("line/mixer/temp/raw", "2150").await?;
+publisher.send_text("line/mixer/temp", "21.5").await?;
 
 let message = subscriber.recv().await?.expect("a message");
 let reading = message.text().expect("text");
@@ -93,10 +84,7 @@ println!("line/+/temp took {reading} from {}", message.topic);
 let mut watcher = LoopbackTransport::new(broker);
 watcher.connect().await?;
 watcher.subscribe("line/#").await?;
-publisher
-    .send_text("line/mixer/temp/raw", "2150")
-    .await
-    ?;
+publisher.send_text("line/mixer/temp/raw", "2150").await?;
 
 let deep = watcher.recv().await?.expect("a message");
 let raw = deep.text().expect("text");

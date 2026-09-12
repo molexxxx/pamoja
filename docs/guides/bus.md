@@ -71,27 +71,15 @@ let mut control = hub.subscribe();
 let mut logger = hub.subscribe();
 
 hub.publish("battery.low").await.expect("published");
-let to_control = control
-    .next_event()
-    .await
-    ?
-    .expect("an event");
-let to_logger = logger
-    .next_event()
-    .await
-    ?
-    .expect("an event");
+let to_control = control.next_event().await?.expect("an event");
+let to_logger = logger.next_event().await?.expect("an event");
 println!("control saw {to_control}, the logger saw {to_logger}");
 
 // A subscriber taken later starts from the next event, so it never sees what went out
 // before it existed.
 let mut late = hub.subscribe();
 hub.publish("link.up").await.expect("published");
-let first_seen = late
-    .next_event()
-    .await
-    ?
-    .expect("an event");
+let first_seen = late.next_event().await?.expect("an event");
 println!("the late subscriber's first event is {first_seen}");
 
 // The buffer is per subscriber and bounded, so one further behind than the capacity
@@ -102,11 +90,7 @@ let mut reader = slow.subscribe();
 for count in 0..5u8 {
     slow.publish(count).await.expect("published");
 }
-let resumed = reader
-    .next_event()
-    .await
-    ?
-    .expect("an event");
+let resumed = reader.next_event().await?.expect("an event");
 println!("after five events into a buffer of two, the reader resumes at {resumed}");
 ```
 <!-- end -->

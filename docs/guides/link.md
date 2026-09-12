@@ -135,10 +135,7 @@ let mut ladder = TransportLadder::new(MemoryStore::new()).rung(link);
 ladder.connect().await?;
 
 // A reading out through the ladder lands in the link, topic and bytes intact.
-ladder
-    .send_text("sensors/1", "21.5")
-    .await
-    ?;
+ladder.send_text("sensors/1", "21.5").await?;
 let carried = vendor.lock().expect("the vendor").sent[0].clone();
 let reading = carried.text().expect("text");
 println!("link carried: {} {reading}", carried.topic);

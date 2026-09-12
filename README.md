@@ -124,11 +124,7 @@ node.send(topic, &message)
 
 // On the gateway. Verifying returns the payload, so a reading that was altered on the
 // way, or signed by some other device, never reaches the code that unpacks it.
-let received = gateway
-    .recv()
-    .await
-    ?
-    .expect("a message");
+let received = gateway.recv().await?.expect("a message");
 match known.verify_message(&received.payload) {
     Ok(payload) => {
         let readings = decode_deltas(payload).expect("a valid batch");
