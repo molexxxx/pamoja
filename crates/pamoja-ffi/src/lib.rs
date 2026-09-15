@@ -93,7 +93,6 @@ pub mod lora_radio;
 pub mod lora_region;
 #[cfg(feature = "lorawan")]
 pub mod lorawan;
-/// The commands a LoRaWAN network and device configure each other with.
 #[cfg(feature = "lorawan")]
 pub mod lorawan_mac;
 #[cfg(feature = "mavlink")]
