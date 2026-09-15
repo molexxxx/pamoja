@@ -33,6 +33,8 @@
 //!   carrier is tuned to, and the order one is brought up in.
 //! - [`timestamp`] - the counter packets are stamped against and receive windows are
 //!   measured from, and how it is widened past a rollover.
+//! - [`bridge`] - the messages that carry all of the above through the microcontroller on
+//!   a USB card, which does the SPI on the host's behalf.
 //!
 //! With the `embedded-hal` feature, the [`Sx1302`] driver walks all of that against a real
 //! bus: it resets the board, reads the version, resets the front ends, and gives each
@@ -68,6 +70,7 @@
 //! assert_eq!(chip::Model::of(0x03), chip::Model::Sx1303);
 //! ```
 
+pub mod bridge;
 pub mod channel;
 pub mod chip;
 pub mod firmware;
@@ -80,6 +83,8 @@ pub mod sx1250;
 pub mod sx1261;
 pub mod timestamp;
 pub mod tx;
+#[cfg(feature = "std")]
+pub mod usb;
 
 #[cfg(feature = "embedded-hal")]
 mod driver;

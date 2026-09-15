@@ -50,8 +50,15 @@ wrong SPI device or a wrong reset line and is worth ruling out first. Name it as
 holds it for as long as it runs.
 
 The USB versions of the RAK5146 and the WM1302 talk to their host through an
-STM32 bridge rather than over SPI, which this driver does not speak yet. Use an
-SPI version.
+STM32 bridge rather than over SPI. The bridge does the SPI on the host's behalf
+and drives the card's supply and reset pins itself, so a USB card needs none of
+the lines above: it enumerates as a serial device, `/dev/ttyACM0` on a Pi with
+nothing else plugged in, and that path is the whole of its wiring. Name it as
+`usb` in place of `spi`, `gpio_chip`, and `reset_line`, and the gateway opens
+the port raw, asks the bridge who it is, brings the card up in the order the
+reference does, and then drives the concentrator exactly as it would over SPI.
+Every register write costs a round trip to the bridge, which is the one thing
+the USB version is slower at; the firmware load is where it shows.
 
 ## The firmware images
 
@@ -115,6 +122,27 @@ A gateway on the European band, listening on the eight channels around 867.5 MHz
     "spi": "/dev/spidev0.0",
     "gpio_chip": "/dev/gpiochip0",
     "reset_line": 23,
+    "firmware": {
+      "gain_control": "/usr/share/pamoja/agc_fw_sx1250.var",
+      "arbiter": "/usr/share/pamoja/arb_fw.var"
+    }
+  },
+  "radio": {
+    "carrier_hz": 867800000,
+    "channels": [-700000, -500000, -300000, -100000, 100000, 300000, 500000, 700000]
+  },
+  "upstream": { "forwarder": "router.example.net" }
+}
+```
+
+A USB card names its port instead of a bus and two lines, and nothing else
+changes:
+
+```json
+{
+  "gateway": "b827ebfffe010203",
+  "concentrator": {
+    "usb": "/dev/ttyACM0",
     "firmware": {
       "gain_control": "/usr/share/pamoja/agc_fw_sx1250.var",
       "arbiter": "/usr/share/pamoja/arb_fw.var"

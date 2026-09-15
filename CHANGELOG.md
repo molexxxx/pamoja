@@ -131,6 +131,13 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- The USB versions of the same cards, the RAK5146 and the WM1302 among them, which put
+  an STM32 between the host and the concentrator. The bridge does the SPI on the host
+  side and drives the card supply and reset pins itself, so `pamoja-radios` carries the
+  messages it speaks, a port-backed SPI device and pin that let the same driver run over
+  it unchanged, and a Linux opener that brings the card up the way the reference does.
+  The gateway daemon takes `usb` in place of the SPI device and its two lines, and
+  runs a USB card through the same code as an SPI one.
 - The guide examples are programs rather than tests. Each one has a `main`, runs
   with `cargo run -p pamoja-examples --example <name>` or the equivalent in the
   other three languages, and the line printed beside it on the site is the line

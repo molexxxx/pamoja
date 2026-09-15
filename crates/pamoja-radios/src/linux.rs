@@ -34,14 +34,15 @@
 //! ```
 
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use embedded_hal::delay::DelayNs;
 use embedded_hal::digital::{self, InputPin, OutputPin};
 use embedded_hal::spi::{self, Operation, SpiDevice};
 
 use crate::radio::{Radio, RadioError};
-use crate::sx1302::Sx1302;
+use crate::sx1302::bridge::Identity;
+use crate::sx1302::{usb, Sx1302};
 use crate::{sx126x, sx127x};
 
 /// The SPI mode both families take: CPOL 0 and CPHA 0, the clock idling low and data sampled
@@ -108,6 +109,29 @@ pub type LinuxRadio = Radio<Spi, Line, Line, Delay>;
 /// as a register map, so it is a handle of its own rather than a [`LinuxRadio`].
 pub type LinuxConcentrator = Sx1302<Spi, Line, Delay>;
 
+/// The port a USB card's bridge answers on.
+#[cfg(target_os = "linux")]
+pub type Port = std::fs::File;
+
+/// On any other platform there is no port to open, and this stands in for one.
+#[cfg(not(target_os = "linux"))]
+pub type Port = Unavailable;
+
+/// A concentrator on a USB card: the same driver as [`LinuxConcentrator`], reached through
+/// the card's bridge rather than a bus of the host's own.
+pub type UsbConcentrator = Sx1302<usb::BridgeSpi<Port>, usb::BridgePin<Port>, Delay>;
+
+/// A USB card, opened: its concentrator, and the bridge everything on the card shares.
+pub struct UsbCard {
+    /// The concentrator, reset and answering.
+    pub concentrator: UsbConcentrator,
+    /// The bridge, for the radio beside the concentrator and for the card's own status.
+    pub bridge: usb::Shared<Port>,
+    /// Who the bridge said it was, which a caller compares against the firmware this crate
+    /// was written for with [`Identity::matches_firmware`].
+    pub identity: Identity,
+}
+
 /// The bus, line, and delay of a platform with no spidev or GPIO character device.
 ///
 /// No value of it exists, so a [`LinuxRadio`] can be named on any platform and opened only on
@@ -159,6 +183,22 @@ impl OutputPin for Unavailable {
 
 impl DelayNs for Unavailable {
     fn delay_ns(&mut self, _: u32) {
+        match *self {}
+    }
+}
+
+impl std::io::Read for Unavailable {
+    fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+        match *self {}
+    }
+}
+
+impl std::io::Write for Unavailable {
+    fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+        match *self {}
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
         match *self {}
     }
 }
@@ -284,6 +324,13 @@ pub enum OpenError {
         /// The GPIO chip the line is on.
         device: PathBuf,
     },
+    /// The bridge on a USB card did not answer, or refused, while the card was brought up.
+    Bridge {
+        /// The port the card is on.
+        device: PathBuf,
+        /// What went wrong.
+        error: usb::UsbError,
+    },
 }
 
 impl fmt::Display for OpenError {
@@ -297,6 +344,9 @@ impl fmt::Display for OpenError {
                 "{}: the reset line opened but could not be driven",
                 device.display()
             ),
+            OpenError::Bridge { device, error } => {
+                write!(f, "{}: the bridge on the card: {error}", device.display())
+            }
             OpenError::NoBusyLine => {
                 f.write_str("an SX126x needs its BUSY line, and the wiring names none")
             }
@@ -309,6 +359,7 @@ impl fmt::Display for OpenError {
 impl std::error::Error for OpenError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            OpenError::Bridge { error, .. } => Some(error),
             OpenError::Bus { error, .. } => Some(error),
             OpenError::Radio(error) => Some(error),
             OpenError::Unsupported | OpenError::NoBusyLine | OpenError::ResetLine { .. } => None,
@@ -389,6 +440,35 @@ pub fn open_sx1302(wiring: &Wiring) -> Result<(LinuxConcentrator, Option<Line>),
     platform::open_sx1302(wiring)
 }
 
+/// Opens a concentrator on a USB card, and brings the card up.
+///
+/// The card enumerates as a serial device, `/dev/ttyACM0` on a Raspberry Pi with nothing
+/// else plugged in. The port is opened raw, the bridge is asked who it is and how it is, the
+/// supply is switched on and both resets are pulsed in the order the reference does them,
+/// and then the concentrator is reset once more through the driver, so it is in the same
+/// state a concentrator on SPI is left in by [`open_sx1302`].
+///
+/// A bridge running a different firmware than this crate was written for is not refused;
+/// the reference warns and carries on, and the caller has [`UsbCard::identity`] to do the
+/// same.
+///
+/// # Arguments
+///
+/// * `port` - the serial device the card is on.
+///
+/// # Returns
+///
+/// The card, with its concentrator answering.
+///
+/// # Errors
+///
+/// [`OpenError::Unsupported`] on any platform but Linux, [`OpenError::Bus`] when the port
+/// cannot be opened, [`OpenError::Bridge`] when the bridge does not answer or refuses a pin,
+/// and [`OpenError::ResetLine`] when the concentrator cannot be reset through it.
+pub fn open_usb_sx1302(port: impl AsRef<Path>) -> Result<UsbCard, OpenError> {
+    platform::open_usb_sx1302(port.as_ref())
+}
+
 #[cfg(target_os = "linux")]
 mod platform {
     use std::path::Path;
@@ -396,9 +476,11 @@ mod platform {
     use embedded_hal::digital::PinState;
     use pamoja_hal::linux;
 
-    use super::{Line, LinuxConcentrator, LinuxRadio, OpenError, Wiring, CONSUMER, SPI_MODE};
+    use super::{
+        Line, LinuxConcentrator, LinuxRadio, OpenError, UsbCard, Wiring, CONSUMER, SPI_MODE,
+    };
     use crate::radio::Radio;
-    use crate::sx1302::Sx1302;
+    use crate::sx1302::{bridge, usb, Sx1302};
     use crate::{sx126x, sx127x};
 
     pub(super) fn open_sx126x(
@@ -458,6 +540,36 @@ mod platform {
         Ok((concentrator, power))
     }
 
+    pub(super) fn open_usb_sx1302(port: &Path) -> Result<UsbCard, OpenError> {
+        let file = linux::serial(port, bridge::BAUD).map_err(|error| bus(port, error))?;
+        let mut over = usb::Bridge::new(file);
+        let failed = |error: usb::UsbError| OpenError::Bridge {
+            device: port.to_path_buf(),
+            error,
+        };
+
+        // The reference asks who the bridge is and how it is before touching a pin; an
+        // answer to both is the proof that a bridge, and not something else, is on the port.
+        let identity = over.ping().map_err(failed)?;
+        over.status().map_err(failed)?;
+        over.power_up().map_err(failed)?;
+
+        let shared = usb::Shared::new(over);
+        let mut concentrator = Sx1302::new(
+            shared.concentrator(),
+            shared.pin(bridge::PIN_RESET),
+            linux::delay(),
+        );
+        concentrator.reset().map_err(|_| OpenError::ResetLine {
+            device: port.to_path_buf(),
+        })?;
+        Ok(UsbCard {
+            concentrator,
+            bridge: shared,
+            identity,
+        })
+    }
+
     fn spi(wiring: &Wiring) -> Result<linux::SpidevDevice, OpenError> {
         linux::spi(&wiring.spi, SPI_MODE, wiring.spi_hz).map_err(|error| bus(&wiring.spi, error))
     }
@@ -505,6 +617,10 @@ mod platform {
     pub(super) fn open_sx1302(
         _: &Wiring,
     ) -> Result<(LinuxConcentrator, Option<super::Line>), OpenError> {
+        Err(OpenError::Unsupported)
+    }
+
+    pub(super) fn open_usb_sx1302(_: &std::path::Path) -> Result<super::UsbCard, OpenError> {
         Err(OpenError::Unsupported)
     }
 }

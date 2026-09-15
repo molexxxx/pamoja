@@ -66,20 +66,36 @@ impl core::fmt::Display for ConfigError {
 
 impl std::error::Error for ConfigError {}
 
+/// How the host reaches the concentrator.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Bus {
+    /// A card on the host's own SPI, with its reset and its supply on GPIO lines.
+    Spi {
+        /// The SPI device it answers on.
+        spi: String,
+        /// The GPIO character device its lines are on.
+        gpio_chip: String,
+        /// The line its reset pin is wired to.
+        reset_line: u32,
+        /// The line that switches the concentrator's supply on, for a board that gates it.
+        ///
+        /// A board wired this way answers nothing at all until the line is raised, and the
+        /// line has to stay raised, so a gateway that names one keeps it held for as long
+        /// as it runs.
+        power_enable_line: Option<u32>,
+    },
+    /// A USB card, whose bridge does the SPI and drives the pins itself.
+    Usb {
+        /// The serial device the card enumerates as.
+        port: String,
+    },
+}
+
 /// Where the concentrator is wired.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Concentrator {
-    /// The SPI device it answers on.
-    pub spi: String,
-    /// The GPIO character device its reset line is on.
-    pub gpio_chip: String,
-    /// The line its reset pin is wired to.
-    pub reset_line: u32,
-    /// The line that switches the concentrator's supply on, for a board that gates it.
-    ///
-    /// A board wired this way answers nothing at all until the line is raised, and the line
-    /// has to stay raised, so a gateway that names one keeps it held for as long as it runs.
-    pub power_enable_line: Option<u32>,
+    /// How the host reaches it.
+    pub bus: Bus,
     /// Whether the board wires its front ends single ended rather than differential.
     pub single_input: bool,
     /// Which front end the board carries.
@@ -238,14 +254,32 @@ fn concentrator(object: &Map<String, Value>) -> Result<Concentrator, ConfigError
     let held = required_object(object, "concentrator")?;
     let firmware = required_object(held, "concentrator.firmware")?;
 
-    Ok(Concentrator {
-        spi: required_text(held, "concentrator.spi")?.to_owned(),
-        gpio_chip: required_text(held, "concentrator.gpio_chip")?.to_owned(),
-        reset_line: required_whole(held, "concentrator.reset_line")?,
-        power_enable_line: match held.get("power_enable_line") {
-            None => None,
-            Some(_) => Some(required_whole(held, "concentrator.power_enable_line")?),
+    // A card is on one bus or the other. Naming both is refused rather than resolved, since
+    // a gateway that quietly picked one would look wired to the other.
+    let bus = match (held.get("usb"), held.get("spi")) {
+        (Some(_), Some(_)) => {
+            return Err(ConfigError::Refused {
+                field: "concentrator".to_owned(),
+                why: "names both a usb port and an spi device, and a card is on one or the other"
+                    .to_owned(),
+            })
+        }
+        (Some(_), None) => Bus::Usb {
+            port: required_text(held, "concentrator.usb")?.to_owned(),
         },
+        (None, _) => Bus::Spi {
+            spi: required_text(held, "concentrator.spi")?.to_owned(),
+            gpio_chip: required_text(held, "concentrator.gpio_chip")?.to_owned(),
+            reset_line: required_whole(held, "concentrator.reset_line")?,
+            power_enable_line: match held.get("power_enable_line") {
+                None => None,
+                Some(_) => Some(required_whole(held, "concentrator.power_enable_line")?),
+            },
+        },
+    };
+
+    Ok(Concentrator {
+        bus,
         single_input: held
             .get("single_input")
             .and_then(Value::as_bool)
@@ -634,28 +668,30 @@ mod tests {
         )
     }
 
+    /// The supply line a configuration names, when its card is on SPI.
+    fn supply_line(text: &str) -> Option<u32> {
+        match Config::parse(text)
+            .expect("the configuration parses")
+            .concentrator
+            .bus
+        {
+            Bus::Spi {
+                power_enable_line, ..
+            } => power_enable_line,
+            Bus::Usb { .. } => panic!("a USB card has no supply line to name"),
+        }
+    }
+
     #[test]
     fn a_board_that_gates_its_supply_names_the_line() {
-        assert_eq!(
-            Config::parse(&complete())
-                .expect("complete")
-                .concentrator
-                .power_enable_line,
-            None
-        );
+        assert_eq!(supply_line(&complete()), None);
 
         // Eighteen is the line the reference design gates its concentrator behind.
         let gated = complete().replace(
             r#""reset_line": 23,"#,
             r#""reset_line": 23, "power_enable_line": 18,"#,
         );
-        assert_eq!(
-            Config::parse(&gated)
-                .expect("a gated board")
-                .concentrator
-                .power_enable_line,
-            Some(18)
-        );
+        assert_eq!(supply_line(&gated), Some(18));
 
         // A line that is not a number is refused by its name rather than quietly dropped,
         // which on a board wired this way would look like a concentrator that never answers.
@@ -800,8 +836,15 @@ mod tests {
     fn a_complete_configuration_reads_back() {
         let config = Config::parse(&complete()).expect("every field is there");
 
-        assert_eq!(config.concentrator.spi, "/dev/spidev0.0");
-        assert_eq!(config.concentrator.reset_line, 23);
+        assert_eq!(
+            config.concentrator.bus,
+            Bus::Spi {
+                spi: "/dev/spidev0.0".to_owned(),
+                gpio_chip: "/dev/gpiochip0".to_owned(),
+                reset_line: 23,
+                power_enable_line: None,
+            }
+        );
         assert!(config.concentrator.single_input);
         assert_eq!(config.radio.carrier_hz, 867_500_000);
         assert_eq!(config.radio.channels, [-400_000, -200_000, 0, 200_000]);
@@ -821,6 +864,33 @@ mod tests {
         let with = Config::parse(&complete()).expect("separators are allowed");
         let without = Config::parse(&plain).expect("and so is leaving them out");
         assert_eq!(with.gateway, without.gateway);
+    }
+
+    #[test]
+    fn a_usb_card_names_its_port_and_none_of_the_lines() {
+        let usb = complete()
+            .replace(r#""spi": "/dev/spidev0.0","#, r#""usb": "/dev/ttyACM0","#)
+            .replace(r#""gpio_chip": "/dev/gpiochip0","#, "")
+            .replace(r#""reset_line": 23,"#, "");
+        let config = Config::parse(&usb).expect("a USB card needs no lines");
+
+        assert_eq!(
+            config.concentrator.bus,
+            Bus::Usb {
+                port: "/dev/ttyACM0".to_owned()
+            }
+        );
+    }
+
+    #[test]
+    fn a_card_named_on_both_buses_is_refused() {
+        let both = complete().replace(
+            r#""spi": "/dev/spidev0.0","#,
+            r#""spi": "/dev/spidev0.0", "usb": "/dev/ttyACM0","#,
+        );
+        assert!(
+            matches!(Config::parse(&both), Err(ConfigError::Refused { field, .. }) if field == "concentrator")
+        );
     }
 
     #[test]
