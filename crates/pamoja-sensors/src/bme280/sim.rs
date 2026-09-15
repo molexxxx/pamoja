@@ -5,7 +5,7 @@
 //! bytes, as literals, in the order the datasheet lists them. That is a lot of bytes to get
 //! right before a driver has been run once, and it is the same bytes every time.
 //!
-//! This is that part, already answering. [`part`] hands back something a [`Bme280`] can be
+//! This is that part, already answering. [`part`] hands back something a [`Bme280`](super::Bme280) can be
 //! pointed at, holding a real calibration and a reading. [`reporting`] builds one that reads
 //! whatever you ask it for, by working out the raw values the compensation turns back into
 //! that reading.
