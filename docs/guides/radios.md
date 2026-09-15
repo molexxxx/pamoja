@@ -182,11 +182,9 @@ println!(
 
 // A frame that arrives later comes with the signal levels it was heard at.
 let heard = PacketStatus::from_bytes([0xDB, 0xF6, 0xE0]);
-let db = |value: Decibels| f64::from(value.hundredths()) / 100.0;
 println!(
     "received  RSSI {} dBm, SNR {} dB",
-    db(heard.rssi_dbm),
-    db(heard.snr_db)
+    heard.rssi_dbm, heard.snr_db
 );
 
 // The sub-band that holds 868.1 MHz allows 1% of the time, so the frame's airtime buys
@@ -253,12 +251,9 @@ let received = flags.contains(IrqFlags::RX_DONE);
 let corrupt = flags.contains(IrqFlags::PAYLOAD_CRC_ERROR);
 println!("irq       rx done {received}, crc error {corrupt}");
 let packet = PacketStatus::from_bytes([0xF6, 0x30], Port::for_frequency(channel));
-let db = |value: Decibels| f64::from(value.hundredths()) / 100.0;
 println!(
     "received  RSSI {} dBm, SNR {} dB, signal {} dBm",
-    db(packet.rssi_dbm),
-    db(packet.snr_db),
-    db(packet.signal_rssi_dbm)
+    packet.rssi_dbm, packet.snr_db, packet.signal_rssi_dbm
 );
 
 // An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.

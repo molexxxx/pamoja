@@ -86,7 +86,7 @@ println!(
     modulation.spreading_factor(),
     modulation.bandwidth_hz() / 1_000,
     received.rssi_dbm.round_db(),
-    f64::from(received.snr_db.expect("a LoRa packet has one").hundredths()) / 100.0,
+    received.snr_db.expect("a LoRa packet has one"),
     received.payload.len()
 );
 
