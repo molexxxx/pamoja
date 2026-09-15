@@ -16,9 +16,11 @@ from pamoja._native import (
     LorawanHeader,
     LorawanJoinAccept,
     LorawanJoinRequest,
+    LorawanMacCommand,
     LorawanRxData,
     LorawanSession,
 )
+from pamoja._native import lorawan_mac_parse as _mac_parse
 from pamoja._native import lorawan_parse_header as _parse_header
 from pamoja._native import lorawan_parse_join_request as _parse_join_request
 
@@ -29,11 +31,13 @@ __all__ = [
     "Header",
     "JoinAccept",
     "JoinRequest",
+    "MacCommand",
     "MessageType",
     "RxData",
     "Session",
     "device",
     "grant",
+    "mac_parse",
     "parse_header",
     "parse_join_request",
     "session",
@@ -166,3 +170,32 @@ def grant(
         rx_delay,
         None if cflist is None else bytes(cflist),
     )
+
+
+#: One of the commands a network and a device configure each other with.
+#:
+#: kind names the command and cid is the identifier it travels under. Only the
+#: fields that command carries are set; the rest are None. Writing one out is
+#: command.encode().
+MacCommand = LorawanMacCommand
+
+
+def mac_parse(direction: Direction | str, data: bytes) -> list[MacCommand]:
+    """Read the commands packed into a frame options field, or a port 0 payload.
+
+    The same identifier means a different command in each direction, so the direction
+    decides what is read and there is no default: 0x03 going down is a request to
+    change data rate, and the same byte coming up answers one.
+
+    A command does not carry its own length, so one this build does not know cannot be
+    stepped over. Reading stops there and returns what came before it.
+
+    Args:
+        direction: Which way the frame carrying them travels.
+        data: The options field, or the payload.
+
+    Returns:
+        The commands that were readable, in order.
+    """
+    name = direction.value if isinstance(direction, enum.Enum) else str(direction)
+    return _mac_parse(name, data)

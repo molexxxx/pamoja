@@ -13,6 +13,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 
+use pamoja_lorawan::mac::{MacCommand, MacCommands};
 use pamoja_lorawan::{
     Device as CoreDevice, Direction, Downlink, FrameHeader, JoinAccept as CoreJoinAccept,
     JoinGrant, JoinRequest, LorawanError, MessageType, RxData, Session as CoreSession, Uplink,
@@ -492,4 +493,551 @@ pub fn lorawan_parse_join_request(
         dev_eui: request.dev_eui().to_vec(),
         app_eui: request.app_eui().to_vec(),
     })
+}
+
+/// One of the commands a network and a device configure each other with.
+///
+/// `kind` names the command and `cid` is the identifier it travels under. Only the fields
+/// that command carries are set; the rest are `None`. The same identifier means a different
+/// command in each direction, so `direction` decides which one this is.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct LorawanMacCommand {
+    /// Which command this is, as a name.
+    #[pyo3(get)]
+    kind: String,
+    /// The identifier it travels under.
+    #[pyo3(get)]
+    cid: u8,
+    /// Which way it travels: `Uplink` or `Downlink`.
+    #[pyo3(get)]
+    direction: String,
+    /// How far above the floor a link check arrived, in dB.
+    #[pyo3(get)]
+    margin: Option<u8>,
+    /// How many gateways heard it.
+    #[pyo3(get)]
+    gateways: Option<u8>,
+    /// The data rate a network asks a device to use.
+    #[pyo3(get)]
+    data_rate: Option<u8>,
+    /// The transmit power it may use, as a ceiling.
+    #[pyo3(get)]
+    tx_power: Option<u8>,
+    /// Which channels may carry an uplink.
+    #[pyo3(get)]
+    channel_mask: Option<u16>,
+    /// Which block of sixteen channels that mask applies to.
+    #[pyo3(get)]
+    mask_control: Option<u8>,
+    /// How many times to send an unconfirmed uplink.
+    #[pyo3(get)]
+    transmissions: Option<u8>,
+    /// Whether the power was set.
+    #[pyo3(get)]
+    power_ack: Option<bool>,
+    /// Whether the data rate was set.
+    #[pyo3(get)]
+    data_rate_ack: Option<bool>,
+    /// Whether the channel mask was usable.
+    #[pyo3(get)]
+    channel_mask_ack: Option<bool>,
+    /// The share of the air a device is held to, as one over two to this.
+    #[pyo3(get)]
+    max_duty_cycle: Option<u8>,
+    /// How far the first receive window sits below the uplink rate.
+    #[pyo3(get)]
+    rx1_offset: Option<u8>,
+    /// The rate of the second receive window.
+    #[pyo3(get)]
+    rx2_data_rate: Option<u8>,
+    /// A frequency in hertz, for the receive window and the channel commands.
+    #[pyo3(get)]
+    frequency_hz: Option<u32>,
+    /// Whether the window offset was in range.
+    #[pyo3(get)]
+    rx1_offset_ack: Option<bool>,
+    /// Whether the window rate was known.
+    #[pyo3(get)]
+    rx2_data_rate_ack: Option<bool>,
+    /// Whether the frequency was usable.
+    #[pyo3(get)]
+    channel_ack: Option<bool>,
+    /// A device battery level: 0 on external power, 255 when it cannot tell.
+    #[pyo3(get)]
+    battery: Option<u8>,
+    /// The signal-to-noise ratio of the last request, in dB.
+    #[pyo3(get)]
+    snr_margin: Option<i8>,
+    /// Which channel a channel command names.
+    #[pyo3(get)]
+    index: Option<u8>,
+    /// The fastest rate allowed on it.
+    #[pyo3(get)]
+    max_data_rate: Option<u8>,
+    /// The slowest rate allowed on it.
+    #[pyo3(get)]
+    min_data_rate: Option<u8>,
+    /// Whether the device can run that range of rates.
+    #[pyo3(get)]
+    data_rate_range_ok: Option<bool>,
+    /// Whether its radio can reach that frequency.
+    #[pyo3(get)]
+    frequency_ok: Option<bool>,
+    /// How long a device waits before its first receive window, as the command codes it.
+    #[pyo3(get)]
+    delay: Option<u8>,
+    /// The coded transmit power ceiling a region imposes.
+    #[pyo3(get)]
+    max_eirp: Option<u8>,
+    /// Whether an uplink is held to 400 ms of air time.
+    #[pyo3(get)]
+    uplink_dwell: Option<bool>,
+    /// Whether a downlink is.
+    #[pyo3(get)]
+    downlink_dwell: Option<bool>,
+    /// Whether the channel already had an uplink frequency to pair a downlink with.
+    #[pyo3(get)]
+    uplink_frequency_exists: Option<bool>,
+    /// Seconds since the GPS epoch.
+    #[pyo3(get)]
+    seconds: Option<u32>,
+    /// The fraction of that second, in steps of one part in 256.
+    #[pyo3(get)]
+    fraction: Option<u8>,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl LorawanMacCommand {
+    /// Builds a command to write out.
+    ///
+    /// The identifier and the direction decide which command this is, and therefore which of
+    /// the other arguments are read. The rest may be left off.
+    #[new]
+    #[pyo3(signature = (
+        cid,
+        direction,
+        margin = None,
+        gateways = None,
+        data_rate = None,
+        tx_power = None,
+        channel_mask = None,
+        mask_control = None,
+        transmissions = None,
+        power_ack = None,
+        data_rate_ack = None,
+        channel_mask_ack = None,
+        max_duty_cycle = None,
+        rx1_offset = None,
+        rx2_data_rate = None,
+        frequency_hz = None,
+        rx1_offset_ack = None,
+        rx2_data_rate_ack = None,
+        channel_ack = None,
+        battery = None,
+        snr_margin = None,
+        index = None,
+        max_data_rate = None,
+        min_data_rate = None,
+        data_rate_range_ok = None,
+        frequency_ok = None,
+        delay = None,
+        max_eirp = None,
+        uplink_dwell = None,
+        downlink_dwell = None,
+        uplink_frequency_exists = None,
+        seconds = None,
+        fraction = None
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        cid: u8,
+        direction: &str,
+        margin: Option<u8>,
+        gateways: Option<u8>,
+        data_rate: Option<u8>,
+        tx_power: Option<u8>,
+        channel_mask: Option<u16>,
+        mask_control: Option<u8>,
+        transmissions: Option<u8>,
+        power_ack: Option<bool>,
+        data_rate_ack: Option<bool>,
+        channel_mask_ack: Option<bool>,
+        max_duty_cycle: Option<u8>,
+        rx1_offset: Option<u8>,
+        rx2_data_rate: Option<u8>,
+        frequency_hz: Option<u32>,
+        rx1_offset_ack: Option<bool>,
+        rx2_data_rate_ack: Option<bool>,
+        channel_ack: Option<bool>,
+        battery: Option<u8>,
+        snr_margin: Option<i8>,
+        index: Option<u8>,
+        max_data_rate: Option<u8>,
+        min_data_rate: Option<u8>,
+        data_rate_range_ok: Option<bool>,
+        frequency_ok: Option<bool>,
+        delay: Option<u8>,
+        max_eirp: Option<u8>,
+        uplink_dwell: Option<bool>,
+        downlink_dwell: Option<bool>,
+        uplink_frequency_exists: Option<bool>,
+        seconds: Option<u32>,
+        fraction: Option<u8>,
+    ) -> LorawanMacCommand {
+        LorawanMacCommand {
+            kind: String::new(),
+            cid,
+            direction: direction.to_owned(),
+            margin,
+            gateways,
+            data_rate,
+            tx_power,
+            channel_mask,
+            mask_control,
+            transmissions,
+            power_ack,
+            data_rate_ack,
+            channel_mask_ack,
+            max_duty_cycle,
+            rx1_offset,
+            rx2_data_rate,
+            frequency_hz,
+            rx1_offset_ack,
+            rx2_data_rate_ack,
+            channel_ack,
+            battery,
+            snr_margin,
+            index,
+            max_data_rate,
+            min_data_rate,
+            data_rate_range_ok,
+            frequency_ok,
+            delay,
+            max_eirp,
+            uplink_dwell,
+            downlink_dwell,
+            uplink_frequency_exists,
+            seconds,
+            fraction,
+        }
+    }
+
+    /// Writes this command out.
+    ///
+    /// # Returns
+    ///
+    /// The bytes it goes out as.
+    ///
+    /// # Errors
+    ///
+    /// When the identifier and the direction name no command, or a field will not fit what
+    /// carries it.
+    fn encode<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        let built = rebuild_command(self)?;
+        let mut out = [0u8; pamoja_lorawan::mac::MAX_COMMAND];
+        let written = built
+            .encode(&mut out)
+            .map_err(|error| PamojaError::new_err(error.to_string()))?;
+        Ok(PyBytes::new(py, &out[..written]))
+    }
+}
+
+fn blank_mac(kind: &str, command: &MacCommand) -> LorawanMacCommand {
+    LorawanMacCommand {
+        kind: kind.to_owned(),
+        cid: command.cid(),
+        direction: match command.direction() {
+            Direction::Uplink => "Uplink".to_owned(),
+            Direction::Downlink => "Downlink".to_owned(),
+        },
+        margin: None,
+        gateways: None,
+        data_rate: None,
+        tx_power: None,
+        channel_mask: None,
+        mask_control: None,
+        transmissions: None,
+        power_ack: None,
+        data_rate_ack: None,
+        channel_mask_ack: None,
+        max_duty_cycle: None,
+        rx1_offset: None,
+        rx2_data_rate: None,
+        frequency_hz: None,
+        rx1_offset_ack: None,
+        rx2_data_rate_ack: None,
+        channel_ack: None,
+        battery: None,
+        snr_margin: None,
+        index: None,
+        max_data_rate: None,
+        min_data_rate: None,
+        data_rate_range_ok: None,
+        frequency_ok: None,
+        delay: None,
+        max_eirp: None,
+        uplink_dwell: None,
+        downlink_dwell: None,
+        uplink_frequency_exists: None,
+        seconds: None,
+        fraction: None,
+    }
+}
+
+fn describe_mac(command: MacCommand) -> LorawanMacCommand {
+    match command {
+        MacCommand::LinkCheckReq => blank_mac("link_check_req", &command),
+        MacCommand::LinkCheckAns { margin, gateways } => {
+            let mut out = blank_mac("link_check_ans", &command);
+            out.margin = Some(margin);
+            out.gateways = Some(gateways);
+            out
+        }
+        MacCommand::LinkAdrReq {
+            data_rate,
+            tx_power,
+            channel_mask,
+            mask_control,
+            transmissions,
+        } => {
+            let mut out = blank_mac("link_adr_req", &command);
+            out.data_rate = Some(data_rate);
+            out.tx_power = Some(tx_power);
+            out.channel_mask = Some(channel_mask);
+            out.mask_control = Some(mask_control);
+            out.transmissions = Some(transmissions);
+            out
+        }
+        MacCommand::LinkAdrAns {
+            power_ack,
+            data_rate_ack,
+            channel_mask_ack,
+        } => {
+            let mut out = blank_mac("link_adr_ans", &command);
+            out.power_ack = Some(power_ack);
+            out.data_rate_ack = Some(data_rate_ack);
+            out.channel_mask_ack = Some(channel_mask_ack);
+            out
+        }
+        MacCommand::DutyCycleReq { max_duty_cycle } => {
+            let mut out = blank_mac("duty_cycle_req", &command);
+            out.max_duty_cycle = Some(max_duty_cycle);
+            out
+        }
+        MacCommand::DutyCycleAns => blank_mac("duty_cycle_ans", &command),
+        MacCommand::RxParamSetupReq {
+            rx1_offset,
+            rx2_data_rate,
+            frequency_hz,
+        } => {
+            let mut out = blank_mac("rx_param_setup_req", &command);
+            out.rx1_offset = Some(rx1_offset);
+            out.rx2_data_rate = Some(rx2_data_rate);
+            out.frequency_hz = Some(frequency_hz);
+            out
+        }
+        MacCommand::RxParamSetupAns {
+            rx1_offset_ack,
+            rx2_data_rate_ack,
+            channel_ack,
+        } => {
+            let mut out = blank_mac("rx_param_setup_ans", &command);
+            out.rx1_offset_ack = Some(rx1_offset_ack);
+            out.rx2_data_rate_ack = Some(rx2_data_rate_ack);
+            out.channel_ack = Some(channel_ack);
+            out
+        }
+        MacCommand::DevStatusReq => blank_mac("dev_status_req", &command),
+        MacCommand::DevStatusAns { battery, margin } => {
+            let mut out = blank_mac("dev_status_ans", &command);
+            out.battery = Some(battery);
+            out.snr_margin = Some(margin);
+            out
+        }
+        MacCommand::NewChannelReq {
+            index,
+            frequency_hz,
+            max_data_rate,
+            min_data_rate,
+        } => {
+            let mut out = blank_mac("new_channel_req", &command);
+            out.index = Some(index);
+            out.frequency_hz = Some(frequency_hz);
+            out.max_data_rate = Some(max_data_rate);
+            out.min_data_rate = Some(min_data_rate);
+            out
+        }
+        MacCommand::NewChannelAns {
+            data_rate_range_ok,
+            frequency_ok,
+        } => {
+            let mut out = blank_mac("new_channel_ans", &command);
+            out.data_rate_range_ok = Some(data_rate_range_ok);
+            out.frequency_ok = Some(frequency_ok);
+            out
+        }
+        MacCommand::RxTimingSetupReq { delay } => {
+            let mut out = blank_mac("rx_timing_setup_req", &command);
+            out.delay = Some(delay);
+            out
+        }
+        MacCommand::RxTimingSetupAns => blank_mac("rx_timing_setup_ans", &command),
+        MacCommand::TxParamSetupReq {
+            max_eirp,
+            uplink_dwell,
+            downlink_dwell,
+        } => {
+            let mut out = blank_mac("tx_param_setup_req", &command);
+            out.max_eirp = Some(max_eirp);
+            out.uplink_dwell = Some(uplink_dwell);
+            out.downlink_dwell = Some(downlink_dwell);
+            out
+        }
+        MacCommand::TxParamSetupAns => blank_mac("tx_param_setup_ans", &command),
+        MacCommand::DlChannelReq {
+            index,
+            frequency_hz,
+        } => {
+            let mut out = blank_mac("dl_channel_req", &command);
+            out.index = Some(index);
+            out.frequency_hz = Some(frequency_hz);
+            out
+        }
+        MacCommand::DlChannelAns {
+            uplink_frequency_exists,
+            frequency_ok,
+        } => {
+            let mut out = blank_mac("dl_channel_ans", &command);
+            out.uplink_frequency_exists = Some(uplink_frequency_exists);
+            out.frequency_ok = Some(frequency_ok);
+            out
+        }
+        MacCommand::DeviceTimeReq => blank_mac("device_time_req", &command),
+        MacCommand::DeviceTimeAns { seconds, fraction } => {
+            let mut out = blank_mac("device_time_ans", &command);
+            out.seconds = Some(seconds);
+            out.fraction = Some(fraction);
+            out
+        }
+    }
+}
+
+fn rebuild_command(command: &LorawanMacCommand) -> PyResult<MacCommand> {
+    use pamoja_lorawan::mac;
+
+    let down = command.direction.eq_ignore_ascii_case("downlink");
+    let byte = |value: Option<u8>| value.unwrap_or(0);
+    let flag = |value: Option<bool>| value.unwrap_or(false);
+
+    let built = match (command.cid, down) {
+        (mac::CID_LINK_CHECK, false) => MacCommand::LinkCheckReq,
+        (mac::CID_LINK_CHECK, true) => MacCommand::LinkCheckAns {
+            margin: byte(command.margin),
+            gateways: byte(command.gateways),
+        },
+        (mac::CID_LINK_ADR, true) => MacCommand::LinkAdrReq {
+            data_rate: byte(command.data_rate),
+            tx_power: byte(command.tx_power),
+            channel_mask: command.channel_mask.unwrap_or(0),
+            mask_control: byte(command.mask_control),
+            transmissions: byte(command.transmissions),
+        },
+        (mac::CID_LINK_ADR, false) => MacCommand::LinkAdrAns {
+            power_ack: flag(command.power_ack),
+            data_rate_ack: flag(command.data_rate_ack),
+            channel_mask_ack: flag(command.channel_mask_ack),
+        },
+        (mac::CID_DUTY_CYCLE, true) => MacCommand::DutyCycleReq {
+            max_duty_cycle: byte(command.max_duty_cycle),
+        },
+        (mac::CID_DUTY_CYCLE, false) => MacCommand::DutyCycleAns,
+        (mac::CID_RX_PARAM_SETUP, true) => MacCommand::RxParamSetupReq {
+            rx1_offset: byte(command.rx1_offset),
+            rx2_data_rate: byte(command.rx2_data_rate),
+            frequency_hz: command.frequency_hz.unwrap_or(0),
+        },
+        (mac::CID_RX_PARAM_SETUP, false) => MacCommand::RxParamSetupAns {
+            rx1_offset_ack: flag(command.rx1_offset_ack),
+            rx2_data_rate_ack: flag(command.rx2_data_rate_ack),
+            channel_ack: flag(command.channel_ack),
+        },
+        (mac::CID_DEV_STATUS, true) => MacCommand::DevStatusReq,
+        (mac::CID_DEV_STATUS, false) => MacCommand::DevStatusAns {
+            battery: byte(command.battery),
+            margin: command.snr_margin.unwrap_or(0),
+        },
+        (mac::CID_NEW_CHANNEL, true) => MacCommand::NewChannelReq {
+            index: byte(command.index),
+            frequency_hz: command.frequency_hz.unwrap_or(0),
+            max_data_rate: byte(command.max_data_rate),
+            min_data_rate: byte(command.min_data_rate),
+        },
+        (mac::CID_NEW_CHANNEL, false) => MacCommand::NewChannelAns {
+            data_rate_range_ok: flag(command.data_rate_range_ok),
+            frequency_ok: flag(command.frequency_ok),
+        },
+        (mac::CID_RX_TIMING_SETUP, true) => MacCommand::RxTimingSetupReq {
+            delay: byte(command.delay),
+        },
+        (mac::CID_RX_TIMING_SETUP, false) => MacCommand::RxTimingSetupAns,
+        (mac::CID_TX_PARAM_SETUP, true) => MacCommand::TxParamSetupReq {
+            max_eirp: byte(command.max_eirp),
+            uplink_dwell: flag(command.uplink_dwell),
+            downlink_dwell: flag(command.downlink_dwell),
+        },
+        (mac::CID_TX_PARAM_SETUP, false) => MacCommand::TxParamSetupAns,
+        (mac::CID_DL_CHANNEL, true) => MacCommand::DlChannelReq {
+            index: byte(command.index),
+            frequency_hz: command.frequency_hz.unwrap_or(0),
+        },
+        (mac::CID_DL_CHANNEL, false) => MacCommand::DlChannelAns {
+            uplink_frequency_exists: flag(command.uplink_frequency_exists),
+            frequency_ok: flag(command.frequency_ok),
+        },
+        (mac::CID_DEVICE_TIME, false) => MacCommand::DeviceTimeReq,
+        (mac::CID_DEVICE_TIME, true) => MacCommand::DeviceTimeAns {
+            seconds: command.seconds.unwrap_or(0),
+            fraction: byte(command.fraction),
+        },
+        _ => {
+            return Err(PamojaError::new_err(format!(
+                "identifier {:#04x} names no command in that direction",
+                command.cid
+            )))
+        }
+    };
+    Ok(built)
+}
+
+/// Reads the commands packed into a frame options field, or a payload sent on port 0.
+///
+/// The same identifier means a different command in each direction, so the direction decides
+/// what is read and there is no default.
+///
+/// A command does not carry its own length, so one this build does not know cannot be
+/// stepped over. Reading stops there and returns what came before it.
+///
+/// # Arguments
+///
+/// * `direction` - `Uplink` or `Downlink`.
+/// * `data` - the options field, or the payload.
+///
+/// # Returns
+///
+/// The commands that were readable, in order.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn lorawan_mac_parse(direction: &str, data: Vec<u8>) -> Vec<LorawanMacCommand> {
+    let travel = if direction.eq_ignore_ascii_case("downlink") {
+        Direction::Downlink
+    } else {
+        Direction::Uplink
+    };
+    MacCommands::new(travel, &data)
+        .take_while(Result::is_ok)
+        .filter_map(Result::ok)
+        .map(describe_mac)
+        .collect()
 }
