@@ -90,6 +90,36 @@ pub const SERVICE_PEAK_COUNT: u8 = 7;
 /// How many peaks it counts on the second pass.
 pub const SERVICE_SECOND_PEAK_COUNT: u8 = 5;
 
+/// The clock the FSK bit rate is counted against, in hertz.
+pub const FSK_CLOCK_HZ: u32 = 32_000_000;
+
+/// The bit rate a LoRaWAN network runs its frequency shift keying channel at.
+pub const FSK_DEFAULT_BITRATE: u32 = 50_000;
+
+/// The sync word that channel looks for.
+pub const FSK_SYNC_WORD: u64 = 0x00c1_94c1;
+
+/// How many bytes of it there are.
+pub const FSK_SYNC_WORD_LEN: u8 = 3;
+
+/// How wide the FSK receiver listens, which is the setting for a 125 kHz channel.
+pub const FSK_BANDWIDTH_CODE: u8 = 0x03;
+
+/// How many samples the FSK receiver measures a signal level over.
+pub const FSK_RSSI_SAMPLES: u8 = 4;
+
+/// Keeping the bits from settling at one level, which a LoRaWAN FSK channel whitens.
+pub const FSK_WHITENING: u8 = 2;
+
+/// How far the bit timing may drift before a packet is given up on.
+pub const FSK_TOLERANCE: u8 = 10;
+
+/// The longest packet the FSK receiver takes.
+pub const FSK_MAX_PAYLOAD: u8 = 255;
+
+/// How long it waits for one, as the receiver counts it.
+pub const FSK_TIMEOUT: u8 = 128;
+
 /// One of the receivers that takes any spreading factor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Listener {
@@ -305,6 +335,158 @@ impl Service {
     }
 }
 
+/// The receiver that hears frequency shift keying rather than LoRa.
+///
+/// A LoRaWAN network carries one such channel, faster than any of its LoRa rates and with
+/// none of their reach. It is the tenth receiver, beside the eight and the fixed-rate one,
+/// and like them it is switched on whatever a plan says.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Fsk {
+    /// How far from the carrier it listens, in hertz, which is signed.
+    pub offset_hz: i32,
+    /// Which radio it takes its samples from.
+    pub chain: Chain,
+    /// The bit rate, in bits per second.
+    pub bitrate: u32,
+    /// The sync word it matches, in its low bytes.
+    pub sync_word: u64,
+    /// How many bytes of that sync word there are.
+    pub sync_word_len: u8,
+}
+
+impl Fsk {
+    /// A channel on the first radio, at the rate and sync word a LoRaWAN network uses.
+    ///
+    /// # Arguments
+    ///
+    /// * `offset_hz` - how far from the carrier it listens, which is signed.
+    ///
+    /// # Returns
+    ///
+    /// The channel.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_radios::sx1302::channel::{Fsk, FSK_DEFAULT_BITRATE};
+    ///
+    /// let channel = Fsk::at(600_000);
+    /// assert_eq!(channel.bitrate, FSK_DEFAULT_BITRATE);
+    /// assert_eq!(channel.sync_word_len, 3);
+    /// ```
+    #[must_use]
+    pub const fn at(offset_hz: i32) -> Fsk {
+        Fsk {
+            offset_hz,
+            chain: Chain::A,
+            bitrate: FSK_DEFAULT_BITRATE,
+            sync_word: FSK_SYNC_WORD,
+            sync_word_len: FSK_SYNC_WORD_LEN,
+        }
+    }
+
+    /// The same channel, on the other radio.
+    ///
+    /// A European network puts this channel at 868.8 MHz, which is further from the carrier
+    /// than one radio hears, so it usually belongs on the second one.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain` - the radio it takes its samples from.
+    ///
+    /// # Returns
+    ///
+    /// The channel.
+    #[must_use]
+    pub const fn on(mut self, chain: Chain) -> Fsk {
+        self.chain = chain;
+        self
+    }
+
+    /// The same channel, at another bit rate.
+    ///
+    /// # Arguments
+    ///
+    /// * `bitrate` - the rate, in bits per second.
+    ///
+    /// # Returns
+    ///
+    /// The channel.
+    #[must_use]
+    pub const fn bitrate(mut self, bitrate: u32) -> Fsk {
+        self.bitrate = bitrate;
+        self
+    }
+
+    /// The same channel, matching another sync word.
+    ///
+    /// # Arguments
+    ///
+    /// * `sync_word` - the word, in the low bytes.
+    /// * `len` - how many bytes of it, up to eight.
+    ///
+    /// # Returns
+    ///
+    /// The channel.
+    #[must_use]
+    pub const fn matching(mut self, sync_word: u64, len: u8) -> Fsk {
+        self.sync_word = sync_word;
+        self.sync_word_len = len;
+        self
+    }
+
+    /// The pattern the receiver is programmed with.
+    ///
+    /// # Returns
+    ///
+    /// The sync word moved into the top of the pattern, which is where the receiver reads it
+    /// from however few bytes it has.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_radios::sx1302::channel::Fsk;
+    ///
+    /// // Three bytes sit at the top, not the bottom.
+    /// assert_eq!(Fsk::at(0).pattern(), 0xc194_c100_0000_0000);
+    /// ```
+    #[must_use]
+    pub const fn pattern(&self) -> u64 {
+        let len = if self.sync_word_len > 8 {
+            8
+        } else {
+            self.sync_word_len
+        };
+        self.sync_word << (8 * (8 - len) as u32)
+    }
+
+    /// Whether the concentrator can be set to this channel at all.
+    ///
+    /// # Returns
+    ///
+    /// Whether the offset is one the radio hears, the sync word is between one and eight
+    /// bytes, and the bit rate is one the counter can hold.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_radios::sx1302::channel::Fsk;
+    ///
+    /// assert!(Fsk::at(600_000).supported());
+    /// assert!(!Fsk::at(900_000).supported(), "past what the radio hears");
+    /// assert!(!Fsk::at(0).bitrate(100).supported(), "too slow to count");
+    /// assert!(!Fsk::at(0).matching(0, 9).supported(), "longer than the pattern");
+    /// ```
+    #[must_use]
+    pub const fn supported(&self) -> bool {
+        reachable(self.offset_hz)
+            && self.sync_word_len >= 1
+            && self.sync_word_len <= 8
+            && self.bitrate > 0
+            && FSK_CLOCK_HZ / self.bitrate <= u16::MAX as u32
+    }
+}
+
 /// What a concentrator is to listen for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Plan {
@@ -321,6 +503,9 @@ pub struct Plan {
     pub public: bool,
     /// The receiver fixed to one spreading factor, or `None` to leave it where reset left it.
     pub service: Option<Service>,
+    /// The receiver that hears frequency shift keying, or `None` to leave it where reset
+    /// left it.
+    pub fsk: Option<Fsk>,
 }
 
 impl Plan {
@@ -365,6 +550,7 @@ impl Plan {
             spreading_factors: every_spreading_factor(),
             public: true,
             service: None,
+            fsk: None,
         }
     }
 
@@ -418,6 +604,34 @@ impl Plan {
     #[must_use]
     pub const fn serving(mut self, service: Service) -> Plan {
         self.service = Some(service);
+        self
+    }
+
+    /// The same plan, with the frequency shift keying receiver pointed at a channel.
+    ///
+    /// That receiver is switched on whatever a plan says, so one never given a channel
+    /// listens wherever reset left it, as the fixed-rate one does.
+    ///
+    /// # Arguments
+    ///
+    /// * `fsk` - the channel it runs on.
+    ///
+    /// # Returns
+    ///
+    /// The plan.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_radios::sx1302::channel::{Fsk, Plan};
+    /// use pamoja_radios::sx1302::tx::Chain;
+    ///
+    /// let plan = Plan::new(867_800_000, &[-300_000]).hearing(Fsk::at(600_000).on(Chain::B));
+    /// assert_eq!(plan.fsk.map(|fsk| fsk.bitrate), Some(50_000));
+    /// ```
+    #[must_use]
+    pub const fn hearing(mut self, fsk: Fsk) -> Plan {
+        self.fsk = Some(fsk);
         self
     }
 
@@ -672,6 +886,7 @@ pub fn steps(plan: &Plan) -> impl Iterator<Item = Step> + '_ {
         .chain(demodulators(plan))
         .chain(syncword(plan))
         .chain(service(plan))
+        .chain(fsk(plan))
         .chain(enables())
 }
 
@@ -994,6 +1209,58 @@ fn service(plan: &Plan) -> impl Iterator<Item = Step> + '_ {
             Step::Write(register::SERVICE_DFT_PEAK_MODE, DFT_PEAK_AUTOMATIC),
         ]
         .into_iter()
+    })
+}
+
+/// Pointing the frequency shift keying receiver at its channel, when a plan gives it one.
+fn fsk(plan: &Plan) -> impl Iterator<Item = Step> + '_ {
+    plan.fsk.into_iter().flat_map(move |fsk| {
+        let [high, low] = offset_bytes(fsk.offset_hz);
+
+        // The rate goes out as how many clocks make a bit, not as the rate itself.
+        let clocks = (FSK_CLOCK_HZ / fsk.bitrate.max(1)).min(u32::from(u16::MAX)) as u16;
+
+        // The pattern is written least significant byte first, into registers that run
+        // backwards, so a three byte sync word ends up in the last three of them.
+        let pattern = fsk.pattern();
+        let sync = (0..register::FSK_SYNC_WORD_BYTES).map(move |byte| {
+            Step::Write(
+                register::fsk_sync_word(byte),
+                (pattern >> (8 * u32::from(byte))) as u8,
+            )
+        });
+
+        [
+            Step::Write(register::FSK_FREQUENCY_MSB, high),
+            Step::Write(register::FSK_FREQUENCY_LSB, low),
+            Step::Write(
+                register::FSK_RADIO_SELECT,
+                u8::from(matches!(fsk.chain, Chain::B)),
+            ),
+            Step::Write(
+                register::FSK_PATTERN_SIZE,
+                fsk.sync_word_len.saturating_sub(1),
+            ),
+            Step::Write(register::FSK_BITRATE_MSB, (clocks >> 8) as u8),
+            Step::Write(register::FSK_BITRATE_LSB, clocks as u8),
+            Step::Write(register::FSK_BANDWIDTH_EXPONENT, FSK_BANDWIDTH_CODE),
+            Step::Write(register::FSK_INVERT_RX, 0),
+            Step::Write(register::FSK_INVERT_IQ, 0),
+            Step::Write(register::FSK_RSSI_LENGTH, FSK_RSSI_SAMPLES),
+            Step::Write(register::FSK_PACKET_MODE, 1),
+            Step::Write(register::FSK_CRC_ENABLE, 1),
+            Step::Write(register::FSK_DCFREE_ENCODING, FSK_WHITENING),
+            Step::Write(register::FSK_CRC_IBM, 0),
+            Step::Write(register::FSK_ERROR_TOLERANCE, FSK_TOLERANCE),
+            Step::Write(register::FSK_PAYLOAD_LENGTH, FSK_MAX_PAYLOAD),
+            Step::Write(register::FSK_NODE_ADDRESS, 0),
+            Step::Write(register::FSK_BROADCAST_ADDRESS, 0),
+            Step::Write(register::FSK_AUTO_AFC, 1),
+            Step::Write(register::FSK_TIMEOUT_MSB, 0),
+            Step::Write(register::FSK_TIMEOUT_LSB, FSK_TIMEOUT),
+        ]
+        .into_iter()
+        .chain(sync)
     })
 }
 
@@ -1327,5 +1594,93 @@ mod tests {
             "not a width"
         );
         assert!(!Service::at(MAX_OFFSET_HZ + 1, 7).supported(), "not heard");
+    }
+
+    #[test]
+    fn a_frequency_shift_keying_channel_is_given_a_frequency_and_a_rate() {
+        let plan = eu868().hearing(Fsk::at(600_000).on(Chain::B));
+        let [high, low] = offset_bytes(600_000);
+
+        assert_eq!(written(&plan, register::FSK_FREQUENCY_MSB), Some(high));
+        assert_eq!(written(&plan, register::FSK_FREQUENCY_LSB), Some(low));
+        assert_eq!(written(&plan, register::FSK_RADIO_SELECT), Some(1));
+
+        // Fifty thousand bits a second is six hundred and forty clocks a bit.
+        assert_eq!(written(&plan, register::FSK_BITRATE_MSB), Some(0x02));
+        assert_eq!(written(&plan, register::FSK_BITRATE_LSB), Some(0x80));
+    }
+
+    #[test]
+    fn a_plan_without_one_leaves_that_receiver_alone() {
+        let plan = eu868();
+        assert_eq!(plan.fsk, None);
+        assert_eq!(written(&plan, register::FSK_FREQUENCY_MSB), None);
+        assert_eq!(written(&plan, register::FSK_BITRATE_LSB), None);
+    }
+
+    #[test]
+    fn the_sync_word_sits_at_the_top_of_the_pattern() {
+        let plan = eu868().hearing(Fsk::at(600_000));
+
+        // Three bytes, in the three registers the pattern ends at, and nothing in the rest.
+        assert_eq!(written(&plan, register::fsk_sync_word(7)), Some(0xc1));
+        assert_eq!(written(&plan, register::fsk_sync_word(6)), Some(0x94));
+        assert_eq!(written(&plan, register::fsk_sync_word(5)), Some(0xc1));
+        assert_eq!(written(&plan, register::fsk_sync_word(4)), Some(0x00));
+        assert_eq!(written(&plan, register::fsk_sync_word(0)), Some(0x00));
+
+        // How many of them the receiver matches is written as one less.
+        assert_eq!(written(&plan, register::FSK_PATTERN_SIZE), Some(2));
+    }
+
+    #[test]
+    fn a_whole_sync_word_fills_every_register() {
+        let plan = eu868().hearing(Fsk::at(0).matching(0x0102_0304_0506_0708, 8));
+
+        assert_eq!(
+            Fsk::at(0).matching(0x0102_0304_0506_0708, 8).pattern(),
+            0x0102_0304_0506_0708
+        );
+        assert_eq!(written(&plan, register::fsk_sync_word(7)), Some(0x01));
+        assert_eq!(written(&plan, register::fsk_sync_word(0)), Some(0x08));
+        assert_eq!(written(&plan, register::FSK_PATTERN_SIZE), Some(7));
+    }
+
+    #[test]
+    fn the_channel_is_set_up_the_way_the_reference_does() {
+        let plan = eu868().hearing(Fsk::at(600_000));
+
+        assert_eq!(written(&plan, register::FSK_BANDWIDTH_EXPONENT), Some(0x03));
+        assert_eq!(written(&plan, register::FSK_PACKET_MODE), Some(1));
+        assert_eq!(written(&plan, register::FSK_CRC_ENABLE), Some(1));
+        assert_eq!(written(&plan, register::FSK_CRC_IBM), Some(0));
+        assert_eq!(written(&plan, register::FSK_DCFREE_ENCODING), Some(2));
+        assert_eq!(written(&plan, register::FSK_RSSI_LENGTH), Some(4));
+        assert_eq!(written(&plan, register::FSK_ERROR_TOLERANCE), Some(10));
+        assert_eq!(written(&plan, register::FSK_PAYLOAD_LENGTH), Some(255));
+        assert_eq!(written(&plan, register::FSK_AUTO_AFC), Some(1));
+        assert_eq!(written(&plan, register::FSK_TIMEOUT_MSB), Some(0));
+        assert_eq!(written(&plan, register::FSK_TIMEOUT_LSB), Some(128));
+    }
+
+    #[test]
+    fn a_channel_the_receiver_cannot_run_is_refused_rather_than_narrowed() {
+        assert!(Fsk::at(600_000).supported());
+        assert!(Fsk::at(-MAX_OFFSET_HZ).supported());
+
+        assert!(!Fsk::at(900_000).supported(), "past what the radio hears");
+        assert!(!Fsk::at(0).bitrate(0).supported(), "not a rate");
+        assert!(
+            !Fsk::at(0).bitrate(100).supported(),
+            "too slow for the counter"
+        );
+        assert!(
+            !Fsk::at(0).matching(0, 0).supported(),
+            "no sync word at all"
+        );
+        assert!(
+            !Fsk::at(0).matching(0, 9).supported(),
+            "longer than the pattern"
+        );
     }
 }

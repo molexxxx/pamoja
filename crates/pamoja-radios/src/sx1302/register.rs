@@ -418,6 +418,103 @@ pub const FSK_FREQUENCY_LSB: Register =
 /// Which radio that demodulator takes its samples from.
 pub const FSK_RADIO_SELECT: Register =
     Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 84, 1, 1, false);
+/// How many bytes of the sync pattern the FSK receiver matches, less one.
+pub const FSK_PATTERN_SIZE: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 83, 3, 3, false);
+
+/// How wide the FSK receiver listens, as a power of two.
+pub const FSK_BANDWIDTH_EXPONENT: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 83, 0, 3, false);
+
+/// Whether the FSK receiver compares an address byte before taking a packet.
+pub const FSK_ADDRESS_COMPARISON: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 83, 6, 2, false);
+
+/// Whether a packet carries its own length, rather than every packet being one size.
+pub const FSK_PACKET_MODE: Register = Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 82, 0, 1, false);
+
+/// Whether the FSK receiver checks a packet's checksum.
+pub const FSK_CRC_ENABLE: Register = Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 82, 1, 1, false);
+
+/// How the bits are kept from settling at one level for too long.
+pub const FSK_DCFREE_ENCODING: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 82, 2, 2, false);
+
+/// Which of the two checksums a packet carries.
+pub const FSK_CRC_IBM: Register = Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 82, 4, 1, false);
+
+/// Whether the FSK receiver inverts what it hears.
+pub const FSK_INVERT_RX: Register = Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 84, 0, 1, false);
+
+/// Whether it swaps the two halves of the signal.
+pub const FSK_INVERT_IQ: Register = Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 84, 3, 1, false);
+
+/// Whether the FSK receiver corrects for a sender being off frequency.
+pub const FSK_AUTO_AFC: Register = Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 84, 2, 1, false);
+
+/// How long the FSK receiver measures a signal level over.
+pub const FSK_RSSI_LENGTH: Register = Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 85, 5, 3, false);
+
+/// How far the bit timing may drift before a packet is given up on.
+pub const FSK_ERROR_TOLERANCE: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 85, 0, 5, false);
+
+/// The address a packet has to carry, when the receiver is comparing one.
+pub const FSK_NODE_ADDRESS: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 86, 0, 8, false);
+
+/// The address every device takes.
+pub const FSK_BROADCAST_ADDRESS: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 87, 0, 8, false);
+
+/// How long a packet is when it does not carry its own length.
+pub const FSK_PAYLOAD_LENGTH: Register =
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 88, 0, 8, false);
+
+/// How long the FSK receiver waits for a packet, high bits.
+pub const FSK_TIMEOUT_MSB: Register = Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 89, 0, 2, false);
+
+/// How long it waits, low byte.
+pub const FSK_TIMEOUT_LSB: Register = Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 90, 0, 8, false);
+
+/// The bit rate the FSK receiver runs at, high byte.
+pub const FSK_BITRATE_MSB: Register = Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 91, 0, 8, false);
+
+/// The bit rate, low byte.
+pub const FSK_BITRATE_LSB: Register = Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 92, 0, 8, false);
+
+/// How many bytes of sync word the FSK receiver holds.
+pub const FSK_SYNC_WORD_BYTES: u8 = 8;
+
+/// One byte of the sync word the FSK receiver looks for.
+///
+/// # Arguments
+///
+/// * `byte` - which byte, counting from the least significant. Anything past the last is
+///   read as the last.
+///
+/// # Returns
+///
+/// The register holding it. They run backwards through the address space, so the least
+/// significant byte sits at the highest address.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_radios::sx1302::register::fsk_sync_word;
+///
+/// assert_eq!(fsk_sync_word(0).address, 0x5b00 + 100);
+/// assert_eq!(fsk_sync_word(7).address, 0x5b00 + 93, "and they count down");
+/// ```
+#[must_use]
+pub const fn fsk_sync_word(byte: u8) -> Register {
+    let byte = if byte >= FSK_SYNC_WORD_BYTES {
+        FSK_SYNC_WORD_BYTES - 1
+    } else {
+        byte
+    } as u16;
+    Register::new(RX_TOP_LORA_SERVICE_FSK_BASE + 100 - byte, 0, 8, false)
+}
 
 /// Whether the service receiver runs its notch filter.
 pub const SERVICE_DC_NOTCH_ENABLE: Register =
