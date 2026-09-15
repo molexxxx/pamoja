@@ -2101,3 +2101,42 @@ def test_gateway_vectors_match():
             )
         )
         assert gateway.parse(datagram).tx_status == status
+
+
+def test_lorawan_mac_command_vectors_match():
+    """Every command reads in the direction it names, and writes back the same bytes."""
+    vector = VECTORS["lorawan"]["mac"]
+
+    def facing(name: str) -> str:
+        return "Downlink" if name == "downlink" else "Uplink"
+
+    # The same bytes are a request going down and an answer coming up, and the two are not
+    # the same length, so a reader that guesses the direction walks off the end.
+    both = vector["bothDirections"]
+    raw = unhex(both["bytes"])
+    down = lorawan.mac_parse("Downlink", raw)
+    up = lorawan.mac_parse("Uplink", raw)
+    assert down[0].cid == both["cid"]
+    assert up[0].cid == both["cid"]
+    assert len(down[0].encode()) == both["downlinkLength"]
+    assert len(up[0].encode()) == both["uplinkLength"]
+
+    for entry in vector["commands"]:
+        raw = unhex(entry["bytes"])
+        read = lorawan.mac_parse(facing(entry["direction"]), raw)
+        assert len(read) == 1, entry["bytes"]
+        assert read[0].cid == entry["cid"], entry["bytes"]
+        assert read[0].encode() == raw, entry["bytes"]
+
+    sequence = vector["sequence"]
+    read = lorawan.mac_parse(facing(sequence["direction"]), unhex(sequence["bytes"]))
+    assert [command.cid for command in read] == sequence["cids"]
+
+    # Nothing says how long an unknown command is, so reading stops rather than guessing.
+    stops = vector["stops"]
+    read = lorawan.mac_parse(facing(stops["direction"]), unhex(stops["bytes"]))
+    assert len(read) == stops["readable"]
+
+    truncated = vector["truncated"]
+    read = lorawan.mac_parse(facing(truncated["direction"]), unhex(truncated["bytes"]))
+    assert read == []

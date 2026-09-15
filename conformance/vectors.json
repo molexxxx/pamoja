@@ -2233,6 +2233,74 @@
       "forgedAccept": "2020202020202020202020202020202020",
       "request": "00ffeeddccbbaa99887766554433221100341250953d29"
     },
+    "mac": {
+      "bothDirections": {
+        "bytes": "0352ff0001",
+        "cid": 3,
+        "downlinkLength": 5,
+        "uplinkLength": 2
+      },
+      "commands": [
+        {
+          "bytes": "021403",
+          "cid": 2,
+          "direction": "downlink"
+        },
+        {
+          "bytes": "0703184f8450",
+          "cid": 7,
+          "direction": "downlink"
+        },
+        {
+          "bytes": "0a01d2ad84",
+          "cid": 10,
+          "direction": "downlink"
+        },
+        {
+          "bytes": "0915",
+          "cid": 9,
+          "direction": "downlink"
+        },
+        {
+          "bytes": "0523d2ad84",
+          "cid": 5,
+          "direction": "downlink"
+        },
+        {
+          "bytes": "06c83a",
+          "cid": 6,
+          "direction": "uplink"
+        },
+        {
+          "bytes": "02",
+          "cid": 2,
+          "direction": "uplink"
+        },
+        {
+          "bytes": "0d",
+          "cid": 13,
+          "direction": "uplink"
+        }
+      ],
+      "sequence": {
+        "bytes": "0206c83a0d",
+        "cids": [
+          2,
+          6,
+          13
+        ],
+        "direction": "uplink"
+      },
+      "stops": {
+        "bytes": "027f1122",
+        "direction": "uplink",
+        "readable": 1
+      },
+      "truncated": {
+        "bytes": "0352",
+        "direction": "downlink"
+      }
+    },
     "maxFrame": 256,
     "maxPayload": 243,
     "nwkSKey": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b",

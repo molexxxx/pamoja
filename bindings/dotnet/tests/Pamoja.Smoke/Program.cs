@@ -4439,6 +4439,75 @@ static void ConformLorawan(JsonElement vector)
     catch (PamojaException)
     {
     }
+    ConformLorawanMac(vector.GetProperty("mac"));
+}
+
+/// <summary>
+/// Checks the commands a network and a device configure each other with. Each one is read
+/// in the direction it names and written back out, and the bytes have to come back the same.
+/// </summary>
+/// <param name="vector">The vector to check against.</param>
+static void ConformLorawanMac(JsonElement vector)
+{
+    static LorawanDirection Facing(string name) =>
+        name == "downlink" ? LorawanDirection.Downlink : LorawanDirection.Uplink;
+
+    static string Hex(byte[] bytes) => Convert.ToHexString(bytes).ToLowerInvariant();
+
+    // The same bytes are a request going down and an answer coming up, and the two are not
+    // the same length, so a reader that guesses the direction walks off the end.
+    JsonElement both = vector.GetProperty("bothDirections");
+    byte[] shared = Convert.FromHexString(both.GetProperty("bytes").GetString()!);
+    var down = LorawanMacCommand.Parse(LorawanDirection.Downlink, shared);
+    var up = LorawanMacCommand.Parse(LorawanDirection.Uplink, shared);
+
+    byte cid = both.GetProperty("cid").GetByte();
+    Assert(down[0].Cid == cid, "the identifier is the same going down");
+    Assert(up[0].Cid == cid, "and coming up");
+    Assert(
+        down[0].Encode().Length == both.GetProperty("downlinkLength").GetInt32(),
+        "a request going down is the length the specification gives it");
+    Assert(
+        up[0].Encode().Length == both.GetProperty("uplinkLength").GetInt32(),
+        "and the answer coming up is shorter");
+
+    foreach (JsonElement entry in vector.GetProperty("commands").EnumerateArray())
+    {
+        string text = entry.GetProperty("bytes").GetString()!;
+        byte[] bytes = Convert.FromHexString(text);
+        var read = LorawanMacCommand.Parse(Facing(entry.GetProperty("direction").GetString()!), bytes);
+
+        Assert(read.Count == 1, $"one command in {text}");
+        Assert(read[0].Cid == entry.GetProperty("cid").GetByte(), $"the identifier of {text}");
+        Assert(Hex(read[0].Encode()) == text, $"{text} is written back the way it was read");
+    }
+
+    JsonElement sequence = vector.GetProperty("sequence");
+    var run = LorawanMacCommand.Parse(
+        Facing(sequence.GetProperty("direction").GetString()!),
+        Convert.FromHexString(sequence.GetProperty("bytes").GetString()!));
+    int at = 0;
+    foreach (JsonElement want in sequence.GetProperty("cids").EnumerateArray())
+    {
+        Assert(run[at].Cid == want.GetByte(), "a field of commands reads in order");
+        at++;
+    }
+    Assert(at == run.Count, "and holds exactly what the vector says");
+
+    // Nothing says how long an unknown command is, so reading stops rather than guessing.
+    JsonElement stops = vector.GetProperty("stops");
+    var stopped = LorawanMacCommand.Parse(
+        Facing(stops.GetProperty("direction").GetString()!),
+        Convert.FromHexString(stops.GetProperty("bytes").GetString()!));
+    Assert(
+        stopped.Count == stops.GetProperty("readable").GetInt32(),
+        "reading stops at the unknown one");
+
+    JsonElement truncated = vector.GetProperty("truncated");
+    var cut = LorawanMacCommand.Parse(
+        Facing(truncated.GetProperty("direction").GetString()!),
+        Convert.FromHexString(truncated.GetProperty("bytes").GetString()!));
+    Assert(cut.Count == 0, "a known command cut short is not half read");
 }
 
 static void ConformHeader(JsonElement vector)

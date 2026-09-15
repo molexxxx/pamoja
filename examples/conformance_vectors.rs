@@ -2384,6 +2384,7 @@ fn lorawan() -> Value {
         },
         "forgedUplink": hex(&forged),
         "wrongCounter": 43,
+        "mac": mac_commands(),
         "join": {
             "devEui": hex(&DEV_EUI),
             "appEui": hex(&APP_EUI),
@@ -2392,6 +2393,55 @@ fn lorawan() -> Value {
             "request": hex(device.join_request(dev_nonce).as_bytes()),
             // A join accept the network never signed: every binding must refuse it.
             "forgedAccept": hex(&[0x20u8; 17]),
+        },
+    })
+}
+
+/// The commands a network and a device configure each other with.
+///
+/// Every entry is read in the direction it names, then written back out, and the bytes have
+/// to come back the same. Commands are keyed by their identifier rather than by a name,
+/// because each binding names them in its own style and the identifier is the same number
+/// everywhere.
+fn mac_commands() -> Value {
+    json!({
+        // The same five bytes are a request going down and an answer coming up. Nothing in
+        // them says which, so a binding that guesses gets this wrong.
+        "bothDirections": {
+            "bytes": "0352ff0001",
+            "cid": 3,
+            "downlinkLength": 5,
+            "uplinkLength": 2,
+        },
+        // One of each shape: two fixed fields, a frequency in hundreds of hertz, a packed
+        // byte, a six-bit signed number, and one that is only its identifier.
+        "commands": [
+            { "direction": "downlink", "cid": 2, "bytes": "021403" },
+            { "direction": "downlink", "cid": 7, "bytes": "0703184f8450" },
+            { "direction": "downlink", "cid": 10, "bytes": "0a01d2ad84" },
+            { "direction": "downlink", "cid": 9, "bytes": "0915" },
+            { "direction": "downlink", "cid": 5, "bytes": "0523d2ad84" },
+            { "direction": "uplink", "cid": 6, "bytes": "06c83a" },
+            { "direction": "uplink", "cid": 2, "bytes": "02" },
+            { "direction": "uplink", "cid": 13, "bytes": "0d" },
+        ],
+        // Three commands packed into one field, read in order.
+        "sequence": {
+            "direction": "uplink",
+            "bytes": "0206c83a0d",
+            "cids": [2, 6, 13],
+        },
+        // A command carries no length, so an identifier a build does not know cannot be
+        // stepped over: reading stops there rather than guessing.
+        "stops": {
+            "direction": "uplink",
+            "bytes": "027f1122",
+            "readable": 1,
+        },
+        // A command that IS known but runs off the end is a refusal, not a stop.
+        "truncated": {
+            "direction": "downlink",
+            "bytes": "0352",
         },
     })
 }
