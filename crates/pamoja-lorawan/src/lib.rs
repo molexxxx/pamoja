@@ -55,6 +55,7 @@
 //! assert_eq!(rx.payload(), b"temp=4.8");
 //! ```
 
+pub mod adr;
 mod crypto;
 mod error;
 mod frame;
@@ -64,6 +65,7 @@ pub mod mac;
 mod network;
 mod session;
 
+pub use adr::Backoff;
 pub use error::LorawanError;
 pub use frame::{Direction, PhyPayload, MAX_FRAME, MAX_PAYLOAD};
 pub use header::{FrameHeader, MessageType};
