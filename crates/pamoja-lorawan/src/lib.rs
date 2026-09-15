@@ -60,6 +60,7 @@ mod error;
 mod frame;
 mod header;
 mod join;
+pub mod mac;
 mod network;
 mod session;
 
@@ -67,5 +68,6 @@ pub use error::LorawanError;
 pub use frame::{Direction, PhyPayload, MAX_FRAME, MAX_PAYLOAD};
 pub use header::{FrameHeader, MessageType};
 pub use join::{Device, JoinAccept};
+pub use mac::{MacCommand, MacCommands};
 pub use network::{JoinGrant, JoinRequest};
 pub use session::{Downlink, RxData, Session, Uplink};

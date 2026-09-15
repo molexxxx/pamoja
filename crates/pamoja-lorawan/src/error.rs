@@ -15,6 +15,9 @@ pub enum LorawanError {
     FcntMismatch,
     /// A received frame is structurally invalid in some other way.
     MalformedFrame,
+    /// A MAC command identifier this version does not know. It cannot be stepped over,
+    /// because a command does not carry its own length.
+    UnknownCommand(u8),
 }
 
 impl core::fmt::Display for LorawanError {
@@ -34,6 +37,9 @@ impl core::fmt::Display for LorawanError {
                 f.write_str("lorawan frame counter does not match the one expected")
             }
             LorawanError::MalformedFrame => f.write_str("lorawan frame is malformed"),
+            LorawanError::UnknownCommand(cid) => {
+                write!(f, "lorawan MAC command {cid:#04x} is not known here")
+            }
         }
     }
 }
