@@ -80,6 +80,7 @@ __all__ = [
     "LorawanHeader",
     "LorawanJoinAccept",
     "LorawanJoinRequest",
+    "LorawanMacCommand",
     "LorawanRxData",
     "LorawanSession",
     "Manifest",
@@ -283,6 +284,7 @@ __all__ = [
     "lora_free_space_loss_db",
     "lora_fresnel_radius_mm",
     "lora_noise_floor_dbm",
+    "lorawan_mac_parse",
     "lorawan_parse_header",
     "lorawan_parse_join_request",
     "mavlink_crc16_mcrf4xx",
@@ -3739,6 +3741,206 @@ class LorawanJoinRequest:
         """
 
 @typing.final
+class LorawanMacCommand:
+    r"""
+    One of the commands a network and a device configure each other with.
+    
+    `kind` names the command and `cid` is the identifier it travels under. Only the fields
+    that command carries are set; the rest are `None`. The same identifier means a different
+    command in each direction, so `direction` decides which one this is.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        Which command this is, as a name.
+        """
+    @property
+    def cid(self) -> builtins.int:
+        r"""
+        The identifier it travels under.
+        """
+    @property
+    def direction(self) -> builtins.str:
+        r"""
+        Which way it travels: `Uplink` or `Downlink`.
+        """
+    @property
+    def margin(self) -> typing.Optional[builtins.int]:
+        r"""
+        How far above the floor a link check arrived, in dB.
+        """
+    @property
+    def gateways(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many gateways heard it.
+        """
+    @property
+    def data_rate(self) -> typing.Optional[builtins.int]:
+        r"""
+        The data rate a network asks a device to use.
+        """
+    @property
+    def tx_power(self) -> typing.Optional[builtins.int]:
+        r"""
+        The transmit power it may use, as a ceiling.
+        """
+    @property
+    def channel_mask(self) -> typing.Optional[builtins.int]:
+        r"""
+        Which channels may carry an uplink.
+        """
+    @property
+    def mask_control(self) -> typing.Optional[builtins.int]:
+        r"""
+        Which block of sixteen channels that mask applies to.
+        """
+    @property
+    def transmissions(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many times to send an unconfirmed uplink.
+        """
+    @property
+    def power_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the power was set.
+        """
+    @property
+    def data_rate_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the data rate was set.
+        """
+    @property
+    def channel_mask_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the channel mask was usable.
+        """
+    @property
+    def max_duty_cycle(self) -> typing.Optional[builtins.int]:
+        r"""
+        The share of the air a device is held to, as one over two to this.
+        """
+    @property
+    def rx1_offset(self) -> typing.Optional[builtins.int]:
+        r"""
+        How far the first receive window sits below the uplink rate.
+        """
+    @property
+    def rx2_data_rate(self) -> typing.Optional[builtins.int]:
+        r"""
+        The rate of the second receive window.
+        """
+    @property
+    def frequency_hz(self) -> typing.Optional[builtins.int]:
+        r"""
+        A frequency in hertz, for the receive window and the channel commands.
+        """
+    @property
+    def rx1_offset_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the window offset was in range.
+        """
+    @property
+    def rx2_data_rate_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the window rate was known.
+        """
+    @property
+    def channel_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the frequency was usable.
+        """
+    @property
+    def battery(self) -> typing.Optional[builtins.int]:
+        r"""
+        A device battery level: 0 on external power, 255 when it cannot tell.
+        """
+    @property
+    def snr_margin(self) -> typing.Optional[builtins.int]:
+        r"""
+        The signal-to-noise ratio of the last request, in dB.
+        """
+    @property
+    def index(self) -> typing.Optional[builtins.int]:
+        r"""
+        Which channel a channel command names.
+        """
+    @property
+    def max_data_rate(self) -> typing.Optional[builtins.int]:
+        r"""
+        The fastest rate allowed on it.
+        """
+    @property
+    def min_data_rate(self) -> typing.Optional[builtins.int]:
+        r"""
+        The slowest rate allowed on it.
+        """
+    @property
+    def data_rate_range_ok(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the device can run that range of rates.
+        """
+    @property
+    def frequency_ok(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether its radio can reach that frequency.
+        """
+    @property
+    def delay(self) -> typing.Optional[builtins.int]:
+        r"""
+        How long a device waits before its first receive window, as the command codes it.
+        """
+    @property
+    def max_eirp(self) -> typing.Optional[builtins.int]:
+        r"""
+        The coded transmit power ceiling a region imposes.
+        """
+    @property
+    def uplink_dwell(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether an uplink is held to 400 ms of air time.
+        """
+    @property
+    def downlink_dwell(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether a downlink is.
+        """
+    @property
+    def uplink_frequency_exists(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the channel already had an uplink frequency to pair a downlink with.
+        """
+    @property
+    def seconds(self) -> typing.Optional[builtins.int]:
+        r"""
+        Seconds since the GPS epoch.
+        """
+    @property
+    def fraction(self) -> typing.Optional[builtins.int]:
+        r"""
+        The fraction of that second, in steps of one part in 256.
+        """
+    def __new__(cls, cid: builtins.int, direction: builtins.str, margin: typing.Optional[builtins.int] = None, gateways: typing.Optional[builtins.int] = None, data_rate: typing.Optional[builtins.int] = None, tx_power: typing.Optional[builtins.int] = None, channel_mask: typing.Optional[builtins.int] = None, mask_control: typing.Optional[builtins.int] = None, transmissions: typing.Optional[builtins.int] = None, power_ack: typing.Optional[builtins.bool] = None, data_rate_ack: typing.Optional[builtins.bool] = None, channel_mask_ack: typing.Optional[builtins.bool] = None, max_duty_cycle: typing.Optional[builtins.int] = None, rx1_offset: typing.Optional[builtins.int] = None, rx2_data_rate: typing.Optional[builtins.int] = None, frequency_hz: typing.Optional[builtins.int] = None, rx1_offset_ack: typing.Optional[builtins.bool] = None, rx2_data_rate_ack: typing.Optional[builtins.bool] = None, channel_ack: typing.Optional[builtins.bool] = None, battery: typing.Optional[builtins.int] = None, snr_margin: typing.Optional[builtins.int] = None, index: typing.Optional[builtins.int] = None, max_data_rate: typing.Optional[builtins.int] = None, min_data_rate: typing.Optional[builtins.int] = None, data_rate_range_ok: typing.Optional[builtins.bool] = None, frequency_ok: typing.Optional[builtins.bool] = None, delay: typing.Optional[builtins.int] = None, max_eirp: typing.Optional[builtins.int] = None, uplink_dwell: typing.Optional[builtins.bool] = None, downlink_dwell: typing.Optional[builtins.bool] = None, uplink_frequency_exists: typing.Optional[builtins.bool] = None, seconds: typing.Optional[builtins.int] = None, fraction: typing.Optional[builtins.int] = None) -> LorawanMacCommand:
+        r"""
+        Builds a command to write out.
+        
+        The identifier and the direction decide which command this is, and therefore which of
+        the other arguments are read. The rest may be left off.
+        """
+    def encode(self) -> bytes:
+        r"""
+        Writes this command out.
+        
+        # Returns
+        
+        The bytes it goes out as.
+        
+        # Errors
+        
+        When the identifier and the direction name no command, or a field will not fit what
+        carries it.
+        """
+
+@typing.final
 class LorawanRxData:
     r"""
     A decoded data frame, with its payload decrypted.
@@ -7127,6 +7329,26 @@ def lora_fresnel_radius_mm(near_m: builtins.int, far_m: builtins.int, frequency_
 def lora_noise_floor_dbm(bandwidth_hz: builtins.int) -> builtins.float:
     r"""
     The thermal noise power in a channel, in dBm.
+    """
+
+def lorawan_mac_parse(direction: builtins.str, data: typing.Sequence[builtins.int]) -> builtins.list[LorawanMacCommand]:
+    r"""
+    Reads the commands packed into a frame options field, or a payload sent on port 0.
+    
+    The same identifier means a different command in each direction, so the direction decides
+    what is read and there is no default.
+    
+    A command does not carry its own length, so one this build does not know cannot be
+    stepped over. Reading stops there and returns what came before it.
+    
+    # Arguments
+    
+    * `direction` - `Uplink` or `Downlink`.
+    * `data` - the options field, or the payload.
+    
+    # Returns
+    
+    The commands that were readable, in order.
     """
 
 def lorawan_parse_header(bytes: typing.Sequence[builtins.int]) -> LorawanHeader:

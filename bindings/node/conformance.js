@@ -2099,7 +2099,70 @@ function lorawanVectors() {
     () => device.acceptJoin(unhex(vector.join.forgedAccept), vector.join.devNonce),
     "a join the network never signed must not activate a session",
   );
+
+  macCommandVectors(vector.mac);
 }
+
+// The commands a network and a device configure each other with. Each one is read in the
+// direction it names and written back out, and the bytes have to come back the same.
+function macCommandVectors(vector) {
+  const direction = (name) =>
+    name === "downlink" ? lorawan.Direction.Downlink : lorawan.Direction.Uplink;
+
+  // The same bytes are a request going down and an answer coming up, and the two are not
+  // the same length, so a reader that guesses the direction walks off the end.
+  const both = unhex(vector.bothDirections.bytes);
+  const down = lorawan.macParse(lorawan.Direction.Downlink, both);
+  const up = lorawan.macParse(lorawan.Direction.Uplink, both);
+  assert.strictEqual(down[0].cid, vector.bothDirections.cid);
+  assert.strictEqual(up[0].cid, vector.bothDirections.cid);
+  assert.strictEqual(
+    lorawan.macEncode(down[0]).length,
+    vector.bothDirections.downlinkLength,
+    "a request going down is the length the specification gives it",
+  );
+  assert.strictEqual(
+    lorawan.macEncode(up[0]).length,
+    vector.bothDirections.uplinkLength,
+    "and the answer coming up is shorter",
+  );
+
+  for (const entry of vector.commands) {
+    const bytes = unhex(entry.bytes);
+    const read = lorawan.macParse(direction(entry.direction), bytes);
+    assert.strictEqual(read.length, 1, "one command in " + entry.bytes);
+    assert.strictEqual(read[0].cid, entry.cid, "the identifier of " + entry.bytes);
+    assert.strictEqual(
+      lorawan.macEncode(read[0]).toString("hex"),
+      entry.bytes,
+      entry.bytes + " is written back the way it was read",
+    );
+  }
+
+  const sequence = lorawan.macParse(
+    direction(vector.sequence.direction),
+    unhex(vector.sequence.bytes),
+  );
+  assert.deepStrictEqual(
+    sequence.map((command) => command.cid),
+    vector.sequence.cids,
+    "a field of commands reads in order",
+  );
+
+  // Nothing says how long an unknown command is, so reading stops rather than guessing.
+  const stopped = lorawan.macParse(
+    direction(vector.stops.direction),
+    unhex(vector.stops.bytes),
+  );
+  assert.strictEqual(stopped.length, vector.stops.readable, "reading stops at the unknown one");
+
+  const truncated = lorawan.macParse(
+    direction(vector.truncated.direction),
+    unhex(vector.truncated.bytes),
+  );
+  assert.strictEqual(truncated.length, 0, "a known command cut short is not half read");
+}
+
 
 windowedVectors();
 loraVectors();

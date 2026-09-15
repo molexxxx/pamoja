@@ -20,10 +20,13 @@ import {
   LorawanDevice,
   type LorawanGrant,
   LorawanJoinAccept,
+  type LorawanMacCommand,
   type LorawanOptions,
   LorawanSession,
   lorawanGrantAccept,
   lorawanGrantSession,
+  lorawanMacEncode,
+  lorawanMacParse,
   lorawanParseHeader,
   lorawanParseJoinRequest,
 } from '@pamoja/native'
@@ -436,4 +439,46 @@ function nativeGrant(grant: Grant): LorawanGrant {
     rxDelay: grant.rxDelay,
     cflist: grant.cflist === undefined ? undefined : Buffer.from(grant.cflist),
   }
+}
+
+/**
+ * One of the commands a network and a device configure each other with.
+ *
+ * `kind` names the command and `cid` is the identifier it travels under. Only the
+ * fields that command carries are set; the rest are absent. The same identifier
+ * means a different command in each direction, so `direction` decides which one
+ * this is.
+ */
+export type MacCommand = LorawanMacCommand
+
+/**
+ * Reads the commands packed into a frame options field, or a payload sent on port 0.
+ *
+ * The same identifier means a different command in each direction, so the
+ * direction decides what is read and there is no default: `0x03` going down is a
+ * request to change data rate, and the same byte coming up answers one.
+ *
+ * A command does not carry its own length, so a reader that meets one this build
+ * does not know cannot step over it. Reading stops there and returns what came
+ * before, rather than guessing.
+ *
+ * @param direction - Which way the frame carrying them travels.
+ * @param bytes - The options field, or the payload from port 0.
+ * @returns The commands that were readable, in order.
+ */
+export function macParse(direction: Direction, bytes: Uint8Array): MacCommand[] {
+  return lorawanMacParse(direction, Buffer.from(bytes))
+}
+
+/**
+ * Writes one command out.
+ *
+ * @param command - The command; its `cid` and `direction` decide which fields are
+ *   read.
+ * @returns The bytes it goes out as.
+ * @throws If the identifier and direction name no command, or a field will not fit
+ *   what carries it, such as a frequency above 1.67 GHz.
+ */
+export function macEncode(command: MacCommand): Buffer {
+  return lorawanMacEncode(command)
 }

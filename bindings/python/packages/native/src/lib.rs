@@ -740,6 +740,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<lorawan::LorawanGrant>()?;
         m.add_function(wrap_pyfunction!(lorawan::lorawan_parse_header, m)?)?;
         m.add_function(wrap_pyfunction!(lorawan::lorawan_parse_join_request, m)?)?;
+        m.add_class::<lorawan::LorawanMacCommand>()?;
+        m.add_function(wrap_pyfunction!(lorawan::lorawan_mac_parse, m)?)?;
     }
     #[cfg(feature = "mavlink")]
     {

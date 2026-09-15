@@ -330,6 +330,31 @@ public static partial class NativeMethods
         PamojaLorawanFlags flags,
         out IntPtr outFrame);
 
+    /// <summary>Counts the commands packed into a frame options field.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lorawan_mac_count(
+        PamojaLorawanDirection direction,
+        ReadOnlySpan<byte> bytes,
+        nuint len,
+        out nuint outCount);
+
+    /// <summary>Reads one of the commands packed into a frame options field.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lorawan_mac_at(
+        PamojaLorawanDirection direction,
+        ReadOnlySpan<byte> bytes,
+        nuint len,
+        nuint index,
+        out PamojaLorawanMacCommand outCommand);
+
+    /// <summary>Writes one command out.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lorawan_mac_encode(
+        ref PamojaLorawanMacCommand command,
+        Span<byte> outBytes,
+        nuint capacity,
+        out nuint outWritten);
+
     /// <summary>Verifies a received frame, then decrypts it.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_lorawan_session_decode(

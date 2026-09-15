@@ -2577,6 +2577,79 @@ typedef struct {
   uint8_t rx_delay;
 } PamojaLorawanGrant;
 
+// One command, with the fields of whichever command it is.
+//
+// `cid` names the command and `direction` says which way it travels; together they decide
+// which of the other fields carry anything. The rest are zero.
+typedef struct {
+  // Which command this is.
+  uint8_t cid;
+  // Which way it travels.
+  PamojaLorawanDirection direction;
+  // How far above the floor a link check arrived, in dB.
+  uint8_t margin;
+  // How many gateways heard it.
+  uint8_t gateways;
+  // The data rate a network asks a device to use.
+  uint8_t data_rate;
+  // The transmit power it may use, as a ceiling.
+  uint8_t tx_power;
+  // Which channels may carry an uplink.
+  uint16_t channel_mask;
+  // Which block of sixteen channels that mask applies to.
+  uint8_t mask_control;
+  // How many times to send an unconfirmed uplink.
+  uint8_t transmissions;
+  // Whether the power was set, `1` for yes.
+  uint8_t power_ack;
+  // Whether the data rate was set.
+  uint8_t data_rate_ack;
+  // Whether the channel mask was usable.
+  uint8_t channel_mask_ack;
+  // The share of the air a device is held to, as one over two to this.
+  uint8_t max_duty_cycle;
+  // How far the first receive window sits below the uplink rate.
+  uint8_t rx1_offset;
+  // The rate of the second receive window.
+  uint8_t rx2_data_rate;
+  // A frequency in hertz, for the windows and the channel commands.
+  uint32_t frequency_hz;
+  // Whether the window offset was in range.
+  uint8_t rx1_offset_ack;
+  // Whether the window rate was known.
+  uint8_t rx2_data_rate_ack;
+  // Whether the frequency was usable.
+  uint8_t channel_ack;
+  // A device battery level: `0` on external power, `255` when it cannot tell.
+  uint8_t battery;
+  // The signal-to-noise ratio of the last request, in dB.
+  int8_t snr_margin;
+  // Which channel a channel command names.
+  uint8_t index;
+  // The fastest rate allowed on it.
+  uint8_t max_data_rate;
+  // The slowest rate allowed on it.
+  uint8_t min_data_rate;
+  // Whether the device can run that range of rates.
+  uint8_t data_rate_range_ok;
+  // Whether its radio can reach that frequency.
+  uint8_t frequency_ok;
+  // How long a device waits before its first receive window, as the command codes it.
+  uint8_t delay;
+  // The coded transmit power ceiling a region imposes.
+  uint8_t max_eirp;
+  // Whether an uplink is held to 400 ms of air time.
+  uint8_t uplink_dwell;
+  // Whether a downlink is.
+  uint8_t downlink_dwell;
+  // Whether the channel already had an uplink frequency to pair a downlink with.
+  uint8_t uplink_frequency_exists;
+  // Seconds since the GPS epoch.
+  uint32_t seconds;
+  // The fraction of that second, in steps of one part in 256.
+  uint8_t fraction;
+} PamojaLorawanMacCommand;
+
 // One field of a message definition, as the `CRC_EXTRA` derivation reads it.
 //
 // The seed folds in each field's type name and field name in wire order, plus
@@ -8508,6 +8581,80 @@ PamojaStatus pamoja_lorawan_grant_session(PamojaLorawanGrant grant,
                                           uintptr_t app_key_len,
                                           uint16_t dev_nonce,
                                           PamojaLorawanSession **out_session);
+
+// Counts the commands packed into a field.
+//
+// # Arguments
+//
+// * `direction` - which way the frame carrying them travels.
+// * `bytes` - the options field, or a payload sent on port zero.
+// * `len` - how many bytes that is.
+// * `out_count` - where to put the count.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], with the count written. Counting stops at an identifier this build
+// does not know, because nothing says how long it is, so the count is what was readable.
+//
+// # Safety
+//
+// `bytes` must point to `len` readable bytes or be null when `len` is zero, and `out_count`
+// must be writable.
+PamojaStatus pamoja_lorawan_mac_count(PamojaLorawanDirection direction,
+                                      const uint8_t *bytes,
+                                      uintptr_t len,
+                                      uintptr_t *out_count);
+
+// Reads one of the commands packed into a field.
+//
+// # Arguments
+//
+// * `direction` - which way the frame carrying them travels.
+// * `bytes` - the options field, or a payload sent on port zero.
+// * `len` - how many bytes that is.
+// * `index` - which command, counting from zero.
+// * `out_command` - where to put it.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the command written, or
+// [`PamojaStatus::InvalidArgument`] when there is no command at that position, which
+// includes one cut short and one this build does not know.
+//
+// # Safety
+//
+// `bytes` must point to `len` readable bytes or be null when `len` is zero, and
+// `out_command` must be writable.
+PamojaStatus pamoja_lorawan_mac_at(PamojaLorawanDirection direction,
+                                   const uint8_t *bytes,
+                                   uintptr_t len,
+                                   uintptr_t index,
+                                   PamojaLorawanMacCommand *out_command);
+
+// Writes one command out.
+//
+// # Arguments
+//
+// * `command` - the command to write.
+// * `out` - where to write it.
+// * `capacity` - how much room that is, at least [`PAMOJA_LORAWAN_MAC_MAX`] for any
+//   command.
+// * `out_written` - where to put how many bytes were written.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the bytes written, or [`PamojaStatus::InvalidArgument`] when
+// the identifier and direction name no command, a field will not fit what it is carried in,
+// or there is not enough room.
+//
+// # Safety
+//
+// `command` must be readable, `out` must point to `capacity` writable bytes, and
+// `out_written` must be writable.
+PamojaStatus pamoja_lorawan_mac_encode(const PamojaLorawanMacCommand *command,
+                                       uint8_t *out,
+                                       uintptr_t capacity,
+                                       uintptr_t *out_written);
 
 // Returns the CRC-16/MCRF4XX checksum of a byte string.
 //
