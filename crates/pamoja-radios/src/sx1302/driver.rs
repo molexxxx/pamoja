@@ -102,6 +102,13 @@ pub enum ConcentratorError<E> {
         /// The bandwidth asked for, in hertz.
         bandwidth_hz: u32,
     },
+    /// A channel the frequency shift keying receiver cannot be set to.
+    FskChannel {
+        /// The bit rate asked for, in bits per second.
+        bitrate: u32,
+        /// How many sync word bytes were asked for.
+        sync_word_len: u8,
+    },
     /// A packet the transmit chain cannot be told to send.
     Transmit(tx::TransmitError),
     /// A microcontroller never reached the state it was waited for.
@@ -162,6 +169,13 @@ impl<E: core::fmt::Debug> core::fmt::Display for ConcentratorError<E> {
             } => write!(
                 f,
                 "the service channel cannot run spreading factor {spreading_factor} at {bandwidth_hz} Hz"
+            ),
+            ConcentratorError::FskChannel {
+                bitrate,
+                sync_word_len,
+            } => write!(
+                f,
+                "the FSK channel cannot run {bitrate} bits a second with a {sync_word_len} byte sync word"
             ),
             ConcentratorError::Transmit(error) => error.fmt(f),
             ConcentratorError::Stalled { wanted, reading } => write!(
@@ -717,6 +731,22 @@ where
                 return Err(ConcentratorError::ServiceRate {
                     spreading_factor: service.spreading_factor,
                     bandwidth_hz: service.bandwidth_hz,
+                });
+            }
+        }
+
+        // The same for the receiver that hears frequency shift keying: a rate it cannot be
+        // set to would leave it running at whatever it was last given.
+        if let Some(fsk) = plan.fsk {
+            if !channel::reachable(fsk.offset_hz) {
+                return Err(ConcentratorError::ChannelOutOfReach {
+                    offset_hz: fsk.offset_hz,
+                });
+            }
+            if !fsk.supported() {
+                return Err(ConcentratorError::FskChannel {
+                    bitrate: fsk.bitrate,
+                    sync_word_len: fsk.sync_word_len,
                 });
             }
         }
