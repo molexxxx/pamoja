@@ -3599,6 +3599,122 @@ export interface LorawanJoinRequest {
   devNonce: number
 }
 
+/**
+ * One of the commands a network and a device configure each other with.
+ *
+ * `kind` names the command and `cid` is the identifier it travels under. Only the fields
+ * that command carries are set; the rest are `null`. The same identifier means a different
+ * command in each direction, so `direction` decides which one this is.
+ */
+export interface LorawanMacCommand {
+  /** Which command this is, as a name. */
+  kind: string
+  /** The identifier it travels under. */
+  cid: number
+  /** Which way it travels. */
+  direction: LorawanDirection
+  /** How far above the floor a link check arrived, in dB. */
+  margin?: number
+  /** How many gateways heard it. */
+  gateways?: number
+  /** The data rate a network asks a device to use. */
+  dataRate?: number
+  /** The transmit power it may use, as a ceiling. */
+  txPower?: number
+  /** Which channels may carry an uplink. */
+  channelMask?: number
+  /** Which block of sixteen channels that mask applies to. */
+  maskControl?: number
+  /** How many times to send an unconfirmed uplink. */
+  transmissions?: number
+  /** Whether the power was set. */
+  powerAck?: boolean
+  /** Whether the data rate was set. */
+  dataRateAck?: boolean
+  /** Whether the channel mask was usable. */
+  channelMaskAck?: boolean
+  /** The share of the air a device is held to, as one over two to this. */
+  maxDutyCycle?: number
+  /** How far the first receive window sits below the uplink rate. */
+  rx1Offset?: number
+  /** The rate of the second receive window. */
+  rx2DataRate?: number
+  /** A frequency in hertz, for the receive window and the channel commands. */
+  frequencyHz?: number
+  /** Whether the window offset was in range. */
+  rx1OffsetAck?: boolean
+  /** Whether the window rate was known. */
+  rx2DataRateAck?: boolean
+  /** Whether the frequency was usable. */
+  channelAck?: boolean
+  /** A device battery level: 0 on external power, 255 when it cannot tell. */
+  battery?: number
+  /** The signal-to-noise ratio of the last request, in dB. */
+  snrMargin?: number
+  /** Which channel a channel command names. */
+  index?: number
+  /** The fastest rate allowed on it. */
+  maxDataRate?: number
+  /** The slowest rate allowed on it. */
+  minDataRate?: number
+  /** Whether the device can run that range of rates. */
+  dataRateRangeOk?: boolean
+  /** Whether its radio can reach that frequency. */
+  frequencyOk?: boolean
+  /** How long a device waits before its first receive window, as the command codes it. */
+  delay?: number
+  /** The coded transmit power ceiling a region imposes. */
+  maxEirp?: number
+  /** Whether an uplink is held to 400 ms of air time. */
+  uplinkDwell?: boolean
+  /** Whether a downlink is. */
+  downlinkDwell?: boolean
+  /** Whether the channel already had an uplink frequency to pair a downlink with. */
+  uplinkFrequencyExists?: boolean
+  /** Seconds since the GPS epoch. */
+  seconds?: number
+  /** The fraction of that second, in steps of one part in 256. */
+  fraction?: number
+}
+
+/**
+ * Writes one command out.
+ *
+ * # Arguments
+ *
+ * * `command` - the command, whose `cid` and `direction` decide which fields are read.
+ *
+ * # Returns
+ *
+ * The bytes it goes out as.
+ *
+ * # Errors
+ *
+ * When the identifier and direction name no command, or a field will not fit what carries
+ * it.
+ */
+export declare function lorawanMacEncode(command: LorawanMacCommand): Buffer
+
+/**
+ * Reads the commands packed into a frame options field, or a payload sent on port zero.
+ *
+ * The same identifier means a different command in each direction, so the direction decides
+ * what is read and there is no default.
+ *
+ * A command does not carry its own length, so one this build does not know cannot be
+ * stepped over. Reading stops there, and what came before it is returned.
+ *
+ * # Arguments
+ *
+ * * `direction` - which way the frame carrying them travels.
+ * * `bytes` - the options field, or the payload.
+ *
+ * # Returns
+ *
+ * The commands that were readable, in order.
+ */
+export declare function lorawanMacParse(direction: LorawanDirection, bytes: Buffer): Array<LorawanMacCommand>
+
 /** What kind of message a frame is, read from its header. */
 export declare const enum LorawanMessageType {
   /** A device asking to join a network. */
