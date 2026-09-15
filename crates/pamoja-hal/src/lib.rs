@@ -54,3 +54,4 @@ pub mod linux;
 pub mod onewire;
 #[cfg(feature = "alloc")]
 pub mod script;
+pub mod sim;
