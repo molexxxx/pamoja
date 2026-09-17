@@ -14,15 +14,20 @@ use std::path::Path;
 use std::process::ExitCode;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use pamoja_gateway::daemon::{forward, image, walk, Config, Upstream};
+use embedded_hal::delay::DelayNs;
+use embedded_hal::digital::OutputPin;
+use embedded_hal::spi::SpiDevice;
+use pamoja_gateway::daemon::{forward, image, walk, Bus, Config, Upstream};
 use pamoja_gateway::station::{Levels, Message, Station};
 use pamoja_gateway::udp::{CrcStatus, Packet as Datagram, Stat, TxStatus, Uplink};
 use pamoja_lora::LinkSettings;
-use pamoja_radios::linux::{self, LinuxConcentrator, Wiring};
+use pamoja_radios::linux::{self, Wiring};
+use pamoja_radios::sx1302::bridge;
 use pamoja_radios::sx1302::channel::{Plan, MULTI_BANDWIDTH_HZ};
 use pamoja_radios::sx1302::rx::{self, BUFFER_LEN};
 use pamoja_radios::sx1302::timestamp::Counter;
 use pamoja_radios::sx1302::tx::{gain_for, start_delay, Chain, FrontEnd, Transmit, Trigger};
+use pamoja_radios::sx1302::Sx1302;
 use tokio::net::UdpSocket;
 
 /// How long to wait between asking the concentrator what it heard.
@@ -82,26 +87,62 @@ async fn run(path: &Path) -> Result<(), String> {
     let arbiter = image(Path::new(&config.concentrator.arbiter_firmware))
         .map_err(|error| error.to_string())?;
 
-    let mut wiring = Wiring::new(
-        &config.concentrator.spi,
-        &config.concentrator.gpio_chip,
-        config.concentrator.reset_line,
-    );
-    if let Some(line) = config.concentrator.power_enable_line {
-        wiring = wiring.with_power_enable_line(line);
-    }
-
-    // The second binding is the supply line on a board that gates its concentrator. It stays
-    // bound on purpose: a GPIO line is released when its handle drops, so letting go of this
-    // one switches the card off while everything else still looks configured.
-    let (mut chip, _supply) = linux::open_sx1302(&wiring).map_err(|error| error.to_string())?;
-
     let plan = Plan::new(config.radio.carrier_hz, &config.radio.channels)
         .looking_for(&config.radio.spreading_factors)
         .network(config.radio.lorawan_public);
 
+    match &config.concentrator.bus {
+        Bus::Spi {
+            spi,
+            gpio_chip,
+            reset_line,
+            power_enable_line,
+        } => {
+            let mut wiring = Wiring::new(spi, gpio_chip, *reset_line);
+            if let Some(line) = power_enable_line {
+                wiring = wiring.with_power_enable_line(*line);
+            }
+
+            // The second binding is the supply line on a board that gates its concentrator.
+            // It stays bound on purpose: a GPIO line is released when its handle drops, so
+            // letting go of this one switches the card off while everything else still
+            // looks configured.
+            let (chip, _supply) = linux::open_sx1302(&wiring).map_err(|error| error.to_string())?;
+            serve(chip, &config, &plan, &gain_control, &arbiter).await
+        }
+        Bus::Usb { port } => {
+            let card = linux::open_usb_sx1302(port).map_err(|error| error.to_string())?;
+            if !card.identity.matches_firmware() {
+                eprintln!(
+                    "pamoja-gateway: the bridge runs firmware {} and this gateway was written against {}; carrying on",
+                    card.identity.version_str().unwrap_or("?"),
+                    bridge::FIRMWARE_VERSION
+                );
+            }
+            serve(card.concentrator, &config, &plan, &gain_control, &arbiter).await
+        }
+    }
+}
+
+/// Brings a concentrator up and serves whichever upstream the configuration names.
+///
+/// The same code runs a card on SPI and a card on USB: the driver is the same, and only
+/// what it was handed to talk through differs.
+async fn serve<SPI, RESET, D>(
+    mut chip: Sx1302<SPI, RESET, D>,
+    config: &Config,
+    plan: &Plan,
+    gain_control: &[u8],
+    arbiter: &[u8],
+) -> Result<(), String>
+where
+    SPI: SpiDevice,
+    RESET: OutputPin,
+    D: DelayNs,
+    SPI::Error: core::fmt::Debug,
+{
     if let Some(model) =
-        walk(&mut chip, &config, &plan, &gain_control, &arbiter).map_err(|why| why.to_string())?
+        walk(&mut chip, config, plan, gain_control, arbiter).map_err(|why| why.to_string())?
     {
         println!("pamoja-gateway: {model:?} answering");
     }
@@ -112,18 +153,24 @@ async fn run(path: &Path) -> Result<(), String> {
 
     match &config.upstream {
         Upstream::Forwarder { host, port } => {
-            forwarding(chip, &config, (host.as_str(), *port)).await
+            forwarding(chip, config, (host.as_str(), *port)).await
         }
-        Upstream::Station { endpoint } => stationing(chip, &config, endpoint).await,
+        Upstream::Station { endpoint } => stationing(chip, config, endpoint).await,
     }
 }
 
 /// Forwards uplinks to a packet forwarder, and transmits what it sends back.
-async fn forwarding(
-    mut chip: LinuxConcentrator,
+async fn forwarding<SPI, RESET, D>(
+    mut chip: Sx1302<SPI, RESET, D>,
     config: &Config,
     server: (&str, u16),
-) -> Result<(), String> {
+) -> Result<(), String>
+where
+    SPI: SpiDevice,
+    RESET: OutputPin,
+    D: DelayNs,
+    SPI::Error: core::fmt::Debug,
+{
     let socket = UdpSocket::bind("0.0.0.0:0")
         .await
         .map_err(|error| format!("no socket: {error}"))?;
@@ -293,11 +340,17 @@ impl Clock {
 /// and transmits what it is asked to, both in the server's own terms: a data rate is an index
 /// into the table the server sent rather than a spreading factor, and a downlink is timed
 /// against the uplink it answers rather than against a concentrator count.
-async fn stationing(
-    mut chip: LinuxConcentrator,
+async fn stationing<SPI, RESET, D>(
+    mut chip: Sx1302<SPI, RESET, D>,
     config: &Config,
     endpoint: &str,
-) -> Result<(), String> {
+) -> Result<(), String>
+where
+    SPI: SpiDevice,
+    RESET: OutputPin,
+    D: DelayNs,
+    SPI::Error: core::fmt::Debug,
+{
     let mut station = Station::connect(endpoint, config.gateway)
         .await
         .map_err(|error| format!("{endpoint}: {error}"))?;
@@ -421,8 +474,8 @@ fn overheard(
 
 /// Answers one message from the network server.
 #[allow(clippy::too_many_arguments)]
-async fn answer(
-    chip: &mut LinuxConcentrator,
+async fn answer<SPI, RESET, D>(
+    chip: &mut Sx1302<SPI, RESET, D>,
     station: &mut Station,
     config: &Config,
     counter: &mut Counter,
@@ -430,7 +483,13 @@ async fn answer(
     band_free_at: &mut Option<u32>,
     run: (u8, i8),
     message: Message,
-) -> Result<(), String> {
+) -> Result<(), String>
+where
+    SPI: SpiDevice,
+    RESET: OutputPin,
+    D: DelayNs,
+    SPI::Error: core::fmt::Debug,
+{
     let (session, max_power_dbm) = run;
     match message {
         Message::Downlink {
@@ -522,15 +581,21 @@ async fn answer(
 ///
 /// The station time the packet was scheduled at, which is what the transmission report
 /// carries back.
-fn transmit_at(
-    chip: &mut LinuxConcentrator,
+fn transmit_at<SPI, RESET, D>(
+    chip: &mut Sx1302<SPI, RESET, D>,
     config: &Config,
     counter: &mut Counter,
     band_free_at: &mut Option<u32>,
     pdu: &[u8],
     max_power_dbm: i8,
     windows: &[Option<(i64, u8, u32)>; 2],
-) -> Result<i64, String> {
+) -> Result<i64, String>
+where
+    SPI: SpiDevice,
+    RESET: OutputPin,
+    D: DelayNs,
+    SPI::Error: core::fmt::Debug,
+{
     let (now, _) = chip
         .counter(counter)
         .map_err(|error| format!("the counter stopped answering: {error}"))?;
@@ -588,13 +653,19 @@ fn transmit_at(
 /// an exact one. A modulation this daemon does not drive has no word at all, and a duty
 /// cycle that is not yet spent is reported as a collision, because the slot genuinely is
 /// taken: by the silence the last transmission owes.
-fn transmit_one(
-    chip: &mut LinuxConcentrator,
+fn transmit_one<SPI, RESET, D>(
+    chip: &mut Sx1302<SPI, RESET, D>,
     config: &Config,
     transmit: &pamoja_gateway::udp::Txpk,
     counter: &mut Counter,
     band_free_at: &mut Option<u32>,
-) -> Result<(), (TxStatus, String)> {
+) -> Result<(), (TxStatus, String)>
+where
+    SPI: SpiDevice,
+    RESET: OutputPin,
+    D: DelayNs,
+    SPI::Error: core::fmt::Debug,
+{
     let link = transmit.modulation.link().ok_or_else(|| {
         (
             TxStatus::TxFreq,

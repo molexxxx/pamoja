@@ -13,7 +13,7 @@
 pub mod config;
 pub mod forward;
 
-pub use config::{Config, ConfigError, Upstream};
+pub use config::{Bus, Config, ConfigError, Upstream};
 
 use std::path::Path;
 

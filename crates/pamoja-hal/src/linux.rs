@@ -30,7 +30,10 @@
 //! # }
 //! ```
 
+use nix::sys::termios::{self, BaudRate, ControlFlags, FlushArg, SetArg, SpecialCharacterIndices};
 use std::fmt;
+use std::fs::{File, OpenOptions};
+use std::io;
 use std::path::Path;
 
 use embedded_hal::digital::PinState;
@@ -53,6 +56,8 @@ pub enum OpenError {
     Gpio(gpio_cdev::errors::Error),
     /// The SPI mode was not 0, 1, 2, or 3.
     SpiMode(u8),
+    /// A serial port could not be opened, or could not be set up as a raw byte pipe.
+    Serial(std::io::Error),
 }
 
 impl fmt::Display for OpenError {
@@ -62,6 +67,7 @@ impl fmt::Display for OpenError {
             OpenError::Spi(error) => write!(f, "opening the spi device: {error}"),
             OpenError::Gpio(error) => write!(f, "opening the gpio line: {error}"),
             OpenError::SpiMode(mode) => write!(f, "spi mode {mode} is not 0, 1, 2, or 3"),
+            OpenError::Serial(error) => write!(f, "opening the serial port: {error}"),
         }
     }
 }
@@ -73,6 +79,7 @@ impl std::error::Error for OpenError {
             OpenError::Spi(error) => Some(error),
             OpenError::Gpio(error) => Some(error),
             OpenError::SpiMode(_) => None,
+            OpenError::Serial(error) => Some(error),
         }
     }
 }
@@ -200,4 +207,80 @@ pub fn input(chip: impl AsRef<Path>, line: u32, consumer: &str) -> Result<CdevPi
 /// A [`DelayNs`](embedded_hal::delay::DelayNs) over `std::thread::sleep`.
 pub fn delay() -> Delay {
     Delay
+}
+
+/// The serial port a USB card's bridge answers on, opened raw.
+///
+/// A CDC-ACM device such as `/dev/ttyACM0` is a terminal as far as the kernel is concerned,
+/// and a terminal echoes, translates line endings, and buffers by line, every one of which
+/// would mangle a binary protocol. This opens the port and turns all of that off: eight data
+/// bits, no parity, one stop bit, no flow control, and a read that returns once at least one
+/// byte has arrived. Whatever the card sent before anyone was listening is dropped.
+///
+/// The speed is nominal, since a USB serial port has none, but the port has to be given one.
+///
+/// # Arguments
+///
+/// * `path` - the device file.
+/// * `baud` - the nominal speed, one of the standard rates from 9600 to 921600.
+///
+/// # Returns
+///
+/// The open port, which reads and writes bytes.
+///
+/// # Errors
+///
+/// [`OpenError::Serial`] when the file cannot be opened, the rate is not a standard one, or
+/// the terminal settings cannot be read or applied.
+///
+/// # Examples
+///
+/// ```no_run
+/// use pamoja_hal::linux;
+///
+/// let port = linux::serial("/dev/ttyACM0", 115_200)?;
+/// # Ok::<(), linux::OpenError>(())
+/// ```
+pub fn serial(path: impl AsRef<Path>, baud: u32) -> Result<File, OpenError> {
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
+        .map_err(OpenError::Serial)?;
+    raw(&file, baud).map_err(OpenError::Serial)?;
+    Ok(file)
+}
+
+// Turns a terminal into a byte pipe at one speed.
+fn raw(file: &File, baud: u32) -> io::Result<()> {
+    let speed = match baud {
+        9_600 => BaudRate::B9600,
+        19_200 => BaudRate::B19200,
+        38_400 => BaudRate::B38400,
+        57_600 => BaudRate::B57600,
+        115_200 => BaudRate::B115200,
+        230_400 => BaudRate::B230400,
+        460_800 => BaudRate::B460800,
+        921_600 => BaudRate::B921600,
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "not a standard serial rate",
+            ))
+        }
+    };
+
+    let mut tty = termios::tcgetattr(file)?;
+    termios::cfmakeraw(&mut tty);
+    termios::cfsetispeed(&mut tty, speed)?;
+    termios::cfsetospeed(&mut tty, speed)?;
+    tty.control_flags |= ControlFlags::CLOCAL | ControlFlags::CREAD;
+    tty.control_flags &= !(ControlFlags::PARENB | ControlFlags::CSTOPB | ControlFlags::CRTSCTS);
+    tty.control_flags &= !ControlFlags::CSIZE;
+    tty.control_flags |= ControlFlags::CS8;
+    tty.control_chars[SpecialCharacterIndices::VMIN as usize] = 1;
+    tty.control_chars[SpecialCharacterIndices::VTIME as usize] = 1;
+    termios::tcsetattr(file, SetArg::TCSANOW, &tty)?;
+    termios::tcflush(file, FlushArg::TCIOFLUSH)?;
+    Ok(())
 }

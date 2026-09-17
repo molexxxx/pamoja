@@ -50,8 +50,15 @@ wrong SPI device or a wrong reset line and is worth ruling out first. Name it as
 holds it for as long as it runs.
 
 The USB versions of the RAK5146 and the WM1302 talk to their host through an
-STM32 bridge rather than over SPI, which this driver does not speak yet. Use an
-SPI version.
+STM32 bridge rather than over SPI. The bridge does the SPI on the host's behalf
+and drives the card's supply and reset pins itself, so a USB card needs none of
+the lines above: it enumerates as a serial device, `/dev/ttyACM0` on a Pi with
+nothing else plugged in, and that path is the whole of its wiring. Name it as
+`usb` in place of `spi`, `gpio_chip`, and `reset_line`, and the gateway opens
+the port raw, asks the bridge who it is, brings the card up in the order the
+reference does, and then drives the concentrator exactly as it would over SPI.
+Every register write costs a round trip to the bridge, which is the one thing
+the USB version is slower at; the firmware load is where it shows.
 
 ## The firmware images
 
@@ -79,15 +86,18 @@ in. The BSD 3-Clause notice those files carry is reproduced in
 ## The configuration
 
 One JSON file, which both the daemon and the first program read. Everything
-without a default is required.
+without a default is required. A card is named by `concentrator.spi` or by
+`concentrator.usb`, never both, and the three lines below the SPI device belong
+to a card on SPI alone.
 
 | Field | Value | Default |
 | --- | --- | --- |
 | `gateway` | The identifier this gateway reports itself by, sixteen hexadecimal characters. Colons and dashes are ignored. | |
-| `concentrator.spi` | The SPI device the card answers on. | |
-| `concentrator.gpio_chip` | The GPIO character device the reset line is on. | |
+| `concentrator.spi` | The SPI device a card on the host's own bus answers on. | |
+| `concentrator.gpio_chip` | The GPIO character device its reset line is on. | |
 | `concentrator.reset_line` | The line number within that chip. | |
 | `concentrator.power_enable_line` | The line that switches the card's supply on, for a board that gates it. | not driven |
+| `concentrator.usb` | The serial device a USB card enumerates as, in place of the four above. | |
 | `concentrator.firmware.gain_control` | The gain control image. | |
 | `concentrator.firmware.arbiter` | The arbiter image. | |
 | `concentrator.front_end` | `sx1250`, or `sx1255`, `sx1257`, `sx125x` for the older boards. | `sx1250` |
@@ -105,6 +115,7 @@ without a default is required.
 | `radio.dual_demodulation` | A mask of factors to demodulate twice over, one bit each from SF5. | `0` |
 | `upstream.forwarder` | The host to send uplinks to. | |
 | `upstream.port` | Its port. | `1700` |
+| `upstream.station` | The Basics Station endpoint that says where the network server is, in place of a forwarder. | |
 
 A gateway on the European band, listening on the eight channels around 867.5 MHz:
 
@@ -115,6 +126,27 @@ A gateway on the European band, listening on the eight channels around 867.5 MHz
     "spi": "/dev/spidev0.0",
     "gpio_chip": "/dev/gpiochip0",
     "reset_line": 23,
+    "firmware": {
+      "gain_control": "/usr/share/pamoja/agc_fw_sx1250.var",
+      "arbiter": "/usr/share/pamoja/arb_fw.var"
+    }
+  },
+  "radio": {
+    "carrier_hz": 867800000,
+    "channels": [-700000, -500000, -300000, -100000, 100000, 300000, 500000, 700000]
+  },
+  "upstream": { "forwarder": "router.example.net" }
+}
+```
+
+A USB card names its port instead of a bus and two lines, and nothing else
+changes:
+
+```json
+{
+  "gateway": "b827ebfffe010203",
+  "concentrator": {
+    "usb": "/dev/ttyACM0",
     "firmware": {
       "gain_control": "/usr/share/pamoja/agc_fw_sx1250.var",
       "arbiter": "/usr/share/pamoja/arb_fw.var"
@@ -198,12 +230,19 @@ configured after their firmware is loaded rather than before.
 
 That order lives in the library, so a program walks it in one call:
 
+<!-- snippet: examples/boards/gateway/src/main.rs#example -->
+From [`examples/boards/gateway/src/main.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/boards/gateway/src/main.rs):
+
 ```rust
-use pamoja_gateway::daemon::{forward, image, walk, Config};
+use embedded_hal::delay::DelayNs;
+use embedded_hal::digital::OutputPin;
+use embedded_hal::spi::SpiDevice;
+use pamoja_gateway::daemon::{forward, image, walk, Bus, Config};
 use pamoja_radios::linux::{self, Wiring};
 use pamoja_radios::sx1302::channel::Plan;
 use pamoja_radios::sx1302::rx::{self, BUFFER_LEN};
 use pamoja_radios::sx1302::timestamp::Counter;
+use pamoja_radios::sx1302::Sx1302;
 
 /// How long to wait between asking the concentrator what it heard.
 const POLL: Duration = Duration::from_millis(10);
@@ -219,22 +258,58 @@ fn main() -> Result<(), Box<dyn Error>> {
     let gain_control = image(Path::new(&config.concentrator.gain_control_firmware))?;
     let arbiter = image(Path::new(&config.concentrator.arbiter_firmware))?;
 
-    let wiring = Wiring::new(
-        &config.concentrator.spi,
-        &config.concentrator.gpio_chip,
-        config.concentrator.reset_line,
-    );
-    let mut chip = linux::open_sx1302(&wiring)?;
+    // A card on the host's SPI is reached through a bus and two lines. A USB card is reached
+    // through its port, and the bridge on the card does the SPI and drives the pins. Once
+    // open, both are the same driver, so everything past this point is shared.
+    match &config.concentrator.bus {
+        Bus::Spi {
+            spi,
+            gpio_chip,
+            reset_line,
+            power_enable_line,
+        } => {
+            let mut wiring = Wiring::new(spi, gpio_chip, *reset_line);
+            if let Some(line) = power_enable_line {
+                wiring = wiring.with_power_enable_line(*line);
+            }
 
+            // Some boards gate the concentrator's supply behind a line. The handle holding it
+            // stays bound while the card listens, because dropping it releases the line and
+            // the card with it.
+            let (chip, _supply) = linux::open_sx1302(&wiring)?;
+            listen(chip, &config, spi, &gain_control, &arbiter)
+        }
+        Bus::Usb { port } => {
+            let card = linux::open_usb_sx1302(port)?;
+            listen(card.concentrator, &config, port, &gain_control, &arbiter)
+        }
+    }
+}
+
+/// Starts a concentrator and prints every packet it hears, whichever bus it was opened on.
+fn listen<SPI, RESET, D>(
+    mut chip: Sx1302<SPI, RESET, D>,
+    config: &Config,
+    reached_on: &str,
+    gain_control: &[u8],
+    arbiter: &[u8],
+) -> Result<(), Box<dyn Error>>
+where
+    SPI: SpiDevice,
+    SPI::Error: core::fmt::Debug + 'static,
+    RESET: OutputPin,
+    D: DelayNs,
+{
     // A concentrator tunes once and listens around that carrier, so a channel is an offset
     // from it rather than a frequency of its own.
     let plan = Plan::new(config.radio.carrier_hz, &config.radio.channels)
-        .looking_for(&config.radio.spreading_factors);
+        .looking_for(&config.radio.spreading_factors)
+        .network(config.radio.lorawan_public);
 
     // One call walks the whole start-up order. A board that stops partway names the step it
     // stopped on, which is the difference between a wiring fault and a firmware one.
-    if let Some(model) = walk(&mut chip, &config, &plan, &gain_control, &arbiter)? {
-        println!("{model:?} answering on {}", config.concentrator.spi);
+    if let Some(model) = walk(&mut chip, config, &plan, gain_control, arbiter)? {
+        println!("{model:?} answering on {reached_on}");
     }
     println!(
         "listening on {} channels around {} Hz",
@@ -280,6 +355,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 }
 ```
+<!-- end -->
 
 `cargo run --release -- gateway.json`, with a node transmitting nearby:
 
@@ -310,6 +386,9 @@ The program above drives the board through the library's own order. When a board
 does something that order does not explain, the same driver reads and writes any
 byte of the register map:
 
+<!-- snippet: examples/boards/gateway/src/bin/registers.rs#example -->
+From [`examples/boards/gateway/src/bin/registers.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/boards/gateway/src/bin/registers.rs):
+
 ```rust
 use pamoja_radios::linux::{self, Wiring};
 use pamoja_radios::sx1302::register::Register;
@@ -322,8 +401,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Err("usage: registers <spi> <gpio-chip> <reset-line> [address] [value]".into());
     };
 
-    let wiring = Wiring::new(&spi, &gpio_chip, number(&line).ok_or("the reset line is a number")?);
-    let mut chip = linux::open_sx1302(&wiring)?;
+    let wiring = Wiring::new(
+        &spi,
+        &gpio_chip,
+        number(&line).ok_or("the reset line is a number")?,
+    );
+    // The second binding holds the supply line on a board that gates it. Dropping the handle
+    // releases the line, so it stays bound for as long as the chip is talked to.
+    let (mut chip, _supply) = linux::open_sx1302(&wiring)?;
 
     // Opening pulses reset, so the chip is answering by here and nothing else has been asked
     // of it. Both of these read the chip's own identity rather than anything configured.
@@ -347,7 +432,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("{address:#06x} = {:#04x}", chip.read_register(whole)?);
     Ok(())
 }
+
+/// Reads a number written either in decimal or with a `0x` prefix.
+fn number(text: &str) -> Option<u32> {
+    match text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")) {
+        Some(hex) => u32::from_str_radix(hex, 16).ok(),
+        None => text.parse().ok(),
+    }
+}
 ```
+<!-- end -->
 
 `cargo run --release --bin registers -- /dev/spidev0.0 /dev/gpiochip0 23` asks the
 chip what it is, which is the shortest check that the bus and the reset line are

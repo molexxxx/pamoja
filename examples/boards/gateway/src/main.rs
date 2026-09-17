@@ -6,8 +6,8 @@
 //! server would be told them in, a carrier in hertz and levels in decibels, rather than the
 //! counts the chip keeps them as.
 //!
-//! Seat the card, wire its reset line, and run `cargo run --release -- gateway.json`.
-//! See docs/boards/gateway.md.
+//! Seat the card, wire its reset line or plug it in, and run
+//! `cargo run --release -- gateway.json`. See docs/boards/gateway.md.
 
 use std::env;
 use std::error::Error;
@@ -17,11 +17,15 @@ use std::thread;
 use std::time::Duration;
 
 // ANCHOR: example
-use pamoja_gateway::daemon::{forward, image, walk, Config};
+use embedded_hal::delay::DelayNs;
+use embedded_hal::digital::OutputPin;
+use embedded_hal::spi::SpiDevice;
+use pamoja_gateway::daemon::{forward, image, walk, Bus, Config};
 use pamoja_radios::linux::{self, Wiring};
 use pamoja_radios::sx1302::channel::Plan;
 use pamoja_radios::sx1302::rx::{self, BUFFER_LEN};
 use pamoja_radios::sx1302::timestamp::Counter;
+use pamoja_radios::sx1302::Sx1302;
 
 /// How long to wait between asking the concentrator what it heard.
 const POLL: Duration = Duration::from_millis(10);
@@ -37,19 +41,48 @@ fn main() -> Result<(), Box<dyn Error>> {
     let gain_control = image(Path::new(&config.concentrator.gain_control_firmware))?;
     let arbiter = image(Path::new(&config.concentrator.arbiter_firmware))?;
 
-    let mut wiring = Wiring::new(
-        &config.concentrator.spi,
-        &config.concentrator.gpio_chip,
-        config.concentrator.reset_line,
-    );
-    if let Some(line) = config.concentrator.power_enable_line {
-        wiring = wiring.with_power_enable_line(line);
+    // A card on the host's SPI is reached through a bus and two lines. A USB card is reached
+    // through its port, and the bridge on the card does the SPI and drives the pins. Once
+    // open, both are the same driver, so everything past this point is shared.
+    match &config.concentrator.bus {
+        Bus::Spi {
+            spi,
+            gpio_chip,
+            reset_line,
+            power_enable_line,
+        } => {
+            let mut wiring = Wiring::new(spi, gpio_chip, *reset_line);
+            if let Some(line) = power_enable_line {
+                wiring = wiring.with_power_enable_line(*line);
+            }
+
+            // Some boards gate the concentrator's supply behind a line. The handle holding it
+            // stays bound while the card listens, because dropping it releases the line and
+            // the card with it.
+            let (chip, _supply) = linux::open_sx1302(&wiring)?;
+            listen(chip, &config, spi, &gain_control, &arbiter)
+        }
+        Bus::Usb { port } => {
+            let card = linux::open_usb_sx1302(port)?;
+            listen(card.concentrator, &config, port, &gain_control, &arbiter)
+        }
     }
+}
 
-    // Some boards gate the concentrator's supply behind a line. The handle holding it stays
-    // bound for the whole program, because dropping it releases the line and the card with it.
-    let (mut chip, _supply) = linux::open_sx1302(&wiring)?;
-
+/// Starts a concentrator and prints every packet it hears, whichever bus it was opened on.
+fn listen<SPI, RESET, D>(
+    mut chip: Sx1302<SPI, RESET, D>,
+    config: &Config,
+    reached_on: &str,
+    gain_control: &[u8],
+    arbiter: &[u8],
+) -> Result<(), Box<dyn Error>>
+where
+    SPI: SpiDevice,
+    SPI::Error: core::fmt::Debug + 'static,
+    RESET: OutputPin,
+    D: DelayNs,
+{
     // A concentrator tunes once and listens around that carrier, so a channel is an offset
     // from it rather than a frequency of its own.
     let plan = Plan::new(config.radio.carrier_hz, &config.radio.channels)
@@ -58,8 +91,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // One call walks the whole start-up order. A board that stops partway names the step it
     // stopped on, which is the difference between a wiring fault and a firmware one.
-    if let Some(model) = walk(&mut chip, &config, &plan, &gain_control, &arbiter)? {
-        println!("{model:?} answering on {}", config.concentrator.spi);
+    if let Some(model) = walk(&mut chip, config, &plan, gain_control, arbiter)? {
+        println!("{model:?} answering on {reached_on}");
     }
     println!(
         "listening on {} channels around {} Hz",
