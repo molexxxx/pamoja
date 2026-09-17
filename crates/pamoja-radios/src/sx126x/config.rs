@@ -932,6 +932,12 @@ pub mod register {
     pub const TX_MODULATION: u16 = 0x0889;
     /// The receive gain.
     pub const RX_GAIN: u16 = 0x08AC;
+    /// The first of four bytes of random number, filled while the receiver listens.
+    pub const RANDOM_NUMBER: u16 = 0x0819;
+    /// An analog LNA control whose lowest bit Semtech's drivers clear to draw a random number.
+    pub const ANA_LNA: u16 = 0x08E2;
+    /// An analog mixer control whose top bit Semtech's drivers clear for the same reason.
+    pub const ANA_MIXER: u16 = 0x08E5;
     /// The PA clamping configuration the antenna mismatch workaround raises.
     pub const TX_CLAMP_CONFIG: u16 = 0x08D8;
     /// The over current protection level.

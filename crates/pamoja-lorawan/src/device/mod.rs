@@ -799,6 +799,34 @@ impl<'p> EndDevice<'p> {
         self.channels.enabled()
     }
 
+    /// Returns the lowest and highest frequency the device transmits or listens on.
+    ///
+    /// A radio that calibrates for a band, as an SX126x does, calibrates for this one, so
+    /// moving between the device's channels and windows needs no calibration in between.
+    ///
+    /// # Returns
+    ///
+    /// The lower and upper frequency in hertz, across every defined channel's uplink and
+    /// downlink and the second receive window.
+    pub fn frequency_span(&self) -> (u32, u32) {
+        let mut low = self.rx2_frequency_hz;
+        let mut high = self.rx2_frequency_hz;
+        for (_, channel) in self.channels.enabled() {
+            low = low.min(channel.uplink_hz).min(channel.downlink_hz);
+            high = high.max(channel.uplink_hz).max(channel.downlink_hz);
+        }
+        for block in self.plan.join_channels {
+            if let (Some(first), Some(last)) = (
+                block.frequency_hz(0),
+                block.frequency_hz(block.count.saturating_sub(1)),
+            ) {
+                low = low.min(first);
+                high = high.max(last);
+            }
+        }
+        (low, high)
+    }
+
     /// Returns the second receive window's frequency and data rate.
     ///
     /// # Returns
