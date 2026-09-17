@@ -48,7 +48,7 @@ assert received.payload == b"level=high"
 
 # ANCHOR: device
 from pamoja.lora import plan_for
-from pamoja.lorawan import DeviceError, DeviceSettings, end_device
+from pamoja.lorawan import DeviceError, DeviceSettings, ReceiveWindow, end_device
 
 root_key = bytes([7]) * 16
 dev_eui = bytes.fromhex("70b3d57ed0051234")
@@ -90,9 +90,10 @@ except DeviceError as error:
     if error.kind == "busy":
         print("busy      the reading before still waits on its windows")
 
-# The network acknowledges it and sends a setting back on the same port.
+# The network acknowledges it in the first window and sends a setting back on the same
+# port. Naming the window holds the frame to the length that window's data rate carries.
 answer = network.session(root_key, 1).encode_downlink(0, 2, b"set=19.0", ack=True)
-downlink = node.heard(answer, 7)
+downlink = node.heard(answer, 7, ReceiveWindow.RX1)
 if downlink.kind == "data":
     delivery = downlink.delivery
     acknowledged = "true" if delivery.acknowledged else "false"

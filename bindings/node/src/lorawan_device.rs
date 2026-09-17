@@ -12,7 +12,8 @@
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use pamoja_lorawan::device::{
-    Battery, DeviceError, EndDevice, Heard, Next, Saved, Settings, StateError, Transmission, Window,
+    Battery, DeviceError, EndDevice, Heard, Next, ReceiveWindow, Saved, Settings, StateError,
+    Transmission, Window,
 };
 use pamoja_lorawan::Version;
 
@@ -140,6 +141,15 @@ pub struct LorawanDelivery {
 }
 
 /// What a frame heard in a receive window turned out to be.
+/// Which receive window a frame arrived in.
+#[napi(string_enum)]
+pub enum LorawanReceiveWindow {
+    /// The first window, on the uplink's downlink channel.
+    Rx1,
+    /// The second, on the fixed frequency and data rate.
+    Rx2,
+}
+
 #[napi(string_enum)]
 pub enum LorawanHeardKind {
     /// A join accept: the device is on the network.
@@ -318,15 +328,30 @@ impl LorawanEndDevice {
 
     /// Reads a frame heard in one of the receive windows of the last transmission.
     ///
-    /// A frame that is not for this device, or does not verify, throws and leaves the
-    /// transmission waiting, so the second window still opens.
+    /// A frame that is not for this device, does not verify, or is longer than the window's
+    /// data rate carries throws and leaves the transmission waiting, so the second window
+    /// still opens. Without `window`, a frame may be as long as the faster window allows.
     #[napi]
-    pub fn heard(&mut self, env: Env, frame: Buffer, snr_db: i32) -> Result<LorawanHeard> {
+    pub fn heard(
+        &mut self,
+        env: Env,
+        frame: Buffer,
+        snr_db: i32,
+        window: Option<LorawanReceiveWindow>,
+    ) -> Result<LorawanHeard> {
         let snr_db = snr_db.clamp(i32::from(i8::MIN), i32::from(i8::MAX)) as i8;
-        let heard = self
-            .inner
-            .heard(frame.as_ref(), snr_db)
-            .map_err(|error| thrown(&env, error))?;
+        let heard = match window {
+            Some(LorawanReceiveWindow::Rx1) => {
+                self.inner
+                    .heard_in(ReceiveWindow::Rx1, frame.as_ref(), snr_db)
+            }
+            Some(LorawanReceiveWindow::Rx2) => {
+                self.inner
+                    .heard_in(ReceiveWindow::Rx2, frame.as_ref(), snr_db)
+            }
+            None => self.inner.heard(frame.as_ref(), snr_db),
+        }
+        .map_err(|error| thrown(&env, error))?;
         Ok(match heard {
             Heard::Joined { dev_addr } => LorawanHeard {
                 kind: LorawanHeardKind::Joined,

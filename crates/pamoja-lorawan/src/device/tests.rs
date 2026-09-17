@@ -594,6 +594,33 @@ fn a_new_channel_command_does_nothing_but_answer_outside_the_table() {
 }
 
 #[test]
+fn a_new_channel_past_the_last_a_dynamic_plan_defines_is_refused() {
+    // RP002-1.0.5 section 3.4.5: EU868 supports at most 80 channels, the last that
+    // ChMaskCntl 4 reaches being channel 79.
+    let (mut device, mut network, now) = joined(Region::Eu868, settings());
+    device.send(2, b"a", false, now).expect("goes out");
+    let downlink = network.commands(&[
+        MacCommand::NewChannelReq {
+            index: 79,
+            frequency_hz: 867_100_000,
+            max_data_rate: 5,
+            min_data_rate: 0,
+        },
+        MacCommand::NewChannelReq {
+            index: 80,
+            frequency_hz: 867_300_000,
+            max_data_rate: 5,
+            min_data_rate: 0,
+        },
+    ]);
+    data(device.heard(&downlink, 5));
+    let next = device.send(2, b"b", false, now + LATER).expect("goes out");
+    assert_eq!(fopts(&network, &next, 1), [0x07, 0x03, 0x07, 0x00]);
+    let created: Vec<usize> = device.channels().map(|(index, _)| index).collect();
+    assert_eq!(created, [0, 1, 2, 79]);
+}
+
+#[test]
 fn a_duty_cycle_request_holds_the_device_to_its_share() {
     // TS001-1.0.4 section 5.3: an aggregated share of 1/2^MaxDutyCycle, kept by waiting
     // airtime x (2^n - 1) after each frame.
@@ -904,6 +931,70 @@ fn another_device_s_frame_leaves_the_windows_open() {
     );
     assert_eq!(device.nothing_heard(now + 3_000_000), Ok(Next::Done));
     let _ = network;
+}
+
+#[test]
+fn a_downlink_longer_than_its_window_carries_is_discarded() {
+    // TS001-1.0.4 section 4.1: a MACPayload longer than M for the data rate the frame was
+    // received at is silently discarded. RP002-1.0.5 table 16 gives EU868 DR0 an M of 59
+    // bytes and DR5 one of 250.
+    let (mut device, mut network, now) = joined(Region::Eu868, settings());
+    let uplink = device.send(2, b"a", false, now).expect("goes out");
+    assert_eq!((uplink.rx1.data_rate, uplink.rx2.data_rate), (5, 0));
+
+    // A 52-byte payload makes a MACPayload of 60: header 7, port 1, payload 52.
+    let long = network.send(Downlink::new(network.fcnt_down, 3, &[0x5A; 52]));
+    assert_eq!(
+        device.heard_in(ReceiveWindow::Rx2, &long, 5),
+        Err(DeviceError::Frame(LorawanError::PayloadTooLong))
+    );
+    assert_eq!(device.fcnt_down(), None, "the frame was not processed");
+    let delivery = data(device.heard_in(ReceiveWindow::Rx1, &long, 5));
+    assert_eq!(delivery.payload(), &[0x5A; 52]);
+
+    // Exactly M fits.
+    device.send(2, b"b", false, now + LATER).expect("goes out");
+    let full = network.send(Downlink::new(network.fcnt_down, 3, &[0x5A; 51]));
+    assert_eq!(
+        data(device.heard_in(ReceiveWindow::Rx2, &full, 5))
+            .payload()
+            .len(),
+        51
+    );
+
+    // Without the window, the frame is held to the longer of the two.
+    device
+        .send(2, b"c", false, now + 2 * LATER)
+        .expect("goes out");
+    let longest = network.send(Downlink::new(network.fcnt_down, 3, &[0x5A; 242]));
+    assert_eq!(data(device.heard(&longest, 5)).payload().len(), 242);
+}
+
+#[test]
+fn a_confirmed_uplink_answered_without_an_acknowledgment_waits_out_the_timeout() {
+    // TS001-1.0.4 section 4.3.1.3: a device that asked for an acknowledgment and has not had
+    // one waits RETRANSMIT_TIMEOUT after RECEIVE_DELAY2 before sending again, even though the
+    // downlink ended the uplink's repetitions.
+    let (mut device, mut network, now) =
+        joined(Region::Eu868, settings().without_regional_duty_cycle());
+    let uplink = device.send(2, b"a", true, now).expect("goes out");
+    let answer = network.send(Downlink::new(network.fcnt_down, 3, b"no ack"));
+    assert!(!data(device.heard(&answer, 5)).acknowledged());
+
+    let rx2_opens = now + uplink.airtime_us + u64::from(uplink.rx2.delay_us);
+    let Err(DeviceError::Wait { until_us }) = device.send(2, b"b", false, now + 1) else {
+        panic!("the next uplink waits");
+    };
+    assert!((rx2_opens + 1_000_000..=rx2_opens + 3_000_000).contains(&until_us));
+    assert!(device.send(2, b"b", false, until_us).is_ok());
+
+    // An acknowledged one, or an unconfirmed one, leaves the air free at once.
+    let answer = network.send(Downlink::empty(network.fcnt_down).with_ack());
+    data(device.heard(&answer, 5));
+    device.send(2, b"c", true, until_us + 1).expect("goes out");
+    let answer = network.send(Downlink::empty(network.fcnt_down).with_ack());
+    assert!(data(device.heard(&answer, 5)).acknowledged());
+    assert!(device.send(2, b"d", false, until_us + 2).is_ok());
 }
 
 #[test]

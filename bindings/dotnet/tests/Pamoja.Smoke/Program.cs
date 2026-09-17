@@ -5134,9 +5134,16 @@ static object? RunDeviceStep(LorawanEndDevice device, JsonElement step)
         case "repeat":
             return Transmission(device.Repeat(step.GetProperty("nowUs").GetUInt64()));
         case "heard":
+            LorawanReceiveWindow? window = step.GetProperty("window").GetString() switch
+            {
+                "rx1" => LorawanReceiveWindow.Rx1,
+                "rx2" => LorawanReceiveWindow.Rx2,
+                _ => null,
+            };
             LorawanHeard heard = device.Heard(
                 Convert.FromHexString(step.GetProperty("frame").GetString()!),
-                step.GetProperty("snrDb").GetSByte());
+                step.GetProperty("snrDb").GetSByte(),
+                window);
             return heard switch
             {
                 LorawanHeard.Data data => new Dictionary<string, object>

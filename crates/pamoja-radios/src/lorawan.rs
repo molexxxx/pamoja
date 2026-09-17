@@ -101,7 +101,9 @@ use embedded_hal::delay::DelayNs;
 use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal::spi::SpiDevice;
 use pamoja_lora::LinkSettings;
-use pamoja_lorawan::device::{Delivery, DeviceError, EndDevice, Heard, Next, Transmission, Window};
+use pamoja_lorawan::device::{
+    Delivery, DeviceError, EndDevice, Heard, Next, ReceiveWindow, Transmission, Window,
+};
 
 use crate::radio::{self, Radio, RadioConfig, SyncWord};
 use crate::sx126x::{self, Sx126x};
@@ -565,8 +567,11 @@ where
         let ended_us = self.clock.now_us();
 
         let mut heard = None;
-        for window in [transmission.rx1, transmission.rx2] {
-            if let Some(found) = self.listen(ended_us, &window, transmission.output_dbm)? {
+        for (which, window) in [
+            (ReceiveWindow::Rx1, transmission.rx1),
+            (ReceiveWindow::Rx2, transmission.rx2),
+        ] {
+            if let Some(found) = self.listen(ended_us, which, &window, transmission.output_dbm)? {
                 heard = Some(found);
                 break;
             }
@@ -579,6 +584,7 @@ where
     fn listen(
         &mut self,
         ended_us: u64,
+        which: ReceiveWindow,
         window: &Window,
         output_dbm: i8,
     ) -> Result<Option<Heard>, NodeError<R::Error>> {
@@ -609,7 +615,10 @@ where
         {
             Reception::Frame { len, snr_db } => {
                 let len = len.min(MAX_FRAME);
-                Ok(self.device.heard(&self.buffer[..len], snr_db).ok())
+                Ok(self
+                    .device
+                    .heard_in(which, &self.buffer[..len], snr_db)
+                    .ok())
             }
             Reception::Nothing => Ok(None),
         }
@@ -868,6 +877,7 @@ mod tests {
         pending: Option<Vec<u8>>,
         receives: u32,
         commands: Vec<MacCommand>,
+        payload: Vec<u8>,
     }
 
     impl Transceiver for Air {
@@ -896,8 +906,13 @@ mod tests {
             } else if let Some(session) = self.session {
                 let mut fopts = [0u8; 15];
                 let len = encode_all(&self.commands, &mut fopts).expect("fits");
+                let downlink = if self.payload.is_empty() {
+                    Downlink::empty(self.fcnt_down)
+                } else {
+                    Downlink::new(self.fcnt_down, 3, &self.payload)
+                };
                 let downlink = session
-                    .encode_downlink(&Downlink::empty(self.fcnt_down).with_fopts(&fopts[..len]))
+                    .encode_downlink(&downlink.with_fopts(&fopts[..len]))
                     .expect("encodes");
                 self.fcnt_down += 1;
                 self.commands.clear();
@@ -988,6 +1003,7 @@ mod tests {
             pending: None,
             receives: 0,
             commands: Vec::new(),
+            payload: Vec::new(),
         };
         let device = EndDevice::new(
             Region::Eu868.plan(),
@@ -1086,6 +1102,27 @@ mod tests {
         node.radio_mut().foreign_first = true;
         assert_eq!(node.join(1), Ok(true));
         assert_eq!(receives(&calls.borrow()).len(), 2);
+    }
+
+    #[test]
+    fn a_frame_longer_than_the_window_it_arrived_in_carries_is_not_taken() {
+        // TS001-1.0.4 section 4.1. The second window listens at DR0 here, where RP002-1.0.5
+        // table 16 holds a MACPayload to 59 bytes; a 52-byte payload makes one of 60.
+        let (mut node, _, now) = node(Answer::Rx1);
+        assert_eq!(node.join(1), Ok(true));
+        now.set(now.get() + 600_000_000);
+        node.radio_mut().answer = Answer::Rx2;
+        node.radio_mut().payload = vec![0x5A; 52];
+        let long = node.send(2, b"21.5", false).expect("sends");
+        assert!(long.delivery.is_none());
+
+        now.set(now.get() + 600_000_000);
+        node.radio_mut().payload = vec![0x5A; 51];
+        let full = node.send(2, b"21.6", false).expect("sends");
+        assert_eq!(
+            full.delivery.map(|delivery| delivery.payload().len()),
+            Some(51)
+        );
     }
 
     #[test]

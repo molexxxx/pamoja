@@ -163,11 +163,15 @@ released together, so one entry covers all of them.
 - A LoRaWAN Class A end device in `pamoja_lorawan::device`, which is what a node
   runs to take part in a network. It joins over the air or starts from a
   provisioned session, picks a channel and data rate for each uplink, says when
-  and where both receive windows open, and reads what comes back. It does what
+  and where both receive windows open, and reads what comes back. Told which window
+  a frame arrived in, `heard_in` discards one whose MACPayload is longer than that
+  window's data rate carries, as TS001-1.0.4 section 4.1 asks. It does what
   every device-side MAC command asks and answers in order, repeating the four
-  that change how it listens until a downlink arrives. It repeats uplinks as many
-  times as the network sets, retries an unacknowledged confirmed uplink after the
-  retransmission timeout, and backs off when the network goes quiet. It keeps the
+  that change how it listens until a downlink arrives, and creates no channel past
+  the 80 a dynamic plan defines. It repeats uplinks as many times as the network
+  sets, waits out the retransmission timeout after a confirmed uplink that went
+  unacknowledged, whether the windows held nothing or a downlink without the
+  acknowledgment, and backs off when the network goes quiet. It keeps the
   region's sub-band duty cycles, the network's aggregated limit, and the join
   back-off of TS001-1.0.4 section 7. It owns no radio and no clock: each step
   takes the time and returns the frame, the carrier, the power and the windows. It
@@ -214,18 +218,21 @@ released together, so one entry covers all of them.
 - A LoRaWAN Class A end device in C, TypeScript, Python and C#: `EndDevice` joins
   over the air or starts personalized, picks each uplink's channel and data rate,
   says when and where both receive windows listen, reads what the network sends
-  back and does what its MAC commands ask, repeats or joins again when nothing
-  came, and saves and resumes its state across a power cut. It runs on every
-  published plan, the five CN470-510 plans included, and a call that cannot be
-  done says why in each language's own way: an `Error` whose `code` is `Wait`
-  with `untilUs` in TypeScript, `LorawanDeviceError` with `kind` and `until_us`
-  in Python, `LorawanDeviceException` in C#, and a recorded reason in C. The
-  conformance vectors replay whole exchanges through all four: a European day of
-  joining, confirmed readings, a link check, a status request and a saved state
-  resumed into a device that sends the same frame; nine US915 joins across the
-  octet passes; a CN470 join that picks its plan; and a personalized device that
-  refuses a replayed downlink. The LoRaWAN guide gains a second example, a US915
-  node that joins, is acknowledged, and picks up after a power cut.
+  back, held to the length the window it names carries, does what its MAC
+  commands ask, repeats or joins again when nothing came, and saves and resumes
+  its state across a power cut. It runs on every published plan, the five
+  CN470-510 plans included, and a call that cannot be done says why in each
+  language's own way: an `Error` whose `code` is `Wait` with `untilUs` in
+  TypeScript, `LorawanDeviceError` with `kind` and `until_us` in Python,
+  `LorawanDeviceException` in C#, and a recorded reason in C. The conformance
+  vectors replay whole exchanges through all four: a European day of joining,
+  confirmed readings, a link check, a status request, a saved state resumed into
+  a device that sends the same frame, and a downlink too long for the second
+  window but not the first that leaves the device waiting out the retransmission
+  timeout; nine US915 joins across the octet passes; a CN470 join that picks its
+  plan; and a personalized device that refuses a replayed downlink. The LoRaWAN
+  guide gains a second example, a US915 node that joins, is acknowledged in the
+  first window, and picks up after a power cut.
 - What keeps a LoRaWAN link running, in C, TypeScript, Python and C#: the ADR
   back-off of LoRaWAN 1.0.3 and TS001-1.0.4 section 4.3.1.1, which says when a
   device that stopped hearing its network asks for an answer and which settings it

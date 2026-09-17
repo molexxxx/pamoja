@@ -94,9 +94,10 @@ try {
   }
 }
 
-// The network acknowledges it and sends a setting back on the same port.
+// The network acknowledges it in the first window and sends a setting back on the same
+// port. Naming the window holds the frame to the length that window's data rate carries.
 const answer = lorawan.grantSession(grant, rootKey, 1).encodeDownlink(0, 2, Buffer.from('set=19.0'), { ack: true })
-const downlink = sensor.heard(answer, 7)
+const downlink = sensor.heard(answer, 7, lorawan.ReceiveWindow.Rx1)
 if (downlink.kind === 'Data') {
   const { acknowledged, port, payload } = downlink.delivery
   console.log(`downlink  acknowledged: ${acknowledged}, port ${port ?? 0} says ${payload.toString()}`)

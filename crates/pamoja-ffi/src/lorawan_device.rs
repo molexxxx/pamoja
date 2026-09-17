@@ -18,8 +18,8 @@
 use std::ptr;
 
 use pamoja_lorawan::device::{
-    Battery, DeviceError, EndDevice, Heard, Next, Saved, Settings, StateError, Transmission,
-    Window, SAVED_LEN,
+    Battery, DeviceError, EndDevice, Heard, Next, ReceiveWindow, Saved, Settings, StateError,
+    Transmission, Window, SAVED_LEN,
 };
 use pamoja_lorawan::LorawanError;
 
@@ -43,6 +43,11 @@ pub const PAMOJA_LORAWAN_BATTERY_UNKNOWN: u8 = 2;
 pub const PAMOJA_LORAWAN_HEARD_JOINED: u8 = 0;
 /// A data frame for the device.
 pub const PAMOJA_LORAWAN_HEARD_DATA: u8 = 1;
+
+/// The first receive window, on the uplink's downlink channel.
+pub const PAMOJA_LORAWAN_WINDOW_RX1: u8 = 1;
+/// The second receive window, on the fixed frequency and data rate.
+pub const PAMOJA_LORAWAN_WINDOW_RX2: u8 = 2;
 
 /// Send the same frame again, no sooner than the time given.
 pub const PAMOJA_LORAWAN_NEXT_REPEAT: u8 = 0;
@@ -913,10 +918,11 @@ pub unsafe extern "C" fn pamoja_lorawan_end_device_repeat(
     })
 }
 
-/// Reads a frame heard in one of the receive windows of the last transmission.
+/// Reads a frame heard in one of the receive windows of the last transmission, without saying
+/// which.
 ///
-/// A frame that is not for this device, or does not verify, leaves the transmission waiting,
-/// so the second window still opens.
+/// A downlink may be as long as the faster of the two windows allows. When the radio knows the
+/// window, [`pamoja_lorawan_end_device_heard_in`] holds the frame to that window's own limit.
 ///
 /// # Arguments
 ///
@@ -957,12 +963,102 @@ pub unsafe extern "C" fn pamoja_lorawan_end_device_heard(
         set_last_error("device, out_heard and out_payload must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     };
+    heard_frame(
+        device,
+        None,
+        frame,
+        frame_len,
+        snr_db,
+        out_heard,
+        out_payload,
+    )
+}
+
+/// Reads a frame heard in a given receive window of the last transmission.
+///
+/// A frame that is not for this device, does not verify, or has a MACPayload longer than the
+/// window's data rate carries leaves the transmission waiting, so the second window still
+/// opens. TS001-1.0.4 section 4.1 has a device discard such a frame.
+///
+/// # Arguments
+///
+/// * `device` - the device.
+/// * `window` - [`PAMOJA_LORAWAN_WINDOW_RX1`] or [`PAMOJA_LORAWAN_WINDOW_RX2`].
+/// * `frame` - the bytes the radio received.
+/// * `frame_len` - their length.
+/// * `snr_db` - the frame's signal-to-noise ratio, which a `DevStatusAns` reports.
+/// * `out_heard` - receives what the frame was.
+/// * `out_payload` - receives the application payload of a data frame, and null for a join.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success, or [`PamojaStatus::InvalidArgument`] for a window that is
+/// neither. A payload buffer, when set, must be released with
+/// [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+///
+/// # Errors
+///
+/// As [`pamoja_lorawan_end_device_heard`], with a frame longer than the window carries
+/// reported as one that did not decode.
+///
+/// # Safety
+///
+/// `device` must be a live handle, `frame` must point to `frame_len` readable bytes when that
+/// is non-zero, and the out pointers must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_end_device_heard_in(
+    device: *mut PamojaLorawanEndDevice,
+    window: u8,
+    frame: *const u8,
+    frame_len: usize,
+    snr_db: i8,
+    out_heard: *mut PamojaLorawanHeard,
+    out_payload: *mut *mut PamojaBuffer,
+) -> PamojaStatus {
+    let (Some(device), false, false) =
+        (device.as_mut(), out_heard.is_null(), out_payload.is_null())
+    else {
+        set_last_error("device, out_heard and out_payload must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let window = match window {
+        PAMOJA_LORAWAN_WINDOW_RX1 => ReceiveWindow::Rx1,
+        PAMOJA_LORAWAN_WINDOW_RX2 => ReceiveWindow::Rx2,
+        other => {
+            set_last_error(format!("{other} is not a receive window"));
+            return PamojaStatus::InvalidArgument;
+        }
+    };
+    heard_frame(
+        device,
+        Some(window),
+        frame,
+        frame_len,
+        snr_db,
+        out_heard,
+        out_payload,
+    )
+}
+
+/// Reads a heard frame into the out pointers, which the caller has checked.
+unsafe fn heard_frame(
+    device: &mut PamojaLorawanEndDevice,
+    window: Option<ReceiveWindow>,
+    frame: *const u8,
+    frame_len: usize,
+    snr_db: i8,
+    out_heard: *mut PamojaLorawanHeard,
+    out_payload: *mut *mut PamojaBuffer,
+) -> PamojaStatus {
     *out_payload = ptr::null_mut();
     let frame = match read_bytes(frame, frame_len) {
         Ok(bytes) => bytes,
         Err(status) => return status,
     };
-    let result = device.device.heard(&frame, snr_db);
+    let result = match window {
+        Some(window) => device.device.heard_in(window, &frame, snr_db),
+        None => device.device.heard(&frame, snr_db),
+    };
     let heard = match device.settle(result) {
         Ok(heard) => heard,
         Err(status) => return status,
@@ -1606,6 +1702,37 @@ mod tests {
                 "the woken device sends the same frame"
             );
             assert_ne!(uplink, original);
+
+            // A 60-byte MACPayload is more than the second window's DR0 carries, but not
+            // more than the first window's.
+            let long = JoinGrant::new(0x01, 0x13, 0x2601_2E43)
+                .session(&APP_KEY, 1)
+                .encode_downlink(&Downlink::new(1, 3, &[0x5A; 52]))
+                .expect("a downlink");
+            let heard_long = |window| {
+                let mut heard = std::mem::zeroed::<PamojaLorawanHeard>();
+                let mut payload = ptr::null_mut();
+                let status = pamoja_lorawan_end_device_heard_in(
+                    woken,
+                    window,
+                    long.as_bytes().as_ptr(),
+                    long.as_bytes().len(),
+                    7,
+                    &mut heard,
+                    &mut payload,
+                );
+                (status, payload)
+            };
+            assert_eq!(heard_long(3).0, PamojaStatus::InvalidArgument);
+            assert_eq!(
+                heard_long(PAMOJA_LORAWAN_WINDOW_RX2).0,
+                PamojaStatus::InvalidArgument
+            );
+            pamoja_lorawan_end_device_error(woken, &mut error);
+            assert_eq!(error.kind, PAMOJA_LORAWAN_DEVICE_FRAME);
+            let (status, payload) = heard_long(PAMOJA_LORAWAN_WINDOW_RX1);
+            assert_eq!(status, PamojaStatus::Ok);
+            assert_eq!(take(payload), [0x5A; 52]);
 
             let mut blank = ptr::null_mut();
             assert_eq!(

@@ -370,6 +370,12 @@
 // A data frame for the device.
 #define PAMOJA_LORAWAN_HEARD_DATA 1
 
+// The first receive window, on the uplink's downlink channel.
+#define PAMOJA_LORAWAN_WINDOW_RX1 1
+
+// The second receive window, on the fixed frequency and data rate.
+#define PAMOJA_LORAWAN_WINDOW_RX2 2
+
 // Send the same frame again, no sooner than the time given.
 #define PAMOJA_LORAWAN_NEXT_REPEAT 0
 
@@ -9932,10 +9938,11 @@ PamojaStatus pamoja_lorawan_end_device_repeat(PamojaLorawanEndDevice *device,
                                               PamojaBuffer **out_frame,
                                               PamojaLorawanTransmission *out_transmission);
 
-// Reads a frame heard in one of the receive windows of the last transmission.
+// Reads a frame heard in one of the receive windows of the last transmission, without saying
+// which.
 //
-// A frame that is not for this device, or does not verify, leaves the transmission waiting,
-// so the second window still opens.
+// A downlink may be as long as the faster of the two windows allows. When the radio knows the
+// window, [`pamoja_lorawan_end_device_heard_in`] holds the frame to that window's own limit.
 //
 // # Arguments
 //
@@ -9967,6 +9974,45 @@ PamojaStatus pamoja_lorawan_end_device_heard(PamojaLorawanEndDevice *device,
                                              int8_t snr_db,
                                              PamojaLorawanHeard *out_heard,
                                              PamojaBuffer **out_payload);
+
+// Reads a frame heard in a given receive window of the last transmission.
+//
+// A frame that is not for this device, does not verify, or has a MACPayload longer than the
+// window's data rate carries leaves the transmission waiting, so the second window still
+// opens. TS001-1.0.4 section 4.1 has a device discard such a frame.
+//
+// # Arguments
+//
+// * `device` - the device.
+// * `window` - [`PAMOJA_LORAWAN_WINDOW_RX1`] or [`PAMOJA_LORAWAN_WINDOW_RX2`].
+// * `frame` - the bytes the radio received.
+// * `frame_len` - their length.
+// * `snr_db` - the frame's signal-to-noise ratio, which a `DevStatusAns` reports.
+// * `out_heard` - receives what the frame was.
+// * `out_payload` - receives the application payload of a data frame, and null for a join.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, or [`PamojaStatus::InvalidArgument`] for a window that is
+// neither. A payload buffer, when set, must be released with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Errors
+//
+// As [`pamoja_lorawan_end_device_heard`], with a frame longer than the window carries
+// reported as one that did not decode.
+//
+// # Safety
+//
+// `device` must be a live handle, `frame` must point to `frame_len` readable bytes when that
+// is non-zero, and the out pointers must be writable.
+PamojaStatus pamoja_lorawan_end_device_heard_in(PamojaLorawanEndDevice *device,
+                                                uint8_t window,
+                                                const uint8_t *frame,
+                                                uintptr_t frame_len,
+                                                int8_t snr_db,
+                                                PamojaLorawanHeard *out_heard,
+                                                PamojaBuffer **out_payload);
 
 // Says what comes next once both receive windows closed with nothing for the device.
 //

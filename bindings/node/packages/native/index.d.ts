@@ -890,10 +890,11 @@ export declare class LorawanEndDevice {
   /**
    * Reads a frame heard in one of the receive windows of the last transmission.
    *
-   * A frame that is not for this device, or does not verify, throws and leaves the
-   * transmission waiting, so the second window still opens.
+   * A frame that is not for this device, does not verify, or is longer than the window's
+   * data rate carries throws and leaves the transmission waiting, so the second window
+   * still opens. Without `window`, a frame may be as long as the faster window allows.
    */
-  heard(frame: Buffer, snrDb: number): LorawanHeard
+  heard(frame: Buffer, snrDb: number, window?: LorawanReceiveWindow | undefined | null): LorawanHeard
   /** Says what comes next once both receive windows closed with nothing for the device. */
   nothingHeard(nowUs: number): LorawanNext
   /**
@@ -4208,7 +4209,6 @@ export interface LorawanHeard {
   delivery?: LorawanDelivery
 }
 
-/** What a frame heard in a receive window turned out to be. */
 export declare const enum LorawanHeardKind {
   /** A join accept: the device is on the network. */
   Joined = 'Joined',
@@ -4421,6 +4421,17 @@ export declare function lorawanParseHeader(bytes: Buffer): LorawanHeader
 
 /** Verifies a join-request and reads the identifiers out of it. */
 export declare function lorawanParseJoinRequest(bytes: Buffer, appKey: Buffer): LorawanJoinRequest
+
+/**
+ * What a frame heard in a receive window turned out to be.
+ * Which receive window a frame arrived in.
+ */
+export declare const enum LorawanReceiveWindow {
+  /** The first window, on the uplink's downlink channel. */
+  Rx1 = 'Rx1',
+  /** The second, on the fixed frequency and data rate. */
+  Rx2 = 'Rx2'
+}
 
 /** Where the second receive window listens. */
 export interface LorawanRx2 {

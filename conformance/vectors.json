@@ -5651,7 +5651,8 @@
               "devAddr": 637611587,
               "kind": "joined"
             },
-            "snrDb": 7
+            "snrDb": 7,
+            "window": null
           },
           {
             "call": "status",
@@ -5817,7 +5818,8 @@
               "devAddr": 637611587,
               "kind": "data"
             },
-            "snrDb": 7
+            "snrDb": 7,
+            "window": null
           },
           {
             "call": "nothingHeard",
@@ -5900,7 +5902,8 @@
               "untilUs": null
             },
             "frame": "6000",
-            "snrDb": 0
+            "snrDb": 0,
+            "window": null
           },
           {
             "call": "nothingHeard",
@@ -6059,6 +6062,230 @@
               "devAddr": 637611587,
               "fcntDown": 0,
               "fcntUp": 3,
+              "frequencySpan": {
+                "highestHz": 869525000,
+                "lowestHz": 867100000
+              },
+              "joined": true,
+              "receiveDelayUs": 1000000,
+              "rx2": {
+                "dataRate": 3,
+                "frequencyHz": 869525000
+              },
+              "transmissions": 1
+            }
+          },
+          {
+            "call": "send",
+            "confirmed": true,
+            "nowUs": 1000000000,
+            "payload": "32332e30",
+            "port": 2,
+            "transmission": {
+              "airtimeUs": 51456,
+              "carriesPayload": true,
+              "dataRate": 5,
+              "frame": "80432e012680030002ffc5cb5a5030227d",
+              "frequencyHz": 868300000,
+              "link": {
+                "bandwidthHz": 125000,
+                "codingRateDenominator": 5,
+                "crc": true,
+                "explicitHeader": true,
+                "preambleSymbols": 8,
+                "spreadingFactor": 7
+              },
+              "outputDbm": 14,
+              "rx1": {
+                "dataRate": 5,
+                "delayUs": 1000000,
+                "frequencyHz": 868300000,
+                "link": {
+                  "bandwidthHz": 125000,
+                  "codingRateDenominator": 5,
+                  "crc": false,
+                  "explicitHeader": true,
+                  "preambleSymbols": 8,
+                  "spreadingFactor": 7
+                }
+              },
+              "rx2": {
+                "dataRate": 3,
+                "delayUs": 2000000,
+                "frequencyHz": 869525000,
+                "link": {
+                  "bandwidthHz": 125000,
+                  "codingRateDenominator": 5,
+                  "crc": false,
+                  "explicitHeader": true,
+                  "preambleSymbols": 8,
+                  "spreadingFactor": 9
+                }
+              }
+            }
+          },
+          {
+            "call": "heard",
+            "error": {
+              "dataRate": null,
+              "format": null,
+              "kind": "frame",
+              "max": null,
+              "state": null,
+              "untilUs": null
+            },
+            "frame": "60432e01260601000750184f8450039d117746cea5d5a053cab050a7fd24737c796e7391e5fe4c9dd0b08993daa0f5b822ae09b7795fc100a8759e99604352eba6d4ce027044f02ea2e1fda74d349dd642a74b601180585b54dee5331fef7849ada77e5be2db2847e68cc0cf7b20341c1e1fcc4f345d9577a348229cb472427e81",
+            "snrDb": 4,
+            "window": "rx2"
+          },
+          {
+            "call": "heard",
+            "frame": "60432e01260601000750184f8450039d117746cea5d5a053cab050a7fd24737c796e7391e5fe4c9dd0b08993daa0f5b822ae09b7795fc100a8759e99604352eba6d4ce027044f02ea2e1fda74d349dd642a74b601180585b54dee5331fef7849ada77e5be2db2847e68cc0cf7b20341c1e1fcc4f345d9577a348229cb472427e81",
+            "heard": {
+              "delivery": {
+                "acknowledged": false,
+                "confirmed": false,
+                "deviceTime": null,
+                "linkCheck": null,
+                "morePending": false,
+                "payload": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+                "port": 3
+              },
+              "devAddr": 637611587,
+              "kind": "data"
+            },
+            "snrDb": 4,
+            "window": "rx1"
+          },
+          {
+            "call": "send",
+            "confirmed": false,
+            "error": {
+              "dataRate": null,
+              "format": null,
+              "kind": "wait",
+              "max": null,
+              "state": null,
+              "untilUs": 1004048514
+            },
+            "nowUs": 1000000001,
+            "payload": "32332e31",
+            "port": 2
+          },
+          {
+            "call": "send",
+            "confirmed": false,
+            "nowUs": 1010000000,
+            "payload": "32332e31",
+            "port": 2,
+            "transmission": {
+              "airtimeUs": 51456,
+              "carriesPayload": true,
+              "dataRate": 5,
+              "frame": "40432e0126820400070002974e70c4c334c23c",
+              "frequencyHz": 868500000,
+              "link": {
+                "bandwidthHz": 125000,
+                "codingRateDenominator": 5,
+                "crc": true,
+                "explicitHeader": true,
+                "preambleSymbols": 8,
+                "spreadingFactor": 7
+              },
+              "outputDbm": 14,
+              "rx1": {
+                "dataRate": 5,
+                "delayUs": 1000000,
+                "frequencyHz": 868500000,
+                "link": {
+                  "bandwidthHz": 125000,
+                  "codingRateDenominator": 5,
+                  "crc": false,
+                  "explicitHeader": true,
+                  "preambleSymbols": 8,
+                  "spreadingFactor": 7
+                }
+              },
+              "rx2": {
+                "dataRate": 3,
+                "delayUs": 2000000,
+                "frequencyHz": 869525000,
+                "link": {
+                  "bandwidthHz": 125000,
+                  "codingRateDenominator": 5,
+                  "crc": false,
+                  "explicitHeader": true,
+                  "preambleSymbols": 8,
+                  "spreadingFactor": 9
+                }
+              }
+            }
+          },
+          {
+            "call": "status",
+            "status": {
+              "channels": [
+                {
+                  "downlinkHz": 868100000,
+                  "index": 0,
+                  "maxDataRate": 5,
+                  "minDataRate": 0,
+                  "uplinkHz": 868100000
+                },
+                {
+                  "downlinkHz": 868300000,
+                  "index": 1,
+                  "maxDataRate": 5,
+                  "minDataRate": 0,
+                  "uplinkHz": 868300000
+                },
+                {
+                  "downlinkHz": 868500000,
+                  "index": 2,
+                  "maxDataRate": 5,
+                  "minDataRate": 0,
+                  "uplinkHz": 868500000
+                },
+                {
+                  "downlinkHz": 867100000,
+                  "index": 3,
+                  "maxDataRate": 5,
+                  "minDataRate": 0,
+                  "uplinkHz": 867100000
+                },
+                {
+                  "downlinkHz": 867300000,
+                  "index": 4,
+                  "maxDataRate": 5,
+                  "minDataRate": 0,
+                  "uplinkHz": 867300000
+                },
+                {
+                  "downlinkHz": 867500000,
+                  "index": 5,
+                  "maxDataRate": 5,
+                  "minDataRate": 0,
+                  "uplinkHz": 867500000
+                },
+                {
+                  "downlinkHz": 867700000,
+                  "index": 6,
+                  "maxDataRate": 5,
+                  "minDataRate": 0,
+                  "uplinkHz": 867700000
+                },
+                {
+                  "downlinkHz": 867900000,
+                  "index": 7,
+                  "maxDataRate": 5,
+                  "minDataRate": 0,
+                  "uplinkHz": 867900000
+                }
+              ],
+              "dataRate": 5,
+              "devAddr": 637611587,
+              "fcntDown": 1,
+              "fcntUp": 5,
               "frequencySpan": {
                 "highestHz": 869525000,
                 "lowestHz": 867100000
@@ -6905,7 +7132,8 @@
               "devAddr": 637611587,
               "kind": "joined"
             },
-            "snrDb": 5
+            "snrDb": 5,
+            "window": null
           },
           {
             "call": "status",
@@ -7412,7 +7640,8 @@
               "untilUs": null
             },
             "frame": "6000",
-            "snrDb": 0
+            "snrDb": 0,
+            "window": null
           },
           {
             "call": "send",
@@ -7474,7 +7703,8 @@
               "untilUs": null
             },
             "frame": "60da1b0126000500010a02951072f455",
-            "snrDb": 3
+            "snrDb": 3,
+            "window": null
           },
           {
             "call": "heard",
@@ -7492,7 +7722,8 @@
               "devAddr": 637606874,
               "kind": "data"
             },
-            "snrDb": 3
+            "snrDb": 3,
+            "window": null
           },
           {
             "call": "status",

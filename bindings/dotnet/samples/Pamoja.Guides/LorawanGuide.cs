@@ -120,10 +120,11 @@ public static class LorawanGuide
             Console.WriteLine("busy      the reading before still waits on its windows");
         }
 
-        // The network acknowledges it and sends a setting back on the same port.
+        // The network acknowledges it in the first window and sends a setting back on the same
+        // port. Naming the window holds the frame to the length that window's data rate carries.
         using LorawanSession networkSession = network.Session(rootKey, 1);
         byte[] answer = networkSession.EncodeDownlink(0, 2, "set=19.0"u8, new LorawanOptions { Ack = true });
-        if (node.Heard(answer, 7) is LorawanHeard.Data data)
+        if (node.Heard(answer, 7, LorawanReceiveWindow.Rx1) is LorawanHeard.Data data)
         {
             LorawanDelivery delivery = data.Delivery;
             string acknowledged = delivery.Acknowledged ? "true" : "false";

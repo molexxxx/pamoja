@@ -146,6 +146,16 @@ public abstract record LorawanHeard
     public sealed record Data(uint DevAddr, LorawanDelivery Delivery) : LorawanHeard(DevAddr);
 }
 
+/// <summary>Which receive window a frame arrived in.</summary>
+public enum LorawanReceiveWindow
+{
+    /// <summary>The first window, on the uplink's downlink channel.</summary>
+    Rx1 = 1,
+
+    /// <summary>The second, on the fixed frequency and data rate.</summary>
+    Rx2 = 2,
+}
+
 /// <summary>What to do once both receive windows closed with nothing for the device.</summary>
 public enum LorawanNextKind
 {
@@ -520,18 +530,36 @@ public sealed class LorawanEndDevice : IDisposable
     /// <summary>Reads a frame heard in one of the receive windows of the last transmission.</summary>
     /// <param name="frame">The bytes the radio received.</param>
     /// <param name="snrDb">The frame's signal-to-noise ratio, which a <c>DevStatusAns</c> reports.</param>
+    /// <param name="window">
+    /// The window the radio heard it in, when known. TS001-1.0.4 section 4.1 has a device discard a
+    /// frame whose MACPayload is longer than the data rate it was received at carries, so a named
+    /// window holds the frame to its own limit; without one, the frame may be as long as the faster
+    /// window allows.
+    /// </param>
     /// <returns>The join, or the downlink read and acted on.</returns>
     /// <exception cref="LorawanDeviceException">
     /// Nothing pending, another device's frame, a replayed or far-ahead counter, a refused join
-    /// accept, or a frame that did not decode. The windows stay open, so the second still listens.
+    /// accept, or a frame that did not decode or is longer than the window carries. The windows
+    /// stay open, so the second still listens.
     /// </exception>
-    public LorawanHeard Heard(ReadOnlySpan<byte> frame, sbyte snrDb)
+    /// <exception cref="ArgumentOutOfRangeException">The window is not one of the two.</exception>
+    public LorawanHeard Heard(ReadOnlySpan<byte> frame, sbyte snrDb, LorawanReceiveWindow? window = null)
     {
+        if (window is { } named && !Enum.IsDefined(named))
+        {
+            throw new ArgumentOutOfRangeException(nameof(window), named, "not a receive window");
+        }
+
         byte[] bytes = frame.ToArray();
         return _handle.Use<LorawanHeard>(handle =>
         {
-            PamojaStatus status = NativeMethods.pamoja_lorawan_end_device_heard(
-                handle, bytes, (nuint)bytes.Length, snrDb, out PamojaLorawanHeard heard, out IntPtr payload);
+            PamojaLorawanHeard heard;
+            IntPtr payload;
+            PamojaStatus status = window is { } known
+                ? NativeMethods.pamoja_lorawan_end_device_heard_in(
+                    handle, (byte)known, bytes, (nuint)bytes.Length, snrDb, out heard, out payload)
+                : NativeMethods.pamoja_lorawan_end_device_heard(
+                    handle, bytes, (nuint)bytes.Length, snrDb, out heard, out payload);
             ThrowIfFailed(handle, status);
             if (heard.Kind == 0)
             {

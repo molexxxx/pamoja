@@ -97,6 +97,17 @@ public static partial class NativeMethods
         out PamojaLorawanHeard outHeard,
         out IntPtr outPayload);
 
+    /// <summary>Reads a frame heard in a given receive window.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lorawan_end_device_heard_in(
+        IntPtr device,
+        byte window,
+        ReadOnlySpan<byte> frame,
+        nuint frameLen,
+        sbyte snrDb,
+        out PamojaLorawanHeard outHeard,
+        out IntPtr outPayload);
+
     /// <summary>Says what comes next once both receive windows closed empty.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_lorawan_end_device_nothing_heard(

@@ -14,9 +14,10 @@
 //!    from the end of the transmission.
 //! 2. The radio sends it, then listens in the first window and, if nothing for this device
 //!    arrived, in the second.
-//! 3. A frame heard in either window goes to [`heard`](EndDevice::heard). If neither window
-//!    held one, [`nothing_heard`](EndDevice::nothing_heard) says whether to send the same
-//!    frame again, with [`repeat`](EndDevice::repeat), or move on.
+//! 3. A frame heard in either window goes to [`heard_in`](EndDevice::heard_in), which knows
+//!    the window, or to [`heard`](EndDevice::heard). If neither window held one,
+//!    [`nothing_heard`](EndDevice::nothing_heard) says whether to send the same frame again,
+//!    with [`repeat`](EndDevice::repeat), or move on.
 //!
 //! What it follows, and from where:
 //!
@@ -31,8 +32,11 @@
 //!   channel that answered puts the device on its plan, section 3.9.2.
 //! - **MAC commands**: every command of TS001-1.0.4 section 5 a device receives, answered in
 //!   order, with the four that change how it listens repeated until a downlink arrives.
+//! - **Downlinks**: TS001-1.0.4 section 4, with a frame whose MACPayload is longer than the
+//!   receive window's data rate carries discarded, and a repeated counter ignored.
 //! - **Repetition**: NbTrans transmissions of each uplink, stopped by any Class A downlink,
-//!   and a retransmission timeout before retrying a confirmed uplink.
+//!   and a retransmission timeout before the next uplink whenever a confirmed one went
+//!   unacknowledged.
 //! - **Staying reachable**: the adaptive data rate back-off of [`adr`](crate::adr).
 //! - **Sharing the air**: the region's sub-band duty cycles, the network's `DutyCycleReq`,
 //!   and the join back-off of TS001-1.0.4 section 7.
@@ -340,6 +344,15 @@ pub struct Window {
     pub link: LinkSettings,
 }
 
+/// Which receive window a frame arrived in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ReceiveWindow {
+    /// The first window, on the uplink's downlink channel.
+    Rx1,
+    /// The second, on the fixed frequency and data rate.
+    Rx2,
+}
+
 /// What a frame heard in a receive window turned out to be.
 // The delivery holds its payload inline, since the crate runs without an allocator.
 #[allow(clippy::large_enum_variant)]
@@ -581,7 +594,28 @@ enum Pending {
         transmissions_left: u8,
         windows_closed: bool,
         not_before_us: u64,
+        windows: Windows,
     },
+}
+
+/// What a pending uplink's receive windows hold a downlink to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Windows {
+    rx1_data_rate: u8,
+    rx2_data_rate: u8,
+    rx2_opens_us: u64,
+}
+
+impl Windows {
+    fn of(transmission: &Transmission, now_us: u64) -> Windows {
+        Windows {
+            rx1_data_rate: transmission.rx1.data_rate,
+            rx2_data_rate: transmission.rx2.data_rate,
+            rx2_opens_us: now_us
+                .saturating_add(transmission.airtime_us)
+                .saturating_add(u64::from(transmission.rx2.delay_us)),
+        }
+    }
 }
 
 /// A LoRaWAN Class A end device.
@@ -1205,13 +1239,41 @@ impl<'p> EndDevice<'p> {
         self.uplink(None, false, now_us)
     }
 
-    /// Reads a frame heard in one of the receive windows of the last transmission.
+    /// Reads a frame heard in one of the receive windows of the last transmission, without
+    /// saying which.
     ///
-    /// A frame that is not for this device, or does not verify, leaves the transmission
-    /// waiting, so the second window still opens.
+    /// A downlink may be as long as the faster of the two windows allows. When the radio
+    /// knows the window, [`heard_in`](EndDevice::heard_in) holds the frame to that window's
+    /// own limit, as TS001-1.0.4 section 4.1 asks.
     ///
     /// # Arguments
     ///
+    /// * `frame` - the bytes the radio received.
+    /// * `snr_db` - the frame's signal-to-noise ratio, which a `DevStatusAns` reports.
+    ///
+    /// # Returns
+    ///
+    /// The join, or the downlink read and acted on.
+    ///
+    /// # Errors
+    ///
+    /// As [`heard_in`](EndDevice::heard_in).
+    pub fn heard(&mut self, frame: &[u8], snr_db: i8) -> Result<Heard, DeviceError> {
+        self.heard_frame(None, frame, snr_db)
+    }
+
+    /// Reads a frame heard in a given receive window of the last transmission.
+    ///
+    /// A frame that is not for this device, does not verify, or is longer than the window's
+    /// data rate carries leaves the transmission waiting, so the second window still opens.
+    /// TS001-1.0.4 section 4.1 has a device discard a MACPayload longer than the region's
+    /// `M` for the data rate it was received at. RP002-1.0.5 has the device hold a downlink
+    /// to the limit with no dwell time and no repeater, whatever its own settings, so no
+    /// frame a network may lawfully send is lost.
+    ///
+    /// # Arguments
+    ///
+    /// * `window` - the window the radio heard the frame in.
     /// * `frame` - the bytes the radio received.
     /// * `snr_db` - the frame's signal-to-noise ratio, which a `DevStatusAns` reports.
     ///
@@ -1225,8 +1287,48 @@ impl<'p> EndDevice<'p> {
     /// [`DeviceError::Foreign`] for another device's frame, [`DeviceError::Replayed`] and
     /// [`DeviceError::CounterGap`] for a counter the device will not accept,
     /// [`DeviceError::Refused`] for a join accept with settings the region forbids, and
-    /// [`DeviceError::Frame`] for a frame that does not decode.
-    pub fn heard(&mut self, frame: &[u8], snr_db: i8) -> Result<Heard, DeviceError> {
+    /// [`DeviceError::Frame`] for a frame that does not decode or is longer than the window
+    /// carries.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_lora::region::Region;
+    /// use pamoja_lorawan::device::{DeviceError, EndDevice, ReceiveWindow, Settings};
+    /// use pamoja_lorawan::{Downlink, LorawanError, Session};
+    ///
+    /// let session = Session::new(0x2601_1BDA, [0x2B; 16], [0x99; 16]);
+    /// let settings = Settings::new(2, 14);
+    /// let mut device = EndDevice::personalized(Region::Eu868.plan(), session, settings)?;
+    ///
+    /// // A personalized European device starts at DR0, and the second window listens at DR0
+    /// // too, where a MACPayload holds no more than 59 bytes.
+    /// device.send(1, b"hi", false, 0)?;
+    /// let long = session.encode_downlink(&Downlink::new(0, 1, &[0; 60]))?;
+    /// assert_eq!(
+    ///     device.heard_in(ReceiveWindow::Rx2, long.as_bytes(), 5),
+    ///     Err(DeviceError::Frame(LorawanError::PayloadTooLong)),
+    /// );
+    ///
+    /// let short = session.encode_downlink(&Downlink::new(0, 1, b"ok"))?;
+    /// assert!(device.heard_in(ReceiveWindow::Rx2, short.as_bytes(), 5).is_ok());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn heard_in(
+        &mut self,
+        window: ReceiveWindow,
+        frame: &[u8],
+        snr_db: i8,
+    ) -> Result<Heard, DeviceError> {
+        self.heard_frame(Some(window), frame, snr_db)
+    }
+
+    fn heard_frame(
+        &mut self,
+        window: Option<ReceiveWindow>,
+        frame: &[u8],
+        snr_db: i8,
+    ) -> Result<Heard, DeviceError> {
         match self.pending {
             None => Err(DeviceError::NothingPending),
             Some(Pending::Join {
@@ -1238,7 +1340,9 @@ impl<'p> EndDevice<'p> {
                 windows_closed: true,
                 ..
             }) => Err(DeviceError::NothingPending),
-            Some(Pending::Uplink { confirmed, .. }) => self.heard_data(frame, snr_db, confirmed),
+            Some(Pending::Uplink {
+                confirmed, windows, ..
+            }) => self.heard_data(frame, snr_db, confirmed, windows, window),
         }
     }
 
@@ -1277,6 +1381,7 @@ impl<'p> EndDevice<'p> {
                 confirmed,
                 carries_payload,
                 transmissions_left,
+                windows,
                 ..
             }) => {
                 let not_before_us = if confirmed {
@@ -1296,6 +1401,7 @@ impl<'p> EndDevice<'p> {
                         transmissions_left,
                         windows_closed: true,
                         not_before_us,
+                        windows,
                     });
                     return Ok(Next::Repeat { not_before_us });
                 }
@@ -1336,6 +1442,7 @@ impl<'p> EndDevice<'p> {
             transmissions_left,
             windows_closed: true,
             not_before_us,
+            ..
         }) = self.pending
         else {
             return Err(DeviceError::NothingPending);
@@ -1368,6 +1475,7 @@ impl<'p> EndDevice<'p> {
             transmissions_left: transmissions_left - 1,
             windows_closed: false,
             not_before_us: 0,
+            windows: Windows::of(&transmission, now_us),
         });
         Ok(transmission)
     }
@@ -1511,6 +1619,7 @@ impl<'p> EndDevice<'p> {
             transmissions_left: nb_trans.saturating_sub(1),
             windows_closed: false,
             not_before_us: 0,
+            windows: Windows::of(&transmission, now_us),
         });
         Ok(transmission)
     }
@@ -1590,6 +1699,8 @@ impl<'p> EndDevice<'p> {
         frame: &[u8],
         snr_db: i8,
         confirmed_uplink: bool,
+        windows: Windows,
+        window: Option<ReceiveWindow>,
     ) -> Result<Heard, DeviceError> {
         let session = self.session.ok_or(DeviceError::NotJoined)?;
         let header = FrameHeader::parse(frame)?;
@@ -1604,6 +1715,21 @@ impl<'p> EndDevice<'p> {
         if header.dev_addr() != Some(session.dev_addr()) {
             return Err(DeviceError::Foreign);
         }
+        let limit = |data_rate| {
+            self.plan
+                .downlink_max_payload(data_rate, false)
+                .map(|limit| usize::from(limit.mac_payload))
+        };
+        let max_mac_payload = match window {
+            Some(ReceiveWindow::Rx1) => limit(windows.rx1_data_rate),
+            Some(ReceiveWindow::Rx2) => limit(windows.rx2_data_rate),
+            None => limit(windows.rx1_data_rate)
+                .zip(limit(windows.rx2_data_rate))
+                .map(|(rx1, rx2)| rx1.max(rx2)),
+        };
+        if max_mac_payload.is_some_and(|max| frame.len().saturating_sub(5) > max) {
+            return Err(DeviceError::Frame(LorawanError::PayloadTooLong));
+        }
         let fcnt = self.downlink_counter(header.fcnt().unwrap_or(0))?;
         let rx = session.decode(frame, fcnt)?;
 
@@ -1612,7 +1738,16 @@ impl<'p> EndDevice<'p> {
         self.answers.heard_downlink();
         self.ack_owed = rx.confirmed();
         self.pending = None;
-        self.quiet_until_us = 0;
+        // TS001-1.0.4 section 4.3.1.3: a device still owed an acknowledgment waits out the
+        // retransmission timeout, counted from the second window, before its next uplink.
+        self.quiet_until_us = if confirmed_uplink && !rx.ack() {
+            let wait = self
+                .sequence
+                .between(RETRANSMIT_TIMEOUT_MIN_US, RETRANSMIT_TIMEOUT_MAX_US);
+            windows.rx2_opens_us.saturating_add(u64::from(wait))
+        } else {
+            0
+        };
 
         let mut delivery = Delivery {
             port: None,
