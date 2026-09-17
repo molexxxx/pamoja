@@ -102,6 +102,7 @@ pub mod lorawan_link;
 #[cfg(feature = "lorawan")]
 pub mod lorawan_mac;
 #[cfg(all(feature = "lora", feature = "lorawan"))]
+pub mod lorawan_packages;
 pub mod lorawan_relay;
 pub mod lorawan_relay_node;
 #[cfg(feature = "mavlink")]

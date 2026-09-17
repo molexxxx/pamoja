@@ -47,7 +47,10 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     // says where each begins. The transport moves bytes and vouches for none of them.
     let mut block = [0u8; 512];
     let block_len = frame(&envelope[..signed], image, &mut block)?;
-    println!("release   {block_len} bytes: a signed manifest and {} of image", image.len());
+    println!(
+        "release   {block_len} bytes: a signed manifest and {} of image",
+        image.len()
+    );
 
     // The group every device in the field belongs to. Its key travels wrapped under a key
     // each device derives from its own root key, so the broadcast key is never in the clear.
@@ -78,7 +81,12 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     // room to solve for a handful of losses.
     let mut store = [0u8; 512];
     let mut matrix = [0u8; 256];
-    let mut receiver = Defragmenter::new(sender.nb_frag(), sender.frag_size(), &mut store, &mut matrix)?;
+    let mut receiver = Defragmenter::new(
+        sender.nb_frag(),
+        sender.frag_size(),
+        &mut store,
+        &mut matrix,
+    )?;
 
     // The link drops every fourth fragment. The session keeps going until the block is whole.
     let mut piece = [0u8; 32];

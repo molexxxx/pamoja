@@ -532,6 +532,33 @@
 // The CFListType byte of a list of channel mask groups.
 #define PAMOJA_LORAWAN_CFLIST_TYPE_CHANNEL_MASKS 1
 
+// The port clock synchronization is spoken on, TS003-2.0.0.
+#define PAMOJA_LORAWAN_CLOCK_PORT CLOCK_PORT
+
+// The port fragmented data block transport is spoken on, TS004-2.0.0.
+#define PAMOJA_LORAWAN_FRAGMENT_PORT FRAGMENT_PORT
+
+// The port remote multicast setup is spoken on, TS005-2.0.0.
+#define PAMOJA_LORAWAN_MULTICAST_PORT MULTICAST_PORT
+
+// The port firmware management is spoken on, TS006-1.0.0.
+#define PAMOJA_LORAWAN_FIRMWARE_PORT FIRMWARE_PORT
+
+// The most fragments one session carries.
+#define PAMOJA_LORAWAN_MAX_FRAGMENTS MAX_FRAGMENTS
+
+// The device holds no firmware upgrade image.
+#define PAMOJA_LORAWAN_IMAGE_NONE 0
+
+// One is there, but it is corrupt or its signature does not verify.
+#define PAMOJA_LORAWAN_IMAGE_CORRUPT 1
+
+// One is there and authentic, but it is not for this hardware.
+#define PAMOJA_LORAWAN_IMAGE_WRONG_HARDWARE 2
+
+// One is there, and it can be installed.
+#define PAMOJA_LORAWAN_IMAGE_VALID 3
+
 
 
 
@@ -2060,6 +2087,17 @@ typedef struct PamojaLoraRadio PamojaLoraRadio;
 // Release it with [`pamoja_lorawan_backoff_free`].
 typedef struct PamojaLorawanBackoff PamojaLorawanBackoff;
 
+// A code being taken over a data block, released with [`pamoja_lorawan_block_mic_free`].
+typedef struct PamojaLorawanBlockMic PamojaLorawanBlockMic;
+
+// A clock synchronization package on a device, released with
+// [`pamoja_lorawan_clock_sync_free`].
+typedef struct PamojaLorawanClockSync PamojaLorawanClockSync;
+
+// A fragmentation session being put back together, released with
+// [`pamoja_lorawan_defrag_free`].
+typedef struct PamojaLorawanDefrag PamojaLorawanDefrag;
+
 // An opaque handle to the root credentials of a device.
 //
 // Holds the EUIs and the application key that over-the-air activation is built
@@ -2070,6 +2108,10 @@ typedef struct PamojaLorawanDevice PamojaLorawanDevice;
 //
 // Release it with [`pamoja_lorawan_end_device_free`].
 typedef struct PamojaLorawanEndDevice PamojaLorawanEndDevice;
+
+// A firmware management package on a device, released with
+// [`pamoja_lorawan_firmware_free`].
+typedef struct PamojaLorawanFirmware PamojaLorawanFirmware;
 
 // An opaque handle to an accepted join.
 //
@@ -11263,6 +11305,743 @@ PamojaStatus pamoja_lorawan_mac_encode(const PamojaLorawanMacCommand *command,
                                        uint8_t *out,
                                        uintptr_t capacity,
                                        uintptr_t *out_written);
+
+// Derives a device's multicast root key, TS005-2.0.0 section 4.3.
+//
+// # Arguments
+//
+// * `root_key` - the device's sixteen-byte `GenAppKey` on LoRaWAN 1.0.x, or its `AppKey`
+//   on 1.1.
+// * `lorawan_11` - `1` for the 1.1 scheme, which starts from another constant.
+// * `out_key` - receives the sixteen-byte `McRootKey`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// `root_key` must point to sixteen readable bytes and `out_key` to sixteen writable ones.
+PamojaStatus pamoja_lorawan_mc_root_key(const uint8_t *root_key,
+                                        uint8_t lorawan_11,
+                                        uint8_t *out_key);
+
+// Derives the key a multicast group's key travels under, section 4.3.
+//
+// # Arguments
+//
+// * `mc_root_key` - the sixteen-byte key [`pamoja_lorawan_mc_root_key`] derived.
+// * `out_key` - receives the sixteen-byte `McKEKey`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// Both pointers must be valid for sixteen bytes.
+PamojaStatus pamoja_lorawan_mc_ke_key(const uint8_t *mc_root_key, uint8_t *out_key);
+
+// Unwraps the group key a setup command carried, section 4.3.
+//
+// # Arguments
+//
+// * `mc_ke_key` - the sixteen-byte key it travels under.
+// * `wrapped` - the sixteen bytes the command carried.
+// * `out_key` - receives the group's sixteen-byte `McKey`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// Every pointer must be valid for sixteen bytes.
+PamojaStatus pamoja_lorawan_mc_key(const uint8_t *mc_ke_key,
+                                   const uint8_t *wrapped,
+                                   uint8_t *out_key);
+
+// Wraps a group key for a device, which is what a server does before sending it.
+//
+// # Arguments
+//
+// * `mc_ke_key` - the device's sixteen-byte key encryption key.
+// * `mc_key` - the sixteen-byte group key.
+// * `out_wrapped` - receives the sixteen bytes a setup command carries.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// Every pointer must be valid for sixteen bytes.
+PamojaStatus pamoja_lorawan_wrap_mc_key(const uint8_t *mc_ke_key,
+                                        const uint8_t *mc_key,
+                                        uint8_t *out_wrapped);
+
+// Derives the key that reads a multicast group's payloads, section 4.3.
+//
+// # Arguments
+//
+// * `mc_key` - the sixteen-byte group key.
+// * `mc_addr` - the group's address.
+// * `out_key` - receives the sixteen-byte `McAppSKey`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// Both pointers must be valid for sixteen bytes.
+PamojaStatus pamoja_lorawan_mc_app_s_key(const uint8_t *mc_key, uint32_t mc_addr, uint8_t *out_key);
+
+// Derives the key that verifies a multicast group's frames, section 4.3.
+//
+// # Arguments
+//
+// * `mc_key` - the sixteen-byte group key.
+// * `mc_addr` - the group's address.
+// * `out_key` - receives the sixteen-byte `McNwkSKey`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// Both pointers must be valid for sixteen bytes.
+PamojaStatus pamoja_lorawan_mc_nwk_s_key(const uint8_t *mc_key, uint32_t mc_addr, uint8_t *out_key);
+
+// Derives the key that signs a data block, TS004-2.0.0 section 3.3.
+//
+// # Arguments
+//
+// * `root_key` - the device's sixteen-byte `GenAppKey` or `AppKey`.
+// * `out_key` - receives the sixteen-byte `DataBlockIntKey`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// Both pointers must be valid for sixteen bytes.
+PamojaStatus pamoja_lorawan_data_block_int_key(const uint8_t *root_key, uint8_t *out_key);
+
+// Steps the pseudo-random sequence the parity matrix is drawn from, appendix A.1.
+//
+// # Arguments
+//
+// * `x` - the current value.
+//
+// # Returns
+//
+// The next one.
+uint32_t pamoja_lorawan_frag_prbs23(uint32_t x);
+
+// Builds one row of the parity matrix: which uncoded fragments a coded one is made of.
+//
+// # Arguments
+//
+// * `coded` - which coded fragment, counting from one past the uncoded ones.
+// * `nb_frag` - how many uncoded fragments the block was cut into.
+// * `out_line` - receives a bit for every uncoded fragment, little end first.
+// * `line_len` - how many bytes that buffer holds, at least `nb_frag` bits' worth.
+// * `out_ones` - receives how many fragments the coded one is made of.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, a session of no fragments,
+// or a buffer too small.
+//
+// # Safety
+//
+// `out_line` must point to `line_len` writable bytes and `out_ones` must be writable.
+PamojaStatus pamoja_lorawan_frag_parity_line(uint16_t coded,
+                                             uint16_t nb_frag,
+                                             uint8_t *out_line,
+                                             uintptr_t line_len,
+                                             uintptr_t *out_ones);
+
+// How many fragments a block of a given size takes, and how much padding the last one needs.
+//
+// # Arguments
+//
+// * `block_len` - the block's length in bytes.
+// * `frag_size` - how many bytes each fragment carries.
+// * `out_nb_frag` - receives the fragment count.
+// * `out_padding` - receives the padding the last fragment carries.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, a fragment size of zero, or
+// a block needing more than [`PAMOJA_LORAWAN_MAX_FRAGMENTS`] fragments.
+//
+// # Safety
+//
+// Both out pointers must be writable.
+PamojaStatus pamoja_lorawan_frag_session(uintptr_t block_len,
+                                         uint8_t frag_size,
+                                         uint16_t *out_nb_frag,
+                                         uint8_t *out_padding);
+
+// Builds one fragment of a session out of a block held whole.
+//
+// # Arguments
+//
+// * `block` - the block to send.
+// * `block_len` - its length.
+// * `frag_size` - how many bytes each fragment carries.
+// * `n` - which fragment, counting from one; past the uncoded ones it is a coded fragment.
+// * `out_fragment` - receives the fragment.
+// * `out_len` - how many bytes that buffer holds, at least `frag_size`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, a session this build does
+// not run, or a buffer too small.
+//
+// # Safety
+//
+// `block` must point to `block_len` readable bytes and `out_fragment` to `out_len` writable
+// ones.
+PamojaStatus pamoja_lorawan_frag_fragment(const uint8_t *block,
+                                          uintptr_t block_len,
+                                          uint8_t frag_size,
+                                          uint16_t n,
+                                          uint8_t *out_fragment,
+                                          uintptr_t out_len);
+
+// How many bytes of working storage a session needs.
+//
+// # Arguments
+//
+// * `nb_frag` - how many uncoded fragments the block was cut into.
+// * `max_lost` - the most uncoded fragments the session should survive losing.
+//
+// # Returns
+//
+// The byte count, which [`pamoja_lorawan_defrag_new`] allocates for itself.
+uintptr_t pamoja_lorawan_defrag_matrix_len(uint16_t nb_frag, uint16_t max_lost);
+
+// Opens a fragmentation session.
+//
+// # Arguments
+//
+// * `nb_frag` - how many uncoded fragments the block was cut into.
+// * `frag_size` - how many bytes each fragment carries.
+// * `max_lost` - the most uncoded fragments to be able to solve for.
+// * `out_session` - receives the session.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_session` set to a handle the caller must
+// release with [`pamoja_lorawan_defrag_free`].
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a session this build does not run.
+//
+// # Safety
+//
+// `out_session` must be writable.
+PamojaStatus pamoja_lorawan_defrag_new(uint16_t nb_frag,
+                                       uint8_t frag_size,
+                                       uint16_t max_lost,
+                                       PamojaLorawanDefrag **out_session);
+
+// Releases a fragmentation session. Passing null is a no-op.
+//
+// # Arguments
+//
+// * `session` - the session, which must not be used again.
+//
+// # Safety
+//
+// `session` must be a live handle from [`pamoja_lorawan_defrag_new`], or null.
+void pamoja_lorawan_defrag_free(PamojaLorawanDefrag *session);
+
+// Takes one fragment of a session.
+//
+// # Arguments
+//
+// * `session` - the session.
+// * `n` - which fragment, counting from one.
+// * `fragment` - its bytes.
+// * `fragment_len` - how many, which must be at least the session's fragment size.
+// * `out_done` - receives `1` once the block is whole.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a fragment outside the session, and
+// [`PamojaStatus::Other`] when more fragments were lost than there is room to solve for.
+//
+// # Safety
+//
+// `session` must be a live handle, `fragment` must point to `fragment_len` readable bytes,
+// and `out_done` must be writable.
+PamojaStatus pamoja_lorawan_defrag_fragment(PamojaLorawanDefrag *session,
+                                            uint16_t n,
+                                            const uint8_t *fragment,
+                                            uintptr_t fragment_len,
+                                            uint8_t *out_done);
+
+// Reports what a session has taken so far.
+//
+// # Arguments
+//
+// * `session` - the session.
+// * `out_received` - receives how many fragments arrived, coded and uncoded.
+// * `out_missing` - receives how many uncoded fragments are still missing.
+// * `out_done` - receives `1` once the block is whole.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success. Every out pointer may be null.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null handle.
+//
+// # Safety
+//
+// `session` must be a live handle and every non-null out pointer writable.
+PamojaStatus pamoja_lorawan_defrag_status(const PamojaLorawanDefrag *session,
+                                          uint16_t *out_received,
+                                          uint16_t *out_missing,
+                                          uint8_t *out_done);
+
+// Reads the block a session has put back together.
+//
+// # Arguments
+//
+// * `session` - the session.
+// * `out_block` - receives the bytes, or null to ask only for the length.
+// * `capacity` - how many bytes that buffer holds.
+// * `out_len` - receives the block's length.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null handle or a buffer too small.
+//
+// # Safety
+//
+// `session` must be a live handle, `out_block` must point to `capacity` writable bytes or
+// be null, and `out_len` must be writable.
+PamojaStatus pamoja_lorawan_defrag_block(const PamojaLorawanDefrag *session,
+                                         uint8_t *out_block,
+                                         uintptr_t capacity,
+                                         uintptr_t *out_len);
+
+// Starts a code over one session's block, TS004-2.0.0 section 3.3.
+//
+// # Arguments
+//
+// * `data_block_int_key` - the sixteen-byte key [`pamoja_lorawan_data_block_int_key`]
+//   derived.
+// * `session_cnt` - the session counter the setup carried.
+// * `frag_index` - which of the device's sessions this is.
+// * `descriptor` - the four bytes the setup described the block with.
+// * `block_len` - the block's length without its padding.
+// * `out_mic` - receives the code.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_mic` set to a handle the caller must release
+// with [`pamoja_lorawan_block_mic_free`].
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// `data_block_int_key` must point to sixteen readable bytes, `descriptor` to four, and
+// `out_mic` must be writable.
+PamojaStatus pamoja_lorawan_block_mic_start(const uint8_t *data_block_int_key,
+                                            uint16_t session_cnt,
+                                            uint8_t frag_index,
+                                            const uint8_t *descriptor,
+                                            uint32_t block_len,
+                                            PamojaLorawanBlockMic **out_mic);
+
+// Adds a piece of the block to a code.
+//
+// # Arguments
+//
+// * `mic` - the code.
+// * `data` - the next bytes of the block, in order, without any padding.
+// * `data_len` - how many.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null handle.
+//
+// # Safety
+//
+// `mic` must be a live handle and `data` must point to `data_len` readable bytes.
+PamojaStatus pamoja_lorawan_block_mic_update(PamojaLorawanBlockMic *mic,
+                                             const uint8_t *data,
+                                             uintptr_t data_len);
+
+// Finishes a code and releases it.
+//
+// # Arguments
+//
+// * `mic` - the code, which must not be used again.
+// * `out_mic` - receives the four bytes a session setup carries.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// `mic` must be a live handle and `out_mic` must point to four writable bytes.
+PamojaStatus pamoja_lorawan_block_mic_finish(PamojaLorawanBlockMic *mic, uint8_t *out_mic);
+
+// Releases a code that was never finished. Passing null is a no-op.
+//
+// # Arguments
+//
+// * `mic` - the code, which must not be used again.
+//
+// # Safety
+//
+// `mic` must be a live handle from [`pamoja_lorawan_block_mic_start`], or null.
+void pamoja_lorawan_block_mic_free(PamojaLorawanBlockMic *mic);
+
+// Starts the clock synchronization package on a device, TS003-2.0.0.
+//
+// # Arguments
+//
+// * `self_managed` - `1` for a device that keeps its own periodicity and refuses the
+//   server's.
+// * `out_sync` - receives the package.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_sync` set to a handle the caller must release
+// with [`pamoja_lorawan_clock_sync_free`].
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null out pointer.
+//
+// # Safety
+//
+// `out_sync` must be writable.
+PamojaStatus pamoja_lorawan_clock_sync_new(uint8_t self_managed, PamojaLorawanClockSync **out_sync);
+
+// Releases a clock synchronization package. Passing null is a no-op.
+//
+// # Arguments
+//
+// * `sync` - the package, which must not be used again.
+//
+// # Safety
+//
+// `sync` must be a live handle from [`pamoja_lorawan_clock_sync_new`], or null.
+void pamoja_lorawan_clock_sync_free(PamojaLorawanClockSync *sync);
+
+// Builds the request that asks a server for a clock correction, section 3.2.
+//
+// # Arguments
+//
+// * `sync` - the package.
+// * `device_time` - what the device believes the time is, in seconds since the GPS epoch.
+// * `ans_required` - `1` to make the server answer even when the clock is right.
+// * `out_command` - receives the command.
+// * `capacity` - how many bytes that buffer holds, at least six.
+// * `out_len` - receives how many were written.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer or a buffer too small.
+//
+// # Safety
+//
+// `sync` must be a live handle, `out_command` must point to `capacity` writable bytes, and
+// `out_len` must be writable.
+PamojaStatus pamoja_lorawan_clock_sync_request(PamojaLorawanClockSync *sync,
+                                               uint32_t device_time,
+                                               uint8_t ans_required,
+                                               uint8_t *out_command,
+                                               uintptr_t capacity,
+                                               uintptr_t *out_len);
+
+// Reads a downlink on the clock port and acts on it, section 3.2.
+//
+// # Arguments
+//
+// * `sync` - the package.
+// * `payload` - what arrived on port [`PAMOJA_LORAWAN_CLOCK_PORT`].
+// * `payload_len` - its length.
+// * `out_correction` - receives the seconds to add to the device's clock.
+// * `out_has_correction` - receives `1` when there was one.
+// * `out_more` - receives `1` when another correction is coming.
+// * `out_resync` - receives how many requests a resynchronization command asked for, or 0.
+// * `out_answer_due` - receives `1` when the device now owes an answer.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success. Every out pointer may be null.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::Codec`] for a message this package cannot read.
+//
+// # Safety
+//
+// `sync` must be a live handle, `payload` must point to `payload_len` readable bytes, and
+// every non-null out pointer must be writable.
+PamojaStatus pamoja_lorawan_clock_sync_heard(PamojaLorawanClockSync *sync,
+                                             const uint8_t *payload,
+                                             uintptr_t payload_len,
+                                             int32_t *out_correction,
+                                             uint8_t *out_has_correction,
+                                             uint8_t *out_more,
+                                             uint8_t *out_resync,
+                                             uint8_t *out_answer_due);
+
+// Writes the answer a device owes its clock server, if it owes one.
+//
+// # Arguments
+//
+// * `sync` - the package.
+// * `device_time` - what the device believes the time is.
+// * `out_command` - receives the command.
+// * `capacity` - how many bytes that buffer holds.
+// * `out_len` - receives how many were written, which is zero when nothing is owed.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer or a buffer too small.
+//
+// # Safety
+//
+// `sync` must be a live handle, `out_command` must point to `capacity` writable bytes, and
+// `out_len` must be writable.
+PamojaStatus pamoja_lorawan_clock_sync_answer(PamojaLorawanClockSync *sync,
+                                              uint32_t device_time,
+                                              uint8_t *out_command,
+                                              uintptr_t capacity,
+                                              uintptr_t *out_len);
+
+// Reports where a clock synchronization package stands.
+//
+// # Arguments
+//
+// * `sync` - the package.
+// * `out_token` - receives the token the next request carries.
+// * `out_period_s` - receives the seconds between requests the server last set.
+// * `out_answer_due` - receives `1` when the device owes an answer.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success. Every out pointer may be null.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null handle.
+//
+// # Safety
+//
+// `sync` must be a live handle and every non-null out pointer writable.
+PamojaStatus pamoja_lorawan_clock_sync_status(const PamojaLorawanClockSync *sync,
+                                              uint8_t *out_token,
+                                              uint32_t *out_period_s,
+                                              uint8_t *out_answer_due);
+
+// Starts the firmware management package on a device, TS006-1.0.0.
+//
+// # Arguments
+//
+// * `firmware` - the version the device is running, as its manufacturer numbers it.
+// * `hardware` - the platform it runs on.
+// * `out_manager` - receives the package.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_manager` set to a handle the caller must
+// release with [`pamoja_lorawan_firmware_free`].
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null out pointer.
+//
+// # Safety
+//
+// `out_manager` must be writable.
+PamojaStatus pamoja_lorawan_firmware_new(uint32_t firmware,
+                                         uint32_t hardware,
+                                         PamojaLorawanFirmware **out_manager);
+
+// Releases a firmware management package. Passing null is a no-op.
+//
+// # Arguments
+//
+// * `manager` - the package, which must not be used again.
+//
+// # Safety
+//
+// `manager` must be a live handle from [`pamoja_lorawan_firmware_new`], or null.
+void pamoja_lorawan_firmware_free(PamojaLorawanFirmware *manager);
+
+// Says what firmware upgrade image the device is holding.
+//
+// # Arguments
+//
+// * `manager` - the package.
+// * `status` - one of [`PAMOJA_LORAWAN_IMAGE_NONE`], [`PAMOJA_LORAWAN_IMAGE_CORRUPT`],
+//   [`PAMOJA_LORAWAN_IMAGE_WRONG_HARDWARE`] or [`PAMOJA_LORAWAN_IMAGE_VALID`].
+// * `version` - the version the device would run once it is installed, for a valid image.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null handle.
+//
+// # Safety
+//
+// `manager` must be a live handle.
+PamojaStatus pamoja_lorawan_firmware_set_image(PamojaLorawanFirmware *manager,
+                                               uint8_t status,
+                                               uint32_t version);
+
+// Reads a downlink on the firmware port and writes the answers it calls for.
+//
+// # Arguments
+//
+// * `manager` - the package.
+// * `payload` - what arrived on port [`PAMOJA_LORAWAN_FIRMWARE_PORT`].
+// * `payload_len` - its length.
+// * `now_s` - what the device believes the time is, in seconds since the GPS epoch.
+// * `has_now` - `1` when the device knows the time; a device that does not refuses a reboot
+//   set for a moment in time.
+// * `out_answers` - receives the answers.
+// * `capacity` - how many bytes that buffer holds.
+// * `out_len` - receives how many were written.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::Codec`] for a message this package cannot read, and
+// [`PamojaStatus::InvalidArgument`] for a null pointer or a buffer too small.
+//
+// # Safety
+//
+// `manager` must be a live handle, `payload` must point to `payload_len` readable bytes,
+// `out_answers` to `capacity` writable ones, and `out_len` must be writable.
+PamojaStatus pamoja_lorawan_firmware_heard(PamojaLorawanFirmware *manager,
+                                           const uint8_t *payload,
+                                           uintptr_t payload_len,
+                                           uint32_t now_s,
+                                           uint8_t has_now,
+                                           uint8_t *out_answers,
+                                           uintptr_t capacity,
+                                           uintptr_t *out_len);
+
+// Reports the reboot a firmware management package is holding.
+//
+// # Arguments
+//
+// * `manager` - the package.
+// * `out_at_s` - receives the moment the device is to reboot, where one was set as a time.
+// * `out_has_at` - receives `1` when there is one.
+// * `out_in_s` - receives how long until it reboots, where one was set as a countdown.
+// * `out_has_in` - receives `1` when there is one.
+// * `out_now` - receives `1` when the device was told to reboot at once.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success. Every out pointer may be null.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null handle.
+//
+// # Safety
+//
+// `manager` must be a live handle and every non-null out pointer writable.
+PamojaStatus pamoja_lorawan_firmware_reboot(const PamojaLorawanFirmware *manager,
+                                            uint32_t *out_at_s,
+                                            uint8_t *out_has_at,
+                                            uint32_t *out_in_s,
+                                            uint8_t *out_has_in,
+                                            uint8_t *out_now);
 
 // Derives an end device's root relay session key from its network session key,
 // TS011-1.0.1 section 4.4.
