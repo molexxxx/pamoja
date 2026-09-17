@@ -77,6 +77,11 @@ impl Session {
         self.dev_addr
     }
 
+    /// The network and application session keys, for a device saving its session.
+    pub(crate) const fn keys(&self) -> ([u8; 16], [u8; 16]) {
+        (self.nwk_skey, self.app_skey)
+    }
+
     /// Encodes an uplink data frame, encrypting the payload and appending the MIC.
     ///
     /// # Arguments

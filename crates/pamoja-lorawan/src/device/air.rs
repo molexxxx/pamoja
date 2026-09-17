@@ -52,6 +52,35 @@ impl Air {
         self.aggregated_free_at_us
     }
 
+    /// How long the aggregated wait and each sub-band's still have to run at `now_us`.
+    pub(crate) fn remaining(&self, now_us: u64) -> (u64, [u64; MAX_SUB_BANDS]) {
+        let mut sub_bands = [0; MAX_SUB_BANDS];
+        for (left, free_at) in sub_bands.iter_mut().zip(self.sub_band_free_at_us) {
+            *left = free_at.saturating_sub(now_us);
+        }
+        (self.aggregated_free_at_us.saturating_sub(now_us), sub_bands)
+    }
+
+    /// The waits a saved state still had to run, running again from `now_us`.
+    pub(crate) fn resumed(
+        now_us: u64,
+        aggregated_us: u64,
+        sub_bands_us: [u64; MAX_SUB_BANDS],
+    ) -> Air {
+        let mut air = Air::new();
+        for (free_at, left) in air.sub_band_free_at_us.iter_mut().zip(sub_bands_us) {
+            *free_at = if left == 0 {
+                0
+            } else {
+                now_us.saturating_add(left)
+            };
+        }
+        if aggregated_us > 0 {
+            air.aggregated_free_at_us = now_us.saturating_add(aggregated_us);
+        }
+        air
+    }
+
     /// Keeps the silence a transmission costs.
     ///
     /// A share of `permille` over a transmission of `airtime_us` means waiting
@@ -154,6 +183,18 @@ impl Sequence {
             word[..chunk.len()].copy_from_slice(chunk);
             state = state.rotate_left(13) ^ u32::from_le_bytes(word);
         }
+        Sequence {
+            state: if state == 0 { 0x2545_F491 } else { state },
+        }
+    }
+
+    /// The sequence's position, for a device saving its state.
+    pub(crate) const fn state(&self) -> u32 {
+        self.state
+    }
+
+    /// A sequence carried on from a saved position.
+    pub(crate) const fn from_state(state: u32) -> Sequence {
         Sequence {
             state: if state == 0 { 0x2545_F491 } else { state },
         }

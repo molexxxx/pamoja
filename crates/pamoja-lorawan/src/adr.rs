@@ -238,6 +238,18 @@ impl Backoff {
         self.counter
     }
 
+    /// Whether the last step re-enabled the channels, for a device saving its state.
+    pub(crate) const fn has_restored(&self) -> bool {
+        self.restored
+    }
+
+    /// The same count carried on from a saved counter.
+    pub(crate) const fn resumed(mut self, counter: u32, restored: bool) -> Backoff {
+        self.counter = counter;
+        self.restored = restored;
+        self
+    }
+
     /// The revision whose steps this count follows.
     ///
     /// # Returns
