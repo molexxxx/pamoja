@@ -40,8 +40,10 @@
 
 use pamoja_lora::region::{ChannelBlock, ChannelPlan, OwnedChannelPlan};
 use pamoja_lora::LinkSettings;
+use pamoja_lorawan::mac::{encode_all, MacCommand, MacCommands, FOPTS_MAX, MAX_COMMAND};
+use pamoja_lorawan::relay::{ForwardedUplink, UplinkMetadata, LA_FPORT_RELAY};
 use pamoja_lorawan::{
-    Downlink, FrameHeader, JoinGrant, JoinRequest, LorawanError, MessageType, Session,
+    Direction, Downlink, FrameHeader, JoinGrant, JoinRequest, LorawanError, MessageType, Session,
 };
 
 use crate::udp::{Rxpk, Txpk};
@@ -317,6 +319,30 @@ impl core::fmt::Debug for Registration {
     }
 }
 
+/// What a relay added to an uplink it forwarded, TS011-1.0.1 section 9.1.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Relayed {
+    /// The relay's own address.
+    pub relay: u32,
+    /// What it heard of the uplink.
+    pub metadata: UplinkMetadata,
+    /// The frequency the uplink arrived on, in hertz.
+    pub frequency_hz: u32,
+}
+
+/// A device a relay heard and could not verify, TS011-1.0.1 section 10.7.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Notice {
+    /// The relay that heard it.
+    pub relay: u32,
+    /// The address the wake-on-radio frame named.
+    pub dev_addr: u32,
+    /// The frame's signal strength in dBm.
+    pub rssi_dbm: i16,
+    /// Its signal-to-noise ratio in dB.
+    pub snr_db: i8,
+}
+
 /// Where and when a downlink answers an uplink, in the concentrator's own terms.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Slot {
@@ -354,6 +380,9 @@ pub enum Event {
         confirmed: bool,
         /// Where an answer would go.
         slot: Slot,
+        /// The relay that forwarded it, and what it heard, for an uplink that came that
+        /// way. [`answer`](Network::answer) sends the reply back through the same relay.
+        relay: Option<Relayed>,
     },
     /// A data frame for an address this network has not granted, which is another
     /// network's traffic and is not an error.
@@ -366,6 +395,8 @@ pub enum Event {
 /// What can go wrong admitting or reading a forwarded packet.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NetworkError {
+    /// A relay forwarded something that is not an uplink it could have heard.
+    Relayed(LorawanError),
     /// The packet was not LoRa, so it carries no LoRaWAN frame here.
     NotLora,
     /// The frame did not parse, verify, or decrypt.
@@ -406,6 +437,9 @@ impl core::fmt::Display for NetworkError {
         match self {
             NetworkError::NotLora => f.write_str("the packet was not LoRa"),
             NetworkError::Frame(error) => write!(f, "the frame was refused: {error}"),
+            NetworkError::Relayed(error) => {
+                write!(f, "the frame a relay forwarded was refused: {error}")
+            }
             NetworkError::UnknownDevice => {
                 f.write_str("no registered key verifies the join request")
             }
@@ -448,6 +482,7 @@ struct Admitted {
     session: Session,
     fcnt_up: Option<u32>,
     fcnt_down: u32,
+    via_relay: Option<u32>,
 }
 
 /// The network side of one site.
@@ -464,6 +499,7 @@ pub struct Network {
     admitted: Vec<Admitted>,
     next_dev_addr: u32,
     next_app_nonce: u32,
+    notices: Vec<Notice>,
 }
 
 impl Network {
@@ -499,6 +535,7 @@ impl Network {
             admitted: Vec::new(),
             next_dev_addr: 1,
             next_app_nonce: 1,
+            notices: Vec::new(),
         }
     }
 
@@ -638,17 +675,139 @@ impl Network {
             .encode_downlink(&Downlink::new(held.fcnt_down, fport, payload))
             .map_err(NetworkError::Frame)?;
         held.fcnt_down = held.fcnt_down.wrapping_add(1);
+        let relay = held.via_relay;
 
+        let frame = match relay {
+            Some(relay) => self.wrap_for_relay(relay, frame.as_bytes())?,
+            None => frame.as_bytes().to_vec(),
+        };
+        Ok(transmit(slot, frame))
+    }
+
+    /// Builds a downlink carrying MAC commands, which is how a network configures a relay,
+    /// TS011-1.0.1 chapter 10.
+    ///
+    /// The commands ride in the frame options where they fit, and in a frame of their own on
+    /// port 0 where they do not.
+    ///
+    /// # Arguments
+    ///
+    /// * `dev_addr` - the device to send to, a relay for the relay commands.
+    /// * `slot` - where and when to transmit, from the event that reported its uplink.
+    /// * `commands` - the commands, in the order they should be read.
+    ///
+    /// # Returns
+    ///
+    /// The packet to put in a `PULL_RESP`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NetworkError::NoSession`] if no device holds that address here, and
+    /// [`NetworkError::Frame`] if the commands do not fit one frame.
+    pub fn command(
+        &mut self,
+        dev_addr: u32,
+        slot: Slot,
+        commands: &[MacCommand],
+    ) -> Result<Txpk, NetworkError> {
+        let mut bytes = vec![0u8; commands.len() * MAX_COMMAND];
+        let len = encode_all(commands, &mut bytes).map_err(NetworkError::Frame)?;
+        let held = self
+            .admitted
+            .iter_mut()
+            .find(|held| held.dev_addr == dev_addr)
+            .ok_or(NetworkError::NoSession { dev_addr })?;
+
+        let downlink = if len <= FOPTS_MAX {
+            Downlink::empty(held.fcnt_down).with_fopts(&bytes[..len])
+        } else {
+            Downlink::new(held.fcnt_down, 0, &bytes[..len])
+        };
+        let frame = held
+            .session
+            .encode_downlink(&downlink)
+            .map_err(NetworkError::Frame)?;
+        held.fcnt_down = held.fcnt_down.wrapping_add(1);
         Ok(transmit(slot, frame.as_bytes().to_vec()))
+    }
+
+    /// Builds the command that tells a relay to trust a device, with the key that lets it
+    /// verify the device's wake-on-radio frames, TS011-1.0.1 section 10.4.
+    ///
+    /// # Arguments
+    ///
+    /// * `dev_addr` - the end device to trust.
+    /// * `index` - which of the relay's sixteen entries to put it in.
+    /// * `reload_rate` - how many of its uplinks the relay forwards an hour, 63 for no
+    ///   limit.
+    /// * `bucket_size` - the coded bucket size multiplier, table 55.
+    ///
+    /// # Returns
+    ///
+    /// The `UpdateUplinkListReq` to send to the relay with [`command`](Network::command).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NetworkError::NoSession`] if no device holds that address here.
+    pub fn trust_command(
+        &self,
+        dev_addr: u32,
+        index: u8,
+        reload_rate: u8,
+        bucket_size: u8,
+    ) -> Result<MacCommand, NetworkError> {
+        let held = self
+            .admitted
+            .iter()
+            .find(|held| held.dev_addr == dev_addr)
+            .ok_or(NetworkError::NoSession { dev_addr })?;
+        Ok(MacCommand::UpdateUplinkListReq {
+            index,
+            reload_rate,
+            bucket_size,
+            dev_addr,
+            wfcnt: 0,
+            root_wor_s_key: held.session.root_wor_s_key(),
+        })
+    }
+
+    /// Takes the devices relays have reported hearing and could not verify, TS011-1.0.1
+    /// section 10.7.
+    ///
+    /// A relay carries these in the MAC commands of its own uplinks, alongside whatever
+    /// else that uplink was for, so they wait here until they are read.
+    ///
+    /// # Returns
+    ///
+    /// Every notice since the last call, in the order they arrived.
+    pub fn notices(&mut self) -> Vec<Notice> {
+        core::mem::take(&mut self.notices)
     }
 
     // Verifies a join request against every registered key, grants a session, and answers.
     fn admit(&mut self, heard: &Rxpk, link: LinkSettings) -> Result<Event, NetworkError> {
+        self.admit_frame(
+            &heard.payload,
+            self.slot(heard, link, self.windows.join_delay_us)?,
+            Some(heard.frequency_hz),
+            None,
+        )
+    }
+
+    // The same, for a frame a relay forwarded, which is answered through that relay in its
+    // own window rather than in the device's.
+    fn admit_frame(
+        &mut self,
+        payload: &[u8],
+        mut slot: Slot,
+        accept_hz: Option<u32>,
+        relay: Option<u32>,
+    ) -> Result<Event, NetworkError> {
         let (registration, request) = self
             .registrations
             .iter()
             .find_map(|registration| {
-                let request = JoinRequest::parse(&heard.payload, &registration.app_key).ok()?;
+                let request = JoinRequest::parse(payload, &registration.app_key).ok()?;
                 (request.dev_eui() == registration.dev_eui).then_some((*registration, request))
             })
             .ok_or(NetworkError::UnknownDevice)?;
@@ -674,18 +833,24 @@ impl Network {
             session,
             fcnt_up: None,
             fcnt_down: 0,
+            via_relay: relay,
         });
 
-        let mut slot = self.slot(heard, link, self.windows.join_delay_us)?;
-        if self.windows.rx1_channels == Rx1Channels::Plan {
-            if let Some(hz) = self.join_accept_hz(heard.frequency_hz) {
-                slot.frequency_hz = hz;
+        if let Some(uplink_hz) = accept_hz {
+            if self.windows.rx1_channels == Rx1Channels::Plan {
+                if let Some(hz) = self.join_accept_hz(uplink_hz) {
+                    slot.frequency_hz = hz;
+                }
             }
         }
+        let accept = match relay {
+            Some(relay) => self.wrap_for_relay(relay, accept.as_bytes())?,
+            None => accept.as_bytes().to_vec(),
+        };
         Ok(Event::Joined {
             dev_eui: registration.dev_eui,
             dev_addr,
-            accept: transmit(slot, accept.as_bytes().to_vec()),
+            accept: transmit(slot, accept),
         })
     }
 
@@ -744,6 +909,34 @@ impl Network {
             .decode(&heard.payload, fcnt)
             .map_err(NetworkError::Frame)?;
         held.fcnt_up = Some(fcnt);
+        held.via_relay = None;
+
+        // A relay tells the network about devices it could not verify in the MAC commands
+        // of its own uplinks, TS011-1.0.1 section 10.7.
+        let commands = if data.fport() == Some(0) {
+            data.payload()
+        } else {
+            data.fopts()
+        };
+        for command in MacCommands::new(Direction::Uplink, commands).flatten() {
+            if let MacCommand::NotifyNewEndDeviceReq {
+                dev_addr: heard_addr,
+                rssi_dbm,
+                snr_db,
+            } = command
+            {
+                self.notices.push(Notice {
+                    relay: dev_addr,
+                    dev_addr: heard_addr,
+                    rssi_dbm,
+                    snr_db,
+                });
+            }
+        }
+
+        if data.fport() == Some(LA_FPORT_RELAY) {
+            return self.forwarded(dev_addr, data.payload(), slot);
+        }
 
         Ok(Event::Data {
             dev_addr,
@@ -752,7 +945,96 @@ impl Network {
             payload: data.payload().to_vec(),
             confirmed: data.confirmed(),
             slot,
+            relay: None,
         })
+    }
+
+    // Reads an uplink a relay forwarded, and treats it as if the device itself had sent it,
+    // TS011-1.0.1 section 9.1.
+    fn forwarded(&mut self, relay: u32, payload: &[u8], slot: Slot) -> Result<Event, NetworkError> {
+        let forwarded = ForwardedUplink::parse(payload).map_err(NetworkError::Relayed)?;
+        let relayed = Relayed {
+            relay,
+            metadata: forwarded.metadata,
+            frequency_hz: forwarded.frequency_hz,
+        };
+        let header = FrameHeader::parse(forwarded.phy_payload).map_err(NetworkError::Relayed)?;
+        match header.message_type() {
+            MessageType::JoinRequest => {
+                self.admit_frame(forwarded.phy_payload, slot, None, Some(relay))
+            }
+            MessageType::UnconfirmedUp | MessageType::ConfirmedUp => {
+                let dev_addr = header
+                    .dev_addr()
+                    .ok_or(NetworkError::Relayed(LorawanError::MalformedFrame))?;
+                let carried = header
+                    .fcnt()
+                    .ok_or(NetworkError::Relayed(LorawanError::MalformedFrame))?;
+                let Some(held) = self
+                    .admitted
+                    .iter_mut()
+                    .find(|held| held.dev_addr == dev_addr)
+                else {
+                    return Ok(Event::Foreign { dev_addr });
+                };
+                let fcnt = match held.fcnt_up {
+                    None => u32::from(carried),
+                    Some(seen) => {
+                        let mut candidate = (seen & 0xFFFF_0000) | u32::from(carried);
+                        if candidate == seen {
+                            return Err(NetworkError::Replayed {
+                                dev_addr,
+                                fcnt: candidate,
+                            });
+                        }
+                        if candidate < seen {
+                            candidate = candidate.wrapping_add(0x0001_0000);
+                        }
+                        if candidate - seen > MAX_FCNT_GAP {
+                            return Err(NetworkError::CounterGap {
+                                dev_addr,
+                                seen,
+                                carried: candidate,
+                            });
+                        }
+                        candidate
+                    }
+                };
+                let data = held
+                    .session
+                    .decode(forwarded.phy_payload, fcnt)
+                    .map_err(NetworkError::Relayed)?;
+                held.fcnt_up = Some(fcnt);
+                held.via_relay = Some(relay);
+                Ok(Event::Data {
+                    dev_addr,
+                    fcnt,
+                    fport: data.fport(),
+                    payload: data.payload().to_vec(),
+                    confirmed: data.confirmed(),
+                    slot,
+                    relay: Some(relayed),
+                })
+            }
+            other => Err(NetworkError::Relayed(LorawanError::UnsupportedMType(
+                downlink_mtype(other),
+            ))),
+        }
+    }
+
+    // Wraps a frame for an end device in the downlink its relay forwards it in, section 9.2.
+    fn wrap_for_relay(&mut self, relay: u32, frame: &[u8]) -> Result<Vec<u8>, NetworkError> {
+        let held = self
+            .admitted
+            .iter_mut()
+            .find(|held| held.dev_addr == relay)
+            .ok_or(NetworkError::NoSession { dev_addr: relay })?;
+        let wrapped = held
+            .session
+            .encode_downlink(&Downlink::new(held.fcnt_down, LA_FPORT_RELAY, frame))
+            .map_err(NetworkError::Frame)?;
+        held.fcnt_down = held.fcnt_down.wrapping_add(1);
+        Ok(wrapped.as_bytes().to_vec())
     }
 
     // Works out where and when the first receive window opens for a packet.
@@ -864,7 +1146,7 @@ mod tests {
     use super::*;
 
     use pamoja_lora::region::{Cn470Plan, Region};
-    use pamoja_lorawan::Device;
+    use pamoja_lorawan::{Device, Uplink};
 
     const DEV_EUI: [u8; 8] = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77];
     const APP_EUI: [u8; 8] = [0x70, 0xB3, 0xD5, 0x7E, 0xD0, 0x00, 0x00, 0x01];
@@ -983,6 +1265,7 @@ mod tests {
             payload,
             confirmed,
             slot,
+            ..
         } = event
         else {
             panic!("a data frame is read");
@@ -1189,5 +1472,248 @@ mod tests {
         let mut packet = heard(vec![0x40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0);
         packet.modulation = crate::udp::Modulation::Fsk(50_000);
         assert_eq!(network.uplink(&packet), Err(NetworkError::NotLora));
+    }
+
+    const RELAY_EUI: [u8; 8] = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x88];
+    const RELAY_KEY: [u8; 16] = [0x5A; 16];
+
+    /// A network with a relay and an end device registered, the relay joined and holding a
+    /// session, and its address.
+    fn site_with_relay() -> (Network, Session, u32) {
+        let mut network = site();
+        network.register(Registration::new(RELAY_EUI, APP_EUI, RELAY_KEY));
+        let relay = Device::new(RELAY_EUI, APP_EUI, RELAY_KEY);
+        let request = relay.join_request(0x0101);
+        let Event::Joined { dev_addr, .. } = network
+            .uplink(&heard(request.as_bytes().to_vec(), 1_000))
+            .expect("the relay joins")
+        else {
+            panic!("the relay joined");
+        };
+        let session = network.session(dev_addr).expect("a session");
+        (network, session, dev_addr)
+    }
+
+    /// The uplink a relay sends to forward a frame it heard.
+    fn forwarded(session: &Session, fcnt: u32, phy_payload: &[u8]) -> Vec<u8> {
+        let uplink = ForwardedUplink {
+            metadata: UplinkMetadata {
+                wor_channel: pamoja_lorawan::relay::WorChannel::Default,
+                rssi_dbm: -92,
+                snr_db: 5,
+                data_rate: 5,
+            },
+            frequency_hz: 868_300_000,
+            phy_payload,
+        };
+        let mut payload = vec![0u8; phy_payload.len() + 16];
+        let len = uplink.encode(&mut payload).expect("it encodes");
+        session
+            .encode_uplink(&Uplink::new(fcnt, LA_FPORT_RELAY, &payload[..len]))
+            .expect("the relay's uplink encodes")
+            .as_bytes()
+            .to_vec()
+    }
+
+    #[test]
+    fn a_join_a_relay_forwards_is_admitted_and_its_accept_goes_back_the_same_way() {
+        let (mut network, relay_session, relay_addr) = site_with_relay();
+        let device = Device::new(DEV_EUI, APP_EUI, APP_KEY);
+        let request = device.join_request(0x1234);
+
+        let event = network
+            .uplink(&heard(
+                forwarded(&relay_session, 0, request.as_bytes()),
+                5_000,
+            ))
+            .expect("the forwarded request verifies");
+        let Event::Joined {
+            dev_eui,
+            dev_addr,
+            accept,
+        } = event
+        else {
+            panic!("the device joined: {event:?}");
+        };
+        assert_eq!(dev_eui, DEV_EUI);
+        assert_ne!(dev_addr, relay_addr);
+
+        // The accept is addressed to the relay, on the port a relay forwards on, and
+        // carries the device's own accept for it to send on.
+        let to_relay = relay_session
+            .decode(&accept.payload, 0)
+            .expect("the relay's downlink decodes");
+        assert_eq!(to_relay.fport(), Some(LA_FPORT_RELAY));
+        let session = device
+            .accept_join(to_relay.payload(), 0x1234)
+            .expect("the device's own accept")
+            .session();
+        assert_eq!(session.dev_addr(), dev_addr);
+    }
+
+    #[test]
+    fn an_uplink_a_relay_forwards_carries_what_it_heard_and_is_answered_through_it() {
+        let (mut network, relay_session, _) = site_with_relay();
+        let device = Device::new(DEV_EUI, APP_EUI, APP_KEY);
+        let request = device.join_request(0x1234);
+        let Event::Joined { dev_addr, .. } = network
+            .uplink(&heard(
+                forwarded(&relay_session, 0, request.as_bytes()),
+                5_000,
+            ))
+            .expect("the device joins")
+        else {
+            panic!("the device joined");
+        };
+        let session = network.session(dev_addr).expect("the granted session");
+
+        let reading = session
+            .encode_uplink(&Uplink::new(0, 2, b"21.5"))
+            .expect("the reading encodes");
+        let event = network
+            .uplink(&heard(
+                forwarded(&relay_session, 1, reading.as_bytes()),
+                9_000,
+            ))
+            .expect("the forwarded reading verifies");
+        let Event::Data {
+            dev_addr: from,
+            payload,
+            relay,
+            slot,
+            ..
+        } = event
+        else {
+            panic!("a reading came through: {event:?}");
+        };
+        assert_eq!(from, dev_addr);
+        assert_eq!(payload, b"21.5");
+        let relayed = relay.expect("it came through a relay");
+        assert_eq!(relayed.metadata.rssi_dbm, -92);
+        assert_eq!(relayed.metadata.snr_db, 5);
+        assert_eq!(relayed.frequency_hz, 868_300_000);
+
+        // The answer goes to the relay, which sends it on.
+        let answer = network
+            .answer(dev_addr, slot, 2, b"ok")
+            .expect("an answer for the device");
+        // The accept took the relay's first downlink, so this is its second.
+        let to_relay = relay_session
+            .decode(&answer.payload, 1)
+            .expect("the relay's downlink decodes");
+        assert_eq!(to_relay.fport(), Some(LA_FPORT_RELAY));
+        let inside = session
+            .decode(to_relay.payload(), 0)
+            .expect("the device's own downlink");
+        assert_eq!(inside.payload(), b"ok");
+    }
+
+    #[test]
+    fn a_relay_reports_the_devices_it_cannot_verify_and_is_told_to_trust_them() {
+        let (mut network, relay_session, relay_addr) = site_with_relay();
+        let device = Device::new(DEV_EUI, APP_EUI, APP_KEY);
+        let request = device.join_request(0x1234);
+        let Event::Joined { dev_addr, .. } = network
+            .uplink(&heard(
+                forwarded(&relay_session, 0, request.as_bytes()),
+                5_000,
+            ))
+            .expect("the device joins")
+        else {
+            panic!("the device joined");
+        };
+
+        // The relay carries a notice in the frame options of its own uplink.
+        let mut fopts = [0u8; MAX_COMMAND];
+        let len = encode_all(
+            &[MacCommand::NotifyNewEndDeviceReq {
+                dev_addr: 0x2601_9999,
+                rssi_dbm: -100,
+                snr_db: 3,
+            }],
+            &mut fopts,
+        )
+        .expect("the notice encodes");
+        let uplink = relay_session
+            .encode_uplink(&Uplink::empty(1).with_fopts(&fopts[..len]))
+            .expect("the relay's uplink encodes");
+        let event = network
+            .uplink(&heard(uplink.as_bytes().to_vec(), 11_000))
+            .expect("the uplink verifies");
+        let slot = match event {
+            Event::Data { slot, .. } => slot,
+            other => panic!("the relay sent an uplink: {other:?}"),
+        };
+        assert_eq!(
+            network.notices(),
+            vec![Notice {
+                relay: relay_addr,
+                dev_addr: 0x2601_9999,
+                rssi_dbm: -100,
+                snr_db: 3,
+            }]
+        );
+        assert!(network.notices().is_empty(), "each notice is read once");
+
+        // The network tells the relay to trust the device, with the key that lets it check
+        // the device's wake-on-radio frames.
+        let command = network
+            .trust_command(dev_addr, 0, 63, 0)
+            .expect("the device has a session");
+        let MacCommand::UpdateUplinkListReq {
+            root_wor_s_key,
+            dev_addr: trusted,
+            ..
+        } = command
+        else {
+            panic!("an UpdateUplinkListReq: {command:?}");
+        };
+        assert_eq!(trusted, dev_addr);
+        assert_eq!(
+            root_wor_s_key,
+            network
+                .session(dev_addr)
+                .expect("a session")
+                .root_wor_s_key(),
+        );
+
+        let txpk = network
+            .command(relay_addr, slot, &[command])
+            .expect("a downlink for the relay");
+        let to_relay = relay_session
+            .decode(&txpk.payload, 1)
+            .expect("the relay's downlink decodes");
+        let carried: Vec<_> = MacCommands::new(Direction::Downlink, to_relay.payload())
+            .flatten()
+            .collect();
+        assert_eq!(carried, vec![command], "a long command takes port 0");
+        assert_eq!(to_relay.fport(), Some(0));
+    }
+
+    #[test]
+    fn a_relay_that_forwards_nonsense_is_refused_without_taking_the_network_down() {
+        let (mut network, relay_session, _) = site_with_relay();
+        let uplink = relay_session
+            .encode_uplink(&Uplink::new(0, LA_FPORT_RELAY, &[0x01, 0x02]))
+            .expect("the relay's uplink encodes");
+        assert!(matches!(
+            network.uplink(&heard(uplink.as_bytes().to_vec(), 3_000)),
+            Err(NetworkError::Relayed(_))
+        ));
+
+        let stranger = Session::new(0x2601_5555, [0x11; 16], [0x22; 16]);
+        let frame = stranger
+            .encode_uplink(&Uplink::new(0, 1, b"hi"))
+            .expect("it encodes");
+        assert_eq!(
+            network.uplink(&heard(
+                forwarded(&relay_session, 1, frame.as_bytes()),
+                4_000
+            )),
+            Ok(Event::Foreign {
+                dev_addr: 0x2601_5555
+            }),
+            "a device this network never granted",
+        );
     }
 }

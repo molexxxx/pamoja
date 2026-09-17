@@ -2532,6 +2532,23 @@ typedef struct {
   PamojaGatewayNetworkSlot slot;
   // The packet that carries the accept, for a join.
   PamojaGatewayTxpk accept;
+  // Whether a relay forwarded this uplink, TS011-1.0.1 section 9.1. An answer to it goes
+  // back through the same relay, which
+  // [`pamoja_gateway_network_answer`](crate::gateway_network::pamoja_gateway_network_answer)
+  // does by itself.
+  bool relayed;
+  // The relay that forwarded it.
+  uint32_t relay_dev_addr;
+  // What the relay heard of the uplink, in dBm.
+  int16_t relay_rssi_dbm;
+  // Its signal-to-noise ratio, in dB.
+  int8_t relay_snr_db;
+  // The data rate it arrived at.
+  uint8_t relay_data_rate;
+  // The WOR channel the device woke the relay on: 0 for the default, 1 for the second.
+  uint8_t relay_wor_channel;
+  // The frequency the uplink arrived on, in hertz.
+  uint32_t relay_frequency_hz;
 } PamojaGatewayNetworkEvent;
 
 // How a station heard a packet, as it reports it.

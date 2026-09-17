@@ -98,7 +98,28 @@ public sealed record GatewayNetworkEvent(GatewayNetworkOutcome Outcome, uint Dev
 
     /// <summary>The packet carrying the accept, for a join.</summary>
     public GatewayTxpk? Accept { get; init; }
+
+    /// <summary>
+    /// What a relay added to an uplink it forwarded, TS011-1.0.1 section 9.1, or null for one the
+    /// gateway heard itself. An answer goes back through the same relay.
+    /// </summary>
+    public GatewayRelayed? Relay { get; init; }
 }
+
+/// <summary>What a relay added to an uplink it forwarded, TS011-1.0.1 section 9.1.</summary>
+/// <param name="Relay">The relay's own address.</param>
+/// <param name="RssiDbm">What it heard of the uplink, in dBm.</param>
+/// <param name="SnrDb">Its signal-to-noise ratio, in dB.</param>
+/// <param name="DataRate">The data rate it arrived at.</param>
+/// <param name="WorChannel">The WOR channel the device woke the relay on: 0 default, 1 second.</param>
+/// <param name="FrequencyHz">The frequency the uplink arrived on, in hertz.</param>
+public sealed record GatewayRelayed(
+    uint Relay,
+    short RssiDbm,
+    sbyte SnrDb,
+    byte DataRate,
+    byte WorChannel,
+    uint FrequencyHz);
 
 /// <summary>The network side of one site: what a server does with what a gateway forwarded.</summary>
 /// <remarks>
@@ -245,6 +266,15 @@ public sealed class GatewayNetwork : IDisposable
                 Payload = carried,
                 Confirmed = read.Confirmed != 0,
                 Slot = Slot(read.Slot),
+                Relay = read.Relayed != 0
+                    ? new GatewayRelayed(
+                        read.RelayDevAddr,
+                        read.RelayRssiDbm,
+                        read.RelaySnrDb,
+                        read.RelayDataRate,
+                        read.RelayWorChannel,
+                        read.RelayFrequencyHz)
+                    : null,
             },
             _ => new GatewayNetworkEvent(outcome, read.DevAddr),
         };

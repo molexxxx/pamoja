@@ -21,6 +21,7 @@ use std::ptr;
 use pamoja_gateway::network::{Event, Network, NetworkError, Registration, Rx1Channels, Slot};
 use pamoja_gateway::udp::Rxpk;
 use pamoja_lora::region::ChannelBlock;
+use pamoja_lorawan::relay::WorChannel;
 
 use crate::gateway::{
     link_to_c, missing, rxpk_of, txpk_to_c, PamojaGatewayRxpk, PamojaGatewayTxpk,
@@ -126,6 +127,23 @@ pub struct PamojaGatewayNetworkEvent {
     pub slot: PamojaGatewayNetworkSlot,
     /// The packet that carries the accept, for a join.
     pub accept: PamojaGatewayTxpk,
+    /// Whether a relay forwarded this uplink, TS011-1.0.1 section 9.1. An answer to it goes
+    /// back through the same relay, which
+    /// [`pamoja_gateway_network_answer`](crate::gateway_network::pamoja_gateway_network_answer)
+    /// does by itself.
+    pub relayed: bool,
+    /// The relay that forwarded it.
+    pub relay_dev_addr: u32,
+    /// What the relay heard of the uplink, in dBm.
+    pub relay_rssi_dbm: i16,
+    /// Its signal-to-noise ratio, in dB.
+    pub relay_snr_db: i8,
+    /// The data rate it arrived at.
+    pub relay_data_rate: u8,
+    /// The WOR channel the device woke the relay on: 0 for the default, 1 for the second.
+    pub relay_wor_channel: u8,
+    /// The frequency the uplink arrived on, in hertz.
+    pub relay_frequency_hz: u32,
 }
 
 /// Returns the windows a network answers in by default.
@@ -455,6 +473,7 @@ unsafe fn event_to_c(event: Event, buffer: *mut u8, capacity: usize) -> PamojaGa
             payload,
             confirmed,
             slot,
+            relay,
         } => {
             let written = write_payload(&payload, buffer, capacity);
             PamojaGatewayNetworkEvent {
@@ -467,6 +486,16 @@ unsafe fn event_to_c(event: Event, buffer: *mut u8, capacity: usize) -> PamojaGa
                 len: if written { payload.len() } else { 0 },
                 truncated: !written,
                 slot: slot_to_c(slot),
+                relayed: relay.is_some(),
+                relay_dev_addr: relay.map_or(0, |relay| relay.relay),
+                relay_rssi_dbm: relay.map_or(0, |relay| relay.metadata.rssi_dbm),
+                relay_snr_db: relay.map_or(0, |relay| relay.metadata.snr_db),
+                relay_data_rate: relay.map_or(0, |relay| relay.metadata.data_rate),
+                relay_wor_channel: relay.map_or(0, |relay| match relay.metadata.wor_channel {
+                    WorChannel::Default => 0,
+                    WorChannel::Second => 1,
+                }),
+                relay_frequency_hz: relay.map_or(0, |relay| relay.frequency_hz),
                 ..PamojaGatewayNetworkEvent::default()
             }
         }
