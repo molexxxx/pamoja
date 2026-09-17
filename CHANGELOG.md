@@ -223,6 +223,16 @@ released together, so one entry covers all of them.
   downlink on a checked channel until 80 ms before its window, checks the channel,
   and reports a busy one rather than transmitting into it. The gateway page covers
   the configuration and what the daemon answers.
+- A channel plan's rules in C, TypeScript, Python and C#: its kind and channel list
+  numbering, whether it answers `TXParamSetupReq`, what each `ChMaskCntl` value
+  does, its numbered downlink channels and where the first receive window lands
+  after an uplink on any channel, its join order, and whether its power ceiling is
+  radiated or conducted. The five CN470-510 plans open by name, and each carries the
+  runs of common join channels that select a plan, with where the join accept and
+  the second receive window fall for every one. A plan builder sets all of these, so
+  a private fixed plan answers what US915 does. The conformance vectors hold every
+  published plan, the CN470 plans and a private fixed plan to the same answers in
+  all four languages.
 - Random numbers from a LoRa radio's receiver noise, `random` on the SX126x and
   SX127x drivers and on `Radio`, following the procedures of Semtech's own
   drivers. LoRaWAN 1.0.3 suggests this source for a join nonce on a device with no

@@ -1211,6 +1211,1522 @@
     ]
   },
   "loraRegions": {
+    "cn470": [
+      {
+        "backoffFromFastest": 6,
+        "backoffFromSlowest": null,
+        "beacon": {
+          "dataRate": 2,
+          "frequencyHz": 483900000,
+          "pingSlotFrequencyHz": 483900000
+        },
+        "channelFrequencies": [
+          470300000,
+          470500000,
+          470700000,
+          470900000,
+          471100000,
+          471300000,
+          471500000,
+          471700000
+        ],
+        "code": "antenna_20mhz_a",
+        "defaultChannelBlockCount": 2,
+        "defaultChannelCount": 64,
+        "defaultMaxEirpDbm": 19,
+        "downlinkDataRateCount": 8,
+        "dutyCyclePermilleAtProbe": null,
+        "dwellLimitedAtSlowest": null,
+        "fastestUplink": {
+          "bandwidthHz": null,
+          "bitrateBps": 50000,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "fsk",
+          "spreadingFactor": null
+        },
+        "hasDwellLimitedPayloads": false,
+        "hasDwellLimitedRx1": false,
+        "hasDwellTimeLimit": false,
+        "joinChannelBlockCount": 5,
+        "maxEirpDbmAtProbe": 19,
+        "maxRx1DataRateOffset": 5,
+        "maxTxPowerIndex": 7,
+        "name": "CN470-510",
+        "payloadAtFastest": {
+          "direct": {
+            "application": 242,
+            "macPayload": 250
+          },
+          "repeater": {
+            "application": 222,
+            "macPayload": 230
+          }
+        },
+        "payloadAtSlowest": {
+          "direct": null,
+          "repeater": null
+        },
+        "probeFrequencyHz": 470300000,
+        "rules": {
+          "channelList": null,
+          "downlinkChannelBlocks": [
+            {
+              "count": 32,
+              "maxDataRate": 5,
+              "minDataRate": 0,
+              "startHz": 483900000,
+              "stepHz": 200000
+            },
+            {
+              "count": 32,
+              "maxDataRate": 5,
+              "minDataRate": 0,
+              "startHz": 490300000,
+              "stepHz": 200000
+            }
+          ],
+          "downlinkChannelFrequencies": [
+            483900000,
+            484100000,
+            484300000,
+            484500000,
+            484700000,
+            484900000,
+            485100000,
+            485300000
+          ],
+          "downlinkChannelPastEnd": null,
+          "gainAllowanceDb": null,
+          "joinPlaces": [
+            {
+              "joinChannel": 0,
+              "place": {
+                "acceptHz": 484500000,
+                "index": 0,
+                "offset": 0,
+                "rx2Hz": 485300000
+              }
+            },
+            {
+              "joinChannel": 7,
+              "place": {
+                "acceptHz": 495700000,
+                "index": 1,
+                "offset": 3,
+                "rx2Hz": 496500000
+              }
+            },
+            {
+              "joinChannel": 9,
+              "place": {
+                "acceptHz": 499900000,
+                "index": 2,
+                "offset": 1,
+                "rx2Hz": 498300000
+              }
+            },
+            {
+              "joinChannel": 19,
+              "place": {
+                "acceptHz": 502500000,
+                "index": 4,
+                "offset": 4,
+                "rx2Hz": 502500000
+              }
+            },
+            {
+              "joinChannel": 20,
+              "place": null
+            }
+          ],
+          "joinPlans": [
+            {
+              "acceptStartHz": 484500000,
+              "acceptStepHz": 1600000,
+              "channels": {
+                "count": 4,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 470900000,
+                "stepHz": 1600000
+              },
+              "plan": "antenna_20mhz_a",
+              "rx2StartHz": 485300000,
+              "rx2StepHz": 1600000
+            },
+            {
+              "acceptStartHz": 490900000,
+              "acceptStepHz": 1600000,
+              "channels": {
+                "count": 4,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 504100000,
+                "stepHz": 1600000
+              },
+              "plan": "antenna_20mhz_a",
+              "rx2StartHz": 491700000,
+              "rx2StepHz": 1600000
+            },
+            {
+              "acceptStartHz": 479900000,
+              "acceptStepHz": 20000000,
+              "channels": {
+                "count": 2,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 479900000,
+                "stepHz": 20000000
+              },
+              "plan": "antenna_20mhz_b",
+              "rx2StartHz": 478300000,
+              "rx2StepHz": 20000000
+            },
+            {
+              "acceptStartHz": 492500000,
+              "acceptStepHz": 0,
+              "channels": {
+                "count": 5,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 470300000,
+                "stepHz": 2000000
+              },
+              "plan": "antenna_26mhz_a",
+              "rx2StartHz": 492500000,
+              "rx2StepHz": 0
+            },
+            {
+              "acceptStartHz": 502500000,
+              "acceptStepHz": 0,
+              "channels": {
+                "count": 5,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 480300000,
+                "stepHz": 2000000
+              },
+              "plan": "antenna_26mhz_b",
+              "rx2StartHz": 502500000,
+              "rx2StepHz": 0
+            }
+          ],
+          "joinSequence": "random",
+          "kind": "fixed",
+          "maskControls": [
+            {
+              "group": 0,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 1,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 2,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 3,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": true,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": false,
+              "thenGroup": null
+            }
+          ],
+          "powerReference": "eirp",
+          "rx1Frequencies": [
+            {
+              "rx1Hz": 483900000,
+              "uplinkChannel": 0,
+              "uplinkHz": 470300000
+            },
+            {
+              "rx1Hz": 484100000,
+              "uplinkChannel": 1,
+              "uplinkHz": 470500000
+            },
+            {
+              "rx1Hz": 485900000,
+              "uplinkChannel": 10,
+              "uplinkHz": 472300000
+            },
+            {
+              "rx1Hz": 489300000,
+              "uplinkChannel": 27,
+              "uplinkHz": 475700000
+            },
+            {
+              "rx1Hz": 495900000,
+              "uplinkChannel": 60,
+              "uplinkHz": 509100000
+            },
+            {
+              "rx1Hz": 485100000,
+              "uplinkChannel": 70,
+              "uplinkHz": 486900000
+            }
+          ],
+          "txParamSetup": false
+        },
+        "rx1RowForSlowest": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "rx2": {
+          "dataRate": 1,
+          "frequencyHz": 486900000
+        },
+        "slowestDownlink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "slowestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "subBandCount": 0,
+        "subBands": [],
+        "txPowerAtProbe": {
+          "index0": 19,
+          "index3": 13
+        },
+        "txPowerStepDb": 2,
+        "uplinkDataRateCount": 8
+      },
+      {
+        "backoffFromFastest": 6,
+        "backoffFromSlowest": null,
+        "beacon": {
+          "dataRate": 2,
+          "frequencyHz": 481500000,
+          "pingSlotFrequencyHz": 476900000
+        },
+        "channelFrequencies": [
+          476900000,
+          477100000,
+          477300000,
+          477500000,
+          477700000,
+          477900000,
+          478100000,
+          478300000
+        ],
+        "code": "antenna_20mhz_b",
+        "defaultChannelBlockCount": 2,
+        "defaultChannelCount": 64,
+        "defaultMaxEirpDbm": 19,
+        "downlinkDataRateCount": 8,
+        "dutyCyclePermilleAtProbe": null,
+        "dwellLimitedAtSlowest": null,
+        "fastestUplink": {
+          "bandwidthHz": null,
+          "bitrateBps": 50000,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "fsk",
+          "spreadingFactor": null
+        },
+        "hasDwellLimitedPayloads": false,
+        "hasDwellLimitedRx1": false,
+        "hasDwellTimeLimit": false,
+        "joinChannelBlockCount": 5,
+        "maxEirpDbmAtProbe": 19,
+        "maxRx1DataRateOffset": 5,
+        "maxTxPowerIndex": 7,
+        "name": "CN470-510",
+        "payloadAtFastest": {
+          "direct": {
+            "application": 242,
+            "macPayload": 250
+          },
+          "repeater": {
+            "application": 222,
+            "macPayload": 230
+          }
+        },
+        "payloadAtSlowest": {
+          "direct": null,
+          "repeater": null
+        },
+        "probeFrequencyHz": 476900000,
+        "rules": {
+          "channelList": null,
+          "downlinkChannelBlocks": [
+            {
+              "count": 32,
+              "maxDataRate": 5,
+              "minDataRate": 0,
+              "startHz": 476900000,
+              "stepHz": 200000
+            },
+            {
+              "count": 32,
+              "maxDataRate": 5,
+              "minDataRate": 0,
+              "startHz": 496900000,
+              "stepHz": 200000
+            }
+          ],
+          "downlinkChannelFrequencies": [
+            476900000,
+            477100000,
+            477300000,
+            477500000,
+            477700000,
+            477900000,
+            478100000,
+            478300000
+          ],
+          "downlinkChannelPastEnd": null,
+          "gainAllowanceDb": null,
+          "joinPlaces": [
+            {
+              "joinChannel": 0,
+              "place": {
+                "acceptHz": 484500000,
+                "index": 0,
+                "offset": 0,
+                "rx2Hz": 485300000
+              }
+            },
+            {
+              "joinChannel": 7,
+              "place": {
+                "acceptHz": 495700000,
+                "index": 1,
+                "offset": 3,
+                "rx2Hz": 496500000
+              }
+            },
+            {
+              "joinChannel": 9,
+              "place": {
+                "acceptHz": 499900000,
+                "index": 2,
+                "offset": 1,
+                "rx2Hz": 498300000
+              }
+            },
+            {
+              "joinChannel": 19,
+              "place": {
+                "acceptHz": 502500000,
+                "index": 4,
+                "offset": 4,
+                "rx2Hz": 502500000
+              }
+            },
+            {
+              "joinChannel": 20,
+              "place": null
+            }
+          ],
+          "joinPlans": [
+            {
+              "acceptStartHz": 484500000,
+              "acceptStepHz": 1600000,
+              "channels": {
+                "count": 4,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 470900000,
+                "stepHz": 1600000
+              },
+              "plan": "antenna_20mhz_a",
+              "rx2StartHz": 485300000,
+              "rx2StepHz": 1600000
+            },
+            {
+              "acceptStartHz": 490900000,
+              "acceptStepHz": 1600000,
+              "channels": {
+                "count": 4,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 504100000,
+                "stepHz": 1600000
+              },
+              "plan": "antenna_20mhz_a",
+              "rx2StartHz": 491700000,
+              "rx2StepHz": 1600000
+            },
+            {
+              "acceptStartHz": 479900000,
+              "acceptStepHz": 20000000,
+              "channels": {
+                "count": 2,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 479900000,
+                "stepHz": 20000000
+              },
+              "plan": "antenna_20mhz_b",
+              "rx2StartHz": 478300000,
+              "rx2StepHz": 20000000
+            },
+            {
+              "acceptStartHz": 492500000,
+              "acceptStepHz": 0,
+              "channels": {
+                "count": 5,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 470300000,
+                "stepHz": 2000000
+              },
+              "plan": "antenna_26mhz_a",
+              "rx2StartHz": 492500000,
+              "rx2StepHz": 0
+            },
+            {
+              "acceptStartHz": 502500000,
+              "acceptStepHz": 0,
+              "channels": {
+                "count": 5,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 480300000,
+                "stepHz": 2000000
+              },
+              "plan": "antenna_26mhz_b",
+              "rx2StartHz": 502500000,
+              "rx2StepHz": 0
+            }
+          ],
+          "joinSequence": "random",
+          "kind": "fixed",
+          "maskControls": [
+            {
+              "group": 0,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 1,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 2,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 3,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": true,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": false,
+              "thenGroup": null
+            }
+          ],
+          "powerReference": "eirp",
+          "rx1Frequencies": [
+            {
+              "rx1Hz": 476900000,
+              "uplinkChannel": 0,
+              "uplinkHz": 476900000
+            },
+            {
+              "rx1Hz": 477100000,
+              "uplinkChannel": 1,
+              "uplinkHz": 477100000
+            },
+            {
+              "rx1Hz": 478900000,
+              "uplinkChannel": 10,
+              "uplinkHz": 478900000
+            },
+            {
+              "rx1Hz": 482300000,
+              "uplinkChannel": 27,
+              "uplinkHz": 482300000
+            },
+            {
+              "rx1Hz": 502500000,
+              "uplinkChannel": 60,
+              "uplinkHz": 502500000
+            },
+            {
+              "rx1Hz": 478100000,
+              "uplinkChannel": 70,
+              "uplinkHz": 498300000
+            }
+          ],
+          "txParamSetup": false
+        },
+        "rx1RowForSlowest": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "rx2": {
+          "dataRate": 1,
+          "frequencyHz": 498300000
+        },
+        "slowestDownlink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "slowestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "subBandCount": 0,
+        "subBands": [],
+        "txPowerAtProbe": {
+          "index0": 19,
+          "index3": 13
+        },
+        "txPowerStepDb": 2,
+        "uplinkDataRateCount": 8
+      },
+      {
+        "backoffFromFastest": 6,
+        "backoffFromSlowest": null,
+        "beacon": {
+          "dataRate": 2,
+          "frequencyHz": 494900000,
+          "pingSlotFrequencyHz": 494900000
+        },
+        "channelFrequencies": [
+          470300000,
+          470500000,
+          470700000,
+          470900000,
+          471100000,
+          471300000,
+          471500000,
+          471700000
+        ],
+        "code": "antenna_26mhz_a",
+        "defaultChannelBlockCount": 1,
+        "defaultChannelCount": 48,
+        "defaultMaxEirpDbm": 19,
+        "downlinkDataRateCount": 8,
+        "dutyCyclePermilleAtProbe": null,
+        "dwellLimitedAtSlowest": null,
+        "fastestUplink": {
+          "bandwidthHz": null,
+          "bitrateBps": 50000,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "fsk",
+          "spreadingFactor": null
+        },
+        "hasDwellLimitedPayloads": false,
+        "hasDwellLimitedRx1": false,
+        "hasDwellTimeLimit": false,
+        "joinChannelBlockCount": 5,
+        "maxEirpDbmAtProbe": 19,
+        "maxRx1DataRateOffset": 5,
+        "maxTxPowerIndex": 7,
+        "name": "CN470-510",
+        "payloadAtFastest": {
+          "direct": {
+            "application": 242,
+            "macPayload": 250
+          },
+          "repeater": {
+            "application": 222,
+            "macPayload": 230
+          }
+        },
+        "payloadAtSlowest": {
+          "direct": null,
+          "repeater": null
+        },
+        "probeFrequencyHz": 470300000,
+        "rules": {
+          "channelList": null,
+          "downlinkChannelBlocks": [
+            {
+              "count": 24,
+              "maxDataRate": 5,
+              "minDataRate": 0,
+              "startHz": 490100000,
+              "stepHz": 200000
+            }
+          ],
+          "downlinkChannelFrequencies": [
+            490100000,
+            490300000,
+            490500000,
+            490700000,
+            490900000,
+            491100000,
+            491300000,
+            491500000
+          ],
+          "downlinkChannelPastEnd": null,
+          "gainAllowanceDb": null,
+          "joinPlaces": [
+            {
+              "joinChannel": 0,
+              "place": {
+                "acceptHz": 484500000,
+                "index": 0,
+                "offset": 0,
+                "rx2Hz": 485300000
+              }
+            },
+            {
+              "joinChannel": 7,
+              "place": {
+                "acceptHz": 495700000,
+                "index": 1,
+                "offset": 3,
+                "rx2Hz": 496500000
+              }
+            },
+            {
+              "joinChannel": 9,
+              "place": {
+                "acceptHz": 499900000,
+                "index": 2,
+                "offset": 1,
+                "rx2Hz": 498300000
+              }
+            },
+            {
+              "joinChannel": 19,
+              "place": {
+                "acceptHz": 502500000,
+                "index": 4,
+                "offset": 4,
+                "rx2Hz": 502500000
+              }
+            },
+            {
+              "joinChannel": 20,
+              "place": null
+            }
+          ],
+          "joinPlans": [
+            {
+              "acceptStartHz": 484500000,
+              "acceptStepHz": 1600000,
+              "channels": {
+                "count": 4,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 470900000,
+                "stepHz": 1600000
+              },
+              "plan": "antenna_20mhz_a",
+              "rx2StartHz": 485300000,
+              "rx2StepHz": 1600000
+            },
+            {
+              "acceptStartHz": 490900000,
+              "acceptStepHz": 1600000,
+              "channels": {
+                "count": 4,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 504100000,
+                "stepHz": 1600000
+              },
+              "plan": "antenna_20mhz_a",
+              "rx2StartHz": 491700000,
+              "rx2StepHz": 1600000
+            },
+            {
+              "acceptStartHz": 479900000,
+              "acceptStepHz": 20000000,
+              "channels": {
+                "count": 2,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 479900000,
+                "stepHz": 20000000
+              },
+              "plan": "antenna_20mhz_b",
+              "rx2StartHz": 478300000,
+              "rx2StepHz": 20000000
+            },
+            {
+              "acceptStartHz": 492500000,
+              "acceptStepHz": 0,
+              "channels": {
+                "count": 5,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 470300000,
+                "stepHz": 2000000
+              },
+              "plan": "antenna_26mhz_a",
+              "rx2StartHz": 492500000,
+              "rx2StepHz": 0
+            },
+            {
+              "acceptStartHz": 502500000,
+              "acceptStepHz": 0,
+              "channels": {
+                "count": 5,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 480300000,
+                "stepHz": 2000000
+              },
+              "plan": "antenna_26mhz_b",
+              "rx2StartHz": 502500000,
+              "rx2StepHz": 0
+            }
+          ],
+          "joinSequence": "random",
+          "kind": "fixed",
+          "maskControls": [
+            {
+              "group": 0,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 1,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 2,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": true,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": false,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            }
+          ],
+          "powerReference": "eirp",
+          "rx1Frequencies": [
+            {
+              "rx1Hz": 490100000,
+              "uplinkChannel": 0,
+              "uplinkHz": 470300000
+            },
+            {
+              "rx1Hz": 490300000,
+              "uplinkChannel": 1,
+              "uplinkHz": 470500000
+            },
+            {
+              "rx1Hz": 492100000,
+              "uplinkChannel": 10,
+              "uplinkHz": 472300000
+            },
+            {
+              "rx1Hz": 490700000,
+              "uplinkChannel": 27,
+              "uplinkHz": 475700000
+            },
+            {
+              "rx1Hz": 492500000,
+              "uplinkChannel": 60,
+              "uplinkHz": 492500000
+            },
+            {
+              "rx1Hz": 494500000,
+              "uplinkChannel": 70,
+              "uplinkHz": 492500000
+            }
+          ],
+          "txParamSetup": false
+        },
+        "rx1RowForSlowest": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "rx2": {
+          "dataRate": 1,
+          "frequencyHz": 492500000
+        },
+        "slowestDownlink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "slowestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "subBandCount": 0,
+        "subBands": [],
+        "txPowerAtProbe": {
+          "index0": 19,
+          "index3": 13
+        },
+        "txPowerStepDb": 2,
+        "uplinkDataRateCount": 8
+      },
+      {
+        "backoffFromFastest": 6,
+        "backoffFromSlowest": null,
+        "beacon": {
+          "dataRate": 2,
+          "frequencyHz": 504900000,
+          "pingSlotFrequencyHz": 504900000
+        },
+        "channelFrequencies": [
+          480300000,
+          480500000,
+          480700000,
+          480900000,
+          481100000,
+          481300000,
+          481500000,
+          481700000
+        ],
+        "code": "antenna_26mhz_b",
+        "defaultChannelBlockCount": 1,
+        "defaultChannelCount": 48,
+        "defaultMaxEirpDbm": 19,
+        "downlinkDataRateCount": 8,
+        "dutyCyclePermilleAtProbe": null,
+        "dwellLimitedAtSlowest": null,
+        "fastestUplink": {
+          "bandwidthHz": null,
+          "bitrateBps": 50000,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "fsk",
+          "spreadingFactor": null
+        },
+        "hasDwellLimitedPayloads": false,
+        "hasDwellLimitedRx1": false,
+        "hasDwellTimeLimit": false,
+        "joinChannelBlockCount": 5,
+        "maxEirpDbmAtProbe": 19,
+        "maxRx1DataRateOffset": 5,
+        "maxTxPowerIndex": 7,
+        "name": "CN470-510",
+        "payloadAtFastest": {
+          "direct": {
+            "application": 242,
+            "macPayload": 250
+          },
+          "repeater": {
+            "application": 222,
+            "macPayload": 230
+          }
+        },
+        "payloadAtSlowest": {
+          "direct": null,
+          "repeater": null
+        },
+        "probeFrequencyHz": 480300000,
+        "rules": {
+          "channelList": null,
+          "downlinkChannelBlocks": [
+            {
+              "count": 24,
+              "maxDataRate": 5,
+              "minDataRate": 0,
+              "startHz": 500100000,
+              "stepHz": 200000
+            }
+          ],
+          "downlinkChannelFrequencies": [
+            500100000,
+            500300000,
+            500500000,
+            500700000,
+            500900000,
+            501100000,
+            501300000,
+            501500000
+          ],
+          "downlinkChannelPastEnd": null,
+          "gainAllowanceDb": null,
+          "joinPlaces": [
+            {
+              "joinChannel": 0,
+              "place": {
+                "acceptHz": 484500000,
+                "index": 0,
+                "offset": 0,
+                "rx2Hz": 485300000
+              }
+            },
+            {
+              "joinChannel": 7,
+              "place": {
+                "acceptHz": 495700000,
+                "index": 1,
+                "offset": 3,
+                "rx2Hz": 496500000
+              }
+            },
+            {
+              "joinChannel": 9,
+              "place": {
+                "acceptHz": 499900000,
+                "index": 2,
+                "offset": 1,
+                "rx2Hz": 498300000
+              }
+            },
+            {
+              "joinChannel": 19,
+              "place": {
+                "acceptHz": 502500000,
+                "index": 4,
+                "offset": 4,
+                "rx2Hz": 502500000
+              }
+            },
+            {
+              "joinChannel": 20,
+              "place": null
+            }
+          ],
+          "joinPlans": [
+            {
+              "acceptStartHz": 484500000,
+              "acceptStepHz": 1600000,
+              "channels": {
+                "count": 4,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 470900000,
+                "stepHz": 1600000
+              },
+              "plan": "antenna_20mhz_a",
+              "rx2StartHz": 485300000,
+              "rx2StepHz": 1600000
+            },
+            {
+              "acceptStartHz": 490900000,
+              "acceptStepHz": 1600000,
+              "channels": {
+                "count": 4,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 504100000,
+                "stepHz": 1600000
+              },
+              "plan": "antenna_20mhz_a",
+              "rx2StartHz": 491700000,
+              "rx2StepHz": 1600000
+            },
+            {
+              "acceptStartHz": 479900000,
+              "acceptStepHz": 20000000,
+              "channels": {
+                "count": 2,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 479900000,
+                "stepHz": 20000000
+              },
+              "plan": "antenna_20mhz_b",
+              "rx2StartHz": 478300000,
+              "rx2StepHz": 20000000
+            },
+            {
+              "acceptStartHz": 492500000,
+              "acceptStepHz": 0,
+              "channels": {
+                "count": 5,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 470300000,
+                "stepHz": 2000000
+              },
+              "plan": "antenna_26mhz_a",
+              "rx2StartHz": 492500000,
+              "rx2StepHz": 0
+            },
+            {
+              "acceptStartHz": 502500000,
+              "acceptStepHz": 0,
+              "channels": {
+                "count": 5,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 480300000,
+                "stepHz": 2000000
+              },
+              "plan": "antenna_26mhz_b",
+              "rx2StartHz": 502500000,
+              "rx2StepHz": 0
+            }
+          ],
+          "joinSequence": "random",
+          "kind": "fixed",
+          "maskControls": [
+            {
+              "group": 0,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 1,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 2,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": true,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": false,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            }
+          ],
+          "powerReference": "eirp",
+          "rx1Frequencies": [
+            {
+              "rx1Hz": 500100000,
+              "uplinkChannel": 0,
+              "uplinkHz": 480300000
+            },
+            {
+              "rx1Hz": 500300000,
+              "uplinkChannel": 1,
+              "uplinkHz": 480500000
+            },
+            {
+              "rx1Hz": 502100000,
+              "uplinkChannel": 10,
+              "uplinkHz": 482300000
+            },
+            {
+              "rx1Hz": 500700000,
+              "uplinkChannel": 27,
+              "uplinkHz": 485700000
+            },
+            {
+              "rx1Hz": 502500000,
+              "uplinkChannel": 60,
+              "uplinkHz": 502500000
+            },
+            {
+              "rx1Hz": 504500000,
+              "uplinkChannel": 70,
+              "uplinkHz": 502500000
+            }
+          ],
+          "txParamSetup": false
+        },
+        "rx1RowForSlowest": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "rx2": {
+          "dataRate": 1,
+          "frequencyHz": 502500000
+        },
+        "slowestDownlink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "slowestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "subBandCount": 0,
+        "subBands": [],
+        "txPowerAtProbe": {
+          "index0": 19,
+          "index3": 13
+        },
+        "txPowerStepDb": 2,
+        "uplinkDataRateCount": 8
+      },
+      {
+        "backoffFromFastest": 4,
+        "backoffFromSlowest": null,
+        "beacon": {
+          "dataRate": 2,
+          "frequencyHz": 508300000,
+          "pingSlotFrequencyHz": 508300000
+        },
+        "channelFrequencies": [
+          470300000,
+          470500000,
+          470700000,
+          470900000,
+          471100000,
+          471300000,
+          471500000,
+          471700000
+        ],
+        "code": "channels_96",
+        "defaultChannelBlockCount": 1,
+        "defaultChannelCount": 96,
+        "defaultMaxEirpDbm": 19,
+        "downlinkDataRateCount": 6,
+        "dutyCyclePermilleAtProbe": null,
+        "dwellLimitedAtSlowest": null,
+        "fastestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 5470,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 7
+        },
+        "hasDwellLimitedPayloads": false,
+        "hasDwellLimitedRx1": false,
+        "hasDwellTimeLimit": false,
+        "joinChannelBlockCount": 1,
+        "maxEirpDbmAtProbe": 19,
+        "maxRx1DataRateOffset": 5,
+        "maxTxPowerIndex": 7,
+        "name": "CN470-510",
+        "payloadAtFastest": {
+          "direct": {
+            "application": 242,
+            "macPayload": 250
+          },
+          "repeater": {
+            "application": 222,
+            "macPayload": 230
+          }
+        },
+        "payloadAtSlowest": {
+          "direct": {
+            "application": 51,
+            "macPayload": 59
+          },
+          "repeater": {
+            "application": 51,
+            "macPayload": 59
+          }
+        },
+        "probeFrequencyHz": 470300000,
+        "rules": {
+          "channelList": null,
+          "downlinkChannelBlocks": [
+            {
+              "count": 48,
+              "maxDataRate": 5,
+              "minDataRate": 0,
+              "startHz": 500300000,
+              "stepHz": 200000
+            }
+          ],
+          "downlinkChannelFrequencies": [
+            500300000,
+            500500000,
+            500700000,
+            500900000,
+            501100000,
+            501300000,
+            501500000,
+            501700000
+          ],
+          "downlinkChannelPastEnd": null,
+          "gainAllowanceDb": null,
+          "joinPlaces": [
+            {
+              "joinChannel": 0,
+              "place": null
+            },
+            {
+              "joinChannel": 7,
+              "place": null
+            },
+            {
+              "joinChannel": 9,
+              "place": null
+            },
+            {
+              "joinChannel": 19,
+              "place": null
+            },
+            {
+              "joinChannel": 20,
+              "place": null
+            }
+          ],
+          "joinPlans": [],
+          "joinSequence": "random",
+          "kind": "fixed",
+          "maskControls": [
+            {
+              "group": 0,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 1,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 2,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 3,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 4,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 5,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": true,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            }
+          ],
+          "powerReference": "eirp",
+          "rx1Frequencies": [
+            {
+              "rx1Hz": 500300000,
+              "uplinkChannel": 0,
+              "uplinkHz": 470300000
+            },
+            {
+              "rx1Hz": 500500000,
+              "uplinkChannel": 1,
+              "uplinkHz": 470500000
+            },
+            {
+              "rx1Hz": 502300000,
+              "uplinkChannel": 10,
+              "uplinkHz": 472300000
+            },
+            {
+              "rx1Hz": 505700000,
+              "uplinkChannel": 27,
+              "uplinkHz": 475700000
+            },
+            {
+              "rx1Hz": 502700000,
+              "uplinkChannel": 60,
+              "uplinkHz": 482300000
+            },
+            {
+              "rx1Hz": 504700000,
+              "uplinkChannel": 70,
+              "uplinkHz": 484300000
+            }
+          ],
+          "txParamSetup": false
+        },
+        "rx1RowForSlowest": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "rx2": {
+          "dataRate": 0,
+          "frequencyHz": 505300000
+        },
+        "slowestDownlink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "slowestUplink": {
+          "bandwidthHz": 125000,
+          "bitrateBps": 250,
+          "codingRateDenominator": null,
+          "codingRateNumerator": null,
+          "kind": "lora",
+          "spreadingFactor": 12
+        },
+        "subBandCount": 0,
+        "subBands": [],
+        "txPowerAtProbe": {
+          "index0": 19,
+          "index3": 13
+        },
+        "txPowerStepDb": 2,
+        "uplinkDataRateCount": 6
+      }
+    ],
     "custom": {
       "backoffFromFastest": 0,
       "backoffFromSlowest": null,
@@ -1268,6 +2784,122 @@
         }
       },
       "probeFrequencyHz": 915000000,
+      "rules": {
+        "channelList": null,
+        "downlinkChannelBlocks": [],
+        "downlinkChannelFrequencies": [],
+        "downlinkChannelPastEnd": null,
+        "gainAllowanceDb": null,
+        "joinPlaces": [
+          {
+            "joinChannel": 0,
+            "place": null
+          },
+          {
+            "joinChannel": 7,
+            "place": null
+          },
+          {
+            "joinChannel": 9,
+            "place": null
+          },
+          {
+            "joinChannel": 19,
+            "place": null
+          },
+          {
+            "joinChannel": 20,
+            "place": null
+          }
+        ],
+        "joinPlans": [],
+        "joinSequence": "random",
+        "kind": "dynamic",
+        "maskControls": [
+          {
+            "group": 0,
+            "kind": "group",
+            "on": null,
+            "thenGroup": null
+          },
+          {
+            "group": 1,
+            "kind": "group",
+            "on": null,
+            "thenGroup": null
+          },
+          {
+            "group": 2,
+            "kind": "group",
+            "on": null,
+            "thenGroup": null
+          },
+          {
+            "group": 3,
+            "kind": "group",
+            "on": null,
+            "thenGroup": null
+          },
+          {
+            "group": 4,
+            "kind": "group",
+            "on": null,
+            "thenGroup": null
+          },
+          {
+            "group": null,
+            "kind": "banks",
+            "on": null,
+            "thenGroup": null
+          },
+          {
+            "group": null,
+            "kind": "all",
+            "on": true,
+            "thenGroup": null
+          },
+          {
+            "group": null,
+            "kind": "reserved",
+            "on": null,
+            "thenGroup": null
+          }
+        ],
+        "powerReference": "eirp",
+        "rx1Frequencies": [
+          {
+            "rx1Hz": 915000000,
+            "uplinkChannel": 0,
+            "uplinkHz": 915000000
+          },
+          {
+            "rx1Hz": 915500000,
+            "uplinkChannel": 1,
+            "uplinkHz": 915500000
+          },
+          {
+            "rx1Hz": 915000000,
+            "uplinkChannel": 10,
+            "uplinkHz": 915000000
+          },
+          {
+            "rx1Hz": 915000000,
+            "uplinkChannel": 27,
+            "uplinkHz": 915000000
+          },
+          {
+            "rx1Hz": 915000000,
+            "uplinkChannel": 60,
+            "uplinkHz": 915000000
+          },
+          {
+            "rx1Hz": 915000000,
+            "uplinkChannel": 70,
+            "uplinkHz": 915000000
+          }
+        ],
+        "txParamSetup": false
+      },
       "rx1RowForSlowest": [
         0
       ],
@@ -1298,6 +2930,235 @@
           "endHz": 917000000,
           "maxEirpDbm": 30,
           "startHz": 915000000
+        }
+      ],
+      "txPowerAtProbe": {
+        "index0": 30,
+        "index3": 24
+      },
+      "txPowerStepDb": 2,
+      "uplinkDataRateCount": 2
+    },
+    "customFixed": {
+      "backoffFromFastest": 0,
+      "backoffFromSlowest": null,
+      "beacon": {
+        "dataRate": 0,
+        "frequencyHz": 0,
+        "pingSlotFrequencyHz": 0
+      },
+      "channelFrequencies": [
+        902300000,
+        902500000,
+        902700000,
+        902900000,
+        903100000,
+        903300000,
+        903500000,
+        903700000
+      ],
+      "defaultChannelBlockCount": 2,
+      "defaultChannelCount": 18,
+      "defaultMaxEirpDbm": 30,
+      "downlinkDataRateCount": 2,
+      "dutyCyclePermilleAtProbe": 1000,
+      "dwellLimitedAtSlowest": null,
+      "fastestUplink": {
+        "bandwidthHz": 500000,
+        "bitrateBps": 12500,
+        "codingRateDenominator": null,
+        "codingRateNumerator": null,
+        "kind": "lora",
+        "spreadingFactor": 8
+      },
+      "hasDwellLimitedPayloads": false,
+      "hasDwellLimitedRx1": false,
+      "hasDwellTimeLimit": false,
+      "joinChannelBlockCount": 0,
+      "maxEirpDbmAtProbe": 30,
+      "maxRx1DataRateOffset": 0,
+      "maxTxPowerIndex": 10,
+      "name": "private-fixed",
+      "payloadAtFastest": {
+        "direct": {
+          "application": 222,
+          "macPayload": 230
+        },
+        "repeater": {
+          "application": 222,
+          "macPayload": 230
+        }
+      },
+      "payloadAtSlowest": {
+        "direct": {
+          "application": 11,
+          "macPayload": 19
+        },
+        "repeater": {
+          "application": 11,
+          "macPayload": 19
+        }
+      },
+      "probeFrequencyHz": 902300000,
+      "rules": {
+        "channelList": null,
+        "downlinkChannelBlocks": [
+          {
+            "count": 4,
+            "maxDataRate": 1,
+            "minDataRate": 1,
+            "startHz": 923300000,
+            "stepHz": 600000
+          }
+        ],
+        "downlinkChannelFrequencies": [
+          923300000,
+          923900000,
+          924500000,
+          925100000
+        ],
+        "downlinkChannelPastEnd": null,
+        "gainAllowanceDb": 6,
+        "joinPlaces": [
+          {
+            "joinChannel": 0,
+            "place": null
+          },
+          {
+            "joinChannel": 7,
+            "place": null
+          },
+          {
+            "joinChannel": 9,
+            "place": null
+          },
+          {
+            "joinChannel": 19,
+            "place": null
+          },
+          {
+            "joinChannel": 20,
+            "place": null
+          }
+        ],
+        "joinPlans": [],
+        "joinSequence": "octet_passes",
+        "kind": "fixed",
+        "maskControls": [
+          {
+            "group": 0,
+            "kind": "group",
+            "on": null,
+            "thenGroup": null
+          },
+          {
+            "group": 1,
+            "kind": "group",
+            "on": null,
+            "thenGroup": null
+          },
+          {
+            "group": null,
+            "kind": "reserved",
+            "on": null,
+            "thenGroup": null
+          },
+          {
+            "group": null,
+            "kind": "reserved",
+            "on": null,
+            "thenGroup": null
+          },
+          {
+            "group": null,
+            "kind": "reserved",
+            "on": null,
+            "thenGroup": null
+          },
+          {
+            "group": null,
+            "kind": "reserved",
+            "on": null,
+            "thenGroup": null
+          },
+          {
+            "group": null,
+            "kind": "all",
+            "on": true,
+            "thenGroup": 1
+          },
+          {
+            "group": null,
+            "kind": "all",
+            "on": false,
+            "thenGroup": 1
+          }
+        ],
+        "powerReference": "conducted",
+        "rx1Frequencies": [
+          {
+            "rx1Hz": 923300000,
+            "uplinkChannel": 0,
+            "uplinkHz": 902300000
+          },
+          {
+            "rx1Hz": 923900000,
+            "uplinkChannel": 1,
+            "uplinkHz": 902500000
+          },
+          {
+            "rx1Hz": 924500000,
+            "uplinkChannel": 10,
+            "uplinkHz": 904300000
+          },
+          {
+            "rx1Hz": 925100000,
+            "uplinkChannel": 27,
+            "uplinkHz": 923300000
+          },
+          {
+            "rx1Hz": 923300000,
+            "uplinkChannel": 60,
+            "uplinkHz": 923300000
+          },
+          {
+            "rx1Hz": 924500000,
+            "uplinkChannel": 70,
+            "uplinkHz": 923300000
+          }
+        ],
+        "txParamSetup": false
+      },
+      "rx1RowForSlowest": [
+        1
+      ],
+      "rx2": {
+        "dataRate": 1,
+        "frequencyHz": 923300000
+      },
+      "slowestDownlink": {
+        "bandwidthHz": 125000,
+        "bitrateBps": 980,
+        "codingRateDenominator": null,
+        "codingRateNumerator": null,
+        "kind": "lora",
+        "spreadingFactor": 10
+      },
+      "slowestUplink": {
+        "bandwidthHz": 125000,
+        "bitrateBps": 980,
+        "codingRateDenominator": null,
+        "codingRateNumerator": null,
+        "kind": "lora",
+        "spreadingFactor": 10
+      },
+      "subBandCount": 1,
+      "subBands": [
+        {
+          "dutyCyclePermille": 1000,
+          "endHz": 928000000,
+          "maxEirpDbm": 30,
+          "startHz": 902000000
         }
       ],
       "txPowerAtProbe": {
@@ -1365,6 +3226,122 @@
           }
         },
         "probeFrequencyHz": 868100000,
+        "rules": {
+          "channelList": "mhz800",
+          "downlinkChannelBlocks": [],
+          "downlinkChannelFrequencies": [],
+          "downlinkChannelPastEnd": null,
+          "gainAllowanceDb": null,
+          "joinPlaces": [
+            {
+              "joinChannel": 0,
+              "place": null
+            },
+            {
+              "joinChannel": 7,
+              "place": null
+            },
+            {
+              "joinChannel": 9,
+              "place": null
+            },
+            {
+              "joinChannel": 19,
+              "place": null
+            },
+            {
+              "joinChannel": 20,
+              "place": null
+            }
+          ],
+          "joinPlans": [],
+          "joinSequence": "random",
+          "kind": "dynamic",
+          "maskControls": [
+            {
+              "group": 0,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 1,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 2,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 3,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 4,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "banks",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": true,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            }
+          ],
+          "powerReference": "eirp",
+          "rx1Frequencies": [
+            {
+              "rx1Hz": 868100000,
+              "uplinkChannel": 0,
+              "uplinkHz": 868100000
+            },
+            {
+              "rx1Hz": 868300000,
+              "uplinkChannel": 1,
+              "uplinkHz": 868300000
+            },
+            {
+              "rx1Hz": 869525000,
+              "uplinkChannel": 10,
+              "uplinkHz": 869525000
+            },
+            {
+              "rx1Hz": 869525000,
+              "uplinkChannel": 27,
+              "uplinkHz": 869525000
+            },
+            {
+              "rx1Hz": 869525000,
+              "uplinkChannel": 60,
+              "uplinkHz": 869525000
+            },
+            {
+              "rx1Hz": 869525000,
+              "uplinkChannel": 70,
+              "uplinkHz": 869525000
+            }
+          ],
+          "txParamSetup": false
+        },
         "rx1RowForSlowest": [
           0,
           0,
@@ -1477,6 +3454,139 @@
           }
         },
         "probeFrequencyHz": 902300000,
+        "rules": {
+          "channelList": null,
+          "downlinkChannelBlocks": [
+            {
+              "count": 8,
+              "maxDataRate": 13,
+              "minDataRate": 8,
+              "startHz": 923300000,
+              "stepHz": 600000
+            }
+          ],
+          "downlinkChannelFrequencies": [
+            923300000,
+            923900000,
+            924500000,
+            925100000,
+            925700000,
+            926300000,
+            926900000,
+            927500000
+          ],
+          "downlinkChannelPastEnd": null,
+          "gainAllowanceDb": 6,
+          "joinPlaces": [
+            {
+              "joinChannel": 0,
+              "place": null
+            },
+            {
+              "joinChannel": 7,
+              "place": null
+            },
+            {
+              "joinChannel": 9,
+              "place": null
+            },
+            {
+              "joinChannel": 19,
+              "place": null
+            },
+            {
+              "joinChannel": 20,
+              "place": null
+            }
+          ],
+          "joinPlans": [],
+          "joinSequence": "octet_passes",
+          "kind": "fixed",
+          "maskControls": [
+            {
+              "group": 0,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 1,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 2,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 3,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 4,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "paired_banks",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": true,
+              "thenGroup": 4
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": false,
+              "thenGroup": 4
+            }
+          ],
+          "powerReference": "conducted",
+          "rx1Frequencies": [
+            {
+              "rx1Hz": 923300000,
+              "uplinkChannel": 0,
+              "uplinkHz": 902300000
+            },
+            {
+              "rx1Hz": 923900000,
+              "uplinkChannel": 1,
+              "uplinkHz": 902500000
+            },
+            {
+              "rx1Hz": 924500000,
+              "uplinkChannel": 10,
+              "uplinkHz": 904300000
+            },
+            {
+              "rx1Hz": 925100000,
+              "uplinkChannel": 27,
+              "uplinkHz": 907700000
+            },
+            {
+              "rx1Hz": 925700000,
+              "uplinkChannel": 60,
+              "uplinkHz": 914300000
+            },
+            {
+              "rx1Hz": 926900000,
+              "uplinkChannel": 70,
+              "uplinkHz": 912600000
+            }
+          ],
+          "txParamSetup": false
+        },
         "rx1RowForSlowest": [
           10,
           9,
@@ -1569,6 +3679,122 @@
           }
         },
         "probeFrequencyHz": 433175000,
+        "rules": {
+          "channelList": null,
+          "downlinkChannelBlocks": [],
+          "downlinkChannelFrequencies": [],
+          "downlinkChannelPastEnd": null,
+          "gainAllowanceDb": null,
+          "joinPlaces": [
+            {
+              "joinChannel": 0,
+              "place": null
+            },
+            {
+              "joinChannel": 7,
+              "place": null
+            },
+            {
+              "joinChannel": 9,
+              "place": null
+            },
+            {
+              "joinChannel": 19,
+              "place": null
+            },
+            {
+              "joinChannel": 20,
+              "place": null
+            }
+          ],
+          "joinPlans": [],
+          "joinSequence": "random",
+          "kind": "dynamic",
+          "maskControls": [
+            {
+              "group": 0,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 1,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 2,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 3,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 4,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "banks",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": true,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            }
+          ],
+          "powerReference": "eirp",
+          "rx1Frequencies": [
+            {
+              "rx1Hz": 433175000,
+              "uplinkChannel": 0,
+              "uplinkHz": 433175000
+            },
+            {
+              "rx1Hz": 433375000,
+              "uplinkChannel": 1,
+              "uplinkHz": 433375000
+            },
+            {
+              "rx1Hz": 434665000,
+              "uplinkChannel": 10,
+              "uplinkHz": 434665000
+            },
+            {
+              "rx1Hz": 434665000,
+              "uplinkChannel": 27,
+              "uplinkHz": 434665000
+            },
+            {
+              "rx1Hz": 434665000,
+              "uplinkChannel": 60,
+              "uplinkHz": 434665000
+            },
+            {
+              "rx1Hz": 434665000,
+              "uplinkChannel": 70,
+              "uplinkHz": 434665000
+            }
+          ],
+          "txParamSetup": false
+        },
         "rx1RowForSlowest": [
           0,
           0,
@@ -1675,6 +3901,139 @@
           }
         },
         "probeFrequencyHz": 915200000,
+        "rules": {
+          "channelList": null,
+          "downlinkChannelBlocks": [
+            {
+              "count": 8,
+              "maxDataRate": 13,
+              "minDataRate": 8,
+              "startHz": 923300000,
+              "stepHz": 600000
+            }
+          ],
+          "downlinkChannelFrequencies": [
+            923300000,
+            923900000,
+            924500000,
+            925100000,
+            925700000,
+            926300000,
+            926900000,
+            927500000
+          ],
+          "downlinkChannelPastEnd": null,
+          "gainAllowanceDb": null,
+          "joinPlaces": [
+            {
+              "joinChannel": 0,
+              "place": null
+            },
+            {
+              "joinChannel": 7,
+              "place": null
+            },
+            {
+              "joinChannel": 9,
+              "place": null
+            },
+            {
+              "joinChannel": 19,
+              "place": null
+            },
+            {
+              "joinChannel": 20,
+              "place": null
+            }
+          ],
+          "joinPlans": [],
+          "joinSequence": "octet_passes",
+          "kind": "fixed",
+          "maskControls": [
+            {
+              "group": 0,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 1,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 2,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 3,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 4,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "paired_banks",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": true,
+              "thenGroup": 4
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": false,
+              "thenGroup": 4
+            }
+          ],
+          "powerReference": "eirp",
+          "rx1Frequencies": [
+            {
+              "rx1Hz": 923300000,
+              "uplinkChannel": 0,
+              "uplinkHz": 915200000
+            },
+            {
+              "rx1Hz": 923900000,
+              "uplinkChannel": 1,
+              "uplinkHz": 915400000
+            },
+            {
+              "rx1Hz": 924500000,
+              "uplinkChannel": 10,
+              "uplinkHz": 917200000
+            },
+            {
+              "rx1Hz": 925100000,
+              "uplinkChannel": 27,
+              "uplinkHz": 920600000
+            },
+            {
+              "rx1Hz": 925700000,
+              "uplinkChannel": 60,
+              "uplinkHz": 927200000
+            },
+            {
+              "rx1Hz": 926900000,
+              "uplinkChannel": 70,
+              "uplinkHz": 925500000
+            }
+          ],
+          "txParamSetup": true
+        },
         "rx1RowForSlowest": [
           8,
           8,
@@ -1768,6 +4127,237 @@
           "repeater": null
         },
         "probeFrequencyHz": 470300000,
+        "rules": {
+          "channelList": null,
+          "downlinkChannelBlocks": [
+            {
+              "count": 32,
+              "maxDataRate": 5,
+              "minDataRate": 0,
+              "startHz": 483900000,
+              "stepHz": 200000
+            },
+            {
+              "count": 32,
+              "maxDataRate": 5,
+              "minDataRate": 0,
+              "startHz": 490300000,
+              "stepHz": 200000
+            }
+          ],
+          "downlinkChannelFrequencies": [
+            483900000,
+            484100000,
+            484300000,
+            484500000,
+            484700000,
+            484900000,
+            485100000,
+            485300000
+          ],
+          "downlinkChannelPastEnd": null,
+          "gainAllowanceDb": null,
+          "joinPlaces": [
+            {
+              "joinChannel": 0,
+              "place": {
+                "acceptHz": 484500000,
+                "index": 0,
+                "offset": 0,
+                "rx2Hz": 485300000
+              }
+            },
+            {
+              "joinChannel": 7,
+              "place": {
+                "acceptHz": 495700000,
+                "index": 1,
+                "offset": 3,
+                "rx2Hz": 496500000
+              }
+            },
+            {
+              "joinChannel": 9,
+              "place": {
+                "acceptHz": 499900000,
+                "index": 2,
+                "offset": 1,
+                "rx2Hz": 498300000
+              }
+            },
+            {
+              "joinChannel": 19,
+              "place": {
+                "acceptHz": 502500000,
+                "index": 4,
+                "offset": 4,
+                "rx2Hz": 502500000
+              }
+            },
+            {
+              "joinChannel": 20,
+              "place": null
+            }
+          ],
+          "joinPlans": [
+            {
+              "acceptStartHz": 484500000,
+              "acceptStepHz": 1600000,
+              "channels": {
+                "count": 4,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 470900000,
+                "stepHz": 1600000
+              },
+              "plan": "antenna_20mhz_a",
+              "rx2StartHz": 485300000,
+              "rx2StepHz": 1600000
+            },
+            {
+              "acceptStartHz": 490900000,
+              "acceptStepHz": 1600000,
+              "channels": {
+                "count": 4,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 504100000,
+                "stepHz": 1600000
+              },
+              "plan": "antenna_20mhz_a",
+              "rx2StartHz": 491700000,
+              "rx2StepHz": 1600000
+            },
+            {
+              "acceptStartHz": 479900000,
+              "acceptStepHz": 20000000,
+              "channels": {
+                "count": 2,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 479900000,
+                "stepHz": 20000000
+              },
+              "plan": "antenna_20mhz_b",
+              "rx2StartHz": 478300000,
+              "rx2StepHz": 20000000
+            },
+            {
+              "acceptStartHz": 492500000,
+              "acceptStepHz": 0,
+              "channels": {
+                "count": 5,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 470300000,
+                "stepHz": 2000000
+              },
+              "plan": "antenna_26mhz_a",
+              "rx2StartHz": 492500000,
+              "rx2StepHz": 0
+            },
+            {
+              "acceptStartHz": 502500000,
+              "acceptStepHz": 0,
+              "channels": {
+                "count": 5,
+                "maxDataRate": 5,
+                "minDataRate": 0,
+                "startHz": 480300000,
+                "stepHz": 2000000
+              },
+              "plan": "antenna_26mhz_b",
+              "rx2StartHz": 502500000,
+              "rx2StepHz": 0
+            }
+          ],
+          "joinSequence": "random",
+          "kind": "fixed",
+          "maskControls": [
+            {
+              "group": 0,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 1,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 2,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 3,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": true,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": false,
+              "thenGroup": null
+            }
+          ],
+          "powerReference": "eirp",
+          "rx1Frequencies": [
+            {
+              "rx1Hz": 483900000,
+              "uplinkChannel": 0,
+              "uplinkHz": 470300000
+            },
+            {
+              "rx1Hz": 484100000,
+              "uplinkChannel": 1,
+              "uplinkHz": 470500000
+            },
+            {
+              "rx1Hz": 485900000,
+              "uplinkChannel": 10,
+              "uplinkHz": 472300000
+            },
+            {
+              "rx1Hz": 489300000,
+              "uplinkChannel": 27,
+              "uplinkHz": 475700000
+            },
+            {
+              "rx1Hz": 495900000,
+              "uplinkChannel": 60,
+              "uplinkHz": 509100000
+            },
+            {
+              "rx1Hz": 485100000,
+              "uplinkChannel": 70,
+              "uplinkHz": 486900000
+            }
+          ],
+          "txParamSetup": false
+        },
         "rx1RowForSlowest": [
           0,
           0,
@@ -1861,6 +4451,122 @@
           }
         },
         "probeFrequencyHz": 923200000,
+        "rules": {
+          "channelList": "mhz900",
+          "downlinkChannelBlocks": [],
+          "downlinkChannelFrequencies": [],
+          "downlinkChannelPastEnd": null,
+          "gainAllowanceDb": null,
+          "joinPlaces": [
+            {
+              "joinChannel": 0,
+              "place": null
+            },
+            {
+              "joinChannel": 7,
+              "place": null
+            },
+            {
+              "joinChannel": 9,
+              "place": null
+            },
+            {
+              "joinChannel": 19,
+              "place": null
+            },
+            {
+              "joinChannel": 20,
+              "place": null
+            }
+          ],
+          "joinPlans": [],
+          "joinSequence": "random",
+          "kind": "dynamic",
+          "maskControls": [
+            {
+              "group": 0,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 1,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 2,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 3,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 4,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "banks",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": true,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            }
+          ],
+          "powerReference": "eirp",
+          "rx1Frequencies": [
+            {
+              "rx1Hz": 923200000,
+              "uplinkChannel": 0,
+              "uplinkHz": 923200000
+            },
+            {
+              "rx1Hz": 923400000,
+              "uplinkChannel": 1,
+              "uplinkHz": 923400000
+            },
+            {
+              "rx1Hz": 923200000,
+              "uplinkChannel": 10,
+              "uplinkHz": 923200000
+            },
+            {
+              "rx1Hz": 923200000,
+              "uplinkChannel": 27,
+              "uplinkHz": 923200000
+            },
+            {
+              "rx1Hz": 923200000,
+              "uplinkChannel": 60,
+              "uplinkHz": 923200000
+            },
+            {
+              "rx1Hz": 923200000,
+              "uplinkChannel": 70,
+              "uplinkHz": 923200000
+            }
+          ],
+          "txParamSetup": true
+        },
         "rx1RowForSlowest": [
           0,
           0,
@@ -1964,6 +4670,122 @@
           }
         },
         "probeFrequencyHz": 922100000,
+        "rules": {
+          "channelList": "mhz900",
+          "downlinkChannelBlocks": [],
+          "downlinkChannelFrequencies": [],
+          "downlinkChannelPastEnd": null,
+          "gainAllowanceDb": null,
+          "joinPlaces": [
+            {
+              "joinChannel": 0,
+              "place": null
+            },
+            {
+              "joinChannel": 7,
+              "place": null
+            },
+            {
+              "joinChannel": 9,
+              "place": null
+            },
+            {
+              "joinChannel": 19,
+              "place": null
+            },
+            {
+              "joinChannel": 20,
+              "place": null
+            }
+          ],
+          "joinPlans": [],
+          "joinSequence": "random",
+          "kind": "dynamic",
+          "maskControls": [
+            {
+              "group": 0,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 1,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 2,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 3,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 4,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "banks",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": true,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            }
+          ],
+          "powerReference": "eirp",
+          "rx1Frequencies": [
+            {
+              "rx1Hz": 922100000,
+              "uplinkChannel": 0,
+              "uplinkHz": 922100000
+            },
+            {
+              "rx1Hz": 922300000,
+              "uplinkChannel": 1,
+              "uplinkHz": 922300000
+            },
+            {
+              "rx1Hz": 921900000,
+              "uplinkChannel": 10,
+              "uplinkHz": 921900000
+            },
+            {
+              "rx1Hz": 921900000,
+              "uplinkChannel": 27,
+              "uplinkHz": 921900000
+            },
+            {
+              "rx1Hz": 921900000,
+              "uplinkChannel": 60,
+              "uplinkHz": 921900000
+            },
+            {
+              "rx1Hz": 921900000,
+              "uplinkChannel": 70,
+              "uplinkHz": 921900000
+            }
+          ],
+          "txParamSetup": false
+        },
         "rx1RowForSlowest": [
           0,
           0,
@@ -2071,6 +4893,122 @@
           }
         },
         "probeFrequencyHz": 865062500,
+        "rules": {
+          "channelList": "mhz800",
+          "downlinkChannelBlocks": [],
+          "downlinkChannelFrequencies": [],
+          "downlinkChannelPastEnd": null,
+          "gainAllowanceDb": null,
+          "joinPlaces": [
+            {
+              "joinChannel": 0,
+              "place": null
+            },
+            {
+              "joinChannel": 7,
+              "place": null
+            },
+            {
+              "joinChannel": 9,
+              "place": null
+            },
+            {
+              "joinChannel": 19,
+              "place": null
+            },
+            {
+              "joinChannel": 20,
+              "place": null
+            }
+          ],
+          "joinPlans": [],
+          "joinSequence": "random",
+          "kind": "dynamic",
+          "maskControls": [
+            {
+              "group": 0,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 1,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 2,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 3,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 4,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "banks",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": true,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            }
+          ],
+          "powerReference": "eirp",
+          "rx1Frequencies": [
+            {
+              "rx1Hz": 865062500,
+              "uplinkChannel": 0,
+              "uplinkHz": 865062500
+            },
+            {
+              "rx1Hz": 865402500,
+              "uplinkChannel": 1,
+              "uplinkHz": 865402500
+            },
+            {
+              "rx1Hz": 866550000,
+              "uplinkChannel": 10,
+              "uplinkHz": 866550000
+            },
+            {
+              "rx1Hz": 866550000,
+              "uplinkChannel": 27,
+              "uplinkHz": 866550000
+            },
+            {
+              "rx1Hz": 866550000,
+              "uplinkChannel": 60,
+              "uplinkHz": 866550000
+            },
+            {
+              "rx1Hz": 866550000,
+              "uplinkChannel": 70,
+              "uplinkHz": 866550000
+            }
+          ],
+          "txParamSetup": false
+        },
         "rx1RowForSlowest": [
           0,
           0,
@@ -2166,6 +5104,122 @@
           }
         },
         "probeFrequencyHz": 868900000,
+        "rules": {
+          "channelList": "mhz800",
+          "downlinkChannelBlocks": [],
+          "downlinkChannelFrequencies": [],
+          "downlinkChannelPastEnd": null,
+          "gainAllowanceDb": null,
+          "joinPlaces": [
+            {
+              "joinChannel": 0,
+              "place": null
+            },
+            {
+              "joinChannel": 7,
+              "place": null
+            },
+            {
+              "joinChannel": 9,
+              "place": null
+            },
+            {
+              "joinChannel": 19,
+              "place": null
+            },
+            {
+              "joinChannel": 20,
+              "place": null
+            }
+          ],
+          "joinPlans": [],
+          "joinSequence": "random",
+          "kind": "dynamic",
+          "maskControls": [
+            {
+              "group": 0,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 1,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 2,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 3,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": 4,
+              "kind": "group",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "banks",
+              "on": null,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "all",
+              "on": true,
+              "thenGroup": null
+            },
+            {
+              "group": null,
+              "kind": "reserved",
+              "on": null,
+              "thenGroup": null
+            }
+          ],
+          "powerReference": "eirp",
+          "rx1Frequencies": [
+            {
+              "rx1Hz": 868900000,
+              "uplinkChannel": 0,
+              "uplinkHz": 868900000
+            },
+            {
+              "rx1Hz": 869100000,
+              "uplinkChannel": 1,
+              "uplinkHz": 869100000
+            },
+            {
+              "rx1Hz": 869100000,
+              "uplinkChannel": 10,
+              "uplinkHz": 869100000
+            },
+            {
+              "rx1Hz": 869100000,
+              "uplinkChannel": 27,
+              "uplinkHz": 869100000
+            },
+            {
+              "rx1Hz": 869100000,
+              "uplinkChannel": 60,
+              "uplinkHz": 869100000
+            },
+            {
+              "rx1Hz": 869100000,
+              "uplinkChannel": 70,
+              "uplinkHz": 869100000
+            }
+          ],
+          "txParamSetup": false
+        },
         "rx1RowForSlowest": [
           0,
           0,

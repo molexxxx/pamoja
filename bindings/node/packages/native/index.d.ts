@@ -514,6 +514,28 @@ export declare class LoopbackTransport {
 export declare class LoraChannelPlan {
   /** Returns the published plan for a region. */
   static forRegion(region: LoraRegion): LoraChannelPlan
+  /** Returns one of the CN470-510 channel plans. */
+  static forCn470(plan: LoraCn470Plan): LoraChannelPlan
+  /** Returns how the plan defines and uses its channels. */
+  rules(): LoraPlanRules
+  /** Returns what a `ChMaskCntl` value does, or null past 7. */
+  maskControl(value: number): LoraMaskControl | null
+  /**
+   * Returns where the first receive window listens after an uplink on a channel.
+   *
+   * On a plan with no numbered downlink channels that is the uplink's own frequency;
+   * otherwise it is the downlink channel the uplink channel maps to.
+   */
+  rx1FrequencyHz(uplinkChannel: number, uplinkHz: number): number | null
+  /** Returns the frequency of a numbered downlink channel, or null past the last. */
+  downlinkChannelFrequencyHz(channel: number): number | null
+  /** Returns one run of join channels that selects a plan, or null past the end. */
+  joinPlan(index: number): LoraJoinPlan | null
+  /**
+   * Returns the run of join channels a join channel belongs to, and where the accept
+   * and the second receive window fall for it, or null if no run holds it.
+   */
+  joinPlanForChannel(joinChannel: number): LoraJoinPlanPlace | null
   /** Returns the scalar facts of the plan. */
   info(): LoraPlanInfo
   /** Returns the specification's name for the band. */
@@ -612,6 +634,22 @@ export declare class LoraPlanBuilder {
   maxPayload(table: LoraPayloadTable, payload?: LoraMaxPayload | undefined | null): void
   /** Adds a run of evenly spaced channels. */
   channelBlock(which: LoraChannelSet, block: LoraChannelBlock): void
+  /**
+   * Sets whether the network creates channels, and for a dynamic plan the numbering a
+   * type 1 channel list is read against.
+   */
+  kind(kind: LoraPlanKind, channelList?: LoraChannelList | undefined | null): void
+  /** Sets whether devices on the plan answer `TXParamSetupReq`. */
+  txParamSetup(answered: boolean): void
+  /** Sets what each `ChMaskCntl` value does, all eight in value order. */
+  maskControls(controls: Array<LoraMaskControl>): void
+  /** Sets the order a device tries the join channels in. */
+  joinSequence(sequence: LoraJoinSequence): void
+  /**
+   * Sets what the transmit power indexes count down from, and for a conducted ceiling
+   * the antenna gain it allows for.
+   */
+  powerReference(reference: LoraPowerReference, gainAllowanceDb?: number | undefined | null): void
   /**
    * Adds a sub-band and the transmit limits inside it.
    *
@@ -3191,12 +3229,42 @@ export interface LoraChannelBlock {
   maxDataRate: number
 }
 
+/** The numbering a dynamic plan reads a type 1 channel list against. */
+export declare const enum LoraChannelList {
+  /** The 800 MHz numbering of RP002-1.0.5 section 3.3.1.1. */
+  Mhz800 = 'Mhz800',
+  /** The 900 MHz numbering of RP002-1.0.5 section 3.3.1.2. */
+  Mhz900 = 'Mhz900'
+}
+
 /** Which channels of a plan to read. */
 export declare const enum LoraChannelSet {
   /** The channels a device must use to send a join request. */
   Join = 'Join',
   /** The channels a device starts with before a network adds any. */
-  Default = 'Default'
+  Default = 'Default',
+  /** The numbered downlink channels a fixed plan answers the first receive window on. */
+  Downlink = 'Downlink'
+}
+
+/**
+ * One of the CN470-510 channel plans.
+ *
+ * RP002-1.0.5 section 3.9 divides the band into four plans, for 20 MHz and 26 MHz
+ * antennas, each with a type A and B. A device joining over the air uses the twenty
+ * common join channels they share and moves to the plan its join channel names.
+ */
+export declare const enum LoraCn470Plan {
+  /** A 20 MHz antenna, type A, the plan `LoraRegion.Cn470` names. */
+  Antenna20MhzA = 'Antenna20MhzA',
+  /** A 20 MHz antenna, type B. */
+  Antenna20MhzB = 'Antenna20MhzB',
+  /** A 26 MHz antenna, type A. */
+  Antenna26MhzA = 'Antenna26MhzA',
+  /** A 26 MHz antenna, type B. */
+  Antenna26MhzB = 'Antenna26MhzB',
+  /** The 96-channel plan of the LoRaWAN 1.0.3 Regional Parameters revision A. */
+  Channels96 = 'Channels96'
 }
 
 /**
@@ -3254,6 +3322,45 @@ export declare function loraFreeSpaceLossDb(distanceM: number, frequencyHz: numb
 /** Returns the radius of the first Fresnel ellipsoid at a point on a path, in millimeters. */
 export declare function loraFresnelRadiusMm(nearM: number, farM: number, frequencyHz: number): number
 
+/** A run of join channels that puts a device on a plan. */
+export interface LoraJoinPlan {
+  /** The join channels and the data rates a request may use on them. */
+  channels: LoraChannelBlock
+  /** Where the accept answering the first channel arrives, in hertz. */
+  acceptStartHz: number
+  /** How far the accept frequency moves for each next channel, in hertz. */
+  acceptStepHz: number
+  /** The second receive window's frequency after joining on the first channel, in hertz. */
+  rx2StartHz: number
+  /** How far that frequency moves for each next channel, in hertz. */
+  rx2StepHz: number
+  /** The CN470-510 plan a join on these channels selects. */
+  plan?: LoraCn470Plan
+}
+
+/** The run of join channels one join channel belongs to. */
+export interface LoraJoinPlanPlace {
+  /** The run's position, as `joinPlan` takes it. */
+  index: number
+  /** The channel's place within the run. */
+  offset: number
+  /** Where the join accept for that channel arrives, in hertz. */
+  acceptHz: number
+  /** Where the second receive window listens once joined on it, in hertz. */
+  rx2Hz: number
+}
+
+/** The order a device tries the join channels in. */
+export declare const enum LoraJoinSequence {
+  /** A join channel at random, stepping the data rate down across attempts. */
+  Random = 'Random',
+  /**
+   * Eight 125 kHz channels from successive groups, then a 500 kHz one, with no channel
+   * repeated until all have gone out, RP002-1.0.5 section 3.5.2.
+   */
+  OctetPasses = 'OctetPasses'
+}
+
 /** The radio settings of a LoRa link. */
 export interface LoraLink {
   /** The spreading factor, 5 (fastest) to 12 (longest range). */
@@ -3309,6 +3416,35 @@ export declare function loraLinkDefault(spreadingFactor: number, bandwidthHz: nu
 
 /** Returns how far above the sensitivity a signal arrives across a path, in dB. */
 export declare function loraMarginDb(budget: LoraLinkBudget, link: LoraLink, pathLossDb: number): number
+
+/** What one `ChMaskCntl` value does. */
+export interface LoraMaskControl {
+  /** What the value does. */
+  kind: LoraMaskControlKind
+  /** For `Group`, the group the mask sets. */
+  group?: number
+  /** For `All`, whether every channel turns on. */
+  on?: boolean
+  /** For `All`, the group the mask then sets, if any. */
+  thenGroup?: number
+}
+
+/** What one `ChMaskCntl` value of a `LinkADRReq` does. */
+export declare const enum LoraMaskControlKind {
+  /** The mask sets one group of sixteen channels. */
+  Group = 'Group',
+  /** The ten low bits switch banks of eight channels. */
+  Banks = 'Banks',
+  /**
+   * The eight low bits switch banks of eight with their 500 kHz channel, and the ninth
+   * the 500 kHz channels past them.
+   */
+  PairedBanks = 'PairedBanks',
+  /** Every channel turns on or off, then the mask may set a group. */
+  All = 'All',
+  /** The value is reserved. */
+  Reserved = 'Reserved'
+}
 
 /** Returns the most path loss a link survives, in dB. */
 export declare function loraMaxPathLossDb(budget: LoraLinkBudget, link: LoraLink): number
@@ -3399,6 +3535,48 @@ export interface LoraPlanInfo {
    * downlink.
    */
   hasDwellLimitedRx1: boolean
+}
+
+/** Whether a plan's network creates channels or only switches numbered ones. */
+export declare const enum LoraPlanKind {
+  /** The network creates channels and moves them, as in Europe. */
+  Dynamic = 'Dynamic',
+  /**
+   * The channels are numbered in advance and only enabled or disabled, as in North
+   * America.
+   */
+  Fixed = 'Fixed'
+}
+
+/** How a plan defines and uses its channels. */
+export interface LoraPlanRules {
+  /** Whether the network creates channels or only switches numbered ones. */
+  kind: LoraPlanKind
+  /** For a dynamic plan, the numbering it reads a type 1 channel list against. */
+  channelList?: LoraChannelList
+  /** Whether devices on the plan answer `TXParamSetupReq`. */
+  txParamSetup: boolean
+  /** The order a device tries the join channels in. */
+  joinSequence: LoraJoinSequence
+  /** What the transmit power indexes count down from. */
+  powerReference: LoraPowerReference
+  /** For a conducted ceiling, the antenna gain it already allows for, in dB. */
+  gainAllowanceDb?: number
+  /** How many downlink channel blocks the plan defines. */
+  downlinkChannelBlockCount: number
+  /**
+   * How many runs of join channels select a plan, which only the published CN470-510
+   * plans carry.
+   */
+  joinPlanCount: number
+}
+
+/** What a plan's transmit power indexes count down from. */
+export declare const enum LoraPowerReference {
+  /** A radiated ceiling. */
+  Eirp = 'Eirp',
+  /** A conducted ceiling, with an allowance for antenna gain. */
+  Conducted = 'Conducted'
 }
 
 /** What a radio sends and listens with. */

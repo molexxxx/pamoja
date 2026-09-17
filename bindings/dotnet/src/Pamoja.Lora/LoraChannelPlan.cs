@@ -74,7 +74,214 @@ public enum LoraChannelSet
 
     /// <summary>The channels a device starts with before a network adds any.</summary>
     Default = 1,
+
+    /// <summary>The numbered downlink channels a fixed plan answers the first receive window on.</summary>
+    Downlink = 2,
 }
+
+/// <summary>One of the CN470-510 channel plans.</summary>
+/// <remarks>
+/// RP002-1.0.5 divides the band into four plans, for 20 MHz and 26 MHz antennas, each
+/// with a type A and B. A device joining over the air uses the twenty common join
+/// channels they share and moves to the plan its join channel names.
+/// </remarks>
+public enum LoraCn470Plan
+{
+    /// <summary>A 20 MHz antenna, type A, the plan <see cref="LoraRegion.Cn470"/> names.</summary>
+    Antenna20MhzA = 1,
+
+    /// <summary>A 20 MHz antenna, type B.</summary>
+    Antenna20MhzB = 2,
+
+    /// <summary>A 26 MHz antenna, type A.</summary>
+    Antenna26MhzA = 3,
+
+    /// <summary>A 26 MHz antenna, type B.</summary>
+    Antenna26MhzB = 4,
+
+    /// <summary>The 96-channel plan of the LoRaWAN 1.0.3 Regional Parameters revision A.</summary>
+    Channels96 = 5,
+}
+
+/// <summary>Whether a plan's network creates channels or only switches numbered ones.</summary>
+public enum LoraPlanKind
+{
+    /// <summary>The network creates channels and moves them, as in Europe.</summary>
+    Dynamic = 0,
+
+    /// <summary>
+    /// The channels are numbered in advance and only enabled or disabled, as in North America.
+    /// </summary>
+    Fixed = 1,
+}
+
+/// <summary>The numbering a dynamic plan reads a type 1 channel list against.</summary>
+public enum LoraChannelList
+{
+    /// <summary>The 800 MHz numbering of RP002-1.0.5 section 3.3.1.1.</summary>
+    Mhz800 = 1,
+
+    /// <summary>The 900 MHz numbering of RP002-1.0.5 section 3.3.1.2.</summary>
+    Mhz900 = 2,
+}
+
+/// <summary>The order a device tries the join channels in.</summary>
+public enum LoraJoinSequence
+{
+    /// <summary>A join channel at random, stepping the data rate down across attempts.</summary>
+    Random = 0,
+
+    /// <summary>
+    /// Eight 125 kHz channels from successive groups, then a 500 kHz one, with no channel
+    /// repeated until all have gone out, RP002-1.0.5 section 3.5.2.
+    /// </summary>
+    OctetPasses = 1,
+}
+
+/// <summary>What a plan's transmit power indexes count down from.</summary>
+public enum LoraPowerReference
+{
+    /// <summary>A radiated ceiling.</summary>
+    Eirp = 0,
+
+    /// <summary>A conducted ceiling, with an allowance for antenna gain.</summary>
+    Conducted = 1,
+}
+
+/// <summary>What one <c>ChMaskCntl</c> value of a <c>LinkADRReq</c> does.</summary>
+public enum LoraMaskControlKind
+{
+    /// <summary>The mask sets one group of sixteen channels.</summary>
+    Group = 0,
+
+    /// <summary>The ten low bits switch banks of eight channels.</summary>
+    Banks = 1,
+
+    /// <summary>
+    /// The eight low bits switch banks of eight with their 500 kHz channel, and the ninth
+    /// the 500 kHz channels past them.
+    /// </summary>
+    PairedBanks = 2,
+
+    /// <summary>Every channel turns on or off, then the mask may set a group.</summary>
+    All = 3,
+
+    /// <summary>The value is reserved.</summary>
+    Reserved = 4,
+}
+
+/// <summary>What one <c>ChMaskCntl</c> value does.</summary>
+/// <param name="Kind">What the value does.</param>
+/// <param name="Group">For <see cref="LoraMaskControlKind.Group"/>, the group the mask sets.</param>
+/// <param name="On">For <see cref="LoraMaskControlKind.All"/>, whether every channel turns on.</param>
+/// <param name="ThenGroup">For <see cref="LoraMaskControlKind.All"/>, the group the mask then sets.</param>
+public readonly record struct LoraMaskControl(
+    LoraMaskControlKind Kind,
+    byte? Group,
+    bool? On,
+    byte? ThenGroup)
+{
+    /// <summary>The mask sets one group of sixteen channels.</summary>
+    /// <param name="group">The group.</param>
+    /// <returns>The control.</returns>
+    public static LoraMaskControl OneGroup(byte group) =>
+        new(LoraMaskControlKind.Group, group, null, null);
+
+    /// <summary>The ten low bits of the mask switch banks of eight channels.</summary>
+    /// <returns>The control.</returns>
+    public static LoraMaskControl Banks() => new(LoraMaskControlKind.Banks, null, null, null);
+
+    /// <summary>The eight low bits switch banks of eight with their 500 kHz channel.</summary>
+    /// <returns>The control.</returns>
+    public static LoraMaskControl PairedBanks() =>
+        new(LoraMaskControlKind.PairedBanks, null, null, null);
+
+    /// <summary>Every channel turns on or off, then the mask sets a group if one is given.</summary>
+    /// <param name="on">Whether every channel turns on.</param>
+    /// <param name="thenGroup">The group the mask then sets, if any.</param>
+    /// <returns>The control.</returns>
+    public static LoraMaskControl AllChannels(bool on, byte? thenGroup = null) =>
+        new(LoraMaskControlKind.All, null, on, thenGroup);
+
+    /// <summary>The value is reserved.</summary>
+    /// <returns>The control.</returns>
+    public static LoraMaskControl Reserved() =>
+        new(LoraMaskControlKind.Reserved, null, null, null);
+
+    /// <summary>Converts a control that crossed the boundary.</summary>
+    /// <param name="control">The control as the C ABI describes it.</param>
+    /// <returns>The equivalent record.</returns>
+    internal static LoraMaskControl From(PamojaLoraMaskControl control) => control.Kind switch
+    {
+        NativeMethods.LoraMaskGroup => OneGroup(control.Group),
+        NativeMethods.LoraMaskBanks => Banks(),
+        NativeMethods.LoraMaskPairedBanks => PairedBanks(),
+        NativeMethods.LoraMaskAll => AllChannels(
+            control.On != 0,
+            control.HasThenGroup != 0 ? control.ThenGroup : null),
+        _ => Reserved(),
+    };
+
+    /// <summary>Converts the control into the shape that crosses the boundary.</summary>
+    /// <returns>The equivalent struct.</returns>
+    internal PamojaLoraMaskControl ToNative() => new()
+    {
+        Kind = (byte)Kind,
+        Group = Group ?? 0,
+        On = (byte)(On == true ? 1 : 0),
+        HasThenGroup = (byte)(ThenGroup.HasValue ? 1 : 0),
+        ThenGroup = ThenGroup ?? 0,
+    };
+}
+
+/// <summary>How a plan defines and uses its channels.</summary>
+/// <param name="Kind">Whether the network creates channels or only switches numbered ones.</param>
+/// <param name="ChannelList">
+/// For a dynamic plan, the numbering it reads a type 1 channel list against, if any.
+/// </param>
+/// <param name="TxParamSetup">Whether devices on the plan answer <c>TXParamSetupReq</c>.</param>
+/// <param name="JoinSequence">The order a device tries the join channels in.</param>
+/// <param name="PowerReference">What the transmit power indexes count down from.</param>
+/// <param name="GainAllowanceDb">
+/// For a conducted ceiling, the antenna gain it already allows for, in dB.
+/// </param>
+/// <param name="DownlinkChannelBlockCount">How many downlink channel blocks the plan defines.</param>
+/// <param name="JoinPlanCount">
+/// How many runs of join channels select a plan, which only the published CN470-510 plans carry.
+/// </param>
+public readonly record struct LoraPlanRules(
+    LoraPlanKind Kind,
+    LoraChannelList? ChannelList,
+    bool TxParamSetup,
+    LoraJoinSequence JoinSequence,
+    LoraPowerReference PowerReference,
+    byte? GainAllowanceDb,
+    ushort DownlinkChannelBlockCount,
+    ushort JoinPlanCount);
+
+/// <summary>A run of join channels that puts a device on a plan.</summary>
+/// <param name="Channels">The join channels and the data rates a request may use on them.</param>
+/// <param name="AcceptStartHz">Where the accept answering the first channel arrives, in hertz.</param>
+/// <param name="AcceptStepHz">How far the accept frequency moves for each next channel.</param>
+/// <param name="Rx2StartHz">
+/// The second receive window's frequency after joining on the first channel, in hertz.
+/// </param>
+/// <param name="Rx2StepHz">How far that frequency moves for each next channel.</param>
+/// <param name="Plan">The CN470-510 plan a join on these channels selects.</param>
+public readonly record struct LoraJoinPlan(
+    LoraChannelBlock Channels,
+    uint AcceptStartHz,
+    uint AcceptStepHz,
+    uint Rx2StartHz,
+    uint Rx2StepHz,
+    LoraCn470Plan? Plan);
+
+/// <summary>The run of join channels one join channel belongs to.</summary>
+/// <param name="Index">The run's position, as <see cref="LoraChannelPlan.JoinPlans"/> lists it.</param>
+/// <param name="Offset">The channel's place within the run.</param>
+/// <param name="AcceptHz">Where the join accept for that channel arrives, in hertz.</param>
+/// <param name="Rx2Hz">Where the second receive window listens once joined on it, in hertz.</param>
+public readonly record struct LoraJoinPlanPlace(ushort Index, ushort Offset, uint AcceptHz, uint Rx2Hz);
 
 /// <summary>How a data rate is carried on the air.</summary>
 public enum LoraModulation
@@ -299,6 +506,21 @@ public sealed class LoraChannelPlan : IDisposable
         return new LoraChannelPlan(plan);
     }
 
+    /// <summary>Returns one of the CN470-510 channel plans.</summary>
+    /// <param name="plan">The plan to describe.</param>
+    /// <returns>
+    /// The plan, which also carries the runs of join channels that select each of the others.
+    /// </returns>
+    /// <exception cref="PamojaException">
+    /// CN470-510 is not compiled into this build of the native library.
+    /// </exception>
+    public static LoraChannelPlan ForCn470(LoraCn470Plan plan)
+    {
+        Status.ThrowIfError(
+            NativeMethods.pamoja_lora_plan_for_cn470((uint)plan, out IntPtr handle));
+        return new LoraChannelPlan(handle);
+    }
+
     /// <summary>Reports whether a region is compiled into this build.</summary>
     /// <param name="region">The band to check.</param>
     /// <returns><c>true</c> if the region is available.</returns>
@@ -504,15 +726,17 @@ public sealed class LoraChannelPlan : IDisposable
     }
 
     /// <summary>Returns the plan's channel blocks.</summary>
-    /// <param name="which">The join set or the default set.</param>
+    /// <param name="which">The join set, the default set, or the numbered downlink channels.</param>
     /// <returns>The blocks, in the order the plan lists them.</returns>
     public IReadOnlyList<LoraChannelBlock> ChannelBlocks(
         LoraChannelSet which = LoraChannelSet.Default)
     {
-        LoraPlanInfo info = Info();
-        int count = which == LoraChannelSet.Join
-            ? info.JoinChannelBlockCount
-            : info.DefaultChannelBlockCount;
+        int count = which switch
+        {
+            LoraChannelSet.Join => Info().JoinChannelBlockCount,
+            LoraChannelSet.Downlink => Rules().DownlinkChannelBlockCount,
+            _ => Info().DefaultChannelBlockCount,
+        };
         List<LoraChannelBlock> blocks = new(count);
         for (ushort index = 0; index < count; index++)
         {
@@ -531,6 +755,132 @@ public sealed class LoraChannelPlan : IDisposable
         }
 
         return blocks;
+    }
+
+    /// <summary>Returns how the plan defines and uses its channels.</summary>
+    /// <returns>The plan's channel rules.</returns>
+    public LoraPlanRules Rules()
+    {
+        Status.ThrowIfError(
+            NativeMethods.pamoja_lora_plan_rules(
+                _handle.DangerousGetHandle(),
+                out PamojaLoraPlanRules rules));
+        bool conducted = rules.PowerReference == NativeMethods.LoraPowerConducted;
+        return new LoraPlanRules(
+            (LoraPlanKind)rules.Kind,
+            rules.ChannelList == NativeMethods.LoraChannelListNone
+                ? null
+                : (LoraChannelList)rules.ChannelList,
+            rules.TxParamSetup != 0,
+            (LoraJoinSequence)rules.JoinSequence,
+            (LoraPowerReference)rules.PowerReference,
+            conducted ? rules.GainAllowanceDb : null,
+            rules.DownlinkChannelBlockCount,
+            rules.JoinPlanCount);
+    }
+
+    /// <summary>Returns what a <c>ChMaskCntl</c> value does.</summary>
+    /// <param name="value">The value, 0 to 7.</param>
+    /// <returns>The control, or <c>null</c> past 7.</returns>
+    public LoraMaskControl? MaskControl(byte value)
+    {
+        PamojaStatus status = NativeMethods.pamoja_lora_plan_mask_control(
+            _handle.DangerousGetHandle(),
+            value,
+            out PamojaLoraMaskControl control);
+        return status == PamojaStatus.Ok ? LoraMaskControl.From(control) : null;
+    }
+
+    /// <summary>Returns where the first receive window listens after an uplink on a channel.</summary>
+    /// <param name="uplinkChannel">The channel number the uplink went out on.</param>
+    /// <param name="uplinkHz">The frequency it went out on.</param>
+    /// <returns>
+    /// The uplink's own frequency on a plan with no numbered downlink channels, otherwise the
+    /// downlink channel the uplink channel maps to, or <c>null</c> where the plan leaves the
+    /// window undefined.
+    /// </returns>
+    public uint? Rx1FrequencyHz(ushort uplinkChannel, uint uplinkHz)
+    {
+        PamojaStatus status = NativeMethods.pamoja_lora_plan_rx1_frequency_hz(
+            _handle.DangerousGetHandle(),
+            uplinkChannel,
+            uplinkHz,
+            out uint frequency);
+        return status == PamojaStatus.Ok ? frequency : null;
+    }
+
+    /// <summary>Returns the frequency of a numbered downlink channel.</summary>
+    /// <param name="channel">The downlink channel number, counting across the downlink blocks.</param>
+    /// <returns>The frequency in hertz, or <c>null</c> past the last downlink channel.</returns>
+    public uint? DownlinkChannelFrequencyHz(ushort channel)
+    {
+        PamojaStatus status = NativeMethods.pamoja_lora_plan_downlink_channel_frequency_hz(
+            _handle.DangerousGetHandle(),
+            channel,
+            out uint frequency);
+        return status == PamojaStatus.Ok ? frequency : null;
+    }
+
+    /// <summary>Returns the runs of join channels that select a plan.</summary>
+    /// <returns>
+    /// The runs, in join channel order; empty for every plan but the published CN470-510 ones.
+    /// </returns>
+    public IReadOnlyList<LoraJoinPlan> JoinPlans()
+    {
+        int count = Rules().JoinPlanCount;
+        List<LoraJoinPlan> runs = new(count);
+        for (ushort index = 0; index < count; index++)
+        {
+            Status.ThrowIfError(
+                NativeMethods.pamoja_lora_plan_join_plan(
+                    _handle.DangerousGetHandle(),
+                    index,
+                    out PamojaLoraJoinPlan run));
+            runs.Add(new LoraJoinPlan(
+                new LoraChannelBlock(
+                    run.Channels.StartHz,
+                    run.Channels.StepHz,
+                    run.Channels.Count,
+                    run.Channels.MinDataRate,
+                    run.Channels.MaxDataRate),
+                run.AcceptStartHz,
+                run.AcceptStepHz,
+                run.Rx2StartHz,
+                run.Rx2StepHz,
+                run.Cn470Plan == NativeMethods.LoraCn470None ? null : (LoraCn470Plan)run.Cn470Plan));
+        }
+
+        return runs;
+    }
+
+    /// <summary>Returns the run of join channels a join channel belongs to.</summary>
+    /// <param name="joinChannel">The join channel, counted through the runs in order.</param>
+    /// <returns>
+    /// Where the channel sits and where its accept and second receive window fall, or
+    /// <c>null</c> if no run holds it.
+    /// </returns>
+    public LoraJoinPlanPlace? JoinPlanForChannel(ushort joinChannel)
+    {
+        PamojaStatus status = NativeMethods.pamoja_lora_plan_join_plan_for_channel(
+            _handle.DangerousGetHandle(),
+            joinChannel,
+            out ushort index,
+            out ushort offset);
+        if (status != PamojaStatus.Ok)
+        {
+            return null;
+        }
+
+        Status.ThrowIfError(
+            NativeMethods.pamoja_lora_plan_join_plan(
+                _handle.DangerousGetHandle(),
+                index,
+                out PamojaLoraJoinPlan run));
+        return new LoraJoinPlanPlace(
+            index,
+            offset,
+            run.AcceptStartHz + (run.AcceptStepHz * offset),
+            run.Rx2StartHz + (run.Rx2StepHz * offset));
     }
 
     /// <summary>Returns the plan's sub-bands and the transmit limits inside each.</summary>

@@ -623,6 +623,96 @@ def _check_plan(plan, want: dict) -> None:
         assert band.duty_cycle_permille == entry["dutyCyclePermille"], where
         assert band.max_eirp_dbm == entry["maxEirpDbm"], where
 
+    _check_rules(plan, want["rules"], where)
+
+
+def _block_of(block) -> dict:
+    """Describe a channel block the way the vectors do."""
+    return {
+        "startHz": block.start_hz,
+        "stepHz": block.step_hz,
+        "count": block.count,
+        "minDataRate": block.min_data_rate,
+        "maxDataRate": block.max_data_rate,
+    }
+
+
+def _check_rules(plan, want: dict, where: str) -> None:
+    """Hold a plan's channel rules to the answers every binding must give."""
+    rules = plan.rules()
+    assert {
+        "kind": rules.kind,
+        "channelList": rules.channel_list,
+        "txParamSetup": rules.tx_param_setup,
+        "joinSequence": rules.join_sequence,
+        "powerReference": rules.power_reference,
+        "gainAllowanceDb": rules.gain_allowance_db,
+    } == {
+        key: want[key]
+        for key in (
+            "kind",
+            "channelList",
+            "txParamSetup",
+            "joinSequence",
+            "powerReference",
+            "gainAllowanceDb",
+        )
+    }, where
+
+    for value, control in enumerate(want["maskControls"]):
+        got = plan.mask_control(value)
+        assert {
+            "kind": got.kind,
+            "group": got.group,
+            "on": got.on,
+            "thenGroup": got.then_group,
+        } == control, f"{where} ChMaskCntl {value}"
+    assert plan.mask_control(8) is None, where
+
+    assert rules.downlink_channel_block_count == len(want["downlinkChannelBlocks"]), where
+    assert [
+        _block_of(block) for block in plan.channel_blocks("downlink")
+    ] == want["downlinkChannelBlocks"], where
+    for channel, frequency in enumerate(want["downlinkChannelFrequencies"]):
+        assert plan.downlink_channel_frequency_hz(channel) == frequency, (
+            f"{where} downlink channel {channel}"
+        )
+    downlink_count = sum(block["count"] for block in want["downlinkChannelBlocks"])
+    assert (
+        plan.downlink_channel_frequency_hz(downlink_count) == want["downlinkChannelPastEnd"]
+    ), where
+
+    for probe in want["rx1Frequencies"]:
+        assert (
+            plan.rx1_frequency_hz(probe["uplinkChannel"], probe["uplinkHz"]) == probe["rx1Hz"]
+        ), f"{where} RX1 after uplink channel {probe['uplinkChannel']}"
+
+    assert rules.join_plan_count == len(want["joinPlans"]), where
+    assert [
+        {
+            "channels": _block_of(run.channels),
+            "acceptStartHz": run.accept_start_hz,
+            "acceptStepHz": run.accept_step_hz,
+            "rx2StartHz": run.rx2_start_hz,
+            "rx2StepHz": run.rx2_step_hz,
+            "plan": run.plan,
+        }
+        for run in plan.join_plans()
+    ] == want["joinPlans"], where
+    for entry in want["joinPlaces"]:
+        got = plan.join_plan_for_channel(entry["joinChannel"])
+        described = (
+            None
+            if got is None
+            else {
+                "index": got.index,
+                "offset": got.offset,
+                "acceptHz": got.accept_hz,
+                "rx2Hz": got.rx2_hz,
+            }
+        )
+        assert described == entry["place"], f"{where} join channel {entry['joinChannel']}"
+
 
 def test_lora_budget_vectors_match():
     vector = VECTORS["lora"]["budget"]
@@ -963,6 +1053,11 @@ def test_lora_region_vectors_match():
     for want in vector["published"]:
         _check_plan(lora.plan_for(want["code"]), want)
 
+    assert [want["code"] for want in vector["cn470"]] == list(lora.CN470_PLANS)
+    assert lora.ChannelPlan.cn470_plans() == list(lora.CN470_PLANS)
+    for want in vector["cn470"]:
+        _check_plan(lora.cn470_plan(want["code"]), want)
+
 
 def test_a_private_plan_matches_the_same_vectors():
     # A deployment on licensed spectrum, assembled rather than published, must
@@ -981,6 +1076,47 @@ def test_a_private_plan_matches_the_same_vectors():
     builder.rx1_row([1])
 
     _check_plan(builder.build(), VECTORS["loraRegions"]["custom"])
+
+
+def test_a_private_fixed_plan_matches_the_same_vectors():
+    # A fixed plan in the manner of the 900 MHz ones, with its channel rules set by hand.
+    builder = lora.ChannelPlanBuilder("private-fixed")
+    builder.data_rate(lora.LoraDataRate.lora(10, 125_000, 980))
+    builder.data_rate(lora.LoraDataRate.lora(8, 500_000, 12_500))
+    for table in ("uplink_repeater", "uplink_direct"):
+        builder.max_payload(lora.LoraMaxPayload(19, 11), table)
+        builder.max_payload(lora.LoraMaxPayload(230, 222), table)
+    builder.channel_block(lora.LoraChannelBlock(902_300_000, 200_000, 16, 0, 0))
+    builder.channel_block(lora.LoraChannelBlock(903_000_000, 1_600_000, 2, 1, 1))
+    builder.channel_block(lora.LoraChannelBlock(923_300_000, 600_000, 4, 1, 1), "downlink")
+    builder.sub_band(lora.LoraSubBand(902_000_000, 928_000_000, 1000, 30))
+    builder.power(30, 2, 10)
+    builder.rx(923_300_000, 1, 0)
+    builder.rx1_row([1])
+    builder.rx1_row([1])
+    builder.kind("fixed")
+    builder.tx_param_setup(False)
+    reserved = lora.LoraMaskControl.reserved()
+    builder.mask_controls(
+        [
+            lora.LoraMaskControl.one_group(0),
+            lora.LoraMaskControl.one_group(1),
+            reserved,
+            reserved,
+            reserved,
+            reserved,
+            lora.LoraMaskControl.all_channels(True, then_group=1),
+            lora.LoraMaskControl.all_channels(False, then_group=1),
+        ]
+    )
+    with pytest.raises(ValueError, match="eight mask controls"):
+        builder.mask_controls([reserved])
+    with pytest.raises(ValueError, match="not a join sequence"):
+        builder.join_sequence("sweep")
+    builder.join_sequence("octet_passes")
+    builder.power_reference("conducted", 6)
+
+    _check_plan(builder.build(), VECTORS["loraRegions"]["customFixed"])
 
 
 def test_mavlink_vectors_match():

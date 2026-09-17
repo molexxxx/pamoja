@@ -20,9 +20,13 @@ from pamoja._native import (
     LoraChannelBlock,
     LinkBudget,
     LoraDataRate,
+    LoraJoinPlan,
+    LoraJoinPlanPlace,
     LoraLink,
+    LoraMaskControl,
     LoraMaxPayload,
     LoraPlanInfo,
+    LoraPlanRules,
     LoraSubBand,
     lora_demodulator_snr_db,
     lora_fcc_max_conducted_dbm,
@@ -32,6 +36,7 @@ from pamoja._native import (
 )
 
 __all__ = [
+    "CN470_PLANS",
     "ChannelPlan",
     "ChannelPlanBuilder",
     "GATEWAY_NOISE_FIGURE_DB",
@@ -39,9 +44,13 @@ __all__ = [
     "LoraBeacon",
     "LoraChannelBlock",
     "LoraDataRate",
+    "LoraJoinPlan",
+    "LoraJoinPlanPlace",
     "LoraLink",
+    "LoraMaskControl",
     "LoraMaxPayload",
     "LoraPlanInfo",
+    "LoraPlanRules",
     "LoraSubBand",
     "RADIO_NOISE_FIGURE_DB",
     "REGIONS",
@@ -52,6 +61,7 @@ __all__ = [
     "link",
     "messages_per_hour",
     "messages_per_hour_at",
+    "cn470_plan",
     "noise_floor_dbm",
     "plan_for",
 ]
@@ -67,6 +77,17 @@ REGIONS = (
     "KR920",
     "IN865",
     "RU864",
+)
+
+#: The CN470-510 channel plans, as :func:`cn470_plan` takes them: the four
+#: RP002-1.0.5 plans for 20 MHz and 26 MHz antennas, then the 96-channel plan of the
+#: LoRaWAN 1.0.3 Regional Parameters revision A.
+CN470_PLANS = (
+    "antenna_20mhz_a",
+    "antenna_20mhz_b",
+    "antenna_26mhz_a",
+    "antenna_26mhz_b",
+    "channels_96",
 )
 
 #: A typical noise figure for a Semtech sub-GHz LoRa radio, in dB. Semtech AN1200.22
@@ -152,6 +173,27 @@ def plan_for(region: str) -> ChannelPlan:
     10
     """
     return ChannelPlan.for_region(region)
+
+
+def cn470_plan(plan: str) -> ChannelPlan:
+    """Return one of the CN470-510 channel plans.
+
+    A device joining over the air uses the twenty common join channels the four
+    RP002-1.0.5 plans share, and moves to the plan its join channel names.
+
+    :param plan: The plan, one of :data:`CN470_PLANS`.
+    :returns: The plan, which also carries the runs of join channels that select
+        each of the others.
+    :raises ValueError: If no CN470 plan goes by that name.
+
+    >>> plan = cn470_plan("antenna_26mhz_a")
+    >>> place = plan.join_plan_for_channel(9)
+    >>> plan.join_plans()[place.index].plan
+    'antenna_20mhz_b'
+    >>> place.accept_hz
+    499900000
+    """
+    return ChannelPlan.for_cn470(plan)
 
 
 def messages_per_hour_at(
