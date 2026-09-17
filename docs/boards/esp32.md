@@ -501,7 +501,7 @@ fn main() -> ! {
         .with_seed(seed);
     let credentials = Device::new(DEV_EUI, JOIN_EUI, APP_KEY);
     let device = EndDevice::new(Region::Eu868.plan(), credentials, settings)
-        .expect("EU868 defines its channels dynamically");
+        .expect("EU868 fits a device's channel table");
 
     // The node sends, opens both receive windows on time, and sees each uplink through its
     // repeats. The clock and the delay it times them with are the chip's own timer.
@@ -595,6 +595,13 @@ way. And the radio itself supplies the join nonce: without Wi-Fi running, the
 chip has no source of entropy in `esp-hal`'s stable set, so the program reads it
 from the receiver's noise, which is what LoRaWAN 1.0.3 suggests for a device with
 no other.
+
+The region is one argument. A node on a 915 MHz network fits an RFM95W built for
+that band, names `Region::Us915` or `Region::Au915`, and swaps `pamoja-lora`'s
+`eu868` feature for that region's. The device then joins the way those plans lay
+out, eight 125 kHz channels from successive groups and then a 500 kHz one, and
+listens for each answer on the downlink channel its uplink maps to. A network in
+China names one of the five plans of `Cn470Plan`.
 
 The seven bytes a reading travels in are the temperature in hundredths of a
 degree, the humidity in hundredths of a percent and the pressure in pascals,

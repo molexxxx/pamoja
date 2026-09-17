@@ -18,7 +18,9 @@ use super::ChannelPlan;
     feature = "in865",
     feature = "ru864"
 ))]
-use super::{Beacon, ChannelBlock, DataRate, MaxPayload, PlanKind};
+use super::{
+    Beacon, ChannelBlock, DataRate, JoinSequence, MaskControl, MaxPayload, PlanKind, PowerReference,
+};
 // A numbering for type 1 channel lists belongs to the dynamic plans that name one.
 #[cfg(any(
     feature = "eu868",
@@ -28,6 +30,9 @@ use super::{Beacon, ChannelBlock, DataRate, MaxPayload, PlanKind};
     feature = "ru864"
 ))]
 use super::FixedChannelList;
+// Only CN470-510 picks its plan by the channel a device joined on.
+#[cfg(feature = "cn470")]
+use super::JoinPlan;
 // Only the bands whose regulators cap airtime describe sub-bands; the 900 MHz
 // plans and IN865 leave the table empty.
 #[cfg(any(
@@ -220,6 +225,74 @@ impl Region {
     }
 }
 
+/// One of the channel plans the CN470-510 band is divided into.
+///
+/// [`Region::Cn470`] names the first. A device joining over the air can start from any of the
+/// four RP002-1.0.5 plans, since they share their join channels and the channel that answers
+/// decides the plan; a personalized device, or one on a network still running the 96-channel
+/// plan, is set up on the one it belongs to.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_lora::region::{Cn470Plan, Region};
+///
+/// assert!(core::ptr::eq(Region::Cn470.plan(), Cn470Plan::Antenna20MhzA.plan()));
+/// assert_eq!(Cn470Plan::Channels96.plan().default_channel_count(), 96);
+/// assert_eq!(Cn470Plan::Antenna26MhzB.plan().rx2(), (502_500_000, 1));
+/// ```
+#[cfg(feature = "cn470")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Cn470Plan {
+    /// A 20 MHz antenna, type A: uplink from 470.3 and 503.5 MHz, downlink from 483.9 and
+    /// 490.3 MHz, RP002-1.0.5 section 3.9.2.1.
+    Antenna20MhzA,
+    /// A 20 MHz antenna, type B: uplink and downlink from 476.9 and 496.9 MHz.
+    Antenna20MhzB,
+    /// A 26 MHz antenna, type A: 48 uplink channels from 470.3 MHz and 24 downlink channels
+    /// from 490.1 MHz, RP002-1.0.5 section 3.9.2.2.
+    Antenna26MhzA,
+    /// A 26 MHz antenna, type B: 48 uplink channels from 480.3 MHz and 24 downlink channels
+    /// from 500.1 MHz.
+    Antenna26MhzB,
+    /// The 96-channel plan RP002-1.0.5 replaced, from the LoRaWAN 1.0.3 Regional Parameters
+    /// revision A: 96 uplink channels from 470.3 MHz and 48 downlink channels from 500.3 MHz.
+    Channels96,
+}
+
+#[cfg(feature = "cn470")]
+impl Cn470Plan {
+    /// Returns the channel plan.
+    ///
+    /// # Returns
+    ///
+    /// The plan.
+    pub const fn plan(self) -> &'static ChannelPlan<'static> {
+        match self {
+            Cn470Plan::Antenna20MhzA => &CN470,
+            Cn470Plan::Antenna20MhzB => &CN470_20B,
+            Cn470Plan::Antenna26MhzA => &CN470_26A,
+            Cn470Plan::Antenna26MhzB => &CN470_26B,
+            Cn470Plan::Channels96 => &CN470_96,
+        }
+    }
+
+    /// Returns every CN470-510 plan.
+    ///
+    /// # Returns
+    ///
+    /// The five plans, the four RP002-1.0.5 ones first.
+    pub const fn all() -> &'static [Cn470Plan] {
+        &[
+            Cn470Plan::Antenna20MhzA,
+            Cn470Plan::Antenna20MhzB,
+            Cn470Plan::Antenna26MhzA,
+            Cn470Plan::Antenna26MhzB,
+            Cn470Plan::Channels96,
+        ]
+    }
+}
+
 // EU863-870, RP002-1.0.5 section 3.4.
 
 /// RP002-1.0.5 Table 10: EU863-870 TX data rate.
@@ -365,6 +438,11 @@ pub static EU868: ChannelPlan<'static> = ChannelPlan {
         channel_list: Some(FixedChannelList::Mhz800),
     },
     tx_param_setup: false,
+    mask_controls: MaskControl::DYNAMIC,
+    downlink_channels: &[],
+    join_sequence: JoinSequence::Random,
+    power_reference: PowerReference::Eirp,
+    join_plans: &[],
 };
 
 // US902-928, RP002-1.0.5 section 3.5.
@@ -513,11 +591,40 @@ static US915_JOIN_CHANNELS: [ChannelBlock; 2] = [
     ChannelBlock::new(903_000_000, 1_600_000, 8, 4, 4),
 ];
 
+/// The eight 500 kHz downstream channels, RP002-1.0.5 sections 3.5.2 and 3.8.2, which
+/// US902-928 and AU915-928 share.
+#[cfg(any(feature = "us915", feature = "au915"))]
+static DOWNSTREAM_923: [ChannelBlock; 1] = [ChannelBlock::new(923_300_000, 600_000, 8, 8, 13)];
+
+/// RP002-1.0.5 table 23 and table 43: the `ChMaskCntl` values of US902-928 and AU915-928.
+#[cfg(any(feature = "us915", feature = "au915"))]
+const MASK_CONTROLS_900: [MaskControl; 8] = [
+    MaskControl::Group(0),
+    MaskControl::Group(1),
+    MaskControl::Group(2),
+    MaskControl::Group(3),
+    MaskControl::Group(4),
+    MaskControl::PairedBanks,
+    MaskControl::All {
+        on: true,
+        then_group: Some(4),
+    },
+    MaskControl::All {
+        on: false,
+        then_group: Some(4),
+    },
+];
+
 /// The US902-928 channel plan, RP002-1.0.5 section 3.5.
 ///
 /// The FCC constrains this band by dwell time rather than duty cycle, so the
 /// plan publishes no sub-band duty limit and
 /// [`duty_cycle_permille`](ChannelPlan::duty_cycle_permille) reports `None`.
+///
+/// Its power indexes count down from 30 dBm of conducted power, table 22, rather than from a
+/// radiated ceiling. The hopping, digital transmission and hybrid limits RP002-1.0.5 summarizes
+/// in section 3.5.2 depend on how a device is certified, which a plan does not know, so they
+/// are left to the device's own power range.
 #[cfg(feature = "us915")]
 pub static US915: ChannelPlan<'static> = ChannelPlan {
     name: "US902-928",
@@ -548,6 +655,13 @@ pub static US915: ChannelPlan<'static> = ChannelPlan {
     has_dwell_time_limit: true,
     kind: PlanKind::Fixed,
     tx_param_setup: false,
+    mask_controls: MASK_CONTROLS_900,
+    downlink_channels: &DOWNSTREAM_923,
+    join_sequence: JoinSequence::OctetPasses,
+    power_reference: PowerReference::Conducted {
+        gain_allowance_db: 6,
+    },
+    join_plans: &[],
 };
 
 // EU433, RP002-1.0.5 section 3.7.
@@ -689,6 +803,11 @@ pub static EU433: ChannelPlan<'static> = ChannelPlan {
     has_dwell_time_limit: false,
     kind: PlanKind::Dynamic { channel_list: None },
     tx_param_setup: false,
+    mask_controls: MaskControl::DYNAMIC,
+    downlink_channels: &[],
+    join_sequence: JoinSequence::Random,
+    power_reference: PowerReference::Eirp,
+    join_plans: &[],
 };
 
 // AU915-928, RP002-1.0.5 section 3.8.
@@ -859,6 +978,14 @@ static AU915_CHANNELS: [ChannelBlock; 2] = [
     ChannelBlock::new(915_900_000, 1_600_000, 8, 6, 7),
 ];
 
+/// The join channels: a random 125 kHz channel at DR2, which fits inside the 400 ms dwell
+/// time a device assumes until told otherwise, and a 500 kHz one at DR6, section 3.8.2.
+#[cfg(feature = "au915")]
+static AU915_JOIN_CHANNELS: [ChannelBlock; 2] = [
+    ChannelBlock::new(915_200_000, 200_000, 64, 2, 2),
+    ChannelBlock::new(915_900_000, 1_600_000, 8, 6, 6),
+];
+
 /// The AU915-928 channel plan, RP002-1.0.5 section 3.8.
 ///
 /// Australia limits transmissions by dwell time rather than duty cycle, so
@@ -875,7 +1002,7 @@ pub static AU915: ChannelPlan<'static> = ChannelPlan {
     downlink_max_payload_repeater: &AU915_DOWNLINK_MAX_PAYLOAD_REPEATER,
     downlink_max_payload_direct: &AU915_DOWNLINK_MAX_PAYLOAD_DIRECT,
     max_payload_dwell_limited: Some(&AU915_MAX_PAYLOAD_DWELL),
-    join_channels: &AU915_CHANNELS,
+    join_channels: &AU915_JOIN_CHANNELS,
     default_channels: &AU915_CHANNELS,
     sub_bands: &[],
     default_max_eirp_dbm: 30,
@@ -895,6 +1022,11 @@ pub static AU915: ChannelPlan<'static> = ChannelPlan {
     has_dwell_time_limit: true,
     kind: PlanKind::Fixed,
     tx_param_setup: true,
+    mask_controls: MASK_CONTROLS_900,
+    downlink_channels: &DOWNSTREAM_923,
+    join_sequence: JoinSequence::OctetPasses,
+    power_reference: PowerReference::Eirp,
+    join_plans: &[],
 };
 
 // CN470-510, RP002-1.0.5 section 3.9.
@@ -967,32 +1099,143 @@ static CN470_BACKOFF: [Option<u8>; 8] = [
     Some(6),
 ];
 
-/// The uplink blocks of the 20 MHz antenna, channel plan A, section 3.9.2.
+/// RP002-1.0.5 table 52: the `ChMaskCntl` values of the 20 MHz antenna plans.
 #[cfg(feature = "cn470")]
-static CN470_CHANNELS: [ChannelBlock; 2] = [
-    ChannelBlock::new(470_300_000, 200_000, 32, 0, 5),
-    ChannelBlock::new(483_900_000, 200_000, 32, 0, 5),
+const CN470_MASK_CONTROLS_20: [MaskControl; 8] = [
+    MaskControl::Group(0),
+    MaskControl::Group(1),
+    MaskControl::Group(2),
+    MaskControl::Group(3),
+    MaskControl::Reserved,
+    MaskControl::Reserved,
+    MaskControl::All {
+        on: true,
+        then_group: None,
+    },
+    MaskControl::All {
+        on: false,
+        then_group: None,
+    },
 ];
 
-/// The eight common join channels every CN470 plan shares, Table 49.
+/// RP002-1.0.5 table 53: the `ChMaskCntl` values of the 26 MHz antenna plans.
 #[cfg(feature = "cn470")]
-static CN470_JOIN_CHANNELS: [ChannelBlock; 2] = [
+const CN470_MASK_CONTROLS_26: [MaskControl; 8] = [
+    MaskControl::Group(0),
+    MaskControl::Group(1),
+    MaskControl::Group(2),
+    MaskControl::All {
+        on: true,
+        then_group: None,
+    },
+    MaskControl::All {
+        on: false,
+        then_group: None,
+    },
+    MaskControl::Reserved,
+    MaskControl::Reserved,
+    MaskControl::Reserved,
+];
+
+/// The uplink groups of the 20 MHz antenna's plan A, section 3.9.2.1: channels 0 to 31 from
+/// 470.3 MHz and 32 to 63 from 503.5 MHz.
+#[cfg(feature = "cn470")]
+static CN470_20A_UPLINK: [ChannelBlock; 2] = [
+    ChannelBlock::new(470_300_000, 200_000, 32, 0, 5),
+    ChannelBlock::new(503_500_000, 200_000, 32, 0, 5),
+];
+
+/// The downlink groups of the 20 MHz antenna's plan A: channels 0 to 31 from 483.9 MHz and 32
+/// to 63 from 490.3 MHz, each answering the uplink channel of the same number.
+#[cfg(feature = "cn470")]
+static CN470_20A_DOWNLINK: [ChannelBlock; 2] = [
+    ChannelBlock::new(483_900_000, 200_000, 32, 0, 5),
+    ChannelBlock::new(490_300_000, 200_000, 32, 0, 5),
+];
+
+/// The groups of the 20 MHz antenna's plan B, section 3.9.2.1, which uplink and downlink
+/// share: channels 0 to 31 from 476.9 MHz and 32 to 63 from 496.9 MHz.
+#[cfg(feature = "cn470")]
+static CN470_20B_CHANNELS: [ChannelBlock; 2] = [
+    ChannelBlock::new(476_900_000, 200_000, 32, 0, 5),
+    ChannelBlock::new(496_900_000, 200_000, 32, 0, 5),
+];
+
+/// The 48 uplink channels of the 26 MHz antenna's plan A, section 3.9.2.2, from 470.3 MHz.
+#[cfg(feature = "cn470")]
+static CN470_26A_UPLINK: [ChannelBlock; 1] = [ChannelBlock::new(470_300_000, 200_000, 48, 0, 5)];
+
+/// The 24 downlink channels of the 26 MHz antenna's plan A, from 490.1 MHz.
+#[cfg(feature = "cn470")]
+static CN470_26A_DOWNLINK: [ChannelBlock; 1] = [ChannelBlock::new(490_100_000, 200_000, 24, 0, 5)];
+
+/// The 48 uplink channels of the 26 MHz antenna's plan B, section 3.9.2.2, from 480.3 MHz.
+#[cfg(feature = "cn470")]
+static CN470_26B_UPLINK: [ChannelBlock; 1] = [ChannelBlock::new(480_300_000, 200_000, 48, 0, 5)];
+
+/// The 24 downlink channels of the 26 MHz antenna's plan B, from 500.1 MHz.
+#[cfg(feature = "cn470")]
+static CN470_26B_DOWNLINK: [ChannelBlock; 1] = [ChannelBlock::new(500_100_000, 200_000, 24, 0, 5)];
+
+/// The twenty common join channels of RP002-1.0.5 table 49, in the table's order.
+#[cfg(feature = "cn470")]
+const CN470_JOIN_CHANNELS: [ChannelBlock; 5] = [
     ChannelBlock::new(470_900_000, 1_600_000, 4, 0, 5),
     ChannelBlock::new(504_100_000, 1_600_000, 4, 0, 5),
+    ChannelBlock::new(479_900_000, 20_000_000, 2, 0, 5),
+    ChannelBlock::new(470_300_000, 2_000_000, 5, 0, 5),
+    ChannelBlock::new(480_300_000, 2_000_000, 5, 0, 5),
 ];
 
-/// The CN470-510 channel plan, RP002-1.0.5 section 3.9.
+/// Which plan each common join channel puts a device on, RP002-1.0.5 table 49, where its join
+/// accept arrives, the table's DL column, and where the second receive window listens once
+/// joined, tables 57 and 58 and section 3.9.7.2.
+#[cfg(feature = "cn470")]
+static CN470_JOIN_PLANS: [JoinPlan<'static>; 5] = [
+    JoinPlan::new(
+        CN470_JOIN_CHANNELS[0],
+        (484_500_000, 1_600_000),
+        (485_300_000, 1_600_000),
+        &CN470,
+    ),
+    JoinPlan::new(
+        CN470_JOIN_CHANNELS[1],
+        (490_900_000, 1_600_000),
+        (491_700_000, 1_600_000),
+        &CN470,
+    ),
+    JoinPlan::new(
+        CN470_JOIN_CHANNELS[2],
+        (479_900_000, 20_000_000),
+        (478_300_000, 20_000_000),
+        &CN470_20B,
+    ),
+    JoinPlan::new(
+        CN470_JOIN_CHANNELS[3],
+        (492_500_000, 0),
+        (492_500_000, 0),
+        &CN470_26A,
+    ),
+    JoinPlan::new(
+        CN470_JOIN_CHANNELS[4],
+        (502_500_000, 0),
+        (502_500_000, 0),
+        &CN470_26B,
+    ),
+];
+
+/// The CN470-510 channel plan for a 20 MHz antenna, type A, RP002-1.0.5 section 3.9.
 ///
-/// This carries the 20 MHz antenna, channel plan A variant. RP002 defines four
-/// (20 MHz and 26 MHz antennas, each with a plan A and B) whose uplink blocks,
-/// RX2 frequency, and beacon frequency differ, and the RX2 frequency also
-/// depends on whether the device joined over the air or was personalized. The
-/// value here is the personalized default for plan A. A deployment on one of the
-/// other variants builds a [`ChannelPlan`] with its own frequencies; everything
-/// else in this plan is common to all four.
+/// RP002-1.0.5 divides the band into four plans, for 20 MHz and 26 MHz antennas, each with a
+/// type A and B, and marks them experimental pending regulatory approval. A device joining
+/// over the air scans the twenty common join channels every plan shares and follows the plan
+/// the channel that answered belongs to, so any of the four serves to join with. A
+/// personalized device is set up on one; the second receive window here is the personalized
+/// default, 486.9 MHz, which a join replaces with the one its join channel names.
 ///
-/// Transmissions in this band are limited to one second on one channel at a
-/// time, with listen-before-talk rather than a duty cycle.
+/// The beacon hops over the downlink channels, and the frequency given is the first of them.
+/// Transmissions in this band are limited to one second on one channel at a time, with
+/// listen-before-talk rather than a duty cycle.
 #[cfg(feature = "cn470")]
 pub static CN470: ChannelPlan<'static> = ChannelPlan {
     name: "CN470-510",
@@ -1004,7 +1247,7 @@ pub static CN470: ChannelPlan<'static> = ChannelPlan {
     downlink_max_payload_direct: &CN470_MAX_PAYLOAD_DIRECT,
     max_payload_dwell_limited: None,
     join_channels: &CN470_JOIN_CHANNELS,
-    default_channels: &CN470_CHANNELS,
+    default_channels: &CN470_20A_UPLINK,
     sub_bands: &[],
     default_max_eirp_dbm: 19,
     tx_power_step_db: 2,
@@ -1017,12 +1260,261 @@ pub static CN470: ChannelPlan<'static> = ChannelPlan {
     data_rate_backoff: &CN470_BACKOFF,
     beacon: Beacon {
         data_rate: 2,
-        frequency_hz: 486_900_000,
-        ping_slot_frequency_hz: 486_900_000,
+        frequency_hz: 483_900_000,
+        ping_slot_frequency_hz: 483_900_000,
     },
     has_dwell_time_limit: false,
     kind: PlanKind::Fixed,
     tx_param_setup: false,
+    mask_controls: CN470_MASK_CONTROLS_20,
+    downlink_channels: &CN470_20A_DOWNLINK,
+    join_sequence: JoinSequence::Random,
+    power_reference: PowerReference::Eirp,
+    join_plans: &CN470_JOIN_PLANS,
+};
+
+/// The CN470-510 channel plan for a 20 MHz antenna, type B, RP002-1.0.5 section 3.9.
+///
+/// Uplink and downlink share the same 64 channels. The second receive window of a personalized
+/// device is 498.3 MHz, section 3.9.7.1, and the beacon goes out on channel 23 or 55 by the
+/// join channel, tables 62 and 63; the frequency given is channel 23's.
+#[cfg(feature = "cn470")]
+pub static CN470_20B: ChannelPlan<'static> = ChannelPlan {
+    name: "CN470-510",
+    uplink_data_rates: &CN470_DATA_RATES,
+    downlink_data_rates: &CN470_DATA_RATES,
+    max_payload_repeater: &CN470_MAX_PAYLOAD_REPEATER,
+    max_payload_direct: &CN470_MAX_PAYLOAD_DIRECT,
+    downlink_max_payload_repeater: &CN470_MAX_PAYLOAD_REPEATER,
+    downlink_max_payload_direct: &CN470_MAX_PAYLOAD_DIRECT,
+    max_payload_dwell_limited: None,
+    join_channels: &CN470_JOIN_CHANNELS,
+    default_channels: &CN470_20B_CHANNELS,
+    sub_bands: &[],
+    default_max_eirp_dbm: 19,
+    tx_power_step_db: 2,
+    max_tx_power_index: 7,
+    rx1_data_rate_offsets: &CN470_RX1,
+    rx1_data_rate_offsets_dwell_limited: None,
+    max_rx1_data_rate_offset: 5,
+    rx2_frequency_hz: 498_300_000,
+    rx2_data_rate: 1,
+    data_rate_backoff: &CN470_BACKOFF,
+    beacon: Beacon {
+        data_rate: 2,
+        frequency_hz: 481_500_000,
+        ping_slot_frequency_hz: 476_900_000,
+    },
+    has_dwell_time_limit: false,
+    kind: PlanKind::Fixed,
+    tx_param_setup: false,
+    mask_controls: CN470_MASK_CONTROLS_20,
+    downlink_channels: &CN470_20B_CHANNELS,
+    join_sequence: JoinSequence::Random,
+    power_reference: PowerReference::Eirp,
+    join_plans: &CN470_JOIN_PLANS,
+};
+
+/// The CN470-510 channel plan for a 26 MHz antenna, type A, RP002-1.0.5 section 3.9.
+///
+/// Its 48 uplink channels answer on 24 downlink channels, channel `n` on downlink channel `n`
+/// modulo 24, section 3.9.7.2. The second receive window listens on 492.5 MHz and the beacon
+/// on 494.9 MHz, section 3.9.8.2.
+#[cfg(feature = "cn470")]
+pub static CN470_26A: ChannelPlan<'static> = ChannelPlan {
+    name: "CN470-510",
+    uplink_data_rates: &CN470_DATA_RATES,
+    downlink_data_rates: &CN470_DATA_RATES,
+    max_payload_repeater: &CN470_MAX_PAYLOAD_REPEATER,
+    max_payload_direct: &CN470_MAX_PAYLOAD_DIRECT,
+    downlink_max_payload_repeater: &CN470_MAX_PAYLOAD_REPEATER,
+    downlink_max_payload_direct: &CN470_MAX_PAYLOAD_DIRECT,
+    max_payload_dwell_limited: None,
+    join_channels: &CN470_JOIN_CHANNELS,
+    default_channels: &CN470_26A_UPLINK,
+    sub_bands: &[],
+    default_max_eirp_dbm: 19,
+    tx_power_step_db: 2,
+    max_tx_power_index: 7,
+    rx1_data_rate_offsets: &CN470_RX1,
+    rx1_data_rate_offsets_dwell_limited: None,
+    max_rx1_data_rate_offset: 5,
+    rx2_frequency_hz: 492_500_000,
+    rx2_data_rate: 1,
+    data_rate_backoff: &CN470_BACKOFF,
+    beacon: Beacon {
+        data_rate: 2,
+        frequency_hz: 494_900_000,
+        ping_slot_frequency_hz: 494_900_000,
+    },
+    has_dwell_time_limit: false,
+    kind: PlanKind::Fixed,
+    tx_param_setup: false,
+    mask_controls: CN470_MASK_CONTROLS_26,
+    downlink_channels: &CN470_26A_DOWNLINK,
+    join_sequence: JoinSequence::Random,
+    power_reference: PowerReference::Eirp,
+    join_plans: &CN470_JOIN_PLANS,
+};
+
+/// The CN470-510 channel plan for a 26 MHz antenna, type B, RP002-1.0.5 section 3.9.
+///
+/// As type A, from 480.3 MHz up and 500.1 MHz down, with the second receive window on 502.5
+/// MHz and the beacon on 504.9 MHz.
+#[cfg(feature = "cn470")]
+pub static CN470_26B: ChannelPlan<'static> = ChannelPlan {
+    name: "CN470-510",
+    uplink_data_rates: &CN470_DATA_RATES,
+    downlink_data_rates: &CN470_DATA_RATES,
+    max_payload_repeater: &CN470_MAX_PAYLOAD_REPEATER,
+    max_payload_direct: &CN470_MAX_PAYLOAD_DIRECT,
+    downlink_max_payload_repeater: &CN470_MAX_PAYLOAD_REPEATER,
+    downlink_max_payload_direct: &CN470_MAX_PAYLOAD_DIRECT,
+    max_payload_dwell_limited: None,
+    join_channels: &CN470_JOIN_CHANNELS,
+    default_channels: &CN470_26B_UPLINK,
+    sub_bands: &[],
+    default_max_eirp_dbm: 19,
+    tx_power_step_db: 2,
+    max_tx_power_index: 7,
+    rx1_data_rate_offsets: &CN470_RX1,
+    rx1_data_rate_offsets_dwell_limited: None,
+    max_rx1_data_rate_offset: 5,
+    rx2_frequency_hz: 502_500_000,
+    rx2_data_rate: 1,
+    data_rate_backoff: &CN470_BACKOFF,
+    beacon: Beacon {
+        data_rate: 2,
+        frequency_hz: 504_900_000,
+        ping_slot_frequency_hz: 504_900_000,
+    },
+    has_dwell_time_limit: false,
+    kind: PlanKind::Fixed,
+    tx_param_setup: false,
+    mask_controls: CN470_MASK_CONTROLS_26,
+    downlink_channels: &CN470_26B_DOWNLINK,
+    join_sequence: JoinSequence::Random,
+    power_reference: PowerReference::Eirp,
+    join_plans: &CN470_JOIN_PLANS,
+};
+
+// CN470-510 with 96 channels, LoRaWAN 1.0.3 Regional Parameters revision A section 2.7.
+
+/// Revision A table 42: the 96-channel plan's data rates, SF12 to SF7 at 125 kHz.
+#[cfg(feature = "cn470")]
+static CN470_96_DATA_RATES: [Option<DataRate>; 6] = [
+    Some(DataRate::lora(12, 125_000, 250)),
+    Some(DataRate::lora(11, 125_000, 440)),
+    Some(DataRate::lora(10, 125_000, 980)),
+    Some(DataRate::lora(9, 125_000, 1_760)),
+    Some(DataRate::lora(8, 125_000, 3_125)),
+    Some(DataRate::lora(7, 125_000, 5_470)),
+];
+
+/// Revision A table 44: the 96-channel plan's maximum payload (repeater compatible).
+#[cfg(feature = "cn470")]
+static CN470_96_MAX_PAYLOAD_REPEATER: [Option<MaxPayload>; 6] = [
+    Some(MaxPayload::new(59, 51)),
+    Some(MaxPayload::new(59, 51)),
+    Some(MaxPayload::new(59, 51)),
+    Some(MaxPayload::new(123, 115)),
+    Some(MaxPayload::new(230, 222)),
+    Some(MaxPayload::new(230, 222)),
+];
+
+/// Revision A table 45: the 96-channel plan's maximum payload (not repeater compatible).
+#[cfg(feature = "cn470")]
+static CN470_96_MAX_PAYLOAD_DIRECT: [Option<MaxPayload>; 6] = [
+    Some(MaxPayload::new(59, 51)),
+    Some(MaxPayload::new(59, 51)),
+    Some(MaxPayload::new(59, 51)),
+    Some(MaxPayload::new(123, 115)),
+    Some(MaxPayload::new(250, 242)),
+    Some(MaxPayload::new(250, 242)),
+];
+
+/// Revision A table 46: the 96-channel plan's downlink RX1 data rate mapping.
+#[cfg(feature = "cn470")]
+static CN470_96_RX1: [&[u8]; 6] = [
+    &[0, 0, 0, 0, 0, 0],
+    &[1, 0, 0, 0, 0, 0],
+    &[2, 1, 0, 0, 0, 0],
+    &[3, 2, 1, 0, 0, 0],
+    &[4, 3, 2, 1, 0, 0],
+    &[5, 4, 3, 2, 1, 0],
+];
+
+/// The 96-channel plan steps down one data rate at a time; revision A publishes no other
+/// back-off table.
+#[cfg(feature = "cn470")]
+static CN470_96_BACKOFF: [Option<u8>; 6] = [None, Some(0), Some(1), Some(2), Some(3), Some(4)];
+
+/// The 96 uplink channels, 470.3 to 489.3 MHz, revision A section 2.7.2.
+#[cfg(feature = "cn470")]
+static CN470_96_UPLINK: [ChannelBlock; 1] = [ChannelBlock::new(470_300_000, 200_000, 96, 0, 5)];
+
+/// The 48 downlink channels, 500.3 to 509.7 MHz, answering uplink channel `n` on downlink
+/// channel `n` modulo 48, revision A section 2.7.7.
+#[cfg(feature = "cn470")]
+static CN470_96_DOWNLINK: [ChannelBlock; 1] = [ChannelBlock::new(500_300_000, 200_000, 48, 0, 5)];
+
+/// Revision A table 43: the 96-channel plan's `ChMaskCntl` values.
+#[cfg(feature = "cn470")]
+const CN470_96_MASK_CONTROLS: [MaskControl; 8] = [
+    MaskControl::Group(0),
+    MaskControl::Group(1),
+    MaskControl::Group(2),
+    MaskControl::Group(3),
+    MaskControl::Group(4),
+    MaskControl::Group(5),
+    MaskControl::All {
+        on: true,
+        then_group: None,
+    },
+    MaskControl::Reserved,
+];
+
+/// The 96-channel CN470-510 plan of the LoRaWAN 1.0.3 Regional Parameters, revision A.
+///
+/// RP002-1.0.5 replaced it with the four antenna plans, and notes that this one "is still in
+/// widespread use". A device joins on any of its 96 uplink channels from DR5 down to DR0, and
+/// the second receive window listens on 505.3 MHz at DR0. The beacon hops over 508.3 to 509.7
+/// MHz, and the frequency given is the first.
+#[cfg(feature = "cn470")]
+pub static CN470_96: ChannelPlan<'static> = ChannelPlan {
+    name: "CN470-510",
+    uplink_data_rates: &CN470_96_DATA_RATES,
+    downlink_data_rates: &CN470_96_DATA_RATES,
+    max_payload_repeater: &CN470_96_MAX_PAYLOAD_REPEATER,
+    max_payload_direct: &CN470_96_MAX_PAYLOAD_DIRECT,
+    downlink_max_payload_repeater: &CN470_96_MAX_PAYLOAD_REPEATER,
+    downlink_max_payload_direct: &CN470_96_MAX_PAYLOAD_DIRECT,
+    max_payload_dwell_limited: None,
+    join_channels: &CN470_96_UPLINK,
+    default_channels: &CN470_96_UPLINK,
+    sub_bands: &[],
+    default_max_eirp_dbm: 19,
+    tx_power_step_db: 2,
+    max_tx_power_index: 7,
+    rx1_data_rate_offsets: &CN470_96_RX1,
+    rx1_data_rate_offsets_dwell_limited: None,
+    max_rx1_data_rate_offset: 5,
+    rx2_frequency_hz: 505_300_000,
+    rx2_data_rate: 0,
+    data_rate_backoff: &CN470_96_BACKOFF,
+    beacon: Beacon {
+        data_rate: 2,
+        frequency_hz: 508_300_000,
+        ping_slot_frequency_hz: 508_300_000,
+    },
+    has_dwell_time_limit: false,
+    kind: PlanKind::Fixed,
+    tx_param_setup: false,
+    mask_controls: CN470_96_MASK_CONTROLS,
+    downlink_channels: &CN470_96_DOWNLINK,
+    join_sequence: JoinSequence::Random,
+    power_reference: PowerReference::Eirp,
+    join_plans: &[],
 };
 
 // AS923, RP002-1.0.5 section 3.10.
@@ -1219,6 +1711,11 @@ pub static AS923: ChannelPlan<'static> = ChannelPlan {
         channel_list: Some(FixedChannelList::Mhz900),
     },
     tx_param_setup: true,
+    mask_controls: MaskControl::DYNAMIC,
+    downlink_channels: &[],
+    join_sequence: JoinSequence::Random,
+    power_reference: PowerReference::Eirp,
+    join_plans: &[],
 };
 
 // KR920-923, RP002-1.0.5 section 3.11.
@@ -1365,6 +1862,11 @@ pub static KR920: ChannelPlan<'static> = ChannelPlan {
         channel_list: Some(FixedChannelList::Mhz900),
     },
     tx_param_setup: false,
+    mask_controls: MaskControl::DYNAMIC,
+    downlink_channels: &[],
+    join_sequence: JoinSequence::Random,
+    power_reference: PowerReference::Eirp,
+    join_plans: &[],
 };
 
 // IN865, RP002-1.0.5 section 3.12.
@@ -1512,6 +2014,11 @@ pub static IN865: ChannelPlan<'static> = ChannelPlan {
         channel_list: Some(FixedChannelList::Mhz800),
     },
     tx_param_setup: false,
+    mask_controls: MaskControl::DYNAMIC,
+    downlink_channels: &[],
+    join_sequence: JoinSequence::Random,
+    power_reference: PowerReference::Eirp,
+    join_plans: &[],
 };
 
 // RU864-870, RP002-1.0.5 section 3.13.
@@ -1652,4 +2159,9 @@ pub static RU864: ChannelPlan<'static> = ChannelPlan {
         channel_list: Some(FixedChannelList::Mhz800),
     },
     tx_param_setup: false,
+    mask_controls: MaskControl::DYNAMIC,
+    downlink_channels: &[],
+    join_sequence: JoinSequence::Random,
+    power_reference: PowerReference::Eirp,
+    join_plans: &[],
 };

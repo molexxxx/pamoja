@@ -118,6 +118,11 @@
 // channel number modulo how many the run holds.
 #define PAMOJA_GATEWAY_NETWORK_RX1_DOWNSTREAM 1
 
+// The first receive window answers where the network's channel plan says: on the uplink
+// frequency in a dynamic plan, and on the downlink channel a fixed plan numbers for the
+// uplink channel.
+#define PAMOJA_GATEWAY_NETWORK_RX1_PLAN 2
+
 // A join request the station heard.
 #define PAMOJA_GATEWAY_STATION_JOIN_REQUEST 0
 
@@ -2160,7 +2165,7 @@ typedef struct {
 // When and where a network answers, and at what rate.
 //
 // The recommended values are the delays above, no offset between the uplink data rate and
-// the downlink one, and a first window on the frequency the uplink arrived on.
+// the downlink one, and a first window where the channel plan says.
 typedef struct {
   // The delay before the first receive window, in microseconds.
   uint32_t receive_delay_us;
@@ -2168,7 +2173,7 @@ typedef struct {
   uint32_t join_delay_us;
   // The offset between the uplink data rate and the rate the first window answers at.
   uint8_t rx1_data_rate_offset;
-  // [`PAMOJA_GATEWAY_NETWORK_RX1_SAME`] or
+  // [`PAMOJA_GATEWAY_NETWORK_RX1_PLAN`], [`PAMOJA_GATEWAY_NETWORK_RX1_SAME`] or
   // [`PAMOJA_GATEWAY_NETWORK_RX1_DOWNSTREAM`].
   uint8_t rx1_channels;
   // The first downlink channel, in hertz, when the channels are downstream.
@@ -5031,7 +5036,7 @@ void pamoja_gateway_packet_free(PamojaGatewayPacket *packet);
 //
 // # Returns
 //
-// The recommended delays, no data-rate offset, and a first window on the uplink frequency.
+// The recommended delays, no data-rate offset, and a first window where the plan says.
 PamojaGatewayNetworkWindows pamoja_gateway_network_windows_default(void);
 
 // Opens the network side of a site on a channel plan.

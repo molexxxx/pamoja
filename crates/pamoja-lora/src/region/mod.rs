@@ -71,6 +71,7 @@ mod kind;
 #[cfg(feature = "alloc")]
 mod owned;
 mod plans;
+mod rules;
 
 #[cfg(test)]
 mod tests;
@@ -79,7 +80,10 @@ pub use channel_list::FixedChannelList;
 pub use kind::PlanKind;
 #[cfg(feature = "alloc")]
 pub use owned::{ChannelPlanBuilder, OwnedChannelPlan, PayloadTable, PlanError};
+#[cfg(feature = "cn470")]
+pub use plans::Cn470Plan;
 pub use plans::Region;
+pub use rules::{JoinPlan, JoinSequence, MaskControl, PowerReference};
 
 /// How a data rate puts bits on the air.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -404,6 +408,9 @@ pub struct ChannelPlan<'a> {
     /// The sub-bands and their transmit limits.
     pub sub_bands: &'a [SubBand],
     /// The power ceiling assumed when no sub-band says otherwise, in dBm.
+    ///
+    /// It is radiated power unless [`power_reference`](Self::power_reference) says the plan
+    /// counts conducted power, as US902-928 does.
     pub default_max_eirp_dbm: i8,
     /// The step between transmit-power settings, in dB.
     pub tx_power_step_db: u8,
@@ -436,9 +443,134 @@ pub struct ChannelPlan<'a> {
     /// RP002-1.0.5 has AS923 and AU915-928 implement it and every other region
     /// leave it out; a device in a region without it drops the command unanswered.
     pub tx_param_setup: bool,
+    /// What each value of a `LinkADRReq` command's `ChMaskCntl` field does, indexed by the
+    /// value.
+    pub mask_controls: [MaskControl; 8],
+    /// The numbered downlink channels the first receive window answers on, for a plan that
+    /// has them, and empty for one that answers on the uplink's own frequency.
+    ///
+    /// The fixed plans number their downlink channels apart from their uplink ones, and
+    /// answer an uplink on channel `n` on downlink channel `n` modulo how many there are:
+    /// "RX1 Channel Number = Transmit Channel Number modulo NbChannel", RP002-1.0.5 section
+    /// 3.5.7.
+    pub downlink_channels: &'a [ChannelBlock],
+    /// The order a device tries the join channels in.
+    pub join_sequence: JoinSequence,
+    /// What the transmit power indexes count down from.
+    pub power_reference: PowerReference,
+    /// The plans a join selects between, for a region that puts a device on a plan by the
+    /// channel it joined on, and empty where the plan is the one a device joins on.
+    pub join_plans: &'a [JoinPlan<'a>],
+}
+
+impl<'a> ChannelPlan<'a> {
+    /// Returns the run of join channels a join channel number falls in.
+    ///
+    /// Join channels are numbered through [`join_plans`](Self::join_plans) in order, which
+    /// is how RP002-1.0.5 table 49 indexes the CN470-510 common join channels.
+    ///
+    /// # Arguments
+    ///
+    /// * `join_channel` - the join channel number.
+    ///
+    /// # Returns
+    ///
+    /// The run and the channel's position within it, or `None` for a plan with no join
+    /// plans or a number past the last run.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "cn470")] {
+    /// use pamoja_lora::region::{Cn470Plan, Region};
+    ///
+    /// // RP002-1.0.5 table 49: common join channel 9 goes out on 499.9 MHz, is answered
+    /// // there, and puts the device on the 20 MHz antenna's plan B.
+    /// let (run, offset) = Region::Cn470.plan().join_plan(9).expect("twenty join channels");
+    /// assert_eq!(run.channels.frequency_hz(offset), Some(499_900_000));
+    /// assert_eq!(run.accept_hz(offset), Some(499_900_000));
+    /// assert!(core::ptr::eq(run.plan, Cn470Plan::Antenna20MhzB.plan()));
+    /// # }
+    /// ```
+    pub fn join_plan(&self, join_channel: u16) -> Option<(JoinPlan<'a>, u16)> {
+        let mut remaining = join_channel;
+        for run in self.join_plans {
+            if remaining < run.channels.count {
+                return Some((*run, remaining));
+            }
+            remaining -= run.channels.count;
+        }
+        None
+    }
 }
 
 impl ChannelPlan<'_> {
+    /// Returns the frequency of a numbered downlink channel.
+    ///
+    /// # Arguments
+    ///
+    /// * `channel` - the downlink channel number, counted through
+    ///   [`downlink_channels`](Self::downlink_channels) in order.
+    ///
+    /// # Returns
+    ///
+    /// `Some(hz)`, or `None` if the plan numbers no such downlink channel.
+    pub fn downlink_channel_frequency_hz(&self, channel: u16) -> Option<u32> {
+        let mut remaining = channel;
+        for block in self.downlink_channels {
+            if remaining < block.count {
+                return block.frequency_hz(remaining);
+            }
+            remaining -= block.count;
+        }
+        None
+    }
+
+    /// Returns how many numbered downlink channels the plan has.
+    ///
+    /// # Returns
+    ///
+    /// The count, zero for a plan that answers on the uplink's own frequency.
+    pub fn downlink_channel_count(&self) -> u16 {
+        self.downlink_channels
+            .iter()
+            .map(|block| block.count)
+            .sum::<u16>()
+    }
+
+    /// Returns where the first receive window listens after an uplink.
+    ///
+    /// # Arguments
+    ///
+    /// * `uplink_channel` - the channel number the uplink went out on.
+    /// * `uplink_hz` - the frequency it went out on.
+    ///
+    /// # Returns
+    ///
+    /// The uplink's own frequency for a plan with no numbered downlink channels, and
+    /// otherwise the downlink channel the uplink channel maps to, or `None` if the plan's
+    /// downlink channels leave it undefined.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "us915")] {
+    /// use pamoja_lora::region::Region;
+    ///
+    /// // US902-928: an uplink on channel 65, the second 500 kHz channel at 904.6 MHz, is
+    /// // answered on downlink channel 1 at 923.9 MHz.
+    /// let plan = Region::Us915.plan();
+    /// assert_eq!(plan.rx1_frequency_hz(65, 904_600_000), Some(923_900_000));
+    /// # }
+    /// ```
+    pub fn rx1_frequency_hz(&self, uplink_channel: u16, uplink_hz: u32) -> Option<u32> {
+        let count = self.downlink_channel_count();
+        if count == 0 {
+            return Some(uplink_hz);
+        }
+        self.downlink_channel_frequency_hz(uplink_channel % count)
+    }
+
     /// Returns the uplink data rate a number selects.
     ///
     /// # Arguments
@@ -576,7 +708,10 @@ impl ChannelPlan<'_> {
             .map_or(self.default_max_eirp_dbm, |band| band.max_eirp_dbm)
     }
 
-    /// Returns the radiated power a transmit-power index selects, in dBm.
+    /// Returns the power a transmit-power index selects, in dBm.
+    ///
+    /// The power is radiated or conducted as the plan's
+    /// [`power_reference`](Self::power_reference) says.
     ///
     /// # Arguments
     ///

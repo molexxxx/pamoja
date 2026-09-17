@@ -16,7 +16,10 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 
-use super::{Beacon, ChannelBlock, ChannelPlan, DataRate, MaxPayload, PlanKind, SubBand};
+use super::{
+    Beacon, ChannelBlock, ChannelPlan, DataRate, JoinSequence, MaskControl, MaxPayload, PlanKind,
+    PowerReference, SubBand,
+};
 
 /// Which of a plan's payload tables an entry belongs to.
 ///
@@ -152,6 +155,10 @@ pub struct OwnedChannelPlan {
     has_dwell_time_limit: bool,
     kind: PlanKind,
     tx_param_setup: bool,
+    mask_controls: [MaskControl; 8],
+    downlink_channels: Vec<ChannelBlock>,
+    join_sequence: JoinSequence,
+    power_reference: PowerReference,
 }
 
 impl OwnedChannelPlan {
@@ -160,6 +167,10 @@ impl OwnedChannelPlan {
     /// This is how a host takes a published region and holds onto it: the result
     /// is independent of where the original tables lived, so one type serves both
     /// a named region and a plan built here.
+    ///
+    /// The copy describes the one plan it was taken from. The plans a join selects
+    /// between, which only the published CN470-510 plans name, point at other
+    /// published plans and are not carried over.
     ///
     /// # Arguments
     ///
@@ -211,6 +222,10 @@ impl OwnedChannelPlan {
             has_dwell_time_limit: plan.has_dwell_time_limit,
             kind: plan.kind,
             tx_param_setup: plan.tx_param_setup,
+            mask_controls: plan.mask_controls,
+            downlink_channels: plan.downlink_channels.to_vec(),
+            join_sequence: plan.join_sequence,
+            power_reference: plan.power_reference,
         }
     }
 
@@ -269,6 +284,11 @@ impl OwnedChannelPlan {
             has_dwell_time_limit: self.has_dwell_time_limit,
             kind: self.kind,
             tx_param_setup: self.tx_param_setup,
+            mask_controls: self.mask_controls,
+            downlink_channels: &self.downlink_channels,
+            join_sequence: self.join_sequence,
+            power_reference: self.power_reference,
+            join_plans: &[],
         };
         query(&plan)
     }
@@ -355,6 +375,10 @@ impl ChannelPlanBuilder {
                 has_dwell_time_limit: false,
                 kind: PlanKind::Dynamic { channel_list: None },
                 tx_param_setup: false,
+                mask_controls: MaskControl::DYNAMIC,
+                downlink_channels: Vec::new(),
+                join_sequence: JoinSequence::Random,
+                power_reference: PowerReference::Eirp,
             },
         }
     }
@@ -621,6 +645,71 @@ impl ChannelPlanBuilder {
         self
     }
 
+    /// Sets what each `ChMaskCntl` value of a `LinkADRReq` does.
+    ///
+    /// A plan starts with the table every dynamic region shares,
+    /// [`MaskControl::DYNAMIC`].
+    ///
+    /// # Arguments
+    ///
+    /// * `controls` - the eight controls, indexed by value.
+    ///
+    /// # Returns
+    ///
+    /// The builder.
+    #[must_use]
+    pub fn mask_controls(mut self, controls: [MaskControl; 8]) -> Self {
+        self.plan.mask_controls = controls;
+        self
+    }
+
+    /// Adds a run of numbered downlink channels the first receive window answers on.
+    ///
+    /// A plan with none answers on the uplink's own frequency.
+    ///
+    /// # Arguments
+    ///
+    /// * `block` - the channels to add.
+    ///
+    /// # Returns
+    ///
+    /// The builder.
+    #[must_use]
+    pub fn downlink_channel(mut self, block: ChannelBlock) -> Self {
+        self.plan.downlink_channels.push(block);
+        self
+    }
+
+    /// Sets the order a device tries the join channels in.
+    ///
+    /// # Arguments
+    ///
+    /// * `sequence` - the order.
+    ///
+    /// # Returns
+    ///
+    /// The builder.
+    #[must_use]
+    pub fn join_sequence(mut self, sequence: JoinSequence) -> Self {
+        self.plan.join_sequence = sequence;
+        self
+    }
+
+    /// Sets what the transmit power indexes count down from.
+    ///
+    /// # Arguments
+    ///
+    /// * `reference` - a radiated or a conducted ceiling.
+    ///
+    /// # Returns
+    ///
+    /// The builder.
+    #[must_use]
+    pub fn power_reference(mut self, reference: PowerReference) -> Self {
+        self.plan.power_reference = reference;
+        self
+    }
+
     /// Finishes the plan.
     ///
     /// Tables a region would share are filled in first: an empty downlink
@@ -879,6 +968,16 @@ mod tests {
                 copy.default_channel_count(),
                 published.default_channel_count()
             );
+            assert_eq!(copy.mask_controls, published.mask_controls);
+            assert_eq!(copy.join_sequence, published.join_sequence);
+            assert_eq!(copy.power_reference, published.power_reference);
+            assert_eq!(copy.downlink_channels, published.downlink_channels);
+            for channel in 0..72 {
+                assert_eq!(
+                    copy.rx1_frequency_hz(channel, 915_200_000),
+                    published.rx1_frequency_hz(channel, 915_200_000)
+                );
+            }
             for data_rate in 0..16 {
                 assert_eq!(
                     copy.uplink_data_rate(data_rate),

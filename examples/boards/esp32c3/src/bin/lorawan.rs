@@ -103,7 +103,7 @@ fn main() -> ! {
         .with_seed(seed);
     let credentials = Device::new(DEV_EUI, JOIN_EUI, APP_KEY);
     let device = EndDevice::new(Region::Eu868.plan(), credentials, settings)
-        .expect("EU868 defines its channels dynamically");
+        .expect("EU868 fits a device's channel table");
 
     // The node sends, opens both receive windows on time, and sees each uplink through its
     // repeats. The clock and the delay it times them with are the chip's own timer.

@@ -210,7 +210,7 @@ impl EndDevice<'_> {
         requests: usize,
     ) {
         let v1_0_4 = self.settings.version == Version::V1_0_4;
-        let mask = self.channels.mask_after(block);
+        let mask = self.channels.mask_after(block, &self.plan.mask_controls);
         let channel_mask_ack = mask.is_some();
         let working = mask.unwrap_or(self.channels.mask());
 
@@ -260,9 +260,6 @@ impl EndDevice<'_> {
     fn power_reachable(&self, index: u8) -> bool {
         self.plan
             .tx_power_dbm(index, self.max_eirp_dbm)
-            .is_some_and(|eirp| {
-                i16::from(eirp) - i16::from(self.settings.antenna_gain_db)
-                    >= i16::from(self.settings.min_output_dbm)
-            })
+            .is_some_and(|power| self.radio_dbm(power) >= i16::from(self.settings.min_output_dbm))
     }
 }
