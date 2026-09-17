@@ -39,6 +39,7 @@ const NOT_DRIVERS: &[&str] = &[
     "driver.rs",
     "duty.rs",
     "linux.rs",
+    "lorawan.rs",
     "mesh.rs",
     "radio.rs",
 ];

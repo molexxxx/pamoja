@@ -856,6 +856,39 @@ where
         self.command(command::set_standby(StandbyMode::Rc))
     }
 
+    /// Draws a random number from the noise the receiver hears.
+    ///
+    /// The procedure is the one both of Semtech's drivers for this chip follow, LoRaMac-node
+    /// and `sx126x_driver`: clear bit 0 of the LNA control and bit 7 of the mixer control,
+    /// listen continuously, read the four bytes the chip fills from its receiver noise, go
+    /// back to STDBY_RC, and restore both controls. The chip is left in standby, and the
+    /// next frame goes out as configured.
+    ///
+    /// # Returns
+    ///
+    /// Thirty-two bits of noise, the four bytes read low byte first.
+    ///
+    /// # Errors
+    ///
+    /// Returns the errors of [`command`](Sx126x::command).
+    pub fn random(&mut self) -> Result<u32, RadioError<SPI::Error>> {
+        let mut lna = [0u8];
+        self.read_register(register::ANA_LNA, &mut lna)?;
+        self.write_register(register::ANA_LNA, &[lna[0] & !0x01])?;
+        let mut mixer = [0u8];
+        self.read_register(register::ANA_MIXER, &mut mixer)?;
+        self.write_register(register::ANA_MIXER, &[mixer[0] & !0x80])?;
+
+        self.command(command::set_rx(0x00FF_FFFF))?;
+        let mut bytes = [0u8; 4];
+        self.read_register(register::RANDOM_NUMBER, &mut bytes)?;
+        self.command(command::set_standby(StandbyMode::Rc))?;
+
+        self.write_register(register::ANA_LNA, &lna)?;
+        self.write_register(register::ANA_MIXER, &mixer)?;
+        Ok(u32::from_le_bytes(bytes))
+    }
+
     /// Puts the chip to sleep until the next command wakes it.
     ///
     /// A warm start keeps the chip's configuration in retention; a cold start loses it,
@@ -1242,6 +1275,26 @@ mod tests {
             SpiStep::write([0x1D, high, low, 0x00]),
             SpiStep::read([value]),
         ]
+    }
+
+    #[test]
+    fn a_random_number_is_read_while_listening_with_the_lna_and_mixer_bits_cleared() {
+        let mut steps = Vec::new();
+        steps.extend(register_read(0x08E2, 0xCB));
+        steps.extend(register_write(0x08E2, &[0xCA]));
+        steps.extend(register_read(0x08E5, 0x9F));
+        steps.extend(register_write(0x08E5, &[0x1F]));
+        steps.push(SpiStep::write([0x82, 0xFF, 0xFF, 0xFF]));
+        steps.push(SpiStep::write([0x1D, 0x08, 0x19, 0x00]));
+        steps.push(SpiStep::read([0x78, 0x56, 0x34, 0x12]));
+        steps.push(SpiStep::write([0x80, 0x00]));
+        steps.extend(register_write(0x08E2, &[0xCB]));
+        steps.extend(register_write(0x08E5, &[0x9F]));
+
+        let mut radio = radio(steps, Board::new(PowerAmplifier::HighPower));
+        assert_eq!(radio.random(), Ok(0x1234_5678));
+        let (spi, _, _, _) = radio.release();
+        assert!(spi.done(), "{} steps left", spi.remaining());
     }
 
     fn register_write(address: u16, values: &[u8]) -> [SpiStep; 2] {

@@ -715,6 +715,39 @@ where
         self.write_register(register::OP_MODE, lora_op_mode(Mode::Standby))
     }
 
+    /// Draws a random number from the noise the receiver hears.
+    ///
+    /// RegRssiWideband holds a wideband RSSI sample, which the datasheet notes is used to
+    /// generate a random number locally. The chip listens continuously with every interrupt
+    /// masked, and the lowest bit of a sample a millisecond is taken 32 times, which is the
+    /// procedure of Semtech's LoRaMac-node reference driver. The interrupt mask is put back
+    /// and the chip left in standby, so the next frame goes out as configured.
+    ///
+    /// This is the source LoRaWAN 1.0.3 section 6.2.4 suggests for a join nonce on a device
+    /// with no other: "a sequence of RSSI measurements".
+    ///
+    /// # Returns
+    ///
+    /// Thirty-two bits of noise.
+    ///
+    /// # Errors
+    ///
+    /// Returns the bus errors of [`write_register`](Sx127x::write_register).
+    pub fn random(&mut self) -> Result<u32, RadioError<SPI::Error>> {
+        let mask = self.read_register(register::IRQ_FLAGS_MASK)?;
+        self.write_register(register::IRQ_FLAGS_MASK, 0xFF)?;
+        self.write_register(register::OP_MODE, lora_op_mode(Mode::RxContinuous))?;
+        let mut number = 0u32;
+        for bit in 0..32 {
+            self.delay.delay_ms(1);
+            let sample = self.read_register(register::RSSI_WIDEBAND)?;
+            number |= u32::from(sample & 0x01) << bit;
+        }
+        self.write_register(register::OP_MODE, lora_op_mode(Mode::Standby))?;
+        self.write_register(register::IRQ_FLAGS_MASK, mask)?;
+        Ok(number)
+    }
+
     /// Puts the chip to sleep, where it keeps its registers but loses the data buffer.
     ///
     /// The configuration survives sleep, so the next transmission or reception wakes the chip
@@ -1009,6 +1042,33 @@ mod tests {
 
     fn read(address: u8, values: &[u8]) -> [SpiStep; 2] {
         [SpiStep::write([address]), SpiStep::read(values.to_vec())]
+    }
+
+    #[test]
+    fn a_random_number_is_the_low_bit_of_32_wideband_samples() {
+        let mut steps = Vec::new();
+        steps.extend(read(0x11, &[0x00]));
+        steps.extend(wrote(0x11, &[0xFF]));
+        steps.extend(wrote(0x01, &[0x8D]));
+        let samples: [u8; 32] = core::array::from_fn(|bit| if bit % 3 == 0 { 0x6B } else { 0x6A });
+        for sample in samples {
+            steps.extend(read(0x2C, &[sample]));
+        }
+        steps.extend(wrote(0x01, &[0x89]));
+        steps.extend(wrote(0x11, &[0x00]));
+
+        let mut radio = radio(steps);
+        let expected = (0..32).fold(0u32, |number, bit| {
+            number | (u32::from(bit % 3 == 0) << bit)
+        });
+        assert_eq!(radio.random(), Ok(expected));
+        let (spi, _, delay) = radio.release();
+        assert!(spi.done(), "{} steps left", spi.remaining());
+        assert_eq!(
+            delay.total_ns(),
+            32 * 1_000_000,
+            "a millisecond before each sample"
+        );
     }
 
     fn eu868() -> RadioConfig {

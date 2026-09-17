@@ -37,6 +37,8 @@ that talks to the chip over SPI and transmits and receives frames.
   carrier, a link, and an output power, then transmit, receive, and listen.
 - `duty` - a guard that holds a radio silent for the off time a regional duty-cycle
   limit requires after each transmission.
+- `lorawan`, with the `lorawan` feature - a LoRaWAN Class A node: an end device from
+  `pamoja-lorawan` driving a radio, with its receive windows opened on time.
 - `linux`, with the `linux` feature - opening a radio on a Linux board over spidev and
   the GPIO character device, with a plain error on every other platform.
 - `mesh`, with the `std` feature - a pamoja transport over a radio, carrying topics in

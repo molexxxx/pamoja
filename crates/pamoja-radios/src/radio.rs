@@ -602,6 +602,22 @@ where
         }
     }
 
+    /// Draws a random number from the noise the receiver hears, leaving the chip in standby.
+    ///
+    /// # Returns
+    ///
+    /// Thirty-two bits of noise.
+    ///
+    /// # Errors
+    ///
+    /// Returns the errors of [`Sx126x::random`] or [`Sx127x::random`].
+    pub fn random(&mut self) -> Result<u32, RadioError<SPI::Error>> {
+        match self {
+            Radio::Sx126x(radio) => radio.random().map_err(RadioError::Sx126x),
+            Radio::Sx127x(radio) => radio.random().map_err(RadioError::Sx127x),
+        }
+    }
+
     /// Puts the chip in standby, which stops a transmission or a reception.
     ///
     /// # Errors

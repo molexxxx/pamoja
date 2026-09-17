@@ -987,3 +987,15 @@ fn a_european_433_device_joins_on_its_own_band() {
     assert!([433_175_000, 433_375_000, 433_575_000].contains(&request.frequency_hz));
     assert_eq!(request.rx2.frequency_hz, 434_665_000);
 }
+
+#[test]
+fn the_frequency_span_covers_every_channel_and_the_second_window() {
+    let device = device(Region::Eu868, settings());
+    assert_eq!(device.frequency_span(), (868_100_000, 869_525_000));
+    let device = device_for_433();
+    assert_eq!(device.frequency_span(), (433_175_000, 434_665_000));
+}
+
+fn device_for_433() -> EndDevice<'static> {
+    device(Region::Eu433, settings())
+}

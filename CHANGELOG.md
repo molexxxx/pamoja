@@ -175,6 +175,19 @@ released together, so one entry covers all of them.
   channel plans: EU868, EU433, AS923, KR920, IN865 and RU864. Its tests run every
   exchange against this crate's own network half, and expect the answer bytes
   chapter 5 lays out.
+- A LoRaWAN Class A node in `pamoja_radios::lorawan`, behind the `lorawan`
+  feature: an end device driving an SX126x, an SX127x or either through `Radio`.
+  `Node` puts each frame on the air, opens both receive windows on time and sees
+  an uplink through every repeat. It sizes and centers each window on the
+  downlink's preamble the way Semtech's LoRaMac-node does, and tunes the sync
+  word and IQ polarity RP002-1.0.5 table 112 gives a device. It needs no
+  allocator and no runtime, only a clock and a delay. The ESP32-C3 package gains a
+  LoRaWAN node that sends BME280 readings through an RFM95W, built for the chip
+  in CI, and the ESP32 page walks through its wiring.
+- Random numbers from a LoRa radio's receiver noise, `random` on the SX126x and
+  SX127x drivers and on `Radio`, following the procedures of Semtech's own
+  drivers. LoRaWAN 1.0.3 suggests this source for a join nonce on a device with no
+  other, and the ESP32-C3 node draws its nonces and its channel seed this way.
 
 ### Changed
 

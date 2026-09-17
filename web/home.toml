@@ -171,6 +171,7 @@ tags = [
   { text = "adaptive data rate back-off", state = "ships", crate = "pamoja-lorawan" },
   { text = "LoRaWAN Class A end device, dynamic channel plans", state = "ships", crate = "pamoja-lorawan" },
   { text = "LoRaWAN Class A end device, US915, AU915 and CN470", state = "next" },
+  { text = "LoRaWAN node on a microcontroller radio", state = "ships", crate = "pamoja-radios" },
   { text = "LoRa link budgets", state = "ships", crate = "pamoja-lora" },
   { text = "SX126x LoRa radios", state = "ships", crate = "pamoja-radios" },
   { text = "SX127x LoRa radios", state = "ships", crate = "pamoja-radios" },
