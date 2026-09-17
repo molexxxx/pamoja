@@ -6,7 +6,7 @@
 //! a network encodes them. The expected answers are the bytes TS001-1.0.4 chapter 5 lays
 //! out, not whatever the device happens to produce.
 
-use pamoja_lora::region::{Cn470Plan, Region};
+use pamoja_lora::region::{ChannelPlan, Cn470Plan, Region};
 
 use super::*;
 use crate::mac::{encode_all, MacCommand, MacCommands};
@@ -1409,4 +1409,159 @@ fn the_frequency_span_covers_every_channel_and_the_second_window() {
 
 fn device_for_433() -> EndDevice<'static> {
     device(Region::Eu433, settings())
+}
+
+/// A device on the same plan with the same identity and settings as `device` was built with.
+fn rebuilt(plan: &'static ChannelPlan<'static>, settings: Settings) -> EndDevice<'static> {
+    EndDevice::new(plan, Device::new(DEV_EUI, JOIN_EUI, APP_KEY), settings).expect("the plan fits")
+}
+
+#[test]
+fn a_resumed_device_carries_on_exactly_where_it_was_saved() {
+    let list = CfList::frequencies([
+        867_100_000,
+        867_300_000,
+        867_500_000,
+        867_700_000,
+        867_900_000,
+    ])
+    .expect("valid");
+    let grant = JoinGrant::new(0x01, 0x13, DEV_ADDR)
+        .with_dl_settings((2 << 4) | 3)
+        .with_rx_delay(3)
+        .with_cflist(list.to_bytes());
+    let (mut device, mut network, now) = joined_with(Region::Eu868, settings(), grant);
+
+    device.send(2, b"a", false, now).expect("goes out");
+    let downlink = network.commands(&[
+        MacCommand::LinkAdrReq {
+            data_rate: 3,
+            tx_power: 2,
+            channel_mask: 0b1111_1010,
+            mask_control: 0,
+            transmissions: 2,
+        },
+        MacCommand::RxTimingSetupReq { delay: 2 },
+        MacCommand::DevStatusReq,
+    ]);
+    data(device.heard(&downlink, 7));
+    device.request_link_check();
+
+    let saved = device.save(now + 5_000_000).expect("idle and joined");
+    let stored = saved.as_bytes().to_vec();
+    let mut resumed = rebuilt(Region::Eu868.plan(), settings());
+    resumed
+        .resume(&Saved::from_bytes(&stored).expect("intact"), 0)
+        .expect("the same plan");
+
+    assert!(resumed.is_joined());
+    assert_eq!(resumed.dev_addr(), Some(DEV_ADDR));
+    assert_eq!(resumed.fcnt_up(), device.fcnt_up());
+    assert_eq!(resumed.fcnt_down(), device.fcnt_down());
+    assert_eq!(resumed.data_rate(), 3);
+    assert_eq!(resumed.transmissions(), 2);
+    assert_eq!(resumed.rx2(), (869_525_000, 3));
+    assert_eq!(resumed.receive_delay_us(), 2_000_000);
+    assert_eq!(
+        resumed.channels().collect::<Vec<_>>(),
+        device.channels().collect::<Vec<_>>()
+    );
+
+    let original = device.send(2, b"b", false, LATER).expect("goes out");
+    let carried_on = resumed.send(2, b"b", false, LATER).expect("goes out");
+    assert_eq!(
+        carried_on, original,
+        "the same frame, channel, power and windows, down to the random channel choice"
+    );
+    assert_eq!(
+        fopts(&network, &carried_on, 1),
+        [0x03, 0x07, 0x08, 0x06, 0xFF, 0x07, 0x02],
+        "LinkADRAns, RXTimingSetupAns, DevStatusAns and the link check request"
+    );
+}
+
+#[test]
+fn a_duty_cycle_wait_runs_again_on_the_new_clock() {
+    // RP002-1.0.5 section 3.4.2: 1% on the default channels, so a long frame owes 99 times
+    // its airtime.
+    let (mut device, _network, now) = joined(Region::Eu868, settings());
+    let long = device.send(2, &[0; 51], false, now).expect("goes out");
+    assert_eq!(device.nothing_heard(now + 3_000_000), Ok(Next::Done));
+    let saved = device.save(now + 3_000_000).expect("idle");
+
+    let owed = now + long.airtime_us * 100 - (now + 3_000_000);
+    let mut resumed = rebuilt(Region::Eu868.plan(), settings());
+    resumed.resume(&saved, 1_000).expect("the same plan");
+    assert_eq!(
+        resumed.send(2, b"x", false, 1_000),
+        Err(DeviceError::Wait {
+            until_us: 1_000 + owed
+        })
+    );
+    assert!(resumed.send(2, b"x", false, 1_000 + owed).is_ok());
+}
+
+#[test]
+fn a_damaged_or_foreign_state_is_refused_and_leaves_the_device_as_it_was() {
+    let (device, _network, now) = joined(Region::Eu868, settings());
+    let saved = device.save(now).expect("idle");
+    let bytes = saved.as_bytes();
+
+    let mut flipped = *bytes;
+    flipped[40] ^= 0x01;
+    assert_eq!(Saved::from_bytes(&flipped), Err(StateError::Corrupt));
+    assert_eq!(
+        Saved::from_bytes(&bytes[..SAVED_LEN - 1]),
+        Err(StateError::Length)
+    );
+
+    let mut indian = rebuilt(Region::In865.plan(), settings());
+    assert_eq!(
+        indian.resume(&saved, 0),
+        Err(DeviceError::State(StateError::Plan))
+    );
+    assert!(!indian.is_joined(), "nothing was taken");
+    assert!(indian.join(1, 0).is_ok());
+
+    assert_eq!(format!("{saved:?}"), "Saved { .. }", "no keys in a log");
+}
+
+#[test]
+fn only_a_joined_device_between_exchanges_saves() {
+    let device = device(Region::Eu868, settings());
+    assert_eq!(device.save(0), Err(DeviceError::NotJoined));
+
+    let (mut device, _network, now) = joined(Region::Eu868, settings());
+    device.send(2, b"a", false, now).expect("goes out");
+    assert_eq!(device.save(now), Err(DeviceError::Busy));
+    device.nothing_heard(now + 3_000_000).expect("closes");
+    assert!(device.save(now + 3_000_000).is_ok());
+}
+
+#[test]
+fn a_chinese_state_names_the_plan_its_join_chose() {
+    let mut device = device(Region::Cn470, settings());
+    let (request, at) = join_on(
+        &mut device,
+        &[
+            480_300_000,
+            482_300_000,
+            484_300_000,
+            486_300_000,
+            488_300_000,
+        ],
+    );
+    let mut network = Network::new(JoinGrant::new(0x01, 0x13, DEV_ADDR).with_dl_settings(1));
+    let accept = network.accept(&request);
+    assert!(device.heard(&accept, 0).is_ok());
+    let saved = device.save(at + LATER).expect("idle");
+
+    // Built from another of the four plans, the device still lands on the 26 MHz antenna's
+    // plan B the join chose.
+    let mut resumed = rebuilt(Cn470Plan::Antenna20MhzB.plan(), settings());
+    resumed.resume(&saved, 0).expect("the plan the join chose");
+    assert_eq!(resumed.channels().count(), 48);
+    assert_eq!(resumed.rx2(), (502_500_000, 1));
+    let uplink = resumed.send(2, b"x", false, LATER).expect("goes out");
+    assert_eq!(network.read(&uplink, 0).payload(), b"x");
 }

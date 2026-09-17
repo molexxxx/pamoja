@@ -60,6 +60,38 @@ impl Answers {
         }
     }
 
+    /// Each owed answer's bytes and whether it repeats until a downlink, in order.
+    pub(crate) fn owed(&self) -> impl Iterator<Item = (&[u8], bool)> + '_ {
+        self.entries[..self.count]
+            .iter()
+            .map(|entry| (&entry.bytes[..usize::from(entry.len)], entry.sticky))
+    }
+
+    /// Whether a link check and a time request are still to go out.
+    pub(crate) const fn requests(&self) -> (bool, bool) {
+        (self.link_check, self.device_time)
+    }
+
+    /// Queues an answer already encoded, as a saved state carries it.
+    ///
+    /// # Returns
+    ///
+    /// `false` if the queue is full or the answer is longer than a command can be.
+    pub(crate) fn push_encoded(&mut self, answer: &[u8], sticky: bool) -> bool {
+        if self.count == MAX_ANSWERS || answer.is_empty() || answer.len() > MAX_COMMAND {
+            return false;
+        }
+        let mut bytes = [0u8; MAX_COMMAND];
+        bytes[..answer.len()].copy_from_slice(answer);
+        self.entries[self.count] = Entry {
+            bytes,
+            len: answer.len() as u8,
+            sticky,
+        };
+        self.count += 1;
+        true
+    }
+
     /// Asks the network for a link check with the next uplink.
     pub(crate) fn request_link_check(&mut self) {
         self.link_check = true;

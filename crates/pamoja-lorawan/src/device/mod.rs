@@ -36,6 +36,9 @@
 //! - **Staying reachable**: the adaptive data rate back-off of [`adr`](crate::adr).
 //! - **Sharing the air**: the region's sub-band duty cycles, the network's `DutyCycleReq`,
 //!   and the join back-off of TS001-1.0.4 section 7.
+//! - **Sleeping**: [`save`](EndDevice::save) and [`resume`](EndDevice::resume) carry a joined
+//!   device across a loss of power, so a node that sleeps between readings keeps its session,
+//!   its counters and everything its network set.
 //!
 //! This covers every published plan: the dynamic EU868, EU433, AS923, KR920, IN865 and RU864,
 //! and the fixed US915, AU915 and CN470, the last in all four of its RP002-1.0.5 plans and the
@@ -78,8 +81,10 @@ mod air;
 mod answers;
 mod channels;
 mod commands;
+mod state;
 
 pub use channels::{Channel, MAX_CHANNELS};
+pub use state::{Saved, StateError, SAVED_LEN};
 
 use pamoja_lora::region::{ChannelBlock, ChannelPlan, JoinSequence, Modulation, PowerReference};
 use pamoja_lora::LinkSettings;
@@ -516,6 +521,8 @@ pub enum DeviceError {
     /// A join accept carries settings the region does not allow, which RP002-1.0.5 has a
     /// device ignore.
     Refused,
+    /// A saved state could not be resumed.
+    State(StateError),
 }
 
 impl core::fmt::Display for DeviceError {
@@ -543,6 +550,7 @@ impl core::fmt::Display for DeviceError {
             DeviceError::Replayed => f.write_str("the frame repeats an earlier downlink"),
             DeviceError::CounterGap => f.write_str("the frame counter jumped too far ahead"),
             DeviceError::Refused => f.write_str("the join accept carries settings not allowed"),
+            DeviceError::State(error) => write!(f, "the saved state was not resumed: {error}"),
         }
     }
 }
@@ -586,6 +594,7 @@ pub struct EndDevice<'p> {
     sequence: Sequence,
     battery: Battery,
     session: Option<Session>,
+    joined_on: Option<u16>,
     fcnt_up: u32,
     fcnt_down: Option<u32>,
     data_rate: u8,
@@ -711,6 +720,7 @@ impl<'p> EndDevice<'p> {
             sequence,
             battery: Battery::Unknown,
             session: None,
+            joined_on: None,
             fcnt_up: 0,
             fcnt_down: None,
             data_rate: 0,
@@ -1557,6 +1567,7 @@ impl<'p> EndDevice<'p> {
         }
         let session = accept.session();
         self.session = Some(session);
+        self.joined_on = joined_on.map(|_| join_channel);
         self.fcnt_up = 0;
         self.fcnt_down = None;
         self.data_rate = if self.channels.carries(&self.channels.mask(), data_rate) {
