@@ -9,6 +9,17 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- A relay and a device under one that drive real radios. `pamoja_radios::relay::RelayNode`
+  gives a `Relay` a radio and a clock: one `scan` sleeps until the next slot, listens for a
+  preamble over a couple of symbols, and only if one is there receives the wake-on-radio
+  frame, answers it, takes the uplink behind it, forwards that to the network, and sends
+  what comes back in the end device's relay window. `Node` sends every uplink of a device in
+  relay mode behind the frame that wakes its relay, reads the acknowledgment in its window,
+  and listens in the relay window as well as the usual two. Both chips detect activity for
+  it: `Sx126x::detect` with the thresholds Semtech's own radio layer uses for each spreading
+  factor and bandwidth, and `Sx127x::detect` over the symbol its detection takes. A
+  `Transceiver` that cannot detect activity says so by listening every time, and a received
+  frame now carries its signal strength, which a relay forwards with the uplink.
 - An end device that sends through a LoRaWAN relay, TS011-1.0.1 chapters 3 and 5.
   `EndDevice::use_relay` turns relay mode on, and every uplink then goes out behind a
   wake-on-radio frame that names it: `Transmission::relay` says when the frame goes,

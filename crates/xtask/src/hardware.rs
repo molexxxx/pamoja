@@ -42,6 +42,7 @@ const NOT_DRIVERS: &[&str] = &[
     "lorawan.rs",
     "mesh.rs",
     "radio.rs",
+    "relay.rs",
 ];
 
 /// A group of entries that share a heading on the page.

@@ -21,6 +21,8 @@
 //!   limit requires after each transmission.
 //! - `lorawan`, with the `lorawan` feature - a LoRaWAN Class A node: an end device from
 //!   `pamoja-lorawan` driving a radio, with its receive windows opened on time.
+//! - `relay`, with the `lorawan` feature - a LoRaWAN relay driving a radio: it scans for
+//!   wake-on-radio frames, answers them, and forwards the uplinks behind them.
 //! - `linux`, with the `linux` feature - opening a radio on a Linux board over spidev and
 //!   the GPIO character device, with a plain error on every other platform.
 //! - `mesh`, with the `std` feature - a pamoja transport over a radio, carrying topics in
@@ -51,6 +53,8 @@ pub mod lorawan;
 pub mod mesh;
 #[cfg(feature = "embedded-hal")]
 pub mod radio;
+#[cfg(feature = "lorawan")]
+pub mod relay;
 pub mod sx126x;
 pub mod sx127x;
 pub mod sx1302;

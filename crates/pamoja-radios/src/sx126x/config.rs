@@ -961,6 +961,71 @@ pub const RX_GAIN_BOOSTED: u8 = 0x96;
 /// The RTC control value that stops the timer, from section 15.3.
 pub const RTC_STOP: u8 = 0x00;
 
+/// The SetCadParams exit mode that returns to standby once the detection is done, from
+/// Table 13-71.
+pub const CAD_ONLY: u8 = 0x00;
+
+/// The SetCadParams exit mode that starts receiving when activity is detected.
+pub const CAD_RX: u8 = 0x01;
+
+/// The cadDetMin every Semtech driver uses.
+pub const CAD_DETECT_MIN: u8 = 10;
+
+/// The cadSymbolNum code for a number of symbols, from Table 13-71.
+///
+/// # Arguments
+///
+/// * `symbols` - how many symbols to listen over; 1, 2, 4, 8 or 16, rounded down to one of
+///   them.
+///
+/// # Returns
+///
+/// The code, 0x00 to 0x04.
+#[must_use]
+pub const fn cad_symbols(symbols: u8) -> u8 {
+    match symbols {
+        0..=1 => 0x00,
+        2..=3 => 0x01,
+        4..=7 => 0x02,
+        8..=15 => 0x03,
+        _ => 0x04,
+    }
+}
+
+/// The cadDetPeak for a spreading factor and bandwidth, as Semtech's own radio layer sets
+/// it.
+///
+/// The values are those of `ral_sx126x_get_lora_cad_det_peak` in LoRa Basics Modem, which
+/// is what Semtech's relay listens with. Listening over more symbols lowers the threshold,
+/// since there is more to go on.
+///
+/// # Arguments
+///
+/// * `spreading_factor` - 5 to 12.
+/// * `bandwidth_hz` - the channel bandwidth.
+/// * `symbols` - the cadSymbolNum code from [`cad_symbols`].
+///
+/// # Returns
+///
+/// The threshold.
+#[must_use]
+pub const fn cad_detect_peak(spreading_factor: u8, bandwidth_hz: u32, symbols: u8) -> u8 {
+    let above_five = spreading_factor.saturating_sub(5);
+    let index = if above_five > 7 { 7 } else { above_five } as usize;
+    let wide = [22u8, 23, 25, 26, 30, 31, 33, 35];
+    let narrow = [20u8, 21, 22, 24, 24, 25, 27, 27];
+    let peak = if bandwidth_hz >= 500_000 {
+        wide[index]
+    } else {
+        narrow[index]
+    };
+    match symbols {
+        0x02 => peak - 1,
+        0x03 | 0x04 => peak - 2,
+        _ => peak,
+    }
+}
+
 /// Returns the TX modulation register value for a transmission, from section 15.1.
 ///
 /// Bit 2 is cleared for a 500 kHz LoRa bandwidth and set for every other bandwidth.
@@ -1218,5 +1283,39 @@ mod tests {
         assert_eq!(iq_polarity(0x0D, true), 0x09);
         assert_eq!(iq_polarity(0x09, false), 0x0D);
         assert_eq!(event_clear(0x00), 0x02);
+    }
+
+    #[test]
+    fn the_detection_tuning_is_semtechs_own() {
+        assert_eq!(cad_symbols(1), 0x00);
+        assert_eq!(cad_symbols(2), 0x01);
+        assert_eq!(cad_symbols(5), 0x02);
+        assert_eq!(cad_symbols(255), 0x04);
+
+        // LoRa Basics Modem's table, over two symbols.
+        for (sf, narrow, wide) in [
+            (5u8, 20u8, 22u8),
+            (6, 21, 23),
+            (7, 22, 25),
+            (8, 24, 26),
+            (9, 24, 30),
+            (10, 25, 31),
+            (11, 27, 33),
+            (12, 27, 35),
+        ] {
+            assert_eq!(cad_detect_peak(sf, 125_000, 0x01), narrow, "SF{sf}");
+            assert_eq!(cad_detect_peak(sf, 250_000, 0x01), narrow, "SF{sf} wider");
+            assert_eq!(cad_detect_peak(sf, 500_000, 0x01), wide, "SF{sf} widest");
+        }
+        assert_eq!(
+            cad_detect_peak(9, 125_000, 0x02),
+            23,
+            "four symbols, one lower"
+        );
+        assert_eq!(
+            cad_detect_peak(9, 125_000, 0x03),
+            22,
+            "eight symbols, two lower"
+        );
     }
 }
