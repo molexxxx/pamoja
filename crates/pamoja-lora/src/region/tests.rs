@@ -455,6 +455,7 @@ fn a_custom_plan_answers_every_question_a_named_one_does() {
             frequency_hz: 915_000_000,
             ping_slot_frequency_hz: 915_000_000,
         },
+        relay_channels: &[],
         has_dwell_time_limit: false,
         kind: PlanKind::Dynamic { channel_list: None },
         tx_param_setup: false,
@@ -530,6 +531,7 @@ fn a_plan_may_borrow_tables_that_are_not_static() {
             frequency_hz: 869_525_000,
             ping_slot_frequency_hz: 869_525_000,
         },
+        relay_channels: &[],
         has_dwell_time_limit: false,
         kind: PlanKind::Dynamic { channel_list: None },
         tx_param_setup: false,
@@ -1238,5 +1240,114 @@ fn every_region_takes_the_channel_model_and_commands_its_section_names() {
         let plan = region.plan();
         assert_eq!(plan.kind, kind, "{region:?}");
         assert_eq!(plan.tx_param_setup, tx_param_setup, "{region:?}");
+    }
+}
+
+/// RP002-1.0.5 tables 18, 28, 48, 64, 76, 88, 99 and 110: each region's relay channels, with
+/// the spreading factor and bandwidth their data rate stands for. EU433 names none, and the
+/// 96-channel CN470 plan predates the relay specification.
+#[cfg(feature = "regions")]
+#[test]
+fn every_region_carries_the_relay_channels_its_section_names() {
+    const SF9: (u8, u32) = (9, 125_000);
+    const SF7: (u8, u32) = (7, 125_000);
+    const SF10_WIDE: (u8, u32) = (10, 500_000);
+    type Expected = &'static [(u32, u32, (u8, u32))];
+    let want: [(&ChannelPlan<'static>, Expected); 13] = [
+        (
+            Region::Eu868.plan(),
+            &[
+                (865_100_000, 865_300_000, SF9),
+                (865_500_000, 865_900_000, SF7),
+            ],
+        ),
+        (
+            Region::Us915.plan(),
+            &[
+                (916_700_000, 918_300_000, SF10_WIDE),
+                (919_900_000, 921_500_000, SF10_WIDE),
+            ],
+        ),
+        (Region::Eu433.plan(), &[]),
+        (
+            Region::Au915.plan(),
+            &[
+                (916_700_000, 918_300_000, SF10_WIDE),
+                (919_900_000, 921_500_000, SF10_WIDE),
+            ],
+        ),
+        (
+            Cn470Plan::Antenna20MhzA.plan(),
+            &[
+                (472_100_000, 485_300_000, SF9),
+                (494_900_000, 505_500_000, SF7),
+            ],
+        ),
+        (
+            Cn470Plan::Antenna20MhzB.plan(),
+            &[
+                (472_100_000, 485_300_000, SF9),
+                (494_900_000, 505_500_000, SF7),
+            ],
+        ),
+        (
+            Cn470Plan::Antenna26MhzA.plan(),
+            &[
+                (472_100_000, 485_300_000, SF9),
+                (494_900_000, 505_500_000, SF7),
+            ],
+        ),
+        (
+            Cn470Plan::Antenna26MhzB.plan(),
+            &[
+                (472_100_000, 485_300_000, SF9),
+                (494_900_000, 505_500_000, SF7),
+            ],
+        ),
+        (Cn470Plan::Channels96.plan(), &[]),
+        (Region::As923.plan(), &[(923_600_000, 923_800_000, SF9)]),
+        (
+            Region::Kr920.plan(),
+            &[
+                (922_700_000, 922_900_000, SF9),
+                (923_100_000, 923_100_000, SF7),
+            ],
+        ),
+        (
+            Region::In865.plan(),
+            &[
+                (866_000_000, 866_200_000, SF9),
+                (866_700_000, 866_900_000, SF7),
+            ],
+        ),
+        (
+            Region::Ru864.plan(),
+            &[
+                (866_100_000, 866_300_000, SF9),
+                (866_500_000, 866_900_000, SF7),
+            ],
+        ),
+    ];
+    for (plan, channels) in want {
+        assert_eq!(plan.relay_channels.len(), channels.len(), "{}", plan.name);
+        for (index, &(wor, ack, (sf, bw))) in channels.iter().enumerate() {
+            let channel = plan.relay_channel(index as u8).expect("a relay channel");
+            assert_eq!(
+                (channel.wor_frequency_hz, channel.ack_frequency_hz),
+                (wor, ack),
+                "{} channel {index}",
+                plan.name
+            );
+            assert_eq!(
+                plan.downlink_data_rate(channel.data_rate)
+                    .map(|rate| rate.modulation),
+                Some(Modulation::LoRa {
+                    spreading_factor: sf,
+                    bandwidth_hz: bw
+                }),
+                "{} channel {index}",
+                plan.name
+            );
+        }
     }
 }

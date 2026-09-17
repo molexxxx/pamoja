@@ -50,6 +50,8 @@ mod lorawan;
 mod lorawan_device;
 #[cfg(feature = "lorawan")]
 mod lorawan_link;
+#[cfg(all(feature = "lora", feature = "lorawan"))]
+mod lorawan_relay;
 #[cfg(feature = "mavlink")]
 mod mavlink;
 #[cfg(feature = "mavlink")]
@@ -528,6 +530,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<lora_region::LoraMaxPayload>()?;
         m.add_class::<lora_region::LoraChannelBlock>()?;
         m.add_class::<lora_region::LoraSubBand>()?;
+        m.add_class::<lora_region::LoraRelayChannel>()?;
         m.add_class::<lora_region::LoraBeacon>()?;
         m.add_class::<lora_region::LoraPlanInfo>()?;
         m.add_class::<lora_region::LoraPlanRules>()?;
@@ -761,6 +764,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(lorawan::lorawan_parse_header, m)?)?;
         m.add_function(wrap_pyfunction!(lorawan::lorawan_parse_join_request, m)?)?;
         m.add_class::<lorawan::LorawanMacCommand>()?;
+        m.add_class::<lorawan::LorawanWorKeys>()?;
         m.add_class::<lorawan_link::LorawanBackoff>()?;
         m.add_class::<lorawan_link::LorawanBackoffStep>()?;
         m.add_class::<lorawan_link::LorawanCfList>()?;
@@ -779,6 +783,61 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
             m.add_class::<lorawan_device::LorawanDelivery>()?;
             m.add_class::<lorawan_device::LorawanNext>()?;
             m.add_class::<lorawan_device::LorawanChannel>()?;
+            m.add_class::<lorawan_relay::LorawanCarrier>()?;
+            m.add_class::<lorawan_relay::LorawanWor>()?;
+            m.add_class::<lorawan_relay::LorawanStateSync>()?;
+            m.add_class::<lorawan_relay::LorawanUplinkMetadata>()?;
+            m.add_class::<lorawan_relay::LorawanForwardedUplink>()?;
+            m.add_class::<lorawan_relay::LorawanSynchronization>()?;
+            m.add_class::<lorawan_relay::LorawanWorSlot>()?;
+            for (name, value) in lorawan_relay::CONSTANTS {
+                m.add(name, value)?;
+            }
+            m.add_function(wrap_pyfunction!(
+                lorawan_relay::lorawan_relay_root_wor_s_key,
+                m
+            )?)?;
+            m.add_function(wrap_pyfunction!(lorawan_relay::lorawan_relay_wor_keys, m)?)?;
+            m.add_function(wrap_pyfunction!(
+                lorawan_relay::lorawan_relay_wor_join_request,
+                m
+            )?)?;
+            m.add_function(wrap_pyfunction!(
+                lorawan_relay::lorawan_relay_wor_uplink,
+                m
+            )?)?;
+            m.add_function(wrap_pyfunction!(lorawan_relay::lorawan_relay_wor_parse, m)?)?;
+            m.add_function(wrap_pyfunction!(lorawan_relay::lorawan_relay_wor_open, m)?)?;
+            m.add_function(wrap_pyfunction!(lorawan_relay::lorawan_relay_wor_ack, m)?)?;
+            m.add_function(wrap_pyfunction!(
+                lorawan_relay::lorawan_relay_wor_ack_open,
+                m
+            )?)?;
+            m.add_function(wrap_pyfunction!(
+                lorawan_relay::lorawan_relay_forward_encode,
+                m
+            )?)?;
+            m.add_function(wrap_pyfunction!(
+                lorawan_relay::lorawan_relay_forward_parse,
+                m
+            )?)?;
+            m.add_function(wrap_pyfunction!(
+                lorawan_relay::lorawan_relay_unsynchronized_preamble,
+                m
+            )?)?;
+            m.add_function(wrap_pyfunction!(
+                lorawan_relay::lorawan_relay_t_offset_ms,
+                m
+            )?)?;
+            m.add_function(wrap_pyfunction!(
+                lorawan_relay::lorawan_relay_synchronization,
+                m
+            )?)?;
+            m.add_function(wrap_pyfunction!(lorawan_relay::lorawan_relay_next_wor, m)?)?;
+            m.add_function(wrap_pyfunction!(
+                lorawan_relay::lorawan_relay_second_channel,
+                m
+            )?)?;
         }
         for (name, value) in lorawan_link::DEFAULTS {
             m.add(name, value)?;

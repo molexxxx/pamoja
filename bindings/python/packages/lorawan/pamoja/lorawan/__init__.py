@@ -47,6 +47,8 @@ from pamoja._native import lorawan_mac_parse as _mac_parse
 from pamoja._native import lorawan_parse_header as _parse_header
 from pamoja._native import lorawan_parse_join_request as _parse_join_request
 
+from pamoja.lorawan import relay
+
 __all__ = [
     "ADR_ACK_DELAY",
     "ADR_ACK_LIMIT",
@@ -89,6 +91,7 @@ __all__ = [
     "mac_parse",
     "parse_header",
     "parse_join_request",
+    "relay",
     "session",
 ]
 

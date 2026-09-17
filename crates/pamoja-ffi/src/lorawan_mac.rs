@@ -98,6 +98,82 @@ pub struct PamojaLorawanMacCommand {
     pub seconds: u32,
     /// The fraction of that second, in steps of one part in 256.
     pub fraction: u8,
+    /// Whether a relay runs.
+    pub enabled: u8,
+    /// How often a relay scans, as TS011-1.0.1 table 18 codes it.
+    pub cad_periodicity: u8,
+    /// Which of the region's relay channels is a relay's default one.
+    pub default_channel_index: u8,
+    /// Whether a relay configuration sets a second channel, 1 for yes.
+    pub second_channel_index: u8,
+    /// The second channel's data rate; its frequency is the frequency field.
+    pub second_channel_data_rate: u8,
+    /// How far above its frequency the second channel is acknowledged, as table 35 codes it.
+    pub second_channel_ack_offset: u8,
+    /// Whether the scan period was valid.
+    pub cad_periodicity_ack: u8,
+    /// Whether the default channel was valid.
+    pub default_channel_index_ack: u8,
+    /// Whether the second channel index was valid.
+    pub second_channel_index_ack: u8,
+    /// Whether the second channel's data rate was valid.
+    pub second_channel_data_rate_ack: u8,
+    /// Whether its acknowledgment offset was valid.
+    pub second_channel_ack_offset_ack: u8,
+    /// Whether its frequency was valid.
+    pub second_channel_frequency_ack: u8,
+    /// How an end device uses a relay, as TS011-1.0.1 table 40 codes it.
+    pub relay_mode: u8,
+    /// How many unanswered uplinks turn relaying on, as table 41 codes it.
+    pub smart_enable_level: u8,
+    /// How many WOR frames without an acknowledgment before an uplink goes anyway.
+    pub back_off: u8,
+    /// What a join filter rule does, or whether a trusted end device is read or removed.
+    pub action: u8,
+    /// How many leading bytes of JoinEUI and DevEUI a join filter rule matches.
+    pub eui_len: u8,
+    /// Those bytes, most significant first, with the rest zero.
+    pub eui: [u8; 16],
+    /// Whether a join filter rule was one to create, change or remove.
+    pub combined_rules_ack: u8,
+    /// Whether its length was valid.
+    pub eui_len_ack: u8,
+    /// Whether its action was valid.
+    pub action_ack: u8,
+    /// Tokens a trusted end device earns an hour, 63 for no limit.
+    pub reload_rate: u8,
+    /// Its bucket size multiplier, as TS011-1.0.1 table 55 codes it.
+    pub bucket_size: u8,
+    /// An end device address a relay command names.
+    pub dev_addr: u32,
+    /// A wake-on-radio frame counter.
+    pub wfcnt: u32,
+    /// An end device's root relay session key.
+    pub root_wor_s_key: [u8; 16],
+    /// Whether a trusted list entry was in use.
+    pub index_ack: u8,
+    /// What a forwarding limit command does to a relay's token counters, as table 63 codes it.
+    pub reset_limit_counters: u8,
+    /// Join requests a relay forwards an hour, 127 for no limit.
+    pub join_request_reload_rate: u8,
+    /// New end device notifications a relay sends an hour.
+    pub notify_reload_rate: u8,
+    /// Uplinks a relay forwards an hour across every trusted end device.
+    pub global_uplink_reload_rate: u8,
+    /// Every message a relay sends an hour.
+    pub overall_reload_rate: u8,
+    /// The join request bucket size multiplier.
+    pub join_request_bucket_size: u8,
+    /// The notification bucket size multiplier.
+    pub notify_bucket_size: u8,
+    /// The global uplink bucket size multiplier.
+    pub global_uplink_bucket_size: u8,
+    /// The overall bucket size multiplier.
+    pub overall_bucket_size: u8,
+    /// The signal strength of a WOR frame a relay could not verify, in dBm.
+    pub rssi_dbm: i16,
+    /// Its signal-to-noise ratio, in dB.
+    pub snr_db: i8,
 }
 
 impl PamojaLorawanMacCommand {
@@ -136,6 +212,44 @@ impl PamojaLorawanMacCommand {
             uplink_frequency_exists: 0,
             seconds: 0,
             fraction: 0,
+            enabled: 0,
+            cad_periodicity: 0,
+            default_channel_index: 0,
+            second_channel_index: 0,
+            second_channel_data_rate: 0,
+            second_channel_ack_offset: 0,
+            cad_periodicity_ack: 0,
+            default_channel_index_ack: 0,
+            second_channel_index_ack: 0,
+            second_channel_data_rate_ack: 0,
+            second_channel_ack_offset_ack: 0,
+            second_channel_frequency_ack: 0,
+            relay_mode: 0,
+            smart_enable_level: 0,
+            back_off: 0,
+            action: 0,
+            eui_len: 0,
+            eui: [0; 16],
+            combined_rules_ack: 0,
+            eui_len_ack: 0,
+            action_ack: 0,
+            reload_rate: 0,
+            bucket_size: 0,
+            dev_addr: 0,
+            wfcnt: 0,
+            root_wor_s_key: [0; 16],
+            index_ack: 0,
+            reset_limit_counters: 0,
+            join_request_reload_rate: 0,
+            notify_reload_rate: 0,
+            global_uplink_reload_rate: 0,
+            overall_reload_rate: 0,
+            join_request_bucket_size: 0,
+            notify_bucket_size: 0,
+            global_uplink_bucket_size: 0,
+            overall_bucket_size: 0,
+            rssi_dbm: 0,
+            snr_db: 0,
         }
     }
 }
@@ -259,6 +373,141 @@ fn flatten(command: MacCommand) -> PamojaLorawanMacCommand {
             flat.seconds = seconds;
             flat.fraction = fraction;
         }
+        MacCommand::RelayConfReq {
+            enabled,
+            cad_periodicity,
+            default_channel_index,
+            second_channel_index,
+            second_channel_data_rate,
+            second_channel_ack_offset,
+            second_channel_frequency_hz,
+        } => {
+            flat.enabled = u8::from(enabled);
+            flat.cad_periodicity = cad_periodicity;
+            flat.default_channel_index = default_channel_index;
+            flat.second_channel_index = second_channel_index;
+            flat.second_channel_data_rate = second_channel_data_rate;
+            flat.second_channel_ack_offset = second_channel_ack_offset;
+            flat.frequency_hz = second_channel_frequency_hz;
+        }
+        MacCommand::RelayConfAns {
+            cad_periodicity_ack,
+            default_channel_index_ack,
+            second_channel_index_ack,
+            second_channel_data_rate_ack,
+            second_channel_ack_offset_ack,
+            second_channel_frequency_ack,
+        } => {
+            flat.cad_periodicity_ack = u8::from(cad_periodicity_ack);
+            flat.default_channel_index_ack = u8::from(default_channel_index_ack);
+            flat.second_channel_index_ack = u8::from(second_channel_index_ack);
+            flat.second_channel_data_rate_ack = u8::from(second_channel_data_rate_ack);
+            flat.second_channel_ack_offset_ack = u8::from(second_channel_ack_offset_ack);
+            flat.second_channel_frequency_ack = u8::from(second_channel_frequency_ack);
+        }
+        MacCommand::EndDeviceConfReq {
+            relay_mode,
+            smart_enable_level,
+            back_off,
+            second_channel_index,
+            second_channel_data_rate,
+            second_channel_ack_offset,
+            second_channel_frequency_hz,
+        } => {
+            flat.relay_mode = relay_mode;
+            flat.smart_enable_level = smart_enable_level;
+            flat.back_off = back_off;
+            flat.second_channel_index = second_channel_index;
+            flat.second_channel_data_rate = second_channel_data_rate;
+            flat.second_channel_ack_offset = second_channel_ack_offset;
+            flat.frequency_hz = second_channel_frequency_hz;
+        }
+        MacCommand::EndDeviceConfAns {
+            second_channel_ack_offset_ack,
+            second_channel_index_ack,
+            second_channel_data_rate_ack,
+            second_channel_frequency_ack,
+        } => {
+            flat.second_channel_ack_offset_ack = u8::from(second_channel_ack_offset_ack);
+            flat.second_channel_index_ack = u8::from(second_channel_index_ack);
+            flat.second_channel_data_rate_ack = u8::from(second_channel_data_rate_ack);
+            flat.second_channel_frequency_ack = u8::from(second_channel_frequency_ack);
+        }
+        MacCommand::FilterListReq {
+            index,
+            action,
+            eui_len,
+            eui,
+        } => {
+            flat.index = index;
+            flat.action = action;
+            flat.eui_len = eui_len;
+            flat.eui = eui;
+        }
+        MacCommand::FilterListAns {
+            combined_rules_ack,
+            eui_len_ack,
+            action_ack,
+        } => {
+            flat.combined_rules_ack = u8::from(combined_rules_ack);
+            flat.eui_len_ack = u8::from(eui_len_ack);
+            flat.action_ack = u8::from(action_ack);
+        }
+        MacCommand::UpdateUplinkListReq {
+            index,
+            reload_rate,
+            bucket_size,
+            dev_addr,
+            wfcnt,
+            root_wor_s_key,
+        } => {
+            flat.index = index;
+            flat.reload_rate = reload_rate;
+            flat.bucket_size = bucket_size;
+            flat.dev_addr = dev_addr;
+            flat.wfcnt = wfcnt;
+            flat.root_wor_s_key = root_wor_s_key;
+        }
+        MacCommand::UpdateUplinkListAns => {}
+        MacCommand::CtrlUplinkListReq { index, action } => {
+            flat.index = index;
+            flat.action = action;
+        }
+        MacCommand::CtrlUplinkListAns { index_ack, wfcnt } => {
+            flat.index_ack = u8::from(index_ack);
+            flat.wfcnt = wfcnt;
+        }
+        MacCommand::ConfigureFwdLimitReq {
+            reset_limit_counters,
+            join_request_reload_rate,
+            notify_reload_rate,
+            global_uplink_reload_rate,
+            overall_reload_rate,
+            join_request_bucket_size,
+            notify_bucket_size,
+            global_uplink_bucket_size,
+            overall_bucket_size,
+        } => {
+            flat.reset_limit_counters = reset_limit_counters;
+            flat.join_request_reload_rate = join_request_reload_rate;
+            flat.notify_reload_rate = notify_reload_rate;
+            flat.global_uplink_reload_rate = global_uplink_reload_rate;
+            flat.overall_reload_rate = overall_reload_rate;
+            flat.join_request_bucket_size = join_request_bucket_size;
+            flat.notify_bucket_size = notify_bucket_size;
+            flat.global_uplink_bucket_size = global_uplink_bucket_size;
+            flat.overall_bucket_size = overall_bucket_size;
+        }
+        MacCommand::ConfigureFwdLimitAns => {}
+        MacCommand::NotifyNewEndDeviceReq {
+            dev_addr,
+            rssi_dbm,
+            snr_db,
+        } => {
+            flat.dev_addr = dev_addr;
+            flat.rssi_dbm = rssi_dbm;
+            flat.snr_db = snr_db;
+        }
     }
     flat
 }
@@ -338,6 +587,83 @@ fn sharpen(flat: &PamojaLorawanMacCommand) -> Option<MacCommand> {
         (mac::CID_DEVICE_TIME, true) => MacCommand::DeviceTimeAns {
             seconds: flat.seconds,
             fraction: flat.fraction,
+        },
+        (mac::CID_RELAY_CONF, true) => MacCommand::RelayConfReq {
+            enabled: on(flat.enabled),
+            cad_periodicity: flat.cad_periodicity,
+            default_channel_index: flat.default_channel_index,
+            second_channel_index: flat.second_channel_index,
+            second_channel_data_rate: flat.second_channel_data_rate,
+            second_channel_ack_offset: flat.second_channel_ack_offset,
+            second_channel_frequency_hz: flat.frequency_hz,
+        },
+        (mac::CID_RELAY_CONF, false) => MacCommand::RelayConfAns {
+            cad_periodicity_ack: on(flat.cad_periodicity_ack),
+            default_channel_index_ack: on(flat.default_channel_index_ack),
+            second_channel_index_ack: on(flat.second_channel_index_ack),
+            second_channel_data_rate_ack: on(flat.second_channel_data_rate_ack),
+            second_channel_ack_offset_ack: on(flat.second_channel_ack_offset_ack),
+            second_channel_frequency_ack: on(flat.second_channel_frequency_ack),
+        },
+        (mac::CID_END_DEVICE_CONF, true) => MacCommand::EndDeviceConfReq {
+            relay_mode: flat.relay_mode,
+            smart_enable_level: flat.smart_enable_level,
+            back_off: flat.back_off,
+            second_channel_index: flat.second_channel_index,
+            second_channel_data_rate: flat.second_channel_data_rate,
+            second_channel_ack_offset: flat.second_channel_ack_offset,
+            second_channel_frequency_hz: flat.frequency_hz,
+        },
+        (mac::CID_END_DEVICE_CONF, false) => MacCommand::EndDeviceConfAns {
+            second_channel_ack_offset_ack: on(flat.second_channel_ack_offset_ack),
+            second_channel_index_ack: on(flat.second_channel_index_ack),
+            second_channel_data_rate_ack: on(flat.second_channel_data_rate_ack),
+            second_channel_frequency_ack: on(flat.second_channel_frequency_ack),
+        },
+        (mac::CID_FILTER_LIST, true) => MacCommand::FilterListReq {
+            index: flat.index,
+            action: flat.action,
+            eui_len: flat.eui_len,
+            eui: flat.eui,
+        },
+        (mac::CID_FILTER_LIST, false) => MacCommand::FilterListAns {
+            combined_rules_ack: on(flat.combined_rules_ack),
+            eui_len_ack: on(flat.eui_len_ack),
+            action_ack: on(flat.action_ack),
+        },
+        (mac::CID_UPDATE_UPLINK_LIST, true) => MacCommand::UpdateUplinkListReq {
+            index: flat.index,
+            reload_rate: flat.reload_rate,
+            bucket_size: flat.bucket_size,
+            dev_addr: flat.dev_addr,
+            wfcnt: flat.wfcnt,
+            root_wor_s_key: flat.root_wor_s_key,
+        },
+        (mac::CID_UPDATE_UPLINK_LIST, false) => MacCommand::UpdateUplinkListAns,
+        (mac::CID_CTRL_UPLINK_LIST, true) => MacCommand::CtrlUplinkListReq {
+            index: flat.index,
+            action: flat.action,
+        },
+        (mac::CID_CTRL_UPLINK_LIST, false) => MacCommand::CtrlUplinkListAns {
+            index_ack: on(flat.index_ack),
+            wfcnt: flat.wfcnt,
+        },
+        (mac::CID_CONFIGURE_FWD_LIMIT, true) => MacCommand::ConfigureFwdLimitReq {
+            reset_limit_counters: flat.reset_limit_counters,
+            join_request_reload_rate: flat.join_request_reload_rate,
+            notify_reload_rate: flat.notify_reload_rate,
+            global_uplink_reload_rate: flat.global_uplink_reload_rate,
+            overall_reload_rate: flat.overall_reload_rate,
+            join_request_bucket_size: flat.join_request_bucket_size,
+            notify_bucket_size: flat.notify_bucket_size,
+            global_uplink_bucket_size: flat.global_uplink_bucket_size,
+            overall_bucket_size: flat.overall_bucket_size,
+        },
+        (mac::CID_CONFIGURE_FWD_LIMIT, false) => MacCommand::ConfigureFwdLimitAns,
+        (mac::CID_NOTIFY_NEW_END_DEVICE, false) => MacCommand::NotifyNewEndDeviceReq {
+            dev_addr: flat.dev_addr,
+            rssi_dbm: flat.rssi_dbm,
+            snr_db: flat.snr_db,
         },
         _ => return None,
     };
@@ -595,6 +921,54 @@ mod tests {
             at(PamojaLorawanDirection::Downlink, &out[..written], 0),
             command
         );
+    }
+
+    #[test]
+    fn a_relay_command_carries_its_key_and_eui_prefix_across() {
+        let mut command = PamojaLorawanMacCommand::blank(0x43, PamojaLorawanDirection::Downlink);
+        command.index = 3;
+        command.reload_rate = 10;
+        command.bucket_size = 2;
+        command.dev_addr = 0x2601_1bda;
+        command.wfcnt = 7;
+        command.root_wor_s_key = core::array::from_fn(|at| at as u8);
+
+        let mut out = [0u8; PAMOJA_LORAWAN_MAC_MAX];
+        let mut written = 0usize;
+        let status = unsafe {
+            pamoja_lorawan_mac_encode(&command, out.as_mut_ptr(), out.len(), &mut written)
+        };
+        assert_eq!(status, PamojaStatus::Ok);
+        assert_eq!(written, PAMOJA_LORAWAN_MAC_MAX);
+        assert_eq!(
+            at(PamojaLorawanDirection::Downlink, &out[..written], 0),
+            command
+        );
+
+        let mut filter = PamojaLorawanMacCommand::blank(0x42, PamojaLorawanDirection::Downlink);
+        filter.index = 1;
+        filter.action = 1;
+        filter.eui_len = 3;
+        filter.eui[..3].copy_from_slice(&[0xab, 0xcd, 0xef]);
+        let status = unsafe {
+            pamoja_lorawan_mac_encode(&filter, out.as_mut_ptr(), out.len(), &mut written)
+        };
+        assert_eq!(status, PamojaStatus::Ok);
+        assert_eq!(&out[..written], &[0x42, 0xa3, 0x00, 0xef, 0xcd, 0xab]);
+        assert_eq!(
+            at(PamojaLorawanDirection::Downlink, &out[..written], 0),
+            filter
+        );
+
+        let mut notice = PamojaLorawanMacCommand::blank(0x46, PamojaLorawanDirection::Uplink);
+        notice.dev_addr = 0x2601_1bda;
+        notice.rssi_dbm = -100;
+        notice.snr_db = 5;
+        let status = unsafe {
+            pamoja_lorawan_mac_encode(&notice, out.as_mut_ptr(), out.len(), &mut written)
+        };
+        assert_eq!(status, PamojaStatus::Ok);
+        assert_eq!(&out[..written], &[0x46, 0xda, 0x1b, 0x01, 0x26, 0xb9, 0x0a]);
     }
 
     #[test]

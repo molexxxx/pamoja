@@ -23,7 +23,7 @@ use pamoja_lora::region::Cn470Plan;
 use pamoja_lora::region::{
     Beacon, ChannelBlock, ChannelPlan, ChannelPlanBuilder, DataRate, FixedChannelList,
     JoinSequence, MaskControl, MaxPayload, Modulation, OwnedChannelPlan, PayloadTable, PlanKind,
-    PowerReference, SubBand,
+    PowerReference, RelayChannel, SubBand,
 };
 // A build that carries no region still offers the builder, and then names no
 // published plan at all.
@@ -215,6 +215,18 @@ pub struct PamojaLoraBeacon {
     /// The default ping-slot frequency, in hertz.
     pub ping_slot_frequency_hz: u32,
     /// The data rate the beacon is broadcast at.
+    pub data_rate: u8,
+}
+
+/// A default channel of a LoRaWAN relay, TS011-1.0.1.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PamojaLoraRelayChannel {
+    /// Where an end device sends its wake-on-radio frame, in hertz.
+    pub wor_frequency_hz: u32,
+    /// Where the relay acknowledges it, in hertz.
+    pub ack_frequency_hz: u32,
+    /// The data rate of both, numbered as the plan's downlink data rates.
     pub data_rate: u8,
 }
 
@@ -1638,6 +1650,82 @@ pub unsafe extern "C" fn pamoja_lora_plan_channel_block(
     PamojaStatus::Ok
 }
 
+/// Counts the plan's default relay channels.
+///
+/// # Arguments
+///
+/// * `plan` - the plan to read.
+/// * `out_count` - set to how many there are.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success: none for a region with no relay parameters, such as
+/// EU433.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+///
+/// # Safety
+///
+/// `plan` must be a live plan handle and `out_count` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_plan_relay_channel_count(
+    plan: *const PamojaLoraPlan,
+    out_count: *mut u8,
+) -> PamojaStatus {
+    let (Some(plan), false) = (plan.as_ref(), out_count.is_null()) else {
+        set_last_error("plan and out_count must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    *out_count = plan.with(|plan| plan.relay_channels.len().min(usize::from(u8::MAX)) as u8);
+    PamojaStatus::Ok
+}
+
+/// Returns one of the plan's default relay channels, RP002-1.0.5 sections 3.4.9 to 3.13.9.
+///
+/// # Arguments
+///
+/// * `plan` - the plan to read.
+/// * `index` - the channel index a relay configuration names, below the count
+///   [`pamoja_lora_plan_relay_channel_count`] reports.
+/// * `out_channel` - set to the channel on success.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the index is past
+/// the end.
+///
+/// # Safety
+///
+/// `plan` must be a live plan handle and `out_channel` must point at writable storage for
+/// one [`PamojaLoraRelayChannel`].
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_plan_relay_channel(
+    plan: *const PamojaLoraPlan,
+    index: u8,
+    out_channel: *mut PamojaLoraRelayChannel,
+) -> PamojaStatus {
+    let (Some(plan), false) = (plan.as_ref(), out_channel.is_null()) else {
+        set_last_error("plan and out_channel must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let Some(channel) = plan.with(|plan| plan.relay_channel(index)) else {
+        set_last_error(format!("this plan has no relay channel {index}"));
+        return PamojaStatus::InvalidArgument;
+    };
+    *out_channel = PamojaLoraRelayChannel {
+        wor_frequency_hz: channel.wor_frequency_hz,
+        ack_frequency_hz: channel.ack_frequency_hz,
+        data_rate: channel.data_rate,
+    };
+    PamojaStatus::Ok
+}
+
 /// Returns one of the plan's sub-bands.
 ///
 /// # Arguments
@@ -2198,6 +2286,44 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_set_beacon(
     })
 }
 
+/// Appends the next default relay channel.
+///
+/// # Arguments
+///
+/// * `builder` - the builder to update.
+/// * `channel` - the channel, whose position is the index a relay configuration names.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success. A data rate that is not one of the plan's LoRa downlink
+/// rates is refused when the plan is built.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, and
+/// [`PamojaStatus::Closed`] if the builder was already built.
+///
+/// # Safety
+///
+/// `builder` must be a live builder handle and `channel` must point at one readable
+/// [`PamojaLoraRelayChannel`].
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_plan_builder_add_relay_channel(
+    builder: *mut PamojaLoraPlanBuilder,
+    channel: *const PamojaLoraRelayChannel,
+) -> PamojaStatus {
+    let (Some(builder), Some(channel)) = (builder.as_mut(), channel.as_ref()) else {
+        set_last_error("builder and channel must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let entry = RelayChannel::new(
+        channel.wor_frequency_hz,
+        channel.ack_frequency_hz,
+        channel.data_rate,
+    );
+    update(builder, |b| b.relay_channel(entry))
+}
+
 /// Sets whether the plan's network creates channels, and the numbering a dynamic plan reads
 /// a type 1 channel list against.
 ///
@@ -2573,6 +2699,15 @@ mod tests {
             pamoja_lora_plan_builder_set_power(builder, 30, 2, 7),
             PamojaStatus::Ok
         );
+        let relay = PamojaLoraRelayChannel {
+            wor_frequency_hz: 915_200_000,
+            ack_frequency_hz: 915_400_000,
+            data_rate: 1,
+        };
+        assert_eq!(
+            pamoja_lora_plan_builder_add_relay_channel(builder, &relay),
+            PamojaStatus::Ok
+        );
 
         let mut plan = ptr::null_mut();
         assert_eq!(
@@ -2619,6 +2754,35 @@ mod tests {
                 PamojaStatus::Ok
             );
             assert_eq!(permille, 10, "the 868.1 MHz sub-band is limited to 1%");
+
+            let mut count = 0u8;
+            assert_eq!(
+                pamoja_lora_plan_relay_channel_count(plan, &mut count),
+                PamojaStatus::Ok
+            );
+            assert_eq!(count, 2);
+            let mut channel = PamojaLoraRelayChannel {
+                wor_frequency_hz: 0,
+                ack_frequency_hz: 0,
+                data_rate: 0,
+            };
+            assert_eq!(
+                pamoja_lora_plan_relay_channel(plan, 1, &mut channel),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                (
+                    channel.wor_frequency_hz,
+                    channel.ack_frequency_hz,
+                    channel.data_rate
+                ),
+                (865_500_000, 865_900_000, 5),
+                "RP002-1.0.5 table 18"
+            );
+            assert_eq!(
+                pamoja_lora_plan_relay_channel(plan, 2, &mut channel),
+                PamojaStatus::InvalidArgument
+            );
 
             pamoja_lora_plan_free(plan);
         }

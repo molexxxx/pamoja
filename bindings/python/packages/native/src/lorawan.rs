@@ -82,6 +82,42 @@ pub struct LorawanSession {
     pub(crate) inner: CoreSession,
 }
 
+/// The integrity and encryption keys of one end device's wake-on-radio frames, TS011-1.0.1.
+#[gen_stub_pyclass]
+#[pyclass(from_py_object)]
+#[derive(Clone)]
+pub struct LorawanWorKeys {
+    /// `WorSIntKey`, 16 bytes.
+    #[pyo3(get)]
+    pub(crate) integrity: Vec<u8>,
+    /// `WorSEncKey`, 16 bytes.
+    #[pyo3(get)]
+    pub(crate) encryption: Vec<u8>,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl LorawanWorKeys {
+    /// Holds keys derived earlier, such as ones a relay keeps for an end device it trusts.
+    #[new]
+    fn new(integrity: Vec<u8>, encryption: Vec<u8>) -> PyResult<Self> {
+        key(&integrity, "integrity")?;
+        key(&encryption, "encryption")?;
+        Ok(Self {
+            integrity,
+            encryption,
+        })
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.integrity == other.integrity && self.encryption == other.encryption
+    }
+
+    fn __repr__(&self) -> String {
+        "LorawanWorKeys(..)".to_owned()
+    }
+}
+
 #[gen_stub_pymethods]
 #[pymethods]
 impl LorawanSession {
@@ -103,6 +139,21 @@ impl LorawanSession {
     #[getter]
     fn dev_addr(&self) -> u32 {
         self.inner.dev_addr()
+    }
+
+    /// The root relay session key a network sends a relay for this device, TS011-1.0.1
+    /// section 4.4.
+    fn root_wor_s_key<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.inner.root_wor_s_key())
+    }
+
+    /// The keys this device's wake-on-radio frames are protected with, section 4.5.
+    fn wor_keys(&self) -> LorawanWorKeys {
+        let keys = self.inner.wor_keys();
+        LorawanWorKeys {
+            integrity: keys.integrity().to_vec(),
+            encryption: keys.encryption().to_vec(),
+        }
     }
 
     /// Encodes an uplink, encrypting the payload and appending the MIC.
@@ -664,6 +715,120 @@ pub struct LorawanMacCommand {
     /// The fraction of that second, in steps of one part in 256.
     #[pyo3(get)]
     fraction: Option<u8>,
+    /// Whether a relay runs.
+    #[pyo3(get)]
+    enabled: Option<bool>,
+    /// How often a relay scans, as TS011-1.0.1 table 18 codes it.
+    #[pyo3(get)]
+    cad_periodicity: Option<u8>,
+    /// Which of the region's relay channels is a relay's default one.
+    #[pyo3(get)]
+    default_channel_index: Option<u8>,
+    /// Whether a relay configuration sets a second channel, 1 for yes.
+    #[pyo3(get)]
+    second_channel_index: Option<u8>,
+    /// The second channel's data rate; its frequency is the frequency field.
+    #[pyo3(get)]
+    second_channel_data_rate: Option<u8>,
+    /// How far above its frequency the second channel is acknowledged, as table 35 codes it.
+    #[pyo3(get)]
+    second_channel_ack_offset: Option<u8>,
+    /// Whether the scan period was valid.
+    #[pyo3(get)]
+    cad_periodicity_ack: Option<bool>,
+    /// Whether the default channel was valid.
+    #[pyo3(get)]
+    default_channel_index_ack: Option<bool>,
+    /// Whether the second channel index was valid.
+    #[pyo3(get)]
+    second_channel_index_ack: Option<bool>,
+    /// Whether the second channel's data rate was valid.
+    #[pyo3(get)]
+    second_channel_data_rate_ack: Option<bool>,
+    /// Whether its acknowledgment offset was valid.
+    #[pyo3(get)]
+    second_channel_ack_offset_ack: Option<bool>,
+    /// Whether its frequency was valid.
+    #[pyo3(get)]
+    second_channel_frequency_ack: Option<bool>,
+    /// How an end device uses a relay, as TS011-1.0.1 table 40 codes it.
+    #[pyo3(get)]
+    relay_mode: Option<u8>,
+    /// How many unanswered uplinks turn relaying on, as table 41 codes it.
+    #[pyo3(get)]
+    smart_enable_level: Option<u8>,
+    /// How many WOR frames without an acknowledgment before an uplink goes anyway.
+    #[pyo3(get)]
+    back_off: Option<u8>,
+    /// What a join filter rule does, or whether a trusted end device is read or removed.
+    #[pyo3(get)]
+    action: Option<u8>,
+    /// How many leading bytes of JoinEUI and DevEUI a join filter rule matches.
+    #[pyo3(get)]
+    eui_len: Option<u8>,
+    /// Those bytes, most significant first, with the rest zero.
+    #[pyo3(get)]
+    eui: Option<Vec<u8>>,
+    /// Whether a join filter rule was one to create, change or remove.
+    #[pyo3(get)]
+    combined_rules_ack: Option<bool>,
+    /// Whether its length was valid.
+    #[pyo3(get)]
+    eui_len_ack: Option<bool>,
+    /// Whether its action was valid.
+    #[pyo3(get)]
+    action_ack: Option<bool>,
+    /// Tokens a trusted end device earns an hour, 63 for no limit.
+    #[pyo3(get)]
+    reload_rate: Option<u8>,
+    /// Its bucket size multiplier, as TS011-1.0.1 table 55 codes it.
+    #[pyo3(get)]
+    bucket_size: Option<u8>,
+    /// An end device address a relay command names.
+    #[pyo3(get)]
+    dev_addr: Option<u32>,
+    /// A wake-on-radio frame counter.
+    #[pyo3(get)]
+    wfcnt: Option<u32>,
+    /// An end device's root relay session key.
+    #[pyo3(get)]
+    root_wor_s_key: Option<Vec<u8>>,
+    /// Whether a trusted list entry was in use.
+    #[pyo3(get)]
+    index_ack: Option<bool>,
+    /// What a forwarding limit command does to a relay's token counters, as table 63 codes it.
+    #[pyo3(get)]
+    reset_limit_counters: Option<u8>,
+    /// Join requests a relay forwards an hour, 127 for no limit.
+    #[pyo3(get)]
+    join_request_reload_rate: Option<u8>,
+    /// New end device notifications a relay sends an hour.
+    #[pyo3(get)]
+    notify_reload_rate: Option<u8>,
+    /// Uplinks a relay forwards an hour across every trusted end device.
+    #[pyo3(get)]
+    global_uplink_reload_rate: Option<u8>,
+    /// Every message a relay sends an hour.
+    #[pyo3(get)]
+    overall_reload_rate: Option<u8>,
+    /// The join request bucket size multiplier.
+    #[pyo3(get)]
+    join_request_bucket_size: Option<u8>,
+    /// The notification bucket size multiplier.
+    #[pyo3(get)]
+    notify_bucket_size: Option<u8>,
+    /// The global uplink bucket size multiplier.
+    #[pyo3(get)]
+    global_uplink_bucket_size: Option<u8>,
+    /// The overall bucket size multiplier.
+    #[pyo3(get)]
+    overall_bucket_size: Option<u8>,
+    /// The signal strength of a WOR frame a relay could not verify, in dBm.
+    #[pyo3(get)]
+    rssi_dbm: Option<i16>,
+    /// Its signal-to-noise ratio, in dB.
+    #[pyo3(get)]
+    snr_db: Option<i8>,
 }
 
 #[gen_stub_pymethods]
@@ -707,7 +872,45 @@ impl LorawanMacCommand {
         downlink_dwell = None,
         uplink_frequency_exists = None,
         seconds = None,
-        fraction = None
+        fraction = None,
+        enabled = None,
+        cad_periodicity = None,
+        default_channel_index = None,
+        second_channel_index = None,
+        second_channel_data_rate = None,
+        second_channel_ack_offset = None,
+        cad_periodicity_ack = None,
+        default_channel_index_ack = None,
+        second_channel_index_ack = None,
+        second_channel_data_rate_ack = None,
+        second_channel_ack_offset_ack = None,
+        second_channel_frequency_ack = None,
+        relay_mode = None,
+        smart_enable_level = None,
+        back_off = None,
+        action = None,
+        eui_len = None,
+        eui = None,
+        combined_rules_ack = None,
+        eui_len_ack = None,
+        action_ack = None,
+        reload_rate = None,
+        bucket_size = None,
+        dev_addr = None,
+        wfcnt = None,
+        root_wor_s_key = None,
+        index_ack = None,
+        reset_limit_counters = None,
+        join_request_reload_rate = None,
+        notify_reload_rate = None,
+        global_uplink_reload_rate = None,
+        overall_reload_rate = None,
+        join_request_bucket_size = None,
+        notify_bucket_size = None,
+        global_uplink_bucket_size = None,
+        overall_bucket_size = None,
+        rssi_dbm = None,
+        snr_db = None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -744,6 +947,44 @@ impl LorawanMacCommand {
         uplink_frequency_exists: Option<bool>,
         seconds: Option<u32>,
         fraction: Option<u8>,
+        enabled: Option<bool>,
+        cad_periodicity: Option<u8>,
+        default_channel_index: Option<u8>,
+        second_channel_index: Option<u8>,
+        second_channel_data_rate: Option<u8>,
+        second_channel_ack_offset: Option<u8>,
+        cad_periodicity_ack: Option<bool>,
+        default_channel_index_ack: Option<bool>,
+        second_channel_index_ack: Option<bool>,
+        second_channel_data_rate_ack: Option<bool>,
+        second_channel_ack_offset_ack: Option<bool>,
+        second_channel_frequency_ack: Option<bool>,
+        relay_mode: Option<u8>,
+        smart_enable_level: Option<u8>,
+        back_off: Option<u8>,
+        action: Option<u8>,
+        eui_len: Option<u8>,
+        eui: Option<Vec<u8>>,
+        combined_rules_ack: Option<bool>,
+        eui_len_ack: Option<bool>,
+        action_ack: Option<bool>,
+        reload_rate: Option<u8>,
+        bucket_size: Option<u8>,
+        dev_addr: Option<u32>,
+        wfcnt: Option<u32>,
+        root_wor_s_key: Option<Vec<u8>>,
+        index_ack: Option<bool>,
+        reset_limit_counters: Option<u8>,
+        join_request_reload_rate: Option<u8>,
+        notify_reload_rate: Option<u8>,
+        global_uplink_reload_rate: Option<u8>,
+        overall_reload_rate: Option<u8>,
+        join_request_bucket_size: Option<u8>,
+        notify_bucket_size: Option<u8>,
+        global_uplink_bucket_size: Option<u8>,
+        overall_bucket_size: Option<u8>,
+        rssi_dbm: Option<i16>,
+        snr_db: Option<i8>,
     ) -> LorawanMacCommand {
         LorawanMacCommand {
             kind: String::new(),
@@ -780,6 +1021,44 @@ impl LorawanMacCommand {
             uplink_frequency_exists,
             seconds,
             fraction,
+            enabled,
+            cad_periodicity,
+            default_channel_index,
+            second_channel_index,
+            second_channel_data_rate,
+            second_channel_ack_offset,
+            cad_periodicity_ack,
+            default_channel_index_ack,
+            second_channel_index_ack,
+            second_channel_data_rate_ack,
+            second_channel_ack_offset_ack,
+            second_channel_frequency_ack,
+            relay_mode,
+            smart_enable_level,
+            back_off,
+            action,
+            eui_len,
+            eui,
+            combined_rules_ack,
+            eui_len_ack,
+            action_ack,
+            reload_rate,
+            bucket_size,
+            dev_addr,
+            wfcnt,
+            root_wor_s_key,
+            index_ack,
+            reset_limit_counters,
+            join_request_reload_rate,
+            notify_reload_rate,
+            global_uplink_reload_rate,
+            overall_reload_rate,
+            join_request_bucket_size,
+            notify_bucket_size,
+            global_uplink_bucket_size,
+            overall_bucket_size,
+            rssi_dbm,
+            snr_db,
         }
     }
 
@@ -842,6 +1121,44 @@ fn blank_mac(kind: &str, command: &MacCommand) -> LorawanMacCommand {
         uplink_frequency_exists: None,
         seconds: None,
         fraction: None,
+        enabled: None,
+        cad_periodicity: None,
+        default_channel_index: None,
+        second_channel_index: None,
+        second_channel_data_rate: None,
+        second_channel_ack_offset: None,
+        cad_periodicity_ack: None,
+        default_channel_index_ack: None,
+        second_channel_index_ack: None,
+        second_channel_data_rate_ack: None,
+        second_channel_ack_offset_ack: None,
+        second_channel_frequency_ack: None,
+        relay_mode: None,
+        smart_enable_level: None,
+        back_off: None,
+        action: None,
+        eui_len: None,
+        eui: None,
+        combined_rules_ack: None,
+        eui_len_ack: None,
+        action_ack: None,
+        reload_rate: None,
+        bucket_size: None,
+        dev_addr: None,
+        wfcnt: None,
+        root_wor_s_key: None,
+        index_ack: None,
+        reset_limit_counters: None,
+        join_request_reload_rate: None,
+        notify_reload_rate: None,
+        global_uplink_reload_rate: None,
+        overall_reload_rate: None,
+        join_request_bucket_size: None,
+        notify_bucket_size: None,
+        global_uplink_bucket_size: None,
+        overall_bucket_size: None,
+        rssi_dbm: None,
+        snr_db: None,
     }
 }
 
@@ -980,6 +1297,172 @@ fn describe_mac(command: MacCommand) -> LorawanMacCommand {
             out.fraction = Some(fraction);
             out
         }
+        MacCommand::RelayConfReq {
+            enabled,
+            cad_periodicity,
+            default_channel_index,
+            second_channel_index,
+            second_channel_data_rate,
+            second_channel_ack_offset,
+            second_channel_frequency_hz,
+        } => {
+            let mut out = blank_mac("relay_conf_req", &command);
+            out.enabled = Some(enabled);
+            out.cad_periodicity = Some(cad_periodicity);
+            out.default_channel_index = Some(default_channel_index);
+            out.second_channel_index = Some(second_channel_index);
+            out.second_channel_data_rate = Some(second_channel_data_rate);
+            out.second_channel_ack_offset = Some(second_channel_ack_offset);
+            out.frequency_hz = Some(second_channel_frequency_hz);
+            out
+        }
+        MacCommand::RelayConfAns {
+            cad_periodicity_ack,
+            default_channel_index_ack,
+            second_channel_index_ack,
+            second_channel_data_rate_ack,
+            second_channel_ack_offset_ack,
+            second_channel_frequency_ack,
+        } => {
+            let mut out = blank_mac("relay_conf_ans", &command);
+            out.cad_periodicity_ack = Some(cad_periodicity_ack);
+            out.default_channel_index_ack = Some(default_channel_index_ack);
+            out.second_channel_index_ack = Some(second_channel_index_ack);
+            out.second_channel_data_rate_ack = Some(second_channel_data_rate_ack);
+            out.second_channel_ack_offset_ack = Some(second_channel_ack_offset_ack);
+            out.second_channel_frequency_ack = Some(second_channel_frequency_ack);
+            out
+        }
+        MacCommand::EndDeviceConfReq {
+            relay_mode,
+            smart_enable_level,
+            back_off,
+            second_channel_index,
+            second_channel_data_rate,
+            second_channel_ack_offset,
+            second_channel_frequency_hz,
+        } => {
+            let mut out = blank_mac("end_device_conf_req", &command);
+            out.relay_mode = Some(relay_mode);
+            out.smart_enable_level = Some(smart_enable_level);
+            out.back_off = Some(back_off);
+            out.second_channel_index = Some(second_channel_index);
+            out.second_channel_data_rate = Some(second_channel_data_rate);
+            out.second_channel_ack_offset = Some(second_channel_ack_offset);
+            out.frequency_hz = Some(second_channel_frequency_hz);
+            out
+        }
+        MacCommand::EndDeviceConfAns {
+            second_channel_ack_offset_ack,
+            second_channel_index_ack,
+            second_channel_data_rate_ack,
+            second_channel_frequency_ack,
+        } => {
+            let mut out = blank_mac("end_device_conf_ans", &command);
+            out.second_channel_ack_offset_ack = Some(second_channel_ack_offset_ack);
+            out.second_channel_index_ack = Some(second_channel_index_ack);
+            out.second_channel_data_rate_ack = Some(second_channel_data_rate_ack);
+            out.second_channel_frequency_ack = Some(second_channel_frequency_ack);
+            out
+        }
+        MacCommand::FilterListReq {
+            index,
+            action,
+            eui_len,
+            eui,
+        } => {
+            let mut out = blank_mac("filter_list_req", &command);
+            out.index = Some(index);
+            out.action = Some(action);
+            out.eui_len = Some(eui_len);
+            out.eui = Some(eui.to_vec());
+            out
+        }
+        MacCommand::FilterListAns {
+            combined_rules_ack,
+            eui_len_ack,
+            action_ack,
+        } => {
+            let mut out = blank_mac("filter_list_ans", &command);
+            out.combined_rules_ack = Some(combined_rules_ack);
+            out.eui_len_ack = Some(eui_len_ack);
+            out.action_ack = Some(action_ack);
+            out
+        }
+        MacCommand::UpdateUplinkListReq {
+            index,
+            reload_rate,
+            bucket_size,
+            dev_addr,
+            wfcnt,
+            root_wor_s_key,
+        } => {
+            let mut out = blank_mac("update_uplink_list_req", &command);
+            out.index = Some(index);
+            out.reload_rate = Some(reload_rate);
+            out.bucket_size = Some(bucket_size);
+            out.dev_addr = Some(dev_addr);
+            out.wfcnt = Some(wfcnt);
+            out.root_wor_s_key = Some(root_wor_s_key.to_vec());
+            out
+        }
+        MacCommand::UpdateUplinkListAns => blank_mac("update_uplink_list_ans", &command),
+        MacCommand::CtrlUplinkListReq { index, action } => {
+            let mut out = blank_mac("ctrl_uplink_list_req", &command);
+            out.index = Some(index);
+            out.action = Some(action);
+            out
+        }
+        MacCommand::CtrlUplinkListAns { index_ack, wfcnt } => {
+            let mut out = blank_mac("ctrl_uplink_list_ans", &command);
+            out.index_ack = Some(index_ack);
+            out.wfcnt = Some(wfcnt);
+            out
+        }
+        MacCommand::ConfigureFwdLimitReq {
+            reset_limit_counters,
+            join_request_reload_rate,
+            notify_reload_rate,
+            global_uplink_reload_rate,
+            overall_reload_rate,
+            join_request_bucket_size,
+            notify_bucket_size,
+            global_uplink_bucket_size,
+            overall_bucket_size,
+        } => {
+            let mut out = blank_mac("configure_fwd_limit_req", &command);
+            out.reset_limit_counters = Some(reset_limit_counters);
+            out.join_request_reload_rate = Some(join_request_reload_rate);
+            out.notify_reload_rate = Some(notify_reload_rate);
+            out.global_uplink_reload_rate = Some(global_uplink_reload_rate);
+            out.overall_reload_rate = Some(overall_reload_rate);
+            out.join_request_bucket_size = Some(join_request_bucket_size);
+            out.notify_bucket_size = Some(notify_bucket_size);
+            out.global_uplink_bucket_size = Some(global_uplink_bucket_size);
+            out.overall_bucket_size = Some(overall_bucket_size);
+            out
+        }
+        MacCommand::ConfigureFwdLimitAns => blank_mac("configure_fwd_limit_ans", &command),
+        MacCommand::NotifyNewEndDeviceReq {
+            dev_addr,
+            rssi_dbm,
+            snr_db,
+        } => {
+            let mut out = blank_mac("notify_new_end_device_req", &command);
+            out.dev_addr = Some(dev_addr);
+            out.rssi_dbm = Some(rssi_dbm);
+            out.snr_db = Some(snr_db);
+            out
+        }
+    }
+}
+
+// Sixteen bytes of a relay command, a filter prefix or a key, zero when absent.
+fn sixteen(bytes: Option<&[u8]>, name: &str) -> PyResult<[u8; 16]> {
+    match bytes {
+        None => Ok([0; 16]),
+        Some(bytes) => <[u8; 16]>::try_from(bytes)
+            .map_err(|_| PamojaError::new_err(format!("{name} must be exactly 16 bytes"))),
     }
 }
 
@@ -1059,6 +1542,83 @@ fn rebuild_command(command: &LorawanMacCommand) -> PyResult<MacCommand> {
         (mac::CID_DEVICE_TIME, true) => MacCommand::DeviceTimeAns {
             seconds: command.seconds.unwrap_or(0),
             fraction: byte(command.fraction),
+        },
+        (mac::CID_RELAY_CONF, true) => MacCommand::RelayConfReq {
+            enabled: flag(command.enabled),
+            cad_periodicity: byte(command.cad_periodicity),
+            default_channel_index: byte(command.default_channel_index),
+            second_channel_index: byte(command.second_channel_index),
+            second_channel_data_rate: byte(command.second_channel_data_rate),
+            second_channel_ack_offset: byte(command.second_channel_ack_offset),
+            second_channel_frequency_hz: command.frequency_hz.unwrap_or(0),
+        },
+        (mac::CID_RELAY_CONF, false) => MacCommand::RelayConfAns {
+            cad_periodicity_ack: flag(command.cad_periodicity_ack),
+            default_channel_index_ack: flag(command.default_channel_index_ack),
+            second_channel_index_ack: flag(command.second_channel_index_ack),
+            second_channel_data_rate_ack: flag(command.second_channel_data_rate_ack),
+            second_channel_ack_offset_ack: flag(command.second_channel_ack_offset_ack),
+            second_channel_frequency_ack: flag(command.second_channel_frequency_ack),
+        },
+        (mac::CID_END_DEVICE_CONF, true) => MacCommand::EndDeviceConfReq {
+            relay_mode: byte(command.relay_mode),
+            smart_enable_level: byte(command.smart_enable_level),
+            back_off: byte(command.back_off),
+            second_channel_index: byte(command.second_channel_index),
+            second_channel_data_rate: byte(command.second_channel_data_rate),
+            second_channel_ack_offset: byte(command.second_channel_ack_offset),
+            second_channel_frequency_hz: command.frequency_hz.unwrap_or(0),
+        },
+        (mac::CID_END_DEVICE_CONF, false) => MacCommand::EndDeviceConfAns {
+            second_channel_ack_offset_ack: flag(command.second_channel_ack_offset_ack),
+            second_channel_index_ack: flag(command.second_channel_index_ack),
+            second_channel_data_rate_ack: flag(command.second_channel_data_rate_ack),
+            second_channel_frequency_ack: flag(command.second_channel_frequency_ack),
+        },
+        (mac::CID_FILTER_LIST, true) => MacCommand::FilterListReq {
+            index: byte(command.index),
+            action: byte(command.action),
+            eui_len: byte(command.eui_len),
+            eui: sixteen(command.eui.as_deref(), "eui")?,
+        },
+        (mac::CID_FILTER_LIST, false) => MacCommand::FilterListAns {
+            combined_rules_ack: flag(command.combined_rules_ack),
+            eui_len_ack: flag(command.eui_len_ack),
+            action_ack: flag(command.action_ack),
+        },
+        (mac::CID_UPDATE_UPLINK_LIST, true) => MacCommand::UpdateUplinkListReq {
+            index: byte(command.index),
+            reload_rate: byte(command.reload_rate),
+            bucket_size: byte(command.bucket_size),
+            dev_addr: command.dev_addr.unwrap_or(0),
+            wfcnt: command.wfcnt.unwrap_or(0),
+            root_wor_s_key: sixteen(command.root_wor_s_key.as_deref(), "root_wor_s_key")?,
+        },
+        (mac::CID_UPDATE_UPLINK_LIST, false) => MacCommand::UpdateUplinkListAns,
+        (mac::CID_CTRL_UPLINK_LIST, true) => MacCommand::CtrlUplinkListReq {
+            index: byte(command.index),
+            action: byte(command.action),
+        },
+        (mac::CID_CTRL_UPLINK_LIST, false) => MacCommand::CtrlUplinkListAns {
+            index_ack: flag(command.index_ack),
+            wfcnt: command.wfcnt.unwrap_or(0),
+        },
+        (mac::CID_CONFIGURE_FWD_LIMIT, true) => MacCommand::ConfigureFwdLimitReq {
+            reset_limit_counters: byte(command.reset_limit_counters),
+            join_request_reload_rate: byte(command.join_request_reload_rate),
+            notify_reload_rate: byte(command.notify_reload_rate),
+            global_uplink_reload_rate: byte(command.global_uplink_reload_rate),
+            overall_reload_rate: byte(command.overall_reload_rate),
+            join_request_bucket_size: byte(command.join_request_bucket_size),
+            notify_bucket_size: byte(command.notify_bucket_size),
+            global_uplink_bucket_size: byte(command.global_uplink_bucket_size),
+            overall_bucket_size: byte(command.overall_bucket_size),
+        },
+        (mac::CID_CONFIGURE_FWD_LIMIT, false) => MacCommand::ConfigureFwdLimitAns,
+        (mac::CID_NOTIFY_NEW_END_DEVICE, false) => MacCommand::NotifyNewEndDeviceReq {
+            dev_addr: command.dev_addr.unwrap_or(0),
+            rssi_dbm: command.rssi_dbm.unwrap_or(0),
+            snr_db: command.snr_db.unwrap_or(0),
         },
         _ => {
             return Err(PamojaError::new_err(format!(

@@ -17,8 +17,11 @@
 //!   unreadable. [`MacCommands`] stops there rather than guessing, and leaves the rest in
 //!   [`remaining`](MacCommands::remaining) so a caller can see what was not read.
 //!
-//! Every layout here is from the LoRaWAN 1.0.3 specification, section 5, and multi-byte
-//! fields go out low byte first as the rest of the protocol does.
+//! Every layout here is from the LoRaWAN 1.0.3 specification, section 5, and the relay
+//! commands from TS011-1.0.1 section 10. Multi-byte fields go out low byte first as the rest
+//! of the protocol does.
+
+use pamoja_lora::region::RelayChannel;
 
 use crate::{Direction, LorawanError};
 
@@ -27,8 +30,12 @@ use crate::{Direction, LorawanError};
 /// Past this they have to go in a payload of their own, on port zero.
 pub const FOPTS_MAX: usize = 15;
 
-/// The longest single command, which is the one that creates a channel.
-pub const MAX_COMMAND: usize = 6;
+/// The longest single command, which is the one that adds an end device to a relay's
+/// trusted list.
+pub const MAX_COMMAND: usize = 27;
+
+/// The longest join filter a relay rule carries: a JoinEUI and a DevEUI.
+pub const FILTER_EUI_MAX: usize = 16;
 
 /// Checks the link, and asks how well it was heard.
 pub const CID_LINK_CHECK: u8 = 0x02;
@@ -59,6 +66,28 @@ pub const CID_DL_CHANNEL: u8 = 0x0a;
 
 /// Asks the network what time it is.
 pub const CID_DEVICE_TIME: u8 = 0x0d;
+
+/// Configures a relay's wake-on-radio channels, TS011-1.0.1 section 10.1.
+pub const CID_RELAY_CONF: u8 = 0x40;
+
+/// Configures how an end device uses a relay, TS011-1.0.1 section 10.2.
+pub const CID_END_DEVICE_CONF: u8 = 0x41;
+
+/// Sets a rule of a relay's join request filter, TS011-1.0.1 section 10.3.
+pub const CID_FILTER_LIST: u8 = 0x42;
+
+/// Adds an end device to a relay's trusted list, TS011-1.0.1 section 10.4.
+pub const CID_UPDATE_UPLINK_LIST: u8 = 0x43;
+
+/// Reads or removes an end device of a relay's trusted list, TS011-1.0.1 section 10.5.
+pub const CID_CTRL_UPLINK_LIST: u8 = 0x44;
+
+/// Sets a relay's forwarding limits, TS011-1.0.1 section 10.6.
+pub const CID_CONFIGURE_FWD_LIMIT: u8 = 0x45;
+
+/// A relay telling the network of an end device it could not verify, TS011-1.0.1
+/// section 10.7.
+pub const CID_NOTIFY_NEW_END_DEVICE: u8 = 0x46;
 
 /// The transmit powers the dwell time command can name, in dBm, by their coded value.
 ///
@@ -286,6 +315,209 @@ pub enum MacCommand {
         /// The fraction of that second, in steps of one part in 256.
         fraction: u8,
     },
+    /// Start or stop a relay, and set the channels it scans.
+    RelayConfReq {
+        /// Whether the relay runs. With it stopped, every other field is ignored.
+        enabled: bool,
+        /// How often the relay scans its default channel, as TS011-1.0.1 table 18 codes it.
+        cad_periodicity: u8,
+        /// Which of the region's relay channels is the default one, 0 or 1.
+        default_channel_index: u8,
+        /// Whether a second channel is set, as table 34 codes it: 0 for none, 1 for the one
+        /// the next fields describe.
+        second_channel_index: u8,
+        /// The second channel's data rate.
+        second_channel_data_rate: u8,
+        /// How far above its frequency the second channel is acknowledged, as table 35
+        /// codes it.
+        second_channel_ack_offset: u8,
+        /// The second channel's frequency in hertz.
+        second_channel_frequency_hz: u32,
+    },
+    /// Which parts of the relay configuration were valid.
+    RelayConfAns {
+        /// Whether the scan period was.
+        cad_periodicity_ack: bool,
+        /// Whether the default channel was.
+        default_channel_index_ack: bool,
+        /// Whether the second channel index was.
+        second_channel_index_ack: bool,
+        /// Whether the second channel's data rate was.
+        second_channel_data_rate_ack: bool,
+        /// Whether its acknowledgment offset was.
+        second_channel_ack_offset_ack: bool,
+        /// Whether its frequency was.
+        second_channel_frequency_ack: bool,
+    },
+    /// Set how an end device uses a relay.
+    EndDeviceConfReq {
+        /// Whether relaying is off (0), on (1), turned on after uplinks go unanswered (2), or
+        /// left to the device (3), TS011-1.0.1 table 40.
+        relay_mode: u8,
+        /// How many unanswered uplinks turn relaying on in mode 2, as table 41 codes it.
+        smart_enable_level: u8,
+        /// How many wake-on-radio frames without an acknowledgment before the uplink goes
+        /// anyway, 0 meaning every time, table 43.
+        back_off: u8,
+        /// Whether a second channel is set, 0 for none and 1 for the one described.
+        second_channel_index: u8,
+        /// The second channel's data rate.
+        second_channel_data_rate: u8,
+        /// How far above its frequency the second channel is acknowledged, table 35.
+        second_channel_ack_offset: u8,
+        /// The second channel's frequency in hertz.
+        second_channel_frequency_hz: u32,
+    },
+    /// Which parts of the end device configuration were valid, TS011-1.0.1 table 45.
+    EndDeviceConfAns {
+        /// Whether the second channel's acknowledgment offset was.
+        second_channel_ack_offset_ack: bool,
+        /// Whether the second channel index was.
+        second_channel_index_ack: bool,
+        /// Whether its data rate was.
+        second_channel_data_rate_ack: bool,
+        /// Whether its frequency was.
+        second_channel_frequency_ack: bool,
+    },
+    /// Set one rule of a relay's join request filter.
+    FilterListReq {
+        /// The rule, 0 being the action when no other rule matches.
+        index: u8,
+        /// No rule (0), forward (1) or filter (2), TS011-1.0.1 table 48.
+        action: u8,
+        /// How many leading bytes of JoinEUI and DevEUI the rule matches. A length past
+        /// [`FILTER_EUI_MAX`] is kept, so a relay can refuse it, but not its bytes past the
+        /// sixteenth.
+        eui_len: u8,
+        /// The leading bytes of JoinEUI then DevEUI, most significant first, as an EUI is
+        /// written.
+        eui: [u8; FILTER_EUI_MAX],
+    },
+    /// Which parts of the filter rule were valid.
+    FilterListAns {
+        /// Whether the fields together made a rule to create, change or remove.
+        combined_rules_ack: bool,
+        /// Whether the length was.
+        eui_len_ack: bool,
+        /// Whether the action was.
+        action_ack: bool,
+    },
+    /// Trust an end device, so a relay verifies its wake-on-radio frames and forwards it.
+    UpdateUplinkListReq {
+        /// The entry of the trusted list, 0 to 15.
+        index: u8,
+        /// Tokens earned an hour, 63 meaning no limit, TS011-1.0.1 table 54.
+        reload_rate: u8,
+        /// The bucket size multiplier, as table 55 codes it.
+        bucket_size: u8,
+        /// The end device's address.
+        dev_addr: u32,
+        /// The next wake-on-radio frame counter the network expects from it.
+        wfcnt: u32,
+        /// The root relay session key the device's wake-on-radio keys come from.
+        root_wor_s_key: [u8; 16],
+    },
+    /// The relay took it.
+    UpdateUplinkListAns,
+    /// Read the counter of a trusted end device, or remove it.
+    CtrlUplinkListReq {
+        /// The entry of the trusted list.
+        index: u8,
+        /// Read (0) or remove (1), TS011-1.0.1 table 58.
+        action: u8,
+    },
+    /// The entry's last valid counter.
+    CtrlUplinkListAns {
+        /// Whether the entry was in use.
+        index_ack: bool,
+        /// The last wake-on-radio frame counter the relay accepted from it.
+        wfcnt: u32,
+    },
+    /// Set a relay's forwarding limits, TS011-1.0.1 section 10.6.
+    ConfigureFwdLimitReq {
+        /// What happens to the token counters, as table 63 codes it.
+        reset_limit_counters: u8,
+        /// Join requests forwarded an hour, 127 meaning no limit.
+        join_request_reload_rate: u8,
+        /// New end device notifications an hour.
+        notify_reload_rate: u8,
+        /// Uplinks forwarded an hour across every trusted end device.
+        global_uplink_reload_rate: u8,
+        /// Every message the relay sends an hour.
+        overall_reload_rate: u8,
+        /// The join request bucket size multiplier, table 55.
+        join_request_bucket_size: u8,
+        /// The notification bucket size multiplier.
+        notify_bucket_size: u8,
+        /// The global uplink bucket size multiplier.
+        global_uplink_bucket_size: u8,
+        /// The overall bucket size multiplier.
+        overall_bucket_size: u8,
+    },
+    /// The relay took it.
+    ConfigureFwdLimitAns,
+    /// A relay heard a wake-on-radio frame it could not verify.
+    NotifyNewEndDeviceReq {
+        /// The address the frame named.
+        dev_addr: u32,
+        /// The frame's signal strength in dBm, carried from -142 to -15.
+        rssi_dbm: i16,
+        /// Its signal-to-noise ratio in dB, carried from -20 to 11.
+        snr_db: i8,
+    },
+}
+
+/// The frequency offsets a relay's second channel can be acknowledged at, TS011-1.0.1
+/// table 35, by their coded value.
+pub const RELAY_ACK_OFFSET_HZ: [u32; 6] = [0, 200_000, 400_000, 800_000, 1_600_000, 3_200_000];
+
+/// What a coded bucket size multiplies a reload rate by, TS011-1.0.1 table 55.
+pub const RELAY_BUCKET_MULTIPLIER: [u16; 4] = [1, 2, 4, 12];
+
+/// The second channel a relay configuration describes, where it names one.
+///
+/// # Arguments
+///
+/// * `second_channel_index` - the coded index, 1 for a second channel.
+/// * `data_rate` - its data rate.
+/// * `ack_offset` - the coded acknowledgment offset.
+/// * `frequency_hz` - its frequency.
+///
+/// # Returns
+///
+/// The channel, with the acknowledgment frequency worked out, or `None` when the index or
+/// offset is not one TS011-1.0.1 defines.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_lora::region::RelayChannel;
+/// use pamoja_lorawan::mac::relay_second_channel;
+///
+/// assert_eq!(
+///     relay_second_channel(1, 3, 1, 868_100_000),
+///     Some(RelayChannel::new(868_100_000, 868_300_000, 3)),
+///     "offset 1 is 200 kHz"
+/// );
+/// assert_eq!(relay_second_channel(0, 3, 1, 868_100_000), None, "no second channel");
+/// assert_eq!(relay_second_channel(1, 3, 6, 868_100_000), None, "offset 6 is reserved");
+/// ```
+#[must_use]
+pub fn relay_second_channel(
+    second_channel_index: u8,
+    data_rate: u8,
+    ack_offset: u8,
+    frequency_hz: u32,
+) -> Option<RelayChannel> {
+    if second_channel_index != 1 {
+        return None;
+    }
+    let offset = *RELAY_ACK_OFFSET_HZ.get(usize::from(ack_offset))?;
+    Some(RelayChannel::new(
+        frequency_hz,
+        frequency_hz.checked_add(offset)?,
+        data_rate,
+    ))
 }
 
 impl MacCommand {
@@ -324,6 +556,21 @@ impl MacCommand {
             MacCommand::TxParamSetupReq { .. } | MacCommand::TxParamSetupAns => CID_TX_PARAM_SETUP,
             MacCommand::DlChannelReq { .. } | MacCommand::DlChannelAns { .. } => CID_DL_CHANNEL,
             MacCommand::DeviceTimeReq | MacCommand::DeviceTimeAns { .. } => CID_DEVICE_TIME,
+            MacCommand::RelayConfReq { .. } | MacCommand::RelayConfAns { .. } => CID_RELAY_CONF,
+            MacCommand::EndDeviceConfReq { .. } | MacCommand::EndDeviceConfAns { .. } => {
+                CID_END_DEVICE_CONF
+            }
+            MacCommand::FilterListReq { .. } | MacCommand::FilterListAns { .. } => CID_FILTER_LIST,
+            MacCommand::UpdateUplinkListReq { .. } | MacCommand::UpdateUplinkListAns => {
+                CID_UPDATE_UPLINK_LIST
+            }
+            MacCommand::CtrlUplinkListReq { .. } | MacCommand::CtrlUplinkListAns { .. } => {
+                CID_CTRL_UPLINK_LIST
+            }
+            MacCommand::ConfigureFwdLimitReq { .. } | MacCommand::ConfigureFwdLimitAns => {
+                CID_CONFIGURE_FWD_LIMIT
+            }
+            MacCommand::NotifyNewEndDeviceReq { .. } => CID_NOTIFY_NEW_END_DEVICE,
         }
     }
 
@@ -354,7 +601,14 @@ impl MacCommand {
             | MacCommand::RxTimingSetupAns
             | MacCommand::TxParamSetupAns
             | MacCommand::DlChannelAns { .. }
-            | MacCommand::DeviceTimeReq => Direction::Uplink,
+            | MacCommand::DeviceTimeReq
+            | MacCommand::RelayConfAns { .. }
+            | MacCommand::EndDeviceConfAns { .. }
+            | MacCommand::FilterListAns { .. }
+            | MacCommand::UpdateUplinkListAns
+            | MacCommand::CtrlUplinkListAns { .. }
+            | MacCommand::ConfigureFwdLimitAns
+            | MacCommand::NotifyNewEndDeviceReq { .. } => Direction::Uplink,
             _ => Direction::Downlink,
         }
     }
@@ -381,8 +635,14 @@ impl MacCommand {
             | MacCommand::DevStatusReq
             | MacCommand::RxTimingSetupAns
             | MacCommand::TxParamSetupAns
-            | MacCommand::DeviceTimeReq => 0,
+            | MacCommand::DeviceTimeReq
+            | MacCommand::UpdateUplinkListAns
+            | MacCommand::ConfigureFwdLimitAns => 0,
             MacCommand::LinkAdrAns { .. }
+            | MacCommand::RelayConfAns { .. }
+            | MacCommand::EndDeviceConfAns { .. }
+            | MacCommand::FilterListAns { .. }
+            | MacCommand::CtrlUplinkListReq { .. }
             | MacCommand::DutyCycleReq { .. }
             | MacCommand::RxParamSetupAns { .. }
             | MacCommand::NewChannelAns { .. }
@@ -393,7 +653,14 @@ impl MacCommand {
             MacCommand::LinkAdrReq { .. }
             | MacCommand::RxParamSetupReq { .. }
             | MacCommand::DlChannelReq { .. } => 4,
-            MacCommand::NewChannelReq { .. } | MacCommand::DeviceTimeAns { .. } => 5,
+            MacCommand::NewChannelReq { .. }
+            | MacCommand::DeviceTimeAns { .. }
+            | MacCommand::RelayConfReq { .. }
+            | MacCommand::CtrlUplinkListAns { .. }
+            | MacCommand::ConfigureFwdLimitReq { .. } => 5,
+            MacCommand::EndDeviceConfReq { .. } | MacCommand::NotifyNewEndDeviceReq { .. } => 6,
+            MacCommand::FilterListReq { eui_len, .. } => 2 + *eui_len as usize,
+            MacCommand::UpdateUplinkListReq { .. } => 26,
         }
     }
 
@@ -421,7 +688,8 @@ impl MacCommand {
     ///
     /// [`LorawanError::PayloadTooLong`] when `out` is shorter than the command, and
     /// [`LorawanError::MalformedFrame`] for a frequency the field cannot hold, which is one
-    /// above 1.67 GHz or one that is not a whole number of hundreds of hertz.
+    /// above 1.67 GHz or one that is not a whole number of hundreds of hertz, and for a join
+    /// filter longer than [`FILTER_EUI_MAX`] bytes.
     ///
     /// # Examples
     ///
@@ -434,6 +702,11 @@ impl MacCommand {
     /// assert_eq!(&out[..3], &[0x02, 20, 3]);
     /// ```
     pub fn encode(&self, out: &mut [u8]) -> Result<usize, LorawanError> {
+        if let MacCommand::FilterListReq { eui_len, .. } = *self {
+            if usize::from(eui_len) > FILTER_EUI_MAX {
+                return Err(LorawanError::MalformedFrame);
+            }
+        }
         let len = self.len();
         if out.len() < len {
             return Err(LorawanError::PayloadTooLong);
@@ -446,10 +719,153 @@ impl MacCommand {
             | MacCommand::DevStatusReq
             | MacCommand::RxTimingSetupAns
             | MacCommand::TxParamSetupAns
-            | MacCommand::DeviceTimeReq => {}
+            | MacCommand::DeviceTimeReq
+            | MacCommand::UpdateUplinkListAns
+            | MacCommand::ConfigureFwdLimitAns => {}
             MacCommand::LinkCheckAns { margin, gateways } => {
                 out[1] = margin;
                 out[2] = gateways;
+            }
+            MacCommand::RelayConfReq {
+                enabled,
+                cad_periodicity,
+                default_channel_index,
+                second_channel_index,
+                second_channel_data_rate,
+                second_channel_ack_offset,
+                second_channel_frequency_hz,
+            } => {
+                let settings = (u16::from(enabled) << 13)
+                    | (u16::from(cad_periodicity & 0x07) << 10)
+                    | (u16::from(default_channel_index & 0x01) << 9)
+                    | second_channel_bits(
+                        second_channel_index,
+                        second_channel_data_rate,
+                        second_channel_ack_offset,
+                    );
+                out[1..3].copy_from_slice(&settings.to_le_bytes());
+                write_frequency(second_channel_frequency_hz, &mut out[3..6])?;
+            }
+            MacCommand::RelayConfAns {
+                cad_periodicity_ack,
+                default_channel_index_ack,
+                second_channel_index_ack,
+                second_channel_data_rate_ack,
+                second_channel_ack_offset_ack,
+                second_channel_frequency_ack,
+            } => {
+                out[1] = (u8::from(cad_periodicity_ack) << 5)
+                    | (u8::from(default_channel_index_ack) << 4)
+                    | (u8::from(second_channel_index_ack) << 3)
+                    | (u8::from(second_channel_data_rate_ack) << 2)
+                    | (u8::from(second_channel_ack_offset_ack) << 1)
+                    | u8::from(second_channel_frequency_ack);
+            }
+            MacCommand::EndDeviceConfReq {
+                relay_mode,
+                smart_enable_level,
+                back_off,
+                second_channel_index,
+                second_channel_data_rate,
+                second_channel_ack_offset,
+                second_channel_frequency_hz,
+            } => {
+                out[1] = ((relay_mode & 0x03) << 2) | (smart_enable_level & 0x03);
+                let settings = (u16::from(back_off & 0x3f) << 9)
+                    | second_channel_bits(
+                        second_channel_index,
+                        second_channel_data_rate,
+                        second_channel_ack_offset,
+                    );
+                out[2..4].copy_from_slice(&settings.to_le_bytes());
+                write_frequency(second_channel_frequency_hz, &mut out[4..7])?;
+            }
+            MacCommand::EndDeviceConfAns {
+                second_channel_ack_offset_ack,
+                second_channel_index_ack,
+                second_channel_data_rate_ack,
+                second_channel_frequency_ack,
+            } => {
+                out[1] = (u8::from(second_channel_ack_offset_ack) << 3)
+                    | (u8::from(second_channel_index_ack) << 2)
+                    | (u8::from(second_channel_data_rate_ack) << 1)
+                    | u8::from(second_channel_frequency_ack);
+            }
+            MacCommand::FilterListReq {
+                index,
+                action,
+                eui_len,
+                eui,
+            } => {
+                let param = (u16::from(index & 0x0f) << 7)
+                    | (u16::from(action & 0x03) << 5)
+                    | u16::from(eui_len & 0x1f);
+                out[1..3].copy_from_slice(&param.to_le_bytes());
+                let len = usize::from(eui_len);
+                for (at, byte) in eui[..len].iter().rev().enumerate() {
+                    out[3 + at] = *byte;
+                }
+            }
+            MacCommand::FilterListAns {
+                combined_rules_ack,
+                eui_len_ack,
+                action_ack,
+            } => {
+                out[1] = (u8::from(combined_rules_ack) << 2)
+                    | (u8::from(eui_len_ack) << 1)
+                    | u8::from(action_ack);
+            }
+            MacCommand::UpdateUplinkListReq {
+                index,
+                reload_rate,
+                bucket_size,
+                dev_addr,
+                wfcnt,
+                root_wor_s_key,
+            } => {
+                out[1] = index & 0x0f;
+                out[2] = ((bucket_size & 0x03) << 6) | (reload_rate & 0x3f);
+                out[3..7].copy_from_slice(&dev_addr.to_le_bytes());
+                out[7..11].copy_from_slice(&wfcnt.to_le_bytes());
+                out[11..27].copy_from_slice(&root_wor_s_key);
+            }
+            MacCommand::CtrlUplinkListReq { index, action } => {
+                out[1] = ((action & 0x01) << 4) | (index & 0x0f);
+            }
+            MacCommand::CtrlUplinkListAns { index_ack, wfcnt } => {
+                out[1] = u8::from(index_ack);
+                out[2..6].copy_from_slice(&wfcnt.to_le_bytes());
+            }
+            MacCommand::ConfigureFwdLimitReq {
+                reset_limit_counters,
+                join_request_reload_rate,
+                notify_reload_rate,
+                global_uplink_reload_rate,
+                overall_reload_rate,
+                join_request_bucket_size,
+                notify_bucket_size,
+                global_uplink_bucket_size,
+                overall_bucket_size,
+            } => {
+                let rates = (u32::from(reset_limit_counters & 0x03) << 28)
+                    | (u32::from(join_request_reload_rate & 0x7f) << 21)
+                    | (u32::from(notify_reload_rate & 0x7f) << 14)
+                    | (u32::from(global_uplink_reload_rate & 0x7f) << 7)
+                    | u32::from(overall_reload_rate & 0x7f);
+                out[1..5].copy_from_slice(&rates.to_le_bytes());
+                out[5] = ((join_request_bucket_size & 0x03) << 6)
+                    | ((notify_bucket_size & 0x03) << 4)
+                    | ((global_uplink_bucket_size & 0x03) << 2)
+                    | (overall_bucket_size & 0x03);
+            }
+            MacCommand::NotifyNewEndDeviceReq {
+                dev_addr,
+                rssi_dbm,
+                snr_db,
+            } => {
+                out[1..5].copy_from_slice(&dev_addr.to_le_bytes());
+                let power = (relay_rssi_code(rssi_dbm) << 5) | relay_snr_code(snr_db);
+                out[5..7].copy_from_slice(&power.to_le_bytes());
             }
             MacCommand::LinkAdrReq {
                 data_rate,
@@ -681,6 +1097,150 @@ impl MacCommand {
                 ]),
                 fraction: byte(rest, 4)?,
             },
+            (CID_RELAY_CONF, true) => {
+                let settings = u16::from_le_bytes([byte(rest, 0)?, byte(rest, 1)?]);
+                MacCommand::RelayConfReq {
+                    enabled: settings & (1 << 13) != 0,
+                    cad_periodicity: ((settings >> 10) & 0x07) as u8,
+                    default_channel_index: ((settings >> 9) & 0x01) as u8,
+                    second_channel_index: ((settings >> 7) & 0x03) as u8,
+                    second_channel_data_rate: ((settings >> 3) & 0x0f) as u8,
+                    second_channel_ack_offset: (settings & 0x07) as u8,
+                    second_channel_frequency_hz: read_frequency(rest, 2)?,
+                }
+            }
+            (CID_RELAY_CONF, false) => {
+                let status = byte(rest, 0)?;
+                MacCommand::RelayConfAns {
+                    cad_periodicity_ack: status & 0x20 != 0,
+                    default_channel_index_ack: status & 0x10 != 0,
+                    second_channel_index_ack: status & 0x08 != 0,
+                    second_channel_data_rate_ack: status & 0x04 != 0,
+                    second_channel_ack_offset_ack: status & 0x02 != 0,
+                    second_channel_frequency_ack: status & 0x01 != 0,
+                }
+            }
+            (CID_END_DEVICE_CONF, true) => {
+                let mode = byte(rest, 0)?;
+                let settings = u16::from_le_bytes([byte(rest, 1)?, byte(rest, 2)?]);
+                MacCommand::EndDeviceConfReq {
+                    relay_mode: (mode >> 2) & 0x03,
+                    smart_enable_level: mode & 0x03,
+                    back_off: ((settings >> 9) & 0x3f) as u8,
+                    second_channel_index: ((settings >> 7) & 0x03) as u8,
+                    second_channel_data_rate: ((settings >> 3) & 0x0f) as u8,
+                    second_channel_ack_offset: (settings & 0x07) as u8,
+                    second_channel_frequency_hz: read_frequency(rest, 3)?,
+                }
+            }
+            (CID_END_DEVICE_CONF, false) => {
+                let status = byte(rest, 0)?;
+                MacCommand::EndDeviceConfAns {
+                    second_channel_ack_offset_ack: status & 0x08 != 0,
+                    second_channel_index_ack: status & 0x04 != 0,
+                    second_channel_data_rate_ack: status & 0x02 != 0,
+                    second_channel_frequency_ack: status & 0x01 != 0,
+                }
+            }
+            (CID_FILTER_LIST, true) => {
+                let param = u16::from_le_bytes([byte(rest, 0)?, byte(rest, 1)?]);
+                let eui_len = (param & 0x1f) as u8;
+                let len = usize::from(eui_len);
+                let wire = rest.get(2..2 + len).ok_or(LorawanError::FrameTooShort)?;
+                let mut eui = [0u8; FILTER_EUI_MAX];
+                for (at, byte) in wire.iter().rev().take(FILTER_EUI_MAX).enumerate() {
+                    eui[at] = *byte;
+                }
+                MacCommand::FilterListReq {
+                    index: ((param >> 7) & 0x0f) as u8,
+                    action: ((param >> 5) & 0x03) as u8,
+                    eui_len,
+                    eui,
+                }
+            }
+            (CID_FILTER_LIST, false) => {
+                let status = byte(rest, 0)?;
+                MacCommand::FilterListAns {
+                    combined_rules_ack: status & 0x04 != 0,
+                    eui_len_ack: status & 0x02 != 0,
+                    action_ack: status & 0x01 != 0,
+                }
+            }
+            (CID_UPDATE_UPLINK_LIST, true) => {
+                let key = rest.get(10..26).ok_or(LorawanError::FrameTooShort)?;
+                let limit = byte(rest, 1)?;
+                let mut root_wor_s_key = [0u8; 16];
+                root_wor_s_key.copy_from_slice(key);
+                MacCommand::UpdateUplinkListReq {
+                    index: byte(rest, 0)? & 0x0f,
+                    reload_rate: limit & 0x3f,
+                    bucket_size: limit >> 6,
+                    dev_addr: u32::from_le_bytes([
+                        byte(rest, 2)?,
+                        byte(rest, 3)?,
+                        byte(rest, 4)?,
+                        byte(rest, 5)?,
+                    ]),
+                    wfcnt: u32::from_le_bytes([
+                        byte(rest, 6)?,
+                        byte(rest, 7)?,
+                        byte(rest, 8)?,
+                        byte(rest, 9)?,
+                    ]),
+                    root_wor_s_key,
+                }
+            }
+            (CID_UPDATE_UPLINK_LIST, false) => MacCommand::UpdateUplinkListAns,
+            (CID_CTRL_UPLINK_LIST, true) => {
+                let field = byte(rest, 0)?;
+                MacCommand::CtrlUplinkListReq {
+                    index: field & 0x0f,
+                    action: (field >> 4) & 0x01,
+                }
+            }
+            (CID_CTRL_UPLINK_LIST, false) => MacCommand::CtrlUplinkListAns {
+                index_ack: byte(rest, 0)? & 0x01 != 0,
+                wfcnt: u32::from_le_bytes([
+                    byte(rest, 1)?,
+                    byte(rest, 2)?,
+                    byte(rest, 3)?,
+                    byte(rest, 4)?,
+                ]),
+            },
+            (CID_CONFIGURE_FWD_LIMIT, true) => {
+                let rates = u32::from_le_bytes([
+                    byte(rest, 0)?,
+                    byte(rest, 1)?,
+                    byte(rest, 2)?,
+                    byte(rest, 3)?,
+                ]);
+                let sizes = byte(rest, 4)?;
+                MacCommand::ConfigureFwdLimitReq {
+                    reset_limit_counters: ((rates >> 28) & 0x03) as u8,
+                    join_request_reload_rate: ((rates >> 21) & 0x7f) as u8,
+                    notify_reload_rate: ((rates >> 14) & 0x7f) as u8,
+                    global_uplink_reload_rate: ((rates >> 7) & 0x7f) as u8,
+                    overall_reload_rate: (rates & 0x7f) as u8,
+                    join_request_bucket_size: sizes >> 6,
+                    notify_bucket_size: (sizes >> 4) & 0x03,
+                    global_uplink_bucket_size: (sizes >> 2) & 0x03,
+                    overall_bucket_size: sizes & 0x03,
+                }
+            }
+            (CID_CONFIGURE_FWD_LIMIT, false) => MacCommand::ConfigureFwdLimitAns,
+            (CID_NOTIFY_NEW_END_DEVICE, false) => {
+                let power = u16::from_le_bytes([byte(rest, 4)?, byte(rest, 5)?]);
+                MacCommand::NotifyNewEndDeviceReq {
+                    dev_addr: u32::from_le_bytes([
+                        byte(rest, 0)?,
+                        byte(rest, 1)?,
+                        byte(rest, 2)?,
+                        byte(rest, 3)?,
+                    ]),
+                    rssi_dbm: -i16::from(((power >> 5) & 0x7f) as u8) - 15,
+                    snr_db: ((power & 0x1f) as i8) - 20,
+                }
+            }
             _ => return Err(LorawanError::UnknownCommand(cid)),
         };
 
@@ -827,6 +1387,65 @@ fn byte(rest: &[u8], at: usize) -> Result<u8, LorawanError> {
 fn read_frequency(rest: &[u8], at: usize) -> Result<u32, LorawanError> {
     let raw = u32::from_le_bytes([byte(rest, at)?, byte(rest, at + 1)?, byte(rest, at + 2)?, 0]);
     Ok(raw * 100)
+}
+
+// The second channel bits a relay and an end device configuration share: index, data rate
+// and acknowledgment offset.
+fn second_channel_bits(index: u8, data_rate: u8, ack_offset: u8) -> u16 {
+    (u16::from(index & 0x03) << 7)
+        | (u16::from(data_rate & 0x0f) << 3)
+        | u16::from(ack_offset & 0x07)
+}
+
+/// The coded signal strength a relay reports, TS011-1.0.1 sections 9.1 and 10.7: `-15 - code`
+/// dBm, clamped to what seven bits carry.
+///
+/// # Arguments
+///
+/// * `rssi_dbm` - the strength in dBm.
+///
+/// # Returns
+///
+/// The code, 0 for -15 dBm or stronger and 127 for -142 dBm or weaker.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_lorawan::mac::relay_rssi_code;
+///
+/// assert_eq!(relay_rssi_code(-15), 0);
+/// assert_eq!(relay_rssi_code(-100), 85);
+/// assert_eq!(relay_rssi_code(-160), 127, "clamped to the weakest");
+/// assert_eq!(relay_rssi_code(0), 0, "clamped to the strongest");
+/// ```
+#[must_use]
+pub fn relay_rssi_code(rssi_dbm: i16) -> u16 {
+    (-15 - rssi_dbm.clamp(-142, -15)) as u16
+}
+
+/// The coded signal-to-noise ratio a relay reports, TS011-1.0.1 sections 9.1 and 10.7:
+/// `code - 20` dB, clamped to what five bits carry.
+///
+/// # Arguments
+///
+/// * `snr_db` - the ratio in dB.
+///
+/// # Returns
+///
+/// The code, 0 for -20 dB or worse and 31 for 11 dB or better.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_lorawan::mac::relay_snr_code;
+///
+/// assert_eq!(relay_snr_code(-20), 0);
+/// assert_eq!(relay_snr_code(0), 20);
+/// assert_eq!(relay_snr_code(15), 31, "clamped to the best");
+/// ```
+#[must_use]
+pub fn relay_snr_code(snr_db: i8) -> u16 {
+    (snr_db.clamp(-20, 11) + 20) as u16
 }
 
 fn write_frequency(hertz: u32, out: &mut [u8]) -> Result<(), LorawanError> {
@@ -1137,6 +1756,265 @@ mod tests {
             .direction(),
             Direction::Downlink
         );
+    }
+
+    /// Encodes a command, checks it reads back the same in its direction, and hands back
+    /// the bytes.
+    fn round_trip(command: MacCommand) -> Vec<u8> {
+        let mut out = [0u8; MAX_COMMAND];
+        let len = command.encode(&mut out).expect("it encodes");
+        assert_eq!(len, command.len());
+        let (read, taken) = MacCommand::parse(command.direction(), &out[..len]).expect("it parses");
+        assert_eq!(read, command, "what goes out reads back the same");
+        assert_eq!(taken, len);
+        out[..len].to_vec()
+    }
+
+    #[test]
+    fn a_relay_configuration_packs_its_channel_settings_as_table_32_lays_them_out() {
+        // StartStop bit 13, CADPeriodicity 12:10, DefaultChIdx 9, SecondChIdx 8:7,
+        // SecondChDr 6:3, SecondChAckOffset 2:0, then the second frequency.
+        let started = MacCommand::RelayConfReq {
+            enabled: true,
+            cad_periodicity: 2,
+            default_channel_index: 1,
+            second_channel_index: 1,
+            second_channel_data_rate: 5,
+            second_channel_ack_offset: 1,
+            second_channel_frequency_hz: 868_100_000,
+        };
+        assert_eq!(round_trip(started), [0x40, 0xa9, 0x2a, 0x28, 0x76, 0x84]);
+
+        let stopped = MacCommand::RelayConfReq {
+            enabled: false,
+            cad_periodicity: 0,
+            default_channel_index: 0,
+            second_channel_index: 0,
+            second_channel_data_rate: 0,
+            second_channel_ack_offset: 0,
+            second_channel_frequency_hz: 0,
+        };
+        assert_eq!(round_trip(stopped), [0x40, 0, 0, 0, 0, 0]);
+
+        let answer = MacCommand::RelayConfAns {
+            cad_periodicity_ack: true,
+            default_channel_index_ack: false,
+            second_channel_index_ack: true,
+            second_channel_data_rate_ack: true,
+            second_channel_ack_offset_ack: false,
+            second_channel_frequency_ack: true,
+        };
+        assert_eq!(round_trip(answer), [0x40, 0b0010_1101]);
+    }
+
+    #[test]
+    fn an_end_device_configuration_and_its_answer_follow_tables_39_42_and_45() {
+        let request = MacCommand::EndDeviceConfReq {
+            relay_mode: 2,
+            smart_enable_level: 1,
+            back_off: 8,
+            second_channel_index: 1,
+            second_channel_data_rate: 3,
+            second_channel_ack_offset: 2,
+            second_channel_frequency_hz: 869_525_000,
+        };
+        assert_eq!(
+            round_trip(request),
+            [0x41, 0x09, 0x9a, 0x10, 0xd2, 0xad, 0x84]
+        );
+
+        // TS011-1.0.1 moved bit 3 from BackOffACK to SecondChAckOffsetACK.
+        let answer = MacCommand::EndDeviceConfAns {
+            second_channel_ack_offset_ack: true,
+            second_channel_index_ack: false,
+            second_channel_data_rate_ack: false,
+            second_channel_frequency_ack: true,
+        };
+        assert_eq!(round_trip(answer), [0x41, 0b0000_1001]);
+    }
+
+    #[test]
+    fn a_join_filter_carries_its_eui_prefix_low_byte_first() {
+        // The rules of TS011-1.0.1 appendix 3.
+        let oui = MacCommand::FilterListReq {
+            index: 1,
+            action: 1,
+            eui_len: 3,
+            eui: [0xab, 0xcd, 0xef, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        };
+        assert_eq!(round_trip(oui), [0x42, 0xa3, 0x00, 0xef, 0xcd, 0xab]);
+
+        let range = MacCommand::FilterListReq {
+            index: 3,
+            action: 1,
+            eui_len: 15,
+            eui: [
+                0xab, 0xcd, 0xef, 0xab, 0xcd, 0xef, 0xab, 0xcd, 0x12, 0x34, 0x56, 0x78, 0x28, 0x37,
+                0x46, 0,
+            ],
+        };
+        assert_eq!(
+            round_trip(range),
+            [
+                0x42, 0xaf, 0x01, 0x46, 0x37, 0x28, 0x78, 0x56, 0x34, 0x12, 0xcd, 0xab, 0xef, 0xcd,
+                0xab, 0xef, 0xcd, 0xab
+            ]
+        );
+
+        let default_rule = MacCommand::FilterListReq {
+            index: 0,
+            action: 2,
+            eui_len: 0,
+            eui: [0; FILTER_EUI_MAX],
+        };
+        assert_eq!(round_trip(default_rule), [0x42, 0x40, 0x00]);
+
+        let answer = MacCommand::FilterListAns {
+            combined_rules_ack: true,
+            eui_len_ack: true,
+            action_ack: false,
+        };
+        assert_eq!(round_trip(answer), [0x42, 0b0000_0110]);
+    }
+
+    #[test]
+    fn a_join_filter_longer_than_two_euis_is_read_so_it_can_be_refused_but_not_written() {
+        let mut bytes = vec![0x42, 0x94, 0x01];
+        bytes.extend(1..=20u8);
+        let (read, taken) = MacCommand::parse(Direction::Downlink, &bytes).expect("it parses");
+        assert_eq!(taken, 23, "every byte of the rule is stepped over");
+        let MacCommand::FilterListReq { eui_len, eui, .. } = read else {
+            panic!("a filter rule");
+        };
+        assert_eq!(eui_len, 20);
+        assert_eq!(
+            eui[0], 20,
+            "the last byte on the air is the most significant"
+        );
+
+        let mut out = [0u8; MAX_COMMAND];
+        assert_eq!(read.encode(&mut out), Err(LorawanError::MalformedFrame));
+
+        assert_eq!(
+            MacCommand::parse(Direction::Downlink, &[0x42, 0xa3, 0x00, 0xef]),
+            Err(LorawanError::FrameTooShort),
+            "three bytes promised, one given"
+        );
+    }
+
+    #[test]
+    fn a_trusted_end_device_carries_its_limit_address_counter_and_root_key() {
+        let key: [u8; 16] = core::array::from_fn(|at| at as u8);
+        let request = MacCommand::UpdateUplinkListReq {
+            index: 3,
+            reload_rate: 10,
+            bucket_size: 2,
+            dev_addr: 0x2601_1bda,
+            wfcnt: 7,
+            root_wor_s_key: key,
+        };
+        let mut want = vec![
+            0x43, 0x03, 0x8a, 0xda, 0x1b, 0x01, 0x26, 0x07, 0x00, 0x00, 0x00,
+        ];
+        want.extend_from_slice(&key);
+        assert_eq!(round_trip(request), want);
+        assert_eq!(request.len(), MAX_COMMAND, "the longest command there is");
+        assert_eq!(round_trip(MacCommand::UpdateUplinkListAns), [0x43]);
+
+        assert_eq!(
+            round_trip(MacCommand::CtrlUplinkListReq {
+                index: 3,
+                action: 1
+            }),
+            [0x44, 0x13]
+        );
+        assert_eq!(
+            round_trip(MacCommand::CtrlUplinkListAns {
+                index_ack: true,
+                wfcnt: 0x0102_0304
+            }),
+            [0x44, 0x01, 0x04, 0x03, 0x02, 0x01]
+        );
+    }
+
+    #[test]
+    fn forwarding_limits_pack_four_reload_rates_and_four_bucket_sizes() {
+        // Tables 62 and 65: ResetLimitCounters 29:28, JoinReq 27:21, Notify 20:14,
+        // GlobalUplink 13:7, Overall 6:0; then JoinReq 7:6, Notify 5:4, GlobalUplink 3:2,
+        // Overall 1:0.
+        let request = MacCommand::ConfigureFwdLimitReq {
+            reset_limit_counters: 3,
+            join_request_reload_rate: 4,
+            notify_reload_rate: 4,
+            global_uplink_reload_rate: 8,
+            overall_reload_rate: 127,
+            join_request_bucket_size: 1,
+            notify_bucket_size: 1,
+            global_uplink_bucket_size: 2,
+            overall_bucket_size: 0,
+        };
+        assert_eq!(round_trip(request), [0x45, 0x7f, 0x04, 0x81, 0x30, 0x58]);
+        assert_eq!(round_trip(MacCommand::ConfigureFwdLimitAns), [0x45]);
+    }
+
+    #[test]
+    fn a_new_end_device_notice_codes_strength_and_ratio_as_table_67_says() {
+        let notice = MacCommand::NotifyNewEndDeviceReq {
+            dev_addr: 0x2601_1bda,
+            rssi_dbm: -100,
+            snr_db: 5,
+        };
+        assert_eq!(
+            round_trip(notice),
+            [0x46, 0xda, 0x1b, 0x01, 0x26, 0xb9, 0x0a]
+        );
+
+        // Past what the fields carry, the closest value goes out.
+        let mut out = [0u8; MAX_COMMAND];
+        let len = MacCommand::NotifyNewEndDeviceReq {
+            dev_addr: 1,
+            rssi_dbm: -160,
+            snr_db: 30,
+        }
+        .encode(&mut out)
+        .expect("it encodes");
+        let (read, _) = MacCommand::parse(Direction::Uplink, &out[..len]).expect("it parses");
+        assert_eq!(
+            read,
+            MacCommand::NotifyNewEndDeviceReq {
+                dev_addr: 1,
+                rssi_dbm: -142,
+                snr_db: 11
+            }
+        );
+
+        assert_eq!(
+            MacCommand::parse(Direction::Downlink, &[0x46, 0, 0, 0, 0, 0, 0]),
+            Err(LorawanError::UnknownCommand(0x46)),
+            "only a relay sends it"
+        );
+    }
+
+    #[test]
+    fn relay_commands_no_longer_stop_a_walk() {
+        // A device that does not relay still reads past them to the commands after.
+        let mut field = [0u8; 32];
+        let len = encode_all(
+            &[
+                MacCommand::CtrlUplinkListReq {
+                    index: 0,
+                    action: 0,
+                },
+                MacCommand::DevStatusReq,
+            ],
+            &mut field,
+        )
+        .expect("they fit");
+        let read: Vec<MacCommand> = MacCommands::new(Direction::Downlink, &field[..len])
+            .map(|command| command.expect("each one parses"))
+            .collect();
+        assert_eq!(read.len(), 2);
+        assert_eq!(read[1], MacCommand::DevStatusReq);
     }
 
     #[test]

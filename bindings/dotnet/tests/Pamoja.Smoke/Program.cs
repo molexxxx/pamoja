@@ -1267,6 +1267,7 @@ static void Conformance()
     ConformHeader(vectors.GetProperty("header"));
     ConformLorawanLink(vectors.GetProperty("lorawanLink"), vectors);
     ConformLorawanDevice(vectors.GetProperty("lorawanDevice"));
+    ConformLorawanRelay(vectors.GetProperty("lorawanRelay"));
     ConformNetwork(vectors.GetProperty("network"));
     ConformAudit(vectors.GetProperty("audit"));
     ConformSession(vectors.GetProperty("session"));
@@ -2612,6 +2613,7 @@ static void ConformLoraRegions(JsonElement vector)
     using LoraChannelPlan customFixed = fixedBuilder
         .JoinSequence(LoraJoinSequence.OctetPasses)
         .PowerReference(LoraPowerReference.Conducted, 6)
+        .RelayChannel(new LoraRelayChannel(916_700_000, 918_300_000, 1))
         .Build();
     ConformPlan(customFixed, vector.GetProperty("customFixed"));
 }
@@ -2787,6 +2789,21 @@ static void ConformRules(LoraChannelPlan plan, JsonElement want, string where)
 // Holds one channel plan to the answers every binding must give.
 static void ConformPlan(LoraChannelPlan plan, JsonElement want)
 {
+    IReadOnlyList<LoraRelayChannel> relayChannels = plan.RelayChannels();
+    JsonElement wantRelay = want.GetProperty("relayChannels");
+    Assert(relayChannels.Count == wantRelay.GetArrayLength(), "relay channel count");
+    int relayIndex = 0;
+    foreach (JsonElement entry in wantRelay.EnumerateArray())
+    {
+        Assert(
+            relayChannels[relayIndex] == new LoraRelayChannel(
+                entry.GetProperty("worFrequencyHz").GetUInt32(),
+                entry.GetProperty("ackFrequencyHz").GetUInt32(),
+                entry.GetProperty("dataRate").GetByte()),
+            $"relay channel {relayIndex}");
+        relayIndex++;
+    }
+
     string where = want.GetProperty("name").GetString()!;
     LoraPlanInfo info = plan.Info();
     Assert(plan.Name == where, $"the name of {where}");
@@ -4738,6 +4755,28 @@ static void ConformLorawanMac(JsonElement vector)
         Facing(truncated.GetProperty("direction").GetString()!),
         Convert.FromHexString(truncated.GetProperty("bytes").GetString()!));
     Assert(cut.Count == 0, "a known command cut short is not half read");
+
+    foreach (JsonElement entry in vector.GetProperty("relay").EnumerateArray())
+    {
+        string text = entry.GetProperty("bytes").GetString()!;
+        var read = LorawanMacCommand.Parse(Facing(entry.GetProperty("direction").GetString()!), Convert.FromHexString(text));
+        Assert(read.Count == 1, $"one relay command in {text}");
+        Assert(read[0].Cid == entry.GetProperty("cid").GetByte(), $"the identifier of {text}");
+        Assert(Hex(read[0].Encode()) == text, $"{text} is written back the way it was read");
+        if (entry.TryGetProperty("fields", out JsonElement fields))
+        {
+            foreach (JsonProperty field in fields.EnumerateObject())
+            {
+                string name = char.ToUpperInvariant(field.Name[0]) + field.Name[1..];
+                object? got = typeof(LorawanMacCommand).GetProperty(name)!.GetValue(read[0]);
+                string gotText = got is byte[] bytes ? Hex(bytes) : Convert.ToString(got, System.Globalization.CultureInfo.InvariantCulture)!;
+                string wantText = field.Value.ValueKind == JsonValueKind.String
+                    ? field.Value.GetString()!
+                    : field.Value.GetRawText();
+                Assert(gotText == wantText, $"{field.Name} of {text}");
+            }
+        }
+    }
 }
 
 static void ConformHeader(JsonElement vector)
@@ -5882,6 +5921,182 @@ static void GatewayNetworks()
 }
 
 // Holds ChirpStack uplink events to the answers every binding must give.
+// A LoRaWAN relay: the root key The Things Stack tests with, the WOR frames and
+// acknowledgments Basics Modem produces, a forwarded uplink, and TS011-1.0.1 appendix 1.
+static void ConformLorawanRelay(JsonElement vector)
+{
+    static string Hex(byte[] bytes) => Convert.ToHexString(bytes).ToLowerInvariant();
+    static byte[] Bytes(JsonElement element) => Convert.FromHexString(element.GetString()!);
+    static LorawanCarrier Carrier(JsonElement element) => new(
+        element.GetProperty("frequencyHz").GetUInt32(),
+        element.GetProperty("dataRate").GetByte());
+    static LorawanStateSync State(JsonElement element) => new(
+        Enum.Parse<LorawanCadToRx>(element.GetProperty("cadToRx").GetString()!),
+        Enum.Parse<LorawanRelayForward>(element.GetProperty("forward").GetString()!),
+        element.GetProperty("relayDataRate").GetByte(),
+        Enum.Parse<LorawanXtalAccuracy>(element.GetProperty("xtalAccuracy").GetString()!),
+        Enum.Parse<LorawanCadPeriodicity>(element.GetProperty("cadPeriodicity").GetString()!),
+        element.GetProperty("tOffsetMs").GetUInt16());
+    static LorawanUplinkMetadata Metadata(JsonElement element) => new(
+        Enum.Parse<LorawanWorChannel>(element.GetProperty("worChannel").GetString()!),
+        element.GetProperty("rssiDbm").GetInt16(),
+        element.GetProperty("snrDb").GetSByte(),
+        element.GetProperty("dataRate").GetByte());
+
+    JsonElement constants = vector.GetProperty("constants");
+    Assert(LorawanRelay.FPort == constants.GetProperty("laFportRelay").GetByte(), "LA_FPORT_RELAY");
+    Assert(LorawanRelay.TrustedEndDevices == constants.GetProperty("trustedEdNumber").GetInt32(), "TRUSTED_ED_NUMBER");
+    Assert(LorawanRelay.WorAttemptsWithoutAck == constants.GetProperty("worAttemptsWoAck").GetByte(), "WOR_ATTEMPTS_WO_ACK");
+    Assert(LorawanRelay.WorDataDelayMicros == constants.GetProperty("worDataDelayUs").GetUInt32(), "WOR_DATA_DELAY");
+    Assert(LorawanRelay.WorAckDelayMicros == constants.GetProperty("worAckDelayUs").GetUInt32(), "WOR_ACK_DELAY");
+    Assert(LorawanRelay.RelayForwardDelayMicros == constants.GetProperty("relayFwdDelayUs").GetUInt32(), "RELAY_FWD_DELAY");
+    Assert(LorawanRelay.RxrDelayMicros == constants.GetProperty("rxrDelayUs").GetUInt32(), "RXR_DELAY");
+    Assert(LorawanRelay.ForwardOverhead == constants.GetProperty("forwardOverhead").GetInt32(), "the forward overhead");
+    Assert(LorawanRelay.MinWorPreambleSymbols == constants.GetProperty("minWorPreambleSymbols").GetUInt16(), "the shortest preamble");
+
+    JsonElement rootKey = vector.GetProperty("rootKey");
+    Assert(
+        Hex(LorawanRelay.RootWorSKey(Bytes(rootKey.GetProperty("networkKey")))) == rootKey.GetProperty("rootWorSKey").GetString(),
+        "The Things Stack's RootWorSKey vector");
+
+    JsonElement own = vector.GetProperty("session");
+    uint devAddr = own.GetProperty("devAddr").GetUInt32();
+    using LorawanSession session = new(devAddr, Bytes(own.GetProperty("nwkSKey")), Bytes(own.GetProperty("appSKey")));
+    Assert(Hex(session.RootWorSKey()) == own.GetProperty("rootWorSKey").GetString(), "the session's root key");
+    LorawanWorKeys keys = session.WorKeys();
+    Assert(Hex(keys.Integrity) == own.GetProperty("integrity").GetString(), "WorSIntKey");
+    Assert(Hex(keys.Encryption) == own.GetProperty("encryption").GetString(), "WorSEncKey");
+    Assert(LorawanRelay.WorKeys(Bytes(own.GetProperty("rootWorSKey")), devAddr) == keys, "the keys from the root key");
+
+    foreach (JsonElement entry in vector.GetProperty("worUplinks").EnumerateArray())
+    {
+        uint wfcnt = entry.GetProperty("wfcnt").GetUInt32();
+        LorawanCarrier uplink = Carrier(entry.GetProperty("uplink"));
+        LorawanCarrier wor = Carrier(entry.GetProperty("wor"));
+        byte[] frame = LorawanRelay.WorUplink(keys, devAddr, wfcnt, uplink, wor);
+        Assert(Hex(frame) == entry.GetProperty("frame").GetString(), $"the WOR uplink at WFCnt {wfcnt}");
+        Assert(
+            LorawanRelay.ParseWor(frame) == new LorawanWor(LorawanWorKind.Uplink, null, devAddr, (ushort)wfcnt),
+            "the WOR uplink reads back");
+        Assert(LorawanRelay.OpenWor(frame, keys, wfcnt, wor) == uplink, "the WOR uplink opens");
+        try
+        {
+            LorawanRelay.OpenWor(frame, keys, wfcnt + 0x10000, wor);
+            Fail("a WOR uplink with the wrong upper counter bits must not open");
+        }
+        catch (PamojaException)
+        {
+        }
+    }
+
+    JsonElement join = vector.GetProperty("worJoinRequest");
+    byte[] joinFrame = LorawanRelay.WorJoinRequest(Carrier(join.GetProperty("uplink")));
+    Assert(Hex(joinFrame) == join.GetProperty("frame").GetString(), "the join request WOR");
+    Assert(
+        LorawanRelay.ParseWor(joinFrame) == new LorawanWor(LorawanWorKind.JoinRequest, Carrier(join.GetProperty("uplink")), null, null),
+        "the join request WOR reads back");
+    foreach (JsonElement refused in vector.GetProperty("refusedWors").EnumerateArray())
+    {
+        try
+        {
+            LorawanRelay.ParseWor(Bytes(refused));
+            Fail($"{refused.GetString()} must be refused");
+        }
+        catch (PamojaException)
+        {
+        }
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("worAcks").EnumerateArray())
+    {
+        uint wfcnt = entry.GetProperty("wfcnt").GetUInt32();
+        LorawanCarrier ack = Carrier(entry.GetProperty("ack"));
+        LorawanCarrier uplink = Carrier(entry.GetProperty("uplink"));
+        LorawanStateSync state = State(entry.GetProperty("state"));
+        byte[] frame = LorawanRelay.WorAck(keys, devAddr, wfcnt, ack, uplink, state);
+        Assert(Hex(frame) == entry.GetProperty("frame").GetString(), $"the WOR ACK at WFCnt {wfcnt}");
+        Assert(LorawanRelay.OpenWorAck(frame, keys, devAddr, wfcnt, ack, uplink) == state, "the WOR ACK reads back");
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("forwarded").EnumerateArray())
+    {
+        byte[] payload = LorawanRelay.EncodeForward(new LorawanForwardedUplink(
+            Metadata(entry.GetProperty("metadata")),
+            entry.GetProperty("frequencyHz").GetUInt32(),
+            Bytes(entry.GetProperty("phyPayload"))));
+        Assert(Hex(payload) == entry.GetProperty("payload").GetString(), "a forwarded uplink");
+        LorawanForwardedUplink read = LorawanRelay.ParseForward(payload);
+        JsonElement back = entry.TryGetProperty("readBack", out JsonElement readBack) ? readBack : entry.GetProperty("metadata");
+        Assert(read.Metadata == Metadata(back), "the forwarded metadata reads back");
+        Assert(read.FrequencyHz == entry.GetProperty("frequencyHz").GetUInt32(), "the forwarded frequency");
+        Assert(Hex(read.PhyPayload) == entry.GetProperty("phyPayload").GetString(), "the forwarded frame");
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("unsynchronizedPreambles").EnumerateArray())
+    {
+        Assert(
+            LorawanRelay.UnsynchronizedPreamble(
+                Enum.Parse<LorawanCadPeriodicity>(entry.GetProperty("cadPeriodicity").GetString()!),
+                entry.GetProperty("symbolUs").GetUInt64(),
+                Enum.Parse<LorawanCadToRx>(entry.GetProperty("cadToRx").GetString()!))
+                == entry.GetProperty("symbols").GetUInt16(),
+            "an unsynchronized preamble");
+    }
+    foreach (JsonElement entry in vector.GetProperty("tOffsets").EnumerateArray())
+    {
+        ushort? offset = LorawanRelay.TOffsetMs(
+            entry.GetProperty("scanStartUs").GetUInt64(),
+            entry.GetProperty("worEndUs").GetUInt64(),
+            entry.GetProperty("worAirtimeUs").GetUInt64(),
+            entry.GetProperty("symbolUs").GetUInt64());
+        JsonElement want = entry.GetProperty("offsetMs");
+        Assert(
+            want.ValueKind == JsonValueKind.Null ? offset is null : offset == want.GetUInt16(),
+            "a WOR ACK offset");
+    }
+
+    JsonElement timing = vector.GetProperty("synchronization");
+    LorawanSynchronization sync = LorawanRelay.Synchronization(
+        timing.GetProperty("worStartUs").GetUInt64(),
+        timing.GetProperty("preambleSymbols").GetUInt16(),
+        timing.GetProperty("symbolUs").GetUInt64(),
+        State(timing.GetProperty("state")));
+    Assert(sync.ReferenceMicros == timing.GetProperty("referenceUs").GetUInt64(), "TREF of the appendix example");
+    foreach (JsonElement entry in timing.GetProperty("slots").EnumerateArray())
+    {
+        LorawanWorSlot? slot = LorawanRelay.NextWor(
+            sync,
+            entry.GetProperty("nowUs").GetUInt64(),
+            entry.GetProperty("deviceXtalPpm").GetUInt32(),
+            entry.GetProperty("symbolUs").GetUInt64(),
+            entry.GetProperty("otherChannel").GetBoolean());
+        JsonElement want = entry.GetProperty("slot");
+        Assert(
+            want.ValueKind == JsonValueKind.Null
+                ? slot is null
+                : slot == new LorawanWorSlot(want.GetProperty("startUs").GetUInt64(), want.GetProperty("preambleSymbols").GetUInt16()),
+            $"the slot after {entry.GetProperty("nowUs").GetUInt64()}");
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("secondChannels").EnumerateArray())
+    {
+        LoraRelayChannel? channel = LorawanRelay.SecondChannel(
+            entry.GetProperty("index").GetByte(),
+            entry.GetProperty("dataRate").GetByte(),
+            entry.GetProperty("ackOffset").GetByte(),
+            entry.GetProperty("frequencyHz").GetUInt32());
+        JsonElement want = entry.GetProperty("channel");
+        Assert(
+            want.ValueKind == JsonValueKind.Null
+                ? channel is null
+                : channel == new LoraRelayChannel(
+                    want.GetProperty("worFrequencyHz").GetUInt32(),
+                    want.GetProperty("ackFrequencyHz").GetUInt32(),
+                    want.GetProperty("dataRate").GetByte()),
+            "a second channel");
+    }
+}
+
 static void ConformChirpstack(JsonElement vector)
 {
     foreach (JsonElement entry in vector.GetProperty("events").EnumerateArray())

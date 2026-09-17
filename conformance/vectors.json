@@ -1427,6 +1427,18 @@
           "repeater": null
         },
         "probeFrequencyHz": 470300000,
+        "relayChannels": [
+          {
+            "ackFrequencyHz": 485300000,
+            "dataRate": 3,
+            "worFrequencyHz": 472100000
+          },
+          {
+            "ackFrequencyHz": 505500000,
+            "dataRate": 5,
+            "worFrequencyHz": 494900000
+          }
+        ],
         "rules": {
           "channelList": null,
           "downlinkChannelBlocks": [
@@ -1751,6 +1763,18 @@
           "repeater": null
         },
         "probeFrequencyHz": 476900000,
+        "relayChannels": [
+          {
+            "ackFrequencyHz": 485300000,
+            "dataRate": 3,
+            "worFrequencyHz": 472100000
+          },
+          {
+            "ackFrequencyHz": 505500000,
+            "dataRate": 5,
+            "worFrequencyHz": 494900000
+          }
+        ],
         "rules": {
           "channelList": null,
           "downlinkChannelBlocks": [
@@ -2075,6 +2099,18 @@
           "repeater": null
         },
         "probeFrequencyHz": 470300000,
+        "relayChannels": [
+          {
+            "ackFrequencyHz": 485300000,
+            "dataRate": 3,
+            "worFrequencyHz": 472100000
+          },
+          {
+            "ackFrequencyHz": 505500000,
+            "dataRate": 5,
+            "worFrequencyHz": 494900000
+          }
+        ],
         "rules": {
           "channelList": null,
           "downlinkChannelBlocks": [
@@ -2392,6 +2428,18 @@
           "repeater": null
         },
         "probeFrequencyHz": 480300000,
+        "relayChannels": [
+          {
+            "ackFrequencyHz": 485300000,
+            "dataRate": 3,
+            "worFrequencyHz": 472100000
+          },
+          {
+            "ackFrequencyHz": 505500000,
+            "dataRate": 5,
+            "worFrequencyHz": 494900000
+          }
+        ],
         "rules": {
           "channelList": null,
           "downlinkChannelBlocks": [
@@ -2715,6 +2763,7 @@
           }
         },
         "probeFrequencyHz": 470300000,
+        "relayChannels": [],
         "rules": {
           "channelList": null,
           "downlinkChannelBlocks": [
@@ -2943,6 +2992,7 @@
         }
       },
       "probeFrequencyHz": 915000000,
+      "relayChannels": [],
       "rules": {
         "channelList": null,
         "downlinkChannelBlocks": [],
@@ -3159,6 +3209,13 @@
         }
       },
       "probeFrequencyHz": 902300000,
+      "relayChannels": [
+        {
+          "ackFrequencyHz": 918300000,
+          "dataRate": 1,
+          "worFrequencyHz": 916700000
+        }
+      ],
       "rules": {
         "channelList": null,
         "downlinkChannelBlocks": [
@@ -3385,6 +3442,18 @@
           }
         },
         "probeFrequencyHz": 868100000,
+        "relayChannels": [
+          {
+            "ackFrequencyHz": 865300000,
+            "dataRate": 3,
+            "worFrequencyHz": 865100000
+          },
+          {
+            "ackFrequencyHz": 865900000,
+            "dataRate": 5,
+            "worFrequencyHz": 865500000
+          }
+        ],
         "rules": {
           "channelList": "mhz800",
           "downlinkChannelBlocks": [],
@@ -3613,6 +3682,18 @@
           }
         },
         "probeFrequencyHz": 902300000,
+        "relayChannels": [
+          {
+            "ackFrequencyHz": 918300000,
+            "dataRate": 10,
+            "worFrequencyHz": 916700000
+          },
+          {
+            "ackFrequencyHz": 921500000,
+            "dataRate": 10,
+            "worFrequencyHz": 919900000
+          }
+        ],
         "rules": {
           "channelList": null,
           "downlinkChannelBlocks": [
@@ -3838,6 +3919,7 @@
           }
         },
         "probeFrequencyHz": 433175000,
+        "relayChannels": [],
         "rules": {
           "channelList": null,
           "downlinkChannelBlocks": [],
@@ -4060,6 +4142,18 @@
           }
         },
         "probeFrequencyHz": 915200000,
+        "relayChannels": [
+          {
+            "ackFrequencyHz": 918300000,
+            "dataRate": 10,
+            "worFrequencyHz": 916700000
+          },
+          {
+            "ackFrequencyHz": 921500000,
+            "dataRate": 10,
+            "worFrequencyHz": 919900000
+          }
+        ],
         "rules": {
           "channelList": null,
           "downlinkChannelBlocks": [
@@ -4286,6 +4380,18 @@
           "repeater": null
         },
         "probeFrequencyHz": 470300000,
+        "relayChannels": [
+          {
+            "ackFrequencyHz": 485300000,
+            "dataRate": 3,
+            "worFrequencyHz": 472100000
+          },
+          {
+            "ackFrequencyHz": 505500000,
+            "dataRate": 5,
+            "worFrequencyHz": 494900000
+          }
+        ],
         "rules": {
           "channelList": null,
           "downlinkChannelBlocks": [
@@ -4610,6 +4716,13 @@
           }
         },
         "probeFrequencyHz": 923200000,
+        "relayChannels": [
+          {
+            "ackFrequencyHz": 923800000,
+            "dataRate": 3,
+            "worFrequencyHz": 923600000
+          }
+        ],
         "rules": {
           "channelList": "mhz900",
           "downlinkChannelBlocks": [],
@@ -4829,6 +4942,18 @@
           }
         },
         "probeFrequencyHz": 922100000,
+        "relayChannels": [
+          {
+            "ackFrequencyHz": 922900000,
+            "dataRate": 3,
+            "worFrequencyHz": 922700000
+          },
+          {
+            "ackFrequencyHz": 923100000,
+            "dataRate": 5,
+            "worFrequencyHz": 923100000
+          }
+        ],
         "rules": {
           "channelList": "mhz900",
           "downlinkChannelBlocks": [],
@@ -5052,6 +5177,18 @@
           }
         },
         "probeFrequencyHz": 865062500,
+        "relayChannels": [
+          {
+            "ackFrequencyHz": 866200000,
+            "dataRate": 3,
+            "worFrequencyHz": 866000000
+          },
+          {
+            "ackFrequencyHz": 866900000,
+            "dataRate": 5,
+            "worFrequencyHz": 866700000
+          }
+        ],
         "rules": {
           "channelList": "mhz800",
           "downlinkChannelBlocks": [],
@@ -5263,6 +5400,18 @@
           }
         },
         "probeFrequencyHz": 868900000,
+        "relayChannels": [
+          {
+            "ackFrequencyHz": 866300000,
+            "dataRate": 3,
+            "worFrequencyHz": 866100000
+          },
+          {
+            "ackFrequencyHz": 866900000,
+            "dataRate": 5,
+            "worFrequencyHz": 866500000
+          }
+        ],
         "rules": {
           "channelList": "mhz800",
           "downlinkChannelBlocks": [],
@@ -5493,6 +5642,97 @@
           "bytes": "0d",
           "cid": 13,
           "direction": "uplink"
+        }
+      ],
+      "relay": [
+        {
+          "bytes": "40a92a287684",
+          "cid": 64,
+          "direction": "downlink"
+        },
+        {
+          "bytes": "402d",
+          "cid": 64,
+          "direction": "uplink"
+        },
+        {
+          "bytes": "41099a10d2ad84",
+          "cid": 65,
+          "direction": "downlink"
+        },
+        {
+          "bytes": "4109",
+          "cid": 65,
+          "direction": "uplink"
+        },
+        {
+          "bytes": "42a300efcdab",
+          "cid": 66,
+          "direction": "downlink",
+          "fields": {
+            "action": 1,
+            "eui": "abcdef00000000000000000000000000",
+            "euiLen": 3,
+            "index": 1
+          }
+        },
+        {
+          "bytes": "42af0146372878563412cdabefcdabefcdab",
+          "cid": 66,
+          "direction": "downlink"
+        },
+        {
+          "bytes": "4206",
+          "cid": 66,
+          "direction": "uplink"
+        },
+        {
+          "bytes": "43038ada1b012607000000000102030405060708090a0b0c0d0e0f",
+          "cid": 67,
+          "direction": "downlink",
+          "fields": {
+            "bucketSize": 2,
+            "devAddr": 637606874,
+            "index": 3,
+            "reloadRate": 10,
+            "rootWorSKey": "000102030405060708090a0b0c0d0e0f",
+            "wfcnt": 7
+          }
+        },
+        {
+          "bytes": "43",
+          "cid": 67,
+          "direction": "uplink"
+        },
+        {
+          "bytes": "4413",
+          "cid": 68,
+          "direction": "downlink"
+        },
+        {
+          "bytes": "440104030201",
+          "cid": 68,
+          "direction": "uplink"
+        },
+        {
+          "bytes": "457f04813058",
+          "cid": 69,
+          "direction": "downlink"
+        },
+        {
+          "bytes": "45",
+          "cid": 69,
+          "direction": "uplink"
+        },
+        {
+          "bytes": "46da1b0126b90a",
+          "cid": 70,
+          "direction": "uplink",
+          "fields": {
+            "devAddr": 637606874,
+            "rssiDbm": -100,
+            "snrDb": 5
+          }
         }
       ],
       "sequence": {
@@ -8107,6 +8347,273 @@
         "rx1DrOffset": 5,
         "rx2DataRate": 2,
         "rxDelay": 0
+      }
+    ]
+  },
+  "lorawanRelay": {
+    "constants": {
+      "forwardOverhead": 6,
+      "laFportRelay": 226,
+      "minWorPreambleSymbols": 8,
+      "relayFwdDelayUs": 50000,
+      "rxrDelayUs": 18000000,
+      "trustedEdNumber": 16,
+      "worAckDelayUs": 50000,
+      "worAttemptsWoAck": 8,
+      "worDataDelayUs": 50000
+    },
+    "forwarded": [
+      {
+        "frequencyHz": 868100000,
+        "metadata": {
+          "dataRate": 5,
+          "rssiDbm": -100,
+          "snrDb": 5,
+          "worChannel": "Second"
+        },
+        "payload": "95ab01287684400102",
+        "phyPayload": "400102"
+      },
+      {
+        "frequencyHz": 916800000,
+        "metadata": {
+          "dataRate": 3,
+          "rssiDbm": -10,
+          "snrDb": -30,
+          "worChannel": "Default"
+        },
+        "payload": "03000080e48b808080808080808080808080",
+        "phyPayload": "808080808080808080808080",
+        "readBack": {
+          "dataRate": 3,
+          "rssiDbm": -15,
+          "snrDb": -20,
+          "worChannel": "Default"
+        }
+      }
+    ],
+    "refusedWors": [
+      "020202020202020202020202020202",
+      "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+      "00052876"
+    ],
+    "rootKey": {
+      "networkKey": "ce07a009a3970ac0519a099ed53e550b",
+      "rootWorSKey": "ee91dc1a6666c06e8277de6db4db945f",
+      "source": "https://github.com/TheThingsNetwork/lorawan-stack/blob/v3.34/pkg/crypto/relay_test.go"
+    },
+    "secondChannels": [
+      {
+        "ackOffset": 1,
+        "channel": {
+          "ackFrequencyHz": 868300000,
+          "dataRate": 3,
+          "worFrequencyHz": 868100000
+        },
+        "dataRate": 3,
+        "frequencyHz": 868100000,
+        "index": 1
+      },
+      {
+        "ackOffset": 1,
+        "channel": null,
+        "dataRate": 3,
+        "frequencyHz": 868100000,
+        "index": 0
+      },
+      {
+        "ackOffset": 6,
+        "channel": null,
+        "dataRate": 3,
+        "frequencyHz": 868100000,
+        "index": 1
+      }
+    ],
+    "session": {
+      "appSKey": "99999999999999999999999999999999",
+      "devAddr": 637606874,
+      "encryption": "1b49233a8f7216045c5193442bf7f88b",
+      "integrity": "624b9e55ad4a5abf457ed57d5c4ec12a",
+      "nwkSKey": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b",
+      "rootWorSKey": "6c9b474428d7fdb18ffbd0280ab687b3"
+    },
+    "source": "https://resources.lora-alliance.org/technical-specifications/ts011-1-0-1-relay",
+    "synchronization": {
+      "preambleSymbols": 133,
+      "referenceUs": 1431536,
+      "slots": [
+        {
+          "deviceXtalPpm": 20,
+          "nowUs": 61000000,
+          "otherChannel": false,
+          "slot": {
+            "preambleSymbols": 11,
+            "startUs": 61430036
+          },
+          "symbolUs": 8192
+        },
+        {
+          "deviceXtalPpm": 20,
+          "nowUs": 61000000,
+          "otherChannel": true,
+          "slot": {
+            "preambleSymbols": 11,
+            "startUs": 61180049
+          },
+          "symbolUs": 8192
+        },
+        {
+          "deviceXtalPpm": 20,
+          "nowUs": 3600400000,
+          "otherChannel": false,
+          "slot": {
+            "preambleSymbols": 32,
+            "startUs": 3600841549
+          },
+          "symbolUs": 8192
+        },
+        {
+          "deviceXtalPpm": 20,
+          "nowUs": 36000000000,
+          "otherChannel": false,
+          "slot": null,
+          "symbolUs": 8192
+        }
+      ],
+      "state": {
+        "cadPeriodicity": "Ms500",
+        "cadToRx": "Symbols4",
+        "forward": "Available",
+        "relayDataRate": 5,
+        "tOffsetMs": 892,
+        "xtalAccuracy": "Ppm30"
+      },
+      "symbolUs": 8192,
+      "worStartUs": 1234000
+    },
+    "tOffsets": [
+      {
+        "offsetMs": 892,
+        "scanStartUs": 87654000,
+        "symbolUs": 8192,
+        "worAirtimeUs": 321536,
+        "worEndUs": 88734000
+      },
+      {
+        "offsetMs": null,
+        "scanStartUs": 1000000,
+        "symbolUs": 8192,
+        "worAirtimeUs": 400000,
+        "worEndUs": 1100000
+      }
+    ],
+    "unsynchronizedPreambles": [
+      {
+        "cadPeriodicity": "Ms500",
+        "cadToRx": "Symbols4",
+        "symbolUs": 8192,
+        "symbols": 72
+      },
+      {
+        "cadPeriodicity": "Ms1000",
+        "cadToRx": "Symbols8",
+        "symbolUs": 8192,
+        "symbols": 137
+      }
+    ],
+    "worAcks": [
+      {
+        "ack": {
+          "dataRate": 3,
+          "frequencyHz": 865300000
+        },
+        "frame": "c091ac431978ef",
+        "state": {
+          "cadPeriodicity": "Ms500",
+          "cadToRx": "Symbols4",
+          "forward": "Available",
+          "relayDataRate": 5,
+          "tOffsetMs": 892,
+          "xtalAccuracy": "Ppm30"
+        },
+        "uplink": {
+          "dataRate": 5,
+          "frequencyHz": 868100000
+        },
+        "wfcnt": 1
+      },
+      {
+        "ack": {
+          "dataRate": 3,
+          "frequencyHz": 865300000
+        },
+        "frame": "6c9f249eb2e6ec",
+        "state": {
+          "cadPeriodicity": "Ms500",
+          "cadToRx": "Symbols4",
+          "forward": "Available",
+          "relayDataRate": 5,
+          "tOffsetMs": 892,
+          "xtalAccuracy": "Ppm30"
+        },
+        "uplink": {
+          "dataRate": 5,
+          "frequencyHz": 868100000
+        },
+        "wfcnt": 74565
+      },
+      {
+        "ack": {
+          "dataRate": 3,
+          "frequencyHz": 865300000
+        },
+        "frame": "2076d574aa97d8",
+        "state": {
+          "cadPeriodicity": "Ms20",
+          "cadToRx": "Symbols8",
+          "forward": "RetryIn60Minutes",
+          "relayDataRate": 2,
+          "tOffsetMs": 17,
+          "xtalAccuracy": "Ppm10"
+        },
+        "uplink": {
+          "dataRate": 5,
+          "frequencyHz": 868100000
+        },
+        "wfcnt": 9
+      }
+    ],
+    "worJoinRequest": {
+      "frame": "000080e48b",
+      "uplink": {
+        "dataRate": 0,
+        "frequencyHz": 916800000
+      }
+    },
+    "worUplinks": [
+      {
+        "frame": "01da1b0126ee1c12440100c02218aa",
+        "uplink": {
+          "dataRate": 5,
+          "frequencyHz": 868100000
+        },
+        "wfcnt": 1,
+        "wor": {
+          "dataRate": 3,
+          "frequencyHz": 865100000
+        }
+      },
+      {
+        "frame": "01da1b0126b221933b452304b720b7",
+        "uplink": {
+          "dataRate": 5,
+          "frequencyHz": 868100000
+        },
+        "wfcnt": 74565,
+        "wor": {
+          "dataRate": 3,
+          "frequencyHz": 865100000
+        }
       }
     ]
   },

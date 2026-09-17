@@ -599,6 +599,11 @@ export declare class LoraChannelPlan {
   channelFrequencyHz(channel: number): number | null
   /** Returns one of the plan's channel blocks, or null past the end. */
   channelBlock(which: LoraChannelSet, index: number): LoraChannelBlock | null
+  /**
+   * Returns the plan's default relay channels, by the index a relay configuration names:
+   * RP002-1.0.5 sections 3.4.9 to 3.13.9, and none where a region defines none.
+   */
+  relayChannels(): Array<LoraRelayChannel>
   /** Returns one of the plan's sub-bands, or null past the end. */
   subBand(index: number): LoraSubBand | null
 }
@@ -657,6 +662,12 @@ export declare class LoraPlanBuilder {
    * `1000`, which reports as unrestricted.
    */
   subBand(band: LoraSubBand): void
+  /**
+   * Appends the next default relay channel, whose position is the index a relay
+   * configuration names. A data rate that is not one of the plan's LoRa downlink rates is
+   * refused when the plan is built.
+   */
+  relayChannel(channel: LoraRelayChannel): void
   /**
    * Appends the RX1 downlink data rates for the next uplink data rate.
    *
@@ -984,6 +995,13 @@ export declare class LorawanSession {
   constructor(devAddr: number, nwkSkey: Buffer, appSkey: Buffer)
   /** The device address this session is bound to. */
   get devAddr(): number
+  /**
+   * The root relay session key a network sends a relay for this device, TS011-1.0.1
+   * section 4.4.
+   */
+  rootWorSKey(): Buffer
+  /** The keys this device's wake-on-radio frames are protected with, section 4.5. */
+  worKeys(): LorawanWorKeys
   /** Encodes an uplink, encrypting the payload and appending the MIC. */
   encodeUplink(fcnt: number, fport: number, payload: Buffer, options?: LorawanOptions | undefined | null): Buffer
   /** Encodes a downlink, encrypting the payload and appending the MIC. */
@@ -3943,6 +3961,16 @@ export declare const enum LoraRegion {
   Ru864 = 'Ru864'
 }
 
+/** A default channel of a LoRaWAN relay, TS011-1.0.1. */
+export interface LoraRelayChannel {
+  /** Where an end device sends its wake-on-radio frame, in hertz. */
+  worFrequencyHz: number
+  /** Where the relay acknowledges it, in hertz. */
+  ackFrequencyHz: number
+  /** The data rate of both, numbered as the plan's downlink data rates. */
+  dataRate: number
+}
+
 /** Where the second receive window listens. */
 export interface LoraRx2 {
   /** The fixed frequency, in hertz. */
@@ -3978,11 +4006,17 @@ export const LORAWAN_ADR_ACK_DELAY: number
 /** How many unanswered uplinks before a device asks the network to answer. */
 export const LORAWAN_ADR_ACK_LIMIT: number
 
+/** The bytes a forwarded uplink adds in front of the end device's frame. */
+export const LORAWAN_FORWARD_OVERHEAD: number
+
 /** How long after a join request the first join accept window opens, in microseconds. */
 export const LORAWAN_JOIN_ACCEPT_DELAY1_US: number
 
 /** How long after a join request the second join accept window opens, in microseconds. */
 export const LORAWAN_JOIN_ACCEPT_DELAY2_US: number
+
+/** The port every message between a relay and its network uses. */
+export const LORAWAN_LA_FPORT_RELAY: number
 
 /** The largest gap a frame counter may jump across and still be accepted. */
 export const LORAWAN_MAX_FCNT_GAP: number
@@ -3993,6 +4027,9 @@ export const LORAWAN_MAX_FRAME: number
 /** The largest application payload, in bytes, a single frame can carry. */
 export const LORAWAN_MAX_PAYLOAD: number
 
+/** The shortest WOR preamble, in symbols. */
+export const LORAWAN_MIN_WOR_PREAMBLE_SYMBOLS: number
+
 /** How long after an uplink the first receive window opens, in microseconds. */
 export const LORAWAN_RECEIVE_DELAY1_US: number
 
@@ -4002,11 +4039,29 @@ export const LORAWAN_RECEIVE_DELAY2_US: number
 /** How far a receive window may open either side of its time, in microseconds. */
 export const LORAWAN_RECEIVE_WINDOW_TOLERANCE_US: number
 
+/** The gap between a relay hearing an uplink and forwarding it. */
+export const LORAWAN_RELAY_FWD_DELAY_US: number
+
 /** The longest wait before a confirmed uplink is sent again, in microseconds. */
 export const LORAWAN_RETRANSMIT_TIMEOUT_MAX_US: number
 
 /** The shortest wait before a confirmed uplink is sent again, in microseconds. */
 export const LORAWAN_RETRANSMIT_TIMEOUT_MIN_US: number
+
+/** How long after an uplink an end device's RXR window opens at the latest. */
+export const LORAWAN_RXR_DELAY_US: number
+
+/** How many end devices a relay verifies wake-on-radio frames for. */
+export const LORAWAN_TRUSTED_ED_NUMBER: number
+
+/** The gap between a WOR frame and its acknowledgment. */
+export const LORAWAN_WOR_ACK_DELAY_US: number
+
+/** How many WOR frames go without an acknowledgment before the uplink goes anyway. */
+export const LORAWAN_WOR_ATTEMPTS_WO_ACK: number
+
+/** The gap between a WOR frame, or its acknowledgment, and the LoRaWAN frame after it. */
+export const LORAWAN_WOR_DATA_DELAY_US: number
 
 /** What a back-off says to do with one uplink. */
 export interface LorawanBackoffStep {
@@ -4024,6 +4079,42 @@ export interface LorawanBackoffStep {
    * sending. Only TS001-1.0.4 takes this step.
    */
   restoreChannels: boolean
+}
+
+/** How often a relay scans a channel, TS011-1.0.1 table 18. */
+export declare const enum LorawanCadPeriodicity {
+  /** Once a second. */
+  Ms1000 = 'Ms1000',
+  /** Every 500 milliseconds. */
+  Ms500 = 'Ms500',
+  /** Every 250 milliseconds. */
+  Ms250 = 'Ms250',
+  /** Every 100 milliseconds. */
+  Ms100 = 'Ms100',
+  /** Every 50 milliseconds. */
+  Ms50 = 'Ms50',
+  /** Every 20 milliseconds. */
+  Ms20 = 'Ms20'
+}
+
+/** How many symbols a relay takes from detecting activity to receiving, table 15. */
+export declare const enum LorawanCadToRx {
+  /** Two symbols. */
+  Symbols2 = 'Symbols2',
+  /** Four. */
+  Symbols4 = 'Symbols4',
+  /** Six. */
+  Symbols6 = 'Symbols6',
+  /** Eight. */
+  Symbols8 = 'Symbols8'
+}
+
+/** Where a frame goes and how fast. */
+export interface LorawanCarrier {
+  /** The frequency in hertz. */
+  frequencyHz: number
+  /** The data rate. */
+  dataRate: number
 }
 
 /** Which form a channel list takes, from its last byte. */
@@ -4124,6 +4215,16 @@ export declare const enum LorawanDirection {
   Uplink = 'Uplink',
   /** From the network down to an end device. */
   Downlink = 'Downlink'
+}
+
+/** An end device's uplink as a relay forwards it on port 226. */
+export interface LorawanForwardedUplink {
+  /** What the relay heard of it. */
+  metadata: LorawanUplinkMetadata
+  /** The frequency it arrived on, in hertz. */
+  frequencyHz: number
+  /** The end device's frame. */
+  phyPayload: Buffer
 }
 
 /** The frame counters a device carries over a restart. */
@@ -4310,6 +4411,82 @@ export interface LorawanMacCommand {
   seconds?: number
   /** The fraction of that second, in steps of one part in 256. */
   fraction?: number
+  /** Whether a relay runs. */
+  enabled?: boolean
+  /** How often a relay scans, as TS011-1.0.1 table 18 codes it. */
+  cadPeriodicity?: number
+  /** Which of the region's relay channels is a relay's default one. */
+  defaultChannelIndex?: number
+  /** Whether a relay configuration sets a second channel, 1 for yes. */
+  secondChannelIndex?: number
+  /** The second channel's data rate; its frequency is the frequency field. */
+  secondChannelDataRate?: number
+  /** How far above its frequency the second channel is acknowledged, as table 35 codes it. */
+  secondChannelAckOffset?: number
+  /** Whether the scan period was valid. */
+  cadPeriodicityAck?: boolean
+  /** Whether the default channel was valid. */
+  defaultChannelIndexAck?: boolean
+  /** Whether the second channel index was valid. */
+  secondChannelIndexAck?: boolean
+  /** Whether the second channel's data rate was valid. */
+  secondChannelDataRateAck?: boolean
+  /** Whether its acknowledgment offset was valid. */
+  secondChannelAckOffsetAck?: boolean
+  /** Whether its frequency was valid. */
+  secondChannelFrequencyAck?: boolean
+  /** How an end device uses a relay, as TS011-1.0.1 table 40 codes it. */
+  relayMode?: number
+  /** How many unanswered uplinks turn relaying on, as table 41 codes it. */
+  smartEnableLevel?: number
+  /** How many WOR frames without an acknowledgment before an uplink goes anyway. */
+  backOff?: number
+  /** What a join filter rule does, or whether a trusted end device is read or removed. */
+  action?: number
+  /** How many leading bytes of JoinEUI and DevEUI a join filter rule matches. */
+  euiLen?: number
+  /** Those bytes, most significant first, with the rest zero. */
+  eui?: Buffer
+  /** Whether a join filter rule was one to create, change or remove. */
+  combinedRulesAck?: boolean
+  /** Whether its length was valid. */
+  euiLenAck?: boolean
+  /** Whether its action was valid. */
+  actionAck?: boolean
+  /** Tokens a trusted end device earns an hour, 63 for no limit. */
+  reloadRate?: number
+  /** Its bucket size multiplier, as TS011-1.0.1 table 55 codes it. */
+  bucketSize?: number
+  /** An end device address a relay command names. */
+  devAddr?: number
+  /** A wake-on-radio frame counter. */
+  wfcnt?: number
+  /** An end device's root relay session key. */
+  rootWorSKey?: Buffer
+  /** Whether a trusted list entry was in use. */
+  indexAck?: boolean
+  /** What a forwarding limit command does to a relay's token counters, as table 63 codes it. */
+  resetLimitCounters?: number
+  /** Join requests a relay forwards an hour, 127 for no limit. */
+  joinRequestReloadRate?: number
+  /** New end device notifications a relay sends an hour. */
+  notifyReloadRate?: number
+  /** Uplinks a relay forwards an hour across every trusted end device. */
+  globalUplinkReloadRate?: number
+  /** Every message a relay sends an hour. */
+  overallReloadRate?: number
+  /** The join request bucket size multiplier. */
+  joinRequestBucketSize?: number
+  /** The notification bucket size multiplier. */
+  notifyBucketSize?: number
+  /** The global uplink bucket size multiplier. */
+  globalUplinkBucketSize?: number
+  /** The overall bucket size multiplier. */
+  overallBucketSize?: number
+  /** The signal strength of a WOR frame a relay could not verify, in dBm. */
+  rssiDbm?: number
+  /** Its signal-to-noise ratio, in dB. */
+  snrDb?: number
 }
 
 /**
@@ -4433,6 +4610,75 @@ export declare const enum LorawanReceiveWindow {
   Rx2 = 'Rx2'
 }
 
+/** Whether a relay will forward the uplink, table 16. */
+export declare const enum LorawanRelayForward {
+  /** It has room to. */
+  Available = 'Available',
+  /** A limit is reached; try again in 30 minutes. */
+  RetryIn30Minutes = 'RetryIn30Minutes',
+  /** A limit is reached; try again in 60 minutes. */
+  RetryIn60Minutes = 'RetryIn60Minutes',
+  /** Forwarding is off. */
+  Disabled = 'Disabled'
+}
+
+/** Writes an uplink a relay forwards on port 226, section 9.1. */
+export declare function lorawanRelayForwardEncode(forwarded: LorawanForwardedUplink): Buffer
+
+/** Reads an uplink a relay forwarded, section 9.1. */
+export declare function lorawanRelayForwardParse(payload: Buffer): LorawanForwardedUplink
+
+/**
+ * Picks the relay scan a synchronized end device aims its next WOR frame at, appendix 1,
+ * or null once the drift exceeds a period.
+ */
+export declare function lorawanRelayNextWor(synchronization: LorawanSynchronization, nowUs: number, deviceXtalPpm: number, symbolUs: number, otherChannel: boolean): LorawanWorSlot | null
+
+/**
+ * Derives an end device's root relay session key from its network session key,
+ * TS011-1.0.1 section 4.4.
+ */
+export declare function lorawanRelayRootWorSKey(networkKey: Buffer): Buffer
+
+/**
+ * Reads the second channel a relay or end device configuration describes, or null when the
+ * index is not 1 or the offset is reserved.
+ */
+export declare function lorawanRelaySecondChannel(secondChannelIndex: number, dataRate: number, ackOffset: number, frequencyHz: number): LoraRelayChannel | null
+
+/** Works out when a relay scanned from the WOR ACK that answered a frame. */
+export declare function lorawanRelaySynchronization(worStartUs: number, preambleSymbols: number, symbolUs: number, state: LorawanStateSync): LorawanSynchronization
+
+/**
+ * The offset a relay reports in a WOR ACK, appendix 1, or null when it is negative or past
+ * eleven bits.
+ */
+export declare function lorawanRelayTOffsetMs(scanStartUs: number, worEndUs: number, worAirtimeUs: number, symbolUs: number): number | null
+
+/** The WOR preamble of an end device that does not know when the relay scans, section 5.2. */
+export declare function lorawanRelayUnsynchronizedPreamble(cadPeriodicity: LorawanCadPeriodicity, symbolUs: number, cadToRx: LorawanCadToRx): number
+
+/** Builds a relay's WOR ACK, section 6.2. */
+export declare function lorawanRelayWorAck(keys: LorawanWorKeys, devAddr: number, wfcnt: number, ack: LorawanCarrier, uplink: LorawanCarrier, state: LorawanStateSync): Buffer
+
+/** Checks and reads a WOR ACK, section 6.2. */
+export declare function lorawanRelayWorAckOpen(frame: Buffer, keys: LorawanWorKeys, devAddr: number, wfcnt: number, ack: LorawanCarrier, uplink: LorawanCarrier): LorawanStateSync
+
+/** Builds the WOR frame ahead of a join request, section 5.3.1. */
+export declare function lorawanRelayWorJoinRequest(uplink: LorawanCarrier): Buffer
+
+/** Derives an end device's wake-on-radio keys from its root relay session key, section 4.5. */
+export declare function lorawanRelayWorKeys(rootKey: Buffer, devAddr: number): LorawanWorKeys
+
+/** Checks a WOR frame ahead of a Class A uplink and reads where the uplink follows. */
+export declare function lorawanRelayWorOpen(frame: Buffer, keys: LorawanWorKeys, wfcnt: number, wor: LorawanCarrier): LorawanCarrier
+
+/** Reads a WOR frame, leaving an uplink's carrier sealed. */
+export declare function lorawanRelayWorParse(frame: Buffer): LorawanWor
+
+/** Builds the WOR frame ahead of a Class A uplink, section 5.3.2. */
+export declare function lorawanRelayWorUplink(keys: LorawanWorKeys, devAddr: number, wfcnt: number, uplink: LorawanCarrier, wor: LorawanCarrier): Buffer
+
 /** Where the second receive window listens. */
 export interface LorawanRx2 {
   /** The frequency, in hertz. */
@@ -4469,6 +4715,34 @@ export interface LorawanRxData {
   payload: Buffer
 }
 
+/** What a relay tells an end device about itself in a WOR ACK, table 14. */
+export interface LorawanStateSync {
+  /** How long it takes to start receiving. */
+  cadToRx: LorawanCadToRx
+  /** Whether it forwards. */
+  forward: LorawanRelayForward
+  /** The data rate it forwards at. */
+  relayDataRate: number
+  /** How accurate its crystal is. */
+  xtalAccuracy: LorawanXtalAccuracy
+  /** How often it scans. */
+  cadPeriodicity: LorawanCadPeriodicity
+  /** Milliseconds from the start of the scan to the end of the WOR preamble. */
+  tOffsetMs: number
+}
+
+/** What an end device knows of a relay's scans once a WOR ACK has arrived. */
+export interface LorawanSynchronization {
+  /** When the relay scanned, in the device's microseconds. */
+  referenceUs: number
+  /** How often it scans. */
+  cadPeriodicity: LorawanCadPeriodicity
+  /** How accurate its crystal is. */
+  relayXtal: LorawanXtalAccuracy
+  /** How long it takes to start receiving. */
+  cadToRx: LorawanCadToRx
+}
+
 /** A frame to put on the air, and where to listen afterward. */
 export interface LorawanTransmission {
   /** The frame. */
@@ -4497,6 +4771,18 @@ export interface LorawanTransmission {
   carriesPayload: boolean
 }
 
+/** What a relay heard of an uplink it forwards. */
+export interface LorawanUplinkMetadata {
+  /** The channel the WOR frame came in on. */
+  worChannel: LorawanWorChannel
+  /** The uplink's signal strength in dBm, carried from -142 to -15. */
+  rssiDbm: number
+  /** Its signal-to-noise ratio in dB, carried from -20 to 11. */
+  snrDb: number
+  /** The data rate it arrived at. */
+  dataRate: number
+}
+
 /** A revision of the LoRaWAN link layer. */
 export declare const enum LorawanVersion {
   /** LoRaWAN 1.0.3. */
@@ -4518,6 +4804,65 @@ export interface LorawanWindow {
    * table 112 has for a downlink.
    */
   link: LoraLink
+}
+
+/** A wake-on-radio frame, as a relay reads it. */
+export interface LorawanWor {
+  /** Which frame it is. */
+  kind: LorawanWorKind
+  /**
+   * Where and how fast a join request follows; an uplink's carrier is sealed until
+   * `lorawanRelayWorOpen` reads it.
+   */
+  uplink?: LorawanCarrier
+  /** The address an uplink WOR names. */
+  devAddr?: number
+  /** The low sixteen bits of its frame counter. */
+  wfcnt?: number
+}
+
+/** Which of a relay's channels a WOR frame arrived on. */
+export declare const enum LorawanWorChannel {
+  /** The default channel. */
+  Default = 'Default',
+  /** The second channel. */
+  Second = 'Second'
+}
+
+/** The integrity and encryption keys of one end device's wake-on-radio frames, TS011-1.0.1. */
+export interface LorawanWorKeys {
+  /** `WorSIntKey`, 16 bytes. */
+  integrity: Buffer
+  /** `WorSEncKey`, 16 bytes. */
+  encryption: Buffer
+}
+
+/** Which WOR frame a relay heard. */
+export declare const enum LorawanWorKind {
+  /** Ahead of a join request. */
+  JoinRequest = 'JoinRequest',
+  /** Ahead of a Class A uplink. */
+  Uplink = 'Uplink'
+}
+
+/** When a synchronized end device's next WOR frame goes out. */
+export interface LorawanWorSlot {
+  /** When to start sending, in microseconds. */
+  startUs: number
+  /** The preamble length in symbols. */
+  preambleSymbols: number
+}
+
+/** How accurate a relay's crystal is, table 17. */
+export declare const enum LorawanXtalAccuracy {
+  /** Better than 10 parts per million. */
+  Ppm10 = 'Ppm10',
+  /** Better than 20. */
+  Ppm20 = 'Ppm20',
+  /** Better than 30. */
+  Ppm30 = 'Ppm30',
+  /** Better than 40. */
+  Ppm40 = 'Ppm40'
 }
 
 /** What a release says about itself, and what a device checks it against. */
