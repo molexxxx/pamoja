@@ -1,8 +1,10 @@
 //! Over-the-air activation: the join exchange that turns root keys into a session.
 
+use crate::cflist::{CfList, CFLIST_LEN};
 use crate::crypto::Cipher;
 use crate::error::LorawanError;
 use crate::frame::{PhyPayload, MTYPE_JOIN_ACCEPT, MTYPE_JOIN_REQUEST, MTYPE_MASK};
+use crate::mac::receive_delay_s;
 use crate::session::Session;
 
 // A join-request is a fixed 23 bytes: MHDR, AppEUI, DevEUI, DevNonce, and MIC.
@@ -127,12 +129,18 @@ impl Device {
         let nwk_skey = derive_key(&cipher, 0x01, app_nonce, net_id_bytes, dev_nonce);
         let app_skey = derive_key(&cipher, 0x02, app_nonce, net_id_bytes, dev_nonce);
 
+        let cflist = clear
+            .get(12..12 + CFLIST_LEN)
+            .and_then(|bytes| <[u8; CFLIST_LEN]>::try_from(bytes).ok())
+            .map(CfList::from_bytes);
+
         Ok(JoinAccept {
             session: Session::new(dev_addr, nwk_skey, app_skey),
             net_id,
             dev_addr,
             dl_settings,
             rx_delay,
+            cflist,
         })
     }
 }
@@ -146,6 +154,7 @@ pub struct JoinAccept {
     dev_addr: u32,
     dl_settings: u8,
     rx_delay: u8,
+    cflist: Option<CfList>,
 }
 
 impl JoinAccept {
@@ -178,6 +187,9 @@ impl JoinAccept {
 
     /// Returns the downlink settings byte, which selects the downlink data rates.
     ///
+    /// [`rx1_dr_offset`](JoinAccept::rx1_dr_offset) and
+    /// [`rx2_data_rate`](JoinAccept::rx2_data_rate) read the two fields out of it.
+    ///
     /// # Returns
     ///
     /// The DLSettings byte.
@@ -185,13 +197,71 @@ impl JoinAccept {
         self.dl_settings
     }
 
-    /// Returns the delay, in seconds, before the first receive window.
+    /// Returns the delay byte before the first receive window, as it arrived.
+    ///
+    /// [`receive_delay_us`](JoinAccept::receive_delay_us) reads the delay out of it.
     ///
     /// # Returns
     ///
-    /// The RxDelay value.
+    /// The RxDelay byte.
     pub fn rx_delay(&self) -> u8 {
         self.rx_delay
+    }
+
+    /// Returns the offset between an uplink's data rate and the first window's.
+    ///
+    /// TS001-1.0.4 table 55 carries it in bits 6 to 4 of DLSettings. What an offset means
+    /// is regional, and [`ChannelPlan::rx1_data_rate`] in `pamoja-lora` reads it.
+    ///
+    /// [`ChannelPlan::rx1_data_rate`]: https://docs.rs/pamoja-lora/latest/pamoja_lora/region/struct.ChannelPlan.html#method.rx1_data_rate
+    ///
+    /// # Returns
+    ///
+    /// The RX1DROffset, from 0 to 7.
+    pub fn rx1_dr_offset(&self) -> u8 {
+        (self.dl_settings >> 4) & 0x07
+    }
+
+    /// Returns the data rate the second receive window listens at.
+    ///
+    /// # Returns
+    ///
+    /// The RX2DataRate, from the low four bits of DLSettings.
+    pub fn rx2_data_rate(&self) -> u8 {
+        self.dl_settings & 0x0F
+    }
+
+    /// Returns the delay from the end of an uplink to the first receive window.
+    ///
+    /// TS001-1.0.4 table 44 keeps the delay in seconds in the low four bits, with the upper
+    /// four reserved, and has a zero there mean one second.
+    ///
+    /// # Returns
+    ///
+    /// The delay in microseconds, from one to fifteen seconds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_lorawan::{Device, JoinGrant};
+    ///
+    /// let device = Device::new([1; 8], [2; 8], [3; 16]);
+    /// let accept = JoinGrant::new(0x01, 0x13, 0x2601_2E43).with_rx_delay(0).accept(&[3; 16], 7);
+    /// let joined = device.accept_join(accept.as_bytes(), 7)?;
+    /// assert_eq!(joined.receive_delay_us(), 1_000_000, "zero is one second");
+    /// # Ok::<(), pamoja_lorawan::LorawanError>(())
+    /// ```
+    pub fn receive_delay_us(&self) -> u32 {
+        u32::from(receive_delay_s(self.rx_delay & 0x0F)) * 1_000_000
+    }
+
+    /// Returns the channel list the network attached, if it attached one.
+    ///
+    /// # Returns
+    ///
+    /// The list, or [`None`] for a join accept of the shorter, seventeen-byte form.
+    pub fn cflist(&self) -> Option<CfList> {
+        self.cflist
     }
 }
 
@@ -384,6 +454,11 @@ mod tests {
         let frame = make_join_accept_with_cflist(&APP_KEY, [0x11; 16]);
         let accepted = device.accept_join(&frame, DEV_NONCE).unwrap();
         assert_eq!(accepted.dev_addr(), 0x2601_1BDA);
+        assert_eq!(
+            accepted.cflist(),
+            Some(CfList::from_bytes([0x11; 16])),
+            "the list is handed back as it arrived, whatever its type"
+        );
         // The derived session still secures a data frame.
         let session = accepted.session();
         let uplink = session.encode_uplink(&Uplink::new(1, 1, b"cf")).unwrap();

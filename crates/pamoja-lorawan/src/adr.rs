@@ -15,9 +15,12 @@
 //! Which rate to move a device to in the first place is a policy the specification
 //! deliberately leaves open, and it is not here.
 //!
-//! The two counts, the limit and the delay, are regional. The core specification names them
-//! and does not give them values, so [`Backoff::new`] takes them rather than guessing: they
-//! come from the regional parameters document for the band a device runs in.
+//! The two counts, the limit and the delay, belong to the regional parameters rather than to
+//! the core specification, which names them without values. RP002-1.0.5 section 3.3
+//! recommends 64 and 32 for every region, and [`Backoff::recommended`] starts with those;
+//! [`Backoff::new`] takes others, for a device commissioned with different ones.
+
+use crate::defaults::{ADR_ACK_DELAY, ADR_ACK_LIMIT};
 
 /// How a device should send the next uplink, and what the back-off did to it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -60,6 +63,31 @@ pub struct Backoff {
 }
 
 impl Backoff {
+    /// A device at a rate, counting from zero, with the limit and delay RP002-1.0.5 section
+    /// 3.3 recommends for every region.
+    ///
+    /// # Arguments
+    ///
+    /// * `data_rate` - the rate it is sending at now.
+    /// * `lowest` - the slowest rate it has, which it will not step below.
+    ///
+    /// # Returns
+    ///
+    /// The count, asking after [`ADR_ACK_LIMIT`] unanswered uplinks and stepping down every
+    /// [`ADR_ACK_DELAY`] after that.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_lorawan::adr::Backoff;
+    ///
+    /// assert_eq!(Backoff::recommended(5, 0), Backoff::new(5, 0, 64, 32));
+    /// ```
+    #[must_use]
+    pub const fn recommended(data_rate: u8, lowest: u8) -> Backoff {
+        Backoff::new(data_rate, lowest, ADR_ACK_LIMIT, ADR_ACK_DELAY)
+    }
+
     /// A device at a rate, counting from zero.
     ///
     /// # Arguments
