@@ -500,6 +500,42 @@ pub unsafe extern "C" fn pamoja_lora_radio_sleep(radio: *mut PamojaLoraRadio) ->
     status(drive(radio, |radio| radio.sleep()))
 }
 
+/// Draws a random number from the noise a radio's receiver hears, leaving the chip in standby.
+///
+/// Semtech's own drivers draw it the same way, and LoRaWAN 1.0.3 suggests this source for a
+/// join nonce on a device that has no other.
+///
+/// # Arguments
+///
+/// * `radio` - the radio.
+/// * `out_value` - receives thirty-two bits of noise.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null argument; or
+/// [`PamojaStatus::Io`] when the chip does not answer.
+///
+/// # Safety
+///
+/// `radio` must be a live handle or null, and `out_value` writable or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_radio_random(
+    radio: *mut PamojaLoraRadio,
+    out_value: *mut u32,
+) -> PamojaStatus {
+    if out_value.is_null() {
+        set_last_error("out_value must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    match drive(radio, |radio| radio.random()) {
+        Ok(value) => {
+            *out_value = value;
+            PamojaStatus::Ok
+        }
+        Err(status) => status,
+    }
+}
+
 /// Reads one register of a radio's chip.
 ///
 /// # Arguments
@@ -869,6 +905,15 @@ mod tests {
         unsafe {
             assert_eq!(
                 pamoja_lora_radio_standby(ptr::null_mut()),
+                PamojaStatus::InvalidArgument
+            );
+            let mut noise = 0;
+            assert_eq!(
+                pamoja_lora_radio_random(ptr::null_mut(), &mut noise),
+                PamojaStatus::InvalidArgument
+            );
+            assert_eq!(
+                pamoja_lora_radio_random(ptr::null_mut(), ptr::null_mut()),
                 PamojaStatus::InvalidArgument
             );
             assert_eq!(pamoja_lora_radio_family(ptr::null()), u8::MAX);

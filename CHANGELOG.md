@@ -203,6 +203,14 @@ released together, so one entry covers all of them.
 - A walkthrough on the site, Node to dashboard, that joins the ESP32-C3 LoRaWAN
   node, a gateway on a Raspberry Pi and a ChirpStack server into one system, and a
   Raspberry Pi program that serves a dashboard of every node the server hears.
+- ChirpStack's uplink events in C, TypeScript, Python and C#: the JSON a network
+  server publishes on MQTT read into the device, its address, the counter, the port,
+  the payload decoded from base64, and every gateway that heard it with the one that
+  heard it best, and the topics to subscribe to for one application or all of them.
+  New conformance vectors hold the four languages to the event on ChirpStack's own
+  documentation page and to what an event may not carry. A LoRa radio on a Linux
+  board also draws random numbers from its receiver noise in every language, as it
+  already did in Rust.
 - What keeps a LoRaWAN link running, in C, TypeScript, Python and C#: the ADR
   back-off of LoRaWAN 1.0.3 and TS001-1.0.4 section 4.3.1.1, which says when a
   device that stopped hearing its network asks for an answer and which settings it

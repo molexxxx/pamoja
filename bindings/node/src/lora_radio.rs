@@ -252,6 +252,18 @@ impl LoraRadio {
         .await
     }
 
+    /// Draws a random number from the noise the receiver hears, leaving the chip in standby.
+    ///
+    /// Semtech's own drivers draw it the same way, and LoRaWAN 1.0.3 suggests this source
+    /// for a join nonce on a device that has no other.
+    #[napi]
+    pub async fn random(&self) -> napi::Result<u32> {
+        drive(&self.inner, |radio| {
+            radio.random().map_err(|error| error.to_string())
+        })
+        .await
+    }
+
     /// Reads one register: a 16-bit address on the SX126x, 0x00 to 0x7F on the SX127x.
     #[napi(js_name = "readRegister")]
     pub async fn read_register(&self, address: u32) -> napi::Result<u32> {

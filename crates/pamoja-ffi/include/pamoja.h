@@ -102,6 +102,18 @@
 // A GPS timestamp was asked for while the GPS is unlocked.
 #define PAMOJA_GATEWAY_TX_GPS_UNLOCKED 7
 
+// The identifier ChirpStack gave the uplink once it deduplicated the gateways' copies.
+#define PAMOJA_CHIRPSTACK_DEDUPLICATION_ID 0
+
+// When the uplink was received, as ChirpStack wrote it.
+#define PAMOJA_CHIRPSTACK_TIME 1
+
+// The application the device belongs to.
+#define PAMOJA_CHIRPSTACK_APPLICATION_ID 2
+
+// The name the device was given in ChirpStack.
+#define PAMOJA_CHIRPSTACK_DEVICE_NAME 3
+
 // A device joined, and its accept is in the event.
 #define PAMOJA_GATEWAY_NETWORK_JOINED 0
 
@@ -1759,6 +1771,11 @@ typedef struct PamojaCdrReader PamojaCdrReader;
 // An opaque handle to a CDR encoder.
 typedef struct PamojaCdrWriter PamojaCdrWriter;
 
+// An opaque handle to a parsed uplink event.
+//
+// Release it with [`pamoja_chirpstack_uplink_free`].
+typedef struct PamojaChirpstackUplink PamojaChirpstackUplink;
+
 // An opaque handle to a CoAP endpoint.
 typedef struct PamojaCoapClient PamojaCoapClient;
 
@@ -2284,6 +2301,44 @@ typedef struct {
   // Whether a preamble length was given.
   bool has_preamble;
 } PamojaGatewayTxpk;
+
+// The scalar fields of an uplink event, read in one call.
+typedef struct {
+  // The device's address, meaningful when `has_dev_addr` is `1`.
+  uint32_t dev_addr;
+  // The uplink frame counter.
+  uint32_t fcnt;
+  // The carrier it was heard on, in hertz, meaningful when `has_frequency` is `1`.
+  uint32_t frequency_hz;
+  // How many gateways heard it.
+  uint32_t reception_count;
+  // The device EUI, most-significant byte first.
+  uint8_t dev_eui[8];
+  // `1` when the event names the device's address.
+  uint8_t has_dev_addr;
+  // `1` when the device had adaptive data rate on.
+  uint8_t adr;
+  // The data rate, as the region numbers them.
+  uint8_t data_rate;
+  // `1` when the frame carried an application port.
+  uint8_t has_fport;
+  // The application port.
+  uint8_t fport;
+  // `1` for a confirmed uplink.
+  uint8_t confirmed;
+  // `1` when the event names the carrier.
+  uint8_t has_frequency;
+} PamojaChirpstackUplinkSummary;
+
+// One gateway that heard an uplink.
+typedef struct {
+  // The received signal strength, in dBm.
+  int32_t rssi_dbm;
+  // The signal-to-noise ratio, in dB.
+  float snr_db;
+  // The gateway's EUI, most-significant byte first.
+  uint8_t gateway[8];
+} PamojaChirpstackReception;
 
 // When and where a network answers, and at what rate.
 //
@@ -5232,6 +5287,168 @@ PamojaBuffer *pamoja_gateway_packet_to_buffer(const PamojaGatewayPacket *packet)
 // [`pamoja_gateway_packet_parse`], or null.
 void pamoja_gateway_packet_free(PamojaGatewayPacket *packet);
 
+// Reads an uplink event from the JSON ChirpStack published.
+//
+// # Arguments
+//
+// * `text` - the MQTT message's payload, UTF-8 JSON.
+// * `text_len` - its length.
+// * `out_uplink` - receives the event.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_uplink` set to a handle the caller must release
+// with [`pamoja_chirpstack_uplink_free`].
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, and [`PamojaStatus::Codec`]
+// for text that is not a JSON object, an event with no device EUI, or a field that does not
+// read as what it should, with the field named by `pamoja_last_error`.
+//
+// # Safety
+//
+// `text` must point to `text_len` readable bytes when that is non-zero, and `out_uplink` must
+// be writable.
+PamojaStatus pamoja_chirpstack_uplink_parse(const uint8_t *text,
+                                            uintptr_t text_len,
+                                            PamojaChirpstackUplink **out_uplink);
+
+// Releases an uplink event handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `uplink` must be a handle from [`pamoja_chirpstack_uplink_parse`] that has not already been
+// freed, or null.
+void pamoja_chirpstack_uplink_free(PamojaChirpstackUplink *uplink);
+
+// Reads the scalar fields of an uplink event.
+//
+// # Arguments
+//
+// * `uplink` - the event.
+// * `out_summary` - receives the fields.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `uplink` must be a live handle and `out_summary` writable.
+PamojaStatus pamoja_chirpstack_uplink_summary(const PamojaChirpstackUplink *uplink,
+                                              PamojaChirpstackUplinkSummary *out_summary);
+
+// Reads one of an uplink event's text fields.
+//
+// # Arguments
+//
+// * `uplink` - the event.
+// * `field` - one of the `PAMOJA_CHIRPSTACK_*` field constants.
+//
+// # Returns
+//
+// The text, which the caller releases with [`pamoja_string_free`](crate::pamoja_string_free);
+// an empty string for a field the event left out; or null for a time the event left out, a
+// null handle, or a field constant that names nothing.
+//
+// # Safety
+//
+// `uplink` must be a live handle or null.
+PamojaString *pamoja_chirpstack_uplink_text(const PamojaChirpstackUplink *uplink, uint8_t field);
+
+// Copies out the application payload an uplink carried, decoded from base64.
+//
+// # Arguments
+//
+// * `uplink` - the event.
+// * `out_data` - receives the payload, empty when the event carried none.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_data` set to a buffer the caller releases with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `uplink` must be a live handle and `out_data` writable.
+PamojaStatus pamoja_chirpstack_uplink_data(const PamojaChirpstackUplink *uplink,
+                                           PamojaBuffer **out_data);
+
+// Reads one gateway that heard an uplink.
+//
+// # Arguments
+//
+// * `uplink` - the event.
+// * `index` - the reception's position, below the count the summary reports.
+// * `out_reception` - receives the reception.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null or `index` is past the end.
+//
+// # Safety
+//
+// `uplink` must be a live handle and `out_reception` writable.
+PamojaStatus pamoja_chirpstack_uplink_reception(const PamojaChirpstackUplink *uplink,
+                                                uint32_t index,
+                                                PamojaChirpstackReception *out_reception);
+
+// Finds the gateway that heard an uplink best.
+//
+// # Arguments
+//
+// * `uplink` - the event.
+// * `out_index` - receives the position of the reception with the highest signal-to-noise
+//   ratio.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null or the event named no
+// gateway.
+//
+// # Safety
+//
+// `uplink` must be a live handle and `out_index` writable.
+PamojaStatus pamoja_chirpstack_uplink_best_reception(const PamojaChirpstackUplink *uplink,
+                                                     uint32_t *out_index);
+
+// Builds the MQTT topic an application's uplink events are published on, with a wildcard in
+// place of the device.
+//
+// # Arguments
+//
+// * `application_id` - the application's identifier, as ChirpStack shows it, or `+` for every
+//   application's events.
+//
+// # Returns
+//
+// The topic, `application/<id>/device/+/event/up`, which the caller releases with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null for a null or non-UTF-8 argument.
+//
+// # Safety
+//
+// `application_id` must be a NUL-terminated string or null.
+PamojaString *pamoja_chirpstack_uplink_topic(const char *application_id);
+
 // Returns the windows a network answers in by default.
 //
 // # Returns
@@ -7350,6 +7567,26 @@ PamojaStatus pamoja_lora_radio_standby(PamojaLoraRadio *radio);
 //
 // `radio` must be a live handle from one of the open functions, or null.
 PamojaStatus pamoja_lora_radio_sleep(PamojaLoraRadio *radio);
+
+// Draws a random number from the noise a radio's receiver hears, leaving the chip in standby.
+//
+// Semtech's own drivers draw it the same way, and LoRaWAN 1.0.3 suggests this source for a
+// join nonce on a device that has no other.
+//
+// # Arguments
+//
+// * `radio` - the radio.
+// * `out_value` - receives thirty-two bits of noise.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null argument; or
+// [`PamojaStatus::Io`] when the chip does not answer.
+//
+// # Safety
+//
+// `radio` must be a live handle or null, and `out_value` writable or null.
+PamojaStatus pamoja_lora_radio_random(PamojaLoraRadio *radio, uint32_t *out_value);
 
 // Reads one register of a radio's chip.
 //

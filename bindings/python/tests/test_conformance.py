@@ -1630,6 +1630,46 @@ def test_header_vectors_match():
         lorawan.parse_header(unhex(vector["truncated"]))
 
 
+def test_chirpstack_vectors_match():
+    vector = VECTORS["chirpstack"]
+    for entry in vector["events"]:
+        got = gateway.ChirpstackUplinkEvent.from_json(entry["json"])
+        best = got.best_reception()
+        receptions = got.receptions
+        best_index = None
+        if best is not None:
+            best_index = next(
+                index
+                for index, reception in enumerate(receptions)
+                if (reception.gateway, reception.snr_db) == (best.gateway, best.snr_db)
+            )
+        assert {
+            "deduplicationId": got.deduplication_id,
+            "time": got.time,
+            "applicationId": got.application_id,
+            "deviceName": got.device_name,
+            "devEui": got.dev_eui,
+            "devAddr": got.dev_addr,
+            "adr": got.adr,
+            "dataRate": got.data_rate,
+            "fcnt": got.fcnt,
+            "fport": got.fport,
+            "confirmed": got.confirmed,
+            "data": got.data.hex(),
+            "frequencyHz": got.frequency_hz,
+            "receptions": [
+                {"gateway": reception.gateway, "rssiDbm": reception.rssi_dbm, "snrDb": reception.snr_db}
+                for reception in receptions
+            ],
+            "bestReception": best_index,
+        } == entry["event"]
+    for text in vector["refused"]:
+        with pytest.raises(PamojaError):
+            gateway.ChirpstackUplinkEvent.from_json(text)
+    assert gateway.chirpstack_uplink_topic(vector["topic"]["applicationId"]) == vector["topic"]["topic"]
+    assert gateway.CHIRPSTACK_UPLINK_TOPIC == vector["allApplications"]
+
+
 def test_lorawan_link_defaults_match():
     d = VECTORS["lorawanLink"]["defaults"]
     assert (

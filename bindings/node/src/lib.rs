@@ -32,6 +32,8 @@ pub mod codec;
 #[cfg(feature = "gateway")]
 pub mod gateway;
 #[cfg(feature = "gateway")]
+pub mod gateway_chirpstack;
+#[cfg(feature = "gateway")]
 pub mod gateway_network;
 #[cfg(feature = "gateway")]
 pub mod gateway_station;

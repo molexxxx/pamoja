@@ -154,6 +154,7 @@ fn main() {
         "gateway": gateway(),
         "gatewayNetwork": gateway_network(),
         "station": station(),
+        "chirpstack": chirpstack(),
         "mavlink": mavlink(),
         "mavlinkSchema": mavlink_schema(),
         "mavlinkProtocol": mavlink_protocol(),
@@ -2999,6 +3000,122 @@ fn network() -> Value {
                 "frame": hex(published_probe.as_bytes()),
             },
         },
+    })
+}
+
+/// The uplink events a ChirpStack network server publishes on MQTT.
+///
+/// The first is the event on ChirpStack's integration events documentation page, as published,
+/// so every binding reads a third party's own example the same way.
+fn chirpstack() -> Value {
+    use pamoja_gateway::chirpstack::{uplink_topic, UplinkEvent};
+
+    const DOCUMENTED: &str = r#"{
+	"deduplicationId": "3ac7e3c4-4401-4b8d-9386-a5c902f9202d",
+	"time": "2022-07-18T09:34:15.775023242+00:00",
+	"deviceInfo": {
+		"tenantId": "52f14cd4-c6f1-4fbd-8f87-4025e1d49242",
+		"tenantName": "ChirpStack",
+		"applicationId": "17c82e96-be03-4f38-aef3-f83d48582d97",
+		"applicationName": "Test application",
+		"deviceProfileId": "14855bf7-d10d-4aee-b618-ebfcb64dc7ad",
+		"deviceProfileName": "Test device-profile",
+		"deviceName": "Test device",
+		"devEui": "0101010101010101",
+		"tags": {
+			"key": "value"
+		}
+	},
+	"devAddr": "00189440",
+	"dr": 1,
+	"fPort": 1,
+	"data": "qg==",
+	"rxInfo": [{
+		"gatewayId": "0016c001f153a14c",
+		"uplinkId": 4217106255,
+		"rssi": -36,
+		"snr": 10.5,
+		"context": "E3OWOQ==",
+		"metadata": {
+			"region_name": "eu868",
+			"region_common_name": "EU868"
+		}
+	}],
+	"txInfo": {
+		"frequency": 867100000,
+		"modulation": {
+			"lora": {
+				"bandwidth": 125000,
+				"spreadingFactor": 11,
+				"codeRate": "CR_4_5"
+			}
+		}
+	}
+}"#;
+    let later = DOCUMENTED.replacen(
+        r#""dr": 1,"#,
+        r#""dr": 1, "fCnt": 70000, "adr": true, "confirmed": true,"#,
+        1,
+    );
+    let two = DOCUMENTED.replacen(
+        r#""rxInfo": [{"#,
+        r#""rxInfo": [{ "gatewayId": "0202020202020202", "rssi": -110, "snr": -4.25 }, {"#,
+        1,
+    );
+    let bare = r#"{ "deviceInfo": { "devEui": "0a0b0c0d0e0f1011" }, "fCnt": 3 }"#;
+
+    let described = |text: &str| {
+        let event = UplinkEvent::from_json(text).expect("the event reads");
+        let best = event.best_reception().and_then(|best| {
+            event
+                .receptions
+                .iter()
+                .position(|reception| std::ptr::eq(reception, best))
+        });
+        json!({
+            "json": text,
+            "event": {
+                "deduplicationId": event.deduplication_id,
+                "time": event.time,
+                "applicationId": event.application_id,
+                "deviceName": event.device_name,
+                "devEui": event.dev_eui.to_hex(),
+                "devAddr": event.dev_addr,
+                "adr": event.adr,
+                "dataRate": event.data_rate,
+                "fcnt": event.fcnt,
+                "fport": event.fport,
+                "confirmed": event.confirmed,
+                "data": hex(&event.data),
+                "frequencyHz": event.frequency_hz,
+                "receptions": event.receptions.iter().map(|reception| json!({
+                    "gateway": reception.gateway.to_hex(),
+                    "rssiDbm": reception.rssi_dbm,
+                    "snrDb": reception.snr_db,
+                })).collect::<Vec<_>>(),
+                "bestReception": best,
+            },
+        })
+    };
+
+    let refused = [
+        "[1, 2]",
+        r#"{ "deviceInfo": {} }"#,
+        r#"{ "deviceInfo": { "devEui": "0101010101010101" }, "devAddr": "zz" }"#,
+        r#"{ "deviceInfo": { "devEui": "0101010101010101" }, "rxInfo": [{ "gatewayId": "0016c001f153a14c", "rssi": -36.5 }] }"#,
+    ];
+    for text in refused {
+        assert!(UplinkEvent::from_json(text).is_err(), "{text} is refused");
+    }
+
+    json!({
+        "source": "https://www.chirpstack.io/docs/chirpstack/integrations/events.html",
+        "events": [described(DOCUMENTED), described(&later), described(&two), described(bare)],
+        // Not an object, no device EUI, an address that is not hex, and a signal strength that
+        // is not a whole number: each is refused rather than read as something.
+        "refused": refused,
+        "topic": { "applicationId": "17c82e96-be03-4f38-aef3-f83d48582d97", "topic": uplink_topic("17c82e96-be03-4f38-aef3-f83d48582d97") },
+        "allApplications": pamoja_gateway::chirpstack::UPLINK_TOPIC,
     })
 }
 

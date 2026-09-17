@@ -306,6 +306,23 @@ public sealed class LoraRadio : IDisposable
     public void Sleep() =>
         NativeStatus.ThrowIfError(_handle.Use(NativeMethods.pamoja_lora_radio_sleep));
 
+    /// <summary>
+    /// Draws a random number from the noise the receiver hears, leaving the chip in standby.
+    /// </summary>
+    /// <returns>Thirty-two bits of noise.</returns>
+    /// <exception cref="PamojaException">The chip did not answer.</exception>
+    /// <remarks>
+    /// Semtech's own drivers draw it the same way, and LoRaWAN 1.0.3 suggests this source for a
+    /// join nonce on a device that has no other.
+    /// </remarks>
+    public uint Random()
+    {
+        uint value = 0;
+        NativeStatus.ThrowIfError(_handle.Use(handle =>
+            NativeMethods.pamoja_lora_radio_random(handle, out value)));
+        return value;
+    }
+
     /// <summary>Reads one register of the radio's chip.</summary>
     /// <param name="address">A 16-bit address on the SX126x, 0x00 to 0x7F on the SX127x.</param>
     /// <returns>The register's value.</returns>

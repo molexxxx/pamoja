@@ -102,7 +102,10 @@ section 7, so it waits longer between tries the longer the network stays quiet.
 The last program runs on the Pi. It subscribes to ChirpStack's uplink events
 over MQTT, reads each one with `pamoja_gateway::chirpstack`, turns the node's
 seven bytes back into a reading, and serves a dashboard that draws each node
-the first time the network hears it.
+the first time the network hears it. An application written in another
+language reads the same events with `chirpstackUplinkFromJson` from
+`@pamoja/gateway`, `ChirpstackUplinkEvent.from_json` from `pamoja.gateway`, or
+`ChirpstackUplinkEvent.FromJson` from `Pamoja.Gateway`.
 
 <!-- snippet: examples/boards/raspberry-pi/src/bin/dashboard.rs#example -->
 From [`examples/boards/raspberry-pi/src/bin/dashboard.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/boards/raspberry-pi/src/bin/dashboard.rs):

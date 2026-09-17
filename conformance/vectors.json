@@ -318,6 +318,125 @@
     "standardIsNotJ1939": 291,
     "tooLongForClassic": 9
   },
+  "chirpstack": {
+    "allApplications": "application/+/device/+/event/up",
+    "events": [
+      {
+        "event": {
+          "adr": false,
+          "applicationId": "17c82e96-be03-4f38-aef3-f83d48582d97",
+          "bestReception": 0,
+          "confirmed": false,
+          "data": "aa",
+          "dataRate": 1,
+          "deduplicationId": "3ac7e3c4-4401-4b8d-9386-a5c902f9202d",
+          "devAddr": 1610816,
+          "devEui": "0101010101010101",
+          "deviceName": "Test device",
+          "fcnt": 0,
+          "fport": 1,
+          "frequencyHz": 867100000,
+          "receptions": [
+            {
+              "gateway": "0016c001f153a14c",
+              "rssiDbm": -36,
+              "snrDb": 10.5
+            }
+          ],
+          "time": "2022-07-18T09:34:15.775023242+00:00"
+        },
+        "json": "{\n\t\"deduplicationId\": \"3ac7e3c4-4401-4b8d-9386-a5c902f9202d\",\n\t\"time\": \"2022-07-18T09:34:15.775023242+00:00\",\n\t\"deviceInfo\": {\n\t\t\"tenantId\": \"52f14cd4-c6f1-4fbd-8f87-4025e1d49242\",\n\t\t\"tenantName\": \"ChirpStack\",\n\t\t\"applicationId\": \"17c82e96-be03-4f38-aef3-f83d48582d97\",\n\t\t\"applicationName\": \"Test application\",\n\t\t\"deviceProfileId\": \"14855bf7-d10d-4aee-b618-ebfcb64dc7ad\",\n\t\t\"deviceProfileName\": \"Test device-profile\",\n\t\t\"deviceName\": \"Test device\",\n\t\t\"devEui\": \"0101010101010101\",\n\t\t\"tags\": {\n\t\t\t\"key\": \"value\"\n\t\t}\n\t},\n\t\"devAddr\": \"00189440\",\n\t\"dr\": 1,\n\t\"fPort\": 1,\n\t\"data\": \"qg==\",\n\t\"rxInfo\": [{\n\t\t\"gatewayId\": \"0016c001f153a14c\",\n\t\t\"uplinkId\": 4217106255,\n\t\t\"rssi\": -36,\n\t\t\"snr\": 10.5,\n\t\t\"context\": \"E3OWOQ==\",\n\t\t\"metadata\": {\n\t\t\t\"region_name\": \"eu868\",\n\t\t\t\"region_common_name\": \"EU868\"\n\t\t}\n\t}],\n\t\"txInfo\": {\n\t\t\"frequency\": 867100000,\n\t\t\"modulation\": {\n\t\t\t\"lora\": {\n\t\t\t\t\"bandwidth\": 125000,\n\t\t\t\t\"spreadingFactor\": 11,\n\t\t\t\t\"codeRate\": \"CR_4_5\"\n\t\t\t}\n\t\t}\n\t}\n}"
+      },
+      {
+        "event": {
+          "adr": true,
+          "applicationId": "17c82e96-be03-4f38-aef3-f83d48582d97",
+          "bestReception": 0,
+          "confirmed": true,
+          "data": "aa",
+          "dataRate": 1,
+          "deduplicationId": "3ac7e3c4-4401-4b8d-9386-a5c902f9202d",
+          "devAddr": 1610816,
+          "devEui": "0101010101010101",
+          "deviceName": "Test device",
+          "fcnt": 70000,
+          "fport": 1,
+          "frequencyHz": 867100000,
+          "receptions": [
+            {
+              "gateway": "0016c001f153a14c",
+              "rssiDbm": -36,
+              "snrDb": 10.5
+            }
+          ],
+          "time": "2022-07-18T09:34:15.775023242+00:00"
+        },
+        "json": "{\n\t\"deduplicationId\": \"3ac7e3c4-4401-4b8d-9386-a5c902f9202d\",\n\t\"time\": \"2022-07-18T09:34:15.775023242+00:00\",\n\t\"deviceInfo\": {\n\t\t\"tenantId\": \"52f14cd4-c6f1-4fbd-8f87-4025e1d49242\",\n\t\t\"tenantName\": \"ChirpStack\",\n\t\t\"applicationId\": \"17c82e96-be03-4f38-aef3-f83d48582d97\",\n\t\t\"applicationName\": \"Test application\",\n\t\t\"deviceProfileId\": \"14855bf7-d10d-4aee-b618-ebfcb64dc7ad\",\n\t\t\"deviceProfileName\": \"Test device-profile\",\n\t\t\"deviceName\": \"Test device\",\n\t\t\"devEui\": \"0101010101010101\",\n\t\t\"tags\": {\n\t\t\t\"key\": \"value\"\n\t\t}\n\t},\n\t\"devAddr\": \"00189440\",\n\t\"dr\": 1, \"fCnt\": 70000, \"adr\": true, \"confirmed\": true,\n\t\"fPort\": 1,\n\t\"data\": \"qg==\",\n\t\"rxInfo\": [{\n\t\t\"gatewayId\": \"0016c001f153a14c\",\n\t\t\"uplinkId\": 4217106255,\n\t\t\"rssi\": -36,\n\t\t\"snr\": 10.5,\n\t\t\"context\": \"E3OWOQ==\",\n\t\t\"metadata\": {\n\t\t\t\"region_name\": \"eu868\",\n\t\t\t\"region_common_name\": \"EU868\"\n\t\t}\n\t}],\n\t\"txInfo\": {\n\t\t\"frequency\": 867100000,\n\t\t\"modulation\": {\n\t\t\t\"lora\": {\n\t\t\t\t\"bandwidth\": 125000,\n\t\t\t\t\"spreadingFactor\": 11,\n\t\t\t\t\"codeRate\": \"CR_4_5\"\n\t\t\t}\n\t\t}\n\t}\n}"
+      },
+      {
+        "event": {
+          "adr": false,
+          "applicationId": "17c82e96-be03-4f38-aef3-f83d48582d97",
+          "bestReception": 1,
+          "confirmed": false,
+          "data": "aa",
+          "dataRate": 1,
+          "deduplicationId": "3ac7e3c4-4401-4b8d-9386-a5c902f9202d",
+          "devAddr": 1610816,
+          "devEui": "0101010101010101",
+          "deviceName": "Test device",
+          "fcnt": 0,
+          "fport": 1,
+          "frequencyHz": 867100000,
+          "receptions": [
+            {
+              "gateway": "0202020202020202",
+              "rssiDbm": -110,
+              "snrDb": -4.25
+            },
+            {
+              "gateway": "0016c001f153a14c",
+              "rssiDbm": -36,
+              "snrDb": 10.5
+            }
+          ],
+          "time": "2022-07-18T09:34:15.775023242+00:00"
+        },
+        "json": "{\n\t\"deduplicationId\": \"3ac7e3c4-4401-4b8d-9386-a5c902f9202d\",\n\t\"time\": \"2022-07-18T09:34:15.775023242+00:00\",\n\t\"deviceInfo\": {\n\t\t\"tenantId\": \"52f14cd4-c6f1-4fbd-8f87-4025e1d49242\",\n\t\t\"tenantName\": \"ChirpStack\",\n\t\t\"applicationId\": \"17c82e96-be03-4f38-aef3-f83d48582d97\",\n\t\t\"applicationName\": \"Test application\",\n\t\t\"deviceProfileId\": \"14855bf7-d10d-4aee-b618-ebfcb64dc7ad\",\n\t\t\"deviceProfileName\": \"Test device-profile\",\n\t\t\"deviceName\": \"Test device\",\n\t\t\"devEui\": \"0101010101010101\",\n\t\t\"tags\": {\n\t\t\t\"key\": \"value\"\n\t\t}\n\t},\n\t\"devAddr\": \"00189440\",\n\t\"dr\": 1,\n\t\"fPort\": 1,\n\t\"data\": \"qg==\",\n\t\"rxInfo\": [{ \"gatewayId\": \"0202020202020202\", \"rssi\": -110, \"snr\": -4.25 }, {\n\t\t\"gatewayId\": \"0016c001f153a14c\",\n\t\t\"uplinkId\": 4217106255,\n\t\t\"rssi\": -36,\n\t\t\"snr\": 10.5,\n\t\t\"context\": \"E3OWOQ==\",\n\t\t\"metadata\": {\n\t\t\t\"region_name\": \"eu868\",\n\t\t\t\"region_common_name\": \"EU868\"\n\t\t}\n\t}],\n\t\"txInfo\": {\n\t\t\"frequency\": 867100000,\n\t\t\"modulation\": {\n\t\t\t\"lora\": {\n\t\t\t\t\"bandwidth\": 125000,\n\t\t\t\t\"spreadingFactor\": 11,\n\t\t\t\t\"codeRate\": \"CR_4_5\"\n\t\t\t}\n\t\t}\n\t}\n}"
+      },
+      {
+        "event": {
+          "adr": false,
+          "applicationId": "",
+          "bestReception": null,
+          "confirmed": false,
+          "data": "",
+          "dataRate": 0,
+          "deduplicationId": "",
+          "devAddr": null,
+          "devEui": "0a0b0c0d0e0f1011",
+          "deviceName": "",
+          "fcnt": 3,
+          "fport": null,
+          "frequencyHz": null,
+          "receptions": [],
+          "time": null
+        },
+        "json": "{ \"deviceInfo\": { \"devEui\": \"0a0b0c0d0e0f1011\" }, \"fCnt\": 3 }"
+      }
+    ],
+    "refused": [
+      "[1, 2]",
+      "{ \"deviceInfo\": {} }",
+      "{ \"deviceInfo\": { \"devEui\": \"0101010101010101\" }, \"devAddr\": \"zz\" }",
+      "{ \"deviceInfo\": { \"devEui\": \"0101010101010101\" }, \"rxInfo\": [{ \"gatewayId\": \"0016c001f153a14c\", \"rssi\": -36.5 }] }"
+    ],
+    "source": "https://www.chirpstack.io/docs/chirpstack/integrations/events.html",
+    "topic": {
+      "applicationId": "17c82e96-be03-4f38-aef3-f83d48582d97",
+      "topic": "application/17c82e96-be03-4f38-aef3-f83d48582d97/device/+/event/up"
+    }
+  },
   "codec": {
     "cbor": "a3676261747465727918586163f94d606269646770726f62652d31",
     "deltas": {

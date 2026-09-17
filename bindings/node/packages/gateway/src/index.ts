@@ -19,6 +19,8 @@ import type {
 } from '@pamoja/native'
 
 export type {
+  ChirpstackReception,
+  ChirpstackUplinkEvent,
   GatewayNetworkEvent as NetworkEvent,
   GatewayNetworkWindows as NetworkWindows,
   GatewayPacket as Packet,
@@ -30,6 +32,26 @@ export type {
   GatewayStationMessage as StationMessage,
   GatewayStationRouter as StationRouter,
   GatewayTxpk as Txpk,
+} from '@pamoja/native'
+
+export {
+  /**
+   * Reads an uplink event from the JSON a ChirpStack network server published on MQTT.
+   *
+   * @example
+   * ```ts
+   * client.subscribe(chirpstackUplinkTopic(applicationId))
+   * client.on('message', (_topic, payload) => {
+   *   const uplink = chirpstackUplinkFromJson(payload.toString())
+   *   console.log(uplink.devEui, uplink.fcnt, uplink.data)
+   * })
+   * ```
+   */
+  chirpstackUplinkFromJson,
+  /** Builds the MQTT topic an application's uplink events are published on. */
+  chirpstackUplinkTopic,
+  /** The MQTT topic every application's uplink events are published on. */
+  CHIRPSTACK_UPLINK_TOPIC,
 } from '@pamoja/native'
 
 export {

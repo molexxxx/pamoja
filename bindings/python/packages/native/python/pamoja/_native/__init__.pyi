@@ -27,6 +27,8 @@ __all__ = [
     "CdrWriter",
     "ChannelPlan",
     "ChannelPlanBuilder",
+    "ChirpstackReception",
+    "ChirpstackUplinkEvent",
     "CoapClient",
     "CobsDecoder",
     "CommandProtocol",
@@ -188,6 +190,7 @@ __all__ = [
     "can_len_to_dlc",
     "can_remote_frame",
     "cbor_to_json_bytes",
+    "chirpstack_uplink_topic",
     "cobs_decode",
     "cobs_encode",
     "cobs_max_encoded_len",
@@ -1449,6 +1452,120 @@ class ChannelPlanBuilder:
         because the second receive window listens at a data rate the plan does not
         define.
         """
+
+@typing.final
+class ChirpstackReception:
+    r"""
+    One gateway that heard an uplink.
+    """
+    @property
+    def gateway(self) -> builtins.str:
+        r"""
+        The gateway's EUI, as lowercase hex.
+        """
+    @property
+    def rssi_dbm(self) -> builtins.int:
+        r"""
+        The received signal strength, in dBm.
+        """
+    @property
+    def snr_db(self) -> builtins.float:
+        r"""
+        The signal-to-noise ratio, in dB.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class ChirpstackUplinkEvent:
+    r"""
+    An uplink as ChirpStack reports it.
+    """
+    @property
+    def deduplication_id(self) -> builtins.str:
+        r"""
+        The identifier ChirpStack gave the uplink once it deduplicated the gateways' copies.
+        """
+    @property
+    def time(self) -> typing.Optional[builtins.str]:
+        r"""
+        When the uplink was received, as ChirpStack wrote it, or `None`.
+        """
+    @property
+    def application_id(self) -> builtins.str:
+        r"""
+        The application the device belongs to.
+        """
+    @property
+    def device_name(self) -> builtins.str:
+        r"""
+        The name the device was given in ChirpStack.
+        """
+    @property
+    def dev_eui(self) -> builtins.str:
+        r"""
+        The device EUI, as lowercase hex.
+        """
+    @property
+    def dev_addr(self) -> typing.Optional[builtins.int]:
+        r"""
+        The device's address, or `None` when the event names none.
+        """
+    @property
+    def adr(self) -> builtins.bool:
+        r"""
+        Whether the device had adaptive data rate on.
+        """
+    @property
+    def data_rate(self) -> builtins.int:
+        r"""
+        The data rate, as the region numbers them.
+        """
+    @property
+    def fcnt(self) -> builtins.int:
+        r"""
+        The uplink frame counter.
+        """
+    @property
+    def fport(self) -> typing.Optional[builtins.int]:
+        r"""
+        The application port, or `None` for a frame that carried none.
+        """
+    @property
+    def confirmed(self) -> builtins.bool:
+        r"""
+        Whether the uplink was confirmed.
+        """
+    @property
+    def data(self) -> bytes:
+        r"""
+        The application payload, decoded from base64.
+        """
+    @property
+    def frequency_hz(self) -> typing.Optional[builtins.int]:
+        r"""
+        The carrier it was heard on, in hertz, or `None`.
+        """
+    @property
+    def receptions(self) -> builtins.list[ChirpstackReception]:
+        r"""
+        Every gateway that heard it.
+        """
+    @staticmethod
+    def from_json(text: builtins.str) -> ChirpstackUplinkEvent:
+        r"""
+        Reads an uplink event from the JSON ChirpStack published.
+        
+        Fields protobuf's JSON mapping leaves out when they hold their default read as that
+        default: a frame counter of zero, ADR off, unconfirmed. Raises `PamojaError` for text
+        that is not a JSON object, an event with no device EUI, or a field that does not read as
+        what it should.
+        """
+    def best_reception(self) -> typing.Optional[ChirpstackReception]:
+        r"""
+        The gateway that heard it with the highest signal-to-noise ratio, or `None` when none
+        did.
+        """
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class CoapClient:
@@ -3731,6 +3848,13 @@ class LoraRadio:
         r"""
         Puts the radio to sleep until the next call wakes it. An SX126x is configured again
         before its next frame; an SX127x keeps its registers.
+        """
+    def random(self) -> builtins.int:
+        r"""
+        Draws a random number from the noise the receiver hears, leaving the chip in standby.
+        
+        Semtech's own drivers draw it the same way, and LoRaWAN 1.0.3 suggests this source
+        for a join nonce on a device that has no other.
         """
     def read_register(self, address: builtins.int) -> builtins.int:
         r"""
@@ -7221,6 +7345,12 @@ def can_remote_frame(id: builtins.int, extended: builtins.bool, len: builtins.in
 def cbor_to_json_bytes(cbor: typing.Sequence[builtins.int]) -> bytes:
     r"""
     Converts a CBOR document back into its JSON encoding.
+    """
+
+def chirpstack_uplink_topic(application_id: builtins.str) -> builtins.str:
+    r"""
+    Builds the MQTT topic an application's uplink events are published on, with a wildcard in
+    place of the device: `application/<id>/device/+/event/up`.
     """
 
 def cobs_decode(frame: typing.Sequence[builtins.int]) -> bytes:
