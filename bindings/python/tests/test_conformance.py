@@ -1750,6 +1750,204 @@ def test_lorawan_join_settings_vectors_match():
     assert decoded.class_b is False
 
 
+def _device_link_of(link) -> dict:
+    """Describe link settings the way the vectors do."""
+    return {
+        "spreadingFactor": link.spreading_factor,
+        "bandwidthHz": link.bandwidth_hz,
+        "codingRateDenominator": link.coding_rate_denominator,
+        "preambleSymbols": link.preamble_symbols,
+        "explicitHeader": link.explicit_header,
+        "crc": link.crc,
+    }
+
+
+def _device_window_of(window) -> dict:
+    """Describe a receive window the way the vectors do."""
+    return {
+        "delayUs": window.delay_us,
+        "frequencyHz": window.frequency_hz,
+        "dataRate": window.data_rate,
+        "link": _device_link_of(window.link),
+    }
+
+
+def _device_transmission_of(transmission) -> dict:
+    """Describe a transmission the way the vectors do."""
+    return {
+        "frame": transmission.frame.hex(),
+        "frequencyHz": transmission.frequency_hz,
+        "dataRate": transmission.data_rate,
+        "link": _device_link_of(transmission.link),
+        "outputDbm": transmission.output_dbm,
+        "airtimeUs": transmission.airtime_us,
+        "rx1": _device_window_of(transmission.rx1),
+        "rx2": _device_window_of(transmission.rx2),
+        "carriesPayload": transmission.carries_payload,
+    }
+
+
+def _run_device_step(device, step: dict):
+    """Make one scripted call on a device and describe what it returned."""
+    call = step["call"]
+    if call == "join":
+        return _device_transmission_of(device.join(step["devNonce"], step["nowUs"]))
+    if call == "send":
+        return _device_transmission_of(
+            device.send(step["port"], unhex(step["payload"]), step["nowUs"], step["confirmed"])
+        )
+    if call == "sendEmpty":
+        return _device_transmission_of(device.send_empty(step["nowUs"]))
+    if call == "repeat":
+        return _device_transmission_of(device.repeat(step["nowUs"]))
+    if call == "heard":
+        heard = device.heard(unhex(step["frame"]), step["snrDb"])
+        if heard.kind == "joined":
+            return {"kind": "joined", "devAddr": heard.dev_addr}
+        delivery = heard.delivery
+        check = delivery.link_check
+        time = delivery.device_time
+        return {
+            "kind": "data",
+            "devAddr": heard.dev_addr,
+            "delivery": {
+                "port": delivery.port,
+                "payload": delivery.payload.hex(),
+                "acknowledged": delivery.acknowledged,
+                "confirmed": delivery.confirmed,
+                "morePending": delivery.more_pending,
+                "linkCheck": None if check is None else {"marginDb": check[0], "gateways": check[1]},
+                "deviceTime": None if time is None else {"gpsSeconds": time[0], "fraction": time[1]},
+            },
+        }
+    if call == "nothingHeard":
+        next_step = device.nothing_heard(step["nowUs"])
+        return {"kind": next_step.kind, "notBeforeUs": next_step.not_before_us}
+    if call == "save":
+        return device.save(step["nowUs"]).hex()
+    if call == "resume":
+        device.resume(unhex(step["saved"]), step["nowUs"])
+        return True
+    if call == "requestLinkCheck":
+        device.request_link_check()
+        return None
+    if call == "requestDeviceTime":
+        device.request_device_time()
+        return None
+    if call == "setBattery":
+        battery = step["battery"]
+        if battery == "external":
+            device.set_battery(external=True)
+        elif battery == "unknown":
+            device.set_battery()
+        else:
+            device.set_battery(battery)
+        return None
+    if call == "status":
+        rx2_hz, rx2_rate = device.rx2
+        lowest_hz, highest_hz = device.frequency_span
+        return {
+            "joined": device.is_joined,
+            "devAddr": device.dev_addr,
+            "dataRate": device.data_rate,
+            "fcntUp": device.fcnt_up,
+            "fcntDown": device.fcnt_down,
+            "transmissions": device.transmissions,
+            "rx2": {"frequencyHz": rx2_hz, "dataRate": rx2_rate},
+            "receiveDelayUs": device.receive_delay_us,
+            "frequencySpan": {"lowestHz": lowest_hz, "highestHz": highest_hz},
+            "channels": [
+                {
+                    "index": channel.index,
+                    "uplinkHz": channel.uplink_hz,
+                    "downlinkHz": channel.downlink_hz,
+                    "minDataRate": channel.min_data_rate,
+                    "maxDataRate": channel.max_data_rate,
+                }
+                for channel in device.channels()
+            ],
+        }
+    raise AssertionError(f"no step {call}")
+
+
+def test_lorawan_device_vectors_match():
+    vector = VECTORS["lorawanDevice"]
+    assert lorawan.SAVED_LEN == vector["savedLen"]
+    fields = {
+        "join": "transmission",
+        "send": "transmission",
+        "sendEmpty": "transmission",
+        "repeat": "transmission",
+        "heard": "heard",
+        "nothingHeard": "next",
+        "save": "saved",
+        "resume": "resumed",
+        "status": "status",
+    }
+    for script in vector["scripts"]:
+        plan_name = script["plan"]
+        plan = (
+            lora.plan_for(plan_name["region"])
+            if "region" in plan_name
+            else lora.cn470_plan(plan_name["cn470"])
+        )
+        settings_vector = script["settings"]
+        settings = lorawan.DeviceSettings(
+            settings_vector["minOutputDbm"],
+            settings_vector["maxOutputDbm"],
+            version=settings_vector["version"],
+            adr=settings_vector["adr"],
+            antenna_gain_db=settings_vector["antennaGainDb"],
+            lowest_hz=settings_vector["lowestHz"],
+            highest_hz=settings_vector["highestHz"],
+            regional_duty_cycle=settings_vector["regionalDutyCycle"],
+            behind_repeater=settings_vector["behindRepeater"],
+            seed=settings_vector["seed"],
+        )
+        counters = script["counters"] or {"up": 0, "down": None}
+        activation = script["activation"]
+        if "overTheAir" in activation:
+            keys = activation["overTheAir"]
+            device = lorawan.end_device(
+                plan,
+                unhex(keys["devEui"]),
+                unhex(keys["joinEui"]),
+                unhex(keys["appKey"]),
+                settings,
+                counters["up"],
+                counters["down"],
+            )
+        else:
+            keys = activation["personalized"]
+            device = lorawan.EndDevice.personalized(
+                plan,
+                lorawan.session(keys["devAddr"], unhex(keys["nwkSKey"]), unhex(keys["appSKey"])),
+                settings,
+                counters["up"],
+                counters["down"],
+            )
+
+        for index, step in enumerate(script["steps"]):
+            where = f"step {index} ({step['call']}) of {script['name']}"
+            if "error" in step:
+                with pytest.raises(lorawan.DeviceError) as raised:
+                    _run_device_step(device, step)
+                error = raised.value
+                assert {
+                    "kind": error.kind,
+                    "untilUs": error.until_us,
+                    "max": error.max,
+                    "dataRate": error.data_rate,
+                    "state": error.state,
+                    "format": error.format,
+                } == step["error"], where
+                continue
+            got = _run_device_step(device, step)
+            field = fields.get(step["call"])
+            if field is not None:
+                assert got == step[field], where
+
+
 def test_network_vectors_match():
     vector = VECTORS["network"]
     app_key = unhex(vector["appKey"])

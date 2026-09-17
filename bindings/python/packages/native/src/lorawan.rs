@@ -79,7 +79,7 @@ impl LorawanRxData {
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct LorawanSession {
-    inner: CoreSession,
+    pub(crate) inner: CoreSession,
 }
 
 #[gen_stub_pymethods]
@@ -209,7 +209,7 @@ impl LorawanSession {
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct LorawanDevice {
-    inner: CoreDevice,
+    pub(crate) inner: CoreDevice,
 }
 
 #[gen_stub_pymethods]

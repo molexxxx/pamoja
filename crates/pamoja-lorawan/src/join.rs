@@ -20,6 +20,7 @@ pub(crate) const JOIN_REQUEST_LEN: usize = 1 + 8 + 8 + 2 + 4;
 ///
 /// The 8-byte identifiers are given most-significant byte first, as they are written; the
 /// join-request transmits them little-endian, as the spec requires.
+#[derive(Clone)]
 pub struct Device {
     dev_eui: [u8; 8],
     app_eui: [u8; 8],

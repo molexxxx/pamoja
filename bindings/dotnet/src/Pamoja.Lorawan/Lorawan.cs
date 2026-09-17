@@ -173,6 +173,12 @@ public sealed class LorawanSession : IDisposable
     /// <summary>The device address this session is bound to.</summary>
     public uint DevAddr => _handle.Use(NativeMethods.pamoja_lorawan_session_dev_addr);
 
+    /// <summary>Runs a native call against this session's handle, holding it open.</summary>
+    /// <typeparam name="TResult">What the call returns.</typeparam>
+    /// <param name="call">The call.</param>
+    /// <returns>Whatever the call returned.</returns>
+    internal TResult UseHandle<TResult>(Func<IntPtr, TResult> call) => _handle.Use(call);
+
     /// <summary>Encodes an uplink, encrypting the payload and appending the MIC.</summary>
     /// <param name="fcnt">The frame counter for this uplink.</param>
     /// <param name="fport">The port; 0 for MAC commands, otherwise an application port.</param>
@@ -344,6 +350,12 @@ public sealed class LorawanDevice : IDisposable
             out IntPtr device));
         _handle = new NativeHandle(device, NativeMethods.pamoja_lorawan_device_free);
     }
+
+    /// <summary>Runs a native call against this device's handle, holding it open.</summary>
+    /// <typeparam name="TResult">What the call returns.</typeparam>
+    /// <param name="call">The call.</param>
+    /// <returns>Whatever the call returned.</returns>
+    internal TResult UseHandle<TResult>(Func<IntPtr, TResult> call) => _handle.Use(call);
 
     /// <summary>The 8-byte device EUI, most-significant byte first.</summary>
     public byte[] DevEui => _handle.Use(handle =>
