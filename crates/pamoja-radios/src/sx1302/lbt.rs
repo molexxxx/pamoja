@@ -14,6 +14,9 @@
 //! a scan time is not a duration the radio counts: it is a number of samples, and only two
 //! durations have one, so anything else is refused rather than rounded.
 
+use super::sx1261::Bandwidth;
+use super::tx::Chain;
+
 /// The command that starts a carrier check.
 pub const OP_LBT_START: u8 = 0x9a;
 
@@ -277,6 +280,150 @@ pub const fn spectral_scan(scans: u16) -> (u8, [u8; 3]) {
         OP_SPECTRAL_SCAN,
         [(scans >> 8) as u8, (scans & 0xff) as u8, SAMPLE_INTERVAL],
     )
+}
+
+/// How many one-millisecond polls a checked transmission is given to start, and then its
+/// status to clear: half a second each, as Semtech's `lgw_lbt_tx_status` waits.
+pub const OUTCOME_POLLS: u32 = 500;
+
+/// What the host writes to the gain control's first mailbox to clear a transmit status.
+pub const CLEAR_TRANSMIT_STATUS: u8 = 0xff;
+
+/// What it writes once the status reads clear, to acknowledge it.
+pub const ACKNOWLEDGE_CLEARED: u8 = 0x00;
+
+/// How long before a packet leaves the concentrator reads the check's answer, in
+/// microseconds, which a channel's transmit time has to leave room for.
+pub const SENSE_LEAD_US: u32 = 1_500;
+
+/// How far a transmission's carrier may be from a check channel's and still be that channel,
+/// in hertz. The reference allows ten kilohertz, since carriers pass through floating point on
+/// their way from a configuration file.
+pub const FREQUENCY_TOLERANCE_HZ: u32 = 10_000;
+
+/// Whether the gain control reports that a transmission has started on a chain.
+///
+/// # Arguments
+///
+/// * `status` - the gain control's status register.
+/// * `chain` - the chain the packet was armed on.
+///
+/// # Returns
+///
+/// Bit 0 for chain A and bit 1 for chain B.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_radios::sx1302::lbt::started;
+/// use pamoja_radios::sx1302::tx::Chain;
+///
+/// assert!(started(0b0000_0001, Chain::A));
+/// assert!(!started(0b0000_0001, Chain::B));
+/// ```
+#[must_use]
+pub const fn started(status: u8, chain: Chain) -> bool {
+    status & (1 << chain_bit(chain)) != 0
+}
+
+/// Whether the carrier check kept a started transmission off the air.
+///
+/// # Arguments
+///
+/// * `status` - the gain control's status register, read once the transmission started.
+/// * `chain` - the chain the packet was armed on.
+///
+/// # Returns
+///
+/// Bit 6 for chain A and bit 7 for chain B.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_radios::sx1302::lbt::refused;
+/// use pamoja_radios::sx1302::tx::Chain;
+///
+/// assert!(refused(0b0100_0001, Chain::A), "started, and held back by the check");
+/// assert!(!refused(0b1000_0001, Chain::A), "bit 7 is chain B's");
+/// ```
+#[must_use]
+pub const fn refused(status: u8, chain: Chain) -> bool {
+    status & (1 << (6 + chain_bit(chain))) != 0
+}
+
+const fn chain_bit(chain: Chain) -> u8 {
+    match chain {
+        Chain::A => 0,
+        Chain::B => 1,
+    }
+}
+
+/// A channel a gateway checks before it transmits on it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Channel {
+    /// The channel's carrier, in hertz.
+    pub frequency_hz: u32,
+    /// Its width.
+    pub bandwidth: Bandwidth,
+    /// How long a check listens.
+    pub scan_time: ScanTime,
+    /// How long one transmission may hold the channel, in milliseconds.
+    pub transmit_time_ms: u16,
+}
+
+impl Channel {
+    /// Whether this is the channel a transmission goes out on.
+    ///
+    /// # Arguments
+    ///
+    /// * `frequency_hz` - the transmission's carrier.
+    /// * `bandwidth_hz` - its bandwidth.
+    ///
+    /// # Returns
+    ///
+    /// Whether the widths match and the carriers are within [`FREQUENCY_TOLERANCE_HZ`].
+    #[must_use]
+    pub const fn covers(&self, frequency_hz: u32, bandwidth_hz: u32) -> bool {
+        let width = match self.bandwidth {
+            Bandwidth::Khz125 => 125_000,
+            Bandwidth::Khz250 => 250_000,
+        };
+        width == bandwidth_hz && self.frequency_hz.abs_diff(frequency_hz) <= FREQUENCY_TOLERANCE_HZ
+    }
+
+    /// Whether a transmission fits the time the channel allows.
+    ///
+    /// The concentrator reads the check's answer [`SENSE_LEAD_US`] before the packet leaves,
+    /// so that much of the transmit time is spent before the packet starts.
+    ///
+    /// # Arguments
+    ///
+    /// * `airtime_us` - how long the transmission holds the air.
+    ///
+    /// # Returns
+    ///
+    /// Whether it ends inside the channel's transmit time.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_radios::sx1302::lbt::{Channel, ScanTime};
+    /// use pamoja_radios::sx1302::sx1261::Bandwidth;
+    ///
+    /// let channel = Channel {
+    ///     frequency_hz: 922_100_000,
+    ///     bandwidth: Bandwidth::Khz125,
+    ///     scan_time: ScanTime::Long,
+    ///     transmit_time_ms: 400,
+    /// };
+    /// assert!(channel.fits(398_500));
+    /// assert!(!channel.fits(398_501));
+    /// ```
+    #[must_use]
+    pub const fn fits(&self, airtime_us: u64) -> bool {
+        let allowed = (self.transmit_time_ms as u64 * 1_000).saturating_sub(SENSE_LEAD_US as u64);
+        airtime_us <= allowed
+    }
 }
 
 #[cfg(test)]

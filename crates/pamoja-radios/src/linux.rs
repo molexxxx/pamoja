@@ -42,7 +42,7 @@ use embedded_hal::spi::{self, Operation, SpiDevice};
 
 use crate::radio::{Radio, RadioError};
 use crate::sx1302::bridge::Identity;
-use crate::sx1302::{usb, Sx1302};
+use crate::sx1302::{usb, Sx1261, Sx1302};
 use crate::{sx126x, sx127x};
 
 /// The SPI mode both families take: CPOL 0 and CPHA 0, the clock idling low and data sampled
@@ -121,10 +121,23 @@ pub type Port = Unavailable;
 /// the card's bridge rather than a bus of the host's own.
 pub type UsbConcentrator = Sx1302<usb::BridgeSpi<Port>, usb::BridgePin<Port>, Delay>;
 
+/// The SX1261 beside a concentrator card on the host's SPI, which checks a channel before the
+/// gateway talks on it.
+pub type LinuxListener = Sx1261<Spi, Line, Delay>;
+
+/// The SX1261 on a USB card, reached through the card's bridge.
+pub type UsbListener = Sx1261<usb::BridgeSpi<Port>, usb::BridgePin<Port>, Delay>;
+
 /// A USB card, opened: its concentrator, and the bridge everything on the card shares.
 pub struct UsbCard {
     /// The concentrator, reset and answering.
     pub concentrator: UsbConcentrator,
+    /// The SX1261 on the card, for a card that carries one, not yet brought up.
+    ///
+    /// It shares the bridge with the concentrator under its own target and reset pin, so it
+    /// is driven while the concentrator runs. [`Sx1261::bring_up`] readies it; a card without
+    /// one simply never answers it.
+    pub listener: UsbListener,
     /// The bridge, for the radio beside the concentrator and for the card's own status.
     pub bridge: usb::Shared<Port>,
     /// Who the bridge said it was, which a caller compares against the firmware this crate
@@ -440,6 +453,28 @@ pub fn open_sx1302(wiring: &Wiring) -> Result<(LinuxConcentrator, Option<Line>),
     platform::open_sx1302(wiring)
 }
 
+/// Opens the SX1261 beside a concentrator card on SPI.
+///
+/// The radio has its own chip select, `/dev/spidev0.1` on Semtech's reference card, and its
+/// own reset line, GPIO 22 in the reference's `reset_lgw.sh`, and no BUSY line. Its reset line
+/// is left high, which is the radio running; [`Sx1261::bring_up`] pulses it low.
+///
+/// # Arguments
+///
+/// * `wiring` - the radio's SPI device and reset line. The BUSY and supply lines are ignored.
+///
+/// # Returns
+///
+/// The radio, not yet brought up.
+///
+/// # Errors
+///
+/// Returns [`OpenError::Unsupported`] on any platform but Linux, and [`OpenError::Bus`] if
+/// the SPI device or the reset line cannot be opened.
+pub fn open_sx1261(wiring: &Wiring) -> Result<LinuxListener, OpenError> {
+    platform::open_sx1261(wiring)
+}
+
 /// Opens a concentrator on a USB card, and brings the card up.
 ///
 /// The card enumerates as a serial device, `/dev/ttyACM0` on a Raspberry Pi with nothing
@@ -480,7 +515,7 @@ mod platform {
         Line, LinuxConcentrator, LinuxRadio, OpenError, UsbCard, Wiring, CONSUMER, SPI_MODE,
     };
     use crate::radio::Radio;
-    use crate::sx1302::{bridge, usb, Sx1302};
+    use crate::sx1302::{bridge, usb, Sx1261, Sx1302};
     use crate::{sx126x, sx127x};
 
     pub(super) fn open_sx126x(
@@ -563,11 +598,21 @@ mod platform {
         concentrator.reset().map_err(|_| OpenError::ResetLine {
             device: port.to_path_buf(),
         })?;
+        let listener = Sx1261::new(
+            shared.listener(),
+            shared.pin(bridge::PIN_RADIO_RESET),
+            linux::delay(),
+        );
         Ok(UsbCard {
             concentrator,
+            listener,
             bridge: shared,
             identity,
         })
+    }
+
+    pub(super) fn open_sx1261(wiring: &Wiring) -> Result<super::LinuxListener, OpenError> {
+        Ok(Sx1261::new(spi(wiring)?, reset(wiring)?, linux::delay()))
     }
 
     fn spi(wiring: &Wiring) -> Result<linux::SpidevDevice, OpenError> {
@@ -621,6 +666,10 @@ mod platform {
     }
 
     pub(super) fn open_usb_sx1302(_: &std::path::Path) -> Result<super::UsbCard, OpenError> {
+        Err(OpenError::Unsupported)
+    }
+
+    pub(super) fn open_sx1261(_: &Wiring) -> Result<super::LinuxListener, OpenError> {
         Err(OpenError::Unsupported)
     }
 }

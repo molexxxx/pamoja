@@ -103,7 +103,7 @@ to a card on SPI alone.
 | `concentrator.front_end` | `sx1250`, or `sx1255`, `sx1257`, `sx125x` for the older boards. | `sx1250` |
 | `concentrator.clock` | Which chain the concentrator takes its clock from, `a` or `b`. | `a` |
 | `concentrator.single_input` | Whether the board wires its front ends single ended rather than differential. | `false` |
-| `concentrator.listen_before_talk` | Whether an SX1261 is fitted beside the concentrator. | `false` |
+| `concentrator.listen_before_talk` | The SX1261 beside the concentrator and the channels it checks, for a gateway that has to listen before it talks. See below. | off |
 | `radio.carrier_hz` | The carrier every channel offset is measured from. | |
 | `radio.channels` | One to eight offsets from it, in hertz, signed. | |
 | `radio.spreading_factors` | Which factors to look for, each 5 to 12. | all of them |
@@ -173,8 +173,54 @@ the chip accepts the number, and those channels then hear nothing at all.
 Anything the file is missing or cannot use is refused by name, so a gateway that
 will not start says which field to fix rather than that the file is wrong.
 
-`listen_before_talk` tells the gain control that an SX1261 is fitted. The scan
-itself is not driven yet, so leave it off for now.
+## Listening before talking
+
+Some rules forbid transmitting into a channel someone else is already using:
+ARIB STD-T108 in Japan, and Korea's rules for the 920 MHz band. A gateway under
+them carries an SX1261 beside the concentrator, as Semtech's CoreCell reference
+does, and checks each channel before it transmits on it. `listen_before_talk`
+turns that on:
+
+```json
+"listen_before_talk": {
+  "spi": "/dev/spidev0.1",
+  "reset_line": 22,
+  "patch": "/opt/sx1302_hal/libloragw/src/sx1261_pram.var",
+  "rssi_offset_db": 0,
+  "threshold_dbm": -80,
+  "channels": [
+    { "frequency_hz": 920600000, "bandwidth_hz": 125000, "scan_time_us": 5000, "transmit_time_ms": 4000 },
+    { "frequency_hz": 920800000, "bandwidth_hz": 125000, "scan_time_us": 5000, "transmit_time_ms": 4000 }
+  ]
+}
+```
+
+| Field | Value | Default |
+| --- | --- | --- |
+| `spi` | The SX1261's own SPI device, for a card on SPI. A USB card reaches it through its bridge and names none. | |
+| `reset_line` | Its reset line on the concentrator's GPIO chip, for a card on SPI. | |
+| `patch` | Semtech's `sx1261_pram.var`, from `sx1302_hal`, which gives the radio its carrier check. | |
+| `rssi_offset_db` | The board's correction to the levels the radio measures. | `0` |
+| `threshold_dbm` | The level above which a channel counts as busy, -127 to 0 dBm. | |
+| `channels` | Each channel the gateway may transmit on. | |
+| `channels[].frequency_hz` | The channel's carrier. | |
+| `channels[].bandwidth_hz` | `125000` or `250000`. | |
+| `channels[].scan_time_us` | How long the radio listens, `128` or `5000`. | |
+| `channels[].transmit_time_ms` | How long one transmission may hold the channel. | |
+
+The threshold, the scan time and the transmit time are what the rules say; the
+figures above are only an example of their shape. The reference names the same
+fields `rssi_target`, `scan_time_us` and `transmit_time_ms`, so a Semtech
+configuration carries across.
+
+A check answers for the moment it is made, and the concentrator reads its answer
+at the instant the packet would leave, so a checked downlink is not programmed
+when it arrives the way any other is. The daemon holds it and hands it over 80 ms
+before its window: the SX1261 is pointed at the channel, listens for the scan
+time, the chain is armed, and the gain control reports whether the packet went
+out. A channel found busy leaves the packet unsent. A gateway that checks
+channels transmits on no others, which is what the reference does, so the second
+receive window's frequency belongs in the list as well.
 
 Naming a `station` upstream instead of a `forwarder` runs the other protocol.
 The gateway asks that address where its network server is, opens the websocket
@@ -201,6 +247,9 @@ not every reason has one. The daemon reports what it can:
 | --- | --- |
 | Sent | `NONE` |
 | The window is within 42.5 ms, too close to program a chain | `TOO_LATE` |
+| On a checked channel, the window is within 62.5 ms, too close to check it first | `TOO_LATE` |
+| A checked channel was busy when a downlink sent at once was checked | `COLLISION_PACKET` |
+| Listen before talk is on and the carrier is not a checked channel, or the packet holds the channel longer than it allows | `TX_FREQ` |
 | The window is more than 512 seconds out | `TOO_EARLY` |
 | The chain is still holding the packet before it | `COLLISION_PACKET` |
 | The duty cycle owes the band silence | `COLLISION_PACKET` |
@@ -211,6 +260,11 @@ The two thresholds are the reference forwarder's. Below 42.5 ms a chain cannot
 be configured and loaded before its moment passes, and beyond 512 seconds a
 timestamp is wrong rather than early, since a class A window is a second or two
 out and a class B one falls inside 128 seconds.
+
+A downlink held for a check is answered `NONE` when it is accepted, as the
+reference forwarder's queue answers, so a channel found busy at its window is
+logged rather than answered. Over Basics Station the transmission report is only
+sent once the packet is on the air.
 
 Two of these are approximations, and it is worth knowing which. A duty cycle
 that is not yet spent is reported as a collision because the protocol has no
