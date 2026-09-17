@@ -2586,9 +2586,7 @@ typedef struct {
   // The packet that carries the accept, for a join.
   PamojaGatewayTxpk accept;
   // Whether a relay forwarded this uplink, TS011-1.0.1 section 9.1. An answer to it goes
-  // back through the same relay, which
-  // [`pamoja_gateway_network_answer`](crate::gateway_network::pamoja_gateway_network_answer)
-  // does by itself.
+  // back through the same relay, which [`pamoja_gateway_network_answer`] does by itself.
   bool relayed;
   // The relay that forwarded it.
   uint32_t relay_dev_addr;

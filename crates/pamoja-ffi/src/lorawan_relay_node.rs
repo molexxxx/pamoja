@@ -6,11 +6,10 @@
 //! 226, and sends the answers on in each device's relay window. It owns no radio and no
 //! clock, so every call takes the time and hands back what to put on the air.
 //!
-//! A relay takes over an end device handle, which it then owns:
-//! [`pamoja_lorawan_relay_new`] consumes it, and [`pamoja_lorawan_relay_free`] releases
-//! both. The relay's own device is reached with [`pamoja_lorawan_relay_device`], for its
-//! join and its own uplinks, but the downlinks that carry relay commands go through
-//! [`pamoja_lorawan_relay_heard_in`] so the relay reads them.
+//! A relay is opened on a plan and a session or a set of credentials, and released with
+//! [`pamoja_lorawan_relay_free`]. Its own device joins and sends through
+//! [`pamoja_lorawan_relay_join`] and [`pamoja_lorawan_relay_send`], and every downlink goes
+//! through [`pamoja_lorawan_relay_heard_in`], which acts on the relay commands in it.
 
 use std::ptr;
 

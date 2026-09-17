@@ -129,9 +129,7 @@ pub struct PamojaGatewayNetworkEvent {
     /// The packet that carries the accept, for a join.
     pub accept: PamojaGatewayTxpk,
     /// Whether a relay forwarded this uplink, TS011-1.0.1 section 9.1. An answer to it goes
-    /// back through the same relay, which
-    /// [`pamoja_gateway_network_answer`](crate::gateway_network::pamoja_gateway_network_answer)
-    /// does by itself.
+    /// back through the same relay, which [`pamoja_gateway_network_answer`] does by itself.
     pub relayed: bool,
     /// The relay that forwarded it.
     pub relay_dev_addr: u32,

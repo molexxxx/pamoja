@@ -655,6 +655,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<gateway_network::GatewayNetwork>()?;
         m.add_class::<gateway_network::GatewayNetworkEvent>()?;
         m.add_class::<gateway_network::GatewaySlot>()?;
+        m.add_class::<gateway_network::GatewayNotice>()?;
+        m.add_class::<gateway_network::GatewayRelayed>()?;
         m.add_class::<gateway_station::GatewayStationMessage>()?;
         m.add_class::<gateway_station::GatewayStationLevels>()?;
         m.add_class::<gateway_station::GatewayStationBroadcast>()?;

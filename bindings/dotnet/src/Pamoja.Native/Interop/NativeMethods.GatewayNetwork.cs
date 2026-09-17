@@ -87,7 +87,7 @@ public static partial class NativeMethods
     public static partial PamojaStatus pamoja_gateway_network_command(
         IntPtr network,
         uint devAddr,
-        in PamojaGatewayNetworkSlot slot,
+        PamojaGatewayNetworkSlot slot,
         ReadOnlySpan<PamojaLorawanMacCommand> commands,
         nuint commandsLen,
         Span<byte> buffer,
