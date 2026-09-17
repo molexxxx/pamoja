@@ -3350,6 +3350,7 @@ impl Script {
         let window = window.map(|window| match window {
             ReceiveWindow::Rx1 => "rx1",
             ReceiveWindow::Rx2 => "rx2",
+            ReceiveWindow::Rxr => "rxr",
         });
         let step = json!({
             "call": "heard",

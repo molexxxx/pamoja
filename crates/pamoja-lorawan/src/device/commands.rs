@@ -8,8 +8,8 @@ use pamoja_lora::region::PlanKind;
 
 use super::channels::DYNAMIC_MAX_CHANNELS;
 use super::{Channel, Delivery, DeviceTime, EndDevice, LinkCheck};
-use crate::mac::{eirp_dbm, receive_delay_s, MacCommand, MacCommands};
-use crate::relay::RelayState;
+use crate::mac::{eirp_dbm, receive_delay_s, relay_second_channel, MacCommand, MacCommands};
+use crate::relay::{RelayActivation, RelayState};
 use crate::{Direction, Version};
 
 /// The most `LinkADRReq` commands a device takes as one contiguous block.
@@ -198,6 +198,57 @@ impl EndDevice<'_> {
                         gps_seconds: seconds,
                         fraction,
                     });
+                }
+                MacCommand::EndDeviceConfReq {
+                    relay_mode,
+                    smart_enable_level,
+                    back_off,
+                    second_channel_index,
+                    second_channel_data_rate,
+                    second_channel_ack_offset,
+                    second_channel_frequency_hz,
+                } => {
+                    let activation = RelayActivation::from_code(relay_mode);
+                    // TS011-1.0.1 section 10.2: a command that turns relay mode off says
+                    // nothing else.
+                    let names_channel =
+                        activation != RelayActivation::Disabled && second_channel_index == 1;
+                    let second_channel = relay_second_channel(
+                        second_channel_index,
+                        second_channel_data_rate,
+                        second_channel_ack_offset,
+                        second_channel_frequency_hz,
+                    );
+                    let (data_rate_ack, ack_offset_ack, frequency_ack) = if names_channel {
+                        (
+                            self.downlink_link(second_channel_data_rate).is_ok(),
+                            second_channel.is_some_and(|channel| {
+                                self.settings.usable(channel.ack_frequency_hz)
+                            }),
+                            self.settings.usable(second_channel_frequency_hz),
+                        )
+                    } else {
+                        (true, true, true)
+                    };
+                    let index_ack =
+                        activation == RelayActivation::Disabled || second_channel_index <= 1;
+                    if index_ack && data_rate_ack && ack_offset_ack && frequency_ack {
+                        self.relayed.configure(
+                            activation,
+                            smart_enable_level,
+                            back_off,
+                            names_channel.then_some(second_channel).flatten(),
+                        );
+                    }
+                    self.answers.push(
+                        MacCommand::EndDeviceConfAns {
+                            second_channel_ack_offset_ack: ack_offset_ack,
+                            second_channel_index_ack: index_ack,
+                            second_channel_data_rate_ack: data_rate_ack,
+                            second_channel_frequency_ack: frequency_ack,
+                        },
+                        true,
+                    );
                 }
                 MacCommand::RelayConfReq { .. }
                 | MacCommand::FilterListReq { .. }

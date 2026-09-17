@@ -2753,7 +2753,7 @@ function lorawanDeviceVectors() {
     format: want.format,
   });
 
-  assert.strictEqual(vector.savedLen, 1653, "the saved state length");
+  assert.strictEqual(vector.savedLen, 1678, "the saved state length");
 
   for (const script of vector.scripts) {
     const plan =

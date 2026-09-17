@@ -11,18 +11,27 @@
 //! catches storage that corrupted them, and a fingerprint of the channel plan refuses a
 //! state saved in another region.
 
-use pamoja_lora::region::ChannelPlan;
+use pamoja_lora::region::{ChannelPlan, RelayChannel};
 
 use super::air::{Air, Sequence, MAX_SUB_BANDS};
 use super::answers::{Answers, Kind, MAX_ANSWER, MAX_ANSWERS};
 use super::channels::{Channels, MASK_GROUPS};
+use super::relayed::Relayed;
+use super::RelayStatus;
 use super::{Channel, DeviceError, EndDevice, MAX_CHANNELS};
 use crate::adr::Backoff;
+use crate::relay::{CadPeriodicity, CadToRx, Forward, RelayActivation, XtalAccuracy};
 use crate::Session;
 
 /// How many bytes a saved state takes.
-pub const SAVED_LEN: usize =
-    HEADER_LEN + SESSION_LEN + SETTINGS_LEN + AIR_LEN + CHANNELS_LEN + ANSWERS_LEN + CHECKSUM_LEN;
+pub const SAVED_LEN: usize = HEADER_LEN
+    + SESSION_LEN
+    + SETTINGS_LEN
+    + AIR_LEN
+    + CHANNELS_LEN
+    + ANSWERS_LEN
+    + RELAY_LEN
+    + CHECKSUM_LEN;
 
 const MAGIC: [u8; 4] = *b"PJLW";
 const FORMAT: u8 = 1;
@@ -34,6 +43,7 @@ const AIR_LEN: usize = 8 + 8 * MAX_SUB_BANDS;
 const CHANNEL_LEN: usize = 4 + 4 + 1 + 1;
 const CHANNELS_LEN: usize = 1 + 2 * MASK_GROUPS + 2 * MASK_GROUPS + CHANNEL_LEN * MAX_CHANNELS;
 const ANSWERS_LEN: usize = 1 + MAX_ANSWERS * (1 + MAX_ANSWER);
+const RELAY_LEN: usize = 1 + 1 + 1 + 4 + 2 + 1 + 1 + 9 + 5;
 const CHECKSUM_LEN: usize = 4;
 
 const FCNT_DOWN: u8 = 1 << 0;
@@ -47,6 +57,12 @@ const BACKOFF_RESTORED: u8 = 1 << 7;
 
 const STICKY: u8 = 1 << 7;
 const STARTED: u8 = 1 << 6;
+
+const RELAYING: u8 = 1 << 0;
+const FIXED_CHANNEL: u8 = 1 << 1;
+const SECOND_CHANNEL: u8 = 1 << 2;
+const RELAY_HEARD: u8 = 1 << 3;
+const RELAY_AUTOMATIC: u8 = 1 << 4;
 
 /// Why a saved state could not be resumed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -261,6 +277,38 @@ impl<'p> EndDevice<'p> {
         }
         out.put(&answers);
 
+        let relayed = self.relayed;
+        let second = relayed.second_channel.unwrap_or(RelayChannel::new(0, 0, 0));
+        let heard = relayed.heard.unwrap_or(RelayStatus {
+            cad_periodicity: CadPeriodicity::Ms1000,
+            xtal_accuracy: XtalAccuracy::Ppm40,
+            cad_to_rx: CadToRx::Symbols8,
+            relay_data_rate: 0,
+            forward: Forward::Available,
+        });
+        out.put(&[
+            flag(relayed.enabled, RELAYING)
+                | flag(relayed.fixed_channel, FIXED_CHANNEL)
+                | flag(relayed.second_channel.is_some(), SECOND_CHANNEL)
+                | flag(relayed.heard.is_some(), RELAY_HEARD)
+                | flag(relayed.automatic, RELAY_AUTOMATIC),
+            relayed.activation.code() | (relayed.smart_level << 2),
+            relayed.back_off,
+        ]);
+        out.put(&relayed.wfcnt.to_le_bytes());
+        out.put(&relayed.quiet_uplinks.to_le_bytes());
+        out.put(&[relayed.attempts, relayed.channel]);
+        out.put(&second.wor_frequency_hz.to_le_bytes());
+        out.put(&second.ack_frequency_hz.to_le_bytes());
+        out.put(&[
+            second.data_rate,
+            heard.cad_periodicity.code(),
+            heard.xtal_accuracy.code(),
+            heard.cad_to_rx.code(),
+            heard.relay_data_rate,
+            heard.forward.code(),
+        ]);
+
         let body = out.at;
         let checksum = crc32(&[&out.bytes[..body]]);
         out.put(&checksum.to_le_bytes());
@@ -365,6 +413,9 @@ impl<'p> EndDevice<'p> {
         }
 
         let mut answers = Answers::new();
+        // The answers take a fixed block however few of them there are, so what follows
+        // starts at the end of it rather than at the end of the last answer read.
+        let answers_at = input.at;
         let count = input.u8();
         for _ in 0..count {
             let header = input.u8();
@@ -390,6 +441,44 @@ impl<'p> EndDevice<'p> {
             answers.request_device_time();
         }
 
+        input.at = answers_at + ANSWERS_LEN;
+
+        let [relay_flags, mode, back_off] = input.array::<3>();
+        let wfcnt = input.u32();
+        let quiet_uplinks = input.u16();
+        let [attempts, relay_channel] = input.array::<2>();
+        let second_wor_hz = input.u32();
+        let second_ack_hz = input.u32();
+        let [second_data_rate, cad_periodicity, xtal, cad_to_rx, relay_data_rate, forward] =
+            input.array::<6>();
+        let mut relayed = Relayed::new();
+        relayed.activation = RelayActivation::from_code(mode);
+        relayed.smart_level = (mode >> 2) & 0x03;
+        relayed.back_off = back_off;
+        relayed.enabled = relay_flags & RELAYING != 0;
+        relayed.fixed_channel = relay_flags & FIXED_CHANNEL != 0;
+        relayed.automatic = relay_flags & RELAY_AUTOMATIC != 0;
+        relayed.wfcnt = wfcnt;
+        relayed.quiet_uplinks = quiet_uplinks;
+        relayed.attempts = attempts;
+        relayed.channel = relay_channel;
+        if relay_flags & SECOND_CHANNEL != 0 {
+            relayed.second_channel = Some(RelayChannel::new(
+                second_wor_hz,
+                second_ack_hz,
+                second_data_rate,
+            ));
+        }
+        if relay_flags & RELAY_HEARD != 0 {
+            relayed.heard = Some(RelayStatus {
+                cad_periodicity: CadPeriodicity::from_code(cad_periodicity).ok_or(corrupt)?,
+                xtal_accuracy: XtalAccuracy::from_code(xtal),
+                cad_to_rx: CadToRx::from_code(cad_to_rx),
+                relay_data_rate,
+                forward: Forward::from_code(forward),
+            });
+        }
+
         self.plan = plan;
         self.session = Some(Session::new(dev_addr, nwk_skey, app_skey));
         self.joined_on = joined_on;
@@ -408,6 +497,7 @@ impl<'p> EndDevice<'p> {
         self.max_duty_cycle = max_duty_cycle;
         self.channels = Channels::from_parts(slots, enabled, defaults);
         self.answers = answers;
+        self.relayed = relayed;
         self.backoff = Backoff::recommended(self.settings.version)
             .resumed(backoff_counter, flags & BACKOFF_RESTORED != 0);
         self.air = Air::resumed(now_us, aggregated, sub_bands);
@@ -542,7 +632,7 @@ mod tests {
 
     #[test]
     fn the_layout_adds_up() {
-        assert_eq!(SAVED_LEN, 1_653);
+        assert_eq!(SAVED_LEN, 1_678);
     }
 
     #[test]

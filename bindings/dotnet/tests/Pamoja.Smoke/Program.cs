@@ -5006,7 +5006,7 @@ static void ConformLorawanLink(JsonElement vector, JsonElement vectors)
 // Replays each end device script, holding every call to what it returned.
 static void ConformLorawanDevice(JsonElement vector)
 {
-    Assert(vector.GetProperty("savedLen").GetInt32() == 1653, "the saved state length");
+    Assert(vector.GetProperty("savedLen").GetInt32() == 1678, "the saved state length");
     Dictionary<string, LoraRegion> regions = new()
     {
         ["EU868"] = LoraRegion.Eu868,
