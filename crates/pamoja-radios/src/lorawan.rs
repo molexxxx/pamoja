@@ -56,7 +56,7 @@
 //!         Ok(match self.accept.take() {
 //!             Some(frame) => {
 //!                 buffer[..frame.len()].copy_from_slice(&frame);
-//!                 Reception::Frame { len: frame.len(), snr_db: 9 }
+//!                 Reception::Frame { len: frame.len(), snr_db: 9, rssi_dbm: -95 }
 //!             }
 //!             None => Reception::Nothing,
 //!         })
@@ -102,7 +102,8 @@ use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal::spi::SpiDevice;
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::device::{
-    Delivery, DeviceError, EndDevice, Heard, Next, ReceiveWindow, Transmission, Window,
+    AckWindow, Delivery, DeviceError, EndDevice, Heard, Next, ReceiveWindow, RelayExchange,
+    Transmission, Window, WorNext,
 };
 
 use crate::radio::{self, Radio, RadioConfig, SyncWord};
@@ -216,6 +217,9 @@ pub enum Reception {
         len: usize,
         /// Its signal-to-noise ratio, rounded to whole decibels.
         snr_db: i8,
+        /// Its signal strength, rounded to whole decibels over a milliwatt. A relay
+        /// forwards it with the uplink; nothing else needs it.
+        rssi_dbm: i16,
     },
     /// No frame, or one that failed its checks.
     Nothing,
@@ -266,6 +270,29 @@ pub trait Transceiver {
     ///
     /// Whatever the radio reports.
     fn receive(&mut self, buffer: &mut [u8], timeout_us: u64) -> Result<Reception, Self::Error>;
+
+    /// Listens for a preamble over a few symbols, and reports whether one is there.
+    ///
+    /// This is what a relay scans its channels with, once a scan period, so it can sleep
+    /// between them and only listen when something is on the air. The default says there
+    /// may be: a radio that cannot detect activity by itself listens every time, which
+    /// costs it power but hears everything.
+    ///
+    /// # Arguments
+    ///
+    /// * `symbols` - how many symbols to listen over.
+    ///
+    /// # Returns
+    ///
+    /// `true` when there may be a frame starting.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the radio reports.
+    fn detect(&mut self, symbols: u8) -> Result<bool, Self::Error> {
+        let _ = symbols;
+        Ok(true)
+    }
 
     /// Puts the radio to sleep until the next exchange.
     ///
@@ -549,10 +576,18 @@ where
     }
 
     /// Puts one transmission on the air and listens in its windows.
+    ///
+    /// Under a relay the frame goes out behind the wake-on-radio frame that names it, and a
+    /// third window carries what the relay forwards back.
     fn exchange(
         &mut self,
         transmission: &Transmission,
     ) -> Result<Option<Heard>, NodeError<R::Error>> {
+        let relay = match transmission.relay {
+            Some(exchange) => Some(self.wake_relay(exchange)?),
+            None => None,
+        };
+        self.wait_until(relay.map_or(0, |exchange: RelayExchange| exchange.uplink_start_us));
         self.radio
             .tune(self.tuning(
                 transmission.frequency_hz,
@@ -567,10 +602,12 @@ where
         let ended_us = self.clock.now_us();
 
         let mut heard = None;
-        for (which, window) in [
-            (ReceiveWindow::Rx1, transmission.rx1),
-            (ReceiveWindow::Rx2, transmission.rx2),
-        ] {
+        let windows = [
+            Some((ReceiveWindow::Rx1, transmission.rx1)),
+            Some((ReceiveWindow::Rx2, transmission.rx2)),
+            relay.map(|exchange| (ReceiveWindow::Rxr, exchange.rxr)),
+        ];
+        for (which, window) in windows.into_iter().flatten() {
             if let Some(found) = self.listen(ended_us, which, &window, transmission.output_dbm)? {
                 heard = Some(found);
                 break;
@@ -578,6 +615,94 @@ where
         }
         self.radio.sleep().map_err(NodeError::Radio)?;
         Ok(heard)
+    }
+
+    /// Wakes the relay ahead of an uplink, TS011-1.0.1 sections 3.2 and 3.7.
+    ///
+    /// The frame goes out at the time the device chose, and the acknowledgment window opens
+    /// after it. Without an answer the device says whether to wake the relay again or let
+    /// the uplink go anyway.
+    ///
+    /// # Returns
+    ///
+    /// The exchange the uplink is timed from, which is the last one attempted.
+    fn wake_relay(
+        &mut self,
+        mut exchange: RelayExchange,
+    ) -> Result<RelayExchange, NodeError<R::Error>> {
+        loop {
+            let wake_up = exchange.wake_up;
+            self.wait_until(wake_up.start_us);
+            self.radio
+                .tune(Tuning {
+                    frequency_hz: wake_up.carrier.frequency_hz,
+                    link: wake_up.link,
+                    output_dbm: wake_up.output_dbm,
+                    sync_word: lorawan_sync_word(&wake_up.link),
+                    // RP002-1.0.5 table 124: a wake-on-radio frame goes out with the
+                    // inverted polarity of a downlink, so an uplink preamble never wakes a
+                    // relay.
+                    invert_iq_transmit: true,
+                    invert_iq_receive: true,
+                    band_hz: self.band_hz.unwrap_or_else(|| self.device.frequency_span()),
+                })
+                .map_err(NodeError::Radio)?;
+            self.radio
+                .transmit(wake_up.frame())
+                .map_err(NodeError::Radio)?;
+
+            let Some(ack) = exchange.ack else {
+                return Ok(exchange);
+            };
+            if self.listen_for_ack(&ack)? {
+                return Ok(exchange);
+            }
+            let now = self.clock.now_us();
+            match self.device.no_wor_ack(now)? {
+                WorNext::Uplink => return Ok(exchange),
+                WorNext::WakeUp(again) => exchange = again,
+            }
+        }
+    }
+
+    /// Opens the window a relay's acknowledgment would arrive in, and reads it.
+    ///
+    /// # Returns
+    ///
+    /// `true` when one arrived and verified.
+    fn listen_for_ack(&mut self, ack: &AckWindow) -> Result<bool, NodeError<R::Error>> {
+        let (symbols, offset_us) = window_parameters(
+            ack.link.symbol_time_us(),
+            self.min_rx_symbols,
+            self.max_rx_error_us,
+        );
+        let length_us = u64::from(symbols) * ack.link.symbol_time_us();
+        let opens_us = (ack.start_us as i64 + offset_us).max(0) as u64;
+        self.radio
+            .tune(Tuning {
+                frequency_hz: ack.carrier.frequency_hz,
+                link: ack.link,
+                output_dbm: 0,
+                sync_word: lorawan_sync_word(&ack.link),
+                invert_iq_transmit: true,
+                invert_iq_receive: true,
+                band_hz: self.band_hz.unwrap_or_else(|| self.device.frequency_span()),
+            })
+            .map_err(NodeError::Radio)?;
+        self.wait_until(opens_us);
+
+        let timeout_us = length_us.saturating_add(ack.airtime_us);
+        match self
+            .radio
+            .receive(&mut self.buffer, timeout_us)
+            .map_err(NodeError::Radio)?
+        {
+            Reception::Frame { len, .. } => {
+                let len = len.min(MAX_FRAME);
+                Ok(self.device.heard_wor_ack(&self.buffer[..len]).is_ok())
+            }
+            Reception::Nothing => Ok(false),
+        }
     }
 
     /// Opens one window, and reads a frame for this device if one arrives in it.
@@ -613,7 +738,7 @@ where
             .receive(&mut self.buffer, length_us)
             .map_err(NodeError::Radio)?
         {
-            Reception::Frame { len, snr_db } => {
+            Reception::Frame { len, snr_db, .. } => {
                 let len = len.min(MAX_FRAME);
                 Ok(self
                     .device
@@ -644,7 +769,7 @@ where
 }
 
 /// Waits a number of microseconds, in steps a `u32` of them can hold.
-fn wait(delay: &mut impl DelayNs, mut us: u64) {
+pub(crate) fn wait(delay: &mut impl DelayNs, mut us: u64) {
     while us > 0 {
         let step = us.min(u64::from(u32::MAX));
         delay.delay_us(step as u32);
@@ -748,9 +873,14 @@ where
             radio::Reception::Frame { len, levels } => Reception::Frame {
                 len,
                 snr_db: levels.snr_db.round_db().clamp(-128, 127) as i8,
+                rssi_dbm: levels.rssi_dbm.round_db().clamp(-32_768, 32_767) as i16,
             },
             _ => Reception::Nothing,
         })
+    }
+
+    fn detect(&mut self, symbols: u8) -> Result<bool, Self::Error> {
+        Radio::detect(self, symbols)
     }
 
     fn sleep(&mut self) -> Result<(), Self::Error> {
@@ -787,9 +917,14 @@ where
             sx126x::Reception::Frame { len, status } => Reception::Frame {
                 len,
                 snr_db: status.snr_db.round_db().clamp(-128, 127) as i8,
+                rssi_dbm: status.rssi_dbm.round_db().clamp(-32_768, 32_767) as i16,
             },
             _ => Reception::Nothing,
         })
+    }
+
+    fn detect(&mut self, symbols: u8) -> Result<bool, Self::Error> {
+        Sx126x::detect(self, symbols)
     }
 
     fn sleep(&mut self) -> Result<(), Self::Error> {
@@ -823,9 +958,14 @@ where
             sx127x::Reception::Frame { len, status } => Reception::Frame {
                 len,
                 snr_db: status.snr_db.round_db().clamp(-128, 127) as i8,
+                rssi_dbm: status.rssi_dbm.round_db().clamp(-32_768, 32_767) as i16,
             },
             _ => Reception::Nothing,
         })
+    }
+
+    fn detect(&mut self, _symbols: u8) -> Result<bool, Self::Error> {
+        Sx127x::detect(self)
     }
 
     fn sleep(&mut self) -> Result<(), Self::Error> {
@@ -942,6 +1082,7 @@ mod tests {
                 return Ok(Reception::Frame {
                     len: bytes.len(),
                     snr_db: 3,
+                    rssi_dbm: -100,
                 });
             }
             if window != self.answer {
@@ -954,6 +1095,7 @@ mod tests {
                     Ok(Reception::Frame {
                         len: frame.len(),
                         snr_db: 8,
+                        rssi_dbm: -95,
                     })
                 }
                 None => Ok(Reception::Nothing),
@@ -1177,5 +1319,189 @@ mod tests {
         assert_eq!(timer.now_us(), 9);
         timer.delay_us(10);
         assert_eq!(ticks.get(), 15);
+    }
+
+    /// A radio for a node under a relay: it answers the wake-on-radio frame with the
+    /// acknowledgment a real relay builds, and carries the forwarded downlink in the relay
+    /// window.
+    struct Relayed {
+        now: Rc<Cell<u64>>,
+        calls: Rc<RefCell<Vec<Call>>>,
+        relay: pamoja_lorawan::relay::Relay<'static>,
+        scan: Option<pamoja_lorawan::relay::Scan>,
+        frequency_hz: u32,
+        answer: Option<Vec<u8>>,
+        acknowledge: bool,
+    }
+
+    impl Transceiver for Relayed {
+        type Error = Infallible;
+
+        fn tune(&mut self, tuning: Tuning) -> Result<(), Infallible> {
+            self.frequency_hz = tuning.frequency_hz;
+            self.calls.borrow_mut().push(Call::Tune(tuning));
+            Ok(())
+        }
+
+        fn transmit(&mut self, frame: &[u8]) -> Result<(), Infallible> {
+            self.calls
+                .borrow_mut()
+                .push(Call::Transmit(self.now.get(), frame.to_vec()));
+            // A wake-on-radio frame goes to the relay, which answers it.
+            if self.frequency_hz == 865_100_000 && self.acknowledge {
+                let scan = self
+                    .relay
+                    .next_scan(self.now.get().saturating_sub(1_000_000))
+                    .expect("the relay is running");
+                let heard = self.relay.heard_wor(&scan, frame, -90, 4, self.now.get());
+                self.scan = Some(scan);
+                if let Ok(pamoja_lorawan::relay::Wake::Uplink {
+                    acknowledgment: Some(acknowledgment),
+                    ..
+                }) = heard
+                {
+                    self.answer = Some(acknowledgment.frame.to_vec());
+                }
+            }
+            Ok(())
+        }
+
+        fn receive(&mut self, buffer: &mut [u8], timeout_us: u64) -> Result<Reception, Infallible> {
+            self.calls
+                .borrow_mut()
+                .push(Call::Receive(self.now.get(), timeout_us));
+            match self.answer.take() {
+                Some(frame) => {
+                    buffer[..frame.len()].copy_from_slice(&frame);
+                    Ok(Reception::Frame {
+                        len: frame.len(),
+                        snr_db: 7,
+                        rssi_dbm: -90,
+                    })
+                }
+                None => {
+                    self.now.set(self.now.get() + timeout_us);
+                    Ok(Reception::Nothing)
+                }
+            }
+        }
+
+        fn sleep(&mut self) -> Result<(), Infallible> {
+            self.calls.borrow_mut().push(Call::Sleep);
+            Ok(())
+        }
+    }
+
+    /// A relay that trusts the device these tests run.
+    fn relay_for(session: Session) -> pamoja_lorawan::relay::Relay<'static> {
+        use pamoja_lorawan::relay::{CadToRx, Relay, RelayConfig, RelaySettings, XtalAccuracy};
+        let plan = Region::Eu868.plan();
+        let device = EndDevice::personalized(
+            plan,
+            Session::new(0x2601_0001, [0x11; 16], [0x22; 16]),
+            Settings::new(2, 14)
+                .with_seed(5)
+                .with_tuning_range(863_000_000, 870_000_000),
+        )
+        .expect("a device");
+        let mut relay = Relay::new(
+            device,
+            RelaySettings::new(XtalAccuracy::Ppm20, CadToRx::Symbols4),
+        );
+        relay
+            .start(RelayConfig::region_default(plan).expect("relay channels"))
+            .expect("a configuration it can run");
+        relay.trust(0, session.dev_addr(), &session.root_wor_s_key(), 0, 63, 0);
+        relay
+    }
+
+    fn relayed_node(acknowledge: bool) -> (Node<'static, Relayed, Ticks>, Rc<RefCell<Vec<Call>>>) {
+        let session = Session::new(DEV_ADDR, [0x5A; 16], [0xA5; 16]);
+        let mut device =
+            EndDevice::personalized(Region::Eu868.plan(), session, Settings::new(2, 14))
+                .expect("a device");
+        assert!(device.use_relay(true));
+
+        let now = Rc::new(Cell::new(0));
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let radio = Relayed {
+            now: Rc::clone(&now),
+            calls: Rc::clone(&calls),
+            relay: relay_for(session),
+            scan: None,
+            frequency_hz: 0,
+            answer: None,
+            acknowledge,
+        };
+        (Node::new(device, radio, Ticks(now)), calls)
+    }
+
+    #[test]
+    fn a_node_under_a_relay_wakes_it_first_and_listens_in_three_windows() {
+        let (mut node, calls) = relayed_node(true);
+        node.send(2, b"21.5", false).expect("an uplink");
+
+        let calls = calls.borrow();
+        let sent: Vec<_> = calls
+            .iter()
+            .filter_map(|call| match call {
+                Call::Transmit(at, frame) => Some((*at, frame.clone())),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(sent.len(), 2, "the wake-on-radio frame, then the uplink");
+        assert_eq!(sent[0].1.len(), 15, "a wake-on-radio uplink");
+        assert!(
+            sent[1].0 > sent[0].0,
+            "the uplink follows the frame that woke the relay",
+        );
+
+        let tuned: Vec<_> = calls
+            .iter()
+            .filter_map(|call| match call {
+                Call::Tune(tuning) => Some((tuning.frequency_hz, tuning.invert_iq_transmit)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            tuned[0],
+            (865_100_000, true),
+            "a wake-on-radio frame goes out inverted, RP002-1.0.5 table 124",
+        );
+        assert_eq!(tuned[1].0, 865_300_000, "then the acknowledgment window");
+        assert!(!tuned[2].1, "the uplink itself goes out as any uplink does");
+
+        // The acknowledgment was read, so the device knows when the relay scans and its
+        // next frame is short.
+        assert_eq!(
+            node.device().relay_sync(),
+            pamoja_lorawan::relay::RelaySync::Synchronized
+        );
+        assert_eq!(
+            calls
+                .iter()
+                .filter(|call| matches!(call, Call::Receive(..)))
+                .count(),
+            4,
+            "the acknowledgment window and the three after the uplink",
+        );
+    }
+
+    #[test]
+    fn a_node_whose_relay_never_answers_still_sends_its_uplink() {
+        let (mut node, calls) = relayed_node(false);
+        node.send(2, b"21.5", false).expect("an uplink");
+
+        let calls = calls.borrow();
+        let sent = calls
+            .iter()
+            .filter(|call| matches!(call, Call::Transmit(..)))
+            .count();
+        assert_eq!(sent, 2, "the frame that went unanswered, and the uplink");
+        assert_eq!(
+            node.device().relay_sync(),
+            pamoja_lorawan::relay::RelaySync::Initialized,
+            "nothing was learned about the relay",
+        );
     }
 }

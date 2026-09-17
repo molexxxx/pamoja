@@ -561,6 +561,30 @@ where
         }
     }
 
+    /// Listens for a preamble over a few symbols and reports whether one is there.
+    ///
+    /// An SX126x listens over the symbols asked for, with the thresholds its spreading
+    /// factor and bandwidth call for; an SX127x listens over the one symbol its detection
+    /// takes and ignores the count.
+    ///
+    /// # Arguments
+    ///
+    /// * `symbols` - how many symbols to listen over.
+    ///
+    /// # Returns
+    ///
+    /// `true` when the chip detected activity.
+    ///
+    /// # Errors
+    ///
+    /// Returns the errors of [`Sx126x::detect`] or [`Sx127x::detect`].
+    pub fn detect(&mut self, symbols: u8) -> Result<bool, RadioError<SPI::Error>> {
+        match self {
+            Radio::Sx126x(radio) => radio.detect(symbols).map_err(RadioError::Sx126x),
+            Radio::Sx127x(radio) => radio.detect().map_err(RadioError::Sx127x),
+        }
+    }
+
     /// Starts listening, frame after frame, until another mode is set.
     ///
     /// # Errors

@@ -650,6 +650,44 @@ where
         self.read_frame(buffer, &settings)
     }
 
+    /// Listens for a preamble and reports whether one is there: the channel activity
+    /// detection of section 4.1.5.
+    ///
+    /// The chip listens over one symbol, reports CadDone, and says with CadDetected whether
+    /// a LoRa preamble was in it. It returns to standby either way. A relay scanning for
+    /// wake-on-radio frames calls this once a scan period, and listens only when it says
+    /// something is there.
+    ///
+    /// # Returns
+    ///
+    /// `true` when the chip detected a preamble.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RadioError::NotConfigured`] before [`configure`](Sx127x::configure),
+    /// [`RadioError::Modulation`] for settings the chip cannot take,
+    /// [`RadioError::NoInterrupt`] if it never reports the detection done, and the bus
+    /// errors of [`write_register`](Sx127x::write_register).
+    pub fn detect(&mut self) -> Result<bool, RadioError<SPI::Error>> {
+        let settings = self.config.ok_or(RadioError::NotConfigured)?;
+        let modulation =
+            LoraModulation::from_link(&settings.link).map_err(RadioError::Modulation)?;
+        self.prepare_reception(&settings, &modulation)?;
+        self.write_register(register::DIO_MAPPING_1, config::DIO0_CAD_DONE)?;
+        self.write_register(register::OP_MODE, lora_op_mode(Mode::Cad))?;
+
+        // The detection takes a symbol and the processing after it; the margin covers a bus
+        // that answers slowly.
+        let limit_us = settings
+            .link
+            .symbol_time_us()
+            .saturating_mul(4)
+            .saturating_add(TIMEOUT_MARGIN_US);
+        let flags = self.wait_for(IrqFlags::CAD_DONE, limit_us)?;
+        self.write_register(register::IRQ_FLAGS, IrqFlags::ALL.bits())?;
+        Ok(flags.contains(IrqFlags::CAD_DETECTED))
+    }
+
     /// Starts listening in RXCONTINUOUS mode, so the chip receives frame after frame until
     /// another mode is set.
     ///
@@ -1269,6 +1307,29 @@ mod tests {
             radio.start_transmit(&[0; 256]),
             Err(RadioError::PayloadLength(256))
         );
+    }
+
+    #[test]
+    fn detection_reports_whether_a_preamble_was_in_the_symbol_it_listened_over() {
+        let scan = |flags: u8| {
+            let mut steps = reception_setup();
+            steps.extend(wrote(0x40, &[0x80]));
+            steps.extend(wrote(0x01, &[0x8F]));
+            steps.extend(read(0x12, &[flags]));
+            steps.extend(wrote(0x12, &[0xFF]));
+            steps
+        };
+
+        let mut heard = configured(scan(0x05));
+        assert_eq!(heard.detect(), Ok(true), "CadDone with CadDetected");
+        assert!(heard.release().0.done());
+
+        let mut quiet = configured(scan(0x04));
+        assert_eq!(quiet.detect(), Ok(false), "CadDone alone");
+        assert!(quiet.release().0.done());
+
+        let mut bare = radio(Vec::new());
+        assert_eq!(bare.detect(), Err(RadioError::NotConfigured));
     }
 
     #[test]

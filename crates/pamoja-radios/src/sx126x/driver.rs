@@ -847,6 +847,64 @@ where
         self.read_frame(buffer).map(Some)
     }
 
+    /// Listens for a preamble over a few symbols and reports whether one is there: the
+    /// channel activity detection of section 13.4.7.
+    ///
+    /// The chip listens over `symbols` symbols, compares what it hears against the
+    /// thresholds Semtech's own radio layer uses for the configured spreading factor and
+    /// bandwidth, and returns to standby either way. A relay scanning for wake-on-radio
+    /// frames calls this once a scan period, and listens only when it says something is
+    /// there.
+    ///
+    /// # Arguments
+    ///
+    /// * `symbols` - how many symbols to listen over: 1, 2, 4, 8 or 16, rounded down to one
+    ///   of them.
+    ///
+    /// # Returns
+    ///
+    /// `true` when the chip detected activity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RadioError::NotConfigured`] before [`configure`](Sx126x::configure),
+    /// [`RadioError::NoInterrupt`] if the chip never reports the detection done, and the bus
+    /// errors of [`command`](Sx126x::command).
+    pub fn detect(&mut self, symbols: u8) -> Result<bool, RadioError<SPI::Error>> {
+        let settings = self.config.ok_or(RadioError::NotConfigured)?;
+        let code = config::cad_symbols(symbols);
+        let peak = config::cad_detect_peak(
+            settings.link.spreading_factor(),
+            settings.link.bandwidth_hz(),
+            code,
+        );
+        let events = Irq::CAD_DONE | Irq::CAD_DETECTED;
+        self.command(command::set_standby(StandbyMode::Rc))?;
+        self.command(command::set_cad_params(
+            code,
+            peak,
+            config::CAD_DETECT_MIN,
+            config::CAD_ONLY,
+            0,
+        ))?;
+        self.command(command::set_dio_irq_params(
+            events,
+            events,
+            Irq::NONE,
+            Irq::NONE,
+        ))?;
+        self.command(command::clear_irq_status(Irq::ALL))?;
+        self.command(command::set_cad())?;
+
+        // The detection itself takes its symbols plus the one the chip spends settling,
+        // and the margin covers a bus that answers slowly.
+        let symbol_us = settings.link.symbol_time_us();
+        let listening_us = symbol_us.saturating_mul(u64::from(symbols).saturating_add(2));
+        let irq = self.wait_for(events, listening_us, listening_us + TIMEOUT_MARGIN_US)?;
+        self.command(command::clear_irq_status(Irq::ALL))?;
+        Ok(irq.contains(Irq::CAD_DETECTED))
+    }
+
     /// Puts the chip in STDBY_RC, which stops a transmission or a reception.
     ///
     /// # Errors
@@ -1584,6 +1642,35 @@ mod tests {
             Ok(Reception::Timeout)
         );
         assert!(radio.release().0.done());
+    }
+
+    #[test]
+    fn detection_listens_with_semtechs_thresholds_and_says_what_it_heard() {
+        // Configured at SF7 over 125 kHz, where Semtech's own radio layer detects over two
+        // symbols with a peak of 22 and a minimum of 10.
+        let scan = |bits: u16| {
+            let mut steps = vec![
+                SpiStep::write([0x80, 0x00]),
+                SpiStep::write([0x88, 0x01, 0x16, 0x0A, 0x00, 0x00, 0x00, 0x00]),
+                SpiStep::write([0x08, 0x01, 0x80, 0x01, 0x80, 0x00, 0x00, 0x00, 0x00]),
+                SpiStep::write([0x02, 0x43, 0xFF]),
+                SpiStep::write([0xC5]),
+            ];
+            steps.extend(irq(bits));
+            steps.push(SpiStep::write([0x02, 0x43, 0xFF]));
+            steps
+        };
+
+        let mut heard = configured(scan(0x0180));
+        assert_eq!(heard.detect(2), Ok(true), "CadDone with CadDetected");
+        assert!(heard.release().0.done());
+
+        let mut quiet = configured(scan(0x0080));
+        assert_eq!(quiet.detect(2), Ok(false), "CadDone alone");
+        assert!(quiet.release().0.done());
+
+        let mut bare = radio(Vec::new(), Board::new(PowerAmplifier::HighPower));
+        assert_eq!(bare.detect(2), Err(RadioError::NotConfigured));
     }
 
     #[test]
