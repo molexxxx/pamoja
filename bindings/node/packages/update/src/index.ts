@@ -32,15 +32,27 @@ export {
   decodeManifest,
   encodeManifest,
   envelopeBody,
+  /**
+   * Writes a signed update into one block, for a transport that moves blocks rather than
+   * streams, such as LoRaWAN's fragmented data block transport.
+   *
+   * The block is the signed manifest and the image behind a header that says where each
+   * begins. Nothing in the header is trusted: every rule that decides whether the image runs
+   * is still the manifest's, checked when the block is staged.
+   */
+  frameUpdateBlock as frameBlock,
   ImageVerifier,
   openDelegation,
+  /** Reads a block back into the signed manifest and the image it carries. */
+  splitUpdateBlock as splitBlock,
+  UPDATE_BLOCK_DESCRIPTOR as BLOCK_DESCRIPTOR,
   UPDATE_FORMAT_RAW as FORMAT_RAW,
   UPDATE_STRUCTURE_VERSION as STRUCTURE_VERSION,
   Updater,
   verifyEnvelope,
 } from '@pamoja/native'
 
-export type { Boot, Delegation, Manifest, Progress, SlotRecord } from '@pamoja/native'
+export type { Boot, Delegation, Manifest, Progress, SlotRecord, UpdateBlock as Block } from '@pamoja/native'
 
 /**
  * Signs a manifest into the envelope that is offered to a device.

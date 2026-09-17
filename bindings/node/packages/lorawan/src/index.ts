@@ -36,6 +36,9 @@ import type {
   LorawanCadPeriodicity as CadPeriodicityName,
   LorawanCadToRx as CadToRxName,
   LorawanCarrier,
+  LorawanClockHeard,
+  LorawanFragSession,
+  LorawanImageStatus,
   LorawanForwardedUplink,
   LorawanListen,
   LorawanRelayActivation as RelayActivationName,
@@ -82,6 +85,31 @@ import {
   type LorawanGrant,
   LorawanJoinAccept,
   type LorawanMacCommand,
+  LorawanBlockMic,
+  LorawanClockSync,
+  LorawanDefragmenter,
+  LorawanFirmware,
+  LORAWAN_CLOCK_PORT,
+  LORAWAN_FIRMWARE_PORT,
+  LORAWAN_FRAGMENT_PORT,
+  LORAWAN_MAX_FRAGMENTS,
+  LORAWAN_MULTICAST_PORT,
+  lorawanDataBlockIntKey,
+  lorawanFragFragment,
+  lorawanFragParityLine,
+  lorawanFragPrbs23,
+  lorawanFragSession,
+  lorawanMcAppSKey,
+  lorawanMcKeKey,
+  lorawanMcKey,
+  lorawanMcNwkSKey,
+  lorawanMcRootKey,
+  lorawanWrapMcKey,
+  type LorawanPackageCommand,
+  lorawanPackageEncode,
+  lorawanPackageParse,
+  lorawanPackageParseAll,
+  lorawanPackageStatusItem,
   LorawanRelay,
   type LorawanOptions,
   LorawanSession,
@@ -120,6 +148,9 @@ import {
 export {
   type LorawanAckWindow as AckWindow,
   type LorawanAcknowledgment as Acknowledgment,
+  type LorawanClockHeard as ClockHeard,
+  type LorawanFragSession as FragSession,
+  type LorawanImageStatus as ImageStatus,
   type LorawanCarrier as Carrier,
   type LorawanForwardedUplink as ForwardedUplink,
   type LorawanListen as Listen,
@@ -2146,4 +2177,189 @@ export class Relay {
   get dataRate(): number {
     return this.#inner.dataRate
   }
+}
+
+/**
+ * Application layer clock synchronization, TS003-2.0.0, on port 202.
+ *
+ * A device that has no clock of its own still needs the time: a multicast window and a
+ * scheduled reboot both depend on it. The device says what time it believes it is, the
+ * server answers with the difference, and a four-bit token keeps a late answer from pulling
+ * a corrected clock back.
+ *
+ * @example
+ * ```ts
+ * const sync = new clock.ClockSync()
+ * const request = sync.request(deviceTime, true)
+ * // ... the server answers on port clock.PORT
+ * const { correction } = sync.heard(answer)
+ * ```
+ */
+export const clock = {
+  /** The port this package is spoken on. */
+  PORT: LORAWAN_CLOCK_PORT,
+  /** The clock synchronization package running on a device. */
+  ClockSync: LorawanClockSync,
+} as const
+
+/**
+ * Fragmented data block transport, TS004-2.0.0, on port 201.
+ *
+ * A block too large for one frame goes across in pieces, followed by coded fragments that
+ * let a device solve for the ones it missed rather than asking for them again.
+ *
+ * @example
+ * ```ts
+ * const { nbFrag, padding } = fragment.session(block.length, 32)
+ * const receiver = new fragment.Defragmenter(nbFrag, 32, 8)
+ * for (let n = 1; !receiver.done; n++) {
+ *   receiver.fragment(n, fragment.fragment(block, 32, n))
+ * }
+ * ```
+ */
+export const fragment = {
+  /** The port this package is spoken on. */
+  PORT: LORAWAN_FRAGMENT_PORT,
+  /** The most fragments one session carries. */
+  MAX_FRAGMENTS: LORAWAN_MAX_FRAGMENTS,
+  /** A session being put back together from whatever arrives. */
+  Defragmenter: LorawanDefragmenter,
+  /** The code taken over a block as it arrives. */
+  BlockMic: LorawanBlockMic,
+  /** Says how many fragments a block takes, and how much padding the last one needs. */
+  session: lorawanFragSession,
+  /** Builds one fragment of a session, coded or not. */
+  fragment: lorawanFragFragment,
+  /** Lists the uncoded fragments a coded one is made of. */
+  parityLine: lorawanFragParityLine,
+  /** Steps the pseudo-random sequence the parity matrix is drawn from. */
+  prbs23: lorawanFragPrbs23,
+  /** Derives the key that signs a data block. */
+  dataBlockIntKey: lorawanDataBlockIntKey,
+} as const
+
+/**
+ * Remote multicast setup, TS005-2.0.0, on port 200.
+ *
+ * A group of devices is given one address and one key, so a firmware image goes out once
+ * rather than once per device. The group key travels wrapped under a key each device derives
+ * from its own root key and never transmits.
+ *
+ * @example
+ * ```ts
+ * const ke = multicast.keKey(multicast.rootKey(appKey))
+ * const groupKey = multicast.key(ke, wrappedFromTheServer)
+ * const payloadKey = multicast.appSKey(groupKey, groupAddr)
+ * ```
+ */
+export const multicast = {
+  /** The port this package is spoken on. */
+  PORT: LORAWAN_MULTICAST_PORT,
+  /** Derives a device's multicast root key. */
+  rootKey: lorawanMcRootKey,
+  /** Derives the key a group's key travels under. */
+  keKey: lorawanMcKeKey,
+  /** Unwraps the group key a setup command carried. */
+  key: lorawanMcKey,
+  /** Wraps a group key for a device, which is what a server does. */
+  wrapKey: lorawanWrapMcKey,
+  /** Derives the key that reads a group's payloads. */
+  appSKey: lorawanMcAppSKey,
+  /** Derives the key that verifies a group's frames. */
+  nwkSKey: lorawanMcNwkSKey,
+} as const
+
+/**
+ * Firmware management, TS006-1.0.0, on port 203.
+ *
+ * What a device is running, what upgrade image it holds and whether that image can be
+ * installed, and the single reboot a device keeps, set either as a moment in time or as a
+ * countdown.
+ *
+ * @example
+ * ```ts
+ * const manager = new firmware.Firmware(runningVersion, hardwareVersion)
+ * manager.setImage('Valid', stagedVersion)
+ * const answers = manager.heard(payload, nowSeconds)
+ * ```
+ */
+export const firmware = {
+  /** The port this package is spoken on. */
+  PORT: LORAWAN_FIRMWARE_PORT,
+  /** The firmware management package running on a device. */
+  Firmware: LorawanFirmware,
+} as const
+
+/**
+ * One command of an application layer package, whichever package it belongs to.
+ *
+ * `port` says which package and `kind` names the command within it; together they
+ * decide which of the other fields carry anything. The rest are absent. The same
+ * identifier means a different command in each direction, so `uplink` decides which
+ * one this is.
+ */
+export type PackageCommand = LorawanPackageCommand
+
+/**
+ * Reads one command of an application layer package.
+ *
+ * A data fragment takes the whole message, as TS004-2.0.0 asks, and its bytes come
+ * back on `data`.
+ *
+ * @param port - Which package: one of {@link clock}.PORT, {@link fragment}.PORT,
+ *   {@link multicast}.PORT or {@link firmware}.PORT.
+ * @param uplink - Whether the frame carrying it traveled up.
+ * @param bytes - The message, from this command's identifier on.
+ * @returns The command that was read.
+ * @throws If the port names no package, the message ends inside the command, or the
+ *   identifier is not one the package defines.
+ */
+export function packageParse(port: number, uplink: boolean, bytes: Uint8Array): PackageCommand {
+  return lorawanPackageParse(port, uplink, Buffer.from(bytes))
+}
+
+/**
+ * Reads every command in one message.
+ *
+ * A command does not carry its own length, so a reader that meets one this build does
+ * not know cannot step over it. Reading stops there and returns what came before.
+ *
+ * @param port - Which package.
+ * @param uplink - Whether the frame carrying them traveled up.
+ * @param bytes - The message.
+ * @returns The commands that were readable, in order.
+ * @throws If the port names no package.
+ */
+export function packageParseAll(
+  port: number,
+  uplink: boolean,
+  bytes: Uint8Array,
+): PackageCommand[] {
+  return lorawanPackageParseAll(port, uplink, Buffer.from(bytes))
+}
+
+/**
+ * Reads one group record of a multicast status answer.
+ *
+ * The answer says how many groups follow; each is five bytes and carries no identifier
+ * of its own, so they are read one at a time rather than by {@link packageParseAll}.
+ *
+ * @param bytes - The message, from the record on.
+ * @returns The record, as an `mcGroupStatusItem` command.
+ * @throws If the message ends inside the record.
+ */
+export function packageStatusItem(bytes: Uint8Array): PackageCommand {
+  return lorawanPackageStatusItem(Buffer.from(bytes))
+}
+
+/**
+ * Writes one command of an application layer package.
+ *
+ * @param command - The command; its `port` and `kind` decide which fields are read.
+ * @returns The bytes it goes out as.
+ * @throws If the port names no package, the name is not a command that package
+ *   defines, or a field the command needs is absent.
+ */
+export function packageEncode(command: PackageCommand): Buffer {
+  return lorawanPackageEncode(command)
 }

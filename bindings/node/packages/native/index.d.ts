@@ -811,6 +811,21 @@ export declare class LorawanBackoff {
   get version(): LorawanVersion
 }
 
+/** The code taken over a data block as it arrives, TS004-2.0.0 section 3.3. */
+export declare class LorawanBlockMic {
+  /**
+   * Starts a code over one session's block.
+   *
+   * `dataBlockIntKey` is what `lorawanDataBlockIntKey` derived, and the rest are the
+   * fields the session setup carried.
+   */
+  constructor(dataBlockIntKey: Buffer, sessionCnt: number, fragIndex: number, descriptor: Buffer, blockLen: number)
+  /** Adds a piece of the block, in order, without any padding. */
+  update(data: Buffer): void
+  /** Finishes the code, returning the four bytes a session setup carries. */
+  finish(): Buffer
+}
+
 /**
  * The optional channel list at the end of a join accept.
  *
@@ -856,6 +871,60 @@ export declare class LorawanCfList {
    * any other type.
    */
   enabledChannels(): Array<number>
+}
+
+/** The clock synchronization package running on a device, TS003-2.0.0. */
+export declare class LorawanClockSync {
+  /**
+   * Starts the package.
+   *
+   * `selfManaged` marks a device that keeps its own periodicity and answers a server that
+   * tries to set one with the not-supported bit.
+   */
+  constructor(selfManaged?: boolean | undefined | null)
+  /** Builds the request that asks a server for a correction, section 3.2. */
+  request(deviceTime: number, ansRequired?: boolean | undefined | null): Buffer
+  /** Reads a downlink on the clock port and acts on it. */
+  heard(payload: Buffer): LorawanClockHeard
+  /** Writes the answer the device owes, or an empty buffer when it owes none. */
+  answer(deviceTime: number): Buffer
+  /** The token the next request will carry. */
+  get token(): number
+  /** The seconds between requests, as the server last set them. */
+  get periodS(): number
+  /** Whether the device owes its server an answer. */
+  get answerDue(): boolean
+}
+
+/**
+ * A fragmentation session being put back together, TS004-2.0.0 appendix A.2.
+ *
+ * The uncoded fragments go straight into the block. A coded fragment is reduced against
+ * everything already known and kept only if it says something new, so the working memory is
+ * sized by the losses rather than by the block.
+ */
+export declare class LorawanDefragmenter {
+  /**
+   * Opens a session for a block of `nbFrag` fragments of `fragSize` bytes.
+   *
+   * `maxLost` is the most uncoded fragments to be able to solve for, which decides how
+   * much working memory the session takes.
+   */
+  constructor(nbFrag: number, fragSize: number, maxLost: number)
+  /**
+   * Takes one fragment of the session, counting from one.
+   *
+   * Returns `true` once the block is whole.
+   */
+  fragment(n: number, data: Buffer): boolean
+  /** The block, as far as it has been put back together, padding and all. */
+  get block(): Buffer
+  /** Whether the whole block is there. */
+  get done(): boolean
+  /** How many fragments arrived, coded, uncoded and repeated. */
+  get received(): number
+  /** How many uncoded fragments are still missing. */
+  get missing(): number
 }
 
 /** The root credentials over-the-air activation is built on. */
@@ -1005,6 +1074,33 @@ export declare class LorawanEndDevice {
    * uplink anyway, or wake the relay again first, as the network's `BackOff` asks.
    */
   noWorAck(nowUs: number): LorawanWorNext
+}
+
+/** The firmware management package running on a device, TS006-1.0.0. */
+export declare class LorawanFirmware {
+  /** Starts the package, reporting the versions the device was built with. */
+  constructor(firmware: number, hardware: number)
+  /** Says what firmware upgrade image the device is holding. */
+  setImage(status: LorawanImageStatus, version?: number | undefined | null): void
+  /**
+   * Reads a downlink on the firmware port and writes the answers it calls for.
+   *
+   * `nowS` is what the device believes the time is, in seconds since the GPS epoch; a
+   * device that does not know refuses a reboot set for a moment in time.
+   */
+  heard(payload: Buffer, nowS?: number | undefined | null): Buffer
+  /** The moment the device is to reboot, where one was set as a time. */
+  get rebootAtS(): number | null
+  /** How long until it reboots, where one was set as a countdown. */
+  get rebootInS(): number | null
+  /** Whether the device was told to reboot at once. */
+  get rebootNow(): boolean
+  /** What the device would boot into, for an image it can install. */
+  get nextVersion(): number | null
+  /** What the device makes of the image it holds. */
+  get imageStatus(): LorawanImageStatus
+  /** Forgets the programmed reboot, for a device that has carried it out. */
+  rebooted(): void
 }
 
 /** An accepted join: the network settings, and the session it grants. */
@@ -2793,6 +2889,15 @@ export interface ForwardDecision {
   nextHop?: number
 }
 
+/**
+ * Writes a signed update into one block, for a transport that moves blocks.
+ *
+ * The block is the signed manifest and the image behind a header that says where each
+ * begins. Nothing in the header is trusted: every rule that decides whether the image runs
+ * is still the manifest's.
+ */
+export declare function frameUpdateBlock(envelope: Buffer, image: Buffer): Buffer
+
 /** Returns the acknowledgment a server owes a datagram, or `null` for one that needs none. */
 export declare function gatewayAcknowledgment(packet: GatewayPacket): GatewayPacket | null
 
@@ -4147,8 +4252,17 @@ export const LORAWAN_ADR_ACK_DELAY: number
 /** How many unanswered uplinks before a device asks the network to answer. */
 export const LORAWAN_ADR_ACK_LIMIT: number
 
+/** The port clock synchronization is spoken on, TS003-2.0.0. */
+export const LORAWAN_CLOCK_PORT: number
+
+/** The port firmware management is spoken on, TS006-1.0.0. */
+export const LORAWAN_FIRMWARE_PORT: number
+
 /** The bytes a forwarded uplink adds in front of the end device's frame. */
 export const LORAWAN_FORWARD_OVERHEAD: number
+
+/** The port fragmented data block transport is spoken on, TS004-2.0.0. */
+export const LORAWAN_FRAGMENT_PORT: number
 
 /** How long after a join request the first join accept window opens, in microseconds. */
 export const LORAWAN_JOIN_ACCEPT_DELAY1_US: number
@@ -4162,6 +4276,9 @@ export const LORAWAN_LA_FPORT_RELAY: number
 /** The largest gap a frame counter may jump across and still be accepted. */
 export const LORAWAN_MAX_FCNT_GAP: number
 
+/** The most fragments one session carries. */
+export const LORAWAN_MAX_FRAGMENTS: number
+
 /** The largest LoRaWAN frame, in bytes, this build accepts. */
 export const LORAWAN_MAX_FRAME: number
 
@@ -4170,6 +4287,9 @@ export const LORAWAN_MAX_PAYLOAD: number
 
 /** The shortest WOR preamble, in symbols. */
 export const LORAWAN_MIN_WOR_PREAMBLE_SYMBOLS: number
+
+/** The port remote multicast setup is spoken on, TS005-2.0.0. */
+export const LORAWAN_MULTICAST_PORT: number
 
 /** How long after an uplink the first receive window opens, in microseconds. */
 export const LORAWAN_RECEIVE_DELAY1_US: number
@@ -4312,6 +4432,21 @@ export interface LorawanChannel {
   maxDataRate: number
 }
 
+/** What a downlink on the clock port asked of a device. */
+export interface LorawanClockHeard {
+  /** The seconds to add to the device's clock, where an answer carried one. */
+  correction?: number
+  /** Whether the correction was the largest the field carries, so another follows. */
+  moreCorrection: boolean
+  /** How many requests a resynchronization command asked for. */
+  resync?: number
+  /** Whether the device now owes an answer. */
+  answerDue: boolean
+}
+
+/** Derives the key that signs a data block, TS004-2.0.0 section 3.3. */
+export declare function lorawanDataBlockIntKey(rootKey: Buffer): Buffer
+
 /** A downlink, read and acted on. */
 export interface LorawanDelivery {
   /**
@@ -4396,6 +4531,36 @@ export interface LorawanForwardedUplink {
   frequencyHz: number
   /** The end device's frame. */
   phyPayload: Buffer
+}
+
+/**
+ * Builds one fragment of a session out of a block held whole.
+ *
+ * Up to `nbFrag` the fragment is a piece of the block; past that it is a coded fragment,
+ * the exclusive-or of a pseudo-random half of the pieces.
+ */
+export declare function lorawanFragFragment(block: Buffer, fragSize: number, n: number): Buffer
+
+/**
+ * Lists the uncoded fragments a coded one is made of, appendix A.1.
+ *
+ * `coded` counts from one past the uncoded fragments: a session's fragment `nbFrag + 1` is
+ * coded fragment 1.
+ */
+export declare function lorawanFragParityLine(coded: number, nbFrag: number): Array<number>
+
+/** Steps the pseudo-random sequence the parity matrix is drawn from, appendix A.1. */
+export declare function lorawanFragPrbs23(x: number): number
+
+/** Says how many fragments a block takes, and how much padding the last one needs. */
+export declare function lorawanFragSession(blockLen: number, fragSize: number): LorawanFragSession
+
+/** How a block is cut into fragments. */
+export interface LorawanFragSession {
+  /** How many uncoded fragments the block takes. */
+  nbFrag: number
+  /** How many bytes of padding the last one carries. */
+  padding: number
 }
 
 /** The frame counters a device carries over a restart. */
@@ -4486,6 +4651,18 @@ export declare const enum LorawanHeardKind {
   Joined = 'Joined',
   /** A data frame for this device. */
   Data = 'Data'
+}
+
+/** What a device makes of the firmware upgrade image it holds, TS006-1.0.0 table 10. */
+export declare const enum LorawanImageStatus {
+  /** It is holding none. */
+  None = 'None',
+  /** One is there, but it is corrupt or its signature does not verify. */
+  Corrupt = 'Corrupt',
+  /** One is there and authentic, but it is not for this hardware. */
+  WrongHardware = 'WrongHardware',
+  /** One is there, and it can be installed. */
+  Valid = 'Valid'
 }
 
 /** A join-request a device broadcast, with its integrity already verified. */
@@ -4710,6 +4887,26 @@ export declare function lorawanMacEncode(command: LorawanMacCommand): Buffer
  */
 export declare function lorawanMacParse(direction: LorawanDirection, bytes: Buffer): Array<LorawanMacCommand>
 
+/** Derives the key that reads a multicast group's payloads, section 4.3. */
+export declare function lorawanMcAppSKey(mcKey: Buffer, mcAddr: number): Buffer
+
+/** Derives the key a multicast group's key travels under, section 4.3. */
+export declare function lorawanMcKeKey(mcRootKey: Buffer): Buffer
+
+/** Unwraps the group key a setup command carried, section 4.3. */
+export declare function lorawanMcKey(mcKeKey: Buffer, wrapped: Buffer): Buffer
+
+/** Derives the key that verifies a multicast group's frames, section 4.3. */
+export declare function lorawanMcNwkSKey(mcKey: Buffer, mcAddr: number): Buffer
+
+/**
+ * Derives a device's multicast root key, TS005-2.0.0 section 4.3.
+ *
+ * `lorawan11` picks the scheme: LoRaWAN 1.0.x devices derive from their `GenAppKey`, and
+ * 1.1 devices from their `AppKey` under another constant.
+ */
+export declare function lorawanMcRootKey(rootKey: Buffer, lorawan11?: boolean | undefined | null): Buffer
+
 /** What kind of message a frame is, read from its header. */
 export declare const enum LorawanMessageType {
   /** A device asking to join a network. */
@@ -4770,6 +4967,153 @@ export interface LorawanOptions {
   /** MAC commands to carry in the header, at most 15 bytes. */
   fopts?: Buffer
 }
+
+/**
+ * One command of an application layer package, whichever package it belongs to.
+ *
+ * `port` says which package and `kind` names the command within it; together they decide
+ * which of the other fields carry anything. The rest are absent.
+ */
+export interface LorawanPackageCommand {
+  /** Which package this command belongs to, as its port. */
+  port: number
+  /** Which command this is, as a name. */
+  kind: string
+  /** Which way it travels. */
+  uplink: boolean
+  /** The package identifier a version answer carries. */
+  package?: number
+  /** The package version it implements. */
+  version?: number
+  /** A device's own clock, in seconds since the GPS epoch. */
+  deviceTime?: number
+  /** The seconds to add to a device's clock. */
+  timeCorrection?: number
+  /** The token that pairs a clock answer with its request. */
+  token?: number
+  /** Whether a clock request must be answered. */
+  ansRequired?: boolean
+  /** The coded period between clock requests. */
+  period?: number
+  /** Whether a device manages its own clock periodicity. */
+  notSupported?: boolean
+  /** How many requests a resynchronization command asks for. */
+  transmissions?: number
+  /** The firmware a device reports running. */
+  firmware?: number
+  /** The hardware it runs on. */
+  hardware?: number
+  /** The moment or the delay a reboot is set for. */
+  reboot?: number
+  /** What a device makes of the upgrade image it holds. */
+  imageStatus?: LorawanImageStatus
+  /** The version it would run once that image is installed. */
+  nextVersion?: number
+  /** The version a delete command names. */
+  deleteVersion?: number
+  /** Whether a device holds no valid image. */
+  noValidImage?: boolean
+  /** Whether the version named is not the one held. */
+  invalidVersion?: boolean
+  /** Which fragmentation session, 0 to 3. */
+  fragIndex?: number
+  /** Which multicast groups may feed it, a bit for each. */
+  mcGroupBitMask?: number
+  /** How many uncoded fragments a block was cut into. */
+  nbFrag?: number
+  /** How many bytes each fragment carries. */
+  fragSize?: number
+  /** Whether a device reports the block once it has it. */
+  ackReception?: boolean
+  /** Which fragmentation algorithm to run. */
+  fragAlgo?: number
+  /** The coded spread of the delay before a device answers. */
+  blockAckDelay?: number
+  /** How many bytes of padding the last fragment carries. */
+  padding?: number
+  /** The four bytes a server describes a block with. */
+  descriptor?: Buffer
+  /** The session counter, which must rise for each new block. */
+  sessionCnt?: number
+  /** The code over the block a device checks once it has it all. */
+  mic?: Buffer
+  /** How many fragments arrived, coded, uncoded and repeated. */
+  received?: number
+  /** How many uncoded fragments are still missing. */
+  missing?: number
+  /** Whether the block's code did not check out. */
+  micError?: boolean
+  /** Whether a session ran out of memory to defragment with. */
+  memoryError?: boolean
+  /** Whether the session or group named does not exist on the device. */
+  noSession?: boolean
+  /** Whether the setup named an algorithm the device does not run. */
+  unsupportedAlgorithm?: boolean
+  /** Whether the setup named an index the device does not keep. */
+  unsupportedIndex?: boolean
+  /** Whether the descriptor is not one the device accepts. */
+  wrongDescriptor?: boolean
+  /** Whether the session counter repeats one already used. */
+  sessionReplay?: boolean
+  /** Whether every device answers a status request. */
+  allParticipants?: boolean
+  /** Which fragment of a session a data fragment carries, counting from one. */
+  fragmentN?: number
+  /** The bytes a data fragment carries. */
+  data?: Buffer
+  /** Which multicast group, 0 to 3. */
+  mcGroupId?: number
+  /** The address a group answers to. */
+  mcAddr?: number
+  /** A group's key, wrapped under the device's key encryption key. */
+  mcKeyEncrypted?: Buffer
+  /** The first frame counter a device accepts from a group. */
+  minMcFcnt?: number
+  /** The last one, which ends the group's life. */
+  maxMcFcnt?: number
+  /** Which groups a status request or answer covers, a bit for each. */
+  groupMask?: number
+  /** How many groups a device holds in all. */
+  nbTotalGroups?: number
+  /** Whether a device holds no group by the identifier named. */
+  idError?: boolean
+  /** When a multicast window opens, in seconds since the GPS epoch. */
+  sessionTime?: number
+  /** How long it lasts at most, coded. */
+  timeOut?: number
+  /** How often a device opens a ping slot inside a Class B window. */
+  periodicity?: number
+  /** Where a group listens, in hertz. */
+  dlFrequencyHz?: number
+  /** The data rate it listens at. */
+  dataRate?: number
+  /** How many seconds until a window opens. */
+  timeToStart?: number
+  /** Whether the data rate named is not one the device has. */
+  drError?: boolean
+  /** Whether the frequency named is not one it can use. */
+  freqError?: boolean
+  /** Whether the window was to start at a time already past. */
+  startMissed?: boolean
+}
+
+/** Writes one command of an application layer package. */
+export declare function lorawanPackageEncode(command: LorawanPackageCommand): Buffer
+
+/**
+ * Reads one command of an application layer package.
+ *
+ * `uplink` says which way the frame carrying it traveled, because the same identifier names
+ * a different command in each direction. A data fragment takes the whole message, as
+ * TS004-2.0.0 section 3 asks, and its bytes come back on `data`.
+ */
+export declare function lorawanPackageParse(port: number, uplink: boolean, payload: Buffer): LorawanPackageCommand
+
+/** Reads every command in one message, stopping at an identifier the package does not define. */
+export declare function lorawanPackageParseAll(port: number, uplink: boolean, payload: Buffer): Array<LorawanPackageCommand>
+
+/** Reads one group record of a multicast status answer, TS005-2.0.0 section 4.2. */
+export declare function lorawanPackageStatusItem(payload: Buffer): LorawanPackageCommand
 
 /**
  * Reads a frame far enough to route it, without any key.
@@ -5203,6 +5547,9 @@ export interface LorawanWorSlot {
   /** The preamble length in symbols. */
   preambleSymbols: number
 }
+
+/** Wraps a group key for a device, which is what a server does before sending it. */
+export declare function lorawanWrapMcKey(mcKeKey: Buffer, mcKey: Buffer): Buffer
 
 /** How accurate a relay's crystal is, table 17. */
 export declare const enum LorawanXtalAccuracy {
@@ -6296,6 +6643,13 @@ export declare function spiModeClock(mode: number): SpiClock
 /** Returns the SPI mode number a `(CPOL, CPHA)` pair names. */
 export declare function spiModeFromClock(cpol: boolean, cpha: boolean): number
 
+/**
+ * Reads a block back into the signed manifest and the image.
+ *
+ * Throws when the block does not carry this convention's header.
+ */
+export declare function splitUpdateBlock(block: Buffer): UpdateBlock
+
 /** Writes the request a station sends to find its network server. */
 export declare function stationDiscovery(router: string): string
 
@@ -6983,11 +7337,25 @@ export interface Twist {
   omega: number
 }
 
+/**
+ * What a transport calls a block carrying a signed update, for a field that names the
+ * convention.
+ */
+export const UPDATE_BLOCK_DESCRIPTOR: string
+
 /** The payload format meaning the payload is the image itself, byte for byte. */
 export const UPDATE_FORMAT_RAW: number
 
 /** The manifest structure version this build writes. */
 export const UPDATE_STRUCTURE_VERSION: number
+
+/** A signed update read back out of one block. */
+export interface UpdateBlock {
+  /** The signed manifest. */
+  envelope: Buffer
+  /** The image it describes. */
+  image: Buffer
+}
 
 /**
  * Verifies that a signature covers a payload and was made by a public key.

@@ -58,6 +58,8 @@ pub mod lorawan_device;
 #[cfg(feature = "lorawan")]
 pub mod lorawan_link;
 #[cfg(all(feature = "lora", feature = "lorawan"))]
+pub mod lorawan_packages;
+#[cfg(all(feature = "lora", feature = "lorawan"))]
 pub mod lorawan_relay;
 #[cfg(feature = "mavlink")]
 pub mod mavlink;
