@@ -128,6 +128,13 @@ released together, so one entry covers all of them.
   against either upstream from a file it is given. The SX1261 that listens beside
   the concentrator for a carrier check has its commands, its patch loading and
   its decoders carried as well, though nothing drives it over a bus yet.
+- The USB versions of the same cards, the RAK5146 and the WM1302 among them, which put
+  an STM32 between the host and the concentrator. The bridge does the SPI on the host
+  side and drives the card supply and reset pins itself, so `pamoja-radios` carries the
+  messages it speaks, a port-backed SPI device and pin that let the same driver run over
+  it unchanged, and a Linux opener that brings the card up the way the reference does.
+  The gateway daemon takes `usb` in place of the SPI device and its two lines, and
+  runs a USB card through the same code as an SPI one.
 - The MAC commands a LoRaWAN network and device configure each other with, in
   `pamoja_lorawan::mac`: all ten pairs from section 5 of LoRaWAN 1.0.3, in both
   directions, covering data rate, power, channels, receive windows, duty cycle,
@@ -153,16 +160,35 @@ released together, so one entry covers all of them.
   `pamoja_lora::region::FixedChannelList` gives the channel numbers the second form
   refers to their frequencies, with tests anchored to a captured join accept and
   to the worked examples in RP002-1.0.5.
+- A LoRaWAN Class A end device in `pamoja_lorawan::device`, which is what a node
+  runs to take part in a network. It joins over the air or starts from a
+  provisioned session, picks a channel and data rate for each uplink, says when
+  and where both receive windows open, and reads what comes back. It does what
+  every device-side MAC command asks and answers in order, repeating the four
+  that change how it listens until a downlink arrives. It repeats uplinks as many
+  times as the network sets, retries an unacknowledged confirmed uplink after the
+  retransmission timeout, and backs off when the network goes quiet. It keeps the
+  region's sub-band duty cycles, the network's aggregated limit, and the join
+  back-off of TS001-1.0.4 section 7. It owns no radio and no clock: each step
+  takes the time and returns the frame, the carrier, the power and the windows. It
+  follows LoRaWAN 1.0.3 or TS001-1.0.4 where the two differ, and covers the dynamic
+  channel plans: EU868, EU433, AS923, KR920, IN865 and RU864. Its tests run every
+  exchange against this crate's own network half, and expect the answer bytes
+  chapter 5 lays out.
 
 ### Changed
 
-- The USB versions of the same cards, the RAK5146 and the WM1302 among them, which put
-  an STM32 between the host and the concentrator. The bridge does the SPI on the host
-  side and drives the card supply and reset pins itself, so `pamoja-radios` carries the
-  messages it speaks, a port-backed SPI device and pin that let the same driver run over
-  it unchanged, and a Linux opener that brings the card up the way the reference does.
-  The gateway daemon takes `usb` in place of the SPI device and its two lines, and
-  runs a USB card through the same code as an SPI one.
+- A channel plan in `pamoja-lora` says what kind it is: dynamic, with the
+  numbering its region reads a type 1 channel list against, or fixed. It also
+  says whether devices on it answer `TXParamSetupReq`, which only AS923 and
+  AU915-928 do. Both come from RP002-1.0.5 section by section. A plan built field
+  by field needs the two new fields; `ChannelPlanBuilder` starts dynamic and
+  without the command.
+- `pamoja_lorawan::adr::Backoff` follows the revision it is given. LoRaWAN 1.0.3
+  steps the data rate down after the limit plus a delay. TS001-1.0.4 table 9
+  restores the default power first, then lowers the rate each delay, then
+  re-enables the default channels. The back-off reports each step and leaves the
+  settings to the device that keeps them.
 - The guide examples are programs rather than tests. Each one has a `main`, runs
   with `cargo run -p pamoja-examples --example <name>` or the equivalent in the
   other three languages, and the line printed beside it on the site is the line
@@ -214,6 +240,11 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- The AS923 plan carried the payload limits from before RP002-1.0.5, which raised
+  DR2 from 59 to 123 bytes. It now has them, along with the table for a 400 ms
+  dwell limit, which the plan had left out. It also joined at DR0 and DR1, which
+  table 66 leaves out so that a join request fits that limit before the network
+  has said whether it applies.
 - A received LoRaWAN uplink with its Class B bit set no longer reports that the
   network has more data waiting. That bit means frame pending on a downlink only,
   and a received frame now reads it for the direction it traveled. A frame

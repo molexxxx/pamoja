@@ -46,6 +46,15 @@ impl Device {
         }
     }
 
+    /// Returns the device identifier, most-significant byte first.
+    ///
+    /// # Returns
+    ///
+    /// The DevEUI.
+    pub fn dev_eui(&self) -> [u8; 8] {
+        self.dev_eui
+    }
+
     /// Builds a join-request to broadcast.
     ///
     /// # Arguments

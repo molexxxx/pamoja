@@ -1832,7 +1832,7 @@
           "kind": "lora",
           "spreadingFactor": 5
         },
-        "hasDwellLimitedPayloads": false,
+        "hasDwellLimitedPayloads": true,
         "hasDwellLimitedRx1": true,
         "hasDwellTimeLimit": true,
         "joinChannelBlockCount": 1,
