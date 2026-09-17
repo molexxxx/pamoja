@@ -94,6 +94,8 @@ pub mod lora_region;
 #[cfg(feature = "lorawan")]
 pub mod lorawan;
 #[cfg(feature = "lorawan")]
+pub mod lorawan_link;
+#[cfg(feature = "lorawan")]
 pub mod lorawan_mac;
 #[cfg(feature = "mavlink")]
 pub mod mavlink;

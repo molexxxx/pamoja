@@ -44,7 +44,8 @@ pub enum PamojaLorawanDirection {
 /// The header flags a sender sets on a data frame.
 ///
 /// Each is `1` for on and `0` for off. `fpending` applies to a downlink only and
-/// is ignored when encoding an uplink.
+/// is ignored when encoding an uplink, and `adr_ack_req` applies to an uplink only
+/// and is ignored when encoding a downlink.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PamojaLorawanFlags {
@@ -56,6 +57,9 @@ pub struct PamojaLorawanFlags {
     pub ack: u8,
     /// Tell the device more downlink data is waiting.
     pub fpending: u8,
+    /// Ask the network to answer, because a device running adaptive data rate has gone
+    /// too long without hearing it.
+    pub adr_ack_req: u8,
 }
 
 /// An opaque handle to an activated LoRaWAN session.
@@ -218,6 +222,9 @@ pub unsafe extern "C" fn pamoja_lorawan_session_encode_uplink(
             }
             if flags.ack != 0 {
                 uplink = uplink.with_ack();
+            }
+            if flags.adr_ack_req != 0 {
+                uplink = uplink.with_adr_ack_req();
             }
             session.encode_uplink(&uplink)
         },
@@ -440,6 +447,38 @@ pub unsafe extern "C" fn pamoja_lorawan_rx_confirmed(rx: *const PamojaLorawanRx)
 #[no_mangle]
 pub unsafe extern "C" fn pamoja_lorawan_rx_adr(rx: *const PamojaLorawanRx) -> bool {
     !rx.is_null() && (*rx).rx.adr()
+}
+
+/// Reports whether a decoded uplink asks the network to answer.
+///
+/// A device running adaptive data rate sets this once it has gone too long without a
+/// downlink. The bit is reserved on a downlink, which reads `false`.
+///
+/// # Returns
+///
+/// `true` when the ADRACKReq bit of an uplink is set, or `false` if `rx` is null.
+///
+/// # Safety
+///
+/// `rx` must be a live handle from [`pamoja_lorawan_session_decode`], or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_rx_adr_ack_req(rx: *const PamojaLorawanRx) -> bool {
+    !rx.is_null() && (*rx).rx.adr_ack_req()
+}
+
+/// Reports whether a decoded uplink came from a device running Class B.
+///
+/// # Returns
+///
+/// `true` when the ClassB bit of an uplink is set, or `false` for a downlink or if `rx`
+/// is null.
+///
+/// # Safety
+///
+/// `rx` must be a live handle from [`pamoja_lorawan_session_decode`], or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_rx_class_b(rx: *const PamojaLorawanRx) -> bool {
+    !rx.is_null() && (*rx).rx.class_b()
 }
 
 /// Reports whether a decoded frame acknowledges the last confirmed one.
@@ -756,6 +795,35 @@ pub unsafe extern "C" fn pamoja_lorawan_device_accept_join(
     }
 }
 
+/// Copies the device EUI a device was created with.
+///
+/// # Arguments
+///
+/// * `device` - the device.
+/// * `out_dev_eui` - receives [`PAMOJA_LORAWAN_EUI_LEN`] bytes, most-significant byte
+///   first.
+///
+/// # Returns
+///
+/// `true` when the identifier was written, or `false` if either pointer is null.
+///
+/// # Safety
+///
+/// `device` must be a live handle from [`pamoja_lorawan_device_new`], or null, and
+/// `out_dev_eui` must point to at least [`PAMOJA_LORAWAN_EUI_LEN`] writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_device_dev_eui(
+    device: *const PamojaLorawanDevice,
+    out_dev_eui: *mut u8,
+) -> bool {
+    if device.is_null() || out_dev_eui.is_null() {
+        return false;
+    }
+    let eui = (*device).device.dev_eui();
+    ptr::copy_nonoverlapping(eui.as_ptr(), out_dev_eui, PAMOJA_LORAWAN_EUI_LEN);
+    true
+}
+
 /// Releases a device handle.
 ///
 /// Passing null is a no-op.
@@ -850,6 +918,101 @@ pub unsafe extern "C" fn pamoja_lorawan_join_accept_rx_delay(
         return 0;
     }
     (*accept).accept.rx_delay()
+}
+
+/// Returns how far below the uplink's data rate the first receive window listens.
+///
+/// # Returns
+///
+/// The RX1DROffset field of the downlink settings byte, or 0 if `accept` is null.
+///
+/// # Safety
+///
+/// `accept` must be a live handle from [`pamoja_lorawan_device_accept_join`], or
+/// null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_join_accept_rx1_dr_offset(
+    accept: *const PamojaLorawanJoinAccept,
+) -> u8 {
+    if accept.is_null() {
+        return 0;
+    }
+    (*accept).accept.rx1_dr_offset()
+}
+
+/// Returns the data rate the second receive window listens at.
+///
+/// # Returns
+///
+/// The RX2DataRate field of the downlink settings byte, or 0 if `accept` is null.
+///
+/// # Safety
+///
+/// `accept` must be a live handle from [`pamoja_lorawan_device_accept_join`], or
+/// null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_join_accept_rx2_data_rate(
+    accept: *const PamojaLorawanJoinAccept,
+) -> u8 {
+    if accept.is_null() {
+        return 0;
+    }
+    (*accept).accept.rx2_data_rate()
+}
+
+/// Returns the delay from the end of an uplink to the first receive window.
+///
+/// # Returns
+///
+/// The delay in microseconds, where an RxDelay of 0 means one second as the
+/// specification says, or 0 if `accept` is null.
+///
+/// # Safety
+///
+/// `accept` must be a live handle from [`pamoja_lorawan_device_accept_join`], or
+/// null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_join_accept_receive_delay_us(
+    accept: *const PamojaLorawanJoinAccept,
+) -> u32 {
+    if accept.is_null() {
+        return 0;
+    }
+    (*accept).accept.receive_delay_us()
+}
+
+/// Copies the channel list a join accept carried.
+///
+/// # Arguments
+///
+/// * `accept` - the accepted join.
+/// * `out_cflist` - receives the 16 CFList bytes exactly as they arrived.
+///
+/// # Returns
+///
+/// `true` when the accept carried a channel list and it was written, or `false` when it
+/// carried none or either pointer is null.
+///
+/// # Safety
+///
+/// `accept` must be a live handle from [`pamoja_lorawan_device_accept_join`], or null,
+/// and `out_cflist` must point to at least 16 writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_join_accept_cflist(
+    accept: *const PamojaLorawanJoinAccept,
+    out_cflist: *mut u8,
+) -> bool {
+    if accept.is_null() || out_cflist.is_null() {
+        return false;
+    }
+    match (*accept).accept.cflist() {
+        Some(list) => {
+            let bytes = list.to_bytes();
+            ptr::copy_nonoverlapping(bytes.as_ptr(), out_cflist, bytes.len());
+            true
+        }
+        None => false,
+    }
 }
 
 /// Takes the activated session a join grants.
@@ -1056,6 +1219,11 @@ pub struct PamojaLorawanHeader {
     pub fpending: u8,
     /// How many bytes of frame options the header carries, from 0 to 15.
     pub fopts_len: u8,
+    /// `1` when an uplink asks the network to answer. Reserved on a downlink, which reads
+    /// `0`.
+    pub adr_ack_req: u8,
+    /// `1` when an uplink comes from a device running Class B.
+    pub class_b: u8,
 }
 
 /// What a network grants a device that joined.
@@ -1146,6 +1314,8 @@ pub unsafe extern "C" fn pamoja_lorawan_header_parse(
         ack: u8::from(header.ack()),
         fpending: u8::from(header.fpending()),
         fopts_len: header.fopts_len() as u8,
+        adr_ack_req: u8::from(header.adr_ack_req()),
+        class_b: u8::from(header.class_b()),
     };
     PamojaStatus::Ok
 }
@@ -1446,6 +1616,7 @@ mod tests {
             adr: 0,
             ack: 0,
             fpending: 0,
+            adr_ack_req: 0,
         }
     }
 
@@ -2009,6 +2180,128 @@ mod tests {
                 PamojaStatus::Auth
             );
             assert!(request.is_null());
+        }
+    }
+
+    #[test]
+    fn the_adaptive_data_rate_bits_and_join_settings_cross_the_boundary() {
+        // Safety: every pointer below is valid and every handle is released.
+        unsafe {
+            let session = session();
+            let mut frame = ptr::null_mut();
+            let flags = PamojaLorawanFlags {
+                adr: 1,
+                adr_ack_req: 1,
+                ..quiet()
+            };
+            assert_eq!(
+                pamoja_lorawan_session_encode_uplink(
+                    session,
+                    65,
+                    1,
+                    b"x".as_ptr(),
+                    1,
+                    ptr::null(),
+                    0,
+                    flags,
+                    &mut frame
+                ),
+                PamojaStatus::Ok
+            );
+            let on_air =
+                std::slice::from_raw_parts(pamoja_buffer_data(frame), pamoja_buffer_len(frame))
+                    .to_vec();
+            pamoja_buffer_free(frame);
+            assert_eq!(on_air[5], 0xC0, "FCtrl carries ADR and ADRACKReq");
+
+            let mut header = std::mem::zeroed::<PamojaLorawanHeader>();
+            assert_eq!(
+                pamoja_lorawan_header_parse(on_air.as_ptr(), on_air.len(), &mut header),
+                PamojaStatus::Ok
+            );
+            assert_eq!((header.adr, header.adr_ack_req, header.class_b), (1, 1, 0));
+
+            let mut rx = ptr::null_mut();
+            assert_eq!(
+                pamoja_lorawan_session_decode(session, on_air.as_ptr(), on_air.len(), 65, &mut rx),
+                PamojaStatus::Ok
+            );
+            assert!(pamoja_lorawan_rx_adr_ack_req(rx));
+            assert!(!pamoja_lorawan_rx_class_b(rx));
+            pamoja_lorawan_rx_free(rx);
+            pamoja_lorawan_session_free(session);
+
+            // An uplink header with the ClassB bit set, which FrameHeader reads without a
+            // key: MHDR, DevAddr, FCtrl 0x10, FCnt, FPort, one payload byte and a MIC.
+            let class_b = [
+                0x40, 0xDA, 0x1B, 0x01, 0x26, 0x10, 0x01, 0x00, 0x01, 0x00, 1, 2, 3, 4,
+            ];
+            assert_eq!(
+                pamoja_lorawan_header_parse(class_b.as_ptr(), class_b.len(), &mut header),
+                PamojaStatus::Ok
+            );
+            assert_eq!((header.class_b, header.adr_ack_req), (1, 0));
+
+            // The EU868 join accept published in lora-packet issue 10.
+            let app_key = [
+                0xB6, 0xB5, 0x3F, 0x4A, 0x16, 0x8A, 0x7A, 0x88, 0xBD, 0xF7, 0xEA, 0x13, 0x5C, 0xE9,
+                0xCF, 0xCA,
+            ];
+            let accept = [
+                0x20, 0x4D, 0xD8, 0x5A, 0xE6, 0x08, 0xB8, 0x7F, 0xC4, 0x88, 0x99, 0x70, 0xB7, 0xD2,
+                0x04, 0x2C, 0x9E, 0x72, 0x95, 0x9B, 0x00, 0x57, 0xAE, 0xD6, 0x09, 0x4B, 0x16, 0x00,
+                0x3D, 0xF1, 0x2D, 0xE1, 0x45,
+            ];
+            let dev_eui = [0x70, 0xB3, 0xD5, 0x7E, 0xD0, 0x05, 0x12, 0x34];
+            let mut device = ptr::null_mut();
+            assert_eq!(
+                pamoja_lorawan_device_new(
+                    dev_eui.as_ptr(),
+                    8,
+                    [0u8; 8].as_ptr(),
+                    8,
+                    app_key.as_ptr(),
+                    16,
+                    &mut device
+                ),
+                PamojaStatus::Ok
+            );
+            let mut eui = [0u8; 8];
+            assert!(pamoja_lorawan_device_dev_eui(device, eui.as_mut_ptr()));
+            assert_eq!(eui, dev_eui);
+
+            let mut joined = ptr::null_mut();
+            assert_eq!(
+                pamoja_lorawan_device_accept_join(
+                    device,
+                    accept.as_ptr(),
+                    accept.len(),
+                    0xCC85,
+                    &mut joined
+                ),
+                PamojaStatus::Ok
+            );
+            assert_eq!(pamoja_lorawan_join_accept_dl_settings(joined), 0x03);
+            assert_eq!(pamoja_lorawan_join_accept_rx1_dr_offset(joined), 0);
+            assert_eq!(pamoja_lorawan_join_accept_rx2_data_rate(joined), 3);
+            assert_eq!(
+                pamoja_lorawan_join_accept_receive_delay_us(joined),
+                1_000_000
+            );
+            let mut cflist = [0u8; 16];
+            assert!(pamoja_lorawan_join_accept_cflist(
+                joined,
+                cflist.as_mut_ptr()
+            ));
+            assert_eq!(
+                cflist,
+                [
+                    0x18, 0x4F, 0x84, 0xE8, 0x56, 0x84, 0xB8, 0x5E, 0x84, 0x88, 0x66, 0x84, 0x58,
+                    0x6E, 0x84, 0x00
+                ]
+            );
+            pamoja_lorawan_join_accept_free(joined);
+            pamoja_lorawan_device_free(device);
         }
     }
 }

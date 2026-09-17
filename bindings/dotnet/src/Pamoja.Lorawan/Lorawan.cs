@@ -18,7 +18,8 @@ public enum LorawanDirection
 /// <summary>The header flags and frame options a sender sets on a data frame.</summary>
 /// <remarks>
 /// Every member defaults off. <see cref="FPending"/> applies to a downlink only
-/// and is ignored when encoding an uplink.
+/// and is ignored when encoding an uplink, and <see cref="AdrAckReq"/> applies to an
+/// uplink only and is ignored when encoding a downlink.
 /// </remarks>
 public sealed class LorawanOptions
 {
@@ -34,6 +35,12 @@ public sealed class LorawanOptions
     /// <summary>Tell the device more downlink data is waiting.</summary>
     public bool FPending { get; init; }
 
+    /// <summary>
+    /// Ask the network to answer, because a device running adaptive data rate has gone too
+    /// long without hearing it.
+    /// </summary>
+    public bool AdrAckReq { get; init; }
+
     /// <summary>MAC commands to carry in the header, at most 15 bytes.</summary>
     public byte[] Fopts { get; init; } = [];
 
@@ -45,6 +52,7 @@ public sealed class LorawanOptions
         Adr = Adr ? (byte)1 : (byte)0,
         Ack = Ack ? (byte)1 : (byte)0,
         FPending = FPending ? (byte)1 : (byte)0,
+        AdrAckReq = AdrAckReq ? (byte)1 : (byte)0,
     };
 }
 
@@ -59,6 +67,8 @@ public sealed class LorawanRxData
     /// <param name="adr">Whether the frame takes part in adaptive data rate.</param>
     /// <param name="ack">Whether the frame acknowledges the last confirmed one.</param>
     /// <param name="fpending">Whether more downlink data is waiting.</param>
+    /// <param name="adrAckReq">Whether an uplink asks the network to answer.</param>
+    /// <param name="classB">Whether an uplink comes from a device running Class B.</param>
     /// <param name="fport">The port the frame was sent on, or <c>null</c>.</param>
     /// <param name="fopts">The MAC commands the header carried.</param>
     /// <param name="payload">The decrypted application payload.</param>
@@ -70,6 +80,8 @@ public sealed class LorawanRxData
         bool adr,
         bool ack,
         bool fpending,
+        bool adrAckReq,
+        bool classB,
         byte? fport,
         byte[] fopts,
         byte[] payload)
@@ -81,6 +93,8 @@ public sealed class LorawanRxData
         Adr = adr;
         Ack = ack;
         FPending = fpending;
+        AdrAckReq = adrAckReq;
+        ClassB = classB;
         Fport = fport;
         Fopts = fopts;
         Payload = payload;
@@ -106,6 +120,12 @@ public sealed class LorawanRxData
 
     /// <summary>Whether the network has more downlink data waiting.</summary>
     public bool FPending { get; }
+
+    /// <summary>Whether an uplink asks the network to answer.</summary>
+    public bool AdrAckReq { get; }
+
+    /// <summary>Whether an uplink comes from a device running Class B.</summary>
+    public bool ClassB { get; }
 
     /// <summary>The port the frame was sent on, or <c>null</c> when it carries only options.</summary>
     public byte? Fport { get; }
@@ -263,6 +283,8 @@ public sealed class LorawanSession : IDisposable
                 NativeMethods.pamoja_lorawan_rx_adr(rx),
                 NativeMethods.pamoja_lorawan_rx_ack(rx),
                 NativeMethods.pamoja_lorawan_rx_fpending(rx),
+                NativeMethods.pamoja_lorawan_rx_adr_ack_req(rx),
+                NativeMethods.pamoja_lorawan_rx_class_b(rx),
                 fport,
                 Copy(
                     NativeMethods.pamoja_lorawan_rx_fopts(rx),
@@ -322,6 +344,14 @@ public sealed class LorawanDevice : IDisposable
             out IntPtr device));
         _handle = new NativeHandle(device, NativeMethods.pamoja_lorawan_device_free);
     }
+
+    /// <summary>The 8-byte device EUI, most-significant byte first.</summary>
+    public byte[] DevEui => _handle.Use(handle =>
+    {
+        byte[] eui = new byte[NativeMethods.LorawanEuiLen];
+        NativeMethods.pamoja_lorawan_device_dev_eui(handle, eui);
+        return eui;
+    });
 
     /// <summary>Builds the join request this device broadcasts to activate.</summary>
     /// <param name="devNonce">
@@ -384,8 +414,34 @@ public sealed class LorawanJoinAccept : IDisposable
     /// </summary>
     public byte DlSettings => _handle.Use(NativeMethods.pamoja_lorawan_join_accept_dl_settings);
 
-    /// <summary>The delay before the first receive window, in seconds.</summary>
+    /// <summary>The delay byte before the first receive window, as it arrived.</summary>
     public byte RxDelay => _handle.Use(NativeMethods.pamoja_lorawan_join_accept_rx_delay);
+
+    /// <summary>How far below the uplink's data rate the first receive window listens.</summary>
+    public byte Rx1DrOffset => _handle.Use(NativeMethods.pamoja_lorawan_join_accept_rx1_dr_offset);
+
+    /// <summary>The data rate the second receive window listens at.</summary>
+    public byte Rx2DataRate => _handle.Use(NativeMethods.pamoja_lorawan_join_accept_rx2_data_rate);
+
+    /// <summary>
+    /// The delay from the end of an uplink to the first receive window, in microseconds,
+    /// where a delay byte of zero means one second.
+    /// </summary>
+    public uint ReceiveDelayMicros =>
+        _handle.Use(NativeMethods.pamoja_lorawan_join_accept_receive_delay_us);
+
+    /// <summary>Reads the channel list the accept carried.</summary>
+    /// <returns>The list, or <c>null</c> when the accept carried none.</returns>
+    public LorawanCfList? CfList()
+    {
+        return _handle.Use(handle =>
+        {
+            byte[] bytes = new byte[NativeMethods.LorawanCfListLen];
+            return NativeMethods.pamoja_lorawan_join_accept_cflist(handle, bytes)
+                ? LorawanCfList.FromBytes(bytes)
+                : null;
+        });
+    }
 
     /// <summary>Takes the activated session this join grants.</summary>
     /// <returns>The session, with its keys already derived.</returns>
@@ -443,6 +499,8 @@ public enum LorawanMessageType
 /// <param name="FPending">Whether the network has more downlink data waiting.</param>
 /// <param name="FoptsLength">How many bytes of frame options the header carries.</param>
 /// <param name="PayloadLength">The length of the still-encrypted payload.</param>
+/// <param name="AdrAckReq">Whether an uplink asks the network to answer.</param>
+/// <param name="ClassB">Whether an uplink comes from a device running Class B.</param>
 public readonly record struct LorawanHeader(
     LorawanMessageType MessageType,
     bool IsData,
@@ -454,7 +512,9 @@ public readonly record struct LorawanHeader(
     bool Ack,
     bool FPending,
     int FoptsLength,
-    int PayloadLength);
+    int PayloadLength,
+    bool AdrAckReq,
+    bool ClassB);
 
 /// <summary>A join-request a device broadcast, with its integrity already verified.</summary>
 /// <param name="DevEui">The device identifier, most-significant byte first.</param>
@@ -493,7 +553,9 @@ public static class Lorawan
             header.Ack != 0,
             header.FPending != 0,
             header.FoptsLen,
-            checked((int)header.PayloadLen));
+            checked((int)header.PayloadLen),
+            header.AdrAckReq != 0,
+            header.ClassB != 0);
     }
 
     /// <summary>Verifies a join-request and reads the identifiers out of it.</summary>
@@ -566,6 +628,24 @@ public sealed class LorawanGrant
             RxDelay = rxDelay,
         };
         _cflist = cflist ?? [];
+    }
+
+    /// <summary>Creates a grant of an address, the settings to answer on, and a channel list.</summary>
+    /// <param name="appNonce">A nonce this network must not reuse for the device; low 24 bits only.</param>
+    /// <param name="netId">The network identifier; low 24 bits only.</param>
+    /// <param name="devAddr">The address to assign the device.</param>
+    /// <param name="cflist">The channel list the accept carries.</param>
+    /// <param name="dlSettings">The downlink settings byte.</param>
+    /// <param name="rxDelay">The delay before the first receive window, in seconds.</param>
+    public LorawanGrant(
+        uint appNonce,
+        uint netId,
+        uint devAddr,
+        LorawanCfList cflist,
+        byte dlSettings = 0,
+        byte rxDelay = 0)
+        : this(appNonce, netId, devAddr, dlSettings, rxDelay, cflist.Bytes)
+    {
     }
 
     /// <summary>The address this grant assigns.</summary>

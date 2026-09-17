@@ -203,6 +203,18 @@ released together, so one entry covers all of them.
 - A walkthrough on the site, Node to dashboard, that joins the ESP32-C3 LoRaWAN
   node, a gateway on a Raspberry Pi and a ChirpStack server into one system, and a
   Raspberry Pi program that serves a dashboard of every node the server hears.
+- What keeps a LoRaWAN link running, in C, TypeScript, Python and C#: the ADR
+  back-off of LoRaWAN 1.0.3 and TS001-1.0.4 section 4.3.1.1, which says when a
+  device that stopped hearing its network asks for an answer and which settings it
+  gives back; the channel list a join accept carries, built from and read back into
+  frequencies or channel mask groups; the defaults RP002-1.0.5 section 3.3
+  recommends; and the parts of a join accept that were only reachable from Rust,
+  its RX1 offset, RX2 data rate, receive delay and channel list. A frame's ADRACKReq
+  and ClassB bits now cross every binding when encoding, decoding and reading a
+  header, and a device reports its DevEUI. New conformance vectors hold all four
+  languages to TS001-1.0.4 table 9, the channel list and join settings of a
+  published EU868 join accept, and the refusals of a frequency a channel list
+  cannot carry.
 - `pamoja_lorawan::parse_hex`, a `const fn` that reads a DevEUI, JoinEUI or root key
   written in hexadecimal. The ESP32-C3 LoRaWAN node uses it to take its identifiers
   and key from the environment it is built in, `LORAWAN_DEV_EUI`, `LORAWAN_JOIN_EUI`

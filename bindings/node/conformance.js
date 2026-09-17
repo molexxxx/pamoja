@@ -2193,6 +2193,8 @@ function headerVectors() {
     assert.strictEqual(header.adr, want.adr, "the ADR bit");
     assert.strictEqual(header.ack, want.ack, "the ACK bit");
     assert.strictEqual(header.fpending, want.fpending, "the pending bit");
+    assert.strictEqual(header.adrAckReq, want.adrAckReq, "the ADRACKReq bit");
+    assert.strictEqual(header.classB, want.classB, "the ClassB bit");
     assert.strictEqual(header.foptsLen, want.foptsLen, "the options length");
     assert.strictEqual(header.payloadLen, want.payloadLen, "the payload length");
   }
@@ -2205,6 +2207,133 @@ function headerVectors() {
     () => lorawan.parseHeader(unhex(vector.truncated)),
     "a frame too short to hold a header must be refused",
   );
+}
+
+// What keeps a link running: the defaults, the back-off, the channel list, and the
+// settings a join accept carries.
+function lorawanLinkVectors() {
+  const vector = VECTORS.lorawanLink;
+  const d = vector.defaults;
+  assert.deepStrictEqual(
+    [
+      lorawan.RECEIVE_DELAY1_US,
+      lorawan.RECEIVE_DELAY2_US,
+      lorawan.JOIN_ACCEPT_DELAY1_US,
+      lorawan.JOIN_ACCEPT_DELAY2_US,
+      lorawan.RECEIVE_WINDOW_TOLERANCE_US,
+      lorawan.MAX_FCNT_GAP,
+      lorawan.ADR_ACK_LIMIT,
+      lorawan.ADR_ACK_DELAY,
+      lorawan.RETRANSMIT_TIMEOUT_MIN_US,
+      lorawan.RETRANSMIT_TIMEOUT_MAX_US,
+    ],
+    [
+      d.receiveDelay1Us,
+      d.receiveDelay2Us,
+      d.joinAcceptDelay1Us,
+      d.joinAcceptDelay2Us,
+      d.receiveWindowToleranceUs,
+      d.maxFcntGap,
+      d.adrAckLimit,
+      d.adrAckDelay,
+      d.retransmitTimeoutMinUs,
+      d.retransmitTimeoutMaxUs,
+    ],
+    "the defaults RP002-1.0.5 section 3.3 recommends",
+  );
+
+  const versions = { "1.0.3": lorawan.Version.V1_0_3, "1.0.4": lorawan.Version.V1_0_4 };
+  for (const script of vector.backoff) {
+    const where = `a ${script.version} back-off with limit ${script.limit} and delay ${script.delay}`;
+    const backoff = new lorawan.Backoff(versions[script.version], script.limit, script.delay);
+    assert.strictEqual(backoff.version, versions[script.version], where);
+    let dataRate = script.startDataRate;
+    const steps = [];
+    let firstAsked = null;
+    let lastAsked = null;
+    for (let sent = 1; sent <= script.uplinks; sent++) {
+      const step = backoff.uplink(dataRate === 0);
+      if (step.requestAck) {
+        firstAsked ??= sent;
+        lastAsked = sent;
+      }
+      for (const [taken, name] of [
+        [step.restorePower, "restorePower"],
+        [step.lowerDataRate, "lowerDataRate"],
+        [step.restoreChannels, "restoreChannels"],
+      ]) {
+        if (taken) {
+          steps.push({ uplink: sent, step: name });
+        }
+      }
+      if (step.lowerDataRate) {
+        dataRate -= 1;
+      }
+    }
+    assert.deepStrictEqual(steps, script.steps, `the steps of ${where}`);
+    assert.strictEqual(firstAsked, script.firstAsked, `the first request of ${where}`);
+    assert.strictEqual(lastAsked, script.lastAsked, `the last request of ${where}`);
+    assert.strictEqual(backoff.counter, script.counter, `the counter of ${where}`);
+    assert.strictEqual(dataRate, script.endDataRate, `the data rate ${where} ends at`);
+    backoff.downlink();
+    const after = backoff.uplink(dataRate === 0);
+    assert.strictEqual(backoff.counter, script.afterDownlink.counter, `a downlink resets ${where}`);
+    assert.strictEqual(after.requestAck, script.afterDownlink.requestAck, where);
+  }
+
+  const kinds = {
+    [lorawan.CfListKind.Frequencies]: "frequencies",
+    [lorawan.CfListKind.ChannelMasks]: "channel_masks",
+    [lorawan.CfListKind.Reserved]: "reserved",
+  };
+  const checkList = (list, want, where) => {
+    assert.strictEqual(list.bytes.toString("hex"), want.bytes, `the bytes of ${where}`);
+    assert.strictEqual(kinds[list.kind], want.kind, `the kind of ${where}`);
+    assert.strictEqual(list.typeByte, want.typeByte, `the type byte of ${where}`);
+    assert.deepStrictEqual(list.frequenciesHz(), want.frequenciesHz, `the frequencies of ${where}`);
+    assert.deepStrictEqual(list.channelMaskGroups(), want.channelMaskGroups, `the masks of ${where}`);
+    assert.deepStrictEqual(list.enabledChannels(), want.enabledChannels, `the channels of ${where}`);
+    for (const { channel, enabled } of want.enables) {
+      assert.strictEqual(list.enables(channel), enabled, `channel ${channel} of ${where}`);
+    }
+    assert.deepStrictEqual(lorawan.CfList.fromBytes(unhex(want.bytes)).bytes, list.bytes, where);
+  };
+  const lists = vector.cflist;
+  checkList(lorawan.CfList.frequencies(lists.frequencies.input), lists.frequencies.list, "a list of frequencies");
+  checkList(lorawan.CfList.channelMasks(lists.channelMasks.input), lists.channelMasks.list, "a list of masks");
+  checkList(lorawan.CfList.fromBytes(unhex(lists.reserved.bytes)), lists.reserved, "a reserved list");
+  for (const hz of lists.refusedFrequencies) {
+    assert.throws(() => lorawan.CfList.frequencies([hz, 0, 0, 0, 0]), `${hz} Hz is refused`);
+  }
+  assert.throws(() => lorawan.CfList.fromBytes(new Uint8Array(15)), "a list is sixteen bytes");
+
+  for (const want of vector.joinAccepts) {
+    const device = new lorawan.Device(unhex(vector.device.devEui), new Uint8Array(8), unhex(want.appKey));
+    assert.strictEqual(device.devEui.toString("hex"), vector.device.devEui, "the device EUI");
+    const accept = device.acceptJoin(unhex(want.frame), want.devNonce);
+    assert.strictEqual(accept.dlSettings, want.dlSettings, "the downlink settings");
+    assert.strictEqual(accept.rxDelay, want.rxDelay, "the delay byte");
+    assert.strictEqual(accept.rx1DrOffset, want.rx1DrOffset, "the RX1 offset");
+    assert.strictEqual(accept.rx2DataRate, want.rx2DataRate, "the RX2 data rate");
+    assert.strictEqual(accept.receiveDelayUs, want.receiveDelayUs, "the receive delay");
+    const list = accept.cflist();
+    assert.strictEqual(list === null ? null : list.bytes.toString("hex"), want.cflist, "the channel list");
+  }
+
+  const uplink = VECTORS.header.frames.find((frame) => frame.adrAckReq);
+  const session = lorawan.session(
+    VECTORS.lorawan.devAddr,
+    unhex(VECTORS.lorawan.nwkSKey),
+    unhex(VECTORS.lorawan.appSKey),
+  );
+  const frame = session.encodeUplink(uplink.fcnt, uplink.fport, Buffer.from("x"), {
+    adr: true,
+    adrAckReq: true,
+  });
+  assert.strictEqual(frame.toString("hex"), uplink.frame, "an uplink asking the network to answer");
+  const decoded = session.decode(frame, uplink.fcnt);
+  assert.strictEqual(decoded.adrAckReq, true, "the decoded ADRACKReq bit");
+  assert.strictEqual(decoded.classB, false, "the decoded ClassB bit");
 }
 
 /** Checks a grant builds its accept and derives the session both sides share. */
@@ -2537,6 +2666,7 @@ function telemetryVectors() {
 
 lorawanVectors();
 headerVectors();
+lorawanLinkVectors();
 networkVectors();
 
 // What a ladder does with a message as its links come and go.

@@ -12,11 +12,29 @@
  * @packageDocumentation
  */
 
-import type { LorawanDirection as DirectionName, LorawanMessageType as MessageTypeName } from '@pamoja/native'
+import type {
+  LorawanBackoffStep,
+  LorawanCfListKind as CfListKindName,
+  LorawanDirection as DirectionName,
+  LorawanMessageType as MessageTypeName,
+  LorawanVersion as VersionName,
+} from '@pamoja/native'
 
 import {
+  LORAWAN_ADR_ACK_DELAY,
+  LORAWAN_ADR_ACK_LIMIT,
+  LORAWAN_JOIN_ACCEPT_DELAY1_US,
+  LORAWAN_JOIN_ACCEPT_DELAY2_US,
+  LORAWAN_MAX_FCNT_GAP,
   LORAWAN_MAX_FRAME,
   LORAWAN_MAX_PAYLOAD,
+  LORAWAN_RECEIVE_DELAY1_US,
+  LORAWAN_RECEIVE_DELAY2_US,
+  LORAWAN_RECEIVE_WINDOW_TOLERANCE_US,
+  LORAWAN_RETRANSMIT_TIMEOUT_MAX_US,
+  LORAWAN_RETRANSMIT_TIMEOUT_MIN_US,
+  LorawanBackoff,
+  LorawanCfList,
   LorawanDevice,
   type LorawanGrant,
   LorawanJoinAccept,
@@ -31,13 +49,244 @@ import {
   lorawanParseJoinRequest,
 } from '@pamoja/native'
 
-export { type LorawanOptions as Options }
+export { type LorawanOptions as Options, type LorawanBackoffStep as BackoffStep }
 
 /** The largest application payload, in bytes, a single frame can carry. */
 export const MAX_PAYLOAD = LORAWAN_MAX_PAYLOAD
 
 /** The largest frame, in bytes, this build accepts. */
 export const MAX_FRAME = LORAWAN_MAX_FRAME
+
+/** How long after an uplink the first receive window opens, RP002-1.0.5 section 3.3. */
+export const RECEIVE_DELAY1_US = LORAWAN_RECEIVE_DELAY1_US
+
+/** How long after an uplink the second receive window opens. */
+export const RECEIVE_DELAY2_US = LORAWAN_RECEIVE_DELAY2_US
+
+/** How long after a join request the first join accept window opens. */
+export const JOIN_ACCEPT_DELAY1_US = LORAWAN_JOIN_ACCEPT_DELAY1_US
+
+/** How long after a join request the second join accept window opens. */
+export const JOIN_ACCEPT_DELAY2_US = LORAWAN_JOIN_ACCEPT_DELAY2_US
+
+/** How far a receive window may open either side of its time, LoRaWAN 1.0.3 section 3.3.1. */
+export const RECEIVE_WINDOW_TOLERANCE_US = LORAWAN_RECEIVE_WINDOW_TOLERANCE_US
+
+/** The largest gap a frame counter may jump across and still be accepted. */
+export const MAX_FCNT_GAP = LORAWAN_MAX_FCNT_GAP
+
+/** How many unanswered uplinks before a device asks the network to answer. */
+export const ADR_ACK_LIMIT = LORAWAN_ADR_ACK_LIMIT
+
+/** How many more before a device starts giving back what adaptive data rate took. */
+export const ADR_ACK_DELAY = LORAWAN_ADR_ACK_DELAY
+
+/** The shortest wait before a confirmed uplink is sent again. */
+export const RETRANSMIT_TIMEOUT_MIN_US = LORAWAN_RETRANSMIT_TIMEOUT_MIN_US
+
+/** The longest wait before a confirmed uplink is sent again. */
+export const RETRANSMIT_TIMEOUT_MAX_US = LORAWAN_RETRANSMIT_TIMEOUT_MAX_US
+
+/** A revision of the LoRaWAN link layer. */
+export const Version = {
+  /** LoRaWAN 1.0.3. */
+  V1_0_3: 'V1_0_3' as VersionName,
+  /** TS001-1.0.4, the LoRaWAN 1.0.4 link layer. */
+  V1_0_4: 'V1_0_4' as VersionName,
+} as const
+
+/** One of the {@link Version} values. */
+export type Version = VersionName
+
+/** Which form a channel list takes, from its last byte. */
+export const CfListKind = {
+  /** Type 0: a list of frequencies. */
+  Frequencies: 'Frequencies' as CfListKindName,
+  /** Type 1: groups of channel mask bits. */
+  ChannelMasks: 'ChannelMasks' as CfListKindName,
+  /** A type the regional parameters reserve, which a device ignores. */
+  Reserved: 'Reserved' as CfListKindName,
+} as const
+
+/** One of the {@link CfListKind} values. */
+export type CfListKind = CfListKindName
+
+/**
+ * The optional channel list at the end of a join accept.
+ *
+ * A network that wants a device on more channels than its region's defaults says
+ * so in sixteen bytes: five frequencies for a dynamic plan such as EU868, or six
+ * groups of channel mask bits for a fixed plan such as US915. The list keeps the
+ * bytes as they arrived and reads either form out of them.
+ */
+export class CfList {
+  readonly #inner: LorawanCfList
+
+  /**
+   * Wraps a channel list.
+   *
+   * @param inner - The generated list this facade delegates to.
+   */
+  constructor(inner: LorawanCfList) {
+    this.#inner = inner
+  }
+
+  /**
+   * Builds a type 0 list from frequencies.
+   *
+   * @param frequenciesHz - Five frequencies in hertz, with 0 for a slot left unused.
+   * @returns The channel list.
+   * @throws If there are not five, or a frequency is not a whole number of hundreds
+   *   of hertz from 100 MHz to just under 1.678 GHz.
+   *
+   * @example
+   * ```ts
+   * const list = CfList.frequencies([867_100_000, 867_300_000, 867_500_000, 867_700_000, 867_900_000])
+   * list.bytes.subarray(0, 3) // <Buffer 18 4f 84>
+   * ```
+   */
+  static frequencies(frequenciesHz: readonly number[]): CfList {
+    return new CfList(LorawanCfList.fromFrequencies([...frequenciesHz]))
+  }
+
+  /**
+   * Builds a type 1 list from channel mask groups.
+   *
+   * @param masks - Six sixteen-bit groups, where bit n of group g enables channel
+   *   g * 16 + n.
+   * @returns The channel list.
+   * @throws If there are not six, or a group does not fit sixteen bits.
+   */
+  static channelMasks(masks: readonly number[]): CfList {
+    return new CfList(LorawanCfList.fromChannelMasks([...masks]))
+  }
+
+  /**
+   * Keeps a channel list exactly as it arrived, whatever its type byte says.
+   *
+   * @param bytes - The sixteen CFList bytes.
+   * @returns The channel list.
+   * @throws If there are not sixteen bytes.
+   */
+  static fromBytes(bytes: Uint8Array): CfList {
+    return new CfList(LorawanCfList.fromBytes(Buffer.from(bytes)))
+  }
+
+  /** The sixteen bytes, as a join accept carries them. */
+  get bytes(): Buffer {
+    return this.#inner.bytes
+  }
+
+  /** Which form the list takes. */
+  get kind(): CfListKind {
+    return this.#inner.kind
+  }
+
+  /** The CFListType byte the list ends with. */
+  get typeByte(): number {
+    return this.#inner.typeByte
+  }
+
+  /**
+   * Reads the frequencies out of a type 0 list.
+   *
+   * @returns Five frequencies in hertz, 0 for an unused slot, or `null` for a list of
+   *   any other type.
+   */
+  frequenciesHz(): number[] | null {
+    return this.#inner.frequenciesHz() ?? null
+  }
+
+  /**
+   * Reads the mask groups out of a type 1 list.
+   *
+   * @returns Six groups, or `null` for a list of any other type.
+   */
+  channelMaskGroups(): number[] | null {
+    return this.#inner.channelMaskGroups() ?? null
+  }
+
+  /**
+   * Reports whether a type 1 list enables a channel.
+   *
+   * @param channel - The channel number, group * 16 + bit.
+   * @returns Whether its bit is set, or `null` for a list of any other type or a
+   *   channel past the 96 the groups cover.
+   */
+  enables(channel: number): boolean | null {
+    return this.#inner.enables(channel) ?? null
+  }
+
+  /**
+   * Lists the channels a type 1 list enables.
+   *
+   * @returns The channel numbers, lowest first, which is empty for a list of any
+   *   other type.
+   */
+  enabledChannels(): number[] {
+    return this.#inner.enabledChannels()
+  }
+}
+
+/**
+ * A device's count of how long the network has been silent.
+ *
+ * A network running adaptive data rate moves a device to the fastest rate and
+ * lowest power that still reach it. Once uplinks go unanswered, this says when to
+ * ask the network to answer and which of those settings to give back, a step at a
+ * time, the way LoRaWAN 1.0.3 or TS001-1.0.4 describes.
+ *
+ * @example
+ * ```ts
+ * const backoff = new Backoff(Version.V1_0_4)
+ * const step = backoff.uplink(dataRate === 0)
+ * if (step.lowerDataRate) dataRate -= 1
+ * ```
+ */
+export class Backoff {
+  readonly #inner: LorawanBackoff
+
+  /**
+   * Starts a count from zero.
+   *
+   * @param version - The revision whose steps to follow, TS001-1.0.4 by default.
+   * @param limit - How many unanswered uplinks before asking, 64 by default.
+   * @param delay - How many more before the first step, and between steps after
+   *   that, 32 by default. Zero is taken as one.
+   */
+  constructor(version: Version = Version.V1_0_4, limit?: number, delay?: number) {
+    this.#inner = new LorawanBackoff(version, limit, delay)
+  }
+
+  /**
+   * Counts one new uplink, and says what to do before sending it.
+   *
+   * Call it once per uplink the frame counter moves for; a repeat of the same uplink
+   * does not count.
+   *
+   * @param atDefaultDataRate - Whether the device is already at its default data
+   *   rate, the slowest it uses, so there is no lower rate to step to.
+   * @returns Whether to ask for an answer, and which step this uplink takes.
+   */
+  uplink(atDefaultDataRate: boolean): LorawanBackoffStep {
+    return this.#inner.uplink(atDefaultDataRate)
+  }
+
+  /** Counts a Class A downlink, which proves the network still hears the device. */
+  downlink(): void {
+    this.#inner.downlink()
+  }
+
+  /** How many uplinks have gone unanswered. */
+  get counter(): number {
+    return this.#inner.counter
+  }
+
+  /** The revision whose steps this count follows. */
+  get version(): Version {
+    return this.#inner.version
+  }
+}
 
 /**
  * The direction a frame traveled, which its MIC and encryption both fold in.
@@ -71,6 +320,10 @@ export interface RxData {
   ack: boolean
   /** Whether the network has more downlink data waiting. */
   fpending: boolean
+  /** Whether an uplink asks the network to answer. */
+  adrAckReq: boolean
+  /** Whether an uplink comes from a device running Class B. */
+  classB: boolean
   /** The port the frame was sent on, or `null` when it carries only options. */
   fport: number | null
   /** The MAC commands the header carried. */
@@ -184,9 +437,37 @@ export class JoinAccept {
     return this.#inner.dlSettings
   }
 
-  /** The delay before the first receive window, in seconds. */
+  /** The delay byte before the first receive window, as it arrived. */
   get rxDelay(): number {
     return this.#inner.rxDelay
+  }
+
+  /** How far below the uplink's data rate the first receive window listens. */
+  get rx1DrOffset(): number {
+    return this.#inner.rx1DrOffset
+  }
+
+  /** The data rate the second receive window listens at. */
+  get rx2DataRate(): number {
+    return this.#inner.rx2DataRate
+  }
+
+  /**
+   * The delay from the end of an uplink to the first receive window, in
+   * microseconds, where a delay byte of zero means one second.
+   */
+  get receiveDelayUs(): number {
+    return this.#inner.receiveDelayUs
+  }
+
+  /**
+   * Reads the channel list the accept carried.
+   *
+   * @returns The list, or `null` when the accept carried none.
+   */
+  cflist(): CfList | null {
+    const list = this.#inner.cflist()
+    return list == null ? null : new CfList(list)
   }
 
   /**
@@ -217,6 +498,11 @@ export class Device {
       Buffer.from(appEui),
       Buffer.from(appKey),
     )
+  }
+
+  /** The 8-byte device EUI, most-significant byte first. */
+  get devEui(): Buffer {
+    return this.#inner.devEui
   }
 
   /**
@@ -318,6 +604,10 @@ export interface Header {
   ack: boolean
   /** Whether the network has more downlink data waiting. */
   fpending: boolean
+  /** Whether an uplink asks the network to answer. */
+  adrAckReq: boolean
+  /** Whether an uplink comes from a device running Class B. */
+  classB: boolean
   /** How many bytes of frame options the header carries. */
   foptsLen: number
   /** The length of the still-encrypted payload. */
@@ -371,8 +661,8 @@ export interface Grant {
   dlSettings?: number
   /** The delay before the first receive window in seconds, defaulting to 0. */
   rxDelay?: number
-  /** The optional 16-byte channel list. */
-  cflist?: Uint8Array
+  /** The optional channel list, as a {@link CfList} or its 16 bytes. */
+  cflist?: Uint8Array | CfList
 }
 
 /**
@@ -437,7 +727,12 @@ function nativeGrant(grant: Grant): LorawanGrant {
     devAddr: grant.devAddr,
     dlSettings: grant.dlSettings,
     rxDelay: grant.rxDelay,
-    cflist: grant.cflist === undefined ? undefined : Buffer.from(grant.cflist),
+    cflist:
+      grant.cflist === undefined
+        ? undefined
+        : grant.cflist instanceof CfList
+          ? grant.cflist.bytes
+          : Buffer.from(grant.cflist),
   }
 }
 

@@ -46,6 +46,12 @@ pub struct LorawanRxData {
     /// Whether the network has more downlink data waiting.
     #[pyo3(get)]
     fpending: bool,
+    /// Whether an uplink asks the network to answer.
+    #[pyo3(get)]
+    adr_ack_req: bool,
+    /// Whether an uplink comes from a device running Class B.
+    #[pyo3(get)]
+    class_b: bool,
     /// The port the frame was sent on, or `None` when it carries only options.
     #[pyo3(get)]
     fport: Option<u8>,
@@ -100,6 +106,9 @@ impl LorawanSession {
     }
 
     /// Encodes an uplink, encrypting the payload and appending the MIC.
+    ///
+    /// `adr_ack_req` asks the network to answer, which a device running adaptive data
+    /// rate does once it has gone too long without hearing it.
     #[pyo3(signature = (
         fcnt,
         fport,
@@ -108,6 +117,7 @@ impl LorawanSession {
         adr = false,
         ack = false,
         fopts = None,
+        adr_ack_req = false,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn encode_uplink<'py>(
@@ -120,6 +130,7 @@ impl LorawanSession {
         adr: bool,
         ack: bool,
         fopts: Option<Vec<u8>>,
+        adr_ack_req: bool,
     ) -> PyResult<Bound<'py, PyBytes>> {
         let fopts = fopts.unwrap_or_default();
         let mut uplink = Uplink::new(fcnt, fport, &payload).with_fopts(&fopts);
@@ -131,6 +142,9 @@ impl LorawanSession {
         }
         if ack {
             uplink = uplink.with_ack();
+        }
+        if adr_ack_req {
+            uplink = uplink.with_adr_ack_req();
         }
         self.inner
             .encode_uplink(&uplink)
@@ -213,6 +227,12 @@ impl LorawanDevice {
         })
     }
 
+    /// The 8-byte device EUI, most-significant byte first.
+    #[getter]
+    fn dev_eui<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.inner.dev_eui())
+    }
+
     /// Builds the join request this device broadcasts to activate.
     ///
     /// `dev_nonce` must never repeat for a device, since the network rejects a
@@ -261,10 +281,38 @@ impl LorawanJoinAccept {
         self.inner.dl_settings()
     }
 
-    /// The delay before the first receive window, in seconds.
+    /// The delay byte before the first receive window, as it arrived.
     #[getter]
     fn rx_delay(&self) -> u8 {
         self.inner.rx_delay()
+    }
+
+    /// How far below the uplink's data rate the first receive window listens, the
+    /// RX1DROffset of the downlink settings.
+    #[getter]
+    fn rx1_dr_offset(&self) -> u8 {
+        self.inner.rx1_dr_offset()
+    }
+
+    /// The data rate the second receive window listens at.
+    #[getter]
+    fn rx2_data_rate(&self) -> u8 {
+        self.inner.rx2_data_rate()
+    }
+
+    /// The delay from the end of an uplink to the first receive window, in microseconds,
+    /// where a delay byte of zero means one second.
+    #[getter]
+    fn receive_delay_us(&self) -> u32 {
+        self.inner.receive_delay_us()
+    }
+
+    /// The channel list the accept carried, or `None` when it carried none.
+    #[getter]
+    fn cflist(&self) -> Option<crate::lorawan_link::LorawanCfList> {
+        self.inner
+            .cflist()
+            .map(crate::lorawan_link::LorawanCfList::from_core)
     }
 
     /// The activated session this join grants, with its keys already derived.
@@ -288,6 +336,8 @@ fn describe(rx: RxData) -> LorawanRxData {
         adr: rx.adr(),
         ack: rx.ack(),
         fpending: rx.fpending(),
+        adr_ack_req: rx.adr_ack_req(),
+        class_b: rx.class_b(),
         fport: rx.fport(),
         fopts: rx.fopts().to_vec(),
         payload: rx.payload().to_vec(),
@@ -345,6 +395,12 @@ pub struct LorawanHeader {
     /// Whether the network has more downlink data waiting.
     #[pyo3(get)]
     fpending: bool,
+    /// Whether an uplink asks the network to answer.
+    #[pyo3(get)]
+    adr_ack_req: bool,
+    /// Whether an uplink comes from a device running Class B.
+    #[pyo3(get)]
+    class_b: bool,
     /// How many bytes of frame options the header carries.
     #[pyo3(get)]
     fopts_len: usize,
@@ -392,7 +448,8 @@ pub struct LorawanGrant {
 impl LorawanGrant {
     /// Creates a grant of an address and the settings to answer on.
     ///
-    /// `app_nonce` and `net_id` carry their low 24 bits only.
+    /// `app_nonce` and `net_id` carry their low 24 bits only. `cflist` is the 16-byte
+    /// channel list, such as `LorawanCfList.bytes`.
     #[new]
     #[pyo3(signature = (app_nonce, net_id, dev_addr, dl_settings = 0, rx_delay = 0, cflist = None))]
     fn new(
@@ -475,6 +532,8 @@ pub fn lorawan_parse_header(bytes: Vec<u8>) -> PyResult<LorawanHeader> {
         adr: header.adr(),
         ack: header.ack(),
         fpending: header.fpending(),
+        adr_ack_req: header.adr_ack_req(),
+        class_b: header.class_b(),
         fopts_len: header.fopts_len(),
         payload_len: header.payload_len(),
     })

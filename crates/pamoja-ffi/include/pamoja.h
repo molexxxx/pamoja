@@ -275,6 +275,57 @@
 // The length of a LoRaWAN EUI, in bytes.
 #define PAMOJA_LORAWAN_EUI_LEN 8
 
+// LoRaWAN 1.0.3.
+#define PAMOJA_LORAWAN_VERSION_1_0_3 3
+
+// TS001-1.0.4, the LoRaWAN 1.0.4 link layer.
+#define PAMOJA_LORAWAN_VERSION_1_0_4 4
+
+// How long after an uplink the first receive window opens, RP002-1.0.5 section 3.3.
+#define PAMOJA_LORAWAN_RECEIVE_DELAY1_US 1000000
+
+// How long after an uplink the second receive window opens.
+#define PAMOJA_LORAWAN_RECEIVE_DELAY2_US 2000000
+
+// How long after a join request the first join accept window opens.
+#define PAMOJA_LORAWAN_JOIN_ACCEPT_DELAY1_US 5000000
+
+// How long after a join request the second join accept window opens.
+#define PAMOJA_LORAWAN_JOIN_ACCEPT_DELAY2_US 6000000
+
+// How far a receive window may open either side of its time, LoRaWAN 1.0.3 section 3.3.1.
+#define PAMOJA_LORAWAN_RECEIVE_WINDOW_TOLERANCE_US 20
+
+// The largest gap a frame counter may jump across and still be accepted.
+#define PAMOJA_LORAWAN_MAX_FCNT_GAP 16384
+
+// How many unanswered uplinks before a device asks the network to answer.
+#define PAMOJA_LORAWAN_ADR_ACK_LIMIT 64
+
+// How many more before a device starts giving back what adaptive data rate took.
+#define PAMOJA_LORAWAN_ADR_ACK_DELAY 32
+
+// The shortest wait before a confirmed uplink is sent again.
+#define PAMOJA_LORAWAN_RETRANSMIT_TIMEOUT_MIN_US 1000000
+
+// The longest wait before a confirmed uplink is sent again.
+#define PAMOJA_LORAWAN_RETRANSMIT_TIMEOUT_MAX_US 3000000
+
+// The number of bytes a channel list occupies.
+#define PAMOJA_LORAWAN_CFLIST_LEN 16
+
+// How many frequencies a type 0 channel list carries.
+#define PAMOJA_LORAWAN_CFLIST_FREQUENCIES 5
+
+// How many sixteen-bit masks a type 1 channel list carries.
+#define PAMOJA_LORAWAN_CFLIST_MASK_GROUPS 6
+
+// The CFListType byte of a list of frequencies.
+#define PAMOJA_LORAWAN_CFLIST_TYPE_FREQUENCIES 0
+
+// The CFListType byte of a list of channel mask groups.
+#define PAMOJA_LORAWAN_CFLIST_TYPE_CHANNEL_MASKS 1
+
 
 
 
@@ -1743,6 +1794,11 @@ typedef struct PamojaLoraPlanBuilder PamojaLoraPlanBuilder;
 // A LoRa radio opened on a Linux board, released with [`pamoja_lora_radio_free`].
 typedef struct PamojaLoraRadio PamojaLoraRadio;
 
+// An opaque handle to a device's count of how long the network has been silent.
+//
+// Release it with [`pamoja_lorawan_backoff_free`].
+typedef struct PamojaLorawanBackoff PamojaLorawanBackoff;
+
 // An opaque handle to the root credentials of a device.
 //
 // Holds the EUIs and the application key that over-the-air activation is built
@@ -2517,7 +2573,8 @@ typedef struct {
 // The header flags a sender sets on a data frame.
 //
 // Each is `1` for on and `0` for off. `fpending` applies to a downlink only and
-// is ignored when encoding an uplink.
+// is ignored when encoding an uplink, and `adr_ack_req` applies to an uplink only
+// and is ignored when encoding a downlink.
 typedef struct {
   // Ask the far end to acknowledge this frame.
   uint8_t confirmed;
@@ -2527,6 +2584,9 @@ typedef struct {
   uint8_t ack;
   // Tell the device more downlink data is waiting.
   uint8_t fpending;
+  // Ask the network to answer, because a device running adaptive data rate has gone
+  // too long without hearing it.
+  uint8_t adr_ack_req;
 } PamojaLorawanFlags;
 
 // What a frame says about itself before any key is involved.
@@ -2563,6 +2623,11 @@ typedef struct {
   uint8_t fpending;
   // How many bytes of frame options the header carries, from 0 to 15.
   uint8_t fopts_len;
+  // `1` when an uplink asks the network to answer. Reserved on a downlink, which reads
+  // `0`.
+  uint8_t adr_ack_req;
+  // `1` when an uplink comes from a device running Class B.
+  uint8_t class_b;
 } PamojaLorawanHeader;
 
 // What a network grants a device that joined.
@@ -2581,6 +2646,22 @@ typedef struct {
   // The delay before the first receive window, in seconds.
   uint8_t rx_delay;
 } PamojaLorawanGrant;
+
+// What a back-off says to do with one uplink.
+//
+// Each field is `1` for yes and `0` for no.
+typedef struct {
+  // Set the ADRACKReq bit, asking the network to answer.
+  uint8_t request_ack;
+  // Go back to the default transmit power before sending. Only TS001-1.0.4 takes this
+  // step.
+  uint8_t restore_power;
+  // Step the data rate down by the region's back-off table before sending.
+  uint8_t lower_data_rate;
+  // Re-enable the default channels and set the repetition count back to one before
+  // sending. Only TS001-1.0.4 takes this step.
+  uint8_t restore_channels;
+} PamojaLorawanBackoffStep;
 
 // One command, with the fields of whichever command it is.
 //
@@ -8134,6 +8215,32 @@ bool pamoja_lorawan_rx_confirmed(const PamojaLorawanRx *rx);
 // `rx` must be a live handle from [`pamoja_lorawan_session_decode`], or null.
 bool pamoja_lorawan_rx_adr(const PamojaLorawanRx *rx);
 
+// Reports whether a decoded uplink asks the network to answer.
+//
+// A device running adaptive data rate sets this once it has gone too long without a
+// downlink. The bit is reserved on a downlink, which reads `false`.
+//
+// # Returns
+//
+// `true` when the ADRACKReq bit of an uplink is set, or `false` if `rx` is null.
+//
+// # Safety
+//
+// `rx` must be a live handle from [`pamoja_lorawan_session_decode`], or null.
+bool pamoja_lorawan_rx_adr_ack_req(const PamojaLorawanRx *rx);
+
+// Reports whether a decoded uplink came from a device running Class B.
+//
+// # Returns
+//
+// `true` when the ClassB bit of an uplink is set, or `false` for a downlink or if `rx`
+// is null.
+//
+// # Safety
+//
+// `rx` must be a live handle from [`pamoja_lorawan_session_decode`], or null.
+bool pamoja_lorawan_rx_class_b(const PamojaLorawanRx *rx);
+
 // Reports whether a decoded frame acknowledges the last confirmed one.
 //
 // # Returns
@@ -8316,6 +8423,24 @@ PamojaStatus pamoja_lorawan_device_accept_join(const PamojaLorawanDevice *device
                                                uint16_t dev_nonce,
                                                PamojaLorawanJoinAccept **out_accept);
 
+// Copies the device EUI a device was created with.
+//
+// # Arguments
+//
+// * `device` - the device.
+// * `out_dev_eui` - receives [`PAMOJA_LORAWAN_EUI_LEN`] bytes, most-significant byte
+//   first.
+//
+// # Returns
+//
+// `true` when the identifier was written, or `false` if either pointer is null.
+//
+// # Safety
+//
+// `device` must be a live handle from [`pamoja_lorawan_device_new`], or null, and
+// `out_dev_eui` must point to at least [`PAMOJA_LORAWAN_EUI_LEN`] writable bytes.
+bool pamoja_lorawan_device_dev_eui(const PamojaLorawanDevice *device, uint8_t *out_dev_eui);
+
 // Releases a device handle.
 //
 // Passing null is a no-op.
@@ -8374,6 +8499,61 @@ uint8_t pamoja_lorawan_join_accept_dl_settings(const PamojaLorawanJoinAccept *ac
 // `accept` must be a live handle from [`pamoja_lorawan_device_accept_join`], or
 // null.
 uint8_t pamoja_lorawan_join_accept_rx_delay(const PamojaLorawanJoinAccept *accept);
+
+// Returns how far below the uplink's data rate the first receive window listens.
+//
+// # Returns
+//
+// The RX1DROffset field of the downlink settings byte, or 0 if `accept` is null.
+//
+// # Safety
+//
+// `accept` must be a live handle from [`pamoja_lorawan_device_accept_join`], or
+// null.
+uint8_t pamoja_lorawan_join_accept_rx1_dr_offset(const PamojaLorawanJoinAccept *accept);
+
+// Returns the data rate the second receive window listens at.
+//
+// # Returns
+//
+// The RX2DataRate field of the downlink settings byte, or 0 if `accept` is null.
+//
+// # Safety
+//
+// `accept` must be a live handle from [`pamoja_lorawan_device_accept_join`], or
+// null.
+uint8_t pamoja_lorawan_join_accept_rx2_data_rate(const PamojaLorawanJoinAccept *accept);
+
+// Returns the delay from the end of an uplink to the first receive window.
+//
+// # Returns
+//
+// The delay in microseconds, where an RxDelay of 0 means one second as the
+// specification says, or 0 if `accept` is null.
+//
+// # Safety
+//
+// `accept` must be a live handle from [`pamoja_lorawan_device_accept_join`], or
+// null.
+uint32_t pamoja_lorawan_join_accept_receive_delay_us(const PamojaLorawanJoinAccept *accept);
+
+// Copies the channel list a join accept carried.
+//
+// # Arguments
+//
+// * `accept` - the accepted join.
+// * `out_cflist` - receives the 16 CFList bytes exactly as they arrived.
+//
+// # Returns
+//
+// `true` when the accept carried a channel list and it was written, or `false` when it
+// carried none or either pointer is null.
+//
+// # Safety
+//
+// `accept` must be a live handle from [`pamoja_lorawan_device_accept_join`], or null,
+// and `out_cflist` must point to at least 16 writable bytes.
+bool pamoja_lorawan_join_accept_cflist(const PamojaLorawanJoinAccept *accept, uint8_t *out_cflist);
 
 // Takes the activated session a join grants.
 //
@@ -8586,6 +8766,276 @@ PamojaStatus pamoja_lorawan_grant_session(PamojaLorawanGrant grant,
                                           uintptr_t app_key_len,
                                           uint16_t dev_nonce,
                                           PamojaLorawanSession **out_session);
+
+// Starts a back-off count from zero.
+//
+// # Arguments
+//
+// * `version` - [`PAMOJA_LORAWAN_VERSION_1_0_3`] or [`PAMOJA_LORAWAN_VERSION_1_0_4`], the
+//   revision whose steps to follow.
+// * `limit` - how many unanswered uplinks before the device starts asking, usually
+//   [`PAMOJA_LORAWAN_ADR_ACK_LIMIT`].
+// * `delay` - how many more before its first step, and between each step after that,
+//   usually [`PAMOJA_LORAWAN_ADR_ACK_DELAY`]. Zero is taken as one.
+// * `out_backoff` - receives the count.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_backoff` set to a handle the caller must
+// release with [`pamoja_lorawan_backoff_free`].
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `out_backoff` is null or `version` names no
+// revision.
+//
+// # Safety
+//
+// `out_backoff` must point to a writable `*mut PamojaLorawanBackoff`.
+PamojaStatus pamoja_lorawan_backoff_new(uint8_t version,
+                                        uint32_t limit,
+                                        uint32_t delay,
+                                        PamojaLorawanBackoff **out_backoff);
+
+// Counts one new uplink, and says what to do before sending it.
+//
+// Call it once per uplink the frame counter moves for. A repeat of the same uplink does
+// not count.
+//
+// # Arguments
+//
+// * `backoff` - the count.
+// * `default_data_rate` - `1` if the device is already at its default data rate, the
+//   slowest it uses, so there is no lower rate to step to.
+// * `out_step` - receives what to do.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `backoff` must be a live handle from [`pamoja_lorawan_backoff_new`], and `out_step` must
+// point to a writable [`PamojaLorawanBackoffStep`].
+PamojaStatus pamoja_lorawan_backoff_uplink(PamojaLorawanBackoff *backoff,
+                                           uint8_t default_data_rate,
+                                           PamojaLorawanBackoffStep *out_step);
+
+// Counts a Class A downlink, which proves the network still hears the device and resets
+// the count.
+//
+// # Arguments
+//
+// * `backoff` - the count.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `backoff` is null.
+//
+// # Safety
+//
+// `backoff` must be a live handle from [`pamoja_lorawan_backoff_new`], or null.
+PamojaStatus pamoja_lorawan_backoff_downlink(PamojaLorawanBackoff *backoff);
+
+// Returns how many uplinks have gone unanswered.
+//
+// # Returns
+//
+// The counter, or 0 if `backoff` is null.
+//
+// # Safety
+//
+// `backoff` must be a live handle from [`pamoja_lorawan_backoff_new`], or null.
+uint32_t pamoja_lorawan_backoff_counter(const PamojaLorawanBackoff *backoff);
+
+// Returns the revision whose steps a count follows.
+//
+// # Returns
+//
+// [`PAMOJA_LORAWAN_VERSION_1_0_3`] or [`PAMOJA_LORAWAN_VERSION_1_0_4`], or 0 if `backoff`
+// is null.
+//
+// # Safety
+//
+// `backoff` must be a live handle from [`pamoja_lorawan_backoff_new`], or null.
+uint8_t pamoja_lorawan_backoff_version(const PamojaLorawanBackoff *backoff);
+
+// Releases a back-off handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `backoff` must be a handle from [`pamoja_lorawan_backoff_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_lorawan_backoff_free(PamojaLorawanBackoff *backoff);
+
+// Builds a type 0 channel list from frequencies.
+//
+// # Arguments
+//
+// * `frequencies_hz` - the frequencies in hertz, with `0` for a slot left unused.
+// * `len` - how many `frequencies_hz` points at, which must be
+//   [`PAMOJA_LORAWAN_CFLIST_FREQUENCIES`].
+// * `out_cflist` - receives the sixteen bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null or `len` is not five, and
+// [`PamojaStatus::Codec`] if a frequency is not a whole number of hundreds of hertz, lies
+// below the 100 MHz RP002-1.0.5 reserves, or does not fit three bytes.
+//
+// # Safety
+//
+// `frequencies_hz` must point to `len` readable values and `out_cflist` to at least
+// [`PAMOJA_LORAWAN_CFLIST_LEN`] writable bytes.
+PamojaStatus pamoja_lorawan_cflist_from_frequencies(const uint32_t *frequencies_hz,
+                                                    uintptr_t len,
+                                                    uint8_t *out_cflist);
+
+// Builds a type 1 channel list from channel mask groups.
+//
+// # Arguments
+//
+// * `masks` - the groups, where bit *n* of group *g* enables channel `g * 16 + n`.
+// * `len` - how many `masks` points at, which must be
+//   [`PAMOJA_LORAWAN_CFLIST_MASK_GROUPS`].
+// * `out_cflist` - receives the sixteen bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null or `len` is not six.
+//
+// # Safety
+//
+// `masks` must point to `len` readable values and `out_cflist` to at least
+// [`PAMOJA_LORAWAN_CFLIST_LEN`] writable bytes.
+PamojaStatus pamoja_lorawan_cflist_from_channel_masks(const uint16_t *masks,
+                                                      uintptr_t len,
+                                                      uint8_t *out_cflist);
+
+// Reads which form a channel list takes.
+//
+// # Arguments
+//
+// * `cflist` - the sixteen bytes.
+// * `cflist_len` - their length, which must be [`PAMOJA_LORAWAN_CFLIST_LEN`].
+// * `out_type` - receives the CFListType byte: [`PAMOJA_LORAWAN_CFLIST_TYPE_FREQUENCIES`],
+//   [`PAMOJA_LORAWAN_CFLIST_TYPE_CHANNEL_MASKS`], or a type the regional parameters
+//   reserve, which a device ignores.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null or the list is not
+// sixteen bytes.
+//
+// # Safety
+//
+// `cflist` must point to `cflist_len` readable bytes and `out_type` to a writable byte.
+PamojaStatus pamoja_lorawan_cflist_type(const uint8_t *cflist,
+                                        uintptr_t cflist_len,
+                                        uint8_t *out_type);
+
+// Reads the frequencies out of a type 0 channel list.
+//
+// # Arguments
+//
+// * `cflist` - the sixteen bytes.
+// * `cflist_len` - their length, which must be [`PAMOJA_LORAWAN_CFLIST_LEN`].
+// * `out_frequencies_hz` - receives the frequencies in hertz, `0` for an unused slot.
+// * `len` - room at `out_frequencies_hz`, which must be
+//   [`PAMOJA_LORAWAN_CFLIST_FREQUENCIES`].
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, a length is wrong, or
+// the list is not type 0.
+//
+// # Safety
+//
+// `cflist` must point to `cflist_len` readable bytes and `out_frequencies_hz` to `len`
+// writable values.
+PamojaStatus pamoja_lorawan_cflist_frequencies(const uint8_t *cflist,
+                                               uintptr_t cflist_len,
+                                               uint32_t *out_frequencies_hz,
+                                               uintptr_t len);
+
+// Reads the mask groups out of a type 1 channel list.
+//
+// # Arguments
+//
+// * `cflist` - the sixteen bytes.
+// * `cflist_len` - their length, which must be [`PAMOJA_LORAWAN_CFLIST_LEN`].
+// * `out_masks` - receives the groups.
+// * `len` - room at `out_masks`, which must be [`PAMOJA_LORAWAN_CFLIST_MASK_GROUPS`].
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, a length is wrong, or
+// the list is not type 1.
+//
+// # Safety
+//
+// `cflist` must point to `cflist_len` readable bytes and `out_masks` to `len` writable
+// values.
+PamojaStatus pamoja_lorawan_cflist_channel_masks(const uint8_t *cflist,
+                                                 uintptr_t cflist_len,
+                                                 uint16_t *out_masks,
+                                                 uintptr_t len);
+
+// Reports whether a type 1 channel list enables a channel.
+//
+// # Arguments
+//
+// * `cflist` - the sixteen bytes.
+// * `cflist_len` - their length, which must be [`PAMOJA_LORAWAN_CFLIST_LEN`].
+// * `channel` - the channel number, `group * 16 + bit`.
+// * `out_enabled` - receives `1` if its bit is set and `0` if not.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, the list is not sixteen
+// bytes or not type 1, or the channel is past the 96 the groups cover.
+//
+// # Safety
+//
+// `cflist` must point to `cflist_len` readable bytes and `out_enabled` to a writable byte.
+PamojaStatus pamoja_lorawan_cflist_enables(const uint8_t *cflist,
+                                           uintptr_t cflist_len,
+                                           uint8_t channel,
+                                           uint8_t *out_enabled);
 
 // Counts the commands packed into a field.
 //

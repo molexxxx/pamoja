@@ -11,6 +11,19 @@ from __future__ import annotations
 import enum
 
 from pamoja._native import (
+    LORAWAN_ADR_ACK_DELAY,
+    LORAWAN_ADR_ACK_LIMIT,
+    LORAWAN_JOIN_ACCEPT_DELAY1_US,
+    LORAWAN_JOIN_ACCEPT_DELAY2_US,
+    LORAWAN_MAX_FCNT_GAP,
+    LORAWAN_RECEIVE_DELAY1_US,
+    LORAWAN_RECEIVE_DELAY2_US,
+    LORAWAN_RECEIVE_WINDOW_TOLERANCE_US,
+    LORAWAN_RETRANSMIT_TIMEOUT_MAX_US,
+    LORAWAN_RETRANSMIT_TIMEOUT_MIN_US,
+    LorawanBackoff,
+    LorawanBackoffStep,
+    LorawanCfList,
     LorawanDevice,
     LorawanGrant,
     LorawanHeader,
@@ -25,16 +38,30 @@ from pamoja._native import lorawan_parse_header as _parse_header
 from pamoja._native import lorawan_parse_join_request as _parse_join_request
 
 __all__ = [
+    "ADR_ACK_DELAY",
+    "ADR_ACK_LIMIT",
+    "Backoff",
+    "BackoffStep",
+    "CfList",
     "Device",
     "Direction",
     "Grant",
     "Header",
+    "JOIN_ACCEPT_DELAY1_US",
+    "JOIN_ACCEPT_DELAY2_US",
     "JoinAccept",
     "JoinRequest",
+    "MAX_FCNT_GAP",
     "MacCommand",
     "MessageType",
+    "RECEIVE_DELAY1_US",
+    "RECEIVE_DELAY2_US",
+    "RECEIVE_WINDOW_TOLERANCE_US",
+    "RETRANSMIT_TIMEOUT_MAX_US",
+    "RETRANSMIT_TIMEOUT_MIN_US",
     "RxData",
     "Session",
+    "Version",
     "device",
     "grant",
     "mac_parse",
@@ -57,6 +84,47 @@ Header = LorawanHeader
 JoinRequest = LorawanJoinRequest
 #: What a network grants a device that joined.
 Grant = LorawanGrant
+#: The optional channel list at the end of a join accept.
+CfList = LorawanCfList
+#: A device's count of how long the network has been silent.
+Backoff = LorawanBackoff
+#: What a back-off says to do with one uplink.
+BackoffStep = LorawanBackoffStep
+
+#: How long after an uplink the first receive window opens, RP002-1.0.5 section 3.3.
+RECEIVE_DELAY1_US = LORAWAN_RECEIVE_DELAY1_US
+#: How long after an uplink the second receive window opens.
+RECEIVE_DELAY2_US = LORAWAN_RECEIVE_DELAY2_US
+#: How long after a join request the first join accept window opens.
+JOIN_ACCEPT_DELAY1_US = LORAWAN_JOIN_ACCEPT_DELAY1_US
+#: How long after a join request the second join accept window opens.
+JOIN_ACCEPT_DELAY2_US = LORAWAN_JOIN_ACCEPT_DELAY2_US
+#: How far a receive window may open either side of its time, LoRaWAN 1.0.3 section 3.3.1.
+RECEIVE_WINDOW_TOLERANCE_US = LORAWAN_RECEIVE_WINDOW_TOLERANCE_US
+#: The largest gap a frame counter may jump across and still be accepted.
+MAX_FCNT_GAP = LORAWAN_MAX_FCNT_GAP
+#: How many unanswered uplinks before a device asks the network to answer.
+ADR_ACK_LIMIT = LORAWAN_ADR_ACK_LIMIT
+#: How many more before a device starts giving back what adaptive data rate took.
+ADR_ACK_DELAY = LORAWAN_ADR_ACK_DELAY
+#: The shortest wait before a confirmed uplink is sent again.
+RETRANSMIT_TIMEOUT_MIN_US = LORAWAN_RETRANSMIT_TIMEOUT_MIN_US
+#: The longest wait before a confirmed uplink is sent again.
+RETRANSMIT_TIMEOUT_MAX_US = LORAWAN_RETRANSMIT_TIMEOUT_MAX_US
+
+
+class Version(str, enum.Enum):
+    """A revision of the LoRaWAN link layer, as :class:`Backoff` takes it.
+
+    >>> backoff = Backoff(Version.V1_0_3)
+    >>> backoff.version
+    '1.0.3'
+    """
+
+    #: LoRaWAN 1.0.3.
+    V1_0_3 = "1.0.3"
+    #: TS001-1.0.4, the LoRaWAN 1.0.4 link layer.
+    V1_0_4 = "1.0.4"
 
 
 class MessageType(str, enum.Enum):

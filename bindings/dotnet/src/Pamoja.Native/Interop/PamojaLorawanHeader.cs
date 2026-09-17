@@ -49,4 +49,10 @@ public struct PamojaLorawanHeader
 
     /// <summary>How many bytes of frame options the header carries.</summary>
     public byte FoptsLen;
+
+    /// <summary><c>1</c> when an uplink asks the network to answer.</summary>
+    public byte AdrAckReq;
+
+    /// <summary><c>1</c> when an uplink comes from a device running Class B.</summary>
+    public byte ClassB;
 }

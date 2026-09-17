@@ -1483,6 +1483,8 @@ def test_header_vectors_match():
         assert header.adr == want["adr"]
         assert header.ack == want["ack"]
         assert header.fpending == want["fpending"]
+        assert header.adr_ack_req == want["adrAckReq"]
+        assert header.class_b == want["classB"]
         assert header.fopts_len == want["foptsLen"]
         assert header.payload_len == want["payloadLen"]
 
@@ -1490,6 +1492,126 @@ def test_header_vectors_match():
         lorawan.parse_header(unhex(vector["unsupported"]))
     with pytest.raises(PamojaError):
         lorawan.parse_header(unhex(vector["truncated"]))
+
+
+def test_lorawan_link_defaults_match():
+    d = VECTORS["lorawanLink"]["defaults"]
+    assert (
+        lorawan.RECEIVE_DELAY1_US,
+        lorawan.RECEIVE_DELAY2_US,
+        lorawan.JOIN_ACCEPT_DELAY1_US,
+        lorawan.JOIN_ACCEPT_DELAY2_US,
+        lorawan.RECEIVE_WINDOW_TOLERANCE_US,
+        lorawan.MAX_FCNT_GAP,
+        lorawan.ADR_ACK_LIMIT,
+        lorawan.ADR_ACK_DELAY,
+        lorawan.RETRANSMIT_TIMEOUT_MIN_US,
+        lorawan.RETRANSMIT_TIMEOUT_MAX_US,
+    ) == (
+        d["receiveDelay1Us"],
+        d["receiveDelay2Us"],
+        d["joinAcceptDelay1Us"],
+        d["joinAcceptDelay2Us"],
+        d["receiveWindowToleranceUs"],
+        d["maxFcntGap"],
+        d["adrAckLimit"],
+        d["adrAckDelay"],
+        d["retransmitTimeoutMinUs"],
+        d["retransmitTimeoutMaxUs"],
+    )
+
+
+def test_lorawan_backoff_vectors_match():
+    for script in VECTORS["lorawanLink"]["backoff"]:
+        where = f"{script['version']} limit {script['limit']} delay {script['delay']}"
+        backoff = lorawan.Backoff(lorawan.Version(script["version"]), script["limit"], script["delay"])
+        assert backoff.version == script["version"], where
+        data_rate = script["startDataRate"]
+        steps = []
+        asked = []
+        for sent in range(1, script["uplinks"] + 1):
+            step = backoff.uplink(data_rate == 0)
+            if step.request_ack:
+                asked.append(sent)
+            for taken, name in (
+                (step.restore_power, "restorePower"),
+                (step.lower_data_rate, "lowerDataRate"),
+                (step.restore_channels, "restoreChannels"),
+            ):
+                if taken:
+                    steps.append({"uplink": sent, "step": name})
+            if step.lower_data_rate:
+                data_rate -= 1
+        assert steps == script["steps"], where
+        assert (asked[0] if asked else None) == script["firstAsked"], where
+        assert (asked[-1] if asked else None) == script["lastAsked"], where
+        assert backoff.counter == script["counter"], where
+        assert data_rate == script["endDataRate"], where
+        backoff.downlink()
+        after = backoff.uplink(data_rate == 0)
+        assert backoff.counter == script["afterDownlink"]["counter"], where
+        assert after.request_ack == script["afterDownlink"]["requestAck"], where
+
+
+def _check_cflist(cflist, want: dict, where: str) -> None:
+    """Hold a channel list to the answers every binding must give."""
+    assert cflist.bytes.hex() == want["bytes"], where
+    assert cflist.kind == want["kind"], where
+    assert cflist.type_byte == want["typeByte"], where
+    assert cflist.frequencies_hz() == want["frequenciesHz"], where
+    assert cflist.channel_mask_groups() == want["channelMaskGroups"], where
+    assert cflist.enabled_channels() == want["enabledChannels"], where
+    for entry in want["enables"]:
+        assert cflist.enables(entry["channel"]) == entry["enabled"], f"{where} {entry}"
+    assert lorawan.CfList.from_bytes(unhex(want["bytes"])) == cflist, where
+
+
+def test_lorawan_cflist_vectors_match():
+    lists = VECTORS["lorawanLink"]["cflist"]
+    _check_cflist(
+        lorawan.CfList.from_frequencies(lists["frequencies"]["input"]),
+        lists["frequencies"]["list"],
+        "a list of frequencies",
+    )
+    _check_cflist(
+        lorawan.CfList.from_channel_masks(lists["channelMasks"]["input"]),
+        lists["channelMasks"]["list"],
+        "a list of masks",
+    )
+    _check_cflist(
+        lorawan.CfList.from_bytes(unhex(lists["reserved"]["bytes"])),
+        lists["reserved"],
+        "a reserved list",
+    )
+    for hz in lists["refusedFrequencies"]:
+        with pytest.raises(PamojaError):
+            lorawan.CfList.from_frequencies([hz, 0, 0, 0, 0])
+    with pytest.raises(PamojaError):
+        lorawan.CfList.from_bytes(bytes(15))
+
+
+def test_lorawan_join_settings_vectors_match():
+    link = VECTORS["lorawanLink"]
+    for want in link["joinAccepts"]:
+        device = lorawan.device(unhex(link["device"]["devEui"]), bytes(8), unhex(want["appKey"]))
+        assert device.dev_eui.hex() == link["device"]["devEui"]
+        accept = device.accept_join(unhex(want["frame"]), want["devNonce"])
+        assert accept.dl_settings == want["dlSettings"]
+        assert accept.rx_delay == want["rxDelay"]
+        assert accept.rx1_dr_offset == want["rx1DrOffset"]
+        assert accept.rx2_data_rate == want["rx2DataRate"]
+        assert accept.receive_delay_us == want["receiveDelayUs"]
+        cflist = accept.cflist
+        assert (None if cflist is None else cflist.bytes.hex()) == want["cflist"]
+
+    uplink = next(frame for frame in VECTORS["header"]["frames"] if frame["adrAckReq"])
+    frames = VECTORS["lorawan"]
+    session = lorawan.session(frames["devAddr"], unhex(frames["nwkSKey"]), unhex(frames["appSKey"]))
+    frame = session.encode_uplink(uplink["fcnt"], uplink["fport"], b"x", adr=True, adr_ack_req=True)
+    assert frame.hex() == uplink["frame"]
+    decoded = session.decode(frame, uplink["fcnt"])
+    assert decoded.adr_ack_req is True
+    assert decoded.class_b is False
 
 
 def test_network_vectors_match():
