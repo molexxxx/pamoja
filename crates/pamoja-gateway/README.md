@@ -42,6 +42,8 @@ both sides.
   order a concentrator is brought up and forwarded from.
 - `station` - the LoRa Basics Station protocol: the discovery request that finds a
   network server, and the messages the websocket carries once one is open.
+- `chirpstack` - the uplink events a ChirpStack network server publishes on MQTT, read
+  into the device, the payload and the gateways that heard it.
 
 Every datagram is data: the crate builds and parses them, and leaves the socket, the
 keepalive, and the scheduling to the program that owns them.

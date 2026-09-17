@@ -499,6 +499,8 @@ plans, and the link budget in code.
 - [Radios and antennas](../radio.md), for everything outside the connector.
 - [Raspberry Pi](raspberry-pi.md), for the host: its buses, permissions, running a
   program as a service, and cross-compiling for it.
+- [Node to dashboard](walkthrough.md), for this gateway between a LoRaWAN node and
+  a ChirpStack server, with a dashboard of what the server hears.
 
 ## Sources
 

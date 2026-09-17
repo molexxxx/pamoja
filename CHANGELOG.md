@@ -184,6 +184,14 @@ released together, so one entry covers all of them.
   allocator and no runtime, only a clock and a delay. The ESP32-C3 package gains a
   LoRaWAN node that sends BME280 readings through an RFM95W, built for the chip
   in CI, and the ESP32 page walks through its wiring.
+- The uplink events a ChirpStack network server publishes on MQTT, read by
+  `pamoja_gateway::chirpstack` into the device, the payload, the port, the
+  counter and every gateway that heard it, following the JSON form of ChirpStack's
+  `UplinkEvent`. The ChirpStack interop job now reads the live server's events back
+  with it, over both the packet forwarder protocol and Basics Station.
+- A walkthrough on the site, Node to dashboard, that joins the ESP32-C3 LoRaWAN
+  node, a gateway on a Raspberry Pi and a ChirpStack server into one system, and a
+  Raspberry Pi program that serves a dashboard of every node the server hears.
 - Random numbers from a LoRa radio's receiver noise, `random` on the SX126x and
   SX127x drivers and on `Radio`, following the procedures of Semtech's own
   drivers. LoRaWAN 1.0.3 suggests this source for a join nonce on a device with no
