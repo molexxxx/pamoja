@@ -18,7 +18,16 @@ use super::ChannelPlan;
     feature = "in865",
     feature = "ru864"
 ))]
-use super::{Beacon, ChannelBlock, DataRate, MaxPayload};
+use super::{Beacon, ChannelBlock, DataRate, MaxPayload, PlanKind};
+// A numbering for type 1 channel lists belongs to the dynamic plans that name one.
+#[cfg(any(
+    feature = "eu868",
+    feature = "as923",
+    feature = "kr920",
+    feature = "in865",
+    feature = "ru864"
+))]
+use super::FixedChannelList;
 // Only the bands whose regulators cap airtime describe sub-bands; the 900 MHz
 // plans and IN865 leave the table empty.
 #[cfg(any(
@@ -352,6 +361,10 @@ pub static EU868: ChannelPlan<'static> = ChannelPlan {
         ping_slot_frequency_hz: 869_525_000,
     },
     has_dwell_time_limit: false,
+    kind: PlanKind::Dynamic {
+        channel_list: Some(FixedChannelList::Mhz800),
+    },
+    tx_param_setup: false,
 };
 
 // US902-928, RP002-1.0.5 section 3.5.
@@ -533,6 +546,8 @@ pub static US915: ChannelPlan<'static> = ChannelPlan {
         ping_slot_frequency_hz: 923_300_000,
     },
     has_dwell_time_limit: true,
+    kind: PlanKind::Fixed,
+    tx_param_setup: false,
 };
 
 // EU433, RP002-1.0.5 section 3.7.
@@ -672,6 +687,8 @@ pub static EU433: ChannelPlan<'static> = ChannelPlan {
         ping_slot_frequency_hz: 434_665_000,
     },
     has_dwell_time_limit: false,
+    kind: PlanKind::Dynamic { channel_list: None },
+    tx_param_setup: false,
 };
 
 // AU915-928, RP002-1.0.5 section 3.8.
@@ -876,6 +893,8 @@ pub static AU915: ChannelPlan<'static> = ChannelPlan {
         ping_slot_frequency_hz: 923_300_000,
     },
     has_dwell_time_limit: true,
+    kind: PlanKind::Fixed,
+    tx_param_setup: true,
 };
 
 // CN470-510, RP002-1.0.5 section 3.9.
@@ -1002,6 +1021,8 @@ pub static CN470: ChannelPlan<'static> = ChannelPlan {
         ping_slot_frequency_hz: 486_900_000,
     },
     has_dwell_time_limit: false,
+    kind: PlanKind::Fixed,
+    tx_param_setup: false,
 };
 
 // AS923, RP002-1.0.5 section 3.10.
@@ -1030,7 +1051,7 @@ static AS923_DATA_RATES: [Option<DataRate>; 14] = [
 static AS923_MAX_PAYLOAD_REPEATER: [Option<MaxPayload>; 14] = [
     Some(MaxPayload::new(59, 51)),
     Some(MaxPayload::new(59, 51)),
-    Some(MaxPayload::new(59, 51)),
+    Some(MaxPayload::new(123, 115)),
     Some(MaxPayload::new(123, 115)),
     Some(MaxPayload::new(230, 222)),
     Some(MaxPayload::new(230, 222)),
@@ -1049,7 +1070,7 @@ static AS923_MAX_PAYLOAD_REPEATER: [Option<MaxPayload>; 14] = [
 static AS923_MAX_PAYLOAD_DIRECT: [Option<MaxPayload>; 14] = [
     Some(MaxPayload::new(59, 51)),
     Some(MaxPayload::new(59, 51)),
-    Some(MaxPayload::new(59, 51)),
+    Some(MaxPayload::new(123, 115)),
     Some(MaxPayload::new(123, 115)),
     Some(MaxPayload::new(250, 242)),
     Some(MaxPayload::new(250, 242)),
@@ -1120,9 +1141,37 @@ static AS923_BACKOFF: [Option<u8>; 14] = [
     Some(12),
 ];
 
+/// RP002-1.0.5 Table 72, the dwell time column: the payload under a 400 ms dwell limit.
+///
+/// The table carries both columns; the plan keeps the one with the limit here, repeater
+/// compatible as the AU915-928 plan's is. DR0 and DR1 carry nothing inside 400 ms, and
+/// RP002-1.0.5 raised DR2 from 59 to 123 bytes without the limit, which is the other column.
+#[cfg(feature = "as923")]
+static AS923_MAX_PAYLOAD_DWELL: [Option<MaxPayload>; 14] = [
+    None,
+    None,
+    Some(MaxPayload::new(19, 11)),
+    Some(MaxPayload::new(61, 53)),
+    Some(MaxPayload::new(133, 125)),
+    Some(MaxPayload::new(230, 222)),
+    Some(MaxPayload::new(230, 222)),
+    Some(MaxPayload::new(230, 222)),
+    None,
+    None,
+    None,
+    None,
+    Some(MaxPayload::new(230, 222)),
+    Some(MaxPayload::new(230, 222)),
+];
+
 /// RP002-1.0.5 Table 65: the two default channels, at the AS923-1 offset of zero.
 #[cfg(feature = "as923")]
 static AS923_CHANNELS: [ChannelBlock; 1] = [ChannelBlock::new(923_200_000, 200_000, 2, 0, 5)];
+
+/// RP002-1.0.5 Table 66: the same two channels for a join, at DR2 to DR5 only, which keeps a
+/// join request inside a 400 ms dwell limit before the network has said whether one applies.
+#[cfg(feature = "as923")]
+static AS923_JOIN_CHANNELS: [ChannelBlock; 1] = [ChannelBlock::new(923_200_000, 200_000, 2, 2, 5)];
 
 /// The AS923 band is duty-cycle limited to 1% on its default channels.
 #[cfg(feature = "as923")]
@@ -1147,8 +1196,8 @@ pub static AS923: ChannelPlan<'static> = ChannelPlan {
     max_payload_direct: &AS923_MAX_PAYLOAD_DIRECT,
     downlink_max_payload_repeater: &AS923_MAX_PAYLOAD_REPEATER,
     downlink_max_payload_direct: &AS923_MAX_PAYLOAD_DIRECT,
-    max_payload_dwell_limited: None,
-    join_channels: &AS923_CHANNELS,
+    max_payload_dwell_limited: Some(&AS923_MAX_PAYLOAD_DWELL),
+    join_channels: &AS923_JOIN_CHANNELS,
     default_channels: &AS923_CHANNELS,
     sub_bands: &AS923_SUB_BANDS,
     default_max_eirp_dbm: 16,
@@ -1166,6 +1215,10 @@ pub static AS923: ChannelPlan<'static> = ChannelPlan {
         ping_slot_frequency_hz: 923_400_000,
     },
     has_dwell_time_limit: true,
+    kind: PlanKind::Dynamic {
+        channel_list: Some(FixedChannelList::Mhz900),
+    },
+    tx_param_setup: true,
 };
 
 // KR920-923, RP002-1.0.5 section 3.11.
@@ -1308,6 +1361,10 @@ pub static KR920: ChannelPlan<'static> = ChannelPlan {
         ping_slot_frequency_hz: 923_100_000,
     },
     has_dwell_time_limit: false,
+    kind: PlanKind::Dynamic {
+        channel_list: Some(FixedChannelList::Mhz900),
+    },
+    tx_param_setup: false,
 };
 
 // IN865, RP002-1.0.5 section 3.12.
@@ -1451,6 +1508,10 @@ pub static IN865: ChannelPlan<'static> = ChannelPlan {
         ping_slot_frequency_hz: 866_550_000,
     },
     has_dwell_time_limit: false,
+    kind: PlanKind::Dynamic {
+        channel_list: Some(FixedChannelList::Mhz800),
+    },
+    tx_param_setup: false,
 };
 
 // RU864-870, RP002-1.0.5 section 3.13.
@@ -1587,4 +1648,8 @@ pub static RU864: ChannelPlan<'static> = ChannelPlan {
         ping_slot_frequency_hz: 868_900_000,
     },
     has_dwell_time_limit: false,
+    kind: PlanKind::Dynamic {
+        channel_list: Some(FixedChannelList::Mhz800),
+    },
+    tx_param_setup: false,
 };

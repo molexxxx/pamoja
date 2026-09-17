@@ -16,7 +16,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 
-use super::{Beacon, ChannelBlock, ChannelPlan, DataRate, MaxPayload, SubBand};
+use super::{Beacon, ChannelBlock, ChannelPlan, DataRate, MaxPayload, PlanKind, SubBand};
 
 /// Which of a plan's payload tables an entry belongs to.
 ///
@@ -150,6 +150,8 @@ pub struct OwnedChannelPlan {
     data_rate_backoff: Vec<Option<u8>>,
     beacon: Beacon,
     has_dwell_time_limit: bool,
+    kind: PlanKind,
+    tx_param_setup: bool,
 }
 
 impl OwnedChannelPlan {
@@ -207,6 +209,8 @@ impl OwnedChannelPlan {
             data_rate_backoff: plan.data_rate_backoff.to_vec(),
             beacon: plan.beacon,
             has_dwell_time_limit: plan.has_dwell_time_limit,
+            kind: plan.kind,
+            tx_param_setup: plan.tx_param_setup,
         }
     }
 
@@ -263,6 +267,8 @@ impl OwnedChannelPlan {
             data_rate_backoff: &self.data_rate_backoff,
             beacon: self.beacon,
             has_dwell_time_limit: self.has_dwell_time_limit,
+            kind: self.kind,
+            tx_param_setup: self.tx_param_setup,
         };
         query(&plan)
     }
@@ -347,6 +353,8 @@ impl ChannelPlanBuilder {
                     ping_slot_frequency_hz: 0,
                 },
                 has_dwell_time_limit: false,
+                kind: PlanKind::Dynamic { channel_list: None },
+                tx_param_setup: false,
             },
         }
     }
@@ -577,6 +585,39 @@ impl ChannelPlanBuilder {
     #[must_use]
     pub fn dwell_time_limit(mut self, limited: bool) -> Self {
         self.plan.has_dwell_time_limit = limited;
+        self
+    }
+
+    /// Sets how the plan defines its channels.
+    ///
+    /// A plan starts dynamic, with no numbering for a type 1 channel list, which is the
+    /// shape most regions take.
+    ///
+    /// # Arguments
+    ///
+    /// * `kind` - dynamic or fixed.
+    ///
+    /// # Returns
+    ///
+    /// The builder.
+    #[must_use]
+    pub fn kind(mut self, kind: PlanKind) -> Self {
+        self.plan.kind = kind;
+        self
+    }
+
+    /// Sets whether devices on the plan answer `TXParamSetupReq`.
+    ///
+    /// # Arguments
+    ///
+    /// * `answered` - whether the command applies.
+    ///
+    /// # Returns
+    ///
+    /// The builder.
+    #[must_use]
+    pub fn tx_param_setup(mut self, answered: bool) -> Self {
+        self.plan.tx_param_setup = answered;
         self
     }
 

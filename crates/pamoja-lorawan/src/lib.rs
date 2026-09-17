@@ -34,11 +34,15 @@
 //!   regional parameters define.
 //! - [`defaults`] - the receive delays, frame counter gap and ADR counts every region
 //!   shares, and [`adr`] and [`mac`] for keeping a device reachable and configuring it.
+//! - [`device`] - a Class A end device with no radio: it joins, picks a channel and data rate
+//!   for each uplink, says when to listen, reads what the network sends back and does what
+//!   its MAC commands ask, following the [`Version`] of the link layer it is given.
 //!
 //! The cryptography is the LoRaWAN construction over AES-128: an AES-CMAC MIC and an
 //! AES keystream for the payload, with the device address and frame counter folded into
-//! both so a frame cannot be lifted out of its place in the stream. Driving the radio
-//! arrives with the hardware-I/O layer; this is the secured-packet half ahead of it.
+//! both so a frame cannot be lifted out of its place in the stream. The radio itself is
+//! `pamoja-radios`' part, so everything here runs the same on a microcontroller, on a
+//! gateway, and in a test with no hardware at all.
 //!
 //! # Examples
 //!
@@ -63,6 +67,7 @@ pub mod adr;
 mod cflist;
 mod crypto;
 pub mod defaults;
+pub mod device;
 mod error;
 mod frame;
 mod header;
@@ -70,6 +75,7 @@ mod join;
 pub mod mac;
 mod network;
 mod session;
+mod version;
 
 pub use adr::Backoff;
 pub use cflist::{CfList, CfListKind, CFLIST_FREQUENCIES, CFLIST_LEN, CFLIST_MASK_GROUPS};
@@ -80,3 +86,4 @@ pub use join::{Device, JoinAccept};
 pub use mac::{MacCommand, MacCommands};
 pub use network::{JoinGrant, JoinRequest};
 pub use session::{Downlink, RxData, Session, Uplink};
+pub use version::Version;

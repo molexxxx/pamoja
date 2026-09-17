@@ -2,7 +2,7 @@
 
 # pamoja-lorawan
 
-LoRaWAN 1.0.x MAC framing for pamoja: build and parse data-frame PHYPayloads with the message integrity code and payload encryption the spec mandates, plus the over-the-air-activation join exchange, so a long-range node speaks LoRaWAN, no_std and allocation-free. The secured-packet half ahead of the radio driver.
+LoRaWAN 1.0.x for pamoja, no_std and allocation-free: data frames with the message integrity code and payload encryption the spec mandates, both halves of the over-the-air join, the MAC commands, and a Class A end device that joins, times its receive windows, and answers its network without owning a radio.
 
 <a href="https://pamoja.molex.cloud/docs/guides/lorawan.html"><img height="36" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_lorawan/index.html"><img height="36" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
@@ -52,11 +52,15 @@ crate builds and verifies exactly that, with no radio and no allocation:
   regional parameters define.
 - `defaults` - the receive delays, frame counter gap and ADR counts every region
   shares, and `adr` and `mac` for keeping a device reachable and configuring it.
+- `device` - a Class A end device with no radio: it joins, picks a channel and data rate
+  for each uplink, says when to listen, reads what the network sends back and does what
+  its MAC commands ask, following the `Version` of the link layer it is given.
 
 The cryptography is the LoRaWAN construction over AES-128: an AES-CMAC MIC and an
 AES keystream for the payload, with the device address and frame counter folded into
-both so a frame cannot be lifted out of its place in the stream. Driving the radio
-arrives with the hardware-I/O layer; this is the secured-packet half ahead of it.
+both so a frame cannot be lifted out of its place in the stream. The radio itself is
+`pamoja-radios`' part, so everything here runs the same on a microcontroller, on a
+gateway, and in a test with no hardware at all.
 
 **Examples**
 

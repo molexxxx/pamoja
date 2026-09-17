@@ -3214,6 +3214,7 @@ name = "pamoja-lorawan"
 version = "0.1.18"
 dependencies = [
  "aes 0.9.3",
+ "pamoja-lora",
  "proptest",
 ]
 

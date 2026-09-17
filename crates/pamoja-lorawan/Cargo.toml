@@ -1,6 +1,6 @@
 [package]
 name = "pamoja-lorawan"
-description = "LoRaWAN 1.0.x MAC framing for pamoja: build and parse data-frame PHYPayloads with the message integrity code and payload encryption the spec mandates, plus the over-the-air-activation join exchange, so a long-range node speaks LoRaWAN, no_std and allocation-free. The secured-packet half ahead of the radio driver."
+description = "LoRaWAN 1.0.x for pamoja, no_std and allocation-free: data frames with the message integrity code and payload encryption the spec mandates, both halves of the over-the-air join, the MAC commands, and a Class A end device that joins, times its receive windows, and answers its network without owning a radio."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -16,11 +16,16 @@ authors.workspace = true
 # AES-128 is the one primitive LoRaWAN is built on; the CMAC and the keystream
 # constructions are implemented on top of it here, so this is the only dependency.
 aes = { version = "0.9", default-features = false }
+# A device takes its channels, data rates, payload sizes and receive windows from the
+# region's plan, and the airtime its duty cycle is counted in from the same link math.
+pamoja-lora = { path = "../pamoja-lora", version = "0.1.18", default-features = false }
 
 [dev-dependencies]
 # Property tests feed the frame decoder arbitrary bytes off the radio boundary: it must
 # never panic on hostile input, and every encoded uplink must survive a decode round trip.
 proptest = "1"
+# The device tests run against the published European and Asian plans.
+pamoja-lora = { path = "../pamoja-lora", features = ["eu868", "as923", "eu433", "us915"] }
 
 [lints]
 workspace = true

@@ -456,6 +456,8 @@ fn a_custom_plan_answers_every_question_a_named_one_does() {
             ping_slot_frequency_hz: 915_000_000,
         },
         has_dwell_time_limit: false,
+        kind: PlanKind::Dynamic { channel_list: None },
+        tx_param_setup: false,
     };
 
     assert_eq!(plan.default_channel_count(), 4);
@@ -524,6 +526,8 @@ fn a_plan_may_borrow_tables_that_are_not_static() {
             ping_slot_frequency_hz: 869_525_000,
         },
         has_dwell_time_limit: false,
+        kind: PlanKind::Dynamic { channel_list: None },
+        tx_param_setup: false,
     };
 
     assert_eq!(plan.name, "relief-869");
@@ -657,6 +661,51 @@ mod as923 {
         assert_eq!(plan.channel_frequency_hz(1), Some(923_400_000));
         assert_eq!(plan.duty_cycle_permille(923_200_000), Some(10), "1%");
     }
+
+    /// RP002-1.0.5 Tables 72 and 73, and the revision note that raised DR2 "from 59 to 123
+    /// for UplinkDwellTime = 0 and DownlinkDwellTime = 0".
+    #[test]
+    fn dr2_carries_123_bytes_without_a_dwell_limit_and_19_with_one() {
+        let plan = Region::As923.plan();
+        for behind_repeater in [false, true] {
+            assert_eq!(
+                plan.max_payload(2, behind_repeater),
+                Some(MaxPayload::new(123, 115))
+            );
+        }
+        let dwell: Vec<Option<(u16, u16)>> = (0..=7)
+            .map(|dr| {
+                plan.max_payload_dwell_limited(dr)
+                    .map(|limit| (limit.mac_payload, limit.application))
+            })
+            .collect();
+        assert_eq!(
+            dwell,
+            [
+                None,
+                None,
+                Some((19, 11)),
+                Some((61, 53)),
+                Some((133, 125)),
+                Some((230, 222)),
+                Some((230, 222)),
+                Some((230, 222)),
+            ]
+        );
+    }
+
+    /// RP002-1.0.5 Table 66: a join goes out at DR2 to DR5, while the default channels of
+    /// Table 65 carry DR0 to DR5.
+    #[test]
+    fn a_join_uses_only_the_rates_a_dwell_limit_allows() {
+        let plan = Region::As923.plan();
+        let join = plan.join_channels[0];
+        let default = plan.default_channels[0];
+        assert_eq!((join.min_data_rate, join.max_data_rate), (2, 5));
+        assert_eq!((default.min_data_rate, default.max_data_rate), (0, 5));
+        assert_eq!(join.start_hz, default.start_hz);
+        assert_eq!(join.count, 2);
+    }
 }
 
 #[cfg(feature = "kr920")]
@@ -780,5 +829,73 @@ fn every_region_is_self_consistent() {
             plan.uplink_data_rates.len(),
             "{region:?} has a back-off entry per uplink data rate"
         );
+    }
+}
+
+/// RP002-1.0.5 sections 3.x.3 and 3.x.4: which regions let a network create channels, the
+/// numbering each reads a type 1 channel list against, and which answer `TXParamSetupReq`.
+#[cfg(feature = "regions")]
+#[test]
+fn every_region_takes_the_channel_model_and_commands_its_section_names() {
+    use FixedChannelList::{Mhz800, Mhz900};
+
+    let want = [
+        // 3.4.3 "not implemented"; 3.4.4 type 1 per 3.3.1.1.
+        (
+            Region::Eu868,
+            PlanKind::Dynamic {
+                channel_list: Some(Mhz800),
+            },
+            false,
+        ),
+        // 3.5.3 "not implemented by US902-928 devices"; a fixed channel plan.
+        (Region::Us915, PlanKind::Fixed, false),
+        // 3.7.3 "not implemented"; 3.7.4 lists frequencies only.
+        (
+            Region::Eu433,
+            PlanKind::Dynamic { channel_list: None },
+            false,
+        ),
+        // 3.8.3 "SHALL be implemented"; a fixed channel plan.
+        (Region::Au915, PlanKind::Fixed, true),
+        // 3.9.3 "not implemented by CN470-510 devices"; a fixed channel plan.
+        (Region::Cn470, PlanKind::Fixed, false),
+        // 3.10.3 "SHALL be implemented by the AS923 devices"; 3.10.4 per 3.3.1.2.
+        (
+            Region::As923,
+            PlanKind::Dynamic {
+                channel_list: Some(Mhz900),
+            },
+            true,
+        ),
+        // 3.11.3 "not implemented"; 3.11.4 per 3.3.1.2.
+        (
+            Region::Kr920,
+            PlanKind::Dynamic {
+                channel_list: Some(Mhz900),
+            },
+            false,
+        ),
+        // 3.12.3 "not implemented"; 3.12.4 per 3.3.1.1.
+        (
+            Region::In865,
+            PlanKind::Dynamic {
+                channel_list: Some(Mhz800),
+            },
+            false,
+        ),
+        // 3.13.3 "not implemented in RU864-870 devices"; 3.13.4 per 3.3.1.1.
+        (
+            Region::Ru864,
+            PlanKind::Dynamic {
+                channel_list: Some(Mhz800),
+            },
+            false,
+        ),
+    ];
+    for (region, kind, tx_param_setup) in want {
+        let plan = region.plan();
+        assert_eq!(plan.kind, kind, "{region:?}");
+        assert_eq!(plan.tx_param_setup, tx_param_setup, "{region:?}");
     }
 }

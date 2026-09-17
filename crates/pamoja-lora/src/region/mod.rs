@@ -67,6 +67,7 @@
 use crate::LinkSettings;
 
 mod channel_list;
+mod kind;
 #[cfg(feature = "alloc")]
 mod owned;
 mod plans;
@@ -75,6 +76,7 @@ mod plans;
 mod tests;
 
 pub use channel_list::FixedChannelList;
+pub use kind::PlanKind;
 #[cfg(feature = "alloc")]
 pub use owned::{ChannelPlanBuilder, OwnedChannelPlan, PayloadTable, PlanError};
 pub use plans::Region;
@@ -426,6 +428,14 @@ pub struct ChannelPlan<'a> {
     pub beacon: Beacon,
     /// Whether the region limits how long one transmission may occupy a channel.
     pub has_dwell_time_limit: bool,
+    /// Whether a network may create and move channels, or only enable numbered ones.
+    pub kind: PlanKind,
+    /// Whether devices in the region answer `TXParamSetupReq`, which sets their
+    /// radiated power ceiling and dwell time.
+    ///
+    /// RP002-1.0.5 has AS923 and AU915-928 implement it and every other region
+    /// leave it out; a device in a region without it drops the command unanswered.
+    pub tx_param_setup: bool,
 }
 
 impl ChannelPlan<'_> {
