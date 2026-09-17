@@ -88,9 +88,13 @@ pub mod usb;
 
 #[cfg(feature = "embedded-hal")]
 mod driver;
+#[cfg(feature = "embedded-hal")]
+mod listener;
 
 #[cfg(feature = "embedded-hal")]
 pub use driver::{
-    ConcentratorError, Sx1302, RADIO_CALIBRATE_US, RADIO_RESET_HOLD_US, RADIO_RESET_SETTLE_US,
-    RESET_HOLD_US,
+    ConcentratorError, Sx1302, ABORT_POLLS, RADIO_CALIBRATE_US, RADIO_RESET_HOLD_US,
+    RADIO_RESET_SETTLE_US, RESET_HOLD_US,
 };
+#[cfg(feature = "embedded-hal")]
+pub use listener::{ListenerError, Sx1261, COMMAND_WAIT_US, LISTENER_RESET_US};

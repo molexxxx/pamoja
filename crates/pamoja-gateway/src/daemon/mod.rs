@@ -10,6 +10,7 @@
 //! bus. The program that walks it lives beside this module and owns the sockets, the files
 //! and the clock.
 
+pub mod check;
 pub mod config;
 pub mod forward;
 
@@ -110,7 +111,7 @@ pub fn bring_up(config: &Config) -> impl Iterator<Item = Bring> + '_ {
     let carrier = config.radio.carrier_hz;
     let single = config.concentrator.single_input;
     let clock = config.concentrator.clock;
-    let listening = config.concentrator.listen_before_talk;
+    let listening = config.concentrator.listen_before_talk.is_some();
 
     let chains = [Chain::A, Chain::B];
     let radios = chains.into_iter().flat_map(move |chain| {

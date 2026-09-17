@@ -14,6 +14,8 @@
 
 use serde_json::{Map, Value};
 
+use pamoja_radios::sx1302::lbt::{self, ScanTime};
+use pamoja_radios::sx1302::sx1261::Bandwidth;
 use pamoja_radios::sx1302::tx::{Chain, FrontEnd, Gain, DEFAULT_GAINS};
 
 use crate::udp::Eui;
@@ -102,12 +104,68 @@ pub struct Concentrator {
     pub front_end: FrontEnd,
     /// Which front end the concentrator takes its clock from.
     pub clock: Chain,
-    /// Whether the radio beside the concentrator checks a channel before the gateway talks.
-    pub listen_before_talk: bool,
+    /// The SX1261 beside the concentrator and the channels it checks before the gateway talks,
+    /// for a gateway that has to listen first.
+    pub listen_before_talk: Option<ListenBeforeTalk>,
     /// The gain control microcontroller image.
     pub gain_control_firmware: String,
     /// The arbiter microcontroller image.
     pub arbiter_firmware: String,
+}
+
+/// The SX1261 beside a concentrator, and the channels a gateway checks before it transmits.
+///
+/// Some rules forbid transmitting into a channel someone else is using: ARIB STD-T108 in
+/// Japan, and Korea's rules for KR920-923. A gateway under them names the channels it checks,
+/// the level above which a channel counts as busy, and how long one transmission may hold a
+/// channel, and the SX1261 listens on each before the concentrator is let transmit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ListenBeforeTalk {
+    /// For a card on SPI, the radio's own SPI device, `/dev/spidev0.1` on Semtech's reference
+    /// card. A USB card reaches the radio through its bridge and names none.
+    pub spi: Option<String>,
+    /// For a card on SPI, the radio's reset line on the concentrator's GPIO chip, 22 in the
+    /// reference's `reset_lgw.sh`.
+    pub reset_line: Option<u32>,
+    /// Where Semtech's `sx1261_pram.var` is, the patch that gives the radio its carrier check.
+    pub patch: String,
+    /// The board's correction to the levels the radio measures, in dB.
+    pub rssi_offset_db: i8,
+    /// The level above which a channel counts as busy, in dBm.
+    pub threshold_dbm: i8,
+    /// The channels to check.
+    pub channels: Vec<lbt::Channel>,
+}
+
+impl ListenBeforeTalk {
+    /// Finds the check channel a transmission goes out on.
+    ///
+    /// # Arguments
+    ///
+    /// * `frequency_hz` - the transmission's carrier.
+    /// * `bandwidth_hz` - its bandwidth.
+    ///
+    /// # Returns
+    ///
+    /// The channel, or `None` for a transmission on a channel that is not checked.
+    pub fn channel(&self, frequency_hz: u32, bandwidth_hz: u32) -> Option<lbt::Channel> {
+        self.channels
+            .iter()
+            .find(|channel| channel.covers(frequency_hz, bandwidth_hz))
+            .copied()
+    }
+
+    /// The threshold the radio is given, which is the configured one with the board's
+    /// correction added, as the reference adds them.
+    ///
+    /// # Returns
+    ///
+    /// The threshold in dBm, held to what the radio can be told.
+    pub fn radio_threshold_dbm(&self) -> i8 {
+        self.threshold_dbm
+            .saturating_add(self.rssi_offset_db)
+            .clamp(-127, 0)
+    }
 }
 
 /// What the radios are tuned to and what the receivers listen for.
@@ -279,20 +337,143 @@ fn concentrator(object: &Map<String, Value>) -> Result<Concentrator, ConfigError
     };
 
     Ok(Concentrator {
-        bus,
+        bus: bus.clone(),
         single_input: held
             .get("single_input")
             .and_then(Value::as_bool)
             .unwrap_or(false),
         front_end: front_end(held)?,
         clock: clock(held)?,
-        listen_before_talk: held
-            .get("listen_before_talk")
-            .and_then(Value::as_bool)
-            .unwrap_or(false),
+        listen_before_talk: match held.get("listen_before_talk") {
+            None | Some(Value::Bool(false)) => None,
+            Some(Value::Object(section)) => Some(listen_before_talk(section, &bus)?),
+            Some(_) => {
+                return Err(refused(
+                    "concentrator.listen_before_talk",
+                    "this is an object naming the radio's patch, its threshold and the channels it checks",
+                ))
+            }
+        },
         gain_control_firmware: required_text(firmware, "concentrator.firmware.gain_control")?
             .to_owned(),
         arbiter_firmware: required_text(firmware, "concentrator.firmware.arbiter")?.to_owned(),
+    })
+}
+
+/// Reads the SX1261 and the channels it checks.
+fn listen_before_talk(
+    held: &Map<String, Value>,
+    bus: &Bus,
+) -> Result<ListenBeforeTalk, ConfigError> {
+    const FIELD: &str = "concentrator.listen_before_talk";
+
+    let (spi, reset_line) = match bus {
+        Bus::Spi { .. } => (
+            Some(required_text(held, &format!("{FIELD}.spi"))?.to_owned()),
+            Some(required_whole(held, &format!("{FIELD}.reset_line"))?),
+        ),
+        Bus::Usb { .. } => {
+            if held.contains_key("spi") || held.contains_key("reset_line") {
+                return Err(refused(
+                    FIELD,
+                    "a USB card reaches its SX1261 through the bridge, so it names no spi device or reset line",
+                ));
+            }
+            (None, None)
+        }
+    };
+
+    let signed = |name: &str, default: Option<i8>| -> Result<i8, ConfigError> {
+        let field = format!("{FIELD}.{name}");
+        match (held.get(name), default) {
+            (None, Some(default)) => Ok(default),
+            (None, None) => Err(missing(&field)),
+            (Some(value), _) => value
+                .as_i64()
+                .and_then(|held| i8::try_from(held).ok())
+                .ok_or_else(|| refused(&field, "this is a whole number of decibels")),
+        }
+    };
+    let threshold_dbm = signed("threshold_dbm", None)?;
+    if !(-127..=0).contains(&threshold_dbm) {
+        return Err(refused(
+            &format!("{FIELD}.threshold_dbm"),
+            &format!("{threshold_dbm} dBm is not a level from -127 to 0 dBm"),
+        ));
+    }
+
+    let listed = held
+        .get("channels")
+        .and_then(Value::as_array)
+        .ok_or_else(|| missing(&format!("{FIELD}.channels")))?;
+    if listed.is_empty() {
+        return Err(refused(
+            &format!("{FIELD}.channels"),
+            "checking no channels checks nothing",
+        ));
+    }
+    let channels = listed
+        .iter()
+        .map(check_channel)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(ListenBeforeTalk {
+        spi,
+        reset_line,
+        patch: required_text(held, &format!("{FIELD}.patch"))?.to_owned(),
+        rssi_offset_db: signed("rssi_offset_db", Some(0))?,
+        threshold_dbm,
+        channels,
+    })
+}
+
+/// Reads one channel the SX1261 checks.
+fn check_channel(entry: &Value) -> Result<lbt::Channel, ConfigError> {
+    const FIELD: &str = "concentrator.listen_before_talk.channels";
+    let held = entry
+        .as_object()
+        .ok_or_else(|| refused(FIELD, "every channel is an object"))?;
+
+    let frequency_hz = required_whole(held, &format!("{FIELD}.frequency_hz"))?;
+    let bandwidth = match required_whole(held, &format!("{FIELD}.bandwidth_hz"))? {
+        125_000 => Bandwidth::Khz125,
+        250_000 => Bandwidth::Khz250,
+        other => {
+            return Err(refused(
+                &format!("{FIELD}.bandwidth_hz"),
+                &format!("the SX1261 checks 125000 or 250000 Hz channels, not {other}"),
+            ))
+        }
+    };
+    let scan_micros = required_whole(held, &format!("{FIELD}.scan_time_us"))?;
+    let scan_time = u16::try_from(scan_micros)
+        .ok()
+        .and_then(ScanTime::of_micros)
+        .ok_or_else(|| {
+            refused(
+                &format!("{FIELD}.scan_time_us"),
+                &format!("the SX1261 scans for 128 or 5000 us, not {scan_micros}"),
+            )
+        })?;
+    let transmit_ms = required_whole(held, &format!("{FIELD}.transmit_time_ms"))?;
+    let transmit_time_ms = u16::try_from(transmit_ms)
+        .ok()
+        .filter(|ms| u32::from(*ms) * 1_000 > lbt::SENSE_LEAD_US)
+        .ok_or_else(|| {
+            refused(
+                &format!("{FIELD}.transmit_time_ms"),
+                &format!(
+                    "{transmit_ms} ms leaves no time to transmit after the channel is sensed {} us ahead",
+                    lbt::SENSE_LEAD_US
+                ),
+            )
+        })?;
+
+    Ok(lbt::Channel {
+        frequency_hz,
+        bandwidth,
+        scan_time,
+        transmit_time_ms,
     })
 }
 
@@ -682,6 +863,148 @@ mod tests {
         }
     }
 
+    /// The same configuration with a listen before talk section on its concentrator.
+    fn checking(section: &str) -> String {
+        complete().replace(
+            r#""single_input": true,"#,
+            &format!(r#""single_input": true, "listen_before_talk": {section},"#),
+        )
+    }
+
+    /// A section as a gateway in Japan would write one, on Semtech's reference wiring.
+    const JAPAN: &str = r#"{
+      "spi": "/dev/spidev0.1",
+      "reset_line": 22,
+      "patch": "/opt/sx1302_hal/libloragw/src/sx1261_pram.var",
+      "rssi_offset_db": -4,
+      "threshold_dbm": -80,
+      "channels": [
+        { "frequency_hz": 920600000, "bandwidth_hz": 125000, "scan_time_us": 5000, "transmit_time_ms": 4000 },
+        { "frequency_hz": 920800000, "bandwidth_hz": 250000, "scan_time_us": 128, "transmit_time_ms": 400 }
+      ]
+    }"#;
+
+    #[test]
+    fn listen_before_talk_reads_its_radio_threshold_and_channels() {
+        let config = Config::parse(&checking(JAPAN)).expect("a complete section");
+        let section = config
+            .concentrator
+            .listen_before_talk
+            .expect("the section is there");
+        assert_eq!(section.spi.as_deref(), Some("/dev/spidev0.1"));
+        assert_eq!(section.reset_line, Some(22));
+        assert_eq!(section.threshold_dbm, -80);
+        assert_eq!(
+            section.radio_threshold_dbm(),
+            -84,
+            "the board's offset is added, as the reference adds it"
+        );
+        assert_eq!(
+            section.channels,
+            [
+                lbt::Channel {
+                    frequency_hz: 920_600_000,
+                    bandwidth: Bandwidth::Khz125,
+                    scan_time: ScanTime::Long,
+                    transmit_time_ms: 4000,
+                },
+                lbt::Channel {
+                    frequency_hz: 920_800_000,
+                    bandwidth: Bandwidth::Khz250,
+                    scan_time: ScanTime::Short,
+                    transmit_time_ms: 400,
+                },
+            ]
+        );
+
+        // A carrier that came through floating point still finds its channel.
+        assert!(section.channel(920_600_004, 125_000).is_some());
+        assert!(section.channel(920_600_000, 250_000).is_none());
+        assert!(section.channel(923_200_000, 125_000).is_none());
+    }
+
+    #[test]
+    fn listen_before_talk_off_is_absent_or_false_and_on_needs_a_section() {
+        assert!(Config::parse(&complete())
+            .expect("parses")
+            .concentrator
+            .listen_before_talk
+            .is_none());
+        assert!(Config::parse(&checking("false"))
+            .expect("parses")
+            .concentrator
+            .listen_before_talk
+            .is_none());
+        assert!(matches!(
+            Config::parse(&checking("true")),
+            Err(ConfigError::Refused { field, .. }) if field == "concentrator.listen_before_talk"
+        ));
+    }
+
+    #[test]
+    fn each_part_of_a_check_the_radio_cannot_do_is_refused_by_name() {
+        let refused_field = |section: String| match Config::parse(&checking(&section)) {
+            Err(ConfigError::Refused { field, .. }) | Err(ConfigError::Missing { field }) => field,
+            other => panic!("expected a refusal, got {other:?}"),
+        };
+
+        assert_eq!(
+            refused_field(JAPAN.replace(r#""scan_time_us": 5000"#, r#""scan_time_us": 1000"#)),
+            "concentrator.listen_before_talk.channels.scan_time_us"
+        );
+        assert_eq!(
+            refused_field(JAPAN.replace(r#""bandwidth_hz": 250000"#, r#""bandwidth_hz": 500000"#)),
+            "concentrator.listen_before_talk.channels.bandwidth_hz"
+        );
+        assert_eq!(
+            refused_field(JAPAN.replace(r#""transmit_time_ms": 400"#, r#""transmit_time_ms": 1"#)),
+            "concentrator.listen_before_talk.channels.transmit_time_ms"
+        );
+        assert_eq!(
+            refused_field(JAPAN.replace(r#""threshold_dbm": -80"#, r#""threshold_dbm": 10"#)),
+            "concentrator.listen_before_talk.threshold_dbm"
+        );
+        assert_eq!(
+            refused_field(JAPAN.replace(r#""reset_line": 22,"#, "")),
+            "concentrator.listen_before_talk.reset_line"
+        );
+        assert_eq!(
+            refused_field(JAPAN.replace(
+                r#""patch": "/opt/sx1302_hal/libloragw/src/sx1261_pram.var","#,
+                ""
+            )),
+            "concentrator.listen_before_talk.patch"
+        );
+        let no_channels = r#"{ "spi": "/dev/spidev0.1", "reset_line": 22, "patch": "p", "threshold_dbm": -80, "channels": [] }"#;
+        assert_eq!(
+            refused_field(no_channels.to_owned()),
+            "concentrator.listen_before_talk.channels"
+        );
+    }
+
+    #[test]
+    fn a_usb_card_reaches_its_radio_through_the_bridge() {
+        let usb = |section: &str| {
+            checking(section).replace(
+                r#""spi": "/dev/spidev0.0",
+            "gpio_chip": "/dev/gpiochip0",
+            "reset_line": 23,"#,
+                r#""usb": "/dev/ttyACM0","#,
+            )
+        };
+        let bridged = r#"{ "patch": "p", "threshold_dbm": -80, "channels": [
+            { "frequency_hz": 922100000, "bandwidth_hz": 125000, "scan_time_us": 5000, "transmit_time_ms": 4000 }
+        ] }"#;
+        let config = Config::parse(&usb(bridged)).expect("a USB section names no wiring");
+        let section = config.concentrator.listen_before_talk.expect("present");
+        assert_eq!((section.spi, section.reset_line), (None, None));
+
+        assert!(matches!(
+            Config::parse(&usb(JAPAN)),
+            Err(ConfigError::Refused { field, .. }) if field == "concentrator.listen_before_talk"
+        ));
+    }
+
     #[test]
     fn a_board_that_gates_its_supply_names_the_line() {
         assert_eq!(supply_line(&complete()), None);
@@ -801,7 +1124,7 @@ mod tests {
 
         assert_eq!(config.concentrator.front_end, FrontEnd::Sx1250);
         assert_eq!(config.concentrator.clock, Chain::A);
-        assert!(!config.concentrator.listen_before_talk);
+        assert!(config.concentrator.listen_before_talk.is_none());
         assert_eq!(config.radio.dual_demodulation, 0);
     }
 

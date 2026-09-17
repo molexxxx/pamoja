@@ -193,6 +193,7 @@ tags = [
   { text = "SX1302 concentrator driver", state = "ships", crate = "pamoja-radios" },
   { text = "gateway daemon for a concentrator", state = "ships", crate = "pamoja-gateway" },
   { text = "USB concentrator cards through their bridge", state = "ships", crate = "pamoja-radios" },
+  { text = "gateway listen before talk on an SX1261", state = "ships", crate = "pamoja-radios" },
   { text = "BLE and the phone as gateway", state = "later" },
   { text = "Matter and Thread", state = "later" },
   { text = "sub-GHz radios (CC1101, HC-12)", state = "later" },
