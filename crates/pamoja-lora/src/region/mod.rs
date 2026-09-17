@@ -66,6 +66,7 @@
 
 use crate::LinkSettings;
 
+mod channel_list;
 #[cfg(feature = "alloc")]
 mod owned;
 mod plans;
@@ -73,6 +74,7 @@ mod plans;
 #[cfg(test)]
 mod tests;
 
+pub use channel_list::FixedChannelList;
 #[cfg(feature = "alloc")]
 pub use owned::{ChannelPlanBuilder, OwnedChannelPlan, PayloadTable, PlanError};
 pub use plans::Region;

@@ -21,10 +21,13 @@ const FHDR_LEN: usize = 8;
 // The shortest data frame is that header plus its MIC.
 const MIN_DATA_FRAME: usize = FHDR_LEN + 4;
 
-// The FCtrl bits, as the spec lays them out.
+// The FCtrl bits, as the spec lays them out. Bits 6 and 4 are ADRACKReq and ClassB going up,
+// and a reserved bit and FPending coming down.
 const FCTRL_ADR: u8 = 0x80;
+const FCTRL_ADR_ACK_REQ: u8 = 0x40;
 const FCTRL_ACK: u8 = 0x20;
 const FCTRL_FPENDING: u8 = 0x10;
+const FCTRL_CLASS_B: u8 = 0x10;
 const FCTRL_FOPTS_LEN: u8 = 0x0F;
 
 /// What kind of message a frame is, read from its header.
@@ -100,8 +103,10 @@ pub struct FrameHeader {
     fcnt: Option<u16>,
     fport: Option<u8>,
     adr: bool,
+    adr_ack_req: bool,
     ack: bool,
     fpending: bool,
+    class_b: bool,
     fopts_len: usize,
     payload_len: usize,
 }
@@ -146,8 +151,10 @@ impl FrameHeader {
                 fcnt: None,
                 fport: None,
                 adr: false,
+                adr_ack_req: false,
                 ack: false,
                 fpending: false,
+                class_b: false,
                 fopts_len: 0,
                 payload_len: 0,
             });
@@ -157,6 +164,7 @@ impl FrameHeader {
             return Err(LorawanError::FrameTooShort);
         }
 
+        let uplink = message_type.direction() == Some(Direction::Uplink);
         let fctrl = bytes[5];
         let fopts_len = usize::from(fctrl & FCTRL_FOPTS_LEN);
         let after_fopts = FHDR_LEN + fopts_len;
@@ -178,8 +186,10 @@ impl FrameHeader {
             fcnt: Some(u16::from_le_bytes([bytes[6], bytes[7]])),
             fport,
             adr: fctrl & FCTRL_ADR != 0,
+            adr_ack_req: uplink && fctrl & FCTRL_ADR_ACK_REQ != 0,
             ack: fctrl & FCTRL_ACK != 0,
-            fpending: fctrl & FCTRL_FPENDING != 0,
+            fpending: !uplink && fctrl & FCTRL_FPENDING != 0,
+            class_b: uplink && fctrl & FCTRL_CLASS_B != 0,
             fopts_len,
             payload_len,
         })
@@ -254,6 +264,16 @@ impl FrameHeader {
         self.adr
     }
 
+    /// Reports whether an uplink asks the network to send something back.
+    ///
+    /// # Returns
+    ///
+    /// An uplink's ADRACKReq bit, and `false` for any other frame, since a downlink has a
+    /// reserved bit in its place.
+    pub fn adr_ack_req(&self) -> bool {
+        self.adr_ack_req
+    }
+
     /// Reports whether the frame acknowledges the last confirmed one.
     ///
     /// # Returns
@@ -267,9 +287,19 @@ impl FrameHeader {
     ///
     /// # Returns
     ///
-    /// The frame-pending bit.
+    /// A downlink's FPending bit, and `false` for any other frame, since an uplink carries
+    /// its ClassB bit in that place.
     pub fn fpending(&self) -> bool {
         self.fpending
+    }
+
+    /// Reports whether an uplink says its device has Class B enabled.
+    ///
+    /// # Returns
+    ///
+    /// An uplink's ClassB bit, and `false` for any other frame.
+    pub fn class_b(&self) -> bool {
+        self.class_b
     }
 
     /// Returns how many bytes of frame options the header carries.
@@ -347,12 +377,41 @@ mod tests {
     fn a_frame_carrying_only_options_has_no_port() {
         let fopts = [0x02u8, 0x01];
         let frame = session()
-            .encode_uplink(&Uplink::new(1, 0, b"").with_fopts(&fopts))
+            .encode_uplink(&Uplink::empty(1).with_fopts(&fopts))
             .unwrap();
         let header = FrameHeader::parse(frame.as_bytes()).unwrap();
 
+        assert_eq!(header.fport(), None);
         assert_eq!(header.fopts_len(), fopts.len());
         assert_eq!(header.payload_len(), 0);
+    }
+
+    #[test]
+    fn the_direction_decides_what_bits_six_and_four_mean() {
+        let up = session()
+            .encode_uplink(&Uplink::new(3, 1, b"x").with_adr_ack_req())
+            .unwrap();
+        let header = FrameHeader::parse(up.as_bytes()).unwrap();
+        assert!(header.adr_ack_req());
+        assert!(!header.fpending());
+
+        // An uplink with every flag bit set reads as ClassB, never as frame pending.
+        let mut all = up.as_bytes().to_vec();
+        all[5] |= 0xF0;
+        let header = FrameHeader::parse(&all).unwrap();
+        assert!(header.adr() && header.adr_ack_req() && header.ack() && header.class_b());
+        assert!(!header.fpending());
+
+        // A downlink with every flag bit set reads as frame pending, and bit 6 is reserved.
+        let down = session()
+            .encode_downlink(&Downlink::new(3, 1, b"x"))
+            .unwrap();
+        let mut all = down.as_bytes().to_vec();
+        all[5] |= 0xF0;
+        let header = FrameHeader::parse(&all).unwrap();
+        assert!(header.adr() && header.ack() && header.fpending());
+        assert!(!header.adr_ack_req());
+        assert!(!header.class_b());
     }
 
     #[test]

@@ -12,10 +12,13 @@ const FHDR_LEN: usize = 8;
 // The smallest data frame: the fixed header and the MIC, with no port or payload.
 const MIN_FRAME: usize = FHDR_LEN + 4;
 
-// FCtrl flag bits.
+// FCtrl flag bits. Bits 6 and 4 mean different things in each direction: an uplink carries
+// ADRACKReq and ClassB there, a downlink a reserved bit and FPending.
 const FCTRL_ADR: u8 = 0x80;
+const FCTRL_ADR_ACK_REQ: u8 = 0x40;
 const FCTRL_ACK: u8 = 0x20;
 const FCTRL_FPENDING: u8 = 0x10;
+const FCTRL_CLASS_B: u8 = 0x10;
 const FCTRL_FOPTS_LEN: u8 = 0x0F;
 
 /// An activated LoRaWAN session: a device address and the two session keys.
@@ -87,7 +90,8 @@ impl Session {
     /// # Errors
     ///
     /// Returns [`LorawanError::PayloadTooLong`] if the payload and options do not fit a
-    /// single frame.
+    /// single frame, and [`LorawanError::MalformedFrame`] for port `0` with frame options,
+    /// which would carry MAC commands in both places at once.
     pub fn encode_uplink(&self, uplink: &Uplink) -> Result<PhyPayload, LorawanError> {
         let mtype = if uplink.confirmed {
             MTYPE_CONFIRMED_UP
@@ -97,6 +101,9 @@ impl Session {
         let mut fctrl = 0;
         if uplink.adr {
             fctrl |= FCTRL_ADR;
+        }
+        if uplink.adr_ack_req {
+            fctrl |= FCTRL_ADR_ACK_REQ;
         }
         if uplink.ack {
             fctrl |= FCTRL_ACK;
@@ -125,7 +132,7 @@ impl Session {
     /// # Errors
     ///
     /// Returns [`LorawanError::PayloadTooLong`] if the payload and options do not fit a
-    /// single frame.
+    /// single frame, and [`LorawanError::MalformedFrame`] for port `0` with frame options.
     pub fn encode_downlink(&self, downlink: &Downlink) -> Result<PhyPayload, LorawanError> {
         let mtype = if downlink.confirmed {
             MTYPE_CONFIRMED_DOWN
@@ -160,14 +167,18 @@ impl Session {
         mtype: u8,
         fctrl: u8,
         fcnt: u32,
-        fport: u8,
+        fport: Option<u8>,
         fopts: &[u8],
         payload: &[u8],
     ) -> Result<PhyPayload, LorawanError> {
         if fopts.len() > usize::from(FCTRL_FOPTS_LEN) {
             return Err(LorawanError::PayloadTooLong);
         }
-        let len = MIN_FRAME + fopts.len() + 1 + payload.len();
+        // TS001-1.0.4 section 4.3.1.6: with frame options present, port 0 SHALL NOT be used.
+        if fport == Some(0) && !fopts.is_empty() {
+            return Err(LorawanError::MalformedFrame);
+        }
+        let len = MIN_FRAME + fopts.len() + usize::from(fport.is_some()) + payload.len();
         if len > MAX_FRAME {
             return Err(LorawanError::PayloadTooLong);
         }
@@ -180,19 +191,24 @@ impl Session {
         let mut at = FHDR_LEN;
         buf[at..at + fopts.len()].copy_from_slice(fopts);
         at += fopts.len();
-        buf[at] = fport;
-        at += 1;
 
-        let key = self.payload_key(fport);
-        crypt_payload(
-            key,
-            self.dev_addr,
-            direction,
-            fcnt,
-            payload,
-            &mut buf[at..at + payload.len()],
-        );
-        at += payload.len();
+        // A frame with no port carries no payload either; the constructors that leave the
+        // port out take none.
+        if let Some(port) = fport {
+            buf[at] = port;
+            at += 1;
+
+            let key = self.payload_key(port);
+            crypt_payload(
+                key,
+                self.dev_addr,
+                direction,
+                fcnt,
+                payload,
+                &mut buf[at..at + payload.len()],
+            );
+            at += payload.len();
+        }
 
         let mic = self.mic(direction, fcnt, &buf[..at]);
         buf[at..at + 4].copy_from_slice(&mic);
@@ -217,8 +233,10 @@ impl Session {
     ///
     /// Returns [`LorawanError::FrameTooShort`] if the frame is too small,
     /// [`LorawanError::UnsupportedMType`] if it is not a data frame,
-    /// [`LorawanError::FcntMismatch`] if the counter does not match, or
-    /// [`LorawanError::MicMismatch`] if the MIC does not verify.
+    /// [`LorawanError::FcntMismatch`] if the counter does not match,
+    /// [`LorawanError::MicMismatch`] if the MIC does not verify, or
+    /// [`LorawanError::MalformedFrame`] if an authentic frame carries frame options on port
+    /// `0`, which TS001-1.0.4 section 4.3.1.6 has a device discard.
     pub fn decode(&self, bytes: &[u8], fcnt: u32) -> Result<RxData, LorawanError> {
         if bytes.len() < MIN_FRAME {
             return Err(LorawanError::FrameTooShort);
@@ -250,6 +268,10 @@ impl Session {
             return Err(LorawanError::MicMismatch);
         }
 
+        if fopts_len > 0 && mic_start > body_start && bytes[body_start] == 0 {
+            return Err(LorawanError::MalformedFrame);
+        }
+
         let mut fopts = [0u8; FCTRL_FOPTS_LEN as usize];
         fopts[..fopts_len].copy_from_slice(&bytes[FHDR_LEN..FHDR_LEN + fopts_len]);
 
@@ -271,14 +293,17 @@ impl Session {
             (None, 0)
         };
 
+        let uplink = direction == Direction::Uplink;
         Ok(RxData {
             direction,
             dev_addr,
             fcnt_low,
             confirmed,
             adr: fctrl & FCTRL_ADR != 0,
+            adr_ack_req: uplink && fctrl & FCTRL_ADR_ACK_REQ != 0,
             ack: fctrl & FCTRL_ACK != 0,
-            fpending: fctrl & FCTRL_FPENDING != 0,
+            fpending: !uplink && fctrl & FCTRL_FPENDING != 0,
+            class_b: uplink && fctrl & FCTRL_CLASS_B != 0,
             fport,
             fopts,
             fopts_len,
@@ -343,7 +368,9 @@ fn crypt_payload(
 /// An uplink data frame to encode, built up from the fields a sender sets.
 ///
 /// Construct one with [`new`](Uplink::new) and turn on whatever applies; the rest default
-/// off. A higher port carries application data; port `0` carries MAC commands.
+/// off. A higher port carries application data; port `0` carries MAC commands. A frame with
+/// nothing to carry but its header and frame options, such as an answer to a MAC command
+/// with no reading to go with it, is built with [`empty`](Uplink::empty) and has no port.
 ///
 /// # Examples
 ///
@@ -355,10 +382,11 @@ fn crypt_payload(
 #[derive(Clone, Copy, Debug)]
 pub struct Uplink<'a> {
     fcnt: u32,
-    fport: u8,
+    fport: Option<u8>,
     payload: &'a [u8],
     confirmed: bool,
     adr: bool,
+    adr_ack_req: bool,
     ack: bool,
     fopts: &'a [u8],
 }
@@ -378,12 +406,49 @@ impl<'a> Uplink<'a> {
     pub fn new(fcnt: u32, fport: u8, payload: &'a [u8]) -> Self {
         Uplink {
             fcnt,
-            fport,
+            fport: Some(fport),
             payload,
             confirmed: false,
             adr: false,
+            adr_ack_req: false,
             ack: false,
             fopts: &[],
+        }
+    }
+
+    /// Creates an uplink with no port and no payload.
+    ///
+    /// TS001-1.0.4 section 4.3.2 makes the port optional when there is no payload. What such
+    /// a frame carries is its header: the counter, the flags, and whatever frame options it
+    /// is given.
+    ///
+    /// # Arguments
+    ///
+    /// * `fcnt` - the frame counter for this uplink.
+    ///
+    /// # Returns
+    ///
+    /// The uplink.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_lorawan::{Session, Uplink};
+    ///
+    /// let session = Session::new(0x2601_1BDA, [0x2B; 16], [0x99; 16]);
+    /// // A DevStatusAns: CID 0x06, battery 255 (unmeasured), margin 10 dB.
+    /// let answer = [0x06, 0xFF, 0x0A];
+    /// let frame = session.encode_uplink(&Uplink::empty(3).with_fopts(&answer))?;
+    ///
+    /// let heard = session.decode(frame.as_bytes(), 3)?;
+    /// assert_eq!(heard.fport(), None);
+    /// assert_eq!(heard.fopts(), &answer);
+    /// # Ok::<(), pamoja_lorawan::LorawanError>(())
+    /// ```
+    pub fn empty(fcnt: u32) -> Self {
+        Uplink {
+            fport: None,
+            ..Uplink::new(fcnt, 0, &[])
         }
     }
 
@@ -404,6 +469,19 @@ impl<'a> Uplink<'a> {
     /// The uplink, for chaining.
     pub fn with_adr(mut self) -> Self {
         self.adr = true;
+        self
+    }
+
+    /// Sets the ADR acknowledgment request bit, asking the network to send something back.
+    ///
+    /// A device sets it once it has gone [`ADR_ACK_LIMIT`](crate::defaults::ADR_ACK_LIMIT)
+    /// uplinks without hearing anything, and [`Backoff`](crate::adr::Backoff) says when.
+    ///
+    /// # Returns
+    ///
+    /// The uplink, for chaining.
+    pub fn with_adr_ack_req(mut self) -> Self {
+        self.adr_ack_req = true;
         self
     }
 
@@ -439,7 +517,7 @@ impl<'a> Uplink<'a> {
 #[derive(Clone, Copy, Debug)]
 pub struct Downlink<'a> {
     fcnt: u32,
-    fport: u8,
+    fport: Option<u8>,
     payload: &'a [u8],
     confirmed: bool,
     adr: bool,
@@ -463,13 +541,33 @@ impl<'a> Downlink<'a> {
     pub fn new(fcnt: u32, fport: u8, payload: &'a [u8]) -> Self {
         Downlink {
             fcnt,
-            fport,
+            fport: Some(fport),
             payload,
             confirmed: false,
             adr: false,
             ack: false,
             fpending: false,
             fopts: &[],
+        }
+    }
+
+    /// Creates a downlink with no port and no payload.
+    ///
+    /// This is the frame a network sends when all it has to say is in the header: an
+    /// acknowledgment, an answer to an ADR acknowledgment request, or MAC commands in the
+    /// frame options.
+    ///
+    /// # Arguments
+    ///
+    /// * `fcnt` - the frame counter for this downlink.
+    ///
+    /// # Returns
+    ///
+    /// The downlink.
+    pub fn empty(fcnt: u32) -> Self {
+        Downlink {
+            fport: None,
+            ..Downlink::new(fcnt, 0, &[])
         }
     }
 
@@ -539,8 +637,10 @@ pub struct RxData {
     fcnt_low: u16,
     confirmed: bool,
     adr: bool,
+    adr_ack_req: bool,
     ack: bool,
     fpending: bool,
+    class_b: bool,
     fport: Option<u8>,
     fopts: [u8; FCTRL_FOPTS_LEN as usize],
     fopts_len: usize,
@@ -594,6 +694,16 @@ impl RxData {
         self.adr
     }
 
+    /// Reports whether an uplink asks the network to send something back.
+    ///
+    /// # Returns
+    ///
+    /// `true` if an uplink's ADRACKReq bit is set. A downlink has a reserved bit in that
+    /// place, so this is always `false` for one.
+    pub fn adr_ack_req(&self) -> bool {
+        self.adr_ack_req
+    }
+
     /// Reports whether the acknowledgment bit is set.
     ///
     /// # Returns
@@ -603,13 +713,23 @@ impl RxData {
         self.ack
     }
 
-    /// Reports whether the frame-pending bit is set (downlink only).
+    /// Reports whether a downlink says the network has more waiting.
     ///
     /// # Returns
     ///
-    /// `true` if the bit is set.
+    /// `true` if a downlink's FPending bit is set. An uplink carries its ClassB bit in that
+    /// place instead, so this is always `false` for one; see [`class_b`](RxData::class_b).
     pub fn fpending(&self) -> bool {
         self.fpending
+    }
+
+    /// Reports whether an uplink says its device has Class B enabled.
+    ///
+    /// # Returns
+    ///
+    /// `true` if an uplink's ClassB bit is set, and always `false` for a downlink.
+    pub fn class_b(&self) -> bool {
+        self.class_b
     }
 
     /// Returns the port the frame was sent on, if it carried a port and payload.
@@ -817,5 +937,129 @@ mod tests {
             stranger.decode(frame.as_bytes(), 1),
             Err(LorawanError::MicMismatch)
         );
+    }
+
+    // Rewrites a frame's FCtrl or port and signs it again, so a test can hand the decoder a
+    // header no builder here produces.
+    fn resigned(
+        direction: Direction,
+        fcnt: u32,
+        frame: &[u8],
+        edit: impl Fn(&mut [u8]),
+    ) -> Vec<u8> {
+        let mut bytes = frame.to_vec();
+        edit(&mut bytes);
+        let at = bytes.len() - 4;
+        let mic = session().mic(direction, fcnt, &bytes[..at]);
+        bytes[at..].copy_from_slice(&mic);
+        bytes
+    }
+
+    #[test]
+    fn an_uplink_asking_for_an_answer_sets_bit_six() {
+        // TS001-1.0.4 table 8 and LoRaWAN 1.0.3 section 4.3.1: an uplink's FCtrl is ADR,
+        // ADRACKReq, ACK, ClassB, then FOptsLen.
+        let session = session();
+        let frame = session
+            .encode_uplink(&Uplink::new(9, 1, b"x").with_adr().with_adr_ack_req())
+            .unwrap();
+        assert_eq!(frame.as_bytes()[5], 0xC0);
+
+        let rx = session.decode(frame.as_bytes(), 9).unwrap();
+        assert!(rx.adr());
+        assert!(rx.adr_ack_req());
+        assert!(!rx.class_b());
+        assert!(!rx.fpending());
+    }
+
+    #[test]
+    fn a_downlink_reads_bit_six_as_reserved() {
+        // TS001-1.0.4 table 7: a downlink's bit 6 is RFU.
+        let frame = session()
+            .encode_downlink(&Downlink::new(4, 2, b"x"))
+            .unwrap();
+        let bytes = resigned(Direction::Downlink, 4, frame.as_bytes(), |bytes| {
+            bytes[5] |= 0x40;
+        });
+        let rx = session().decode(&bytes, 4).unwrap();
+        assert!(!rx.adr_ack_req());
+    }
+
+    #[test]
+    fn bit_four_is_class_b_going_up_and_frame_pending_coming_down() {
+        let frame = session().encode_uplink(&Uplink::new(2, 1, b"x")).unwrap();
+        let bytes = resigned(Direction::Uplink, 2, frame.as_bytes(), |bytes| {
+            bytes[5] |= 0x10;
+        });
+        let up = session().decode(&bytes, 2).unwrap();
+        assert!(up.class_b());
+        assert!(!up.fpending(), "an uplink has no pending bit to report");
+
+        let frame = session()
+            .encode_downlink(&Downlink::new(2, 1, b"x").with_fpending())
+            .unwrap();
+        assert_eq!(frame.as_bytes()[5], 0x10);
+        let down = session().decode(frame.as_bytes(), 2).unwrap();
+        assert!(down.fpending());
+        assert!(!down.class_b(), "a downlink has no class B bit to report");
+    }
+
+    #[test]
+    fn an_empty_frame_carries_no_port_byte() {
+        let session = session();
+        let answer = [0x06, 0xFF, 0x0A];
+        let frame = session
+            .encode_uplink(&Uplink::empty(5).with_fopts(&answer))
+            .unwrap();
+        assert_eq!(
+            frame.as_bytes().len(),
+            MIN_FRAME + answer.len(),
+            "the header, the options and the MIC, with no port"
+        );
+
+        let rx = session.decode(frame.as_bytes(), 5).unwrap();
+        assert_eq!(rx.fport(), None);
+        assert_eq!(rx.payload(), b"");
+        assert_eq!(rx.fopts(), &answer);
+
+        let ack = session
+            .encode_downlink(&Downlink::empty(1).with_ack())
+            .unwrap();
+        assert_eq!(
+            ack.as_bytes().len(),
+            MIN_FRAME,
+            "an acknowledgment is all header"
+        );
+        let rx = session.decode(ack.as_bytes(), 1).unwrap();
+        assert!(rx.ack());
+        assert_eq!(rx.fport(), None);
+    }
+
+    #[test]
+    fn frame_options_on_port_zero_are_refused_both_ways() {
+        // TS001-1.0.4 section 4.3.1.6: with FOpts present, FPort SHALL NOT be 0, and a device
+        // SHALL discard a frame carrying MAC commands in both places.
+        let session = session();
+        assert_eq!(
+            session.encode_uplink(&Uplink::new(1, 0, b"mac").with_fopts(&[0x02])),
+            Err(LorawanError::MalformedFrame)
+        );
+        assert_eq!(
+            session.encode_downlink(&Downlink::new(1, 0, b"mac").with_fopts(&[0x02])),
+            Err(LorawanError::MalformedFrame)
+        );
+
+        let frame = session
+            .encode_downlink(&Downlink::new(6, 1, b"mac").with_fopts(&[0x02]))
+            .unwrap();
+        let port = FHDR_LEN + 1;
+        let bytes = resigned(Direction::Downlink, 6, frame.as_bytes(), |bytes| {
+            bytes[port] = 0;
+        });
+        assert_eq!(session.decode(&bytes, 6), Err(LorawanError::MalformedFrame));
+
+        // Port 0 with no options, and options on another port, both still decode.
+        let mac = session.encode_uplink(&Uplink::new(1, 0, b"mac")).unwrap();
+        assert!(session.decode(mac.as_bytes(), 1).is_ok());
     }
 }

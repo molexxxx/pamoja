@@ -5,14 +5,12 @@
 //! run its own network rather than joining someone else's: verify the request a device
 //! sent, then grant it an address and the session keys both sides derive independently.
 
+use crate::cflist::CFLIST_LEN;
 use crate::crypto::Cipher;
 use crate::error::LorawanError;
 use crate::frame::{PhyPayload, MTYPE_JOIN_ACCEPT, MTYPE_JOIN_REQUEST, MTYPE_MASK};
 use crate::join::{copy_reversed, derive_key, JOIN_REQUEST_LEN};
 use crate::session::Session;
-
-/// The number of bytes a channel list adds to a join-accept.
-const CFLIST_LEN: usize = 16;
 
 /// A join-request a device broadcast, with its integrity already verified.
 ///
@@ -216,7 +214,9 @@ impl JoinGrant {
     ///
     /// # Arguments
     ///
-    /// * `cflist` - the 16-byte CFList, whose meaning is regional.
+    /// * `cflist` - the 16-byte CFList, whose meaning is regional; a
+    ///   [`CfList`](crate::CfList) builds either form and hands its bytes over with
+    ///   [`to_bytes`](crate::CfList::to_bytes).
     ///
     /// # Returns
     ///
@@ -477,6 +477,24 @@ mod published_vector {
         assert_eq!(accepted.net_id(), NET_ID);
         assert_eq!(accepted.dl_settings(), DL_SETTINGS);
         assert_eq!(accepted.rx_delay(), RX_DELAY);
+
+        // DLSettings 0x03 is no RX1 offset and DR3 in the second window, and RxDelay 1 is
+        // one second.
+        assert_eq!(accepted.rx1_dr_offset(), 0);
+        assert_eq!(accepted.rx2_data_rate(), 3);
+        assert_eq!(accepted.receive_delay_us(), 1_000_000);
+
+        // The channel list is the five channels between 867.1 and 867.9 MHz.
+        assert_eq!(
+            accepted.cflist().and_then(|list| list.frequencies_hz()),
+            Some([
+                867_100_000,
+                867_300_000,
+                867_500_000,
+                867_700_000,
+                867_900_000
+            ])
+        );
 
         // The session keys are the real check: they fold in the AppNonce, NetID, and
         // DevNonce, so matching an independent derivation pins the whole construction.

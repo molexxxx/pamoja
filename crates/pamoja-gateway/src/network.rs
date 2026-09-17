@@ -46,27 +46,13 @@ use pamoja_lorawan::{
 
 use crate::udp::{Rxpk, Txpk};
 
-/// The delay between the end of an uplink and the opening of the first receive window, in
-/// microseconds, as RP002-1.0.5 section 3.3 recommends for every region.
-pub const RECEIVE_DELAY1_US: u32 = 1_000_000;
-
-/// The delay before the second receive window, which the same table fixes at one second
-/// after the first.
-pub const RECEIVE_DELAY2_US: u32 = RECEIVE_DELAY1_US + 1_000_000;
-
-/// The delay before the first window a join accept may be sent in, in microseconds.
-pub const JOIN_ACCEPT_DELAY1_US: u32 = 5_000_000;
-
-/// The delay before the second window a join accept may be sent in, in microseconds.
-pub const JOIN_ACCEPT_DELAY2_US: u32 = 6_000_000;
-
-/// How far ahead of the counter it has seen a network will follow a device.
-///
-/// A frame further ahead than this is refused rather than accepted, which is what stops a
-/// captured frame from being replayed at a counter the device will never reach. The value
-/// is the one RP002-1.0.5 section 3.3 lists, noted there as deprecated and removed in
-/// LoRaWAN 1.0.4 and later; it is the ceiling this module applies to 1.0.x sessions.
-pub const MAX_FCNT_GAP: u32 = 16_384;
+// The delays a window opens after and the counter gap a session follows are the ones every
+// region shares, kept with the rest of the link layer so a device and this network read the
+// same values.
+pub use pamoja_lorawan::defaults::{
+    JOIN_ACCEPT_DELAY1_US, JOIN_ACCEPT_DELAY2_US, MAX_FCNT_GAP, RECEIVE_DELAY1_US,
+    RECEIVE_DELAY2_US,
+};
 
 /// The channel the first receive window answers on, which the region decides.
 ///

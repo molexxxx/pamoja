@@ -128,6 +128,31 @@ released together, so one entry covers all of them.
   against either upstream from a file it is given. The SX1261 that listens beside
   the concentrator for a carrier check has its commands, its patch loading and
   its decoders carried as well, though nothing drives it over a bus yet.
+- The MAC commands a LoRaWAN network and device configure each other with, in
+  `pamoja_lorawan::mac`: all ten pairs from section 5 of LoRaWAN 1.0.3, in both
+  directions, covering data rate, power, channels, receive windows, duty cycle,
+  timing and device status. An identifier names a different command in each
+  direction, so reading one takes a direction and has no default. A command
+  carries no length, so reading stops at one it does not know and hands back what
+  it could not read. The commands reach the C ABI, TypeScript, Python and C#, with
+  conformance vectors pinning the bytes of every one.
+- A LoRaWAN device that keeps itself reachable when the network goes quiet.
+  `pamoja_lorawan::adr::Backoff` counts unanswered uplinks, says when to ask the
+  network for an answer, and steps the data rate down after that, as section
+  4.3.1.1 lays out. `Backoff::recommended` starts from the limit and delay
+  RP002-1.0.5 recommends for every region, and `pamoja_lorawan::defaults` carries
+  the rest of that table: the receive and join accept delays, the frame counter
+  gap and the retransmission timeout.
+- Every bit of a LoRaWAN frame header, in the direction it belongs to. An uplink
+  can set the ADR acknowledgment request, and a received uplink reports it along
+  with its Class B bit. A frame with no payload can leave its port out, which is
+  how a device answers a MAC command with nothing else to send. A join accept
+  hands back its channel list, the first window's data rate offset, the second
+  window's data rate and the delay to the first window. `CfList` reads and builds
+  both forms a channel list takes, frequencies and channel masks, and
+  `pamoja_lora::region::FixedChannelList` gives the channel numbers the second form
+  refers to their frequencies, with tests anchored to a captured join accept and
+  to the worked examples in RP002-1.0.5.
 
 ### Changed
 
@@ -189,6 +214,11 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- A received LoRaWAN uplink with its Class B bit set no longer reports that the
+  network has more data waiting. That bit means frame pending on a downlink only,
+  and a received frame now reads it for the direction it traveled. A frame
+  carrying MAC commands in its options on port 0, which TS001-1.0.4 section
+  4.3.1.6 forbids, is refused when it is built and when it is read.
 - Two examples still taught that `with_presentation` adds to a shipped preset.
   Since 0.1.18 every preset carries a presentation, so the call on
   `Profile::well_level()` replaced the well-level bar and the battery stat, and

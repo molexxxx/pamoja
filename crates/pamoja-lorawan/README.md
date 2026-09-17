@@ -48,6 +48,10 @@ crate builds and verifies exactly that, with no radio and no allocation:
 - `FrameHeader` - what a frame says about itself before any key is involved: its
   message type, the device address, and the counter. A receiver holding many sessions
   reads this first to find the one a frame belongs to, then decodes.
+- `CfList` - the channel list a join accept may end with, in either of the two forms the
+  regional parameters define.
+- `defaults` - the receive delays, frame counter gap and ADR counts every region
+  shares, and `adr` and `mac` for keeping a device reachable and configuring it.
 
 The cryptography is the LoRaWAN construction over AES-128: an AES-CMAC MIC and an
 AES keystream for the payload, with the device address and frame counter folded into
