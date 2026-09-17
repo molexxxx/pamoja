@@ -21,6 +21,9 @@
 //! - [`fragment`]: fragmented data block transport, TS004-2.0.0, on port [`fragment::PORT`].
 //!   A block too large for one frame goes across in pieces, with coded fragments that let a
 //!   device solve for the ones it missed.
+//! - [`multicast`]: remote multicast setup, TS005-2.0.0, on port [`multicast::PORT`]. A
+//!   group of devices is given one address and one key, and a window in which they all
+//!   listen at once.
 //!
 //! These messages are unicast: a device drops them silently when they arrive on a multicast
 //! address.
@@ -30,9 +33,12 @@ use crate::LorawanError;
 pub mod clock;
 pub mod firmware;
 pub mod fragment;
+pub mod multicast;
 
 #[cfg(test)]
 mod fragment_tests;
+#[cfg(test)]
+mod multicast_tests;
 #[cfg(test)]
 mod tests;
 
