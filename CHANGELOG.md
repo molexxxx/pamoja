@@ -9,6 +9,22 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- An end device that sends through a LoRaWAN relay, TS011-1.0.1 chapters 3 and 5.
+  `EndDevice::use_relay` turns relay mode on, and every uplink then goes out behind a
+  wake-on-radio frame that names it: `Transmission::relay` says when the frame goes,
+  with how long a preamble, where the relay's acknowledgment would arrive, when the
+  uplink itself follows, and where the third receive window carries a forwarded
+  downlink back. `heard_wor_ack` reads the acknowledgment, which tells the device when
+  the relay next scans, so the following frames carry only the preamble the two clocks
+  could have drifted apart, and holds its payloads to what the relay forwards.
+  `no_wor_ack` says whether to send the uplink anyway or wake the relay again, as the
+  network's `BackOff` asks, and gives up what the device knows of a relay that stops
+  answering. A device left to itself follows appendix 5: it tries a relay on one join in
+  four, keeps it only if the join accept comes back through one, turns it on again after
+  sixteen unanswered uplinks, and puts it aside after eight frames a relay never
+  answered. `EndDeviceConfReq` takes the decision over, sets the second channel and the
+  back-off, and a saved state carries all of it, and the wake-on-radio counter, across a
+  loss of power.
 - A LoRaWAN relay that runs, `pamoja_lorawan::relay::Relay`: an end device that
   also scans for the wake-on-radio frames of TS011-1.0.1, verifies them against
   the counter it expects from each trusted device, answers with a WOR ACK saying
@@ -323,8 +339,11 @@ released together, so one entry covers all of them.
   the offset has to end; the fixed allowance appendix 1 writes lands there for no
   frame's actual time on air, and would have devices aim symbols early. This is
   what Semtech LoRa Basics Modem's relay reports.
-- A saved LoRaWAN device state is 1653 bytes, since every queued command now has
-  room for the seven bytes a relay's notification takes.
+- A saved LoRaWAN device state is 1678 bytes: every queued command now has room for the
+  seven bytes a relay's notification takes, and the state carries the device's relay mode
+  and its wake-on-radio counter.
+- `ReceiveWindow` has a third window, `Rxr`, which a device under a relay opens when
+  neither of the other two held a downlink for it.
 - A channel plan in `pamoja-lora` says what kind it is: dynamic, with the
   numbering its region reads a type 1 channel list against, or fixed. It also
   says whether devices on it answer `TXParamSetupReq`, which only AS923 and

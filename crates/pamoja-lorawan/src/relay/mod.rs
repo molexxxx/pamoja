@@ -70,6 +70,7 @@ mod filter;
 mod forward;
 mod keys;
 mod limits;
+mod mode;
 mod node;
 mod state;
 mod timing;
@@ -89,6 +90,7 @@ pub use limits::{
     CounterReset, ForwardLimits, TokenBucket, RELOAD_PERIOD_US, UNLIMITED_DEVICE_RATE,
     UNLIMITED_RELAY_RATE,
 };
+pub use mode::{smart_enable_uplinks, RelayActivation, RelaySync};
 pub use node::{Acknowledgment, Listen, Relay, RelayError, RelayHeard, RxrDownlink, Scan, Wake};
 pub(crate) use state::RelayState;
 pub use state::{RelayConfig, RelaySettings};

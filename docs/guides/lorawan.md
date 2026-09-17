@@ -56,7 +56,7 @@ It proves:
 - The network's acknowledgment and the setting it sends back on port 2 are read
   and decrypted from the first window, whose data rate the frame's length is
   held to.
-- The 1653 bytes the device saves before sleeping bring a fresh device back on a
+- The 1678 bytes the device saves before sleeping bring a fresh device back on a
   clock that has started over, and its next reading goes out as uplink 1
   without joining again.
 

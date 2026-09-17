@@ -353,7 +353,7 @@
 #define PAMOJA_LORAWAN_EUI_LEN 8
 
 // How many bytes a saved device state takes.
-#define PAMOJA_LORAWAN_SAVED_LEN 1653
+#define PAMOJA_LORAWAN_SAVED_LEN 1678
 
 // A device running from an external supply.
 #define PAMOJA_LORAWAN_BATTERY_EXTERNAL 0

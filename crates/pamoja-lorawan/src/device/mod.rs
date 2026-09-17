@@ -43,6 +43,10 @@
 //! - **Sleeping**: [`save`](EndDevice::save) and [`resume`](EndDevice::resume) carry a joined
 //!   device across a loss of power, so a node that sleeps between readings keeps its session,
 //!   its counters and everything its network set.
+//! - **Out of a gateway's reach**: [`use_relay`](EndDevice::use_relay) sends through a
+//!   LoRaWAN relay, TS011-1.0.1. Each uplink then goes out behind a wake-on-radio frame,
+//!   [`Transmission::relay`] says when and with how long a preamble, and a third receive
+//!   window carries what the relay forwards back.
 //!
 //! This covers every published plan: the dynamic EU868, EU433, AS923, KR920, IN865 and RU864,
 //! and the fixed US915, AU915 and CN470, the last in all four of its RP002-1.0.5 plans and the
@@ -85,9 +89,11 @@ mod air;
 mod answers;
 mod channels;
 mod commands;
+mod relayed;
 mod state;
 
 pub use channels::{Channel, MAX_CHANNELS};
+pub use relayed::{AckWindow, RelayExchange, RelayStatus, WakeUp, WorNext};
 pub use state::{Saved, StateError, SAVED_LEN};
 
 use pamoja_lora::region::{ChannelBlock, ChannelPlan, JoinSequence, Modulation, PowerReference};
@@ -99,7 +105,7 @@ use crate::defaults::{
     RETRANSMIT_TIMEOUT_MAX_US, RETRANSMIT_TIMEOUT_MIN_US,
 };
 use crate::mac::{MacCommand, FOPTS_MAX};
-use crate::relay::RelayState;
+use crate::relay::{smart_enable_uplinks, Carrier, RelayState};
 use crate::{
     Device, FrameHeader, LorawanError, MessageType, PhyPayload, Session, Uplink, Version,
     MAX_PAYLOAD,
@@ -107,6 +113,7 @@ use crate::{
 use air::{Air, Sequence, MAX_SUB_BANDS};
 use answers::Answers;
 use channels::{Channels, MASK_GROUPS};
+use relayed::Relayed;
 
 /// How long a transmission may hold a channel under a dwell time limit, from RP002-1.0.5
 /// section 3.3 and TS001-1.0.4 table 49.
@@ -124,6 +131,7 @@ pub struct Settings {
     highest_hz: u32,
     regional_duty_cycle: bool,
     behind_repeater: bool,
+    crystal_ppm: u32,
     seed: u32,
 }
 
@@ -153,8 +161,27 @@ impl Settings {
             highest_hz: 1_020_000_000,
             regional_duty_cycle: true,
             behind_repeater: false,
+            crystal_ppm: 20,
             seed: 0,
         }
+    }
+
+    /// Sets how far the device's own clock may drift.
+    ///
+    /// It decides how much preamble a wake-on-radio frame needs to still cover a relay's
+    /// scan, TS011-1.0.1 appendix 1. The default is the 20 parts per million of a typical
+    /// temperature-compensated crystal.
+    ///
+    /// # Arguments
+    ///
+    /// * `crystal_ppm` - the accuracy in parts per million.
+    ///
+    /// # Returns
+    ///
+    /// The settings.
+    pub const fn with_crystal_ppm(mut self, crystal_ppm: u32) -> Settings {
+        self.crystal_ppm = crystal_ppm;
+        self
     }
 
     /// Follows another revision of the link layer.
@@ -329,6 +356,13 @@ pub struct Transmission {
     /// It is held back when the answers a device owes the network do not leave room for
     /// it, since TS001-1.0.4 table 15 sends answers first. Send it again afterward.
     pub carries_payload: bool,
+    /// The wake-on-radio exchange that goes ahead of this frame under a relay, and the
+    /// window a forwarded downlink comes back in.
+    ///
+    /// With it, the frame goes out at
+    /// [`uplink_start_us`](RelayExchange::uplink_start_us) rather than straight away, and
+    /// the two windows above are still timed from the end of it.
+    pub relay: Option<RelayExchange>,
 }
 
 /// When and where to listen for a downlink.
@@ -352,6 +386,9 @@ pub enum ReceiveWindow {
     Rx1,
     /// The second, on the fixed frequency and data rate.
     Rx2,
+    /// The relay window, which a device under a relay opens last when neither of the other
+    /// two held a downlink for it, TS011-1.0.1 chapter 7.
+    Rxr,
 }
 
 /// What a frame heard in a receive window turned out to be.
@@ -604,6 +641,7 @@ enum Pending {
 struct Windows {
     rx1_data_rate: u8,
     rx2_data_rate: u8,
+    rxr_data_rate: Option<u8>,
     rx2_opens_us: u64,
 }
 
@@ -612,6 +650,7 @@ impl Windows {
         Windows {
             rx1_data_rate: transmission.rx1.data_rate,
             rx2_data_rate: transmission.rx2.data_rate,
+            rxr_data_rate: transmission.relay.map(|relay| relay.rxr.data_rate),
             rx2_opens_us: now_us
                 .saturating_add(transmission.airtime_us)
                 .saturating_add(u64::from(transmission.rx2.delay_us)),
@@ -653,6 +692,7 @@ pub struct EndDevice<'p> {
     join_used: [u16; MASK_GROUPS],
     join_slot: u32,
     quiet_until_us: u64,
+    relayed: Relayed,
 }
 
 /// A join channel chosen for one attempt, and how the attempt goes out on it.
@@ -779,6 +819,7 @@ impl<'p> EndDevice<'p> {
             join_used: [0; MASK_GROUPS],
             join_slot: 0,
             quiet_until_us: 0,
+            relayed: Relayed::new(),
         };
         device.reset_mac();
         Ok(device)
@@ -993,6 +1034,13 @@ impl<'p> EndDevice<'p> {
             Some(_) => choice.channel.downlink_hz,
             None => self.plan.rx2_frequency_hz,
         };
+        self.relayed.joining(self.joins);
+        let relay = self.wor_exchange(
+            Carrier::new(choice.channel.uplink_hz, choice.data_rate),
+            true,
+            now_us,
+        )?;
+        let started_us = relay.map_or(now_us, |relay| relay.uplink_start_us);
         let transmission = self.transmission(
             frame,
             choice.channel,
@@ -1002,10 +1050,11 @@ impl<'p> EndDevice<'p> {
             self.tx_power,
             Some(rx2_hz),
             true,
+            relay,
         )?;
 
         self.air.joined_air(choice.airtime_us);
-        self.record_air(now_us, choice.airtime_us, choice.channel.uplink_hz);
+        self.record_air(started_us, choice.airtime_us, choice.channel.uplink_hz);
         self.joins = self.joins.wrapping_add(1);
         self.join_slot = choice.next_slot;
         if choice.restart_cycle {
@@ -1265,6 +1314,10 @@ impl<'p> EndDevice<'p> {
 
     /// Reads a frame heard in a given receive window of the last transmission.
     ///
+    /// Under a relay the windows are three: the first two as ever, and then
+    /// [`ReceiveWindow::Rxr`], which carries whatever the relay forwards back, TS011-1.0.1
+    /// chapter 7.
+    ///
     /// A frame that is not for this device, does not verify, or is longer than the window's
     /// data rate carries leaves the transmission waiting, so the second window still opens.
     /// TS001-1.0.4 section 4.1 has a device discard a MACPayload longer than the region's
@@ -1339,7 +1392,7 @@ impl<'p> EndDevice<'p> {
                 dev_nonce,
                 data_rate,
                 join_channel,
-            }) => self.heard_join(frame, dev_nonce, data_rate, join_channel),
+            }) => self.heard_join(frame, dev_nonce, data_rate, join_channel, window),
             Some(Pending::Uplink {
                 windows_closed: true,
                 ..
@@ -1410,6 +1463,8 @@ impl<'p> EndDevice<'p> {
                     return Ok(Next::Repeat { not_before_us });
                 }
                 self.pending = None;
+                self.relayed
+                    .uplink_unanswered(smart_enable_uplinks(self.relayed.smart_level));
                 if confirmed {
                     self.quiet_until_us = not_before_us;
                     Ok(Next::Unacknowledged)
@@ -1460,6 +1515,8 @@ impl<'p> EndDevice<'p> {
         let airtime_us = link.airtime_us(frame.as_bytes().len());
         let channels = self.channels;
         let channel = self.pick_enabled(&channels, data_rate, now_us)?;
+        let relay = self.wor_exchange(Carrier::new(channel.uplink_hz, data_rate), false, now_us)?;
+        let started_us = relay.map_or(now_us, |relay| relay.uplink_start_us);
         let transmission = self.transmission(
             frame,
             channel,
@@ -1469,8 +1526,9 @@ impl<'p> EndDevice<'p> {
             self.tx_power,
             None,
             carries_payload,
+            relay,
         )?;
-        self.record_air(now_us, airtime_us, channel.uplink_hz);
+        self.record_air(started_us, airtime_us, channel.uplink_hz);
         self.pending = Some(Pending::Uplink {
             frame,
             data_rate,
@@ -1479,7 +1537,7 @@ impl<'p> EndDevice<'p> {
             transmissions_left: transmissions_left - 1,
             windows_closed: false,
             not_before_us: 0,
-            windows: Windows::of(&transmission, now_us),
+            windows: Windows::of(&transmission, started_us),
         });
         Ok(transmission)
     }
@@ -1594,6 +1652,8 @@ impl<'p> EndDevice<'p> {
             return Err(DeviceError::PayloadTooLong { max: room });
         }
         let channel = self.pick_enabled(&channels, data_rate, now_us)?;
+        let relay = self.wor_exchange(Carrier::new(channel.uplink_hz, data_rate), false, now_us)?;
+        let started_us = relay.map_or(now_us, |relay| relay.uplink_start_us);
         let transmission = self.transmission(
             frame,
             channel,
@@ -1603,6 +1663,7 @@ impl<'p> EndDevice<'p> {
             tx_power,
             None,
             carries_payload,
+            relay,
         )?;
 
         self.data_rate = data_rate;
@@ -1613,7 +1674,7 @@ impl<'p> EndDevice<'p> {
         self.fcnt_up += 1;
         self.answers.sent(written);
         self.ack_owed = false;
-        self.record_air(now_us, airtime_us, channel.uplink_hz);
+        self.record_air(started_us, airtime_us, channel.uplink_hz);
         self.pending = Some(Pending::Uplink {
             frame,
             data_rate,
@@ -1622,7 +1683,7 @@ impl<'p> EndDevice<'p> {
             transmissions_left: nb_trans.saturating_sub(1),
             windows_closed: false,
             not_before_us: 0,
-            windows: Windows::of(&transmission, now_us),
+            windows: Windows::of(&transmission, started_us),
         });
         Ok(transmission)
     }
@@ -1633,6 +1694,7 @@ impl<'p> EndDevice<'p> {
         dev_nonce: u16,
         data_rate: u8,
         join_channel: u16,
+        window: Option<ReceiveWindow>,
     ) -> Result<Heard, DeviceError> {
         let header = FrameHeader::parse(frame)?;
         if header.message_type() != MessageType::JoinAccept {
@@ -1687,6 +1749,7 @@ impl<'p> EndDevice<'p> {
         } else {
             self.lowest_data_rate()
         };
+        self.relayed.joined(window == Some(ReceiveWindow::Rxr));
         self.air.join_done();
         self.join_used = [0; MASK_GROUPS];
         self.join_slot = 0;
@@ -1727,6 +1790,7 @@ impl<'p> EndDevice<'p> {
         let max_mac_payload = match window {
             Some(ReceiveWindow::Rx1) => limit(windows.rx1_data_rate),
             Some(ReceiveWindow::Rx2) => limit(windows.rx2_data_rate),
+            Some(ReceiveWindow::Rxr) => windows.rxr_data_rate.and_then(limit),
             None => limit(windows.rx1_data_rate)
                 .zip(limit(windows.rx2_data_rate))
                 .map(|(rx1, rx2)| rx1.max(rx2)),
@@ -1738,6 +1802,10 @@ impl<'p> EndDevice<'p> {
         let rx = session.decode(frame, fcnt)?;
 
         self.fcnt_down = Some(fcnt);
+        self.relayed.heard_downlink();
+        if window == Some(ReceiveWindow::Rxr) {
+            self.relayed.heard_on_rxr();
+        }
         self.backoff.downlink();
         self.answers.heard_downlink();
         self.ack_owed = rx.confirmed();
@@ -1900,9 +1968,15 @@ impl<'p> EndDevice<'p> {
             self.plan
                 .max_payload(data_rate, self.settings.behind_repeater)
         };
-        limit
+        let room = limit
             .map(|limit| usize::from(limit.application).min(MAX_PAYLOAD))
-            .ok_or(DeviceError::DataRate(data_rate))
+            .ok_or(DeviceError::DataRate(data_rate))?;
+        Ok(
+            match self.relayed.enabled.then(|| self.relayed_room()).flatten() {
+                Some(relayed) => room.min(relayed),
+                None => room,
+            },
+        )
     }
 
     /// The LoRa settings of an uplink at a data rate.
@@ -2061,6 +2135,7 @@ impl<'p> EndDevice<'p> {
         tx_power: u8,
         join_rx2_hz: Option<u32>,
         carries_payload: bool,
+        relay: Option<RelayExchange>,
     ) -> Result<Transmission, DeviceError> {
         let (delay1, delay2, offset, (rx2_hz, rx2_rate)) = match join_rx2_hz {
             Some(hz) => (
@@ -2104,9 +2179,12 @@ impl<'p> EndDevice<'p> {
                 link: self.downlink_link(rx2_rate)?,
             },
             carries_payload,
+            relay,
         })
     }
 }
 
+#[cfg(test)]
+mod relayed_tests;
 #[cfg(test)]
 mod tests;
