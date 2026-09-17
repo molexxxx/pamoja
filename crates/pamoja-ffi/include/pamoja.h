@@ -352,6 +352,99 @@
 // The length of a LoRaWAN EUI, in bytes.
 #define PAMOJA_LORAWAN_EUI_LEN 8
 
+// How many bytes a saved device state takes.
+#define PAMOJA_LORAWAN_SAVED_LEN 1589
+
+// A device running from an external supply.
+#define PAMOJA_LORAWAN_BATTERY_EXTERNAL 0
+
+// A device reporting a battery level from 1, empty, to 254, full.
+#define PAMOJA_LORAWAN_BATTERY_LEVEL 1
+
+// A device that cannot measure its battery.
+#define PAMOJA_LORAWAN_BATTERY_UNKNOWN 2
+
+// A join accept: the device is on the network.
+#define PAMOJA_LORAWAN_HEARD_JOINED 0
+
+// A data frame for the device.
+#define PAMOJA_LORAWAN_HEARD_DATA 1
+
+// Send the same frame again, no sooner than the time given.
+#define PAMOJA_LORAWAN_NEXT_REPEAT 0
+
+// The uplink is finished.
+#define PAMOJA_LORAWAN_NEXT_DONE 1
+
+// A confirmed uplink went out every time it may without an acknowledgment.
+#define PAMOJA_LORAWAN_NEXT_UNACKNOWLEDGED 2
+
+// The join got no answer; join again with a new nonce, no sooner than the time given.
+#define PAMOJA_LORAWAN_NEXT_JOIN_AGAIN 3
+
+// The last call succeeded.
+#define PAMOJA_LORAWAN_DEVICE_OK 0
+
+// The plan defines more channels than a device keeps.
+#define PAMOJA_LORAWAN_DEVICE_TOO_MANY_CHANNELS 1
+
+// A device activated by personalization has nothing to join with.
+#define PAMOJA_LORAWAN_DEVICE_NO_CREDENTIALS 2
+
+// The device has not joined.
+#define PAMOJA_LORAWAN_DEVICE_NOT_JOINED 3
+
+// A transmission is still waiting on its receive windows.
+#define PAMOJA_LORAWAN_DEVICE_BUSY 4
+
+// There is no transmission waiting on its windows or due to repeat.
+#define PAMOJA_LORAWAN_DEVICE_NOTHING_PENDING 5
+
+// The air is not free until `until_us`.
+#define PAMOJA_LORAWAN_DEVICE_WAIT 6
+
+// No enabled channel carries the data rate.
+#define PAMOJA_LORAWAN_DEVICE_NO_CHANNEL 7
+
+// The data rate `data_rate` is not a LoRa one the device can use.
+#define PAMOJA_LORAWAN_DEVICE_DATA_RATE 8
+
+// The payload does not fit; `max` bytes do.
+#define PAMOJA_LORAWAN_DEVICE_PAYLOAD_TOO_LONG 9
+
+// The uplink frame counter is spent, and the device has to join again.
+#define PAMOJA_LORAWAN_DEVICE_COUNTER_EXHAUSTED 10
+
+// The frame did not decode, or port 0 was asked for an application payload.
+#define PAMOJA_LORAWAN_DEVICE_FRAME 11
+
+// The frame is addressed to another device.
+#define PAMOJA_LORAWAN_DEVICE_FOREIGN 12
+
+// The frame repeats or precedes the last downlink the device accepted.
+#define PAMOJA_LORAWAN_DEVICE_REPLAYED 13
+
+// The frame counter jumped further ahead than the device follows.
+#define PAMOJA_LORAWAN_DEVICE_COUNTER_GAP 14
+
+// A join accept carries settings the region does not allow.
+#define PAMOJA_LORAWAN_DEVICE_REFUSED 15
+
+// A saved state was not resumed; `state` says why.
+#define PAMOJA_LORAWAN_DEVICE_STATE 16
+
+// A saved state of the wrong length.
+#define PAMOJA_LORAWAN_STATE_LENGTH 1
+
+// A saved state that is corrupt.
+#define PAMOJA_LORAWAN_STATE_CORRUPT 2
+
+// A saved state in a format this build does not read, `format`.
+#define PAMOJA_LORAWAN_STATE_FORMAT 3
+
+// A saved state from another channel plan.
+#define PAMOJA_LORAWAN_STATE_PLAN 4
+
 // LoRaWAN 1.0.3.
 #define PAMOJA_LORAWAN_VERSION_1_0_3 3
 
@@ -1889,6 +1982,11 @@ typedef struct PamojaLorawanBackoff PamojaLorawanBackoff;
 // on. Release it with [`pamoja_lorawan_device_free`].
 typedef struct PamojaLorawanDevice PamojaLorawanDevice;
 
+// An opaque handle to a LoRaWAN Class A end device.
+//
+// Release it with [`pamoja_lorawan_end_device_free`].
+typedef struct PamojaLorawanEndDevice PamojaLorawanEndDevice;
+
 // An opaque handle to an accepted join.
 //
 // Read the network settings off it, then take the session it grants with
@@ -2820,6 +2918,170 @@ typedef struct {
   // The delay before the first receive window, in seconds.
   uint8_t rx_delay;
 } PamojaLorawanGrant;
+
+// What a device's radio can do, and how it takes part.
+//
+// Fill one with [`pamoja_lorawan_device_settings`], then change what differs.
+typedef struct {
+  // The lowest frequency the radio and its front end can use, in hertz.
+  uint32_t lowest_hz;
+  // The highest, in hertz.
+  uint32_t highest_hz;
+  // A seed for the random choices of channel and retry delay, ideally from a hardware
+  // random source. The device identifier is mixed in.
+  uint32_t seed;
+  // The link layer revision, [`PAMOJA_LORAWAN_VERSION_1_0_3`] or
+  // [`PAMOJA_LORAWAN_VERSION_1_0_4`].
+  uint8_t version;
+  // `1` to let the network manage the data rate and power.
+  uint8_t adr;
+  // The lowest power the radio puts out, conducted, in dBm.
+  int8_t min_output_dbm;
+  // The highest, conducted, in dBm.
+  int8_t max_output_dbm;
+  // The antenna gain less the cable and connector losses, in dB.
+  int8_t antenna_gain_db;
+  // `1` to hold the device to the region's sub-band duty cycles.
+  uint8_t regional_duty_cycle;
+  // `1` to size payloads for a path through a relay.
+  uint8_t behind_repeater;
+} PamojaLorawanDeviceSettings;
+
+// Why a device's last call failed.
+typedef struct {
+  // For [`PAMOJA_LORAWAN_DEVICE_WAIT`], the earliest time to try again, in microseconds.
+  uint64_t until_us;
+  // For [`PAMOJA_LORAWAN_DEVICE_PAYLOAD_TOO_LONG`], the most the frame carries, and for
+  // [`PAMOJA_LORAWAN_DEVICE_TOO_MANY_CHANNELS`], the most channels a device keeps.
+  uint32_t max;
+  // One of the `PAMOJA_LORAWAN_DEVICE_*` constants.
+  uint8_t kind;
+  // For [`PAMOJA_LORAWAN_DEVICE_DATA_RATE`], the data rate.
+  uint8_t data_rate;
+  // For [`PAMOJA_LORAWAN_DEVICE_STATE`], one of the `PAMOJA_LORAWAN_STATE_*` constants.
+  uint8_t state;
+  // For [`PAMOJA_LORAWAN_STATE_FORMAT`], the format the state was saved in.
+  uint8_t format;
+} PamojaLorawanDeviceError;
+
+// When and where to listen for a downlink.
+typedef struct {
+  // How long after the end of the transmission the window opens, in microseconds.
+  uint32_t delay_us;
+  // The carrier, in hertz.
+  uint32_t frequency_hz;
+  // The LoRa settings to listen with: no payload CRC, and inverted IQ, as RP002-1.0.5
+  // table 112 has for a downlink.
+  PamojaLoraLink link;
+  // The downlink data rate, as the region numbers them.
+  uint8_t data_rate;
+} PamojaLorawanWindow;
+
+// A frame to put on the air, and where to listen afterward.
+//
+// The frame's bytes cross beside it as a [`PamojaBuffer`].
+typedef struct {
+  // How long the frame holds the air, in microseconds.
+  uint64_t airtime_us;
+  // The carrier, in hertz.
+  uint32_t frequency_hz;
+  // The first receive window.
+  PamojaLorawanWindow rx1;
+  // The second, which opens only if nothing for this device arrived in the first.
+  PamojaLorawanWindow rx2;
+  // The LoRa settings: an eight-symbol preamble, an explicit header and a payload CRC,
+  // sent with standard IQ.
+  PamojaLoraLink link;
+  // The data rate, as the region numbers them.
+  uint8_t data_rate;
+  // The power to ask of the radio, conducted, in dBm.
+  int8_t output_dbm;
+  // `1` if the application payload went out in this frame; `0` if the answers the
+  // device owed left no room, and it has to be sent again.
+  uint8_t carries_payload;
+} PamojaLorawanTransmission;
+
+// What a frame heard in a receive window turned out to be.
+//
+// For a data frame the payload crosses beside it as a [`PamojaBuffer`].
+typedef struct {
+  // For a join, the address the network gave the device.
+  uint32_t dev_addr;
+  // For a time answer, whole seconds since the GPS epoch.
+  uint32_t gps_seconds;
+  // [`PAMOJA_LORAWAN_HEARD_JOINED`] or [`PAMOJA_LORAWAN_HEARD_DATA`].
+  uint8_t kind;
+  // `1` if the payload arrived on an application port.
+  uint8_t has_port;
+  // The application port.
+  uint8_t port;
+  // `1` if the network acknowledged the confirmed uplink this answered.
+  uint8_t acknowledged;
+  // `1` if the network asked for this downlink to be acknowledged.
+  uint8_t confirmed;
+  // `1` if the network has more waiting.
+  uint8_t more_pending;
+  // `1` if the downlink answered a link check.
+  uint8_t has_link_check;
+  // How far above the demodulation floor the best gateway heard the check, in dB.
+  uint8_t margin_db;
+  // How many gateways heard it.
+  uint8_t gateways;
+  // `1` if the downlink answered a time request.
+  uint8_t has_device_time;
+  // The fraction of a second, in 256ths.
+  uint8_t fraction;
+} PamojaLorawanHeard;
+
+// What to do once both receive windows closed with nothing for the device.
+typedef struct {
+  // For a repeat or another join, the earliest time to send, in microseconds.
+  uint64_t not_before_us;
+  // One of the `PAMOJA_LORAWAN_NEXT_*` constants.
+  uint8_t kind;
+} PamojaLorawanNext;
+
+// Where a device stands, read in one call.
+typedef struct {
+  // The address the device is on the network by, meaningful when `joined` is `1`.
+  uint32_t dev_addr;
+  // The next uplink frame counter.
+  uint32_t fcnt_up;
+  // The last downlink frame counter accepted, meaningful when `has_fcnt_down` is `1`.
+  uint32_t fcnt_down;
+  // Where the second receive window listens, in hertz.
+  uint32_t rx2_frequency_hz;
+  // The delay from the end of an uplink to the first receive window, in microseconds.
+  uint32_t receive_delay_us;
+  // The lowest frequency the device transmits or listens on.
+  uint32_t lowest_hz;
+  // The highest.
+  uint32_t highest_hz;
+  // How many channels are enabled.
+  uint16_t channel_count;
+  // `1` once joined, or from the start for a personalized device.
+  uint8_t joined;
+  // The data rate the next uplink goes out at, before any back-off step.
+  uint8_t data_rate;
+  // `1` once a downlink has been accepted.
+  uint8_t has_fcnt_down;
+  // How many times each uplink goes out, NbTrans.
+  uint8_t transmissions;
+  // The data rate the second receive window listens at.
+  uint8_t rx2_data_rate;
+} PamojaLorawanEndDeviceStatus;
+
+// A channel a device may send on.
+typedef struct {
+  // Where uplinks go out, in hertz.
+  uint32_t uplink_hz;
+  // Where the first receive window listens, in hertz.
+  uint32_t downlink_hz;
+  // The slowest data rate the channel carries.
+  uint8_t min_data_rate;
+  // The fastest.
+  uint8_t max_data_rate;
+} PamojaLorawanChannel;
 
 // What a back-off says to do with one uplink.
 //
@@ -9418,6 +9680,484 @@ PamojaStatus pamoja_lorawan_grant_session(PamojaLorawanGrant grant,
                                           uintptr_t app_key_len,
                                           uint16_t dev_nonce,
                                           PamojaLorawanSession **out_session);
+
+// Fills in the settings of a typical node with a radio's output power range.
+//
+// The rest start as TS001-1.0.4, adaptive data rate on, an antenna with no gain over its
+// cable, a radio that tunes 137 to 1020 MHz as an SX1276 does, the region's duty cycle
+// kept, no repeater in the path, and a seed of zero.
+//
+// # Arguments
+//
+// * `min_output_dbm` - the lowest power the radio puts out, conducted.
+// * `max_output_dbm` - the highest, conducted.
+// * `out_settings` - receives the settings.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `out_settings` is null.
+//
+// # Safety
+//
+// `out_settings` must point to a writable [`PamojaLorawanDeviceSettings`].
+PamojaStatus pamoja_lorawan_device_settings(int8_t min_output_dbm,
+                                            int8_t max_output_dbm,
+                                            PamojaLorawanDeviceSettings *out_settings);
+
+// Makes a device that joins over the air.
+//
+// # Arguments
+//
+// * `plan` - a published channel plan.
+// * `credentials` - the device's identifiers and root key, which the device copies.
+// * `settings` - what its radio can do.
+// * `fcnt_up` - the next uplink frame counter, 0 for a device that has never sent. A join
+//   starts it over.
+// * `has_fcnt_down` - `1` if `fcnt_down` holds the last downlink counter accepted.
+// * `fcnt_down` - that counter.
+// * `out_device` - receives the device.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_device` set to a handle the caller must
+// release with [`pamoja_lorawan_end_device_free`].
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, the plan was built rather
+// than published, the settings name no version or run backward, or the plan defines more
+// channels than a device keeps.
+//
+// # Safety
+//
+// `plan` and `credentials` must be live handles, `settings` must point to a readable
+// [`PamojaLorawanDeviceSettings`], and `out_device` to a writable pointer.
+PamojaStatus pamoja_lorawan_end_device_new(const PamojaLoraPlan *plan,
+                                           const PamojaLorawanDevice *credentials,
+                                           const PamojaLorawanDeviceSettings *settings,
+                                           uint32_t fcnt_up,
+                                           uint8_t has_fcnt_down,
+                                           uint32_t fcnt_down,
+                                           PamojaLorawanEndDevice **out_device);
+
+// Makes a device activated by personalization, with its session provisioned.
+//
+// Such a device never resets its frame counters, TS001-1.0.4 section 4.3.1.5, so a device
+// that lost power passes the ones it kept.
+//
+// # Arguments
+//
+// * `plan` - a published channel plan.
+// * `session` - the address and session keys it was provisioned with, which the device
+//   copies.
+// * `settings` - what its radio can do.
+// * `fcnt_up` - the next uplink frame counter.
+// * `has_fcnt_down` - `1` if `fcnt_down` holds the last downlink counter accepted.
+// * `fcnt_down` - that counter.
+// * `out_device` - receives the device.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_device` set to a handle the caller must
+// release with [`pamoja_lorawan_end_device_free`].
+//
+// # Errors
+//
+// As [`pamoja_lorawan_end_device_new`].
+//
+// # Safety
+//
+// `plan` and `session` must be live handles, `settings` must point to a readable
+// [`PamojaLorawanDeviceSettings`], and `out_device` to a writable pointer.
+PamojaStatus pamoja_lorawan_end_device_personalized(const PamojaLoraPlan *plan,
+                                                    const PamojaLorawanSession *session,
+                                                    const PamojaLorawanDeviceSettings *settings,
+                                                    uint32_t fcnt_up,
+                                                    uint8_t has_fcnt_down,
+                                                    uint32_t fcnt_down,
+                                                    PamojaLorawanEndDevice **out_device);
+
+// Releases a device handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `device` must be a handle from a call that made one and has not already been freed, or
+// null. After this call it must not be used again.
+void pamoja_lorawan_end_device_free(PamojaLorawanEndDevice *device);
+
+// Reads why a device's last call failed.
+//
+// # Arguments
+//
+// * `device` - the device.
+// * `out_error` - receives the reason, with `kind` [`PAMOJA_LORAWAN_DEVICE_OK`] when the
+//   last call succeeded.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `device` must be a live handle and `out_error` must point to a writable
+// [`PamojaLorawanDeviceError`].
+PamojaStatus pamoja_lorawan_end_device_error(const PamojaLorawanEndDevice *device,
+                                             PamojaLorawanDeviceError *out_error);
+
+// Builds a join request.
+//
+// # Arguments
+//
+// * `device` - the device.
+// * `dev_nonce` - a nonce this device has never used with its join identifier.
+// * `now_us` - the time, in microseconds.
+// * `out_frame` - receives the frame to transmit.
+// * `out_transmission` - receives where and how to transmit it, and the accept windows.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_frame` set to a buffer the caller must release
+// with [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Errors
+//
+// Returns a failing status, with the reason on [`pamoja_lorawan_end_device_error`]: no
+// credentials, busy, or a wait for the air.
+//
+// # Safety
+//
+// `device` must be a live handle and the out pointers writable.
+PamojaStatus pamoja_lorawan_end_device_join(PamojaLorawanEndDevice *device,
+                                            uint16_t dev_nonce,
+                                            uint64_t now_us,
+                                            PamojaBuffer **out_frame,
+                                            PamojaLorawanTransmission *out_transmission);
+
+// Builds an uplink carrying a payload.
+//
+// # Arguments
+//
+// * `device` - the device.
+// * `port` - the application port, 1 to 223, or 224 for the certification test port.
+// * `payload` - the application payload.
+// * `payload_len` - its length.
+// * `confirmed` - `1` to ask the network to acknowledge it.
+// * `now_us` - the time, in microseconds.
+// * `out_frame` - receives the frame to transmit.
+// * `out_transmission` - receives where and how to transmit it, and its windows.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success, with `*out_frame` set to a buffer the caller must release
+// with [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for port 0, which belongs to MAC commands, and
+// a failing status with the reason on [`pamoja_lorawan_end_device_error`] otherwise: not
+// joined, busy, a wait for the air, or a payload too long.
+//
+// # Safety
+//
+// `device` must be a live handle, `payload` must point to `payload_len` readable bytes when
+// that is non-zero, and the out pointers must be writable.
+PamojaStatus pamoja_lorawan_end_device_send(PamojaLorawanEndDevice *device,
+                                            uint8_t port,
+                                            const uint8_t *payload,
+                                            uintptr_t payload_len,
+                                            uint8_t confirmed,
+                                            uint64_t now_us,
+                                            PamojaBuffer **out_frame,
+                                            PamojaLorawanTransmission *out_transmission);
+
+// Builds an uplink with no payload, carrying the answers the device owes, an
+// acknowledgment, or an ADR acknowledgment request.
+//
+// # Arguments
+//
+// * `device` - the device.
+// * `now_us` - the time, in microseconds.
+// * `out_frame` - receives the frame to transmit.
+// * `out_transmission` - receives where and how to transmit it, and its windows.
+//
+// # Returns
+//
+// As [`pamoja_lorawan_end_device_send`].
+//
+// # Errors
+//
+// As [`pamoja_lorawan_end_device_send`].
+//
+// # Safety
+//
+// `device` must be a live handle and the out pointers writable.
+PamojaStatus pamoja_lorawan_end_device_send_empty(PamojaLorawanEndDevice *device,
+                                                  uint64_t now_us,
+                                                  PamojaBuffer **out_frame,
+                                                  PamojaLorawanTransmission *out_transmission);
+
+// Sends the last uplink again, the same frame on a channel chosen afresh.
+//
+// # Arguments
+//
+// * `device` - the device.
+// * `now_us` - the time, in microseconds.
+// * `out_frame` - receives the frame to transmit.
+// * `out_transmission` - receives where and how to transmit it, and its windows.
+//
+// # Returns
+//
+// As [`pamoja_lorawan_end_device_send`].
+//
+// # Errors
+//
+// Returns a failing status with the reason on [`pamoja_lorawan_end_device_error`]: nothing
+// due to repeat, or a wait.
+//
+// # Safety
+//
+// `device` must be a live handle and the out pointers writable.
+PamojaStatus pamoja_lorawan_end_device_repeat(PamojaLorawanEndDevice *device,
+                                              uint64_t now_us,
+                                              PamojaBuffer **out_frame,
+                                              PamojaLorawanTransmission *out_transmission);
+
+// Reads a frame heard in one of the receive windows of the last transmission.
+//
+// A frame that is not for this device, or does not verify, leaves the transmission waiting,
+// so the second window still opens.
+//
+// # Arguments
+//
+// * `device` - the device.
+// * `frame` - the bytes the radio received.
+// * `frame_len` - their length.
+// * `snr_db` - the frame's signal-to-noise ratio, which a `DevStatusAns` reports.
+// * `out_heard` - receives what the frame was.
+// * `out_payload` - receives the application payload of a data frame, and null for a join.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success. A payload buffer, when set, must be released with
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Errors
+//
+// Returns a failing status with the reason on [`pamoja_lorawan_end_device_error`]: nothing
+// pending, another device's frame, a replayed or far-ahead counter, a refused join accept,
+// or a frame that did not decode.
+//
+// # Safety
+//
+// `device` must be a live handle, `frame` must point to `frame_len` readable bytes when that
+// is non-zero, and the out pointers must be writable.
+PamojaStatus pamoja_lorawan_end_device_heard(PamojaLorawanEndDevice *device,
+                                             const uint8_t *frame,
+                                             uintptr_t frame_len,
+                                             int8_t snr_db,
+                                             PamojaLorawanHeard *out_heard,
+                                             PamojaBuffer **out_payload);
+
+// Says what comes next once both receive windows closed with nothing for the device.
+//
+// # Arguments
+//
+// * `device` - the device.
+// * `now_us` - the time the second window closed, in microseconds.
+// * `out_next` - receives what to do.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns a failing status with the reason on [`pamoja_lorawan_end_device_error`] when no
+// transmission waits on its windows.
+//
+// # Safety
+//
+// `device` must be a live handle and `out_next` writable.
+PamojaStatus pamoja_lorawan_end_device_nothing_heard(PamojaLorawanEndDevice *device,
+                                                     uint64_t now_us,
+                                                     PamojaLorawanNext *out_next);
+
+// Sets what the device reports its battery as, when a network asks.
+//
+// # Arguments
+//
+// * `device` - the device.
+// * `kind` - one of the `PAMOJA_LORAWAN_BATTERY_*` constants.
+// * `level` - for [`PAMOJA_LORAWAN_BATTERY_LEVEL`], 1 for empty to 254 for full, clamped
+//   into that range.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `device` is null or `kind` names nothing.
+//
+// # Safety
+//
+// `device` must be a live handle.
+PamojaStatus pamoja_lorawan_end_device_set_battery(PamojaLorawanEndDevice *device,
+                                                   uint8_t kind,
+                                                   uint8_t level);
+
+// Asks the network, with the next uplink, how well it hears the device.
+//
+// # Arguments
+//
+// * `device` - the device.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `device` is null.
+//
+// # Safety
+//
+// `device` must be a live handle.
+PamojaStatus pamoja_lorawan_end_device_request_link_check(PamojaLorawanEndDevice *device);
+
+// Asks the network, with the next uplink, for the time.
+//
+// # Arguments
+//
+// * `device` - the device.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `device` is null.
+//
+// # Safety
+//
+// `device` must be a live handle.
+PamojaStatus pamoja_lorawan_end_device_request_device_time(PamojaLorawanEndDevice *device);
+
+// Reads where a device stands.
+//
+// # Arguments
+//
+// * `device` - the device.
+// * `out_status` - receives the status.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `device` must be a live handle and `out_status` writable.
+PamojaStatus pamoja_lorawan_end_device_status(const PamojaLorawanEndDevice *device,
+                                              PamojaLorawanEndDeviceStatus *out_status);
+
+// Reads one of the channels a device may send on.
+//
+// # Arguments
+//
+// * `device` - the device.
+// * `position` - the channel's position among the enabled ones, below the count
+//   [`pamoja_lorawan_end_device_status`] reports.
+// * `out_index` - receives the channel's index in the device's table.
+// * `out_channel` - receives the channel.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null or `position` is past the
+// last enabled channel.
+//
+// # Safety
+//
+// `device` must be a live handle and the out pointers writable.
+PamojaStatus pamoja_lorawan_end_device_channel(const PamojaLorawanEndDevice *device,
+                                               uint16_t position,
+                                               uint16_t *out_index,
+                                               PamojaLorawanChannel *out_channel);
+
+// Saves a joined device's state, to keep across a loss of power.
+//
+// The bytes hold the session keys, so keep them wherever the keys would be safe.
+//
+// # Arguments
+//
+// * `device` - the device.
+// * `now_us` - the time, in microseconds, which the duty cycle waits are measured from.
+// * `out_saved` - receives the state.
+// * `len` - room at `out_saved`, which must be [`PAMOJA_LORAWAN_SAVED_LEN`].
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null or `len` is wrong, and a
+// failing status with the reason on [`pamoja_lorawan_end_device_error`] for a device that
+// has not joined or is waiting on its windows.
+//
+// # Safety
+//
+// `device` must be a live handle and `out_saved` must point to `len` writable bytes.
+PamojaStatus pamoja_lorawan_end_device_save(PamojaLorawanEndDevice *device,
+                                            uint64_t now_us,
+                                            uint8_t *out_saved,
+                                            uintptr_t len);
+
+// Puts a saved state back on a device made on the same channel plan.
+//
+// # Arguments
+//
+// * `device` - the device, made the same way the saved one was.
+// * `saved` - the state [`pamoja_lorawan_end_device_save`] wrote.
+// * `saved_len` - its length.
+// * `now_us` - the time, in microseconds, on the clock the device woke to.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns a failing status with the reason on [`pamoja_lorawan_end_device_error`]: a state
+// of the wrong length, a corrupt one, one in a format this build does not read, one from
+// another plan, or a device busy with a transmission.
+//
+// # Safety
+//
+// `device` must be a live handle and `saved` must point to `saved_len` readable bytes when
+// that is non-zero.
+PamojaStatus pamoja_lorawan_end_device_resume(PamojaLorawanEndDevice *device,
+                                              const uint8_t *saved,
+                                              uintptr_t saved_len,
+                                              uint64_t now_us);
 
 // Starts a back-off count from zero.
 //

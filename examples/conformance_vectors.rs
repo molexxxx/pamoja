@@ -35,6 +35,10 @@ use pamoja_lora::region::{
 };
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::adr::{Backoff, Standing};
+use pamoja_lorawan::device::{
+    Battery, DeviceError, EndDevice, Heard, Next, Saved, Settings, StateError, Transmission,
+    Window as DeviceWindow,
+};
 use pamoja_lorawan::{
     defaults, CfList, CfListKind, Device, Downlink, FrameHeader, JoinGrant, JoinRequest, Session,
     Uplink, Version,
@@ -162,6 +166,7 @@ fn main() {
         "routing": routing(),
         "lorawan": lorawan(),
         "lorawanLink": lorawan_link(),
+        "lorawanDevice": lorawan_device(),
 
         "header": header(),
         "network": network(),
@@ -2882,6 +2887,507 @@ fn lorawan_link() -> Value {
         "joinAccepts": [
             accepted(&published, &published_bytes, 0xCC85),
             accepted(&granted, own.as_bytes(), 7),
+        ],
+    })
+}
+
+/// A plan a device script runs on, as the vectors name it.
+#[derive(Clone, Copy)]
+enum ScriptPlan {
+    Region(Region),
+    Cn470(Cn470Plan, &'static str),
+}
+
+impl ScriptPlan {
+    fn plan(self) -> &'static ChannelPlan<'static> {
+        match self {
+            ScriptPlan::Region(region) => region.plan(),
+            ScriptPlan::Cn470(plan, _) => plan.plan(),
+        }
+    }
+
+    fn describe(self) -> Value {
+        match self {
+            ScriptPlan::Region(region) => json!({ "region": region.code() }),
+            ScriptPlan::Cn470(_, name) => json!({ "cn470": name }),
+        }
+    }
+}
+
+/// The settings a device script makes its device with, as every binding passes them.
+fn settings_vector(min: i8, max: i8, seed: u32) -> (Settings, Value) {
+    (
+        Settings::new(min, max).with_seed(seed),
+        json!({
+            "minOutputDbm": min,
+            "maxOutputDbm": max,
+            "version": "1.0.4",
+            "adr": true,
+            "antennaGainDb": 0,
+            "lowestHz": 137_000_000u32,
+            "highestHz": 1_020_000_000u32,
+            "regionalDutyCycle": true,
+            "behindRepeater": false,
+            "seed": seed,
+        }),
+    )
+}
+
+fn link_vector(link: LinkSettings) -> Value {
+    json!({
+        "spreadingFactor": link.spreading_factor(),
+        "bandwidthHz": link.bandwidth_hz(),
+        "codingRateDenominator": link.coding_rate_denominator(),
+        "preambleSymbols": link.preamble_symbols(),
+        "explicitHeader": link.explicit_header(),
+        "crc": link.crc(),
+    })
+}
+
+fn window_vector(window: DeviceWindow) -> Value {
+    json!({
+        "delayUs": window.delay_us,
+        "frequencyHz": window.frequency_hz,
+        "dataRate": window.data_rate,
+        "link": link_vector(window.link),
+    })
+}
+
+fn transmission_vector(transmission: &Transmission) -> Value {
+    json!({
+        "frame": hex(transmission.frame.as_bytes()),
+        "frequencyHz": transmission.frequency_hz,
+        "dataRate": transmission.data_rate,
+        "link": link_vector(transmission.link),
+        "outputDbm": transmission.output_dbm,
+        "airtimeUs": transmission.airtime_us,
+        "rx1": window_vector(transmission.rx1),
+        "rx2": window_vector(transmission.rx2),
+        "carriesPayload": transmission.carries_payload,
+    })
+}
+
+fn device_error_vector(error: DeviceError) -> Value {
+    let (kind, until_us, max, data_rate, state, format) = match error {
+        DeviceError::TooManyChannels { max } => {
+            ("too_many_channels", None, Some(max), None, None, None)
+        }
+        DeviceError::NoCredentials => ("no_credentials", None, None, None, None, None),
+        DeviceError::NotJoined => ("not_joined", None, None, None, None, None),
+        DeviceError::Busy => ("busy", None, None, None, None, None),
+        DeviceError::NothingPending => ("nothing_pending", None, None, None, None, None),
+        DeviceError::Wait { until_us } => ("wait", Some(until_us), None, None, None, None),
+        DeviceError::NoChannel => ("no_channel", None, None, None, None, None),
+        DeviceError::DataRate(rate) => ("data_rate", None, None, Some(rate), None, None),
+        DeviceError::PayloadTooLong { max } => {
+            ("payload_too_long", None, Some(max), None, None, None)
+        }
+        DeviceError::CounterExhausted => ("counter_exhausted", None, None, None, None, None),
+        DeviceError::Frame(_) => ("frame", None, None, None, None, None),
+        DeviceError::Foreign => ("foreign", None, None, None, None, None),
+        DeviceError::Replayed => ("replayed", None, None, None, None, None),
+        DeviceError::CounterGap => ("counter_gap", None, None, None, None, None),
+        DeviceError::Refused => ("refused", None, None, None, None, None),
+        DeviceError::State(state) => {
+            let (name, format) = match state {
+                StateError::Length => ("length", None),
+                StateError::Corrupt => ("corrupt", None),
+                StateError::Format(format) => ("format", Some(format)),
+                StateError::Plan => ("plan", None),
+            };
+            ("state", None, None, None, Some(name), format)
+        }
+    };
+    json!({
+        "kind": kind,
+        "untilUs": until_us,
+        "max": max,
+        "dataRate": data_rate,
+        "state": state,
+        "format": format,
+    })
+}
+
+/// Runs a device through calls and records every answer as the step a binding replays.
+struct Script {
+    device: EndDevice<'static>,
+    steps: Vec<Value>,
+}
+
+impl Script {
+    fn outcome<T>(
+        &mut self,
+        mut step: Value,
+        result: Result<T, DeviceError>,
+        field: &str,
+        describe: impl FnOnce(&T) -> Value,
+    ) -> Option<T> {
+        match result {
+            Ok(value) => {
+                step[field] = describe(&value);
+                self.steps.push(step);
+                Some(value)
+            }
+            Err(error) => {
+                step["error"] = device_error_vector(error);
+                self.steps.push(step);
+                None
+            }
+        }
+    }
+
+    fn join(&mut self, dev_nonce: u16, now_us: u64) -> Option<Transmission> {
+        let result = self.device.join(dev_nonce, now_us);
+        let step = json!({ "call": "join", "devNonce": dev_nonce, "nowUs": now_us });
+        self.outcome(step, result, "transmission", transmission_vector)
+    }
+
+    fn send(
+        &mut self,
+        port: u8,
+        payload: &[u8],
+        confirmed: bool,
+        now_us: u64,
+    ) -> Option<Transmission> {
+        let result = self.device.send(port, payload, confirmed, now_us);
+        let step = json!({
+            "call": "send",
+            "port": port,
+            "payload": hex(payload),
+            "confirmed": confirmed,
+            "nowUs": now_us,
+        });
+        self.outcome(step, result, "transmission", transmission_vector)
+    }
+
+    fn send_empty(&mut self, now_us: u64) -> Option<Transmission> {
+        let result = self.device.send_empty(now_us);
+        let step = json!({ "call": "sendEmpty", "nowUs": now_us });
+        self.outcome(step, result, "transmission", transmission_vector)
+    }
+
+    fn repeat(&mut self, now_us: u64) -> Option<Transmission> {
+        let result = self.device.repeat(now_us);
+        let step = json!({ "call": "repeat", "nowUs": now_us });
+        self.outcome(step, result, "transmission", transmission_vector)
+    }
+
+    fn heard(&mut self, frame: &[u8], snr_db: i8) {
+        let result = self.device.heard(frame, snr_db);
+        let dev_addr = self.device.dev_addr().unwrap_or(0);
+        let step = json!({ "call": "heard", "frame": hex(frame), "snrDb": snr_db });
+        self.outcome(step, result, "heard", |heard| match heard {
+            Heard::Joined { dev_addr } => json!({ "kind": "joined", "devAddr": dev_addr }),
+            Heard::Data(delivery) => json!({
+                "kind": "data",
+                "devAddr": dev_addr,
+                "delivery": {
+                    "port": delivery.port(),
+                    "payload": hex(delivery.payload()),
+                    "acknowledged": delivery.acknowledged(),
+                    "confirmed": delivery.confirmed(),
+                    "morePending": delivery.more_pending(),
+                    "linkCheck": delivery.link_check().map(|check| json!({
+                        "marginDb": check.margin_db,
+                        "gateways": check.gateways,
+                    })),
+                    "deviceTime": delivery.device_time().map(|time| json!({
+                        "gpsSeconds": time.gps_seconds,
+                        "fraction": time.fraction,
+                    })),
+                },
+            }),
+        });
+    }
+
+    fn nothing_heard(&mut self, now_us: u64) -> Option<Next> {
+        let result = self.device.nothing_heard(now_us);
+        let step = json!({ "call": "nothingHeard", "nowUs": now_us });
+        self.outcome(step, result, "next", |next| match next {
+            Next::Repeat { not_before_us } => {
+                json!({ "kind": "repeat", "notBeforeUs": not_before_us })
+            }
+            Next::Done => json!({ "kind": "done", "notBeforeUs": null }),
+            Next::Unacknowledged => json!({ "kind": "unacknowledged", "notBeforeUs": null }),
+            Next::JoinAgain { not_before_us } => {
+                json!({ "kind": "join_again", "notBeforeUs": not_before_us })
+            }
+        })
+    }
+
+    fn save(&mut self, now_us: u64) -> Option<Saved> {
+        let result = self.device.save(now_us);
+        let step = json!({ "call": "save", "nowUs": now_us });
+        self.outcome(step, result, "saved", |saved| json!(hex(saved.as_bytes())))
+    }
+
+    fn resume(&mut self, bytes: &[u8], now_us: u64) {
+        let result = Saved::from_bytes(bytes)
+            .map_err(DeviceError::State)
+            .and_then(|saved| self.device.resume(&saved, now_us));
+        let step = json!({ "call": "resume", "saved": hex(bytes), "nowUs": now_us });
+        self.outcome(step, result, "resumed", |_| json!(true));
+    }
+
+    fn request_link_check(&mut self) {
+        self.device.request_link_check();
+        self.steps.push(json!({ "call": "requestLinkCheck" }));
+    }
+
+    fn request_device_time(&mut self) {
+        self.device.request_device_time();
+        self.steps.push(json!({ "call": "requestDeviceTime" }));
+    }
+
+    fn set_battery(&mut self, battery: Battery) {
+        self.device.set_battery(battery);
+        let described = match battery {
+            Battery::External => json!("external"),
+            Battery::Unknown => json!("unknown"),
+            Battery::Level(level) => json!(level),
+        };
+        self.steps
+            .push(json!({ "call": "setBattery", "battery": described }));
+    }
+
+    fn status(&mut self) {
+        let device = &self.device;
+        let (rx2_hz, rx2_rate) = device.rx2();
+        let (lowest_hz, highest_hz) = device.frequency_span();
+        let channels: Vec<Value> = device
+            .channels()
+            .map(|(index, channel)| {
+                json!({
+                    "index": index,
+                    "uplinkHz": channel.uplink_hz,
+                    "downlinkHz": channel.downlink_hz,
+                    "minDataRate": channel.min_data_rate,
+                    "maxDataRate": channel.max_data_rate,
+                })
+            })
+            .collect();
+        self.steps.push(json!({
+            "call": "status",
+            "status": {
+                "joined": device.is_joined(),
+                "devAddr": device.dev_addr(),
+                "dataRate": device.data_rate(),
+                "fcntUp": device.fcnt_up(),
+                "fcntDown": device.fcnt_down(),
+                "transmissions": device.transmissions(),
+                "rx2": { "frequencyHz": rx2_hz, "dataRate": rx2_rate },
+                "receiveDelayUs": device.receive_delay_us(),
+                "frequencySpan": { "lowestHz": lowest_hz, "highestHz": highest_hz },
+                "channels": channels,
+            },
+        }));
+    }
+}
+
+/// A LoRaWAN Class A end device driven through whole exchanges: joining on each kind of plan,
+/// sending, hearing data with MAC commands in it, the errors each call can end in, and a state
+/// saved and resumed into a device that then sends the frame the first one would have.
+///
+/// Every step is a call and what it returned, so a binding replays the steps in order and has
+/// to see the same transmissions, deliveries and errors.
+fn lorawan_device() -> Value {
+    const APP_KEY: [u8; 16] = [0x2B; 16];
+    const DEV_EUI: [u8; 8] = [0x11; 8];
+    const JOIN_EUI: [u8; 8] = [0x22; 8];
+    const DEV_ADDR: u32 = 0x2601_2E43;
+
+    let over_the_air = json!({
+        "overTheAir": { "devEui": hex(&DEV_EUI), "joinEui": hex(&JOIN_EUI), "appKey": hex(&APP_KEY) },
+    });
+    let credentials = || Device::new(DEV_EUI, JOIN_EUI, APP_KEY);
+    let script_for = |plan: ScriptPlan, settings: Settings| Script {
+        device: EndDevice::new(plan.plan(), credentials(), settings).expect("a device"),
+        steps: Vec::new(),
+    };
+
+    // A European device through a whole day of exchanges.
+    let eu868 = ScriptPlan::Region(Region::Eu868);
+    let (eu_settings, eu_settings_vector) = settings_vector(2, 14, 7);
+    let mut eu = script_for(eu868, eu_settings);
+    eu.send(2, b"21.5", false, 0);
+    eu.save(0);
+    eu.join(1, 0);
+    eu.join(2, 0);
+    let grant = JoinGrant::new(0x01, 0x13, DEV_ADDR)
+        .with_dl_settings(0x03)
+        .with_rx_delay(1)
+        .with_cflist(
+            CfList::frequencies([
+                867_100_000,
+                867_300_000,
+                867_500_000,
+                867_700_000,
+                867_900_000,
+            ])
+            .expect("valid frequencies")
+            .to_bytes(),
+        );
+    eu.heard(grant.accept(&APP_KEY, 1).as_bytes(), 7);
+    eu.status();
+    let network = grant.session(&APP_KEY, 1);
+    eu.request_link_check();
+    eu.send(2, b"21.5", true, 7_000_000);
+    eu.send(2, b"x", false, 7_000_000);
+    // The network acknowledges, answers the link check, and asks for the device's status.
+    let answer = network
+        .encode_downlink(
+            &Downlink::new(0, 3, b"ok")
+                .with_ack()
+                .with_fopts(&[0x02, 0x14, 0x02, 0x06]),
+        )
+        .expect("a downlink");
+    eu.heard(answer.as_bytes(), 7);
+    eu.nothing_heard(9_000_000);
+    eu.set_battery(Battery::Level(200));
+    let saved = eu.save(9_000_000).expect("a joined device saves");
+    let after_save = eu
+        .send(2, b"22.0", false, 400_000_000)
+        .expect("the air is free");
+    eu.heard(&[0x60, 0x00], 0);
+    eu.nothing_heard(403_000_000);
+    eu.repeat(403_000_000);
+    eu.send(2, &[0u8; 250], false, 800_000_000);
+    eu.request_device_time();
+    eu.send_empty(800_000_000);
+    eu.nothing_heard(803_000_000);
+    eu.status();
+
+    // A device woken from the saved state sends exactly what the first did, and a state
+    // that is short, corrupt, or from another plan is refused.
+    let mut woken = script_for(eu868, eu_settings);
+    let mut corrupt = *saved.as_bytes();
+    corrupt[20] ^= 0xFF;
+    woken.resume(&saved.as_bytes()[..10], 9_000_000);
+    woken.resume(&corrupt, 9_000_000);
+    woken.resume(saved.as_bytes(), 9_000_000);
+    woken.status();
+    let replayed = woken
+        .send(2, b"22.0", false, 400_000_000)
+        .expect("the air is free");
+    assert_eq!(
+        replayed.frame, after_save.frame,
+        "a resumed device sends the same frame"
+    );
+
+    let us915 = ScriptPlan::Region(Region::Us915);
+    let (us_settings, us_settings_vector) = settings_vector(2, 20, 3);
+    let mut elsewhere = script_for(us915, us_settings);
+    elsewhere.resume(saved.as_bytes(), 0);
+
+    // Joins on US915 in octet passes: nine attempts, each after the last found no answer.
+    let mut passes = script_for(us915, us_settings);
+    let mut now_us = 0u64;
+    for dev_nonce in 1..=9u16 {
+        let request = passes.join(dev_nonce, now_us).expect("a join goes out");
+        let closed = now_us + request.airtime_us + u64::from(request.rx2.delay_us) + 1_000_000;
+        now_us = match passes.nothing_heard(closed) {
+            Some(Next::JoinAgain { not_before_us }) => not_before_us,
+            _ => closed,
+        };
+    }
+
+    // A CN470-510 device on the 26 MHz type A plan joins, and the common join channel that
+    // answered puts it on the plan that channel names.
+    let cn470 = ScriptPlan::Cn470(Cn470Plan::Antenna26MhzA, "antenna_26mhz_a");
+    let (cn_settings, cn_settings_vector) = settings_vector(2, 19, 11);
+    let mut china = script_for(cn470, cn_settings);
+    china.join(1, 0);
+    china.heard(
+        JoinGrant::new(0x01, 0x13, DEV_ADDR)
+            .with_dl_settings(0x01)
+            .accept(&APP_KEY, 1)
+            .as_bytes(),
+        5,
+    );
+    china.status();
+    china.send(10, b"cn", false, 10_000_000);
+
+    // A personalized device picks up its frame counters and refuses a replayed downlink.
+    const NWK_SKEY: [u8; 16] = [0x2B; 16];
+    const APP_SKEY: [u8; 16] = [0x99; 16];
+    const ABP_ADDR: u32 = 0x2601_1BDA;
+    let session = Session::new(ABP_ADDR, NWK_SKEY, APP_SKEY);
+    let (abp_settings, abp_settings_vector) = settings_vector(2, 14, 5);
+    let mut personalized = Script {
+        device: EndDevice::personalized(eu868.plan(), session, abp_settings)
+            .expect("a device")
+            .with_frame_counters(100, Some(5)),
+        steps: Vec::new(),
+    };
+    personalized.status();
+    personalized.join(1, 0);
+    personalized.heard(&[0x60, 0x00], 0);
+    personalized.send(1, b"hi", false, 0);
+    let replay = session
+        .encode_downlink(&Downlink::new(5, 1, b"old"))
+        .expect("a downlink");
+    personalized.heard(replay.as_bytes(), 3);
+    let fresh = session
+        .encode_downlink(&Downlink::new(6, 1, b"new").with_fpending())
+        .expect("a downlink");
+    personalized.heard(fresh.as_bytes(), 3);
+    personalized.status();
+
+    let personalized_activation = json!({
+        "personalized": { "devAddr": ABP_ADDR, "nwkSKey": hex(&NWK_SKEY), "appSKey": hex(&APP_SKEY) },
+    });
+
+    json!({
+        "savedLen": pamoja_lorawan::device::SAVED_LEN,
+        "scripts": [
+            {
+                "name": "eu868 over the air",
+                "plan": eu868.describe(),
+                "activation": over_the_air.clone(),
+                "settings": eu_settings_vector.clone(),
+                "counters": null,
+                "steps": eu.steps,
+            },
+            {
+                "name": "eu868 resumed",
+                "plan": eu868.describe(),
+                "activation": over_the_air.clone(),
+                "settings": eu_settings_vector,
+                "counters": null,
+                "steps": woken.steps,
+            },
+            {
+                "name": "us915 refuses a state from eu868",
+                "plan": us915.describe(),
+                "activation": over_the_air.clone(),
+                "settings": us_settings_vector.clone(),
+                "counters": null,
+                "steps": elsewhere.steps,
+            },
+            {
+                "name": "us915 join passes",
+                "plan": us915.describe(),
+                "activation": over_the_air.clone(),
+                "settings": us_settings_vector,
+                "counters": null,
+                "steps": passes.steps,
+            },
+            {
+                "name": "cn470 joins onto a plan",
+                "plan": cn470.describe(),
+                "activation": over_the_air,
+                "settings": cn_settings_vector,
+                "counters": null,
+                "steps": china.steps,
+            },
+            {
+                "name": "eu868 personalized",
+                "plan": eu868.describe(),
+                "activation": personalized_activation,
+                "settings": abp_settings_vector,
+                "counters": { "up": 100, "down": 5 },
+                "steps": personalized.steps,
+            },
         ],
     })
 }

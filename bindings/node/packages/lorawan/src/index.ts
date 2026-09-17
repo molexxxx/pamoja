@@ -13,8 +13,19 @@
  */
 
 import type {
+  LoraChannelPlan,
   LorawanBackoffStep,
   LorawanCfListKind as CfListKindName,
+  LorawanChannel,
+  LorawanDelivery,
+  LorawanDeviceSettings,
+  LorawanFrameCounters,
+  LorawanFrequencySpan,
+  LorawanHeard,
+  LorawanNext,
+  LorawanRx2,
+  LorawanTransmission,
+  LorawanWindow,
   LorawanDirection as DirectionName,
   LorawanMessageType as MessageTypeName,
   LorawanVersion as VersionName,
@@ -36,6 +47,7 @@ import {
   LorawanBackoff,
   LorawanCfList,
   LorawanDevice,
+  LorawanEndDevice,
   type LorawanGrant,
   LorawanJoinAccept,
   type LorawanMacCommand,
@@ -49,7 +61,17 @@ import {
   lorawanParseJoinRequest,
 } from '@pamoja/native'
 
-export { type LorawanOptions as Options, type LorawanBackoffStep as BackoffStep }
+export {
+  type LorawanOptions as Options,
+  type LorawanBackoffStep as BackoffStep,
+  type LorawanChannel as Channel,
+  type LorawanDeviceSettings as DeviceSettings,
+  type LorawanFrameCounters as FrameCounters,
+  type LorawanFrequencySpan as FrequencySpan,
+  type LorawanRx2 as Rx2,
+  type LorawanTransmission as Transmission,
+  type LorawanWindow as Window,
+}
 
 /** The largest application payload, in bytes, a single frame can carry. */
 export const MAX_PAYLOAD = LORAWAN_MAX_PAYLOAD
@@ -776,4 +798,383 @@ export function macParse(direction: Direction, bytes: Uint8Array): MacCommand[] 
  */
 export function macEncode(command: MacCommand): Buffer {
   return lorawanMacEncode(command)
+}
+
+/** Why an end device could not do what it was asked, as a thrown error's `code`. */
+export type DeviceErrorCode =
+  | 'TooManyChannels'
+  | 'NoCredentials'
+  | 'NotJoined'
+  | 'Busy'
+  | 'NothingPending'
+  | 'Wait'
+  | 'NoChannel'
+  | 'DataRate'
+  | 'PayloadTooLong'
+  | 'CounterExhausted'
+  | 'Frame'
+  | 'Foreign'
+  | 'Replayed'
+  | 'CounterGap'
+  | 'Refused'
+  | 'State'
+
+/** An error an end device threw, with what goes with its code. */
+export interface DeviceError extends Error {
+  /** Why the call failed. */
+  code: DeviceErrorCode
+  /** For `Wait`, the earliest time to try again, in microseconds. */
+  untilUs?: number
+  /** For `PayloadTooLong`, the most the frame carries; for `TooManyChannels`, the most a device keeps. */
+  max?: number
+  /** For `DataRate`, the data rate. */
+  dataRate?: number
+  /** For `State`, why the saved state was not resumed. */
+  state?: 'Length' | 'Corrupt' | 'Format' | 'Plan'
+  /** For a `Format` state, the format it was saved in. */
+  format?: number
+}
+
+/**
+ * Reports whether a thrown value is an end device's error, and optionally which one.
+ *
+ * @param error - What was caught.
+ * @param code - The code to match, or any when omitted.
+ * @returns Whether it is that error.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   device.send(2, reading, nowUs)
+ * } catch (error) {
+ *   if (isDeviceError(error, 'Wait')) sleepUntil(error.untilUs)
+ *   else throw error
+ * }
+ * ```
+ */
+export function isDeviceError(error: unknown, code?: DeviceErrorCode): error is DeviceError {
+  return (
+    error instanceof Error &&
+    typeof (error as DeviceError).code === 'string' &&
+    (code === undefined || (error as DeviceError).code === code)
+  )
+}
+
+/** A downlink, read and acted on. */
+export interface Delivery {
+  /** The application port, or `null` for a frame that carried only MAC commands or nothing. */
+  port: number | null
+  /** The application payload, decrypted. */
+  payload: Buffer
+  /** Whether the network acknowledged the confirmed uplink this answered. */
+  acknowledged: boolean
+  /** Whether the network asked for this downlink to be acknowledged; the next uplink does. */
+  confirmed: boolean
+  /** Whether the network has more waiting. */
+  morePending: boolean
+  /** The answer to a link check the device asked for, or `null`. */
+  linkCheck: { marginDb: number; gateways: number } | null
+  /** The answer to a time request the device asked for, or `null`. */
+  deviceTime: { gpsSeconds: number; fraction: number } | null
+}
+
+/** What a frame heard in a receive window turned out to be. */
+export type Heard =
+  | { kind: 'Joined'; devAddr: number }
+  | { kind: 'Data'; devAddr: number; delivery: Delivery }
+
+/** What to do once both receive windows closed with nothing for the device. */
+export type Next =
+  | { kind: 'Repeat'; notBeforeUs: number }
+  | { kind: 'Done' }
+  | { kind: 'Unacknowledged' }
+  | { kind: 'JoinAgain'; notBeforeUs: number }
+
+/**
+ * A LoRaWAN Class A end device, without a radio.
+ *
+ * It joins, chooses a channel and data rate for each uplink, says when and where to listen
+ * for the answer, reads what comes back, and does what the network's MAC commands ask. It
+ * owns no radio and no clock: every call takes the time in microseconds and hands back what
+ * to put on the air, so the same device runs over any radio, or in a test with none.
+ *
+ * One exchange runs like this. {@link EndDevice.join} or {@link EndDevice.send} returns a
+ * transmission and two receive windows timed from its end. A frame heard in either window
+ * goes to {@link EndDevice.heard}. If neither held one, {@link EndDevice.nothingHeard} says
+ * whether to {@link EndDevice.repeat} the frame, or move on.
+ *
+ * A call that cannot be done throws a {@link DeviceError}; {@link isDeviceError} tells which.
+ *
+ * @example
+ * ```ts
+ * const device = EndDevice.overTheAir(planFor(LoraRegion.Eu868), devEui, joinEui, appKey, {
+ *   minOutputDbm: 2,
+ *   maxOutputDbm: 14,
+ * })
+ * const request = device.join(nonce, clock.nowUs())
+ * ```
+ */
+export class EndDevice {
+  readonly #inner: LorawanEndDevice
+
+  /**
+   * Wraps a generated end device.
+   *
+   * @param inner - The generated device this facade delegates to.
+   */
+  constructor(inner: LorawanEndDevice) {
+    this.#inner = inner
+  }
+
+  /**
+   * Makes a device that joins over the air.
+   *
+   * @param plan - A published channel plan, from `planFor` or `cn470Plan`.
+   * @param devEui - The 8-byte device EUI.
+   * @param joinEui - The 8-byte join EUI.
+   * @param appKey - The 16-byte root key.
+   * @param settings - What the radio can do; only the output power range is required.
+   * @param counters - Frame counters carried over a restart; a join starts them over.
+   * @returns The device, not yet joined.
+   * @throws If the plan was built rather than published, a credential is the wrong length,
+   *   or the settings run backward.
+   */
+  static overTheAir(
+    plan: LoraChannelPlan,
+    devEui: Uint8Array,
+    joinEui: Uint8Array,
+    appKey: Uint8Array,
+    settings: LorawanDeviceSettings,
+    counters?: LorawanFrameCounters,
+  ): EndDevice {
+    const credentials = new LorawanDevice(Buffer.from(devEui), Buffer.from(joinEui), Buffer.from(appKey))
+    return new EndDevice(LorawanEndDevice.overTheAir(plan, credentials, settings, counters))
+  }
+
+  /**
+   * Makes a device activated by personalization.
+   *
+   * Such a device never resets its frame counters, so one that lost power passes the ones it
+   * kept.
+   *
+   * @param plan - A published channel plan.
+   * @param devAddr - The address the device was provisioned with.
+   * @param nwkSKey - The 16-byte network session key.
+   * @param appSKey - The 16-byte application session key.
+   * @param settings - What the radio can do.
+   * @param counters - The frame counters the device kept.
+   * @returns The device, ready to send at its slowest data rate.
+   * @throws If the plan was built rather than published, or a key is the wrong length.
+   */
+  static personalized(
+    plan: LoraChannelPlan,
+    devAddr: number,
+    nwkSKey: Uint8Array,
+    appSKey: Uint8Array,
+    settings: LorawanDeviceSettings,
+    counters?: LorawanFrameCounters,
+  ): EndDevice {
+    const session = new LorawanSession(devAddr, Buffer.from(nwkSKey), Buffer.from(appSKey))
+    return new EndDevice(LorawanEndDevice.personalized(plan, session, settings, counters))
+  }
+
+  /**
+   * Builds a join request.
+   *
+   * @param devNonce - A nonce this device has never used with its join EUI.
+   * @param nowUs - The time, in microseconds.
+   * @returns What to transmit, with the join accept windows.
+   * @throws A {@link DeviceError}: `NoCredentials`, `Busy` or `Wait`.
+   */
+  join(devNonce: number, nowUs: number): LorawanTransmission {
+    return this.#inner.join(devNonce, nowUs)
+  }
+
+  /**
+   * Builds an uplink carrying a payload.
+   *
+   * @param port - The application port, 1 to 223, or 224 for the certification test port.
+   * @param payload - The payload, as bytes or text encoded as UTF-8.
+   * @param nowUs - The time, in microseconds.
+   * @param confirmed - Whether to ask the network to acknowledge it.
+   * @returns What to transmit, with its receive windows.
+   * @throws A {@link DeviceError}: `NotJoined`, `Busy`, `Wait`, `PayloadTooLong`, or `Frame`
+   *   for port 0.
+   */
+  send(port: number, payload: Uint8Array | string, nowUs: number, confirmed = false): LorawanTransmission {
+    return this.#inner.send(port, Buffer.from(payload), confirmed, nowUs)
+  }
+
+  /**
+   * Builds an uplink with no payload, carrying the answers the device owes, an
+   * acknowledgment, or an ADR acknowledgment request.
+   *
+   * @param nowUs - The time, in microseconds.
+   * @returns What to transmit, with its receive windows.
+   * @throws A {@link DeviceError}, as {@link EndDevice.send}.
+   */
+  sendEmpty(nowUs: number): LorawanTransmission {
+    return this.#inner.sendEmpty(nowUs)
+  }
+
+  /**
+   * Sends the last uplink again, the same frame on a channel chosen afresh.
+   *
+   * @param nowUs - The time, in microseconds.
+   * @returns What to transmit, with its receive windows.
+   * @throws A {@link DeviceError}: `NothingPending` or `Wait`.
+   */
+  repeat(nowUs: number): LorawanTransmission {
+    return this.#inner.repeat(nowUs)
+  }
+
+  /**
+   * Reads a frame heard in one of the receive windows of the last transmission.
+   *
+   * @param frame - The bytes the radio received.
+   * @param snrDb - The frame's signal-to-noise ratio, which a `DevStatusAns` reports.
+   * @returns The join, or the downlink read and acted on.
+   * @throws A {@link DeviceError}: `NothingPending`, `Foreign`, `Replayed`, `CounterGap`,
+   *   `Refused` or `Frame`. The windows stay open, so the second still listens.
+   */
+  heard(frame: Uint8Array, snrDb: number): Heard {
+    const heard: LorawanHeard = this.#inner.heard(Buffer.from(frame), snrDb)
+    if (heard.kind === 'Joined' || heard.delivery == null) {
+      return { kind: 'Joined', devAddr: heard.devAddr }
+    }
+    const delivery: LorawanDelivery = heard.delivery
+    return {
+      kind: 'Data',
+      devAddr: heard.devAddr,
+      delivery: {
+        port: delivery.port ?? null,
+        payload: delivery.payload,
+        acknowledged: delivery.acknowledged,
+        confirmed: delivery.confirmed,
+        morePending: delivery.morePending,
+        linkCheck: delivery.linkCheck ?? null,
+        deviceTime: delivery.deviceTime ?? null,
+      },
+    }
+  }
+
+  /**
+   * Says what comes next once both receive windows closed with nothing for the device.
+   *
+   * @param nowUs - The time the second window closed, in microseconds.
+   * @returns Whether to repeat the frame, join again, or move on.
+   * @throws A {@link DeviceError}: `NothingPending`.
+   */
+  nothingHeard(nowUs: number): Next {
+    const next: LorawanNext = this.#inner.nothingHeard(nowUs)
+    switch (next.kind) {
+      case 'Repeat':
+        return { kind: 'Repeat', notBeforeUs: next.notBeforeUs ?? nowUs }
+      case 'JoinAgain':
+        return { kind: 'JoinAgain', notBeforeUs: next.notBeforeUs ?? nowUs }
+      case 'Done':
+        return { kind: 'Done' }
+      default:
+        return { kind: 'Unacknowledged' }
+    }
+  }
+
+  /**
+   * Sets what the device reports its battery as when a network asks.
+   *
+   * @param battery - A level from 1, empty, to 254, full; `'external'` on external power;
+   *   or `'unknown'` or `null` when it cannot tell.
+   */
+  setBattery(battery: number | 'external' | 'unknown' | null): void {
+    this.#inner.setBattery(battery)
+  }
+
+  /** Asks the network, with the next uplink, how well it hears the device. */
+  requestLinkCheck(): void {
+    this.#inner.requestLinkCheck()
+  }
+
+  /** Asks the network, with the next uplink, for the time. */
+  requestDeviceTime(): void {
+    this.#inner.requestDeviceTime()
+  }
+
+  /** Whether the device is on a network: once joined, or from the start when personalized. */
+  get isJoined(): boolean {
+    return this.#inner.isJoined
+  }
+
+  /** The address the device is on the network by, or `null` before joining. */
+  get devAddr(): number | null {
+    return this.#inner.devAddr ?? null
+  }
+
+  /** The data rate the next uplink goes out at, before any back-off step. */
+  get dataRate(): number {
+    return this.#inner.dataRate
+  }
+
+  /** The next uplink frame counter, which a device stores to carry over a restart. */
+  get fcntUp(): number {
+    return this.#inner.fcntUp
+  }
+
+  /** The last downlink frame counter accepted, or `null` before any downlink. */
+  get fcntDown(): number | null {
+    return this.#inner.fcntDown ?? null
+  }
+
+  /** How many times each uplink goes out, as the network last set it. */
+  get transmissions(): number {
+    return this.#inner.transmissions
+  }
+
+  /** Where the second receive window listens. */
+  get rx2(): LorawanRx2 {
+    return this.#inner.rx2
+  }
+
+  /** The delay from the end of an uplink to the first receive window, in microseconds. */
+  get receiveDelayUs(): number {
+    return this.#inner.receiveDelayUs
+  }
+
+  /** The lowest and highest frequency the device transmits or listens on. */
+  get frequencySpan(): LorawanFrequencySpan {
+    return this.#inner.frequencySpan
+  }
+
+  /**
+   * Lists the channels the device may send on.
+   *
+   * @returns Each enabled channel, with its index.
+   */
+  channels(): LorawanChannel[] {
+    return this.#inner.channels()
+  }
+
+  /**
+   * Saves a joined device's state, to keep across a loss of power.
+   *
+   * The bytes hold the session keys, so keep them wherever the keys would be safe.
+   *
+   * @param nowUs - The time, in microseconds.
+   * @returns The state.
+   * @throws A {@link DeviceError}: `NotJoined` or `Busy`.
+   */
+  save(nowUs: number): Buffer {
+    return this.#inner.save(nowUs)
+  }
+
+  /**
+   * Puts a saved state back on a device made the same way.
+   *
+   * @param saved - The state {@link EndDevice.save} returned.
+   * @param nowUs - The time on the clock the device woke to, in microseconds.
+   * @throws A {@link DeviceError}: `State` for a state of the wrong length, a corrupt one, one
+   *   in another format, or one from another plan, and `Busy`.
+   */
+  resume(saved: Uint8Array, nowUs: number): void {
+    this.#inner.resume(Buffer.from(saved), nowUs)
+  }
 }

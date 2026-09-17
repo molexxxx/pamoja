@@ -2552,6 +2552,211 @@ function lorawanLinkVectors() {
   assert.strictEqual(decoded.classB, false, "the decoded ClassB bit");
 }
 
+// An end device driven through whole exchanges: every step is a call and what it returned.
+function lorawanDeviceVectors() {
+  const vector = VECTORS.lorawanDevice;
+  const regions = {
+    EU868: lora.LoraRegion.Eu868,
+    US915: lora.LoraRegion.Us915,
+    EU433: lora.LoraRegion.Eu433,
+    AU915: lora.LoraRegion.Au915,
+    CN470: lora.LoraRegion.Cn470,
+    AS923: lora.LoraRegion.As923,
+    KR920: lora.LoraRegion.Kr920,
+    IN865: lora.LoraRegion.In865,
+    RU864: lora.LoraRegion.Ru864,
+  };
+  const cn470 = {
+    antenna_20mhz_a: lora.LoraCn470Plan.Antenna20MhzA,
+    antenna_20mhz_b: lora.LoraCn470Plan.Antenna20MhzB,
+    antenna_26mhz_a: lora.LoraCn470Plan.Antenna26MhzA,
+    antenna_26mhz_b: lora.LoraCn470Plan.Antenna26MhzB,
+    channels_96: lora.LoraCn470Plan.Channels96,
+  };
+  const pascal = (name) =>
+    name
+      .split("_")
+      .map((part) => part[0].toUpperCase() + part.slice(1))
+      .join("");
+  const linkOf = (link) => ({
+    spreadingFactor: link.spreadingFactor,
+    bandwidthHz: link.bandwidthHz,
+    codingRateDenominator: link.codingRateDenominator,
+    preambleSymbols: link.preambleSymbols,
+    explicitHeader: link.explicitHeader,
+    crc: link.crc,
+  });
+  const windowOf = (window) => ({
+    delayUs: window.delayUs,
+    frequencyHz: window.frequencyHz,
+    dataRate: window.dataRate,
+    link: linkOf(window.link),
+  });
+  const transmissionOf = (transmission) => ({
+    frame: transmission.frame.toString("hex"),
+    frequencyHz: transmission.frequencyHz,
+    dataRate: transmission.dataRate,
+    link: linkOf(transmission.link),
+    outputDbm: transmission.outputDbm,
+    airtimeUs: transmission.airtimeUs,
+    rx1: windowOf(transmission.rx1),
+    rx2: windowOf(transmission.rx2),
+    carriesPayload: transmission.carriesPayload,
+  });
+  const errorOf = (error) => ({
+    kind: error.code,
+    untilUs: error.untilUs ?? null,
+    max: error.max ?? null,
+    dataRate: error.dataRate ?? null,
+    state: error.state ?? null,
+    format: error.format ?? null,
+  });
+  const expectedError = (want) => ({
+    kind: pascal(want.kind),
+    untilUs: want.untilUs,
+    max: want.max,
+    dataRate: want.dataRate,
+    state: want.state === null ? null : pascal(want.state),
+    format: want.format,
+  });
+
+  assert.strictEqual(vector.savedLen, 1589, "the saved state length");
+
+  for (const script of vector.scripts) {
+    const plan =
+      script.plan.region !== undefined
+        ? lora.planFor(regions[script.plan.region])
+        : lora.cn470Plan(cn470[script.plan.cn470]);
+    const settings = {
+      minOutputDbm: script.settings.minOutputDbm,
+      maxOutputDbm: script.settings.maxOutputDbm,
+      version: script.settings.version === "1.0.3" ? lorawan.Version.V1_0_3 : lorawan.Version.V1_0_4,
+      adr: script.settings.adr,
+      antennaGainDb: script.settings.antennaGainDb,
+      lowestHz: script.settings.lowestHz,
+      highestHz: script.settings.highestHz,
+      regionalDutyCycle: script.settings.regionalDutyCycle,
+      behindRepeater: script.settings.behindRepeater,
+      seed: script.settings.seed,
+    };
+    const counters = script.counters ?? undefined;
+    const device =
+      script.activation.overTheAir !== undefined
+        ? lorawan.EndDevice.overTheAir(
+            plan,
+            unhex(script.activation.overTheAir.devEui),
+            unhex(script.activation.overTheAir.joinEui),
+            unhex(script.activation.overTheAir.appKey),
+            settings,
+            counters,
+          )
+        : lorawan.EndDevice.personalized(
+            plan,
+            script.activation.personalized.devAddr,
+            unhex(script.activation.personalized.nwkSKey),
+            unhex(script.activation.personalized.appSKey),
+            settings,
+            counters,
+          );
+
+    script.steps.forEach((step, index) => {
+      const where = `step ${index} (${step.call}) of ${script.name}`;
+      const run = () => {
+        switch (step.call) {
+          case "join":
+            return transmissionOf(device.join(step.devNonce, step.nowUs));
+          case "send":
+            return transmissionOf(device.send(step.port, unhex(step.payload), step.nowUs, step.confirmed));
+          case "sendEmpty":
+            return transmissionOf(device.sendEmpty(step.nowUs));
+          case "repeat":
+            return transmissionOf(device.repeat(step.nowUs));
+          case "heard": {
+            const heard = device.heard(unhex(step.frame), step.snrDb);
+            if (heard.kind === "Joined") {
+              return { kind: "joined", devAddr: heard.devAddr };
+            }
+            const delivery = heard.delivery;
+            return {
+              kind: "data",
+              devAddr: heard.devAddr,
+              delivery: {
+                port: delivery.port,
+                payload: delivery.payload.toString("hex"),
+                acknowledged: delivery.acknowledged,
+                confirmed: delivery.confirmed,
+                morePending: delivery.morePending,
+                linkCheck: delivery.linkCheck,
+                deviceTime: delivery.deviceTime,
+              },
+            };
+          }
+          case "nothingHeard": {
+            const next = device.nothingHeard(step.nowUs);
+            const kinds = { Repeat: "repeat", Done: "done", Unacknowledged: "unacknowledged", JoinAgain: "join_again" };
+            return { kind: kinds[next.kind], notBeforeUs: next.notBeforeUs ?? null };
+          }
+          case "save":
+            return device.save(step.nowUs).toString("hex");
+          case "resume":
+            device.resume(unhex(step.saved), step.nowUs);
+            return true;
+          case "requestLinkCheck":
+            device.requestLinkCheck();
+            return undefined;
+          case "requestDeviceTime":
+            device.requestDeviceTime();
+            return undefined;
+          case "setBattery":
+            device.setBattery(step.battery);
+            return undefined;
+          case "status":
+            return {
+              joined: device.isJoined,
+              devAddr: device.devAddr,
+              dataRate: device.dataRate,
+              fcntUp: device.fcntUp,
+              fcntDown: device.fcntDown,
+              transmissions: device.transmissions,
+              rx2: { frequencyHz: device.rx2.frequencyHz, dataRate: device.rx2.dataRate },
+              receiveDelayUs: device.receiveDelayUs,
+              frequencySpan: {
+                lowestHz: device.frequencySpan.lowestHz,
+                highestHz: device.frequencySpan.highestHz,
+              },
+              channels: device.channels().map((channel) => ({
+                index: channel.index,
+                uplinkHz: channel.uplinkHz,
+                downlinkHz: channel.downlinkHz,
+                minDataRate: channel.minDataRate,
+                maxDataRate: channel.maxDataRate,
+              })),
+            };
+          default:
+            throw new Error(`no step ${step.call}`);
+        }
+      };
+
+      const field = { join: "transmission", send: "transmission", sendEmpty: "transmission", repeat: "transmission", heard: "heard", nothingHeard: "next", save: "saved", resume: "resumed", status: "status" }[step.call];
+      if (step.error !== undefined) {
+        let caught = null;
+        try {
+          run();
+        } catch (error) {
+          caught = error;
+        }
+        assert.ok(lorawan.isDeviceError(caught), `${where} throws a device error`);
+        assert.deepStrictEqual(errorOf(caught), expectedError(step.error), where);
+        return;
+      }
+      const got = run();
+      if (field !== undefined) {
+        assert.deepStrictEqual(got, step[field], where);
+      }
+    });
+  }
+}
+
 /** Checks a grant builds its accept and derives the session both sides share. */
 function assertGrant(vector, appKey, devNonce) {
   const grant = {
@@ -2883,6 +3088,7 @@ function telemetryVectors() {
 lorawanVectors();
 headerVectors();
 lorawanLinkVectors();
+lorawanDeviceVectors();
 networkVectors();
 
 // What a ladder does with a message as its links come and go.

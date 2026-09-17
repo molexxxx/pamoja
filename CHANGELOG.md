@@ -211,6 +211,21 @@ released together, so one entry covers all of them.
   documentation page and to what an event may not carry. A LoRa radio on a Linux
   board also draws random numbers from its receiver noise in every language, as it
   already did in Rust.
+- A LoRaWAN Class A end device in C, TypeScript, Python and C#: `EndDevice` joins
+  over the air or starts personalized, picks each uplink's channel and data rate,
+  says when and where both receive windows listen, reads what the network sends
+  back and does what its MAC commands ask, repeats or joins again when nothing
+  came, and saves and resumes its state across a power cut. It runs on every
+  published plan, the five CN470-510 plans included, and a call that cannot be
+  done says why in each language's own way: an `Error` whose `code` is `Wait`
+  with `untilUs` in TypeScript, `LorawanDeviceError` with `kind` and `until_us`
+  in Python, `LorawanDeviceException` in C#, and a recorded reason in C. The
+  conformance vectors replay whole exchanges through all four: a European day of
+  joining, confirmed readings, a link check, a status request and a saved state
+  resumed into a device that sends the same frame; nine US915 joins across the
+  octet passes; a CN470 join that picks its plan; and a personalized device that
+  refuses a replayed downlink. The LoRaWAN guide gains a second example, a US915
+  node that joins, is acknowledged, and picks up after a power cut.
 - What keeps a LoRaWAN link running, in C, TypeScript, Python and C#: the ADR
   back-off of LoRaWAN 1.0.3 and TS001-1.0.4 section 4.3.1.1, which says when a
   device that stopped hearing its network asks for an answer and which settings it

@@ -46,6 +46,8 @@ mod lora_radio;
 mod lora_region;
 #[cfg(feature = "lorawan")]
 mod lorawan;
+#[cfg(all(feature = "lora", feature = "lorawan"))]
+mod lorawan_device;
 #[cfg(feature = "lorawan")]
 mod lorawan_link;
 #[cfg(feature = "mavlink")]
@@ -762,6 +764,22 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<lorawan_link::LorawanBackoff>()?;
         m.add_class::<lorawan_link::LorawanBackoffStep>()?;
         m.add_class::<lorawan_link::LorawanCfList>()?;
+        #[cfg(feature = "lora")]
+        {
+            m.add(
+                "LorawanDeviceError",
+                m.py().get_type::<lorawan_device::LorawanDeviceError>(),
+            )?;
+            m.add("LORAWAN_SAVED_LEN", pamoja_lorawan::device::SAVED_LEN)?;
+            m.add_class::<lorawan_device::LorawanDeviceSettings>()?;
+            m.add_class::<lorawan_device::LorawanEndDevice>()?;
+            m.add_class::<lorawan_device::LorawanTransmission>()?;
+            m.add_class::<lorawan_device::LorawanWindow>()?;
+            m.add_class::<lorawan_device::LorawanHeard>()?;
+            m.add_class::<lorawan_device::LorawanDelivery>()?;
+            m.add_class::<lorawan_device::LorawanNext>()?;
+            m.add_class::<lorawan_device::LorawanChannel>()?;
+        }
         for (name, value) in lorawan_link::DEFAULTS {
             m.add(name, value)?;
         }

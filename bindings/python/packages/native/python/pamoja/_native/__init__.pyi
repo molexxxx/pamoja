@@ -84,14 +84,22 @@ __all__ = [
     "LorawanBackoff",
     "LorawanBackoffStep",
     "LorawanCfList",
+    "LorawanChannel",
+    "LorawanDelivery",
     "LorawanDevice",
+    "LorawanDeviceSettings",
+    "LorawanEndDevice",
     "LorawanGrant",
     "LorawanHeader",
+    "LorawanHeard",
     "LorawanJoinAccept",
     "LorawanJoinRequest",
     "LorawanMacCommand",
+    "LorawanNext",
     "LorawanRxData",
     "LorawanSession",
+    "LorawanTransmission",
+    "LorawanWindow",
     "Manifest",
     "MavlinkFieldInfo",
     "MavlinkFrame",
@@ -4077,6 +4085,84 @@ class LorawanCfList:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class LorawanChannel:
+    r"""
+    A channel a device may send on.
+    """
+    @property
+    def index(self) -> builtins.int:
+        r"""
+        The channel's index in the device's table.
+        """
+    @property
+    def uplink_hz(self) -> builtins.int:
+        r"""
+        Where uplinks go out, in hertz.
+        """
+    @property
+    def downlink_hz(self) -> builtins.int:
+        r"""
+        Where the first receive window listens, in hertz.
+        """
+    @property
+    def min_data_rate(self) -> builtins.int:
+        r"""
+        The slowest data rate the channel carries.
+        """
+    @property
+    def max_data_rate(self) -> builtins.int:
+        r"""
+        The fastest.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanDelivery:
+    r"""
+    A downlink, read and acted on.
+    """
+    @property
+    def port(self) -> typing.Optional[builtins.int]:
+        r"""
+        The application port the payload arrived on, or `None` for a frame that carried only
+        MAC commands or nothing.
+        """
+    @property
+    def payload(self) -> bytes:
+        r"""
+        The application payload, decrypted.
+        """
+    @property
+    def acknowledged(self) -> builtins.bool:
+        r"""
+        Whether the network acknowledged the confirmed uplink this answered.
+        """
+    @property
+    def confirmed(self) -> builtins.bool:
+        r"""
+        Whether the network asked for this downlink to be acknowledged, which the next uplink
+        does by itself.
+        """
+    @property
+    def more_pending(self) -> builtins.bool:
+        r"""
+        Whether the network has more waiting.
+        """
+    @property
+    def link_check(self) -> typing.Optional[tuple[builtins.int, builtins.int]]:
+        r"""
+        The answer to a link check the device asked for, as the margin in dB and the gateway
+        count, or `None`.
+        """
+    @property
+    def device_time(self) -> typing.Optional[tuple[builtins.int, builtins.int]]:
+        r"""
+        The answer to a time request the device asked for, as whole seconds since the GPS
+        epoch and 256ths of a second, or `None`.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class LorawanDevice:
     r"""
     The root credentials over-the-air activation is built on.
@@ -4103,6 +4189,204 @@ class LorawanDevice:
         
         `dev_nonce` is the nonce the matching join request carried.
         """
+
+@typing.final
+class LorawanDeviceSettings:
+    r"""
+    What a device's radio can do, and how it takes part.
+    """
+    @property
+    def min_output_dbm(self) -> builtins.int:
+        r"""
+        The lowest power the radio puts out, conducted, in dBm.
+        """
+    @property
+    def max_output_dbm(self) -> builtins.int:
+        r"""
+        The highest, conducted, in dBm.
+        """
+    @property
+    def version(self) -> builtins.str:
+        r"""
+        The link layer revision, `1.0.3` or `1.0.4`.
+        """
+    @property
+    def adr(self) -> builtins.bool:
+        r"""
+        Whether the network manages the data rate and power.
+        """
+    @property
+    def antenna_gain_db(self) -> builtins.int:
+        r"""
+        The antenna gain less the cable and connector losses, in dB.
+        """
+    @property
+    def lowest_hz(self) -> builtins.int:
+        r"""
+        The lowest frequency the radio and its front end can use, in hertz.
+        """
+    @property
+    def highest_hz(self) -> builtins.int:
+        r"""
+        The highest, in hertz.
+        """
+    @property
+    def regional_duty_cycle(self) -> builtins.bool:
+        r"""
+        Whether the device is held to the region's sub-band duty cycles.
+        """
+    @property
+    def behind_repeater(self) -> builtins.bool:
+        r"""
+        Whether payloads are sized for a path through a relay.
+        """
+    @property
+    def seed(self) -> builtins.int:
+        r"""
+        The seed for the random choices of channel and retry delay.
+        """
+    def __new__(cls, min_output_dbm: builtins.int, max_output_dbm: builtins.int, version: builtins.str = '1.0.4', adr: builtins.bool = True, antenna_gain_db: builtins.int = 0, lowest_hz: builtins.int = 137000000, highest_hz: builtins.int = 1020000000, regional_duty_cycle: builtins.bool = True, behind_repeater: builtins.bool = False, seed: builtins.int = 0) -> LorawanDeviceSettings:
+        r"""
+        Settings for a radio with an output power range.
+        
+        The rest start as a typical node: TS001-1.0.4, adaptive data rate on, an antenna with
+        no gain over its cable, a radio that tunes 137 to 1020 MHz as an SX1276 does, the
+        region's duty cycle kept, and no repeater in the path. The seed is best taken from a
+        hardware random source; the device identifier is mixed in.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanEndDevice:
+    r"""
+    A LoRaWAN Class A end device.
+    
+    One exchange runs like this: `join` or `send` returns a transmission to put on the air and
+    two receive windows timed from its end. A frame heard in either window goes to `heard`. If
+    neither window held one, `nothing_heard` says whether to send the same frame again with
+    `repeat`, or move on.
+    """
+    @property
+    def is_joined(self) -> builtins.bool:
+        r"""
+        Whether the device is on a network: once joined, or from the start for a personalized
+        device.
+        """
+    @property
+    def dev_addr(self) -> typing.Optional[builtins.int]:
+        r"""
+        The address the device is on the network by, or `None` before joining.
+        """
+    @property
+    def data_rate(self) -> builtins.int:
+        r"""
+        The data rate the next uplink goes out at, before any back-off step.
+        """
+    @property
+    def fcnt_up(self) -> builtins.int:
+        r"""
+        The next uplink frame counter.
+        """
+    @property
+    def fcnt_down(self) -> typing.Optional[builtins.int]:
+        r"""
+        The last downlink frame counter accepted, or `None` before any downlink.
+        """
+    @property
+    def transmissions(self) -> builtins.int:
+        r"""
+        How many times each uplink goes out, as the network last set it.
+        """
+    @property
+    def rx2(self) -> tuple[builtins.int, builtins.int]:
+        r"""
+        Where the second receive window listens, as a frequency in hertz and a data rate.
+        """
+    @property
+    def receive_delay_us(self) -> builtins.int:
+        r"""
+        The delay from the end of an uplink to the first receive window, in microseconds.
+        """
+    @property
+    def frequency_span(self) -> tuple[builtins.int, builtins.int]:
+        r"""
+        The lowest and highest frequency the device transmits or listens on, in hertz.
+        """
+    @staticmethod
+    def over_the_air(plan: ChannelPlan, credentials: LorawanDevice, settings: LorawanDeviceSettings, fcnt_up: builtins.int = 0, fcnt_down: typing.Optional[builtins.int] = None) -> LorawanEndDevice:
+        r"""
+        Makes a device that joins over the air.
+        
+        `fcnt_up` and `fcnt_down` carry frame counters over a restart; a join starts them over.
+        Raises `PamojaError` if the plan was built rather than published.
+        """
+    @staticmethod
+    def personalized(plan: ChannelPlan, session: LorawanSession, settings: LorawanDeviceSettings, fcnt_up: builtins.int = 0, fcnt_down: typing.Optional[builtins.int] = None) -> LorawanEndDevice:
+        r"""
+        Makes a device activated by personalization, with its session provisioned.
+        
+        Such a device never resets its frame counters, TS001-1.0.4 section 4.3.1.5, so one that
+        lost power passes the counters it kept.
+        """
+    def join(self, dev_nonce: builtins.int, now_us: builtins.int) -> LorawanTransmission:
+        r"""
+        Builds a join request, with a nonce this device has never used with its join
+        identifier.
+        """
+    def send(self, port: builtins.int, payload: typing.Sequence[builtins.int], now_us: builtins.int, confirmed: builtins.bool = False) -> LorawanTransmission:
+        r"""
+        Builds an uplink carrying a payload on an application port, 1 to 223, or 224 for the
+        certification test port.
+        """
+    def send_empty(self, now_us: builtins.int) -> LorawanTransmission:
+        r"""
+        Builds an uplink with no payload, carrying the answers the device owes, an
+        acknowledgment, or an ADR acknowledgment request.
+        """
+    def repeat(self, now_us: builtins.int) -> LorawanTransmission:
+        r"""
+        Sends the last uplink again, the same frame on a channel chosen afresh.
+        """
+    def heard(self, frame: typing.Sequence[builtins.int], snr_db: builtins.int) -> LorawanHeard:
+        r"""
+        Reads a frame heard in one of the receive windows of the last transmission.
+        
+        A frame that is not for this device, or does not verify, raises and leaves the
+        transmission waiting, so the second window still opens.
+        """
+    def nothing_heard(self, now_us: builtins.int) -> LorawanNext:
+        r"""
+        Says what comes next once both receive windows closed with nothing for the device.
+        """
+    def set_battery(self, level: typing.Optional[builtins.int] = None, external: builtins.bool = False) -> None:
+        r"""
+        Sets what the device reports its battery as when a network asks: a level from 1,
+        empty, to 254, full, or `None` when it cannot tell. `external` marks a device on
+        external power, whatever the level.
+        """
+    def request_link_check(self) -> None:
+        r"""
+        Asks the network, with the next uplink, how well it hears the device.
+        """
+    def request_device_time(self) -> None:
+        r"""
+        Asks the network, with the next uplink, for the time.
+        """
+    def channels(self) -> builtins.list[LorawanChannel]:
+        r"""
+        The channels the device may send on.
+        """
+    def save(self, now_us: builtins.int) -> bytes:
+        r"""
+        Saves a joined device's state, to keep across a loss of power.
+        
+        The bytes hold the session keys, so keep them wherever the keys would be safe.
+        """
+    def resume(self, saved: typing.Sequence[builtins.int], now_us: builtins.int) -> None:
+        r"""
+        Puts a saved state back on a device made the same way, on the clock it woke to.
+        """
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class LorawanGrant:
@@ -4208,6 +4492,28 @@ class LorawanHeader:
         r"""
         The length of the still-encrypted payload.
         """
+
+@typing.final
+class LorawanHeard:
+    r"""
+    What a frame heard in a receive window turned out to be.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        `joined` for a join accept, `data` for a data frame.
+        """
+    @property
+    def dev_addr(self) -> builtins.int:
+        r"""
+        The address the device is on the network by.
+        """
+    @property
+    def delivery(self) -> typing.Optional[LorawanDelivery]:
+        r"""
+        For a data frame, what it carried, and `None` for a join.
+        """
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class LorawanJoinAccept:
@@ -4484,6 +4790,23 @@ class LorawanMacCommand:
         """
 
 @typing.final
+class LorawanNext:
+    r"""
+    What to do once both receive windows closed with nothing for the device.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        `repeat`, `done`, `unacknowledged` or `join_again`.
+        """
+    @property
+    def not_before_us(self) -> typing.Optional[builtins.int]:
+        r"""
+        For a repeat or another join, the earliest time to send, in microseconds.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class LorawanRxData:
     r"""
     A decoded data frame, with its payload decrypted.
@@ -4583,6 +4906,89 @@ class LorawanSession:
         `fcnt` is the full 32-bit counter expected for this frame; its low 16 bits
         must match the counter the frame carries.
         """
+
+@typing.final
+class LorawanTransmission:
+    r"""
+    A frame to put on the air, and where to listen afterward.
+    """
+    @property
+    def frequency_hz(self) -> builtins.int:
+        r"""
+        The carrier, in hertz.
+        """
+    @property
+    def data_rate(self) -> builtins.int:
+        r"""
+        The data rate, as the region numbers them.
+        """
+    @property
+    def link(self) -> LoraLink:
+        r"""
+        The LoRa settings: an eight-symbol preamble, an explicit header and a payload CRC,
+        sent with standard IQ.
+        """
+    @property
+    def output_dbm(self) -> builtins.int:
+        r"""
+        The power to ask of the radio, conducted, in dBm.
+        """
+    @property
+    def airtime_us(self) -> builtins.int:
+        r"""
+        How long the frame holds the air, in microseconds.
+        """
+    @property
+    def carries_payload(self) -> builtins.bool:
+        r"""
+        Whether the application payload went out in this frame. When the answers the device
+        owed left no room, it did not, and has to be sent again.
+        """
+    @property
+    def frame(self) -> bytes:
+        r"""
+        The frame.
+        """
+    @property
+    def rx1(self) -> LorawanWindow:
+        r"""
+        The first receive window.
+        """
+    @property
+    def rx2(self) -> LorawanWindow:
+        r"""
+        The second receive window, which opens only if nothing for this device arrived in the
+        first.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanWindow:
+    r"""
+    When and where to listen for a downlink.
+    """
+    @property
+    def delay_us(self) -> builtins.int:
+        r"""
+        How long after the end of the transmission the window opens, in microseconds.
+        """
+    @property
+    def frequency_hz(self) -> builtins.int:
+        r"""
+        The carrier, in hertz.
+        """
+    @property
+    def data_rate(self) -> builtins.int:
+        r"""
+        The downlink data rate, as the region numbers them.
+        """
+    @property
+    def link(self) -> LoraLink:
+        r"""
+        The LoRa settings to listen with: no payload CRC, and inverted IQ, as RP002-1.0.5 table
+        112 has for a downlink.
+        """
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class Manifest:

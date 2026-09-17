@@ -848,6 +848,100 @@ export declare class LorawanDevice {
   acceptJoin(bytes: Buffer, devNonce: number): LorawanJoinAccept
 }
 
+/**
+ * A LoRaWAN Class A end device.
+ *
+ * One exchange runs like this: `join` or `send` returns a transmission to put on the air
+ * and two receive windows timed from its end. A frame heard in either window goes to
+ * `heard`. If neither window held one, `nothingHeard` says whether to send the same frame
+ * again with `repeat`, or move on.
+ */
+export declare class LorawanEndDevice {
+  /**
+   * Makes a device that joins over the air.
+   *
+   * Throws if the plan was built rather than published, or the settings run backward.
+   */
+  static overTheAir(plan: LoraChannelPlan, credentials: LorawanDevice, settings: LorawanDeviceSettings, counters?: LorawanFrameCounters | undefined | null): LorawanEndDevice
+  /**
+   * Makes a device activated by personalization, with its session provisioned.
+   *
+   * Such a device never resets its frame counters, TS001-1.0.4 section 4.3.1.5, so one that
+   * lost power passes the counters it kept.
+   */
+  static personalized(plan: LoraChannelPlan, session: LorawanSession, settings: LorawanDeviceSettings, counters?: LorawanFrameCounters | undefined | null): LorawanEndDevice
+  /**
+   * Builds a join request, with a nonce this device has never used with its join
+   * identifier.
+   */
+  join(devNonce: number, nowUs: number): LorawanTransmission
+  /**
+   * Builds an uplink carrying a payload on an application port, 1 to 223, or 224 for the
+   * certification test port.
+   */
+  send(port: number, payload: Buffer, confirmed: boolean, nowUs: number): LorawanTransmission
+  /**
+   * Builds an uplink with no payload, carrying the answers the device owes, an
+   * acknowledgment, or an ADR acknowledgment request.
+   */
+  sendEmpty(nowUs: number): LorawanTransmission
+  /** Sends the last uplink again, the same frame on a channel chosen afresh. */
+  repeat(nowUs: number): LorawanTransmission
+  /**
+   * Reads a frame heard in one of the receive windows of the last transmission.
+   *
+   * A frame that is not for this device, or does not verify, throws and leaves the
+   * transmission waiting, so the second window still opens.
+   */
+  heard(frame: Buffer, snrDb: number): LorawanHeard
+  /** Says what comes next once both receive windows closed with nothing for the device. */
+  nothingHeard(nowUs: number): LorawanNext
+  /**
+   * Sets what the device reports its battery as when a network asks: a level from 1,
+   * empty, to 254, full, `"external"` for a device on external power, or `null` when it
+   * cannot tell.
+   */
+  setBattery(battery?: number | string | undefined | null): void
+  /** Asks the network, with the next uplink, how well it hears the device. */
+  requestLinkCheck(): void
+  /** Asks the network, with the next uplink, for the time. */
+  requestDeviceTime(): void
+  /**
+   * Whether the device is on a network: once joined, or from the start for a
+   * personalized device.
+   */
+  get isJoined(): boolean
+  /** The address the device is on the network by, or `null` before joining. */
+  get devAddr(): number | null
+  /** The data rate the next uplink goes out at, before any back-off step. */
+  get dataRate(): number
+  /** The next uplink frame counter. */
+  get fcntUp(): number
+  /** The last downlink frame counter accepted, or `null` before any downlink. */
+  get fcntDown(): number | null
+  /** How many times each uplink goes out, as the network last set it. */
+  get transmissions(): number
+  /** Where the second receive window listens. */
+  get rx2(): LorawanRx2
+  /** The delay from the end of an uplink to the first receive window, in microseconds. */
+  get receiveDelayUs(): number
+  /**
+   * The lowest and highest frequency the device transmits or listens on, which is the
+   * band a radio that calibrates for one, as an SX126x does, calibrates for.
+   */
+  get frequencySpan(): LorawanFrequencySpan
+  /** The channels the device may send on. */
+  channels(): Array<LorawanChannel>
+  /**
+   * Saves a joined device's state, to keep across a loss of power.
+   *
+   * The bytes hold the session keys, so keep them wherever the keys would be safe.
+   */
+  save(nowUs: number): Buffer
+  /** Puts a saved state back on a device made the same way, on the clock it woke to. */
+  resume(saved: Buffer, nowUs: number): void
+}
+
 /** An accepted join: the network settings, and the session it grants. */
 export declare class LorawanJoinAccept {
   /** The device address the network assigned. */
@@ -3941,12 +4035,110 @@ export declare const enum LorawanCfListKind {
   Reserved = 'Reserved'
 }
 
+/** A channel a device may send on. */
+export interface LorawanChannel {
+  /** The channel's index in the device's table. */
+  index: number
+  /** Where uplinks go out, in hertz. */
+  uplinkHz: number
+  /** Where the first receive window listens, in hertz. */
+  downlinkHz: number
+  /** The slowest data rate the channel carries. */
+  minDataRate: number
+  /** The fastest. */
+  maxDataRate: number
+}
+
+/** A downlink, read and acted on. */
+export interface LorawanDelivery {
+  /**
+   * The application port the payload arrived on, or `null` for a frame that carried only
+   * MAC commands or nothing.
+   */
+  port?: number
+  /** The application payload, decrypted. */
+  payload: Buffer
+  /** Whether the network acknowledged the confirmed uplink this answered. */
+  acknowledged: boolean
+  /**
+   * Whether the network asked for this downlink to be acknowledged, which the next uplink
+   * does by itself.
+   */
+  confirmed: boolean
+  /** Whether the network has more waiting. */
+  morePending: boolean
+  /** The answer to a link check the device asked for. */
+  linkCheck?: LorawanLinkCheck
+  /** The answer to a time request the device asked for. */
+  deviceTime?: LorawanDeviceTime
+}
+
+/**
+ * What a device's radio can do, and how it takes part.
+ *
+ * Only the output power range is required. The rest start as a typical node: TS001-1.0.4,
+ * adaptive data rate on, an antenna with no gain over its cable, a radio that tunes 137 to
+ * 1020 MHz as an SX1276 does, the region's duty cycle kept, and no repeater in the path.
+ */
+export interface LorawanDeviceSettings {
+  /** The lowest power the radio puts out, conducted, in dBm. */
+  minOutputDbm: number
+  /** The highest, conducted, in dBm. */
+  maxOutputDbm: number
+  /** The link layer revision the network was told the device follows. */
+  version?: LorawanVersion
+  /** Whether the network manages the data rate and power. */
+  adr?: boolean
+  /** The antenna gain less the cable and connector losses, in dB. */
+  antennaGainDb?: number
+  /** The lowest frequency the radio and its front end can use, in hertz. */
+  lowestHz?: number
+  /** The highest, in hertz. */
+  highestHz?: number
+  /** Whether to hold the device to the region's sub-band duty cycles. */
+  regionalDutyCycle?: boolean
+  /** Whether to size payloads for a path through a relay. */
+  behindRepeater?: boolean
+  /**
+   * A seed for the random choices of channel and retry delay, ideally from a hardware
+   * random source. The device identifier is mixed in.
+   */
+  seed?: number
+}
+
+/** The time a network gave a device. */
+export interface LorawanDeviceTime {
+  /**
+   * Whole seconds since the GPS epoch, 1980-01-06 00:00:00 UTC, at the end of the uplink
+   * that asked.
+   */
+  gpsSeconds: number
+  /** The fraction of a second, in 256ths. */
+  fraction: number
+}
+
 /** The direction a frame traveled, which its MIC and encryption both fold in. */
 export declare const enum LorawanDirection {
   /** From an end device up to the network. */
   Uplink = 'Uplink',
   /** From the network down to an end device. */
   Downlink = 'Downlink'
+}
+
+/** The frame counters a device carries over a restart. */
+export interface LorawanFrameCounters {
+  /** The next uplink frame counter. */
+  up: number
+  /** The last downlink frame counter accepted, if any was. */
+  down?: number
+}
+
+/** The lowest and highest frequency a device transmits or listens on. */
+export interface LorawanFrequencySpan {
+  /** The lowest, in hertz. */
+  lowestHz: number
+  /** The highest, in hertz. */
+  highestHz: number
 }
 
 /** What a network grants a device that joined. */
@@ -4006,6 +4198,24 @@ export interface LorawanHeader {
   payloadLen: number
 }
 
+/** What a frame heard in a receive window turned out to be. */
+export interface LorawanHeard {
+  /** A join or a data frame. */
+  kind: LorawanHeardKind
+  /** The address the device is on the network by. */
+  devAddr: number
+  /** For a data frame, what it carried. */
+  delivery?: LorawanDelivery
+}
+
+/** What a frame heard in a receive window turned out to be. */
+export declare const enum LorawanHeardKind {
+  /** A join accept: the device is on the network. */
+  Joined = 'Joined',
+  /** A data frame for this device. */
+  Data = 'Data'
+}
+
 /** A join-request a device broadcast, with its integrity already verified. */
 export interface LorawanJoinRequest {
   /** The device identifier, most-significant byte first. */
@@ -4014,6 +4224,14 @@ export interface LorawanJoinRequest {
   appEui: Buffer
   /** The nonce the request carried, which a network must not accept twice. */
   devNonce: number
+}
+
+/** How well the network heard a link check. */
+export interface LorawanLinkCheck {
+  /** How far above the demodulation floor the best gateway heard it, in dB. */
+  marginDb: number
+  /** How many gateways heard it. */
+  gateways: number
 }
 
 /**
@@ -4148,6 +4366,26 @@ export declare const enum LorawanMessageType {
   ConfirmedDown = 'ConfirmedDown'
 }
 
+/** What to do once both receive windows closed with nothing for the device. */
+export interface LorawanNext {
+  /** What to do. */
+  kind: LorawanNextKind
+  /** For a repeat or another join, the earliest time to send, in microseconds. */
+  notBeforeUs?: number
+}
+
+/** What to do once both receive windows closed with nothing for the device. */
+export declare const enum LorawanNextKind {
+  /** Send the same frame again with `repeat`, no sooner than `notBeforeUs`. */
+  Repeat = 'Repeat',
+  /** The uplink is finished. */
+  Done = 'Done',
+  /** A confirmed uplink went out every time it may without an acknowledgment. */
+  Unacknowledged = 'Unacknowledged',
+  /** The join got no answer; join again with a new nonce, no sooner than `notBeforeUs`. */
+  JoinAgain = 'JoinAgain'
+}
+
 /**
  * The header flags and frame options a sender sets on a data frame.
  *
@@ -4184,6 +4422,14 @@ export declare function lorawanParseHeader(bytes: Buffer): LorawanHeader
 /** Verifies a join-request and reads the identifiers out of it. */
 export declare function lorawanParseJoinRequest(bytes: Buffer, appKey: Buffer): LorawanJoinRequest
 
+/** Where the second receive window listens. */
+export interface LorawanRx2 {
+  /** The frequency, in hertz. */
+  frequencyHz: number
+  /** The data rate. */
+  dataRate: number
+}
+
 /** A decoded data frame, with its payload decrypted. */
 export interface LorawanRxData {
   /** The direction the frame traveled. */
@@ -4212,12 +4458,55 @@ export interface LorawanRxData {
   payload: Buffer
 }
 
+/** A frame to put on the air, and where to listen afterward. */
+export interface LorawanTransmission {
+  /** The frame. */
+  frame: Buffer
+  /** The carrier, in hertz. */
+  frequencyHz: number
+  /** The data rate, as the region numbers them. */
+  dataRate: number
+  /**
+   * The LoRa settings: an eight-symbol preamble, an explicit header and a payload CRC,
+   * sent with standard IQ.
+   */
+  link: LoraLink
+  /** The power to ask of the radio, conducted, in dBm. */
+  outputDbm: number
+  /** How long the frame holds the air, in microseconds. */
+  airtimeUs: number
+  /** The first receive window. */
+  rx1: LorawanWindow
+  /** The second, which opens only if nothing for this device arrived in the first. */
+  rx2: LorawanWindow
+  /**
+   * Whether the application payload went out in this frame. When the answers the device
+   * owed left no room, it did not, and has to be sent again.
+   */
+  carriesPayload: boolean
+}
+
 /** A revision of the LoRaWAN link layer. */
 export declare const enum LorawanVersion {
   /** LoRaWAN 1.0.3. */
   V1_0_3 = 'V1_0_3',
   /** TS001-1.0.4, the LoRaWAN 1.0.4 link layer. */
   V1_0_4 = 'V1_0_4'
+}
+
+/** When and where to listen for a downlink. */
+export interface LorawanWindow {
+  /** How long after the end of the transmission the window opens, in microseconds. */
+  delayUs: number
+  /** The carrier, in hertz. */
+  frequencyHz: number
+  /** The downlink data rate, as the region numbers them. */
+  dataRate: number
+  /**
+   * The LoRa settings to listen with: no payload CRC, and inverted IQ, as RP002-1.0.5
+   * table 112 has for a downlink.
+   */
+  link: LoraLink
 }
 
 /** What a release says about itself, and what a device checks it against. */

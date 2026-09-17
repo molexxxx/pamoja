@@ -568,6 +568,11 @@ impl LoraChannelPlan {
         }
     }
 
+    /// The published plan this wraps, which a device can hold for as long as it runs.
+    pub(crate) fn published_plan(&self) -> Option<&'static ChannelPlan<'static>> {
+        self.published
+    }
+
     /// The runs of join channels that select a plan.
     fn join_plans(&self) -> &'static [pamoja_lora::region::JoinPlan<'static>] {
         self.published.map_or(&[], |plan| plan.join_plans)
