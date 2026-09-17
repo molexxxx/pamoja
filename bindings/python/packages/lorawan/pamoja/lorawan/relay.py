@@ -401,16 +401,16 @@ def unsynchronized_preamble(
     return lorawan_relay_unsynchronized_preamble(_name(cad_periodicity), symbol_us, _name(cad_to_rx))
 
 
-def t_offset_ms(scan_start_us: int, wor_end_us: int, wor_airtime_us: int, symbol_us: int) -> int | None:
+def t_offset_ms(scan_start_us: int, preamble_end_us: int) -> int | None:
     """The offset a relay reports in a WOR ACK, appendix 1.
 
     :param scan_start_us: When the scan that detected the frame started.
-    :param wor_end_us: When the frame finished arriving.
-    :param wor_airtime_us: Its time on air.
-    :param symbol_us: The symbol time of its data rate.
-    :returns: The offset in milliseconds, or ``None`` when it is negative or past eleven bits.
+    :param preamble_end_us: When the frame's preamble ended: when it finished arriving,
+        less the airtime of its sync word and payload.
+    :returns: The offset in milliseconds, or ``None`` when the preamble ended before the
+        scan or more than eleven bits of milliseconds after it.
     """
-    return lorawan_relay_t_offset_ms(scan_start_us, wor_end_us, wor_airtime_us, symbol_us)
+    return lorawan_relay_t_offset_ms(scan_start_us, preamble_end_us)
 
 
 def synchronization(

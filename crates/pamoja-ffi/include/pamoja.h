@@ -353,7 +353,7 @@
 #define PAMOJA_LORAWAN_EUI_LEN 8
 
 // How many bytes a saved device state takes.
-#define PAMOJA_LORAWAN_SAVED_LEN 1589
+#define PAMOJA_LORAWAN_SAVED_LEN 1653
 
 // A device running from an external supply.
 #define PAMOJA_LORAWAN_BATTERY_EXTERNAL 0
@@ -11177,9 +11177,8 @@ PamojaStatus pamoja_lorawan_relay_unsynchronized_preamble(uint8_t cad_periodicit
 // # Arguments
 //
 // * `scan_start_us` - when the scan that detected the frame started.
-// * `wor_end_us` - when the frame finished arriving.
-// * `wor_airtime_us` - its time on air.
-// * `symbol_us` - the symbol time of its data rate.
+// * `preamble_end_us` - when the frame's preamble ended: when it finished arriving, less
+//   the airtime of its sync word and payload.
 // * `out_offset_ms` - receives the offset in milliseconds.
 //
 // # Returns
@@ -11188,16 +11187,14 @@ PamojaStatus pamoja_lorawan_relay_unsynchronized_preamble(uint8_t cad_periodicit
 //
 // # Errors
 //
-// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, or an offset that is
-// negative or past the eleven bits a WOR ACK carries.
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, a preamble that ended
+// before the scan started, or an offset past the eleven bits a WOR ACK carries.
 //
 // # Safety
 //
 // `out_offset_ms` must be writable.
 PamojaStatus pamoja_lorawan_relay_t_offset_ms(uint64_t scan_start_us,
-                                              uint64_t wor_end_us,
-                                              uint64_t wor_airtime_us,
-                                              uint64_t symbol_us,
+                                              uint64_t preamble_end_us,
                                               uint16_t *out_offset_ms);
 
 // Works out when a relay scanned from the WOR ACK that answered a frame.

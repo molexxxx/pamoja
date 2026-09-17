@@ -9,6 +9,7 @@ use pamoja_lora::region::PlanKind;
 use super::channels::DYNAMIC_MAX_CHANNELS;
 use super::{Channel, Delivery, DeviceTime, EndDevice, LinkCheck};
 use crate::mac::{eirp_dbm, receive_delay_s, MacCommand, MacCommands};
+use crate::relay::RelayState;
 use crate::{Direction, Version};
 
 /// The most `LinkADRReq` commands a device takes as one contiguous block.
@@ -18,8 +19,14 @@ impl EndDevice<'_> {
     /// Acts on every command in a downlink's frame options or port 0 payload, in order.
     ///
     /// Reading stops at a command this version does not know, since a command carries no
-    /// length to skip it by.
-    pub(super) fn process_commands(&mut self, bytes: &[u8], snr_db: i8, delivery: &mut Delivery) {
+    /// length to skip it by. A relay's commands go to `relay`, and are ignored without one.
+    pub(super) fn process_commands(
+        &mut self,
+        bytes: &[u8],
+        snr_db: i8,
+        delivery: &mut Delivery,
+        mut relay: Option<&mut RelayState>,
+    ) {
         let mut commands = MacCommands::new(Direction::Downlink, bytes).peekable();
         while let Some(Ok(command)) = commands.next() {
             match command {
@@ -191,6 +198,18 @@ impl EndDevice<'_> {
                         gps_seconds: seconds,
                         fraction,
                     });
+                }
+                MacCommand::RelayConfReq { .. }
+                | MacCommand::FilterListReq { .. }
+                | MacCommand::UpdateUplinkListReq { .. }
+                | MacCommand::CtrlUplinkListReq { .. }
+                | MacCommand::ConfigureFwdLimitReq { .. } => {
+                    if let Some(answer) = relay
+                        .as_deref_mut()
+                        .and_then(|relay| relay.command(&command, self))
+                    {
+                        self.answers.push(answer, false);
+                    }
                 }
                 _ => {}
             }

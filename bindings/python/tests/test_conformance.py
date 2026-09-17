@@ -2046,8 +2046,7 @@ def test_lorawan_relay_vectors_match():
         )
     for entry in vector["tOffsets"]:
         assert (
-            relay.t_offset_ms(entry["scanStartUs"], entry["worEndUs"], entry["worAirtimeUs"], entry["symbolUs"])
-            == entry["offsetMs"]
+            relay.t_offset_ms(entry["scanStartUs"], entry["preambleEndUs"]) == entry["offsetMs"]
         )
     timing = vector["synchronization"]
     sync = relay.synchronization(

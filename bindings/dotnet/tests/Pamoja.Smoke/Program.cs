@@ -5006,7 +5006,7 @@ static void ConformLorawanLink(JsonElement vector, JsonElement vectors)
 // Replays each end device script, holding every call to what it returned.
 static void ConformLorawanDevice(JsonElement vector)
 {
-    Assert(vector.GetProperty("savedLen").GetInt32() == 1589, "the saved state length");
+    Assert(vector.GetProperty("savedLen").GetInt32() == 1653, "the saved state length");
     Dictionary<string, LoraRegion> regions = new()
     {
         ["EU868"] = LoraRegion.Eu868,
@@ -6046,9 +6046,7 @@ static void ConformLorawanRelay(JsonElement vector)
     {
         ushort? offset = LorawanRelay.TOffsetMs(
             entry.GetProperty("scanStartUs").GetUInt64(),
-            entry.GetProperty("worEndUs").GetUInt64(),
-            entry.GetProperty("worAirtimeUs").GetUInt64(),
-            entry.GetProperty("symbolUs").GetUInt64());
+            entry.GetProperty("preambleEndUs").GetUInt64());
         JsonElement want = entry.GetProperty("offsetMs");
         Assert(
             want.ValueKind == JsonValueKind.Null ? offset is null : offset == want.GetUInt16(),

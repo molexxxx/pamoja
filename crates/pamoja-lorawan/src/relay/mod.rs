@@ -18,6 +18,10 @@
 //! - [`ForwardedUplink`]: an uplink a relay forwards and its metadata, section 9.1.
 //! - [`Synchronization`], [`unsynchronized_preamble_symbols`] and [`t_offset_ms`]: how long a
 //!   WOR preamble must be and when it goes out, section 5.2 and appendix 1.
+//! - [`Relay`]: the relay itself, an end device that scans for those frames, answers them,
+//!   forwards the uplinks behind them and sends the network's answers on, chapters 3, 7 and
+//!   8. It keeps the tables its network configures, a [`JoinFilter`], its
+//!   [`TrustedDevices`] and its [`ForwardLimits`], each usable on its own.
 //!
 //! The relay commands a network configures both sides with are
 //! [`MacCommand`](crate::mac::MacCommand) variants, and each region's default WOR channels
@@ -62,21 +66,37 @@
 //! ```
 
 mod ack;
+mod filter;
 mod forward;
 mod keys;
+mod limits;
+mod node;
+mod state;
 mod timing;
+mod trusted;
 mod wor;
 
+#[cfg(test)]
+mod node_tests;
 #[cfg(test)]
 mod tests;
 
 pub use ack::{open_wor_ack, wor_ack, CadPeriodicity, CadToRx, Forward, StateSync, XtalAccuracy};
+pub use filter::{FilterAction, FilterRule, JoinFilter, FILTER_RULES};
 pub use forward::{ForwardedUplink, UplinkMetadata, WorChannel, FORWARD_OVERHEAD};
 pub use keys::{root_wor_s_key, WorKeys};
+pub use limits::{
+    CounterReset, ForwardLimits, TokenBucket, RELOAD_PERIOD_US, UNLIMITED_DEVICE_RATE,
+    UNLIMITED_RELAY_RATE,
+};
+pub use node::{Acknowledgment, Listen, Relay, RelayError, RelayHeard, RxrDownlink, Scan, Wake};
+pub(crate) use state::RelayState;
+pub use state::{RelayConfig, RelaySettings};
 pub use timing::{
     t_offset_ms, unsynchronized_preamble_symbols, Synchronization, WorSlot,
     MIN_WOR_PREAMBLE_SYMBOLS,
 };
+pub use trusted::{TrustedDevice, TrustedDevices};
 pub use wor::{wor_join_request, wor_uplink, Carrier, SealedWor, Wor};
 
 /// The port every message between a relay and its network uses, TS011-1.0.1 section 9.

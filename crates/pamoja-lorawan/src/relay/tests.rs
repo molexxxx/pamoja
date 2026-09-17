@@ -271,11 +271,21 @@ fn the_appendix_example_slips_a_slot_then_loses_synchronization() {
         unsynchronized_preamble_symbols(CadPeriodicity::Ms1000, 8_192, CadToRx::Symbols8),
         137
     );
-    assert_eq!(t_offset_ms(1_000, 2_000, 5_000, 8_192), Some(130));
+    // The appendix's own example, with the end of the preamble worked out from the frame:
+    // detected at 87 654 ms, ended at 88 734 ms, 264.192 ms of sync word and payload.
+    let sync_and_payload = LinkSettings::new(10, 125_000)
+        .with_preamble(0)
+        .airtime_us(WOR_UPLINK_LEN);
     assert_eq!(
-        t_offset_ms(1_000_000, 1_100_000, 400_000, 8_192),
+        t_offset_ms(87_654_000, 88_734_000 - sync_and_payload),
+        Some(816)
+    );
+    assert_eq!(t_offset_ms(1_000, 2_000), Some(1));
+    assert_eq!(t_offset_ms(1_000_000, 900_000), None, "before the scan");
+    assert_eq!(
+        t_offset_ms(0, 3_000_000),
         None,
-        "negative"
+        "past the eleven bits a WOR ACK carries"
     );
 }
 

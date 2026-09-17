@@ -4650,10 +4650,10 @@ export declare function lorawanRelaySecondChannel(secondChannelIndex: number, da
 export declare function lorawanRelaySynchronization(worStartUs: number, preambleSymbols: number, symbolUs: number, state: LorawanStateSync): LorawanSynchronization
 
 /**
- * The offset a relay reports in a WOR ACK, appendix 1, or null when it is negative or past
- * eleven bits.
+ * The offset a relay reports in a WOR ACK, appendix 1, or null when the preamble ended
+ * before the scan or more than eleven bits of milliseconds after it.
  */
-export declare function lorawanRelayTOffsetMs(scanStartUs: number, worEndUs: number, worAirtimeUs: number, symbolUs: number): number | null
+export declare function lorawanRelayTOffsetMs(scanStartUs: number, preambleEndUs: number): number | null
 
 /** The WOR preamble of an end device that does not know when the relay scans, section 5.2. */
 export declare function lorawanRelayUnsynchronizedPreamble(cadPeriodicity: LorawanCadPeriodicity, symbolUs: number, cadToRx: LorawanCadToRx): number

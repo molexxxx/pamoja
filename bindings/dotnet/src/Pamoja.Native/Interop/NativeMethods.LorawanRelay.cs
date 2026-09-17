@@ -150,9 +150,7 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_lorawan_relay_t_offset_ms(
         ulong scanStartUs,
-        ulong worEndUs,
-        ulong worAirtimeUs,
-        ulong symbolUs,
+        ulong preambleEndUs,
         out ushort outOffsetMs);
 
     /// <summary>Works out when a relay scanned from the WOR ACK that answered a frame.</summary>

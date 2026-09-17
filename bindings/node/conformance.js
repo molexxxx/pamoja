@@ -2659,7 +2659,7 @@ function lorawanRelayVectors() {
   }
   for (const entry of vector.tOffsets) {
     assert.strictEqual(
-      relay.tOffsetMs(entry.scanStartUs, entry.worEndUs, entry.worAirtimeUs, entry.symbolUs),
+      relay.tOffsetMs(entry.scanStartUs, entry.preambleEndUs),
       entry.offsetMs,
     );
   }
@@ -2753,7 +2753,7 @@ function lorawanDeviceVectors() {
     format: want.format,
   });
 
-  assert.strictEqual(vector.savedLen, 1589, "the saved state length");
+  assert.strictEqual(vector.savedLen, 1653, "the saved state length");
 
   for (const script of vector.scripts) {
     const plan =

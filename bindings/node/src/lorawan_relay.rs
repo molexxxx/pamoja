@@ -539,20 +539,13 @@ pub fn lorawan_relay_unsynchronized_preamble(
     ))
 }
 
-/// The offset a relay reports in a WOR ACK, appendix 1, or null when it is negative or past
-/// eleven bits.
+/// The offset a relay reports in a WOR ACK, appendix 1, or null when the preamble ended
+/// before the scan or more than eleven bits of milliseconds after it.
 #[napi(js_name = "lorawanRelayTOffsetMs")]
-pub fn lorawan_relay_t_offset_ms(
-    scan_start_us: f64,
-    wor_end_us: f64,
-    wor_airtime_us: f64,
-    symbol_us: f64,
-) -> Result<Option<u16>> {
+pub fn lorawan_relay_t_offset_ms(scan_start_us: f64, preamble_end_us: f64) -> Result<Option<u16>> {
     Ok(t_offset_ms(
         micros(scan_start_us, "scanStartUs")?,
-        micros(wor_end_us, "worEndUs")?,
-        micros(wor_airtime_us, "worAirtimeUs")?,
-        micros(symbol_us, "symbolUs")?,
+        micros(preamble_end_us, "preambleEndUs")?,
     ))
 }
 
