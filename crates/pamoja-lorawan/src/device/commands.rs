@@ -6,7 +6,8 @@
 
 use pamoja_lora::region::PlanKind;
 
-use super::{Channel, Delivery, DeviceTime, EndDevice, LinkCheck, MAX_CHANNELS};
+use super::channels::DYNAMIC_MAX_CHANNELS;
+use super::{Channel, Delivery, DeviceTime, EndDevice, LinkCheck};
 use crate::mac::{eirp_dbm, receive_delay_s, MacCommand, MacCommands};
 use crate::{Direction, Version};
 
@@ -104,8 +105,10 @@ impl EndDevice<'_> {
                         continue;
                     }
                     let index = usize::from(index);
-                    // TS001-1.0.x keeps the default channels out of reach of this command.
-                    let in_range = index >= self.channels.default_count() && index < MAX_CHANNELS;
+                    // TS001-1.0.x keeps the default channels out of reach of this command,
+                    // and RP002-1.0.5 ends a dynamic plan at channel 79.
+                    let in_range =
+                        index >= self.channels.default_count() && index < DYNAMIC_MAX_CHANNELS;
                     let (frequency_ok, data_rate_range_ok) = if frequency_hz == 0 {
                         (in_range, in_range)
                     } else {

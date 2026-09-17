@@ -54,7 +54,8 @@ It proves:
   927.5 MHz. A second reading while the first waits on its windows is refused
   as busy rather than trampling them.
 - The network's acknowledgment and the setting it sends back on port 2 are read
-  and decrypted.
+  and decrypted from the first window, whose data rate the frame's length is
+  held to.
 - The 1589 bytes the device saves before sleeping bring a fresh device back on a
   clock that has started over, and its next reading goes out as uplink 1
   without joining again.
@@ -149,7 +150,7 @@ From [`examples/guides/lorawan.rs`](https://github.com/molexxxx/pamoja/blob/main
 
 ```rust
 use pamoja_lora::region::Region;
-use pamoja_lorawan::device::{DeviceError, EndDevice, Heard, Settings};
+use pamoja_lorawan::device::{DeviceError, EndDevice, Heard, ReceiveWindow, Settings};
 use pamoja_lorawan::{Device, Downlink, JoinGrant};
 
 let app_key = [7u8; 16];
@@ -195,11 +196,12 @@ if let Err(DeviceError::Busy) = node.send(2, b"21.6", false, 10_000_000) {
     println!("busy      the reading before still waits on its windows");
 }
 
-// The network acknowledges it and sends a setting back on the same port.
+// The network acknowledges it in the first window and sends a setting back on the same
+// port. Naming the window holds the frame to the length that window's data rate carries.
 let answer = network
     .session(&app_key, 1)
     .encode_downlink(&Downlink::new(0, 2, b"set=19.0").with_ack())?;
-if let Heard::Data(delivery) = node.heard(answer.as_bytes(), 7)? {
+if let Heard::Data(delivery) = node.heard_in(ReceiveWindow::Rx1, answer.as_bytes(), 7)? {
     println!(
         "downlink  acknowledged: {}, port {} says {}",
         delivery.acknowledged(),
@@ -325,9 +327,10 @@ try {
   }
 }
 
-// The network acknowledges it and sends a setting back on the same port.
+// The network acknowledges it in the first window and sends a setting back on the same
+// port. Naming the window holds the frame to the length that window's data rate carries.
 const answer = lorawan.grantSession(grant, rootKey, 1).encodeDownlink(0, 2, Buffer.from('set=19.0'), { ack: true })
-const downlink = sensor.heard(answer, 7)
+const downlink = sensor.heard(answer, 7, lorawan.ReceiveWindow.Rx1)
 if (downlink.kind === 'Data') {
   const { acknowledged, port, payload } = downlink.delivery
   console.log(`downlink  acknowledged: ${acknowledged}, port ${port ?? 0} says ${payload.toString()}`)
@@ -404,7 +407,7 @@ From [`bindings/python/guides/lorawan.py`](https://github.com/molexxxx/pamoja/bl
 
 ```python
 from pamoja.lora import plan_for
-from pamoja.lorawan import DeviceError, DeviceSettings, end_device
+from pamoja.lorawan import DeviceError, DeviceSettings, ReceiveWindow, end_device
 
 root_key = bytes([7]) * 16
 dev_eui = bytes.fromhex("70b3d57ed0051234")
@@ -446,9 +449,10 @@ except DeviceError as error:
     if error.kind == "busy":
         print("busy      the reading before still waits on its windows")
 
-# The network acknowledges it and sends a setting back on the same port.
+# The network acknowledges it in the first window and sends a setting back on the same
+# port. Naming the window holds the frame to the length that window's data rate carries.
 answer = network.session(root_key, 1).encode_downlink(0, 2, b"set=19.0", ack=True)
-downlink = node.heard(answer, 7)
+downlink = node.heard(answer, 7, ReceiveWindow.RX1)
 if downlink.kind == "data":
     delivery = downlink.delivery
     acknowledged = "true" if delivery.acknowledged else "false"
@@ -577,10 +581,11 @@ catch (LorawanDeviceException error) when (error.Kind == LorawanDeviceErrorKind.
     Console.WriteLine("busy      the reading before still waits on its windows");
 }
 
-// The network acknowledges it and sends a setting back on the same port.
+// The network acknowledges it in the first window and sends a setting back on the same
+// port. Naming the window holds the frame to the length that window's data rate carries.
 using LorawanSession networkSession = network.Session(rootKey, 1);
 byte[] answer = networkSession.EncodeDownlink(0, 2, "set=19.0"u8, new LorawanOptions { Ack = true });
-if (node.Heard(answer, 7) is LorawanHeard.Data data)
+if (node.Heard(answer, 7, LorawanReceiveWindow.Rx1) is LorawanHeard.Data data)
 {
     LorawanDelivery delivery = data.Delivery;
     string acknowledged = delivery.Acknowledged ? "true" : "false";

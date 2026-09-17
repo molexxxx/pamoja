@@ -36,9 +36,10 @@ use pamoja_lora::region::{
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::adr::{Backoff, Standing};
 use pamoja_lorawan::device::{
-    Battery, DeviceError, EndDevice, Heard, Next, Saved, Settings, StateError, Transmission,
-    Window as DeviceWindow,
+    Battery, DeviceError, EndDevice, Heard, Next, ReceiveWindow, Saved, Settings, StateError,
+    Transmission, Window as DeviceWindow,
 };
+use pamoja_lorawan::mac::MacCommand;
 use pamoja_lorawan::{
     defaults, CfList, CfListKind, Device, Downlink, FrameHeader, JoinGrant, JoinRequest, Session,
     Uplink, Version,
@@ -3073,9 +3074,29 @@ impl Script {
     }
 
     fn heard(&mut self, frame: &[u8], snr_db: i8) {
-        let result = self.device.heard(frame, snr_db);
+        self.heard_with(None, frame, snr_db);
+    }
+
+    fn heard_in(&mut self, window: ReceiveWindow, frame: &[u8], snr_db: i8) {
+        self.heard_with(Some(window), frame, snr_db);
+    }
+
+    fn heard_with(&mut self, window: Option<ReceiveWindow>, frame: &[u8], snr_db: i8) {
+        let result = match window {
+            Some(window) => self.device.heard_in(window, frame, snr_db),
+            None => self.device.heard(frame, snr_db),
+        };
         let dev_addr = self.device.dev_addr().unwrap_or(0);
-        let step = json!({ "call": "heard", "frame": hex(frame), "snrDb": snr_db });
+        let window = window.map(|window| match window {
+            ReceiveWindow::Rx1 => "rx1",
+            ReceiveWindow::Rx2 => "rx2",
+        });
+        let step = json!({
+            "call": "heard",
+            "frame": hex(frame),
+            "snrDb": snr_db,
+            "window": window,
+        });
         self.outcome(step, result, "heard", |heard| match heard {
             Heard::Joined { dev_addr } => json!({ "kind": "joined", "devAddr": dev_addr }),
             Heard::Data(delivery) => json!({
@@ -3255,6 +3276,41 @@ fn lorawan_device() -> Value {
     eu.request_device_time();
     eu.send_empty(800_000_000);
     eu.nothing_heard(803_000_000);
+    eu.status();
+
+    // A confirmed reading answered without an acknowledgment, in a frame the first window's
+    // data rate carries and the second's does not, asking for a channel past the last EU868
+    // defines. The device waits out the retransmission timeout before its next uplink.
+    let reading = eu
+        .send(2, b"23.0", true, 1_000_000_000)
+        .expect("the air is free");
+    let limit = |data_rate| {
+        eu868
+            .plan()
+            .downlink_max_payload(data_rate, false)
+            .expect("a LoRa data rate")
+            .mac_payload
+    };
+    let (rx1_limit, rx2_limit) = (limit(reading.rx1.data_rate), limit(reading.rx2.data_rate));
+    assert!(rx1_limit > rx2_limit, "the first window carries more");
+    let mut fopts = [0u8; 6];
+    MacCommand::NewChannelReq {
+        index: 80,
+        frequency_hz: 867_100_000,
+        max_data_rate: 5,
+        min_data_rate: 0,
+    }
+    .encode(&mut fopts)
+    .expect("the command encodes");
+    let filler = vec![0x5A; usize::from(rx2_limit) - 7 - fopts.len()];
+    let long = network
+        .encode_downlink(&Downlink::new(1, 3, &filler).with_fopts(&fopts))
+        .expect("a downlink");
+    assert_eq!(long.as_bytes().len() - 5, usize::from(rx2_limit) + 1);
+    eu.heard_in(ReceiveWindow::Rx2, long.as_bytes(), 4);
+    eu.heard_in(ReceiveWindow::Rx1, long.as_bytes(), 4);
+    eu.send(2, b"23.1", false, 1_000_000_001);
+    eu.send(2, b"23.1", false, 1_010_000_000);
     eu.status();
 
     // A device woken from the saved state sends exactly what the first did, and a state

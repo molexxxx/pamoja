@@ -17,6 +17,10 @@ pub const MAX_CHANNELS: usize = 96;
 /// The mask groups `LinkADRReq` addresses, sixteen channels each.
 pub(crate) const MASK_GROUPS: usize = MAX_CHANNELS / 16;
 
+/// The most channels a dynamic plan defines: RP002-1.0.5 gives each "a maximum of 80
+/// channels", the most its `ChMaskCntl` values reach.
+pub(crate) const DYNAMIC_MAX_CHANNELS: usize = 80;
+
 /// The data rates a channel a join accept creates carries: RP002-1.0.5 section 3.3.1 makes
 /// them "usable for DR0 to DR5 125 kHz LoRa modulation".
 const CREATED_DATA_RATES: (u8, u8) = (0, 5);
@@ -215,7 +219,7 @@ impl Channels {
                 };
                 for (slot, hz) in frequencies.into_iter().enumerate() {
                     let index = self.defaults + slot;
-                    if hz != 0 && index < MAX_CHANNELS && usable(hz) {
+                    if hz != 0 && index < DYNAMIC_MAX_CHANNELS && usable(hz) {
                         self.slots[index] = Some(Channel::new(hz, low, high));
                         self.set_bit(index, true);
                     }
@@ -230,7 +234,7 @@ impl Channels {
                 };
                 let mut index = self.defaults;
                 for number in list.enabled_channels() {
-                    if index >= MAX_CHANNELS {
+                    if index >= DYNAMIC_MAX_CHANNELS {
                         break;
                     }
                     if let Some(hz) = numbering.frequency_hz(number).filter(|hz| usable(*hz)) {

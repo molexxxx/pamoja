@@ -2672,7 +2672,8 @@ function lorawanDeviceVectors() {
           case "repeat":
             return transmissionOf(device.repeat(step.nowUs));
           case "heard": {
-            const heard = device.heard(unhex(step.frame), step.snrDb);
+            const window = { rx1: lorawan.ReceiveWindow.Rx1, rx2: lorawan.ReceiveWindow.Rx2 }[step.window];
+            const heard = device.heard(unhex(step.frame), step.snrDb, window);
             if (heard.kind === "Joined") {
               return { kind: "joined", devAddr: heard.devAddr };
             }

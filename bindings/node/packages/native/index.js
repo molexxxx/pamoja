@@ -977,6 +977,7 @@ module.exports.LorawanMessageType = nativeBinding.LorawanMessageType
 module.exports.LorawanNextKind = nativeBinding.LorawanNextKind
 module.exports.lorawanParseHeader = nativeBinding.lorawanParseHeader
 module.exports.lorawanParseJoinRequest = nativeBinding.lorawanParseJoinRequest
+module.exports.LorawanReceiveWindow = nativeBinding.LorawanReceiveWindow
 module.exports.LorawanVersion = nativeBinding.LorawanVersion
 module.exports.MAVLINK_DEFAULT_TIMESTAMP_WINDOW = nativeBinding.MAVLINK_DEFAULT_TIMESTAMP_WINDOW
 module.exports.MAVLINK_FIELD_CHAR = nativeBinding.MAVLINK_FIELD_CHAR

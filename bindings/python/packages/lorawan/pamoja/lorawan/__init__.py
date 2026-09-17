@@ -76,6 +76,7 @@ __all__ = [
     "RECEIVE_WINDOW_TOLERANCE_US",
     "RETRANSMIT_TIMEOUT_MAX_US",
     "RETRANSMIT_TIMEOUT_MIN_US",
+    "ReceiveWindow",
     "RxData",
     "SAVED_LEN",
     "Session",
@@ -166,6 +167,20 @@ class Version(str, enum.Enum):
     V1_0_3 = "1.0.3"
     #: TS001-1.0.4, the LoRaWAN 1.0.4 link layer.
     V1_0_4 = "1.0.4"
+
+
+class ReceiveWindow(str, enum.Enum):
+    """Which receive window a frame arrived in, as :meth:`EndDevice.heard` takes it.
+
+    TS001-1.0.4 section 4.1 has a device discard a frame whose MACPayload is longer than
+    the data rate it was received at carries, so a device told the window holds each frame
+    to that window's limit.
+    """
+
+    #: The first window, on the uplink's downlink channel.
+    RX1 = "rx1"
+    #: The second, on the fixed frequency and data rate.
+    RX2 = "rx2"
 
 
 class MessageType(str, enum.Enum):

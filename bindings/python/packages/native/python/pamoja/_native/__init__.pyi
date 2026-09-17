@@ -4347,12 +4347,14 @@ class LorawanEndDevice:
         r"""
         Sends the last uplink again, the same frame on a channel chosen afresh.
         """
-    def heard(self, frame: typing.Sequence[builtins.int], snr_db: builtins.int) -> LorawanHeard:
+    def heard(self, frame: typing.Sequence[builtins.int], snr_db: builtins.int, window: typing.Optional[builtins.str] = None) -> LorawanHeard:
         r"""
         Reads a frame heard in one of the receive windows of the last transmission.
         
-        A frame that is not for this device, or does not verify, raises and leaves the
-        transmission waiting, so the second window still opens.
+        A frame that is not for this device, does not verify, or is longer than the window's
+        data rate carries raises and leaves the transmission waiting, so the second window
+        still opens. `window` is `"rx1"` or `"rx2"`; without it, a frame may be as long as the
+        faster window allows.
         """
     def nothing_heard(self, now_us: builtins.int) -> LorawanNext:
         r"""

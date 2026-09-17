@@ -81,7 +81,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 fn device() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR: device
     use pamoja_lora::region::Region;
-    use pamoja_lorawan::device::{DeviceError, EndDevice, Heard, Settings};
+    use pamoja_lorawan::device::{DeviceError, EndDevice, Heard, ReceiveWindow, Settings};
     use pamoja_lorawan::{Device, Downlink, JoinGrant};
 
     let app_key = [7u8; 16];
@@ -127,11 +127,12 @@ fn device() -> std::result::Result<(), Box<dyn Error>> {
         println!("busy      the reading before still waits on its windows");
     }
 
-    // The network acknowledges it and sends a setting back on the same port.
+    // The network acknowledges it in the first window and sends a setting back on the same
+    // port. Naming the window holds the frame to the length that window's data rate carries.
     let answer = network
         .session(&app_key, 1)
         .encode_downlink(&Downlink::new(0, 2, b"set=19.0").with_ack())?;
-    if let Heard::Data(delivery) = node.heard(answer.as_bytes(), 7)? {
+    if let Heard::Data(delivery) = node.heard_in(ReceiveWindow::Rx1, answer.as_bytes(), 7)? {
         println!(
             "downlink  acknowledged: {}, port {} says {}",
             delivery.acknowledged(),

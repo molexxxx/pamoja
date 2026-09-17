@@ -28,6 +28,7 @@ import type {
   LorawanWindow,
   LorawanDirection as DirectionName,
   LorawanMessageType as MessageTypeName,
+  LorawanReceiveWindow as ReceiveWindowName,
   LorawanVersion as VersionName,
 } from '@pamoja/native'
 
@@ -132,6 +133,17 @@ export const CfListKind = {
 
 /** One of the {@link CfListKind} values. */
 export type CfListKind = CfListKindName
+
+/** Which receive window a frame arrived in. */
+export const ReceiveWindow = {
+  /** The first window, on the uplink's downlink channel. */
+  Rx1: 'Rx1' as ReceiveWindowName,
+  /** The second, on the fixed frequency and data rate. */
+  Rx2: 'Rx2' as ReceiveWindowName,
+} as const
+
+/** One of the {@link ReceiveWindow} values. */
+export type ReceiveWindow = ReceiveWindowName
 
 /**
  * The optional channel list at the end of a join accept.
@@ -1031,14 +1043,19 @@ export class EndDevice {
   /**
    * Reads a frame heard in one of the receive windows of the last transmission.
    *
+   * TS001-1.0.4 section 4.1 has a device discard a frame whose MACPayload is longer than the
+   * data rate it was received at carries. Name the window and the frame is held to that
+   * window's limit; leave it out and it may be as long as the faster window allows.
+   *
    * @param frame - The bytes the radio received.
    * @param snrDb - The frame's signal-to-noise ratio, which a `DevStatusAns` reports.
+   * @param window - The window the radio heard it in, when known.
    * @returns The join, or the downlink read and acted on.
    * @throws A {@link DeviceError}: `NothingPending`, `Foreign`, `Replayed`, `CounterGap`,
    *   `Refused` or `Frame`. The windows stay open, so the second still listens.
    */
-  heard(frame: Uint8Array, snrDb: number): Heard {
-    const heard: LorawanHeard = this.#inner.heard(Buffer.from(frame), snrDb)
+  heard(frame: Uint8Array, snrDb: number, window?: ReceiveWindow): Heard {
+    const heard: LorawanHeard = this.#inner.heard(Buffer.from(frame), snrDb, window)
     if (heard.kind === 'Joined' || heard.delivery == null) {
       return { kind: 'Joined', devAddr: heard.devAddr }
     }

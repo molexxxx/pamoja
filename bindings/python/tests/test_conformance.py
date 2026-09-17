@@ -1841,7 +1841,8 @@ def _run_device_step(device, step: dict):
     if call == "repeat":
         return _device_transmission_of(device.repeat(step["nowUs"]))
     if call == "heard":
-        heard = device.heard(unhex(step["frame"]), step["snrDb"])
+        window = None if step["window"] is None else lorawan.ReceiveWindow(step["window"])
+        heard = device.heard(unhex(step["frame"]), step["snrDb"], window)
         if heard.kind == "joined":
             return {"kind": "joined", "devAddr": heard.dev_addr}
         delivery = heard.delivery

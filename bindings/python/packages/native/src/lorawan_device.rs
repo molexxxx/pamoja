@@ -14,8 +14,8 @@ use pyo3::types::PyBytes;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use pamoja_lorawan::device::{
-    Battery, Delivery, DeviceError, EndDevice, Heard, Next, Saved, Settings, StateError,
-    Transmission, Window,
+    Battery, Delivery, DeviceError, EndDevice, Heard, Next, ReceiveWindow, Saved, Settings,
+    StateError, Transmission, Window,
 };
 use pamoja_lorawan::Version;
 
@@ -537,10 +537,28 @@ impl LorawanEndDevice {
 
     /// Reads a frame heard in one of the receive windows of the last transmission.
     ///
-    /// A frame that is not for this device, or does not verify, raises and leaves the
-    /// transmission waiting, so the second window still opens.
-    fn heard(&mut self, frame: Vec<u8>, snr_db: i8) -> PyResult<LorawanHeard> {
-        Ok(match self.inner.heard(&frame, snr_db).map_err(raised)? {
+    /// A frame that is not for this device, does not verify, or is longer than the window's
+    /// data rate carries raises and leaves the transmission waiting, so the second window
+    /// still opens. `window` is `"rx1"` or `"rx2"`; without it, a frame may be as long as the
+    /// faster window allows.
+    #[pyo3(signature = (frame, snr_db, window = None))]
+    fn heard(
+        &mut self,
+        frame: Vec<u8>,
+        snr_db: i8,
+        window: Option<&str>,
+    ) -> PyResult<LorawanHeard> {
+        let result = match window {
+            Some("rx1") => self.inner.heard_in(ReceiveWindow::Rx1, &frame, snr_db),
+            Some("rx2") => self.inner.heard_in(ReceiveWindow::Rx2, &frame, snr_db),
+            Some(other) => {
+                return Err(PamojaError::new_err(format!(
+                    "{other} is not a receive window; expected rx1 or rx2"
+                )))
+            }
+            None => self.inner.heard(&frame, snr_db),
+        };
+        Ok(match result.map_err(raised)? {
             Heard::Joined { dev_addr } => LorawanHeard {
                 kind: "joined".to_owned(),
                 dev_addr,
