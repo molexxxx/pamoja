@@ -78,12 +78,15 @@ pamoja-gateway /etc/pamoja/gateway.json
 ## The node
 
 The [ESP32 page](esp32.md#a-lorawan-node) covers the wiring and the program.
-Before flashing, set its `DEV_EUI`, `JOIN_EUI` and `APP_KEY` to the device
-registered above; the values it ships with are the test identifiers the
-interop stack registers. Then:
+It takes the device's identifiers and root key from the environment it is built
+in, so give it the ones registered above, in hexadecimal as ChirpStack shows
+them, and flash:
 
 ```sh
 cd examples/boards/esp32c3
+export LORAWAN_DEV_EUI=<DevEUI>
+export LORAWAN_JOIN_EUI=<JoinEUI>
+export LORAWAN_APP_KEY=<the nwkKey registered above>
 cargo run --release --bin lorawan
 ```
 
