@@ -46,7 +46,9 @@ __all__ = [
     "ForwardDecision",
     "GatewayNetwork",
     "GatewayNetworkEvent",
+    "GatewayNotice",
     "GatewayPacket",
+    "GatewayRelayed",
     "GatewayRxpk",
     "GatewaySlot",
     "GatewayStat",
@@ -82,6 +84,8 @@ __all__ = [
     "LoraReception",
     "LoraRelayChannel",
     "LoraSubBand",
+    "LorawanAckWindow",
+    "LorawanAcknowledgment",
     "LorawanBackoff",
     "LorawanBackoffStep",
     "LorawanCarrier",
@@ -97,17 +101,27 @@ __all__ = [
     "LorawanHeard",
     "LorawanJoinAccept",
     "LorawanJoinRequest",
+    "LorawanListen",
     "LorawanMacCommand",
     "LorawanNext",
+    "LorawanRelay",
+    "LorawanRelayExchange",
+    "LorawanRelayHeard",
+    "LorawanRelayStatus",
     "LorawanRxData",
+    "LorawanRxrDownlink",
+    "LorawanScan",
     "LorawanSession",
     "LorawanStateSync",
     "LorawanSynchronization",
     "LorawanTransmission",
     "LorawanUplinkMetadata",
+    "LorawanWake",
+    "LorawanWakeUp",
     "LorawanWindow",
     "LorawanWor",
     "LorawanWorKeys",
+    "LorawanWorNext",
     "LorawanWorSlot",
     "Manifest",
     "MavlinkFieldInfo",
@@ -2145,6 +2159,30 @@ class GatewayNetwork:
         r"""
         Builds a downlink for a device, encrypted with its session.
         """
+    def notices(self) -> builtins.list[GatewayNotice]:
+        r"""
+        Takes the devices relays have reported hearing and could not verify, TS011-1.0.1
+        section 10.7.
+        
+        A relay carries these in the MAC commands of its own uplinks, alongside whatever else
+        that uplink was for, so they wait here until they are read.
+        """
+    def command(self, dev_addr: builtins.int, slot: GatewaySlot, commands: typing.Sequence[LorawanMacCommand]) -> GatewayTxpk:
+        r"""
+        Builds a downlink carrying MAC commands, which is how a network configures a relay.
+        
+        The commands ride in the frame options where they fit, and in a frame of their own on
+        port 0 where they do not.
+        """
+    def trust_command(self, dev_addr: builtins.int, index: builtins.int, reload_rate: builtins.int = 63, bucket_size: builtins.int = 0) -> LorawanMacCommand:
+        r"""
+        Builds the command that tells a relay to trust a device, with the key that lets it
+        verify the device's wake-on-radio frames, TS011-1.0.1 section 10.4.
+        
+        `index` is the entry in the relay's list, `reload_rate` how many of the device's
+        uplinks it forwards an hour, 63 for no limit, and `bucket_size` the coded multiplier
+        of table 55.
+        """
 
 @typing.final
 class GatewayNetworkEvent:
@@ -2196,6 +2234,39 @@ class GatewayNetworkEvent:
         r"""
         The packet carrying the accept, for a join.
         """
+    @property
+    def relay(self) -> typing.Optional[GatewayRelayed]:
+        r"""
+        What a relay added to an uplink it carried, and `None` for one a gateway heard
+        directly.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class GatewayNotice:
+    r"""
+    A device a relay heard and could not verify, TS011-1.0.1 section 10.7.
+    """
+    @property
+    def relay(self) -> builtins.int:
+        r"""
+        The relay that heard it.
+        """
+    @property
+    def dev_addr(self) -> builtins.int:
+        r"""
+        The address the wake-on-radio frame named.
+        """
+    @property
+    def rssi_dbm(self) -> builtins.int:
+        r"""
+        The frame's signal strength in dBm.
+        """
+    @property
+    def snr_db(self) -> builtins.int:
+        r"""
+        Its signal-to-noise ratio in dB.
+        """
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
@@ -2243,6 +2314,43 @@ class GatewayPacket:
         r"""
         Describes a datagram of the protocol.
         """
+
+@typing.final
+class GatewayRelayed:
+    r"""
+    What a relay added to an uplink it forwarded, TS011-1.0.1 section 9.1.
+    """
+    @property
+    def relay(self) -> builtins.int:
+        r"""
+        The relay's own address.
+        """
+    @property
+    def rssi_dbm(self) -> builtins.int:
+        r"""
+        What it heard of the uplink, in dBm.
+        """
+    @property
+    def snr_db(self) -> builtins.int:
+        r"""
+        Its signal-to-noise ratio, in dB.
+        """
+    @property
+    def data_rate(self) -> builtins.int:
+        r"""
+        The data rate it arrived at.
+        """
+    @property
+    def wor_channel(self) -> builtins.str:
+        r"""
+        The wake-on-radio channel the device woke the relay on: `default` or `second`.
+        """
+    @property
+    def frequency_hz(self) -> builtins.int:
+        r"""
+        The frequency it arrived on, in hertz.
+        """
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class GatewayRxpk:
@@ -4007,6 +4115,70 @@ class LoraSubBand:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class LorawanAckWindow:
+    r"""
+    When and where a relay's acknowledgment would arrive.
+    """
+    @property
+    def start_us(self) -> builtins.int:
+        r"""
+        When it starts, in microseconds.
+        """
+    @property
+    def carrier(self) -> LorawanCarrier:
+        r"""
+        Where it arrives, and how fast.
+        """
+    @property
+    def link(self) -> LoraLink:
+        r"""
+        The LoRa settings to listen with.
+        """
+    @property
+    def airtime_us(self) -> builtins.int:
+        r"""
+        How long it lasts, in microseconds.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanAcknowledgment:
+    r"""
+    The acknowledgment a relay answers a wake-on-radio frame with.
+    """
+    @property
+    def frame(self) -> bytes:
+        r"""
+        The frame, seven bytes.
+        """
+    @property
+    def start_us(self) -> builtins.int:
+        r"""
+        When to start sending it, in microseconds.
+        """
+    @property
+    def carrier(self) -> LorawanCarrier:
+        r"""
+        Where it goes, and how fast.
+        """
+    @property
+    def link(self) -> LoraLink:
+        r"""
+        Its LoRa settings, sent with inverted IQ.
+        """
+    @property
+    def output_dbm(self) -> builtins.int:
+        r"""
+        The power to ask of the radio, conducted, in dBm.
+        """
+    @property
+    def airtime_us(self) -> builtins.int:
+        r"""
+        How long it holds the air, in microseconds.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class LorawanBackoff:
     r"""
     A device's count of how long the network has been silent.
@@ -4345,6 +4517,33 @@ class LorawanEndDevice:
     `repeat`, or move on.
     """
     @property
+    def relaying(self) -> builtins.bool:
+        r"""
+        Whether the next uplink goes through a relay.
+        """
+    @property
+    def relay_activation(self) -> builtins.str:
+        r"""
+        How the device decides whether to use a relay: `disabled`, `enabled`, `dynamic` or
+        `device_controlled`.
+        """
+    @property
+    def relay_sync(self) -> builtins.str:
+        r"""
+        What the device knows of when its relay listens: `initialized`, `unsynchronized` or
+        `synchronized`, TS011-1.0.1 section 3.9.
+        """
+    @property
+    def relay_status(self) -> typing.Optional[LorawanRelayStatus]:
+        r"""
+        What the relay's last acknowledgment said about itself, or `None` before one arrived.
+        """
+    @property
+    def wor_counter(self) -> builtins.int:
+        r"""
+        The wake-on-radio frame counter the next frame will use, TS011-1.0.1 section 5.3.2.
+        """
+    @property
     def is_joined(self) -> builtins.bool:
         r"""
         Whether the device is on a network: once joined, or from the start for a personalized
@@ -4437,6 +4636,26 @@ class LorawanEndDevice:
     def nothing_heard(self, now_us: builtins.int) -> LorawanNext:
         r"""
         Says what comes next once both receive windows closed with nothing for the device.
+        """
+    def use_relay(self, on: builtins.bool) -> builtins.bool:
+        r"""
+        Turns relay mode on or off, TS011-1.0.1 section 10.2 and appendix 5.
+        
+        From here on the decision is the caller's rather than the device's own policy, until
+        its network takes it over with an `EndDeviceConfReq` or hands it back. Returns `False`
+        when the network holds the decision, leaving the mode as it was.
+        """
+    def heard_wor_ack(self, frame: typing.Sequence[builtins.int]) -> LorawanRelayStatus:
+        r"""
+        Reads the acknowledgment a relay answered the last wake-on-radio frame with.
+        
+        The device is now synchronized: it knows when the relay scans, so its next frames
+        carry only as much preamble as the two clocks could have drifted apart.
+        """
+    def no_wor_ack(self, now_us: builtins.int) -> LorawanWorNext:
+        r"""
+        Says what to do once the acknowledgment window closed with nothing in it: send the
+        uplink anyway, or wake the relay again first, as the network's `BackOff` asks.
         """
     def set_battery(self, level: typing.Optional[builtins.int] = None, external: builtins.bool = False) -> None:
         r"""
@@ -4689,6 +4908,33 @@ class LorawanJoinRequest:
         r"""
         The application identifier, most-significant byte first.
         """
+
+@typing.final
+class LorawanListen:
+    r"""
+    When and where a relay listens for the uplink a wake-on-radio frame announced.
+    """
+    @property
+    def start_us(self) -> builtins.int:
+        r"""
+        When the uplink starts, in microseconds.
+        """
+    @property
+    def carrier(self) -> LorawanCarrier:
+        r"""
+        Where it arrives, and how fast.
+        """
+    @property
+    def link(self) -> LoraLink:
+        r"""
+        Its LoRa settings, heard with standard IQ.
+        """
+    @property
+    def max_len(self) -> builtins.int:
+        r"""
+        The longest frame the relay forwards; stop receiving anything longer.
+        """
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class LorawanMacCommand:
@@ -5098,6 +5344,212 @@ class LorawanNext:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class LorawanRelay:
+    r"""
+    A LoRaWAN relay: an end device that also listens for the devices around it.
+    
+    One turn runs like this: `next_scan` says when and where to listen, a wake-on-radio frame
+    heard there goes to `heard_wor`, the uplink it announced to `heard_uplink`, and `forward`
+    wraps that in one of the relay's own uplinks on port 226. What the relay's own receive
+    windows hear goes to `heard_in`, which turns a downlink meant for an end device into one
+    to send in that device's relay window.
+    
+    A call that cannot be done raises `LorawanRelayError`, or `LorawanDeviceError` when it is
+    the relay's own device that refused.
+    """
+    @property
+    def running(self) -> builtins.bool:
+        r"""
+        Whether the relay is scanning.
+        """
+    @property
+    def forward_due(self) -> typing.Optional[builtins.int]:
+        r"""
+        When the forwarded uplink waiting to go out is due, or `None` with nothing waiting.
+        """
+    @property
+    def dev_addr(self) -> typing.Optional[builtins.int]:
+        r"""
+        The address the relay's own device is on the network by, or `None` before joining.
+        """
+    @property
+    def joined(self) -> builtins.bool:
+        r"""
+        Whether the relay's own device is on a network.
+        """
+    @property
+    def data_rate(self) -> builtins.int:
+        r"""
+        The data rate the relay forwards at, which its acknowledgments report.
+        """
+    @staticmethod
+    def personalized(plan: ChannelPlan, session: LorawanSession, settings: LorawanDeviceSettings, xtal_accuracy: builtins.str = 'ppm40', cad_to_rx: builtins.str = 'symbols8') -> LorawanRelay:
+        r"""
+        Makes a relay whose own device is activated by personalization.
+        
+        `xtal_accuracy` and `cad_to_rx` describe the relay's own hardware, and travel in every
+        acknowledgment it sends, so the devices around it know how much preamble to send.
+        """
+    @staticmethod
+    def over_the_air(plan: ChannelPlan, credentials: LorawanDevice, settings: LorawanDeviceSettings, xtal_accuracy: builtins.str = 'ppm40', cad_to_rx: builtins.str = 'symbols8') -> LorawanRelay:
+        r"""
+        Makes a relay whose own device joins over the air.
+        """
+    def start(self, cad_periodicity: builtins.str = 'ms1000', default_channel_index: builtins.int = 0, second_channel: typing.Optional[LoraRelayChannel] = None) -> None:
+        r"""
+        Starts scanning, or changes what a running relay scans from its next scan on.
+        
+        `default_channel_index` picks one of the region's wake-on-radio channels, and
+        `second_channel` is one a network configured.
+        """
+    def stop(self) -> None:
+        r"""
+        Stops scanning. A forwarded uplink already waiting still goes out.
+        """
+    def trust(self, index: builtins.int, dev_addr: builtins.int, root_wor_s_key: typing.Sequence[builtins.int], next_wfcnt: builtins.int = 0, reload_rate: builtins.int = 63, bucket_size: builtins.int = 0) -> None:
+        r"""
+        Trusts an end device, as an `UpdateUplinkListReq` with the same fields does.
+        
+        `index` is the entry, 0 to 15. `reload_rate` is how many of the device's uplinks are
+        forwarded an hour, 63 for no limit, and `bucket_size` the coded multiplier of
+        TS011-1.0.1 table 55.
+        """
+    def next_scan(self, now_us: builtins.int) -> typing.Optional[LorawanScan]:
+        r"""
+        Says when and where to scan next, or `None` while the relay is stopped.
+        """
+    def heard_wor(self, scan: LorawanScan, frame: typing.Sequence[builtins.int], rssi_dbm: builtins.int, snr_db: builtins.int, ended_us: builtins.int) -> LorawanWake:
+        r"""
+        Reads a wake-on-radio frame a scan heard, `ended_us` being when the frame ended.
+        """
+    def heard_uplink(self, frame: typing.Sequence[builtins.int], rssi_dbm: builtins.int, snr_db: builtins.int, ended_us: builtins.int) -> builtins.int:
+        r"""
+        Reads the uplink a wake-on-radio frame announced, and holds it to forward.
+        
+        Returns when to `forward` it: fifty milliseconds after it ended.
+        """
+    def uplink_missed(self) -> None:
+        r"""
+        Clears the uplink a wake-on-radio frame announced, once listening heard nothing.
+        """
+    def forward(self, now_us: builtins.int) -> LorawanTransmission:
+        r"""
+        Sends the uplink the relay is holding, in one of its own on port 226.
+        """
+    def heard_in(self, window: builtins.str, frame: typing.Sequence[builtins.int], snr_db: builtins.int) -> LorawanRelayHeard:
+        r"""
+        Reads a frame the relay's own device heard, acting on the relay commands in it.
+        
+        `window` is `"rx1"`, `"rx2"` or `"rxr"`.
+        """
+    def nothing_heard(self, now_us: builtins.int) -> LorawanNext:
+        r"""
+        Says what comes next once the relay's own windows closed with nothing in them.
+        """
+    def join(self, dev_nonce: builtins.int, now_us: builtins.int) -> LorawanTransmission:
+        r"""
+        Makes the relay's own join request.
+        """
+    def send(self, port: builtins.int, payload: typing.Sequence[builtins.int], now_us: builtins.int, confirmed: builtins.bool = False) -> LorawanTransmission:
+        r"""
+        Sends one of the relay's own uplinks, which also carries what it owes its network.
+        """
+    def send_empty(self, now_us: builtins.int) -> LorawanTransmission:
+        r"""
+        Sends an uplink with no payload, carrying whatever the relay owes its network.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanRelayExchange:
+    r"""
+    The wake-on-radio exchange an uplink under a relay goes out behind, TS011-1.0.1 section 5.
+    """
+    @property
+    def wake_up(self) -> LorawanWakeUp:
+        r"""
+        The frame that wakes the relay.
+        """
+    @property
+    def ack(self) -> typing.Optional[LorawanAckWindow]:
+        r"""
+        Where the relay's acknowledgment would arrive, or `None` ahead of a join request,
+        which no relay acknowledges.
+        """
+    @property
+    def uplink_start_us(self) -> builtins.int:
+        r"""
+        When the uplink itself goes out, in microseconds, whether or not the acknowledgment
+        arrives.
+        """
+    @property
+    def rxr(self) -> LorawanWindow:
+        r"""
+        The relay window, timed from the end of the uplink like the other two.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanRelayHeard:
+    r"""
+    What a frame a relay's own device heard turned out to be.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        `device`, `downlink` or `undeliverable`.
+        """
+    @property
+    def reason(self) -> typing.Optional[builtins.str]:
+        r"""
+        Why a downlink could not be passed on, for `undeliverable`.
+        """
+    @property
+    def heard(self) -> typing.Optional[LorawanHeard]:
+        r"""
+        What the relay's own device made of the frame.
+        """
+    @property
+    def downlink(self) -> typing.Optional[LorawanRxrDownlink]:
+        r"""
+        The downlink to send the end device on, for `downlink`.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanRelayStatus:
+    r"""
+    What a relay's acknowledgment said about itself, TS011-1.0.1 table 14.
+    """
+    @property
+    def cad_periodicity(self) -> builtins.str:
+        r"""
+        How often it scans.
+        """
+    @property
+    def xtal_accuracy(self) -> builtins.str:
+        r"""
+        How accurate its crystal is.
+        """
+    @property
+    def cad_to_rx(self) -> builtins.str:
+        r"""
+        How long it takes to start receiving.
+        """
+    @property
+    def relay_data_rate(self) -> builtins.int:
+        r"""
+        The data rate it forwards at, which bounds what the device may send.
+        """
+    @property
+    def forward(self) -> builtins.str:
+        r"""
+        Whether it will forward: `available`, `retry_in_30_minutes`, `retry_in_60_minutes` or
+        `disabled`.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class LorawanRxData:
     r"""
     A decoded data frame, with its payload decrypted.
@@ -5162,6 +5614,75 @@ class LorawanRxData:
         r"""
         The decrypted application payload.
         """
+
+@typing.final
+class LorawanRxrDownlink:
+    r"""
+    A downlink for an end device, to send in its relay window.
+    """
+    @property
+    def frame(self) -> bytes:
+        r"""
+        The frame to send.
+        """
+    @property
+    def start_us(self) -> builtins.int:
+        r"""
+        When to start sending it, in microseconds.
+        """
+    @property
+    def carrier(self) -> LorawanCarrier:
+        r"""
+        Where it goes, and how fast.
+        """
+    @property
+    def link(self) -> LoraLink:
+        r"""
+        Its LoRa settings, sent with inverted IQ and a payload CRC.
+        """
+    @property
+    def output_dbm(self) -> builtins.int:
+        r"""
+        The power to ask of the radio, conducted, in dBm.
+        """
+    @property
+    def airtime_us(self) -> builtins.int:
+        r"""
+        How long it holds the air, in microseconds.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanScan:
+    r"""
+    A scan for wake-on-radio frames, due next.
+    """
+    @property
+    def start_us(self) -> builtins.int:
+        r"""
+        When to start detecting, in microseconds.
+        """
+    @property
+    def channel(self) -> builtins.str:
+        r"""
+        Which channel: `default` or `second`.
+        """
+    @property
+    def carrier(self) -> LorawanCarrier:
+        r"""
+        Where to listen, and how fast.
+        """
+    @property
+    def link(self) -> LoraLink:
+        r"""
+        The LoRa settings of a wake-on-radio frame, heard with inverted IQ.
+        """
+    @property
+    def preamble_symbols(self) -> builtins.int:
+        r"""
+        The longest preamble an end device sends on the channel, in symbols.
+        """
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class LorawanSession:
@@ -5326,6 +5847,12 @@ class LorawanTransmission:
         The second receive window, which opens only if nothing for this device arrived in the
         first.
         """
+    @property
+    def relay(self) -> typing.Optional[LorawanRelayExchange]:
+        r"""
+        The wake-on-radio exchange this frame goes out behind, and `None` for a frame that
+        goes straight to a gateway.
+        """
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
@@ -5354,6 +5881,80 @@ class LorawanUplinkMetadata:
         The data rate it arrived at.
         """
     def __new__(cls, wor_channel: builtins.str, rssi_dbm: builtins.int, snr_db: builtins.int, data_rate: builtins.int) -> LorawanUplinkMetadata: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanWake:
+    r"""
+    What a wake-on-radio frame led a relay to do.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        `join_request`, `uplink` or `notified`.
+        """
+    @property
+    def dev_addr(self) -> typing.Optional[builtins.int]:
+        r"""
+        The device, for an uplink or a notification, and `None` for a join request.
+        """
+    @property
+    def wfcnt(self) -> typing.Optional[builtins.int]:
+        r"""
+        The wake-on-radio frame counter it carried, for an uplink.
+        """
+    @property
+    def forward(self) -> typing.Optional[builtins.str]:
+        r"""
+        Whether the relay forwards the uplink, which the acknowledgment reports.
+        """
+    @property
+    def acknowledgment(self) -> typing.Optional[LorawanAcknowledgment]:
+        r"""
+        The acknowledgment to send, where there is one.
+        """
+    @property
+    def listen(self) -> typing.Optional[LorawanListen]:
+        r"""
+        Where and when to listen for the uplink, where the relay will.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanWakeUp:
+    r"""
+    The frame that wakes a relay, and where it goes.
+    """
+    @property
+    def frame(self) -> bytes:
+        r"""
+        The frame: five bytes ahead of a join request, fifteen ahead of an uplink.
+        """
+    @property
+    def start_us(self) -> builtins.int:
+        r"""
+        When to start sending it, in microseconds.
+        """
+    @property
+    def carrier(self) -> LorawanCarrier:
+        r"""
+        Where it goes, and how fast.
+        """
+    @property
+    def link(self) -> LoraLink:
+        r"""
+        Its LoRa settings, with the preamble this frame needs, sent with inverted IQ.
+        """
+    @property
+    def output_dbm(self) -> builtins.int:
+        r"""
+        The power to ask of the radio, conducted, in dBm.
+        """
+    @property
+    def airtime_us(self) -> builtins.int:
+        r"""
+        How long it holds the air, in microseconds.
+        """
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
@@ -5431,6 +6032,23 @@ class LorawanWorKeys:
         Holds keys derived earlier, such as ones a relay keeps for an end device it trusts.
         """
     def __eq__(self, other: LorawanWorKeys) -> builtins.bool: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanWorNext:
+    r"""
+    What an end device does once its wake-on-radio frame went unanswered.
+    """
+    @property
+    def uplink(self) -> builtins.bool:
+        r"""
+        `True` to send the uplink at the time the exchange named anyway.
+        """
+    @property
+    def wake_up(self) -> typing.Optional[LorawanRelayExchange]:
+        r"""
+        The next exchange, when the relay is woken again first, and `None` otherwise.
+        """
     def __repr__(self) -> builtins.str: ...
 
 @typing.final

@@ -27,7 +27,9 @@ from pamoja._native import ChirpstackReception
 from pamoja._native import ChirpstackUplinkEvent
 from pamoja._native import GatewayNetwork as Network
 from pamoja._native import GatewayNetworkEvent as NetworkEvent
+from pamoja._native import GatewayNotice as Notice
 from pamoja._native import GatewayPacket as Packet
+from pamoja._native import GatewayRelayed as Relayed
 from pamoja._native import GatewayRxpk as Rxpk
 from pamoja._native import GatewaySlot as Slot
 from pamoja._native import GatewayStat as Stat
@@ -58,8 +60,10 @@ __all__ = [
     "Crc",
     "Network",
     "NetworkEvent",
+    "Notice",
     "Packet",
     "PacketKind",
+    "Relayed",
     "Rxpk",
     "Slot",
     "Stat",

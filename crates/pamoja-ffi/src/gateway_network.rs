@@ -27,6 +27,7 @@ use crate::gateway::{
     link_to_c, missing, rxpk_of, txpk_to_c, PamojaGatewayRxpk, PamojaGatewayTxpk,
 };
 use crate::lora::PamojaLoraLink;
+use crate::lorawan_mac::{read_command, write_command, PamojaLorawanMacCommand};
 use crate::lora_region::PamojaLoraPlan;
 use crate::{read_bytes, set_last_error, PamojaStatus};
 
@@ -380,6 +381,204 @@ pub unsafe extern "C" fn pamoja_gateway_network_answer(
     *out_len = downlink.payload.len();
     *out_txpk = txpk_to_c(&downlink);
     PamojaStatus::Ok
+}
+
+/// A device a relay heard and could not verify, TS011-1.0.1 section 10.7.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct PamojaGatewayNetworkNotice {
+    /// The relay that heard it.
+    pub relay: u32,
+    /// The address the wake-on-radio frame named.
+    pub dev_addr: u32,
+    /// The frame's signal strength in dBm.
+    pub rssi_dbm: i16,
+    /// Its signal-to-noise ratio in dB.
+    pub snr_db: i8,
+}
+
+/// Takes the devices relays have reported hearing and could not verify.
+///
+/// A relay carries these in the MAC commands of its own uplinks, alongside whatever else that
+/// uplink was for, so they wait in the network until they are read. Every notice is taken:
+/// a second call returns only what arrived since the first.
+///
+/// # Arguments
+///
+/// * `network` - the network.
+/// * `out_notices` - where to write them, or null to count what is waiting.
+/// * `capacity` - how many notices that buffer holds.
+/// * `out_len` - receives how many are waiting, which may be more than were written.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] when every notice was written, and
+/// [`PamojaStatus::InvalidArgument`] when the buffer was too small, in which case none were
+/// taken and `*out_len` says how many there are.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] for a null handle or out pointer.
+///
+/// # Safety
+///
+/// `network` must be a live handle, `out_notices` must point at `capacity` writable notices
+/// or be null, and `out_len` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_gateway_network_notices(
+    network: *mut PamojaGatewayNetwork,
+    out_notices: *mut PamojaGatewayNetworkNotice,
+    capacity: usize,
+    out_len: *mut usize,
+) -> PamojaStatus {
+    if out_len.is_null() {
+        return missing("out_len");
+    }
+    *out_len = 0;
+    let Some(network) = network.as_mut() else {
+        return missing("network");
+    };
+    let waiting = network.network.notice_count();
+    *out_len = waiting;
+    if out_notices.is_null() || capacity < waiting {
+        if waiting == 0 {
+            return PamojaStatus::Ok;
+        }
+        set_last_error(format!("the buffer holds {capacity} of {waiting} notices"));
+        return PamojaStatus::InvalidArgument;
+    }
+    for (index, notice) in network.network.notices().into_iter().enumerate() {
+        *out_notices.add(index) = PamojaGatewayNetworkNotice {
+            relay: notice.relay,
+            dev_addr: notice.dev_addr,
+            rssi_dbm: notice.rssi_dbm,
+            snr_db: notice.snr_db,
+        };
+    }
+    PamojaStatus::Ok
+}
+
+/// Builds a downlink carrying MAC commands, which is how a network configures a relay.
+///
+/// The commands ride in the frame options where they fit, and in a frame of their own on
+/// port 0 where they do not.
+///
+/// # Arguments
+///
+/// * `network` - the network.
+/// * `dev_addr` - the device to configure.
+/// * `slot` - where and when to transmit, from the event that reported its uplink.
+/// * `commands` - the commands to send.
+/// * `commands_len` - how many there are.
+/// * `buffer` - where to write the frame to transmit.
+/// * `capacity` - how many bytes the buffer holds.
+/// * `out_txpk` - receives the packet that carries it.
+/// * `out_len` - receives how many bytes were written.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`], [`PamojaStatus::InvalidArgument`] for a null argument, a command
+/// the boundary cannot read, or a buffer too small, or [`PamojaStatus::Codec`] when no
+/// session is held for the address.
+///
+/// # Safety
+///
+/// `network` must be a live handle, `commands` must point at `commands_len` readable
+/// commands, `buffer` must point at `capacity` writable bytes or be null, and both outputs
+/// must be writable.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn pamoja_gateway_network_command(
+    network: *mut PamojaGatewayNetwork,
+    dev_addr: u32,
+    slot: PamojaGatewayNetworkSlot,
+    commands: *const PamojaLorawanMacCommand,
+    commands_len: usize,
+    buffer: *mut u8,
+    capacity: usize,
+    out_txpk: *mut PamojaGatewayTxpk,
+    out_len: *mut usize,
+) -> PamojaStatus {
+    if out_txpk.is_null() || out_len.is_null() {
+        return missing("out_txpk and out_len");
+    }
+    *out_txpk = PamojaGatewayTxpk::default();
+    *out_len = 0;
+    let (Some(network), false) = (network.as_mut(), commands.is_null() && commands_len > 0) else {
+        return missing("network and commands");
+    };
+    let mut built = Vec::with_capacity(commands_len);
+    for index in 0..commands_len {
+        let Some(command) = read_command(&*commands.add(index)) else {
+            set_last_error(format!("command {index} is not one this build writes"));
+            return PamojaStatus::InvalidArgument;
+        };
+        built.push(command);
+    }
+
+    let downlink = match network.network.command(dev_addr, slot_of(slot), &built) {
+        Ok(downlink) => downlink,
+        Err(error) => return refused(&error),
+    };
+    if !write_payload(&downlink.payload, buffer, capacity) {
+        set_last_error("the frame does not fit the buffer".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    *out_len = downlink.payload.len();
+    *out_txpk = txpk_to_c(&downlink);
+    PamojaStatus::Ok
+}
+
+/// Builds the command that tells a relay to trust a device, with the key that lets it verify
+/// the device's wake-on-radio frames, TS011-1.0.1 section 10.4.
+///
+/// # Arguments
+///
+/// * `network` - the network.
+/// * `dev_addr` - the device the relay should forward for.
+/// * `index` - the entry in the relay's list, 0 to 15.
+/// * `reload_rate` - how many of the device's uplinks the relay forwards an hour, 63 for no
+///   limit.
+/// * `bucket_size` - the coded bucket size multiplier, table 55.
+/// * `out_command` - receives the command, to send with
+///   [`pamoja_gateway_network_command`].
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`], or [`PamojaStatus::Codec`] when no session is held for the address.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] for a null handle or out pointer.
+///
+/// # Safety
+///
+/// `network` must be a live handle and `out_command` writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_gateway_network_trust_command(
+    network: *mut PamojaGatewayNetwork,
+    dev_addr: u32,
+    index: u8,
+    reload_rate: u8,
+    bucket_size: u8,
+    out_command: *mut PamojaLorawanMacCommand,
+) -> PamojaStatus {
+    if out_command.is_null() {
+        return missing("out_command");
+    }
+    let Some(network) = network.as_mut() else {
+        return missing("network");
+    };
+    match network
+        .network
+        .trust_command(dev_addr, index, reload_rate, bucket_size)
+    {
+        Ok(command) => {
+            *out_command = write_command(command);
+            PamojaStatus::Ok
+        }
+        Err(error) => refused(&error),
+    }
 }
 
 /// Releases a network.

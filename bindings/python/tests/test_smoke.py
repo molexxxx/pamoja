@@ -1379,3 +1379,120 @@ def test_a_device_joins_a_site_and_is_answered():
 
     answered = site.answer(carried.dev_addr, carried.slot, 2, b"ok")
     assert answered.invert_polarity
+
+
+def test_a_device_reaches_a_site_through_the_relay_next_door():
+    from pamoja import gateway, lora, lorawan
+
+    plan = lora.plan_for("EU868")
+    site = gateway.Network(plan, 0x00002A, first_dev_addr=0x26010001)
+    settings = lorawan.DeviceSettings(2, 14, lowest_hz=863_000_000, highest_hz=870_000_000)
+
+    relay_eui = bytes([0x41]) * 8
+    sensor_eui = bytes([0x42]) * 8
+    join_eui = bytes([0x22]) * 8
+    app_key = bytes([0x33]) * 16
+    site.register(relay_eui, join_eui, app_key)
+    site.register(sensor_eui, join_eui, app_key)
+
+    # Both join the network the ordinary way, the relay first.
+    node = lorawan.Relay.over_the_air(plan, lorawan.device(relay_eui, join_eui, app_key), settings)
+    relay_join = node.join(0x0101, 1_000_000)
+    relay_accept = site.uplink(
+        gateway.Rxpk(
+            relay_join.frequency_hz,
+            relay_join.frame,
+            link=relay_join.link,
+            timestamp_us=1_000_000,
+        )
+    )
+    assert relay_accept.outcome == "joined"
+    node.heard_in(lorawan.ReceiveWindow.RX1, relay_accept.accept.payload, 5)
+    assert node.joined
+
+    sensor = lorawan.EndDevice.over_the_air(
+        plan, lorawan.device(sensor_eui, join_eui, app_key), settings
+    )
+    sensor_join = sensor.join(0x0102, 20_000_000)
+    sensor_accept = site.uplink(
+        gateway.Rxpk(
+            sensor_join.frequency_hz,
+            sensor_join.frame,
+            link=sensor_join.link,
+            timestamp_us=20_000_000,
+        )
+    )
+    sensor.heard(sensor_accept.accept.payload, 5, lorawan.ReceiveWindow.RX1)
+    sensor_addr = sensor.dev_addr
+
+    # The network hands the relay the key that lets it verify the sensor's wake-up frames.
+    trust = site.trust_command(sensor_addr, 0)
+    assert trust.kind == "update_uplink_list_req"
+    relay_uplink = node.send_empty(40_000_000)
+    heard_relay = site.uplink(
+        gateway.Rxpk(
+            relay_uplink.frequency_hz,
+            relay_uplink.frame,
+            link=relay_uplink.link,
+            timestamp_us=40_000_000,
+        )
+    )
+    configure = site.command(node.dev_addr, heard_relay.slot, [trust])
+    assert node.heard_in(lorawan.ReceiveWindow.RX1, configure.payload, 5).kind == "device"
+
+    node.start(lorawan.relay.CadPeriodicity.MS1000, 0)
+    assert node.running
+    scan = node.next_scan(60_000_000)
+    assert scan.channel == "default"
+
+    # The sensor sends through the relay: a wake-up frame first, then the uplink itself.
+    assert sensor.use_relay(True)
+    assert sensor.relay_sync == "initialized"
+    reading = sensor.send(2, b"21.5", 61_000_000)
+    assert reading.relay is not None
+    assert len(reading.relay.wake_up.frame) == 15
+
+    woke = node.heard_wor(scan, reading.relay.wake_up.frame, -90, 4, scan.start_us + 500_000)
+    assert woke.kind == "uplink"
+    assert woke.dev_addr == sensor_addr
+    assert woke.forward == "available"
+
+    status = sensor.heard_wor_ack(woke.acknowledgment.frame)
+    assert status.cad_periodicity == "ms1000"
+    assert sensor.relay_sync == "synchronized"
+
+    due_us = node.heard_uplink(reading.frame, -88, 6, woke.listen.start_us + 100_000)
+    assert node.forward_due == due_us
+    forwarded = node.forward(due_us)
+    carried = site.uplink(
+        gateway.Rxpk(
+            forwarded.frequency_hz,
+            forwarded.frame,
+            link=forwarded.link,
+            timestamp_us=due_us,
+        )
+    )
+    assert carried.outcome == "data"
+    assert carried.dev_addr == sensor_addr
+    assert carried.payload == b"21.5"
+    assert carried.relay.relay == node.dev_addr
+    assert carried.relay.wor_channel == "default"
+
+    # The answer goes back the same way, into the window the sensor keeps for a relay.
+    answer = site.answer(sensor_addr, carried.slot, 2, b"ok")
+    passed = node.heard_in(lorawan.ReceiveWindow.RX1, answer.payload, 5)
+    assert passed.kind == "downlink"
+    delivered = sensor.heard(passed.downlink.frame, 5, lorawan.ReceiveWindow.RXR)
+    assert delivered.kind == "data"
+    assert delivered.delivery.payload == b"ok"
+
+    # A device the relay was never told about is reported to the network instead.
+    stranger = lorawan.relay.wor_uplink(
+        lorawan.relay.wor_keys(bytes([0x77]) * 16, 0x26010009),
+        0x26010009,
+        0,
+        scan.carrier,
+        scan.carrier,
+    )
+    later = node.next_scan(due_us + 60_000_000)
+    assert node.heard_wor(later, stranger, -95, 2, later.start_us + 500_000).kind == "notified"

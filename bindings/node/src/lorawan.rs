@@ -781,7 +781,7 @@ fn blank_command(kind: &str, command: &MacCommand) -> LorawanMacCommand {
     }
 }
 
-fn describe_command(command: MacCommand) -> LorawanMacCommand {
+pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
     match command {
         MacCommand::LinkCheckReq => blank_command("linkCheckReq", &command),
         MacCommand::LinkCheckAns { margin, gateways } => {
@@ -1085,7 +1085,7 @@ fn sixteen(bytes: Option<&Buffer>, name: &str) -> napi::Result<[u8; 16]> {
     }
 }
 
-fn rebuild(command: &LorawanMacCommand) -> napi::Result<MacCommand> {
+pub(crate) fn rebuild(command: &LorawanMacCommand) -> napi::Result<MacCommand> {
     use pamoja_lorawan::mac;
 
     let down = matches!(command.direction, LorawanDirection::Downlink);

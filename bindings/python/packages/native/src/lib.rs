@@ -52,6 +52,8 @@ mod lorawan_device;
 mod lorawan_link;
 #[cfg(all(feature = "lora", feature = "lorawan"))]
 mod lorawan_relay;
+#[cfg(all(feature = "lora", feature = "lorawan"))]
+mod lorawan_relay_node;
 #[cfg(feature = "mavlink")]
 mod mavlink;
 #[cfg(feature = "mavlink")]
@@ -838,6 +840,22 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
                 lorawan_relay::lorawan_relay_second_channel,
                 m
             )?)?;
+            m.add(
+                "LorawanRelayError",
+                m.py().get_type::<lorawan_relay_node::LorawanRelayError>(),
+            )?;
+            m.add_class::<lorawan_relay_node::LorawanRelay>()?;
+            m.add_class::<lorawan_relay_node::LorawanScan>()?;
+            m.add_class::<lorawan_relay_node::LorawanWake>()?;
+            m.add_class::<lorawan_relay_node::LorawanAcknowledgment>()?;
+            m.add_class::<lorawan_relay_node::LorawanListen>()?;
+            m.add_class::<lorawan_relay_node::LorawanRelayHeard>()?;
+            m.add_class::<lorawan_relay_node::LorawanRxrDownlink>()?;
+            m.add_class::<lorawan_relay_node::LorawanRelayExchange>()?;
+            m.add_class::<lorawan_relay_node::LorawanWakeUp>()?;
+            m.add_class::<lorawan_relay_node::LorawanAckWindow>()?;
+            m.add_class::<lorawan_relay_node::LorawanRelayStatus>()?;
+            m.add_class::<lorawan_relay_node::LorawanWorNext>()?;
         }
         for (name, value) in lorawan_link::DEFAULTS {
             m.add(name, value)?;

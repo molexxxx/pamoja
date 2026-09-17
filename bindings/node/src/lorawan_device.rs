@@ -12,12 +12,17 @@
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use pamoja_lorawan::device::{
-    Battery, DeviceError, EndDevice, Heard, Next, ReceiveWindow, Saved, Settings, StateError,
-    Transmission, Window,
+    Battery, DeviceError, EndDevice, Heard, Next, ReceiveWindow, RelayExchange, RelayStatus, Saved,
+    Settings, StateError, Transmission, Window, WorNext,
 };
+use pamoja_lorawan::relay::{RelayActivation, RelaySync};
 use pamoja_lorawan::Version;
 
 use crate::lora::{lora_link_of, LoraLink};
+use crate::lorawan_relay::{
+    forward_out, periodicity_out, receive_out, xtal_out, LorawanCadPeriodicity, LorawanCadToRx,
+    LorawanRelayForward, LorawanXtalAccuracy,
+};
 use crate::lora_region::LoraChannelPlan;
 use crate::lorawan::{LorawanDevice, LorawanSession};
 use crate::lorawan_link::LorawanVersion;
@@ -75,6 +80,105 @@ pub struct LorawanWindow {
     pub link: LoraLink,
 }
 
+/// The frame that wakes a relay, and where it goes.
+#[napi(object)]
+pub struct LorawanWakeUp {
+    /// The frame: five bytes ahead of a join request, fifteen ahead of an uplink.
+    pub frame: Buffer,
+    /// When to start sending it, in microseconds.
+    pub start_us: f64,
+    /// Where it goes, in hertz.
+    pub frequency_hz: u32,
+    /// The data rate it goes out at.
+    pub data_rate: u8,
+    /// Its LoRa settings, with the preamble this frame needs, sent with inverted IQ.
+    pub link: LoraLink,
+    /// The power to ask of the radio, conducted, in dBm.
+    pub output_dbm: i32,
+    /// How long it holds the air, in microseconds.
+    pub airtime_us: f64,
+}
+
+/// When and where a relay's acknowledgment would arrive.
+#[napi(object)]
+pub struct LorawanAckWindow {
+    /// When it starts, in microseconds.
+    pub start_us: f64,
+    /// Where it arrives, in hertz.
+    pub frequency_hz: u32,
+    /// The data rate it arrives at.
+    pub data_rate: u8,
+    /// The LoRa settings to listen with.
+    pub link: LoraLink,
+    /// How long it lasts, in microseconds.
+    pub airtime_us: f64,
+}
+
+/// The wake-on-radio exchange an uplink under a relay goes out behind, TS011-1.0.1
+/// section 5.
+#[napi(object)]
+pub struct LorawanRelayExchange {
+    /// The frame that wakes the relay.
+    pub wake_up: LorawanWakeUp,
+    /// Where the relay's acknowledgment would arrive, or `null` ahead of a join request,
+    /// which no relay acknowledges.
+    pub ack: Option<LorawanAckWindow>,
+    /// When the uplink itself goes out, in microseconds, whether or not the acknowledgment
+    /// arrives.
+    pub uplink_start_us: f64,
+    /// The relay window, timed from the end of the uplink like the other two.
+    pub rxr: LorawanWindow,
+}
+
+/// What a relay's acknowledgment said about itself, TS011-1.0.1 table 14.
+#[napi(object)]
+pub struct LorawanRelayStatus {
+    /// How often it scans.
+    pub cad_periodicity: LorawanCadPeriodicity,
+    /// How accurate its crystal is.
+    pub xtal_accuracy: LorawanXtalAccuracy,
+    /// How long it takes to start receiving.
+    pub cad_to_rx: LorawanCadToRx,
+    /// The data rate it forwards at, which bounds what the device may send.
+    pub relay_data_rate: u8,
+    /// Whether it will forward.
+    pub forward: LorawanRelayForward,
+}
+
+/// How an end device decides whether to send through a relay, TS011-1.0.1 section 10.2.
+#[napi(string_enum)]
+pub enum LorawanRelayActivation {
+    /// Never, the default.
+    Disabled,
+    /// Always.
+    Enabled,
+    /// Only after `smartEnableLevel` uplinks in a row went unanswered.
+    Dynamic,
+    /// However the device itself decides, which `useRelay` sets.
+    DeviceControlled,
+}
+
+/// What an end device knows of its relay's scans, TS011-1.0.1 section 3.9.
+#[napi(string_enum)]
+pub enum LorawanRelaySync {
+    /// Nothing: no wake-on-radio frame has gone out yet.
+    Initialized,
+    /// It sent one, but no acknowledgment came back, so its preamble spans a whole scan
+    /// period.
+    Unsynchronized,
+    /// It knows when the relay scans, so a short preamble reaches it.
+    Synchronized,
+}
+
+/// What an end device does once its wake-on-radio frame went unanswered.
+#[napi(object)]
+pub struct LorawanWorNext {
+    /// `true` to send the uplink at the time the exchange named anyway.
+    pub uplink: bool,
+    /// The next exchange, when the relay is woken again first.
+    pub wake_up: Option<LorawanRelayExchange>,
+}
+
 /// A frame to put on the air, and where to listen afterward.
 #[napi(object)]
 pub struct LorawanTransmission {
@@ -98,6 +202,8 @@ pub struct LorawanTransmission {
     /// Whether the application payload went out in this frame. When the answers the device
     /// owed left no room, it did not, and has to be sent again.
     pub carries_payload: bool,
+    /// The wake-on-radio exchange this frame goes out behind, for a device under a relay.
+    pub relay: Option<LorawanRelayExchange>,
 }
 
 /// How well the network heard a link check.
@@ -148,6 +254,8 @@ pub enum LorawanReceiveWindow {
     Rx1,
     /// The second, on the fixed frequency and data rate.
     Rx2,
+    /// The relay window, which a device under a relay opens last, TS011-1.0.1 chapter 7.
+    Rxr,
 }
 
 #[napi(string_enum)]
@@ -340,44 +448,12 @@ impl LorawanEndDevice {
         window: Option<LorawanReceiveWindow>,
     ) -> Result<LorawanHeard> {
         let snr_db = snr_db.clamp(i32::from(i8::MIN), i32::from(i8::MAX)) as i8;
-        let heard = match window {
-            Some(LorawanReceiveWindow::Rx1) => {
-                self.inner
-                    .heard_in(ReceiveWindow::Rx1, frame.as_ref(), snr_db)
-            }
-            Some(LorawanReceiveWindow::Rx2) => {
-                self.inner
-                    .heard_in(ReceiveWindow::Rx2, frame.as_ref(), snr_db)
-            }
+        let heard = match window.map(window_in) {
+            Some(window) => self.inner.heard_in(window, frame.as_ref(), snr_db),
             None => self.inner.heard(frame.as_ref(), snr_db),
         }
         .map_err(|error| thrown(&env, error))?;
-        Ok(match heard {
-            Heard::Joined { dev_addr } => LorawanHeard {
-                kind: LorawanHeardKind::Joined,
-                dev_addr,
-                delivery: None,
-            },
-            Heard::Data(delivery) => LorawanHeard {
-                kind: LorawanHeardKind::Data,
-                dev_addr: self.inner.dev_addr().unwrap_or(0),
-                delivery: Some(LorawanDelivery {
-                    port: delivery.port(),
-                    payload: delivery.payload().to_vec().into(),
-                    acknowledged: delivery.acknowledged(),
-                    confirmed: delivery.confirmed(),
-                    more_pending: delivery.more_pending(),
-                    link_check: delivery.link_check().map(|check| LorawanLinkCheck {
-                        margin_db: check.margin_db,
-                        gateways: check.gateways,
-                    }),
-                    device_time: delivery.device_time().map(|time| LorawanDeviceTime {
-                        gps_seconds: time.gps_seconds,
-                        fraction: time.fraction,
-                    }),
-                }),
-            },
-        })
+        Ok(heard_out(heard, self.inner.dev_addr().unwrap_or(0)))
     }
 
     /// Says what comes next once both receive windows closed with nothing for the device.
@@ -388,24 +464,7 @@ impl LorawanEndDevice {
             .inner
             .nothing_heard(now_us)
             .map_err(|error| thrown(&env, error))?;
-        Ok(match next {
-            Next::Repeat { not_before_us } => LorawanNext {
-                kind: LorawanNextKind::Repeat,
-                not_before_us: Some(not_before_us as f64),
-            },
-            Next::Done => LorawanNext {
-                kind: LorawanNextKind::Done,
-                not_before_us: None,
-            },
-            Next::Unacknowledged => LorawanNext {
-                kind: LorawanNextKind::Unacknowledged,
-                not_before_us: None,
-            },
-            Next::JoinAgain { not_before_us } => LorawanNext {
-                kind: LorawanNextKind::JoinAgain,
-                not_before_us: Some(not_before_us as f64),
-            },
-        })
+        Ok(next_out(next))
     }
 
     /// Sets what the device reports its battery as when a network asks: a level from 1,
@@ -541,10 +600,91 @@ impl LorawanEndDevice {
             .and_then(|saved| self.inner.resume(&saved, now_us));
         result.map_err(|error| thrown(&env, error))
     }
+
+    /// Turns relay mode on or off, TS011-1.0.1 section 10.2 and appendix 5.
+    ///
+    /// From here on the decision is the caller's rather than the device's own policy, until
+    /// its network takes it over with `EndDeviceConfReq` or hands it back. Returns `false`
+    /// when the network holds the decision, leaving the mode as it was.
+    #[napi]
+    pub fn use_relay(&mut self, on: bool) -> bool {
+        self.inner.use_relay(on)
+    }
+
+    /// Whether the next uplink goes through a relay.
+    #[napi(getter)]
+    pub fn relaying(&self) -> bool {
+        self.inner.relaying()
+    }
+
+    /// How the device decides whether to use a relay.
+    #[napi(getter)]
+    pub fn relay_activation(&self) -> LorawanRelayActivation {
+        activation_out(self.inner.relay_activation())
+    }
+
+    /// What the device knows of when its relay listens, TS011-1.0.1 section 3.9.
+    #[napi(getter)]
+    pub fn relay_sync(&self) -> LorawanRelaySync {
+        sync_out(self.inner.relay_sync())
+    }
+
+    /// What the relay's last acknowledgment said about itself, or `null` before one
+    /// arrived.
+    #[napi(getter)]
+    pub fn relay_status(&self) -> Option<LorawanRelayStatus> {
+        self.inner.relay_status().map(relay_status_out)
+    }
+
+    /// The wake-on-radio frame counter the next frame will use, TS011-1.0.1 section 5.3.2.
+    #[napi(getter)]
+    pub fn wor_counter(&self) -> u32 {
+        self.inner.wor_counter()
+    }
+
+    /// Reads the acknowledgment a relay answered the last wake-on-radio frame with.
+    ///
+    /// The device is now synchronized: it knows when the relay scans, so its next frames
+    /// carry only as much preamble as the two clocks could have drifted apart.
+    #[napi]
+    pub fn heard_wor_ack(&mut self, env: Env, frame: Buffer) -> Result<LorawanRelayStatus> {
+        self.inner
+            .heard_wor_ack(frame.as_ref())
+            .map(relay_status_out)
+            .map_err(|error| thrown(&env, error))
+    }
+
+    /// Says what to do once the acknowledgment window closed with nothing in it: send the
+    /// uplink anyway, or wake the relay again first, as the network's `BackOff` asks.
+    #[napi]
+    pub fn no_wor_ack(&mut self, env: Env, now_us: f64) -> Result<LorawanWorNext> {
+        let now_us = micros(now_us)?;
+        match self
+            .inner
+            .no_wor_ack(now_us)
+            .map_err(|error| thrown(&env, error))?
+        {
+            WorNext::Uplink => Ok(LorawanWorNext {
+                uplink: true,
+                wake_up: None,
+            }),
+            WorNext::WakeUp(exchange) => Ok(LorawanWorNext {
+                uplink: false,
+                wake_up: Some(exchange_out(exchange)),
+            }),
+        }
+    }
+}
+
+impl LorawanEndDevice {
+    /// Gives up the device inside, for a relay that takes it over.
+    pub(crate) fn into_inner(self) -> EndDevice<'static> {
+        self.inner
+    }
 }
 
 /// Reads the published plan and settings a device is made from.
-fn made_from(
+pub(crate) fn made_from(
     plan: &LoraChannelPlan,
     settings: &LorawanDeviceSettings,
 ) -> Result<(&'static pamoja_lora::region::ChannelPlan<'static>, Settings)> {
@@ -607,7 +747,7 @@ fn with_counters(
 }
 
 /// Reads a JavaScript time in microseconds.
-fn micros(value: f64) -> Result<u64> {
+pub(crate) fn micros(value: f64) -> Result<u64> {
     if (0.0..=9_007_199_254_740_991.0).contains(&value) {
         Ok(value as u64)
     } else {
@@ -628,8 +768,88 @@ fn window_out(window: Window) -> LorawanWindow {
     }
 }
 
+/// Describes what a frame turned out to be the way JavaScript holds it.
+pub(crate) fn heard_out(heard: Heard, dev_addr: u32) -> LorawanHeard {
+    match heard {
+        Heard::Joined { dev_addr } => LorawanHeard {
+            kind: LorawanHeardKind::Joined,
+            dev_addr,
+            delivery: None,
+        },
+        Heard::Data(delivery) => LorawanHeard {
+            kind: LorawanHeardKind::Data,
+            dev_addr,
+            delivery: Some(LorawanDelivery {
+                port: delivery.port(),
+                payload: delivery.payload().to_vec().into(),
+                acknowledged: delivery.acknowledged(),
+                confirmed: delivery.confirmed(),
+                more_pending: delivery.more_pending(),
+                link_check: delivery.link_check().map(|check| LorawanLinkCheck {
+                    margin_db: check.margin_db,
+                    gateways: check.gateways,
+                }),
+                device_time: delivery.device_time().map(|time| LorawanDeviceTime {
+                    gps_seconds: time.gps_seconds,
+                    fraction: time.fraction,
+                }),
+            }),
+        },
+    }
+}
+
+/// Describes what comes next the way JavaScript holds it.
+pub(crate) fn next_out(next: Next) -> LorawanNext {
+    match next {
+        Next::Repeat { not_before_us } => LorawanNext {
+            kind: LorawanNextKind::Repeat,
+            not_before_us: Some(not_before_us as f64),
+        },
+        Next::Done => LorawanNext {
+            kind: LorawanNextKind::Done,
+            not_before_us: None,
+        },
+        Next::Unacknowledged => LorawanNext {
+            kind: LorawanNextKind::Unacknowledged,
+            not_before_us: None,
+        },
+        Next::JoinAgain { not_before_us } => LorawanNext {
+            kind: LorawanNextKind::JoinAgain,
+            not_before_us: Some(not_before_us as f64),
+        },
+    }
+}
+
+/// Reads the window a frame arrived in.
+pub(crate) fn window_in(window: LorawanReceiveWindow) -> ReceiveWindow {
+    match window {
+        LorawanReceiveWindow::Rx1 => ReceiveWindow::Rx1,
+        LorawanReceiveWindow::Rx2 => ReceiveWindow::Rx2,
+        LorawanReceiveWindow::Rxr => ReceiveWindow::Rxr,
+    }
+}
+
+/// The mode a device manages its relay by, as JavaScript names it.
+pub(crate) fn activation_out(activation: RelayActivation) -> LorawanRelayActivation {
+    match activation {
+        RelayActivation::Disabled => LorawanRelayActivation::Disabled,
+        RelayActivation::Enabled => LorawanRelayActivation::Enabled,
+        RelayActivation::Dynamic => LorawanRelayActivation::Dynamic,
+        RelayActivation::DeviceControlled => LorawanRelayActivation::DeviceControlled,
+    }
+}
+
+/// What a device knows of its relay's scans, as JavaScript names it.
+pub(crate) fn sync_out(sync: RelaySync) -> LorawanRelaySync {
+    match sync {
+        RelaySync::Initialized => LorawanRelaySync::Initialized,
+        RelaySync::Unsynchronized => LorawanRelaySync::Unsynchronized,
+        RelaySync::Synchronized => LorawanRelaySync::Synchronized,
+    }
+}
+
 /// Describes a transmission the way JavaScript holds it.
-fn transmission_out(transmission: Transmission) -> LorawanTransmission {
+pub(crate) fn transmission_out(transmission: Transmission) -> LorawanTransmission {
     LorawanTransmission {
         frame: transmission.frame.as_bytes().to_vec().into(),
         frequency_hz: transmission.frequency_hz,
@@ -640,6 +860,42 @@ fn transmission_out(transmission: Transmission) -> LorawanTransmission {
         rx1: window_out(transmission.rx1),
         rx2: window_out(transmission.rx2),
         carries_payload: transmission.carries_payload,
+        relay: transmission.relay.map(exchange_out),
+    }
+}
+
+/// Describes a wake-on-radio exchange the way JavaScript holds it.
+pub(crate) fn exchange_out(exchange: RelayExchange) -> LorawanRelayExchange {
+    LorawanRelayExchange {
+        wake_up: LorawanWakeUp {
+            frame: exchange.wake_up.frame().to_vec().into(),
+            start_us: exchange.wake_up.start_us as f64,
+            frequency_hz: exchange.wake_up.carrier.frequency_hz,
+            data_rate: exchange.wake_up.carrier.data_rate,
+            link: lora_link_of(exchange.wake_up.link),
+            output_dbm: i32::from(exchange.wake_up.output_dbm),
+            airtime_us: exchange.wake_up.airtime_us as f64,
+        },
+        ack: exchange.ack.map(|ack| LorawanAckWindow {
+            start_us: ack.start_us as f64,
+            frequency_hz: ack.carrier.frequency_hz,
+            data_rate: ack.carrier.data_rate,
+            link: lora_link_of(ack.link),
+            airtime_us: ack.airtime_us as f64,
+        }),
+        uplink_start_us: exchange.uplink_start_us as f64,
+        rxr: window_out(exchange.rxr),
+    }
+}
+
+/// Describes what a relay said about itself the way JavaScript holds it.
+pub(crate) fn relay_status_out(status: RelayStatus) -> LorawanRelayStatus {
+    LorawanRelayStatus {
+        cad_periodicity: periodicity_out(status.cad_periodicity),
+        xtal_accuracy: xtal_out(status.xtal_accuracy),
+        cad_to_rx: receive_out(status.cad_to_rx),
+        relay_data_rate: status.relay_data_rate,
+        forward: forward_out(status.forward),
     }
 }
 
@@ -666,7 +922,7 @@ fn code(error: DeviceError) -> &'static str {
 }
 
 /// Throws a device error as an `Error` whose `code` names it, carrying what goes with it.
-fn thrown(env: &Env, error: DeviceError) -> Error {
+pub(crate) fn thrown(env: &Env, error: DeviceError) -> Error {
     let message = error.to_string();
     let raised = (|| -> Result<()> {
         let mut object = env.create_error(Error::new(Status::GenericFailure, message.clone()))?;

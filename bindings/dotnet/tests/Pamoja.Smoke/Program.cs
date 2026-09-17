@@ -77,6 +77,7 @@ LaterSensors();
 RadioAndReach();
 Gateways();
 GatewayNetworks();
+RelayedReach();
 TrustAndOperation();
 await AsyncTransports();
 ProfilesAndRobotics();
@@ -5919,6 +5920,130 @@ static void GatewayNetworks()
     GatewayTxpk answered = site.Answer(carried.DevAddr, carried.Slot!, 2, "ok"u8);
     Assert(answered.InvertPolarity, "the answer is inverted too");
 }
+
+// A device out of a gateway's reach, reaching it through the relay next door.
+static void RelayedReach()
+{
+    byte[] relayEui = new byte[8];
+    Array.Fill(relayEui, (byte)0x41);
+    byte[] sensorEui = new byte[8];
+    Array.Fill(sensorEui, (byte)0x42);
+    byte[] joinEui = new byte[8];
+    Array.Fill(joinEui, (byte)0x22);
+    byte[] appKey = new byte[16];
+    Array.Fill(appKey, (byte)0x33);
+
+    using LoraChannelPlan plan = LoraChannelPlan.ForRegion(LoraRegion.Eu868);
+    using var site = new GatewayNetwork(plan, 0x00002A, firstDevAddr: 0x26010001);
+    site.Register(relayEui, joinEui, appKey);
+    site.Register(sensorEui, joinEui, appKey);
+    LorawanDeviceSettings settings = new(2, 14) { LowestHz = 863_000_000, HighestHz = 870_000_000 };
+
+    // Both join the network the ordinary way, the relay first.
+    using var relayCredentials = new LorawanDevice(relayEui, joinEui, appKey);
+    using LorawanRelayNode node = LorawanRelayNode.OverTheAir(plan, relayCredentials, settings);
+    LorawanTransmission relayJoin = node.Join(0x0101, 1_000_000);
+    GatewayNetworkEvent relayAccept = site.Uplink(
+        new GatewayRxpk(relayJoin.FrequencyHz, relayJoin.Frame)
+        {
+            Link = relayJoin.Link,
+            TimestampMicros = 1_000_000,
+        });
+    Assert(relayAccept.Outcome == GatewayNetworkOutcome.Joined, "the relay joins like any device");
+    node.HeardIn(LorawanReceiveWindow.Rx1, relayAccept.Accept!.Payload, 5);
+    Assert(node.Joined, "and holds the session it was granted");
+
+    using var sensorCredentials = new LorawanDevice(sensorEui, joinEui, appKey);
+    using LorawanEndDevice sensor = LorawanEndDevice.OverTheAir(plan, sensorCredentials, settings);
+    LorawanTransmission sensorJoin = sensor.Join(0x0102, 20_000_000);
+    GatewayNetworkEvent sensorAccept = site.Uplink(
+        new GatewayRxpk(sensorJoin.FrequencyHz, sensorJoin.Frame)
+        {
+            Link = sensorJoin.Link,
+            TimestampMicros = 20_000_000,
+        });
+    sensor.Heard(sensorAccept.Accept!.Payload, 5, LorawanReceiveWindow.Rx1);
+    uint sensorAddr = sensor.DevAddr!.Value;
+
+    // The network hands the relay the key that lets it verify the sensor's wake-up frames.
+    LorawanMacCommand trust = site.TrustCommand(sensorAddr, 0);
+    LorawanTransmission relayUplink = node.SendEmpty(40_000_000);
+    GatewayNetworkEvent heardRelay = site.Uplink(
+        new GatewayRxpk(relayUplink.FrequencyHz, relayUplink.Frame)
+        {
+            Link = relayUplink.Link,
+            TimestampMicros = 40_000_000,
+        });
+    GatewayTxpk configure = site.Command(node.DevAddr!.Value, heardRelay.Slot!, [trust]);
+    Assert(
+        node.HeardIn(LorawanReceiveWindow.Rx1, configure.Payload, 5) is LorawanRelayHeard.Device,
+        "the relay reads its own configuration");
+
+    node.Start(LorawanCadPeriodicity.Ms1000, 0);
+    Assert(node.Running, "and starts listening for the devices around it");
+    LorawanScan scan = node.NextScan(60_000_000)!;
+    Assert(scan.Channel == LorawanWorChannel.Default, "on its default channel");
+
+    // The sensor sends through the relay: a wake-up frame first, then the uplink itself.
+    Assert(sensor.UseRelay(true), "the sensor decides to use a relay");
+    Assert(sensor.RelaySync == LorawanRelaySync.Initialized, "knowing nothing of it yet");
+    LorawanTransmission reading = sensor.Send(2, "21.5"u8, 61_000_000);
+    Assert(reading.Relay is not null, "so the uplink goes out behind a wake-up frame");
+    Assert(reading.Relay!.WakeUp.Frame.Length == 15, "fifteen bytes ahead of an uplink");
+
+    LorawanWake woke = node.HeardWor(scan, reading.Relay!.WakeUp.Frame, -90, 4, scan.StartMicros + 500_000);
+    Assert(woke is LorawanWake.Uplink, "the relay knows the device");
+    LorawanWake.Uplink heardWor = (LorawanWake.Uplink)woke;
+    Assert(heardWor.DevAddr == sensorAddr, "and which one it is");
+    Assert(heardWor.Forward == LorawanRelayForward.Available, "and has room to forward");
+
+    LorawanRelayStatus status = sensor.HeardWorAck(heardWor.Acknowledgment!.Frame);
+    Assert(status.CadPeriodicity == LorawanCadPeriodicity.Ms1000, "the relay says how often it scans");
+    Assert(
+        sensor.RelaySync == LorawanRelaySync.Synchronized,
+        "so the next wake-up frame needs only a short preamble");
+
+    ulong dueUs = node.HeardUplink(reading.Frame, -88, 6, heardWor.Listen!.StartMicros + 100_000);
+    Assert(node.ForwardDue == dueUs, "the uplink waits fifty milliseconds to be forwarded");
+    LorawanTransmission forwarded = node.Forward(dueUs);
+    GatewayNetworkEvent carried = site.Uplink(
+        new GatewayRxpk(forwarded.FrequencyHz, forwarded.Frame)
+        {
+            Link = forwarded.Link,
+            TimestampMicros = (uint)dueUs,
+        });
+    Assert(carried.Outcome == GatewayNetworkOutcome.Data, "the network reads the sensor's frame");
+    Assert(carried.DevAddr == sensorAddr, "as the sensor's own");
+    Assert(Encoding.UTF8.GetString(carried.Payload!) == "21.5", "with the reading it sent");
+    Assert(carried.Relay!.Relay == node.DevAddr!.Value, "and says which relay carried it");
+    Assert(carried.Relay!.WorChannel == 0, "on which channel");
+
+    // The answer goes back the same way, into the window the sensor keeps for a relay.
+    GatewayTxpk answer = site.Answer(sensorAddr, carried.Slot!, 2, "ok"u8);
+    LorawanRelayHeard passed = node.HeardIn(LorawanReceiveWindow.Rx1, answer.Payload, 5);
+    Assert(passed is LorawanRelayHeard.Downlink, "the relay passes it on rather than reading it");
+    LorawanRxrDownlink sent = ((LorawanRelayHeard.Downlink)passed).Forwarded;
+    LorawanHeard delivered = sensor.Heard(sent.Frame, 5, LorawanReceiveWindow.Rxr);
+    Assert(delivered is LorawanHeard.Data, "and the sensor hears it");
+    Assert(
+        Encoding.UTF8.GetString(((LorawanHeard.Data)delivered).Delivery.Payload) == "ok",
+        "with what the network sent");
+
+    // A device the relay was never told about is reported to the network instead.
+    byte[] strangerKey = new byte[16];
+    Array.Fill(strangerKey, (byte)0x77);
+    byte[] stranger = LorawanRelay.WorUplink(
+        LorawanRelay.WorKeys(strangerKey, 0x26010009),
+        0x26010009,
+        0,
+        scan.Carrier,
+        scan.Carrier);
+    LorawanScan later = node.NextScan(dueUs + 60_000_000)!;
+    Assert(
+        node.HeardWor(later, stranger, -95, 2, later.StartMicros + 500_000) is LorawanWake.Notified,
+        "a relay tells its network about a device it cannot verify");
+}
+
 
 // Holds ChirpStack uplink events to the answers every binding must give.
 // A LoRaWAN relay: the root key The Things Stack tests with, the WOR frames and

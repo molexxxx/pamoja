@@ -269,7 +269,7 @@ fn travelling(direction: Direction) -> PamojaLorawanDirection {
 }
 
 // One command, flattened into the record that crosses the boundary.
-fn flatten(command: MacCommand) -> PamojaLorawanMacCommand {
+pub(crate) fn write_command(command: MacCommand) -> PamojaLorawanMacCommand {
     let mut flat = PamojaLorawanMacCommand::blank(command.cid(), travelling(command.direction()));
     match command {
         MacCommand::LinkCheckReq
@@ -514,7 +514,7 @@ fn flatten(command: MacCommand) -> PamojaLorawanMacCommand {
 
 // The command a record stands for, or nothing when the identifier and the direction do not
 // name one.
-fn sharpen(flat: &PamojaLorawanMacCommand) -> Option<MacCommand> {
+pub(crate) fn read_command(flat: &PamojaLorawanMacCommand) -> Option<MacCommand> {
     use pamoja_lorawan::mac;
 
     let down = matches!(flat.direction, PamojaLorawanDirection::Downlink);
@@ -752,7 +752,7 @@ pub unsafe extern "C" fn pamoja_lorawan_mac_at(
         .and_then(Result::ok);
     match found {
         Some(command) => {
-            *out_command = flatten(command);
+            *out_command = write_command(command);
             PamojaStatus::Ok
         }
         None => {
@@ -793,7 +793,7 @@ pub unsafe extern "C" fn pamoja_lorawan_mac_encode(
         set_last_error("the command, the buffer, and the count must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     }
-    let Some(command) = sharpen(&*command) else {
+    let Some(command) = read_command(&*command) else {
         set_last_error(format!(
             "identifier {:#04x} names no command in that direction",
             (*command).cid

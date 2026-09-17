@@ -16,7 +16,7 @@ dotnet add package Pamoja.Gateway
 using Pamoja.Gateway;
 ```
 
-This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Lora`. `dotnet add package Pamoja` is the whole framework in one package.
+This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Lora` and `Pamoja.Lorawan`. `dotnet add package Pamoja` is the whole framework in one package.
 
 ## Example
 

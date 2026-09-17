@@ -97,6 +97,7 @@ async function main() {
   sensingAndActuation();
 laterSensors();
   radioAndReach();
+  relayedReach();
   mavlinkWire();
   mavlinkShapes();
   mavlinkProtocols();
@@ -961,6 +962,125 @@ function radioAndReach() {
     () => node.acceptJoin(Buffer.alloc(17, 0x20), 0x0102),
     /MIC/,
     "a join accept the network never signed does not activate a session",
+  );
+}
+
+
+// A device out of a gateway's reach, reaching it through the relay next door.
+function relayedReach() {
+  const plan = lora.planFor(lora.LoraRegion.Eu868);
+  const site = new gateway.Network(plan, 0x00002a, null, 0x26010001);
+  const settings = { minOutputDbm: 2, maxOutputDbm: 14, lowestHz: 863_000_000, highestHz: 870_000_000 };
+
+  const relayEui = Buffer.alloc(8, 0x41);
+  const sensorEui = Buffer.alloc(8, 0x42);
+  const joinEui = Buffer.alloc(8, 0x22);
+  const appKey = Buffer.alloc(16, 0x33);
+  site.register(relayEui, joinEui, appKey);
+  site.register(sensorEui, joinEui, appKey);
+
+  // Both join the network the ordinary way, the relay first.
+  const node = lorawan.Relay.overTheAir(plan, relayEui, joinEui, appKey, settings);
+  const relayJoin = node.join(0x0101, 1_000_000);
+  const relayAccept = site.uplink({
+    frequencyHz: relayJoin.frequencyHz,
+    payload: relayJoin.frame,
+    link: relayJoin.link,
+    timestampUs: 1_000_000,
+  });
+  assert.strictEqual(relayAccept.outcome, "Joined", "the relay joins like any device");
+  node.heardIn(lorawan.ReceiveWindow.Rx1, relayAccept.accept.payload, 5);
+  assert.ok(node.joined, "and holds the session it was granted");
+
+  const sensor = lorawan.EndDevice.overTheAir(plan, sensorEui, joinEui, appKey, settings);
+  const sensorJoin = sensor.join(0x0102, 20_000_000);
+  const sensorAccept = site.uplink({
+    frequencyHz: sensorJoin.frequencyHz,
+    payload: sensorJoin.frame,
+    link: sensorJoin.link,
+    timestampUs: 20_000_000,
+  });
+  sensor.heard(sensorAccept.accept.payload, 5, lorawan.ReceiveWindow.Rx1);
+  const sensorAddr = sensor.devAddr;
+
+  // The network hands the relay the key that lets it verify the sensor's wake-up frames.
+  const trust = site.trustCommand(sensorAddr, 0, 63, 0);
+  assert.strictEqual(trust.kind, "updateUplinkListReq", "which travels as a relay command");
+  const relayUplink = node.sendEmpty(40_000_000);
+  const heardRelay = site.uplink({
+    frequencyHz: relayUplink.frequencyHz,
+    payload: relayUplink.frame,
+    link: relayUplink.link,
+    timestampUs: 40_000_000,
+  });
+  const configure = site.command(node.devAddr, heardRelay.slot, [trust]);
+  assert.strictEqual(
+    node.heardIn(lorawan.ReceiveWindow.Rx1, configure.payload, 5).kind,
+    "Device",
+    "the relay reads its own configuration",
+  );
+
+  node.start(lorawan.CadPeriodicity.Ms1000, 0);
+  assert.ok(node.running, "and starts listening for the devices around it");
+  const scan = node.nextScan(60_000_000);
+  assert.strictEqual(scan.channel, lorawan.WorChannel.Default, "on its default channel");
+
+  // The sensor sends through the relay: a wake-up frame first, then the uplink itself.
+  assert.ok(sensor.useRelay(true), "the sensor decides to use a relay");
+  assert.strictEqual(sensor.relaySync, lorawan.RelaySync.Initialized, "knowing nothing of it yet");
+  const reading = sensor.send(2, "21.5", 61_000_000);
+  assert.ok(reading.relay, "so the uplink goes out behind a wake-up frame");
+  assert.strictEqual(reading.relay.wakeUp.frame.length, 15, "fifteen bytes ahead of an uplink");
+
+  const woke = node.heardWor(scan, reading.relay.wakeUp.frame, -90, 4, scan.startUs + 500_000);
+  assert.strictEqual(woke.kind, "Uplink", "the relay knows the device");
+  assert.strictEqual(woke.devAddr, sensorAddr, "and which one it is");
+  assert.strictEqual(woke.forward, lorawan.RelayForward.Available, "and has room to forward");
+
+  const status = sensor.heardWorAck(woke.acknowledgment.frame);
+  assert.strictEqual(status.cadPeriodicity, lorawan.CadPeriodicity.Ms1000, "the relay says how often it scans");
+  assert.strictEqual(
+    sensor.relaySync,
+    lorawan.RelaySync.Synchronized,
+    "so the next wake-up frame needs only a short preamble",
+  );
+
+  const dueUs = node.heardUplink(reading.frame, -88, 6, woke.listen.startUs + 100_000);
+  assert.strictEqual(node.forwardDue, dueUs, "the uplink waits fifty milliseconds to be forwarded");
+  const forwarded = node.forward(dueUs);
+  const carried = site.uplink({
+    frequencyHz: forwarded.frequencyHz,
+    payload: forwarded.frame,
+    link: forwarded.link,
+    timestampUs: dueUs,
+  });
+  assert.strictEqual(carried.outcome, "Data", "the network reads the sensor's frame");
+  assert.strictEqual(carried.devAddr, sensorAddr, "as the sensor's own");
+  assert.strictEqual(carried.payload.toString(), "21.5", "with the reading it sent");
+  assert.strictEqual(carried.relay.relay, node.devAddr, "and says which relay carried it");
+  assert.strictEqual(carried.relay.worChannel, lorawan.WorChannel.Default, "on which channel");
+
+  // The answer goes back the same way, into the window the sensor keeps for a relay.
+  const answer = site.answer(sensorAddr, carried.slot, 2, Buffer.from("ok"));
+  const passed = node.heardIn(lorawan.ReceiveWindow.Rx1, answer.payload, 5);
+  assert.strictEqual(passed.kind, "Downlink", "the relay passes it on rather than reading it");
+  const delivered = sensor.heard(passed.downlink.frame, 5, lorawan.ReceiveWindow.Rxr);
+  assert.strictEqual(delivered.kind, "Data", "and the sensor hears it");
+  assert.strictEqual(delivered.delivery.payload.toString(), "ok", "with what the network sent");
+
+  // A device the relay was never told about is reported to the network instead.
+  const stranger = lorawan.relay.worUplink(
+    lorawan.relay.worKeys(Buffer.alloc(16, 0x77), 0x26010009),
+    0x26010009,
+    0,
+    scan.carrier,
+    scan.carrier,
+  );
+  const later = node.nextScan(dueUs + 60_000_000);
+  assert.strictEqual(
+    node.heardWor(later, stranger, -95, 2, later.startUs + 500_000).kind,
+    "Notified",
+    "a relay tells its network about a device it cannot verify",
   );
 }
 

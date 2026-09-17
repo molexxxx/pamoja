@@ -17,10 +17,12 @@
 
 use std::ptr;
 
+use pamoja_lora::LinkSettings;
 use pamoja_lorawan::device::{
-    Battery, DeviceError, EndDevice, Heard, Next, ReceiveWindow, Saved, Settings, StateError,
-    Transmission, Window, SAVED_LEN,
+    Battery, DeviceError, EndDevice, Heard, Next, ReceiveWindow, RelayExchange, RelayStatus, Saved,
+    Settings, StateError, Transmission, Window, WorNext, SAVED_LEN,
 };
+use pamoja_lorawan::relay::{RelayActivation, RelaySync, WOR_UPLINK_LEN};
 use pamoja_lorawan::LorawanError;
 
 use crate::lora::PamojaLoraLink;
@@ -48,6 +50,29 @@ pub const PAMOJA_LORAWAN_HEARD_DATA: u8 = 1;
 pub const PAMOJA_LORAWAN_WINDOW_RX1: u8 = 1;
 /// The second receive window, on the fixed frequency and data rate.
 pub const PAMOJA_LORAWAN_WINDOW_RX2: u8 = 2;
+/// The relay window, which a device under a relay opens last, TS011-1.0.1 chapter 7.
+pub const PAMOJA_LORAWAN_WINDOW_RXR: u8 = 3;
+
+/// Never send through a relay, TS011-1.0.1 table 40.
+pub const PAMOJA_LORAWAN_RELAY_DISABLED: u8 = 0;
+/// Always send through a relay.
+pub const PAMOJA_LORAWAN_RELAY_ENABLED: u8 = 1;
+/// Start using one after enough uplinks go unanswered.
+pub const PAMOJA_LORAWAN_RELAY_DYNAMIC: u8 = 2;
+/// Leave it to the device, which is where every device starts.
+pub const PAMOJA_LORAWAN_RELAY_DEVICE_CONTROLLED: u8 = 3;
+
+/// The device knows nothing of a relay, TS011-1.0.1 section 3.9.
+pub const PAMOJA_LORAWAN_RELAY_INITIALIZED: u8 = 0;
+/// It knows how a relay scans, but not when.
+pub const PAMOJA_LORAWAN_RELAY_UNSYNCHRONIZED: u8 = 1;
+/// It knows when the relay next scans.
+pub const PAMOJA_LORAWAN_RELAY_SYNCHRONIZED: u8 = 2;
+
+/// The uplink goes out at the time the exchange named.
+pub const PAMOJA_LORAWAN_WOR_NEXT_UPLINK: u8 = 0;
+/// The relay is woken again first, as the network's BackOff asks.
+pub const PAMOJA_LORAWAN_WOR_NEXT_WAKE_UP: u8 = 1;
 
 /// Send the same frame again, no sooner than the time given.
 pub const PAMOJA_LORAWAN_NEXT_REPEAT: u8 = 0;
@@ -147,6 +172,63 @@ pub struct PamojaLorawanWindow {
     pub data_rate: u8,
 }
 
+/// The wake-on-radio exchange an uplink under a relay goes out behind, TS011-1.0.1
+/// section 5.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PamojaLorawanRelayExchange {
+    /// When to start sending the frame that wakes the relay, in microseconds.
+    pub wake_up_start_us: u64,
+    /// How long that frame holds the air, in microseconds.
+    pub wake_up_airtime_us: u64,
+    /// When the relay's acknowledgment would start arriving, in microseconds.
+    pub ack_start_us: u64,
+    /// How long it would last, in microseconds.
+    pub ack_airtime_us: u64,
+    /// When the uplink itself goes out, in microseconds, whether or not the acknowledgment
+    /// arrives.
+    pub uplink_start_us: u64,
+    /// The frame that wakes the relay: five bytes ahead of a join request, fifteen ahead of
+    /// an uplink.
+    pub wake_up_frame: [u8; 15],
+    /// How many of those bytes to send.
+    pub wake_up_len: u8,
+    /// Where the frame goes, in hertz.
+    pub wake_up_frequency_hz: u32,
+    /// The data rate it goes out at.
+    pub wake_up_data_rate: u8,
+    /// Its LoRa settings, with the preamble this frame needs, sent with inverted IQ.
+    pub wake_up_link: PamojaLoraLink,
+    /// The power to ask of the radio for it, conducted, in dBm.
+    pub wake_up_output_dbm: i8,
+    /// `1` when an acknowledgment is expected at all; a join request is never acknowledged.
+    pub has_ack: u8,
+    /// Where the acknowledgment would arrive, in hertz.
+    pub ack_frequency_hz: u32,
+    /// The data rate it would arrive at.
+    pub ack_data_rate: u8,
+    /// Its LoRa settings.
+    pub ack_link: PamojaLoraLink,
+    /// The relay window, timed from the end of the uplink like the other two.
+    pub rxr: PamojaLorawanWindow,
+}
+
+/// What a relay's acknowledgment said about itself, TS011-1.0.1 table 14.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PamojaLorawanRelayStatus {
+    /// How often it scans, as table 18 codes it.
+    pub cad_periodicity: u8,
+    /// How accurate its crystal is, as table 17 codes it.
+    pub xtal_accuracy: u8,
+    /// How long it takes to start receiving, as table 15 codes it.
+    pub cad_to_rx: u8,
+    /// The data rate it forwards at, which bounds what the device may send.
+    pub relay_data_rate: u8,
+    /// Whether it will forward, as table 16 codes it.
+    pub forward: u8,
+}
+
 /// A frame to put on the air, and where to listen afterward.
 ///
 /// The frame's bytes cross beside it as a [`PamojaBuffer`].
@@ -171,6 +253,10 @@ pub struct PamojaLorawanTransmission {
     /// `1` if the application payload went out in this frame; `0` if the answers the
     /// device owed left no room, and it has to be sent again.
     pub carries_payload: u8,
+    /// `1` when this frame goes out behind a wake-on-radio frame, under a relay.
+    pub has_relay: u8,
+    /// The wake-on-radio exchange, when it does.
+    pub relay: PamojaLorawanRelayExchange,
 }
 
 /// What a frame heard in a receive window turned out to be.
@@ -290,6 +376,27 @@ pub struct PamojaLorawanEndDevice {
     error: Option<DeviceError>,
 }
 
+/// What a device is doing now, as C sees it.
+pub(crate) fn status_out(device: &EndDevice<'static>) -> PamojaLorawanEndDeviceStatus {
+    let (rx2_frequency_hz, rx2_data_rate) = device.rx2();
+    let (lowest_hz, highest_hz) = device.frequency_span();
+    PamojaLorawanEndDeviceStatus {
+        dev_addr: device.dev_addr().unwrap_or(0),
+        fcnt_up: device.fcnt_up(),
+        fcnt_down: device.fcnt_down().unwrap_or(0),
+        rx2_frequency_hz,
+        receive_delay_us: device.receive_delay_us(),
+        lowest_hz,
+        highest_hz,
+        channel_count: device.channels().count() as u16,
+        joined: u8::from(device.is_joined()),
+        data_rate: device.data_rate(),
+        has_fcnt_down: u8::from(device.fcnt_down().is_some()),
+        transmissions: device.transmissions(),
+        rx2_data_rate,
+    }
+}
+
 /// Fills in the settings of a typical node with a radio's output power range.
 ///
 /// The rest start as TS001-1.0.4, adaptive data rate on, an antenna with no gain over its
@@ -373,7 +480,7 @@ fn settings(crossed: &PamojaLorawanDeviceSettings) -> Result<Settings, PamojaSta
 ///
 /// `plan` must be a live plan handle or null, and `settings` must point to a readable
 /// [`PamojaLorawanDeviceSettings`] or be null.
-unsafe fn made_from(
+pub(crate) unsafe fn made_from(
     plan: *const PamojaLoraPlan,
     settings: *const PamojaLorawanDeviceSettings,
 ) -> Result<(&'static pamoja_lora::region::ChannelPlan<'static>, Settings), PamojaStatus> {
@@ -686,7 +793,7 @@ impl PamojaLorawanEndDevice {
 }
 
 /// Converts link settings into the shape that crosses the boundary.
-fn link_out(link: pamoja_lora::LinkSettings) -> PamojaLoraLink {
+pub(crate) fn link_out(link: pamoja_lora::LinkSettings) -> PamojaLoraLink {
     PamojaLoraLink {
         bandwidth_hz: link.bandwidth_hz(),
         preamble_symbols: link.preamble_symbols(),
@@ -712,7 +819,7 @@ fn window_out(window: Window) -> PamojaLorawanWindow {
 /// # Safety
 ///
 /// Both pointers must be writable.
-unsafe fn transmitted(
+pub(crate) unsafe fn transmitted(
     transmission: Transmission,
     out_frame: *mut *mut PamojaBuffer,
     out_transmission: *mut PamojaLorawanTransmission,
@@ -727,7 +834,63 @@ unsafe fn transmitted(
         data_rate: transmission.data_rate,
         output_dbm: transmission.output_dbm,
         carries_payload: u8::from(transmission.carries_payload),
+        has_relay: u8::from(transmission.relay.is_some()),
+        relay: transmission.relay.map_or_else(empty_exchange, exchange_out),
     };
+}
+
+/// The wake-on-radio exchange of a relayed uplink, as C sees it.
+fn exchange_out(exchange: RelayExchange) -> PamojaLorawanRelayExchange {
+    let mut wake_up_frame = [0u8; WOR_UPLINK_LEN];
+    let frame = exchange.wake_up.frame();
+    wake_up_frame[..frame.len()].copy_from_slice(frame);
+    PamojaLorawanRelayExchange {
+        wake_up_start_us: exchange.wake_up.start_us,
+        wake_up_airtime_us: exchange.wake_up.airtime_us,
+        ack_start_us: exchange.ack.map_or(0, |ack| ack.start_us),
+        ack_airtime_us: exchange.ack.map_or(0, |ack| ack.airtime_us),
+        uplink_start_us: exchange.uplink_start_us,
+        wake_up_frame,
+        wake_up_len: frame.len() as u8,
+        wake_up_frequency_hz: exchange.wake_up.carrier.frequency_hz,
+        wake_up_data_rate: exchange.wake_up.carrier.data_rate,
+        wake_up_link: link_out(exchange.wake_up.link),
+        wake_up_output_dbm: exchange.wake_up.output_dbm,
+        has_ack: u8::from(exchange.ack.is_some()),
+        ack_frequency_hz: exchange.ack.map_or(0, |ack| ack.carrier.frequency_hz),
+        ack_data_rate: exchange.ack.map_or(0, |ack| ack.carrier.data_rate),
+        ack_link: exchange
+            .ack
+            .map_or_else(|| link_out(exchange.wake_up.link), |ack| link_out(ack.link)),
+        rxr: window_out(exchange.rxr),
+    }
+}
+
+/// The exchange field of a frame that goes out on its own.
+fn empty_exchange() -> PamojaLorawanRelayExchange {
+    PamojaLorawanRelayExchange {
+        wake_up_start_us: 0,
+        wake_up_airtime_us: 0,
+        ack_start_us: 0,
+        ack_airtime_us: 0,
+        uplink_start_us: 0,
+        wake_up_frame: [0; WOR_UPLINK_LEN],
+        wake_up_len: 0,
+        wake_up_frequency_hz: 0,
+        wake_up_data_rate: 0,
+        wake_up_link: link_out(LinkSettings::new(7, 125_000)),
+        wake_up_output_dbm: 0,
+        has_ack: 0,
+        ack_frequency_hz: 0,
+        ack_data_rate: 0,
+        ack_link: link_out(LinkSettings::new(7, 125_000)),
+        rxr: PamojaLorawanWindow {
+            delay_us: 0,
+            frequency_hz: 0,
+            link: link_out(LinkSettings::new(7, 125_000)),
+            data_rate: 0,
+        },
+    }
 }
 
 /// Runs a call that puts a frame on the air.
@@ -983,7 +1146,8 @@ pub unsafe extern "C" fn pamoja_lorawan_end_device_heard(
 /// # Arguments
 ///
 /// * `device` - the device.
-/// * `window` - [`PAMOJA_LORAWAN_WINDOW_RX1`] or [`PAMOJA_LORAWAN_WINDOW_RX2`].
+/// * `window` - [`PAMOJA_LORAWAN_WINDOW_RX1`], [`PAMOJA_LORAWAN_WINDOW_RX2`] or
+///   [`PAMOJA_LORAWAN_WINDOW_RXR`].
 /// * `frame` - the bytes the radio received.
 /// * `frame_len` - their length.
 /// * `snr_db` - the frame's signal-to-noise ratio, which a `DevStatusAns` reports.
@@ -1021,13 +1185,9 @@ pub unsafe extern "C" fn pamoja_lorawan_end_device_heard_in(
         set_last_error("device, out_heard and out_payload must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     };
-    let window = match window {
-        PAMOJA_LORAWAN_WINDOW_RX1 => ReceiveWindow::Rx1,
-        PAMOJA_LORAWAN_WINDOW_RX2 => ReceiveWindow::Rx2,
-        other => {
-            set_last_error(format!("{other} is not a receive window"));
-            return PamojaStatus::InvalidArgument;
-        }
+    let Some(window) = window_in(window) else {
+        set_last_error(format!("{window} is not a receive window"));
+        return PamojaStatus::InvalidArgument;
     };
     heard_frame(
         device,
@@ -1063,6 +1223,20 @@ unsafe fn heard_frame(
         Ok(heard) => heard,
         Err(status) => return status,
     };
+    *out_heard = heard_out(heard, device.device.dev_addr().unwrap_or(0), out_payload);
+    PamojaStatus::Ok
+}
+
+/// What a frame turned out to be, as C sees it, with its payload handed over beside it.
+///
+/// # Safety
+///
+/// `out_payload` must be a writable pointer slot.
+pub(crate) unsafe fn heard_out(
+    heard: Heard,
+    dev_addr: u32,
+    out_payload: *mut *mut PamojaBuffer,
+) -> PamojaLorawanHeard {
     let mut out = PamojaLorawanHeard {
         dev_addr: 0,
         gps_seconds: 0,
@@ -1082,7 +1256,7 @@ unsafe fn heard_frame(
         Heard::Joined { dev_addr } => out.dev_addr = dev_addr,
         Heard::Data(delivery) => {
             out.kind = PAMOJA_LORAWAN_HEARD_DATA;
-            out.dev_addr = device.device.dev_addr().unwrap_or(0);
+            out.dev_addr = dev_addr;
             out.has_port = u8::from(delivery.port().is_some());
             out.port = delivery.port().unwrap_or(0);
             out.acknowledged = u8::from(delivery.acknowledged());
@@ -1101,8 +1275,27 @@ unsafe fn heard_frame(
             *out_payload = PamojaBuffer::into_raw(delivery.payload().to_vec());
         }
     }
-    *out_heard = out;
-    PamojaStatus::Ok
+    out
+}
+
+/// Reads a receive window code.
+pub(crate) const fn window_in(window: u8) -> Option<ReceiveWindow> {
+    match window {
+        PAMOJA_LORAWAN_WINDOW_RX1 => Some(ReceiveWindow::Rx1),
+        PAMOJA_LORAWAN_WINDOW_RX2 => Some(ReceiveWindow::Rx2),
+        PAMOJA_LORAWAN_WINDOW_RXR => Some(ReceiveWindow::Rxr),
+        _ => None,
+    }
+}
+
+/// What comes next, as its code and the time that goes with it.
+pub(crate) const fn next_out(next: Next) -> (u8, u64) {
+    match next {
+        Next::Repeat { not_before_us } => (PAMOJA_LORAWAN_NEXT_REPEAT, not_before_us),
+        Next::Done => (PAMOJA_LORAWAN_NEXT_DONE, 0),
+        Next::Unacknowledged => (PAMOJA_LORAWAN_NEXT_UNACKNOWLEDGED, 0),
+        Next::JoinAgain { not_before_us } => (PAMOJA_LORAWAN_NEXT_JOIN_AGAIN, not_before_us),
+    }
 }
 
 /// Says what comes next once both receive windows closed with nothing for the device.
@@ -1140,23 +1333,10 @@ pub unsafe extern "C" fn pamoja_lorawan_end_device_nothing_heard(
         Ok(next) => next,
         Err(status) => return status,
     };
-    *out_next = match next {
-        Next::Repeat { not_before_us } => PamojaLorawanNext {
-            not_before_us,
-            kind: PAMOJA_LORAWAN_NEXT_REPEAT,
-        },
-        Next::Done => PamojaLorawanNext {
-            not_before_us: 0,
-            kind: PAMOJA_LORAWAN_NEXT_DONE,
-        },
-        Next::Unacknowledged => PamojaLorawanNext {
-            not_before_us: 0,
-            kind: PAMOJA_LORAWAN_NEXT_UNACKNOWLEDGED,
-        },
-        Next::JoinAgain { not_before_us } => PamojaLorawanNext {
-            not_before_us,
-            kind: PAMOJA_LORAWAN_NEXT_JOIN_AGAIN,
-        },
+    let (kind, not_before_us) = next_out(next);
+    *out_next = PamojaLorawanNext {
+        not_before_us,
+        kind,
     };
     PamojaStatus::Ok
 }
@@ -1289,24 +1469,7 @@ pub unsafe extern "C" fn pamoja_lorawan_end_device_status(
         set_last_error("device and out_status must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     };
-    let device = &device.device;
-    let (rx2_frequency_hz, rx2_data_rate) = device.rx2();
-    let (lowest_hz, highest_hz) = device.frequency_span();
-    *out_status = PamojaLorawanEndDeviceStatus {
-        dev_addr: device.dev_addr().unwrap_or(0),
-        fcnt_up: device.fcnt_up(),
-        fcnt_down: device.fcnt_down().unwrap_or(0),
-        rx2_frequency_hz,
-        receive_delay_us: device.receive_delay_us(),
-        lowest_hz,
-        highest_hz,
-        channel_count: device.channels().count() as u16,
-        joined: u8::from(device.is_joined()),
-        data_rate: device.data_rate(),
-        has_fcnt_down: u8::from(device.fcnt_down().is_some()),
-        transmissions: device.transmissions(),
-        rx2_data_rate,
-    };
+    *out_status = status_out(&device.device);
     PamojaStatus::Ok
 }
 
@@ -1454,6 +1617,254 @@ pub unsafe extern "C" fn pamoja_lorawan_end_device_resume(
     match device.settle(result) {
         Ok(()) => PamojaStatus::Ok,
         Err(status) => status,
+    }
+}
+
+
+/// Turns relay mode on or off, TS011-1.0.1 section 10.2 and appendix 5.
+///
+/// From this call on, the decision is the caller's rather than the device's own policy,
+/// until the network takes it over with `EndDeviceConfReq` or hands it back.
+///
+/// # Arguments
+///
+/// * `device` - the device.
+/// * `on` - `1` to send through a relay.
+/// * `out_taken` - receives `1` when the mode changed, and `0` when the network holds the
+///   decision.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] for a null handle or out pointer.
+///
+/// # Safety
+///
+/// `device` must be a live handle and `out_taken` writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_end_device_use_relay(
+    device: *mut PamojaLorawanEndDevice,
+    on: u8,
+    out_taken: *mut u8,
+) -> PamojaStatus {
+    let (Some(device), false) = (device.as_mut(), out_taken.is_null()) else {
+        set_last_error("device and out_taken must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    *out_taken = u8::from(device.device.use_relay(on != 0));
+    PamojaStatus::Ok
+}
+
+/// Reports how a device uses a relay, TS011-1.0.1 sections 3.9 and 10.2.
+///
+/// # Arguments
+///
+/// * `device` - the device.
+/// * `out_relaying` - receives `1` while relay mode is on.
+/// * `out_activation` - receives the mode: [`PAMOJA_LORAWAN_RELAY_DISABLED`],
+///   [`PAMOJA_LORAWAN_RELAY_ENABLED`], [`PAMOJA_LORAWAN_RELAY_DYNAMIC`] or
+///   [`PAMOJA_LORAWAN_RELAY_DEVICE_CONTROLLED`].
+/// * `out_sync` - receives what it knows of the relay's scans:
+///   [`PAMOJA_LORAWAN_RELAY_INITIALIZED`], [`PAMOJA_LORAWAN_RELAY_UNSYNCHRONIZED`] or
+///   [`PAMOJA_LORAWAN_RELAY_SYNCHRONIZED`].
+/// * `out_wor_counter` - receives the wake-on-radio frame counter the next frame will use.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success. Every out pointer may be null.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] for a null handle.
+///
+/// # Safety
+///
+/// `device` must be a live handle and every non-null out pointer writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_end_device_relay_mode(
+    device: *mut PamojaLorawanEndDevice,
+    out_relaying: *mut u8,
+    out_activation: *mut u8,
+    out_sync: *mut u8,
+    out_wor_counter: *mut u32,
+) -> PamojaStatus {
+    let Some(device) = device.as_mut() else {
+        set_last_error("device must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    if !out_relaying.is_null() {
+        *out_relaying = u8::from(device.device.relaying());
+    }
+    if !out_activation.is_null() {
+        *out_activation = match device.device.relay_activation() {
+            RelayActivation::Disabled => PAMOJA_LORAWAN_RELAY_DISABLED,
+            RelayActivation::Enabled => PAMOJA_LORAWAN_RELAY_ENABLED,
+            RelayActivation::Dynamic => PAMOJA_LORAWAN_RELAY_DYNAMIC,
+            RelayActivation::DeviceControlled => PAMOJA_LORAWAN_RELAY_DEVICE_CONTROLLED,
+        };
+    }
+    if !out_sync.is_null() {
+        *out_sync = match device.device.relay_sync() {
+            RelaySync::Initialized => PAMOJA_LORAWAN_RELAY_INITIALIZED,
+            RelaySync::Unsynchronized => PAMOJA_LORAWAN_RELAY_UNSYNCHRONIZED,
+            RelaySync::Synchronized => PAMOJA_LORAWAN_RELAY_SYNCHRONIZED,
+        };
+    }
+    if !out_wor_counter.is_null() {
+        *out_wor_counter = device.device.wor_counter();
+    }
+    PamojaStatus::Ok
+}
+
+/// Returns what the relay's last acknowledgment said about itself, TS011-1.0.1 table 14.
+///
+/// # Arguments
+///
+/// * `device` - the device.
+/// * `out_status` - receives what the relay said.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] when an acknowledgment has arrived, and
+/// [`PamojaStatus::Other`] before one has.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] for a null handle or out pointer.
+///
+/// # Safety
+///
+/// `device` must be a live handle and `out_status` writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_end_device_relay_status(
+    device: *mut PamojaLorawanEndDevice,
+    out_status: *mut PamojaLorawanRelayStatus,
+) -> PamojaStatus {
+    let (Some(device), false) = (device.as_mut(), out_status.is_null()) else {
+        set_last_error("device and out_status must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    match device.device.relay_status() {
+        Some(status) => {
+            *out_status = relay_status_out(status);
+            PamojaStatus::Ok
+        }
+        None => {
+            set_last_error("no acknowledgment has arrived from a relay".to_owned());
+            PamojaStatus::Other
+        }
+    }
+}
+
+/// Reads the acknowledgment a relay answered the last wake-on-radio frame with.
+///
+/// # Arguments
+///
+/// * `device` - the device.
+/// * `frame` - the bytes the radio received in the acknowledgment window.
+/// * `frame_len` - their length.
+/// * `out_status` - receives what the relay said about itself.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] when it verifies.
+///
+/// # Errors
+///
+/// Returns a failing status, with the reason on [`pamoja_lorawan_end_device_error`]: no
+/// frame waiting on an answer, no session, or an acknowledgment that does not verify.
+///
+/// # Safety
+///
+/// `device` must be a live handle, `frame` must point to `frame_len` readable bytes, and
+/// `out_status` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_end_device_heard_wor_ack(
+    device: *mut PamojaLorawanEndDevice,
+    frame: *const u8,
+    frame_len: usize,
+    out_status: *mut PamojaLorawanRelayStatus,
+) -> PamojaStatus {
+    let (Some(device), false) = (device.as_mut(), out_status.is_null()) else {
+        set_last_error("device and out_status must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let frame = match read_bytes(frame, frame_len) {
+        Ok(bytes) => bytes,
+        Err(status) => return status,
+    };
+    let heard = device.device.heard_wor_ack(&frame);
+    match device.settle(heard) {
+        Ok(status) => {
+            *out_status = relay_status_out(status);
+            PamojaStatus::Ok
+        }
+        Err(status) => status,
+    }
+}
+
+/// Says what to do once the acknowledgment window closed with nothing in it.
+///
+/// # Arguments
+///
+/// * `device` - the device.
+/// * `now_us` - the time, in microseconds.
+/// * `out_next` - receives [`PAMOJA_LORAWAN_WOR_NEXT_UPLINK`] to send the uplink at the time the
+///   exchange named, or [`PAMOJA_LORAWAN_WOR_NEXT_WAKE_UP`] to wake the relay again first.
+/// * `out_exchange` - receives the next wake-on-radio exchange, for
+///   [`PAMOJA_LORAWAN_WOR_NEXT_WAKE_UP`].
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns a failing status, with the reason on [`pamoja_lorawan_end_device_error`], when no
+/// wake-on-radio frame waits on an answer.
+///
+/// # Safety
+///
+/// `device` must be a live handle and the out pointers writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_end_device_no_wor_ack(
+    device: *mut PamojaLorawanEndDevice,
+    now_us: u64,
+    out_next: *mut u8,
+    out_exchange: *mut PamojaLorawanRelayExchange,
+) -> PamojaStatus {
+    let (Some(device), false, false) = (device.as_mut(), out_next.is_null(), out_exchange.is_null())
+    else {
+        set_last_error("device, out_next and out_exchange must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let next = device.device.no_wor_ack(now_us);
+    match device.settle(next) {
+        Ok(WorNext::Uplink) => {
+            *out_next = PAMOJA_LORAWAN_WOR_NEXT_UPLINK;
+            *out_exchange = empty_exchange();
+            PamojaStatus::Ok
+        }
+        Ok(WorNext::WakeUp(exchange)) => {
+            *out_next = PAMOJA_LORAWAN_WOR_NEXT_WAKE_UP;
+            *out_exchange = exchange_out(exchange);
+            PamojaStatus::Ok
+        }
+        Err(status) => status,
+    }
+}
+
+/// What a relay said about itself, as C sees it.
+pub(crate) fn relay_status_out(status: RelayStatus) -> PamojaLorawanRelayStatus {
+    PamojaLorawanRelayStatus {
+        cad_periodicity: status.cad_periodicity.code(),
+        xtal_accuracy: status.xtal_accuracy.code(),
+        cad_to_rx: status.cad_to_rx.code(),
+        relay_data_rate: status.relay_data_rate,
+        forward: status.forward.code(),
     }
 }
 

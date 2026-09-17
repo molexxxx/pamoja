@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Pamoja.Lora/Pamoja.Lora.csproj" />
+    <ProjectReference Include="../Pamoja.Lorawan/Pamoja.Lorawan.csproj" />
     <ProjectReference Include="../Pamoja.Native/Pamoja.Native.csproj" />
   </ItemGroup>
 

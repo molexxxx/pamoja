@@ -291,7 +291,7 @@ public sealed class LorawanMacCommand
     /// <summary>Reads a command out of the record the C ABI hands back.</summary>
     /// <param name="flat">The record.</param>
     /// <returns>The command.</returns>
-    internal static LorawanMacCommand From(PamojaLorawanMacCommand flat) => new()
+    public static LorawanMacCommand From(PamojaLorawanMacCommand flat) => new()
     {
         Cid = flat.Cid,
         Direction = (LorawanDirection)flat.Direction,
@@ -368,7 +368,7 @@ public sealed class LorawanMacCommand
 
     /// <summary>Renders this command as the record the C ABI takes.</summary>
     /// <returns>The record.</returns>
-    internal PamojaLorawanMacCommand ToNative() => new()
+    public PamojaLorawanMacCommand ToNative() => new()
     {
         Cid = Cid,
         Direction = (PamojaLorawanDirection)Direction,

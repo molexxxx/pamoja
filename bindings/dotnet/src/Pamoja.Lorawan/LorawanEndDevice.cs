@@ -84,6 +84,10 @@ public sealed record LorawanWindow(uint DelayMicros, uint FrequencyHz, byte Data
 /// Whether the application payload went out in this frame. When the answers the device owed
 /// left no room, it did not, and has to be sent again.
 /// </param>
+/// <param name="Relay">
+/// The wake-on-radio exchange this frame goes out behind, for a device under a relay, and
+/// <c>null</c> for a frame that goes straight to a gateway.
+/// </param>
 public sealed record LorawanTransmission(
     byte[] Frame,
     uint FrequencyHz,
@@ -93,7 +97,8 @@ public sealed record LorawanTransmission(
     ulong AirtimeMicros,
     LorawanWindow Rx1,
     LorawanWindow Rx2,
-    bool CarriesPayload);
+    bool CarriesPayload,
+    LorawanRelayExchange? Relay = null);
 
 /// <summary>How well the network heard a link check.</summary>
 /// <param name="MarginDb">How far above the demodulation floor the best gateway heard it.</param>
@@ -154,6 +159,9 @@ public enum LorawanReceiveWindow
 
     /// <summary>The second, on the fixed frequency and data rate.</summary>
     Rx2 = 2,
+
+    /// <summary>The relay window, which a device under a relay opens last, TS011-1.0.1 chapter 7.</summary>
+    Rxr = 3,
 }
 
 /// <summary>What to do once both receive windows closed with nothing for the device.</summary>
@@ -561,21 +569,7 @@ public sealed class LorawanEndDevice : IDisposable
                 : NativeMethods.pamoja_lorawan_end_device_heard(
                     handle, bytes, (nuint)bytes.Length, snrDb, out heard, out payload);
             ThrowIfFailed(handle, status);
-            if (heard.Kind == 0)
-            {
-                return new LorawanHeard.Joined(heard.DevAddr);
-            }
-
-            return new LorawanHeard.Data(
-                heard.DevAddr,
-                new LorawanDelivery(
-                    heard.HasPort != 0 ? heard.Port : null,
-                    Pamoja.Codec.Codec.TakeBytes(payload),
-                    heard.Acknowledged != 0,
-                    heard.Confirmed != 0,
-                    heard.MorePending != 0,
-                    heard.HasLinkCheck != 0 ? new LorawanLinkCheck(heard.MarginDb, heard.Gateways) : null,
-                    heard.HasDeviceTime != 0 ? new LorawanDeviceTime(heard.GpsSeconds, heard.Fraction) : null));
+            return HeardOf(heard, payload);
         });
     }
 
@@ -663,8 +657,177 @@ public sealed class LorawanEndDevice : IDisposable
             handle, bytes, (nuint)bytes.Length, nowMicros)));
     }
 
+
+    /// <summary>Turns relay mode on or off, TS011-1.0.1 section 10.2 and appendix 5.</summary>
+    /// <param name="on">Whether the next uplinks go through a relay.</param>
+    /// <returns>
+    /// <c>false</c> when the network holds the decision, leaving the mode as it was.
+    /// </returns>
+    /// <remarks>
+    /// From here on the decision is the caller's rather than the device's own policy, until the
+    /// network takes it over with an <c>EndDeviceConfReq</c> or hands it back.
+    /// </remarks>
+    public bool UseRelay(bool on) =>
+        _handle.Use(handle =>
+        {
+            Status.ThrowIfError(NativeMethods.pamoja_lorawan_end_device_use_relay(
+                handle, (byte)(on ? 1 : 0), out byte taken));
+            return taken != 0;
+        });
+
+    /// <summary>Whether the next uplink goes through a relay.</summary>
+    public bool Relaying => ReadRelayMode().Relaying;
+
+    /// <summary>How the device decides whether to use a relay.</summary>
+    public LorawanRelayActivation RelayActivation => ReadRelayMode().Activation;
+
+    /// <summary>What the device knows of when its relay listens, TS011-1.0.1 section 3.9.</summary>
+    public LorawanRelaySync RelaySync => ReadRelayMode().Sync;
+
+    /// <summary>The wake-on-radio frame counter the next frame will use, section 5.3.2.</summary>
+    public uint WorCounter => ReadRelayMode().WorCounter;
+
+    /// <summary>What the relay's last acknowledgment said, or <c>null</c> before one arrived.</summary>
+    public LorawanRelayStatus? RelayStatus =>
+        _handle.Use<LorawanRelayStatus?>(handle =>
+            NativeMethods.pamoja_lorawan_end_device_relay_status(
+                handle, out PamojaLorawanRelayStatus status) == PamojaStatus.Ok
+                ? RelayStatusOf(status)
+                : null);
+
+    /// <summary>Reads the acknowledgment a relay answered the last wake-on-radio frame with.</summary>
+    /// <param name="frame">The seven bytes the radio received in the acknowledgment window.</param>
+    /// <returns>What the relay said about itself.</returns>
+    /// <exception cref="LorawanDeviceException">
+    /// No exchange is waiting, or the acknowledgment does not verify.
+    /// </exception>
+    /// <remarks>
+    /// The device is now synchronized: it knows when the relay scans, so its next frames carry
+    /// only as much preamble as the two clocks could have drifted apart.
+    /// </remarks>
+    public LorawanRelayStatus HeardWorAck(ReadOnlySpan<byte> frame)
+    {
+        byte[] bytes = frame.ToArray();
+        return _handle.Use(handle =>
+        {
+            ThrowIfFailed(handle, NativeMethods.pamoja_lorawan_end_device_heard_wor_ack(
+                handle, bytes, (nuint)bytes.Length, out PamojaLorawanRelayStatus status));
+            return RelayStatusOf(status);
+        });
+    }
+
+    /// <summary>Says what to do once the acknowledgment window closed with nothing in it.</summary>
+    /// <param name="nowMicros">The time the window closed, in microseconds.</param>
+    /// <returns>
+    /// Whether to send the uplink at the time the exchange named anyway, or wake the relay again
+    /// first, as the network's back-off asks.
+    /// </returns>
+    /// <exception cref="LorawanDeviceException">No wake-on-radio frame waits on an answer.</exception>
+    public LorawanWorNext NoWorAck(ulong nowMicros) =>
+        _handle.Use(handle =>
+        {
+            ThrowIfFailed(handle, NativeMethods.pamoja_lorawan_end_device_no_wor_ack(
+                handle, nowMicros, out byte next, out PamojaLorawanRelayExchange exchange));
+            return next == NativeMethods.LorawanWorNextUplink
+                ? new LorawanWorNext(true, null)
+                : new LorawanWorNext(false, ExchangeOf(exchange));
+        });
+
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();
+
+    /// <summary>Reads how the device uses a relay.</summary>
+    /// <returns>The mode, what it knows of the relay, and its frame counter.</returns>
+    private (bool Relaying, LorawanRelayActivation Activation, LorawanRelaySync Sync, uint WorCounter) ReadRelayMode() =>
+        _handle.Use(handle =>
+        {
+            Status.ThrowIfError(NativeMethods.pamoja_lorawan_end_device_relay_mode(
+                handle,
+                out byte relaying,
+                out byte activation,
+                out byte sync,
+                out uint worCounter));
+            return (
+                relaying != 0,
+                (LorawanRelayActivation)activation,
+                (LorawanRelaySync)sync,
+                worCounter);
+        });
+
+    /// <summary>Rebuilds what a relay said about itself from the fields the C ABI reported.</summary>
+    /// <param name="status">The status as the C ABI describes it.</param>
+    /// <returns>The status.</returns>
+    internal static LorawanRelayStatus RelayStatusOf(PamojaLorawanRelayStatus status) =>
+        new(
+            (LorawanCadPeriodicity)status.CadPeriodicity,
+            (LorawanXtalAccuracy)status.XtalAccuracy,
+            (LorawanCadToRx)status.CadToRx,
+            status.RelayDataRate,
+            (LorawanRelayForward)status.Forward);
+
+    /// <summary>Rebuilds a wake-on-radio exchange from the fields the C ABI reported.</summary>
+    /// <param name="exchange">The exchange as the C ABI describes it.</param>
+    /// <returns>The exchange.</returns>
+    internal static LorawanRelayExchange ExchangeOf(PamojaLorawanRelayExchange exchange) =>
+        new(
+            new LorawanWakeUp(
+                exchange.WakeUpFrame.ToArray(exchange.WakeUpLen),
+                exchange.WakeUpStartUs,
+                new LorawanCarrier(exchange.WakeUpFrequencyHz, exchange.WakeUpDataRate),
+                LinkOf(exchange.WakeUpLink),
+                exchange.WakeUpOutputDbm,
+                exchange.WakeUpAirtimeUs),
+            exchange.HasAck != 0
+                ? new LorawanAckWindow(
+                    exchange.AckStartUs,
+                    new LorawanCarrier(exchange.AckFrequencyHz, exchange.AckDataRate),
+                    LinkOf(exchange.AckLink),
+                    exchange.AckAirtimeUs)
+                : null,
+            exchange.UplinkStartUs,
+            WindowOf(exchange.Rxr));
+
+    /// <summary>Rebuilds a transmission from what a transmitting call handed back.</summary>
+    /// <param name="frame">The frame buffer it set.</param>
+    /// <param name="transmission">The transmission it described.</param>
+    /// <returns>The transmission.</returns>
+    internal static LorawanTransmission TransmissionOf(
+        IntPtr frame,
+        PamojaLorawanTransmission transmission) =>
+        new(
+            Pamoja.Codec.Codec.TakeBytes(frame),
+            transmission.FrequencyHz,
+            transmission.DataRate,
+            LinkOf(transmission.Link),
+            transmission.OutputDbm,
+            transmission.AirtimeUs,
+            WindowOf(transmission.Rx1),
+            WindowOf(transmission.Rx2),
+            transmission.CarriesPayload != 0,
+            transmission.HasRelay != 0 ? ExchangeOf(transmission.Relay) : null);
+
+    /// <summary>Rebuilds what a frame turned out to be from what the C ABI reported.</summary>
+    /// <param name="heard">The frame as the C ABI describes it.</param>
+    /// <param name="payload">The payload buffer it set.</param>
+    /// <returns>The join, or the downlink read and acted on.</returns>
+    internal static LorawanHeard HeardOf(PamojaLorawanHeard heard, IntPtr payload)
+    {
+        if (heard.Kind == 0)
+        {
+            return new LorawanHeard.Joined(heard.DevAddr);
+        }
+
+        return new LorawanHeard.Data(
+            heard.DevAddr,
+            new LorawanDelivery(
+                heard.HasPort != 0 ? heard.Port : null,
+                Pamoja.Codec.Codec.TakeBytes(payload),
+                heard.Acknowledged != 0,
+                heard.Confirmed != 0,
+                heard.MorePending != 0,
+                heard.HasLinkCheck != 0 ? new LorawanLinkCheck(heard.MarginDb, heard.Gateways) : null,
+                heard.HasDeviceTime != 0 ? new LorawanDeviceTime(heard.GpsSeconds, heard.Fraction) : null));
+    }
 
     /// <summary>Reads where the device stands.</summary>
     /// <returns>The status.</returns>
@@ -689,16 +852,7 @@ public sealed class LorawanEndDevice : IDisposable
         PamojaLorawanTransmission transmission)
     {
         ThrowIfFailed(handle, status);
-        return new LorawanTransmission(
-            Pamoja.Codec.Codec.TakeBytes(frame),
-            transmission.FrequencyHz,
-            transmission.DataRate,
-            LinkOf(transmission.Link),
-            transmission.OutputDbm,
-            transmission.AirtimeUs,
-            WindowOf(transmission.Rx1),
-            WindowOf(transmission.Rx2),
-            transmission.CarriesPayload != 0);
+        return TransmissionOf(frame, transmission);
     }
 
     /// <summary>Throws the device's recorded reason when a call failed.</summary>
@@ -724,7 +878,7 @@ public sealed class LorawanEndDevice : IDisposable
     /// <summary>Rebuilds a link from the fields the C ABI reported.</summary>
     /// <param name="link">The link as the C ABI describes it.</param>
     /// <returns>The link settings.</returns>
-    private static LoraLink LinkOf(PamojaLoraLink link)
+    internal static LoraLink LinkOf(PamojaLoraLink link)
     {
         LoraLink built = new LoraLink(link.SpreadingFactor, link.BandwidthHz)
             .WithCodingRate(link.CodingRateDenominator)
@@ -740,6 +894,6 @@ public sealed class LorawanEndDevice : IDisposable
     /// <summary>Rebuilds a receive window from the fields the C ABI reported.</summary>
     /// <param name="window">The window as the C ABI describes it.</param>
     /// <returns>The window.</returns>
-    private static LorawanWindow WindowOf(PamojaLorawanWindow window) =>
+    internal static LorawanWindow WindowOf(PamojaLorawanWindow window) =>
         new(window.DelayUs, window.FrequencyHz, window.DataRate, LinkOf(window.Link));
 }

@@ -14,10 +14,13 @@ use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_gateway::network::{Event, Network, Registration, Rx1Channels, Slot, Windows};
 use pamoja_lora::region::ChannelBlock;
+use pamoja_lorawan::relay::WorChannel;
 
 use crate::gateway::{rxpk_of, txpk_to_js, GatewayRxpk, GatewayTxpk};
 use crate::lora::{lora_link_of, settings, LoraLink};
 use crate::lora_region::LoraChannelPlan;
+use crate::lorawan::{describe_command, rebuild, LorawanMacCommand};
+use crate::lorawan_relay::LorawanWorChannel;
 
 /// What a forwarded packet turned out to be.
 #[napi(string_enum, js_name = "GatewayNetworkOutcome")]
@@ -94,6 +97,39 @@ pub struct GatewayNetworkEvent {
     pub slot: Option<GatewaySlot>,
     /// The packet carrying the accept, for a join.
     pub accept: Option<GatewayTxpk>,
+    /// What a relay added to an uplink it forwarded, TS011-1.0.1 section 9.1, or `null` for
+    /// one the gateway heard itself. An answer goes back through the same relay.
+    pub relay: Option<GatewayRelayed>,
+}
+
+/// What a relay added to an uplink it forwarded, TS011-1.0.1 section 9.1.
+#[napi(object)]
+pub struct GatewayRelayed {
+    /// The relay's own address.
+    pub relay: u32,
+    /// What it heard of the uplink, in dBm.
+    pub rssi_dbm: i32,
+    /// Its signal-to-noise ratio, in dB.
+    pub snr_db: i32,
+    /// The data rate it arrived at.
+    pub data_rate: u8,
+    /// The WOR channel the device woke the relay on.
+    pub wor_channel: LorawanWorChannel,
+    /// The frequency it arrived on, in hertz.
+    pub frequency_hz: u32,
+}
+
+/// A device a relay heard and could not verify, TS011-1.0.1 section 10.7.
+#[napi(object)]
+pub struct GatewayNotice {
+    /// The relay that heard it.
+    pub relay: u32,
+    /// The address the wake-on-radio frame named.
+    pub dev_addr: u32,
+    /// The frame's signal strength in dBm.
+    pub rssi_dbm: i32,
+    /// Its signal-to-noise ratio in dB.
+    pub snr_db: i32,
 }
 
 /// The network side of one site: what a server does with what a gateway forwarded.
@@ -165,6 +201,63 @@ impl GatewayNetwork {
             .map_err(|error| napi::Error::from_reason(error.to_string()))?;
         Ok(txpk_to_js(&downlink))
     }
+
+    /// Takes the devices relays have reported hearing and could not verify, TS011-1.0.1
+    /// section 10.7.
+    ///
+    /// A relay carries these in the MAC commands of its own uplinks, alongside whatever else
+    /// that uplink was for, so they wait here until they are read.
+    #[napi]
+    pub fn notices(&mut self) -> Vec<GatewayNotice> {
+        self.inner
+            .notices()
+            .into_iter()
+            .map(|notice| GatewayNotice {
+                relay: notice.relay,
+                dev_addr: notice.dev_addr,
+                rssi_dbm: i32::from(notice.rssi_dbm),
+                snr_db: i32::from(notice.snr_db),
+            })
+            .collect()
+    }
+
+    /// Builds a downlink carrying MAC commands, which is how a network configures a relay.
+    ///
+    /// The commands ride in the frame options where they fit, and in a frame of their own on
+    /// port 0 where they do not.
+    #[napi]
+    pub fn command(
+        &mut self,
+        dev_addr: u32,
+        slot: GatewaySlot,
+        commands: Vec<LorawanMacCommand>,
+    ) -> napi::Result<GatewayTxpk> {
+        let commands = commands
+            .into_iter()
+            .map(|command| rebuild(&command))
+            .collect::<napi::Result<Vec<_>>>()?;
+        let downlink = self
+            .inner
+            .command(dev_addr, slot_of(slot), &commands)
+            .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+        Ok(txpk_to_js(&downlink))
+    }
+
+    /// Builds the command that tells a relay to trust a device, with the key that lets it
+    /// verify the device's wake-on-radio frames, TS011-1.0.1 section 10.4.
+    #[napi]
+    pub fn trust_command(
+        &self,
+        dev_addr: u32,
+        index: u8,
+        reload_rate: u8,
+        bucket_size: u8,
+    ) -> napi::Result<LorawanMacCommand> {
+        self.inner
+            .trust_command(dev_addr, index, reload_rate, bucket_size)
+            .map(describe_command)
+            .map_err(|error| napi::Error::from_reason(error.to_string()))
+    }
 }
 
 /// Reads the windows a network answers in.
@@ -229,6 +322,7 @@ fn event_to_js(event: Event) -> GatewayNetworkEvent {
             confirmed: None,
             slot: None,
             accept: Some(txpk_to_js(&accept)),
+            relay: None,
         },
         Event::Data {
             dev_addr,
@@ -237,6 +331,7 @@ fn event_to_js(event: Event) -> GatewayNetworkEvent {
             payload,
             confirmed,
             slot,
+            relay,
         } => GatewayNetworkEvent {
             outcome: GatewayNetworkOutcome::Data,
             dev_eui: None,
@@ -247,6 +342,17 @@ fn event_to_js(event: Event) -> GatewayNetworkEvent {
             confirmed: Some(confirmed),
             slot: Some(slot_to_js(slot)),
             accept: None,
+            relay: relay.map(|relayed| GatewayRelayed {
+                relay: relayed.relay,
+                rssi_dbm: i32::from(relayed.metadata.rssi_dbm),
+                snr_db: i32::from(relayed.metadata.snr_db),
+                data_rate: relayed.metadata.data_rate,
+                wor_channel: match relayed.metadata.wor_channel {
+                    WorChannel::Default => LorawanWorChannel::Default,
+                    WorChannel::Second => LorawanWorChannel::Second,
+                },
+                frequency_hz: relayed.frequency_hz,
+            }),
         },
         Event::Foreign { dev_addr } => GatewayNetworkEvent {
             outcome: GatewayNetworkOutcome::Foreign,
@@ -258,6 +364,7 @@ fn event_to_js(event: Event) -> GatewayNetworkEvent {
             confirmed: None,
             slot: None,
             accept: None,
+            relay: None,
         },
     }
 }

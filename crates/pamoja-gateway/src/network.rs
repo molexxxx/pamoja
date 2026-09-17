@@ -784,6 +784,16 @@ impl Network {
         core::mem::take(&mut self.notices)
     }
 
+    /// Counts the notices waiting to be read, without taking them.
+    ///
+    /// # Returns
+    ///
+    /// How many [`Notice`]s the next call to [`Network::notices`] would return.
+    #[must_use]
+    pub fn notice_count(&self) -> usize {
+        self.notices.len()
+    }
+
     // Verifies a join request against every registered key, grants a session, and answers.
     fn admit(&mut self, heard: &Rxpk, link: LinkSettings) -> Result<Event, NetworkError> {
         self.admit_frame(

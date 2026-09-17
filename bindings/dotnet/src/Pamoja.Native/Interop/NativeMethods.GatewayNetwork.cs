@@ -74,7 +74,55 @@ public static partial class NativeMethods
         out PamojaGatewayTxpk outTxpk,
         out nuint outLen);
 
+    /// <summary>Takes the devices relays reported hearing and could not verify.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_network_notices(
+        IntPtr network,
+        Span<PamojaGatewayNetworkNotice> outNotices,
+        nuint capacity,
+        out nuint outLen);
+
+    /// <summary>Builds a downlink carrying MAC commands.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_network_command(
+        IntPtr network,
+        uint devAddr,
+        in PamojaGatewayNetworkSlot slot,
+        ReadOnlySpan<PamojaLorawanMacCommand> commands,
+        nuint commandsLen,
+        Span<byte> buffer,
+        nuint capacity,
+        out PamojaGatewayTxpk outTxpk,
+        out nuint outLen);
+
+    /// <summary>Builds the command that tells a relay to trust a device.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_network_trust_command(
+        IntPtr network,
+        uint devAddr,
+        byte index,
+        byte reloadRate,
+        byte bucketSize,
+        out PamojaLorawanMacCommand outCommand);
+
     /// <summary>Releases a network.</summary>
     [LibraryImport(Library)]
     public static partial void pamoja_gateway_network_free(IntPtr network);
+}
+
+/// <summary>A device a relay heard and could not verify, mirroring <c>PamojaGatewayNetworkNotice</c>.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct PamojaGatewayNetworkNotice
+{
+    /// <summary>The relay that heard it.</summary>
+    public uint Relay;
+
+    /// <summary>The address the wake-on-radio frame named.</summary>
+    public uint DevAddr;
+
+    /// <summary>The frame's signal strength in dBm.</summary>
+    public short RssiDbm;
+
+    /// <summary>Its signal-to-noise ratio in dB.</summary>
+    public sbyte SnrDb;
 }

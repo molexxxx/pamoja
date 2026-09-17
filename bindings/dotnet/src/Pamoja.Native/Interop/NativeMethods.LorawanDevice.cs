@@ -240,6 +240,12 @@ public struct PamojaLorawanTransmission
 
     /// <summary><c>1</c> if the payload went out in this frame.</summary>
     public byte CarriesPayload;
+
+    /// <summary><c>1</c> when this frame goes out behind a wake-on-radio frame.</summary>
+    public byte HasRelay;
+
+    /// <summary>The wake-on-radio exchange, when it does.</summary>
+    public PamojaLorawanRelayExchange Relay;
 }
 
 /// <summary>What a heard frame was, mirroring <c>PamojaLorawanHeard</c>.</summary>

@@ -42,6 +42,19 @@ from pamoja._native import (
     LorawanMacCommand,
     LorawanRxData,
     LorawanSession,
+    LorawanAckWindow,
+    LorawanAcknowledgment,
+    LorawanListen,
+    LorawanRelay,
+    LorawanRelayError,
+    LorawanRelayExchange,
+    LorawanRelayHeard,
+    LorawanRelayStatus,
+    LorawanRxrDownlink,
+    LorawanScan,
+    LorawanWake,
+    LorawanWakeUp,
+    LorawanWorNext,
 )
 from pamoja._native import lorawan_mac_parse as _mac_parse
 from pamoja._native import lorawan_parse_header as _parse_header
@@ -52,6 +65,8 @@ from pamoja.lorawan import relay
 __all__ = [
     "ADR_ACK_DELAY",
     "ADR_ACK_LIMIT",
+    "AckWindow",
+    "Acknowledgment",
     "Backoff",
     "BackoffStep",
     "CfList",
@@ -69,6 +84,7 @@ __all__ = [
     "JOIN_ACCEPT_DELAY2_US",
     "JoinAccept",
     "JoinRequest",
+    "Listen",
     "MAX_FCNT_GAP",
     "MacCommand",
     "MessageType",
@@ -79,12 +95,24 @@ __all__ = [
     "RETRANSMIT_TIMEOUT_MAX_US",
     "RETRANSMIT_TIMEOUT_MIN_US",
     "ReceiveWindow",
+    "Relay",
+    "RelayActivation",
+    "RelayError",
+    "RelayExchange",
+    "RelayHeard",
+    "RelayStatus",
+    "RelaySync",
     "RxData",
+    "RxrDownlink",
     "SAVED_LEN",
+    "Scan",
     "Session",
     "Transmission",
     "Version",
+    "Wake",
+    "WakeUp",
     "Window",
+    "WorNext",
     "device",
     "end_device",
     "grant",
@@ -133,6 +161,32 @@ Delivery = LorawanDelivery
 Next = LorawanNext
 #: A channel a device may send on.
 Channel = LorawanChannel
+#: A LoRaWAN relay: an end device that also carries the uplinks of the devices around it.
+Relay = LorawanRelay
+#: Raised when a relay cannot do what it was asked; ``kind`` names why.
+RelayError = LorawanRelayError
+#: A scan for wake-on-radio frames, due next.
+Scan = LorawanScan
+#: What a wake-on-radio frame led a relay to do.
+Wake = LorawanWake
+#: The acknowledgment a relay answers a wake-on-radio frame with.
+Acknowledgment = LorawanAcknowledgment
+#: When and where a relay listens for the uplink a wake-on-radio frame announced.
+Listen = LorawanListen
+#: What a frame a relay's own device heard turned out to be.
+RelayHeard = LorawanRelayHeard
+#: A downlink for an end device, to send in its relay window.
+RxrDownlink = LorawanRxrDownlink
+#: The wake-on-radio exchange an uplink under a relay goes out behind.
+RelayExchange = LorawanRelayExchange
+#: The frame that wakes a relay, and where it goes.
+WakeUp = LorawanWakeUp
+#: When and where a relay's acknowledgment would arrive.
+AckWindow = LorawanAckWindow
+#: What a relay's acknowledgment said about itself.
+RelayStatus = LorawanRelayStatus
+#: What an end device does once its wake-on-radio frame went unanswered.
+WorNext = LorawanWorNext
 #: How many bytes a saved device state takes.
 SAVED_LEN = LORAWAN_SAVED_LEN
 
@@ -184,6 +238,32 @@ class ReceiveWindow(str, enum.Enum):
     RX1 = "rx1"
     #: The second, on the fixed frequency and data rate.
     RX2 = "rx2"
+    #: The relay window, which a device under a relay opens last, TS011-1.0.1 chapter 7.
+    RXR = "rxr"
+
+
+class RelayActivation(str, enum.Enum):
+    """How an end device decides whether to send through a relay, TS011-1.0.1 section 10.2."""
+
+    #: Never, the default.
+    DISABLED = "disabled"
+    #: Always.
+    ENABLED = "enabled"
+    #: Only once a run of uplinks went unanswered, as the network's smart-enable level sets.
+    DYNAMIC = "dynamic"
+    #: However the device itself decides, which :meth:`EndDevice.use_relay` sets.
+    DEVICE_CONTROLLED = "device_controlled"
+
+
+class RelaySync(str, enum.Enum):
+    """What an end device knows of its relay's scans, TS011-1.0.1 section 3.9."""
+
+    #: Nothing: no wake-on-radio frame has gone out yet.
+    INITIALIZED = "initialized"
+    #: One went out unanswered, so the next preamble spans a whole scan period.
+    UNSYNCHRONIZED = "unsynchronized"
+    #: It knows when the relay scans, so a short preamble reaches it.
+    SYNCHRONIZED = "synchronized"
 
 
 class MessageType(str, enum.Enum):

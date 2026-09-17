@@ -1,7 +1,7 @@
 //! A relay: an end device that also listens for others and forwards what it hears,
 //! TS011-1.0.1 chapters 3, 7 and 8.
 
-use pamoja_lora::region::Modulation;
+use pamoja_lora::region::{Modulation, RelayChannel};
 use pamoja_lora::LinkSettings;
 
 use super::ack::{wor_ack, CadPeriodicity, Forward, StateSync};
@@ -417,6 +417,20 @@ impl<'p> Relay<'p> {
     #[must_use]
     pub const fn config(&self) -> Option<RelayConfig> {
         self.state.config
+    }
+
+    /// Returns one of the region's wake-on-radio channels, TS011-1.0.1 section 3.2.2.
+    ///
+    /// # Arguments
+    ///
+    /// * `index` - which, 0 or 1.
+    ///
+    /// # Returns
+    ///
+    /// The channel, or `None` where the region defines none.
+    #[must_use]
+    pub fn region_channel(&self, index: u8) -> Option<RelayChannel> {
+        self.device.plan().relay_channel(index)
     }
 
     /// Starts scanning, or changes what a running relay scans from its next scan on.

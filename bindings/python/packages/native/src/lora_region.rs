@@ -401,6 +401,11 @@ pub struct LoraRelayChannel {
 }
 
 impl LoraRelayChannel {
+    /// The channel as the numbers a relay configuration holds.
+    pub(crate) const fn core(&self) -> (u32, u32, u8) {
+        (self.wor_frequency_hz, self.ack_frequency_hz, self.data_rate)
+    }
+
     /// A channel from the numbers a relay command or plan holds.
     pub(crate) const fn from_core(
         wor_frequency_hz: u32,

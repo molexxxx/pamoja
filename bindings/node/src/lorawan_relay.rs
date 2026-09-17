@@ -8,15 +8,24 @@
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use pamoja_lorawan::mac::relay_second_channel;
+use pamoja_lorawan::device::Heard;
 use pamoja_lorawan::relay::{
     self, open_wor_ack, t_offset_ms, unsynchronized_preamble_symbols, wor_ack, wor_join_request,
-    wor_uplink, CadPeriodicity, CadToRx, Carrier, Forward, ForwardedUplink, StateSync,
-    Synchronization, UplinkMetadata, Wor, WorChannel, WorKeys, XtalAccuracy,
+    wor_uplink, CadPeriodicity, CadToRx, Carrier, Forward, ForwardedUplink, Listen, Relay,
+    RelayConfig, RelayError, RelayHeard, RelaySettings, Scan, StateSync, Synchronization,
+    UplinkMetadata, Wake, Wor, WorChannel, WorKeys, XtalAccuracy,
 };
+use pamoja_lora::region::RelayChannel;
 use pamoja_lorawan::LorawanError;
 
-use crate::lora_region::LoraRelayChannel;
-use crate::lorawan::LorawanWorKeys;
+use crate::lora::{lora_link_of, LoraLink};
+use crate::lora_region::{LoraChannelPlan, LoraRelayChannel};
+use crate::lorawan::{LorawanDevice, LorawanSession, LorawanWorKeys};
+use crate::lorawan_device::{
+    heard_out, made_from, next_out, thrown as device_thrown, transmission_out, window_in,
+    LorawanDeviceSettings, LorawanHeard, LorawanNext, LorawanReceiveWindow, LorawanTransmission,
+};
+use pamoja_lorawan::device::EndDevice;
 
 /// The port every message between a relay and its network uses.
 #[napi]
@@ -252,14 +261,14 @@ fn carrier_in(carrier: &LorawanCarrier) -> Carrier {
     Carrier::new(carrier.frequency_hz, carrier.data_rate)
 }
 
-fn carrier_out(carrier: Carrier) -> LorawanCarrier {
+pub(crate) fn carrier_out(carrier: Carrier) -> LorawanCarrier {
     LorawanCarrier {
         frequency_hz: carrier.frequency_hz,
         data_rate: carrier.data_rate,
     }
 }
 
-fn periodicity_in(value: &LorawanCadPeriodicity) -> CadPeriodicity {
+pub(crate) fn periodicity_in(value: &LorawanCadPeriodicity) -> CadPeriodicity {
     match value {
         LorawanCadPeriodicity::Ms1000 => CadPeriodicity::Ms1000,
         LorawanCadPeriodicity::Ms500 => CadPeriodicity::Ms500,
@@ -270,7 +279,7 @@ fn periodicity_in(value: &LorawanCadPeriodicity) -> CadPeriodicity {
     }
 }
 
-fn periodicity_out(value: CadPeriodicity) -> LorawanCadPeriodicity {
+pub(crate) fn periodicity_out(value: CadPeriodicity) -> LorawanCadPeriodicity {
     match value {
         CadPeriodicity::Ms1000 => LorawanCadPeriodicity::Ms1000,
         CadPeriodicity::Ms500 => LorawanCadPeriodicity::Ms500,
@@ -281,7 +290,7 @@ fn periodicity_out(value: CadPeriodicity) -> LorawanCadPeriodicity {
     }
 }
 
-fn receive_in(value: &LorawanCadToRx) -> CadToRx {
+pub(crate) fn receive_in(value: &LorawanCadToRx) -> CadToRx {
     match value {
         LorawanCadToRx::Symbols2 => CadToRx::Symbols2,
         LorawanCadToRx::Symbols4 => CadToRx::Symbols4,
@@ -290,7 +299,7 @@ fn receive_in(value: &LorawanCadToRx) -> CadToRx {
     }
 }
 
-fn receive_out(value: CadToRx) -> LorawanCadToRx {
+pub(crate) fn receive_out(value: CadToRx) -> LorawanCadToRx {
     match value {
         CadToRx::Symbols2 => LorawanCadToRx::Symbols2,
         CadToRx::Symbols4 => LorawanCadToRx::Symbols4,
@@ -299,7 +308,7 @@ fn receive_out(value: CadToRx) -> LorawanCadToRx {
     }
 }
 
-fn xtal_in(value: &LorawanXtalAccuracy) -> XtalAccuracy {
+pub(crate) fn xtal_in(value: &LorawanXtalAccuracy) -> XtalAccuracy {
     match value {
         LorawanXtalAccuracy::Ppm10 => XtalAccuracy::Ppm10,
         LorawanXtalAccuracy::Ppm20 => XtalAccuracy::Ppm20,
@@ -308,7 +317,7 @@ fn xtal_in(value: &LorawanXtalAccuracy) -> XtalAccuracy {
     }
 }
 
-fn xtal_out(value: XtalAccuracy) -> LorawanXtalAccuracy {
+pub(crate) fn xtal_out(value: XtalAccuracy) -> LorawanXtalAccuracy {
     match value {
         XtalAccuracy::Ppm10 => LorawanXtalAccuracy::Ppm10,
         XtalAccuracy::Ppm20 => LorawanXtalAccuracy::Ppm20,
@@ -330,6 +339,16 @@ fn state_in(state: &LorawanStateSync) -> StateSync {
         xtal_accuracy: xtal_in(&state.xtal_accuracy),
         cad_periodicity: periodicity_in(&state.cad_periodicity),
         t_offset_ms: state.t_offset_ms,
+    }
+}
+
+/// The forwarding state of a relay, as JavaScript names it.
+pub(crate) fn forward_out(forward: Forward) -> LorawanRelayForward {
+    match forward {
+        Forward::Available => LorawanRelayForward::Available,
+        Forward::RetryIn30Minutes => LorawanRelayForward::RetryIn30Minutes,
+        Forward::RetryIn60Minutes => LorawanRelayForward::RetryIn60Minutes,
+        Forward::Disabled => LorawanRelayForward::Disabled,
     }
 }
 
@@ -616,4 +635,522 @@ pub fn lorawan_relay_second_channel(
             data_rate: channel.data_rate,
         }
     })
+}
+
+/// A scan for wake-on-radio frames, due next.
+#[napi(object)]
+pub struct LorawanScan {
+    /// When to start detecting, in microseconds.
+    pub start_us: f64,
+    /// Which channel: `default` or `second`.
+    pub channel: LorawanWorChannel,
+    /// Where to listen, and how fast.
+    pub carrier: LorawanCarrier,
+    /// The LoRa settings of a wake-on-radio frame, heard with inverted IQ.
+    pub link: LoraLink,
+    /// The longest preamble an end device sends on the channel, in symbols.
+    pub preamble_symbols: u16,
+}
+
+/// The acknowledgment a relay answers a wake-on-radio frame with.
+#[napi(object)]
+pub struct LorawanAcknowledgment {
+    /// The frame, seven bytes.
+    pub frame: Buffer,
+    /// When to start sending it, in microseconds.
+    pub start_us: f64,
+    /// Where it goes, and how fast.
+    pub carrier: LorawanCarrier,
+    /// Its LoRa settings, sent with inverted IQ.
+    pub link: LoraLink,
+    /// The power to ask of the radio, conducted, in dBm.
+    pub output_dbm: i32,
+    /// How long it holds the air, in microseconds.
+    pub airtime_us: f64,
+}
+
+/// When and where to listen for the uplink a wake-on-radio frame announced.
+#[napi(object)]
+pub struct LorawanListen {
+    /// When the uplink starts, in microseconds.
+    pub start_us: f64,
+    /// Where it arrives, and how fast.
+    pub carrier: LorawanCarrier,
+    /// Its LoRa settings, heard with standard IQ.
+    pub link: LoraLink,
+    /// The longest frame the relay forwards; stop receiving anything longer.
+    pub max_len: u32,
+}
+
+/// What a wake-on-radio frame led a relay to do.
+#[napi(string_enum)]
+pub enum LorawanWakeKind {
+    /// A join request from a device the relay's filters let through.
+    JoinRequest,
+    /// An uplink from a trusted device.
+    Uplink,
+    /// A frame from a device the relay does not know, which it tells its network about.
+    Notified,
+}
+
+/// What a wake-on-radio frame led a relay to do.
+#[napi(object)]
+pub struct LorawanWake {
+    /// What the frame led to.
+    pub kind: LorawanWakeKind,
+    /// The device, for an uplink or a notification.
+    pub dev_addr: Option<u32>,
+    /// The wake-on-radio frame counter it carried, for an uplink.
+    pub wfcnt: Option<u32>,
+    /// Whether the relay forwards the uplink, which the acknowledgment reports.
+    pub forward: Option<LorawanRelayForward>,
+    /// The acknowledgment to send, where there is one.
+    pub acknowledgment: Option<LorawanAcknowledgment>,
+    /// Where and when to listen for the uplink, where the relay will.
+    pub listen: Option<LorawanListen>,
+}
+
+/// A downlink for an end device, to send in its relay window.
+#[napi(object)]
+pub struct LorawanRxrDownlink {
+    /// The frame to send.
+    pub frame: Buffer,
+    /// When to start sending it, in microseconds.
+    pub start_us: f64,
+    /// Where it goes, and how fast.
+    pub carrier: LorawanCarrier,
+    /// Its LoRa settings, sent with inverted IQ and a payload CRC.
+    pub link: LoraLink,
+    /// The power to ask of the radio, conducted, in dBm.
+    pub output_dbm: i32,
+    /// How long it holds the air, in microseconds.
+    pub airtime_us: f64,
+}
+
+/// What a frame a relay's own device heard turned out to be.
+#[napi(string_enum)]
+pub enum LorawanRelayHeardKind {
+    /// The relay's own device read it.
+    Device,
+    /// A downlink for an end device, to send in its relay window.
+    Downlink,
+    /// A downlink for an end device the relay cannot send on.
+    Undeliverable,
+}
+
+/// What a frame a relay's own device heard turned out to be.
+#[napi(object)]
+pub struct LorawanRelayHeard {
+    /// What the frame turned out to be.
+    pub kind: LorawanRelayHeardKind,
+    /// What the relay's own device made of it.
+    pub heard: Option<LorawanHeard>,
+    /// The downlink to send the end device on, for `downlink`.
+    pub downlink: Option<LorawanRxrDownlink>,
+    /// Why one could not be sent on, for `undeliverable`.
+    pub reason: Option<String>,
+}
+
+/// A LoRaWAN relay: an end device that also listens for others, TS011-1.0.1.
+///
+/// One turn runs like this: `nextScan` says when and where to listen, a wake-on-radio frame
+/// heard there goes to `heardWor`, the uplink behind it to `heardUplink`, and `forward`
+/// sends that to the network. What the relay's own windows hear goes to `heardIn`, which
+/// turns a downlink for the end device into one to send in its relay window.
+#[napi]
+pub struct LorawanRelay {
+    inner: Relay<'static>,
+}
+
+#[napi]
+impl LorawanRelay {
+    /// Makes a relay whose own device is activated by personalization.
+    #[napi(factory)]
+    pub fn personalized(
+        env: Env,
+        plan: &LoraChannelPlan,
+        session: &LorawanSession,
+        settings: LorawanDeviceSettings,
+        xtal_accuracy: LorawanXtalAccuracy,
+        cad_to_rx: LorawanCadToRx,
+    ) -> Result<LorawanRelay> {
+        let (plan, made) = made_from(plan, &settings)?;
+        let device = EndDevice::personalized(plan, session.inner, made)
+            .map_err(|error| device_thrown(&env, error))?;
+        Ok(LorawanRelay {
+            inner: Relay::new(
+                device,
+                RelaySettings::new(xtal_in(&xtal_accuracy), receive_in(&cad_to_rx)),
+            ),
+        })
+    }
+
+    /// Makes a relay whose own device joins over the air.
+    #[napi(factory)]
+    pub fn over_the_air(
+        env: Env,
+        plan: &LoraChannelPlan,
+        credentials: &LorawanDevice,
+        settings: LorawanDeviceSettings,
+        xtal_accuracy: LorawanXtalAccuracy,
+        cad_to_rx: LorawanCadToRx,
+    ) -> Result<LorawanRelay> {
+        let (plan, made) = made_from(plan, &settings)?;
+        let device = EndDevice::new(plan, credentials.inner.clone(), made)
+            .map_err(|error| device_thrown(&env, error))?;
+        Ok(LorawanRelay {
+            inner: Relay::new(
+                device,
+                RelaySettings::new(xtal_in(&xtal_accuracy), receive_in(&cad_to_rx)),
+            ),
+        })
+    }
+
+    /// Starts scanning, or changes what a running relay scans from its next scan on.
+    #[napi]
+    pub fn start(
+        &mut self,
+        env: Env,
+        cad_periodicity: LorawanCadPeriodicity,
+        default_channel_index: u8,
+        second_channel: Option<LoraRelayChannel>,
+    ) -> Result<()> {
+        let Some(default_channel) = self.inner.region_channel(default_channel_index) else {
+            return Err(Error::new(
+                Status::InvalidArg,
+                "the region does not define that wake-on-radio channel",
+            ));
+        };
+        let mut config = RelayConfig::new(periodicity_in(&cad_periodicity), default_channel);
+        if let Some(second) = second_channel {
+            config = config.with_second_channel(RelayChannel::new(
+                second.wor_frequency_hz,
+                second.ack_frequency_hz,
+                second.data_rate,
+            ));
+        }
+        self.inner
+            .start(config)
+            .map_err(|error| relay_thrown(&env, error))
+    }
+
+    /// Stops scanning. A forwarded uplink already waiting still goes out.
+    #[napi]
+    pub fn stop(&mut self) {
+        self.inner.stop();
+    }
+
+    /// Whether the relay is scanning.
+    #[napi(getter)]
+    pub fn running(&self) -> bool {
+        self.inner.config().is_some()
+    }
+
+    /// Trusts an end device, as an `UpdateUplinkListReq` with the same fields does.
+    #[napi]
+    pub fn trust(
+        &mut self,
+        index: u8,
+        dev_addr: u32,
+        root_wor_s_key: Buffer,
+        next_wfcnt: u32,
+        reload_rate: u8,
+        bucket_size: u8,
+    ) -> Result<()> {
+        let key = sixteen(&root_wor_s_key, "rootWorSKey")?;
+        if self
+            .inner
+            .trust(index, dev_addr, &key, next_wfcnt, reload_rate, bucket_size)
+        {
+            Ok(())
+        } else {
+            Err(Error::new(
+                Status::InvalidArg,
+                "a relay trusts sixteen devices, at indexes 0 to 15",
+            ))
+        }
+    }
+
+    /// Says when and where to scan next, or `null` while the relay is stopped.
+    #[napi]
+    pub fn next_scan(&mut self, now_us: f64) -> Result<Option<LorawanScan>> {
+        let now_us = micros(now_us, "nowUs")?;
+        Ok(self.inner.next_scan(now_us).map(|scan| LorawanScan {
+            start_us: scan.start_us as f64,
+            channel: channel_out(scan.channel),
+            carrier: carrier_out(scan.carrier),
+            link: lora_link_of(scan.link),
+            preamble_symbols: scan.preamble_symbols,
+        }))
+    }
+
+    /// Reads a wake-on-radio frame a scan heard.
+    #[napi]
+    pub fn heard_wor(
+        &mut self,
+        env: Env,
+        scan: LorawanScan,
+        frame: Buffer,
+        rssi_dbm: i32,
+        snr_db: i32,
+        ended_us: f64,
+    ) -> Result<LorawanWake> {
+        let ended_us = micros(ended_us, "endedUs")?;
+        let scan = Scan {
+            start_us: micros(scan.start_us, "startUs")?,
+            channel: channel_in(&scan.channel),
+            carrier: Carrier::new(scan.carrier.frequency_hz, scan.carrier.data_rate),
+            link: crate::lora::settings(&scan.link),
+            preamble_symbols: scan.preamble_symbols,
+        };
+        let wake = self
+            .inner
+            .heard_wor(
+                &scan,
+                frame.as_ref(),
+                rssi_dbm.clamp(i32::from(i16::MIN), i32::from(i16::MAX)) as i16,
+                snr_db.clamp(i32::from(i8::MIN), i32::from(i8::MAX)) as i8,
+                ended_us,
+            )
+            .map_err(|error| relay_thrown(&env, error))?;
+        Ok(wake_out(wake))
+    }
+
+    /// Reads the uplink a wake-on-radio frame announced, and holds it to forward.
+    ///
+    /// Returns when to `forward` it: fifty milliseconds after it ended.
+    #[napi]
+    pub fn heard_uplink(
+        &mut self,
+        env: Env,
+        frame: Buffer,
+        rssi_dbm: i32,
+        snr_db: i32,
+        ended_us: f64,
+    ) -> Result<f64> {
+        let ended_us = micros(ended_us, "endedUs")?;
+        self.inner
+            .heard_uplink(
+                frame.as_ref(),
+                rssi_dbm.clamp(i32::from(i16::MIN), i32::from(i16::MAX)) as i16,
+                snr_db.clamp(i32::from(i8::MIN), i32::from(i8::MAX)) as i8,
+                ended_us,
+            )
+            .map(|due_us| due_us as f64)
+            .map_err(|error| relay_thrown(&env, error))
+    }
+
+    /// Clears the uplink a wake-on-radio frame announced, once listening heard nothing.
+    #[napi]
+    pub fn uplink_missed(&mut self) {
+        self.inner.uplink_missed();
+    }
+
+    /// When the forwarded uplink waiting to go out is due, or `null` with nothing waiting.
+    #[napi(getter)]
+    pub fn forward_due(&self) -> Option<f64> {
+        self.inner.forward_due().map(|due_us| due_us as f64)
+    }
+
+    /// Sends the uplink the relay is holding, in its own uplink on port 226.
+    #[napi]
+    pub fn forward(&mut self, env: Env, now_us: f64) -> Result<LorawanTransmission> {
+        let now_us = micros(now_us, "nowUs")?;
+        self.inner
+            .forward(now_us)
+            .map(transmission_out)
+            .map_err(|error| relay_thrown(&env, error))
+    }
+
+    /// Reads a frame the relay's own device heard, acting on the relay commands in it.
+    #[napi]
+    pub fn heard_in(
+        &mut self,
+        env: Env,
+        window: LorawanReceiveWindow,
+        frame: Buffer,
+        snr_db: i32,
+    ) -> Result<LorawanRelayHeard> {
+        let snr_db = snr_db.clamp(i32::from(i8::MIN), i32::from(i8::MAX)) as i8;
+        let heard = self
+            .inner
+            .heard_in(window_in(window), frame.as_ref(), snr_db)
+            .map_err(|error| relay_thrown(&env, error))?;
+        Ok(match heard {
+            RelayHeard::Device(heard) => LorawanRelayHeard {
+                kind: LorawanRelayHeardKind::Device,
+                heard: Some(heard_out(heard, self.inner.device().dev_addr().unwrap_or(0))),
+                downlink: None,
+                reason: None,
+            },
+            RelayHeard::Downlink { delivery, downlink } => LorawanRelayHeard {
+                kind: LorawanRelayHeardKind::Downlink,
+                heard: Some(heard_out(
+                    Heard::Data(delivery),
+                    self.inner.device().dev_addr().unwrap_or(0),
+                )),
+                downlink: Some(LorawanRxrDownlink {
+                    frame: downlink.frame().to_vec().into(),
+                    start_us: downlink.start_us as f64,
+                    carrier: carrier_out(downlink.carrier),
+                    link: lora_link_of(downlink.link),
+                    output_dbm: i32::from(downlink.output_dbm),
+                    airtime_us: downlink.airtime_us as f64,
+                }),
+                reason: None,
+            },
+            RelayHeard::Undeliverable { delivery, reason } => LorawanRelayHeard {
+                kind: LorawanRelayHeardKind::Undeliverable,
+                heard: Some(heard_out(
+                    Heard::Data(delivery),
+                    self.inner.device().dev_addr().unwrap_or(0),
+                )),
+                downlink: None,
+                reason: Some(reason.to_string()),
+            },
+        })
+    }
+
+    /// Says what comes next once the relay's own windows closed with nothing in them.
+    #[napi]
+    pub fn nothing_heard(&mut self, env: Env, now_us: f64) -> Result<LorawanNext> {
+        let now_us = micros(now_us, "nowUs")?;
+        self.inner
+            .nothing_heard(now_us)
+            .map(next_out)
+            .map_err(|error| relay_thrown(&env, error))
+    }
+
+    /// Makes the relay's own join request.
+    #[napi]
+    pub fn join(&mut self, env: Env, dev_nonce: u16, now_us: f64) -> Result<LorawanTransmission> {
+        let now_us = micros(now_us, "nowUs")?;
+        self.inner
+            .device_mut()
+            .join(dev_nonce, now_us)
+            .map(transmission_out)
+            .map_err(|error| device_thrown(&env, error))
+    }
+
+    /// Sends one of the relay's own uplinks, which also carries what it owes its network.
+    #[napi]
+    pub fn send(
+        &mut self,
+        env: Env,
+        port: u8,
+        payload: Buffer,
+        confirmed: bool,
+        now_us: f64,
+    ) -> Result<LorawanTransmission> {
+        let now_us = micros(now_us, "nowUs")?;
+        self.inner
+            .device_mut()
+            .send(port, payload.as_ref(), confirmed, now_us)
+            .map(transmission_out)
+            .map_err(|error| device_thrown(&env, error))
+    }
+
+    /// Sends an uplink with no payload, carrying whatever the relay owes its network.
+    #[napi]
+    pub fn send_empty(&mut self, env: Env, now_us: f64) -> Result<LorawanTransmission> {
+        let now_us = micros(now_us, "nowUs")?;
+        self.inner
+            .device_mut()
+            .send_empty(now_us)
+            .map(transmission_out)
+            .map_err(|error| device_thrown(&env, error))
+    }
+
+    /// The address the relay's own device is on the network by.
+    #[napi(getter)]
+    pub fn dev_addr(&self) -> Option<u32> {
+        self.inner.device().dev_addr()
+    }
+
+    /// Whether the relay's own device has joined.
+    #[napi(getter)]
+    pub fn joined(&self) -> bool {
+        self.inner.device().is_joined()
+    }
+
+    /// The data rate the relay forwards at, which its acknowledgments report.
+    #[napi(getter)]
+    pub fn data_rate(&self) -> u8 {
+        self.inner.device().data_rate()
+    }
+}
+
+/// Describes what a wake-on-radio frame led to the way JavaScript holds it.
+fn wake_out(wake: Wake) -> LorawanWake {
+    match wake {
+        Wake::JoinRequest { listen } => LorawanWake {
+            kind: LorawanWakeKind::JoinRequest,
+            dev_addr: None,
+            wfcnt: None,
+            forward: None,
+            acknowledgment: None,
+            listen: Some(listen_out(listen)),
+        },
+        Wake::Uplink {
+            dev_addr,
+            wfcnt,
+            forward,
+            acknowledgment,
+            listen,
+        } => LorawanWake {
+            kind: LorawanWakeKind::Uplink,
+            dev_addr: Some(dev_addr),
+            wfcnt: Some(wfcnt),
+            forward: Some(forward_out(forward)),
+            acknowledgment: acknowledgment.map(|ack| LorawanAcknowledgment {
+                frame: ack.frame.to_vec().into(),
+                start_us: ack.start_us as f64,
+                carrier: carrier_out(ack.carrier),
+                link: lora_link_of(ack.link),
+                output_dbm: i32::from(ack.output_dbm),
+                airtime_us: ack.airtime_us as f64,
+            }),
+            listen: listen.map(listen_out),
+        },
+        Wake::Notified { dev_addr } => LorawanWake {
+            kind: LorawanWakeKind::Notified,
+            dev_addr: Some(dev_addr),
+            wfcnt: None,
+            forward: None,
+            acknowledgment: None,
+            listen: None,
+        },
+    }
+}
+
+/// Describes where an uplink arrives the way JavaScript holds it.
+fn listen_out(listen: Listen) -> LorawanListen {
+    LorawanListen {
+        start_us: listen.start_us as f64,
+        carrier: carrier_out(listen.carrier),
+        link: lora_link_of(listen.link),
+        max_len: listen.max_len as u32,
+    }
+}
+
+/// Which channel a scan is on, as JavaScript names it.
+fn channel_out(channel: WorChannel) -> LorawanWorChannel {
+    match channel {
+        WorChannel::Default => LorawanWorChannel::Default,
+        WorChannel::Second => LorawanWorChannel::Second,
+    }
+}
+
+/// Reads which channel a scan is on.
+fn channel_in(channel: &LorawanWorChannel) -> WorChannel {
+    match channel {
+        LorawanWorChannel::Default => WorChannel::Default,
+        LorawanWorChannel::Second => WorChannel::Second,
+    }
+}
+
+/// Throws what a relay refused, with its reason as the error's `code`.
+fn relay_thrown(env: &Env, error: RelayError) -> Error {
+    let _ = env;
+    Error::new(Status::GenericFailure, error.to_string())
 }
