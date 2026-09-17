@@ -22,6 +22,13 @@ use pamoja_lorawan::packages::multicast::{
     PORT as MULTICAST_PORT,
 };
 
+use pamoja_lorawan::packages::clock::ClockCommand;
+use pamoja_lorawan::packages::firmware::{DeleteStatus, FirmwareCommand};
+use pamoja_lorawan::packages::fragment::{FragCommand, SetupStatus};
+use pamoja_lorawan::packages::multicast::{McCommand, SessionStatus};
+use pamoja_lorawan::packages::PackageVersion;
+use pamoja_lorawan::Direction;
+
 use crate::{read_bytes, set_last_error, PamojaStatus};
 
 /// The port clock synchronization is spoken on, TS003-2.0.0.
@@ -1315,9 +1322,984 @@ unsafe fn derive(
     PamojaStatus::Ok
 }
 
+/// One command of an application layer package, whichever package it belongs to.
+///
+/// `port` says which package: [`PAMOJA_LORAWAN_CLOCK_PORT`],
+/// [`PAMOJA_LORAWAN_FRAGMENT_PORT`], [`PAMOJA_LORAWAN_MULTICAST_PORT`] or
+/// [`PAMOJA_LORAWAN_FIRMWARE_PORT`]. `cid` names the command within it, and `uplink` says
+/// which way it travels; together they decide which of the other fields carry anything. The
+/// rest are zero.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PamojaLorawanPackageCommand {
+    /// Which package this command belongs to, as its port.
+    pub port: u8,
+    /// Which command within that package.
+    pub cid: u8,
+    /// `1` for what a device sends, `0` for what a server sends.
+    pub uplink: u8,
+    /// The package identifier a version answer carries.
+    pub package: u8,
+    /// The package version it implements.
+    pub version: u8,
+    /// A device's own clock, in seconds since the GPS epoch.
+    pub device_time: u32,
+    /// The seconds to add to a device's clock.
+    pub time_correction: i32,
+    /// The token that pairs a clock answer with its request.
+    pub token: u8,
+    /// Whether a clock request must be answered.
+    pub ans_required: u8,
+    /// The coded period between clock requests.
+    pub period: u8,
+    /// Whether a device manages its own clock periodicity.
+    pub not_supported: u8,
+    /// How many requests a resynchronization command asks for.
+    pub transmissions: u8,
+    /// The firmware a device reports running.
+    pub firmware: u32,
+    /// The hardware it runs on.
+    pub hardware: u32,
+    /// The moment or the delay a reboot is set for.
+    pub reboot: u32,
+    /// What a device makes of the upgrade image it holds.
+    pub image_status: u8,
+    /// The version it would run once that image is installed.
+    pub next_version: u32,
+    /// Whether an image answer carried a version.
+    pub has_next_version: u8,
+    /// The version a delete command names.
+    pub delete_version: u32,
+    /// Whether a device holds no valid image.
+    pub no_valid_image: u8,
+    /// Whether the version named is not the one held.
+    pub invalid_version: u8,
+    /// Which fragmentation session, 0 to 3.
+    pub frag_index: u8,
+    /// Which multicast groups may feed it, a bit for each.
+    pub mc_group_bit_mask: u8,
+    /// How many uncoded fragments a block was cut into.
+    pub nb_frag: u16,
+    /// How many bytes each fragment carries.
+    pub frag_size: u8,
+    /// Whether a device reports the block once it has it.
+    pub ack_reception: u8,
+    /// Which fragmentation algorithm to run.
+    pub frag_algo: u8,
+    /// The coded spread of the delay before a device answers.
+    pub block_ack_delay: u8,
+    /// How many bytes of padding the last fragment carries.
+    pub padding: u8,
+    /// The four bytes a server describes a block with.
+    pub descriptor: [u8; 4],
+    /// The session counter, which must rise for each new block.
+    pub session_cnt: u16,
+    /// The code over the block a device checks once it has it all.
+    pub mic: [u8; 4],
+    /// How many fragments arrived, coded, uncoded and repeated.
+    pub received: u16,
+    /// How many uncoded fragments are still missing.
+    pub missing: u8,
+    /// Whether the block's code did not check out.
+    pub mic_error: u8,
+    /// Whether a session ran out of memory to defragment with.
+    pub memory_error: u8,
+    /// Whether the session or group named does not exist on the device.
+    pub no_session: u8,
+    /// Whether every device answers a status request, or only those still missing fragments.
+    pub all_participants: u8,
+    /// Which fragment of a session a data fragment carries, counting from one.
+    pub fragment_n: u16,
+    /// Which multicast group, 0 to 3.
+    pub mc_group_id: u8,
+    /// The address a group answers to.
+    pub mc_addr: u32,
+    /// A group's key, wrapped under the device's key encryption key.
+    pub mc_key_encrypted: [u8; 16],
+    /// The first frame counter a device accepts from a group.
+    pub min_mc_fcnt: u32,
+    /// The last one, which ends the group's life.
+    pub max_mc_fcnt: u32,
+    /// Which groups a status request or answer covers, a bit for each.
+    pub group_mask: u8,
+    /// How many groups a device holds in all.
+    pub nb_total_groups: u8,
+    /// Whether a device holds no group by the identifier named.
+    pub id_error: u8,
+    /// When a multicast window opens, in seconds since the GPS epoch.
+    pub session_time: u32,
+    /// How long it lasts at most, coded.
+    pub time_out: u8,
+    /// How often a device opens a ping slot inside a Class B window.
+    pub periodicity: u8,
+    /// Where a group listens, in hertz.
+    pub dl_frequency_hz: u32,
+    /// The data rate it listens at.
+    pub data_rate: u8,
+    /// How many seconds until a window opens.
+    pub time_to_start: u32,
+    /// Whether a session answer carried a start time.
+    pub has_time_to_start: u8,
+    /// Whether the data rate named is not one the device has.
+    pub dr_error: u8,
+    /// Whether the frequency named is not one it can use.
+    pub freq_error: u8,
+    /// Whether the window was to start at a time already past.
+    pub start_missed: u8,
+}
+
+impl Default for PamojaLorawanPackageCommand {
+    fn default() -> PamojaLorawanPackageCommand {
+        // Every field is a scalar or an array of them, so zero is the "carries nothing"
+        // value the struct documents.
+        unsafe { core::mem::zeroed() }
+    }
+}
+
+/// Reads one command of an application layer package.
+///
+/// A data fragment takes the whole message, as TS004-2.0.0 section 3 asks, and its bytes are
+/// left in the caller's buffer: `out_command.fragment_n` says which fragment it is, and the
+/// data starts three bytes into the message.
+///
+/// # Arguments
+///
+/// * `port` - which package the message arrived on.
+/// * `uplink` - `1` when a device sent it, `0` when a server did.
+/// * `payload` - the message, from this command's identifier on.
+/// * `payload_len` - its length.
+/// * `out_command` - receives the command.
+/// * `out_taken` - receives how many bytes it took.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::Codec`] for a message this package cannot read, and
+/// [`PamojaStatus::InvalidArgument`] for a port that names no package or a null pointer.
+///
+/// # Safety
+///
+/// `payload` must point to `payload_len` readable bytes and both out pointers must be
+/// writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_package_parse(
+    port: u8,
+    uplink: u8,
+    payload: *const u8,
+    payload_len: usize,
+    out_command: *mut PamojaLorawanPackageCommand,
+    out_taken: *mut usize,
+) -> PamojaStatus {
+    if out_command.is_null() || out_taken.is_null() {
+        return missing();
+    }
+    let bytes = match read_bytes(payload, payload_len) {
+        Ok(bytes) => bytes,
+        Err(status) => return status,
+    };
+    let direction = if uplink != 0 {
+        Direction::Uplink
+    } else {
+        Direction::Downlink
+    };
+    let read = match port {
+        CLOCK_PORT => ClockCommand::parse(direction, &bytes)
+            .map(|(command, taken)| (clock_out(command), taken)),
+        FIRMWARE_PORT => FirmwareCommand::parse(direction, &bytes)
+            .map(|(command, taken)| (firmware_out(command), taken)),
+        FRAGMENT_PORT => {
+            FragCommand::parse(direction, &bytes).map(|(command, taken)| (frag_out(command), taken))
+        }
+        MULTICAST_PORT => {
+            McCommand::parse(direction, &bytes).map(|(command, taken)| (mc_out(command), taken))
+        }
+        other => {
+            set_last_error(format!("port {other} is not an application layer package"));
+            return PamojaStatus::InvalidArgument;
+        }
+    };
+    match read {
+        Ok((command, taken)) => {
+            *out_command = command;
+            *out_taken = taken;
+            PamojaStatus::Ok
+        }
+        Err(error) => {
+            set_last_error(error.to_string());
+            PamojaStatus::Codec
+        }
+    }
+}
+
+/// Writes one command of an application layer package.
+///
+/// A data fragment carries its bytes separately: pass them as `data`, and the command's
+/// `fragment_n` and `frag_index` say where they belong.
+///
+/// # Arguments
+///
+/// * `command` - the command, whose `port`, `cid` and `uplink` decide which fields are read.
+/// * `data` - the bytes a data fragment carries, or null for every other command.
+/// * `data_len` - how many.
+/// * `out_payload` - receives the message.
+/// * `capacity` - how many bytes that buffer holds.
+/// * `out_len` - receives how many were written.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::Codec`] for a command this build does not write, and
+/// [`PamojaStatus::InvalidArgument`] for a null pointer or a buffer too small.
+///
+/// # Safety
+///
+/// `command` must be readable, `data` must point to `data_len` readable bytes or be null,
+/// `out_payload` must point to `capacity` writable bytes, and `out_len` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_package_encode(
+    command: *const PamojaLorawanPackageCommand,
+    data: *const u8,
+    data_len: usize,
+    out_payload: *mut u8,
+    capacity: usize,
+    out_len: *mut usize,
+) -> PamojaStatus {
+    let (Some(command), false, false) =
+        (command.as_ref(), out_payload.is_null(), out_len.is_null())
+    else {
+        return missing();
+    };
+    let carried = match read_bytes(data, data_len) {
+        Ok(bytes) => bytes,
+        Err(status) => return status,
+    };
+    let out = core::slice::from_raw_parts_mut(out_payload, capacity);
+    let written = match command.port {
+        CLOCK_PORT => clock_in(command).map(|c| c.encode(out)),
+        FIRMWARE_PORT => firmware_in(command).map(|c| c.encode(out)),
+        FRAGMENT_PORT => frag_in(command, &carried).map(|c| c.encode(out)),
+        MULTICAST_PORT => mc_in(command).map(|c| c.encode(out)),
+        other => {
+            set_last_error(format!("port {other} is not an application layer package"));
+            return PamojaStatus::InvalidArgument;
+        }
+    };
+    match written {
+        Some(Ok(len)) => {
+            *out_len = len;
+            PamojaStatus::Ok
+        }
+        Some(Err(error)) => {
+            set_last_error(error.to_string());
+            PamojaStatus::InvalidArgument
+        }
+        None => {
+            set_last_error(format!(
+                "command {:#04x} on port {} is not one this build writes",
+                command.cid, command.port
+            ));
+            PamojaStatus::Codec
+        }
+    }
+}
+
+/// Describes a clock synchronization command the way C holds it.
+fn clock_out(command: ClockCommand) -> PamojaLorawanPackageCommand {
+    let mut flat = PamojaLorawanPackageCommand {
+        port: CLOCK_PORT,
+        cid: command.cid(),
+        uplink: u8::from(matches!(command.direction(), Direction::Uplink)),
+        ..PamojaLorawanPackageCommand::default()
+    };
+    match command {
+        ClockCommand::PackageVersionAns(version) => {
+            flat.package = version.package;
+            flat.version = version.version;
+        }
+        ClockCommand::AppTimeReq {
+            device_time,
+            ans_required,
+            token,
+        } => {
+            flat.device_time = device_time;
+            flat.ans_required = u8::from(ans_required);
+            flat.token = token;
+        }
+        ClockCommand::AppTimeAns {
+            time_correction,
+            token,
+        } => {
+            flat.time_correction = time_correction;
+            flat.token = token;
+        }
+        ClockCommand::DeviceAppTimePeriodicityReq { period } => flat.period = period,
+        ClockCommand::DeviceAppTimePeriodicityAns {
+            not_supported,
+            device_time,
+        } => {
+            flat.not_supported = u8::from(not_supported);
+            flat.device_time = device_time;
+        }
+        ClockCommand::ForceDeviceResyncCmd { transmissions } => flat.transmissions = transmissions,
+        ClockCommand::PackageVersionReq => {}
+    }
+    flat
+}
+
+/// Reads a clock synchronization command out of the record C holds.
+fn clock_in(flat: &PamojaLorawanPackageCommand) -> Option<ClockCommand> {
+    let up = flat.uplink != 0;
+    Some(match (flat.cid, up) {
+        (0x00, false) => ClockCommand::PackageVersionReq,
+        (0x00, true) => ClockCommand::PackageVersionAns(PackageVersion {
+            package: flat.package,
+            version: flat.version,
+        }),
+        (0x01, true) => ClockCommand::AppTimeReq {
+            device_time: flat.device_time,
+            ans_required: flat.ans_required != 0,
+            token: flat.token,
+        },
+        (0x01, false) => ClockCommand::AppTimeAns {
+            time_correction: flat.time_correction,
+            token: flat.token,
+        },
+        (0x02, false) => ClockCommand::DeviceAppTimePeriodicityReq {
+            period: flat.period,
+        },
+        (0x02, true) => ClockCommand::DeviceAppTimePeriodicityAns {
+            not_supported: flat.not_supported != 0,
+            device_time: flat.device_time,
+        },
+        (0x03, false) => ClockCommand::ForceDeviceResyncCmd {
+            transmissions: flat.transmissions,
+        },
+        _ => return None,
+    })
+}
+
+/// Describes a firmware management command the way C holds it.
+fn firmware_out(command: FirmwareCommand) -> PamojaLorawanPackageCommand {
+    let mut flat = PamojaLorawanPackageCommand {
+        port: FIRMWARE_PORT,
+        cid: command.cid(),
+        uplink: u8::from(matches!(command.direction(), Direction::Uplink)),
+        ..PamojaLorawanPackageCommand::default()
+    };
+    match command {
+        FirmwareCommand::PackageVersionAns(version) => {
+            flat.package = version.package;
+            flat.version = version.version;
+        }
+        FirmwareCommand::DevVersionAns { firmware, hardware } => {
+            flat.firmware = firmware;
+            flat.hardware = hardware;
+        }
+        FirmwareCommand::DevRebootTimeReq { reboot_time }
+        | FirmwareCommand::DevRebootTimeAns { reboot_time } => flat.reboot = reboot_time,
+        FirmwareCommand::DevRebootCountdownReq { countdown }
+        | FirmwareCommand::DevRebootCountdownAns { countdown } => flat.reboot = countdown,
+        FirmwareCommand::DevUpgradeImageAns {
+            status,
+            next_version,
+        } => {
+            flat.image_status = status as u8;
+            flat.next_version = next_version.unwrap_or(0);
+            flat.has_next_version = u8::from(next_version.is_some());
+        }
+        FirmwareCommand::DevDeleteImageReq { version } => flat.delete_version = version,
+        FirmwareCommand::DevDeleteImageAns(status) => {
+            flat.no_valid_image = u8::from(status.no_valid_image);
+            flat.invalid_version = u8::from(status.invalid_version);
+        }
+        FirmwareCommand::PackageVersionReq
+        | FirmwareCommand::DevVersionReq
+        | FirmwareCommand::DevUpgradeImageReq => {}
+    }
+    flat
+}
+
+/// Reads a firmware management command out of the record C holds.
+fn firmware_in(flat: &PamojaLorawanPackageCommand) -> Option<FirmwareCommand> {
+    let up = flat.uplink != 0;
+    Some(match (flat.cid, up) {
+        (0x00, false) => FirmwareCommand::PackageVersionReq,
+        (0x00, true) => FirmwareCommand::PackageVersionAns(PackageVersion {
+            package: flat.package,
+            version: flat.version,
+        }),
+        (0x01, false) => FirmwareCommand::DevVersionReq,
+        (0x01, true) => FirmwareCommand::DevVersionAns {
+            firmware: flat.firmware,
+            hardware: flat.hardware,
+        },
+        (0x02, false) => FirmwareCommand::DevRebootTimeReq {
+            reboot_time: flat.reboot,
+        },
+        (0x02, true) => FirmwareCommand::DevRebootTimeAns {
+            reboot_time: flat.reboot,
+        },
+        (0x03, false) => FirmwareCommand::DevRebootCountdownReq {
+            countdown: flat.reboot,
+        },
+        (0x03, true) => FirmwareCommand::DevRebootCountdownAns {
+            countdown: flat.reboot,
+        },
+        (0x04, false) => FirmwareCommand::DevUpgradeImageReq,
+        (0x04, true) => FirmwareCommand::DevUpgradeImageAns {
+            status: UpImageStatus::from_bits(flat.image_status),
+            next_version: (flat.has_next_version != 0).then_some(flat.next_version),
+        },
+        (0x05, false) => FirmwareCommand::DevDeleteImageReq {
+            version: flat.delete_version,
+        },
+        (0x05, true) => FirmwareCommand::DevDeleteImageAns(DeleteStatus {
+            no_valid_image: flat.no_valid_image != 0,
+            invalid_version: flat.invalid_version != 0,
+        }),
+        _ => return None,
+    })
+}
+
+/// Describes a fragmentation command the way C holds it.
+fn frag_out(command: FragCommand<'_>) -> PamojaLorawanPackageCommand {
+    let mut flat = PamojaLorawanPackageCommand {
+        port: FRAGMENT_PORT,
+        cid: command.cid(),
+        uplink: u8::from(matches!(command.direction(), Direction::Uplink)),
+        ..PamojaLorawanPackageCommand::default()
+    };
+    match command {
+        FragCommand::PackageVersionAns(version) => {
+            flat.package = version.package;
+            flat.version = version.version;
+        }
+        FragCommand::FragSessionStatusReq {
+            frag_index,
+            all_participants,
+        } => {
+            flat.frag_index = frag_index;
+            flat.all_participants = u8::from(all_participants);
+        }
+        FragCommand::FragSessionStatusAns {
+            frag_index,
+            received,
+            missing,
+            mic_error,
+            memory_error,
+            no_session,
+        } => {
+            flat.frag_index = frag_index;
+            flat.received = received;
+            flat.missing = missing;
+            flat.mic_error = u8::from(mic_error);
+            flat.memory_error = u8::from(memory_error);
+            flat.no_session = u8::from(no_session);
+        }
+        FragCommand::FragSessionSetupReq {
+            frag_index,
+            mc_group_bit_mask,
+            nb_frag,
+            frag_size,
+            ack_reception,
+            frag_algo,
+            block_ack_delay,
+            padding,
+            descriptor,
+            session_cnt,
+            mic,
+        } => {
+            flat.frag_index = frag_index;
+            flat.mc_group_bit_mask = mc_group_bit_mask;
+            flat.nb_frag = nb_frag;
+            flat.frag_size = frag_size;
+            flat.ack_reception = u8::from(ack_reception);
+            flat.frag_algo = frag_algo;
+            flat.block_ack_delay = block_ack_delay;
+            flat.padding = padding;
+            flat.descriptor = descriptor;
+            flat.session_cnt = session_cnt;
+            flat.mic = mic;
+        }
+        FragCommand::FragSessionSetupAns(status) => {
+            flat.frag_index = status.frag_index;
+            flat.frag_algo = u8::from(status.unsupported_algorithm);
+            flat.memory_error = u8::from(status.not_enough_memory);
+            flat.no_session = u8::from(status.unsupported_index);
+            flat.invalid_version = u8::from(status.wrong_descriptor);
+            flat.mic_error = u8::from(status.session_replay);
+        }
+        FragCommand::FragSessionDeleteReq { frag_index } => flat.frag_index = frag_index,
+        FragCommand::FragSessionDeleteAns {
+            frag_index,
+            no_session,
+        } => {
+            flat.frag_index = frag_index;
+            flat.no_session = u8::from(no_session);
+        }
+        FragCommand::FragDataBlockReceivedReq {
+            frag_index,
+            mic_error,
+        } => {
+            flat.frag_index = frag_index;
+            flat.mic_error = u8::from(mic_error);
+        }
+        FragCommand::FragDataBlockReceivedAns { frag_index } => flat.frag_index = frag_index,
+        FragCommand::DataFragment {
+            frag_index,
+            n,
+            data: _,
+        } => {
+            flat.frag_index = frag_index;
+            flat.fragment_n = n;
+        }
+        FragCommand::PackageVersionReq => {}
+    }
+    flat
+}
+
+/// Reads a fragmentation command out of the record C holds.
+fn frag_in<'a>(flat: &PamojaLorawanPackageCommand, data: &'a [u8]) -> Option<FragCommand<'a>> {
+    let up = flat.uplink != 0;
+    Some(match (flat.cid, up) {
+        (0x00, false) => FragCommand::PackageVersionReq,
+        (0x00, true) => FragCommand::PackageVersionAns(PackageVersion {
+            package: flat.package,
+            version: flat.version,
+        }),
+        (0x01, false) => FragCommand::FragSessionStatusReq {
+            frag_index: flat.frag_index,
+            all_participants: flat.all_participants != 0,
+        },
+        (0x01, true) => FragCommand::FragSessionStatusAns {
+            frag_index: flat.frag_index,
+            received: flat.received,
+            missing: flat.missing,
+            mic_error: flat.mic_error != 0,
+            memory_error: flat.memory_error != 0,
+            no_session: flat.no_session != 0,
+        },
+        (0x02, false) => FragCommand::FragSessionSetupReq {
+            frag_index: flat.frag_index,
+            mc_group_bit_mask: flat.mc_group_bit_mask,
+            nb_frag: flat.nb_frag,
+            frag_size: flat.frag_size,
+            ack_reception: flat.ack_reception != 0,
+            frag_algo: flat.frag_algo,
+            block_ack_delay: flat.block_ack_delay,
+            padding: flat.padding,
+            descriptor: flat.descriptor,
+            session_cnt: flat.session_cnt,
+            mic: flat.mic,
+        },
+        (0x02, true) => FragCommand::FragSessionSetupAns(SetupStatus {
+            unsupported_algorithm: flat.frag_algo != 0,
+            not_enough_memory: flat.memory_error != 0,
+            unsupported_index: flat.no_session != 0,
+            wrong_descriptor: flat.invalid_version != 0,
+            session_replay: flat.mic_error != 0,
+            frag_index: flat.frag_index,
+        }),
+        (0x03, false) => FragCommand::FragSessionDeleteReq {
+            frag_index: flat.frag_index,
+        },
+        (0x03, true) => FragCommand::FragSessionDeleteAns {
+            frag_index: flat.frag_index,
+            no_session: flat.no_session != 0,
+        },
+        (0x04, true) => FragCommand::FragDataBlockReceivedReq {
+            frag_index: flat.frag_index,
+            mic_error: flat.mic_error != 0,
+        },
+        (0x04, false) => FragCommand::FragDataBlockReceivedAns {
+            frag_index: flat.frag_index,
+        },
+        (0x08, false) => FragCommand::DataFragment {
+            frag_index: flat.frag_index,
+            n: flat.fragment_n,
+            data,
+        },
+        _ => return None,
+    })
+}
+
+/// Describes a multicast setup command the way C holds it.
+fn mc_out(command: McCommand) -> PamojaLorawanPackageCommand {
+    let mut flat = PamojaLorawanPackageCommand {
+        port: MULTICAST_PORT,
+        cid: command.cid(),
+        uplink: u8::from(matches!(command.direction(), Direction::Uplink)),
+        ..PamojaLorawanPackageCommand::default()
+    };
+    match command {
+        McCommand::PackageVersionAns(version) => {
+            flat.package = version.package;
+            flat.version = version.version;
+        }
+        McCommand::McGroupStatusReq { req_group_mask } => flat.group_mask = req_group_mask,
+        McCommand::McGroupStatusAns {
+            ans_group_mask,
+            nb_total_groups,
+        } => {
+            flat.group_mask = ans_group_mask;
+            flat.nb_total_groups = nb_total_groups;
+        }
+        McCommand::McGroupStatusItem {
+            mc_group_id,
+            mc_addr,
+        } => {
+            flat.mc_group_id = mc_group_id;
+            flat.mc_addr = mc_addr;
+        }
+        McCommand::McGroupSetupReq {
+            mc_group_id,
+            mc_addr,
+            mc_key_encrypted,
+            min_mc_fcnt,
+            max_mc_fcnt,
+        } => {
+            flat.mc_group_id = mc_group_id;
+            flat.mc_addr = mc_addr;
+            flat.mc_key_encrypted = mc_key_encrypted;
+            flat.min_mc_fcnt = min_mc_fcnt;
+            flat.max_mc_fcnt = max_mc_fcnt;
+        }
+        McCommand::McGroupSetupAns {
+            mc_group_id,
+            id_error,
+        } => {
+            flat.mc_group_id = mc_group_id;
+            flat.id_error = u8::from(id_error);
+        }
+        McCommand::McGroupDeleteReq { mc_group_id } => flat.mc_group_id = mc_group_id,
+        McCommand::McGroupDeleteAns {
+            mc_group_id,
+            group_undefined,
+        } => {
+            flat.mc_group_id = mc_group_id;
+            flat.no_session = u8::from(group_undefined);
+        }
+        McCommand::McClassCSessionReq {
+            mc_group_id,
+            session_time,
+            time_out,
+            dl_frequency_hz,
+            data_rate,
+        } => {
+            flat.mc_group_id = mc_group_id;
+            flat.session_time = session_time;
+            flat.time_out = time_out;
+            flat.dl_frequency_hz = dl_frequency_hz;
+            flat.data_rate = data_rate;
+        }
+        McCommand::McClassBSessionReq {
+            mc_group_id,
+            session_time,
+            time_out,
+            periodicity,
+            dl_frequency_hz,
+            data_rate,
+        } => {
+            flat.mc_group_id = mc_group_id;
+            flat.session_time = session_time;
+            flat.time_out = time_out;
+            flat.periodicity = periodicity;
+            flat.dl_frequency_hz = dl_frequency_hz;
+            flat.data_rate = data_rate;
+        }
+        McCommand::McClassCSessionAns {
+            status,
+            time_to_start,
+        }
+        | McCommand::McClassBSessionAns {
+            status,
+            time_to_start,
+        } => {
+            flat.mc_group_id = status.mc_group_id;
+            flat.dr_error = u8::from(status.dr_error);
+            flat.freq_error = u8::from(status.freq_error);
+            flat.no_session = u8::from(status.group_undefined);
+            flat.start_missed = u8::from(status.start_missed);
+            flat.time_to_start = time_to_start.unwrap_or(0);
+            flat.has_time_to_start = u8::from(time_to_start.is_some());
+        }
+        McCommand::PackageVersionReq => {}
+    }
+    flat
+}
+
+/// Reads a multicast setup command out of the record C holds.
+fn mc_in(flat: &PamojaLorawanPackageCommand) -> Option<McCommand> {
+    let up = flat.uplink != 0;
+    let status = SessionStatus {
+        mc_group_id: flat.mc_group_id,
+        dr_error: flat.dr_error != 0,
+        freq_error: flat.freq_error != 0,
+        group_undefined: flat.no_session != 0,
+        start_missed: flat.start_missed != 0,
+    };
+    let time_to_start = (flat.has_time_to_start != 0).then_some(flat.time_to_start);
+    Some(match (flat.cid, up) {
+        (0x00, false) => McCommand::PackageVersionReq,
+        (0x00, true) => McCommand::PackageVersionAns(PackageVersion {
+            package: flat.package,
+            version: flat.version,
+        }),
+        (0x01, false) => McCommand::McGroupStatusReq {
+            req_group_mask: flat.group_mask,
+        },
+        (0x01, true) => McCommand::McGroupStatusAns {
+            ans_group_mask: flat.group_mask,
+            nb_total_groups: flat.nb_total_groups,
+        },
+        (0x02, false) => McCommand::McGroupSetupReq {
+            mc_group_id: flat.mc_group_id,
+            mc_addr: flat.mc_addr,
+            mc_key_encrypted: flat.mc_key_encrypted,
+            min_mc_fcnt: flat.min_mc_fcnt,
+            max_mc_fcnt: flat.max_mc_fcnt,
+        },
+        (0x02, true) => McCommand::McGroupSetupAns {
+            mc_group_id: flat.mc_group_id,
+            id_error: flat.id_error != 0,
+        },
+        (0x03, false) => McCommand::McGroupDeleteReq {
+            mc_group_id: flat.mc_group_id,
+        },
+        (0x03, true) => McCommand::McGroupDeleteAns {
+            mc_group_id: flat.mc_group_id,
+            group_undefined: flat.no_session != 0,
+        },
+        (0x04, false) => McCommand::McClassCSessionReq {
+            mc_group_id: flat.mc_group_id,
+            session_time: flat.session_time,
+            time_out: flat.time_out,
+            dl_frequency_hz: flat.dl_frequency_hz,
+            data_rate: flat.data_rate,
+        },
+        (0x04, true) => McCommand::McClassCSessionAns {
+            status,
+            time_to_start,
+        },
+        (0x05, false) => McCommand::McClassBSessionReq {
+            mc_group_id: flat.mc_group_id,
+            session_time: flat.session_time,
+            time_out: flat.time_out,
+            periodicity: flat.periodicity,
+            dl_frequency_hz: flat.dl_frequency_hz,
+            data_rate: flat.data_rate,
+        },
+        (0x05, true) => McCommand::McClassBSessionAns {
+            status,
+            time_to_start,
+        },
+        _ => return None,
+    })
+}
+
+/// Reads one group record of a multicast status answer, TS005-2.0.0 section 4.2.
+///
+/// # Arguments
+///
+/// * `payload` - the message from the record on, five bytes or more.
+/// * `payload_len` - its length.
+/// * `out_command` - receives the record.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::Codec`] when the message ends inside the record.
+///
+/// # Safety
+///
+/// `payload` must point to `payload_len` readable bytes and `out_command` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_package_status_item(
+    payload: *const u8,
+    payload_len: usize,
+    out_command: *mut PamojaLorawanPackageCommand,
+) -> PamojaStatus {
+    if out_command.is_null() {
+        return missing();
+    }
+    let bytes = match read_bytes(payload, payload_len) {
+        Ok(bytes) => bytes,
+        Err(status) => return status,
+    };
+    match McCommand::status_item(&bytes) {
+        Ok((command, _)) => {
+            *out_command = mc_out(command);
+            PamojaStatus::Ok
+        }
+        Err(error) => {
+            set_last_error(error.to_string());
+            PamojaStatus::Codec
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Reads a command of each package across the boundary and writes it back.
+    #[test]
+    fn a_command_of_each_package_crosses_the_boundary_both_ways() {
+        unsafe {
+            // Bytes taken from the specifications and from ChirpStack's own vectors.
+            let cases: [(u8, u8, &[u8]); 6] = [
+                (
+                    PAMOJA_LORAWAN_CLOCK_PORT,
+                    1,
+                    &[0x01, 0x78, 0x56, 0x34, 0x12, 0x1A],
+                ),
+                (PAMOJA_LORAWAN_CLOCK_PORT, 0, &[0x03, 0x02]),
+                (PAMOJA_LORAWAN_FIRMWARE_PORT, 0, &[0x03, 0x10, 0x0E, 0x00]),
+                (
+                    PAMOJA_LORAWAN_FRAGMENT_PORT,
+                    0,
+                    &[
+                        0x02, 0x31, 0x00, 0x04, 0x80, 0x0D, 0x40, 0x01, 0x02, 0x03, 0x04, 0x80,
+                        0x00, 0x01, 0x02, 0x03, 0x04,
+                    ],
+                ),
+                (
+                    PAMOJA_LORAWAN_FRAGMENT_PORT,
+                    1,
+                    &[0x01, 0x05, 0x00, 0xC4, 0x80],
+                ),
+                (
+                    PAMOJA_LORAWAN_MULTICAST_PORT,
+                    0,
+                    &[
+                        0x04, 0x02, 0x00, 0x04, 0x00, 0x00, 0x0F, 0x28, 0x76, 0x84, 0x05,
+                    ],
+                ),
+            ];
+
+            for (port, uplink, bytes) in cases {
+                let mut command = PamojaLorawanPackageCommand::default();
+                let mut taken = 0usize;
+                assert_eq!(
+                    pamoja_lorawan_package_parse(
+                        port,
+                        uplink,
+                        bytes.as_ptr(),
+                        bytes.len(),
+                        &mut command,
+                        &mut taken,
+                    ),
+                    PamojaStatus::Ok,
+                    "reading {bytes:02x?} on port {port}"
+                );
+                assert_eq!(taken, bytes.len());
+
+                let mut out = [0u8; 64];
+                let mut written = 0usize;
+                assert_eq!(
+                    pamoja_lorawan_package_encode(
+                        &command,
+                        ptr::null(),
+                        0,
+                        out.as_mut_ptr(),
+                        out.len(),
+                        &mut written,
+                    ),
+                    PamojaStatus::Ok,
+                    "writing it back"
+                );
+                assert_eq!(&out[..written], bytes, "on port {port}");
+            }
+        }
+    }
+
+    /// A data fragment carries its bytes beside the command.
+    #[test]
+    fn a_data_fragment_carries_its_bytes_beside_the_command() {
+        unsafe {
+            let message = [0x08u8, 0x00, 0x84, 0x01, 0x02, 0x03, 0x04];
+            let mut command = PamojaLorawanPackageCommand::default();
+            let mut taken = 0usize;
+            assert_eq!(
+                pamoja_lorawan_package_parse(
+                    PAMOJA_LORAWAN_FRAGMENT_PORT,
+                    0,
+                    message.as_ptr(),
+                    message.len(),
+                    &mut command,
+                    &mut taken,
+                ),
+                PamojaStatus::Ok
+            );
+            assert_eq!((command.frag_index, command.fragment_n), (2, 1024));
+            assert_eq!(taken, message.len());
+
+            let data = [0x01u8, 0x02, 0x03, 0x04];
+            let mut out = [0u8; 16];
+            let mut written = 0usize;
+            assert_eq!(
+                pamoja_lorawan_package_encode(
+                    &command,
+                    data.as_ptr(),
+                    data.len(),
+                    out.as_mut_ptr(),
+                    out.len(),
+                    &mut written,
+                ),
+                PamojaStatus::Ok
+            );
+            assert_eq!(&out[..written], &message);
+        }
+    }
+
+    /// A port that names no package, and a command this build does not write.
+    #[test]
+    fn a_port_that_names_no_package_is_refused() {
+        unsafe {
+            let bytes = [0x00u8];
+            let mut command = PamojaLorawanPackageCommand::default();
+            let mut taken = 0usize;
+            assert_eq!(
+                pamoja_lorawan_package_parse(
+                    1,
+                    0,
+                    bytes.as_ptr(),
+                    bytes.len(),
+                    &mut command,
+                    &mut taken,
+                ),
+                PamojaStatus::InvalidArgument
+            );
+
+            let unknown = PamojaLorawanPackageCommand {
+                port: PAMOJA_LORAWAN_CLOCK_PORT,
+                cid: 0x7F,
+                ..PamojaLorawanPackageCommand::default()
+            };
+            let mut out = [0u8; 16];
+            let mut written = 0usize;
+            assert_eq!(
+                pamoja_lorawan_package_encode(
+                    &unknown,
+                    ptr::null(),
+                    0,
+                    out.as_mut_ptr(),
+                    out.len(),
+                    &mut written,
+                ),
+                PamojaStatus::Codec
+            );
+        }
+    }
 
     /// Runs a whole fragmentation session across the boundary, losing every third fragment.
     #[test]

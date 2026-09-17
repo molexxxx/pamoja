@@ -3473,6 +3473,130 @@ typedef struct {
   uint8_t restore_channels;
 } PamojaLorawanBackoffStep;
 
+// One command of an application layer package, whichever package it belongs to.
+//
+// `port` says which package: [`PAMOJA_LORAWAN_CLOCK_PORT`],
+// [`PAMOJA_LORAWAN_FRAGMENT_PORT`], [`PAMOJA_LORAWAN_MULTICAST_PORT`] or
+// [`PAMOJA_LORAWAN_FIRMWARE_PORT`]. `cid` names the command within it, and `uplink` says
+// which way it travels; together they decide which of the other fields carry anything. The
+// rest are zero.
+typedef struct {
+  // Which package this command belongs to, as its port.
+  uint8_t port;
+  // Which command within that package.
+  uint8_t cid;
+  // `1` for what a device sends, `0` for what a server sends.
+  uint8_t uplink;
+  // The package identifier a version answer carries.
+  uint8_t package;
+  // The package version it implements.
+  uint8_t version;
+  // A device's own clock, in seconds since the GPS epoch.
+  uint32_t device_time;
+  // The seconds to add to a device's clock.
+  int32_t time_correction;
+  // The token that pairs a clock answer with its request.
+  uint8_t token;
+  // Whether a clock request must be answered.
+  uint8_t ans_required;
+  // The coded period between clock requests.
+  uint8_t period;
+  // Whether a device manages its own clock periodicity.
+  uint8_t not_supported;
+  // How many requests a resynchronization command asks for.
+  uint8_t transmissions;
+  // The firmware a device reports running.
+  uint32_t firmware;
+  // The hardware it runs on.
+  uint32_t hardware;
+  // The moment or the delay a reboot is set for.
+  uint32_t reboot;
+  // What a device makes of the upgrade image it holds.
+  uint8_t image_status;
+  // The version it would run once that image is installed.
+  uint32_t next_version;
+  // Whether an image answer carried a version.
+  uint8_t has_next_version;
+  // The version a delete command names.
+  uint32_t delete_version;
+  // Whether a device holds no valid image.
+  uint8_t no_valid_image;
+  // Whether the version named is not the one held.
+  uint8_t invalid_version;
+  // Which fragmentation session, 0 to 3.
+  uint8_t frag_index;
+  // Which multicast groups may feed it, a bit for each.
+  uint8_t mc_group_bit_mask;
+  // How many uncoded fragments a block was cut into.
+  uint16_t nb_frag;
+  // How many bytes each fragment carries.
+  uint8_t frag_size;
+  // Whether a device reports the block once it has it.
+  uint8_t ack_reception;
+  // Which fragmentation algorithm to run.
+  uint8_t frag_algo;
+  // The coded spread of the delay before a device answers.
+  uint8_t block_ack_delay;
+  // How many bytes of padding the last fragment carries.
+  uint8_t padding;
+  // The four bytes a server describes a block with.
+  uint8_t descriptor[4];
+  // The session counter, which must rise for each new block.
+  uint16_t session_cnt;
+  // The code over the block a device checks once it has it all.
+  uint8_t mic[4];
+  // How many fragments arrived, coded, uncoded and repeated.
+  uint16_t received;
+  // How many uncoded fragments are still missing.
+  uint8_t missing;
+  // Whether the block's code did not check out.
+  uint8_t mic_error;
+  // Whether a session ran out of memory to defragment with.
+  uint8_t memory_error;
+  // Whether the session or group named does not exist on the device.
+  uint8_t no_session;
+  // Whether every device answers a status request, or only those still missing fragments.
+  uint8_t all_participants;
+  // Which fragment of a session a data fragment carries, counting from one.
+  uint16_t fragment_n;
+  // Which multicast group, 0 to 3.
+  uint8_t mc_group_id;
+  // The address a group answers to.
+  uint32_t mc_addr;
+  // A group's key, wrapped under the device's key encryption key.
+  uint8_t mc_key_encrypted[16];
+  // The first frame counter a device accepts from a group.
+  uint32_t min_mc_fcnt;
+  // The last one, which ends the group's life.
+  uint32_t max_mc_fcnt;
+  // Which groups a status request or answer covers, a bit for each.
+  uint8_t group_mask;
+  // How many groups a device holds in all.
+  uint8_t nb_total_groups;
+  // Whether a device holds no group by the identifier named.
+  uint8_t id_error;
+  // When a multicast window opens, in seconds since the GPS epoch.
+  uint32_t session_time;
+  // How long it lasts at most, coded.
+  uint8_t time_out;
+  // How often a device opens a ping slot inside a Class B window.
+  uint8_t periodicity;
+  // Where a group listens, in hertz.
+  uint32_t dl_frequency_hz;
+  // The data rate it listens at.
+  uint8_t data_rate;
+  // How many seconds until a window opens.
+  uint32_t time_to_start;
+  // Whether a session answer carried a start time.
+  uint8_t has_time_to_start;
+  // Whether the data rate named is not one the device has.
+  uint8_t dr_error;
+  // Whether the frequency named is not one it can use.
+  uint8_t freq_error;
+  // Whether the window was to start at a time already past.
+  uint8_t start_missed;
+} PamojaLorawanPackageCommand;
+
 // The integrity and encryption keys of one end device's wake-on-radio frames.
 typedef struct {
   // `WorSIntKey`.
@@ -12042,6 +12166,98 @@ PamojaStatus pamoja_lorawan_firmware_reboot(const PamojaLorawanFirmware *manager
                                             uint32_t *out_in_s,
                                             uint8_t *out_has_in,
                                             uint8_t *out_now);
+
+// Reads one command of an application layer package.
+//
+// A data fragment takes the whole message, as TS004-2.0.0 section 3 asks, and its bytes are
+// left in the caller's buffer: `out_command.fragment_n` says which fragment it is, and the
+// data starts three bytes into the message.
+//
+// # Arguments
+//
+// * `port` - which package the message arrived on.
+// * `uplink` - `1` when a device sent it, `0` when a server did.
+// * `payload` - the message, from this command's identifier on.
+// * `payload_len` - its length.
+// * `out_command` - receives the command.
+// * `out_taken` - receives how many bytes it took.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::Codec`] for a message this package cannot read, and
+// [`PamojaStatus::InvalidArgument`] for a port that names no package or a null pointer.
+//
+// # Safety
+//
+// `payload` must point to `payload_len` readable bytes and both out pointers must be
+// writable.
+PamojaStatus pamoja_lorawan_package_parse(uint8_t port,
+                                          uint8_t uplink,
+                                          const uint8_t *payload,
+                                          uintptr_t payload_len,
+                                          PamojaLorawanPackageCommand *out_command,
+                                          uintptr_t *out_taken);
+
+// Writes one command of an application layer package.
+//
+// A data fragment carries its bytes separately: pass them as `data`, and the command's
+// `fragment_n` and `frag_index` say where they belong.
+//
+// # Arguments
+//
+// * `command` - the command, whose `port`, `cid` and `uplink` decide which fields are read.
+// * `data` - the bytes a data fragment carries, or null for every other command.
+// * `data_len` - how many.
+// * `out_payload` - receives the message.
+// * `capacity` - how many bytes that buffer holds.
+// * `out_len` - receives how many were written.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::Codec`] for a command this build does not write, and
+// [`PamojaStatus::InvalidArgument`] for a null pointer or a buffer too small.
+//
+// # Safety
+//
+// `command` must be readable, `data` must point to `data_len` readable bytes or be null,
+// `out_payload` must point to `capacity` writable bytes, and `out_len` must be writable.
+PamojaStatus pamoja_lorawan_package_encode(const PamojaLorawanPackageCommand *command,
+                                           const uint8_t *data,
+                                           uintptr_t data_len,
+                                           uint8_t *out_payload,
+                                           uintptr_t capacity,
+                                           uintptr_t *out_len);
+
+// Reads one group record of a multicast status answer, TS005-2.0.0 section 4.2.
+//
+// # Arguments
+//
+// * `payload` - the message from the record on, five bytes or more.
+// * `payload_len` - its length.
+// * `out_command` - receives the record.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::Codec`] when the message ends inside the record.
+//
+// # Safety
+//
+// `payload` must point to `payload_len` readable bytes and `out_command` must be writable.
+PamojaStatus pamoja_lorawan_package_status_item(const uint8_t *payload,
+                                                uintptr_t payload_len,
+                                                PamojaLorawanPackageCommand *out_command);
 
 // Derives an end device's root relay session key from its network session key,
 // TS011-1.0.1 section 4.4.
