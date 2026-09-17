@@ -1308,7 +1308,147 @@ function loraRegionVectors() {
       assert.strictEqual(got.dutyCyclePermille, band.dutyCyclePermille);
       assert.strictEqual(got.maxEirpDbm, band.maxEirpDbm);
     });
+
+    checkRules(plan, want.rules, where);
   };
+
+  const cn470Names = {
+    [lora.LoraCn470Plan.Antenna20MhzA]: "antenna_20mhz_a",
+    [lora.LoraCn470Plan.Antenna20MhzB]: "antenna_20mhz_b",
+    [lora.LoraCn470Plan.Antenna26MhzA]: "antenna_26mhz_a",
+    [lora.LoraCn470Plan.Antenna26MhzB]: "antenna_26mhz_b",
+    [lora.LoraCn470Plan.Channels96]: "channels_96",
+  };
+  const kindNames = {
+    [lora.LoraPlanKind.Dynamic]: "dynamic",
+    [lora.LoraPlanKind.Fixed]: "fixed",
+  };
+  const listNames = {
+    [lora.LoraChannelList.Mhz800]: "mhz800",
+    [lora.LoraChannelList.Mhz900]: "mhz900",
+  };
+  const sequenceNames = {
+    [lora.LoraJoinSequence.Random]: "random",
+    [lora.LoraJoinSequence.OctetPasses]: "octet_passes",
+  };
+  const referenceNames = {
+    [lora.LoraPowerReference.Eirp]: "eirp",
+    [lora.LoraPowerReference.Conducted]: "conducted",
+  };
+  const maskNames = {
+    [lora.LoraMaskControlKind.Group]: "group",
+    [lora.LoraMaskControlKind.Banks]: "banks",
+    [lora.LoraMaskControlKind.PairedBanks]: "paired_banks",
+    [lora.LoraMaskControlKind.All]: "all",
+    [lora.LoraMaskControlKind.Reserved]: "reserved",
+  };
+  const blockOf = (block) => ({
+    startHz: block.startHz,
+    stepHz: block.stepHz,
+    count: block.count,
+    minDataRate: block.minDataRate,
+    maxDataRate: block.maxDataRate,
+  });
+
+  function checkRules(plan, want, where) {
+    const rules = plan.rules();
+    assert.deepStrictEqual(
+      {
+        kind: kindNames[rules.kind],
+        channelList: rules.channelList == null ? null : listNames[rules.channelList],
+        txParamSetup: rules.txParamSetup,
+        joinSequence: sequenceNames[rules.joinSequence],
+        powerReference: referenceNames[rules.powerReference],
+        gainAllowanceDb: rules.gainAllowanceDb ?? null,
+      },
+      {
+        kind: want.kind,
+        channelList: want.channelList,
+        txParamSetup: want.txParamSetup,
+        joinSequence: want.joinSequence,
+        powerReference: want.powerReference,
+        gainAllowanceDb: want.gainAllowanceDb,
+      },
+      `the rules of ${where}`,
+    );
+
+    want.maskControls.forEach((control, value) => {
+      const got = plan.maskControl(value);
+      assert.deepStrictEqual(
+        {
+          kind: maskNames[got.kind],
+          group: got.group ?? null,
+          on: got.on ?? null,
+          thenGroup: got.thenGroup ?? null,
+        },
+        control,
+        `ChMaskCntl ${value} of ${where}`,
+      );
+    });
+    assert.strictEqual(plan.maskControl(8), null, `ChMaskCntl past 7 of ${where}`);
+
+    assert.strictEqual(
+      rules.downlinkChannelBlockCount,
+      want.downlinkChannelBlocks.length,
+      `downlink channel blocks of ${where}`,
+    );
+    want.downlinkChannelBlocks.forEach((block, index) => {
+      assert.deepStrictEqual(
+        blockOf(plan.channelBlock(lora.LoraChannelSet.Downlink, index)),
+        block,
+        `downlink channel block ${index} of ${where}`,
+      );
+    });
+    want.downlinkChannelFrequencies.forEach((frequency, channel) => {
+      assert.strictEqual(
+        plan.downlinkChannelFrequencyHz(channel),
+        frequency,
+        `downlink channel ${channel} of ${where}`,
+      );
+    });
+    const downlinkCount = want.downlinkChannelBlocks.reduce((sum, block) => sum + block.count, 0);
+    assert.strictEqual(
+      plan.downlinkChannelFrequencyHz(downlinkCount),
+      want.downlinkChannelPastEnd,
+      `a downlink channel past the end of ${where}`,
+    );
+
+    for (const probe of want.rx1Frequencies) {
+      assert.strictEqual(
+        plan.rx1FrequencyHz(probe.uplinkChannel, probe.uplinkHz),
+        probe.rx1Hz,
+        `RX1 after uplink channel ${probe.uplinkChannel} of ${where}`,
+      );
+    }
+
+    assert.strictEqual(rules.joinPlanCount, want.joinPlans.length, `join plans of ${where}`);
+    want.joinPlans.forEach((run, index) => {
+      const got = plan.joinPlan(index);
+      assert.deepStrictEqual(
+        {
+          channels: blockOf(got.channels),
+          acceptStartHz: got.acceptStartHz,
+          acceptStepHz: got.acceptStepHz,
+          rx2StartHz: got.rx2StartHz,
+          rx2StepHz: got.rx2StepHz,
+          plan: got.plan == null ? null : cn470Names[got.plan],
+        },
+        run,
+        `join plan ${index} of ${where}`,
+      );
+    });
+    assert.strictEqual(plan.joinPlan(want.joinPlans.length), null);
+    for (const { joinChannel, place } of want.joinPlaces) {
+      const got = plan.joinPlanForChannel(joinChannel);
+      assert.deepStrictEqual(
+        got == null
+          ? null
+          : { index: got.index, offset: got.offset, acceptHz: got.acceptHz, rx2Hz: got.rx2Hz },
+        place,
+        `the join plan holding join channel ${joinChannel} of ${where}`,
+      );
+    }
+  }
 
   const codes = {
     EU868: lora.LoraRegion.Eu868,
@@ -1323,6 +1463,12 @@ function loraRegionVectors() {
   };
   for (const want of vectors.published) {
     checkPlan(lora.planFor(codes[want.code]), want);
+  }
+  const cn470Plans = Object.fromEntries(
+    Object.entries(cn470Names).map(([plan, name]) => [name, plan]),
+  );
+  for (const want of vectors.cn470) {
+    checkPlan(lora.cn470Plan(cn470Plans[want.code]), want);
   }
 
   const builder = new lora.LoraPlanBuilder("private-915");
@@ -1363,6 +1509,75 @@ function loraRegionVectors() {
   builder.rx1Row([0]);
   builder.rx1Row([1]);
   checkPlan(builder.build(), vectors.custom);
+
+  const fixed = new lora.LoraPlanBuilder("private-fixed");
+  fixed.dataRate(lora.LoraDirection.Uplink, {
+    kind: lora.LoraModulation.Lora,
+    bitrateBps: 980,
+    bandwidthHz: 125_000,
+    spreadingFactor: 10,
+  });
+  fixed.dataRate(lora.LoraDirection.Uplink, {
+    kind: lora.LoraModulation.Lora,
+    bitrateBps: 12_500,
+    bandwidthHz: 500_000,
+    spreadingFactor: 8,
+  });
+  for (const table of [
+    lora.LoraPayloadTable.UplinkRepeater,
+    lora.LoraPayloadTable.UplinkDirect,
+  ]) {
+    fixed.maxPayload(table, { macPayload: 19, application: 11 });
+    fixed.maxPayload(table, { macPayload: 230, application: 222 });
+  }
+  fixed.channelBlock(lora.LoraChannelSet.Default, {
+    startHz: 902_300_000,
+    stepHz: 200_000,
+    count: 16,
+    minDataRate: 0,
+    maxDataRate: 0,
+  });
+  fixed.channelBlock(lora.LoraChannelSet.Default, {
+    startHz: 903_000_000,
+    stepHz: 1_600_000,
+    count: 2,
+    minDataRate: 1,
+    maxDataRate: 1,
+  });
+  fixed.channelBlock(lora.LoraChannelSet.Downlink, {
+    startHz: 923_300_000,
+    stepHz: 600_000,
+    count: 4,
+    minDataRate: 1,
+    maxDataRate: 1,
+  });
+  fixed.subBand({
+    startHz: 902_000_000,
+    endHz: 928_000_000,
+    dutyCyclePermille: 1000,
+    maxEirpDbm: 30,
+  });
+  fixed.power(30, 2, 10);
+  fixed.rx(923_300_000, 1, 0);
+  fixed.rx1Row([1]);
+  fixed.rx1Row([1]);
+  fixed.kind(lora.LoraPlanKind.Fixed);
+  fixed.txParamSetup(false);
+  const reserved = { kind: lora.LoraMaskControlKind.Reserved };
+  fixed.maskControls([
+    { kind: lora.LoraMaskControlKind.Group, group: 0 },
+    { kind: lora.LoraMaskControlKind.Group, group: 1 },
+    reserved,
+    reserved,
+    reserved,
+    reserved,
+    { kind: lora.LoraMaskControlKind.All, on: true, thenGroup: 1 },
+    { kind: lora.LoraMaskControlKind.All, on: false, thenGroup: 1 },
+  ]);
+  assert.throws(() => fixed.maskControls([reserved]), /eight mask controls/);
+  fixed.joinSequence(lora.LoraJoinSequence.OctetPasses);
+  fixed.powerReference(lora.LoraPowerReference.Conducted, 6);
+  checkPlan(fixed.build(), vectors.customFixed);
 }
 
 // The MAVLink wire layer: the bytes a sender puts on the wire are pinned

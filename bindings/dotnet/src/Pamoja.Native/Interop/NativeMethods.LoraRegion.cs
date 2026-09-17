@@ -73,6 +73,69 @@ public static partial class NativeMethods
     /// <summary>The channels a device starts with before a network adds any.</summary>
     public const uint LoraChannelsDefault = 1;
 
+    /// <summary>The numbered downlink channels a fixed plan answers the first receive window on.</summary>
+    public const uint LoraChannelsDownlink = 2;
+
+    /// <summary>A plan whose network creates channels and moves them.</summary>
+    public const byte LoraPlanKindDynamic = 0;
+
+    /// <summary>A plan whose channels are numbered in advance and only enabled or disabled.</summary>
+    public const byte LoraPlanKindFixed = 1;
+
+    /// <summary>A plan that reads a type 1 channel list against no numbering.</summary>
+    public const byte LoraChannelListNone = 0;
+
+    /// <summary>The 800 MHz channel list numbering.</summary>
+    public const byte LoraChannelListMhz800 = 1;
+
+    /// <summary>The 900 MHz channel list numbering.</summary>
+    public const byte LoraChannelListMhz900 = 2;
+
+    /// <summary>Join channels chosen at random.</summary>
+    public const byte LoraJoinRandom = 0;
+
+    /// <summary>Join channels tried in octet passes.</summary>
+    public const byte LoraJoinOctetPasses = 1;
+
+    /// <summary>Power indexes that count down from a radiated ceiling.</summary>
+    public const byte LoraPowerEirp = 0;
+
+    /// <summary>Power indexes that count down from a conducted ceiling.</summary>
+    public const byte LoraPowerConducted = 1;
+
+    /// <summary>A mask control that sets one group of sixteen channels.</summary>
+    public const byte LoraMaskGroup = 0;
+
+    /// <summary>A mask control whose ten low bits switch banks of eight.</summary>
+    public const byte LoraMaskBanks = 1;
+
+    /// <summary>A mask control that switches banks of eight with their 500 kHz channel.</summary>
+    public const byte LoraMaskPairedBanks = 2;
+
+    /// <summary>A mask control that turns every channel on or off, then sets a group.</summary>
+    public const byte LoraMaskAll = 3;
+
+    /// <summary>A mask control the region reserves.</summary>
+    public const byte LoraMaskReserved = 4;
+
+    /// <summary>No CN470-510 plan.</summary>
+    public const uint LoraCn470None = 0;
+
+    /// <summary>The CN470-510 plan for a 20 MHz antenna, type A.</summary>
+    public const uint LoraCn470Antenna20MhzA = 1;
+
+    /// <summary>The CN470-510 plan for a 20 MHz antenna, type B.</summary>
+    public const uint LoraCn470Antenna20MhzB = 2;
+
+    /// <summary>The CN470-510 plan for a 26 MHz antenna, type A.</summary>
+    public const uint LoraCn470Antenna26MhzA = 3;
+
+    /// <summary>The CN470-510 plan for a 26 MHz antenna, type B.</summary>
+    public const uint LoraCn470Antenna26MhzB = 4;
+
+    /// <summary>The 96-channel CN470-510 plan.</summary>
+    public const uint LoraCn470Channels96 = 5;
+
     /// <summary>The uplink direction, for a table that differs between the two.</summary>
     public const uint LoraDirectionUplink = 0;
 
@@ -82,6 +145,53 @@ public static partial class NativeMethods
     /// <summary>Returns the published channel plan for a region.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_lora_plan_for_region(uint region, out IntPtr outPlan);
+
+    /// <summary>Returns one of the CN470-510 channel plans.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_plan_for_cn470(uint which, out IntPtr outPlan);
+
+    /// <summary>Reads how a plan defines and uses its channels.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_plan_rules(
+        IntPtr plan,
+        out PamojaLoraPlanRules outRules);
+
+    /// <summary>Reads what one <c>ChMaskCntl</c> value does on a plan.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_plan_mask_control(
+        IntPtr plan,
+        byte value,
+        out PamojaLoraMaskControl outControl);
+
+    /// <summary>Returns where the first receive window listens after an uplink.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_plan_rx1_frequency_hz(
+        IntPtr plan,
+        ushort uplinkChannel,
+        uint uplinkHz,
+        out uint outFrequencyHz);
+
+    /// <summary>Returns the frequency of one of the plan's numbered downlink channels.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_plan_downlink_channel_frequency_hz(
+        IntPtr plan,
+        ushort channel,
+        out uint outFrequencyHz);
+
+    /// <summary>Returns one run of join channels that selects a plan.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_plan_join_plan(
+        IntPtr plan,
+        ushort index,
+        out PamojaLoraJoinPlan outJoinPlan);
+
+    /// <summary>Finds the run of join channels a join channel belongs to.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_plan_join_plan_for_channel(
+        IntPtr plan,
+        ushort joinChannel,
+        out ushort outIndex,
+        out ushort outOffset);
 
     /// <summary>Reports whether a region is compiled into this build.</summary>
     [LibraryImport(Library)]
@@ -260,6 +370,39 @@ public static partial class NativeMethods
         IntPtr builder,
         in PamojaLoraBeacon beacon,
         byte hasDwellTimeLimit);
+
+    /// <summary>Sets whether the plan's network creates channels, and its channel list numbering.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_plan_builder_set_kind(
+        IntPtr builder,
+        byte kind,
+        byte channelList);
+
+    /// <summary>Sets whether devices on the plan answer <c>TXParamSetupReq</c>.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_plan_builder_set_tx_param_setup(
+        IntPtr builder,
+        byte answered);
+
+    /// <summary>Sets what each <c>ChMaskCntl</c> value does.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_plan_builder_set_mask_controls(
+        IntPtr builder,
+        ReadOnlySpan<PamojaLoraMaskControl> controls,
+        nuint len);
+
+    /// <summary>Sets the order a device tries the join channels in.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_plan_builder_set_join_sequence(
+        IntPtr builder,
+        byte sequence);
+
+    /// <summary>Sets what the plan's transmit power indexes count down from.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_plan_builder_set_power_reference(
+        IntPtr builder,
+        byte reference,
+        byte gainAllowanceDb);
 
     /// <summary>Finishes a plan, consuming the builder.</summary>
     [LibraryImport(Library)]

@@ -22,8 +22,9 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use pamoja_lora::region::{
     Beacon as CoreBeacon, ChannelBlock as CoreBlock, ChannelPlan as CorePlan,
-    ChannelPlanBuilder as CoreBuilder, DataRate as CoreDataRate, MaxPayload as CoreMaxPayload,
-    Modulation, OwnedChannelPlan, PayloadTable, Region, SubBand as CoreSubBand,
+    ChannelPlanBuilder as CoreBuilder, Cn470Plan, DataRate as CoreDataRate, FixedChannelList,
+    JoinPlan as CoreJoinPlan, JoinSequence, MaskControl, MaxPayload as CoreMaxPayload, Modulation,
+    OwnedChannelPlan, PayloadTable, PlanKind, PowerReference, Region, SubBand as CoreSubBand,
 };
 
 use crate::lora::LoraLink;
@@ -79,14 +80,65 @@ fn payload_table(table: &str) -> PyResult<PayloadTable> {
     }
 }
 
+/// Which of a plan's channel sets a name selects.
+#[derive(Clone, Copy)]
+enum ChannelSet {
+    Join,
+    Default,
+    Downlink,
+}
+
 /// Resolves a channel-set name.
-fn channels_are_join(which: &str) -> PyResult<bool> {
+fn channel_set(which: &str) -> PyResult<ChannelSet> {
     match which.to_ascii_lowercase().as_str() {
-        "join" => Ok(true),
-        "default" => Ok(false),
+        "join" => Ok(ChannelSet::Join),
+        "default" => Ok(ChannelSet::Default),
+        "downlink" => Ok(ChannelSet::Downlink),
         other => Err(PyValueError::new_err(format!(
-            "{other} is not a channel set; expected join or default"
+            "{other} is not a channel set; expected join, default or downlink"
         ))),
+    }
+}
+
+/// The names the CN470-510 plans go by, in the order `Cn470Plan::all` lists them.
+const CN470_PLAN_NAMES: [&str; 5] = [
+    "antenna_20mhz_a",
+    "antenna_20mhz_b",
+    "antenna_26mhz_a",
+    "antenna_26mhz_b",
+    "channels_96",
+];
+
+/// Resolves a CN470-510 plan name.
+fn cn470_plan(name: &str) -> PyResult<Cn470Plan> {
+    CN470_PLAN_NAMES
+        .iter()
+        .position(|known| known.eq_ignore_ascii_case(name))
+        .map(|index| Cn470Plan::all()[index])
+        .ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "{name} is not a CN470 plan; expected one of {}",
+                CN470_PLAN_NAMES.join(", ")
+            ))
+        })
+}
+
+/// The name a published plan goes by, if it is one of the CN470-510 plans.
+fn cn470_name(target: &CorePlan<'_>) -> Option<String> {
+    Cn470Plan::all()
+        .iter()
+        .position(|plan| std::ptr::eq(plan.plan(), target))
+        .map(|index| CN470_PLAN_NAMES[index].to_owned())
+}
+
+/// Converts a channel block into the shape Python reads.
+fn block_out(block: &CoreBlock) -> LoraChannelBlock {
+    LoraChannelBlock {
+        start_hz: block.start_hz,
+        step_hz: block.step_hz,
+        count: block.count,
+        min_data_rate: block.min_data_rate,
+        max_data_rate: block.max_data_rate,
     }
 }
 
@@ -477,11 +529,265 @@ impl LoraPlanInfo {
     }
 }
 
+/// What one `ChMaskCntl` value of a `LinkADRReq` does.
+///
+/// Only the attributes belonging to `kind` are set; the rest are `None`.
+#[gen_stub_pyclass]
+#[pyclass(from_py_object)]
+#[derive(Clone)]
+pub struct LoraMaskControl {
+    /// What the value does: `group`, `banks`, `paired_banks`, `all`, or `reserved`.
+    #[pyo3(get)]
+    kind: String,
+    /// For `group`, the group of sixteen channels the mask sets.
+    #[pyo3(get)]
+    group: Option<u8>,
+    /// For `all`, whether every channel turns on.
+    #[pyo3(get)]
+    on: Option<bool>,
+    /// For `all`, the group the mask then sets, if any.
+    #[pyo3(get)]
+    then_group: Option<u8>,
+}
+
+impl From<MaskControl> for LoraMaskControl {
+    fn from(control: MaskControl) -> Self {
+        let mut out = Self {
+            kind: "reserved".to_owned(),
+            group: None,
+            on: None,
+            then_group: None,
+        };
+        match control {
+            MaskControl::Group(group) => {
+                out.kind = "group".to_owned();
+                out.group = Some(group);
+            }
+            MaskControl::Banks => out.kind = "banks".to_owned(),
+            MaskControl::PairedBanks => out.kind = "paired_banks".to_owned(),
+            MaskControl::All { on, then_group } => {
+                out.kind = "all".to_owned();
+                out.on = Some(on);
+                out.then_group = then_group;
+            }
+            MaskControl::Reserved => {}
+        }
+        out
+    }
+}
+
+impl LoraMaskControl {
+    /// Converts the control into the Rust type.
+    fn to_core(&self) -> PyResult<MaskControl> {
+        let missing = |field: &str| {
+            PyValueError::new_err(format!("a {} mask control needs {field}", self.kind))
+        };
+        Ok(match self.kind.as_str() {
+            "group" => MaskControl::Group(self.group.ok_or_else(|| missing("group"))?),
+            "banks" => MaskControl::Banks,
+            "paired_banks" => MaskControl::PairedBanks,
+            "all" => MaskControl::All {
+                on: self.on.ok_or_else(|| missing("on"))?,
+                then_group: self.then_group,
+            },
+            "reserved" => MaskControl::Reserved,
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "{other} is not a mask control; expected group, banks, paired_banks, all or reserved"
+                )))
+            }
+        })
+    }
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl LoraMaskControl {
+    /// The mask sets one group of sixteen channels.
+    #[staticmethod]
+    fn one_group(group: u8) -> Self {
+        MaskControl::Group(group).into()
+    }
+
+    /// The ten low bits of the mask switch banks of eight channels.
+    #[staticmethod]
+    fn banks() -> Self {
+        MaskControl::Banks.into()
+    }
+
+    /// The eight low bits switch banks of eight with their 500 kHz channel, and the
+    /// ninth the 500 kHz channels past them.
+    #[staticmethod]
+    fn paired_banks() -> Self {
+        MaskControl::PairedBanks.into()
+    }
+
+    /// Every channel turns on or off, then the mask sets a group if one is given.
+    #[staticmethod]
+    #[pyo3(signature = (on, then_group = None))]
+    fn all_channels(on: bool, then_group: Option<u8>) -> Self {
+        MaskControl::All { on, then_group }.into()
+    }
+
+    /// The value is reserved.
+    #[staticmethod]
+    fn reserved() -> Self {
+        MaskControl::Reserved.into()
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        (self.kind.as_str(), self.group, self.on, self.then_group)
+            == (other.kind.as_str(), other.group, other.on, other.then_group)
+    }
+
+    fn __repr__(&self) -> String {
+        match self.kind.as_str() {
+            "group" => format!("LoraMaskControl.one_group({})", self.group.unwrap_or(0)),
+            "all" => {
+                let on = if self.on == Some(true) {
+                    "True"
+                } else {
+                    "False"
+                };
+                match self.then_group {
+                    Some(group) => {
+                        format!("LoraMaskControl.all_channels({on}, then_group={group})")
+                    }
+                    None => format!("LoraMaskControl.all_channels({on})"),
+                }
+            }
+            kind => format!("LoraMaskControl.{kind}()"),
+        }
+    }
+}
+
+/// How a plan defines and uses its channels.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct LoraPlanRules {
+    /// `dynamic` if the network creates channels, `fixed` if it only switches numbered ones.
+    #[pyo3(get)]
+    kind: String,
+    /// For a dynamic plan, the numbering a type 1 channel list is read against:
+    /// `mhz800`, `mhz900`, or `None`.
+    #[pyo3(get)]
+    channel_list: Option<String>,
+    /// Whether devices on the plan answer `TXParamSetupReq`.
+    #[pyo3(get)]
+    tx_param_setup: bool,
+    /// The order a device tries the join channels in: `random` or `octet_passes`.
+    #[pyo3(get)]
+    join_sequence: String,
+    /// What the transmit power indexes count down from: `eirp` or `conducted`.
+    #[pyo3(get)]
+    power_reference: String,
+    /// For a conducted ceiling, the antenna gain it already allows for, in dB.
+    #[pyo3(get)]
+    gain_allowance_db: Option<u8>,
+    /// How many downlink channel blocks the plan defines.
+    #[pyo3(get)]
+    downlink_channel_block_count: u16,
+    /// How many runs of join channels select a plan, which only the published CN470-510
+    /// plans carry.
+    #[pyo3(get)]
+    join_plan_count: u16,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl LoraPlanRules {
+    fn __repr__(&self) -> String {
+        format!(
+            "LoraPlanRules(kind={:?}, join_sequence={:?}, power_reference={:?})",
+            self.kind, self.join_sequence, self.power_reference
+        )
+    }
+}
+
+/// A run of join channels that puts a device on a plan.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct LoraJoinPlan {
+    /// The join channels and the data rates a request may use on them.
+    #[pyo3(get)]
+    channels: LoraChannelBlock,
+    /// Where the accept answering the first channel arrives, in hertz.
+    #[pyo3(get)]
+    accept_start_hz: u32,
+    /// How far the accept frequency moves for each next channel, in hertz.
+    #[pyo3(get)]
+    accept_step_hz: u32,
+    /// The second receive window's frequency after joining on the first channel, in hertz.
+    #[pyo3(get)]
+    rx2_start_hz: u32,
+    /// How far that frequency moves for each next channel, in hertz.
+    #[pyo3(get)]
+    rx2_step_hz: u32,
+    /// The CN470-510 plan a join on these channels selects, as `ChannelPlan.for_cn470`
+    /// takes it.
+    #[pyo3(get)]
+    plan: Option<String>,
+}
+
+impl From<&CoreJoinPlan<'_>> for LoraJoinPlan {
+    fn from(run: &CoreJoinPlan<'_>) -> Self {
+        Self {
+            channels: block_out(&run.channels),
+            accept_start_hz: run.accept_start_hz,
+            accept_step_hz: run.accept_step_hz,
+            rx2_start_hz: run.rx2_start_hz,
+            rx2_step_hz: run.rx2_step_hz,
+            plan: cn470_name(run.plan),
+        }
+    }
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl LoraJoinPlan {
+    fn __repr__(&self) -> String {
+        format!(
+            "LoraJoinPlan(start_hz={}, count={}, plan={:?})",
+            self.channels.start_hz, self.channels.count, self.plan
+        )
+    }
+}
+
+/// The run of join channels one join channel belongs to.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct LoraJoinPlanPlace {
+    /// The run's position in `join_plans()`.
+    #[pyo3(get)]
+    index: u16,
+    /// The channel's place within the run.
+    #[pyo3(get)]
+    offset: u16,
+    /// Where the join accept for that channel arrives, in hertz.
+    #[pyo3(get)]
+    accept_hz: u32,
+    /// Where the second receive window listens once joined on it, in hertz.
+    #[pyo3(get)]
+    rx2_hz: u32,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl LoraJoinPlanPlace {
+    fn __repr__(&self) -> String {
+        format!(
+            "LoraJoinPlanPlace(index={}, offset={}, accept_hz={}, rx2_hz={})",
+            self.index, self.offset, self.accept_hz, self.rx2_hz
+        )
+    }
+}
+
 /// A regional channel plan, published or private.
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct ChannelPlan {
     inner: OwnedChannelPlan,
+    published: Option<&'static CorePlan<'static>>,
 }
 
 #[gen_stub_pymethods]
@@ -492,9 +798,26 @@ impl ChannelPlan {
     /// Raises `ValueError` if no published region goes by that name.
     #[staticmethod]
     fn for_region(region: &str) -> PyResult<Self> {
-        Ok(Self {
-            inner: OwnedChannelPlan::from_plan(region_plan(region)?),
-        })
+        Ok(Self::published(region_plan(region)?))
+    }
+
+    /// Returns one of the CN470-510 channel plans.
+    ///
+    /// RP002-1.0.5 divides the band into four plans, for 20 MHz and 26 MHz antennas,
+    /// each with a type A and B; `channels_96` is the plan of the LoRaWAN 1.0.3
+    /// Regional Parameters revision A. Raises `ValueError` for any other name.
+    #[staticmethod]
+    fn for_cn470(plan: &str) -> PyResult<Self> {
+        Ok(Self::published(cn470_plan(plan)?.plan()))
+    }
+
+    /// Returns the name of every CN470-510 plan, as `for_cn470` takes.
+    #[staticmethod]
+    fn cn470_plans() -> Vec<String> {
+        CN470_PLAN_NAMES
+            .iter()
+            .map(|name| (*name).to_owned())
+            .collect()
     }
 
     /// Returns the short code of every published region, as `for_region` takes.
@@ -650,27 +973,105 @@ impl ChannelPlan {
             .with_plan(|plan| plan.channel_frequency_hz(channel))
     }
 
-    /// Returns the plan's channel blocks, either the join set or the default set.
+    /// Returns the plan's channel blocks: the `join` set, the `default` set, or the
+    /// numbered `downlink` channels a fixed plan answers the first receive window on.
     #[pyo3(signature = (which = "default"))]
     fn channel_blocks(&self, which: &str) -> PyResult<Vec<LoraChannelBlock>> {
-        let join = channels_are_join(which)?;
+        let which = channel_set(which)?;
         Ok(self.inner.with_plan(|plan| {
-            let blocks = if join {
-                plan.join_channels
-            } else {
-                plan.default_channels
+            let blocks = match which {
+                ChannelSet::Join => plan.join_channels,
+                ChannelSet::Default => plan.default_channels,
+                ChannelSet::Downlink => plan.downlink_channels,
             };
-            blocks
-                .iter()
-                .map(|block| LoraChannelBlock {
-                    start_hz: block.start_hz,
-                    step_hz: block.step_hz,
-                    count: block.count,
-                    min_data_rate: block.min_data_rate,
-                    max_data_rate: block.max_data_rate,
-                })
-                .collect()
+            blocks.iter().map(block_out).collect()
         }))
+    }
+
+    /// Returns how the plan defines and uses its channels.
+    fn rules(&self) -> LoraPlanRules {
+        let join_plan_count = self.join_plan_runs().len() as u16;
+        self.inner.with_plan(|plan| {
+            let (kind, channel_list) = match plan.kind {
+                PlanKind::Dynamic { channel_list } => (
+                    "dynamic",
+                    channel_list.map(|list| match list {
+                        FixedChannelList::Mhz800 => "mhz800".to_owned(),
+                        FixedChannelList::Mhz900 => "mhz900".to_owned(),
+                    }),
+                ),
+                PlanKind::Fixed => ("fixed", None),
+            };
+            let (power_reference, gain_allowance_db) = match plan.power_reference {
+                PowerReference::Eirp => ("eirp", None),
+                PowerReference::Conducted { gain_allowance_db } => {
+                    ("conducted", Some(gain_allowance_db))
+                }
+            };
+            LoraPlanRules {
+                kind: kind.to_owned(),
+                channel_list,
+                tx_param_setup: plan.tx_param_setup,
+                join_sequence: match plan.join_sequence {
+                    JoinSequence::Random => "random",
+                    JoinSequence::OctetPasses => "octet_passes",
+                }
+                .to_owned(),
+                power_reference: power_reference.to_owned(),
+                gain_allowance_db,
+                downlink_channel_block_count: plan.downlink_channels.len() as u16,
+                join_plan_count,
+            }
+        })
+    }
+
+    /// Returns what a `ChMaskCntl` value does, or `None` past 7.
+    fn mask_control(&self, value: u8) -> Option<LoraMaskControl> {
+        self.inner
+            .with_plan(|plan| plan.mask_controls.get(usize::from(value)).copied())
+            .map(LoraMaskControl::from)
+    }
+
+    /// Returns where the first receive window listens after an uplink on a channel.
+    ///
+    /// On a plan with no numbered downlink channels that is the uplink's own frequency;
+    /// otherwise it is the downlink channel the uplink channel maps to.
+    fn rx1_frequency_hz(&self, uplink_channel: u16, uplink_hz: u32) -> Option<u32> {
+        self.inner
+            .with_plan(|plan| plan.rx1_frequency_hz(uplink_channel, uplink_hz))
+    }
+
+    /// Returns the frequency of a numbered downlink channel, or `None` past the last.
+    fn downlink_channel_frequency_hz(&self, channel: u16) -> Option<u32> {
+        self.inner
+            .with_plan(|plan| plan.downlink_channel_frequency_hz(channel))
+    }
+
+    /// Returns the runs of join channels that select a plan, which only the published
+    /// CN470-510 plans carry.
+    fn join_plans(&self) -> Vec<LoraJoinPlan> {
+        self.join_plan_runs()
+            .iter()
+            .map(LoraJoinPlan::from)
+            .collect()
+    }
+
+    /// Returns the run of join channels a join channel belongs to, and where the accept
+    /// and the second receive window fall for it, or `None` if no run holds it.
+    fn join_plan_for_channel(&self, join_channel: u16) -> Option<LoraJoinPlanPlace> {
+        let mut remaining = join_channel;
+        for (index, run) in self.join_plan_runs().iter().enumerate() {
+            if remaining < run.channels.count {
+                return Some(LoraJoinPlanPlace {
+                    index: index as u16,
+                    offset: remaining,
+                    accept_hz: run.accept_hz(remaining)?,
+                    rx2_hz: run.rx2_hz(remaining)?,
+                });
+            }
+            remaining -= run.channels.count;
+        }
+        None
     }
 
     /// Returns the plan's sub-bands and the transmit limits inside each.
@@ -761,10 +1162,10 @@ impl ChannelPlanBuilder {
         self.update(|builder| builder.max_payload(table, entry))
     }
 
-    /// Adds a run of evenly spaced channels.
+    /// Adds a run of evenly spaced channels to the `join`, `default`, or `downlink` set.
     #[pyo3(signature = (block, which = "default"))]
     fn channel_block(&self, block: &LoraChannelBlock, which: &str) -> PyResult<()> {
-        let join = channels_are_join(which)?;
+        let which = channel_set(which)?;
         let entry = CoreBlock::new(
             block.start_hz,
             block.step_hz,
@@ -772,13 +1173,88 @@ impl ChannelPlanBuilder {
             block.min_data_rate,
             block.max_data_rate,
         );
-        self.update(|builder| {
-            if join {
-                builder.join_channel(entry)
-            } else {
-                builder.default_channel(entry)
-            }
+        self.update(|builder| match which {
+            ChannelSet::Join => builder.join_channel(entry),
+            ChannelSet::Default => builder.default_channel(entry),
+            ChannelSet::Downlink => builder.downlink_channel(entry),
         })
+    }
+
+    /// Sets whether the network creates channels (`dynamic`) or only switches numbered
+    /// ones (`fixed`), and for a dynamic plan the numbering a type 1 channel list is read
+    /// against, `mhz800` or `mhz900`.
+    #[pyo3(signature = (kind, channel_list = None))]
+    fn kind(&self, kind: &str, channel_list: Option<&str>) -> PyResult<()> {
+        let list = match channel_list.map(str::to_ascii_lowercase).as_deref() {
+            None => None,
+            Some("mhz800") => Some(FixedChannelList::Mhz800),
+            Some("mhz900") => Some(FixedChannelList::Mhz900),
+            Some(other) => {
+                return Err(PyValueError::new_err(format!(
+                    "{other} is not a channel list; expected mhz800 or mhz900"
+                )))
+            }
+        };
+        let kind = match kind.to_ascii_lowercase().as_str() {
+            "dynamic" => PlanKind::Dynamic { channel_list: list },
+            "fixed" => PlanKind::Fixed,
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "{other} is not a plan kind; expected dynamic or fixed"
+                )))
+            }
+        };
+        self.update(|builder| builder.kind(kind))
+    }
+
+    /// Sets whether devices on the plan answer `TXParamSetupReq`.
+    fn tx_param_setup(&self, answered: bool) -> PyResult<()> {
+        self.update(|builder| builder.tx_param_setup(answered))
+    }
+
+    /// Sets what each `ChMaskCntl` value does, all eight in value order.
+    fn mask_controls(&self, controls: Vec<LoraMaskControl>) -> PyResult<()> {
+        if controls.len() != 8 {
+            return Err(PyValueError::new_err(format!(
+                "a plan takes eight mask controls, not {}",
+                controls.len()
+            )));
+        }
+        let mut table = [MaskControl::Reserved; 8];
+        for (slot, control) in table.iter_mut().zip(&controls) {
+            *slot = control.to_core()?;
+        }
+        self.update(|builder| builder.mask_controls(table))
+    }
+
+    /// Sets the order a device tries the join channels in, `random` or `octet_passes`.
+    fn join_sequence(&self, sequence: &str) -> PyResult<()> {
+        let sequence = match sequence.to_ascii_lowercase().as_str() {
+            "random" => JoinSequence::Random,
+            "octet_passes" => JoinSequence::OctetPasses,
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "{other} is not a join sequence; expected random or octet_passes"
+                )))
+            }
+        };
+        self.update(|builder| builder.join_sequence(sequence))
+    }
+
+    /// Sets what the transmit power indexes count down from, `eirp` or `conducted`, and
+    /// for a conducted ceiling the antenna gain it allows for.
+    #[pyo3(signature = (reference, gain_allowance_db = 0))]
+    fn power_reference(&self, reference: &str, gain_allowance_db: u8) -> PyResult<()> {
+        let reference = match reference.to_ascii_lowercase().as_str() {
+            "eirp" => PowerReference::Eirp,
+            "conducted" => PowerReference::Conducted { gain_allowance_db },
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "{other} is not a power reference; expected eirp or conducted"
+                )))
+            }
+        };
+        self.update(|builder| builder.power_reference(reference))
     }
 
     /// Adds a sub-band and the transmit limits inside it.
@@ -858,7 +1334,10 @@ impl ChannelPlanBuilder {
             .take()
             .ok_or_else(|| PyValueError::new_err("this builder has already been built"))?;
         match taken.build() {
-            Ok(inner) => Ok(ChannelPlan { inner }),
+            Ok(inner) => Ok(ChannelPlan {
+                inner,
+                published: None,
+            }),
             Err(error) => Err(PyValueError::new_err(error.to_string())),
         }
     }
@@ -879,5 +1358,18 @@ impl ChannelPlan {
         query: impl FnOnce(&pamoja_lora::region::ChannelPlan<'_>) -> R,
     ) -> R {
         self.inner.with_plan(query)
+    }
+
+    /// Wraps a published plan, keeping the plans its join channels select.
+    fn published(plan: &'static CorePlan<'static>) -> Self {
+        Self {
+            inner: OwnedChannelPlan::from_plan(plan),
+            published: Some(plan),
+        }
+    }
+
+    /// The runs of join channels that select a plan.
+    fn join_plan_runs(&self) -> &'static [CoreJoinPlan<'static>] {
+        self.published.map_or(&[], |plan| plan.join_plans)
     }
 }

@@ -257,6 +257,71 @@
 // The channels a device starts with before a network adds any.
 #define PAMOJA_LORA_CHANNELS_DEFAULT 1
 
+// The numbered downlink channels a fixed plan answers the first receive window on.
+#define PAMOJA_LORA_CHANNELS_DOWNLINK 2
+
+// A plan whose network creates channels and moves them.
+#define PAMOJA_LORA_PLAN_KIND_DYNAMIC 0
+
+// A plan whose channels are numbered in advance and only enabled or disabled.
+#define PAMOJA_LORA_PLAN_KIND_FIXED 1
+
+// A plan that reads a type 1 channel list against no numbering.
+#define PAMOJA_LORA_CHANNEL_LIST_NONE 0
+
+// The 800 MHz numbering of RP002-1.0.5 section 3.3.1.1.
+#define PAMOJA_LORA_CHANNEL_LIST_MHZ800 1
+
+// The 900 MHz numbering of RP002-1.0.5 section 3.3.1.2.
+#define PAMOJA_LORA_CHANNEL_LIST_MHZ900 2
+
+// A join channel at random, stepping the data rate down across attempts.
+#define PAMOJA_LORA_JOIN_RANDOM 0
+
+// The octet passes of RP002-1.0.5 section 3.5.2, eight 125 kHz channels from successive
+// groups and then a 500 kHz one.
+#define PAMOJA_LORA_JOIN_OCTET_PASSES 1
+
+// Power indexes that count down from a radiated ceiling.
+#define PAMOJA_LORA_POWER_EIRP 0
+
+// Power indexes that count down from a conducted ceiling.
+#define PAMOJA_LORA_POWER_CONDUCTED 1
+
+// A channel mask control that sets one group of sixteen channels.
+#define PAMOJA_LORA_MASK_GROUP 0
+
+// A channel mask control whose ten low bits switch banks of eight.
+#define PAMOJA_LORA_MASK_BANKS 1
+
+// A channel mask control whose eight low bits switch banks of eight with their 500 kHz
+// channel.
+#define PAMOJA_LORA_MASK_PAIRED_BANKS 2
+
+// A channel mask control that turns every channel on or off, then sets a group.
+#define PAMOJA_LORA_MASK_ALL 3
+
+// A channel mask control the region reserves.
+#define PAMOJA_LORA_MASK_RESERVED 4
+
+// No CN470-510 plan, for a join plan that points at a plan built elsewhere.
+#define PAMOJA_LORA_CN470_NONE 0
+
+// The CN470-510 plan for a 20 MHz antenna, type A.
+#define PAMOJA_LORA_CN470_ANTENNA_20MHZ_A 1
+
+// The CN470-510 plan for a 20 MHz antenna, type B.
+#define PAMOJA_LORA_CN470_ANTENNA_20MHZ_B 2
+
+// The CN470-510 plan for a 26 MHz antenna, type A.
+#define PAMOJA_LORA_CN470_ANTENNA_26MHZ_A 3
+
+// The CN470-510 plan for a 26 MHz antenna, type B.
+#define PAMOJA_LORA_CN470_ANTENNA_26MHZ_B 4
+
+// The 96-channel CN470-510 plan of the LoRaWAN 1.0.3 Regional Parameters revision A.
+#define PAMOJA_LORA_CN470_CHANNELS_96 5
+
 // The uplink direction, for a table that differs between the two.
 #define PAMOJA_LORA_DIRECTION_UPLINK 0
 
@@ -1780,7 +1845,9 @@ typedef struct PamojaLoopbackTransport PamojaLoopbackTransport;
 // A regional channel plan, published or private.
 //
 // The handle always owns its tables, so a published region and one assembled
-// here are the same type and answer the same queries.
+// here are the same type and answer the same queries. A published plan also keeps
+// the plans a join selects between, which point at other published plans and so
+// cannot be owned.
 //
 // A handle the caller must release with [`pamoja_lora_plan_free`].
 typedef struct PamojaLoraPlan PamojaLoraPlan;
@@ -2467,6 +2534,72 @@ typedef struct {
   int32_t signal_rssi_centi_dbm;
 } PamojaLoraRadioReception;
 
+// How a plan's channels are defined and used, read in one call.
+typedef struct {
+  // [`PAMOJA_LORA_PLAN_KIND_DYNAMIC`] or [`PAMOJA_LORA_PLAN_KIND_FIXED`].
+  uint8_t kind;
+  // For a dynamic plan, one of the `PAMOJA_LORA_CHANNEL_LIST_*` constants.
+  uint8_t channel_list;
+  // `1` if devices on the plan answer `TXParamSetupReq`.
+  uint8_t tx_param_setup;
+  // One of the `PAMOJA_LORA_JOIN_*` constants.
+  uint8_t join_sequence;
+  // One of the `PAMOJA_LORA_POWER_*` constants.
+  uint8_t power_reference;
+  // For a conducted ceiling, the antenna gain it already allows for, in dB.
+  uint8_t gain_allowance_db;
+  // How many downlink channel blocks the plan defines.
+  uint16_t downlink_channel_block_count;
+  // How many runs of join channels select a plan, which only the published CN470-510
+  // plans carry.
+  uint16_t join_plan_count;
+} PamojaLoraPlanRules;
+
+// What one `ChMaskCntl` value of a `LinkADRReq` does.
+typedef struct {
+  // One of the `PAMOJA_LORA_MASK_*` constants.
+  uint8_t kind;
+  // For [`PAMOJA_LORA_MASK_GROUP`], the group the mask sets.
+  uint8_t group;
+  // For [`PAMOJA_LORA_MASK_ALL`], `1` to turn every channel on and `0` to turn it off.
+  uint8_t on;
+  // For [`PAMOJA_LORA_MASK_ALL`], `1` if the mask then sets `then_group`.
+  uint8_t has_then_group;
+  // The group the mask then sets.
+  uint8_t then_group;
+} PamojaLoraMaskControl;
+
+// A run of evenly spaced channels.
+typedef struct {
+  // The first channel's center frequency in hertz.
+  uint32_t start_hz;
+  // The spacing between channels in hertz.
+  uint32_t step_hz;
+  // How many channels the block holds.
+  uint16_t count;
+  // The slowest data rate the block allows.
+  uint8_t min_data_rate;
+  // The fastest data rate the block allows.
+  uint8_t max_data_rate;
+} PamojaLoraChannelBlock;
+
+// A run of join channels that puts a device on a plan.
+typedef struct {
+  // The join channels and the data rates a request may use on them.
+  PamojaLoraChannelBlock channels;
+  // Where the accept answering the first channel arrives, in hertz.
+  uint32_t accept_start_hz;
+  // How far the accept frequency moves for each next channel, in hertz.
+  uint32_t accept_step_hz;
+  // The second receive window's frequency after joining on the first channel, in hertz.
+  uint32_t rx2_start_hz;
+  // How far that frequency moves for each next channel, in hertz.
+  uint32_t rx2_step_hz;
+  // The plan a join on these channels selects, one of the `PAMOJA_LORA_CN470_*`
+  // constants.
+  uint32_t cn470_plan;
+} PamojaLoraJoinPlan;
+
 // The Class B beacon settings of a plan.
 typedef struct {
   // The frequency the beacon is broadcast on, in hertz.
@@ -2542,20 +2675,6 @@ typedef struct {
   // The largest application payload, in bytes.
   uint16_t application;
 } PamojaLoraMaxPayload;
-
-// A run of evenly spaced channels.
-typedef struct {
-  // The first channel's center frequency in hertz.
-  uint32_t start_hz;
-  // The spacing between channels in hertz.
-  uint32_t step_hz;
-  // How many channels the block holds.
-  uint16_t count;
-  // The slowest data rate the block allows.
-  uint8_t min_data_rate;
-  // The fastest data rate the block allows.
-  uint8_t max_data_rate;
-} PamojaLoraChannelBlock;
 
 // A slice of a band with its own transmit limits.
 typedef struct {
@@ -7305,6 +7424,180 @@ void pamoja_lora_radio_free(PamojaLoraRadio *radio);
 // `out_plan` must point at writable storage for one pointer.
 PamojaStatus pamoja_lora_plan_for_region(uint32_t region, PamojaLoraPlan **out_plan);
 
+// Returns one of the five CN470-510 channel plans.
+//
+// # Arguments
+//
+// * `which` - one of the `PAMOJA_LORA_CN470_*` constants other than
+//   [`PAMOJA_LORA_CN470_NONE`].
+// * `out_plan` - set to the plan handle on success, and to null otherwise.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `out_plan` is null or `which` names no
+// plan, and [`PamojaStatus::Unsupported`] if CN470-510 was not compiled into this build.
+//
+// # Safety
+//
+// `out_plan` must point at writable storage for one pointer.
+PamojaStatus pamoja_lora_plan_for_cn470(uint32_t which, PamojaLoraPlan **out_plan);
+
+// Reads how a plan defines and uses its channels.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `out_rules` - set to the rules on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_rules` must point at writable storage for
+// one [`PamojaLoraPlanRules`].
+PamojaStatus pamoja_lora_plan_rules(const PamojaLoraPlan *plan, PamojaLoraPlanRules *out_rules);
+
+// Reads what one `ChMaskCntl` value does on a plan.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `value` - the `ChMaskCntl` value, 0 to 7.
+// * `out_control` - set to the control on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or `value` is past 7.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_control` must point at writable storage for
+// one [`PamojaLoraMaskControl`].
+PamojaStatus pamoja_lora_plan_mask_control(const PamojaLoraPlan *plan,
+                                           uint8_t value,
+                                           PamojaLoraMaskControl *out_control);
+
+// Returns where the first receive window listens after an uplink.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `uplink_channel` - the channel number the uplink went out on.
+// * `uplink_hz` - the frequency it went out on.
+// * `out_frequency_hz` - set to the window's frequency on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success: the uplink's own frequency on a plan with no numbered
+// downlink channels, and otherwise the downlink channel the uplink channel maps to.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the plan's
+// downlink channels leave the window undefined.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_frequency_hz` must point at writable storage
+// for one `uint32_t`.
+PamojaStatus pamoja_lora_plan_rx1_frequency_hz(const PamojaLoraPlan *plan,
+                                               uint16_t uplink_channel,
+                                               uint32_t uplink_hz,
+                                               uint32_t *out_frequency_hz);
+
+// Returns the frequency of one of the plan's numbered downlink channels.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `channel` - the downlink channel number.
+// * `out_frequency_hz` - set to its frequency on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the plan numbers
+// no such downlink channel.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_frequency_hz` must point at writable storage
+// for one `uint32_t`.
+PamojaStatus pamoja_lora_plan_downlink_channel_frequency_hz(const PamojaLoraPlan *plan,
+                                                            uint16_t channel,
+                                                            uint32_t *out_frequency_hz);
+
+// Returns one run of join channels that selects a plan.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `index` - the run's position, below the count [`pamoja_lora_plan_rules`] reports.
+// * `out_join_plan` - set to the run on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the index is past
+// the end, which it always is for a plan that was built rather than published.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_join_plan` must point at writable storage for
+// one [`PamojaLoraJoinPlan`].
+PamojaStatus pamoja_lora_plan_join_plan(const PamojaLoraPlan *plan,
+                                        uint16_t index,
+                                        PamojaLoraJoinPlan *out_join_plan);
+
+// Finds the run of join channels a join channel belongs to.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `join_channel` - the join channel, counted through the runs in order.
+// * `out_index` - set to the run's position on success.
+// * `out_offset` - set to the channel's place within the run on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success. The run's accept frequency for the channel is
+// `accept_start_hz + offset * accept_step_hz`, and its second window
+// `rx2_start_hz + offset * rx2_step_hz`.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null or no run holds the
+// channel.
+//
+// # Safety
+//
+// `plan` must be a live plan handle, and `out_index` and `out_offset` must each point at
+// writable storage for one `uint16_t`.
+PamojaStatus pamoja_lora_plan_join_plan_for_channel(const PamojaLoraPlan *plan,
+                                                    uint16_t join_channel,
+                                                    uint16_t *out_index,
+                                                    uint16_t *out_offset);
+
 // Reports whether a region is compiled into this build.
 //
 // A slim build carries only the regions its device operates in, so a host that
@@ -7633,9 +7926,10 @@ PamojaStatus pamoja_lora_plan_channel_frequency_hz(const PamojaLoraPlan *plan,
 // # Arguments
 //
 // * `plan` - the plan to read.
-// * `which` - [`PAMOJA_LORA_CHANNELS_JOIN`] or [`PAMOJA_LORA_CHANNELS_DEFAULT`].
-// * `index` - the block's position, below the count
-//   [`pamoja_lora_plan_info`] reports.
+// * `which` - [`PAMOJA_LORA_CHANNELS_JOIN`], [`PAMOJA_LORA_CHANNELS_DEFAULT`] or
+//   [`PAMOJA_LORA_CHANNELS_DOWNLINK`].
+// * `index` - the block's position, below the count [`pamoja_lora_plan_info`] or
+//   [`pamoja_lora_plan_rules`] reports.
 // * `out_block` - set to the block on success.
 //
 // # Returns
@@ -7790,7 +8084,8 @@ PamojaStatus pamoja_lora_plan_builder_push_max_payload(PamojaLoraPlanBuilder *bu
 // # Arguments
 //
 // * `builder` - the builder to extend.
-// * `which` - [`PAMOJA_LORA_CHANNELS_JOIN`] or [`PAMOJA_LORA_CHANNELS_DEFAULT`].
+// * `which` - [`PAMOJA_LORA_CHANNELS_JOIN`], [`PAMOJA_LORA_CHANNELS_DEFAULT`] or
+//   [`PAMOJA_LORA_CHANNELS_DOWNLINK`].
 // * `block` - the channel block to append.
 //
 // # Returns
@@ -7974,6 +8269,126 @@ PamojaStatus pamoja_lora_plan_builder_set_rx(PamojaLoraPlanBuilder *builder,
 PamojaStatus pamoja_lora_plan_builder_set_beacon(PamojaLoraPlanBuilder *builder,
                                                  const PamojaLoraBeacon *beacon,
                                                  uint8_t has_dwell_time_limit);
+
+// Sets whether the plan's network creates channels, and the numbering a dynamic plan reads
+// a type 1 channel list against.
+//
+// # Arguments
+//
+// * `builder` - the builder to update.
+// * `kind` - [`PAMOJA_LORA_PLAN_KIND_DYNAMIC`] or [`PAMOJA_LORA_PLAN_KIND_FIXED`].
+// * `channel_list` - for a dynamic plan, one of the `PAMOJA_LORA_CHANNEL_LIST_*` constants;
+//   ignored for a fixed one.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null or a code names nothing,
+// and [`PamojaStatus::Closed`] if the builder was already built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle.
+PamojaStatus pamoja_lora_plan_builder_set_kind(PamojaLoraPlanBuilder *builder,
+                                               uint8_t kind,
+                                               uint8_t channel_list);
+
+// Sets whether devices on the plan answer `TXParamSetupReq`.
+//
+// # Arguments
+//
+// * `builder` - the builder to update.
+// * `answered` - `1` if the command applies.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null, and
+// [`PamojaStatus::Closed`] if the builder was already built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle.
+PamojaStatus pamoja_lora_plan_builder_set_tx_param_setup(PamojaLoraPlanBuilder *builder,
+                                                         uint8_t answered);
+
+// Sets what each `ChMaskCntl` value does.
+//
+// # Arguments
+//
+// * `builder` - the builder to update.
+// * `controls` - the eight controls, indexed by value.
+// * `len` - how many `controls` points at, which must be 8.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, `len` is not 8, or a
+// control's kind names nothing, and [`PamojaStatus::Closed`] if the builder was already
+// built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle and `controls` must point at `len` readable
+// [`PamojaLoraMaskControl`] values.
+PamojaStatus pamoja_lora_plan_builder_set_mask_controls(PamojaLoraPlanBuilder *builder,
+                                                        const PamojaLoraMaskControl *controls,
+                                                        uintptr_t len);
+
+// Sets the order a device tries the join channels in.
+//
+// # Arguments
+//
+// * `builder` - the builder to update.
+// * `sequence` - one of the `PAMOJA_LORA_JOIN_*` constants.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null or `sequence` names
+// nothing, and [`PamojaStatus::Closed`] if the builder was already built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle.
+PamojaStatus pamoja_lora_plan_builder_set_join_sequence(PamojaLoraPlanBuilder *builder,
+                                                        uint8_t sequence);
+
+// Sets what the plan's transmit power indexes count down from.
+//
+// # Arguments
+//
+// * `builder` - the builder to update.
+// * `reference` - [`PAMOJA_LORA_POWER_EIRP`] or [`PAMOJA_LORA_POWER_CONDUCTED`].
+// * `gain_allowance_db` - for a conducted ceiling, the antenna gain it allows for.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null or `reference` names
+// nothing, and [`PamojaStatus::Closed`] if the builder was already built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle.
+PamojaStatus pamoja_lora_plan_builder_set_power_reference(PamojaLoraPlanBuilder *builder,
+                                                          uint8_t reference,
+                                                          uint8_t gain_allowance_db);
 
 // Finishes a plan and hands back a handle the query functions accept.
 //

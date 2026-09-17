@@ -75,7 +75,7 @@ public sealed class LoraPlanBuilder : IDisposable
 
     /// <summary>Adds a run of evenly spaced channels.</summary>
     /// <param name="block">The channels to add.</param>
-    /// <param name="which">The join set or the default set.</param>
+    /// <param name="which">The join set, the default set, or the numbered downlink channels.</param>
     /// <returns>This builder, so calls chain.</returns>
     /// <exception cref="PamojaException">The builder has already been built.</exception>
     public LoraPlanBuilder ChannelBlock(
@@ -213,6 +213,84 @@ public sealed class LoraPlanBuilder : IDisposable
                 Live(),
                 in native,
                 (byte)(hasDwellTimeLimit ? 1 : 0)));
+        return this;
+    }
+
+    /// <summary>Sets whether the network creates channels or only switches numbered ones.</summary>
+    /// <param name="kind">The plan's kind.</param>
+    /// <param name="channelList">
+    /// For a dynamic plan, the numbering a type 1 channel list is read against, if any.
+    /// </param>
+    /// <returns>This builder, so calls chain.</returns>
+    /// <exception cref="PamojaException">The builder has already been built.</exception>
+    public LoraPlanBuilder Kind(LoraPlanKind kind, LoraChannelList? channelList = null)
+    {
+        Status.ThrowIfError(
+            NativeMethods.pamoja_lora_plan_builder_set_kind(
+                Live(),
+                (byte)kind,
+                channelList.HasValue ? (byte)channelList.Value : NativeMethods.LoraChannelListNone));
+        return this;
+    }
+
+    /// <summary>Sets whether devices on the plan answer <c>TXParamSetupReq</c>.</summary>
+    /// <param name="answered">Whether the command applies.</param>
+    /// <returns>This builder, so calls chain.</returns>
+    /// <exception cref="PamojaException">The builder has already been built.</exception>
+    public LoraPlanBuilder TxParamSetup(bool answered)
+    {
+        Status.ThrowIfError(
+            NativeMethods.pamoja_lora_plan_builder_set_tx_param_setup(
+                Live(),
+                (byte)(answered ? 1 : 0)));
+        return this;
+    }
+
+    /// <summary>Sets what each <c>ChMaskCntl</c> value does.</summary>
+    /// <param name="controls">All eight controls, in value order.</param>
+    /// <returns>This builder, so calls chain.</returns>
+    /// <exception cref="PamojaException">
+    /// The builder has already been built, or there are not exactly eight controls.
+    /// </exception>
+    public LoraPlanBuilder MaskControls(IReadOnlyList<LoraMaskControl> controls)
+    {
+        PamojaLoraMaskControl[] native = new PamojaLoraMaskControl[controls.Count];
+        for (int index = 0; index < native.Length; index++)
+        {
+            native[index] = controls[index].ToNative();
+        }
+
+        Status.ThrowIfError(
+            NativeMethods.pamoja_lora_plan_builder_set_mask_controls(
+                Live(),
+                native,
+                (nuint)native.Length));
+        return this;
+    }
+
+    /// <summary>Sets the order a device tries the join channels in.</summary>
+    /// <param name="sequence">The join sequence.</param>
+    /// <returns>This builder, so calls chain.</returns>
+    /// <exception cref="PamojaException">The builder has already been built.</exception>
+    public LoraPlanBuilder JoinSequence(LoraJoinSequence sequence)
+    {
+        Status.ThrowIfError(
+            NativeMethods.pamoja_lora_plan_builder_set_join_sequence(Live(), (byte)sequence));
+        return this;
+    }
+
+    /// <summary>Sets what the transmit power indexes count down from.</summary>
+    /// <param name="reference">A radiated or a conducted ceiling.</param>
+    /// <param name="gainAllowanceDb">For a conducted ceiling, the antenna gain it allows for.</param>
+    /// <returns>This builder, so calls chain.</returns>
+    /// <exception cref="PamojaException">The builder has already been built.</exception>
+    public LoraPlanBuilder PowerReference(LoraPowerReference reference, byte gainAllowanceDb = 0)
+    {
+        Status.ThrowIfError(
+            NativeMethods.pamoja_lora_plan_builder_set_power_reference(
+                Live(),
+                (byte)reference,
+                gainAllowanceDb));
         return this;
     }
 
