@@ -9,6 +9,17 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- The two LoRaWAN application layer packages a firmware update rests on, in
+  `pamoja_lorawan::packages`: clock synchronization, TS003-2.0.0 on port 202, and
+  firmware management, TS006-1.0.0 on port 203. A device asks what time it is and
+  applies the correction the server sends back, with the four-bit token that makes
+  a late answer harmless and the two-step correction the specification works out
+  for a clock that starts at zero. A server asks what firmware and hardware a
+  device runs, what upgrade image it holds and whether that image can be
+  installed, deletes one by version, and programs the single reboot a device
+  keeps, as a moment in time or as a countdown, each with its cancellation and its
+  refusal. Anchored to both specifications and cross-checked against the command
+  sizes and field layouts of Semtech's LoRa Basics Modem.
 - A LoRaWAN relay that runs from every language. The C ABI gains a relay handle
   (`pamoja_lorawan_relay_new` and its scan, wake, forward and heard calls) and the
   relay mode of an end device, and Node, Python and .NET wrap both: `LorawanRelay`
