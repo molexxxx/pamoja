@@ -106,6 +106,24 @@ impl Channels {
         channels
     }
 
+    /// A table carried on from a saved state.
+    pub(crate) const fn from_parts(
+        slots: [Option<Channel>; MAX_CHANNELS],
+        enabled: [u16; MASK_GROUPS],
+        defaults: usize,
+    ) -> Channels {
+        Channels {
+            slots,
+            enabled,
+            defaults,
+        }
+    }
+
+    /// Every slot of the table, defined or not.
+    pub(crate) const fn slots(&self) -> &[Option<Channel>; MAX_CHANNELS] {
+        &self.slots
+    }
+
     /// How many of the channels are the region's defaults, which lead the table.
     pub(crate) const fn default_count(&self) -> usize {
         self.defaults

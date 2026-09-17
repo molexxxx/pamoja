@@ -215,6 +215,15 @@ released together, so one entry covers all of them.
   languages to TS001-1.0.4 table 9, the channel list and join settings of a
   published EU868 join accept, and the refusals of a frequency a channel list
   cannot carry.
+- Saving and resuming a joined LoRaWAN device, `EndDevice::save` and `resume`, so
+  a node that sleeps between readings keeps its session instead of joining again.
+  The saved bytes carry the session and its keys, both frame counters, every setting
+  the network's MAC commands changed, the channels, the answers still owed, and how
+  long each duty cycle wait still had to run, which starts again on the clock the
+  device wakes to. A CRC-32 refuses storage that corrupted them and a fingerprint
+  of the channel plan refuses a state from another region; on CN470 the state names
+  the join channel that chose its plan. A resumed device sends the very frame the
+  device it was saved from would have.
 - `pamoja_lorawan::parse_hex`, a `const fn` that reads a DevEUI, JoinEUI or root key
   written in hexadecimal. The ESP32-C3 LoRaWAN node uses it to take its identifiers
   and key from the environment it is built in, `LORAWAN_DEV_EUI`, `LORAWAN_JOIN_EUI`

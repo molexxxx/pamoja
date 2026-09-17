@@ -634,7 +634,11 @@ shape a profile expects is already here: `pamoja-power`'s schedule answers how
 long to wait given the charge left, and that interval is what a chip sleeps for
 rather than what it spins in a delay loop. The
 [power guide](../guides/power.md) covers the schedule; the wake-up itself is
-`esp-hal`'s, through its low-power interfaces.
+`esp-hal`'s, through its low-power interfaces. A LoRaWAN node keeps its session
+through the sleep: `EndDevice::save` turns what the device settled with its network
+into bytes to keep in retained memory or flash, and `resume` puts them back on
+waking, so it carries on with its counters and channels rather than joining again.
+The bytes hold the session keys, so they belong wherever the keys would be safe.
 
 ## Where next
 
