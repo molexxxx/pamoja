@@ -38,6 +38,7 @@ dependencies = [
 name = "board-gateway"
 version = "0.0.0"
 dependencies = [
+ "embedded-hal",
  "pamoja-gateway",
  "pamoja-lora",
  "pamoja-radios",
@@ -373,6 +374,7 @@ version = "0.1.18"
 dependencies = [
  "embedded-hal",
  "linux-embedded-hal",
+ "nix 0.29.0",
 ]
 
 [[package]]
