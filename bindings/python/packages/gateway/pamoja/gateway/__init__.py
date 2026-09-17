@@ -22,6 +22,9 @@ from __future__ import annotations
 
 import enum
 
+from pamoja._native import CHIRPSTACK_UPLINK_TOPIC
+from pamoja._native import ChirpstackReception
+from pamoja._native import ChirpstackUplinkEvent
 from pamoja._native import GatewayNetwork as Network
 from pamoja._native import GatewayNetworkEvent as NetworkEvent
 from pamoja._native import GatewayPacket as Packet
@@ -36,6 +39,7 @@ from pamoja._native import GatewayStationRouter as StationRouter
 from pamoja._native import gateway_acknowledgment as acknowledgment
 from pamoja._native import gateway_encode as encode
 from pamoja._native import gateway_parse as parse
+from pamoja._native import chirpstack_uplink_topic
 from pamoja._native import station_discovery
 from pamoja._native import station_encode
 from pamoja._native import station_eui_of
@@ -45,6 +49,9 @@ from pamoja._native import station_parse
 from pamoja._native import station_router_parse
 
 __all__ = [
+    "CHIRPSTACK_UPLINK_TOPIC",
+    "ChirpstackReception",
+    "ChirpstackUplinkEvent",
     "DEFAULT_PORT",
     "DISCOVERY_PATH",
     "STATION_PROTOCOL_VERSION",
@@ -64,6 +71,7 @@ __all__ = [
     "TxStatus",
     "Txpk",
     "acknowledgment",
+    "chirpstack_uplink_topic",
     "encode",
     "parse",
     "station_discovery",

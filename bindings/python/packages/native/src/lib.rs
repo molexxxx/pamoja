@@ -25,6 +25,8 @@ mod codec;
 #[cfg(feature = "gateway")]
 mod gateway;
 #[cfg(feature = "gateway")]
+mod gateway_chirpstack;
+#[cfg(feature = "gateway")]
 mod gateway_network;
 #[cfg(feature = "gateway")]
 mod gateway_station;
@@ -635,6 +637,16 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(gateway::gateway_encode, m)?)?;
         m.add_function(wrap_pyfunction!(gateway::gateway_parse, m)?)?;
         m.add_function(wrap_pyfunction!(gateway::gateway_acknowledgment, m)?)?;
+        m.add_class::<gateway_chirpstack::ChirpstackUplinkEvent>()?;
+        m.add_class::<gateway_chirpstack::ChirpstackReception>()?;
+        m.add_function(wrap_pyfunction!(
+            gateway_chirpstack::chirpstack_uplink_topic,
+            m
+        )?)?;
+        m.add(
+            "CHIRPSTACK_UPLINK_TOPIC",
+            pamoja_gateway::chirpstack::UPLINK_TOPIC,
+        )?;
         m.add_class::<gateway_network::GatewayNetwork>()?;
         m.add_class::<gateway_network::GatewayNetworkEvent>()?;
         m.add_class::<gateway_network::GatewaySlot>()?;

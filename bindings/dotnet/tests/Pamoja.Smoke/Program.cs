@@ -1257,6 +1257,7 @@ static void Conformance()
     ConformGateway(vectors.GetProperty("gateway"));
     ConformGatewayNetwork(vectors.GetProperty("gatewayNetwork"));
     ConformStation(vectors.GetProperty("station"));
+    ConformChirpstack(vectors.GetProperty("chirpstack"));
     ConformMavlink(vectors.GetProperty("mavlink"));
     ConformMavlinkSchema(vectors.GetProperty("mavlinkSchema"));
     ConformMavlinkProtocol(vectors.GetProperty("mavlinkProtocol"));
@@ -5871,6 +5872,65 @@ static void GatewayNetworks()
 
     GatewayTxpk answered = site.Answer(carried.DevAddr, carried.Slot!, 2, "ok"u8);
     Assert(answered.InvertPolarity, "the answer is inverted too");
+}
+
+// Holds ChirpStack uplink events to the answers every binding must give.
+static void ConformChirpstack(JsonElement vector)
+{
+    foreach (JsonElement entry in vector.GetProperty("events").EnumerateArray())
+    {
+        ChirpstackUplinkEvent got = ChirpstackUplinkEvent.FromJson(entry.GetProperty("json").GetString()!);
+        JsonElement want = entry.GetProperty("event");
+        string where = $"the ChirpStack event {got.DevEui}";
+        Assert(got.DeduplicationId == want.GetProperty("deduplicationId").GetString(), where);
+        JsonElement time = want.GetProperty("time");
+        Assert(got.Time == (time.ValueKind == JsonValueKind.Null ? null : time.GetString()), where);
+        Assert(got.ApplicationId == want.GetProperty("applicationId").GetString(), where);
+        Assert(got.DeviceName == want.GetProperty("deviceName").GetString(), where);
+        Assert(got.DevEui == want.GetProperty("devEui").GetString(), where);
+        ConformOptionalUint(got.DevAddr, want.GetProperty("devAddr"), where);
+        Assert(got.Adr == want.GetProperty("adr").GetBoolean(), where);
+        Assert(got.DataRate == want.GetProperty("dataRate").GetByte(), where);
+        Assert(got.Fcnt == want.GetProperty("fcnt").GetUInt32(), where);
+        ConformOptionalByte(got.Fport, want.GetProperty("fport"), where);
+        Assert(got.Confirmed == want.GetProperty("confirmed").GetBoolean(), where);
+        Assert(Convert.ToHexString(got.Data).Equals(want.GetProperty("data").GetString(), StringComparison.OrdinalIgnoreCase), where);
+        ConformOptionalUint(got.FrequencyHz, want.GetProperty("frequencyHz"), where);
+        JsonElement receptions = want.GetProperty("receptions");
+        Assert(got.Receptions.Count == receptions.GetArrayLength(), where);
+        int index = 0;
+        foreach (JsonElement reception in receptions.EnumerateArray())
+        {
+            Assert(got.Receptions[index].Gateway == reception.GetProperty("gateway").GetString(), where);
+            Assert(got.Receptions[index].RssiDbm == reception.GetProperty("rssiDbm").GetInt32(), where);
+            Assert(got.Receptions[index].SnrDb == reception.GetProperty("snrDb").GetDouble(), where);
+            index++;
+        }
+
+        JsonElement best = want.GetProperty("bestReception");
+        Assert(got.BestReception == (best.ValueKind == JsonValueKind.Null ? null : best.GetInt32()), where);
+    }
+
+    foreach (JsonElement refused in vector.GetProperty("refused").EnumerateArray())
+    {
+        try
+        {
+            ChirpstackUplinkEvent.FromJson(refused.GetString()!);
+            Fail($"{refused.GetString()} must be refused");
+        }
+        catch (PamojaException)
+        {
+        }
+    }
+
+    JsonElement topic = vector.GetProperty("topic");
+    Assert(
+        ChirpstackUplinkEvent.UplinkTopic(topic.GetProperty("applicationId").GetString()!) == topic.GetProperty("topic").GetString(),
+        "the ChirpStack uplink topic");
+    Assert(
+        ChirpstackUplinkEvent.AllApplicationsTopic == vector.GetProperty("allApplications").GetString()
+            && ChirpstackUplinkEvent.UplinkTopic("+") == ChirpstackUplinkEvent.AllApplicationsTopic,
+        "every application's uplink topic");
 }
 
 static void ConformStation(JsonElement vector)

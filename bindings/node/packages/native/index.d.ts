@@ -728,6 +728,13 @@ export declare class LoraRadio {
    * before its next frame; an SX127x keeps its registers.
    */
   sleep(): Promise<void>
+  /**
+   * Draws a random number from the noise the receiver hears, leaving the chip in standby.
+   *
+   * Semtech's own drivers draw it the same way, and LoRaWAN 1.0.3 suggests this source
+   * for a join nonce on a device that has no other.
+   */
+  random(): Promise<number>
   /** Reads one register: a 16-bit address on the SX126x, 0x00 to 0x7F on the SX127x. */
   readRegister(address: number): Promise<number>
   /** Writes one register: a 16-bit address on the SX126x, 0x00 to 0x7F on the SX127x. */
@@ -2330,6 +2337,74 @@ export declare function canRemoteFrame(id: number, extended: boolean, len: numbe
 
 /** Converts a CBOR document back into its JSON encoding. */
 export declare function cborToJsonBytes(cbor: Buffer): Buffer
+
+/**
+ * The MQTT topic every application's uplink events are published on, with wildcards in place
+ * of the application and the device.
+ */
+export const CHIRPSTACK_UPLINK_TOPIC: string
+
+/** One gateway that heard an uplink. */
+export interface ChirpstackReception {
+  /** The gateway's EUI, as lowercase hex. */
+  gateway: string
+  /** The received signal strength, in dBm. */
+  rssiDbm: number
+  /** The signal-to-noise ratio, in dB. */
+  snrDb: number
+}
+
+/** An uplink as ChirpStack reports it. */
+export interface ChirpstackUplinkEvent {
+  /** The identifier ChirpStack gave the uplink once it deduplicated the gateways' copies. */
+  deduplicationId: string
+  /** When the uplink was received, as ChirpStack wrote it, or `null`. */
+  time?: string
+  /** The application the device belongs to. */
+  applicationId: string
+  /** The name the device was given in ChirpStack. */
+  deviceName: string
+  /** The device EUI, as lowercase hex. */
+  devEui: string
+  /** The device's address, or `null` when the event names none. */
+  devAddr?: number
+  /** Whether the device had adaptive data rate on. */
+  adr: boolean
+  /** The data rate, as the region numbers them. */
+  dataRate: number
+  /** The uplink frame counter. */
+  fcnt: number
+  /** The application port, or `null` for a frame that carried none. */
+  fport?: number
+  /** Whether the uplink was confirmed. */
+  confirmed: boolean
+  /** The application payload, decoded from base64. */
+  data: Buffer
+  /** The carrier it was heard on, in hertz, or `null`. */
+  frequencyHz?: number
+  /** Every gateway that heard it. */
+  receptions: Array<ChirpstackReception>
+  /**
+   * The position in `receptions` of the gateway that heard it with the highest
+   * signal-to-noise ratio, or `null` when none did.
+   */
+  bestReception?: number
+}
+
+/**
+ * Reads an uplink event from the JSON ChirpStack published.
+ *
+ * Fields protobuf's JSON mapping leaves out when they hold their default read as that
+ * default: a frame counter of zero, ADR off, unconfirmed. Throws for text that is not a JSON
+ * object, an event with no device EUI, or a field that does not read as what it should.
+ */
+export declare function chirpstackUplinkFromJson(text: string): ChirpstackUplinkEvent
+
+/**
+ * Builds the MQTT topic an application's uplink events are published on, with a wildcard in
+ * place of the device: `application/<id>/device/+/event/up`.
+ */
+export declare function chirpstackUplinkTopic(applicationId: string): string
 
 /** The settings a CoAP endpoint is built from. */
 export interface CoapClientOptions {

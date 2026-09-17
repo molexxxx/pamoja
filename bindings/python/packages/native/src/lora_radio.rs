@@ -257,6 +257,16 @@ impl LoraRadio {
         self.drive(py, |radio| radio.sleep().map_err(|error| error.to_string()))
     }
 
+    /// Draws a random number from the noise the receiver hears, leaving the chip in standby.
+    ///
+    /// Semtech's own drivers draw it the same way, and LoRaWAN 1.0.3 suggests this source
+    /// for a join nonce on a device that has no other.
+    fn random(&self, py: Python<'_>) -> PyResult<u32> {
+        self.drive(py, |radio| {
+            radio.random().map_err(|error| error.to_string())
+        })
+    }
+
     /// Reads one register: a 16-bit address on the SX126x, 0x00 to 0x7F on the SX127x.
     fn read_register(&self, py: Python<'_>, address: u16) -> PyResult<u8> {
         self.drive(py, |radio| {

@@ -116,6 +116,10 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_lora_radio_sleep(IntPtr radio);
 
+    /// <summary>Draws a random number from the noise a radio's receiver hears.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_radio_random(IntPtr radio, out uint outValue);
+
     /// <summary>Reads one register of a radio's chip.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_lora_radio_read_register(

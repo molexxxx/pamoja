@@ -2393,6 +2393,7 @@ sx127xVectors();
 gatewayVectors();
 gatewayNetworkVectors();
 stationVectors();
+chirpstackVectors();
 
 function headerVectors() {
   const vector = VECTORS.header;
@@ -3371,6 +3372,46 @@ zenohVectors();
   console.error(err);
   process.exit(1);
 });
+
+// The uplink events a ChirpStack network server publishes, the first as its documentation
+// prints it.
+function chirpstackVectors() {
+  const vector = VECTORS.chirpstack;
+  for (const { json, event } of vector.events) {
+    const got = gateway.chirpstackUplinkFromJson(json);
+    assert.deepStrictEqual(
+      {
+        deduplicationId: got.deduplicationId,
+        time: got.time ?? null,
+        applicationId: got.applicationId,
+        deviceName: got.deviceName,
+        devEui: got.devEui,
+        devAddr: got.devAddr ?? null,
+        adr: got.adr,
+        dataRate: got.dataRate,
+        fcnt: got.fcnt,
+        fport: got.fport ?? null,
+        confirmed: got.confirmed,
+        data: got.data.toString("hex"),
+        frequencyHz: got.frequencyHz ?? null,
+        receptions: got.receptions.map((reception) => ({
+          gateway: reception.gateway,
+          rssiDbm: reception.rssiDbm,
+          snrDb: reception.snrDb,
+        })),
+        bestReception: got.bestReception ?? null,
+      },
+      event,
+      `the ChirpStack event ${event.deduplicationId || event.devEui}`,
+    );
+  }
+  for (const text of vector.refused) {
+    assert.throws(() => gateway.chirpstackUplinkFromJson(text), `${text} is refused`);
+  }
+  assert.strictEqual(gateway.chirpstackUplinkTopic(vector.topic.applicationId), vector.topic.topic);
+  assert.strictEqual(gateway.CHIRPSTACK_UPLINK_TOPIC, vector.allApplications);
+  assert.strictEqual(gateway.chirpstackUplinkTopic("+"), vector.allApplications);
+}
 
 function stationVectors() {
   const vector = VECTORS.station;
