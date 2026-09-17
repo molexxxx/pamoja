@@ -404,13 +404,16 @@ public static class LorawanRelay
 
     /// <summary>The offset a relay reports in a WOR ACK, appendix 1.</summary>
     /// <param name="scanStartMicros">When the scan that detected the frame started.</param>
-    /// <param name="worEndMicros">When the frame finished arriving.</param>
-    /// <param name="worAirtimeMicros">Its time on air.</param>
-    /// <param name="symbolMicros">The symbol time of its data rate.</param>
-    /// <returns>The offset in milliseconds, or null when it is negative or past eleven bits.</returns>
-    public static ushort? TOffsetMs(ulong scanStartMicros, ulong worEndMicros, ulong worAirtimeMicros, ulong symbolMicros) =>
+    /// <param name="preambleEndMicros">
+    /// When the frame's preamble ended: when it finished arriving, less the airtime of its sync word and payload.
+    /// </param>
+    /// <returns>
+    /// The offset in milliseconds, or null when the preamble ended before the scan or more than eleven bits of
+    /// milliseconds after it.
+    /// </returns>
+    public static ushort? TOffsetMs(ulong scanStartMicros, ulong preambleEndMicros) =>
         NativeMethods.pamoja_lorawan_relay_t_offset_ms(
-            scanStartMicros, worEndMicros, worAirtimeMicros, symbolMicros, out ushort offset) == PamojaStatus.Ok
+            scanStartMicros, preambleEndMicros, out ushort offset) == PamojaStatus.Ok
             ? offset
             : null;
 

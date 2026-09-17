@@ -30,7 +30,7 @@ use crate::lorawan_link::{PAMOJA_LORAWAN_VERSION_1_0_3, PAMOJA_LORAWAN_VERSION_1
 use crate::{read_bytes, set_last_error, PamojaBuffer, PamojaStatus};
 
 /// How many bytes a saved device state takes.
-pub const PAMOJA_LORAWAN_SAVED_LEN: usize = 1589;
+pub const PAMOJA_LORAWAN_SAVED_LEN: usize = 1653;
 
 /// A device running from an external supply.
 pub const PAMOJA_LORAWAN_BATTERY_EXTERNAL: u8 = 0;

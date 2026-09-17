@@ -98,7 +98,8 @@ use crate::defaults::{
     JOIN_ACCEPT_DELAY1_US, JOIN_ACCEPT_DELAY2_US, MAX_FCNT_GAP, RECEIVE_DELAY1_US,
     RETRANSMIT_TIMEOUT_MAX_US, RETRANSMIT_TIMEOUT_MIN_US,
 };
-use crate::mac::FOPTS_MAX;
+use crate::mac::{MacCommand, FOPTS_MAX};
+use crate::relay::RelayState;
 use crate::{
     Device, FrameHeader, LorawanError, MessageType, PhyPayload, Session, Uplink, Version,
     MAX_PAYLOAD,
@@ -266,7 +267,7 @@ impl Settings {
     }
 
     /// Reports whether the radio can tune a frequency.
-    const fn usable(&self, hz: u32) -> bool {
+    pub(crate) const fn usable(&self, hz: u32) -> bool {
         hz >= 100_000_000 && hz >= self.lowest_hz && hz <= self.highest_hz
     }
 }
@@ -1259,7 +1260,7 @@ impl<'p> EndDevice<'p> {
     ///
     /// As [`heard_in`](EndDevice::heard_in).
     pub fn heard(&mut self, frame: &[u8], snr_db: i8) -> Result<Heard, DeviceError> {
-        self.heard_frame(None, frame, snr_db)
+        self.heard_frame(None, frame, snr_db, None)
     }
 
     /// Reads a frame heard in a given receive window of the last transmission.
@@ -1320,14 +1321,17 @@ impl<'p> EndDevice<'p> {
         frame: &[u8],
         snr_db: i8,
     ) -> Result<Heard, DeviceError> {
-        self.heard_frame(Some(window), frame, snr_db)
+        self.heard_frame(Some(window), frame, snr_db, None)
     }
 
-    fn heard_frame(
+    /// Reads a frame as [`heard_in`](EndDevice::heard_in) does, handing the relay commands
+    /// among its MAC commands to a relay's state in the order they arrived.
+    pub(crate) fn heard_frame(
         &mut self,
         window: Option<ReceiveWindow>,
         frame: &[u8],
         snr_db: i8,
+        relay: Option<&mut RelayState>,
     ) -> Result<Heard, DeviceError> {
         match self.pending {
             None => Err(DeviceError::NothingPending),
@@ -1342,7 +1346,7 @@ impl<'p> EndDevice<'p> {
             }) => Err(DeviceError::NothingPending),
             Some(Pending::Uplink {
                 confirmed, windows, ..
-            }) => self.heard_data(frame, snr_db, confirmed, windows, window),
+            }) => self.heard_data(frame, snr_db, confirmed, windows, window, relay),
         }
     }
 
@@ -1546,23 +1550,22 @@ impl<'p> EndDevice<'p> {
         let payload_len = data.map_or(0, |(_, payload)| payload.len());
         let mut fopts = [0u8; FOPTS_MAX];
         let mut mac = [0u8; MAX_PAYLOAD];
-        let (port, body, fopts_len, carries_payload, link_check, device_time) =
+        let (port, body, fopts_len, carries_payload, written) =
             if owed <= FOPTS_MAX && owed + payload_len <= room {
-                let (len, link_check, device_time) = self.answers.write(&mut fopts);
+                let written = self.answers.write(&mut fopts);
                 (
                     data.map(|(port, _)| port),
                     data.map_or(&[][..], |(_, payload)| payload),
-                    len,
+                    written.len,
                     data.is_some(),
-                    link_check,
-                    device_time,
+                    written,
                 )
             } else if owed <= FOPTS_MAX {
-                let (len, link_check, device_time) = self.answers.write(&mut fopts);
-                (None, &[][..], len, false, link_check, device_time)
+                let written = self.answers.write(&mut fopts);
+                (None, &[][..], written.len, false, written)
             } else {
-                let (len, link_check, device_time) = self.answers.write(&mut mac[..room]);
-                (Some(0), &mac[..len], 0, false, link_check, device_time)
+                let written = self.answers.write(&mut mac[..room]);
+                (Some(0), &mac[..written.len], 0, false, written)
             };
 
         let mut uplink = match port {
@@ -1608,7 +1611,7 @@ impl<'p> EndDevice<'p> {
         self.channels = channels;
         self.backoff = backoff;
         self.fcnt_up += 1;
-        self.answers.sent(link_check, device_time);
+        self.answers.sent(written);
         self.ack_owed = false;
         self.record_air(now_us, airtime_us, channel.uplink_hz);
         self.pending = Some(Pending::Uplink {
@@ -1701,6 +1704,7 @@ impl<'p> EndDevice<'p> {
         confirmed_uplink: bool,
         windows: Windows,
         window: Option<ReceiveWindow>,
+        relay: Option<&mut RelayState>,
     ) -> Result<Heard, DeviceError> {
         let session = self.session.ok_or(DeviceError::NotJoined)?;
         let header = FrameHeader::parse(frame)?;
@@ -1760,14 +1764,14 @@ impl<'p> EndDevice<'p> {
             device_time: None,
         };
         match rx.fport() {
-            Some(0) => self.process_commands(rx.payload(), snr_db, &mut delivery),
+            Some(0) => self.process_commands(rx.payload(), snr_db, &mut delivery, relay),
             Some(port) => {
-                self.process_commands(rx.fopts(), snr_db, &mut delivery);
+                self.process_commands(rx.fopts(), snr_db, &mut delivery, relay);
                 delivery.port = Some(port);
                 delivery.len = rx.payload().len();
                 delivery.payload[..delivery.len].copy_from_slice(rx.payload());
             }
-            None => self.process_commands(rx.fopts(), snr_db, &mut delivery),
+            None => self.process_commands(rx.fopts(), snr_db, &mut delivery, relay),
         }
         Ok(Heard::Data(delivery))
     }
@@ -1813,6 +1817,32 @@ impl<'p> EndDevice<'p> {
         self.answers = Answers::new();
         self.backoff = Backoff::recommended(self.settings.version);
         self.ack_owed = false;
+    }
+
+    /// The channel plan the device runs on.
+    pub(crate) const fn plan(&self) -> &'p ChannelPlan<'p> {
+        self.plan
+    }
+
+    /// Reports whether the radio can tune a frequency.
+    pub(crate) const fn tunes(&self, hz: u32) -> bool {
+        self.settings.usable(hz)
+    }
+
+    /// Queues a command the device starts itself, such as a relay's notification, for the
+    /// next uplink.
+    ///
+    /// # Returns
+    ///
+    /// `false` if the queue is full.
+    pub(crate) fn start_command(&mut self, command: MacCommand) -> bool {
+        self.answers.start(command)
+    }
+
+    /// Reports whether a command the device started, beginning with these bytes, is still
+    /// to go out.
+    pub(crate) fn starts_command(&self, prefix: &[u8]) -> bool {
+        self.answers.starts_with(prefix)
     }
 
     /// The default data rate: the slowest LoRa rate a default channel carries, and under a
@@ -1863,7 +1893,7 @@ impl<'p> EndDevice<'p> {
 
     /// The most application payload a data rate carries with no frame options, from the
     /// region's payload tables.
-    fn application_room(&self, data_rate: u8) -> Result<usize, DeviceError> {
+    pub(crate) fn application_room(&self, data_rate: u8) -> Result<usize, DeviceError> {
         let limit = if self.uplink_dwell && self.plan.has_dwell_time_limit {
             self.plan.max_payload_dwell_limited(data_rate)
         } else {
@@ -1961,7 +1991,7 @@ impl<'p> EndDevice<'p> {
     }
 
     /// When a frequency's air is next free.
-    fn free_at(&self, hz: u32) -> u64 {
+    pub(crate) fn free_at(&self, hz: u32) -> u64 {
         let sub_band = if self.settings.regional_duty_cycle {
             self.air
                 .sub_band_free_at(self.sub_band(hz).map(|(index, _)| index))
@@ -1982,7 +2012,8 @@ impl<'p> EndDevice<'p> {
             .map(|(index, band)| (index, band.duty_cycle_permille))
     }
 
-    fn record_air(&mut self, started_us: u64, airtime_us: u64, hz: u32) {
+    /// Counts a transmission against the duty cycle of the sub-band it went out in.
+    pub(crate) fn record_air(&mut self, started_us: u64, airtime_us: u64, hz: u32) {
         let sub_band = if self.settings.regional_duty_cycle {
             self.sub_band(hz)
         } else {
@@ -1993,7 +2024,7 @@ impl<'p> EndDevice<'p> {
     }
 
     /// The conducted power for a power index on a frequency.
-    fn output_dbm(&self, hz: u32, tx_power: u8) -> i8 {
+    pub(crate) fn output_dbm(&self, hz: u32, tx_power: u8) -> i8 {
         let ceiling = self.plan.max_eirp_dbm(hz).min(self.max_eirp_dbm);
         let power = self
             .plan

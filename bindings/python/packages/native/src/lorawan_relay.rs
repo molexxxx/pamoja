@@ -624,17 +624,12 @@ pub fn lorawan_relay_unsynchronized_preamble(
     ))
 }
 
-/// The offset a relay reports in a WOR ACK, appendix 1, or `None` when it is negative or
-/// past eleven bits.
+/// The offset a relay reports in a WOR ACK, appendix 1, or `None` when the preamble ended
+/// before the scan or more than eleven bits of milliseconds after it.
 #[gen_stub_pyfunction]
 #[pyfunction]
-pub fn lorawan_relay_t_offset_ms(
-    scan_start_us: u64,
-    wor_end_us: u64,
-    wor_airtime_us: u64,
-    symbol_us: u64,
-) -> Option<u16> {
-    t_offset_ms(scan_start_us, wor_end_us, wor_airtime_us, symbol_us)
+pub fn lorawan_relay_t_offset_ms(scan_start_us: u64, preamble_end_us: u64) -> Option<u16> {
+    t_offset_ms(scan_start_us, preamble_end_us)
 }
 
 /// Works out when a relay scanned from the WOR ACK that answered a frame.

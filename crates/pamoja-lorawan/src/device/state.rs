@@ -14,7 +14,7 @@
 use pamoja_lora::region::ChannelPlan;
 
 use super::air::{Air, Sequence, MAX_SUB_BANDS};
-use super::answers::{Answers, MAX_ANSWER, MAX_ANSWERS};
+use super::answers::{Answers, Kind, MAX_ANSWER, MAX_ANSWERS};
 use super::channels::{Channels, MASK_GROUPS};
 use super::{Channel, DeviceError, EndDevice, MAX_CHANNELS};
 use crate::adr::Backoff;
@@ -46,6 +46,7 @@ const DEVICE_TIME: u8 = 1 << 6;
 const BACKOFF_RESTORED: u8 = 1 << 7;
 
 const STICKY: u8 = 1 << 7;
+const STARTED: u8 = 1 << 6;
 
 /// Why a saved state could not be resumed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -250,9 +251,11 @@ impl<'p> EndDevice<'p> {
 
         let mut answers = [0u8; ANSWERS_LEN];
         let mut at = 1;
-        for (answer, sticky) in self.answers.owed() {
+        for (answer, kind) in self.answers.owed() {
             answers[0] += 1;
-            answers[at] = answer.len() as u8 | flag(sticky, STICKY);
+            answers[at] = answer.len() as u8
+                | flag(kind == Kind::Sticky, STICKY)
+                | flag(kind == Kind::Started, STARTED);
             answers[at + 1..at + 1 + answer.len()].copy_from_slice(answer);
             at += 1 + answer.len();
         }
@@ -365,12 +368,18 @@ impl<'p> EndDevice<'p> {
         let count = input.u8();
         for _ in 0..count {
             let header = input.u8();
-            let len = usize::from(header & !STICKY);
+            let len = usize::from(header & !(STICKY | STARTED));
+            let kind = match (header & STICKY != 0, header & STARTED != 0) {
+                (false, false) => Kind::Once,
+                (true, false) => Kind::Sticky,
+                (false, true) => Kind::Started,
+                (true, true) => return Err(corrupt),
+            };
             if len == 0 || len > MAX_ANSWER {
                 return Err(corrupt);
             }
             let bytes = input.take(len);
-            if !answers.push_encoded(bytes, header & STICKY != 0) {
+            if !answers.push_encoded(bytes, kind) {
                 return Err(corrupt);
             }
         }
@@ -533,7 +542,7 @@ mod tests {
 
     #[test]
     fn the_layout_adds_up() {
-        assert_eq!(SAVED_LEN, 1_589);
+        assert_eq!(SAVED_LEN, 1_653);
     }
 
     #[test]

@@ -856,9 +856,8 @@ pub unsafe extern "C" fn pamoja_lorawan_relay_unsynchronized_preamble(
 /// # Arguments
 ///
 /// * `scan_start_us` - when the scan that detected the frame started.
-/// * `wor_end_us` - when the frame finished arriving.
-/// * `wor_airtime_us` - its time on air.
-/// * `symbol_us` - the symbol time of its data rate.
+/// * `preamble_end_us` - when the frame's preamble ended: when it finished arriving, less
+///   the airtime of its sync word and payload.
 /// * `out_offset_ms` - receives the offset in milliseconds.
 ///
 /// # Returns
@@ -867,8 +866,8 @@ pub unsafe extern "C" fn pamoja_lorawan_relay_unsynchronized_preamble(
 ///
 /// # Errors
 ///
-/// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, or an offset that is
-/// negative or past the eleven bits a WOR ACK carries.
+/// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, a preamble that ended
+/// before the scan started, or an offset past the eleven bits a WOR ACK carries.
 ///
 /// # Safety
 ///
@@ -876,22 +875,21 @@ pub unsafe extern "C" fn pamoja_lorawan_relay_unsynchronized_preamble(
 #[no_mangle]
 pub unsafe extern "C" fn pamoja_lorawan_relay_t_offset_ms(
     scan_start_us: u64,
-    wor_end_us: u64,
-    wor_airtime_us: u64,
-    symbol_us: u64,
+    preamble_end_us: u64,
     out_offset_ms: *mut u16,
 ) -> PamojaStatus {
     if out_offset_ms.is_null() {
         return null("out_offset_ms");
     }
-    match t_offset_ms(scan_start_us, wor_end_us, wor_airtime_us, symbol_us) {
+    match t_offset_ms(scan_start_us, preamble_end_us) {
         Some(offset) => {
             *out_offset_ms = offset;
             PamojaStatus::Ok
         }
         None => {
             set_last_error(
-                "the offset is negative or past the eleven bits a WOR ACK carries".to_owned(),
+                "the preamble ended before the scan, or past the eleven bits a WOR ACK carries"
+                    .to_owned(),
             );
             PamojaStatus::InvalidArgument
         }
@@ -1291,13 +1289,7 @@ mod tests {
             assert_eq!(symbols, 72);
             let mut offset = 0u16;
             assert_eq!(
-                pamoja_lorawan_relay_t_offset_ms(
-                    87_654_000,
-                    88_734_000,
-                    321_536,
-                    8_192,
-                    &mut offset
-                ),
+                pamoja_lorawan_relay_t_offset_ms(87_654_000, 88_545_584, &mut offset),
                 PamojaStatus::Ok
             );
             assert_eq!(offset, 892);

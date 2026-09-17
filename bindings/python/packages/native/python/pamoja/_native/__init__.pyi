@@ -8824,10 +8824,10 @@ def lorawan_relay_synchronization(wor_start_us: builtins.int, preamble_symbols: 
     Works out when a relay scanned from the WOR ACK that answered a frame.
     """
 
-def lorawan_relay_t_offset_ms(scan_start_us: builtins.int, wor_end_us: builtins.int, wor_airtime_us: builtins.int, symbol_us: builtins.int) -> typing.Optional[builtins.int]:
+def lorawan_relay_t_offset_ms(scan_start_us: builtins.int, preamble_end_us: builtins.int) -> typing.Optional[builtins.int]:
     r"""
-    The offset a relay reports in a WOR ACK, appendix 1, or `None` when it is negative or
-    past eleven bits.
+    The offset a relay reports in a WOR ACK, appendix 1, or `None` when the preamble ended
+    before the scan or more than eleven bits of milliseconds after it.
     """
 
 def lorawan_relay_unsynchronized_preamble(cad_periodicity: builtins.str, symbol_us: builtins.int, cad_to_rx: builtins.str) -> builtins.int:

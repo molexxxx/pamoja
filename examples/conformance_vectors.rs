@@ -2905,10 +2905,12 @@ fn lorawan_relay() -> Value {
               "symbols": unsynchronized_preamble_symbols(CadPeriodicity::Ms1000, 8_192, CadToRx::Symbols8) },
         ],
         "tOffsets": [
-            { "scanStartUs": 87_654_000u64, "worEndUs": 88_734_000u64, "worAirtimeUs": 321_536u64, "symbolUs": 8_192u64,
-              "offsetMs": t_offset_ms(87_654_000, 88_734_000, 321_536, 8_192) },
-            { "scanStartUs": 1_000_000u64, "worEndUs": 1_100_000u64, "worAirtimeUs": 400_000u64, "symbolUs": 8_192u64,
-              "offsetMs": t_offset_ms(1_000_000, 1_100_000, 400_000, 8_192) },
+            { "scanStartUs": 87_654_000u64, "preambleEndUs": 88_545_584u64,
+              "offsetMs": t_offset_ms(87_654_000, 88_545_584) },
+            { "scanStartUs": 1_000_000u64, "preambleEndUs": 1_100_000u64,
+              "offsetMs": t_offset_ms(1_000_000, 1_100_000) },
+            { "scanStartUs": 1_000_000u64, "preambleEndUs": 900_000u64,
+              "offsetMs": t_offset_ms(1_000_000, 900_000) },
         ],
         "synchronization": {
             "worStartUs": 1_234_000,

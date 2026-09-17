@@ -9,7 +9,7 @@ namespace Pamoja.Native.Interop;
 public static partial class NativeMethods
 {
     /// <summary>How many bytes a saved device state takes.</summary>
-    public const int LorawanSavedLen = 1589;
+    public const int LorawanSavedLen = 1653;
 
     /// <summary>Makes a device that joins over the air.</summary>
     [LibraryImport(Library)]

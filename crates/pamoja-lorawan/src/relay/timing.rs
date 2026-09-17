@@ -55,46 +55,49 @@ pub fn unsynchronized_preamble_symbols(
 }
 
 /// The milliseconds a relay reports from the start of its scan to the end of the WOR
-/// preamble, TS011-1.0.1 appendix 1.
+/// preamble, rounded up, TS011-1.0.1 appendix 1.
 ///
-/// `ceil(TEND - TSCAN - TOA(WOR) + (12 + 4.25) * TSYMB)`, where the 16.25 symbols take the
-/// sync word and header off the frame's time on air.
+/// An end device takes `TREF = TLAST + PreambleLength * TSYMB - TOffset`, the end of its
+/// preamble less the offset, to be when the relay scanned, so the offset has to end where
+/// the preamble does. A relay finds that from when the frame finished arriving, less the
+/// time its sync word and payload take, which [`LinkSettings::airtime_us`] gives with no
+/// preamble symbols. Semtech LoRa Basics Modem's relay does the same. Appendix 1 writes the
+/// offset as `TEND - TSCAN - TOA(WOR) + 16.25 * TSYMB`, a fixed allowance that lands on
+/// the end of the preamble for no WOR frame's actual time on air, so a device would aim
+/// symbols early.
+///
+/// [`LinkSettings::airtime_us`]: pamoja_lora::LinkSettings::airtime_us
 ///
 /// # Arguments
 ///
 /// * `scan_start_us` - when the scan that detected the frame started.
-/// * `wor_end_us` - when the frame finished arriving.
-/// * `wor_airtime_us` - the frame's time on air.
-/// * `symbol_us` - the symbol time of its data rate.
+/// * `preamble_end_us` - when the frame's preamble ended.
 ///
 /// # Returns
 ///
-/// The offset in milliseconds, or `None` when it is negative or past the eleven bits a WOR
-/// ACK carries.
+/// The offset in milliseconds, or `None` for a preamble that ended before the scan started
+/// or more than the eleven bits a WOR ACK carries after it.
 ///
 /// # Examples
 ///
 /// ```
-/// use pamoja_lorawan::relay::t_offset_ms;
+/// use pamoja_lora::LinkSettings;
+/// use pamoja_lorawan::relay::{t_offset_ms, WOR_UPLINK_LEN};
 ///
-/// // TS011-1.0.1 appendix 1: detected at 87 654 ms, received by 88 734 ms, 321.536 ms on
-/// // air at SF10.
-/// assert_eq!(t_offset_ms(87_654_000, 88_734_000, 321_536, 8_192), Some(892));
+/// // TS011-1.0.1 appendix 1: an SF10 scan at 87 654 ms, and a preamble ending 891.584 ms
+/// // later.
+/// assert_eq!(t_offset_ms(87_654_000, 88_545_584), Some(892));
+///
+/// // A WOR frame that finished arriving at 88 734 ms at SF10 ended its preamble 264.192 ms
+/// // earlier: 4.25 symbols of sync word and 28 of payload.
+/// let sync_and_payload = LinkSettings::new(10, 125_000).with_preamble(0).airtime_us(WOR_UPLINK_LEN);
+/// assert_eq!(sync_and_payload, 264_192);
+/// assert_eq!(t_offset_ms(87_654_000, 88_734_000 - sync_and_payload), Some(816));
 /// ```
 #[must_use]
-pub fn t_offset_ms(
-    scan_start_us: u64,
-    wor_end_us: u64,
-    wor_airtime_us: u64,
-    symbol_us: u64,
-) -> Option<u16> {
-    let micros = i128::from(wor_end_us) - i128::from(scan_start_us) - i128::from(wor_airtime_us)
-        + i128::from(symbol_us) * 65 / 4;
-    if micros < 0 {
-        return None;
-    }
-    let millis = (micros + 999) / 1000;
-    u16::try_from(millis)
+pub fn t_offset_ms(scan_start_us: u64, preamble_end_us: u64) -> Option<u16> {
+    let micros = preamble_end_us.checked_sub(scan_start_us)?;
+    u16::try_from(micros.div_ceil(1000))
         .ok()
         .filter(|&offset| offset <= StateSync::MAX_T_OFFSET_MS)
 }

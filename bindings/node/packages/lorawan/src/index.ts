@@ -1569,18 +1569,13 @@ export const relay = {
    * The offset a relay reports in a WOR ACK, appendix 1.
    *
    * @param scanStartUs - When the scan that detected the frame started.
-   * @param worEndUs - When the frame finished arriving.
-   * @param worAirtimeUs - Its time on air.
-   * @param symbolUs - The symbol time of its data rate.
-   * @returns The offset in milliseconds, or null when it is negative or past eleven bits.
+   * @param preambleEndUs - When the frame's preamble ended: when it finished arriving,
+   *   less the airtime of its sync word and payload.
+   * @returns The offset in milliseconds, or null when the preamble ended before the scan
+   *   or more than eleven bits of milliseconds after it.
    */
-  tOffsetMs(
-    scanStartUs: number,
-    worEndUs: number,
-    worAirtimeUs: number,
-    symbolUs: number,
-  ): number | null {
-    return lorawanRelayTOffsetMs(scanStartUs, worEndUs, worAirtimeUs, symbolUs) ?? null
+  tOffsetMs(scanStartUs: number, preambleEndUs: number): number | null {
+    return lorawanRelayTOffsetMs(scanStartUs, preambleEndUs) ?? null
   },
 
   /**

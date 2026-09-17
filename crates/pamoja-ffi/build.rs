@@ -2,7 +2,7 @@
 //!
 //! `cbindgen` parses this crate and writes `include/pamoja.h`. The header is
 //! checked into the tree and drift-checked in CI so it can never fall behind the
-//! Rust source.
+//! Rust source, and every file under `src` is watched so adding one keeps that true.
 //!
 //! The header is only refreshed when the crate is built from its own workspace
 //! checkout, never when it is consumed as a published dependency, where the source
@@ -14,43 +14,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 fn main() {
-    println!("cargo:rerun-if-changed=src/lib.rs");
-    println!("cargo:rerun-if-changed=src/actuators.rs");
-    println!("cargo:rerun-if-changed=src/audit.rs");
-    println!("cargo:rerun-if-changed=src/bus.rs");
-    println!("cargo:rerun-if-changed=src/can.rs");
-    println!("cargo:rerun-if-changed=src/coap.rs");
-    println!("cargo:rerun-if-changed=src/codec.rs");
-    println!("cargo:rerun-if-changed=src/gateway.rs");
-    println!("cargo:rerun-if-changed=src/gateway_network.rs");
-    println!("cargo:rerun-if-changed=src/gateway_station.rs");
-    println!("cargo:rerun-if-changed=src/gpio.rs");
-    println!("cargo:rerun-if-changed=src/kit.rs");
-    println!("cargo:rerun-if-changed=src/ladder.rs");
-    println!("cargo:rerun-if-changed=src/loopback.rs");
-    println!("cargo:rerun-if-changed=src/lora.rs");
-    println!("cargo:rerun-if-changed=src/lora_region.rs");
-    println!("cargo:rerun-if-changed=src/lorawan.rs");
-    println!("cargo:rerun-if-changed=src/mavlink.rs");
-    println!("cargo:rerun-if-changed=src/mavlink_protocol.rs");
-    println!("cargo:rerun-if-changed=src/mavlink_schema.rs");
-    println!("cargo:rerun-if-changed=src/mesh.rs");
-    println!("cargo:rerun-if-changed=src/modbus.rs");
-    println!("cargo:rerun-if-changed=src/mqtt.rs");
-    println!("cargo:rerun-if-changed=src/power.rs");
-    println!("cargo:rerun-if-changed=src/profile.rs");
-    println!("cargo:rerun-if-changed=src/ros2.rs");
-    println!("cargo:rerun-if-changed=src/routing.rs");
-    println!("cargo:rerun-if-changed=src/security.rs");
-    println!("cargo:rerun-if-changed=src/session.rs");
-    println!("cargo:rerun-if-changed=src/sim.rs");
-    println!("cargo:rerun-if-changed=src/sensors.rs");
-    println!("cargo:rerun-if-changed=src/serial.rs");
-    println!("cargo:rerun-if-changed=src/sync.rs");
-    println!("cargo:rerun-if-changed=src/telemetry.rs");
-    println!("cargo:rerun-if-changed=src/transport.rs");
-    println!("cargo:rerun-if-changed=src/update.rs");
-    println!("cargo:rerun-if-changed=src/zenoh.rs");
+    // Every source the header is generated from, read from the directory so a new one
+    // never goes unwatched.
+    for entry in fs::read_dir("src").into_iter().flatten().flatten() {
+        let path = entry.path();
+        if path.extension().is_some_and(|extension| extension == "rs") {
+            println!("cargo:rerun-if-changed={}", path.display());
+        }
+    }
     println!("cargo:rerun-if-changed=cbindgen.toml");
 
     let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

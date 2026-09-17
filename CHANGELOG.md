@@ -9,6 +9,18 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- A LoRaWAN relay that runs, `pamoja_lorawan::relay::Relay`: an end device that
+  also scans for the wake-on-radio frames of TS011-1.0.1, verifies them against
+  the counter it expects from each trusted device, answers with a WOR ACK saying
+  when it scanned and whether it will forward, listens for the uplink behind the
+  frame, forwards it to the network on port 226, and sends the answer back in the
+  end device's RXR window. It keeps the tables its network configures with the
+  relay commands, each usable on its own: a join request filter decided by the
+  longest prefix that matches, sixteen trusted devices, and the token buckets of
+  section 8.8, which stop it forwarding and tell a device when to try again. A
+  device the relay does not trust is notified to the network once. Anchored to the
+  worked filter example of appendix 3 and the scan, limit and counter rules of
+  chapters 3, 8 and 10.
 - The LoRaWAN relay of TS011-1.0.1, in Rust, C, TypeScript, Python and C#: the
   wake-on-radio frames an end device sends ahead of a join request or an uplink,
   sealed under keys derived from the network session key, the WOR ACK a relay
@@ -305,6 +317,14 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- `relay::t_offset_ms` now takes the end of a wake-on-radio frame's preamble
+  rather than a time on air and a symbol time. An end device works out when its
+  relay scanned by taking the offset off the end of its preamble, so that is where
+  the offset has to end; the fixed allowance appendix 1 writes lands there for no
+  frame's actual time on air, and would have devices aim symbols early. This is
+  what Semtech LoRa Basics Modem's relay reports.
+- A saved LoRaWAN device state is 1653 bytes, since every queued command now has
+  room for the seven bytes a relay's notification takes.
 - A channel plan in `pamoja-lora` says what kind it is: dynamic, with the
   numbering its region reads a type 1 channel list against, or fixed. It also
   says whether devices on it answer `TXParamSetupReq`, which only AS923 and
