@@ -12,7 +12,8 @@ use pamoja_core::Error;
 /// The reason an update was refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refusal {
-    /// The manifest is not valid CBOR, or ends before its fields do.
+    /// The manifest is not valid CBOR, ends before its fields do, or the block carrying it
+    /// is not in a shape this device reads.
     Malformed,
     /// The manifest was written by a newer structure version than this device reads.
     UnsupportedVersion,

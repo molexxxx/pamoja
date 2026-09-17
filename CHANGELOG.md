@@ -9,6 +9,14 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- A way to carry a signed update inside one block, in `pamoja_update::block`, for a
+  transport that moves blocks rather than streams: the signed manifest and the
+  image behind a short header that says where each begins, under a descriptor a
+  fragmented transport can name the convention by. Nothing in the header is
+  trusted; an image that arrives over a broadcast nobody authenticated is held to
+  exactly the rules one fetched any other way is, which the tests state by
+  altering the image, the manifest and the sequence in the block and watching each
+  one be refused.
 - Remote multicast setup, TS005-2.0.0, in `pamoja_lorawan::packages::multicast`: how
   a group of devices is given one address, one key and a window in which they all
   listen at once, which is what makes sending a firmware image to a thousand
