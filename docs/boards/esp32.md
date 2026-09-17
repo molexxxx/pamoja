@@ -626,6 +626,8 @@ rather than what it spins in a delay loop. The
   board with a LoRa radio on it.
 - [Gateway](gateway.md), for the other end of the LoRaWAN node's link: a
   concentrator on a Raspberry Pi forwarding what it hears to a network server.
+- [Node to dashboard](walkthrough.md), for the whole path the node's readings
+  take: gateway, ChirpStack, and a dashboard.
 - [Your own device](../guides/device.md), for a part pamoja has never heard of.
 
 ## Sources

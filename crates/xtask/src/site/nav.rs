@@ -62,6 +62,7 @@ impl Nav {
                 item("ESP32", "docs/boards/esp32.html"),
                 item("RP2040", "docs/boards/rp2040.html"),
                 item("Gateway", "docs/boards/gateway.html"),
+                item("Node to dashboard", "docs/boards/walkthrough.html"),
             ],
         });
         for chapter in &catalog.chapters {
@@ -248,7 +249,7 @@ guide = "guides/can.md"
         );
         let urls: Vec<&str> = nav.items().map(|item| item.url.as_str()).collect();
         assert_eq!(
-            &urls[..12],
+            &urls[..13],
             [
                 "docs/index.html",
                 "docs/install.html",
@@ -262,6 +263,7 @@ guide = "guides/can.md"
                 "docs/boards/esp32.html",
                 "docs/boards/rp2040.html",
                 "docs/boards/gateway.html",
+                "docs/boards/walkthrough.html",
             ]
         );
     }

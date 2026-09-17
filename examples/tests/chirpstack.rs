@@ -17,6 +17,7 @@
 use std::time::Duration;
 
 use pamoja_core::{Receive, Transport};
+use pamoja_gateway::chirpstack::UplinkEvent;
 use pamoja_gateway::station::{Levels, Message, Station};
 use pamoja_gateway::udp::{Eui, Packet, Rxpk, Uplink};
 use pamoja_lora::LinkSettings;
@@ -93,6 +94,27 @@ async fn downlink(socket: &UdpSocket) -> Vec<u8> {
             return transmit.payload;
         }
     }
+}
+
+/// Reads the server's uplink event the way a program feeding a dashboard does, and checks it
+/// names the device, the payload, the port and the gateway the test sent them through.
+fn read_back(uplink: &str, dev_eui: [u8; 8], gateway: Eui) {
+    let event = UplinkEvent::from_json(uplink).expect("the server's event reads as an uplink");
+    assert_eq!(
+        event.dev_eui,
+        Eui::new(dev_eui),
+        "from the device that sent it"
+    );
+    assert_eq!(event.data, READING, "carrying the reading");
+    assert_eq!(event.fport, Some(PORT), "on its port");
+    assert_eq!(event.fcnt, 0, "as the first uplink of the session");
+    assert!(
+        event
+            .receptions
+            .iter()
+            .any(|heard| heard.gateway == gateway),
+        "heard through the gateway the test forwarded it from"
+    );
 }
 
 /// Waits for one of the network server's own events on a topic, and returns its body.
@@ -200,6 +222,7 @@ async fn a_real_network_server_accepts_a_join_and_an_uplink() {
         uplink.contains(&format!("\"fPort\":{PORT}")),
         "on the port it was sent on"
     );
+    read_back(&uplink, dev_eui, gateway);
 
     mqtt.disconnect().await.expect("the client closes cleanly");
 }
@@ -319,6 +342,7 @@ async fn a_real_network_server_accepts_a_station_join_and_uplink() {
         uplink.contains(&format!("\"fPort\":{PORT}")),
         "on the port it was sent on"
     );
+    read_back(&uplink, dev_eui, gateway);
 
     mqtt.disconnect().await.expect("the client closes cleanly");
 }

@@ -4,11 +4,13 @@ version = "0.0.0"
 edition = "2021"
 publish = false
 license = "MIT"
-description = "Programs for a Raspberry Pi: a sensor on the header's I2C bus, a relay and a switch on its GPIO lines, a LoRa radio on its SPI bus, and a whole profile-driven node."
+description = "Programs for a Raspberry Pi: a sensor on the header's I2C bus, a relay and a switch on its GPIO lines, a LoRa radio on its SPI bus, a whole profile-driven node, and a dashboard of the LoRaWAN nodes a network server hears."
 
 [dependencies]
 pamoja-codec = { path = "../../../crates/pamoja-codec" }
 pamoja-core = { path = "../../../crates/pamoja-core" }
+pamoja-dashboard = { path = "../../../crates/pamoja-dashboard" }
+pamoja-gateway = { path = "../../../crates/pamoja-gateway" }
 pamoja-gpio = { path = "../../../crates/pamoja-gpio", features = ["std"] }
 pamoja-hal = { path = "../../../crates/pamoja-hal", features = ["linux"] }
 pamoja-kit = { path = "../../../crates/pamoja-kit" }

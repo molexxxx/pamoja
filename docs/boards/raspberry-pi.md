@@ -547,6 +547,8 @@ toolchain for C.
 - [Device profiles](../guides/profile.md), for the read-decide-act-publish loop
   a node runs, and the `gateway` and `fleet` examples in `pamoja-dashboard`,
   which serve the dashboard from a Pi.
+- [Node to dashboard](walkthrough.md), for a Pi that is both a LoRaWAN gateway and
+  the dashboard of the nodes its network server hears.
 
 ## Sources
 
