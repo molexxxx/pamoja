@@ -24,4 +24,7 @@ public struct PamojaLorawanFlags
 
     /// <summary>Tell the device more downlink data is waiting.</summary>
     public byte FPending;
+
+    /// <summary>Ask the network to answer; applies to an uplink only.</summary>
+    public byte AdrAckReq;
 }

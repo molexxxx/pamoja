@@ -696,6 +696,8 @@
       {
         "ack": false,
         "adr": true,
+        "adrAckReq": false,
+        "classB": false,
         "confirmed": true,
         "devAddr": 637606874,
         "fcnt": 42,
@@ -710,6 +712,8 @@
       {
         "ack": false,
         "adr": false,
+        "adrAckReq": false,
+        "classB": false,
         "confirmed": false,
         "devAddr": 637606874,
         "fcnt": 7,
@@ -724,6 +728,8 @@
       {
         "ack": false,
         "adr": false,
+        "adrAckReq": false,
+        "classB": false,
         "confirmed": false,
         "devAddr": null,
         "fcnt": null,
@@ -738,6 +744,8 @@
       {
         "ack": false,
         "adr": false,
+        "adrAckReq": false,
+        "classB": false,
         "confirmed": false,
         "devAddr": null,
         "fcnt": null,
@@ -748,6 +756,38 @@
         "isData": false,
         "messageType": "JoinAccept",
         "payloadLen": 0
+      },
+      {
+        "ack": false,
+        "adr": true,
+        "adrAckReq": true,
+        "classB": false,
+        "confirmed": false,
+        "devAddr": 637606874,
+        "fcnt": 65,
+        "foptsLen": 0,
+        "fpending": false,
+        "fport": 1,
+        "frame": "40da1b0126c0410001a19f753caa",
+        "isData": true,
+        "messageType": "UnconfirmedUp",
+        "payloadLen": 1
+      },
+      {
+        "ack": false,
+        "adr": false,
+        "adrAckReq": false,
+        "classB": true,
+        "confirmed": false,
+        "devAddr": 637606874,
+        "fcnt": 1,
+        "foptsLen": 0,
+        "fpending": false,
+        "fport": 1,
+        "frame": "40da1b0126100100010001020304",
+        "isData": true,
+        "messageType": "UnconfirmedUp",
+        "payloadLen": 1
       }
     ],
     "truncated": "400102",
@@ -5368,6 +5408,344 @@
       "payload": "74656d703d342e38"
     },
     "wrongCounter": 43
+  },
+  "lorawanLink": {
+    "backoff": [
+      {
+        "afterDownlink": {
+          "counter": 1,
+          "requestAck": false
+        },
+        "counter": 260,
+        "delay": 32,
+        "endDataRate": 0,
+        "firstAsked": 64,
+        "lastAsked": 192,
+        "limit": 64,
+        "startDataRate": 2,
+        "steps": [
+          {
+            "step": "restorePower",
+            "uplink": 96
+          },
+          {
+            "step": "lowerDataRate",
+            "uplink": 128
+          },
+          {
+            "step": "lowerDataRate",
+            "uplink": 160
+          },
+          {
+            "step": "restoreChannels",
+            "uplink": 192
+          }
+        ],
+        "uplinks": 260,
+        "version": "1.0.4"
+      },
+      {
+        "afterDownlink": {
+          "counter": 1,
+          "requestAck": false
+        },
+        "counter": 260,
+        "delay": 32,
+        "endDataRate": 0,
+        "firstAsked": 64,
+        "lastAsked": 160,
+        "limit": 64,
+        "startDataRate": 3,
+        "steps": [
+          {
+            "step": "lowerDataRate",
+            "uplink": 96
+          },
+          {
+            "step": "lowerDataRate",
+            "uplink": 128
+          },
+          {
+            "step": "lowerDataRate",
+            "uplink": 160
+          }
+        ],
+        "uplinks": 260,
+        "version": "1.0.3"
+      },
+      {
+        "afterDownlink": {
+          "counter": 1,
+          "requestAck": false
+        },
+        "counter": 8,
+        "delay": 1,
+        "endDataRate": 0,
+        "firstAsked": 2,
+        "lastAsked": 5,
+        "limit": 2,
+        "startDataRate": 1,
+        "steps": [
+          {
+            "step": "restorePower",
+            "uplink": 3
+          },
+          {
+            "step": "lowerDataRate",
+            "uplink": 4
+          },
+          {
+            "step": "restoreChannels",
+            "uplink": 5
+          }
+        ],
+        "uplinks": 8,
+        "version": "1.0.4"
+      },
+      {
+        "afterDownlink": {
+          "counter": 1,
+          "requestAck": false
+        },
+        "counter": 8,
+        "delay": 0,
+        "endDataRate": 0,
+        "firstAsked": 2,
+        "lastAsked": 5,
+        "limit": 2,
+        "startDataRate": 3,
+        "steps": [
+          {
+            "step": "lowerDataRate",
+            "uplink": 3
+          },
+          {
+            "step": "lowerDataRate",
+            "uplink": 4
+          },
+          {
+            "step": "lowerDataRate",
+            "uplink": 5
+          }
+        ],
+        "uplinks": 8,
+        "version": "1.0.3"
+      }
+    ],
+    "cflist": {
+      "channelMasks": {
+        "input": [
+          65280,
+          0,
+          0,
+          0,
+          2,
+          0
+        ],
+        "list": {
+          "bytes": "00ff0000000000000200000000000001",
+          "channelMaskGroups": [
+            65280,
+            0,
+            0,
+            0,
+            2,
+            0
+          ],
+          "enabledChannels": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            65
+          ],
+          "enables": [
+            {
+              "channel": 0,
+              "enabled": false
+            },
+            {
+              "channel": 7,
+              "enabled": false
+            },
+            {
+              "channel": 8,
+              "enabled": true
+            },
+            {
+              "channel": 15,
+              "enabled": true
+            },
+            {
+              "channel": 64,
+              "enabled": false
+            },
+            {
+              "channel": 65,
+              "enabled": true
+            },
+            {
+              "channel": 95,
+              "enabled": false
+            },
+            {
+              "channel": 96,
+              "enabled": null
+            }
+          ],
+          "frequenciesHz": null,
+          "kind": "channel_masks",
+          "typeByte": 1
+        }
+      },
+      "frequencies": {
+        "input": [
+          867100000,
+          867300000,
+          867500000,
+          867700000,
+          867900000
+        ],
+        "list": {
+          "bytes": "184f84e85684b85e84886684586e8400",
+          "channelMaskGroups": null,
+          "enabledChannels": [],
+          "enables": [
+            {
+              "channel": 0,
+              "enabled": null
+            },
+            {
+              "channel": 7,
+              "enabled": null
+            },
+            {
+              "channel": 8,
+              "enabled": null
+            },
+            {
+              "channel": 15,
+              "enabled": null
+            },
+            {
+              "channel": 64,
+              "enabled": null
+            },
+            {
+              "channel": 65,
+              "enabled": null
+            },
+            {
+              "channel": 95,
+              "enabled": null
+            },
+            {
+              "channel": 96,
+              "enabled": null
+            }
+          ],
+          "frequenciesHz": [
+            867100000,
+            867300000,
+            867500000,
+            867700000,
+            867900000
+          ],
+          "kind": "frequencies",
+          "typeByte": 0
+        }
+      },
+      "refusedFrequencies": [
+        867100050,
+        99999900,
+        1677721600
+      ],
+      "reserved": {
+        "bytes": "11111111111111111111111111111105",
+        "channelMaskGroups": null,
+        "enabledChannels": [],
+        "enables": [
+          {
+            "channel": 0,
+            "enabled": null
+          },
+          {
+            "channel": 7,
+            "enabled": null
+          },
+          {
+            "channel": 8,
+            "enabled": null
+          },
+          {
+            "channel": 15,
+            "enabled": null
+          },
+          {
+            "channel": 64,
+            "enabled": null
+          },
+          {
+            "channel": 65,
+            "enabled": null
+          },
+          {
+            "channel": 95,
+            "enabled": null
+          },
+          {
+            "channel": 96,
+            "enabled": null
+          }
+        ],
+        "frequenciesHz": null,
+        "kind": "reserved",
+        "typeByte": 5
+      }
+    },
+    "defaults": {
+      "adrAckDelay": 32,
+      "adrAckLimit": 64,
+      "joinAcceptDelay1Us": 5000000,
+      "joinAcceptDelay2Us": 6000000,
+      "maxFcntGap": 16384,
+      "receiveDelay1Us": 1000000,
+      "receiveDelay2Us": 2000000,
+      "receiveWindowToleranceUs": 20,
+      "retransmitTimeoutMaxUs": 3000000,
+      "retransmitTimeoutMinUs": 1000000
+    },
+    "device": {
+      "devEui": "70b3d57ed0051234"
+    },
+    "joinAccepts": [
+      {
+        "appKey": "b6b53f4a168a7a88bdf7ea135ce9cfca",
+        "cflist": "184f84e85684b85e84886684586e8400",
+        "devNonce": 52357,
+        "dlSettings": 3,
+        "frame": "204dd85ae608b87fc4889970b7d2042c9e72959b0057aed6094b16003df12de145",
+        "receiveDelayUs": 1000000,
+        "rx1DrOffset": 0,
+        "rx2DataRate": 3,
+        "rxDelay": 1
+      },
+      {
+        "appKey": "b6b53f4a168a7a88bdf7ea135ce9cfca",
+        "cflist": "00ff0000000000000200000000000001",
+        "devNonce": 7,
+        "dlSettings": 82,
+        "frame": "2053dd0a69a50d26e8bc8c242225d7e9b798611e68435d1ec6e10f4aa7f491a73d",
+        "receiveDelayUs": 1000000,
+        "rx1DrOffset": 5,
+        "rx2DataRate": 2,
+        "rxDelay": 0
+      }
+    ]
   },
   "mavlink": {
     "crc16": [

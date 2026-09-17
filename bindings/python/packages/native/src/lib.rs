@@ -44,6 +44,8 @@ mod lora_radio;
 mod lora_region;
 #[cfg(feature = "lorawan")]
 mod lorawan;
+#[cfg(feature = "lorawan")]
+mod lorawan_link;
 #[cfg(feature = "mavlink")]
 mod mavlink;
 #[cfg(feature = "mavlink")]
@@ -745,6 +747,12 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(lorawan::lorawan_parse_header, m)?)?;
         m.add_function(wrap_pyfunction!(lorawan::lorawan_parse_join_request, m)?)?;
         m.add_class::<lorawan::LorawanMacCommand>()?;
+        m.add_class::<lorawan_link::LorawanBackoff>()?;
+        m.add_class::<lorawan_link::LorawanBackoffStep>()?;
+        m.add_class::<lorawan_link::LorawanCfList>()?;
+        for (name, value) in lorawan_link::DEFAULTS {
+            m.add(name, value)?;
+        }
         m.add_function(wrap_pyfunction!(lorawan::lorawan_mac_parse, m)?)?;
     }
     #[cfg(feature = "mavlink")]

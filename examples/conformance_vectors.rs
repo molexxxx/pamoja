@@ -34,7 +34,11 @@ use pamoja_lora::region::{
     JoinSequence, MaskControl, MaxPayload, Modulation, PlanKind, PowerReference, Region, SubBand,
 };
 use pamoja_lora::LinkSettings;
-use pamoja_lorawan::{Device, Downlink, FrameHeader, JoinGrant, JoinRequest, Session, Uplink};
+use pamoja_lorawan::adr::{Backoff, Standing};
+use pamoja_lorawan::{
+    defaults, CfList, CfListKind, Device, Downlink, FrameHeader, JoinGrant, JoinRequest, Session,
+    Uplink, Version,
+};
 use pamoja_mavlink::dialect::{
     crc_extra as mavlink_crc_extra, descriptor_by_name, encode_message as mav_encode,
     DynamicMessage as MavDynamicMessage, FieldType as MavFieldType, Message as _,
@@ -156,6 +160,7 @@ fn main() {
         "mesh": mesh(),
         "routing": routing(),
         "lorawan": lorawan(),
+        "lorawanLink": lorawan_link(),
 
         "header": header(),
         "network": network(),
@@ -2678,6 +2683,11 @@ fn header() -> Value {
     let device = Device::new([0x11; 8], [0x22; 8], [0xAB; 16]);
     let request = device.join_request(0x1234);
     let accept = JoinGrant::new(0x0003_0201, 0x0006_0504, 0x2601_1BDA).accept(&[0xAB; 16], 0x1234);
+    let adr_ack_req = session
+        .encode_uplink(&Uplink::new(65, 1, b"x").with_adr().with_adr_ack_req())
+        .expect("encode the uplink")
+        .as_bytes()
+        .to_vec();
 
     json!({
         "frames": [
@@ -2685,10 +2695,193 @@ fn header() -> Value {
             described(downlink.as_bytes()),
             described(request.as_bytes()),
             described(accept.as_bytes()),
+            described(&adr_ack_req),
+            described(&CLASS_B_UPLINK),
         ],
         // A frame carrying a message type this crate does not read must be refused.
         "unsupported": hex(&[0xC0u8; 16]),
         "truncated": hex(&[0x40u8, 0x01, 0x02]),
+    })
+}
+
+/// An uplink header with the ClassB bit of FCtrl set: MHDR, DevAddr, FCtrl 0x10, FCnt, FPort,
+/// one payload byte and a MIC that nothing checks before a key is involved.
+const CLASS_B_UPLINK: [u8; 14] = [
+    0x40, 0xDA, 0x1B, 0x01, 0x26, 0x10, 0x01, 0x00, 0x01, 0x00, 0x01, 0x02, 0x03, 0x04,
+];
+
+/// What keeps a LoRaWAN link running: the defaults of RP002-1.0.5 section 3.3, the back-off
+/// of LoRaWAN 1.0.3 and TS001-1.0.4 section 4.3.1.1, the channel list of RP002-1.0.5 section
+/// 3.3.1, and the settings a join accept carries.
+fn lorawan_link() -> Value {
+    // The EU868 join accept published in lora-packet issue 10, read by the device side.
+    const PUBLISHED_KEY: [u8; 16] = [
+        0xB6, 0xB5, 0x3F, 0x4A, 0x16, 0x8A, 0x7A, 0x88, 0xBD, 0xF7, 0xEA, 0x13, 0x5C, 0xE9, 0xCF,
+        0xCA,
+    ];
+    const PUBLISHED_ACCEPT: &str =
+        "204dd85ae608b87fc4889970b7d2042c9e72959b0057aed6094b16003df12de145";
+    const DEV_EUI: [u8; 8] = [0x70, 0xB3, 0xD5, 0x7E, 0xD0, 0x05, 0x12, 0x34];
+
+    let device = Device::new(DEV_EUI, [0; 8], PUBLISHED_KEY);
+    let published_bytes: Vec<u8> = (0..PUBLISHED_ACCEPT.len())
+        .step_by(2)
+        .map(|at| u8::from_str_radix(&PUBLISHED_ACCEPT[at..at + 2], 16).expect("hex"))
+        .collect();
+    let published = device
+        .accept_join(&published_bytes, 0xCC85)
+        .expect("the published accept verifies");
+
+    // A grant with an RX1 offset of 5, RX2 at DR2, a delay byte of zero and a fixed plan's
+    // channel list: every field of DLSettings and RxDelay set apart from the others.
+    let masks = CfList::channel_masks([0xFF00, 0, 0, 0, 0x0002, 0]);
+    let own = JoinGrant::new(0x0003_0201, 0x0006_0504, 0x2601_1BDA)
+        .with_dl_settings(0x52)
+        .with_rx_delay(0)
+        .with_cflist(masks.to_bytes())
+        .accept(&PUBLISHED_KEY, 7);
+    let granted = device
+        .accept_join(own.as_bytes(), 7)
+        .expect("the accept verifies");
+
+    let accepted = |accept: &pamoja_lorawan::JoinAccept, frame: &[u8], dev_nonce: u16| {
+        json!({
+            "appKey": hex(&PUBLISHED_KEY),
+            "devNonce": dev_nonce,
+            "frame": hex(frame),
+            "dlSettings": accept.dl_settings(),
+            "rxDelay": accept.rx_delay(),
+            "rx1DrOffset": accept.rx1_dr_offset(),
+            "rx2DataRate": accept.rx2_data_rate(),
+            "receiveDelayUs": accept.receive_delay_us(),
+            "cflist": accept.cflist().map(|list| hex(&list.to_bytes())),
+        })
+    };
+
+    let frequencies = [
+        867_100_000,
+        867_300_000,
+        867_500_000,
+        867_700_000,
+        867_900_000,
+    ];
+    let from_frequencies = CfList::frequencies(frequencies).expect("valid frequencies");
+    let mut reserved_bytes = [0x11u8; 16];
+    reserved_bytes[15] = 0x05;
+    let reserved = CfList::from_bytes(reserved_bytes);
+
+    let list = |list: CfList| {
+        let enables: Vec<Value> = [0u8, 7, 8, 15, 64, 65, 95, 96]
+            .into_iter()
+            .map(|channel| json!({ "channel": channel, "enabled": list.enables(channel) }))
+            .collect();
+        json!({
+            "bytes": hex(&list.to_bytes()),
+            "kind": match list.kind() {
+                CfListKind::Frequencies => "frequencies",
+                CfListKind::ChannelMasks => "channel_masks",
+                CfListKind::Reserved(_) => "reserved",
+            },
+            "typeByte": list.kind().to_byte(),
+            "frequenciesHz": list.frequencies_hz(),
+            "channelMaskGroups": list.channel_mask_groups(),
+            "enabledChannels": list.enabled_channels().collect::<Vec<_>>(),
+            "enables": enables,
+        })
+    };
+
+    // Each script sends uplinks from a starting data rate, stepping down whenever told to,
+    // and records every step, the first and last uplink that asked for an answer, and what
+    // a downlink then resets.
+    let script = |version: Version, limit: u32, delay: u32, start: u8, uplinks: u32| {
+        let mut backoff = Backoff::new(version, limit, delay);
+        let mut data_rate = start;
+        let mut steps = Vec::new();
+        let mut asked: Option<(u32, u32)> = None;
+        for sent in 1..=uplinks {
+            let step = backoff.uplink(Standing {
+                default_data_rate: data_rate == 0,
+            });
+            if step.request_ack {
+                asked = Some((asked.map_or(sent, |(first, _)| first), sent));
+            }
+            for (taken, name) in [
+                (step.restore_power, "restorePower"),
+                (step.lower_data_rate, "lowerDataRate"),
+                (step.restore_channels, "restoreChannels"),
+            ] {
+                if taken {
+                    steps.push(json!({ "uplink": sent, "step": name }));
+                }
+            }
+            if step.lower_data_rate {
+                data_rate -= 1;
+            }
+        }
+        let counter = backoff.counter();
+        backoff.downlink();
+        let after = backoff.uplink(Standing {
+            default_data_rate: data_rate == 0,
+        });
+        json!({
+            "version": match version {
+                Version::V1_0_3 => "1.0.3",
+                Version::V1_0_4 => "1.0.4",
+            },
+            "limit": limit,
+            "delay": delay,
+            "startDataRate": start,
+            "uplinks": uplinks,
+            "steps": steps,
+            "firstAsked": asked.map(|(first, _)| first),
+            "lastAsked": asked.map(|(_, last)| last),
+            "counter": counter,
+            "endDataRate": data_rate,
+            "afterDownlink": {
+                "counter": backoff.counter(),
+                "requestAck": after.request_ack,
+            },
+        })
+    };
+
+    json!({
+        "defaults": {
+            "receiveDelay1Us": defaults::RECEIVE_DELAY1_US,
+            "receiveDelay2Us": defaults::RECEIVE_DELAY2_US,
+            "joinAcceptDelay1Us": defaults::JOIN_ACCEPT_DELAY1_US,
+            "joinAcceptDelay2Us": defaults::JOIN_ACCEPT_DELAY2_US,
+            "receiveWindowToleranceUs": defaults::RECEIVE_WINDOW_TOLERANCE_US,
+            "maxFcntGap": defaults::MAX_FCNT_GAP,
+            "adrAckLimit": defaults::ADR_ACK_LIMIT,
+            "adrAckDelay": defaults::ADR_ACK_DELAY,
+            "retransmitTimeoutMinUs": defaults::RETRANSMIT_TIMEOUT_MIN_US,
+            "retransmitTimeoutMaxUs": defaults::RETRANSMIT_TIMEOUT_MAX_US,
+        },
+        "backoff": [
+            // TS001-1.0.4 table 9 from DR2, then as far again at DR0 with nothing to give back.
+            script(Version::V1_0_4, 64, 32, 2, 260),
+            // LoRaWAN 1.0.3: a rate a delay after the limit and every delay after, and no
+            // asking at the slowest rate.
+            script(Version::V1_0_3, 64, 32, 3, 260),
+            script(Version::V1_0_4, 2, 1, 1, 8),
+            // A delay of zero is taken as one.
+            script(Version::V1_0_3, 2, 0, 3, 8),
+        ],
+        "cflist": {
+            "frequencies": { "input": frequencies, "list": list(from_frequencies) },
+            "channelMasks": { "input": [0xFF00, 0, 0, 0, 0x0002, 0], "list": list(masks) },
+            "reserved": list(reserved),
+            // Not a whole number of hundreds of hertz, below the 100 MHz RP002-1.0.5
+            // reserves, and past what three bytes carry.
+            "refusedFrequencies": [867_100_050u32, 99_999_900, 1_677_721_600],
+        },
+        "device": {
+            "devEui": hex(&DEV_EUI),
+        },
+        "joinAccepts": [
+            accepted(&published, &published_bytes, 0xCC85),
+            accepted(&granted, own.as_bytes(), 7),
+        ],
     })
 }
 
@@ -2713,6 +2906,8 @@ fn described(bytes: &[u8]) -> Value {
         "adr": header.adr(),
         "ack": header.ack(),
         "fpending": header.fpending(),
+        "adrAckReq": header.adr_ack_req(),
+        "classB": header.class_b(),
         "foptsLen": header.fopts_len(),
         "payloadLen": header.payload_len(),
     })

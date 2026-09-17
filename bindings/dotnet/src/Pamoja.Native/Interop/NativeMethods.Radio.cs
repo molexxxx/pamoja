@@ -400,6 +400,16 @@ public static partial class NativeMethods
     [return: MarshalAs(UnmanagedType.U1)]
     public static partial bool pamoja_lorawan_rx_fpending(IntPtr rx);
 
+    /// <summary>Reports whether a decoded uplink asks the network to answer.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_lorawan_rx_adr_ack_req(IntPtr rx);
+
+    /// <summary>Reports whether a decoded uplink came from a device running Class B.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_lorawan_rx_class_b(IntPtr rx);
+
     /// <summary>Returns the port a decoded frame was sent on.</summary>
     [LibraryImport(Library)]
     [return: MarshalAs(UnmanagedType.U1)]
@@ -452,6 +462,11 @@ public static partial class NativeMethods
         ushort devNonce,
         out IntPtr outAccept);
 
+    /// <summary>Copies the device EUI a device was created with.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_lorawan_device_dev_eui(IntPtr device, Span<byte> outDevEui);
+
     /// <summary>Releases a device handle. Passing null is a no-op.</summary>
     [LibraryImport(Library)]
     public static partial void pamoja_lorawan_device_free(IntPtr device);
@@ -471,6 +486,23 @@ public static partial class NativeMethods
     /// <summary>Returns the delay before the first receive window, in seconds.</summary>
     [LibraryImport(Library)]
     public static partial byte pamoja_lorawan_join_accept_rx_delay(IntPtr accept);
+
+    /// <summary>Returns how far below the uplink's data rate the first window listens.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_lorawan_join_accept_rx1_dr_offset(IntPtr accept);
+
+    /// <summary>Returns the data rate the second receive window listens at.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_lorawan_join_accept_rx2_data_rate(IntPtr accept);
+
+    /// <summary>Returns the delay to the first receive window, in microseconds.</summary>
+    [LibraryImport(Library)]
+    public static partial uint pamoja_lorawan_join_accept_receive_delay_us(IntPtr accept);
+
+    /// <summary>Copies the channel list a join accept carried.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_lorawan_join_accept_cflist(IntPtr accept, Span<byte> outCflist);
 
     /// <summary>Takes the activated session a join grants.</summary>
     [LibraryImport(Library)]

@@ -37,7 +37,8 @@ pub enum LorawanDirection {
 /// The header flags and frame options a sender sets on a data frame.
 ///
 /// Every field is optional and defaults off. `fpending` applies to a downlink
-/// only and is ignored on an uplink.
+/// only and is ignored on an uplink, and `adrAckReq` applies to an uplink only and
+/// is ignored on a downlink.
 #[napi(object)]
 pub struct LorawanOptions {
     /// Ask the far end to acknowledge this frame.
@@ -48,6 +49,9 @@ pub struct LorawanOptions {
     pub ack: Option<bool>,
     /// Tell the device more downlink data is waiting.
     pub fpending: Option<bool>,
+    /// Ask the network to answer, because a device running adaptive data rate has
+    /// gone too long without hearing it.
+    pub adr_ack_req: Option<bool>,
     /// MAC commands to carry in the header, at most 15 bytes.
     pub fopts: Option<Buffer>,
 }
@@ -69,6 +73,10 @@ pub struct LorawanRxData {
     pub ack: bool,
     /// Whether the network has more downlink data waiting.
     pub fpending: bool,
+    /// Whether an uplink asks the network to answer.
+    pub adr_ack_req: bool,
+    /// Whether an uplink comes from a device running Class B.
+    pub class_b: bool,
     /// The port the frame was sent on, or `null` when it carries only options.
     pub fport: Option<u8>,
     /// The MAC commands the header carried.
@@ -125,6 +133,9 @@ impl LorawanSession {
         }
         if options.ack.unwrap_or(false) {
             uplink = uplink.with_ack();
+        }
+        if options.adr_ack_req.unwrap_or(false) {
+            uplink = uplink.with_adr_ack_req();
         }
         self.inner
             .encode_uplink(&uplink)
@@ -195,6 +206,12 @@ impl LorawanDevice {
         })
     }
 
+    /// The 8-byte device EUI, most-significant byte first.
+    #[napi(getter)]
+    pub fn dev_eui(&self) -> Buffer {
+        self.inner.dev_eui().to_vec().into()
+    }
+
     /// Builds the join request this device broadcasts to activate.
     ///
     /// `devNonce` must never repeat for a device, since the network rejects a
@@ -247,10 +264,38 @@ impl LorawanJoinAccept {
         self.inner.dl_settings()
     }
 
-    /// The delay before the first receive window, in seconds.
+    /// The delay byte before the first receive window, as it arrived.
     #[napi(getter)]
     pub fn rx_delay(&self) -> u8 {
         self.inner.rx_delay()
+    }
+
+    /// How far below the uplink's data rate the first receive window listens, the
+    /// RX1DROffset of the downlink settings.
+    #[napi(getter, js_name = "rx1DrOffset")]
+    pub fn rx1_dr_offset(&self) -> u8 {
+        self.inner.rx1_dr_offset()
+    }
+
+    /// The data rate the second receive window listens at.
+    #[napi(getter, js_name = "rx2DataRate")]
+    pub fn rx2_data_rate(&self) -> u8 {
+        self.inner.rx2_data_rate()
+    }
+
+    /// The delay from the end of an uplink to the first receive window, in
+    /// microseconds, where a delay byte of zero means one second.
+    #[napi(getter)]
+    pub fn receive_delay_us(&self) -> u32 {
+        self.inner.receive_delay_us()
+    }
+
+    /// The channel list the accept carried, or `null` when it carried none.
+    #[napi]
+    pub fn cflist(&self) -> Option<crate::lorawan_link::LorawanCfList> {
+        self.inner
+            .cflist()
+            .map(crate::lorawan_link::LorawanCfList::from_core)
     }
 
     /// The activated session this join grants, with its keys already derived.
@@ -269,6 +314,7 @@ fn none() -> LorawanOptions {
         adr: None,
         ack: None,
         fpending: None,
+        adr_ack_req: None,
         fopts: None,
     }
 }
@@ -286,6 +332,8 @@ fn describe(rx: RxData) -> LorawanRxData {
         adr: rx.adr(),
         ack: rx.ack(),
         fpending: rx.fpending(),
+        adr_ack_req: rx.adr_ack_req(),
+        class_b: rx.class_b(),
         fport: rx.fport(),
         fopts: rx.fopts().to_vec().into(),
         payload: rx.payload().to_vec().into(),
@@ -350,6 +398,10 @@ pub struct LorawanHeader {
     pub ack: bool,
     /// Whether the network has more downlink data waiting.
     pub fpending: bool,
+    /// Whether an uplink asks the network to answer.
+    pub adr_ack_req: bool,
+    /// Whether an uplink comes from a device running Class B.
+    pub class_b: bool,
     /// How many bytes of frame options the header carries.
     pub fopts_len: u32,
     /// The length of the still-encrypted payload.
@@ -408,6 +460,8 @@ pub fn lorawan_parse_header(bytes: Buffer) -> napi::Result<LorawanHeader> {
         adr: header.adr(),
         ack: header.ack(),
         fpending: header.fpending(),
+        adr_ack_req: header.adr_ack_req(),
+        class_b: header.class_b(),
         fopts_len: header.fopts_len() as u32,
         payload_len: header.payload_len() as u32,
     })

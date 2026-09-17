@@ -79,6 +79,9 @@ __all__ = [
     "LoraRadio",
     "LoraReception",
     "LoraSubBand",
+    "LorawanBackoff",
+    "LorawanBackoffStep",
+    "LorawanCfList",
     "LorawanDevice",
     "LorawanGrant",
     "LorawanHeader",
@@ -3813,10 +3816,152 @@ class LoraSubBand:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class LorawanBackoff:
+    r"""
+    A device's count of how long the network has been silent.
+    
+    A network running adaptive data rate moves a device to the fastest rate and lowest power
+    that still reach it. Once uplinks go unanswered, this says when to ask the network to
+    answer and which of those settings to give back, a step at a time, as LoRaWAN 1.0.3 or
+    TS001-1.0.4 describes.
+    """
+    @property
+    def counter(self) -> builtins.int:
+        r"""
+        How many uplinks have gone unanswered.
+        """
+    @property
+    def version(self) -> builtins.str:
+        r"""
+        The revision whose steps this count follows, `1.0.3` or `1.0.4`.
+        """
+    def __new__(cls, version: builtins.str = '1.0.4', limit: builtins.int = 64, delay: builtins.int = 32) -> LorawanBackoff:
+        r"""
+        Starts a count from zero.
+        
+        `version` is `1.0.3` or `1.0.4`. `limit` and `delay` are the 64 and 32 RP002-1.0.5
+        recommends for every region unless given; a delay of zero is taken as one.
+        """
+    def uplink(self, at_default_data_rate: builtins.bool) -> LorawanBackoffStep:
+        r"""
+        Counts one new uplink, and says what to do before sending it.
+        
+        Call it once per uplink the frame counter moves for, passing whether the device is
+        already at its default data rate. A repeat of the same uplink does not count.
+        """
+    def downlink(self) -> None:
+        r"""
+        Counts a Class A downlink, which proves the network still hears the device and
+        resets the count.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanBackoffStep:
+    r"""
+    What a back-off says to do with one uplink.
+    """
+    @property
+    def request_ack(self) -> builtins.bool:
+        r"""
+        Set the ADRACKReq bit, asking the network to answer.
+        """
+    @property
+    def restore_power(self) -> builtins.bool:
+        r"""
+        Go back to the default transmit power before sending. Only TS001-1.0.4 takes this
+        step.
+        """
+    @property
+    def lower_data_rate(self) -> builtins.bool:
+        r"""
+        Step the data rate down by the region's back-off table before sending.
+        """
+    @property
+    def restore_channels(self) -> builtins.bool:
+        r"""
+        Re-enable the default channels and set the repetition count back to one before
+        sending. Only TS001-1.0.4 takes this step.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanCfList:
+    r"""
+    The optional channel list at the end of a join accept.
+    
+    A network that wants a device on more channels than its region's defaults says so in
+    sixteen bytes: five frequencies for a dynamic plan such as EU868, or six groups of
+    channel mask bits for a fixed plan such as US915. The list keeps the bytes as they
+    arrived and reads either form out of them.
+    """
+    @property
+    def bytes(self) -> bytes:
+        r"""
+        The sixteen bytes, as a join accept carries them.
+        """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        Which form the list takes: `frequencies`, `channel_masks` or `reserved`.
+        """
+    @property
+    def type_byte(self) -> builtins.int:
+        r"""
+        The CFListType byte the list ends with.
+        """
+    @staticmethod
+    def from_frequencies(frequencies_hz: typing.Sequence[builtins.int]) -> LorawanCfList:
+        r"""
+        Builds a type 0 list from five frequencies in hertz, with `0` for a slot left
+        unused.
+        
+        Raises `PamojaError` if there are not five, or a frequency is not a whole number of
+        hundreds of hertz from 100 MHz to just under 1.678 GHz.
+        """
+    @staticmethod
+    def from_channel_masks(masks: typing.Sequence[builtins.int]) -> LorawanCfList:
+        r"""
+        Builds a type 1 list from six mask groups, where bit n of group g enables channel
+        g * 16 + n.
+        """
+    @staticmethod
+    def from_bytes(data: typing.Sequence[builtins.int]) -> LorawanCfList:
+        r"""
+        Keeps a channel list exactly as it arrived, whatever its type byte says.
+        """
+    def frequencies_hz(self) -> typing.Optional[builtins.list[builtins.int]]:
+        r"""
+        The five frequencies of a type 0 list in hertz, `0` for an unused slot, or `None`
+        for a list of any other type.
+        """
+    def channel_mask_groups(self) -> typing.Optional[builtins.list[builtins.int]]:
+        r"""
+        The six mask groups of a type 1 list, or `None` for a list of any other type.
+        """
+    def enables(self, channel: builtins.int) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether a type 1 list enables a channel, or `None` for a list of any other type or
+        a channel past the 96 the groups cover.
+        """
+    def enabled_channels(self) -> builtins.list[builtins.int]:
+        r"""
+        The channels a type 1 list enables, lowest first, which is empty for a list of any
+        other type.
+        """
+    def __eq__(self, other: LorawanCfList) -> builtins.bool: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class LorawanDevice:
     r"""
     The root credentials over-the-air activation is built on.
     """
+    @property
+    def dev_eui(self) -> bytes:
+        r"""
+        The 8-byte device EUI, most-significant byte first.
+        """
     def __new__(cls, dev_eui: typing.Sequence[builtins.int], app_eui: typing.Sequence[builtins.int], app_key: typing.Sequence[builtins.int]) -> LorawanDevice:
         r"""
         Creates a device from its two 8-byte EUIs and its 16-byte application key.
@@ -3854,7 +3999,8 @@ class LorawanGrant:
         r"""
         Creates a grant of an address and the settings to answer on.
         
-        `app_nonce` and `net_id` carry their low 24 bits only.
+        `app_nonce` and `net_id` carry their low 24 bits only. `cflist` is the 16-byte
+        channel list, such as `LorawanCfList.bytes`.
         """
     def accept(self, app_key: typing.Sequence[builtins.int], dev_nonce: builtins.int) -> bytes:
         r"""
@@ -3919,6 +4065,16 @@ class LorawanHeader:
         Whether the network has more downlink data waiting.
         """
     @property
+    def adr_ack_req(self) -> builtins.bool:
+        r"""
+        Whether an uplink asks the network to answer.
+        """
+    @property
+    def class_b(self) -> builtins.bool:
+        r"""
+        Whether an uplink comes from a device running Class B.
+        """
+    @property
     def fopts_len(self) -> builtins.int:
         r"""
         How many bytes of frame options the header carries.
@@ -3953,7 +4109,29 @@ class LorawanJoinAccept:
     @property
     def rx_delay(self) -> builtins.int:
         r"""
-        The delay before the first receive window, in seconds.
+        The delay byte before the first receive window, as it arrived.
+        """
+    @property
+    def rx1_dr_offset(self) -> builtins.int:
+        r"""
+        How far below the uplink's data rate the first receive window listens, the
+        RX1DROffset of the downlink settings.
+        """
+    @property
+    def rx2_data_rate(self) -> builtins.int:
+        r"""
+        The data rate the second receive window listens at.
+        """
+    @property
+    def receive_delay_us(self) -> builtins.int:
+        r"""
+        The delay from the end of an uplink to the first receive window, in microseconds,
+        where a delay byte of zero means one second.
+        """
+    @property
+    def cflist(self) -> typing.Optional[LorawanCfList]:
+        r"""
+        The channel list the accept carried, or `None` when it carried none.
         """
     def session(self) -> LorawanSession:
         r"""
@@ -4222,6 +4400,16 @@ class LorawanRxData:
         Whether the network has more downlink data waiting.
         """
     @property
+    def adr_ack_req(self) -> builtins.bool:
+        r"""
+        Whether an uplink asks the network to answer.
+        """
+    @property
+    def class_b(self) -> builtins.bool:
+        r"""
+        Whether an uplink comes from a device running Class B.
+        """
+    @property
     def fport(self) -> typing.Optional[builtins.int]:
         r"""
         The port the frame was sent on, or `None` when it carries only options.
@@ -4253,9 +4441,12 @@ class LorawanSession:
         
         `nwk_skey` authenticates frames and `app_skey` encrypts payloads.
         """
-    def encode_uplink(self, fcnt: builtins.int, fport: builtins.int, payload: typing.Sequence[builtins.int], confirmed: builtins.bool = False, adr: builtins.bool = False, ack: builtins.bool = False, fopts: typing.Optional[typing.Sequence[builtins.int]] = None) -> bytes:
+    def encode_uplink(self, fcnt: builtins.int, fport: builtins.int, payload: typing.Sequence[builtins.int], confirmed: builtins.bool = False, adr: builtins.bool = False, ack: builtins.bool = False, fopts: typing.Optional[typing.Sequence[builtins.int]] = None, adr_ack_req: builtins.bool = False) -> bytes:
         r"""
         Encodes an uplink, encrypting the payload and appending the MIC.
+        
+        `adr_ack_req` asks the network to answer, which a device running adaptive data
+        rate does once it has gone too long without hearing it.
         """
     def encode_downlink(self, fcnt: builtins.int, fport: builtins.int, payload: typing.Sequence[builtins.int], confirmed: builtins.bool = False, adr: builtins.bool = False, ack: builtins.bool = False, fpending: builtins.bool = False, fopts: typing.Optional[typing.Sequence[builtins.int]] = None) -> bytes:
         r"""

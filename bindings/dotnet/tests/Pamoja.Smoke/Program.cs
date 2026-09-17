@@ -1264,6 +1264,7 @@ static void Conformance()
     ConformRouting(vectors.GetProperty("routing"));
     ConformLorawan(vectors.GetProperty("lorawan"));
     ConformHeader(vectors.GetProperty("header"));
+    ConformLorawanLink(vectors.GetProperty("lorawanLink"), vectors);
     ConformNetwork(vectors.GetProperty("network"));
     ConformAudit(vectors.GetProperty("audit"));
     ConformSession(vectors.GetProperty("session"));
@@ -4755,6 +4756,8 @@ static void ConformHeader(JsonElement vector)
         Assert(header.Adr == want.GetProperty("adr").GetBoolean(), "the ADR bit");
         Assert(header.Ack == want.GetProperty("ack").GetBoolean(), "the ACK bit");
         Assert(header.FPending == want.GetProperty("fpending").GetBoolean(), "the pending bit");
+        Assert(header.AdrAckReq == want.GetProperty("adrAckReq").GetBoolean(), "the ADRACKReq bit");
+        Assert(header.ClassB == want.GetProperty("classB").GetBoolean(), "the ClassB bit");
         Assert(
             header.FoptsLength == want.GetProperty("foptsLen").GetInt32(),
             "the options length");
@@ -4774,6 +4777,239 @@ static void ConformHeader(JsonElement vector)
         {
         }
     }
+}
+
+// Holds the defaults, the back-off, the channel list and the join settings to the vectors.
+static void ConformLorawanLink(JsonElement vector, JsonElement vectors)
+{
+    JsonElement d = vector.GetProperty("defaults");
+    uint[] defaults =
+    [
+        LorawanDefaults.ReceiveDelay1Micros,
+        LorawanDefaults.ReceiveDelay2Micros,
+        LorawanDefaults.JoinAcceptDelay1Micros,
+        LorawanDefaults.JoinAcceptDelay2Micros,
+        LorawanDefaults.ReceiveWindowToleranceMicros,
+        LorawanDefaults.MaxFcntGap,
+        LorawanDefaults.AdrAckLimit,
+        LorawanDefaults.AdrAckDelay,
+        LorawanDefaults.RetransmitTimeoutMinMicros,
+        LorawanDefaults.RetransmitTimeoutMaxMicros,
+    ];
+    string[] names =
+    [
+        "receiveDelay1Us",
+        "receiveDelay2Us",
+        "joinAcceptDelay1Us",
+        "joinAcceptDelay2Us",
+        "receiveWindowToleranceUs",
+        "maxFcntGap",
+        "adrAckLimit",
+        "adrAckDelay",
+        "retransmitTimeoutMinUs",
+        "retransmitTimeoutMaxUs",
+    ];
+    for (int index = 0; index < names.Length; index++)
+    {
+        Assert(defaults[index] == d.GetProperty(names[index]).GetUInt32(), $"the default {names[index]}");
+    }
+
+    foreach (JsonElement script in vector.GetProperty("backoff").EnumerateArray())
+    {
+        string version = script.GetProperty("version").GetString()!;
+        uint limit = script.GetProperty("limit").GetUInt32();
+        uint delay = script.GetProperty("delay").GetUInt32();
+        string where = $"a {version} back-off with limit {limit} and delay {delay}";
+        LorawanVersion revision = version == "1.0.3" ? LorawanVersion.V1_0_3 : LorawanVersion.V1_0_4;
+        using LorawanBackoff backoff = new(revision, limit, delay);
+        Assert(backoff.Version == revision, where);
+
+        int dataRate = script.GetProperty("startDataRate").GetInt32();
+        List<(int Uplink, string Step)> steps = [];
+        int? firstAsked = null;
+        int? lastAsked = null;
+        int uplinks = script.GetProperty("uplinks").GetInt32();
+        for (int sent = 1; sent <= uplinks; sent++)
+        {
+            LorawanBackoffStep step = backoff.Uplink(dataRate == 0);
+            if (step.RequestAck)
+            {
+                firstAsked ??= sent;
+                lastAsked = sent;
+            }
+
+            if (step.RestorePower)
+            {
+                steps.Add((sent, "restorePower"));
+            }
+
+            if (step.LowerDataRate)
+            {
+                steps.Add((sent, "lowerDataRate"));
+                dataRate--;
+            }
+
+            if (step.RestoreChannels)
+            {
+                steps.Add((sent, "restoreChannels"));
+            }
+        }
+
+        List<(int Uplink, string Step)> wantSteps = script
+            .GetProperty("steps")
+            .EnumerateArray()
+            .Select(entry => (entry.GetProperty("uplink").GetInt32(), entry.GetProperty("step").GetString()!))
+            .ToList();
+        Assert(steps.SequenceEqual(wantSteps), $"the steps of {where}");
+        AssertOptional(firstAsked, script.GetProperty("firstAsked"), $"the first request of {where}");
+        AssertOptional(lastAsked, script.GetProperty("lastAsked"), $"the last request of {where}");
+        Assert(backoff.Counter == script.GetProperty("counter").GetUInt32(), $"the counter of {where}");
+        Assert(dataRate == script.GetProperty("endDataRate").GetInt32(), $"the data rate {where} ends at");
+
+        backoff.Downlink();
+        LorawanBackoffStep after = backoff.Uplink(dataRate == 0);
+        JsonElement afterDownlink = script.GetProperty("afterDownlink");
+        Assert(backoff.Counter == afterDownlink.GetProperty("counter").GetUInt32(), $"a downlink resets {where}");
+        Assert(after.RequestAck == afterDownlink.GetProperty("requestAck").GetBoolean(), where);
+    }
+
+    JsonElement lists = vector.GetProperty("cflist");
+    JsonElement frequencies = lists.GetProperty("frequencies");
+    ConformCfList(
+        LorawanCfList.FromFrequencies(
+            frequencies.GetProperty("input").EnumerateArray().Select(hz => hz.GetUInt32()).ToArray()),
+        frequencies.GetProperty("list"),
+        "a list of frequencies");
+    JsonElement masks = lists.GetProperty("channelMasks");
+    ConformCfList(
+        LorawanCfList.FromChannelMasks(
+            masks.GetProperty("input").EnumerateArray().Select(mask => mask.GetUInt16()).ToArray()),
+        masks.GetProperty("list"),
+        "a list of masks");
+    JsonElement reserved = lists.GetProperty("reserved");
+    ConformCfList(
+        LorawanCfList.FromBytes(Convert.FromHexString(reserved.GetProperty("bytes").GetString()!)),
+        reserved,
+        "a reserved list");
+    foreach (JsonElement refused in lists.GetProperty("refusedFrequencies").EnumerateArray())
+    {
+        try
+        {
+            LorawanCfList.FromFrequencies([refused.GetUInt32(), 0, 0, 0, 0]);
+            Fail($"{refused.GetUInt32()} Hz must be refused in a channel list");
+        }
+        catch (PamojaException)
+        {
+        }
+    }
+
+    try
+    {
+        LorawanCfList.FromBytes(new byte[15]);
+        Fail("a channel list is sixteen bytes");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    byte[] devEui = Convert.FromHexString(vector.GetProperty("device").GetProperty("devEui").GetString()!);
+    foreach (JsonElement want in vector.GetProperty("joinAccepts").EnumerateArray())
+    {
+        using LorawanDevice device = new(
+            devEui,
+            new byte[8],
+            Convert.FromHexString(want.GetProperty("appKey").GetString()!));
+        Assert(device.DevEui.AsSpan().SequenceEqual(devEui), "the device EUI");
+        using LorawanJoinAccept accept = device.AcceptJoin(
+            Convert.FromHexString(want.GetProperty("frame").GetString()!),
+            want.GetProperty("devNonce").GetUInt16());
+        Assert(accept.DlSettings == want.GetProperty("dlSettings").GetByte(), "the downlink settings");
+        Assert(accept.RxDelay == want.GetProperty("rxDelay").GetByte(), "the delay byte");
+        Assert(accept.Rx1DrOffset == want.GetProperty("rx1DrOffset").GetByte(), "the RX1 offset");
+        Assert(accept.Rx2DataRate == want.GetProperty("rx2DataRate").GetByte(), "the RX2 data rate");
+        Assert(
+            accept.ReceiveDelayMicros == want.GetProperty("receiveDelayUs").GetUInt32(),
+            "the receive delay");
+        JsonElement wantList = want.GetProperty("cflist");
+        LorawanCfList? list = accept.CfList();
+        Assert(
+            wantList.ValueKind == JsonValueKind.Null
+                ? list is null
+                : list is not null && Convert.ToHexString(list.Bytes).Equals(wantList.GetString(), StringComparison.OrdinalIgnoreCase),
+            "the channel list");
+    }
+
+    JsonElement uplink = vectors
+        .GetProperty("header")
+        .GetProperty("frames")
+        .EnumerateArray()
+        .First(frame => frame.GetProperty("adrAckReq").GetBoolean());
+    JsonElement frames = vectors.GetProperty("lorawan");
+    using LorawanSession session = new(
+        frames.GetProperty("devAddr").GetUInt32(),
+        Convert.FromHexString(frames.GetProperty("nwkSKey").GetString()!),
+        Convert.FromHexString(frames.GetProperty("appSKey").GetString()!));
+    uint fcnt = uplink.GetProperty("fcnt").GetUInt32();
+    byte[] asking = session.EncodeUplink(
+        fcnt,
+        uplink.GetProperty("fport").GetByte(),
+        "x"u8,
+        new LorawanOptions { Adr = true, AdrAckReq = true });
+    Assert(
+        Convert.ToHexString(asking).Equals(uplink.GetProperty("frame").GetString(), StringComparison.OrdinalIgnoreCase),
+        "an uplink asking the network to answer");
+    LorawanRxData decoded = session.Decode(asking, fcnt);
+    Assert(decoded.AdrAckReq && !decoded.ClassB, "the decoded ADRACKReq and ClassB bits");
+}
+
+// Holds a channel list to the answers every binding must give.
+static void ConformCfList(LorawanCfList list, JsonElement want, string where)
+{
+    Assert(
+        Convert.ToHexString(list.Bytes).Equals(want.GetProperty("bytes").GetString(), StringComparison.OrdinalIgnoreCase),
+        $"the bytes of {where}");
+    string kind = list.Kind switch
+    {
+        LorawanCfListKind.Frequencies => "frequencies",
+        LorawanCfListKind.ChannelMasks => "channel_masks",
+        _ => "reserved",
+    };
+    Assert(kind == want.GetProperty("kind").GetString(), $"the kind of {where}");
+    Assert(list.TypeByte == want.GetProperty("typeByte").GetByte(), $"the type byte of {where}");
+
+    JsonElement wantFrequencies = want.GetProperty("frequenciesHz");
+    uint[]? frequencies = list.FrequenciesHz();
+    Assert(
+        wantFrequencies.ValueKind == JsonValueKind.Null
+            ? frequencies is null
+            : frequencies is not null
+                && frequencies.SequenceEqual(wantFrequencies.EnumerateArray().Select(hz => hz.GetUInt32())),
+        $"the frequencies of {where}");
+
+    JsonElement wantGroups = want.GetProperty("channelMaskGroups");
+    ushort[]? groups = list.ChannelMaskGroups();
+    Assert(
+        wantGroups.ValueKind == JsonValueKind.Null
+            ? groups is null
+            : groups is not null
+                && groups.SequenceEqual(wantGroups.EnumerateArray().Select(mask => mask.GetUInt16())),
+        $"the masks of {where}");
+
+    Assert(
+        list.EnabledChannels().SequenceEqual(
+            want.GetProperty("enabledChannels").EnumerateArray().Select(channel => channel.GetInt32())),
+        $"the channels of {where}");
+    foreach (JsonElement entry in want.GetProperty("enables").EnumerateArray())
+    {
+        int channel = entry.GetProperty("channel").GetInt32();
+        JsonElement enabled = entry.GetProperty("enabled");
+        bool? got = list.Enables(channel);
+        Assert(
+            enabled.ValueKind == JsonValueKind.Null ? got is null : got == enabled.GetBoolean(),
+            $"channel {channel} of {where}");
+    }
+
+    Assert(LorawanCfList.FromBytes(list.Bytes).Equals(list), $"{where} reads back from its bytes");
 }
 
 static void AssertOptional<T>(T? got, JsonElement want, string message)
