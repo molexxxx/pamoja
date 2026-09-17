@@ -508,6 +508,36 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// A WOR frame ahead of a join request.
+#define PAMOJA_LORAWAN_WOR_JOIN_REQUEST 0
+
+// A WOR frame ahead of a Class A uplink.
+#define PAMOJA_LORAWAN_WOR_UPLINK 1
+
+
+
+
+
+
+
 // The largest payload a frame can carry, in bytes.
 #define PAMOJA_MAVLINK_MAX_PAYLOAD MAX_PAYLOAD
 
@@ -2835,6 +2865,16 @@ typedef struct {
   uint16_t application;
 } PamojaLoraMaxPayload;
 
+// A default channel of a LoRaWAN relay, TS011-1.0.1.
+typedef struct {
+  // Where an end device sends its wake-on-radio frame, in hertz.
+  uint32_t wor_frequency_hz;
+  // Where the relay acknowledges it, in hertz.
+  uint32_t ack_frequency_hz;
+  // The data rate of both, numbered as the plan's downlink data rates.
+  uint8_t data_rate;
+} PamojaLoraRelayChannel;
+
 // A slice of a band with its own transmit limits.
 typedef struct {
   // The first frequency in the sub-band, in hertz.
@@ -3176,7 +3216,161 @@ typedef struct {
   uint32_t seconds;
   // The fraction of that second, in steps of one part in 256.
   uint8_t fraction;
+  // Whether a relay runs.
+  uint8_t enabled;
+  // How often a relay scans, as TS011-1.0.1 table 18 codes it.
+  uint8_t cad_periodicity;
+  // Which of the region's relay channels is a relay's default one.
+  uint8_t default_channel_index;
+  // Whether a relay configuration sets a second channel, 1 for yes.
+  uint8_t second_channel_index;
+  // The second channel's data rate; its frequency is the frequency field.
+  uint8_t second_channel_data_rate;
+  // How far above its frequency the second channel is acknowledged, as table 35 codes it.
+  uint8_t second_channel_ack_offset;
+  // Whether the scan period was valid.
+  uint8_t cad_periodicity_ack;
+  // Whether the default channel was valid.
+  uint8_t default_channel_index_ack;
+  // Whether the second channel index was valid.
+  uint8_t second_channel_index_ack;
+  // Whether the second channel's data rate was valid.
+  uint8_t second_channel_data_rate_ack;
+  // Whether its acknowledgment offset was valid.
+  uint8_t second_channel_ack_offset_ack;
+  // Whether its frequency was valid.
+  uint8_t second_channel_frequency_ack;
+  // How an end device uses a relay, as TS011-1.0.1 table 40 codes it.
+  uint8_t relay_mode;
+  // How many unanswered uplinks turn relaying on, as table 41 codes it.
+  uint8_t smart_enable_level;
+  // How many WOR frames without an acknowledgment before an uplink goes anyway.
+  uint8_t back_off;
+  // What a join filter rule does, or whether a trusted end device is read or removed.
+  uint8_t action;
+  // How many leading bytes of JoinEUI and DevEUI a join filter rule matches.
+  uint8_t eui_len;
+  // Those bytes, most significant first, with the rest zero.
+  uint8_t eui[16];
+  // Whether a join filter rule was one to create, change or remove.
+  uint8_t combined_rules_ack;
+  // Whether its length was valid.
+  uint8_t eui_len_ack;
+  // Whether its action was valid.
+  uint8_t action_ack;
+  // Tokens a trusted end device earns an hour, 63 for no limit.
+  uint8_t reload_rate;
+  // Its bucket size multiplier, as TS011-1.0.1 table 55 codes it.
+  uint8_t bucket_size;
+  // An end device address a relay command names.
+  uint32_t dev_addr;
+  // A wake-on-radio frame counter.
+  uint32_t wfcnt;
+  // An end device's root relay session key.
+  uint8_t root_wor_s_key[16];
+  // Whether a trusted list entry was in use.
+  uint8_t index_ack;
+  // What a forwarding limit command does to a relay's token counters, as table 63 codes it.
+  uint8_t reset_limit_counters;
+  // Join requests a relay forwards an hour, 127 for no limit.
+  uint8_t join_request_reload_rate;
+  // New end device notifications a relay sends an hour.
+  uint8_t notify_reload_rate;
+  // Uplinks a relay forwards an hour across every trusted end device.
+  uint8_t global_uplink_reload_rate;
+  // Every message a relay sends an hour.
+  uint8_t overall_reload_rate;
+  // The join request bucket size multiplier.
+  uint8_t join_request_bucket_size;
+  // The notification bucket size multiplier.
+  uint8_t notify_bucket_size;
+  // The global uplink bucket size multiplier.
+  uint8_t global_uplink_bucket_size;
+  // The overall bucket size multiplier.
+  uint8_t overall_bucket_size;
+  // The signal strength of a WOR frame a relay could not verify, in dBm.
+  int16_t rssi_dbm;
+  // Its signal-to-noise ratio, in dB.
+  int8_t snr_db;
 } PamojaLorawanMacCommand;
+
+// The integrity and encryption keys of one end device's wake-on-radio frames.
+typedef struct {
+  // `WorSIntKey`.
+  uint8_t integrity[16];
+  // `WorSEncKey`.
+  uint8_t encryption[16];
+} PamojaLorawanWorKeys;
+
+// Where a frame goes and how fast.
+typedef struct {
+  // The frequency in hertz.
+  uint32_t frequency_hz;
+  // The data rate.
+  uint8_t data_rate;
+} PamojaLorawanCarrier;
+
+// A wake-on-radio frame, as a relay reads it.
+typedef struct {
+  // [`PAMOJA_LORAWAN_WOR_JOIN_REQUEST`] or [`PAMOJA_LORAWAN_WOR_UPLINK`].
+  uint8_t kind;
+  // For a join request, where and how fast it follows; zero for an uplink, whose carrier
+  // is sealed until [`pamoja_lorawan_relay_wor_open`] reads it.
+  PamojaLorawanCarrier uplink;
+  // For an uplink, the address it names.
+  uint32_t dev_addr;
+  // For an uplink, the low sixteen bits of its frame counter.
+  uint16_t wfcnt;
+} PamojaLorawanWor;
+
+// What a relay tells an end device about itself in a WOR ACK, as TS011-1.0.1 table 14
+// codes each field.
+typedef struct {
+  // Symbols from detecting activity to receiving: 0 for 2, 1 for 4, 2 for 6, 3 for 8.
+  uint8_t cad_to_rx;
+  // Whether the relay forwards: 0 yes, 1 and 2 retry in 30 or 60 minutes, 3 disabled.
+  uint8_t forward;
+  // The data rate the relay forwards at.
+  uint8_t relay_data_rate;
+  // Crystal accuracy: 0 to 3 for 10 to 40 parts per million.
+  uint8_t xtal_accuracy;
+  // How often the relay scans: 0 to 5 for 1000, 500, 250, 100, 50 and 20 milliseconds.
+  uint8_t cad_periodicity;
+  // Milliseconds from the start of the scan to the end of the WOR preamble.
+  uint16_t t_offset_ms;
+} PamojaLorawanStateSync;
+
+// What a relay heard of an uplink it forwards.
+typedef struct {
+  // The WOR channel: 0 for the default, 1 for the second.
+  uint8_t wor_channel;
+  // The uplink's signal strength in dBm.
+  int16_t rssi_dbm;
+  // Its signal-to-noise ratio in dB.
+  int8_t snr_db;
+  // The data rate it arrived at.
+  uint8_t data_rate;
+} PamojaLorawanUplinkMetadata;
+
+// What an end device knows of a relay's scans once a WOR ACK has arrived.
+typedef struct {
+  // When the relay scanned, in the device's microseconds.
+  uint64_t reference_us;
+  // How often it scans, coded as in [`PamojaLorawanStateSync`].
+  uint8_t cad_periodicity;
+  // Its crystal accuracy, coded.
+  uint8_t relay_xtal;
+  // Its time to start receiving, coded.
+  uint8_t cad_to_rx;
+} PamojaLorawanSynchronization;
+
+// When a synchronized end device's next WOR frame goes out.
+typedef struct {
+  // When to start sending, in microseconds.
+  uint64_t start_us;
+  // The preamble length in symbols.
+  uint16_t preamble_symbols;
+} PamojaLorawanWorSlot;
 
 // One field of a message definition, as the `CRC_EXTRA` derivation reads it.
 //
@@ -8455,6 +8649,53 @@ PamojaStatus pamoja_lora_plan_channel_block(const PamojaLoraPlan *plan,
                                             uint16_t index,
                                             PamojaLoraChannelBlock *out_block);
 
+// Counts the plan's default relay channels.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `out_count` - set to how many there are.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success: none for a region with no relay parameters, such as
+// EU433.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_count` must be writable.
+PamojaStatus pamoja_lora_plan_relay_channel_count(const PamojaLoraPlan *plan, uint8_t *out_count);
+
+// Returns one of the plan's default relay channels, RP002-1.0.5 sections 3.4.9 to 3.13.9.
+//
+// # Arguments
+//
+// * `plan` - the plan to read.
+// * `index` - the channel index a relay configuration names, below the count
+//   [`pamoja_lora_plan_relay_channel_count`] reports.
+// * `out_channel` - set to the channel on success.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the index is past
+// the end.
+//
+// # Safety
+//
+// `plan` must be a live plan handle and `out_channel` must point at writable storage for
+// one [`PamojaLoraRelayChannel`].
+PamojaStatus pamoja_lora_plan_relay_channel(const PamojaLoraPlan *plan,
+                                            uint8_t index,
+                                            PamojaLoraRelayChannel *out_channel);
+
 // Returns one of the plan's sub-bands.
 //
 // # Arguments
@@ -8774,6 +9015,30 @@ PamojaStatus pamoja_lora_plan_builder_set_rx(PamojaLoraPlanBuilder *builder,
 PamojaStatus pamoja_lora_plan_builder_set_beacon(PamojaLoraPlanBuilder *builder,
                                                  const PamojaLoraBeacon *beacon,
                                                  uint8_t has_dwell_time_limit);
+
+// Appends the next default relay channel.
+//
+// # Arguments
+//
+// * `builder` - the builder to update.
+// * `channel` - the channel, whose position is the index a relay configuration names.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success. A data rate that is not one of the plan's LoRa downlink
+// rates is refused when the plan is built.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null, and
+// [`PamojaStatus::Closed`] if the builder was already built.
+//
+// # Safety
+//
+// `builder` must be a live builder handle and `channel` must point at one readable
+// [`PamojaLoraRelayChannel`].
+PamojaStatus pamoja_lora_plan_builder_add_relay_channel(PamojaLoraPlanBuilder *builder,
+                                                        const PamojaLoraRelayChannel *channel);
 
 // Sets whether the plan's network creates channels, and the numbering a dynamic plan reads
 // a type 1 channel list against.
@@ -10548,6 +10813,482 @@ PamojaStatus pamoja_lorawan_mac_encode(const PamojaLorawanMacCommand *command,
                                        uint8_t *out,
                                        uintptr_t capacity,
                                        uintptr_t *out_written);
+
+// Derives an end device's root relay session key from its network session key,
+// TS011-1.0.1 section 4.4.
+//
+// # Arguments
+//
+// * `network_key` - the network session key, `NwkSKey` under LoRaWAN 1.0.x.
+// * `network_key_len` - its length, which must be [`PAMOJA_LORAWAN_KEY_LEN`].
+// * `out_key` - receives the sixteen-byte root key.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer or a key of the wrong length.
+//
+// # Safety
+//
+// `network_key` must point to `network_key_len` readable bytes and `out_key` to sixteen
+// writable ones.
+PamojaStatus pamoja_lorawan_relay_root_wor_s_key(const uint8_t *network_key,
+                                                 uintptr_t network_key_len,
+                                                 uint8_t *out_key);
+
+// Derives an end device's wake-on-radio keys from its root relay session key, TS011-1.0.1
+// section 4.5.
+//
+// # Arguments
+//
+// * `root_key` - the root relay session key.
+// * `root_key_len` - its length, which must be [`PAMOJA_LORAWAN_KEY_LEN`].
+// * `dev_addr` - the device's address.
+// * `out_keys` - receives the keys.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer or a key of the wrong length.
+//
+// # Safety
+//
+// `root_key` must point to `root_key_len` readable bytes and `out_keys` must be writable.
+PamojaStatus pamoja_lorawan_relay_wor_keys(const uint8_t *root_key,
+                                           uintptr_t root_key_len,
+                                           uint32_t dev_addr,
+                                           PamojaLorawanWorKeys *out_keys);
+
+// Returns the root relay session key of a session's device.
+//
+// # Arguments
+//
+// * `session` - the session.
+// * `out_key` - receives the sixteen-byte key.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// `session` must be a live handle and `out_key` must point to sixteen writable bytes.
+PamojaStatus pamoja_lorawan_session_root_wor_s_key(const PamojaLorawanSession *session,
+                                                   uint8_t *out_key);
+
+// Returns the wake-on-radio keys of a session's device.
+//
+// # Arguments
+//
+// * `session` - the session.
+// * `out_keys` - receives the keys.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// `session` must be a live handle and `out_keys` must be writable.
+PamojaStatus pamoja_lorawan_session_wor_keys(const PamojaLorawanSession *session,
+                                             PamojaLorawanWorKeys *out_keys);
+
+// Builds the WOR frame ahead of a join request, TS011-1.0.1 section 5.3.1.
+//
+// # Arguments
+//
+// * `uplink` - where and how fast the join request follows.
+// * `out_frame` - receives the [`PAMOJA_LORAWAN_WOR_JOIN_REQUEST_LEN`] bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, and [`PamojaStatus::Codec`]
+// for a carrier the fields cannot hold.
+//
+// # Safety
+//
+// `uplink` must be readable and `out_frame` must point to
+// [`PAMOJA_LORAWAN_WOR_JOIN_REQUEST_LEN`] writable bytes.
+PamojaStatus pamoja_lorawan_relay_wor_join_request(const PamojaLorawanCarrier *uplink,
+                                                   uint8_t *out_frame);
+
+// Builds the WOR frame ahead of a Class A uplink, TS011-1.0.1 section 5.3.2.
+//
+// # Arguments
+//
+// * `keys` - the device's keys.
+// * `dev_addr` - its address.
+// * `wfcnt` - the WOR frame counter.
+// * `uplink` - where and how fast the uplink follows.
+// * `wor` - the carrier this WOR frame goes out on.
+// * `out_frame` - receives the [`PAMOJA_LORAWAN_WOR_UPLINK_LEN`] bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, and [`PamojaStatus::Codec`]
+// for a carrier the fields cannot hold.
+//
+// # Safety
+//
+// The pointers must be readable and `out_frame` must point to
+// [`PAMOJA_LORAWAN_WOR_UPLINK_LEN`] writable bytes.
+PamojaStatus pamoja_lorawan_relay_wor_uplink(const PamojaLorawanWorKeys *keys,
+                                             uint32_t dev_addr,
+                                             uint32_t wfcnt,
+                                             const PamojaLorawanCarrier *uplink,
+                                             const PamojaLorawanCarrier *wor,
+                                             uint8_t *out_frame);
+
+// Reads a WOR frame.
+//
+// # Arguments
+//
+// * `frame` - the bytes a relay received.
+// * `frame_len` - their length.
+// * `out_wor` - receives what the frame is.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, and [`PamojaStatus::Codec`]
+// for a reserved or proprietary type, or a length that is not the type's.
+//
+// # Safety
+//
+// `frame` must point to `frame_len` readable bytes and `out_wor` must be writable.
+PamojaStatus pamoja_lorawan_relay_wor_parse(const uint8_t *frame,
+                                            uintptr_t frame_len,
+                                            PamojaLorawanWor *out_wor);
+
+// Checks a WOR frame ahead of a Class A uplink and reads where the uplink follows.
+//
+// # Arguments
+//
+// * `frame` - the frame a relay received.
+// * `frame_len` - its length.
+// * `keys` - the keys of the device it names.
+// * `wfcnt` - the full 32-bit counter the relay takes it to carry.
+// * `wor` - the carrier it arrived on.
+// * `out_uplink` - receives where and how fast the uplink follows.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, [`PamojaStatus::Codec`] for
+// a frame that is not an uplink WOR, and [`PamojaStatus::Auth`] for a counter whose low bits
+// differ or an integrity code that does not verify.
+//
+// # Safety
+//
+// `frame` must point to `frame_len` readable bytes, and the other pointers must be readable
+// or writable as they are used.
+PamojaStatus pamoja_lorawan_relay_wor_open(const uint8_t *frame,
+                                           uintptr_t frame_len,
+                                           const PamojaLorawanWorKeys *keys,
+                                           uint32_t wfcnt,
+                                           const PamojaLorawanCarrier *wor,
+                                           PamojaLorawanCarrier *out_uplink);
+
+// Builds a relay's WOR ACK, TS011-1.0.1 section 6.2.
+//
+// # Arguments
+//
+// * `keys` - the end device's keys.
+// * `dev_addr` - its address.
+// * `wfcnt` - the 32-bit counter of the acknowledged WOR frame.
+// * `ack` - the carrier the acknowledgment goes out on.
+// * `uplink` - the carrier the WOR frame named for the uplink.
+// * `state` - what the relay tells the device.
+// * `out_frame` - receives the [`PAMOJA_LORAWAN_WOR_ACK_LEN`] bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer or a coded field out of range,
+// and [`PamojaStatus::Codec`] for a state or carrier the fields cannot hold.
+//
+// # Safety
+//
+// The pointers must be readable and `out_frame` must point to
+// [`PAMOJA_LORAWAN_WOR_ACK_LEN`] writable bytes.
+PamojaStatus pamoja_lorawan_relay_wor_ack(const PamojaLorawanWorKeys *keys,
+                                          uint32_t dev_addr,
+                                          uint32_t wfcnt,
+                                          const PamojaLorawanCarrier *ack,
+                                          const PamojaLorawanCarrier *uplink,
+                                          const PamojaLorawanStateSync *state,
+                                          uint8_t *out_frame);
+
+// Checks and reads a WOR ACK, TS011-1.0.1 section 6.2.
+//
+// # Arguments
+//
+// * `frame` - the acknowledgment an end device received.
+// * `frame_len` - its length.
+// * `keys` - the device's keys.
+// * `dev_addr` - its address.
+// * `wfcnt` - the counter of the WOR frame it sent.
+// * `ack` - the carrier the acknowledgment arrived on.
+// * `uplink` - the carrier the WOR frame named.
+// * `out_state` - receives what the relay said.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, [`PamojaStatus::Codec`] for
+// a frame of the wrong length or a reserved periodicity, and [`PamojaStatus::Auth`] when the
+// integrity code does not verify.
+//
+// # Safety
+//
+// `frame` must point to `frame_len` readable bytes, and the other pointers must be readable
+// or writable as they are used.
+PamojaStatus pamoja_lorawan_relay_wor_ack_open(const uint8_t *frame,
+                                               uintptr_t frame_len,
+                                               const PamojaLorawanWorKeys *keys,
+                                               uint32_t dev_addr,
+                                               uint32_t wfcnt,
+                                               const PamojaLorawanCarrier *ack,
+                                               const PamojaLorawanCarrier *uplink,
+                                               PamojaLorawanStateSync *out_state);
+
+// Writes an uplink a relay forwards, TS011-1.0.1 section 9.1.
+//
+// # Arguments
+//
+// * `metadata` - what the relay heard of it.
+// * `frequency_hz` - the frequency it arrived on.
+// * `phy_payload` - the end device's frame.
+// * `phy_payload_len` - its length.
+// * `out_payload` - receives the relay uplink's payload for port 226, released with
+//   [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer or a WOR channel past 1, and
+// [`PamojaStatus::Codec`] for a data rate or frequency the fields cannot hold.
+//
+// # Safety
+//
+// `metadata` must be readable, `phy_payload` must point to `phy_payload_len` readable bytes,
+// and `out_payload` must be writable.
+PamojaStatus pamoja_lorawan_relay_forward_encode(const PamojaLorawanUplinkMetadata *metadata,
+                                                 uint32_t frequency_hz,
+                                                 const uint8_t *phy_payload,
+                                                 uintptr_t phy_payload_len,
+                                                 PamojaBuffer **out_payload);
+
+// Reads an uplink a relay forwarded, TS011-1.0.1 section 9.1.
+//
+// # Arguments
+//
+// * `payload` - the relay uplink's payload on port 226.
+// * `payload_len` - its length.
+// * `out_metadata` - receives what the relay heard.
+// * `out_frequency_hz` - receives the frequency the uplink arrived on.
+// * `out_phy_payload` - receives the end device's frame, released with
+//   [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, and [`PamojaStatus::Codec`]
+// for a payload shorter than [`PAMOJA_LORAWAN_FORWARD_OVERHEAD`] or a reserved WOR channel.
+//
+// # Safety
+//
+// `payload` must point to `payload_len` readable bytes and the out pointers must be
+// writable.
+PamojaStatus pamoja_lorawan_relay_forward_parse(const uint8_t *payload,
+                                                uintptr_t payload_len,
+                                                PamojaLorawanUplinkMetadata *out_metadata,
+                                                uint32_t *out_frequency_hz,
+                                                PamojaBuffer **out_phy_payload);
+
+// Works out the WOR preamble of an end device that does not know when the relay scans,
+// TS011-1.0.1 section 5.2.
+//
+// # Arguments
+//
+// * `cad_periodicity` - how often the relay scans, coded 0 to 5.
+// * `symbol_us` - the symbol time of the WOR frame's data rate, in microseconds.
+// * `cad_to_rx` - the relay's time to start receiving, coded 0 to 3.
+// * `out_symbols` - receives the preamble length in symbols.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer or a code out of range.
+//
+// # Safety
+//
+// `out_symbols` must be writable.
+PamojaStatus pamoja_lorawan_relay_unsynchronized_preamble(uint8_t cad_periodicity,
+                                                          uint64_t symbol_us,
+                                                          uint8_t cad_to_rx,
+                                                          uint16_t *out_symbols);
+
+// Works out the offset a relay reports in a WOR ACK, TS011-1.0.1 appendix 1.
+//
+// # Arguments
+//
+// * `scan_start_us` - when the scan that detected the frame started.
+// * `wor_end_us` - when the frame finished arriving.
+// * `wor_airtime_us` - its time on air.
+// * `symbol_us` - the symbol time of its data rate.
+// * `out_offset_ms` - receives the offset in milliseconds.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, or an offset that is
+// negative or past the eleven bits a WOR ACK carries.
+//
+// # Safety
+//
+// `out_offset_ms` must be writable.
+PamojaStatus pamoja_lorawan_relay_t_offset_ms(uint64_t scan_start_us,
+                                              uint64_t wor_end_us,
+                                              uint64_t wor_airtime_us,
+                                              uint64_t symbol_us,
+                                              uint16_t *out_offset_ms);
+
+// Works out when a relay scanned from the WOR ACK that answered a frame.
+//
+// # Arguments
+//
+// * `wor_start_us` - when the acknowledged WOR frame started going out.
+// * `preamble_symbols` - its preamble length.
+// * `symbol_us` - its symbol time.
+// * `state` - what the acknowledgment said.
+// * `out_synchronization` - receives the synchronization.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer or a coded field out of
+// range.
+//
+// # Safety
+//
+// `state` must be readable and `out_synchronization` writable.
+PamojaStatus pamoja_lorawan_relay_synchronization(uint64_t wor_start_us,
+                                                  uint16_t preamble_symbols,
+                                                  uint64_t symbol_us,
+                                                  const PamojaLorawanStateSync *state,
+                                                  PamojaLorawanSynchronization *out_synchronization);
+
+// Picks the relay scan a synchronized end device aims its next WOR frame at, TS011-1.0.1
+// appendix 1.
+//
+// # Arguments
+//
+// * `synchronization` - what the device knows of the relay.
+// * `now_us` - the time.
+// * `device_xtal_ppm` - the device's crystal accuracy.
+// * `symbol_us` - the symbol time of the WOR frame's data rate.
+// * `other_channel` - `1` when the frame goes out on the relay's other channel.
+// * `out_slot` - receives when to send and with how long a preamble.
+// * `out_synchronized` - receives `1` with a slot, and `0` once the drift exceeds a period
+//   and the device should send an unsynchronized preamble instead.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer or a coded field out of
+// range.
+//
+// # Safety
+//
+// `synchronization` must be readable and the out pointers writable.
+PamojaStatus pamoja_lorawan_relay_next_wor(const PamojaLorawanSynchronization *synchronization,
+                                           uint64_t now_us,
+                                           uint32_t device_xtal_ppm,
+                                           uint64_t symbol_us,
+                                           uint8_t other_channel,
+                                           PamojaLorawanWorSlot *out_slot,
+                                           uint8_t *out_synchronized);
+
+// Reads the second channel a relay or end device configuration describes.
+//
+// # Arguments
+//
+// * `second_channel_index` - the coded index, 1 for a second channel.
+// * `data_rate` - its data rate.
+// * `ack_offset` - the coded acknowledgment offset, TS011-1.0.1 table 35.
+// * `frequency_hz` - its frequency.
+// * `out_channel` - receives the channel with its acknowledgment frequency.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, an index that is not 1, or a
+// reserved offset.
+//
+// # Safety
+//
+// `out_channel` must be writable.
+PamojaStatus pamoja_lorawan_relay_second_channel(uint8_t second_channel_index,
+                                                 uint8_t data_rate,
+                                                 uint8_t ack_offset,
+                                                 uint32_t frequency_hz,
+                                                 PamojaLoraRelayChannel *out_channel);
 
 // Returns the CRC-16/MCRF4XX checksum of a byte string.
 //

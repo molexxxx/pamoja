@@ -79,6 +79,24 @@ impl WorKeys {
         }
     }
 
+    /// Holds keys derived earlier, such as ones a relay keeps for an end device it trusts.
+    ///
+    /// # Arguments
+    ///
+    /// * `integrity` - `WorSIntKey`.
+    /// * `encryption` - `WorSEncKey`.
+    ///
+    /// # Returns
+    ///
+    /// The keys.
+    #[must_use]
+    pub const fn new(integrity: [u8; 16], encryption: [u8; 16]) -> WorKeys {
+        WorKeys {
+            integrity,
+            encryption,
+        }
+    }
+
     /// Returns the key a WOR frame's and a WOR ACK's integrity code is computed with,
     /// `WorSIntKey`.
     ///

@@ -31,7 +31,8 @@ use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
 use pamoja_lora::budget::{self, Decibels, Fcc15247, LinkBudget};
 use pamoja_lora::region::{
     ChannelBlock, ChannelPlan, ChannelPlanBuilder, Cn470Plan, DataRate, FixedChannelList,
-    JoinSequence, MaskControl, MaxPayload, Modulation, PlanKind, PowerReference, Region, SubBand,
+    JoinSequence, MaskControl, MaxPayload, Modulation, PlanKind, PowerReference, Region,
+    RelayChannel, SubBand,
 };
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::adr::{Backoff, Standing};
@@ -168,6 +169,7 @@ fn main() {
         "lorawan": lorawan(),
         "lorawanLink": lorawan_link(),
         "lorawanDevice": lorawan_device(),
+        "lorawanRelay": lorawan_relay(),
 
         "header": header(),
         "network": network(),
@@ -1287,6 +1289,15 @@ fn plan_vector(plan: &ChannelPlan<'_>) -> Value {
         "backoffFromSlowest": plan.next_backoff_data_rate(0),
         "channelFrequencies": channels,
         "subBands": sub_bands,
+        "relayChannels": plan
+            .relay_channels
+            .iter()
+            .map(|channel| json!({
+                "worFrequencyHz": channel.wor_frequency_hz,
+                "ackFrequencyHz": channel.ack_frequency_hz,
+                "dataRate": channel.data_rate,
+            }))
+            .collect::<Vec<_>>(),
         "rules": rules_vector(plan),
     })
 }
@@ -1547,6 +1558,7 @@ fn lora_regions() -> Value {
         .power_reference(PowerReference::Conducted {
             gain_allowance_db: 6,
         })
+        .relay_channel(RelayChannel::new(916_700_000, 918_300_000, 1))
         .build()
         .expect("a consistent private fixed plan");
 
@@ -2670,6 +2682,252 @@ fn mac_commands() -> Value {
             "direction": "downlink",
             "bytes": "0352",
         },
+        // The relay commands of TS011-1.0.1 section 10, each laid out by hand from its tables,
+        // with the fields a binding must read out of the three whose layout is easiest to get
+        // wrong: a join filter's prefix, which travels low byte first, a root key, and a
+        // notification's coded strength and ratio.
+        "relay": [
+            { "direction": "downlink", "cid": 0x40, "bytes": "40a92a287684" },
+            { "direction": "uplink", "cid": 0x40, "bytes": "402d" },
+            { "direction": "downlink", "cid": 0x41, "bytes": "41099a10d2ad84" },
+            { "direction": "uplink", "cid": 0x41, "bytes": "4109" },
+            { "direction": "downlink", "cid": 0x42, "bytes": "42a300efcdab",
+              "fields": { "index": 1, "action": 1, "euiLen": 3, "eui": "abcdef00000000000000000000000000" } },
+            { "direction": "downlink", "cid": 0x42, "bytes": "42af0146372878563412cdabefcdabefcdab" },
+            { "direction": "uplink", "cid": 0x42, "bytes": "4206" },
+            { "direction": "downlink", "cid": 0x43,
+              "bytes": "43038ada1b012607000000000102030405060708090a0b0c0d0e0f",
+              "fields": { "index": 3, "reloadRate": 10, "bucketSize": 2, "devAddr": 0x2601_1BDA, "wfcnt": 7,
+                          "rootWorSKey": "000102030405060708090a0b0c0d0e0f" } },
+            { "direction": "uplink", "cid": 0x43, "bytes": "43" },
+            { "direction": "downlink", "cid": 0x44, "bytes": "4413" },
+            { "direction": "uplink", "cid": 0x44, "bytes": "440104030201" },
+            { "direction": "downlink", "cid": 0x45, "bytes": "457f04813058" },
+            { "direction": "uplink", "cid": 0x45, "bytes": "45" },
+            { "direction": "uplink", "cid": 0x46, "bytes": "46da1b0126b90a",
+              "fields": { "devAddr": 0x2601_1BDA, "rssiDbm": -100, "snrDb": 5 } },
+        ],
+    })
+}
+
+/// A LoRaWAN relay, TS011-1.0.1: the keys, wake-on-radio frames and acknowledgments an end
+/// device and a relay exchange, an uplink a relay forwards, and the timing arithmetic.
+///
+/// The frames are the ones a line-for-line Python rendering of Semtech LoRa Basics Modem's
+/// `wake_on_radio.c` produces, the root key derivation is The Things Stack's own test vector,
+/// and the timing is TS011-1.0.1 appendix 1's worked example.
+fn lorawan_relay() -> Value {
+    use pamoja_lorawan::mac::relay_second_channel;
+    use pamoja_lorawan::relay::{
+        self, open_wor_ack, t_offset_ms, unsynchronized_preamble_symbols, wor_ack,
+        wor_join_request, wor_uplink, CadPeriodicity, CadToRx, Carrier, Forward, ForwardedUplink,
+        StateSync, Synchronization, UplinkMetadata, Wor, WorChannel, XtalAccuracy,
+    };
+
+    const TTN_NETWORK_KEY: [u8; 16] = [
+        0xCE, 0x07, 0xA0, 0x09, 0xA3, 0x97, 0x0A, 0xC0, 0x51, 0x9A, 0x09, 0x9E, 0xD5, 0x3E, 0x55,
+        0x0B,
+    ];
+    let session = Session::new(0x2601_1BDA, [0x2B; 16], [0x99; 16]);
+    let keys = session.wor_keys();
+    let carrier = |carrier: Carrier| json!({ "frequencyHz": carrier.frequency_hz, "dataRate": carrier.data_rate });
+    let wor = Carrier::new(865_100_000, 3);
+    let ack = Carrier::new(865_300_000, 3);
+    let uplink = Carrier::new(868_100_000, 5);
+
+    let wor_uplinks: Vec<Value> = [1u32, 0x0001_2345]
+        .into_iter()
+        .map(|wfcnt| {
+            let frame = wor_uplink(&keys, session.dev_addr(), wfcnt, uplink, wor).expect("it encodes");
+            let Ok(Wor::Uplink(sealed)) = Wor::parse(&frame) else {
+                panic!("an uplink WOR");
+            };
+            assert_eq!(sealed.open(&keys, wfcnt, wor), Ok(uplink));
+            json!({ "wfcnt": wfcnt, "uplink": carrier(uplink), "wor": carrier(wor), "frame": hex(&frame) })
+        })
+        .collect();
+
+    let state = StateSync {
+        cad_to_rx: CadToRx::Symbols4,
+        forward: Forward::Available,
+        relay_data_rate: 5,
+        xtal_accuracy: XtalAccuracy::Ppm30,
+        cad_periodicity: CadPeriodicity::Ms500,
+        t_offset_ms: 892,
+    };
+    let state_vector = |state: &StateSync| {
+        json!({
+            "cadToRx": format!("{:?}", state.cad_to_rx),
+            "forward": format!("{:?}", state.forward),
+            "relayDataRate": state.relay_data_rate,
+            "xtalAccuracy": format!("{:?}", state.xtal_accuracy),
+            "cadPeriodicity": format!("{:?}", state.cad_periodicity),
+            "tOffsetMs": state.t_offset_ms,
+        })
+    };
+    let limited = StateSync {
+        cad_to_rx: CadToRx::Symbols8,
+        forward: Forward::RetryIn60Minutes,
+        relay_data_rate: 2,
+        xtal_accuracy: XtalAccuracy::Ppm10,
+        cad_periodicity: CadPeriodicity::Ms20,
+        t_offset_ms: 17,
+    };
+    let wor_acks: Vec<Value> = [(1u32, state), (0x0001_2345, state), (9, limited)]
+        .into_iter()
+        .map(|(wfcnt, state)| {
+            let frame =
+                wor_ack(&keys, session.dev_addr(), wfcnt, ack, uplink, state).expect("it encodes");
+            assert_eq!(
+                open_wor_ack(&frame, &keys, session.dev_addr(), wfcnt, ack, uplink),
+                Ok(state)
+            );
+            json!({
+                "wfcnt": wfcnt,
+                "ack": carrier(ack),
+                "uplink": carrier(uplink),
+                "state": state_vector(&state),
+                "frame": hex(&frame),
+            })
+        })
+        .collect();
+
+    let join = Carrier::new(916_800_000, 0);
+    let forwarded = ForwardedUplink {
+        metadata: UplinkMetadata {
+            wor_channel: WorChannel::Second,
+            rssi_dbm: -100,
+            snr_db: 5,
+            data_rate: 5,
+        },
+        frequency_hz: 868_100_000,
+        phy_payload: &[0x40, 0x01, 0x02],
+    };
+    let mut forwarded_bytes = [0u8; 16];
+    let forwarded_len = forwarded.encode(&mut forwarded_bytes).expect("it encodes");
+    let clamped = ForwardedUplink {
+        metadata: UplinkMetadata {
+            wor_channel: WorChannel::Default,
+            rssi_dbm: -10,
+            snr_db: -30,
+            data_rate: 3,
+        },
+        frequency_hz: 916_800_000,
+        phy_payload: &[0x80; 12],
+    };
+    let mut clamped_bytes = [0u8; 32];
+    let clamped_len = clamped.encode(&mut clamped_bytes).expect("it encodes");
+    let metadata = |metadata: &UplinkMetadata| {
+        json!({
+            "worChannel": format!("{:?}", metadata.wor_channel),
+            "rssiDbm": metadata.rssi_dbm,
+            "snrDb": metadata.snr_db,
+            "dataRate": metadata.data_rate,
+        })
+    };
+
+    let sync = Synchronization::from_ack(1_234_000, 133, 8_192, &state);
+    let slots: Vec<Value> = [
+        (61_000_000u64, false),
+        (61_000_000, true),
+        (3_600_400_000, false),
+        (36_000_000_000, false),
+    ]
+    .into_iter()
+    .map(|(now_us, other_channel)| {
+        let slot = sync.next_wor(now_us, 20, 8_192, other_channel);
+        json!({
+            "nowUs": now_us,
+            "deviceXtalPpm": 20,
+            "symbolUs": 8_192,
+            "otherChannel": other_channel,
+            "slot": slot.map(|slot| json!({ "startUs": slot.start_us, "preambleSymbols": slot.preamble_symbols })),
+        })
+    })
+    .collect();
+
+    json!({
+        "source": "https://resources.lora-alliance.org/technical-specifications/ts011-1-0-1-relay",
+        "constants": {
+            "laFportRelay": relay::LA_FPORT_RELAY,
+            "trustedEdNumber": relay::TRUSTED_ED_NUMBER,
+            "worAttemptsWoAck": relay::WOR_ATTEMPTS_WO_ACK,
+            "worDataDelayUs": relay::WOR_DATA_DELAY_US,
+            "worAckDelayUs": relay::WOR_ACK_DELAY_US,
+            "relayFwdDelayUs": relay::RELAY_FWD_DELAY_US,
+            "rxrDelayUs": relay::RXR_DELAY_US,
+            "forwardOverhead": relay::FORWARD_OVERHEAD,
+            "minWorPreambleSymbols": relay::MIN_WOR_PREAMBLE_SYMBOLS,
+        },
+        "rootKey": {
+            "source": "https://github.com/TheThingsNetwork/lorawan-stack/blob/v3.34/pkg/crypto/relay_test.go",
+            "networkKey": hex(&TTN_NETWORK_KEY),
+            "rootWorSKey": hex(&relay::root_wor_s_key(&TTN_NETWORK_KEY)),
+        },
+        "session": {
+            "devAddr": session.dev_addr(),
+            "nwkSKey": hex(&[0x2B; 16]),
+            "appSKey": hex(&[0x99; 16]),
+            "rootWorSKey": hex(&session.root_wor_s_key()),
+            "integrity": hex(keys.integrity()),
+            "encryption": hex(keys.encryption()),
+        },
+        "worUplinks": wor_uplinks,
+        "worJoinRequest": {
+            "uplink": carrier(join),
+            "frame": hex(&wor_join_request(join).expect("it encodes")),
+        },
+        "worAcks": wor_acks,
+        "refusedWors": [
+            hex(&[0x02; relay::WOR_UPLINK_LEN]),
+            hex(&[0x0F; relay::WOR_UPLINK_LEN]),
+            "00052876",
+        ],
+        "forwarded": [
+            {
+                "metadata": metadata(&forwarded.metadata),
+                "frequencyHz": forwarded.frequency_hz,
+                "phyPayload": hex(forwarded.phy_payload),
+                "payload": hex(&forwarded_bytes[..forwarded_len]),
+            },
+            {
+                "metadata": metadata(&clamped.metadata),
+                "frequencyHz": clamped.frequency_hz,
+                "phyPayload": hex(clamped.phy_payload),
+                "payload": hex(&clamped_bytes[..clamped_len]),
+                "readBack": metadata(&ForwardedUplink::parse(&clamped_bytes[..clamped_len]).expect("it parses").metadata),
+            },
+        ],
+        "unsynchronizedPreambles": [
+            { "cadPeriodicity": "Ms500", "symbolUs": 8_192, "cadToRx": "Symbols4",
+              "symbols": unsynchronized_preamble_symbols(CadPeriodicity::Ms500, 8_192, CadToRx::Symbols4) },
+            { "cadPeriodicity": "Ms1000", "symbolUs": 8_192, "cadToRx": "Symbols8",
+              "symbols": unsynchronized_preamble_symbols(CadPeriodicity::Ms1000, 8_192, CadToRx::Symbols8) },
+        ],
+        "tOffsets": [
+            { "scanStartUs": 87_654_000u64, "worEndUs": 88_734_000u64, "worAirtimeUs": 321_536u64, "symbolUs": 8_192u64,
+              "offsetMs": t_offset_ms(87_654_000, 88_734_000, 321_536, 8_192) },
+            { "scanStartUs": 1_000_000u64, "worEndUs": 1_100_000u64, "worAirtimeUs": 400_000u64, "symbolUs": 8_192u64,
+              "offsetMs": t_offset_ms(1_000_000, 1_100_000, 400_000, 8_192) },
+        ],
+        "synchronization": {
+            "worStartUs": 1_234_000,
+            "preambleSymbols": 133,
+            "symbolUs": 8_192,
+            "state": state_vector(&state),
+            "referenceUs": sync.reference_us,
+            "slots": slots,
+        },
+        "secondChannels": [
+            { "index": 1, "dataRate": 3, "ackOffset": 1, "frequencyHz": 868_100_000u32,
+              "channel": relay_second_channel(1, 3, 1, 868_100_000).map(|channel| json!({
+                  "worFrequencyHz": channel.wor_frequency_hz,
+                  "ackFrequencyHz": channel.ack_frequency_hz,
+                  "dataRate": channel.data_rate,
+              })) },
+            { "index": 0, "dataRate": 3, "ackOffset": 1, "frequencyHz": 868_100_000u32, "channel": null },
+            { "index": 1, "dataRate": 3, "ackOffset": 6, "frequencyHz": 868_100_000u32, "channel": null },
+        ],
     })
 }
 

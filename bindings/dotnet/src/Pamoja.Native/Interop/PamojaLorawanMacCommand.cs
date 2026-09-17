@@ -112,4 +112,118 @@ public struct PamojaLorawanMacCommand
 
     /// <summary>The fraction of that second, in steps of one part in 256.</summary>
     public byte Fraction;
+
+    /// <summary>Whether a relay runs.</summary>
+    public byte Enabled;
+
+    /// <summary>How often a relay scans, as TS011-1.0.1 table 18 codes it.</summary>
+    public byte CadPeriodicity;
+
+    /// <summary>Which of the region's relay channels is a relay's default one.</summary>
+    public byte DefaultChannelIndex;
+
+    /// <summary>Whether a relay configuration sets a second channel, 1 for yes.</summary>
+    public byte SecondChannelIndex;
+
+    /// <summary>The second channel's data rate; its frequency is the frequency field.</summary>
+    public byte SecondChannelDataRate;
+
+    /// <summary>How far above its frequency the second channel is acknowledged, as table 35 codes it.</summary>
+    public byte SecondChannelAckOffset;
+
+    /// <summary>Whether the scan period was valid.</summary>
+    public byte CadPeriodicityAck;
+
+    /// <summary>Whether the default channel was valid.</summary>
+    public byte DefaultChannelIndexAck;
+
+    /// <summary>Whether the second channel index was valid.</summary>
+    public byte SecondChannelIndexAck;
+
+    /// <summary>Whether the second channel's data rate was valid.</summary>
+    public byte SecondChannelDataRateAck;
+
+    /// <summary>Whether its acknowledgment offset was valid.</summary>
+    public byte SecondChannelAckOffsetAck;
+
+    /// <summary>Whether its frequency was valid.</summary>
+    public byte SecondChannelFrequencyAck;
+
+    /// <summary>How an end device uses a relay, as TS011-1.0.1 table 40 codes it.</summary>
+    public byte RelayMode;
+
+    /// <summary>How many unanswered uplinks turn relaying on, as table 41 codes it.</summary>
+    public byte SmartEnableLevel;
+
+    /// <summary>How many WOR frames without an acknowledgment before an uplink goes anyway.</summary>
+    public byte BackOff;
+
+    /// <summary>What a join filter rule does, or whether a trusted end device is read or removed.</summary>
+    public byte Action;
+
+    /// <summary>How many leading bytes of JoinEUI and DevEUI a join filter rule matches.</summary>
+    public byte EuiLen;
+
+    /// <summary>Those bytes, most significant first, with the rest zero.</summary>
+    public PamojaId Eui;
+
+    /// <summary>Whether a join filter rule was one to create, change or remove.</summary>
+    public byte CombinedRulesAck;
+
+    /// <summary>Whether its length was valid.</summary>
+    public byte EuiLenAck;
+
+    /// <summary>Whether its action was valid.</summary>
+    public byte ActionAck;
+
+    /// <summary>Tokens a trusted end device earns an hour, 63 for no limit.</summary>
+    public byte ReloadRate;
+
+    /// <summary>Its bucket size multiplier, as TS011-1.0.1 table 55 codes it.</summary>
+    public byte BucketSize;
+
+    /// <summary>An end device address a relay command names.</summary>
+    public uint DevAddr;
+
+    /// <summary>A wake-on-radio frame counter.</summary>
+    public uint Wfcnt;
+
+    /// <summary>An end device's root relay session key.</summary>
+    public PamojaId RootWorSKey;
+
+    /// <summary>Whether a trusted list entry was in use.</summary>
+    public byte IndexAck;
+
+    /// <summary>What a forwarding limit command does to a relay's token counters, as table 63 codes it.</summary>
+    public byte ResetLimitCounters;
+
+    /// <summary>Join requests a relay forwards an hour, 127 for no limit.</summary>
+    public byte JoinRequestReloadRate;
+
+    /// <summary>New end device notifications a relay sends an hour.</summary>
+    public byte NotifyReloadRate;
+
+    /// <summary>Uplinks a relay forwards an hour across every trusted end device.</summary>
+    public byte GlobalUplinkReloadRate;
+
+    /// <summary>Every message a relay sends an hour.</summary>
+    public byte OverallReloadRate;
+
+    /// <summary>The join request bucket size multiplier.</summary>
+    public byte JoinRequestBucketSize;
+
+    /// <summary>The notification bucket size multiplier.</summary>
+    public byte NotifyBucketSize;
+
+    /// <summary>The global uplink bucket size multiplier.</summary>
+    public byte GlobalUplinkBucketSize;
+
+    /// <summary>The overall bucket size multiplier.</summary>
+    public byte OverallBucketSize;
+
+    /// <summary>The signal strength of a WOR frame a relay could not verify, in dBm.</summary>
+    public short RssiDbm;
+
+    /// <summary>Its signal-to-noise ratio, in dB.</summary>
+    public sbyte SnrDb;
 }

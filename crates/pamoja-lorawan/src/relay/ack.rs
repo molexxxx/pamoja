@@ -332,7 +332,13 @@ pub fn wor_ack(
     for at in 0..3 {
         frame[at] = plain[at] ^ stream[at];
     }
-    let mic = ack_mic(keys, dev_addr, wfcnt, uplink, [frame[0], frame[1], frame[2]])?;
+    let mic = ack_mic(
+        keys,
+        dev_addr,
+        wfcnt,
+        uplink,
+        [frame[0], frame[1], frame[2]],
+    )?;
     frame[3..7].copy_from_slice(&mic);
     Ok(frame)
 }

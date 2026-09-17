@@ -413,6 +413,15 @@ public readonly record struct LoraSubBand(
     uint DutyCyclePermille,
     sbyte MaxEirpDbm);
 
+/// <summary>A default channel of a LoRaWAN relay, TS011-1.0.1.</summary>
+/// <param name="WorFrequencyHz">Where an end device sends its wake-on-radio frame, in hertz.</param>
+/// <param name="AckFrequencyHz">Where the relay acknowledges it, in hertz.</param>
+/// <param name="DataRate">The data rate of both, numbered as the plan's downlink data rates.</param>
+public readonly record struct LoraRelayChannel(
+    uint WorFrequencyHz,
+    uint AckFrequencyHz,
+    byte DataRate);
+
 /// <summary>The Class B beacon settings of a plan.</summary>
 /// <param name="FrequencyHz">The frequency the beacon is broadcast on, in hertz.</param>
 /// <param name="PingSlotFrequencyHz">The default ping-slot frequency, in hertz.</param>
@@ -881,6 +890,26 @@ public sealed class LoraChannelPlan : IDisposable
             offset,
             run.AcceptStartHz + (run.AcceptStepHz * offset),
             run.Rx2StartHz + (run.Rx2StepHz * offset));
+    }
+
+    /// <summary>Returns the plan's default relay channels.</summary>
+    /// <returns>
+    /// The channels by the index a relay configuration names: RP002-1.0.5 sections 3.4.9 to
+    /// 3.13.9, and none where a region defines none.
+    /// </returns>
+    public IReadOnlyList<LoraRelayChannel> RelayChannels()
+    {
+        IntPtr plan = _handle.DangerousGetHandle();
+        Status.ThrowIfError(NativeMethods.pamoja_lora_plan_relay_channel_count(plan, out byte count));
+        List<LoraRelayChannel> channels = new(count);
+        for (byte index = 0; index < count; index++)
+        {
+            Status.ThrowIfError(
+                NativeMethods.pamoja_lora_plan_relay_channel(plan, index, out PamojaLoraRelayChannel channel));
+            channels.Add(new LoraRelayChannel(channel.WorFrequencyHz, channel.AckFrequencyHz, channel.DataRate));
+        }
+
+        return channels;
     }
 
     /// <summary>Returns the plan's sub-bands and the transmit limits inside each.</summary>

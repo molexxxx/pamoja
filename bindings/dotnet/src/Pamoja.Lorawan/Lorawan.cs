@@ -173,6 +173,23 @@ public sealed class LorawanSession : IDisposable
     /// <summary>The device address this session is bound to.</summary>
     public uint DevAddr => _handle.Use(NativeMethods.pamoja_lorawan_session_dev_addr);
 
+    /// <summary>Returns the root relay session key a network sends a relay for this device.</summary>
+    /// <returns>The 16-byte key, TS011-1.0.1 section 4.4.</returns>
+    public byte[] RootWorSKey() => _handle.Use(handle =>
+    {
+        byte[] root = new byte[16];
+        Status.ThrowIfError(NativeMethods.pamoja_lorawan_session_root_wor_s_key(handle, root));
+        return root;
+    });
+
+    /// <summary>Returns the keys this device's wake-on-radio frames are protected with.</summary>
+    /// <returns>The integrity and encryption keys, TS011-1.0.1 section 4.5.</returns>
+    public LorawanWorKeys WorKeys() => _handle.Use(handle =>
+    {
+        Status.ThrowIfError(NativeMethods.pamoja_lorawan_session_wor_keys(handle, out PamojaLorawanWorKeys keys));
+        return LorawanRelay.KeysOut(keys);
+    });
+
     /// <summary>Runs a native call against this session's handle, holding it open.</summary>
     /// <typeparam name="TResult">What the call returns.</typeparam>
     /// <param name="call">The call.</param>

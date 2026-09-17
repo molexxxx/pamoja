@@ -120,6 +120,27 @@ public sealed class LoraPlanBuilder : IDisposable
         return this;
     }
 
+    /// <summary>Adds the next default relay channel.</summary>
+    /// <param name="channel">The channel, whose position is the index a relay configuration names.</param>
+    /// <returns>This builder, so calls chain.</returns>
+    /// <exception cref="PamojaException">The builder has already been built.</exception>
+    /// <remarks>
+    /// A data rate that is not one of the plan's LoRa downlink rates is refused when the plan is
+    /// built.
+    /// </remarks>
+    public LoraPlanBuilder RelayChannel(LoraRelayChannel channel)
+    {
+        PamojaLoraRelayChannel native = new()
+        {
+            WorFrequencyHz = channel.WorFrequencyHz,
+            AckFrequencyHz = channel.AckFrequencyHz,
+            DataRate = channel.DataRate,
+        };
+        Status.ThrowIfError(
+            NativeMethods.pamoja_lora_plan_builder_add_relay_channel(Live(), in native));
+        return this;
+    }
+
     /// <summary>Adds the RX1 downlink data rates for the next uplink data rate.</summary>
     /// <param name="offsets">The downlink data rate at each offset, in order.</param>
     /// <param name="dwellLimited">Whether this extends the dwell-limited mapping.</param>

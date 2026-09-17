@@ -80,15 +80,18 @@ __all__ = [
     "LoraPlanRules",
     "LoraRadio",
     "LoraReception",
+    "LoraRelayChannel",
     "LoraSubBand",
     "LorawanBackoff",
     "LorawanBackoffStep",
+    "LorawanCarrier",
     "LorawanCfList",
     "LorawanChannel",
     "LorawanDelivery",
     "LorawanDevice",
     "LorawanDeviceSettings",
     "LorawanEndDevice",
+    "LorawanForwardedUplink",
     "LorawanGrant",
     "LorawanHeader",
     "LorawanHeard",
@@ -98,8 +101,14 @@ __all__ = [
     "LorawanNext",
     "LorawanRxData",
     "LorawanSession",
+    "LorawanStateSync",
+    "LorawanSynchronization",
     "LorawanTransmission",
+    "LorawanUplinkMetadata",
     "LorawanWindow",
+    "LorawanWor",
+    "LorawanWorKeys",
+    "LorawanWorSlot",
     "Manifest",
     "MavlinkFieldInfo",
     "MavlinkFrame",
@@ -305,6 +314,21 @@ __all__ = [
     "lorawan_mac_parse",
     "lorawan_parse_header",
     "lorawan_parse_join_request",
+    "lorawan_relay_forward_encode",
+    "lorawan_relay_forward_parse",
+    "lorawan_relay_next_wor",
+    "lorawan_relay_root_wor_s_key",
+    "lorawan_relay_second_channel",
+    "lorawan_relay_synchronization",
+    "lorawan_relay_t_offset_ms",
+    "lorawan_relay_unsynchronized_preamble",
+    "lorawan_relay_wor_ack",
+    "lorawan_relay_wor_ack_open",
+    "lorawan_relay_wor_join_request",
+    "lorawan_relay_wor_keys",
+    "lorawan_relay_wor_open",
+    "lorawan_relay_wor_parse",
+    "lorawan_relay_wor_uplink",
     "mavlink_crc16_mcrf4xx",
     "mavlink_known_crc_extra",
     "mavlink_known_messages",
@@ -1354,6 +1378,11 @@ class ChannelPlan:
         Returns the run of join channels a join channel belongs to, and where the accept
         and the second receive window fall for it, or `None` if no run holds it.
         """
+    def relay_channels(self) -> builtins.list[LoraRelayChannel]:
+        r"""
+        Returns the plan's default relay channels, by the index a relay configuration names:
+        RP002-1.0.5 sections 3.4.9 to 3.13.9, and none where a region defines none.
+        """
     def sub_bands(self) -> builtins.list[LoraSubBand]:
         r"""
         Returns the plan's sub-bands and the transmit limits inside each.
@@ -1423,6 +1452,12 @@ class ChannelPlanBuilder:
         
         A deployment on licensed spectrum gives its sub-band a duty cycle of
         `1000`, which reports as unrestricted.
+        """
+    def relay_channel(self, channel: LoraRelayChannel) -> None:
+        r"""
+        Adds the next default relay channel, whose position is the index a relay
+        configuration names. A data rate that is not one of the plan's LoRa downlink rates is
+        refused when the plan is built.
         """
     def rx1_row(self, offsets: typing.Sequence[builtins.int], dwell_limited: builtins.bool = False) -> None:
         r"""
@@ -3919,6 +3954,30 @@ class LoraReception:
         """
 
 @typing.final
+class LoraRelayChannel:
+    r"""
+    A default channel of a LoRaWAN relay, TS011-1.0.1.
+    """
+    @property
+    def wor_frequency_hz(self) -> builtins.int:
+        r"""
+        Where an end device sends its wake-on-radio frame, in hertz.
+        """
+    @property
+    def ack_frequency_hz(self) -> builtins.int:
+        r"""
+        Where the relay acknowledges it, in hertz.
+        """
+    @property
+    def data_rate(self) -> builtins.int:
+        r"""
+        The data rate of both, numbered as the plan's downlink data rates.
+        """
+    def __new__(cls, wor_frequency_hz: builtins.int, ack_frequency_hz: builtins.int, data_rate: builtins.int) -> LoraRelayChannel: ...
+    def __eq__(self, other: LoraRelayChannel) -> builtins.bool: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class LoraSubBand:
     r"""
     A slice of a band with its own transmit limits.
@@ -4015,6 +4074,25 @@ class LorawanBackoffStep:
         Re-enable the default channels and set the repetition count back to one before
         sending. Only TS001-1.0.4 takes this step.
         """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanCarrier:
+    r"""
+    Where a frame goes and how fast.
+    """
+    @property
+    def frequency_hz(self) -> builtins.int:
+        r"""
+        The frequency in hertz.
+        """
+    @property
+    def data_rate(self) -> builtins.int:
+        r"""
+        The data rate.
+        """
+    def __new__(cls, frequency_hz: builtins.int, data_rate: builtins.int) -> LorawanCarrier: ...
+    def __eq__(self, other: LorawanCarrier) -> builtins.bool: ...
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
@@ -4389,6 +4467,27 @@ class LorawanEndDevice:
         Puts a saved state back on a device made the same way, on the clock it woke to.
         """
     def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanForwardedUplink:
+    r"""
+    An end device's uplink as a relay forwards it on port 226.
+    """
+    @property
+    def metadata(self) -> LorawanUplinkMetadata:
+        r"""
+        What the relay heard of it.
+        """
+    @property
+    def frequency_hz(self) -> builtins.int:
+        r"""
+        The frequency it arrived on, in hertz.
+        """
+    @property
+    def phy_payload(self) -> builtins.list[builtins.int]:
+        r"""
+        The end device's frame.
+        """
 
 @typing.final
 class LorawanGrant:
@@ -4770,7 +4869,197 @@ class LorawanMacCommand:
         r"""
         The fraction of that second, in steps of one part in 256.
         """
-    def __new__(cls, cid: builtins.int, direction: builtins.str, margin: typing.Optional[builtins.int] = None, gateways: typing.Optional[builtins.int] = None, data_rate: typing.Optional[builtins.int] = None, tx_power: typing.Optional[builtins.int] = None, channel_mask: typing.Optional[builtins.int] = None, mask_control: typing.Optional[builtins.int] = None, transmissions: typing.Optional[builtins.int] = None, power_ack: typing.Optional[builtins.bool] = None, data_rate_ack: typing.Optional[builtins.bool] = None, channel_mask_ack: typing.Optional[builtins.bool] = None, max_duty_cycle: typing.Optional[builtins.int] = None, rx1_offset: typing.Optional[builtins.int] = None, rx2_data_rate: typing.Optional[builtins.int] = None, frequency_hz: typing.Optional[builtins.int] = None, rx1_offset_ack: typing.Optional[builtins.bool] = None, rx2_data_rate_ack: typing.Optional[builtins.bool] = None, channel_ack: typing.Optional[builtins.bool] = None, battery: typing.Optional[builtins.int] = None, snr_margin: typing.Optional[builtins.int] = None, index: typing.Optional[builtins.int] = None, max_data_rate: typing.Optional[builtins.int] = None, min_data_rate: typing.Optional[builtins.int] = None, data_rate_range_ok: typing.Optional[builtins.bool] = None, frequency_ok: typing.Optional[builtins.bool] = None, delay: typing.Optional[builtins.int] = None, max_eirp: typing.Optional[builtins.int] = None, uplink_dwell: typing.Optional[builtins.bool] = None, downlink_dwell: typing.Optional[builtins.bool] = None, uplink_frequency_exists: typing.Optional[builtins.bool] = None, seconds: typing.Optional[builtins.int] = None, fraction: typing.Optional[builtins.int] = None) -> LorawanMacCommand:
+    @property
+    def enabled(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether a relay runs.
+        """
+    @property
+    def cad_periodicity(self) -> typing.Optional[builtins.int]:
+        r"""
+        How often a relay scans, as TS011-1.0.1 table 18 codes it.
+        """
+    @property
+    def default_channel_index(self) -> typing.Optional[builtins.int]:
+        r"""
+        Which of the region's relay channels is a relay's default one.
+        """
+    @property
+    def second_channel_index(self) -> typing.Optional[builtins.int]:
+        r"""
+        Whether a relay configuration sets a second channel, 1 for yes.
+        """
+    @property
+    def second_channel_data_rate(self) -> typing.Optional[builtins.int]:
+        r"""
+        The second channel's data rate; its frequency is the frequency field.
+        """
+    @property
+    def second_channel_ack_offset(self) -> typing.Optional[builtins.int]:
+        r"""
+        How far above its frequency the second channel is acknowledged, as table 35 codes it.
+        """
+    @property
+    def cad_periodicity_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the scan period was valid.
+        """
+    @property
+    def default_channel_index_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the default channel was valid.
+        """
+    @property
+    def second_channel_index_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the second channel index was valid.
+        """
+    @property
+    def second_channel_data_rate_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the second channel's data rate was valid.
+        """
+    @property
+    def second_channel_ack_offset_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether its acknowledgment offset was valid.
+        """
+    @property
+    def second_channel_frequency_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether its frequency was valid.
+        """
+    @property
+    def relay_mode(self) -> typing.Optional[builtins.int]:
+        r"""
+        How an end device uses a relay, as TS011-1.0.1 table 40 codes it.
+        """
+    @property
+    def smart_enable_level(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many unanswered uplinks turn relaying on, as table 41 codes it.
+        """
+    @property
+    def back_off(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many WOR frames without an acknowledgment before an uplink goes anyway.
+        """
+    @property
+    def action(self) -> typing.Optional[builtins.int]:
+        r"""
+        What a join filter rule does, or whether a trusted end device is read or removed.
+        """
+    @property
+    def eui_len(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many leading bytes of JoinEUI and DevEUI a join filter rule matches.
+        """
+    @property
+    def eui(self) -> typing.Optional[builtins.list[builtins.int]]:
+        r"""
+        Those bytes, most significant first, with the rest zero.
+        """
+    @property
+    def combined_rules_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether a join filter rule was one to create, change or remove.
+        """
+    @property
+    def eui_len_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether its length was valid.
+        """
+    @property
+    def action_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether its action was valid.
+        """
+    @property
+    def reload_rate(self) -> typing.Optional[builtins.int]:
+        r"""
+        Tokens a trusted end device earns an hour, 63 for no limit.
+        """
+    @property
+    def bucket_size(self) -> typing.Optional[builtins.int]:
+        r"""
+        Its bucket size multiplier, as TS011-1.0.1 table 55 codes it.
+        """
+    @property
+    def dev_addr(self) -> typing.Optional[builtins.int]:
+        r"""
+        An end device address a relay command names.
+        """
+    @property
+    def wfcnt(self) -> typing.Optional[builtins.int]:
+        r"""
+        A wake-on-radio frame counter.
+        """
+    @property
+    def root_wor_s_key(self) -> typing.Optional[builtins.list[builtins.int]]:
+        r"""
+        An end device's root relay session key.
+        """
+    @property
+    def index_ack(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether a trusted list entry was in use.
+        """
+    @property
+    def reset_limit_counters(self) -> typing.Optional[builtins.int]:
+        r"""
+        What a forwarding limit command does to a relay's token counters, as table 63 codes it.
+        """
+    @property
+    def join_request_reload_rate(self) -> typing.Optional[builtins.int]:
+        r"""
+        Join requests a relay forwards an hour, 127 for no limit.
+        """
+    @property
+    def notify_reload_rate(self) -> typing.Optional[builtins.int]:
+        r"""
+        New end device notifications a relay sends an hour.
+        """
+    @property
+    def global_uplink_reload_rate(self) -> typing.Optional[builtins.int]:
+        r"""
+        Uplinks a relay forwards an hour across every trusted end device.
+        """
+    @property
+    def overall_reload_rate(self) -> typing.Optional[builtins.int]:
+        r"""
+        Every message a relay sends an hour.
+        """
+    @property
+    def join_request_bucket_size(self) -> typing.Optional[builtins.int]:
+        r"""
+        The join request bucket size multiplier.
+        """
+    @property
+    def notify_bucket_size(self) -> typing.Optional[builtins.int]:
+        r"""
+        The notification bucket size multiplier.
+        """
+    @property
+    def global_uplink_bucket_size(self) -> typing.Optional[builtins.int]:
+        r"""
+        The global uplink bucket size multiplier.
+        """
+    @property
+    def overall_bucket_size(self) -> typing.Optional[builtins.int]:
+        r"""
+        The overall bucket size multiplier.
+        """
+    @property
+    def rssi_dbm(self) -> typing.Optional[builtins.int]:
+        r"""
+        The signal strength of a WOR frame a relay could not verify, in dBm.
+        """
+    @property
+    def snr_db(self) -> typing.Optional[builtins.int]:
+        r"""
+        Its signal-to-noise ratio, in dB.
+        """
+    def __new__(cls, cid: builtins.int, direction: builtins.str, margin: typing.Optional[builtins.int] = None, gateways: typing.Optional[builtins.int] = None, data_rate: typing.Optional[builtins.int] = None, tx_power: typing.Optional[builtins.int] = None, channel_mask: typing.Optional[builtins.int] = None, mask_control: typing.Optional[builtins.int] = None, transmissions: typing.Optional[builtins.int] = None, power_ack: typing.Optional[builtins.bool] = None, data_rate_ack: typing.Optional[builtins.bool] = None, channel_mask_ack: typing.Optional[builtins.bool] = None, max_duty_cycle: typing.Optional[builtins.int] = None, rx1_offset: typing.Optional[builtins.int] = None, rx2_data_rate: typing.Optional[builtins.int] = None, frequency_hz: typing.Optional[builtins.int] = None, rx1_offset_ack: typing.Optional[builtins.bool] = None, rx2_data_rate_ack: typing.Optional[builtins.bool] = None, channel_ack: typing.Optional[builtins.bool] = None, battery: typing.Optional[builtins.int] = None, snr_margin: typing.Optional[builtins.int] = None, index: typing.Optional[builtins.int] = None, max_data_rate: typing.Optional[builtins.int] = None, min_data_rate: typing.Optional[builtins.int] = None, data_rate_range_ok: typing.Optional[builtins.bool] = None, frequency_ok: typing.Optional[builtins.bool] = None, delay: typing.Optional[builtins.int] = None, max_eirp: typing.Optional[builtins.int] = None, uplink_dwell: typing.Optional[builtins.bool] = None, downlink_dwell: typing.Optional[builtins.bool] = None, uplink_frequency_exists: typing.Optional[builtins.bool] = None, seconds: typing.Optional[builtins.int] = None, fraction: typing.Optional[builtins.int] = None, enabled: typing.Optional[builtins.bool] = None, cad_periodicity: typing.Optional[builtins.int] = None, default_channel_index: typing.Optional[builtins.int] = None, second_channel_index: typing.Optional[builtins.int] = None, second_channel_data_rate: typing.Optional[builtins.int] = None, second_channel_ack_offset: typing.Optional[builtins.int] = None, cad_periodicity_ack: typing.Optional[builtins.bool] = None, default_channel_index_ack: typing.Optional[builtins.bool] = None, second_channel_index_ack: typing.Optional[builtins.bool] = None, second_channel_data_rate_ack: typing.Optional[builtins.bool] = None, second_channel_ack_offset_ack: typing.Optional[builtins.bool] = None, second_channel_frequency_ack: typing.Optional[builtins.bool] = None, relay_mode: typing.Optional[builtins.int] = None, smart_enable_level: typing.Optional[builtins.int] = None, back_off: typing.Optional[builtins.int] = None, action: typing.Optional[builtins.int] = None, eui_len: typing.Optional[builtins.int] = None, eui: typing.Optional[typing.Sequence[builtins.int]] = None, combined_rules_ack: typing.Optional[builtins.bool] = None, eui_len_ack: typing.Optional[builtins.bool] = None, action_ack: typing.Optional[builtins.bool] = None, reload_rate: typing.Optional[builtins.int] = None, bucket_size: typing.Optional[builtins.int] = None, dev_addr: typing.Optional[builtins.int] = None, wfcnt: typing.Optional[builtins.int] = None, root_wor_s_key: typing.Optional[typing.Sequence[builtins.int]] = None, index_ack: typing.Optional[builtins.bool] = None, reset_limit_counters: typing.Optional[builtins.int] = None, join_request_reload_rate: typing.Optional[builtins.int] = None, notify_reload_rate: typing.Optional[builtins.int] = None, global_uplink_reload_rate: typing.Optional[builtins.int] = None, overall_reload_rate: typing.Optional[builtins.int] = None, join_request_bucket_size: typing.Optional[builtins.int] = None, notify_bucket_size: typing.Optional[builtins.int] = None, global_uplink_bucket_size: typing.Optional[builtins.int] = None, overall_bucket_size: typing.Optional[builtins.int] = None, rssi_dbm: typing.Optional[builtins.int] = None, snr_db: typing.Optional[builtins.int] = None) -> LorawanMacCommand:
         r"""
         Builds a command to write out.
         
@@ -4890,6 +5179,15 @@ class LorawanSession:
         
         `nwk_skey` authenticates frames and `app_skey` encrypts payloads.
         """
+    def root_wor_s_key(self) -> bytes:
+        r"""
+        The root relay session key a network sends a relay for this device, TS011-1.0.1
+        section 4.4.
+        """
+    def wor_keys(self) -> LorawanWorKeys:
+        r"""
+        The keys this device's wake-on-radio frames are protected with, section 4.5.
+        """
     def encode_uplink(self, fcnt: builtins.int, fport: builtins.int, payload: typing.Sequence[builtins.int], confirmed: builtins.bool = False, adr: builtins.bool = False, ack: builtins.bool = False, fopts: typing.Optional[typing.Sequence[builtins.int]] = None, adr_ack_req: builtins.bool = False) -> bytes:
         r"""
         Encodes an uplink, encrypting the payload and appending the MIC.
@@ -4907,6 +5205,72 @@ class LorawanSession:
         
         `fcnt` is the full 32-bit counter expected for this frame; its low 16 bits
         must match the counter the frame carries.
+        """
+
+@typing.final
+class LorawanStateSync:
+    r"""
+    What a relay tells an end device about itself in a WOR ACK, TS011-1.0.1 table 14.
+    """
+    @property
+    def cad_to_rx(self) -> builtins.str:
+        r"""
+        How long the relay takes to start receiving: `symbols2` to `symbols8`.
+        """
+    @property
+    def forward(self) -> builtins.str:
+        r"""
+        Whether it forwards: `available`, `retry_in_30_minutes`, `retry_in_60_minutes` or
+        `disabled`.
+        """
+    @property
+    def relay_data_rate(self) -> builtins.int:
+        r"""
+        The data rate it forwards at.
+        """
+    @property
+    def xtal_accuracy(self) -> builtins.str:
+        r"""
+        How accurate its crystal is: `ppm10` to `ppm40`.
+        """
+    @property
+    def cad_periodicity(self) -> builtins.str:
+        r"""
+        How often it scans: `ms1000`, `ms500`, `ms250`, `ms100`, `ms50` or `ms20`.
+        """
+    @property
+    def t_offset_ms(self) -> builtins.int:
+        r"""
+        Milliseconds from the start of the scan to the end of the WOR preamble.
+        """
+    def __new__(cls, cad_to_rx: builtins.str, forward: builtins.str, relay_data_rate: builtins.int, xtal_accuracy: builtins.str, cad_periodicity: builtins.str, t_offset_ms: builtins.int) -> LorawanStateSync: ...
+    def __eq__(self, other: LorawanStateSync) -> builtins.bool: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanSynchronization:
+    r"""
+    What an end device knows of a relay's scans once a WOR ACK has arrived.
+    """
+    @property
+    def reference_us(self) -> builtins.int:
+        r"""
+        When the relay scanned, in the device's microseconds.
+        """
+    @property
+    def cad_periodicity(self) -> builtins.str:
+        r"""
+        How often it scans.
+        """
+    @property
+    def relay_xtal(self) -> builtins.str:
+        r"""
+        How accurate its crystal is.
+        """
+    @property
+    def cad_to_rx(self) -> builtins.str:
+        r"""
+        How long it takes to start receiving.
         """
 
 @typing.final
@@ -4965,6 +5329,34 @@ class LorawanTransmission:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class LorawanUplinkMetadata:
+    r"""
+    What a relay heard of an uplink it forwards.
+    """
+    @property
+    def wor_channel(self) -> builtins.str:
+        r"""
+        The channel the WOR frame came in on: `default` or `second`.
+        """
+    @property
+    def rssi_dbm(self) -> builtins.int:
+        r"""
+        The uplink's signal strength in dBm, carried from -142 to -15.
+        """
+    @property
+    def snr_db(self) -> builtins.int:
+        r"""
+        Its signal-to-noise ratio in dB, carried from -20 to 11.
+        """
+    @property
+    def data_rate(self) -> builtins.int:
+        r"""
+        The data rate it arrived at.
+        """
+    def __new__(cls, wor_channel: builtins.str, rssi_dbm: builtins.int, snr_db: builtins.int, data_rate: builtins.int) -> LorawanUplinkMetadata: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class LorawanWindow:
     r"""
     When and where to listen for a downlink.
@@ -4991,6 +5383,71 @@ class LorawanWindow:
         112 has for a downlink.
         """
     def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanWor:
+    r"""
+    A wake-on-radio frame, as a relay reads it.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        `join_request` or `uplink`.
+        """
+    @property
+    def uplink(self) -> typing.Optional[LorawanCarrier]:
+        r"""
+        Where and how fast a join request follows; an uplink's carrier stays sealed until
+        `lorawan_relay_wor_open` reads it.
+        """
+    @property
+    def dev_addr(self) -> typing.Optional[builtins.int]:
+        r"""
+        The address an uplink WOR names.
+        """
+    @property
+    def wfcnt(self) -> typing.Optional[builtins.int]:
+        r"""
+        The low sixteen bits of its frame counter.
+        """
+
+@typing.final
+class LorawanWorKeys:
+    r"""
+    The integrity and encryption keys of one end device's wake-on-radio frames, TS011-1.0.1.
+    """
+    @property
+    def integrity(self) -> builtins.list[builtins.int]:
+        r"""
+        `WorSIntKey`, 16 bytes.
+        """
+    @property
+    def encryption(self) -> builtins.list[builtins.int]:
+        r"""
+        `WorSEncKey`, 16 bytes.
+        """
+    def __new__(cls, integrity: typing.Sequence[builtins.int], encryption: typing.Sequence[builtins.int]) -> LorawanWorKeys:
+        r"""
+        Holds keys derived earlier, such as ones a relay keeps for an end device it trusts.
+        """
+    def __eq__(self, other: LorawanWorKeys) -> builtins.bool: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanWorSlot:
+    r"""
+    When a synchronized end device's next WOR frame goes out.
+    """
+    @property
+    def start_us(self) -> builtins.int:
+        r"""
+        When to start sending, in microseconds.
+        """
+    @property
+    def preamble_symbols(self) -> builtins.int:
+        r"""
+        The preamble length in symbols.
+        """
 
 @typing.final
 class Manifest:
@@ -8332,6 +8789,85 @@ def lorawan_parse_header(bytes: typing.Sequence[builtins.int]) -> LorawanHeader:
 def lorawan_parse_join_request(bytes: typing.Sequence[builtins.int], app_key: typing.Sequence[builtins.int]) -> LorawanJoinRequest:
     r"""
     Verifies a join-request and reads the identifiers out of it.
+    """
+
+def lorawan_relay_forward_encode(metadata: LorawanUplinkMetadata, frequency_hz: builtins.int, phy_payload: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Writes an uplink a relay forwards on port 226, section 9.1.
+    """
+
+def lorawan_relay_forward_parse(payload: typing.Sequence[builtins.int]) -> LorawanForwardedUplink:
+    r"""
+    Reads an uplink a relay forwarded, section 9.1.
+    """
+
+def lorawan_relay_next_wor(synchronization: LorawanSynchronization, now_us: builtins.int, device_xtal_ppm: builtins.int, symbol_us: builtins.int, other_channel: builtins.bool = False) -> typing.Optional[LorawanWorSlot]:
+    r"""
+    Picks the relay scan a synchronized end device aims its next WOR frame at, appendix 1,
+    or `None` once the drift exceeds a period.
+    """
+
+def lorawan_relay_root_wor_s_key(network_key: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Derives an end device's root relay session key from its network session key,
+    TS011-1.0.1 section 4.4.
+    """
+
+def lorawan_relay_second_channel(second_channel_index: builtins.int, data_rate: builtins.int, ack_offset: builtins.int, frequency_hz: builtins.int) -> typing.Optional[LoraRelayChannel]:
+    r"""
+    Reads the second channel a relay or end device configuration describes, or `None` when
+    the index is not 1 or the offset is reserved.
+    """
+
+def lorawan_relay_synchronization(wor_start_us: builtins.int, preamble_symbols: builtins.int, symbol_us: builtins.int, state: LorawanStateSync) -> LorawanSynchronization:
+    r"""
+    Works out when a relay scanned from the WOR ACK that answered a frame.
+    """
+
+def lorawan_relay_t_offset_ms(scan_start_us: builtins.int, wor_end_us: builtins.int, wor_airtime_us: builtins.int, symbol_us: builtins.int) -> typing.Optional[builtins.int]:
+    r"""
+    The offset a relay reports in a WOR ACK, appendix 1, or `None` when it is negative or
+    past eleven bits.
+    """
+
+def lorawan_relay_unsynchronized_preamble(cad_periodicity: builtins.str, symbol_us: builtins.int, cad_to_rx: builtins.str) -> builtins.int:
+    r"""
+    The WOR preamble of an end device that does not know when the relay scans, section 5.2.
+    """
+
+def lorawan_relay_wor_ack(keys: LorawanWorKeys, dev_addr: builtins.int, wfcnt: builtins.int, ack: LorawanCarrier, uplink: LorawanCarrier, state: LorawanStateSync) -> bytes:
+    r"""
+    Builds a relay's WOR ACK, section 6.2.
+    """
+
+def lorawan_relay_wor_ack_open(frame: typing.Sequence[builtins.int], keys: LorawanWorKeys, dev_addr: builtins.int, wfcnt: builtins.int, ack: LorawanCarrier, uplink: LorawanCarrier) -> LorawanStateSync:
+    r"""
+    Checks and reads a WOR ACK, section 6.2.
+    """
+
+def lorawan_relay_wor_join_request(uplink: LorawanCarrier) -> bytes:
+    r"""
+    Builds the WOR frame ahead of a join request, section 5.3.1.
+    """
+
+def lorawan_relay_wor_keys(root_key: typing.Sequence[builtins.int], dev_addr: builtins.int) -> LorawanWorKeys:
+    r"""
+    Derives an end device's wake-on-radio keys from its root relay session key, section 4.5.
+    """
+
+def lorawan_relay_wor_open(frame: typing.Sequence[builtins.int], keys: LorawanWorKeys, wfcnt: builtins.int, wor: LorawanCarrier) -> LorawanCarrier:
+    r"""
+    Checks a WOR frame ahead of a Class A uplink and reads where the uplink follows.
+    """
+
+def lorawan_relay_wor_parse(frame: typing.Sequence[builtins.int]) -> LorawanWor:
+    r"""
+    Reads a WOR frame, leaving an uplink's carrier sealed.
+    """
+
+def lorawan_relay_wor_uplink(keys: LorawanWorKeys, dev_addr: builtins.int, wfcnt: builtins.int, uplink: LorawanCarrier, wor: LorawanCarrier) -> bytes:
+    r"""
+    Builds the WOR frame ahead of a Class A uplink, section 5.3.2.
     """
 
 def mavlink_crc16_mcrf4xx(data: typing.Sequence[builtins.int]) -> builtins.int:

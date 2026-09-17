@@ -6,6 +6,7 @@ Rust, Node, and .NET.
 """
 
 import json
+import re
 import pathlib
 
 import pytest
@@ -15,6 +16,7 @@ from pamoja.kit import Calibration, Coordinate, Depletion, Geofence, Pid, Smooth
 from pamoja.security import DeviceIdentity, verify
 from pamoja import actuators, audit, can, gateway, gpio, lora, lorawan, mesh, modbus, power, profile, radios, ros2, routing, sensors, serial, session, telemetry, update, zenoh
 from pamoja.core import PamojaError
+from pamoja.lorawan import relay
 from pamoja.kit import WINDOW_CAPACITY, Anomaly, Median, Trend, Window
 
 VECTORS = json.loads(
@@ -623,6 +625,16 @@ def _check_plan(plan, want: dict) -> None:
         assert band.duty_cycle_permille == entry["dutyCyclePermille"], where
         assert band.max_eirp_dbm == entry["maxEirpDbm"], where
 
+    relay_channels = [
+        {
+            "worFrequencyHz": channel.wor_frequency_hz,
+            "ackFrequencyHz": channel.ack_frequency_hz,
+            "dataRate": channel.data_rate,
+        }
+        for channel in plan.relay_channels()
+    ]
+    assert relay_channels == want["relayChannels"], where
+
     _check_rules(plan, want["rules"], where)
 
 
@@ -1115,6 +1127,7 @@ def test_a_private_fixed_plan_matches_the_same_vectors():
         builder.join_sequence("sweep")
     builder.join_sequence("octet_passes")
     builder.power_reference("conducted", 6)
+    builder.relay_channel(lora.LoraRelayChannel(916_700_000, 918_300_000, 1))
 
     _check_plan(builder.build(), VECTORS["loraRegions"]["customFixed"])
 
@@ -1911,6 +1924,154 @@ def _run_device_step(device, step: dict):
     raise AssertionError(f"no step {call}")
 
 
+_RELAY_NAMES = {
+    "Ms1000": "ms1000",
+    "Ms500": "ms500",
+    "Ms250": "ms250",
+    "Ms100": "ms100",
+    "Ms50": "ms50",
+    "Ms20": "ms20",
+    "Symbols2": "symbols2",
+    "Symbols4": "symbols4",
+    "Symbols6": "symbols6",
+    "Symbols8": "symbols8",
+    "Ppm10": "ppm10",
+    "Ppm20": "ppm20",
+    "Ppm30": "ppm30",
+    "Ppm40": "ppm40",
+    "Available": "available",
+    "RetryIn30Minutes": "retry_in_30_minutes",
+    "RetryIn60Minutes": "retry_in_60_minutes",
+    "Disabled": "disabled",
+    "Default": "default",
+    "Second": "second",
+}
+
+
+def _relay_state(entry: dict):
+    return relay.state_sync(
+        _RELAY_NAMES[entry["cadToRx"]],
+        _RELAY_NAMES[entry["forward"]],
+        entry["relayDataRate"],
+        _RELAY_NAMES[entry["xtalAccuracy"]],
+        _RELAY_NAMES[entry["cadPeriodicity"]],
+        entry["tOffsetMs"],
+    )
+
+
+def _relay_carrier(entry: dict):
+    return relay.Carrier(entry["frequencyHz"], entry["dataRate"])
+
+
+def test_lorawan_relay_vectors_match():
+    """The Things Stack's root key, Basics Modem's WOR frames, and TS011-1.0.1 appendix 1."""
+    vector = VECTORS["lorawanRelay"]
+    assert {
+        "laFportRelay": relay.LA_FPORT_RELAY,
+        "trustedEdNumber": relay.TRUSTED_ED_NUMBER,
+        "worAttemptsWoAck": relay.WOR_ATTEMPTS_WO_ACK,
+        "worDataDelayUs": relay.WOR_DATA_DELAY_US,
+        "worAckDelayUs": relay.WOR_ACK_DELAY_US,
+        "relayFwdDelayUs": relay.RELAY_FWD_DELAY_US,
+        "rxrDelayUs": relay.RXR_DELAY_US,
+        "forwardOverhead": relay.FORWARD_OVERHEAD,
+        "minWorPreambleSymbols": relay.MIN_WOR_PREAMBLE_SYMBOLS,
+    } == vector["constants"]
+
+    assert relay.root_wor_s_key(unhex(vector["rootKey"]["networkKey"])).hex() == vector["rootKey"]["rootWorSKey"]
+    own = vector["session"]
+    device = lorawan.session(own["devAddr"], unhex(own["nwkSKey"]), unhex(own["appSKey"]))
+    assert device.root_wor_s_key().hex() == own["rootWorSKey"]
+    keys = device.wor_keys()
+    assert keys.integrity.hex() == own["integrity"]
+    assert keys.encryption.hex() == own["encryption"]
+    assert relay.wor_keys(unhex(own["rootWorSKey"]), own["devAddr"]) == keys
+
+    for entry in vector["worUplinks"]:
+        uplink, wor = _relay_carrier(entry["uplink"]), _relay_carrier(entry["wor"])
+        frame = relay.wor_uplink(keys, own["devAddr"], entry["wfcnt"], uplink, wor)
+        assert frame.hex() == entry["frame"]
+        read = relay.parse_wor(frame)
+        assert (read.kind, read.dev_addr, read.wfcnt, read.uplink) == (
+            relay.WorKind.UPLINK,
+            own["devAddr"],
+            entry["wfcnt"] & 0xFFFF,
+            None,
+        )
+        assert relay.open_wor(frame, keys, entry["wfcnt"], wor) == uplink
+        with pytest.raises(PamojaError):
+            relay.open_wor(frame, keys, entry["wfcnt"] + 0x10000, wor)
+    join = vector["worJoinRequest"]
+    frame = relay.wor_join_request(_relay_carrier(join["uplink"]))
+    assert frame.hex() == join["frame"]
+    read = relay.parse_wor(frame)
+    assert (read.kind, read.uplink) == (relay.WorKind.JOIN_REQUEST, _relay_carrier(join["uplink"]))
+    for refused in vector["refusedWors"]:
+        with pytest.raises(PamojaError):
+            relay.parse_wor(unhex(refused))
+
+    for entry in vector["worAcks"]:
+        ack, uplink = _relay_carrier(entry["ack"]), _relay_carrier(entry["uplink"])
+        state = _relay_state(entry["state"])
+        frame = relay.wor_ack(keys, own["devAddr"], entry["wfcnt"], ack, uplink, state)
+        assert frame.hex() == entry["frame"]
+        assert relay.open_wor_ack(frame, keys, own["devAddr"], entry["wfcnt"], ack, uplink) == state
+
+    for entry in vector["forwarded"]:
+        metadata = entry["metadata"]
+        payload = relay.encode_forward(
+            relay.UplinkMetadata(
+                _RELAY_NAMES[metadata["worChannel"]], metadata["rssiDbm"], metadata["snrDb"], metadata["dataRate"]
+            ),
+            entry["frequencyHz"],
+            unhex(entry["phyPayload"]),
+        )
+        assert payload.hex() == entry["payload"]
+        read = relay.parse_forward(payload)
+        back = entry.get("readBack", metadata)
+        assert (read.metadata.wor_channel, read.metadata.rssi_dbm, read.metadata.snr_db, read.metadata.data_rate) == (
+            _RELAY_NAMES[back["worChannel"]],
+            back["rssiDbm"],
+            back["snrDb"],
+            back["dataRate"],
+        )
+        assert (read.frequency_hz, read.phy_payload.hex()) == (entry["frequencyHz"], entry["phyPayload"])
+
+    for entry in vector["unsynchronizedPreambles"]:
+        assert (
+            relay.unsynchronized_preamble(
+                _RELAY_NAMES[entry["cadPeriodicity"]], entry["symbolUs"], _RELAY_NAMES[entry["cadToRx"]]
+            )
+            == entry["symbols"]
+        )
+    for entry in vector["tOffsets"]:
+        assert (
+            relay.t_offset_ms(entry["scanStartUs"], entry["worEndUs"], entry["worAirtimeUs"], entry["symbolUs"])
+            == entry["offsetMs"]
+        )
+    timing = vector["synchronization"]
+    sync = relay.synchronization(
+        timing["worStartUs"], timing["preambleSymbols"], timing["symbolUs"], _relay_state(timing["state"])
+    )
+    assert sync.reference_us == timing["referenceUs"]
+    for entry in timing["slots"]:
+        slot = relay.next_wor(sync, entry["nowUs"], entry["deviceXtalPpm"], entry["symbolUs"], entry["otherChannel"])
+        got = None if slot is None else {"startUs": slot.start_us, "preambleSymbols": slot.preamble_symbols}
+        assert got == entry["slot"], entry["nowUs"]
+    for entry in vector["secondChannels"]:
+        channel = relay.second_channel(entry["index"], entry["dataRate"], entry["ackOffset"], entry["frequencyHz"])
+        got = (
+            None
+            if channel is None
+            else {
+                "worFrequencyHz": channel.wor_frequency_hz,
+                "ackFrequencyHz": channel.ack_frequency_hz,
+                "dataRate": channel.data_rate,
+            }
+        )
+        assert got == entry["channel"]
+
+
 def test_lorawan_device_vectors_match():
     vector = VECTORS["lorawanDevice"]
     assert lorawan.SAVED_LEN == vector["savedLen"]
@@ -2637,3 +2798,13 @@ def test_lorawan_mac_command_vectors_match():
     truncated = vector["truncated"]
     read = lorawan.mac_parse(facing(truncated["direction"]), unhex(truncated["bytes"]))
     assert read == []
+
+    for entry in vector["relay"]:
+        raw = unhex(entry["bytes"])
+        read = lorawan.mac_parse(facing(entry["direction"]), raw)
+        assert len(read) == 1, entry["bytes"]
+        assert read[0].cid == entry["cid"], entry["bytes"]
+        assert read[0].encode() == raw, entry["bytes"]
+        for field, want in entry.get("fields", {}).items():
+            got = getattr(read[0], re.sub(r"(?<!^)(?=[A-Z])", "_", field).lower())
+            assert (got.hex() if isinstance(got, bytes) else got) == want, (field, entry["bytes"])

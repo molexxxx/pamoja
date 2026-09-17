@@ -56,7 +56,11 @@ fn the_keys_come_from_the_network_key_and_the_address() {
         keys.encryption().to_vec(),
         hex("1b49233a8f7216045c5193442bf7f88b")
     );
-    assert_eq!(format!("{keys:?}"), "WorKeys { .. }", "keys are not printed");
+    assert_eq!(
+        format!("{keys:?}"),
+        "WorKeys { .. }",
+        "keys are not printed"
+    );
 }
 
 #[test]

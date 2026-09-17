@@ -20,7 +20,7 @@ use pamoja_lora::region::{
     Beacon as CoreBeacon, ChannelBlock as CoreBlock, ChannelPlan, ChannelPlanBuilder, Cn470Plan,
     DataRate as CoreDataRate, FixedChannelList, JoinSequence, MaskControl,
     MaxPayload as CoreMaxPayload, Modulation, OwnedChannelPlan, PayloadTable as CorePayloadTable,
-    PlanKind, PowerReference, Region, SubBand as CoreSubBand,
+    PlanKind, PowerReference, Region, RelayChannel as CoreRelayChannel, SubBand as CoreSubBand,
 };
 
 use crate::lora::LoraLink;
@@ -464,6 +464,17 @@ pub struct LoraChannelBlock {
     pub max_data_rate: u8,
 }
 
+/// A default channel of a LoRaWAN relay, TS011-1.0.1.
+#[napi(object)]
+pub struct LoraRelayChannel {
+    /// Where an end device sends its wake-on-radio frame, in hertz.
+    pub wor_frequency_hz: u32,
+    /// Where the relay acknowledges it, in hertz.
+    pub ack_frequency_hz: u32,
+    /// The data rate of both, numbered as the plan's downlink data rates.
+    pub data_rate: u8,
+}
+
 /// A slice of a band with its own transmit limits.
 #[napi(object)]
 pub struct LoraSubBand {
@@ -875,6 +886,22 @@ impl LoraChannelPlan {
         })
     }
 
+    /// Returns the plan's default relay channels, by the index a relay configuration names:
+    /// RP002-1.0.5 sections 3.4.9 to 3.13.9, and none where a region defines none.
+    #[napi]
+    pub fn relay_channels(&self) -> Vec<LoraRelayChannel> {
+        self.inner.with_plan(|plan| {
+            plan.relay_channels
+                .iter()
+                .map(|channel| LoraRelayChannel {
+                    wor_frequency_hz: channel.wor_frequency_hz,
+                    ack_frequency_hz: channel.ack_frequency_hz,
+                    data_rate: channel.data_rate,
+                })
+                .collect()
+        })
+    }
+
     /// Returns one of the plan's sub-bands, or null past the end.
     #[napi]
     pub fn sub_band(&self, index: u16) -> Option<LoraSubBand> {
@@ -1067,6 +1094,19 @@ impl LoraPlanBuilder {
             band.max_eirp_dbm,
         );
         self.update(|builder| builder.sub_band(entry))
+    }
+
+    /// Appends the next default relay channel, whose position is the index a relay
+    /// configuration names. A data rate that is not one of the plan's LoRa downlink rates is
+    /// refused when the plan is built.
+    #[napi]
+    pub fn relay_channel(&mut self, channel: LoraRelayChannel) -> Result<()> {
+        let entry = CoreRelayChannel::new(
+            channel.wor_frequency_hz,
+            channel.ack_frequency_hz,
+            channel.data_rate,
+        );
+        self.update(|builder| builder.relay_channel(entry))
     }
 
     /// Appends the RX1 downlink data rates for the next uplink data rate.

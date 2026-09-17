@@ -21,7 +21,7 @@ What a row's second heading claims:
 | Round trip only | The code against itself, with no external vector to pin against |
 
 <!-- table: standards -->
-<p class="source">50 standards registered, 29 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
+<p class="source">51 standards registered, 30 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
 
 ## Cryptography
 
@@ -379,7 +379,7 @@ Parts decoded byte for byte, each from the manufacturer's own datasheet.
 
 Reaching a network that is not there, and the rules a regulator sets for doing it.
 
-<nav class="hw-index" aria-label="Radio, mesh and gateways index"><a href="#ts001-1-0-4">TS001-1.0.4</a><a href="#rp002-1-0-5">RP002-1.0.5</a><a href="#itu-r-p525-5">ITU-R P.525-5</a><a href="#itu-r-p526-16">ITU-R P.526-16</a><a href="#an1200-22">AN1200.22</a><a href="#sx126x">SX1261/SX1262 datasheet, Rev 2.2</a><a href="#sx127x">SX1276/77/78/79 datasheet, Rev 7</a><a href="#packet-forwarder">PROTOCOL.TXT</a><a href="#basics-station">LoRa Basics Station 2.0.6</a><a href="#crc-16-ibm-3740">CRC-16/IBM-3740</a><a href="#cfr-15-247">47 CFR 15.247</a><a href="#en-300-220-2">ETSI EN 300 220-2 V3.3.1</a><a href="#erc-70-03">CEPT ERC Recommendation 70-03</a><a href="#itu-t-k27">ITU-T K.27</a></nav>
+<nav class="hw-index" aria-label="Radio, mesh and gateways index"><a href="#ts001-1-0-4">TS001-1.0.4</a><a href="#rp002-1-0-5">RP002-1.0.5</a><a href="#ts011-1-0-1">TS011-1.0.1</a><a href="#itu-r-p525-5">ITU-R P.525-5</a><a href="#itu-r-p526-16">ITU-R P.526-16</a><a href="#an1200-22">AN1200.22</a><a href="#sx126x">SX1261/SX1262 datasheet, Rev 2.2</a><a href="#sx127x">SX1276/77/78/79 datasheet, Rev 7</a><a href="#packet-forwarder">PROTOCOL.TXT</a><a href="#basics-station">LoRa Basics Station 2.0.6</a><a href="#crc-16-ibm-3740">CRC-16/IBM-3740</a><a href="#cfr-15-247">47 CFR 15.247</a><a href="#en-300-220-2">ETSI EN 300 220-2 V3.3.1</a><a href="#erc-70-03">CEPT ERC Recommendation 70-03</a><a href="#itu-t-k27">ITU-T K.27</a></nav>
 <div class="hw-cards">
 <article class="hw-card" aria-labelledby="ts001-1-0-4">
 <header class="hw-head">
@@ -405,6 +405,19 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 <p class="hw-summary">Each test is named after the table it checks: data rates, maximum payloads, the RX1 offset matrix.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://resources.lora-alliance.org/technical-specifications/rp002-1-0-5-lorawan-regional-parameters"><span class="hw-main"><b>The document</b><small>RP002-1.0.5</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 <section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lora/src/region/tests.rs#L15"><span class="hw-main"><b>The test</b><small><code>tests.rs</code> line 15</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+</div>
+</article>
+<article class="hw-card" aria-labelledby="ts011-1-0-1">
+<header class="hw-head">
+
+### TS011-1.0.1 {#ts011-1-0-1}
+
+<p class="hw-by">LoRa Alliance</p>
+<p class="hw-summary">The LoRaWAN relay: wake-on-radio frames, forwarding and relay commands</p>
+</header>
+<p class="hw-summary">Appendix 1's worked synchronization example, with WOR frames checked against Semtech LoRa Basics Modem and the root key against The Things Stack.</p><div class="hw-foot">
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://resources.lora-alliance.org/technical-specifications/ts011-1-0-1-relay"><span class="hw-main"><b>The document</b><small>TS011-1.0.1</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/relay/tests.rs#L252"><span class="hw-main"><b>The test</b><small><code>tests.rs</code> line 252</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="itu-r-p525-5">

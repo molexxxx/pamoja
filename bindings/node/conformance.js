@@ -1309,6 +1309,8 @@ function loraRegionVectors() {
       assert.strictEqual(got.maxEirpDbm, band.maxEirpDbm);
     });
 
+    assert.deepStrictEqual(plan.relayChannels(), want.relayChannels, `relay channels of ${where}`);
+
     checkRules(plan, want.rules, where);
   };
 
@@ -1577,6 +1579,7 @@ function loraRegionVectors() {
   assert.throws(() => fixed.maskControls([reserved]), /eight mask controls/);
   fixed.joinSequence(lora.LoraJoinSequence.OctetPasses);
   fixed.powerReference(lora.LoraPowerReference.Conducted, 6);
+  fixed.relayChannel({ worFrequencyHz: 916_700_000, ackFrequencyHz: 918_300_000, dataRate: 1 });
   checkPlan(fixed.build(), vectors.customFixed);
 }
 
@@ -2376,6 +2379,25 @@ function macCommandVectors(vector) {
     unhex(vector.truncated.bytes),
   );
   assert.strictEqual(truncated.length, 0, "a known command cut short is not half read");
+
+  for (const entry of vector.relay) {
+    const read = lorawan.macParse(direction(entry.direction), unhex(entry.bytes));
+    assert.strictEqual(read.length, 1, "one relay command in " + entry.bytes);
+    assert.strictEqual(read[0].cid, entry.cid, "the identifier of " + entry.bytes);
+    assert.strictEqual(
+      lorawan.macEncode(read[0]).toString("hex"),
+      entry.bytes,
+      entry.bytes + " is written back the way it was read",
+    );
+    for (const [field, want] of Object.entries(entry.fields ?? {})) {
+      const got = read[0][field];
+      assert.strictEqual(
+        Buffer.isBuffer(got) ? got.toString("hex") : got,
+        want,
+        `${field} of ${entry.bytes}`,
+      );
+    }
+  }
 }
 
 
@@ -2553,6 +2575,117 @@ function lorawanLinkVectors() {
 }
 
 // An end device driven through whole exchanges: every step is a call and what it returned.
+// A LoRaWAN relay: the root key The Things Stack tests with, the WOR frames and
+// acknowledgments Basics Modem produces, a forwarded uplink, and TS011-1.0.1 appendix 1.
+function lorawanRelayVectors() {
+  const vector = VECTORS.lorawanRelay;
+  const relay = lorawan.relay;
+  const constants = {
+    laFportRelay: lorawan.LA_FPORT_RELAY,
+    trustedEdNumber: lorawan.TRUSTED_ED_NUMBER,
+    worAttemptsWoAck: lorawan.WOR_ATTEMPTS_WO_ACK,
+    worDataDelayUs: lorawan.WOR_DATA_DELAY_US,
+    worAckDelayUs: lorawan.WOR_ACK_DELAY_US,
+    relayFwdDelayUs: lorawan.RELAY_FWD_DELAY_US,
+    rxrDelayUs: lorawan.RXR_DELAY_US,
+    forwardOverhead: lorawan.FORWARD_OVERHEAD,
+    minWorPreambleSymbols: lorawan.MIN_WOR_PREAMBLE_SYMBOLS,
+  };
+  assert.deepStrictEqual(constants, vector.constants, "the relay constants");
+
+  assert.strictEqual(
+    relay.rootWorSKey(unhex(vector.rootKey.networkKey)).toString("hex"),
+    vector.rootKey.rootWorSKey,
+    "The Things Stack's RootWorSKey vector",
+  );
+  const own = vector.session;
+  const session = lorawan.session(own.devAddr, unhex(own.nwkSKey), unhex(own.appSKey));
+  assert.strictEqual(session.rootWorSKey().toString("hex"), own.rootWorSKey);
+  const keys = session.worKeys();
+  assert.strictEqual(keys.integrity.toString("hex"), own.integrity);
+  assert.strictEqual(keys.encryption.toString("hex"), own.encryption);
+  const derived = relay.worKeys(unhex(own.rootWorSKey), own.devAddr);
+  assert.strictEqual(derived.integrity.toString("hex"), own.integrity);
+
+  for (const entry of vector.worUplinks) {
+    const frame = relay.worUplink(keys, own.devAddr, entry.wfcnt, entry.uplink, entry.wor);
+    assert.strictEqual(frame.toString("hex"), entry.frame, `the WOR uplink at WFCnt ${entry.wfcnt}`);
+    assert.deepStrictEqual(relay.parseWor(frame), {
+      kind: lorawan.WorKind.Uplink,
+      devAddr: own.devAddr,
+      wfcnt: entry.wfcnt & 0xffff,
+    });
+    assert.deepStrictEqual(relay.openWor(frame, keys, entry.wfcnt, entry.wor), entry.uplink);
+    assert.throws(() => relay.openWor(frame, keys, entry.wfcnt + 0x10000, entry.wor), /MIC/);
+  }
+  const join = vector.worJoinRequest;
+  const joinFrame = relay.worJoinRequest(join.uplink);
+  assert.strictEqual(joinFrame.toString("hex"), join.frame);
+  assert.deepStrictEqual(relay.parseWor(joinFrame), {
+    kind: lorawan.WorKind.JoinRequest,
+    uplink: join.uplink,
+  });
+  for (const refused of vector.refusedWors) {
+    assert.throws(() => relay.parseWor(unhex(refused)), `${refused} is refused`);
+  }
+
+  for (const entry of vector.worAcks) {
+    const frame = relay.worAck(keys, own.devAddr, entry.wfcnt, entry.ack, entry.uplink, entry.state);
+    assert.strictEqual(frame.toString("hex"), entry.frame, `the WOR ACK at WFCnt ${entry.wfcnt}`);
+    assert.deepStrictEqual(
+      relay.openWorAck(frame, keys, own.devAddr, entry.wfcnt, entry.ack, entry.uplink),
+      entry.state,
+    );
+  }
+
+  for (const entry of vector.forwarded) {
+    const payload = relay.encodeForward({
+      metadata: entry.metadata,
+      frequencyHz: entry.frequencyHz,
+      phyPayload: unhex(entry.phyPayload),
+    });
+    assert.strictEqual(payload.toString("hex"), entry.payload, "a forwarded uplink");
+    const read = relay.parseForward(payload);
+    assert.deepStrictEqual(read.metadata, entry.readBack ?? entry.metadata);
+    assert.strictEqual(read.frequencyHz, entry.frequencyHz);
+    assert.strictEqual(read.phyPayload.toString("hex"), entry.phyPayload);
+  }
+
+  for (const entry of vector.unsynchronizedPreambles) {
+    assert.strictEqual(
+      relay.unsynchronizedPreamble(entry.cadPeriodicity, entry.symbolUs, entry.cadToRx),
+      entry.symbols,
+    );
+  }
+  for (const entry of vector.tOffsets) {
+    assert.strictEqual(
+      relay.tOffsetMs(entry.scanStartUs, entry.worEndUs, entry.worAirtimeUs, entry.symbolUs),
+      entry.offsetMs,
+    );
+  }
+  const timing = vector.synchronization;
+  const sync = relay.synchronization(
+    timing.worStartUs,
+    timing.preambleSymbols,
+    timing.symbolUs,
+    timing.state,
+  );
+  assert.strictEqual(sync.referenceUs, timing.referenceUs, "TREF of the appendix example");
+  for (const entry of timing.slots) {
+    assert.deepStrictEqual(
+      relay.nextWor(sync, entry.nowUs, entry.deviceXtalPpm, entry.symbolUs, entry.otherChannel),
+      entry.slot,
+      `the slot after ${entry.nowUs}`,
+    );
+  }
+  for (const entry of vector.secondChannels) {
+    assert.deepStrictEqual(
+      relay.secondChannel(entry.index, entry.dataRate, entry.ackOffset, entry.frequencyHz),
+      entry.channel,
+    );
+  }
+}
+
 function lorawanDeviceVectors() {
   const vector = VECTORS.lorawanDevice;
   const regions = {
@@ -3090,6 +3223,7 @@ lorawanVectors();
 headerVectors();
 lorawanLinkVectors();
 lorawanDeviceVectors();
+lorawanRelayVectors();
 networkVectors();
 
 // What a ladder does with a message as its links come and go.

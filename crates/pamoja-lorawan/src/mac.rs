@@ -1392,7 +1392,9 @@ fn read_frequency(rest: &[u8], at: usize) -> Result<u32, LorawanError> {
 // The second channel bits a relay and an end device configuration share: index, data rate
 // and acknowledgment offset.
 fn second_channel_bits(index: u8, data_rate: u8, ack_offset: u8) -> u16 {
-    (u16::from(index & 0x03) << 7) | (u16::from(data_rate & 0x0f) << 3) | u16::from(ack_offset & 0x07)
+    (u16::from(index & 0x03) << 7)
+        | (u16::from(data_rate & 0x0f) << 3)
+        | u16::from(ack_offset & 0x07)
 }
 
 /// The coded signal strength a relay reports, TS011-1.0.1 sections 9.1 and 10.7: `-15 - code`
@@ -1762,8 +1764,7 @@ mod tests {
         let mut out = [0u8; MAX_COMMAND];
         let len = command.encode(&mut out).expect("it encodes");
         assert_eq!(len, command.len());
-        let (read, taken) =
-            MacCommand::parse(command.direction(), &out[..len]).expect("it parses");
+        let (read, taken) = MacCommand::parse(command.direction(), &out[..len]).expect("it parses");
         assert_eq!(read, command, "what goes out reads back the same");
         assert_eq!(taken, len);
         out[..len].to_vec()
@@ -1848,15 +1849,15 @@ mod tests {
             action: 1,
             eui_len: 15,
             eui: [
-                0xab, 0xcd, 0xef, 0xab, 0xcd, 0xef, 0xab, 0xcd, 0x12, 0x34, 0x56, 0x78, 0x28,
-                0x37, 0x46, 0,
+                0xab, 0xcd, 0xef, 0xab, 0xcd, 0xef, 0xab, 0xcd, 0x12, 0x34, 0x56, 0x78, 0x28, 0x37,
+                0x46, 0,
             ],
         };
         assert_eq!(
             round_trip(range),
             [
-                0x42, 0xaf, 0x01, 0x46, 0x37, 0x28, 0x78, 0x56, 0x34, 0x12, 0xcd, 0xab, 0xef,
-                0xcd, 0xab, 0xef, 0xcd, 0xab
+                0x42, 0xaf, 0x01, 0x46, 0x37, 0x28, 0x78, 0x56, 0x34, 0x12, 0xcd, 0xab, 0xef, 0xcd,
+                0xab, 0xef, 0xcd, 0xab
             ]
         );
 
@@ -1886,7 +1887,10 @@ mod tests {
             panic!("a filter rule");
         };
         assert_eq!(eui_len, 20);
-        assert_eq!(eui[0], 20, "the last byte on the air is the most significant");
+        assert_eq!(
+            eui[0], 20,
+            "the last byte on the air is the most significant"
+        );
 
         let mut out = [0u8; MAX_COMMAND];
         assert_eq!(read.encode(&mut out), Err(LorawanError::MalformedFrame));
@@ -1909,7 +1913,9 @@ mod tests {
             wfcnt: 7,
             root_wor_s_key: key,
         };
-        let mut want = vec![0x43, 0x03, 0x8a, 0xda, 0x1b, 0x01, 0x26, 0x07, 0x00, 0x00, 0x00];
+        let mut want = vec![
+            0x43, 0x03, 0x8a, 0xda, 0x1b, 0x01, 0x26, 0x07, 0x00, 0x00, 0x00,
+        ];
         want.extend_from_slice(&key);
         assert_eq!(round_trip(request), want);
         assert_eq!(request.len(), MAX_COMMAND, "the longest command there is");

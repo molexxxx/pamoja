@@ -9,6 +9,20 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- The LoRaWAN relay of TS011-1.0.1, in Rust, C, TypeScript, Python and C#: the
+  wake-on-radio frames an end device sends ahead of a join request or an uplink,
+  sealed under keys derived from the network session key, the WOR ACK a relay
+  answers with, the payload a relay forwards an uplink in on port 226, and the
+  arithmetic that shortens a WOR preamble once a device knows when its relay
+  scans. The thirteen relay MAC commands are read and written with the others,
+  so a device no longer stops reading commands at one, and every channel plan
+  carries the WOR channels RP002-1.0.5 gives its region. The frames match a
+  line-for-line rendering of Semtech LoRa Basics Modem, the root key matches The
+  Things Stack's test vector, the timing follows the specification's worked
+  example, and WOR ACK airtimes match RP002-1.0.5 table 128. The
+  `EndDeviceConfAns` status follows TS011-1.0.1, which moved bit 3 from BackOffACK
+  to SecondChAckOffsetACK.
+
 - LoRa link budgets in `pamoja_lora::budget`, in every language: the EIRP an
   antenna and cable leave, the free-space loss of ITU-R P.525-5, the first Fresnel
   zone of ITU-R P.526-16, receiver sensitivity from the thermal noise floor of

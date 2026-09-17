@@ -58,6 +58,7 @@ import {
   type LoraPlanRules,
   type LoraPowerReference as NativeLoraPowerReference,
   type LoraRegion as NativeLoraRegion,
+  type LoraRelayChannel,
   type LoraRx2,
   type LoraSubBand,
 } from '@pamoja/native'
@@ -76,6 +77,7 @@ export {
   type LoraMaxPayload,
   type LoraPlanInfo,
   type LoraPlanRules,
+  type LoraRelayChannel,
   type LoraRx2,
   type LoraSubBand,
 }

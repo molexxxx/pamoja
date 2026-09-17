@@ -365,6 +365,17 @@ anchor = "vector"
 note = "Each test is named after the table it checks: data rates, maximum payloads, the RX1 offset matrix."
 
 [[entry]]
+key = "ts011-1-0-1"
+chapter = "radio"
+designation = "TS011-1.0.1"
+body = "LoRa Alliance"
+subject = "The LoRaWAN relay: wake-on-radio frames, forwarding and relay commands"
+url = "https://resources.lora-alliance.org/technical-specifications/ts011-1-0-1-relay"
+evidence = "crates/pamoja-lorawan/src/relay/tests.rs#L252"
+anchor = "vector"
+note = "Appendix 1's worked synchronization example, with WOR frames checked against Semtech LoRa Basics Modem and the root key against The Things Stack."
+
+[[entry]]
 key = "itu-r-p525-5"
 chapter = "radio"
 designation = "ITU-R P.525-5"
