@@ -1837,6 +1837,48 @@ def _device_transmission_of(transmission) -> dict:
         "rx1": _device_window_of(transmission.rx1),
         "rx2": _device_window_of(transmission.rx2),
         "carriesPayload": transmission.carries_payload,
+        "relay": None
+        if transmission.relay is None
+        else _device_exchange_of(transmission.relay),
+    }
+
+
+def _device_exchange_of(exchange) -> dict:
+    """Describe a wake-on-radio exchange the way the vectors do."""
+    ack = exchange.ack
+    return {
+        "wakeUp": {
+            "frame": exchange.wake_up.frame.hex(),
+            "startUs": exchange.wake_up.start_us,
+            "frequencyHz": exchange.wake_up.carrier.frequency_hz,
+            "dataRate": exchange.wake_up.carrier.data_rate,
+            "link": _device_link_of(exchange.wake_up.link),
+            "outputDbm": exchange.wake_up.output_dbm,
+            "airtimeUs": exchange.wake_up.airtime_us,
+        },
+        "ack": None
+        if ack is None
+        else {
+            "startUs": ack.start_us,
+            "frequencyHz": ack.carrier.frequency_hz,
+            "dataRate": ack.carrier.data_rate,
+            "link": _device_link_of(ack.link),
+            "airtimeUs": ack.airtime_us,
+        },
+        "uplinkStartUs": exchange.uplink_start_us,
+        "rxr": _device_window_of(exchange.rxr),
+    }
+
+
+def _device_relay_status_of(status) -> dict:
+    """Describe what a relay said about itself the way the vectors do."""
+    coded = {name: coded for coded, name in _RELAY_NAMES.items()}
+    return {
+        "cadPeriodicity": coded[status.cad_periodicity],
+        "xtalAccuracy": coded[status.xtal_accuracy],
+        "cadToRx": coded[status.cad_to_rx],
+        "relayDataRate": status.relay_data_rate,
+        "forward": coded[status.forward],
     }
 
 
@@ -1873,6 +1915,25 @@ def _run_device_step(device, step: dict):
                 "linkCheck": None if check is None else {"marginDb": check[0], "gateways": check[1]},
                 "deviceTime": None if time is None else {"gpsSeconds": time[0], "fraction": time[1]},
             },
+        }
+    if call == "useRelay":
+        return device.use_relay(step["on"])
+    if call == "heardWorAck":
+        return _device_relay_status_of(device.heard_wor_ack(unhex(step["frame"])))
+    if call == "noWorAck":
+        nxt = device.no_wor_ack(step["nowUs"])
+        return {
+            "uplink": nxt.uplink,
+            "wakeUp": None if nxt.wake_up is None else _device_exchange_of(nxt.wake_up),
+        }
+    if call == "relayMode":
+        status = device.relay_status
+        return {
+            "relaying": device.relaying,
+            "activation": device.relay_activation,
+            "sync": device.relay_sync,
+            "worCounter": device.wor_counter,
+            "status": None if status is None else _device_relay_status_of(status),
         }
     if call == "nothingHeard":
         next_step = device.nothing_heard(step["nowUs"])
@@ -2084,6 +2145,10 @@ def test_lorawan_device_vectors_match():
         "save": "saved",
         "resume": "resumed",
         "status": "status",
+        "useRelay": "taken",
+        "heardWorAck": "relayStatus",
+        "noWorAck": "worNext",
+        "relayMode": "relayMode",
     }
     for script in vector["scripts"]:
         plan_name = script["plan"]

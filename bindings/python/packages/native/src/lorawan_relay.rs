@@ -284,7 +284,7 @@ fn carrier_in(carrier: &LorawanCarrier) -> Carrier {
     Carrier::new(carrier.frequency_hz, carrier.data_rate)
 }
 
-fn carrier_out(carrier: Carrier) -> LorawanCarrier {
+pub(crate) fn carrier_out(carrier: Carrier) -> LorawanCarrier {
     LorawanCarrier {
         frequency_hz: carrier.frequency_hz,
         data_rate: carrier.data_rate,
@@ -295,7 +295,7 @@ fn unknown(what: &str, value: &str, expected: &str) -> PyErr {
     PamojaError::new_err(format!("{value} is not {what}; expected {expected}"))
 }
 
-fn periodicity_in(value: &str) -> PyResult<CadPeriodicity> {
+pub(crate) fn periodicity_in(value: &str) -> PyResult<CadPeriodicity> {
     Ok(match value {
         "ms1000" => CadPeriodicity::Ms1000,
         "ms500" => CadPeriodicity::Ms500,
@@ -313,7 +313,7 @@ fn periodicity_in(value: &str) -> PyResult<CadPeriodicity> {
     })
 }
 
-fn periodicity_out(value: CadPeriodicity) -> String {
+pub(crate) fn periodicity_out(value: CadPeriodicity) -> String {
     match value {
         CadPeriodicity::Ms1000 => "ms1000",
         CadPeriodicity::Ms500 => "ms500",
@@ -325,7 +325,7 @@ fn periodicity_out(value: CadPeriodicity) -> String {
     .to_owned()
 }
 
-fn receive_in(value: &str) -> PyResult<CadToRx> {
+pub(crate) fn receive_in(value: &str) -> PyResult<CadToRx> {
     Ok(match value {
         "symbols2" => CadToRx::Symbols2,
         "symbols4" => CadToRx::Symbols4,
@@ -341,11 +341,11 @@ fn receive_in(value: &str) -> PyResult<CadToRx> {
     })
 }
 
-fn receive_out(value: CadToRx) -> String {
+pub(crate) fn receive_out(value: CadToRx) -> String {
     format!("symbols{}", value.symbols())
 }
 
-fn xtal_in(value: &str) -> PyResult<XtalAccuracy> {
+pub(crate) fn xtal_in(value: &str) -> PyResult<XtalAccuracy> {
     Ok(match value {
         "ppm10" => XtalAccuracy::Ppm10,
         "ppm20" => XtalAccuracy::Ppm20,
@@ -361,7 +361,7 @@ fn xtal_in(value: &str) -> PyResult<XtalAccuracy> {
     })
 }
 
-fn xtal_out(value: XtalAccuracy) -> String {
+pub(crate) fn xtal_out(value: XtalAccuracy) -> String {
     format!("ppm{}", value.ppm())
 }
 
@@ -381,12 +381,20 @@ fn forward_in(value: &str) -> PyResult<Forward> {
     })
 }
 
-fn forward_out(value: Forward) -> String {
+pub(crate) fn forward_out(value: Forward) -> String {
     match value {
         Forward::Available => "available",
         Forward::RetryIn30Minutes => "retry_in_30_minutes",
         Forward::RetryIn60Minutes => "retry_in_60_minutes",
         Forward::Disabled => "disabled",
+    }
+    .to_owned()
+}
+
+pub(crate) fn channel_out(value: WorChannel) -> String {
+    match value {
+        WorChannel::Default => "default",
+        WorChannel::Second => "second",
     }
     .to_owned()
 }
@@ -595,11 +603,7 @@ pub fn lorawan_relay_forward_parse(payload: Vec<u8>) -> PyResult<LorawanForwarde
     let forwarded = ForwardedUplink::parse(&payload).map_err(refused)?;
     Ok(LorawanForwardedUplink {
         metadata: LorawanUplinkMetadata {
-            wor_channel: match forwarded.metadata.wor_channel {
-                WorChannel::Default => "default",
-                WorChannel::Second => "second",
-            }
-            .to_owned(),
+            wor_channel: channel_out(forwarded.metadata.wor_channel),
             rssi_dbm: forwarded.metadata.rssi_dbm,
             snr_db: forwarded.metadata.snr_db,
             data_rate: forwarded.metadata.data_rate,

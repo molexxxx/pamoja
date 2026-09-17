@@ -212,7 +212,9 @@ python = "lorawan"
 dotnet = [
     "Lorawan", "LorawanDevice", "LorawanSession", "LorawanHeader", "LorawanJoinRequest",
     "LorawanJoinAccept", "LorawanGrant", "LorawanOptions", "LorawanRxData",
-    "LorawanMessageType", "LorawanDirection",
+    "LorawanMessageType", "LorawanDirection", "LorawanRelayNode", "LorawanScan",
+    "LorawanWake", "LorawanRelayHeard", "LorawanRelayExchange", "LorawanRelayStatus",
+    "LorawanTrustedDevice",
 ]
 guide = "guides/lorawan.md"
 
@@ -248,7 +250,7 @@ dotnet = [
     "GatewayTxpk", "GatewayCrc", "GatewayTxStatus", "GatewayNetwork", "GatewayNetworkEvent",
     "GatewayNetworkWindows", "GatewayNetworkOutcome", "GatewayRx1Channels", "GatewaySlot",
     "GatewayStation", "GatewayStationKind", "GatewayStationLevels", "GatewayStationMessage",
-    "GatewayStationRouter",
+    "GatewayStationRouter", "GatewayNotice", "GatewayRelayed",
 ]
 guide = "guides/gateway.md"
 

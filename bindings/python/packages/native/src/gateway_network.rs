@@ -20,6 +20,8 @@ use pamoja_lora::region::ChannelBlock;
 use crate::gateway::{rxpk_of, txpk_to_py, GatewayRxpk, GatewayTxpk};
 use crate::lora::LoraLink;
 use crate::lora_region::ChannelPlan;
+use crate::lorawan::{describe_mac, rebuild_command, LorawanMacCommand};
+use crate::lorawan_relay::channel_out;
 
 /// Where and when a downlink answers an uplink, in the concentrator's own terms.
 #[gen_stub_pyclass]
@@ -57,6 +59,70 @@ impl GatewaySlot {
     }
 }
 
+/// What a relay added to an uplink it forwarded, TS011-1.0.1 section 9.1.
+#[gen_stub_pyclass]
+#[pyclass(frozen)]
+pub struct GatewayRelayed {
+    /// The relay's own address.
+    #[pyo3(get)]
+    relay: u32,
+    /// What it heard of the uplink, in dBm.
+    #[pyo3(get)]
+    rssi_dbm: i16,
+    /// Its signal-to-noise ratio, in dB.
+    #[pyo3(get)]
+    snr_db: i8,
+    /// The data rate it arrived at.
+    #[pyo3(get)]
+    data_rate: u8,
+    /// The wake-on-radio channel the device woke the relay on: `default` or `second`.
+    #[pyo3(get)]
+    wor_channel: String,
+    /// The frequency it arrived on, in hertz.
+    #[pyo3(get)]
+    frequency_hz: u32,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl GatewayRelayed {
+    fn __repr__(&self) -> String {
+        format!(
+            "GatewayRelayed(relay={:#010x}, rssi_dbm={}, snr_db={})",
+            self.relay, self.rssi_dbm, self.snr_db
+        )
+    }
+}
+
+/// A device a relay heard and could not verify, TS011-1.0.1 section 10.7.
+#[gen_stub_pyclass]
+#[pyclass(frozen)]
+pub struct GatewayNotice {
+    /// The relay that heard it.
+    #[pyo3(get)]
+    relay: u32,
+    /// The address the wake-on-radio frame named.
+    #[pyo3(get)]
+    dev_addr: u32,
+    /// The frame's signal strength in dBm.
+    #[pyo3(get)]
+    rssi_dbm: i16,
+    /// Its signal-to-noise ratio in dB.
+    #[pyo3(get)]
+    snr_db: i8,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl GatewayNotice {
+    fn __repr__(&self) -> String {
+        format!(
+            "GatewayNotice(relay={:#010x}, dev_addr={:#010x})",
+            self.relay, self.dev_addr
+        )
+    }
+}
+
 /// What a forwarded packet turned out to be, and where its answer goes.
 #[gen_stub_pyclass]
 #[pyclass(frozen)]
@@ -88,6 +154,10 @@ pub struct GatewayNetworkEvent {
     /// The packet carrying the accept, for a join.
     #[pyo3(get)]
     accept: Option<Py<GatewayTxpk>>,
+    /// What a relay added to an uplink it carried, and `None` for one a gateway heard
+    /// directly.
+    #[pyo3(get)]
+    relay: Option<Py<GatewayRelayed>>,
 }
 
 #[gen_stub_pymethods]
@@ -197,6 +267,72 @@ impl GatewayNetwork {
             .map_err(|error| PyValueError::new_err(error.to_string()))?;
         txpk_to_py(py, &downlink)
     }
+
+    /// Takes the devices relays have reported hearing and could not verify, TS011-1.0.1
+    /// section 10.7.
+    ///
+    /// A relay carries these in the MAC commands of its own uplinks, alongside whatever else
+    /// that uplink was for, so they wait here until they are read.
+    fn notices(&self) -> PyResult<Vec<GatewayNotice>> {
+        Ok(self
+            .locked()?
+            .notices()
+            .into_iter()
+            .map(|notice| GatewayNotice {
+                relay: notice.relay,
+                dev_addr: notice.dev_addr,
+                rssi_dbm: notice.rssi_dbm,
+                snr_db: notice.snr_db,
+            })
+            .collect())
+    }
+
+    /// Builds a downlink carrying MAC commands, which is how a network configures a relay.
+    ///
+    /// The commands ride in the frame options where they fit, and in a frame of their own on
+    /// port 0 where they do not.
+    fn command(
+        &self,
+        py: Python<'_>,
+        dev_addr: u32,
+        slot: PyRef<'_, GatewaySlot>,
+        commands: Vec<PyRef<'_, LorawanMacCommand>>,
+    ) -> PyResult<GatewayTxpk> {
+        let window = Slot {
+            timestamp_us: slot.timestamp_us,
+            frequency_hz: slot.frequency_hz,
+            link: slot.link.bind(py).borrow().settings(),
+        };
+        let mut built = Vec::with_capacity(commands.len());
+        for command in &commands {
+            built.push(rebuild_command(command)?);
+        }
+        let downlink = self
+            .locked()?
+            .command(dev_addr, window, &built)
+            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        txpk_to_py(py, &downlink)
+    }
+
+    /// Builds the command that tells a relay to trust a device, with the key that lets it
+    /// verify the device's wake-on-radio frames, TS011-1.0.1 section 10.4.
+    ///
+    /// `index` is the entry in the relay's list, `reload_rate` how many of the device's
+    /// uplinks it forwards an hour, 63 for no limit, and `bucket_size` the coded multiplier
+    /// of table 55.
+    #[pyo3(signature = (dev_addr, index, reload_rate = 63, bucket_size = 0))]
+    fn trust_command(
+        &self,
+        dev_addr: u32,
+        index: u8,
+        reload_rate: u8,
+        bucket_size: u8,
+    ) -> PyResult<LorawanMacCommand> {
+        self.locked()?
+            .trust_command(dev_addr, index, reload_rate, bucket_size)
+            .map(describe_mac)
+            .map_err(|error| PyValueError::new_err(error.to_string()))
+    }
 }
 
 impl GatewayNetwork {
@@ -225,6 +361,7 @@ fn event_to_py(py: Python<'_>, event: Event) -> PyResult<GatewayNetworkEvent> {
             confirmed: None,
             slot: None,
             accept: Some(Py::new(py, txpk_to_py(py, &accept)?)?),
+            relay: None,
         },
         Event::Data {
             dev_addr,
@@ -233,6 +370,7 @@ fn event_to_py(py: Python<'_>, event: Event) -> PyResult<GatewayNetworkEvent> {
             payload,
             confirmed,
             slot,
+            relay,
         } => GatewayNetworkEvent {
             outcome: "data".to_owned(),
             dev_eui: None,
@@ -250,6 +388,21 @@ fn event_to_py(py: Python<'_>, event: Event) -> PyResult<GatewayNetworkEvent> {
                 },
             )?),
             accept: None,
+            relay: relay
+                .map(|relayed| {
+                    Py::new(
+                        py,
+                        GatewayRelayed {
+                            relay: relayed.relay,
+                            rssi_dbm: relayed.metadata.rssi_dbm,
+                            snr_db: relayed.metadata.snr_db,
+                            data_rate: relayed.metadata.data_rate,
+                            wor_channel: channel_out(relayed.metadata.wor_channel),
+                            frequency_hz: relayed.frequency_hz,
+                        },
+                    )
+                })
+                .transpose()?,
         },
         Event::Foreign { dev_addr } => GatewayNetworkEvent {
             outcome: "foreign".to_owned(),
@@ -261,6 +414,7 @@ fn event_to_py(py: Python<'_>, event: Event) -> PyResult<GatewayNetworkEvent> {
             confirmed: None,
             slot: None,
             accept: None,
+            relay: None,
         },
     })
 }

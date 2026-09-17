@@ -1162,7 +1162,7 @@ fn blank_mac(kind: &str, command: &MacCommand) -> LorawanMacCommand {
     }
 }
 
-fn describe_mac(command: MacCommand) -> LorawanMacCommand {
+pub(crate) fn describe_mac(command: MacCommand) -> LorawanMacCommand {
     match command {
         MacCommand::LinkCheckReq => blank_mac("link_check_req", &command),
         MacCommand::LinkCheckAns { margin, gateways } => {
@@ -1466,7 +1466,7 @@ fn sixteen(bytes: Option<&[u8]>, name: &str) -> PyResult<[u8; 16]> {
     }
 }
 
-fn rebuild_command(command: &LorawanMacCommand) -> PyResult<MacCommand> {
+pub(crate) fn rebuild_command(command: &LorawanMacCommand) -> PyResult<MacCommand> {
     use pamoja_lorawan::mac;
 
     let down = command.direction.eq_ignore_ascii_case("downlink");

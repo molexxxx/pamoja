@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 
 using Pamoja;
+using Pamoja.Gateway;
 using Pamoja.Lora;
 using Pamoja.Lorawan;
 
@@ -145,5 +146,125 @@ public static class LorawanGuide
 
         Expect(next.CarriesPayload, "the resumed device sends its reading");
         Expect(woken.DevAddr == 0x26012E43, "on the address it joined with");
+
+        RelayedDevice();
     }
+
+    /// <summary>Runs the relay example.</summary>
+    private static void RelayedDevice()
+    {
+        // ANCHOR: relay
+        // One site: a gateway on a hill, a relay on a rooftop in range of it, and a sensor
+        // in a cellar the gateway cannot hear at all.
+        byte[] rootKey = new byte[16];
+        Array.Fill(rootKey, (byte)7);
+        byte[] joinEui = new byte[8];
+        byte[] relayEui = Convert.FromHexString("70B3D57ED0050001");
+        byte[] sensorEui = Convert.FromHexString("70B3D57ED0050002");
+        using LoraChannelPlan band = LoraChannelPlan.ForRegion(LoraRegion.Eu868);
+        var radio = new LorawanDeviceSettings(2, 14)
+        {
+            LowestHz = 863_000_000,
+            HighestHz = 870_000_000,
+            Seed = 1,
+        };
+        using var site = new GatewayNetwork(band, 0x00002A, firstDevAddr: 0x26010001);
+        site.Register(relayEui, joinEui, rootKey);
+        site.Register(sensorEui, joinEui, rootKey);
+        static string Mhz(uint hz) => (hz / 1e6).ToString("F1", CultureInfo.InvariantCulture);
+        static GatewayRxpk HeardAt(LorawanTransmission transmission, uint atMicros) =>
+            new(transmission.FrequencyHz, transmission.Frame)
+            {
+                Link = transmission.Link,
+                TimestampMicros = atMicros,
+            };
+
+        // The relay is an end device that also listens for others, so it joins the ordinary way.
+        using var relayCredentials = new LorawanDevice(relayEui, joinEui, rootKey);
+        using LorawanRelayNode rooftop = LorawanRelayNode.OverTheAir(
+            band, relayCredentials, radio, LorawanXtalAccuracy.Ppm20, LorawanCadToRx.Symbols4);
+        LorawanTransmission relayJoin = rooftop.Join(1, 1_000_000);
+        GatewayNetworkEvent relayAccept = site.Uplink(HeardAt(relayJoin, 1_000_000));
+        rooftop.HeardIn(LorawanReceiveWindow.Rx1, relayAccept.Accept!.Payload, 7);
+        Console.WriteLine($"relay     joined as 0x{rooftop.DevAddr!.Value:X8}");
+
+        // The sensor joins too. Its own uplinks never reach the gateway, but its join does,
+        // because the cellar door is open while it is installed.
+        using var sensorCredentials = new LorawanDevice(sensorEui, joinEui, rootKey);
+        using LorawanEndDevice cellar = LorawanEndDevice.OverTheAir(band, sensorCredentials, radio);
+        LorawanTransmission sensorJoin = cellar.Join(2, 20_000_000);
+        GatewayNetworkEvent sensorAccept = site.Uplink(HeardAt(sensorJoin, 20_000_000));
+        cellar.Heard(sensorAccept.Accept!.Payload, 7, LorawanReceiveWindow.Rx1);
+        uint sensorAddr = cellar.DevAddr!.Value;
+
+        // The network hands the relay the key that lets it verify the sensor's wake-up frames,
+        // in a command riding on the relay's own downlink.
+        LorawanTransmission relayEmpty = rooftop.SendEmpty(40_000_000);
+        GatewayNetworkEvent relayCarried = site.Uplink(HeardAt(relayEmpty, 40_000_000));
+        LorawanMacCommand trust = site.TrustCommand(sensorAddr, 0);
+        GatewayTxpk configure = site.Command(rooftop.DevAddr!.Value, relayCarried.Slot!, [trust]);
+        rooftop.HeardIn(LorawanReceiveWindow.Rx1, configure.Payload, 7);
+        Console.WriteLine($"trusted   the relay now forwards for 0x{sensorAddr:X8}");
+
+        // It scans once a second on the region's wake-on-radio channel.
+        rooftop.Start(LorawanCadPeriodicity.Ms1000, 0);
+        LorawanScan scan = rooftop.NextScan(60_000_000)!;
+        Console.WriteLine(
+            $"scan      {Mhz(scan.Carrier.FrequencyHz)} MHz at DR{scan.Carrier.DataRate} every second");
+
+        // The sensor turns relay mode on. Its uplink now goes out behind a frame whose preamble
+        // spans a whole scan period, because it does not yet know when the relay listens.
+        cellar.UseRelay(true);
+        LorawanTransmission reading = cellar.Send(2, "21.5"u8, 61_000_000);
+        LorawanRelayExchange exchange = reading.Relay!;
+        Console.WriteLine(
+            $"wake      {exchange.WakeUp.Frame.Length} bytes with a " +
+            $"{exchange.WakeUp.Link.PreambleSymbols}-symbol preamble, " +
+            $"{(exchange.UplinkStartMicros - exchange.WakeUp.StartMicros) / 1000} ms before the uplink");
+
+        // The relay hears it, knows the device, and answers with when it scanned, so every
+        // frame after this one carries only the preamble the two clocks could have drifted apart.
+        var woke = (LorawanWake.Uplink)rooftop.HeardWor(
+            scan, exchange.WakeUp.Frame, -90, 4, scan.StartMicros + 500_000);
+        LorawanRelayStatus said = cellar.HeardWorAck(woke.Acknowledgment!.Frame);
+        Console.WriteLine(
+            $"ack       the relay scans every {PeriodMillis(said.CadPeriodicity)} ms and " +
+            $"forwards at DR{said.RelayDataRate}");
+
+        // The uplink follows, and the relay wraps it in one of its own on port 226.
+        ulong dueUs = rooftop.HeardUplink(reading.Frame, -88, 6, woke.Listen!.StartMicros + 100_000);
+        LorawanTransmission forwarded = rooftop.Forward(dueUs);
+        GatewayNetworkEvent relayed = site.Uplink(HeardAt(forwarded, (uint)dueUs));
+        Console.WriteLine(
+            $"forwarded {Encoding.UTF8.GetString(relayed.Payload!)} from 0x{relayed.DevAddr:X8}, " +
+            $"heard by 0x{relayed.Relay!.Relay:X8} at {relayed.Relay!.RssiDbm} dBm");
+
+        // The answer goes back the same way: the network answers the sensor, the relay unwraps
+        // it and sends it on, and the sensor hears it in the window it keeps for a relay.
+        GatewayTxpk answer = site.Answer(sensorAddr, relayed.Slot!, 2, "set=19.0"u8);
+        var passed = (LorawanRelayHeard.Downlink)rooftop.HeardIn(
+            LorawanReceiveWindow.Rx1, answer.Payload, 7);
+        var delivered = (LorawanHeard.Data)cellar.Heard(
+            passed.Forwarded.Frame, 7, LorawanReceiveWindow.Rxr);
+        Console.WriteLine(
+            $"downlink  port {delivered.Delivery.Port} says " +
+            $"{Encoding.UTF8.GetString(delivered.Delivery.Payload)}, " +
+            $"{exchange.Rxr.DelayMicros / 1_000_000} s after the uplink");
+        // ANCHOR_END: relay
+
+        Expect(relayed.Relay!.Relay == rooftop.DevAddr!.Value, "the relay carried the reading");
+    }
+
+    /// <summary>How many milliseconds a relay's scan period lasts.</summary>
+    /// <param name="periodicity">The period, as an acknowledgment names it.</param>
+    /// <returns>The period in milliseconds.</returns>
+    private static int PeriodMillis(LorawanCadPeriodicity periodicity) => periodicity switch
+    {
+        LorawanCadPeriodicity.Ms500 => 500,
+        LorawanCadPeriodicity.Ms250 => 250,
+        LorawanCadPeriodicity.Ms100 => 100,
+        LorawanCadPeriodicity.Ms50 => 50,
+        LorawanCadPeriodicity.Ms20 => 20,
+        _ => 1000,
+    };
 }

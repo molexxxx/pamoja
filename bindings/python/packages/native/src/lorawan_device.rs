@@ -14,14 +14,16 @@ use pyo3::types::PyBytes;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use pamoja_lorawan::device::{
-    Battery, Delivery, DeviceError, EndDevice, Heard, Next, ReceiveWindow, Saved, Settings,
-    StateError, Transmission, Window,
+    Battery, Delivery, DeviceError, EndDevice, Heard, Next, ReceiveWindow, RelayExchange, Saved,
+    Settings, StateError, Transmission, Window, WorNext,
 };
+use pamoja_lorawan::relay::{RelayActivation, RelaySync};
 use pamoja_lorawan::Version;
 
 use crate::lora::LoraLink;
 use crate::lora_region::ChannelPlan;
 use crate::lorawan::{LorawanDevice, LorawanSession};
+use crate::lorawan_relay_node::{LorawanRelayExchange, LorawanRelayStatus, LorawanWorNext};
 use crate::PamojaError;
 
 pyo3::create_exception!(
@@ -137,7 +139,7 @@ impl LorawanDeviceSettings {
 
 impl LorawanDeviceSettings {
     /// The Rust settings these describe.
-    fn core(&self) -> Settings {
+    pub(crate) fn core(&self) -> Settings {
         let version = if self.version == "1.0.3" {
             Version::V1_0_3
         } else {
@@ -229,6 +231,8 @@ pub struct LorawanTransmission {
     /// owed left no room, it did not, and has to be sent again.
     #[pyo3(get)]
     carries_payload: bool,
+    /// The wake-on-radio exchange this frame goes out behind, for a device under a relay.
+    relay: Option<RelayExchange>,
 }
 
 #[gen_stub_pymethods]
@@ -253,6 +257,13 @@ impl LorawanTransmission {
         self.rx2.into()
     }
 
+    /// The wake-on-radio exchange this frame goes out behind, and `None` for a frame that
+    /// goes straight to a gateway.
+    #[getter]
+    fn relay(&self) -> Option<LorawanRelayExchange> {
+        self.relay.map(LorawanRelayExchange::of)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "LorawanTransmission(frequency_hz={}, data_rate={}, output_dbm={}, airtime_us={})",
@@ -273,6 +284,7 @@ impl From<Transmission> for LorawanTransmission {
             rx1: transmission.rx1,
             rx2: transmission.rx2,
             carries_payload: transmission.carries_payload,
+            relay: transmission.relay,
         }
     }
 }
@@ -353,7 +365,8 @@ impl LorawanDelivery {
 
 /// What a frame heard in a receive window turned out to be.
 #[gen_stub_pyclass]
-#[pyclass]
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
 pub struct LorawanHeard {
     /// `joined` for a join accept, `data` for a data frame.
     #[pyo3(get)]
@@ -551,47 +564,95 @@ impl LorawanEndDevice {
         let result = match window {
             Some("rx1") => self.inner.heard_in(ReceiveWindow::Rx1, &frame, snr_db),
             Some("rx2") => self.inner.heard_in(ReceiveWindow::Rx2, &frame, snr_db),
+            Some("rxr") => self.inner.heard_in(ReceiveWindow::Rxr, &frame, snr_db),
             Some(other) => {
                 return Err(PamojaError::new_err(format!(
-                    "{other} is not a receive window; expected rx1 or rx2"
+                    "{other} is not a receive window; expected rx1, rx2 or rxr"
                 )))
             }
             None => self.inner.heard(&frame, snr_db),
         };
-        Ok(match result.map_err(raised)? {
-            Heard::Joined { dev_addr } => LorawanHeard {
-                kind: "joined".to_owned(),
-                dev_addr,
-                delivery: None,
-            },
-            Heard::Data(delivery) => LorawanHeard {
-                kind: "data".to_owned(),
-                dev_addr: self.inner.dev_addr().unwrap_or(0),
-                delivery: Some(delivery),
-            },
-        })
+        let dev_addr = self.inner.dev_addr().unwrap_or(0);
+        Ok(heard_out(result.map_err(raised)?, dev_addr))
     }
 
     /// Says what comes next once both receive windows closed with nothing for the device.
     fn nothing_heard(&mut self, now_us: u64) -> PyResult<LorawanNext> {
-        Ok(match self.inner.nothing_heard(now_us).map_err(raised)? {
-            Next::Repeat { not_before_us } => LorawanNext {
-                kind: "repeat".to_owned(),
-                not_before_us: Some(not_before_us),
-            },
-            Next::Done => LorawanNext {
-                kind: "done".to_owned(),
-                not_before_us: None,
-            },
-            Next::Unacknowledged => LorawanNext {
-                kind: "unacknowledged".to_owned(),
-                not_before_us: None,
-            },
-            Next::JoinAgain { not_before_us } => LorawanNext {
-                kind: "join_again".to_owned(),
-                not_before_us: Some(not_before_us),
-            },
+        self.inner
+            .nothing_heard(now_us)
+            .map(next_out)
+            .map_err(raised)
+    }
+    /// Turns relay mode on or off, TS011-1.0.1 section 10.2 and appendix 5.
+    ///
+    /// From here on the decision is the caller's rather than the device's own policy, until
+    /// its network takes it over with an `EndDeviceConfReq` or hands it back. Returns `False`
+    /// when the network holds the decision, leaving the mode as it was.
+    fn use_relay(&mut self, on: bool) -> bool {
+        self.inner.use_relay(on)
+    }
+
+    /// Reads the acknowledgment a relay answered the last wake-on-radio frame with.
+    ///
+    /// The device is now synchronized: it knows when the relay scans, so its next frames
+    /// carry only as much preamble as the two clocks could have drifted apart.
+    fn heard_wor_ack(&mut self, frame: Vec<u8>) -> PyResult<LorawanRelayStatus> {
+        self.inner
+            .heard_wor_ack(&frame)
+            .map(LorawanRelayStatus::of)
+            .map_err(raised)
+    }
+
+    /// Says what to do once the acknowledgment window closed with nothing in it: send the
+    /// uplink anyway, or wake the relay again first, as the network's `BackOff` asks.
+    fn no_wor_ack(&mut self, now_us: u64) -> PyResult<LorawanWorNext> {
+        Ok(match self.inner.no_wor_ack(now_us).map_err(raised)? {
+            WorNext::Uplink => LorawanWorNext::of(true, None),
+            WorNext::WakeUp(exchange) => LorawanWorNext::of(false, Some(exchange)),
         })
+    }
+
+    /// Whether the next uplink goes through a relay.
+    #[getter]
+    fn relaying(&self) -> bool {
+        self.inner.relaying()
+    }
+
+    /// How the device decides whether to use a relay: `disabled`, `enabled`, `dynamic` or
+    /// `device_controlled`.
+    #[getter]
+    fn relay_activation(&self) -> String {
+        match self.inner.relay_activation() {
+            RelayActivation::Disabled => "disabled",
+            RelayActivation::Enabled => "enabled",
+            RelayActivation::Dynamic => "dynamic",
+            RelayActivation::DeviceControlled => "device_controlled",
+        }
+        .to_owned()
+    }
+
+    /// What the device knows of when its relay listens: `initialized`, `unsynchronized` or
+    /// `synchronized`, TS011-1.0.1 section 3.9.
+    #[getter]
+    fn relay_sync(&self) -> String {
+        match self.inner.relay_sync() {
+            RelaySync::Initialized => "initialized",
+            RelaySync::Unsynchronized => "unsynchronized",
+            RelaySync::Synchronized => "synchronized",
+        }
+        .to_owned()
+    }
+
+    /// What the relay's last acknowledgment said about itself, or `None` before one arrived.
+    #[getter]
+    fn relay_status(&self) -> Option<LorawanRelayStatus> {
+        self.inner.relay_status().map(LorawanRelayStatus::of)
+    }
+
+    /// The wake-on-radio frame counter the next frame will use, TS011-1.0.1 section 5.3.2.
+    #[getter]
+    fn wor_counter(&self) -> u32 {
+        self.inner.wor_counter()
     }
 
     /// Sets what the device reports its battery as when a network asks: a level from 1,
@@ -709,8 +770,48 @@ impl LorawanEndDevice {
     }
 }
 
+/// Describes what a frame turned out to be the way Python holds it.
+pub(crate) fn heard_out(heard: Heard, dev_addr: u32) -> LorawanHeard {
+    match heard {
+        Heard::Joined { dev_addr } => LorawanHeard {
+            kind: "joined".to_owned(),
+            dev_addr,
+            delivery: None,
+        },
+        Heard::Data(delivery) => LorawanHeard {
+            kind: "data".to_owned(),
+            dev_addr,
+            delivery: Some(delivery),
+        },
+    }
+}
+
+/// Describes what comes next the way Python holds it.
+pub(crate) fn next_out(next: Next) -> LorawanNext {
+    match next {
+        Next::Repeat { not_before_us } => LorawanNext {
+            kind: "repeat".to_owned(),
+            not_before_us: Some(not_before_us),
+        },
+        Next::Done => LorawanNext {
+            kind: "done".to_owned(),
+            not_before_us: None,
+        },
+        Next::Unacknowledged => LorawanNext {
+            kind: "unacknowledged".to_owned(),
+            not_before_us: None,
+        },
+        Next::JoinAgain { not_before_us } => LorawanNext {
+            kind: "join_again".to_owned(),
+            not_before_us: Some(not_before_us),
+        },
+    }
+}
+
 /// The published plan a device is made on.
-fn published(plan: &ChannelPlan) -> PyResult<&'static pamoja_lora::region::ChannelPlan<'static>> {
+pub(crate) fn published(
+    plan: &ChannelPlan,
+) -> PyResult<&'static pamoja_lora::region::ChannelPlan<'static>> {
     plan.published_plan().ok_or_else(|| {
         PamojaError::new_err(
             "a device runs on a published plan, from ChannelPlan.for_region or ChannelPlan.for_cn470",
@@ -719,7 +820,7 @@ fn published(plan: &ChannelPlan) -> PyResult<&'static pamoja_lora::region::Chann
 }
 
 /// Raises a device error with its kind and what goes with it.
-fn raised(error: DeviceError) -> PyErr {
+pub(crate) fn raised(error: DeviceError) -> PyErr {
     let kind = match error {
         DeviceError::TooManyChannels { .. } => "too_many_channels",
         DeviceError::NoCredentials => "no_credentials",

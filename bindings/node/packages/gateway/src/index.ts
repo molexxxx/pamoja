@@ -23,6 +23,8 @@ export type {
   ChirpstackUplinkEvent,
   GatewayNetworkEvent as NetworkEvent,
   GatewayNetworkWindows as NetworkWindows,
+  GatewayNotice as Notice,
+  GatewayRelayed as Relayed,
   GatewayPacket as Packet,
   GatewayRxpk as Rxpk,
   GatewaySlot as Slot,

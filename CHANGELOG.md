@@ -9,6 +9,27 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- A LoRaWAN relay that runs from every language. The C ABI gains a relay handle
+  (`pamoja_lorawan_relay_new` and its scan, wake, forward and heard calls) and the
+  relay mode of an end device, and Node, Python and .NET wrap both: `LorawanRelay`
+  in TypeScript, `lorawan.Relay` in Python and `LorawanRelayNode` in C#, each
+  scanning, trusting a device, forwarding an uplink on port 226 and passing the
+  answer back, alongside `useRelay`, `heardWorAck` and `noWorAck` on the end
+  device and the wake-on-radio exchange every relayed transmission carries. The
+  network side crosses too: the notices relays report, the commands that
+  configure one, and the trust command that hands over a device's key. The
+  LoRaWAN guide gains a third example, in four languages, that carries a sensor
+  in a cellar through the relay on the roof, and the conformance vectors replay a
+  whole relayed exchange so every binding writes the same wake-up frame.
+- A network side that speaks to relays, in `pamoja_gateway::network`. An uplink a relay
+  forwards on port 226 is read as if the device itself had sent it, with what the relay
+  heard of it carried alongside: a join is admitted and its accept goes back through the
+  same relay, an answer to a relayed uplink is wrapped for the relay by `answer` with no
+  more asked of the caller, and a relay's report of a device it could not verify waits in
+  `notices` until it is read. `command` sends a relay the MAC commands that configure it,
+  in the frame options where they fit and a frame of their own where they do not, and
+  `trust_command` builds the one that tells a relay to trust a device, with the key that
+  lets it verify that device's wake-on-radio frames.
 - A relay and a device under one that drive real radios. `pamoja_radios::relay::RelayNode`
   gives a `Relay` a radio and a clock: one `scan` sleeps until the next slot, listens for a
   preamble over a couple of symbols, and only if one is there receives the wake-on-radio

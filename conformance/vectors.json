@@ -5843,6 +5843,7 @@
                 "spreadingFactor": 7
               },
               "outputDbm": 14,
+              "relay": null,
               "rx1": {
                 "dataRate": 5,
                 "delayUs": 5000000,
@@ -5996,6 +5997,7 @@
                 "spreadingFactor": 7
               },
               "outputDbm": 14,
+              "relay": null,
               "rx1": {
                 "dataRate": 5,
                 "delayUs": 1000000,
@@ -6103,6 +6105,7 @@
                 "spreadingFactor": 7
               },
               "outputDbm": 14,
+              "relay": null,
               "rx1": {
                 "dataRate": 5,
                 "delayUs": 1000000,
@@ -6201,6 +6204,7 @@
                 "spreadingFactor": 7
               },
               "outputDbm": 14,
+              "relay": null,
               "rx1": {
                 "dataRate": 5,
                 "delayUs": 1000000,
@@ -6336,6 +6340,7 @@
                 "spreadingFactor": 7
               },
               "outputDbm": 14,
+              "relay": null,
               "rx1": {
                 "dataRate": 5,
                 "delayUs": 1000000,
@@ -6433,6 +6438,7 @@
                 "spreadingFactor": 7
               },
               "outputDbm": 14,
+              "relay": null,
               "rx1": {
                 "dataRate": 5,
                 "delayUs": 1000000,
@@ -6698,6 +6704,7 @@
                 "spreadingFactor": 7
               },
               "outputDbm": 14,
+              "relay": null,
               "rx1": {
                 "dataRate": 5,
                 "delayUs": 1000000,
@@ -6814,6 +6821,7 @@
                 "spreadingFactor": 10
               },
               "outputDbm": 20,
+              "relay": null,
               "rx1": {
                 "dataRate": 10,
                 "delayUs": 5000000,
@@ -6869,6 +6877,7 @@
                 "spreadingFactor": 10
               },
               "outputDbm": 20,
+              "relay": null,
               "rx1": {
                 "dataRate": 10,
                 "delayUs": 5000000,
@@ -6924,6 +6933,7 @@
                 "spreadingFactor": 10
               },
               "outputDbm": 20,
+              "relay": null,
               "rx1": {
                 "dataRate": 10,
                 "delayUs": 5000000,
@@ -6979,6 +6989,39 @@
                 "spreadingFactor": 10
               },
               "outputDbm": 20,
+              "relay": {
+                "ack": null,
+                "rxr": {
+                  "dataRate": 10,
+                  "delayUs": 18000000,
+                  "frequencyHz": 916700000,
+                  "link": {
+                    "bandwidthHz": 500000,
+                    "codingRateDenominator": 5,
+                    "crc": true,
+                    "explicitHeader": true,
+                    "preambleSymbols": 8,
+                    "spreadingFactor": 10
+                  }
+                },
+                "uplinkStartUs": 31622500,
+                "wakeUp": {
+                  "airtimeUs": 1075712,
+                  "dataRate": 10,
+                  "frame": "000078988a",
+                  "frequencyHz": 916700000,
+                  "link": {
+                    "bandwidthHz": 500000,
+                    "codingRateDenominator": 5,
+                    "crc": true,
+                    "explicitHeader": true,
+                    "preambleSymbols": 503,
+                    "spreadingFactor": 10
+                  },
+                  "outputDbm": 20,
+                  "startUs": 30496788
+                }
+              },
               "rx1": {
                 "dataRate": 10,
                 "delayUs": 5000000,
@@ -7034,6 +7077,7 @@
                 "spreadingFactor": 10
               },
               "outputDbm": 20,
+              "relay": null,
               "rx1": {
                 "dataRate": 10,
                 "delayUs": 5000000,
@@ -7089,6 +7133,7 @@
                 "spreadingFactor": 10
               },
               "outputDbm": 20,
+              "relay": null,
               "rx1": {
                 "dataRate": 10,
                 "delayUs": 5000000,
@@ -7144,6 +7189,7 @@
                 "spreadingFactor": 10
               },
               "outputDbm": 20,
+              "relay": null,
               "rx1": {
                 "dataRate": 10,
                 "delayUs": 5000000,
@@ -7199,6 +7245,39 @@
                 "spreadingFactor": 10
               },
               "outputDbm": 20,
+              "relay": {
+                "ack": null,
+                "rxr": {
+                  "dataRate": 10,
+                  "delayUs": 18000000,
+                  "frequencyHz": 916700000,
+                  "link": {
+                    "bandwidthHz": 500000,
+                    "codingRateDenominator": 5,
+                    "crc": true,
+                    "explicitHeader": true,
+                    "preambleSymbols": 8,
+                    "spreadingFactor": 10
+                  }
+                },
+                "uplinkStartUs": 69959202,
+                "wakeUp": {
+                  "airtimeUs": 1075712,
+                  "dataRate": 10,
+                  "frame": "000098638b",
+                  "frequencyHz": 916700000,
+                  "link": {
+                    "bandwidthHz": 500000,
+                    "codingRateDenominator": 5,
+                    "crc": true,
+                    "explicitHeader": true,
+                    "preambleSymbols": 503,
+                    "spreadingFactor": 10
+                  },
+                  "outputDbm": 20,
+                  "startUs": 68833490
+                }
+              },
               "rx1": {
                 "dataRate": 10,
                 "delayUs": 5000000,
@@ -7254,6 +7333,7 @@
                 "spreadingFactor": 8
               },
               "outputDbm": 20,
+              "relay": null,
               "rx1": {
                 "dataRate": 13,
                 "delayUs": 5000000,
@@ -7337,6 +7417,7 @@
                 "spreadingFactor": 7
               },
               "outputDbm": 19,
+              "relay": null,
               "rx1": {
                 "dataRate": 5,
                 "delayUs": 5000000,
@@ -7754,6 +7835,7 @@
                 "spreadingFactor": 7
               },
               "outputDbm": 19,
+              "relay": null,
               "rx1": {
                 "dataRate": 5,
                 "delayUs": 1000000,
@@ -7904,6 +7986,7 @@
                 "spreadingFactor": 12
               },
               "outputDbm": 14,
+              "relay": null,
               "rx1": {
                 "dataRate": 0,
                 "delayUs": 1000000,
@@ -8006,6 +8089,297 @@
                 "frequencyHz": 869525000
               },
               "transmissions": 1
+            }
+          }
+        ]
+      },
+      {
+        "activation": {
+          "personalized": {
+            "appSKey": "99999999999999999999999999999999",
+            "devAddr": 637606874,
+            "nwkSKey": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+          }
+        },
+        "counters": null,
+        "name": "eu868 through a relay",
+        "plan": {
+          "region": "EU868"
+        },
+        "settings": {
+          "adr": true,
+          "antennaGainDb": 0,
+          "behindRepeater": false,
+          "highestHz": 1020000000,
+          "lowestHz": 137000000,
+          "maxOutputDbm": 14,
+          "minOutputDbm": 2,
+          "regionalDutyCycle": true,
+          "seed": 7,
+          "version": "1.0.4"
+        },
+        "steps": [
+          {
+            "call": "relayMode",
+            "relayMode": {
+              "activation": "device_controlled",
+              "relaying": false,
+              "status": null,
+              "sync": "initialized",
+              "worCounter": 0
+            }
+          },
+          {
+            "call": "useRelay",
+            "on": true,
+            "taken": true
+          },
+          {
+            "call": "send",
+            "confirmed": false,
+            "nowUs": 0,
+            "payload": "32312e35",
+            "port": 2,
+            "transmission": {
+              "airtimeUs": 1318912,
+              "carriesPayload": true,
+              "dataRate": 0,
+              "frame": "40da1b01268000000283fa04a2ac371545",
+              "frequencyHz": 868100000,
+              "link": {
+                "bandwidthHz": 125000,
+                "codingRateDenominator": 5,
+                "crc": true,
+                "explicitHeader": true,
+                "preambleSymbols": 8,
+                "spreadingFactor": 12
+              },
+              "outputDbm": 14,
+              "relay": {
+                "ack": {
+                  "airtimeUs": 123904,
+                  "dataRate": 3,
+                  "frequencyHz": 865300000,
+                  "link": {
+                    "bandwidthHz": 125000,
+                    "codingRateDenominator": 5,
+                    "crc": true,
+                    "explicitHeader": true,
+                    "preambleSymbols": 8,
+                    "spreadingFactor": 9
+                  },
+                  "startUs": 1242960
+                },
+                "rxr": {
+                  "dataRate": 0,
+                  "delayUs": 18000000,
+                  "frequencyHz": 865100000,
+                  "link": {
+                    "bandwidthHz": 125000,
+                    "codingRateDenominator": 5,
+                    "crc": true,
+                    "explicitHeader": true,
+                    "preambleSymbols": 8,
+                    "spreadingFactor": 12
+                  }
+                },
+                "uplinkStartUs": 1416864,
+                "wakeUp": {
+                  "airtimeUs": 1192960,
+                  "dataRate": 3,
+                  "frame": "01da1b01261dce18890000a02d7a5a",
+                  "frequencyHz": 865100000,
+                  "link": {
+                    "bandwidthHz": 125000,
+                    "codingRateDenominator": 5,
+                    "crc": true,
+                    "explicitHeader": true,
+                    "preambleSymbols": 259,
+                    "spreadingFactor": 9
+                  },
+                  "outputDbm": 14,
+                  "startUs": 0
+                }
+              },
+              "rx1": {
+                "dataRate": 0,
+                "delayUs": 1000000,
+                "frequencyHz": 868100000,
+                "link": {
+                  "bandwidthHz": 125000,
+                  "codingRateDenominator": 5,
+                  "crc": false,
+                  "explicitHeader": true,
+                  "preambleSymbols": 8,
+                  "spreadingFactor": 12
+                }
+              },
+              "rx2": {
+                "dataRate": 0,
+                "delayUs": 2000000,
+                "frequencyHz": 869525000,
+                "link": {
+                  "bandwidthHz": 125000,
+                  "codingRateDenominator": 5,
+                  "crc": false,
+                  "explicitHeader": true,
+                  "preambleSymbols": 8,
+                  "spreadingFactor": 12
+                }
+              }
+            }
+          },
+          {
+            "call": "relayMode",
+            "relayMode": {
+              "activation": "device_controlled",
+              "relaying": true,
+              "status": null,
+              "sync": "initialized",
+              "worCounter": 1
+            }
+          },
+          {
+            "call": "heardWorAck",
+            "error": {
+              "dataRate": null,
+              "format": null,
+              "kind": "frame",
+              "max": null,
+              "state": null,
+              "untilUs": null
+            },
+            "frame": "a3c9387be73ad9"
+          },
+          {
+            "call": "relayMode",
+            "relayMode": {
+              "activation": "device_controlled",
+              "relaying": true,
+              "status": null,
+              "sync": "initialized",
+              "worCounter": 1
+            }
+          },
+          {
+            "call": "nothingHeard",
+            "next": {
+              "kind": "done",
+              "notBeforeUs": null
+            },
+            "nowUs": 21416864
+          },
+          {
+            "call": "send",
+            "confirmed": false,
+            "nowUs": 400000000,
+            "payload": "32312e36",
+            "port": 2,
+            "transmission": {
+              "airtimeUs": 1318912,
+              "carriesPayload": true,
+              "dataRate": 0,
+              "frame": "40da1b012680010002b351bb17b5562eaa",
+              "frequencyHz": 868500000,
+              "link": {
+                "bandwidthHz": 125000,
+                "codingRateDenominator": 5,
+                "crc": true,
+                "explicitHeader": true,
+                "preambleSymbols": 8,
+                "spreadingFactor": 12
+              },
+              "outputDbm": 14,
+              "relay": {
+                "ack": {
+                  "airtimeUs": 123904,
+                  "dataRate": 3,
+                  "frequencyHz": 865300000,
+                  "link": {
+                    "bandwidthHz": 125000,
+                    "codingRateDenominator": 5,
+                    "crc": true,
+                    "explicitHeader": true,
+                    "preambleSymbols": 8,
+                    "spreadingFactor": 9
+                  },
+                  "startUs": 401242960
+                },
+                "rxr": {
+                  "dataRate": 0,
+                  "delayUs": 18000000,
+                  "frequencyHz": 865100000,
+                  "link": {
+                    "bandwidthHz": 125000,
+                    "codingRateDenominator": 5,
+                    "crc": true,
+                    "explicitHeader": true,
+                    "preambleSymbols": 8,
+                    "spreadingFactor": 12
+                  }
+                },
+                "uplinkStartUs": 401416864,
+                "wakeUp": {
+                  "airtimeUs": 1192960,
+                  "dataRate": 3,
+                  "frame": "01da1b0126ebfce1440100d485e1bd",
+                  "frequencyHz": 865100000,
+                  "link": {
+                    "bandwidthHz": 125000,
+                    "codingRateDenominator": 5,
+                    "crc": true,
+                    "explicitHeader": true,
+                    "preambleSymbols": 259,
+                    "spreadingFactor": 9
+                  },
+                  "outputDbm": 14,
+                  "startUs": 400000000
+                }
+              },
+              "rx1": {
+                "dataRate": 0,
+                "delayUs": 1000000,
+                "frequencyHz": 868500000,
+                "link": {
+                  "bandwidthHz": 125000,
+                  "codingRateDenominator": 5,
+                  "crc": false,
+                  "explicitHeader": true,
+                  "preambleSymbols": 8,
+                  "spreadingFactor": 12
+                }
+              },
+              "rx2": {
+                "dataRate": 0,
+                "delayUs": 2000000,
+                "frequencyHz": 869525000,
+                "link": {
+                  "bandwidthHz": 125000,
+                  "codingRateDenominator": 5,
+                  "crc": false,
+                  "explicitHeader": true,
+                  "preambleSymbols": 8,
+                  "spreadingFactor": 12
+                }
+              }
+            }
+          },
+          {
+            "call": "noWorAck",
+            "nowUs": 401342960,
+            "worNext": {
+              "uplink": true,
+              "wakeUp": null
+            }
+          },
+          {
+            "call": "relayMode",
+            "relayMode": {
+              "activation": "device_controlled",
+              "relaying": true,
+              "status": null,
+              "sync": "initialized",
+              "worCounter": 2
             }
           }
         ]

@@ -60,6 +60,27 @@ It proves:
   clock that has started over, and its next reading goes out as uplink 1
   without joining again.
 
+The third example puts a sensor where no gateway can hear it, and a relay on a
+rooftop that can. TS011-1.0.1 calls this a relay: an ordinary end device that
+also wakes every scan period to listen for the devices around it, forwards what
+they send on port 226, and passes the network's answer back.
+
+It proves:
+
+- The relay joins the network exactly as any device does, and the network then
+  tells it which devices to carry, sending the key that lets it verify their
+  wake-up frames in a MAC command riding on the relay's own downlink.
+- A sensor in relay mode sends nothing straight to a gateway. Its uplink goes
+  out behind a wake-on-radio frame whose 259-symbol preamble spans the relay's
+  whole one-second scan, because it does not yet know when that scan happens.
+- The relay's acknowledgment says when it scanned and how fast it forwards, so
+  from then on the sensor aims at the scan and sends the shortest preamble the
+  two clocks allow.
+- The forwarded reading reaches the network as the sensor's own frame, with the
+  relay's address and the signal it heard alongside, and the answer comes back
+  through the relay into the third receive window a relayed device keeps open,
+  18 seconds after its uplink.
+
 ## Run it
 
 The example below is a program CI runs on every change, in each language, from a clone of the
@@ -154,7 +175,7 @@ use pamoja_lorawan::device::{DeviceError, EndDevice, Heard, ReceiveWindow, Setti
 use pamoja_lorawan::{Device, Downlink, JoinGrant};
 
 let app_key = [7u8; 16];
-let dev_eui = [0x70, 0xB3, 0xD5, 0x7E, 0xD0, 0x05, 0x12, 0x34];
+let dev_eui = 0x70B3_D57E_D005_1234u64.to_be_bytes();
 let join_eui = [0; 8];
 
 // The device owns no radio and no clock. It takes the time in microseconds and says what
@@ -224,6 +245,165 @@ println!(
 );
 ```
 <!-- end -->
+
+A sensor carried by the relay next door:
+
+<!-- snippet: examples/guides/lorawan.rs#relay -->
+From [`examples/guides/lorawan.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/lorawan.rs):
+
+```rust
+use pamoja_gateway::network::{Event, Network, Registration};
+use pamoja_gateway::udp::Rxpk;
+use pamoja_lora::region::Region;
+use pamoja_lorawan::device::{EndDevice, Heard, ReceiveWindow, Settings};
+use pamoja_lorawan::relay::{
+    CadPeriodicity, CadToRx, Relay, RelayConfig, RelayHeard, RelaySettings, Wake, XtalAccuracy,
+};
+use pamoja_lorawan::Device;
+
+// One site: a gateway on a hill, a relay on a rooftop in range of it, and a sensor in a
+// cellar the gateway cannot hear at all.
+let app_key = [7u8; 16];
+let relay_eui = 0x70B3_D57E_D005_0001u64.to_be_bytes();
+let sensor_eui = 0x70B3_D57E_D005_0002u64.to_be_bytes();
+let plan = Region::Eu868.plan();
+let settings = Settings::new(2, 14)
+    .with_tuning_range(863_000_000, 870_000_000)
+    .with_seed(1);
+let mut site = Network::new(plan, 0x00_002A).with_first_dev_addr(0x2601_0001);
+site.register(Registration::new(relay_eui, [0; 8], app_key));
+site.register(Registration::new(sensor_eui, [0; 8], app_key));
+let heard_at = |transmission: &pamoja_lorawan::device::Transmission, at_us: u32| {
+    Rxpk::new(
+        transmission.frequency_hz,
+        transmission.link,
+        transmission.frame.as_bytes().to_vec(),
+    )
+    .with_timestamp_us(at_us)
+};
+
+// The relay is an end device that also listens for others, so it joins the ordinary way.
+let device = EndDevice::new(plan, Device::new(relay_eui, [0; 8], app_key), settings)?;
+let mut rooftop = Relay::new(
+    device,
+    RelaySettings::new(XtalAccuracy::Ppm20, CadToRx::Symbols4),
+);
+let join = rooftop.device_mut().join(1, 1_000_000)?;
+let Event::Joined { accept, .. } = site.uplink(&heard_at(&join, 1_000_000))? else {
+    panic!("the relay is registered");
+};
+rooftop.heard_in(ReceiveWindow::Rx1, &accept.payload, 7)?;
+let relay_addr = rooftop.device().dev_addr().expect("an address");
+println!("relay     joined as {relay_addr:#010X}");
+
+// The sensor joins too. Its own uplinks never reach the gateway, but its join does,
+// because the cellar door is open while it is installed.
+let mut cellar = EndDevice::new(plan, Device::new(sensor_eui, [0; 8], app_key), settings)?;
+let sensor_join = cellar.join(2, 20_000_000)?;
+let Event::Joined { accept, .. } = site.uplink(&heard_at(&sensor_join, 20_000_000))? else {
+    panic!("the sensor is registered");
+};
+cellar.heard_in(ReceiveWindow::Rx1, &accept.payload, 7)?;
+let sensor_addr = cellar.dev_addr().expect("an address");
+
+// The network hands the relay the key that lets it verify the sensor's wake-up frames,
+// in a command riding on the relay's own downlink.
+let empty = rooftop.device_mut().send_empty(40_000_000)?;
+let Event::Data { slot, .. } = site.uplink(&heard_at(&empty, 40_000_000))? else {
+    panic!("the relay's own uplink");
+};
+let trust = site.trust_command(sensor_addr, 0, 63, 0)?;
+let configure = site.command(relay_addr, slot, &[trust])?;
+rooftop.heard_in(ReceiveWindow::Rx1, &configure.payload, 7)?;
+println!("trusted   the relay now forwards for {sensor_addr:#010X}");
+
+// It scans once a second on the region's wake-on-radio channel.
+rooftop.start(RelayConfig::new(
+    CadPeriodicity::Ms1000,
+    rooftop.region_channel(0).expect("a channel"),
+))?;
+let scan = rooftop.next_scan(60_000_000).expect("a scan");
+println!(
+    "scan      {:.1} MHz at DR{} every second",
+    f64::from(scan.carrier.frequency_hz) / 1e6,
+    scan.carrier.data_rate,
+);
+
+// The sensor turns relay mode on. Its uplink now goes out behind a frame whose preamble
+// spans a whole scan period, because it does not yet know when the relay listens.
+cellar.use_relay(true);
+let reading = cellar.send(2, b"21.5", false, 61_000_000)?;
+let exchange = reading.relay.expect("a wake-on-radio exchange");
+println!(
+    "wake      {} bytes with a {}-symbol preamble, {} ms before the uplink",
+    exchange.wake_up.frame().len(),
+    exchange.wake_up.link.preamble_symbols(),
+    (exchange.uplink_start_us - exchange.wake_up.start_us) / 1000,
+);
+
+// The relay hears it, knows the device, and answers with when it scanned, so every frame
+// after this one carries only the preamble the two clocks could have drifted apart.
+let Wake::Uplink {
+    acknowledgment: Some(ack),
+    listen: Some(listen),
+    ..
+} = rooftop.heard_wor(
+    &scan,
+    exchange.wake_up.frame(),
+    -90,
+    4,
+    scan.start_us + 500_000,
+)?
+else {
+    panic!("the relay knows this device");
+};
+let said = cellar.heard_wor_ack(&ack.frame)?;
+println!(
+    "ack       the relay scans every {} ms and forwards at DR{}",
+    said.cad_periodicity.period_us() / 1000,
+    said.relay_data_rate,
+);
+
+// The uplink follows, and the relay wraps it in one of its own on port 226.
+let due_us =
+    rooftop.heard_uplink(reading.frame.as_bytes(), -88, 6, listen.start_us + 100_000)?;
+let forwarded = rooftop.forward(due_us)?;
+let Event::Data {
+    dev_addr,
+    payload,
+    slot,
+    relay: Some(relayed),
+    ..
+} = site.uplink(&heard_at(&forwarded, due_us as u32))?
+else {
+    panic!("a forwarded uplink");
+};
+println!(
+    "forwarded {} from {dev_addr:#010X}, heard by {:#010X} at {} dBm",
+    String::from_utf8_lossy(&payload),
+    relayed.relay,
+    relayed.metadata.rssi_dbm,
+);
+
+// The answer goes back the same way: the network answers the sensor, the relay unwraps it
+// and sends it on, and the sensor hears it in the window it keeps for a relay.
+let answer = site.answer(sensor_addr, slot, 2, b"set=19.0")?;
+let RelayHeard::Downlink { downlink, .. } =
+    rooftop.heard_in(ReceiveWindow::Rx1, &answer.payload, 7)?
+else {
+    panic!("a downlink for the sensor");
+};
+if let Heard::Data(delivery) = cellar.heard_in(ReceiveWindow::Rxr, downlink.frame(), 7)? {
+    println!(
+        "downlink  port {} says {}, {} s after the uplink",
+        delivery.port().unwrap_or(0),
+        String::from_utf8_lossy(delivery.payload()),
+        exchange.rxr.delay_us / 1_000_000,
+    );
+}
+```
+<!-- end -->
+
 
 ## TypeScript
 
@@ -349,6 +529,107 @@ console.log(
 ```
 <!-- end -->
 
+A sensor carried by the relay next door:
+
+<!-- snippet: bindings/node/guides/lorawan.ts#relay -->
+From [`bindings/node/guides/lorawan.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/lorawan.ts):
+
+```typescript
+import { Network } from '@pamoja/gateway'
+import { CadPeriodicity, CadToRx, Relay, XtalAccuracy } from '@pamoja/lorawan'
+
+// One site: a gateway on a hill, a relay on a rooftop in range of it, and a sensor in a
+// cellar the gateway cannot hear at all.
+const relayEui = Buffer.from('70b3d57ed0050001', 'hex')
+const sensorEui = Buffer.from('70b3d57ed0050002', 'hex')
+const band = planFor(LoraRegion.Eu868)
+const radio = { minOutputDbm: 2, maxOutputDbm: 14, lowestHz: 863_000_000, highestHz: 870_000_000, seed: 1 }
+const site = new Network(band, 0x00002a, null, 0x26010001)
+site.register(relayEui, joinEui, rootKey)
+site.register(sensorEui, joinEui, rootKey)
+const heardAt = (transmission: lorawan.Transmission, atUs: number) => ({
+  frequencyHz: transmission.frequencyHz,
+  payload: transmission.frame,
+  link: transmission.link,
+  timestampUs: atUs,
+})
+const address = (value: number) => `0x${value.toString(16).toUpperCase().padStart(8, '0')}`
+
+// The relay is an end device that also listens for others, so it joins the ordinary way.
+const rooftop = Relay.overTheAir(band, relayEui, joinEui, rootKey, radio, XtalAccuracy.Ppm20, CadToRx.Symbols4)
+const relayJoin = rooftop.join(1, 1_000_000)
+const relayAccept = site.uplink(heardAt(relayJoin, 1_000_000))
+rooftop.heardIn(lorawan.ReceiveWindow.Rx1, relayAccept.accept!.payload, 7)
+console.log(`relay     joined as ${address(rooftop.devAddr!)}`)
+
+// The sensor joins too. Its own uplinks never reach the gateway, but its join does, because
+// the cellar door is open while it is installed.
+const cellar = lorawan.EndDevice.overTheAir(band, sensorEui, joinEui, rootKey, radio)
+const sensorJoin = cellar.join(2, 20_000_000)
+const sensorAccept = site.uplink(heardAt(sensorJoin, 20_000_000))
+cellar.heard(sensorAccept.accept!.payload, 7, lorawan.ReceiveWindow.Rx1)
+const sensorAddr = cellar.devAddr!
+
+// The network hands the relay the key that lets it verify the sensor's wake-up frames, in a
+// command riding on the relay's own downlink.
+const relayEmpty = rooftop.sendEmpty(40_000_000)
+const relayCarried = site.uplink(heardAt(relayEmpty, 40_000_000))
+const trust = site.trustCommand(sensorAddr, 0, 63, 0)
+const configure = site.command(rooftop.devAddr!, relayCarried.slot!, [trust])
+rooftop.heardIn(lorawan.ReceiveWindow.Rx1, configure.payload, 7)
+console.log(`trusted   the relay now forwards for ${address(sensorAddr)}`)
+
+// It scans once a second on the region's wake-on-radio channel.
+rooftop.start(CadPeriodicity.Ms1000, 0)
+const scan = rooftop.nextScan(60_000_000)!
+console.log(`scan      ${mhz(scan.carrier.frequencyHz)} MHz at DR${scan.carrier.dataRate} every second`)
+
+// The sensor turns relay mode on. Its uplink now goes out behind a frame whose preamble spans
+// a whole scan period, because it does not yet know when the relay listens.
+cellar.useRelay(true)
+const relayedReading = cellar.send(2, '21.5', 61_000_000)
+const exchange = relayedReading.relay!
+console.log(
+  `wake      ${exchange.wakeUp.frame.length} bytes with a ${exchange.wakeUp.link.preambleSymbols}-symbol ` +
+    `preamble, ${Math.trunc((exchange.uplinkStartUs - exchange.wakeUp.startUs) / 1000)} ms before the uplink`,
+)
+
+// The relay hears it, knows the device, and answers with when it scanned, so every frame after
+// this one carries only the preamble the two clocks could have drifted apart.
+const woke = rooftop.heardWor(scan, exchange.wakeUp.frame, -90, 4, scan.startUs + 500_000)
+if (woke.kind !== 'Uplink') {
+  throw new Error('the relay knows this device')
+}
+const said = cellar.heardWorAck(woke.acknowledgment!.frame)
+console.log(`ack       the relay scans every ${periodMs(said.cadPeriodicity)} ms and forwards at DR${said.relayDataRate}`)
+
+// The uplink follows, and the relay wraps it in one of its own on port 226.
+const dueUs = rooftop.heardUplink(relayedReading.frame, -88, 6, woke.listen!.startUs + 100_000)
+const forwarded = rooftop.forward(dueUs)
+const relayed = site.uplink(heardAt(forwarded, dueUs))
+console.log(
+  `forwarded ${relayed.payload!.toString()} from ${address(relayed.devAddr)}, ` +
+    `heard by ${address(relayed.relay!.relay)} at ${relayed.relay!.rssiDbm} dBm`,
+)
+
+// The answer goes back the same way: the network answers the sensor, the relay unwraps it and
+// sends it on, and the sensor hears it in the window it keeps for a relay.
+const relayedAnswer = site.answer(sensorAddr, relayed.slot!, 2, Buffer.from('set=19.0'))
+const passed = rooftop.heardIn(lorawan.ReceiveWindow.Rx1, relayedAnswer.payload, 7)
+if (passed.kind !== 'Downlink') {
+  throw new Error('a downlink for the sensor')
+}
+const delivered = cellar.heard(passed.downlink.frame, 7, lorawan.ReceiveWindow.Rxr)
+if (delivered.kind === 'Data') {
+  console.log(
+    `downlink  port ${delivered.delivery.port ?? 0} says ${delivered.delivery.payload.toString()}, ` +
+      `${Math.trunc(exchange.rxr.delayUs / 1_000_000)} s after the uplink`,
+  )
+}
+```
+<!-- end -->
+
+
 ## Python
 
 A network admitting a device:
@@ -473,6 +754,109 @@ print(
 )
 ```
 <!-- end -->
+
+A sensor carried by the relay next door:
+
+<!-- snippet: bindings/python/guides/lorawan.py#relay -->
+From [`bindings/python/guides/lorawan.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/lorawan.py):
+
+```python
+from pamoja.gateway import Network, Rxpk
+from pamoja.lorawan import Relay
+
+# One site: a gateway on a hill, a relay on a rooftop in range of it, and a sensor in a
+# cellar the gateway cannot hear at all.
+relay_eui = bytes.fromhex("70b3d57ed0050001")
+sensor_eui = bytes.fromhex("70b3d57ed0050002")
+band = plan_for("EU868")
+radio = DeviceSettings(2, 14, lowest_hz=863_000_000, highest_hz=870_000_000, seed=1)
+site = Network(band, 0x00002A, first_dev_addr=0x26010001)
+site.register(relay_eui, join_eui, root_key)
+site.register(sensor_eui, join_eui, root_key)
+
+
+def heard_at(transmission, at_us):
+    """Hand the network what a gateway heard of one transmission."""
+    return Rxpk(
+        transmission.frequency_hz,
+        transmission.frame,
+        link=transmission.link,
+        timestamp_us=at_us,
+    )
+
+
+# The relay is an end device that also listens for others, so it joins the ordinary way.
+rooftop = Relay.over_the_air(
+    band, device(relay_eui, join_eui, root_key), radio, "ppm20", "symbols4"
+)
+relay_join = rooftop.join(1, 1_000_000)
+relay_accept = site.uplink(heard_at(relay_join, 1_000_000))
+rooftop.heard_in("rx1", relay_accept.accept.payload, 7)
+print(f"relay     joined as 0x{rooftop.dev_addr:08X}")
+
+# The sensor joins too. Its own uplinks never reach the gateway, but its join does, because
+# the cellar door is open while it is installed.
+cellar = end_device(band, sensor_eui, join_eui, root_key, radio)
+sensor_join = cellar.join(2, 20_000_000)
+sensor_accept = site.uplink(heard_at(sensor_join, 20_000_000))
+cellar.heard(sensor_accept.accept.payload, 7, ReceiveWindow.RX1)
+sensor_addr = cellar.dev_addr
+
+# The network hands the relay the key that lets it verify the sensor's wake-up frames, in a
+# command riding on the relay's own downlink.
+relay_empty = rooftop.send_empty(40_000_000)
+relay_carried = site.uplink(heard_at(relay_empty, 40_000_000))
+trust = site.trust_command(sensor_addr, 0)
+configure = site.command(rooftop.dev_addr, relay_carried.slot, [trust])
+rooftop.heard_in("rx1", configure.payload, 7)
+print(f"trusted   the relay now forwards for 0x{sensor_addr:08X}")
+
+# It scans once a second on the region's wake-on-radio channel.
+rooftop.start("ms1000", 0)
+scan = rooftop.next_scan(60_000_000)
+print(f"scan      {scan.carrier.frequency_hz / 1e6:.1f} MHz at DR{scan.carrier.data_rate} every second")
+
+# The sensor turns relay mode on. Its uplink now goes out behind a frame whose preamble spans
+# a whole scan period, because it does not yet know when the relay listens.
+cellar.use_relay(True)
+relayed_reading = cellar.send(2, b"21.5", 61_000_000)
+exchange = relayed_reading.relay
+print(
+    f"wake      {len(exchange.wake_up.frame)} bytes with a "
+    f"{exchange.wake_up.link.preamble_symbols}-symbol preamble, "
+    f"{(exchange.uplink_start_us - exchange.wake_up.start_us) // 1000} ms before the uplink"
+)
+
+# The relay hears it, knows the device, and answers with when it scanned, so every frame after
+# this one carries only the preamble the two clocks could have drifted apart.
+woke = rooftop.heard_wor(scan, exchange.wake_up.frame, -90, 4, scan.start_us + 500_000)
+said = cellar.heard_wor_ack(woke.acknowledgment.frame)
+print(
+    f"ack       the relay scans every {int(said.cad_periodicity[2:])} ms and forwards at "
+    f"DR{said.relay_data_rate}"
+)
+
+# The uplink follows, and the relay wraps it in one of its own on port 226.
+due_us = rooftop.heard_uplink(relayed_reading.frame, -88, 6, woke.listen.start_us + 100_000)
+forwarded = rooftop.forward(due_us)
+relayed = site.uplink(heard_at(forwarded, due_us))
+print(
+    f"forwarded {relayed.payload.decode()} from 0x{relayed.dev_addr:08X}, "
+    f"heard by 0x{relayed.relay.relay:08X} at {relayed.relay.rssi_dbm} dBm"
+)
+
+# The answer goes back the same way: the network answers the sensor, the relay unwraps it and
+# sends it on, and the sensor hears it in the window it keeps for a relay.
+relayed_answer = site.answer(sensor_addr, relayed.slot, 2, b"set=19.0")
+passed = rooftop.heard_in("rx1", relayed_answer.payload, 7)
+delivered = cellar.heard(passed.downlink.frame, 7, ReceiveWindow.RXR)
+print(
+    f"downlink  port {delivered.delivery.port} says {delivered.delivery.payload.decode()}, "
+    f"{exchange.rxr.delay_us // 1_000_000} s after the uplink"
+)
+```
+<!-- end -->
+
 
 ## C#
 
@@ -604,6 +988,112 @@ Console.WriteLine(
     $"resumed   {saved.Length} saved bytes; the next reading goes out as uplink {woken.FcntUp - 1} without joining again");
 ```
 <!-- end -->
+
+A sensor carried by the relay next door:
+
+<!-- snippet: bindings/dotnet/samples/Pamoja.Guides/LorawanGuide.cs#relay -->
+From [`bindings/dotnet/samples/Pamoja.Guides/LorawanGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/LorawanGuide.cs):
+
+```csharp
+// One site: a gateway on a hill, a relay on a rooftop in range of it, and a sensor
+// in a cellar the gateway cannot hear at all.
+byte[] rootKey = new byte[16];
+Array.Fill(rootKey, (byte)7);
+byte[] joinEui = new byte[8];
+byte[] relayEui = Convert.FromHexString("70B3D57ED0050001");
+byte[] sensorEui = Convert.FromHexString("70B3D57ED0050002");
+using LoraChannelPlan band = LoraChannelPlan.ForRegion(LoraRegion.Eu868);
+var radio = new LorawanDeviceSettings(2, 14)
+{
+    LowestHz = 863_000_000,
+    HighestHz = 870_000_000,
+    Seed = 1,
+};
+using var site = new GatewayNetwork(band, 0x00002A, firstDevAddr: 0x26010001);
+site.Register(relayEui, joinEui, rootKey);
+site.Register(sensorEui, joinEui, rootKey);
+static string Mhz(uint hz) => (hz / 1e6).ToString("F1", CultureInfo.InvariantCulture);
+static GatewayRxpk HeardAt(LorawanTransmission transmission, uint atMicros) =>
+    new(transmission.FrequencyHz, transmission.Frame)
+    {
+        Link = transmission.Link,
+        TimestampMicros = atMicros,
+    };
+
+// The relay is an end device that also listens for others, so it joins the ordinary way.
+using var relayCredentials = new LorawanDevice(relayEui, joinEui, rootKey);
+using LorawanRelayNode rooftop = LorawanRelayNode.OverTheAir(
+    band, relayCredentials, radio, LorawanXtalAccuracy.Ppm20, LorawanCadToRx.Symbols4);
+LorawanTransmission relayJoin = rooftop.Join(1, 1_000_000);
+GatewayNetworkEvent relayAccept = site.Uplink(HeardAt(relayJoin, 1_000_000));
+rooftop.HeardIn(LorawanReceiveWindow.Rx1, relayAccept.Accept!.Payload, 7);
+Console.WriteLine($"relay     joined as 0x{rooftop.DevAddr!.Value:X8}");
+
+// The sensor joins too. Its own uplinks never reach the gateway, but its join does,
+// because the cellar door is open while it is installed.
+using var sensorCredentials = new LorawanDevice(sensorEui, joinEui, rootKey);
+using LorawanEndDevice cellar = LorawanEndDevice.OverTheAir(band, sensorCredentials, radio);
+LorawanTransmission sensorJoin = cellar.Join(2, 20_000_000);
+GatewayNetworkEvent sensorAccept = site.Uplink(HeardAt(sensorJoin, 20_000_000));
+cellar.Heard(sensorAccept.Accept!.Payload, 7, LorawanReceiveWindow.Rx1);
+uint sensorAddr = cellar.DevAddr!.Value;
+
+// The network hands the relay the key that lets it verify the sensor's wake-up frames,
+// in a command riding on the relay's own downlink.
+LorawanTransmission relayEmpty = rooftop.SendEmpty(40_000_000);
+GatewayNetworkEvent relayCarried = site.Uplink(HeardAt(relayEmpty, 40_000_000));
+LorawanMacCommand trust = site.TrustCommand(sensorAddr, 0);
+GatewayTxpk configure = site.Command(rooftop.DevAddr!.Value, relayCarried.Slot!, [trust]);
+rooftop.HeardIn(LorawanReceiveWindow.Rx1, configure.Payload, 7);
+Console.WriteLine($"trusted   the relay now forwards for 0x{sensorAddr:X8}");
+
+// It scans once a second on the region's wake-on-radio channel.
+rooftop.Start(LorawanCadPeriodicity.Ms1000, 0);
+LorawanScan scan = rooftop.NextScan(60_000_000)!;
+Console.WriteLine(
+    $"scan      {Mhz(scan.Carrier.FrequencyHz)} MHz at DR{scan.Carrier.DataRate} every second");
+
+// The sensor turns relay mode on. Its uplink now goes out behind a frame whose preamble
+// spans a whole scan period, because it does not yet know when the relay listens.
+cellar.UseRelay(true);
+LorawanTransmission reading = cellar.Send(2, "21.5"u8, 61_000_000);
+LorawanRelayExchange exchange = reading.Relay!;
+Console.WriteLine(
+    $"wake      {exchange.WakeUp.Frame.Length} bytes with a " +
+    $"{exchange.WakeUp.Link.PreambleSymbols}-symbol preamble, " +
+    $"{(exchange.UplinkStartMicros - exchange.WakeUp.StartMicros) / 1000} ms before the uplink");
+
+// The relay hears it, knows the device, and answers with when it scanned, so every
+// frame after this one carries only the preamble the two clocks could have drifted apart.
+var woke = (LorawanWake.Uplink)rooftop.HeardWor(
+    scan, exchange.WakeUp.Frame, -90, 4, scan.StartMicros + 500_000);
+LorawanRelayStatus said = cellar.HeardWorAck(woke.Acknowledgment!.Frame);
+Console.WriteLine(
+    $"ack       the relay scans every {PeriodMillis(said.CadPeriodicity)} ms and " +
+    $"forwards at DR{said.RelayDataRate}");
+
+// The uplink follows, and the relay wraps it in one of its own on port 226.
+ulong dueUs = rooftop.HeardUplink(reading.Frame, -88, 6, woke.Listen!.StartMicros + 100_000);
+LorawanTransmission forwarded = rooftop.Forward(dueUs);
+GatewayNetworkEvent relayed = site.Uplink(HeardAt(forwarded, (uint)dueUs));
+Console.WriteLine(
+    $"forwarded {Encoding.UTF8.GetString(relayed.Payload!)} from 0x{relayed.DevAddr:X8}, " +
+    $"heard by 0x{relayed.Relay!.Relay:X8} at {relayed.Relay!.RssiDbm} dBm");
+
+// The answer goes back the same way: the network answers the sensor, the relay unwraps
+// it and sends it on, and the sensor hears it in the window it keeps for a relay.
+GatewayTxpk answer = site.Answer(sensorAddr, relayed.Slot!, 2, "set=19.0"u8);
+var passed = (LorawanRelayHeard.Downlink)rooftop.HeardIn(
+    LorawanReceiveWindow.Rx1, answer.Payload, 7);
+var delivered = (LorawanHeard.Data)cellar.Heard(
+    passed.Forwarded.Frame, 7, LorawanReceiveWindow.Rxr);
+Console.WriteLine(
+    $"downlink  port {delivered.Delivery.Port} says " +
+    $"{Encoding.UTF8.GetString(delivered.Delivery.Payload)}, " +
+    $"{exchange.Rxr.DelayMicros / 1_000_000} s after the uplink");
+```
+<!-- end -->
+
 
 ## Reference
 

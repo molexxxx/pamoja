@@ -247,4 +247,25 @@ public struct PamojaGatewayNetworkEvent
 
     /// <summary>The packet that carries the accept, for a join.</summary>
     public PamojaGatewayTxpk Accept;
+
+    /// <summary><c>1</c> when a relay forwarded this uplink.</summary>
+    public byte Relayed;
+
+    /// <summary>The relay that forwarded it.</summary>
+    public uint RelayDevAddr;
+
+    /// <summary>What the relay heard of the uplink, in dBm.</summary>
+    public short RelayRssiDbm;
+
+    /// <summary>Its signal-to-noise ratio, in dB.</summary>
+    public sbyte RelaySnrDb;
+
+    /// <summary>The data rate it arrived at.</summary>
+    public byte RelayDataRate;
+
+    /// <summary>The WOR channel the device woke the relay on.</summary>
+    public byte RelayWorChannel;
+
+    /// <summary>The frequency the uplink arrived on, in hertz.</summary>
+    public uint RelayFrequencyHz;
 }

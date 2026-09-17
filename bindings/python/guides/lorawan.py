@@ -116,3 +116,100 @@ print(
 
 assert following.carries_payload
 assert woken.dev_addr == 0x26012E43
+
+
+# ANCHOR: relay
+from pamoja.gateway import Network, Rxpk
+from pamoja.lorawan import Relay
+
+# One site: a gateway on a hill, a relay on a rooftop in range of it, and a sensor in a
+# cellar the gateway cannot hear at all.
+relay_eui = bytes.fromhex("70b3d57ed0050001")
+sensor_eui = bytes.fromhex("70b3d57ed0050002")
+band = plan_for("EU868")
+radio = DeviceSettings(2, 14, lowest_hz=863_000_000, highest_hz=870_000_000, seed=1)
+site = Network(band, 0x00002A, first_dev_addr=0x26010001)
+site.register(relay_eui, join_eui, root_key)
+site.register(sensor_eui, join_eui, root_key)
+
+
+def heard_at(transmission, at_us):
+    """Hand the network what a gateway heard of one transmission."""
+    return Rxpk(
+        transmission.frequency_hz,
+        transmission.frame,
+        link=transmission.link,
+        timestamp_us=at_us,
+    )
+
+
+# The relay is an end device that also listens for others, so it joins the ordinary way.
+rooftop = Relay.over_the_air(
+    band, device(relay_eui, join_eui, root_key), radio, "ppm20", "symbols4"
+)
+relay_join = rooftop.join(1, 1_000_000)
+relay_accept = site.uplink(heard_at(relay_join, 1_000_000))
+rooftop.heard_in("rx1", relay_accept.accept.payload, 7)
+print(f"relay     joined as 0x{rooftop.dev_addr:08X}")
+
+# The sensor joins too. Its own uplinks never reach the gateway, but its join does, because
+# the cellar door is open while it is installed.
+cellar = end_device(band, sensor_eui, join_eui, root_key, radio)
+sensor_join = cellar.join(2, 20_000_000)
+sensor_accept = site.uplink(heard_at(sensor_join, 20_000_000))
+cellar.heard(sensor_accept.accept.payload, 7, ReceiveWindow.RX1)
+sensor_addr = cellar.dev_addr
+
+# The network hands the relay the key that lets it verify the sensor's wake-up frames, in a
+# command riding on the relay's own downlink.
+relay_empty = rooftop.send_empty(40_000_000)
+relay_carried = site.uplink(heard_at(relay_empty, 40_000_000))
+trust = site.trust_command(sensor_addr, 0)
+configure = site.command(rooftop.dev_addr, relay_carried.slot, [trust])
+rooftop.heard_in("rx1", configure.payload, 7)
+print(f"trusted   the relay now forwards for 0x{sensor_addr:08X}")
+
+# It scans once a second on the region's wake-on-radio channel.
+rooftop.start("ms1000", 0)
+scan = rooftop.next_scan(60_000_000)
+print(f"scan      {scan.carrier.frequency_hz / 1e6:.1f} MHz at DR{scan.carrier.data_rate} every second")
+
+# The sensor turns relay mode on. Its uplink now goes out behind a frame whose preamble spans
+# a whole scan period, because it does not yet know when the relay listens.
+cellar.use_relay(True)
+relayed_reading = cellar.send(2, b"21.5", 61_000_000)
+exchange = relayed_reading.relay
+print(
+    f"wake      {len(exchange.wake_up.frame)} bytes with a "
+    f"{exchange.wake_up.link.preamble_symbols}-symbol preamble, "
+    f"{(exchange.uplink_start_us - exchange.wake_up.start_us) // 1000} ms before the uplink"
+)
+
+# The relay hears it, knows the device, and answers with when it scanned, so every frame after
+# this one carries only the preamble the two clocks could have drifted apart.
+woke = rooftop.heard_wor(scan, exchange.wake_up.frame, -90, 4, scan.start_us + 500_000)
+said = cellar.heard_wor_ack(woke.acknowledgment.frame)
+print(
+    f"ack       the relay scans every {int(said.cad_periodicity[2:])} ms and forwards at "
+    f"DR{said.relay_data_rate}"
+)
+
+# The uplink follows, and the relay wraps it in one of its own on port 226.
+due_us = rooftop.heard_uplink(relayed_reading.frame, -88, 6, woke.listen.start_us + 100_000)
+forwarded = rooftop.forward(due_us)
+relayed = site.uplink(heard_at(forwarded, due_us))
+print(
+    f"forwarded {relayed.payload.decode()} from 0x{relayed.dev_addr:08X}, "
+    f"heard by 0x{relayed.relay.relay:08X} at {relayed.relay.rssi_dbm} dBm"
+)
+
+# The answer goes back the same way: the network answers the sensor, the relay unwraps it and
+# sends it on, and the sensor hears it in the window it keeps for a relay.
+relayed_answer = site.answer(sensor_addr, relayed.slot, 2, b"set=19.0")
+passed = rooftop.heard_in("rx1", relayed_answer.payload, 7)
+delivered = cellar.heard(passed.downlink.frame, 7, ReceiveWindow.RXR)
+print(
+    f"downlink  port {delivered.delivery.port} says {delivered.delivery.payload.decode()}, "
+    f"{exchange.rxr.delay_us // 1_000_000} s after the uplink"
+)
+# ANCHOR_END: relay

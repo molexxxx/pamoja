@@ -31,18 +31,33 @@ import type {
   LorawanReceiveWindow as ReceiveWindowName,
   LorawanVersion as VersionName,
   LoraRelayChannel,
+  LorawanAckWindow,
+  LorawanAcknowledgment,
   LorawanCadPeriodicity as CadPeriodicityName,
   LorawanCadToRx as CadToRxName,
   LorawanCarrier,
   LorawanForwardedUplink,
+  LorawanListen,
+  LorawanRelayActivation as RelayActivationName,
+  LorawanRelayExchange,
   LorawanRelayForward as RelayForwardName,
+  LorawanRelayHeard,
+  LorawanRelayHeardKind as RelayHeardKindName,
+  LorawanRelayStatus,
+  LorawanRelaySync as RelaySyncName,
+  LorawanRxrDownlink,
+  LorawanScan,
   LorawanStateSync,
   LorawanSynchronization,
   LorawanUplinkMetadata,
+  LorawanWake,
+  LorawanWakeKind as WakeKindName,
+  LorawanWakeUp,
   LorawanWor,
   LorawanWorChannel as WorChannelName,
   LorawanWorKeys,
   LorawanWorKind as WorKindName,
+  LorawanWorNext,
   LorawanWorSlot,
   LorawanXtalAccuracy as XtalAccuracyName,
 } from '@pamoja/native'
@@ -67,6 +82,7 @@ import {
   type LorawanGrant,
   LorawanJoinAccept,
   type LorawanMacCommand,
+  LorawanRelay,
   type LorawanOptions,
   LorawanSession,
   lorawanGrantAccept,
@@ -102,11 +118,19 @@ import {
 } from '@pamoja/native'
 
 export {
+  type LorawanAckWindow as AckWindow,
+  type LorawanAcknowledgment as Acknowledgment,
   type LorawanCarrier as Carrier,
   type LorawanForwardedUplink as ForwardedUplink,
+  type LorawanListen as Listen,
+  type LorawanRelayExchange as RelayExchange,
+  type LorawanRelayStatus as RelayStatus,
+  type LorawanRxrDownlink as RxrDownlink,
+  type LorawanScan as Scan,
   type LorawanStateSync as StateSync,
   type LorawanSynchronization as Synchronization,
   type LorawanUplinkMetadata as UplinkMetadata,
+  type LorawanWakeUp as WakeUp,
   type LorawanWor as Wor,
   type LorawanWorKeys as WorKeys,
   type LorawanWorSlot as WorSlot,
@@ -187,6 +211,8 @@ export const ReceiveWindow = {
   Rx1: 'Rx1' as ReceiveWindowName,
   /** The second, on the fixed frequency and data rate. */
   Rx2: 'Rx2' as ReceiveWindowName,
+  /** The relay window, which a device under a relay opens last, TS011-1.0.1 chapter 7. */
+  Rxr: 'Rxr' as ReceiveWindowName,
 } as const
 
 /** One of the {@link ReceiveWindow} values. */
@@ -969,6 +995,52 @@ export type Next =
   | { kind: 'JoinAgain'; notBeforeUs: number }
 
 /**
+ * Reads what a frame heard in a receive window turned out to be.
+ *
+ * @param heard - What the generated binding returned.
+ * @returns The join, or the downlink read and acted on.
+ */
+function heardOut(heard: LorawanHeard): Heard {
+  if (heard.kind === 'Joined' || heard.delivery == null) {
+    return { kind: 'Joined', devAddr: heard.devAddr }
+  }
+  const delivery: LorawanDelivery = heard.delivery
+  return {
+    kind: 'Data',
+    devAddr: heard.devAddr,
+    delivery: {
+      port: delivery.port ?? null,
+      payload: delivery.payload,
+      acknowledged: delivery.acknowledged,
+      confirmed: delivery.confirmed,
+      morePending: delivery.morePending,
+      linkCheck: delivery.linkCheck ?? null,
+      deviceTime: delivery.deviceTime ?? null,
+    },
+  }
+}
+
+/**
+ * Reads what to do once both receive windows closed with nothing.
+ *
+ * @param next - What the generated binding returned.
+ * @param nowUs - The time the second window closed, in microseconds.
+ * @returns Whether to repeat the frame, join again, or move on.
+ */
+function nextOut(next: LorawanNext, nowUs: number): Next {
+  switch (next.kind) {
+    case 'Repeat':
+      return { kind: 'Repeat', notBeforeUs: next.notBeforeUs ?? nowUs }
+    case 'JoinAgain':
+      return { kind: 'JoinAgain', notBeforeUs: next.notBeforeUs ?? nowUs }
+    case 'Done':
+      return { kind: 'Done' }
+    default:
+      return { kind: 'Unacknowledged' }
+  }
+}
+
+/**
  * A LoRaWAN Class A end device, without a radio.
  *
  * It joins, chooses a channel and data rate for each uplink, says when and where to listen
@@ -1121,24 +1193,7 @@ export class EndDevice {
    *   `Refused` or `Frame`. The windows stay open, so the second still listens.
    */
   heard(frame: Uint8Array, snrDb: number, window?: ReceiveWindow): Heard {
-    const heard: LorawanHeard = this.#inner.heard(Buffer.from(frame), snrDb, window)
-    if (heard.kind === 'Joined' || heard.delivery == null) {
-      return { kind: 'Joined', devAddr: heard.devAddr }
-    }
-    const delivery: LorawanDelivery = heard.delivery
-    return {
-      kind: 'Data',
-      devAddr: heard.devAddr,
-      delivery: {
-        port: delivery.port ?? null,
-        payload: delivery.payload,
-        acknowledged: delivery.acknowledged,
-        confirmed: delivery.confirmed,
-        morePending: delivery.morePending,
-        linkCheck: delivery.linkCheck ?? null,
-        deviceTime: delivery.deviceTime ?? null,
-      },
-    }
+    return heardOut(this.#inner.heard(Buffer.from(frame), snrDb, window))
   }
 
   /**
@@ -1149,17 +1204,7 @@ export class EndDevice {
    * @throws A {@link DeviceError}: `NothingPending`.
    */
   nothingHeard(nowUs: number): Next {
-    const next: LorawanNext = this.#inner.nothingHeard(nowUs)
-    switch (next.kind) {
-      case 'Repeat':
-        return { kind: 'Repeat', notBeforeUs: next.notBeforeUs ?? nowUs }
-      case 'JoinAgain':
-        return { kind: 'JoinAgain', notBeforeUs: next.notBeforeUs ?? nowUs }
-      case 'Done':
-        return { kind: 'Done' }
-      default:
-        return { kind: 'Unacknowledged' }
-    }
+    return nextOut(this.#inner.nothingHeard(nowUs), nowUs)
   }
 
   /**
@@ -1259,6 +1304,72 @@ export class EndDevice {
    */
   resume(saved: Uint8Array, nowUs: number): void {
     this.#inner.resume(Buffer.from(saved), nowUs)
+  }
+
+  /**
+   * Turns relay mode on or off, TS011-1.0.1 section 10.2 and appendix 5.
+   *
+   * From here on the decision is the caller's rather than the device's own policy, until
+   * the network takes it over with an `EndDeviceConfReq` or hands it back.
+   *
+   * @param on - Whether the next uplinks go through a relay.
+   * @returns `false` when the network holds the decision, leaving the mode as it was.
+   */
+  useRelay(on: boolean): boolean {
+    return this.#inner.useRelay(on)
+  }
+
+  /**
+   * Reads the acknowledgment a relay answered the last WOR frame with.
+   *
+   * The device is now synchronized: it knows when the relay scans, so its next frames carry
+   * only as much preamble as the two clocks could have drifted apart.
+   *
+   * @param frame - The seven bytes the radio received in the acknowledgment window.
+   * @returns What the relay said about itself.
+   * @throws A {@link DeviceError}: `NothingPending` with no exchange waiting, or `Frame` for
+   *   an acknowledgment that does not verify.
+   */
+  heardWorAck(frame: Uint8Array): LorawanRelayStatus {
+    return this.#inner.heardWorAck(Buffer.from(frame))
+  }
+
+  /**
+   * Says what to do once the acknowledgment window closed with nothing in it.
+   *
+   * @param nowUs - The time the window closed, in microseconds.
+   * @returns Whether to send the uplink at the time the exchange named anyway, or wake the
+   *   relay again first, as the network's back-off asks.
+   * @throws A {@link DeviceError}: `NothingPending`.
+   */
+  noWorAck(nowUs: number): WorNext {
+    const next: LorawanWorNext = this.#inner.noWorAck(nowUs)
+    return next.wakeUp == null ? { kind: 'Uplink' } : { kind: 'WakeUp', exchange: next.wakeUp }
+  }
+
+  /** Whether the next uplink goes through a relay. */
+  get relaying(): boolean {
+    return this.#inner.relaying
+  }
+
+  /** How the device decides whether to use a relay. */
+  get relayActivation(): RelayActivation {
+    return this.#inner.relayActivation
+  }
+
+  /** What the device knows of when its relay listens, TS011-1.0.1 section 3.9. */
+  get relaySync(): RelaySync {
+    return this.#inner.relaySync
+  }
+
+  /** What the relay's last acknowledgment said about itself, or `null` before one arrived. */
+  get relayStatus(): LorawanRelayStatus | null {
+    return this.#inner.relayStatus ?? null
+  }
+
+  /** The WOR frame counter the next frame will use, TS011-1.0.1 section 5.3.2. */
+  get worCounter(): number {
+    return this.#inner.worCounter
   }
 }
 
@@ -1636,3 +1747,403 @@ export const relay = {
     return lorawanRelaySecondChannel(secondChannelIndex, dataRate, ackOffset, frequencyHz) ?? null
   },
 } as const
+
+/** How an end device decides whether to send through a relay, TS011-1.0.1 section 10.2. */
+export const RelayActivation = {
+  /** Never, the default. */
+  Disabled: 'Disabled' as RelayActivationName,
+  /** Always. */
+  Enabled: 'Enabled' as RelayActivationName,
+  /** Only once a run of uplinks went unanswered, as the network's smart-enable level sets. */
+  Dynamic: 'Dynamic' as RelayActivationName,
+  /** However the device itself decides, which {@link EndDevice.useRelay} sets. */
+  DeviceControlled: 'DeviceControlled' as RelayActivationName,
+} as const
+
+/** One of the {@link RelayActivation} values. */
+export type RelayActivation = RelayActivationName
+
+/** What an end device knows of its relay's scans, TS011-1.0.1 section 3.9. */
+export const RelaySync = {
+  /** Nothing: no WOR frame has gone out yet. */
+  Initialized: 'Initialized' as RelaySyncName,
+  /** One went out unanswered, so the next preamble spans a whole scan period. */
+  Unsynchronized: 'Unsynchronized' as RelaySyncName,
+  /** It knows when the relay scans, so a short preamble reaches it. */
+  Synchronized: 'Synchronized' as RelaySyncName,
+} as const
+
+/** One of the {@link RelaySync} values. */
+export type RelaySync = RelaySyncName
+
+/** What an end device does once its WOR frame went unanswered. */
+export type WorNext =
+  | { kind: 'Uplink' }
+  | { kind: 'WakeUp'; exchange: LorawanRelayExchange }
+
+/** What a WOR frame led a relay to do. */
+export const WakeKind = {
+  /** A join request from a device the relay's filters let through. */
+  JoinRequest: 'JoinRequest' as WakeKindName,
+  /** An uplink from a trusted device. */
+  Uplink: 'Uplink' as WakeKindName,
+  /** A frame from a device the relay does not know, which it tells its network about. */
+  Notified: 'Notified' as WakeKindName,
+} as const
+
+/** What a WOR frame led a relay to do. */
+export type Wake =
+  | { kind: 'JoinRequest'; listen: LorawanListen }
+  | {
+      kind: 'Uplink'
+      devAddr: number
+      wfcnt: number
+      forward: RelayForward
+      acknowledgment: LorawanAcknowledgment | null
+      listen: LorawanListen | null
+    }
+  | { kind: 'Notified'; devAddr: number }
+
+/** What a frame a relay's own device heard turned out to be. */
+export const RelayHeardKind = {
+  /** The relay's own device read it. */
+  Device: 'Device' as RelayHeardKindName,
+  /** A downlink for an end device, to send in its relay window. */
+  Downlink: 'Downlink' as RelayHeardKindName,
+  /** A downlink for an end device the relay cannot send on. */
+  Undeliverable: 'Undeliverable' as RelayHeardKindName,
+} as const
+
+/** What a frame a relay's own device heard turned out to be. */
+export type RelayHeard =
+  | { kind: 'Device'; heard: Heard }
+  | { kind: 'Downlink'; downlink: LorawanRxrDownlink }
+  | { kind: 'Undeliverable'; reason: string }
+
+/** An end device a relay forwards for, as an `UpdateUplinkListReq` describes it. */
+export interface TrustedDevice {
+  /** The device's address. */
+  devAddr: number
+  /** Its root relay session key, from {@link relay.rootWorSKey}. */
+  rootWorSKey: Uint8Array
+  /** The WOR frame counter to expect from it next; 0 for a device that has not sent one. */
+  nextWfcnt?: number
+  /** How many of its uplinks are forwarded an hour, 63 for no limit, table 55. */
+  reloadRate?: number
+  /** The coded bucket size multiplier, table 55. */
+  bucketSize?: number
+}
+
+/**
+ * A LoRaWAN relay: an end device that also carries the uplinks of the devices around it.
+ *
+ * A relay sleeps, waking every scan period to look for radio activity on its WOR channel.
+ * One turn runs like this: {@link Relay.nextScan} says when and where to listen, a frame
+ * heard there goes to {@link Relay.heardWor}, the uplink it announced to
+ * {@link Relay.heardUplink}, and {@link Relay.forward} wraps that in one of the relay's own
+ * uplinks on port {@link LA_FPORT_RELAY}. What the relay's own receive windows hear goes to
+ * {@link Relay.heardIn}, which turns a downlink meant for an end device into one to send in
+ * that device's relay window.
+ *
+ * It owns no radio and no clock, so the same relay runs over any radio, or in a test with
+ * none. The codecs behind it are on the {@link relay} object.
+ *
+ * @example
+ * ```ts
+ * const node = Relay.personalized(planFor(LoraRegion.Eu868), devAddr, nwkSKey, appSKey, {
+ *   minOutputDbm: 2,
+ *   maxOutputDbm: 14,
+ * })
+ * node.start(CadPeriodicity.Ms1000, 0)
+ * node.trust(0, { devAddr: sensorAddr, rootWorSKey: relay.rootWorSKey(sensorNwkSKey) })
+ * const scan = node.nextScan(clock.nowUs())
+ * ```
+ */
+export class Relay {
+  readonly #inner: LorawanRelay
+
+  /**
+   * Wraps a generated relay.
+   *
+   * @param inner - The generated relay this facade delegates to.
+   */
+  constructor(inner: LorawanRelay) {
+    this.#inner = inner
+  }
+
+  /**
+   * Makes a relay whose own device is activated by personalization.
+   *
+   * @param plan - A published channel plan, from `planFor` or `cn470Plan`.
+   * @param devAddr - The address the relay was provisioned with.
+   * @param nwkSKey - Its 16-byte network session key.
+   * @param appSKey - Its 16-byte application session key.
+   * @param settings - What its radio can do.
+   * @param xtalAccuracy - How accurate its crystal is, which its acknowledgments report.
+   * @param cadToRx - How long it takes to start receiving once it detects activity.
+   * @returns The relay, stopped until {@link Relay.start}.
+   * @throws If the plan was built rather than published, or a key is the wrong length.
+   */
+  static personalized(
+    plan: LoraChannelPlan,
+    devAddr: number,
+    nwkSKey: Uint8Array,
+    appSKey: Uint8Array,
+    settings: LorawanDeviceSettings,
+    xtalAccuracy: XtalAccuracy = XtalAccuracy.Ppm40,
+    cadToRx: CadToRx = CadToRx.Symbols8,
+  ): Relay {
+    const session = new LorawanSession(devAddr, Buffer.from(nwkSKey), Buffer.from(appSKey))
+    return new Relay(LorawanRelay.personalized(plan, session, settings, xtalAccuracy, cadToRx))
+  }
+
+  /**
+   * Makes a relay whose own device joins over the air.
+   *
+   * @param plan - A published channel plan.
+   * @param devEui - Its 8-byte device EUI.
+   * @param joinEui - Its 8-byte join EUI.
+   * @param appKey - Its 16-byte root key.
+   * @param settings - What its radio can do.
+   * @param xtalAccuracy - How accurate its crystal is.
+   * @param cadToRx - How long it takes to start receiving once it detects activity.
+   * @returns The relay, neither joined nor scanning.
+   * @throws If the plan was built rather than published, or a credential is the wrong length.
+   */
+  static overTheAir(
+    plan: LoraChannelPlan,
+    devEui: Uint8Array,
+    joinEui: Uint8Array,
+    appKey: Uint8Array,
+    settings: LorawanDeviceSettings,
+    xtalAccuracy: XtalAccuracy = XtalAccuracy.Ppm40,
+    cadToRx: CadToRx = CadToRx.Symbols8,
+  ): Relay {
+    const credentials = new LorawanDevice(
+      Buffer.from(devEui),
+      Buffer.from(joinEui),
+      Buffer.from(appKey),
+    )
+    return new Relay(LorawanRelay.overTheAir(plan, credentials, settings, xtalAccuracy, cadToRx))
+  }
+
+  /**
+   * Starts scanning, or changes what a running relay scans from its next scan on.
+   *
+   * @param cadPeriodicity - How often to scan.
+   * @param defaultChannelIndex - Which of the region's WOR channels is the default one.
+   * @param secondChannel - A second channel the network configured, from
+   *   {@link relay.secondChannel}.
+   * @throws For a channel index the region does not define.
+   */
+  start(
+    cadPeriodicity: CadPeriodicity,
+    defaultChannelIndex: number,
+    secondChannel?: LoraRelayChannel,
+  ): void {
+    this.#inner.start(cadPeriodicity, defaultChannelIndex, secondChannel)
+  }
+
+  /** Stops scanning. A forwarded uplink already waiting still goes out. */
+  stop(): void {
+    this.#inner.stop()
+  }
+
+  /**
+   * Trusts an end device, as an `UpdateUplinkListReq` with the same fields does.
+   *
+   * @param index - The entry, 0 to 15; there is room for {@link TRUSTED_ED_NUMBER}.
+   * @param device - The device, its key, and what it may spend.
+   * @throws For an index past 15.
+   */
+  trust(index: number, device: TrustedDevice): void {
+    this.#inner.trust(
+      index,
+      device.devAddr,
+      Buffer.from(device.rootWorSKey),
+      device.nextWfcnt ?? 0,
+      device.reloadRate ?? 63,
+      device.bucketSize ?? 0,
+    )
+  }
+
+  /**
+   * Says when and where to scan next.
+   *
+   * @param nowUs - The time, in microseconds.
+   * @returns The scan, or `null` while the relay is stopped.
+   */
+  nextScan(nowUs: number): LorawanScan | null {
+    return this.#inner.nextScan(nowUs) ?? null
+  }
+
+  /**
+   * Reads a WOR frame a scan heard.
+   *
+   * @param scan - The scan that heard it, as {@link Relay.nextScan} returned it.
+   * @param frame - The bytes the radio received.
+   * @param rssiDbm - Its received signal strength, which the forwarded uplink carries.
+   * @param snrDb - Its signal-to-noise ratio, which the forwarded uplink carries.
+   * @param endedUs - When the frame ended, in microseconds.
+   * @returns What the frame led to: an acknowledgment to send, an uplink to listen for, or
+   *   a notification for the network.
+   * @throws For a frame that does not verify, a device the relay does not forward for, or a
+   *   limit already spent.
+   */
+  heardWor(
+    scan: LorawanScan,
+    frame: Uint8Array,
+    rssiDbm: number,
+    snrDb: number,
+    endedUs: number,
+  ): Wake {
+    const wake: LorawanWake = this.#inner.heardWor(scan, Buffer.from(frame), rssiDbm, snrDb, endedUs)
+    switch (wake.kind) {
+      case 'JoinRequest':
+        return { kind: 'JoinRequest', listen: wake.listen as LorawanListen }
+      case 'Notified':
+        return { kind: 'Notified', devAddr: wake.devAddr as number }
+      default:
+        return {
+          kind: 'Uplink',
+          devAddr: wake.devAddr as number,
+          wfcnt: wake.wfcnt as number,
+          forward: wake.forward as RelayForward,
+          acknowledgment: wake.acknowledgment ?? null,
+          listen: wake.listen ?? null,
+        }
+    }
+  }
+
+  /**
+   * Reads the uplink a WOR frame announced, and holds it to forward.
+   *
+   * @param frame - The bytes the radio received.
+   * @param rssiDbm - Its received signal strength.
+   * @param snrDb - Its signal-to-noise ratio.
+   * @param endedUs - When the frame ended, in microseconds.
+   * @returns When to {@link Relay.forward} it: fifty milliseconds after it ended.
+   * @throws When nothing announced it, or the frame is not the one it announced.
+   */
+  heardUplink(frame: Uint8Array, rssiDbm: number, snrDb: number, endedUs: number): number {
+    return this.#inner.heardUplink(Buffer.from(frame), rssiDbm, snrDb, endedUs)
+  }
+
+  /** Clears the uplink a WOR frame announced, once listening heard nothing. */
+  uplinkMissed(): void {
+    this.#inner.uplinkMissed()
+  }
+
+  /**
+   * Sends the uplink the relay is holding, in one of its own on port
+   * {@link LA_FPORT_RELAY}.
+   *
+   * @param nowUs - The time, in microseconds.
+   * @returns What to transmit, with the relay's own receive windows.
+   * @throws A {@link DeviceError} when the relay's own device cannot send it yet, or when
+   *   nothing is waiting.
+   */
+  forward(nowUs: number): LorawanTransmission {
+    return this.#inner.forward(nowUs)
+  }
+
+  /**
+   * Reads a frame the relay's own device heard, acting on the relay commands in it.
+   *
+   * @param window - The window the radio heard it in.
+   * @param frame - The bytes the radio received.
+   * @param snrDb - Its signal-to-noise ratio.
+   * @returns What it turned out to be: the relay's own downlink, one to pass on to an end
+   *   device, or one that cannot be passed on.
+   * @throws A {@link DeviceError}, as {@link EndDevice.heard}.
+   */
+  heardIn(window: ReceiveWindow, frame: Uint8Array, snrDb: number): RelayHeard {
+    const heard: LorawanRelayHeard = this.#inner.heardIn(window, Buffer.from(frame), snrDb)
+    switch (heard.kind) {
+      case 'Downlink':
+        return { kind: 'Downlink', downlink: heard.downlink as LorawanRxrDownlink }
+      case 'Undeliverable':
+        return { kind: 'Undeliverable', reason: heard.reason ?? 'undeliverable' }
+      default:
+        return { kind: 'Device', heard: heardOut(heard.heard as LorawanHeard) }
+    }
+  }
+
+  /**
+   * Says what comes next once the relay's own windows closed with nothing in them.
+   *
+   * @param nowUs - The time the second window closed, in microseconds.
+   * @returns Whether to repeat the frame, join again, or move on.
+   * @throws A {@link DeviceError}: `NothingPending`.
+   */
+  nothingHeard(nowUs: number): Next {
+    return nextOut(this.#inner.nothingHeard(nowUs), nowUs)
+  }
+
+  /**
+   * Builds the relay's own join request.
+   *
+   * @param devNonce - A nonce this relay has never used with its join EUI.
+   * @param nowUs - The time, in microseconds.
+   * @returns What to transmit, with the join accept windows.
+   * @throws A {@link DeviceError}: `NoCredentials`, `Busy` or `Wait`.
+   */
+  join(devNonce: number, nowUs: number): LorawanTransmission {
+    return this.#inner.join(devNonce, nowUs)
+  }
+
+  /**
+   * Sends one of the relay's own uplinks, which also carries what it owes its network.
+   *
+   * @param port - The application port, 1 to 223.
+   * @param payload - The payload, as bytes or text encoded as UTF-8.
+   * @param nowUs - The time, in microseconds.
+   * @param confirmed - Whether to ask the network to acknowledge it.
+   * @returns What to transmit, with its receive windows.
+   * @throws A {@link DeviceError}, as {@link EndDevice.send}.
+   */
+  send(
+    port: number,
+    payload: Uint8Array | string,
+    nowUs: number,
+    confirmed = false,
+  ): LorawanTransmission {
+    return this.#inner.send(port, Buffer.from(payload), confirmed, nowUs)
+  }
+
+  /**
+   * Sends an uplink with no payload, carrying whatever the relay owes its network.
+   *
+   * @param nowUs - The time, in microseconds.
+   * @returns What to transmit, with its receive windows.
+   * @throws A {@link DeviceError}, as {@link EndDevice.send}.
+   */
+  sendEmpty(nowUs: number): LorawanTransmission {
+    return this.#inner.sendEmpty(nowUs)
+  }
+
+  /** Whether the relay is scanning. */
+  get running(): boolean {
+    return this.#inner.running
+  }
+
+  /** When the forwarded uplink waiting to go out is due, or `null` with nothing waiting. */
+  get forwardDue(): number | null {
+    return this.#inner.forwardDue ?? null
+  }
+
+  /** The address the relay's own device is on the network by, or `null` before joining. */
+  get devAddr(): number | null {
+    return this.#inner.devAddr ?? null
+  }
+
+  /** Whether the relay's own device is on a network. */
+  get joined(): boolean {
+    return this.#inner.joined
+  }
+
+  /** The data rate the relay forwards at, which its acknowledgments report. */
+  get dataRate(): number {
+    return this.#inner.dataRate
+  }
+}

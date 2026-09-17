@@ -1,4 +1,5 @@
 using Pamoja.Lora;
+using Pamoja.Lorawan;
 using Pamoja.Native.Interop;
 
 using NativeStatus = Pamoja.Native.Interop.Status;
@@ -98,7 +99,35 @@ public sealed record GatewayNetworkEvent(GatewayNetworkOutcome Outcome, uint Dev
 
     /// <summary>The packet carrying the accept, for a join.</summary>
     public GatewayTxpk? Accept { get; init; }
+
+    /// <summary>
+    /// What a relay added to an uplink it forwarded, TS011-1.0.1 section 9.1, or null for one the
+    /// gateway heard itself. An answer goes back through the same relay.
+    /// </summary>
+    public GatewayRelayed? Relay { get; init; }
 }
+
+/// <summary>What a relay added to an uplink it forwarded, TS011-1.0.1 section 9.1.</summary>
+/// <param name="Relay">The relay's own address.</param>
+/// <param name="RssiDbm">What it heard of the uplink, in dBm.</param>
+/// <param name="SnrDb">Its signal-to-noise ratio, in dB.</param>
+/// <param name="DataRate">The data rate it arrived at.</param>
+/// <param name="WorChannel">The WOR channel the device woke the relay on: 0 default, 1 second.</param>
+/// <param name="FrequencyHz">The frequency the uplink arrived on, in hertz.</param>
+public sealed record GatewayRelayed(
+    uint Relay,
+    short RssiDbm,
+    sbyte SnrDb,
+    byte DataRate,
+    byte WorChannel,
+    uint FrequencyHz);
+
+/// <summary>A device a relay heard and could not verify, TS011-1.0.1 section 10.7.</summary>
+/// <param name="Relay">The relay that heard it.</param>
+/// <param name="DevAddr">The address the wake-on-radio frame named.</param>
+/// <param name="RssiDbm">The frame's signal strength in dBm.</param>
+/// <param name="SnrDb">Its signal-to-noise ratio in dB.</param>
+public sealed record GatewayNotice(uint Relay, uint DevAddr, short RssiDbm, sbyte SnrDb);
 
 /// <summary>The network side of one site: what a server does with what a gateway forwarded.</summary>
 /// <remarks>
@@ -206,6 +235,95 @@ public sealed class GatewayNetwork : IDisposable
         return Gateway.Managed(downlink, buffer.AsSpan(0, (int)written).ToArray());
     }
 
+
+    /// <summary>Takes the devices relays have reported hearing and could not verify.</summary>
+    /// <returns>Every notice since the last call, in the order they arrived.</returns>
+    /// <remarks>
+    /// A relay carries these in the MAC commands of its own uplinks, TS011-1.0.1 section 10.7,
+    /// alongside whatever else that uplink was for, so they wait here until they are read.
+    /// </remarks>
+    public IReadOnlyList<GatewayNotice> Notices()
+    {
+        NativeStatus.ThrowIfError(NativeMethods.pamoja_gateway_network_notices(
+            _handle.DangerousGetHandle(), Span<PamojaGatewayNetworkNotice>.Empty, 0, out nuint waiting));
+        if (waiting == 0)
+        {
+            return [];
+        }
+
+        PamojaGatewayNetworkNotice[] read = new PamojaGatewayNetworkNotice[waiting];
+        NativeStatus.ThrowIfError(NativeMethods.pamoja_gateway_network_notices(
+            _handle.DangerousGetHandle(), read, waiting, out _));
+        return Array.ConvertAll(
+            read,
+            notice => new GatewayNotice(notice.Relay, notice.DevAddr, notice.RssiDbm, notice.SnrDb));
+    }
+
+    /// <summary>Builds a downlink carrying MAC commands, which is how a network configures a relay.</summary>
+    /// <param name="devAddr">The device to configure.</param>
+    /// <param name="slot">Where and when to transmit, from the event that reported its uplink.</param>
+    /// <param name="commands">The commands to send.</param>
+    /// <returns>The packet to put in a PULL_RESP.</returns>
+    /// <exception cref="PamojaException">
+    /// No session is held for the address, or a command is not one this build writes.
+    /// </exception>
+    /// <remarks>
+    /// The commands ride in the frame options where they fit, and in a frame of their own on
+    /// port 0 where they do not.
+    /// </remarks>
+    public GatewayTxpk Command(uint devAddr, GatewaySlot slot, IReadOnlyList<LorawanMacCommand> commands)
+    {
+        ArgumentNullException.ThrowIfNull(slot);
+        ArgumentNullException.ThrowIfNull(commands);
+
+        PamojaLorawanMacCommand[] flat = new PamojaLorawanMacCommand[commands.Count];
+        for (int at = 0; at < commands.Count; at++)
+        {
+            flat[at] = commands[at].ToNative();
+        }
+
+        byte[] buffer = new byte[FrameCapacity];
+        NativeStatus.ThrowIfError(NativeMethods.pamoja_gateway_network_command(
+            _handle.DangerousGetHandle(),
+            devAddr,
+            new PamojaGatewayNetworkSlot
+            {
+                TimestampUs = slot.TimestampUs,
+                FrequencyHz = slot.FrequencyHz,
+                Link = Gateway.NativeLink(slot.Link),
+            },
+            flat,
+            (nuint)flat.Length,
+            buffer,
+            (nuint)buffer.Length,
+            out PamojaGatewayTxpk downlink,
+            out nuint written));
+
+        return Gateway.Managed(downlink, buffer.AsSpan(0, (int)written).ToArray());
+    }
+
+    /// <summary>
+    /// Builds the command that tells a relay to trust a device, with the key that lets it verify
+    /// the device's wake-on-radio frames, TS011-1.0.1 section 10.4.
+    /// </summary>
+    /// <param name="devAddr">The device the relay should forward for.</param>
+    /// <param name="index">The entry in the relay's list, 0 to 15.</param>
+    /// <param name="reloadRate">How many of its uplinks the relay forwards an hour, 63 for no limit.</param>
+    /// <param name="bucketSize">The coded bucket size multiplier, table 55.</param>
+    /// <returns>The command, to send with <see cref="Command"/>.</returns>
+    /// <exception cref="PamojaException">No session is held for the address.</exception>
+    public LorawanMacCommand TrustCommand(uint devAddr, byte index, byte reloadRate = 63, byte bucketSize = 0)
+    {
+        NativeStatus.ThrowIfError(NativeMethods.pamoja_gateway_network_trust_command(
+            _handle.DangerousGetHandle(),
+            devAddr,
+            index,
+            reloadRate,
+            bucketSize,
+            out PamojaLorawanMacCommand command));
+        return LorawanMacCommand.From(command);
+    }
+
     /// <summary>Releases the network.</summary>
     public void Dispose() => _handle.Dispose();
 
@@ -245,6 +363,15 @@ public sealed class GatewayNetwork : IDisposable
                 Payload = carried,
                 Confirmed = read.Confirmed != 0,
                 Slot = Slot(read.Slot),
+                Relay = read.Relayed != 0
+                    ? new GatewayRelayed(
+                        read.RelayDevAddr,
+                        read.RelayRssiDbm,
+                        read.RelaySnrDb,
+                        read.RelayDataRate,
+                        read.RelayWorChannel,
+                        read.RelayFrequencyHz)
+                    : null,
             },
             _ => new GatewayNetworkEvent(outcome, read.DevAddr),
         };
