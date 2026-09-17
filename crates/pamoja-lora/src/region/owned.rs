@@ -17,8 +17,8 @@ use alloc::vec::Vec;
 use core::fmt;
 
 use super::{
-    Beacon, ChannelBlock, ChannelPlan, DataRate, JoinSequence, MaskControl, MaxPayload, PlanKind,
-    PowerReference, SubBand,
+    Beacon, ChannelBlock, ChannelPlan, DataRate, JoinSequence, MaskControl, MaxPayload, Modulation,
+    PlanKind, PowerReference, RelayChannel, SubBand,
 };
 
 /// Which of a plan's payload tables an entry belongs to.
@@ -82,6 +82,12 @@ pub enum PlanError {
         /// How many downlink data rates the plan defines.
         defined: usize,
     },
+    /// A relay channel names a data rate that is not a LoRa downlink data rate of the plan,
+    /// which TS011-1.0.1 needs for its wake-on-radio frames.
+    RelayDataRate {
+        /// The data rate the channel was given.
+        data_rate: u8,
+    },
 }
 
 impl fmt::Display for PlanError {
@@ -118,6 +124,10 @@ impl fmt::Display for PlanError {
                 f,
                 "RX2 listens at data rate {data_rate}, but the plan defines {defined}"
             ),
+            Self::RelayDataRate { data_rate } => write!(
+                f,
+                "a relay channel names data rate {data_rate}, which is not a LoRa downlink rate of the plan"
+            ),
         }
     }
 }
@@ -152,6 +162,7 @@ pub struct OwnedChannelPlan {
     rx2_data_rate: u8,
     data_rate_backoff: Vec<Option<u8>>,
     beacon: Beacon,
+    relay_channels: Vec<RelayChannel>,
     has_dwell_time_limit: bool,
     kind: PlanKind,
     tx_param_setup: bool,
@@ -219,6 +230,7 @@ impl OwnedChannelPlan {
             rx2_data_rate: plan.rx2_data_rate,
             data_rate_backoff: plan.data_rate_backoff.to_vec(),
             beacon: plan.beacon,
+            relay_channels: plan.relay_channels.to_vec(),
             has_dwell_time_limit: plan.has_dwell_time_limit,
             kind: plan.kind,
             tx_param_setup: plan.tx_param_setup,
@@ -281,6 +293,7 @@ impl OwnedChannelPlan {
             rx2_data_rate: self.rx2_data_rate,
             data_rate_backoff: &self.data_rate_backoff,
             beacon: self.beacon,
+            relay_channels: &self.relay_channels,
             has_dwell_time_limit: self.has_dwell_time_limit,
             kind: self.kind,
             tx_param_setup: self.tx_param_setup,
@@ -372,6 +385,7 @@ impl ChannelPlanBuilder {
                     frequency_hz: 0,
                     ping_slot_frequency_hz: 0,
                 },
+                relay_channels: Vec::new(),
                 has_dwell_time_limit: false,
                 kind: PlanKind::Dynamic { channel_list: None },
                 tx_param_setup: false,
@@ -594,6 +608,21 @@ impl ChannelPlanBuilder {
     #[must_use]
     pub fn beacon(mut self, beacon: Beacon) -> Self {
         self.plan.beacon = beacon;
+        self
+    }
+
+    /// Appends the next default relay channel.
+    ///
+    /// # Arguments
+    ///
+    /// * `channel` - the channel, whose position is the index a relay configuration names.
+    ///
+    /// # Returns
+    ///
+    /// The builder.
+    #[must_use]
+    pub fn relay_channel(mut self, channel: RelayChannel) -> Self {
+        self.plan.relay_channels.push(channel);
         self
     }
 
@@ -838,6 +867,22 @@ fn check(plan: &OwnedChannelPlan) -> Result<(), PlanError> {
         });
     }
 
+    for channel in &plan.relay_channels {
+        let lora = matches!(
+            plan.downlink_data_rates
+                .get(usize::from(channel.data_rate))
+                .copied()
+                .flatten()
+                .map(|rate| rate.modulation),
+            Some(Modulation::LoRa { .. })
+        );
+        if !lora {
+            return Err(PlanError::RelayDataRate {
+                data_rate: channel.data_rate,
+            });
+        }
+    }
+
     Ok(())
 }
 
@@ -936,6 +981,32 @@ mod tests {
                 defined: 2,
             }
         );
+    }
+
+    #[test]
+    fn a_relay_channel_needs_a_lora_downlink_data_rate() {
+        let built = minimal()
+            .relay_channel(RelayChannel::new(915_200_000, 915_400_000, 1))
+            .build()
+            .expect("DR1 is a LoRa rate of the plan");
+        assert_eq!(
+            built.with_plan(|plan| plan.relay_channel(0)),
+            Some(RelayChannel::new(915_200_000, 915_400_000, 1))
+        );
+
+        let error = minimal()
+            .relay_channel(RelayChannel::new(915_200_000, 915_400_000, 2))
+            .build()
+            .unwrap_err();
+        assert_eq!(error, PlanError::RelayDataRate { data_rate: 2 });
+
+        let fsk = minimal()
+            .uplink_data_rate(Some(DataRate::fsk(50_000)))
+            .rx1_row(&[2])
+            .relay_channel(RelayChannel::new(915_200_000, 915_400_000, 2))
+            .build()
+            .unwrap_err();
+        assert_eq!(fsk, PlanError::RelayDataRate { data_rate: 2 });
     }
 
     #[test]

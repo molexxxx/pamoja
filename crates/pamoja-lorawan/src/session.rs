@@ -82,6 +82,29 @@ impl Session {
         (self.nwk_skey, self.app_skey)
     }
 
+    /// Returns the root relay session key of the device, TS011-1.0.1 section 4.4.
+    ///
+    /// It comes from the network session key, as LoRaWAN 1.0.x has it, and is what a network
+    /// sends a relay in `UpdateUplinkListReq` so the relay can verify this device.
+    ///
+    /// # Returns
+    ///
+    /// The key.
+    pub fn root_wor_s_key(&self) -> [u8; 16] {
+        crate::relay::root_wor_s_key(&self.nwk_skey)
+    }
+
+    /// Returns the keys the device's wake-on-radio frames are protected with, TS011-1.0.1
+    /// section 4.5.
+    ///
+    /// # Returns
+    ///
+    /// The integrity and encryption keys, derived from
+    /// [`root_wor_s_key`](Session::root_wor_s_key) and the device address.
+    pub fn wor_keys(&self) -> crate::relay::WorKeys {
+        crate::relay::WorKeys::derive(&self.root_wor_s_key(), self.dev_addr)
+    }
+
     /// Encodes an uplink data frame, encrypting the payload and appending the MIC.
     ///
     /// # Arguments

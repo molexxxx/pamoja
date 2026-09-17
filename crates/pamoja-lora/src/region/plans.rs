@@ -33,6 +33,18 @@ use super::FixedChannelList;
 // Only CN470-510 picks its plan by the channel a device joined on.
 #[cfg(feature = "cn470")]
 use super::JoinPlan;
+// Every region with relay parameters in RP002-1.0.5; EU433 has none.
+#[cfg(any(
+    feature = "eu868",
+    feature = "us915",
+    feature = "au915",
+    feature = "cn470",
+    feature = "as923",
+    feature = "kr920",
+    feature = "in865",
+    feature = "ru864"
+))]
+use super::RelayChannel;
 // Only the bands whose regulators cap airtime describe sub-bands; the 900 MHz
 // plans and IN865 leave the table empty.
 #[cfg(any(
@@ -405,6 +417,13 @@ static EU868_SUB_BANDS: [SubBand; 2] = [
     SubBand::new(869_400_000, 869_650_000, 100, 27),
 ];
 
+/// RP002-1.0.5 table 18: SF9 and SF7 at 125 kHz.
+#[cfg(feature = "eu868")]
+static EU868_RELAY: [RelayChannel; 2] = [
+    RelayChannel::new(865_100_000, 865_300_000, 3),
+    RelayChannel::new(865_500_000, 865_900_000, 5),
+];
+
 /// The EU863-870 channel plan, RP002-1.0.5 section 3.4.
 #[cfg(feature = "eu868")]
 pub static EU868: ChannelPlan<'static> = ChannelPlan {
@@ -433,6 +452,7 @@ pub static EU868: ChannelPlan<'static> = ChannelPlan {
         frequency_hz: 869_525_000,
         ping_slot_frequency_hz: 869_525_000,
     },
+    relay_channels: &EU868_RELAY,
     has_dwell_time_limit: false,
     kind: PlanKind::Dynamic {
         channel_list: Some(FixedChannelList::Mhz800),
@@ -615,6 +635,13 @@ const MASK_CONTROLS_900: [MaskControl; 8] = [
     },
 ];
 
+/// RP002-1.0.5 table 28: SF10 at 500 kHz, downlink DR10.
+#[cfg(feature = "us915")]
+static US915_RELAY: [RelayChannel; 2] = [
+    RelayChannel::new(916_700_000, 918_300_000, 10),
+    RelayChannel::new(919_900_000, 921_500_000, 10),
+];
+
 /// The US902-928 channel plan, RP002-1.0.5 section 3.5.
 ///
 /// The FCC constrains this band by dwell time rather than duty cycle, so the
@@ -652,6 +679,7 @@ pub static US915: ChannelPlan<'static> = ChannelPlan {
         frequency_hz: 923_300_000,
         ping_slot_frequency_hz: 923_300_000,
     },
+    relay_channels: &US915_RELAY,
     has_dwell_time_limit: true,
     kind: PlanKind::Fixed,
     tx_param_setup: false,
@@ -800,6 +828,7 @@ pub static EU433: ChannelPlan<'static> = ChannelPlan {
         frequency_hz: 434_665_000,
         ping_slot_frequency_hz: 434_665_000,
     },
+    relay_channels: &[],
     has_dwell_time_limit: false,
     kind: PlanKind::Dynamic { channel_list: None },
     tx_param_setup: false,
@@ -986,6 +1015,13 @@ static AU915_JOIN_CHANNELS: [ChannelBlock; 2] = [
     ChannelBlock::new(915_900_000, 1_600_000, 8, 6, 6),
 ];
 
+/// RP002-1.0.5 table 48: SF10 at 500 kHz, downlink DR10.
+#[cfg(feature = "au915")]
+static AU915_RELAY: [RelayChannel; 2] = [
+    RelayChannel::new(916_700_000, 918_300_000, 10),
+    RelayChannel::new(919_900_000, 921_500_000, 10),
+];
+
 /// The AU915-928 channel plan, RP002-1.0.5 section 3.8.
 ///
 /// Australia limits transmissions by dwell time rather than duty cycle, so
@@ -1019,6 +1055,7 @@ pub static AU915: ChannelPlan<'static> = ChannelPlan {
         frequency_hz: 923_300_000,
         ping_slot_frequency_hz: 923_300_000,
     },
+    relay_channels: &AU915_RELAY,
     has_dwell_time_limit: true,
     kind: PlanKind::Fixed,
     tx_param_setup: true,
@@ -1224,6 +1261,13 @@ static CN470_JOIN_PLANS: [JoinPlan<'static>; 5] = [
     ),
 ];
 
+/// RP002-1.0.5 table 64: SF9 and SF7 at 125 kHz, the same for every CN470-510 plan.
+#[cfg(feature = "cn470")]
+static CN470_RELAY: [RelayChannel; 2] = [
+    RelayChannel::new(472_100_000, 485_300_000, 3),
+    RelayChannel::new(494_900_000, 505_500_000, 5),
+];
+
 /// The CN470-510 channel plan for a 20 MHz antenna, type A, RP002-1.0.5 section 3.9.
 ///
 /// RP002-1.0.5 divides the band into four plans, for 20 MHz and 26 MHz antennas, each with a
@@ -1263,6 +1307,7 @@ pub static CN470: ChannelPlan<'static> = ChannelPlan {
         frequency_hz: 483_900_000,
         ping_slot_frequency_hz: 483_900_000,
     },
+    relay_channels: &CN470_RELAY,
     has_dwell_time_limit: false,
     kind: PlanKind::Fixed,
     tx_param_setup: false,
@@ -1305,6 +1350,7 @@ pub static CN470_20B: ChannelPlan<'static> = ChannelPlan {
         frequency_hz: 481_500_000,
         ping_slot_frequency_hz: 476_900_000,
     },
+    relay_channels: &CN470_RELAY,
     has_dwell_time_limit: false,
     kind: PlanKind::Fixed,
     tx_param_setup: false,
@@ -1347,6 +1393,7 @@ pub static CN470_26A: ChannelPlan<'static> = ChannelPlan {
         frequency_hz: 494_900_000,
         ping_slot_frequency_hz: 494_900_000,
     },
+    relay_channels: &CN470_RELAY,
     has_dwell_time_limit: false,
     kind: PlanKind::Fixed,
     tx_param_setup: false,
@@ -1388,6 +1435,7 @@ pub static CN470_26B: ChannelPlan<'static> = ChannelPlan {
         frequency_hz: 504_900_000,
         ping_slot_frequency_hz: 504_900_000,
     },
+    relay_channels: &CN470_RELAY,
     has_dwell_time_limit: false,
     kind: PlanKind::Fixed,
     tx_param_setup: false,
@@ -1507,6 +1555,7 @@ pub static CN470_96: ChannelPlan<'static> = ChannelPlan {
         frequency_hz: 508_300_000,
         ping_slot_frequency_hz: 508_300_000,
     },
+    relay_channels: &[],
     has_dwell_time_limit: false,
     kind: PlanKind::Fixed,
     tx_param_setup: false,
@@ -1669,6 +1718,10 @@ static AS923_JOIN_CHANNELS: [ChannelBlock; 1] = [ChannelBlock::new(923_200_000, 
 #[cfg(feature = "as923")]
 static AS923_SUB_BANDS: [SubBand; 1] = [SubBand::new(923_000_000, 923_500_000, 10, 16)];
 
+/// RP002-1.0.5 table 76: SF9 at 125 kHz, AS923-1 with no frequency offset.
+#[cfg(feature = "as923")]
+static AS923_RELAY: [RelayChannel; 1] = [RelayChannel::new(923_600_000, 923_800_000, 3)];
+
 /// The AS923 channel plan, RP002-1.0.5 section 3.10.
 ///
 /// AS923 is four plans rather than one: every frequency here is the AS923-1
@@ -1706,6 +1759,7 @@ pub static AS923: ChannelPlan<'static> = ChannelPlan {
         frequency_hz: 923_400_000,
         ping_slot_frequency_hz: 923_400_000,
     },
+    relay_channels: &AS923_RELAY,
     has_dwell_time_limit: true,
     kind: PlanKind::Dynamic {
         channel_list: Some(FixedChannelList::Mhz900),
@@ -1829,6 +1883,13 @@ static KR920_SUB_BANDS: [SubBand; 2] = [
     SubBand::new(922_100_000, 923_300_000, 1000, 14),
 ];
 
+/// RP002-1.0.5 table 88: SF9 and SF7 at 125 kHz, the second acknowledged on its own frequency.
+#[cfg(feature = "kr920")]
+static KR920_RELAY: [RelayChannel; 2] = [
+    RelayChannel::new(922_700_000, 922_900_000, 3),
+    RelayChannel::new(923_100_000, 923_100_000, 5),
+];
+
 /// The KR920-923 channel plan, RP002-1.0.5 section 3.11.
 #[cfg(feature = "kr920")]
 pub static KR920: ChannelPlan<'static> = ChannelPlan {
@@ -1857,6 +1918,7 @@ pub static KR920: ChannelPlan<'static> = ChannelPlan {
         frequency_hz: 923_100_000,
         ping_slot_frequency_hz: 923_100_000,
     },
+    relay_channels: &KR920_RELAY,
     has_dwell_time_limit: false,
     kind: PlanKind::Dynamic {
         channel_list: Some(FixedChannelList::Mhz900),
@@ -1978,6 +2040,13 @@ static IN865_CHANNELS: [ChannelBlock; 3] = [
     ChannelBlock::new(865_985_000, 0, 1, 0, 5),
 ];
 
+/// RP002-1.0.5 table 99: SF9 and SF7 at 125 kHz.
+#[cfg(feature = "in865")]
+static IN865_RELAY: [RelayChannel; 2] = [
+    RelayChannel::new(866_000_000, 866_200_000, 3),
+    RelayChannel::new(866_700_000, 866_900_000, 5),
+];
+
 /// The IN865 channel plan, RP002-1.0.5 section 3.12.
 ///
 /// The published ceiling is 29.2 dBm EIRP, reported here as the whole decibel
@@ -2009,6 +2078,7 @@ pub static IN865: ChannelPlan<'static> = ChannelPlan {
         frequency_hz: 866_550_000,
         ping_slot_frequency_hz: 866_550_000,
     },
+    relay_channels: &IN865_RELAY,
     has_dwell_time_limit: false,
     kind: PlanKind::Dynamic {
         channel_list: Some(FixedChannelList::Mhz800),
@@ -2126,6 +2196,13 @@ static RU864_CHANNELS: [ChannelBlock; 1] = [ChannelBlock::new(868_900_000, 200_0
 #[cfg(feature = "ru864")]
 static RU864_SUB_BANDS: [SubBand; 1] = [SubBand::new(868_700_000, 869_200_000, 10, 16)];
 
+/// RP002-1.0.5 table 110: SF9 and SF7 at 125 kHz.
+#[cfg(feature = "ru864")]
+static RU864_RELAY: [RelayChannel; 2] = [
+    RelayChannel::new(866_100_000, 866_300_000, 3),
+    RelayChannel::new(866_500_000, 866_900_000, 5),
+];
+
 /// The RU864-870 channel plan, RP002-1.0.5 section 3.13.
 #[cfg(feature = "ru864")]
 pub static RU864: ChannelPlan<'static> = ChannelPlan {
@@ -2154,6 +2231,7 @@ pub static RU864: ChannelPlan<'static> = ChannelPlan {
         frequency_hz: 869_100_000,
         ping_slot_frequency_hz: 868_900_000,
     },
+    relay_channels: &RU864_RELAY,
     has_dwell_time_limit: false,
     kind: PlanKind::Dynamic {
         channel_list: Some(FixedChannelList::Mhz800),

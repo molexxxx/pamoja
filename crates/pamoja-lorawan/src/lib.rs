@@ -75,6 +75,7 @@ mod hex;
 mod join;
 pub mod mac;
 mod network;
+pub mod relay;
 mod session;
 mod version;
 

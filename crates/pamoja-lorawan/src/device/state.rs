@@ -14,11 +14,10 @@
 use pamoja_lora::region::ChannelPlan;
 
 use super::air::{Air, Sequence, MAX_SUB_BANDS};
-use super::answers::{Answers, MAX_ANSWERS};
+use super::answers::{Answers, MAX_ANSWER, MAX_ANSWERS};
 use super::channels::{Channels, MASK_GROUPS};
 use super::{Channel, DeviceError, EndDevice, MAX_CHANNELS};
 use crate::adr::Backoff;
-use crate::mac::MAX_COMMAND;
 use crate::Session;
 
 /// How many bytes a saved state takes.
@@ -34,7 +33,7 @@ const SETTINGS_LEN: usize = 7 + 4 + 4 + 4 + 4;
 const AIR_LEN: usize = 8 + 8 * MAX_SUB_BANDS;
 const CHANNEL_LEN: usize = 4 + 4 + 1 + 1;
 const CHANNELS_LEN: usize = 1 + 2 * MASK_GROUPS + 2 * MASK_GROUPS + CHANNEL_LEN * MAX_CHANNELS;
-const ANSWERS_LEN: usize = 1 + MAX_ANSWERS * (1 + MAX_COMMAND);
+const ANSWERS_LEN: usize = 1 + MAX_ANSWERS * (1 + MAX_ANSWER);
 const CHECKSUM_LEN: usize = 4;
 
 const FCNT_DOWN: u8 = 1 << 0;
@@ -367,7 +366,7 @@ impl<'p> EndDevice<'p> {
         for _ in 0..count {
             let header = input.u8();
             let len = usize::from(header & !STICKY);
-            if len == 0 || len > MAX_COMMAND {
+            if len == 0 || len > MAX_ANSWER {
                 return Err(corrupt);
             }
             let bytes = input.take(len);

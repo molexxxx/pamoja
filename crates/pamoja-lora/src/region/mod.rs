@@ -370,6 +370,43 @@ pub struct Beacon {
     pub ping_slot_frequency_hz: u32,
 }
 
+/// A default channel of a LoRaWAN relay, TS011-1.0.1 section 3.2.2.
+///
+/// An end device under a relay sends its wake-on-radio frame on
+/// [`wor_frequency_hz`](Self::wor_frequency_hz) and hears the relay's acknowledgment on
+/// [`ack_frequency_hz`](Self::ack_frequency_hz), both at [`data_rate`](Self::data_rate).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct RelayChannel {
+    /// Where an end device sends its wake-on-radio frame, in hertz.
+    pub wor_frequency_hz: u32,
+    /// Where the relay acknowledges it, in hertz.
+    pub ack_frequency_hz: u32,
+    /// The data rate of both, numbered as the plan's downlink data rates, since the 900 MHz
+    /// plans define a 500 kHz rate at SF10 only in that table.
+    pub data_rate: u8,
+}
+
+impl RelayChannel {
+    /// Describes a relay channel.
+    ///
+    /// # Arguments
+    ///
+    /// * `wor_frequency_hz` - where the wake-on-radio frame goes, in hertz.
+    /// * `ack_frequency_hz` - where its acknowledgment comes back, in hertz.
+    /// * `data_rate` - the downlink data-rate number of both.
+    ///
+    /// # Returns
+    ///
+    /// The channel.
+    pub const fn new(wor_frequency_hz: u32, ack_frequency_hz: u32, data_rate: u8) -> Self {
+        Self {
+            wor_frequency_hz,
+            ack_frequency_hz,
+            data_rate,
+        }
+    }
+}
+
 /// A complete regional channel plan.
 ///
 /// The named [`Region`] values are constants of this type. A deployment on
@@ -433,6 +470,10 @@ pub struct ChannelPlan<'a> {
     pub data_rate_backoff: &'a [Option<u8>],
     /// The Class B beacon settings.
     pub beacon: Beacon,
+    /// The default channels of a LoRaWAN relay, by channel index, from the region's relay
+    /// parameters in RP002-1.0.5 sections 3.4.9 to 3.13.9; empty where a region defines
+    /// none.
+    pub relay_channels: &'a [RelayChannel],
     /// Whether the region limits how long one transmission may occupy a channel.
     pub has_dwell_time_limit: bool,
     /// Whether a network may create and move channels, or only enable numbered ones.
@@ -770,6 +811,34 @@ impl ChannelPlan<'_> {
             .get(usize::from(uplink_data_rate))?
             .get(usize::from(offset))
             .copied()
+    }
+
+    /// Returns a default relay channel.
+    ///
+    /// # Arguments
+    ///
+    /// * `index` - the channel index a relay configuration names, 0 or 1.
+    ///
+    /// # Returns
+    ///
+    /// The channel, or `None` where the region defines none at that index.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "eu868")] {
+    /// use pamoja_lora::region::{RelayChannel, Region};
+    ///
+    /// let plan = Region::Eu868.plan();
+    /// assert_eq!(
+    ///     plan.relay_channel(0),
+    ///     Some(RelayChannel::new(865_100_000, 865_300_000, 3))
+    /// );
+    /// assert_eq!(plan.relay_channel(2), None);
+    /// # }
+    /// ```
+    pub fn relay_channel(&self, index: u8) -> Option<RelayChannel> {
+        self.relay_channels.get(usize::from(index)).copied()
     }
 
     /// Returns the frequency and data rate of the second receive window.

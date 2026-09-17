@@ -6,7 +6,7 @@
 //! first, then commands the device starts itself, then the application payload, and a list
 //! that still does not fit is cut after the last whole command.
 
-use crate::mac::{MacCommand, MAX_COMMAND};
+use crate::mac::MacCommand;
 
 /// How many answers a device holds for one downlink's worth of commands.
 ///
@@ -14,9 +14,13 @@ use crate::mac::{MacCommand, MAX_COMMAND};
 /// sends more commands than this in one downlink has its surplus executed but unanswered.
 pub(crate) const MAX_ANSWERS: usize = 64;
 
+/// The longest answer a device owes: a relay's `CtrlUplinkListAns`, six bytes with its
+/// identifier.
+pub(crate) const MAX_ANSWER: usize = 6;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Entry {
-    bytes: [u8; MAX_COMMAND],
+    bytes: [u8; MAX_ANSWER],
     len: u8,
     sticky: bool,
 }
@@ -34,7 +38,7 @@ impl Answers {
     pub(crate) const fn new() -> Answers {
         Answers {
             entries: [Entry {
-                bytes: [0; MAX_COMMAND],
+                bytes: [0; MAX_ANSWER],
                 len: 0,
                 sticky: false,
             }; MAX_ANSWERS],
@@ -49,7 +53,7 @@ impl Answers {
         if self.count == MAX_ANSWERS {
             return;
         }
-        let mut bytes = [0u8; MAX_COMMAND];
+        let mut bytes = [0u8; MAX_ANSWER];
         if let Ok(len) = answer.encode(&mut bytes) {
             self.entries[self.count] = Entry {
                 bytes,
@@ -78,10 +82,10 @@ impl Answers {
     ///
     /// `false` if the queue is full or the answer is longer than a command can be.
     pub(crate) fn push_encoded(&mut self, answer: &[u8], sticky: bool) -> bool {
-        if self.count == MAX_ANSWERS || answer.is_empty() || answer.len() > MAX_COMMAND {
+        if self.count == MAX_ANSWERS || answer.is_empty() || answer.len() > MAX_ANSWER {
             return false;
         }
-        let mut bytes = [0u8; MAX_COMMAND];
+        let mut bytes = [0u8; MAX_ANSWER];
         bytes[..answer.len()].copy_from_slice(answer);
         self.entries[self.count] = Entry {
             bytes,
