@@ -71,6 +71,7 @@ pub mod device;
 mod error;
 mod frame;
 mod header;
+mod hex;
 mod join;
 pub mod mac;
 mod network;
@@ -82,6 +83,7 @@ pub use cflist::{CfList, CfListKind, CFLIST_FREQUENCIES, CFLIST_LEN, CFLIST_MASK
 pub use error::LorawanError;
 pub use frame::{Direction, PhyPayload, MAX_FRAME, MAX_PAYLOAD};
 pub use header::{FrameHeader, MessageType};
+pub use hex::parse_hex;
 pub use join::{Device, JoinAccept};
 pub use mac::{MacCommand, MacCommands};
 pub use network::{JoinGrant, JoinRequest};

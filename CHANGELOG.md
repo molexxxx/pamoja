@@ -203,6 +203,10 @@ released together, so one entry covers all of them.
 - A walkthrough on the site, Node to dashboard, that joins the ESP32-C3 LoRaWAN
   node, a gateway on a Raspberry Pi and a ChirpStack server into one system, and a
   Raspberry Pi program that serves a dashboard of every node the server hears.
+- `pamoja_lorawan::parse_hex`, a `const fn` that reads a DevEUI, JoinEUI or root key
+  written in hexadecimal. The ESP32-C3 LoRaWAN node uses it to take its identifiers
+  and key from the environment it is built in, `LORAWAN_DEV_EUI`, `LORAWAN_JOIN_EUI`
+  and `LORAWAN_APP_KEY`, rather than from constants in its source.
 - All five CN470-510 channel plans in `pamoja-lora`, named by `Cn470Plan`: the
   plans RP002-1.0.5 gives 20 MHz and 26 MHz antennas, each in a type A and B, which
   share twenty common join channels, and the 96-channel plan of the LoRaWAN 1.0.3

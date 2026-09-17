@@ -427,10 +427,18 @@ Seven of the nine general purpose pins, and none that is read at reset. GPIO20
 is UART0's receive line, which a program that only prints has no use for; the
 log goes out over USB.
 
-The device's identifiers and root key are constants at the top. The ones there
-are the test values `cargo xtask chirpstack` registers, so the program joins the
-local ChirpStack stack through a gateway as it stands; a device on any other
-network takes the identifiers and key that network issued it.
+The device's identifiers and root key come from the environment the program is
+built in, as hexadecimal the way a network server shows them: `LORAWAN_DEV_EUI`,
+`LORAWAN_JOIN_EUI` and `LORAWAN_APP_KEY`. No key is kept in the source, and a
+missing or malformed value stops the build and names the variable. A device takes
+the identifiers and key its network registered; the local stack
+`cargo xtask chirpstack` raises registers these test values:
+
+```sh
+export LORAWAN_DEV_EUI=1111111111111111
+export LORAWAN_JOIN_EUI=2222222222222222
+export LORAWAN_APP_KEY=33333333333333333333333333333333
+```
 
 <!-- snippet: examples/boards/esp32c3/src/bin/lorawan.rs#example -->
 From [`examples/boards/esp32c3/src/bin/lorawan.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/boards/esp32c3/src/bin/lorawan.rs):
@@ -445,16 +453,26 @@ use esp_hal::time::Rate;
 use esp_println::println;
 use pamoja_lora::region::Region;
 use pamoja_lorawan::device::{DeviceError, EndDevice, Settings};
-use pamoja_lorawan::{Device, Version};
+use pamoja_lorawan::{parse_hex, Device, Version};
 use pamoja_radios::lorawan::{Node, NodeError, Timer};
 use pamoja_radios::sx127x::config::PaOutput;
 use pamoja_radios::sx127x::{Board, Sx127x};
 use pamoja_sensors::bme280::{Bme280, Measurement, I2C_ADDRESS_PRIMARY};
 
-/// Who the device is to its network, and the root key it shares with it.
-const DEV_EUI: [u8; 8] = [0x11; 8];
-const JOIN_EUI: [u8; 8] = [0x22; 8];
-const APP_KEY: [u8; 16] = [0x33; 16];
+/// Who the device is to its network, and the root key it shares with it, read from the build
+/// environment so that no key is kept in the source. A missing or malformed value stops the
+/// build.
+const DEV_EUI: [u8; 8] = from_build(env!("LORAWAN_DEV_EUI", "set LORAWAN_DEV_EUI in hex"));
+const JOIN_EUI: [u8; 8] = from_build(env!("LORAWAN_JOIN_EUI", "set LORAWAN_JOIN_EUI in hex"));
+const APP_KEY: [u8; 16] = from_build(env!("LORAWAN_APP_KEY", "set LORAWAN_APP_KEY in hex"));
+
+/// Reads an identifier or key given in hexadecimal when the program was built.
+const fn from_build<const N: usize>(hex: &str) -> [u8; N] {
+    match parse_hex(hex) {
+        Some(bytes) => bytes,
+        None => panic!("an identifier or key takes two hex digits a byte"),
+    }
+}
 
 /// The application port readings go out on, and how long to wait between them.
 const PORT: u8 = 2;

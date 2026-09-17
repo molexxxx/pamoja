@@ -7,8 +7,9 @@
 //! and the radio an 868 MHz antenna before it is powered. None of those pins is read at
 //! reset, and GPIO20 is UART0's receive line, which a program that only prints never uses.
 //!
-//! The identifiers and key below are the ones `cargo xtask chirpstack` registers; a device
-//! on another network takes its own. Run `cargo run --release --bin lorawan`. See
+//! The device's identifiers and root key come from the environment it is built in, in
+//! hexadecimal: `LORAWAN_DEV_EUI`, `LORAWAN_JOIN_EUI` and `LORAWAN_APP_KEY`. Set them to what
+//! the network registered, then run `cargo run --release --bin lorawan`. See
 //! docs/boards/esp32.md.
 
 #![no_std]
@@ -47,16 +48,26 @@ use esp_hal::time::Rate;
 use esp_println::println;
 use pamoja_lora::region::Region;
 use pamoja_lorawan::device::{DeviceError, EndDevice, Settings};
-use pamoja_lorawan::{Device, Version};
+use pamoja_lorawan::{parse_hex, Device, Version};
 use pamoja_radios::lorawan::{Node, NodeError, Timer};
 use pamoja_radios::sx127x::config::PaOutput;
 use pamoja_radios::sx127x::{Board, Sx127x};
 use pamoja_sensors::bme280::{Bme280, Measurement, I2C_ADDRESS_PRIMARY};
 
-/// Who the device is to its network, and the root key it shares with it.
-const DEV_EUI: [u8; 8] = [0x11; 8];
-const JOIN_EUI: [u8; 8] = [0x22; 8];
-const APP_KEY: [u8; 16] = [0x33; 16];
+/// Who the device is to its network, and the root key it shares with it, read from the build
+/// environment so that no key is kept in the source. A missing or malformed value stops the
+/// build.
+const DEV_EUI: [u8; 8] = from_build(env!("LORAWAN_DEV_EUI", "set LORAWAN_DEV_EUI in hex"));
+const JOIN_EUI: [u8; 8] = from_build(env!("LORAWAN_JOIN_EUI", "set LORAWAN_JOIN_EUI in hex"));
+const APP_KEY: [u8; 16] = from_build(env!("LORAWAN_APP_KEY", "set LORAWAN_APP_KEY in hex"));
+
+/// Reads an identifier or key given in hexadecimal when the program was built.
+const fn from_build<const N: usize>(hex: &str) -> [u8; N] {
+    match parse_hex(hex) {
+        Some(bytes) => bytes,
+        None => panic!("an identifier or key takes two hex digits a byte"),
+    }
+}
 
 /// The application port readings go out on, and how long to wait between them.
 const PORT: u8 = 2;
