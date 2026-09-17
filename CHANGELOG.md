@@ -150,8 +150,9 @@ released together, so one entry covers all of them.
   hands back its channel list, the first window's data rate offset, the second
   window's data rate and the delay to the first window. `CfList` reads and builds
   both forms a channel list takes, frequencies and channel masks, and
-  `FixedChannelList` numbers the channels the second form refers to, with tests
-  anchored to a captured join accept and to the worked examples in RP002-1.0.5.
+  `pamoja_lora::region::FixedChannelList` gives the channel numbers the second form
+  refers to their frequencies, with tests anchored to a captured join accept and
+  to the worked examples in RP002-1.0.5.
 
 ### Changed
 

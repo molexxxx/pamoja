@@ -10,7 +10,10 @@
 //! - **Type 1** is six sixteen-bit channel masks, least significant byte first, where bit
 //!   *n* of group *g* is channel `g * 16 + n`. The fixed plans (US915, AU915, CN470) read
 //!   each group as the mask it names. A dynamic plan may take it too, reading a channel
-//!   number against one of the two published lists in [`FixedChannelList`].
+//!   number against one of the two published numberings, which `pamoja-lora` carries as
+//!   [`FixedChannelList`].
+//!
+//! [`FixedChannelList`]: https://docs.rs/pamoja-lora/latest/pamoja_lora/region/enum.FixedChannelList.html
 //!
 //! A [`CfList`] keeps the sixteen bytes as they arrived and reads either form out of them, so
 //! nothing a network sent is lost to a type this crate does not recognize.
@@ -272,82 +275,6 @@ impl From<CfList> for [u8; CFLIST_LEN] {
     }
 }
 
-/// The published channel lists a dynamic plan reads a type 1 list against.
-///
-/// RP002-1.0.5 section 3.3.1 fixes a frequency for every channel number, so a network can
-/// enable channels with a bit each rather than spelling their frequencies out.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum FixedChannelList {
-    /// Section 3.3.1.1: forty channels, from 863.1 MHz in 200 kHz steps to 869.9 MHz at
-    /// channel 34, then five at 865.0625, 865.4025, 865.6025, 865.785 and 865.985 MHz. It
-    /// covers the channels EU868, IN865 and RU864 networks run.
-    Mhz800,
-    /// Section 3.3.1.2: ninety-six channels, from 915.1 MHz in 100 kHz steps to 924.6 MHz.
-    /// It covers the channels AS923 and KR920 networks run.
-    Mhz900,
-}
-
-impl FixedChannelList {
-    /// Returns the frequency a channel number stands for.
-    ///
-    /// # Arguments
-    ///
-    /// * `channel` - the channel number.
-    ///
-    /// # Returns
-    ///
-    /// The frequency in hertz, or [`None`] for a number the list does not define.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use pamoja_lorawan::FixedChannelList;
-    ///
-    /// assert_eq!(FixedChannelList::Mhz800.frequency_hz(0), Some(863_100_000));
-    /// assert_eq!(FixedChannelList::Mhz800.frequency_hz(39), Some(865_985_000));
-    /// assert_eq!(FixedChannelList::Mhz900.frequency_hz(95), Some(924_600_000));
-    /// assert_eq!(FixedChannelList::Mhz900.frequency_hz(96), None);
-    /// ```
-    pub const fn frequency_hz(self, channel: u8) -> Option<u32> {
-        match self {
-            FixedChannelList::Mhz800 => match channel {
-                0..=34 => Some(863_100_000 + channel as u32 * 200_000),
-                35 => Some(865_062_500),
-                36 => Some(865_402_500),
-                37 => Some(865_602_500),
-                38 => Some(865_785_000),
-                39 => Some(865_985_000),
-                _ => None,
-            },
-            FixedChannelList::Mhz900 => match channel {
-                0..=95 => Some(915_100_000 + channel as u32 * 100_000),
-                _ => None,
-            },
-        }
-    }
-
-    /// Returns how many channels the list defines.
-    ///
-    /// # Returns
-    ///
-    /// Forty for the 800 MHz list, ninety-six for the 900 MHz one.
-    pub const fn len(self) -> u8 {
-        match self {
-            FixedChannelList::Mhz800 => 40,
-            FixedChannelList::Mhz900 => 96,
-        }
-    }
-
-    /// Reports whether the list defines no channels, which neither published list does.
-    ///
-    /// # Returns
-    ///
-    /// `false`.
-    pub const fn is_empty(self) -> bool {
-        self.len() == 0
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -388,8 +315,8 @@ mod tests {
     #[test]
     fn the_regional_parameters_example_enables_four_channels() {
         // RP002-1.0.5 section 3.3.1.1: CFList type 1 received as
-        // 0x0100_A010_0000_0000_0000_0000 creates channels at 863.1, 867.3, 867.7 and
-        // 868.7 MHz on an EU868 device.
+        // 0x0100_A010_0000_0000_0000_0000 creates channels 0, 21, 23 and 28, which the
+        // 800 MHz numbering puts at 863.1, 867.3, 867.7 and 868.7 MHz.
         let list = CfList::from_bytes(hex("0100a010000000000000000000000001"));
         assert_eq!(list.kind(), CfListKind::ChannelMasks);
         assert_eq!(
@@ -399,18 +326,6 @@ mod tests {
 
         let enabled: Vec<u8> = list.enabled_channels().collect();
         assert_eq!(enabled, [0, 21, 23, 28]);
-        let created: Vec<u32> = enabled
-            .iter()
-            .map(|channel| {
-                FixedChannelList::Mhz800
-                    .frequency_hz(*channel)
-                    .expect("defined")
-            })
-            .collect();
-        assert_eq!(
-            created,
-            [863_100_000, 867_300_000, 867_700_000, 868_700_000]
-        );
 
         assert_eq!(list.enables(21), Some(true));
         assert_eq!(list.enables(22), Some(false));
@@ -423,44 +338,24 @@ mod tests {
         );
     }
 
-    fn created(list: CfList) -> Vec<u32> {
-        list.enabled_channels()
-            .map(|channel| {
-                FixedChannelList::Mhz800
-                    .frequency_hz(channel)
-                    .expect("defined")
-            })
-            .collect()
-    }
-
     #[test]
     fn the_notes_under_the_800_mhz_list_name_the_channels_they_say() {
         // RP002-1.0.5 section 3.3.1.1 writes each group in the order its bytes travel, as its
         // example above does. The three EU868 default channels are ChMaskGrp1 = 0x000E,
         // which is bits 9 to 11 of the group, channels 25 to 27.
         let defaults = CfList::from_bytes(hex("0000000e000000000000000000000001"));
-        assert_eq!(created(defaults), [868_100_000, 868_300_000, 868_500_000]);
+        assert_eq!(
+            defaults.enabled_channels().collect::<Vec<u8>>(),
+            [25, 26, 27]
+        );
 
         // The four RFID channels of ETSI EN 302 208 are ChMaskGrp0 = 0x0020 and
-        // ChMaskGrp1 = 0x4900: 865.7, 866.3, 866.9 and 867.5 MHz.
+        // ChMaskGrp1 = 0x4900: channels 13, 16, 19 and 22.
         let rfid = CfList::from_bytes(hex("00204900000000000000000000000001"));
         assert_eq!(
-            created(rfid),
-            [865_700_000, 866_300_000, 866_900_000, 867_500_000]
+            rfid.enabled_channels().collect::<Vec<u8>>(),
+            [13, 16, 19, 22]
         );
-    }
-
-    #[test]
-    fn the_published_channel_lists_end_where_the_document_says() {
-        assert_eq!(FixedChannelList::Mhz800.frequency_hz(34), Some(869_900_000));
-        assert_eq!(FixedChannelList::Mhz800.frequency_hz(35), Some(865_062_500));
-        assert_eq!(FixedChannelList::Mhz800.frequency_hz(36), Some(865_402_500));
-        assert_eq!(FixedChannelList::Mhz800.frequency_hz(37), Some(865_602_500));
-        assert_eq!(FixedChannelList::Mhz800.frequency_hz(38), Some(865_785_000));
-        assert_eq!(FixedChannelList::Mhz800.frequency_hz(40), None);
-        assert_eq!(FixedChannelList::Mhz800.len(), 40);
-        assert_eq!(FixedChannelList::Mhz900.frequency_hz(0), Some(915_100_000));
-        assert_eq!(FixedChannelList::Mhz900.len(), 96);
     }
 
     #[test]

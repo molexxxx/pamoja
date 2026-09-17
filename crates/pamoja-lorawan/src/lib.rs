@@ -31,8 +31,7 @@
 //!   message type, the device address, and the counter. A receiver holding many sessions
 //!   reads this first to find the one a frame belongs to, then decodes.
 //! - [`CfList`] - the channel list a join accept may end with, in either of the two forms the
-//!   regional parameters define, and [`FixedChannelList`] for the published channel numbers
-//!   the second form refers to.
+//!   regional parameters define.
 //! - [`defaults`] - the receive delays, frame counter gap and ADR counts every region
 //!   shares, and [`adr`] and [`mac`] for keeping a device reachable and configuring it.
 //!
@@ -73,9 +72,7 @@ mod network;
 mod session;
 
 pub use adr::Backoff;
-pub use cflist::{
-    CfList, CfListKind, FixedChannelList, CFLIST_FREQUENCIES, CFLIST_LEN, CFLIST_MASK_GROUPS,
-};
+pub use cflist::{CfList, CfListKind, CFLIST_FREQUENCIES, CFLIST_LEN, CFLIST_MASK_GROUPS};
 pub use error::LorawanError;
 pub use frame::{Direction, PhyPayload, MAX_FRAME, MAX_PAYLOAD};
 pub use header::{FrameHeader, MessageType};
