@@ -88,7 +88,7 @@ pub struct LorawanRxData {
 /// An activated LoRaWAN session: a device address and its two session keys.
 #[napi]
 pub struct LorawanSession {
-    inner: CoreSession,
+    pub(crate) inner: CoreSession,
 }
 
 #[napi]
@@ -189,7 +189,7 @@ impl LorawanSession {
 /// The root credentials over-the-air activation is built on.
 #[napi]
 pub struct LorawanDevice {
-    inner: CoreDevice,
+    pub(crate) inner: CoreDevice,
 }
 
 #[napi]

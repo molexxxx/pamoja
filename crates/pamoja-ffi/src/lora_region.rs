@@ -375,6 +375,16 @@ impl PamojaLoraPlan {
         }))
     }
 
+    /// The published plan this handle wraps, for a caller that needs it for as long as
+    /// the program runs.
+    ///
+    /// # Returns
+    ///
+    /// The plan, or `None` for one built at runtime.
+    pub(crate) fn published(&self) -> Option<&'static ChannelPlan<'static>> {
+        self.published
+    }
+
     /// Runs a query against the plan.
     ///
     /// # Arguments

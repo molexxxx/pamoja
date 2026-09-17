@@ -1,7 +1,7 @@
 namespace Pamoja;
 
 /// <summary>The exception thrown when a pamoja operation fails.</summary>
-public sealed class PamojaException : Exception
+public class PamojaException : Exception
 {
     /// <summary>Creates an exception with the given message.</summary>
     /// <param name="message">A human-readable description of the failure.</param>

@@ -21,10 +21,20 @@ from pamoja._native import (
     LORAWAN_RECEIVE_WINDOW_TOLERANCE_US,
     LORAWAN_RETRANSMIT_TIMEOUT_MAX_US,
     LORAWAN_RETRANSMIT_TIMEOUT_MIN_US,
+    LORAWAN_SAVED_LEN,
     LorawanBackoff,
     LorawanBackoffStep,
     LorawanCfList,
+    LorawanChannel,
+    LorawanDelivery,
     LorawanDevice,
+    LorawanDeviceError,
+    LorawanDeviceSettings,
+    LorawanEndDevice,
+    LorawanHeard,
+    LorawanNext,
+    LorawanTransmission,
+    LorawanWindow,
     LorawanGrant,
     LorawanHeader,
     LorawanJoinAccept,
@@ -43,10 +53,16 @@ __all__ = [
     "Backoff",
     "BackoffStep",
     "CfList",
+    "Channel",
+    "Delivery",
     "Device",
+    "DeviceError",
+    "DeviceSettings",
     "Direction",
+    "EndDevice",
     "Grant",
     "Header",
+    "Heard",
     "JOIN_ACCEPT_DELAY1_US",
     "JOIN_ACCEPT_DELAY2_US",
     "JoinAccept",
@@ -54,15 +70,20 @@ __all__ = [
     "MAX_FCNT_GAP",
     "MacCommand",
     "MessageType",
+    "Next",
     "RECEIVE_DELAY1_US",
     "RECEIVE_DELAY2_US",
     "RECEIVE_WINDOW_TOLERANCE_US",
     "RETRANSMIT_TIMEOUT_MAX_US",
     "RETRANSMIT_TIMEOUT_MIN_US",
     "RxData",
+    "SAVED_LEN",
     "Session",
+    "Transmission",
     "Version",
+    "Window",
     "device",
+    "end_device",
     "grant",
     "mac_parse",
     "parse_header",
@@ -90,6 +111,26 @@ CfList = LorawanCfList
 Backoff = LorawanBackoff
 #: What a back-off says to do with one uplink.
 BackoffStep = LorawanBackoffStep
+#: A LoRaWAN Class A end device, without a radio.
+EndDevice = LorawanEndDevice
+#: What a device's radio can do, and how it takes part.
+DeviceSettings = LorawanDeviceSettings
+#: Raised when an end device cannot do what it was asked; ``kind`` names why.
+DeviceError = LorawanDeviceError
+#: A frame to put on the air, and where to listen afterward.
+Transmission = LorawanTransmission
+#: When and where to listen for a downlink.
+Window = LorawanWindow
+#: What a frame heard in a receive window turned out to be.
+Heard = LorawanHeard
+#: A downlink, read and acted on.
+Delivery = LorawanDelivery
+#: What to do once both receive windows closed with nothing for the device.
+Next = LorawanNext
+#: A channel a device may send on.
+Channel = LorawanChannel
+#: How many bytes a saved device state takes.
+SAVED_LEN = LORAWAN_SAVED_LEN
 
 #: How long after an uplink the first receive window opens, RP002-1.0.5 section 3.3.
 RECEIVE_DELAY1_US = LORAWAN_RECEIVE_DELAY1_US
@@ -267,3 +308,47 @@ def mac_parse(direction: Direction | str, data: bytes) -> list[MacCommand]:
     """
     name = direction.value if isinstance(direction, enum.Enum) else str(direction)
     return _mac_parse(name, data)
+
+
+def end_device(
+    plan,
+    dev_eui: bytes,
+    join_eui: bytes,
+    app_key: bytes,
+    settings: LorawanDeviceSettings,
+    fcnt_up: int = 0,
+    fcnt_down: int | None = None,
+) -> LorawanEndDevice:
+    """Make an end device that joins over the air.
+
+    It owns no radio and no clock: every call takes the time in microseconds and hands
+    back what to put on the air, so the same device runs over any radio, or in a test
+    with none. :meth:`EndDevice.join` or :meth:`EndDevice.send` returns a transmission
+    and two receive windows; a frame heard in either goes to :meth:`EndDevice.heard`,
+    and :meth:`EndDevice.nothing_heard` says what to do when neither held one.
+
+    :param plan: A published channel plan, from ``pamoja.lora.plan_for`` or
+        ``pamoja.lora.cn470_plan``.
+    :param dev_eui: The 8-byte device EUI.
+    :param join_eui: The 8-byte join EUI.
+    :param app_key: The 16-byte root key.
+    :param settings: What the radio can do.
+    :param fcnt_up: The next uplink frame counter carried over a restart.
+    :param fcnt_down: The last downlink frame counter accepted, if any was.
+    :returns: The device, not yet joined.
+    :raises PamojaError: If the plan was built rather than published, or a credential is
+        the wrong length.
+
+    >>> from pamoja import lora
+    >>> node = end_device(lora.plan_for("EU868"), bytes(8), bytes(8), bytes(16), DeviceSettings(2, 14))
+    >>> request = node.join(1, 0)
+    >>> request.rx1.delay_us
+    5000000
+    """
+    return LorawanEndDevice.over_the_air(
+        plan,
+        LorawanDevice(bytes(dev_eui), bytes(join_eui), bytes(app_key)),
+        settings,
+        fcnt_up,
+        fcnt_down,
+    )

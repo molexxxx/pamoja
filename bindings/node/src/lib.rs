@@ -51,6 +51,8 @@ pub mod lora_radio;
 pub mod lora_region;
 #[cfg(feature = "lorawan")]
 pub mod lorawan;
+#[cfg(all(feature = "lora", feature = "lorawan"))]
+pub mod lorawan_device;
 #[cfg(feature = "lorawan")]
 pub mod lorawan_link;
 #[cfg(feature = "mavlink")]

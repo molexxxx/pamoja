@@ -67,7 +67,7 @@ pub struct PamojaLorawanFlags {
 /// Holds a device address and the two session keys, and never hands them back.
 /// Release it with [`pamoja_lorawan_session_free`].
 pub struct PamojaLorawanSession {
-    session: Session,
+    pub(crate) session: Session,
 }
 
 /// An opaque handle to the root credentials of a device.
@@ -75,7 +75,7 @@ pub struct PamojaLorawanSession {
 /// Holds the EUIs and the application key that over-the-air activation is built
 /// on. Release it with [`pamoja_lorawan_device_free`].
 pub struct PamojaLorawanDevice {
-    device: Device,
+    pub(crate) device: Device,
 }
 
 /// An opaque handle to an accepted join.
@@ -1156,7 +1156,7 @@ unsafe fn eui(bytes: *const u8, len: usize, what: &str) -> Result<[u8; 8], Pamoj
 /// [`PamojaStatus::Auth`] when a frame failed its integrity or counter check,
 /// [`PamojaStatus::InvalidArgument`] when the caller asked for a frame that cannot
 /// be built, and [`PamojaStatus::Codec`] when a received frame could not be read.
-fn failed(error: LorawanError) -> PamojaStatus {
+pub(crate) fn failed(error: LorawanError) -> PamojaStatus {
     set_last_error(error.to_string());
     match error {
         LorawanError::MicMismatch | LorawanError::FcntMismatch => PamojaStatus::Auth,

@@ -18,7 +18,8 @@ use pamoja_lora::LinkSettings;
 
 /// The radio settings of a LoRa link.
 #[gen_stub_pyclass]
-#[pyclass]
+#[pyclass(from_py_object)]
+#[derive(Clone, Copy)]
 pub struct LoraLink {
     /// The spreading factor, 5 (fastest) to 12 (longest range).
     #[pyo3(get)]
@@ -41,23 +42,24 @@ pub struct LoraLink {
 }
 
 impl LoraLink {
-    /// Wraps the settings a channel plan reports, with the LoRa defaults.
+    /// Describes Rust link settings the way Python holds them.
     ///
     /// # Arguments
     ///
-    /// * `settings` - the spreading factor and bandwidth a data rate selects.
+    /// * `settings` - the link settings, such as a data rate selects or a receive window
+    ///   listens with.
     ///
     /// # Returns
     ///
-    /// The link settings, at coding rate 4/5 with an eight-symbol preamble.
+    /// The link settings, every field as the Rust settings hold it.
     pub(crate) fn from_settings(settings: LinkSettings) -> Self {
         Self {
             spreading_factor: settings.spreading_factor(),
             bandwidth_hz: settings.bandwidth_hz(),
-            coding_rate_denominator: 5,
-            preamble_symbols: 8,
-            explicit_header: true,
-            crc: true,
+            coding_rate_denominator: settings.coding_rate_denominator(),
+            preamble_symbols: settings.preamble_symbols(),
+            explicit_header: settings.explicit_header(),
+            crc: settings.crc(),
         }
     }
 }

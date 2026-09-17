@@ -16,7 +16,7 @@ dotnet add package Pamoja.Lorawan
 using Pamoja.Lorawan;
 ```
 
-This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Codec`. `dotnet add package Pamoja` is the whole framework in one package.
+This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Codec` and `Pamoja.Lora`. `dotnet add package Pamoja` is the whole framework in one package.
 
 ## Example
 

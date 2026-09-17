@@ -1265,6 +1265,7 @@ static void Conformance()
     ConformLorawan(vectors.GetProperty("lorawan"));
     ConformHeader(vectors.GetProperty("header"));
     ConformLorawanLink(vectors.GetProperty("lorawanLink"), vectors);
+    ConformLorawanDevice(vectors.GetProperty("lorawanDevice"));
     ConformNetwork(vectors.GetProperty("network"));
     ConformAudit(vectors.GetProperty("audit"));
     ConformSession(vectors.GetProperty("session"));
@@ -4961,6 +4962,274 @@ static void ConformLorawanLink(JsonElement vector, JsonElement vectors)
     LorawanRxData decoded = session.Decode(asking, fcnt);
     Assert(decoded.AdrAckReq && !decoded.ClassB, "the decoded ADRACKReq and ClassB bits");
 }
+
+// Replays each end device script, holding every call to what it returned.
+static void ConformLorawanDevice(JsonElement vector)
+{
+    Assert(vector.GetProperty("savedLen").GetInt32() == 1589, "the saved state length");
+    Dictionary<string, LoraRegion> regions = new()
+    {
+        ["EU868"] = LoraRegion.Eu868,
+        ["US915"] = LoraRegion.Us915,
+        ["EU433"] = LoraRegion.Eu433,
+        ["AU915"] = LoraRegion.Au915,
+        ["CN470"] = LoraRegion.Cn470,
+        ["AS923"] = LoraRegion.As923,
+        ["KR920"] = LoraRegion.Kr920,
+        ["IN865"] = LoraRegion.In865,
+        ["RU864"] = LoraRegion.Ru864,
+    };
+    Dictionary<string, LoraCn470Plan> cn470 = new()
+    {
+        ["antenna_20mhz_a"] = LoraCn470Plan.Antenna20MhzA,
+        ["antenna_20mhz_b"] = LoraCn470Plan.Antenna20MhzB,
+        ["antenna_26mhz_a"] = LoraCn470Plan.Antenna26MhzA,
+        ["antenna_26mhz_b"] = LoraCn470Plan.Antenna26MhzB,
+        ["channels_96"] = LoraCn470Plan.Channels96,
+    };
+
+    foreach (JsonElement script in vector.GetProperty("scripts").EnumerateArray())
+    {
+        string name = script.GetProperty("name").GetString()!;
+        JsonElement planName = script.GetProperty("plan");
+        using LoraChannelPlan plan = planName.TryGetProperty("region", out JsonElement region)
+            ? LoraChannelPlan.ForRegion(regions[region.GetString()!])
+            : LoraChannelPlan.ForCn470(cn470[planName.GetProperty("cn470").GetString()!]);
+        JsonElement s = script.GetProperty("settings");
+        LorawanDeviceSettings settings = new(s.GetProperty("minOutputDbm").GetSByte(), s.GetProperty("maxOutputDbm").GetSByte())
+        {
+            Version = s.GetProperty("version").GetString() == "1.0.3" ? LorawanVersion.V1_0_3 : LorawanVersion.V1_0_4,
+            Adr = s.GetProperty("adr").GetBoolean(),
+            AntennaGainDb = s.GetProperty("antennaGainDb").GetSByte(),
+            LowestHz = s.GetProperty("lowestHz").GetUInt32(),
+            HighestHz = s.GetProperty("highestHz").GetUInt32(),
+            RegionalDutyCycle = s.GetProperty("regionalDutyCycle").GetBoolean(),
+            BehindRepeater = s.GetProperty("behindRepeater").GetBoolean(),
+            Seed = s.GetProperty("seed").GetUInt32(),
+        };
+        JsonElement counters = script.GetProperty("counters");
+        uint fcntUp = counters.ValueKind == JsonValueKind.Null ? 0 : counters.GetProperty("up").GetUInt32();
+        uint? fcntDown = counters.ValueKind == JsonValueKind.Null || counters.GetProperty("down").ValueKind == JsonValueKind.Null
+            ? null
+            : counters.GetProperty("down").GetUInt32();
+        JsonElement activation = script.GetProperty("activation");
+        LorawanEndDevice device;
+        if (activation.TryGetProperty("overTheAir", out JsonElement keys))
+        {
+            using LorawanDevice credentials = new(
+                Convert.FromHexString(keys.GetProperty("devEui").GetString()!),
+                Convert.FromHexString(keys.GetProperty("joinEui").GetString()!),
+                Convert.FromHexString(keys.GetProperty("appKey").GetString()!));
+            device = LorawanEndDevice.OverTheAir(plan, credentials, settings, fcntUp, fcntDown);
+        }
+        else
+        {
+            JsonElement abp = activation.GetProperty("personalized");
+            using LorawanSession session = new(
+                abp.GetProperty("devAddr").GetUInt32(),
+                Convert.FromHexString(abp.GetProperty("nwkSKey").GetString()!),
+                Convert.FromHexString(abp.GetProperty("appSKey").GetString()!));
+            device = LorawanEndDevice.Personalized(plan, session, settings, fcntUp, fcntDown);
+        }
+
+        using (device)
+        {
+            int index = 0;
+            foreach (JsonElement step in script.GetProperty("steps").EnumerateArray())
+            {
+                string call = step.GetProperty("call").GetString()!;
+                string where = $"step {index} ({call}) of {name}";
+                index++;
+                if (step.TryGetProperty("error", out JsonElement wantError))
+                {
+                    try
+                    {
+                        RunDeviceStep(device, step);
+                        Fail($"{where} should have failed");
+                    }
+                    catch (LorawanDeviceException error)
+                    {
+                        Dictionary<string, object?> got = new()
+                        {
+                            ["kind"] = SnakeCase(error.Kind.ToString()),
+                            ["untilUs"] = error.UntilMicros,
+                            ["max"] = error.Max,
+                            ["dataRate"] = error.DataRate,
+                            ["state"] = error.State is { } state ? SnakeCase(state.ToString()) : null,
+                            ["format"] = error.Format,
+                        };
+                        Assert(Canonical(JsonSerializer.SerializeToElement(got)) == Canonical(wantError), where);
+                    }
+
+                    continue;
+                }
+
+                object? result = RunDeviceStep(device, step);
+                string? field = call switch
+                {
+                    "join" or "send" or "sendEmpty" or "repeat" => "transmission",
+                    "heard" => "heard",
+                    "nothingHeard" => "next",
+                    "save" => "saved",
+                    "resume" => "resumed",
+                    "status" => "status",
+                    _ => null,
+                };
+                if (field is not null)
+                {
+                    Assert(
+                        Canonical(JsonSerializer.SerializeToElement(result)) == Canonical(step.GetProperty(field)),
+                        where);
+                }
+            }
+        }
+    }
+}
+
+// Makes one scripted call on a device and describes what it returned the way the vectors do.
+static object? RunDeviceStep(LorawanEndDevice device, JsonElement step)
+{
+    static object Link(LoraLink link) => new Dictionary<string, object>
+    {
+        ["spreadingFactor"] = link.SpreadingFactor,
+        ["bandwidthHz"] = link.BandwidthHz,
+        ["codingRateDenominator"] = link.CodingRateDenominator,
+        ["preambleSymbols"] = link.PreambleSymbols,
+        ["explicitHeader"] = link.ExplicitHeader,
+        ["crc"] = link.Crc,
+    };
+    static object Window(LorawanWindow window) => new Dictionary<string, object>
+    {
+        ["delayUs"] = window.DelayMicros,
+        ["frequencyHz"] = window.FrequencyHz,
+        ["dataRate"] = window.DataRate,
+        ["link"] = Link(window.Link),
+    };
+    static object Transmission(LorawanTransmission transmission) => new Dictionary<string, object>
+    {
+        ["frame"] = Convert.ToHexString(transmission.Frame).ToLowerInvariant(),
+        ["frequencyHz"] = transmission.FrequencyHz,
+        ["dataRate"] = transmission.DataRate,
+        ["link"] = Link(transmission.Link),
+        ["outputDbm"] = transmission.OutputDbm,
+        ["airtimeUs"] = transmission.AirtimeMicros,
+        ["rx1"] = Window(transmission.Rx1),
+        ["rx2"] = Window(transmission.Rx2),
+        ["carriesPayload"] = transmission.CarriesPayload,
+    };
+
+    switch (step.GetProperty("call").GetString())
+    {
+        case "join":
+            return Transmission(device.Join(step.GetProperty("devNonce").GetUInt16(), step.GetProperty("nowUs").GetUInt64()));
+        case "send":
+            return Transmission(device.Send(
+                step.GetProperty("port").GetByte(),
+                Convert.FromHexString(step.GetProperty("payload").GetString()!),
+                step.GetProperty("nowUs").GetUInt64(),
+                step.GetProperty("confirmed").GetBoolean()));
+        case "sendEmpty":
+            return Transmission(device.SendEmpty(step.GetProperty("nowUs").GetUInt64()));
+        case "repeat":
+            return Transmission(device.Repeat(step.GetProperty("nowUs").GetUInt64()));
+        case "heard":
+            LorawanHeard heard = device.Heard(
+                Convert.FromHexString(step.GetProperty("frame").GetString()!),
+                step.GetProperty("snrDb").GetSByte());
+            return heard switch
+            {
+                LorawanHeard.Data data => new Dictionary<string, object>
+                {
+                    ["kind"] = "data",
+                    ["devAddr"] = data.DevAddr,
+                    ["delivery"] = new Dictionary<string, object?>
+                    {
+                        ["port"] = data.Delivery.Port,
+                        ["payload"] = Convert.ToHexString(data.Delivery.Payload).ToLowerInvariant(),
+                        ["acknowledged"] = data.Delivery.Acknowledged,
+                        ["confirmed"] = data.Delivery.Confirmed,
+                        ["morePending"] = data.Delivery.MorePending,
+                        ["linkCheck"] = data.Delivery.LinkCheck is { } check
+                            ? new Dictionary<string, object> { ["marginDb"] = check.MarginDb, ["gateways"] = check.Gateways }
+                            : null,
+                        ["deviceTime"] = data.Delivery.DeviceTime is { } time
+                            ? new Dictionary<string, object> { ["gpsSeconds"] = time.GpsSeconds, ["fraction"] = time.Fraction }
+                            : null,
+                    },
+                },
+                _ => new Dictionary<string, object> { ["kind"] = "joined", ["devAddr"] = heard.DevAddr },
+            };
+        case "nothingHeard":
+            LorawanNext next = device.NothingHeard(step.GetProperty("nowUs").GetUInt64());
+            return new Dictionary<string, object?>
+            {
+                ["kind"] = SnakeCase(next.Kind.ToString()),
+                ["notBeforeUs"] = next.NotBeforeMicros,
+            };
+        case "save":
+            return Convert.ToHexString(device.Save(step.GetProperty("nowUs").GetUInt64())).ToLowerInvariant();
+        case "resume":
+            device.Resume(
+                Convert.FromHexString(step.GetProperty("saved").GetString()!),
+                step.GetProperty("nowUs").GetUInt64());
+            return true;
+        case "requestLinkCheck":
+            device.RequestLinkCheck();
+            return null;
+        case "requestDeviceTime":
+            device.RequestDeviceTime();
+            return null;
+        case "setBattery":
+            JsonElement battery = step.GetProperty("battery");
+            device.SetBattery(battery.ValueKind switch
+            {
+                JsonValueKind.Number => LorawanBattery.Level(battery.GetByte()),
+                _ when battery.GetString() == "external" => LorawanBattery.External,
+                _ => LorawanBattery.Unknown,
+            });
+            return null;
+        case "status":
+            (uint lowestHz, uint highestHz) = device.FrequencySpan;
+            return new Dictionary<string, object?>
+            {
+                ["joined"] = device.IsJoined,
+                ["devAddr"] = device.DevAddr,
+                ["dataRate"] = device.DataRate,
+                ["fcntUp"] = device.FcntUp,
+                ["fcntDown"] = device.FcntDown,
+                ["transmissions"] = device.Transmissions,
+                ["rx2"] = new Dictionary<string, object> { ["frequencyHz"] = device.Rx2.FrequencyHz, ["dataRate"] = device.Rx2.DataRate },
+                ["receiveDelayUs"] = device.ReceiveDelayMicros,
+                ["frequencySpan"] = new Dictionary<string, object> { ["lowestHz"] = lowestHz, ["highestHz"] = highestHz },
+                ["channels"] = device.Channels().Select(channel => new Dictionary<string, object>
+                {
+                    ["index"] = channel.Index,
+                    ["uplinkHz"] = channel.UplinkHz,
+                    ["downlinkHz"] = channel.DownlinkHz,
+                    ["minDataRate"] = channel.MinDataRate,
+                    ["maxDataRate"] = channel.MaxDataRate,
+                }).ToList(),
+            };
+        default:
+            throw new InvalidOperationException("an unknown step");
+    }
+}
+
+// Renders a JSON value with its object keys sorted, so two documents compare by content.
+static string Canonical(JsonElement element) => element.ValueKind switch
+{
+    JsonValueKind.Object => "{" + string.Join(",", element.EnumerateObject()
+        .OrderBy(property => property.Name, StringComparer.Ordinal)
+        .Select(property => JsonSerializer.Serialize(property.Name) + ":" + Canonical(property.Value))) + "}",
+    JsonValueKind.Array => "[" + string.Join(",", element.EnumerateArray().Select(Canonical)) + "]",
+    JsonValueKind.Number => element.GetDecimal().ToString(System.Globalization.CultureInfo.InvariantCulture),
+    _ => element.GetRawText(),
+};
+
+// Converts a PascalCase name to the snake_case the vectors use.
+static string SnakeCase(string name) =>
+    string.Concat(name.Select((letter, at) =>
+        char.IsUpper(letter) ? (at > 0 ? "_" : "") + char.ToLowerInvariant(letter) : letter.ToString()));
 
 // Holds a channel list to the answers every binding must give.
 static void ConformCfList(LorawanCfList list, JsonElement want, string where)

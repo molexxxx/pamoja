@@ -1360,6 +1360,11 @@ impl ChannelPlan {
         self.inner.with_plan(query)
     }
 
+    /// The published plan this wraps, which a device can hold for as long as it runs.
+    pub(crate) fn published_plan(&self) -> Option<&'static CorePlan<'static>> {
+        self.published
+    }
+
     /// Wraps a published plan, keeping the plans its join channels select.
     fn published(plan: &'static CorePlan<'static>) -> Self {
         Self {
