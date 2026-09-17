@@ -19,13 +19,13 @@ use pamoja_lorawan::relay::{RelayActivation, RelaySync};
 use pamoja_lorawan::Version;
 
 use crate::lora::{lora_link_of, LoraLink};
+use crate::lora_region::LoraChannelPlan;
+use crate::lorawan::{LorawanDevice, LorawanSession};
+use crate::lorawan_link::LorawanVersion;
 use crate::lorawan_relay::{
     forward_out, periodicity_out, receive_out, xtal_out, LorawanCadPeriodicity, LorawanCadToRx,
     LorawanRelayForward, LorawanXtalAccuracy,
 };
-use crate::lora_region::LoraChannelPlan;
-use crate::lorawan::{LorawanDevice, LorawanSession};
-use crate::lorawan_link::LorawanVersion;
 
 /// What a device's radio can do, and how it takes part.
 ///
@@ -673,13 +673,6 @@ impl LorawanEndDevice {
                 wake_up: Some(exchange_out(exchange)),
             }),
         }
-    }
-}
-
-impl LorawanEndDevice {
-    /// Gives up the device inside, for a relay that takes it over.
-    pub(crate) fn into_inner(self) -> EndDevice<'static> {
-        self.inner
     }
 }
 

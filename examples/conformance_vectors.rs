@@ -37,10 +37,11 @@ use pamoja_lora::region::{
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::adr::{Backoff, Standing};
 use pamoja_lorawan::device::{
-    Battery, DeviceError, EndDevice, Heard, Next, ReceiveWindow, Saved, Settings, StateError,
-    Transmission, Window as DeviceWindow,
+    Battery, DeviceError, EndDevice, Heard, Next, ReceiveWindow, RelayExchange, RelayStatus, Saved,
+    Settings, StateError, Transmission, Window as DeviceWindow, WorNext,
 };
 use pamoja_lorawan::mac::MacCommand;
+use pamoja_lorawan::relay::{RelayActivation, RelaySync};
 use pamoja_lorawan::{
     defaults, CfList, CfListKind, Device, Downlink, FrameHeader, JoinGrant, JoinRequest, Session,
     Uplink, Version,
@@ -3214,6 +3215,39 @@ fn window_vector(window: DeviceWindow) -> Value {
     })
 }
 
+fn exchange_vector(exchange: &RelayExchange) -> Value {
+    json!({
+        "wakeUp": {
+            "frame": hex(exchange.wake_up.frame()),
+            "startUs": exchange.wake_up.start_us,
+            "frequencyHz": exchange.wake_up.carrier.frequency_hz,
+            "dataRate": exchange.wake_up.carrier.data_rate,
+            "link": link_vector(exchange.wake_up.link),
+            "outputDbm": exchange.wake_up.output_dbm,
+            "airtimeUs": exchange.wake_up.airtime_us,
+        },
+        "ack": exchange.ack.map(|ack| json!({
+            "startUs": ack.start_us,
+            "frequencyHz": ack.carrier.frequency_hz,
+            "dataRate": ack.carrier.data_rate,
+            "link": link_vector(ack.link),
+            "airtimeUs": ack.airtime_us,
+        })),
+        "uplinkStartUs": exchange.uplink_start_us,
+        "rxr": window_vector(exchange.rxr),
+    })
+}
+
+fn relay_status_vector(status: &RelayStatus) -> Value {
+    json!({
+        "cadPeriodicity": format!("{:?}", status.cad_periodicity),
+        "xtalAccuracy": format!("{:?}", status.xtal_accuracy),
+        "cadToRx": format!("{:?}", status.cad_to_rx),
+        "relayDataRate": status.relay_data_rate,
+        "forward": format!("{:?}", status.forward),
+    })
+}
+
 fn transmission_vector(transmission: &Transmission) -> Value {
     json!({
         "frame": hex(transmission.frame.as_bytes()),
@@ -3225,6 +3259,7 @@ fn transmission_vector(transmission: &Transmission) -> Value {
         "rx1": window_vector(transmission.rx1),
         "rx2": window_vector(transmission.rx2),
         "carriesPayload": transmission.carries_payload,
+        "relay": transmission.relay.as_ref().map(exchange_vector),
     })
 }
 
@@ -3432,6 +3467,55 @@ impl Script {
             .push(json!({ "call": "setBattery", "battery": described }));
     }
 
+    fn use_relay(&mut self, on: bool) {
+        let taken = self.device.use_relay(on);
+        self.steps
+            .push(json!({ "call": "useRelay", "on": on, "taken": taken }));
+    }
+
+    fn heard_wor_ack(&mut self, frame: &[u8]) {
+        let result = self.device.heard_wor_ack(frame);
+        let step = json!({ "call": "heardWorAck", "frame": hex(frame) });
+        self.outcome(step, result, "relayStatus", relay_status_vector);
+    }
+
+    fn no_wor_ack(&mut self, now_us: u64) {
+        let result = self.device.no_wor_ack(now_us);
+        let step = json!({ "call": "noWorAck", "nowUs": now_us });
+        self.outcome(step, result, "worNext", |next| match next {
+            WorNext::Uplink => json!({ "uplink": true, "wakeUp": null }),
+            WorNext::WakeUp(exchange) => {
+                json!({ "uplink": false, "wakeUp": exchange_vector(exchange) })
+            }
+        });
+    }
+
+    fn relay_mode(&mut self) {
+        let device = &self.device;
+        let activation = match device.relay_activation() {
+            RelayActivation::Disabled => "disabled",
+            RelayActivation::Enabled => "enabled",
+            RelayActivation::Dynamic => "dynamic",
+            RelayActivation::DeviceControlled => "device_controlled",
+        };
+        let sync = match device.relay_sync() {
+            RelaySync::Initialized => "initialized",
+            RelaySync::Unsynchronized => "unsynchronized",
+            RelaySync::Synchronized => "synchronized",
+        };
+        let status = device.relay_status();
+        self.steps.push(json!({
+            "call": "relayMode",
+            "relayMode": {
+                "relaying": device.relaying(),
+                "activation": activation,
+                "sync": sync,
+                "worCounter": device.wor_counter(),
+                "status": status.as_ref().map(relay_status_vector),
+            },
+        }));
+    }
+
     fn status(&mut self) {
         let device = &self.device;
         let (rx2_hz, rx2_rate) = device.rx2();
@@ -3473,6 +3557,10 @@ impl Script {
 /// Every step is a call and what it returned, so a binding replays the steps in order and has
 /// to see the same transmissions, deliveries and errors.
 fn lorawan_device() -> Value {
+    use pamoja_lorawan::relay::{
+        wor_ack, CadPeriodicity, CadToRx, Forward, StateSync, XtalAccuracy,
+    };
+
     const APP_KEY: [u8; 16] = [0x2B; 16];
     const DEV_EUI: [u8; 8] = [0x11; 8];
     const JOIN_EUI: [u8; 8] = [0x22; 8];
@@ -3654,6 +3742,61 @@ fn lorawan_device() -> Value {
         "personalized": { "devAddr": ABP_ADDR, "nwkSKey": hex(&NWK_SKEY), "appSKey": hex(&APP_SKEY) },
     });
 
+    // A device that sends through a relay: the frame that wakes it, the acknowledgment that
+    // says when the relay scans, and the shorter preamble every frame after that carries.
+    let relayed_session = Session::new(ABP_ADDR, NWK_SKEY, APP_SKEY);
+    let (relay_settings, relay_settings_vector) = settings_vector(2, 14, 7);
+    let mut relayed = Script {
+        device: EndDevice::personalized(eu868.plan(), relayed_session, relay_settings)
+            .expect("a device"),
+        steps: Vec::new(),
+    };
+    relayed.relay_mode();
+    relayed.use_relay(true);
+    let first = relayed
+        .send(2, b"21.5", false, 0)
+        .expect("a relayed uplink")
+        .relay
+        .expect("an exchange");
+    relayed.relay_mode();
+
+    // The relay answers, saying it scans every second and started twenty milliseconds before
+    // the preamble ended, so the next frame need only span the drift between the two clocks.
+    let relay_keys = relayed_session.wor_keys();
+    let answered = wor_ack(
+        &relay_keys,
+        ABP_ADDR,
+        0,
+        first.ack.expect("an ack window").carrier,
+        first.wake_up.carrier,
+        StateSync {
+            cad_to_rx: CadToRx::Symbols4,
+            forward: Forward::Available,
+            relay_data_rate: 3,
+            xtal_accuracy: XtalAccuracy::Ppm20,
+            cad_periodicity: CadPeriodicity::Ms1000,
+            t_offset_ms: 20,
+        },
+    )
+    .expect("a WOR ACK");
+    relayed.heard_wor_ack(&answered);
+    relayed.relay_mode();
+    relayed.nothing_heard(first.uplink_start_us + u64::from(first.rxr.delay_us) + 2_000_000);
+
+    // The second uplink aims at the scan the device now knows about, and a relay that leaves
+    // its acknowledgment window empty is woken again before the uplink goes out anyway.
+    let second = relayed
+        .send(2, b"21.6", false, 400_000_000)
+        .expect("the air is free")
+        .relay
+        .expect("an exchange");
+    relayed.no_wor_ack(second.ack.expect("an ack window").start_us + 100_000);
+    relayed.relay_mode();
+
+    let relayed_activation = json!({
+        "personalized": { "devAddr": ABP_ADDR, "nwkSKey": hex(&NWK_SKEY), "appSKey": hex(&APP_SKEY) },
+    });
+
     json!({
         "savedLen": pamoja_lorawan::device::SAVED_LEN,
         "scripts": [
@@ -3704,6 +3847,14 @@ fn lorawan_device() -> Value {
                 "settings": abp_settings_vector,
                 "counters": { "up": 100, "down": 5 },
                 "steps": personalized.steps,
+            },
+            {
+                "name": "eu868 through a relay",
+                "plan": eu868.describe(),
+                "activation": relayed_activation,
+                "settings": relay_settings_vector,
+                "counters": null,
+                "steps": relayed.steps,
             },
         ],
     })

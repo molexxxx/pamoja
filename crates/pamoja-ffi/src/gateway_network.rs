@@ -27,8 +27,8 @@ use crate::gateway::{
     link_to_c, missing, rxpk_of, txpk_to_c, PamojaGatewayRxpk, PamojaGatewayTxpk,
 };
 use crate::lora::PamojaLoraLink;
-use crate::lorawan_mac::{read_command, write_command, PamojaLorawanMacCommand};
 use crate::lora_region::PamojaLoraPlan;
+use crate::lorawan_mac::{read_command, write_command, PamojaLorawanMacCommand};
 use crate::{read_bytes, set_last_error, PamojaStatus};
 
 /// A device joined, and its accept is in the event.

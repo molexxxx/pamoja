@@ -7,15 +7,15 @@
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
-use pamoja_lorawan::mac::relay_second_channel;
+use pamoja_lora::region::RelayChannel;
 use pamoja_lorawan::device::Heard;
+use pamoja_lorawan::mac::relay_second_channel;
 use pamoja_lorawan::relay::{
     self, open_wor_ack, t_offset_ms, unsynchronized_preamble_symbols, wor_ack, wor_join_request,
     wor_uplink, CadPeriodicity, CadToRx, Carrier, Forward, ForwardedUplink, Listen, Relay,
     RelayConfig, RelayError, RelayHeard, RelaySettings, Scan, StateSync, Synchronization,
     UplinkMetadata, Wake, Wor, WorChannel, WorKeys, XtalAccuracy,
 };
-use pamoja_lora::region::RelayChannel;
 use pamoja_lorawan::LorawanError;
 
 use crate::lora::{lora_link_of, LoraLink};
@@ -979,7 +979,10 @@ impl LorawanRelay {
         Ok(match heard {
             RelayHeard::Device(heard) => LorawanRelayHeard {
                 kind: LorawanRelayHeardKind::Device,
-                heard: Some(heard_out(heard, self.inner.device().dev_addr().unwrap_or(0))),
+                heard: Some(heard_out(
+                    heard,
+                    self.inner.device().dev_addr().unwrap_or(0),
+                )),
                 downlink: None,
                 reason: None,
             },

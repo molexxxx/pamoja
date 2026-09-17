@@ -1620,7 +1620,6 @@ pub unsafe extern "C" fn pamoja_lorawan_end_device_resume(
     }
 }
 
-
 /// Turns relay mode on or off, TS011-1.0.1 section 10.2 and appendix 5.
 ///
 /// From this call on, the decision is the caller's rather than the device's own policy,
@@ -1836,7 +1835,8 @@ pub unsafe extern "C" fn pamoja_lorawan_end_device_no_wor_ack(
     out_next: *mut u8,
     out_exchange: *mut PamojaLorawanRelayExchange,
 ) -> PamojaStatus {
-    let (Some(device), false, false) = (device.as_mut(), out_next.is_null(), out_exchange.is_null())
+    let (Some(device), false, false) =
+        (device.as_mut(), out_next.is_null(), out_exchange.is_null())
     else {
         set_last_error("device, out_next and out_exchange must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
@@ -2134,7 +2134,11 @@ mod tests {
                 );
                 (status, payload)
             };
-            assert_eq!(heard_long(3).0, PamojaStatus::InvalidArgument);
+            assert_eq!(
+                heard_long(9).0,
+                PamojaStatus::InvalidArgument,
+                "a code that names no window"
+            );
             assert_eq!(
                 heard_long(PAMOJA_LORAWAN_WINDOW_RX2).0,
                 PamojaStatus::InvalidArgument

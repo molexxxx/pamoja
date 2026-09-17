@@ -14,12 +14,6 @@
 
 use std::ptr;
 
-use pamoja_lora::region::RelayChannel;
-use pamoja_lorawan::device::{DeviceError, Heard, Transmission};
-use pamoja_lorawan::relay::{
-    Acknowledgment, CadPeriodicity, CadToRx, Carrier, Listen, Relay, RelayConfig, RelayError,
-    RelayHeard, RelaySettings, RxrDownlink, Scan, Wake, WorChannel, XtalAccuracy, WOR_ACK_LEN,
-};
 use crate::lora::PamojaLoraLink;
 use crate::lorawan_device::{
     heard_out, link_out, made_from, next_out, status_out, transmitted, window_in,
@@ -27,6 +21,12 @@ use crate::lorawan_device::{
     PamojaLorawanTransmission,
 };
 use crate::{read_bytes, set_last_error, PamojaBuffer, PamojaStatus};
+use pamoja_lora::region::RelayChannel;
+use pamoja_lorawan::device::{DeviceError, Heard, Transmission};
+use pamoja_lorawan::relay::{
+    Acknowledgment, CadPeriodicity, CadToRx, Carrier, Listen, Relay, RelayConfig, RelayError,
+    RelayHeard, RelaySettings, RxrDownlink, Scan, Wake, WorChannel, XtalAccuracy, WOR_ACK_LEN,
+};
 
 /// A join request follows the wake-on-radio frame; listen for it.
 pub const PAMOJA_LORAWAN_WAKE_JOIN_REQUEST: u8 = 0;
@@ -395,7 +395,9 @@ unsafe fn relay_transmit(
     relay: *mut PamojaLorawanRelay,
     out_frame: *mut *mut PamojaBuffer,
     out_transmission: *mut PamojaLorawanTransmission,
-    call: impl FnOnce(&mut pamoja_lorawan::device::EndDevice<'static>) -> Result<Transmission, DeviceError>,
+    call: impl FnOnce(
+        &mut pamoja_lorawan::device::EndDevice<'static>,
+    ) -> Result<Transmission, DeviceError>,
 ) -> PamojaStatus {
     let (Some(relay), false, false) = (
         relay.as_mut(),
@@ -742,9 +744,7 @@ pub unsafe extern "C" fn pamoja_lorawan_relay_heard_uplink(
         Ok(bytes) => bytes,
         Err(status) => return status,
     };
-    let held = relay
-        .relay
-        .heard_uplink(&frame, rssi_dbm, snr_db, ended_us);
+    let held = relay.relay.heard_uplink(&frame, rssi_dbm, snr_db, ended_us);
     match relay.settle(held) {
         Ok(due_us) => {
             *out_due_us = due_us;
@@ -1153,7 +1153,9 @@ mod tests {
     use pamoja_lorawan::relay::{root_wor_s_key, wor_uplink, WorKeys, LA_FPORT_RELAY};
     use pamoja_lorawan::{Downlink, Session, Uplink};
 
-    use crate::lora_region::{pamoja_lora_plan_for_region, PamojaLoraPlan, PAMOJA_LORA_REGION_EU868};
+    use crate::lora_region::{
+        pamoja_lora_plan_for_region, PamojaLoraPlan, PAMOJA_LORA_REGION_EU868,
+    };
     use crate::lorawan::{pamoja_lorawan_session_new, PamojaLorawanSession};
     use crate::lorawan_device::{pamoja_lorawan_device_settings, PAMOJA_LORAWAN_WINDOW_RX1};
 
@@ -1168,7 +1170,11 @@ mod tests {
     const SENSOR_NWK_S_KEY: [u8; 16] = [0x2B; 16];
 
     /// The region's plan, the relay's session, and a relay handle built on both.
-    unsafe fn relay() -> (*mut PamojaLoraPlan, *mut PamojaLorawanSession, *mut PamojaLorawanRelay) {
+    unsafe fn relay() -> (
+        *mut PamojaLoraPlan,
+        *mut PamojaLorawanSession,
+        *mut PamojaLorawanRelay,
+    ) {
         let mut plan: *mut PamojaLoraPlan = ptr::null_mut();
         assert_eq!(
             pamoja_lora_plan_for_region(PAMOJA_LORA_REGION_EU868, &mut plan),

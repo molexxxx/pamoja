@@ -578,7 +578,10 @@ impl LorawanEndDevice {
 
     /// Says what comes next once both receive windows closed with nothing for the device.
     fn nothing_heard(&mut self, now_us: u64) -> PyResult<LorawanNext> {
-        self.inner.nothing_heard(now_us).map(next_out).map_err(raised)
+        self.inner
+            .nothing_heard(now_us)
+            .map(next_out)
+            .map_err(raised)
     }
     /// Turns relay mode on or off, TS011-1.0.1 section 10.2 and appendix 5.
     ///

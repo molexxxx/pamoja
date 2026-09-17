@@ -5114,6 +5114,10 @@ static void ConformLorawanDevice(JsonElement vector)
                     "save" => "saved",
                     "resume" => "resumed",
                     "status" => "status",
+                    "useRelay" => "taken",
+                    "heardWorAck" => "relayStatus",
+                    "noWorAck" => "worNext",
+                    "relayMode" => "relayMode",
                     _ => null,
                 };
                 if (field is not null)
@@ -5146,7 +5150,7 @@ static object? RunDeviceStep(LorawanEndDevice device, JsonElement step)
         ["dataRate"] = window.DataRate,
         ["link"] = Link(window.Link),
     };
-    static object Transmission(LorawanTransmission transmission) => new Dictionary<string, object>
+    static object Transmission(LorawanTransmission transmission) => new Dictionary<string, object?>
     {
         ["frame"] = Convert.ToHexString(transmission.Frame).ToLowerInvariant(),
         ["frequencyHz"] = transmission.FrequencyHz,
@@ -5157,6 +5161,40 @@ static object? RunDeviceStep(LorawanEndDevice device, JsonElement step)
         ["rx1"] = Window(transmission.Rx1),
         ["rx2"] = Window(transmission.Rx2),
         ["carriesPayload"] = transmission.CarriesPayload,
+        ["relay"] = transmission.Relay is { } exchange ? Exchange(exchange) : null,
+    };
+    static object Exchange(LorawanRelayExchange exchange) => new Dictionary<string, object?>
+    {
+        ["wakeUp"] = new Dictionary<string, object>
+        {
+            ["frame"] = Convert.ToHexString(exchange.WakeUp.Frame).ToLowerInvariant(),
+            ["startUs"] = exchange.WakeUp.StartMicros,
+            ["frequencyHz"] = exchange.WakeUp.Carrier.FrequencyHz,
+            ["dataRate"] = exchange.WakeUp.Carrier.DataRate,
+            ["link"] = Link(exchange.WakeUp.Link),
+            ["outputDbm"] = exchange.WakeUp.OutputDbm,
+            ["airtimeUs"] = exchange.WakeUp.AirtimeMicros,
+        },
+        ["ack"] = exchange.Ack is { } ack
+            ? new Dictionary<string, object>
+            {
+                ["startUs"] = ack.StartMicros,
+                ["frequencyHz"] = ack.Carrier.FrequencyHz,
+                ["dataRate"] = ack.Carrier.DataRate,
+                ["link"] = Link(ack.Link),
+                ["airtimeUs"] = ack.AirtimeMicros,
+            }
+            : null,
+        ["uplinkStartUs"] = exchange.UplinkStartMicros,
+        ["rxr"] = Window(exchange.Rxr),
+    };
+    static object RelayStatus(LorawanRelayStatus status) => new Dictionary<string, object>
+    {
+        ["cadPeriodicity"] = status.CadPeriodicity.ToString(),
+        ["xtalAccuracy"] = status.XtalAccuracy.ToString(),
+        ["cadToRx"] = status.CadToRx.ToString(),
+        ["relayDataRate"] = status.RelayDataRate,
+        ["forward"] = status.Forward.ToString(),
     };
 
     switch (step.GetProperty("call").GetString())
@@ -5178,6 +5216,7 @@ static object? RunDeviceStep(LorawanEndDevice device, JsonElement step)
             {
                 "rx1" => LorawanReceiveWindow.Rx1,
                 "rx2" => LorawanReceiveWindow.Rx2,
+                "rxr" => LorawanReceiveWindow.Rxr,
                 _ => null,
             };
             LorawanHeard heard = device.Heard(
@@ -5206,6 +5245,27 @@ static object? RunDeviceStep(LorawanEndDevice device, JsonElement step)
                     },
                 },
                 _ => new Dictionary<string, object> { ["kind"] = "joined", ["devAddr"] = heard.DevAddr },
+            };
+        case "useRelay":
+            return device.UseRelay(step.GetProperty("on").GetBoolean());
+        case "heardWorAck":
+            return RelayStatus(device.HeardWorAck(
+                Convert.FromHexString(step.GetProperty("frame").GetString()!)));
+        case "noWorAck":
+            LorawanWorNext worNext = device.NoWorAck(step.GetProperty("nowUs").GetUInt64());
+            return new Dictionary<string, object?>
+            {
+                ["uplink"] = worNext.Uplink,
+                ["wakeUp"] = worNext.WakeUp is { } again ? Exchange(again) : null,
+            };
+        case "relayMode":
+            return new Dictionary<string, object?>
+            {
+                ["relaying"] = device.Relaying,
+                ["activation"] = SnakeCase(device.RelayActivation.ToString()),
+                ["sync"] = SnakeCase(device.RelaySync.ToString()),
+                ["worCounter"] = device.WorCounter,
+                ["status"] = device.RelayStatus is { } said ? RelayStatus(said) : null,
             };
         case "nothingHeard":
             LorawanNext next = device.NothingHeard(step.GetProperty("nowUs").GetUInt64());

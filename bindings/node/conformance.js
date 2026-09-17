@@ -2725,6 +2725,36 @@ function lorawanDeviceVectors() {
     dataRate: window.dataRate,
     link: linkOf(window.link),
   });
+  const exchangeOf = (exchange) => ({
+    wakeUp: {
+      frame: exchange.wakeUp.frame.toString("hex"),
+      startUs: exchange.wakeUp.startUs,
+      frequencyHz: exchange.wakeUp.frequencyHz,
+      dataRate: exchange.wakeUp.dataRate,
+      link: linkOf(exchange.wakeUp.link),
+      outputDbm: exchange.wakeUp.outputDbm,
+      airtimeUs: exchange.wakeUp.airtimeUs,
+    },
+    ack:
+      exchange.ack == null
+        ? null
+        : {
+            startUs: exchange.ack.startUs,
+            frequencyHz: exchange.ack.frequencyHz,
+            dataRate: exchange.ack.dataRate,
+            link: linkOf(exchange.ack.link),
+            airtimeUs: exchange.ack.airtimeUs,
+          },
+    uplinkStartUs: exchange.uplinkStartUs,
+    rxr: windowOf(exchange.rxr),
+  });
+  const relayStatusOf = (status) => ({
+    cadPeriodicity: status.cadPeriodicity,
+    xtalAccuracy: status.xtalAccuracy,
+    cadToRx: status.cadToRx,
+    relayDataRate: status.relayDataRate,
+    forward: status.forward,
+  });
   const transmissionOf = (transmission) => ({
     frame: transmission.frame.toString("hex"),
     frequencyHz: transmission.frequencyHz,
@@ -2735,6 +2765,7 @@ function lorawanDeviceVectors() {
     rx1: windowOf(transmission.rx1),
     rx2: windowOf(transmission.rx2),
     carriesPayload: transmission.carriesPayload,
+    relay: transmission.relay == null ? null : exchangeOf(transmission.relay),
   });
   const errorOf = (error) => ({
     kind: error.code,
@@ -2804,8 +2835,43 @@ function lorawanDeviceVectors() {
             return transmissionOf(device.sendEmpty(step.nowUs));
           case "repeat":
             return transmissionOf(device.repeat(step.nowUs));
+          case "useRelay":
+            return device.useRelay(step.on);
+          case "heardWorAck":
+            return relayStatusOf(device.heardWorAck(unhex(step.frame)));
+          case "noWorAck": {
+            const next = device.noWorAck(step.nowUs);
+            return {
+              uplink: next.kind === "Uplink",
+              wakeUp: next.kind === "Uplink" ? null : exchangeOf(next.exchange),
+            };
+          }
+          case "relayMode": {
+            const activations = {
+              Disabled: "disabled",
+              Enabled: "enabled",
+              Dynamic: "dynamic",
+              DeviceControlled: "device_controlled",
+            };
+            const syncs = {
+              Initialized: "initialized",
+              Unsynchronized: "unsynchronized",
+              Synchronized: "synchronized",
+            };
+            return {
+              relaying: device.relaying,
+              activation: activations[device.relayActivation],
+              sync: syncs[device.relaySync],
+              worCounter: device.worCounter,
+              status: device.relayStatus == null ? null : relayStatusOf(device.relayStatus),
+            };
+          }
           case "heard": {
-            const window = { rx1: lorawan.ReceiveWindow.Rx1, rx2: lorawan.ReceiveWindow.Rx2 }[step.window];
+            const window = {
+              rx1: lorawan.ReceiveWindow.Rx1,
+              rx2: lorawan.ReceiveWindow.Rx2,
+              rxr: lorawan.ReceiveWindow.Rxr,
+            }[step.window];
             const heard = device.heard(unhex(step.frame), step.snrDb, window);
             if (heard.kind === "Joined") {
               return { kind: "joined", devAddr: heard.devAddr };
@@ -2871,7 +2937,21 @@ function lorawanDeviceVectors() {
         }
       };
 
-      const field = { join: "transmission", send: "transmission", sendEmpty: "transmission", repeat: "transmission", heard: "heard", nothingHeard: "next", save: "saved", resume: "resumed", status: "status" }[step.call];
+      const field = {
+        join: "transmission",
+        send: "transmission",
+        sendEmpty: "transmission",
+        repeat: "transmission",
+        heard: "heard",
+        nothingHeard: "next",
+        save: "saved",
+        resume: "resumed",
+        status: "status",
+        useRelay: "taken",
+        heardWorAck: "relayStatus",
+        noWorAck: "worNext",
+        relayMode: "relayMode",
+      }[step.call];
       if (step.error !== undefined) {
         let caught = null;
         try {

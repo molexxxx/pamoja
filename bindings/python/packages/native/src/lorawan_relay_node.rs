@@ -12,10 +12,10 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
+use pamoja_lora::region::RelayChannel;
 use pamoja_lorawan::device::{
     AckWindow, EndDevice, Heard, ReceiveWindow, RelayExchange, RelayStatus, WakeUp,
 };
-use pamoja_lora::region::RelayChannel;
 use pamoja_lorawan::relay::{
     Acknowledgment, Listen, Relay, RelayConfig, RelayError, RelayHeard, RelaySettings, RxrDownlink,
     Scan,
@@ -256,7 +256,10 @@ impl LorawanWorNext {
     }
 
     fn __repr__(&self) -> String {
-        format!("LorawanWorNext(uplink={})", if self.uplink { "True" } else { "False" })
+        format!(
+            "LorawanWorNext(uplink={})",
+            if self.uplink { "True" } else { "False" }
+        )
     }
 }
 
@@ -764,7 +767,12 @@ impl LorawanRelay {
     /// Reads a frame the relay's own device heard, acting on the relay commands in it.
     ///
     /// `window` is `"rx1"`, `"rx2"` or `"rxr"`.
-    fn heard_in(&mut self, window: &str, frame: Vec<u8>, snr_db: i8) -> PyResult<LorawanRelayHeard> {
+    fn heard_in(
+        &mut self,
+        window: &str,
+        frame: Vec<u8>,
+        snr_db: i8,
+    ) -> PyResult<LorawanRelayHeard> {
         let window = match window {
             "rx1" => ReceiveWindow::Rx1,
             "rx2" => ReceiveWindow::Rx2,
@@ -776,30 +784,32 @@ impl LorawanRelay {
             }
         };
         let dev_addr = self.inner.device().dev_addr().unwrap_or(0);
-        Ok(match self
-            .inner
-            .heard_in(window, &frame, snr_db)
-            .map_err(refused)?
-        {
-            RelayHeard::Device(heard) => LorawanRelayHeard {
-                kind: "device".to_owned(),
-                reason: None,
-                heard: Some(heard_out(heard, dev_addr)),
-                downlink: None,
+        Ok(
+            match self
+                .inner
+                .heard_in(window, &frame, snr_db)
+                .map_err(refused)?
+            {
+                RelayHeard::Device(heard) => LorawanRelayHeard {
+                    kind: "device".to_owned(),
+                    reason: None,
+                    heard: Some(heard_out(heard, dev_addr)),
+                    downlink: None,
+                },
+                RelayHeard::Downlink { delivery, downlink } => LorawanRelayHeard {
+                    kind: "downlink".to_owned(),
+                    reason: None,
+                    heard: Some(heard_out(Heard::Data(delivery), dev_addr)),
+                    downlink: Some(downlink),
+                },
+                RelayHeard::Undeliverable { delivery, reason } => LorawanRelayHeard {
+                    kind: "undeliverable".to_owned(),
+                    reason: Some(reason.to_string()),
+                    heard: Some(heard_out(Heard::Data(delivery), dev_addr)),
+                    downlink: None,
+                },
             },
-            RelayHeard::Downlink { delivery, downlink } => LorawanRelayHeard {
-                kind: "downlink".to_owned(),
-                reason: None,
-                heard: Some(heard_out(Heard::Data(delivery), dev_addr)),
-                downlink: Some(downlink),
-            },
-            RelayHeard::Undeliverable { delivery, reason } => LorawanRelayHeard {
-                kind: "undeliverable".to_owned(),
-                reason: Some(reason.to_string()),
-                heard: Some(heard_out(Heard::Data(delivery), dev_addr)),
-                downlink: None,
-            },
-        })
+        )
     }
 
     /// Says what comes next once the relay's own windows closed with nothing in them.
