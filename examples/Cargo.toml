@@ -267,6 +267,10 @@ name = "update"
 path = "guides/update.rs"
 
 [[example]]
+name = "fuota"
+path = "guides/fuota.rs"
+
+[[example]]
 name = "zenoh"
 path = "guides/zenoh.rs"
 
