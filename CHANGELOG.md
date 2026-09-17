@@ -221,6 +221,17 @@ released together, so one entry covers all of them.
   share twenty common join channels, and the 96-channel plan of the LoRaWAN 1.0.3
   Regional Parameters revision A that RP002-1.0.5 notes is still in wide use.
   `Region::Cn470` stays the first of them.
+- Listen before talk on an SX1302 gateway. `pamoja_radios::sx1302::Sx1261` drives
+  the SX1261 beside a concentrator on its own SPI device, or through a USB card's
+  bridge: it resets the radio, loads Semtech's patch and proves it took, calibrates
+  the image, points the receiver at a channel, runs a carrier check and a spectral
+  scan, each transfer as Semtech's `sx1302_hal` makes it. `Sx1302::checked_transmission`
+  reads from the gain control whether a checked packet went out, and `Sx1302::abort`
+  takes back an armed one. The `pamoja-gateway` daemon takes a `listen_before_talk`
+  section naming the radio, its patch, the threshold and the channels, holds each
+  downlink on a checked channel until 80 ms before its window, checks the channel,
+  and reports a busy one rather than transmitting into it. The gateway page covers
+  the configuration and what the daemon answers.
 - Random numbers from a LoRa radio's receiver noise, `random` on the SX126x and
   SX127x drivers and on `Radio`, following the procedures of Semtech's own
   drivers. LoRaWAN 1.0.3 suggests this source for a join nonce on a device with no

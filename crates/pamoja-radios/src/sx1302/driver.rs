@@ -19,6 +19,7 @@ use embedded_hal::spi::{Operation, SpiDevice};
 use super::channel;
 use super::chip::{self, Model};
 use super::firmware::{self, LoadError, Mcu};
+use super::lbt;
 use super::mcu;
 use super::register::{self, Register};
 use super::spi as frame;
@@ -49,6 +50,17 @@ pub const MCU_ATTEMPTS: u32 = 1_000;
 
 /// How long an SX1250 is given to finish calibrating itself, in microseconds.
 pub const RADIO_CALIBRATE_US: u32 = 10_000;
+
+/// How many one-millisecond polls an aborted chain is given to come free: the second
+/// Semtech's `sx1302_tx_abort` waits.
+pub const ABORT_POLLS: u32 = 1_000;
+
+const fn lbt_chain_bit(chain: Chain) -> u8 {
+    match chain {
+        Chain::A => 0,
+        Chain::B => 1,
+    }
+}
 
 /// Why the concentrator could not be driven.
 #[derive(Debug)]
@@ -667,6 +679,98 @@ where
             }
         }
         Ok(())
+    }
+
+    /// Waits for a transmission a carrier check guards to start, and reports whether the
+    /// check let it go out.
+    ///
+    /// Semtech's `lgw_lbt_tx_status`: poll the gain control until it reports the chain
+    /// started, read whether the check held it back, clear the status through the first
+    /// mailbox, wait for it to read clear, and acknowledge. The status is cleared even when the
+    /// start never came, so the next transmission is not read against this one.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain` - the chain the packet was armed on.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the packet went out, `false` if the channel was busy.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::Stalled`] if the transmission never started or its status
+    /// never cleared, and [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn checked_transmission(
+        &mut self,
+        chain: Chain,
+    ) -> Result<bool, ConcentratorError<SPI::Error>> {
+        let mut status = 0;
+        let mut started = false;
+        for _ in 0..lbt::OUTCOME_POLLS {
+            status = self.read_register(register::AGC_MCU_STATUS)?;
+            if lbt::started(status, chain) {
+                started = true;
+                break;
+            }
+            self.delay.delay_us(MCU_POLL_US);
+        }
+        let allowed = started && !lbt::refused(status, chain);
+
+        self.write_register(register::agc_mailbox_write(0), lbt::CLEAR_TRANSMIT_STATUS)?;
+        let mut reading = status;
+        let mut cleared = false;
+        for _ in 0..lbt::OUTCOME_POLLS {
+            reading = self.read_register(register::AGC_MCU_STATUS)?;
+            if reading == 0 {
+                cleared = true;
+                break;
+            }
+            self.delay.delay_us(MCU_POLL_US);
+        }
+        self.write_register(register::agc_mailbox_write(0), lbt::ACKNOWLEDGE_CLEARED)?;
+
+        if !started {
+            return Err(ConcentratorError::Stalled {
+                wanted: 1 << lbt_chain_bit(chain),
+                reading: status,
+            });
+        }
+        if !cleared {
+            return Err(ConcentratorError::Stalled { wanted: 0, reading });
+        }
+        Ok(allowed)
+    }
+
+    /// Takes back a packet armed on a chain and waits for the chain to come free.
+    ///
+    /// Semtech's `sx1302_tx_abort`: every trigger reset, then the status polled for up to a
+    /// second.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain` - the chain to free.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConcentratorError::Stalled`] if the chain does not come free, and
+    /// [`ConcentratorError::Spi`] if a transfer fails.
+    pub fn abort(&mut self, chain: Chain) -> Result<(), ConcentratorError<SPI::Error>> {
+        for trigger in [Trigger::Immediate, Trigger::At(0), Trigger::OnGps] {
+            self.write_register(chain.trigger(trigger), 0)?;
+        }
+        let mut reading = 0;
+        for _ in 0..ABORT_POLLS {
+            reading = self.read_register(chain.status())?;
+            if TxStatus::of(reading).is_free() {
+                return Ok(());
+            }
+            self.delay.delay_us(MCU_POLL_US);
+        }
+        Err(ConcentratorError::Stalled {
+            wanted: tx::STATUS_FREE,
+            reading,
+        })
     }
 
     /// What a transmit chain is doing.
@@ -1305,6 +1409,98 @@ mod tests {
             channel::steps(&plan).last().expect("there are steps");
         assert_eq!(last, register::COMMON_GLOBAL_ENABLE);
         assert_eq!(value, 0x01);
+    }
+
+    #[test]
+    fn a_checked_transmission_reports_whether_the_channel_let_it_go() {
+        // Semtech's `lgw_lbt_tx_status`: the gain control reports chain A started (bit 0),
+        // with bit 6 clear, so the carrier check let it out. The status is then cleared
+        // through mailbox 0 and acknowledged.
+        let status = register::AGC_MCU_STATUS.address;
+        let mailbox = register::agc_mailbox_write(0).address;
+        let mut chip = driven(vec![
+            reads(status, 0x00),
+            reads(status, 0x00),
+            reads(status, 0x01),
+            writes(mailbox, 0xff),
+            reads(status, 0x01),
+            reads(status, 0x00),
+            writes(mailbox, 0x00),
+        ]);
+        assert!(chip
+            .checked_transmission(Chain::A)
+            .expect("the bus answers"));
+
+        // The same start with bit 6 set: the channel was busy and nothing went out.
+        let mut chip = driven(vec![
+            reads(status, 0x41),
+            writes(mailbox, 0xff),
+            reads(status, 0x00),
+            writes(mailbox, 0x00),
+        ]);
+        assert!(!chip
+            .checked_transmission(Chain::A)
+            .expect("the bus answers"));
+
+        // Chain B reads bits 1 and 7, so a busy chain A says nothing about it.
+        let mut chip = driven(vec![
+            reads(status, 0x42),
+            writes(mailbox, 0xff),
+            reads(status, 0x00),
+            writes(mailbox, 0x00),
+        ]);
+        assert!(chip
+            .checked_transmission(Chain::B)
+            .expect("the bus answers"));
+    }
+
+    #[test]
+    fn a_checked_transmission_that_never_starts_still_clears_its_status() {
+        let status = register::AGC_MCU_STATUS.address;
+        let mailbox = register::agc_mailbox_write(0).address;
+        let mut steps: Vec<SpiStep> = (0..lbt::OUTCOME_POLLS)
+            .map(|_| reads(status, 0x00))
+            .collect();
+        steps.extend([
+            writes(mailbox, 0xff),
+            reads(status, 0x00),
+            writes(mailbox, 0x00),
+        ]);
+        let mut chip = driven(steps);
+        assert!(matches!(
+            chip.checked_transmission(Chain::A),
+            Err(ConcentratorError::Stalled {
+                wanted: 0x01,
+                reading: 0x00
+            })
+        ));
+        let (spi, _, _) = chip.release();
+        assert!(
+            spi.done(),
+            "the clear and the acknowledgment still went out"
+        );
+    }
+
+    #[test]
+    fn aborting_resets_every_trigger_then_waits_for_the_chain() {
+        // Semtech's `sx1302_tx_abort`: immediate, delayed and GPS triggers to zero, then the
+        // status polled until the chain is free.
+        let chain = Chain::A;
+        let mut steps = Vec::new();
+        for trigger in [Trigger::Immediate, Trigger::At(0), Trigger::OnGps] {
+            let held = chain.trigger(trigger);
+            steps.push(reads(held.address, 0x07));
+            steps.push(writes(held.address, held.encode(0x07, 0)));
+        }
+        steps.extend([
+            reads(chain.status().address, 0x91),
+            reads(chain.status().address, 0x91),
+            reads(chain.status().address, tx::STATUS_FREE),
+        ]);
+        let mut chip = driven(steps);
+        chip.abort(chain).expect("the chain comes free");
+        let (spi, _, _) = chip.release();
+        assert!(spi.done());
     }
 
     #[test]

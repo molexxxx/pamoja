@@ -386,6 +386,7 @@ name = "pamoja-lorawan"
 version = "0.1.18"
 dependencies = [
  "aes",
+ "pamoja-lora",
 ]
 
 [[package]]
