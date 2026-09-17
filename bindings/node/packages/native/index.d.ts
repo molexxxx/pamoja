@@ -2418,7 +2418,7 @@ export interface GatewayNetworkWindows {
   joinDelayUs?: number
   /** The offset between the uplink data rate and the rate the first window answers at. */
   rx1DataRateOffset?: number
-  /** Which channels the first window answers on; the uplink frequency by default. */
+  /** Which channels the first window answers on; where the channel plan says by default. */
   rx1Channels?: GatewayRx1Channels
   /** The first downlink channel, in hertz, when the channels are downstream. */
   downstreamStartHz?: number
@@ -2470,6 +2470,11 @@ export declare function gatewayParse(datagram: Buffer): GatewayPacket
 
 /** The channels the first receive window answers on, which the region decides. */
 export declare const enum GatewayRx1Channels {
+  /**
+   * The window answers where the channel plan says: on the uplink frequency in a dynamic
+   * plan, and on the downlink channel a fixed plan numbers for the uplink channel.
+   */
+  Plan = 'Plan',
   /** The window answers on the frequency the uplink arrived on. */
   SameAsUplink = 'SameAsUplink',
   /**

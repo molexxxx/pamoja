@@ -45,6 +45,11 @@ pub const PAMOJA_GATEWAY_NETWORK_RX1_SAME: u8 = 0;
 /// channel number modulo how many the run holds.
 pub const PAMOJA_GATEWAY_NETWORK_RX1_DOWNSTREAM: u8 = 1;
 
+/// The first receive window answers where the network's channel plan says: on the uplink
+/// frequency in a dynamic plan, and on the downlink channel a fixed plan numbers for the
+/// uplink channel.
+pub const PAMOJA_GATEWAY_NETWORK_RX1_PLAN: u8 = 2;
+
 /// The delay before the first receive window, in microseconds.
 pub const PAMOJA_GATEWAY_NETWORK_RECEIVE_DELAY_US: u32 = pamoja_gateway::network::RECEIVE_DELAY1_US;
 
@@ -60,7 +65,7 @@ pub struct PamojaGatewayNetwork {
 /// When and where a network answers, and at what rate.
 ///
 /// The recommended values are the delays above, no offset between the uplink data rate and
-/// the downlink one, and a first window on the frequency the uplink arrived on.
+/// the downlink one, and a first window where the channel plan says.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PamojaGatewayNetworkWindows {
@@ -70,7 +75,7 @@ pub struct PamojaGatewayNetworkWindows {
     pub join_delay_us: u32,
     /// The offset between the uplink data rate and the rate the first window answers at.
     pub rx1_data_rate_offset: u8,
-    /// [`PAMOJA_GATEWAY_NETWORK_RX1_SAME`] or
+    /// [`PAMOJA_GATEWAY_NETWORK_RX1_PLAN`], [`PAMOJA_GATEWAY_NETWORK_RX1_SAME`] or
     /// [`PAMOJA_GATEWAY_NETWORK_RX1_DOWNSTREAM`].
     pub rx1_channels: u8,
     /// The first downlink channel, in hertz, when the channels are downstream.
@@ -127,14 +132,14 @@ pub struct PamojaGatewayNetworkEvent {
 ///
 /// # Returns
 ///
-/// The recommended delays, no data-rate offset, and a first window on the uplink frequency.
+/// The recommended delays, no data-rate offset, and a first window where the plan says.
 #[no_mangle]
 pub extern "C" fn pamoja_gateway_network_windows_default() -> PamojaGatewayNetworkWindows {
     PamojaGatewayNetworkWindows {
         receive_delay_us: PAMOJA_GATEWAY_NETWORK_RECEIVE_DELAY_US,
         join_delay_us: PAMOJA_GATEWAY_NETWORK_JOIN_DELAY_US,
         rx1_data_rate_offset: 0,
-        rx1_channels: PAMOJA_GATEWAY_NETWORK_RX1_SAME,
+        rx1_channels: PAMOJA_GATEWAY_NETWORK_RX1_PLAN,
         downstream_start_hz: 0,
         downstream_step_hz: 0,
         downstream_count: 0,
@@ -377,16 +382,16 @@ pub unsafe extern "C" fn pamoja_gateway_network_free(network: *mut PamojaGateway
 
 /// Reads the windows from the boundary.
 fn windows_of(windows: PamojaGatewayNetworkWindows) -> pamoja_gateway::network::Windows {
-    let channels = if windows.rx1_channels == PAMOJA_GATEWAY_NETWORK_RX1_DOWNSTREAM {
-        Rx1Channels::Downstream(ChannelBlock::new(
+    let channels = match windows.rx1_channels {
+        PAMOJA_GATEWAY_NETWORK_RX1_DOWNSTREAM => Rx1Channels::Downstream(ChannelBlock::new(
             windows.downstream_start_hz,
             windows.downstream_step_hz,
             windows.downstream_count,
             0,
             0,
-        ))
-    } else {
-        Rx1Channels::SameAsUplink
+        )),
+        PAMOJA_GATEWAY_NETWORK_RX1_SAME => Rx1Channels::SameAsUplink,
+        _ => Rx1Channels::Plan,
     };
 
     pamoja_gateway::network::Windows::new()

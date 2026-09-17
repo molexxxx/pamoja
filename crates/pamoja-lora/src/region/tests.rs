@@ -458,6 +458,11 @@ fn a_custom_plan_answers_every_question_a_named_one_does() {
         has_dwell_time_limit: false,
         kind: PlanKind::Dynamic { channel_list: None },
         tx_param_setup: false,
+        mask_controls: MaskControl::DYNAMIC,
+        downlink_channels: &[],
+        join_sequence: JoinSequence::Random,
+        power_reference: PowerReference::Eirp,
+        join_plans: &[],
     };
 
     assert_eq!(plan.default_channel_count(), 4);
@@ -528,6 +533,11 @@ fn a_plan_may_borrow_tables_that_are_not_static() {
         has_dwell_time_limit: false,
         kind: PlanKind::Dynamic { channel_list: None },
         tx_param_setup: false,
+        mask_controls: MaskControl::DYNAMIC,
+        downlink_channels: &[],
+        join_sequence: JoinSequence::Random,
+        power_reference: PowerReference::Eirp,
+        join_plans: &[],
     };
 
     assert_eq!(plan.name, "relief-869");
@@ -629,6 +639,337 @@ mod cn470 {
             "RX2 runs at DR1 here, not DR0"
         );
         assert_eq!(plan.default_max_eirp_dbm, 19);
+    }
+
+    fn frequencies(plan: &ChannelPlan, channels: &[u16]) -> Vec<Option<u32>> {
+        channels
+            .iter()
+            .map(|channel| plan.channel_frequency_hz(*channel))
+            .collect()
+    }
+
+    fn downlinks(plan: &ChannelPlan, channels: &[u16]) -> Vec<Option<u32>> {
+        channels
+            .iter()
+            .map(|channel| plan.downlink_channel_frequency_hz(*channel))
+            .collect()
+    }
+
+    /// RP002-1.0.5 section 3.9.2.1, each group's first and last channel.
+    #[test]
+    fn the_twenty_megahertz_plans_lay_out_their_groups_as_published() {
+        let a = Cn470Plan::Antenna20MhzA.plan();
+        assert_eq!(
+            frequencies(a, &[0, 31, 32, 63, 64]),
+            [
+                Some(470_300_000),
+                Some(476_500_000),
+                Some(503_500_000),
+                Some(509_700_000),
+                None
+            ]
+        );
+        assert_eq!(
+            downlinks(a, &[0, 31, 32, 63]),
+            [
+                Some(483_900_000),
+                Some(490_100_000),
+                Some(490_300_000),
+                Some(496_500_000)
+            ]
+        );
+        assert_eq!(
+            a.rx1_frequency_hz(35, 504_100_000),
+            Some(490_900_000),
+            "type A answers on the downlink channel of the same number"
+        );
+
+        let b = Cn470Plan::Antenna20MhzB.plan();
+        assert_eq!(
+            frequencies(b, &[0, 31, 32, 63]),
+            [
+                Some(476_900_000),
+                Some(483_100_000),
+                Some(496_900_000),
+                Some(503_100_000)
+            ]
+        );
+        assert_eq!(b.rx1_frequency_hz(47, 499_900_000), Some(499_900_000));
+        assert_eq!(b.rx2(), (498_300_000, 1));
+    }
+
+    /// RP002-1.0.5 sections 3.9.2.2 and 3.9.7.2.
+    #[test]
+    fn the_twenty_six_megahertz_plans_answer_modulo_twenty_four() {
+        let a = Cn470Plan::Antenna26MhzA.plan();
+        assert_eq!(a.default_channel_count(), 48);
+        assert_eq!(
+            frequencies(a, &[0, 47]),
+            [Some(470_300_000), Some(479_700_000)]
+        );
+        assert_eq!(
+            downlinks(a, &[0, 23, 24]),
+            [Some(490_100_000), Some(494_700_000), None]
+        );
+        assert_eq!(a.rx1_frequency_hz(25, 475_300_000), Some(490_300_000));
+        assert_eq!(a.rx2(), (492_500_000, 1));
+        assert_eq!(a.beacon.frequency_hz, 494_900_000);
+
+        let b = Cn470Plan::Antenna26MhzB.plan();
+        assert_eq!(
+            frequencies(b, &[0, 47]),
+            [Some(480_300_000), Some(489_700_000)]
+        );
+        assert_eq!(
+            downlinks(b, &[0, 23]),
+            [Some(500_100_000), Some(504_700_000)]
+        );
+        assert_eq!(b.rx2(), (502_500_000, 1));
+        assert_eq!(b.beacon.frequency_hz, 504_900_000);
+    }
+
+    /// RP002-1.0.5 table 49, every row, with the RX2 frequencies of tables 57 and 58 and
+    /// section 3.9.7.2.
+    #[test]
+    fn every_common_join_channel_names_its_frequencies_and_plan() {
+        use Cn470Plan::{Antenna20MhzA, Antenna20MhzB, Antenna26MhzA, Antenna26MhzB};
+
+        let want = [
+            (470_900_000, 484_500_000, 485_300_000, Antenna20MhzA),
+            (472_500_000, 486_100_000, 486_900_000, Antenna20MhzA),
+            (474_100_000, 487_700_000, 488_500_000, Antenna20MhzA),
+            (475_700_000, 489_300_000, 490_100_000, Antenna20MhzA),
+            (504_100_000, 490_900_000, 491_700_000, Antenna20MhzA),
+            (505_700_000, 492_500_000, 493_300_000, Antenna20MhzA),
+            (507_300_000, 494_100_000, 494_900_000, Antenna20MhzA),
+            (508_900_000, 495_700_000, 496_500_000, Antenna20MhzA),
+            (479_900_000, 479_900_000, 478_300_000, Antenna20MhzB),
+            (499_900_000, 499_900_000, 498_300_000, Antenna20MhzB),
+            (470_300_000, 492_500_000, 492_500_000, Antenna26MhzA),
+            (472_300_000, 492_500_000, 492_500_000, Antenna26MhzA),
+            (474_300_000, 492_500_000, 492_500_000, Antenna26MhzA),
+            (476_300_000, 492_500_000, 492_500_000, Antenna26MhzA),
+            (478_300_000, 492_500_000, 492_500_000, Antenna26MhzA),
+            (480_300_000, 502_500_000, 502_500_000, Antenna26MhzB),
+            (482_300_000, 502_500_000, 502_500_000, Antenna26MhzB),
+            (484_300_000, 502_500_000, 502_500_000, Antenna26MhzB),
+            (486_300_000, 502_500_000, 502_500_000, Antenna26MhzB),
+            (488_300_000, 502_500_000, 502_500_000, Antenna26MhzB),
+        ];
+        for starting in &Cn470Plan::all()[..4] {
+            let plan = starting.plan();
+            let mut join_channels = plan
+                .join_channels
+                .iter()
+                .flat_map(|block| (0..block.count).map(move |offset| block.frequency_hz(offset)));
+            for (index, (uplink, accept, rx2, chosen)) in want.into_iter().enumerate() {
+                let (run, offset) = plan.join_plan(index as u16).expect("a join channel");
+                assert_eq!(run.channels.frequency_hz(offset), Some(uplink), "{index}");
+                assert_eq!(join_channels.next(), Some(Some(uplink)), "{index}");
+                assert_eq!(run.accept_hz(offset), Some(accept), "{index}");
+                assert_eq!(run.rx2_hz(offset), Some(rx2), "{index}");
+                assert!(core::ptr::eq(run.plan, chosen.plan()), "{index}");
+                assert_eq!(run.channels.max_data_rate, 5, "DR5 down to DR0");
+            }
+            assert!(plan.join_plan(20).is_none());
+            assert_eq!(join_channels.next(), None);
+        }
+    }
+
+    /// A 20 MHz join channel is one of its plan's own channels, and its accept arrives where
+    /// that plan's first receive window would answer it.
+    #[test]
+    fn a_twenty_megahertz_join_channel_is_answered_as_its_plan_answers_it() {
+        let plan = Region::Cn470.plan();
+        for join_channel in 0..10 {
+            let (run, offset) = plan.join_plan(join_channel).expect("a join channel");
+            let uplink = run.channels.frequency_hz(offset).expect("defined");
+            let number = (0..run.plan.default_channel_count())
+                .find(|n| run.plan.channel_frequency_hz(*n) == Some(uplink))
+                .expect("the join channel is one of the plan's channels");
+            assert_eq!(
+                run.plan.rx1_frequency_hz(number, uplink),
+                run.accept_hz(offset),
+                "join channel {join_channel}"
+            );
+        }
+    }
+
+    /// RP002-1.0.5 tables 52 and 53.
+    #[test]
+    fn each_antenna_plan_reads_its_channel_mask_controls() {
+        use MaskControl::{All, Group, Reserved};
+
+        let twenty = [
+            Group(0),
+            Group(1),
+            Group(2),
+            Group(3),
+            Reserved,
+            Reserved,
+            All {
+                on: true,
+                then_group: None,
+            },
+            All {
+                on: false,
+                then_group: None,
+            },
+        ];
+        let twenty_six = [
+            Group(0),
+            Group(1),
+            Group(2),
+            All {
+                on: true,
+                then_group: None,
+            },
+            All {
+                on: false,
+                then_group: None,
+            },
+            Reserved,
+            Reserved,
+            Reserved,
+        ];
+        assert_eq!(Cn470Plan::Antenna20MhzA.plan().mask_controls, twenty);
+        assert_eq!(Cn470Plan::Antenna20MhzB.plan().mask_controls, twenty);
+        assert_eq!(Cn470Plan::Antenna26MhzA.plan().mask_controls, twenty_six);
+        assert_eq!(Cn470Plan::Antenna26MhzB.plan().mask_controls, twenty_six);
+    }
+
+    /// LoRaWAN 1.0.3 Regional Parameters revision A, section 2.7 and tables 42 to 46.
+    #[test]
+    fn the_ninety_six_channel_plan_matches_revision_a() {
+        let plan = Cn470Plan::Channels96.plan();
+        assert_eq!(
+            frequencies(plan, &[0, 95, 96]),
+            [Some(470_300_000), Some(489_300_000), None]
+        );
+        assert_eq!(
+            downlinks(plan, &[0, 47, 48]),
+            [Some(500_300_000), Some(509_700_000), None]
+        );
+        // Section 2.7.7: "when transmitting channel number is 49, the rx1 channel number is 1".
+        assert_eq!(plan.rx1_frequency_hz(49, 480_100_000), Some(500_500_000));
+        assert_eq!(plan.rx2(), (505_300_000, 0));
+        assert_eq!(plan.uplink_data_rate(6), None);
+        assert_eq!(
+            plan.uplink_data_rate(0).expect("DR0").modulation,
+            Modulation::LoRa {
+                spreading_factor: 12,
+                bandwidth_hz: 125_000
+            }
+        );
+        assert_eq!(
+            plan.max_payload(3, true).expect("DR3"),
+            MaxPayload::new(123, 115)
+        );
+        assert_eq!(
+            plan.max_payload(5, false).expect("DR5"),
+            MaxPayload::new(250, 242)
+        );
+        assert_eq!(plan.rx1_data_rate(5, 4), Some(1));
+        assert_eq!(plan.rx1_data_rate(2, 1), Some(1));
+        assert_eq!(plan.join_channels, plan.default_channels);
+        assert!(plan.join_plans.is_empty());
+        assert_eq!(
+            plan.mask_controls,
+            [
+                MaskControl::Group(0),
+                MaskControl::Group(1),
+                MaskControl::Group(2),
+                MaskControl::Group(3),
+                MaskControl::Group(4),
+                MaskControl::Group(5),
+                MaskControl::All {
+                    on: true,
+                    then_group: None
+                },
+                MaskControl::Reserved,
+            ]
+        );
+    }
+}
+
+#[cfg(any(feature = "us915", feature = "au915"))]
+mod nine_hundred {
+    use super::*;
+
+    /// RP002-1.0.5 table 23 and table 43.
+    const CONTROLS: [MaskControl; 8] = [
+        MaskControl::Group(0),
+        MaskControl::Group(1),
+        MaskControl::Group(2),
+        MaskControl::Group(3),
+        MaskControl::Group(4),
+        MaskControl::PairedBanks,
+        MaskControl::All {
+            on: true,
+            then_group: Some(4),
+        },
+        MaskControl::All {
+            on: false,
+            then_group: Some(4),
+        },
+    ];
+
+    /// RP002-1.0.5 sections 3.5.2, 3.5.7 and table 22.
+    #[cfg(feature = "us915")]
+    #[test]
+    fn us915_answers_on_eight_downstream_channels_and_counts_conducted_power() {
+        let plan = Region::Us915.plan();
+        assert_eq!(plan.downlink_channel_count(), 8);
+        assert_eq!(plan.downlink_channel_frequency_hz(0), Some(923_300_000));
+        assert_eq!(plan.downlink_channel_frequency_hz(7), Some(927_500_000));
+        assert_eq!(plan.rx1_frequency_hz(0, 902_300_000), Some(923_300_000));
+        assert_eq!(plan.rx1_frequency_hz(9, 904_100_000), Some(923_900_000));
+        assert_eq!(plan.rx1_frequency_hz(71, 914_200_000), Some(927_500_000));
+        assert_eq!(plan.mask_controls, CONTROLS);
+        assert_eq!(plan.join_sequence, JoinSequence::OctetPasses);
+        assert_eq!(
+            plan.power_reference,
+            PowerReference::Conducted {
+                gain_allowance_db: 6
+            }
+        );
+        assert_eq!(plan.tx_power_dbm(14, plan.default_max_eirp_dbm), Some(2));
+    }
+
+    /// RP002-1.0.5 sections 3.8.2 and 3.8.7.
+    #[cfg(feature = "au915")]
+    #[test]
+    fn au915_joins_at_dr2_and_dr6_and_answers_as_us915_does() {
+        let plan = Region::Au915.plan();
+        assert_eq!(
+            plan.join_channels,
+            [
+                ChannelBlock::new(915_200_000, 200_000, 64, 2, 2),
+                ChannelBlock::new(915_900_000, 1_600_000, 8, 6, 6)
+            ]
+        );
+        assert_eq!(plan.rx1_frequency_hz(64, 915_900_000), Some(923_300_000));
+        assert_eq!(plan.mask_controls, CONTROLS);
+        assert_eq!(plan.join_sequence, JoinSequence::OctetPasses);
+        assert_eq!(plan.power_reference, PowerReference::Eirp);
+    }
+}
+
+/// Every dynamic plan shares one channel mask table and answers on the uplink frequency.
+#[cfg(feature = "regions")]
+#[test]
+fn every_dynamic_plan_shares_the_mask_table_and_answers_where_it_sent() {
+    for region in Region::all() {
+        let plan = region.plan();
+        if plan.kind.is_dynamic() {
+            assert_eq!(plan.mask_controls, MaskControl::DYNAMIC, "{region:?}");
+            assert_eq!(plan.downlink_channel_count(), 0, "{region:?}");
+            assert_eq!(plan.rx1_frequency_hz(2, 868_500_000), Some(868_500_000));
+            assert_eq!(plan.join_sequence, JoinSequence::Random, "{region:?}");
+            assert!(plan.join_plans.is_empty(), "{region:?}");
+        } else {
+            assert!(plan.downlink_channel_count() > 0, "{region:?}");
+        }
     }
 }
 

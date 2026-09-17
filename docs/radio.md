@@ -347,7 +347,8 @@ frequencies, data rates, output power encoding, the channel list a join accept c
 receive windows, and maximum payload, with duty cycle limits in the regions with a
 dynamic channel plan and dwell time limits where frequency hopping rules apply.
 `pamoja-lora` carries nine of those plans: EU863-870, US902-928, EU433, AU915-928,
-CN470-510, AS923, KR920-923, IN865, and RU864-870.
+CN470-510, AS923, KR920-923, IN865, and RU864-870. CN470-510 comes in the four plans
+RP002-1.0.5 gives it and in the 96-channel plan before them, which networks still run.
 
 What to get right: which limit applies, conducted or radiated, e.r.p. or e.i.r.p.; the
 antenna gain taken off before the radio's setting; the duty cycle counted over the

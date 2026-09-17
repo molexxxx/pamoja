@@ -171,10 +171,21 @@ released together, so one entry covers all of them.
   region's sub-band duty cycles, the network's aggregated limit, and the join
   back-off of TS001-1.0.4 section 7. It owns no radio and no clock: each step
   takes the time and returns the frame, the carrier, the power and the windows. It
-  follows LoRaWAN 1.0.3 or TS001-1.0.4 where the two differ, and covers the dynamic
-  channel plans: EU868, EU433, AS923, KR920, IN865 and RU864. Its tests run every
-  exchange against this crate's own network half, and expect the answer bytes
-  chapter 5 lays out.
+  follows LoRaWAN 1.0.3 or TS001-1.0.4 where the two differ, and covers every
+  published plan. On the dynamic plans, EU868, EU433, AS923, KR920, IN865 and RU864,
+  it takes the channels a network creates and moves. On US915 and AU915 it joins in
+  the passes RP002-1.0.5 section 3.5.2 lays out, eight 125 kHz channels from
+  successive groups and then a 500 kHz one until every channel has gone out, and
+  answers each channel on the downlink channel its plan numbers. It reads each
+  `ChMaskCntl` value by its region's table, including the 900 MHz plans' pairing of a
+  bank of eight with its 500 kHz channel, takes a join accept's channel list as the
+  channels to enable, and counts US915 power as conducted, taking off only the
+  antenna gain above 6 dBi. On CN470 it scans the twenty common join channels and
+  follows the plan the one that answered belongs to. Its tests run every exchange
+  against this crate's own network half, expect the answer bytes chapter 5 lays out,
+  and follow the regional document's own examples: the join passes, both ways
+  section 3.5.5 narrows a device to one sub-band, every row of table 49, and the
+  96-channel plan answering channel 49 on downlink channel 1.
 - A LoRaWAN Class A node in `pamoja_radios::lorawan`, behind the `lorawan`
   feature: an end device driving an SX126x, an SX127x or either through `Radio`.
   `Node` puts each frame on the air, opens both receive windows on time and sees
@@ -192,6 +203,11 @@ released together, so one entry covers all of them.
 - A walkthrough on the site, Node to dashboard, that joins the ESP32-C3 LoRaWAN
   node, a gateway on a Raspberry Pi and a ChirpStack server into one system, and a
   Raspberry Pi program that serves a dashboard of every node the server hears.
+- All five CN470-510 channel plans in `pamoja-lora`, named by `Cn470Plan`: the
+  plans RP002-1.0.5 gives 20 MHz and 26 MHz antennas, each in a type A and B, which
+  share twenty common join channels, and the 96-channel plan of the LoRaWAN 1.0.3
+  Regional Parameters revision A that RP002-1.0.5 notes is still in wide use.
+  `Region::Cn470` stays the first of them.
 - Random numbers from a LoRa radio's receiver noise, `random` on the SX126x and
   SX127x drivers and on `Radio`, following the procedures of Semtech's own
   drivers. LoRaWAN 1.0.3 suggests this source for a join nonce on a device with no
@@ -202,9 +218,18 @@ released together, so one entry covers all of them.
 - A channel plan in `pamoja-lora` says what kind it is: dynamic, with the
   numbering its region reads a type 1 channel list against, or fixed. It also
   says whether devices on it answer `TXParamSetupReq`, which only AS923 and
-  AU915-928 do. Both come from RP002-1.0.5 section by section. A plan built field
-  by field needs the two new fields; `ChannelPlanBuilder` starts dynamic and
-  without the command.
+  AU915-928 do, what each `LinkADRReq` channel mask control does, the downlink
+  channels a fixed plan answers on, the order its join channels are tried in,
+  whether its power indexes count radiated or conducted power, and, on CN470-510,
+  which plan each join channel selects. All of it comes from RP002-1.0.5 section
+  by section. A plan built field by field needs the new fields;
+  `ChannelPlanBuilder` starts with the values every dynamic plan shares.
+- The network side in `pamoja_gateway::network` answers in the first receive
+  window where the channel plan says, `Rx1Channels::Plan`, unless told otherwise,
+  so a US902-928, AU915-928 or CN470-510 site answers on its downlink channels
+  with no block set by hand, and a CN470-510 join on the frequency table 49 gives
+  its channel. The C ABI, Node and .NET default to it too, as
+  `PAMOJA_GATEWAY_NETWORK_RX1_PLAN` and `Plan`.
 - `pamoja_lorawan::adr::Backoff` follows the revision it is given. LoRaWAN 1.0.3
   steps the data rate down after the limit plus a delay. TS001-1.0.4 table 9
   restores the default power first, then lowers the rate each delay, then
@@ -261,6 +286,17 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- The CN470-510 plan put its second group of uplink channels at 483.9 MHz, where
+  the first downlink group starts; RP002-1.0.5 section 3.9.2.1 starts it at 503.5
+  MHz. Its beacon is now given on 483.9 MHz, the first downlink channel it hops
+  over, rather than on the second receive window's frequency, and its join
+  channels are all twenty common join channels of table 49 rather than eight.
+- The AU915-928 plan offered every data rate its channels carry for a join.
+  Section 3.8.2 joins at DR2 on the 125 kHz channels, which fits the 400 ms dwell
+  time a device assumes at first, and at DR6 on the 500 kHz ones.
+- The network side read a downlink data rate from the uplink table. The 900 MHz
+  plans number their downlink rates apart, so an answer to a US902-928 uplink went
+  out at the wrong spreading factor and bandwidth, or found no window at all.
 - The AS923 plan carried the payload limits from before RP002-1.0.5, which raised
   DR2 from 59 to 123 bytes. It now has them, along with the table for a 400 ms
   dwell limit, which the plan had left out. It also joined at DR0 and DR1, which

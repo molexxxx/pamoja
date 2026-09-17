@@ -23,7 +23,12 @@
 //! - **Receive windows**: TS001-1.0.4 section 3.3 and RP002-1.0.5 section 3.3, one second and
 //!   two after an uplink and five and six after a join request unless the network moves them.
 //! - **Channels and data rates**: the region's plan from `pamoja-lora`, a join accept's
-//!   channel list, and `LinkADRReq`, `NewChannelReq` and `DlChannelReq`.
+//!   channel list, and `LinkADRReq`, `NewChannelReq` and `DlChannelReq`. A fixed plan answers
+//!   each channel on the downlink channel it names, and reads `ChMaskCntl` by its own table.
+//! - **Joining**: a random join channel with the data rate stepping down across attempts, or
+//!   on US902-928 and AU915-928 the passes of RP002-1.0.5 section 3.5.2, eight 125 kHz
+//!   channels from successive groups and then a 500 kHz one. On CN470-510 the common join
+//!   channel that answered puts the device on its plan, section 3.9.2.
 //! - **MAC commands**: every command of TS001-1.0.4 section 5 a device receives, answered in
 //!   order, with the four that change how it listens repeated until a downlink arrives.
 //! - **Repetition**: NbTrans transmissions of each uplink, stopped by any Class A downlink,
@@ -32,10 +37,10 @@
 //! - **Sharing the air**: the region's sub-band duty cycles, the network's `DutyCycleReq`,
 //!   and the join back-off of TS001-1.0.4 section 7.
 //!
-//! This covers the dynamic channel plans: EU868, EU433, AS923, KR920, IN865 and RU864. The
-//! fixed plans, whose channels are numbered in advance, are refused by
-//! [`EndDevice::new`] for now. KR920, and AS923 where ARIB STD-T108 applies, also require
-//! listening before talking, which is the radio's to do.
+//! This covers every published plan: the dynamic EU868, EU433, AS923, KR920, IN865 and RU864,
+//! and the fixed US915, AU915 and CN470, the last in all four of its RP002-1.0.5 plans and the
+//! 96-channel plan before them. KR920, CN470, and AS923 where ARIB STD-T108 applies also
+//! require listening before talking, which is the radio's to do.
 //!
 //! # Examples
 //!
@@ -76,7 +81,7 @@ mod commands;
 
 pub use channels::{Channel, MAX_CHANNELS};
 
-use pamoja_lora::region::{ChannelPlan, Modulation};
+use pamoja_lora::region::{ChannelBlock, ChannelPlan, JoinSequence, Modulation, PowerReference};
 use pamoja_lora::LinkSettings;
 
 use crate::adr::{Backoff, Standing, Step};
@@ -91,7 +96,7 @@ use crate::{
 };
 use air::{Air, Sequence, MAX_SUB_BANDS};
 use answers::Answers;
-use channels::Channels;
+use channels::{Channels, MASK_GROUPS};
 
 /// How long a transmission may hold a channel under a dwell time limit, from RP002-1.0.5
 /// section 3.3 and TS001-1.0.4 table 49.
@@ -177,8 +182,9 @@ impl Settings {
 
     /// Accounts for the antenna and its feed.
     ///
-    /// A region limits radiated power, so a device with a 3 dBi antenna puts out 3 dB less
-    /// than one with a 0 dBi antenna to radiate the same.
+    /// Most regions limit radiated power, so a device with a 3 dBi antenna puts out 3 dB less
+    /// than one with a 0 dBi antenna to radiate the same. US902-928 limits conducted power
+    /// instead, and only the gain above the 6 dBi its limit allows for comes off.
     ///
     /// # Arguments
     ///
@@ -299,7 +305,8 @@ pub struct Transmission {
     /// The LoRa settings that data rate stands for: an eight-symbol preamble, an explicit
     /// header and a payload CRC, sent with standard IQ.
     pub link: LinkSettings,
-    /// The power to ask of the radio, conducted, with the antenna gain taken off.
+    /// The power to ask of the radio, conducted, with the antenna gain taken off as the
+    /// region's power limit requires.
     pub output_dbm: i8,
     /// How long the frame holds the air, in microseconds.
     pub airtime_us: u64,
@@ -468,8 +475,11 @@ pub enum Next {
 /// Why a device could not do what it was asked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeviceError {
-    /// The plan numbers its channels in advance, which this device does not take yet.
-    FixedChannelPlan,
+    /// The plan defines more channels than a device keeps.
+    TooManyChannels {
+        /// The most a device keeps, [`MAX_CHANNELS`].
+        max: usize,
+    },
     /// A device activated by personalization has nothing to join with.
     NoCredentials,
     /// The device has not joined.
@@ -511,8 +521,11 @@ pub enum DeviceError {
 impl core::fmt::Display for DeviceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            DeviceError::FixedChannelPlan => {
-                f.write_str("the channel plan is a fixed one, which this device does not take")
+            DeviceError::TooManyChannels { max } => {
+                write!(
+                    f,
+                    "the plan defines more than the {max} channels a device keeps"
+                )
             }
             DeviceError::NoCredentials => f.write_str("the device has no keys to join with"),
             DeviceError::NotJoined => f.write_str("the device has not joined a network"),
@@ -550,6 +563,7 @@ enum Pending {
     Join {
         dev_nonce: u16,
         data_rate: u8,
+        join_channel: u16,
     },
     Uplink {
         frame: PhyPayload,
@@ -592,7 +606,21 @@ pub struct EndDevice<'p> {
     pending: Option<Pending>,
     ack_owed: bool,
     joins: u32,
+    join_used: [u16; MASK_GROUPS],
+    join_slot: u32,
     quiet_until_us: u64,
+}
+
+/// A join channel chosen for one attempt, and how the attempt goes out on it.
+#[derive(Clone, Copy, Debug)]
+struct JoinChoice {
+    number: u16,
+    channel: Channel,
+    data_rate: u8,
+    link: LinkSettings,
+    airtime_us: u64,
+    next_slot: u32,
+    restart_cycle: bool,
 }
 
 impl<'p> EndDevice<'p> {
@@ -610,8 +638,8 @@ impl<'p> EndDevice<'p> {
     ///
     /// # Errors
     ///
-    /// Returns [`DeviceError::FixedChannelPlan`] for a plan whose channels are numbered in
-    /// advance.
+    /// Returns [`DeviceError::TooManyChannels`] for a plan with more default or join channels
+    /// than [`MAX_CHANNELS`].
     pub fn new(
         plan: &'p ChannelPlan<'p>,
         credentials: Device,
@@ -639,8 +667,8 @@ impl<'p> EndDevice<'p> {
     ///
     /// # Errors
     ///
-    /// Returns [`DeviceError::FixedChannelPlan`] for a plan whose channels are numbered in
-    /// advance.
+    /// Returns [`DeviceError::TooManyChannels`] for a plan with more default or join channels
+    /// than [`MAX_CHANNELS`].
     pub fn personalized(
         plan: &'p ChannelPlan<'p>,
         session: Session,
@@ -661,8 +689,20 @@ impl<'p> EndDevice<'p> {
         sequence: Sequence,
         settings: Settings,
     ) -> Result<EndDevice<'p>, DeviceError> {
-        if !plan.kind.is_dynamic() {
-            return Err(DeviceError::FixedChannelPlan);
+        let join_channels = if plan.join_plans.is_empty() {
+            plan.join_channels
+                .iter()
+                .map(|block| usize::from(block.count))
+                .sum::<usize>()
+        } else {
+            plan.join_plans
+                .iter()
+                .map(|run| usize::from(run.channels.count))
+                .sum::<usize>()
+        };
+        if usize::from(plan.default_channel_count()) > MAX_CHANNELS || join_channels > MAX_CHANNELS
+        {
+            return Err(DeviceError::TooManyChannels { max: MAX_CHANNELS });
         }
         let mut device = EndDevice {
             plan,
@@ -691,6 +731,8 @@ impl<'p> EndDevice<'p> {
             pending: None,
             ack_owed: false,
             joins: 0,
+            join_used: [0; MASK_GROUPS],
+            join_slot: 0,
             quiet_until_us: 0,
         };
         device.reset_mac();
@@ -806,23 +848,31 @@ impl<'p> EndDevice<'p> {
     ///
     /// # Returns
     ///
-    /// The lower and upper frequency in hertz, across every defined channel's uplink and
-    /// downlink and the second receive window.
+    /// The lower and upper frequency in hertz, across every enabled channel's uplink and
+    /// downlink, the join channels and where their accepts arrive, and the second receive
+    /// window.
     pub fn frequency_span(&self) -> (u32, u32) {
-        let mut low = self.rx2_frequency_hz;
-        let mut high = self.rx2_frequency_hz;
+        let mut low = self.rx2_frequency_hz.min(self.plan.rx2_frequency_hz);
+        let mut high = self.rx2_frequency_hz.max(self.plan.rx2_frequency_hz);
+        let mut take = |hz: u32| {
+            low = low.min(hz);
+            high = high.max(hz);
+        };
         for (_, channel) in self.channels.enabled() {
-            low = low.min(channel.uplink_hz).min(channel.downlink_hz);
-            high = high.max(channel.uplink_hz).max(channel.downlink_hz);
+            take(channel.uplink_hz);
+            take(channel.downlink_hz);
         }
-        for block in self.plan.join_channels {
-            if let (Some(first), Some(last)) = (
-                block.frequency_hz(0),
-                block.frequency_hz(block.count.saturating_sub(1)),
-            ) {
-                low = low.min(first);
-                high = high.max(last);
+        let mut number = 0u16;
+        let mut index = 0;
+        while let Some(block) = self.join_block(index) {
+            for offset in 0..block.count {
+                if let Some(hz) = block.frequency_hz(offset) {
+                    take(hz);
+                    take(self.join_downlink_hz(number, hz));
+                }
+                number = number.saturating_add(1);
             }
+            index += 1;
         }
         (low, high)
     }
@@ -849,8 +899,14 @@ impl<'p> EndDevice<'p> {
     ///
     /// Each attempt picks a join channel at random and a data rate from the fastest the join
     /// channels carry down to the slowest, one step per attempt and round again, which is
-    /// how TS001-1.0.4 section 6.2.5 asks a device to cover every channel and rate. The air
-    /// it takes is held to the region's duty cycle and to the join back-off of section 7.
+    /// how TS001-1.0.4 section 6.2.5 asks a device to cover every channel and rate. On a plan
+    /// that joins in octet passes, US902-928 and AU915-928, each attempt instead takes the
+    /// next slot of the pass at the rate its channel carries. The air it takes is held to the
+    /// region's duty cycle and to the join back-off of section 7.
+    ///
+    /// The accept is due on the uplink's frequency in a dynamic plan, on the downlink channel
+    /// a fixed plan answers the join channel on, and on CN470-510 on the frequency table 49
+    /// gives the common join channel, in both windows, as Semtech's LoRaMac-node listens.
     ///
     /// # Arguments
     ///
@@ -882,40 +938,205 @@ impl<'p> EndDevice<'p> {
             });
         }
 
-        let data_rate = self.join_data_rate()?;
         let frame = credentials.join_request(dev_nonce);
+        let length = frame.as_bytes().len();
+        let choice = match self.plan.join_sequence {
+            JoinSequence::Random => self.random_join_channel(length, now_us)?,
+            JoinSequence::OctetPasses => self.octet_pass_channel(length, now_us)?,
+        };
+        let rx2_hz = match self.plan.join_plan(choice.number) {
+            Some(_) => choice.channel.downlink_hz,
+            None => self.plan.rx2_frequency_hz,
+        };
+        let transmission = self.transmission(
+            frame,
+            choice.channel,
+            choice.data_rate,
+            choice.link,
+            choice.airtime_us,
+            self.tx_power,
+            Some(rx2_hz),
+            true,
+        )?;
+
+        self.air.joined_air(choice.airtime_us);
+        self.record_air(now_us, choice.airtime_us, choice.channel.uplink_hz);
+        self.joins = self.joins.wrapping_add(1);
+        self.join_slot = choice.next_slot;
+        if choice.restart_cycle {
+            self.join_used = [0; MASK_GROUPS];
+        }
+        let number = usize::from(choice.number);
+        if number < MAX_CHANNELS {
+            self.join_used[number / 16] |= 1 << (number % 16);
+        }
+        self.pending = Some(Pending::Join {
+            dev_nonce,
+            data_rate: choice.data_rate,
+            join_channel: choice.number,
+        });
+        Ok(transmission)
+    }
+
+    /// A join channel at random carrying this attempt's data rate.
+    fn random_join_channel(
+        &mut self,
+        length: usize,
+        now_us: u64,
+    ) -> Result<JoinChoice, DeviceError> {
+        let data_rate = self.join_data_rate()?;
         let link = self.uplink_link(data_rate)?;
-        let airtime_us = link.airtime_us(frame.as_bytes().len());
+        let airtime_us = link.airtime_us(length);
         if let Err(until_us) = self.air.join_allowed(now_us, airtime_us) {
             return Err(DeviceError::Wait { until_us });
         }
 
         let mut candidates = [None; MAX_CHANNELS];
         let mut count = 0;
-        for block in self.plan.join_channels {
+        let mut number = 0u16;
+        let mut index = 0;
+        while let Some(block) = self.join_block(index) {
             for offset in 0..block.count {
                 if let Some(hz) = block.frequency_hz(offset) {
                     if block.min_data_rate <= data_rate
                         && data_rate <= block.max_data_rate
+                        && self.settings.usable(hz)
                         && count < MAX_CHANNELS
                     {
-                        candidates[count] =
-                            Some(Channel::new(hz, block.min_data_rate, block.max_data_rate));
+                        candidates[count] = Some((number, self.join_channel(number, hz, &block)));
                         count += 1;
                     }
                 }
+                number = number.saturating_add(1);
+            }
+            index += 1;
+        }
+        let (number, channel) = self.pick(&candidates[..count], now_us)?;
+        Ok(JoinChoice {
+            number,
+            channel,
+            data_rate,
+            link,
+            airtime_us,
+            next_slot: self.join_slot,
+            restart_cycle: false,
+        })
+    }
+
+    /// The next slot of an octet pass over the join channels, RP002-1.0.5 section 3.5.2.
+    ///
+    /// The first join block is split into groups of eight, visited in order, and every block
+    /// after it forms one more slot at the end of the pass. A slot takes a channel no attempt
+    /// of the current cycle has used, at random within a group and the lowest in the last
+    /// slot, as the section's example has the 500 kHz channels go 64, 65 and on. The cycle
+    /// starts over once every channel has gone out, and a slot with no channel the radio can
+    /// use is passed over.
+    fn octet_pass_channel(
+        &mut self,
+        length: usize,
+        now_us: u64,
+    ) -> Result<JoinChoice, DeviceError> {
+        let blocks = self.plan.join_channels;
+        let narrow = blocks.first().map_or(0, |block| block.count);
+        let groups = u32::from(narrow.div_ceil(8));
+        let total = blocks.iter().map(|block| block.count).sum::<u16>();
+        let pass = groups + u32::from(total > narrow);
+        if pass == 0 {
+            return Err(DeviceError::NoChannel);
+        }
+
+        let mut every = [(0u16, Channel::new(0, 0, 0)); MAX_CHANNELS];
+        let mut count = 0;
+        let mut number = 0u16;
+        for block in blocks {
+            for offset in 0..block.count {
+                if let Some(hz) = block.frequency_hz(offset) {
+                    if self.settings.usable(hz)
+                        && self.uplink_link(block.min_data_rate).is_ok()
+                        && self.application_room(block.min_data_rate).is_ok()
+                        && count < MAX_CHANNELS
+                    {
+                        every[count] = (number, self.join_channel(number, hz, block));
+                        count += 1;
+                    }
+                }
+                number = number.saturating_add(1);
             }
         }
-        let channel = self.pick(&candidates[..count], now_us)?;
+        let every = &every[..count];
+        let used = |number: u16| {
+            let number = usize::from(number);
+            self.join_used[number / 16] & (1 << (number % 16)) != 0
+        };
+        let fresh_cycle = every.iter().all(|(number, _)| used(*number));
 
-        self.air.joined_air(airtime_us);
-        self.record_air(now_us, airtime_us, channel.uplink_hz);
-        self.joins = self.joins.wrapping_add(1);
-        self.pending = Some(Pending::Join {
-            dev_nonce,
-            data_rate,
-        });
-        self.transmission(frame, channel, data_rate, link, airtime_us, true, true)
+        for step in 0..pass {
+            let slot = (self.join_slot + step) % pass;
+            let in_slot = |number: u16| {
+                if slot < groups {
+                    u32::from(number) / 8 == slot && number < narrow
+                } else {
+                    number >= narrow
+                }
+            };
+            let mut candidates = [None; 8];
+            let mut found = 0;
+            for &(number, channel) in every {
+                if in_slot(number) && (fresh_cycle || !used(number)) && found < candidates.len() {
+                    candidates[found] = Some((number, channel));
+                    found += 1;
+                    if slot >= groups {
+                        break;
+                    }
+                }
+            }
+            let Some((_, first)) = candidates[0] else {
+                continue;
+            };
+            let data_rate = first.min_data_rate;
+            let link = self.uplink_link(data_rate)?;
+            let airtime_us = link.airtime_us(length);
+            if let Err(until_us) = self.air.join_allowed(now_us, airtime_us) {
+                return Err(DeviceError::Wait { until_us });
+            }
+            let (number, channel) = self.pick(&candidates[..found], now_us)?;
+            return Ok(JoinChoice {
+                number,
+                channel,
+                data_rate,
+                link,
+                airtime_us,
+                next_slot: (slot + 1) % pass,
+                restart_cycle: fresh_cycle,
+            });
+        }
+        Err(DeviceError::NoChannel)
+    }
+
+    /// One block of the channels a join request may go out on, numbered through in order: the
+    /// join plans' channels where the plan picks a plan by the join channel, and otherwise its
+    /// join channels.
+    fn join_block(&self, index: usize) -> Option<ChannelBlock> {
+        if self.plan.join_plans.is_empty() {
+            self.plan.join_channels.get(index).copied()
+        } else {
+            self.plan.join_plans.get(index).map(|run| run.channels)
+        }
+    }
+
+    /// A join channel with the downlink its accept arrives on.
+    fn join_channel(&self, number: u16, hz: u32, block: &ChannelBlock) -> Channel {
+        let mut channel = Channel::new(hz, block.min_data_rate, block.max_data_rate);
+        channel.downlink_hz = self.join_downlink_hz(number, hz);
+        channel
+    }
+
+    /// Where the accept for a join on a numbered join channel arrives.
+    fn join_downlink_hz(&self, number: u16, hz: u32) -> u32 {
+        match self.plan.join_plan(number) {
+            Some((run, offset)) => run.accept_hz(offset).unwrap_or(hz),
+            None => self.plan.rx1_frequency_hz(number, hz).unwrap_or(hz),
+        }
     }
 
     /// Builds an uplink carrying a payload.
@@ -1001,7 +1222,8 @@ impl<'p> EndDevice<'p> {
             Some(Pending::Join {
                 dev_nonce,
                 data_rate,
-            }) => self.heard_join(frame, dev_nonce, data_rate),
+                join_channel,
+            }) => self.heard_join(frame, dev_nonce, data_rate, join_channel),
             Some(Pending::Uplink {
                 windows_closed: true,
                 ..
@@ -1117,6 +1339,16 @@ impl<'p> EndDevice<'p> {
         let airtime_us = link.airtime_us(frame.as_bytes().len());
         let channels = self.channels;
         let channel = self.pick_enabled(&channels, data_rate, now_us)?;
+        let transmission = self.transmission(
+            frame,
+            channel,
+            data_rate,
+            link,
+            airtime_us,
+            self.tx_power,
+            None,
+            carries_payload,
+        )?;
         self.record_air(now_us, airtime_us, channel.uplink_hz);
         self.pending = Some(Pending::Uplink {
             frame,
@@ -1127,15 +1359,7 @@ impl<'p> EndDevice<'p> {
             windows_closed: false,
             not_before_us: 0,
         });
-        self.transmission(
-            frame,
-            channel,
-            data_rate,
-            link,
-            airtime_us,
-            false,
-            carries_payload,
-        )
+        Ok(transmission)
     }
 
     fn uplink(
@@ -1249,6 +1473,16 @@ impl<'p> EndDevice<'p> {
             return Err(DeviceError::PayloadTooLong { max: room });
         }
         let channel = self.pick_enabled(&channels, data_rate, now_us)?;
+        let transmission = self.transmission(
+            frame,
+            channel,
+            data_rate,
+            link,
+            airtime_us,
+            tx_power,
+            None,
+            carries_payload,
+        )?;
 
         self.data_rate = data_rate;
         self.tx_power = tx_power;
@@ -1268,15 +1502,7 @@ impl<'p> EndDevice<'p> {
             windows_closed: false,
             not_before_us: 0,
         });
-        self.transmission(
-            frame,
-            channel,
-            data_rate,
-            link,
-            airtime_us,
-            false,
-            carries_payload,
-        )
+        Ok(transmission)
     }
 
     fn heard_join(
@@ -1284,6 +1510,7 @@ impl<'p> EndDevice<'p> {
         frame: &[u8],
         dev_nonce: u16,
         data_rate: u8,
+        join_channel: u16,
     ) -> Result<Heard, DeviceError> {
         let header = FrameHeader::parse(frame)?;
         if header.message_type() != MessageType::JoinAccept {
@@ -1297,18 +1524,29 @@ impl<'p> EndDevice<'p> {
             .ok_or(DeviceError::NoCredentials)?;
         let accept = credentials.accept_join(frame, dev_nonce)?;
 
+        // RP002-1.0.5 section 3.9.2: the common join channel decides a CN470-510 plan.
+        let joined_on = self.plan.join_plan(join_channel);
+        let plan = joined_on.map_or(self.plan, |(run, _)| run.plan);
+
         // RP002-1.0.5 section 3.4.7 and its counterparts: a reserved RX1DROffset in a join
         // accept has the accept ignored.
-        if accept.rx1_dr_offset() > self.plan.max_rx1_data_rate_offset
-            || self.downlink_link(accept.rx2_data_rate()).is_err()
-        {
+        let rx2_is_lora = matches!(
+            plan.downlink_data_rate(accept.rx2_data_rate())
+                .map(|rate| rate.modulation),
+            Some(Modulation::LoRa { .. })
+        );
+        if accept.rx1_dr_offset() > plan.max_rx1_data_rate_offset || !rx2_is_lora {
             return Err(DeviceError::Refused);
         }
 
         // TS001-1.0.4 section 6.2.6: back to the default channels and MAC settings, then the
         // accept's own settings, then the channel list as if its commands had arrived, with
         // no answers.
+        self.plan = plan;
         self.reset_mac();
+        if let Some(hz) = joined_on.and_then(|(run, offset)| run.rx2_hz(offset)) {
+            self.rx2_frequency_hz = hz;
+        }
         self.rx1_dr_offset = accept.rx1_dr_offset();
         self.rx2_data_rate = accept.rx2_data_rate();
         self.rx1_delay_us = accept.receive_delay_us();
@@ -1327,6 +1565,8 @@ impl<'p> EndDevice<'p> {
             self.lowest_data_rate()
         };
         self.air.join_done();
+        self.join_used = [0; MASK_GROUPS];
+        self.join_slot = 0;
         self.pending = None;
         self.quiet_until_us = 0;
         Ok(Heard::Joined {
@@ -1461,10 +1701,8 @@ impl<'p> EndDevice<'p> {
         let mut rates = [0u8; 16];
         let mut count = 0;
         for rate in (0..16u8).rev() {
-            let carried = self
-                .plan
-                .join_channels
-                .iter()
+            let carried = (0..)
+                .map_while(|index| self.join_block(index))
                 .any(|block| block.min_data_rate <= rate && rate <= block.max_data_rate);
             if carried && self.uplink_link(rate).is_ok() && self.application_room(rate).is_ok() {
                 rates[count] = rate;
@@ -1530,24 +1768,26 @@ impl<'p> EndDevice<'p> {
     ) -> Result<Channel, DeviceError> {
         let mut candidates = [None; MAX_CHANNELS];
         let mut count = 0;
-        for (_, channel) in channels.enabled() {
+        for (index, channel) in channels.enabled() {
             if channel.carries(data_rate) && self.settings.usable(channel.uplink_hz) {
-                candidates[count] = Some(channel);
+                candidates[count] = Some((index as u16, channel));
                 count += 1;
             }
         }
         self.pick(&candidates[..count], now_us)
+            .map(|(_, channel)| channel)
     }
 
-    /// Picks one of `candidates` at random among those whose air is free now.
+    /// Picks one of `candidates`, numbered channels, at random among those whose air is free
+    /// now.
     fn pick(
         &mut self,
-        candidates: &[Option<Channel>],
+        candidates: &[Option<(u16, Channel)>],
         now_us: u64,
-    ) -> Result<Channel, DeviceError> {
+    ) -> Result<(u16, Channel), DeviceError> {
         let mut free = 0u32;
         let mut earliest = u64::MAX;
-        for channel in candidates.iter().flatten() {
+        for (_, channel) in candidates.iter().flatten() {
             let at = self.free_at(channel.uplink_hz);
             if at <= now_us {
                 free += 1;
@@ -1563,10 +1803,10 @@ impl<'p> EndDevice<'p> {
             });
         }
         let mut choice = self.sequence.below(free);
-        for channel in candidates.iter().flatten() {
+        for (number, channel) in candidates.iter().flatten() {
             if self.free_at(channel.uplink_hz) <= now_us {
                 if choice == 0 {
-                    return Ok(*channel);
+                    return Ok((*number, *channel));
                 }
                 choice -= 1;
             }
@@ -1606,19 +1846,31 @@ impl<'p> EndDevice<'p> {
             .transmitted(started_us, airtime_us, sub_band, self.max_duty_cycle);
     }
 
-    /// The conducted power for the current power index on a frequency.
-    fn output_dbm(&self, hz: u32) -> i8 {
+    /// The conducted power for a power index on a frequency.
+    fn output_dbm(&self, hz: u32, tx_power: u8) -> i8 {
         let ceiling = self.plan.max_eirp_dbm(hz).min(self.max_eirp_dbm);
-        let eirp = self
+        let power = self
             .plan
-            .tx_power_dbm(self.tx_power, self.max_eirp_dbm)
+            .tx_power_dbm(tx_power, self.max_eirp_dbm)
             .unwrap_or(ceiling)
             .min(ceiling);
-        let conducted = i16::from(eirp) - i16::from(self.settings.antenna_gain_db);
-        conducted.clamp(
+        self.radio_dbm(power).clamp(
             i16::from(self.settings.min_output_dbm),
             i16::from(self.settings.max_output_dbm),
         ) as i8
+    }
+
+    /// The power to ask of the radio for a power the plan's index names: a radiated power
+    /// less the antenna's gain, or a conducted one less whatever gain exceeds the plan's
+    /// allowance.
+    fn radio_dbm(&self, power: i8) -> i16 {
+        let gain = i16::from(self.settings.antenna_gain_db);
+        match self.plan.power_reference {
+            PowerReference::Eirp => i16::from(power) - gain,
+            PowerReference::Conducted { gain_allowance_db } => {
+                i16::from(power) - (gain - i16::from(gain_allowance_db)).max(0)
+            }
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1629,22 +1881,23 @@ impl<'p> EndDevice<'p> {
         data_rate: u8,
         link: LinkSettings,
         airtime_us: u64,
-        join: bool,
+        tx_power: u8,
+        join_rx2_hz: Option<u32>,
         carries_payload: bool,
     ) -> Result<Transmission, DeviceError> {
-        let (delay1, offset, (rx2_hz, rx2_rate)) = if join {
-            (JOIN_ACCEPT_DELAY1_US, 0, self.plan.rx2())
-        } else {
-            (
+        let (delay1, delay2, offset, (rx2_hz, rx2_rate)) = match join_rx2_hz {
+            Some(hz) => (
+                JOIN_ACCEPT_DELAY1_US,
+                JOIN_ACCEPT_DELAY2_US,
+                0,
+                (hz, self.plan.rx2_data_rate),
+            ),
+            None => (
                 self.rx1_delay_us,
+                self.rx1_delay_us.saturating_add(1_000_000),
                 self.rx1_dr_offset,
                 (self.rx2_frequency_hz, self.rx2_data_rate),
-            )
-        };
-        let delay2 = if join {
-            JOIN_ACCEPT_DELAY2_US
-        } else {
-            delay1.saturating_add(1_000_000)
+            ),
         };
         let rx1_rate = if self.downlink_dwell {
             self.plan.rx1_data_rate_dwell_limited(data_rate, offset)
@@ -1659,7 +1912,7 @@ impl<'p> EndDevice<'p> {
             frequency_hz: channel.uplink_hz,
             data_rate,
             link,
-            output_dbm: self.output_dbm(channel.uplink_hz),
+            output_dbm: self.output_dbm(channel.uplink_hz, tx_power),
             airtime_us,
             rx1: Window {
                 delay_us: delay1,

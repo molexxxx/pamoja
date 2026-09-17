@@ -6,7 +6,7 @@
 //! a network encodes them. The expected answers are the bytes TS001-1.0.4 chapter 5 lays
 //! out, not whatever the device happens to produce.
 
-use pamoja_lora::region::Region;
+use pamoja_lora::region::{Cn470Plan, Region};
 
 use super::*;
 use crate::mac::{encode_all, MacCommand, MacCommands};
@@ -30,7 +30,7 @@ fn device(region: Region, settings: Settings) -> EndDevice<'static> {
         Device::new(DEV_EUI, JOIN_EUI, APP_KEY),
         settings,
     )
-    .expect("a dynamic plan")
+    .expect("the plan fits")
 }
 
 /// The network side of every exchange.
@@ -961,14 +961,425 @@ fn an_asian_device_joins_only_at_the_rates_a_dwell_limit_allows() {
     assert_eq!(rates, [5, 4, 3, 2, 5]);
 }
 
+/// The number of a US902-928 uplink channel from its frequency: 0 to 63 every 200 kHz from
+/// 902.3 MHz, and 64 to 71 every 1.6 MHz from 903.0 MHz, which never land on the same
+/// frequency.
+fn american_channel(hz: u32) -> u32 {
+    if (hz - 902_300_000).is_multiple_of(200_000) {
+        (hz - 902_300_000) / 200_000
+    } else {
+        64 + (hz - 903_000_000) / 1_600_000
+    }
+}
+
+/// Joins again and again until a request goes out on one of `frequencies`, and returns it
+/// with the time it went out.
+fn join_on(device: &mut EndDevice<'static>, frequencies: &[u32]) -> (Transmission, u64) {
+    let mut now = 0;
+    for nonce in 0..400u16 {
+        match device.join(nonce, now) {
+            Ok(request) if frequencies.contains(&request.frequency_hz) => return (request, now),
+            Ok(_) => {
+                device.nothing_heard(now + 7_000_000).expect("closes");
+                now += 10_000_000;
+            }
+            Err(DeviceError::Wait { until_us }) => now = until_us,
+            Err(other) => panic!("{other:?}"),
+        }
+    }
+    panic!("no request went out on {frequencies:?}");
+}
+
 #[test]
-fn a_fixed_channel_plan_is_refused_for_now() {
-    let refused = EndDevice::new(
-        Region::Us915.plan(),
+fn an_american_join_probes_each_group_of_eight_then_a_wide_channel_until_all_have_gone() {
+    // RP002-1.0.5 section 3.5.2: "Random channel from [0-7], followed by [8-15] ... [56-63],
+    // then 64", then 65 on the second pass, and 71 on the last.
+    let mut device = device(Region::Us915, settings());
+    let mut seen = Vec::new();
+    for attempt in 0..72u32 {
+        let now = u64::from(attempt) * 10_000_000;
+        let request = device.join(attempt as u16, now).expect("goes out");
+        let channel = american_channel(request.frequency_hz);
+        if attempt % 9 < 8 {
+            assert_eq!(
+                channel / 8,
+                attempt % 9,
+                "attempt {attempt} probes its group"
+            );
+            assert_eq!(request.data_rate, 0);
+            assert!(request.airtime_us <= 400_000, "inside the FCC dwell time");
+            assert_eq!(request.rx1.data_rate, 10, "RP002-1.0.5 table 26, DR0");
+        } else {
+            assert_eq!(channel, 64 + attempt / 9, "the wide channels go in order");
+            assert_eq!(request.data_rate, 4);
+            assert_eq!(request.rx1.data_rate, 13, "table 26, DR4");
+        }
+        assert_eq!(
+            request.rx1.frequency_hz,
+            923_300_000 + 600_000 * (channel % 8),
+            "section 3.5.7: the downlink channel is the uplink channel modulo 8"
+        );
+        assert_eq!(
+            (request.rx2.frequency_hz, request.rx2.data_rate),
+            (923_300_000, 8)
+        );
+        seen.push(channel);
+        device.nothing_heard(now + 7_000_000).expect("closes");
+    }
+    seen.sort_unstable();
+    assert_eq!(seen, (0..72).collect::<Vec<u32>>(), "every channel once");
+
+    let again = device.join(72, 720_000_000).expect("a new cycle");
+    assert_eq!(american_channel(again.frequency_hz) / 8, 0);
+}
+
+#[test]
+fn an_american_accept_lists_the_sub_band_the_network_listens_on() {
+    // RP002-1.0.5 sections 3.5.4 and 3.5.7: a type 1 list enabling channels 8 to 15 and 65.
+    let list = CfList::channel_masks([0xFF00, 0, 0, 0, 0x0002, 0]);
+    let grant = JoinGrant::new(0x01, 0x13, DEV_ADDR)
+        .with_dl_settings(8)
+        .with_cflist(list.to_bytes());
+    let (mut device, network, now) = joined_with(Region::Us915, settings(), grant);
+
+    let channels: Vec<usize> = device.channels().map(|(index, _)| index).collect();
+    assert_eq!(channels, [8, 9, 10, 11, 12, 13, 14, 15, 65]);
+    assert_eq!(device.data_rate(), 0, "the first join went out at DR0");
+
+    for fcnt in 0..16u32 {
+        let at = now + u64::from(fcnt) * LATER;
+        let uplink = device.send(2, b"21.5", false, at).expect("goes out");
+        let channel = american_channel(uplink.frequency_hz);
+        assert!((8..16).contains(&channel), "channel {channel}");
+        assert_eq!(
+            uplink.rx1.frequency_hz,
+            923_300_000 + 600_000 * (channel % 8)
+        );
+        assert_eq!(
+            (uplink.rx2.frequency_hz, uplink.rx2.data_rate),
+            (923_300_000, 8)
+        );
+        assert_eq!(network.read(&uplink, fcnt).payload(), b"21.5");
+        device.nothing_heard(at + 3_000_000).expect("closes");
+    }
+}
+
+#[test]
+fn an_american_network_narrows_a_device_to_one_sub_band_either_way_the_note_gives() {
+    // RP002-1.0.5 section 3.5.5: ChMaskCntl 7 then 0, or 5 alone.
+    let (mut device, mut network, now) = joined(Region::Us915, settings());
+    device.send(2, b"a", false, now).expect("goes out");
+    let downlink = network.commands(&[
+        MacCommand::LinkAdrReq {
+            data_rate: 3,
+            tx_power: 5,
+            channel_mask: 0x0000,
+            mask_control: 7,
+            transmissions: 1,
+        },
+        MacCommand::LinkAdrReq {
+            data_rate: 3,
+            tx_power: 5,
+            channel_mask: 0x00FF,
+            mask_control: 0,
+            transmissions: 1,
+        },
+    ]);
+    data(device.heard(&downlink, 5));
+    let channels: Vec<usize> = device.channels().map(|(index, _)| index).collect();
+    assert_eq!(channels, [0, 1, 2, 3, 4, 5, 6, 7]);
+    assert_eq!(device.data_rate(), 3);
+
+    let second = device.send(2, b"b", false, now + LATER).expect("goes out");
+    assert_eq!(
+        fopts(&network, &second, 1),
+        [0x03, 0x07, 0x03, 0x07],
+        "one LinkADRAns for each request of the block"
+    );
+    assert!(american_channel(second.frequency_hz) < 8);
+    assert_eq!(second.data_rate, 3);
+    assert_eq!(second.rx1.data_rate, 13, "table 26, DR3");
+    assert_eq!(
+        second.output_dbm, 20,
+        "30 dBm conducted less five steps of 2 dB"
+    );
+
+    let downlink = network.commands(&[MacCommand::LinkAdrReq {
+        data_rate: 4,
+        tx_power: 5,
+        channel_mask: 0x0002,
+        mask_control: 5,
+        transmissions: 1,
+    }]);
+    data(device.heard(&downlink, 5));
+    let channels: Vec<usize> = device.channels().map(|(index, _)| index).collect();
+    assert_eq!(
+        channels,
+        [8, 9, 10, 11, 12, 13, 14, 15, 65],
+        "the second bank and its 500 kHz channel"
+    );
+    let third = device
+        .send(2, b"c", false, now + 2 * LATER)
+        .expect("goes out");
+    assert_eq!(fopts(&network, &third, 2), [0x03, 0x07]);
+    assert_eq!(
+        (third.frequency_hz, third.data_rate),
+        (904_600_000, 4),
+        "DR4 goes out on the one 500 kHz channel left"
+    );
+    assert_eq!(third.rx1.frequency_hz, 923_900_000);
+}
+
+#[test]
+fn a_fixed_plan_drops_channel_commands_unanswered() {
+    // TS001-1.0.4 section 5.6: a fixed plan does not implement NewChannelReq or DlChannelReq.
+    let (mut device, mut network, now) = joined(Region::Us915, settings());
+    device.send(2, b"a", false, now).expect("goes out");
+    let downlink = network.commands(&[
+        MacCommand::NewChannelReq {
+            index: 3,
+            frequency_hz: 905_000_000,
+            max_data_rate: 3,
+            min_data_rate: 0,
+        },
+        MacCommand::DlChannelReq {
+            index: 3,
+            frequency_hz: 925_000_000,
+        },
+    ]);
+    data(device.heard(&downlink, 5));
+    let next = device.send(2, b"b", false, now + LATER).expect("goes out");
+    assert_eq!(fopts(&network, &next, 1), [] as [u8; 0]);
+    assert_eq!(device.channels().count(), 72);
+}
+
+#[test]
+fn american_power_is_conducted_and_only_gain_past_six_dbi_comes_off() {
+    // RP002-1.0.5 table 22, and section 3.5.2 on antennas above 6 dBi.
+    let radio = Settings::new(2, 30).with_seed(7);
+    for (gain, want) in [(0, 30), (6, 30), (9, 27)] {
+        let mut device = device(Region::Us915, radio.with_antenna_gain(gain));
+        let request = device.join(1, 0).expect("goes out");
+        assert_eq!(request.output_dbm, want, "a {gain} dBi antenna");
+    }
+    let mut european = device(Region::Eu868, radio.with_antenna_gain(3));
+    assert_eq!(
+        european.join(1, 0).expect("goes out").output_dbm,
+        13,
+        "a radiated limit takes all of the gain off"
+    );
+}
+
+#[test]
+fn an_australian_device_joins_at_dr2_inside_its_dwell_limit_and_at_dr6_on_a_wide_channel() {
+    // RP002-1.0.5 section 3.8.2.
+    let mut device = device(Region::Au915, settings());
+    for attempt in 0..9u32 {
+        let now = u64::from(attempt) * 10_000_000;
+        let request = device.join(attempt as u16, now).expect("goes out");
+        if attempt < 8 {
+            let channel = (request.frequency_hz - 915_200_000) / 200_000;
+            assert_eq!(channel / 8, attempt);
+            assert_eq!(request.data_rate, 2);
+            assert!(request.airtime_us <= 400_000);
+            assert_eq!(
+                request.rx1.frequency_hz,
+                923_300_000 + 600_000 * (channel % 8)
+            );
+            assert_eq!(request.rx1.data_rate, 10, "table 46, DR2");
+        } else {
+            assert_eq!((request.frequency_hz, request.data_rate), (915_900_000, 6));
+            assert_eq!(request.rx1.frequency_hz, 923_300_000);
+            assert_eq!(request.rx1.data_rate, 13, "table 46, DR6");
+        }
+        device.nothing_heard(now + 7_000_000).expect("closes");
+    }
+}
+
+#[test]
+fn a_chinese_device_takes_the_plan_its_common_join_channel_belongs_to() {
+    // RP002-1.0.5 section 3.9.2 and table 49, with the RX2 frequencies of tables 57 and 58 and
+    // section 3.9.7.2: each row is the uplink, where the accept is due, and RX2 once joined.
+    struct Case {
+        rows: &'static [(u32, u32, u32)],
+        channels: usize,
+        first_uplink_hz: u32,
+    }
+    let cases = [
+        // Common join channels 0 to 7, the 20 MHz antenna's plan A.
+        Case {
+            rows: &[
+                (470_900_000, 484_500_000, 485_300_000),
+                (472_500_000, 486_100_000, 486_900_000),
+                (474_100_000, 487_700_000, 488_500_000),
+                (475_700_000, 489_300_000, 490_100_000),
+                (504_100_000, 490_900_000, 491_700_000),
+                (505_700_000, 492_500_000, 493_300_000),
+                (507_300_000, 494_100_000, 494_900_000),
+                (508_900_000, 495_700_000, 496_500_000),
+            ],
+            channels: 64,
+            first_uplink_hz: 470_300_000,
+        },
+        // Common join channels 8 and 9, plan B.
+        Case {
+            rows: &[
+                (479_900_000, 479_900_000, 478_300_000),
+                (499_900_000, 499_900_000, 498_300_000),
+            ],
+            channels: 64,
+            first_uplink_hz: 476_900_000,
+        },
+        // Common join channels 15 to 19, the 26 MHz antenna's plan B.
+        Case {
+            rows: &[
+                (480_300_000, 502_500_000, 502_500_000),
+                (482_300_000, 502_500_000, 502_500_000),
+                (484_300_000, 502_500_000, 502_500_000),
+                (486_300_000, 502_500_000, 502_500_000),
+                (488_300_000, 502_500_000, 502_500_000),
+            ],
+            channels: 48,
+            first_uplink_hz: 480_300_000,
+        },
+    ];
+    for case in cases {
+        let uplinks: Vec<u32> = case.rows.iter().map(|row| row.0).collect();
+        let mut device = device(Region::Cn470, settings());
+        let (request, at) = join_on(&mut device, &uplinks);
+        let &(_, accept_hz, rx2_hz) = case
+            .rows
+            .iter()
+            .find(|row| row.0 == request.frequency_hz)
+            .expect("one of the rows");
+        assert_eq!(request.rx1.frequency_hz, accept_hz);
+        assert_eq!(request.rx1.data_rate, request.data_rate);
+        assert_eq!(
+            (request.rx2.frequency_hz, request.rx2.data_rate),
+            (accept_hz, 1),
+            "both windows listen where the accept is due"
+        );
+        assert!(
+            (1..=5).contains(&request.data_rate),
+            "DR0 carries nothing here"
+        );
+
+        let mut network = Network::new(JoinGrant::new(0x01, 0x13, DEV_ADDR).with_dl_settings(1));
+        let accept = network.accept(&request);
+        assert_eq!(
+            device.heard(&accept, 0),
+            Ok(Heard::Joined { dev_addr: DEV_ADDR })
+        );
+        assert_eq!(device.rx2(), (rx2_hz, 1));
+        assert_eq!(device.channels().count(), case.channels);
+        assert_eq!(
+            device.channels().next().map(|(_, c)| c.uplink_hz),
+            Some(case.first_uplink_hz)
+        );
+
+        let uplink = device
+            .send(2, b"21.5", false, at + LATER)
+            .expect("goes out");
+        let (_, channel) = device
+            .channels()
+            .find(|(_, c)| c.uplink_hz == uplink.frequency_hz)
+            .expect("one of the plan's channels");
+        assert_eq!(uplink.rx1.frequency_hz, channel.downlink_hz);
+        assert_eq!(uplink.rx2.frequency_hz, rx2_hz);
+        assert_eq!(network.read(&uplink, 0).payload(), b"21.5");
+    }
+}
+
+#[test]
+fn a_chinese_26_mhz_device_answers_modulo_24_and_reads_three_mask_groups() {
+    // RP002-1.0.5 sections 3.9.4 and 3.9.7.2.
+    let mut device = device(Region::Cn470, settings());
+    let (request, at) = join_on(
+        &mut device,
+        &[
+            470_300_000,
+            472_300_000,
+            474_300_000,
+            476_300_000,
+            478_300_000,
+        ],
+    );
+    let list = CfList::channel_masks([0, 0, 0x0003, 0, 0, 0]);
+    let mut network = Network::new(
+        JoinGrant::new(0x01, 0x13, DEV_ADDR)
+            .with_dl_settings(1)
+            .with_cflist(list.to_bytes()),
+    );
+    let accept = network.accept(&request);
+    assert!(device.heard(&accept, 0).is_ok());
+
+    let channels: Vec<(usize, u32, u32)> = device
+        .channels()
+        .map(|(index, c)| (index, c.uplink_hz, c.downlink_hz))
+        .collect();
+    assert_eq!(
+        channels,
+        [
+            (32, 476_700_000, 491_700_000),
+            (33, 476_900_000, 491_900_000)
+        ],
+        "channels 32 and 33 answer on downlink channels 8 and 9"
+    );
+    let uplink = device.send(2, b"x", false, at + LATER).expect("goes out");
+    assert_eq!(
+        (uplink.rx2.frequency_hz, uplink.rx2.data_rate),
+        (492_500_000, 1)
+    );
+}
+
+#[test]
+fn the_ninety_six_channel_plan_answers_each_channel_modulo_forty_eight() {
+    // LoRaWAN 1.0.3 Regional Parameters revision A, sections 2.7.2 and 2.7.7.
+    let mut device = EndDevice::new(
+        Cn470Plan::Channels96.plan(),
         Device::new(DEV_EUI, JOIN_EUI, APP_KEY),
         settings(),
+    )
+    .expect("96 channels fit");
+    let request = device.join(1, 0).expect("goes out");
+    let channel = (request.frequency_hz - 470_300_000) / 200_000;
+    assert!(channel < 96);
+    assert_eq!(request.data_rate, 5, "DR5 first");
+    assert_eq!(
+        request.rx1.frequency_hz,
+        500_300_000 + 200_000 * (channel % 48)
     );
-    assert!(matches!(refused, Err(DeviceError::FixedChannelPlan)));
+    assert_eq!(
+        (request.rx2.frequency_hz, request.rx2.data_rate),
+        (505_300_000, 0)
+    );
+
+    let mut network = Network::new(JoinGrant::new(0x01, 0x13, DEV_ADDR));
+    let accept = network.accept(&request);
+    assert!(device.heard(&accept, 0).is_ok());
+    assert_eq!(device.channels().count(), 96);
+    for fcnt in 0..8u32 {
+        let at = LATER * u64::from(fcnt + 1);
+        let uplink = device.send(2, b"x", false, at).expect("goes out");
+        let channel = (uplink.frequency_hz - 470_300_000) / 200_000;
+        assert_eq!(
+            uplink.rx1.frequency_hz,
+            500_300_000 + 200_000 * (channel % 48)
+        );
+        device.nothing_heard(at + 3_000_000).expect("closes");
+    }
+}
+
+#[test]
+fn a_fixed_plan_spans_its_uplink_and_downlink_channels() {
+    assert_eq!(
+        device(Region::Us915, settings()).frequency_span(),
+        (902_300_000, 927_500_000)
+    );
+    assert_eq!(
+        device(Region::Cn470, settings()).frequency_span(),
+        (470_300_000, 509_700_000)
+    );
 }
 
 #[test]

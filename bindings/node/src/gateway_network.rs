@@ -33,6 +33,9 @@ pub enum GatewayNetworkOutcome {
 /// The channels the first receive window answers on, which the region decides.
 #[napi(string_enum, js_name = "GatewayRx1Channels")]
 pub enum GatewayRx1Channels {
+    /// The window answers where the channel plan says: on the uplink frequency in a dynamic
+    /// plan, and on the downlink channel a fixed plan numbers for the uplink channel.
+    Plan,
     /// The window answers on the frequency the uplink arrived on.
     SameAsUplink,
     /// The window answers on a run of downlink channels, chosen by the uplink channel number
@@ -49,7 +52,7 @@ pub struct GatewayNetworkWindows {
     pub join_delay_us: Option<u32>,
     /// The offset between the uplink data rate and the rate the first window answers at.
     pub rx1_data_rate_offset: Option<u8>,
-    /// Which channels the first window answers on; the uplink frequency by default.
+    /// Which channels the first window answers on; where the channel plan says by default.
     pub rx1_channels: Option<GatewayRx1Channels>,
     /// The first downlink channel, in hertz, when the channels are downstream.
     pub downstream_start_hz: Option<u32>,
@@ -176,15 +179,18 @@ fn windows_of(windows: GatewayNetworkWindows) -> Windows {
     if let Some(offset) = windows.rx1_data_rate_offset {
         built = built.with_rx1_data_rate_offset(offset);
     }
-    if let Some(GatewayRx1Channels::Downstream) = windows.rx1_channels {
-        built = built.with_rx1_channels(Rx1Channels::Downstream(ChannelBlock::new(
+    let channels = match windows.rx1_channels {
+        Some(GatewayRx1Channels::Downstream) => Rx1Channels::Downstream(ChannelBlock::new(
             windows.downstream_start_hz.unwrap_or(0),
             windows.downstream_step_hz.unwrap_or(0),
             windows.downstream_count.unwrap_or(0),
             0,
             0,
-        )));
-    }
+        )),
+        Some(GatewayRx1Channels::SameAsUplink) => Rx1Channels::SameAsUplink,
+        Some(GatewayRx1Channels::Plan) | None => Rx1Channels::Plan,
+    };
+    built = built.with_rx1_channels(channels);
     built
 }
 

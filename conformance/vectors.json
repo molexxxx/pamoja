@@ -1717,8 +1717,8 @@
         "backoffFromSlowest": null,
         "beacon": {
           "dataRate": 2,
-          "frequencyHz": 486900000,
-          "pingSlotFrequencyHz": 486900000
+          "frequencyHz": 483900000,
+          "pingSlotFrequencyHz": 483900000
         },
         "channelFrequencies": [
           470300000,
@@ -1748,7 +1748,7 @@
         "hasDwellLimitedPayloads": false,
         "hasDwellLimitedRx1": false,
         "hasDwellTimeLimit": false,
-        "joinChannelBlockCount": 2,
+        "joinChannelBlockCount": 5,
         "maxEirpDbmAtProbe": 19,
         "maxRx1DataRateOffset": 5,
         "maxTxPowerIndex": 7,

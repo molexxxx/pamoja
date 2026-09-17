@@ -13,7 +13,7 @@
 //! The windows come from the published parameters rather than from habit. RP002-1.0.5
 //! section 3.3 gives the delays that are recommended for every region, TS001-1.0.4 gives the
 //! layout of the two bytes a join accept carries, and the channel a first window answers on
-//! is regional: [`Rx1Channels`] carries the two shapes the specification defines.
+//! is regional: by default the plan decides it, and [`Rx1Channels`] can override that.
 //!
 //! # Examples
 //!
@@ -56,17 +56,19 @@ pub use pamoja_lorawan::defaults::{
 
 /// The channel the first receive window answers on, which the region decides.
 ///
-/// RP002-1.0.5 defines two shapes for the bands this carries. Most regions answer on the
-/// frequency the uplink arrived on (section 3.4.7 for EU863-870, and the same wording for
-/// EU433, AS923, KR920-923, IN865 and RU864-870). The 900 MHz plans instead answer on a run
-/// of downlink channels, choosing one by the uplink channel number: "RX1 Channel Number =
-/// Transmit Channel Number modulo NbChannel" (sections 3.5.7 and 3.8.7).
-///
-/// CN470-510 is a third shape, mapping an uplink channel number onto a published table of
-/// downlink frequencies that differs per plan type, and it is not carried here; a deployment
-/// on that band supplies its own downstream block.
+/// Most regions answer on the frequency the uplink arrived on (RP002-1.0.5 section 3.4.7 for
+/// EU863-870, and the same wording for EU433, AS923, KR920-923, IN865 and RU864-870). The
+/// fixed plans instead answer on numbered downlink channels, choosing one by the uplink
+/// channel number: "RX1 Channel Number = Transmit Channel Number modulo NbChannel" (sections
+/// 3.5.7 and 3.8.7, and section 3.9.7 for CN470-510). The channel plan carries which, so
+/// [`Rx1Channels::Plan`] is the default, and the other two override it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Rx1Channels {
+    /// The window answers where the network's channel plan says: on the uplink's frequency in
+    /// a dynamic plan, and on the downlink channel a fixed plan numbers for the uplink
+    /// channel. A join on a CN470-510 common join channel is answered on the frequency
+    /// RP002-1.0.5 table 49 gives it.
+    Plan,
     /// The window answers on the frequency the uplink arrived on.
     SameAsUplink,
     /// The window answers on a run of downlink channels, indexed by the uplink channel
@@ -111,8 +113,8 @@ pub struct Windows {
 }
 
 impl Windows {
-    /// Returns the recommended windows: one second, five seconds, no offset, answering on
-    /// the frequency the uplink arrived on.
+    /// Returns the recommended windows: one second, five seconds, no offset, answering where
+    /// the channel plan says.
     ///
     /// # Returns
     ///
@@ -122,7 +124,7 @@ impl Windows {
             receive_delay_us: RECEIVE_DELAY1_US,
             join_delay_us: JOIN_ACCEPT_DELAY1_US,
             rx1_data_rate_offset: 0,
-            rx1_channels: Rx1Channels::SameAsUplink,
+            rx1_channels: Rx1Channels::Plan,
         }
     }
 
@@ -431,6 +433,14 @@ impl core::fmt::Display for NetworkError {
 
 impl core::error::Error for NetworkError {}
 
+// A run of common join channels and where a join on each is answered, kept apart from the
+// plan because an owned copy of a plan does not carry the plans a join selects between.
+struct JoinAccepts {
+    channels: ChannelBlock,
+    start_hz: u32,
+    step_hz: u32,
+}
+
 // A device that has joined: the session that was granted, and the counters seen since.
 struct Admitted {
     dev_eui: [u8; 8],
@@ -447,6 +457,7 @@ struct Admitted {
 /// [`ChannelPlan`] it is built with, so the same type serves any region.
 pub struct Network {
     plan: OwnedChannelPlan,
+    join_accepts: Vec<JoinAccepts>,
     windows: Windows,
     net_id: u32,
     registrations: Vec<Registration>,
@@ -473,6 +484,15 @@ impl Network {
     pub fn new(plan: &ChannelPlan<'_>, net_id: u32) -> Network {
         Network {
             plan: OwnedChannelPlan::from_plan(plan),
+            join_accepts: plan
+                .join_plans
+                .iter()
+                .map(|run| JoinAccepts {
+                    channels: run.channels,
+                    start_hz: run.accept_start_hz,
+                    step_hz: run.accept_step_hz,
+                })
+                .collect(),
             windows: Windows::new(),
             net_id,
             registrations: Vec::new(),
@@ -656,7 +676,12 @@ impl Network {
             fcnt_down: 0,
         });
 
-        let slot = self.slot(heard, link, self.windows.join_delay_us)?;
+        let mut slot = self.slot(heard, link, self.windows.join_delay_us)?;
+        if self.windows.rx1_channels == Rx1Channels::Plan {
+            if let Some(hz) = self.join_accept_hz(heard.frequency_hz) {
+                slot.frequency_hz = hz;
+            }
+        }
         Ok(Event::Joined {
             dev_eui: registration.dev_eui,
             dev_addr,
@@ -739,7 +764,8 @@ impl Network {
             .plan
             .with_plan(|plan| {
                 plan.rx1_data_rate(uplink_rate, self.windows.rx1_data_rate_offset)
-                    .and_then(|downlink_rate| plan.link_settings(downlink_rate))
+                    .and_then(|downlink_rate| plan.downlink_data_rate(downlink_rate))
+                    .and_then(|rate| rate.link_settings())
             })
             .ok_or(NetworkError::NoWindow)?;
 
@@ -753,6 +779,15 @@ impl Network {
     // Applies the region's rule for which channel the first window answers on.
     fn rx1_frequency_hz(&self, uplink_hz: u32) -> Result<u32, NetworkError> {
         match self.windows.rx1_channels {
+            Rx1Channels::Plan => {
+                if self.plan.with_plan(|plan| plan.downlink_channel_count()) == 0 {
+                    return Ok(uplink_hz);
+                }
+                let channel = self.channel_of(uplink_hz).ok_or(NetworkError::NoWindow)?;
+                self.plan
+                    .with_plan(|plan| plan.rx1_frequency_hz(channel, uplink_hz))
+                    .ok_or(NetworkError::NoWindow)
+            }
             Rx1Channels::SameAsUplink => Ok(uplink_hz),
             Rx1Channels::Downstream(block) => {
                 let channel = self.channel_of(uplink_hz).ok_or(NetworkError::NoWindow)?;
@@ -761,6 +796,15 @@ impl Network {
                     .ok_or(NetworkError::NoWindow)
             }
         }
+    }
+
+    // Finds where a join on a common join channel is answered, for a plan that has them.
+    fn join_accept_hz(&self, uplink_hz: u32) -> Option<u32> {
+        self.join_accepts.iter().find_map(|run| {
+            (0..run.channels.count)
+                .find(|offset| run.channels.frequency_hz(*offset) == Some(uplink_hz))
+                .map(|offset| run.start_hz + run.step_hz * u32::from(offset))
+        })
     }
 
     // Finds which channel of the plan a frequency is, counting through the default blocks
@@ -819,7 +863,7 @@ const fn downlink_mtype(message_type: MessageType) -> u8 {
 mod tests {
     use super::*;
 
-    use pamoja_lora::region::Region;
+    use pamoja_lora::region::{Cn470Plan, Region};
     use pamoja_lorawan::Device;
 
     const DEV_EUI: [u8; 8] = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77];
@@ -1060,11 +1104,83 @@ mod tests {
         // NbChannel, over the eight downlink channels of section 3.5.2.
         let block = match Rx1Channels::us915() {
             Rx1Channels::Downstream(block) => block,
-            Rx1Channels::SameAsUplink => panic!("US902-928 answers on its own channels"),
+            other => panic!("US902-928 answers on its own channels, not {other:?}"),
         };
         assert_eq!(block.frequency_hz(0), Some(923_300_000));
         assert_eq!(block.frequency_hz(7), Some(927_500_000));
         assert_eq!(block.count, 8);
+    }
+
+    /// Admits the test device on a plan and returns the accept it was sent.
+    fn joined_on(network: &mut Network, frequency_hz: u32, link: LinkSettings) -> Txpk {
+        network.register(Registration::new(DEV_EUI, APP_EUI, APP_KEY));
+        let request = Device::new(DEV_EUI, APP_EUI, APP_KEY).join_request(0x0102);
+        let heard =
+            Rxpk::new(frequency_hz, link, request.as_bytes().to_vec()).with_timestamp_us(1_000_000);
+        match network.uplink(&heard).expect("the request verifies") {
+            Event::Joined { accept, .. } => accept,
+            other => panic!("a join request is admitted, not {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_fixed_plan_is_answered_on_its_downlink_channels_at_its_downlink_rates() {
+        // RP002-1.0.5 sections 3.5.2 and 3.5.7, and tables 20 and 26: a join on channel 0 at
+        // DR0 is answered on 923.3 MHz at DR10, SF10 on 500 kHz, and an uplink on channel 65
+        // at DR4 on 923.9 MHz at DR13, SF7 on 500 kHz.
+        let mut network = Network::new(Region::Us915.plan(), 0x00_00_2A);
+        let accept = joined_on(&mut network, 902_300_000, LinkSettings::new(10, 125_000));
+        assert_eq!(accept.frequency_hz, 923_300_000);
+        let crate::udp::Modulation::Lora(link) = accept.modulation else {
+            panic!("a LoRa accept");
+        };
+        assert_eq!(
+            (link.spreading_factor(), link.bandwidth_hz()),
+            (10, 500_000)
+        );
+
+        let session = Device::new(DEV_EUI, APP_EUI, APP_KEY)
+            .accept_join(&accept.payload, 0x0102)
+            .expect("the accept verifies")
+            .session();
+        let frame = session
+            .encode_uplink(&pamoja_lorawan::Uplink::new(0, 2, b"21.5"))
+            .expect("it fits one frame");
+        let heard = Rxpk::new(
+            904_600_000,
+            LinkSettings::new(8, 500_000),
+            frame.as_bytes().to_vec(),
+        )
+        .with_timestamp_us(9_000_000);
+        let Event::Data { slot, .. } = network.uplink(&heard).expect("the frame verifies") else {
+            panic!("a data frame is read");
+        };
+        assert_eq!(slot.frequency_hz, 923_900_000);
+        assert_eq!(
+            (slot.link.spreading_factor(), slot.link.bandwidth_hz()),
+            (7, 500_000)
+        );
+    }
+
+    #[test]
+    fn a_chinese_join_is_answered_where_its_common_join_channel_says() {
+        // RP002-1.0.5 table 49: common join channel 11, 472.3 MHz, is answered on 492.5 MHz,
+        // and channel 3, 475.7 MHz, on 489.3 MHz.
+        let mut network = Network::new(Cn470Plan::Antenna26MhzA.plan(), 0x00_00_2A);
+        let accept = joined_on(&mut network, 472_300_000, LinkSettings::new(9, 125_000));
+        assert_eq!(accept.frequency_hz, 492_500_000);
+
+        let mut network = Network::new(Region::Cn470.plan(), 0x00_00_2A);
+        let accept = joined_on(&mut network, 475_700_000, LinkSettings::new(9, 125_000));
+        assert_eq!(accept.frequency_hz, 489_300_000);
+    }
+
+    #[test]
+    fn a_window_override_still_wins_over_the_plan() {
+        let mut network = Network::new(Region::Us915.plan(), 0x00_00_2A)
+            .with_windows(Windows::new().with_rx1_channels(Rx1Channels::SameAsUplink));
+        let accept = joined_on(&mut network, 902_300_000, LinkSettings::new(10, 125_000));
+        assert_eq!(accept.frequency_hz, 902_300_000);
     }
 
     #[test]

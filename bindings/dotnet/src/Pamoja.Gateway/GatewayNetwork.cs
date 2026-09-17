@@ -29,6 +29,12 @@ public enum GatewayRx1Channels : byte
     /// modulo how many the run holds.
     /// </summary>
     Downstream = 1,
+
+    /// <summary>
+    /// The window answers where the channel plan says: on the uplink frequency in a dynamic
+    /// plan, and on the downlink channel a fixed plan numbers for the uplink channel.
+    /// </summary>
+    Plan = 2,
 }
 
 /// <summary>When and where a network answers, and at what rate.</summary>
@@ -49,7 +55,7 @@ public sealed record GatewayNetworkWindows
     public byte Rx1DataRateOffset { get; init; }
 
     /// <summary>Which channels the first window answers on.</summary>
-    public GatewayRx1Channels Rx1Channels { get; init; } = GatewayRx1Channels.SameAsUplink;
+    public GatewayRx1Channels Rx1Channels { get; init; } = GatewayRx1Channels.Plan;
 
     /// <summary>The first downlink channel, in hertz, when the channels are downstream.</summary>
     public uint DownstreamStartHz { get; init; }
