@@ -18,9 +18,12 @@
 //! so a build carrying one region would otherwise number it differently from a
 //! build carrying all of them.
 
+#[cfg(feature = "cn470")]
+use pamoja_lora::region::Cn470Plan;
 use pamoja_lora::region::{
-    Beacon, ChannelBlock, ChannelPlan, ChannelPlanBuilder, DataRate, MaxPayload, Modulation,
-    OwnedChannelPlan, PayloadTable, SubBand,
+    Beacon, ChannelBlock, ChannelPlan, ChannelPlanBuilder, DataRate, FixedChannelList,
+    JoinSequence, MaskControl, MaxPayload, Modulation, OwnedChannelPlan, PayloadTable, PlanKind,
+    PowerReference, SubBand,
 };
 // A build that carries no region still offers the builder, and then names no
 // published plan at all.
@@ -83,6 +86,56 @@ pub const PAMOJA_LORA_PAYLOAD_TABLE_DWELL_LIMITED: u32 = 4;
 pub const PAMOJA_LORA_CHANNELS_JOIN: u32 = 0;
 /// The channels a device starts with before a network adds any.
 pub const PAMOJA_LORA_CHANNELS_DEFAULT: u32 = 1;
+/// The numbered downlink channels a fixed plan answers the first receive window on.
+pub const PAMOJA_LORA_CHANNELS_DOWNLINK: u32 = 2;
+
+/// A plan whose network creates channels and moves them.
+pub const PAMOJA_LORA_PLAN_KIND_DYNAMIC: u8 = 0;
+/// A plan whose channels are numbered in advance and only enabled or disabled.
+pub const PAMOJA_LORA_PLAN_KIND_FIXED: u8 = 1;
+
+/// A plan that reads a type 1 channel list against no numbering.
+pub const PAMOJA_LORA_CHANNEL_LIST_NONE: u8 = 0;
+/// The 800 MHz numbering of RP002-1.0.5 section 3.3.1.1.
+pub const PAMOJA_LORA_CHANNEL_LIST_MHZ800: u8 = 1;
+/// The 900 MHz numbering of RP002-1.0.5 section 3.3.1.2.
+pub const PAMOJA_LORA_CHANNEL_LIST_MHZ900: u8 = 2;
+
+/// A join channel at random, stepping the data rate down across attempts.
+pub const PAMOJA_LORA_JOIN_RANDOM: u8 = 0;
+/// The octet passes of RP002-1.0.5 section 3.5.2, eight 125 kHz channels from successive
+/// groups and then a 500 kHz one.
+pub const PAMOJA_LORA_JOIN_OCTET_PASSES: u8 = 1;
+
+/// Power indexes that count down from a radiated ceiling.
+pub const PAMOJA_LORA_POWER_EIRP: u8 = 0;
+/// Power indexes that count down from a conducted ceiling.
+pub const PAMOJA_LORA_POWER_CONDUCTED: u8 = 1;
+
+/// A channel mask control that sets one group of sixteen channels.
+pub const PAMOJA_LORA_MASK_GROUP: u8 = 0;
+/// A channel mask control whose ten low bits switch banks of eight.
+pub const PAMOJA_LORA_MASK_BANKS: u8 = 1;
+/// A channel mask control whose eight low bits switch banks of eight with their 500 kHz
+/// channel.
+pub const PAMOJA_LORA_MASK_PAIRED_BANKS: u8 = 2;
+/// A channel mask control that turns every channel on or off, then sets a group.
+pub const PAMOJA_LORA_MASK_ALL: u8 = 3;
+/// A channel mask control the region reserves.
+pub const PAMOJA_LORA_MASK_RESERVED: u8 = 4;
+
+/// No CN470-510 plan, for a join plan that points at a plan built elsewhere.
+pub const PAMOJA_LORA_CN470_NONE: u32 = 0;
+/// The CN470-510 plan for a 20 MHz antenna, type A.
+pub const PAMOJA_LORA_CN470_ANTENNA_20MHZ_A: u32 = 1;
+/// The CN470-510 plan for a 20 MHz antenna, type B.
+pub const PAMOJA_LORA_CN470_ANTENNA_20MHZ_B: u32 = 2;
+/// The CN470-510 plan for a 26 MHz antenna, type A.
+pub const PAMOJA_LORA_CN470_ANTENNA_26MHZ_A: u32 = 3;
+/// The CN470-510 plan for a 26 MHz antenna, type B.
+pub const PAMOJA_LORA_CN470_ANTENNA_26MHZ_B: u32 = 4;
+/// The 96-channel CN470-510 plan of the LoRaWAN 1.0.3 Regional Parameters revision A.
+pub const PAMOJA_LORA_CN470_CHANNELS_96: u32 = 5;
 
 /// The uplink direction, for a table that differs between the two.
 pub const PAMOJA_LORA_DIRECTION_UPLINK: u32 = 0;
@@ -204,14 +257,75 @@ pub struct PamojaLoraPlanInfo {
     pub has_dwell_limited_rx1: u8,
 }
 
+/// How a plan's channels are defined and used, read in one call.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PamojaLoraPlanRules {
+    /// [`PAMOJA_LORA_PLAN_KIND_DYNAMIC`] or [`PAMOJA_LORA_PLAN_KIND_FIXED`].
+    pub kind: u8,
+    /// For a dynamic plan, one of the `PAMOJA_LORA_CHANNEL_LIST_*` constants.
+    pub channel_list: u8,
+    /// `1` if devices on the plan answer `TXParamSetupReq`.
+    pub tx_param_setup: u8,
+    /// One of the `PAMOJA_LORA_JOIN_*` constants.
+    pub join_sequence: u8,
+    /// One of the `PAMOJA_LORA_POWER_*` constants.
+    pub power_reference: u8,
+    /// For a conducted ceiling, the antenna gain it already allows for, in dB.
+    pub gain_allowance_db: u8,
+    /// How many downlink channel blocks the plan defines.
+    pub downlink_channel_block_count: u16,
+    /// How many runs of join channels select a plan, which only the published CN470-510
+    /// plans carry.
+    pub join_plan_count: u16,
+}
+
+/// What one `ChMaskCntl` value of a `LinkADRReq` does.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PamojaLoraMaskControl {
+    /// One of the `PAMOJA_LORA_MASK_*` constants.
+    pub kind: u8,
+    /// For [`PAMOJA_LORA_MASK_GROUP`], the group the mask sets.
+    pub group: u8,
+    /// For [`PAMOJA_LORA_MASK_ALL`], `1` to turn every channel on and `0` to turn it off.
+    pub on: u8,
+    /// For [`PAMOJA_LORA_MASK_ALL`], `1` if the mask then sets `then_group`.
+    pub has_then_group: u8,
+    /// The group the mask then sets.
+    pub then_group: u8,
+}
+
+/// A run of join channels that puts a device on a plan.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PamojaLoraJoinPlan {
+    /// The join channels and the data rates a request may use on them.
+    pub channels: PamojaLoraChannelBlock,
+    /// Where the accept answering the first channel arrives, in hertz.
+    pub accept_start_hz: u32,
+    /// How far the accept frequency moves for each next channel, in hertz.
+    pub accept_step_hz: u32,
+    /// The second receive window's frequency after joining on the first channel, in hertz.
+    pub rx2_start_hz: u32,
+    /// How far that frequency moves for each next channel, in hertz.
+    pub rx2_step_hz: u32,
+    /// The plan a join on these channels selects, one of the `PAMOJA_LORA_CN470_*`
+    /// constants.
+    pub cn470_plan: u32,
+}
+
 /// A regional channel plan, published or private.
 ///
 /// The handle always owns its tables, so a published region and one assembled
-/// here are the same type and answer the same queries.
+/// here are the same type and answer the same queries. A published plan also keeps
+/// the plans a join selects between, which point at other published plans and so
+/// cannot be owned.
 ///
 /// A handle the caller must release with [`pamoja_lora_plan_free`].
 pub struct PamojaLoraPlan {
     plan: OwnedChannelPlan,
+    published: Option<&'static ChannelPlan<'static>>,
 }
 
 impl PamojaLoraPlan {
@@ -225,7 +339,40 @@ impl PamojaLoraPlan {
     ///
     /// A handle the caller must release with [`pamoja_lora_plan_free`].
     fn into_handle(plan: OwnedChannelPlan) -> *mut Self {
-        Box::into_raw(Box::new(Self { plan }))
+        Box::into_raw(Box::new(Self {
+            plan,
+            published: None,
+        }))
+    }
+
+    /// Wraps a published plan.
+    ///
+    /// # Arguments
+    ///
+    /// * `plan` - the published plan.
+    ///
+    /// # Returns
+    ///
+    /// A handle the caller must release with [`pamoja_lora_plan_free`].
+    #[cfg_attr(
+        not(any(
+            feature = "eu868",
+            feature = "us915",
+            feature = "eu433",
+            feature = "au915",
+            feature = "cn470",
+            feature = "as923",
+            feature = "kr920",
+            feature = "in865",
+            feature = "ru864"
+        )),
+        allow(dead_code)
+    )]
+    fn published_handle(plan: &'static ChannelPlan<'static>) -> *mut Self {
+        Box::into_raw(Box::new(Self {
+            plan: OwnedChannelPlan::from_plan(plan),
+            published: Some(plan),
+        }))
     }
 
     /// Runs a query against the plan.
@@ -426,11 +573,418 @@ pub unsafe extern "C" fn pamoja_lora_plan_for_region(
 
     match published(region) {
         Ok(plan) => {
-            *slot = PamojaLoraPlan::into_handle(OwnedChannelPlan::from_plan(plan));
+            *slot = PamojaLoraPlan::published_handle(plan);
             PamojaStatus::Ok
         }
         Err(status) => status,
     }
+}
+
+/// Returns one of the five CN470-510 channel plans.
+///
+/// # Arguments
+///
+/// * `which` - one of the `PAMOJA_LORA_CN470_*` constants other than
+///   [`PAMOJA_LORA_CN470_NONE`].
+/// * `out_plan` - set to the plan handle on success, and to null otherwise.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] if `out_plan` is null or `which` names no
+/// plan, and [`PamojaStatus::Unsupported`] if CN470-510 was not compiled into this build.
+///
+/// # Safety
+///
+/// `out_plan` must point at writable storage for one pointer.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_plan_for_cn470(
+    which: u32,
+    out_plan: *mut *mut PamojaLoraPlan,
+) -> PamojaStatus {
+    if out_plan.is_null() {
+        set_last_error("out_plan must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let slot = &mut *out_plan;
+    *slot = std::ptr::null_mut();
+    if !(PAMOJA_LORA_CN470_ANTENNA_20MHZ_A..=PAMOJA_LORA_CN470_CHANNELS_96).contains(&which) {
+        set_last_error(format!("{which} is not a CN470 plan"));
+        return PamojaStatus::InvalidArgument;
+    }
+
+    #[cfg(feature = "cn470")]
+    {
+        let plan = Cn470Plan::all()[(which - 1) as usize].plan();
+        *slot = PamojaLoraPlan::published_handle(plan);
+        PamojaStatus::Ok
+    }
+    #[cfg(not(feature = "cn470"))]
+    {
+        set_last_error("CN470-510 is not compiled into this build of pamoja-lora".to_owned());
+        PamojaStatus::Unsupported
+    }
+}
+
+/// The code a join plan's target crosses as.
+fn cn470_code(target: &ChannelPlan<'_>) -> u32 {
+    #[cfg(feature = "cn470")]
+    {
+        if let Some(position) = Cn470Plan::all()
+            .iter()
+            .position(|plan| std::ptr::eq(plan.plan(), target))
+        {
+            return position as u32 + 1;
+        }
+    }
+    let _ = target;
+    PAMOJA_LORA_CN470_NONE
+}
+
+/// Reads how a plan defines and uses its channels.
+///
+/// # Arguments
+///
+/// * `plan` - the plan to read.
+/// * `out_rules` - set to the rules on success.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null.
+///
+/// # Safety
+///
+/// `plan` must be a live plan handle and `out_rules` must point at writable storage for
+/// one [`PamojaLoraPlanRules`].
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_plan_rules(
+    plan: *const PamojaLoraPlan,
+    out_rules: *mut PamojaLoraPlanRules,
+) -> PamojaStatus {
+    let (Some(handle), false) = (plan.as_ref(), out_rules.is_null()) else {
+        set_last_error("plan and out_rules must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let join_plan_count = handle
+        .published
+        .map_or(0, |plan| plan.join_plans.len() as u16);
+    *out_rules = handle.with(|plan| {
+        let (kind, channel_list) = match plan.kind {
+            PlanKind::Dynamic { channel_list } => (
+                PAMOJA_LORA_PLAN_KIND_DYNAMIC,
+                match channel_list {
+                    None => PAMOJA_LORA_CHANNEL_LIST_NONE,
+                    Some(FixedChannelList::Mhz800) => PAMOJA_LORA_CHANNEL_LIST_MHZ800,
+                    Some(FixedChannelList::Mhz900) => PAMOJA_LORA_CHANNEL_LIST_MHZ900,
+                },
+            ),
+            PlanKind::Fixed => (PAMOJA_LORA_PLAN_KIND_FIXED, PAMOJA_LORA_CHANNEL_LIST_NONE),
+        };
+        let (power_reference, gain_allowance_db) = match plan.power_reference {
+            PowerReference::Eirp => (PAMOJA_LORA_POWER_EIRP, 0),
+            PowerReference::Conducted { gain_allowance_db } => {
+                (PAMOJA_LORA_POWER_CONDUCTED, gain_allowance_db)
+            }
+        };
+        PamojaLoraPlanRules {
+            kind,
+            channel_list,
+            tx_param_setup: u8::from(plan.tx_param_setup),
+            join_sequence: match plan.join_sequence {
+                JoinSequence::Random => PAMOJA_LORA_JOIN_RANDOM,
+                JoinSequence::OctetPasses => PAMOJA_LORA_JOIN_OCTET_PASSES,
+            },
+            power_reference,
+            gain_allowance_db,
+            downlink_channel_block_count: plan.downlink_channels.len() as u16,
+            join_plan_count,
+        }
+    });
+    PamojaStatus::Ok
+}
+
+/// Converts a channel mask control into the shape that crosses the boundary.
+fn mask_control_out(control: MaskControl) -> PamojaLoraMaskControl {
+    let mut out = PamojaLoraMaskControl {
+        kind: PAMOJA_LORA_MASK_RESERVED,
+        group: 0,
+        on: 0,
+        has_then_group: 0,
+        then_group: 0,
+    };
+    match control {
+        MaskControl::Group(group) => {
+            out.kind = PAMOJA_LORA_MASK_GROUP;
+            out.group = group;
+        }
+        MaskControl::Banks => out.kind = PAMOJA_LORA_MASK_BANKS,
+        MaskControl::PairedBanks => out.kind = PAMOJA_LORA_MASK_PAIRED_BANKS,
+        MaskControl::All { on, then_group } => {
+            out.kind = PAMOJA_LORA_MASK_ALL;
+            out.on = u8::from(on);
+            out.has_then_group = u8::from(then_group.is_some());
+            out.then_group = then_group.unwrap_or(0);
+        }
+        MaskControl::Reserved => {}
+    }
+    out
+}
+
+/// Converts a channel mask control that crossed the boundary.
+fn mask_control_in(control: &PamojaLoraMaskControl) -> Result<MaskControl, PamojaStatus> {
+    match control.kind {
+        PAMOJA_LORA_MASK_GROUP => Ok(MaskControl::Group(control.group)),
+        PAMOJA_LORA_MASK_BANKS => Ok(MaskControl::Banks),
+        PAMOJA_LORA_MASK_PAIRED_BANKS => Ok(MaskControl::PairedBanks),
+        PAMOJA_LORA_MASK_ALL => Ok(MaskControl::All {
+            on: control.on != 0,
+            then_group: (control.has_then_group != 0).then_some(control.then_group),
+        }),
+        PAMOJA_LORA_MASK_RESERVED => Ok(MaskControl::Reserved),
+        other => {
+            set_last_error(format!("{other} is not a channel mask control"));
+            Err(PamojaStatus::InvalidArgument)
+        }
+    }
+}
+
+/// Reads what one `ChMaskCntl` value does on a plan.
+///
+/// # Arguments
+///
+/// * `plan` - the plan to read.
+/// * `value` - the `ChMaskCntl` value, 0 to 7.
+/// * `out_control` - set to the control on success.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or `value` is past 7.
+///
+/// # Safety
+///
+/// `plan` must be a live plan handle and `out_control` must point at writable storage for
+/// one [`PamojaLoraMaskControl`].
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_plan_mask_control(
+    plan: *const PamojaLoraPlan,
+    value: u8,
+    out_control: *mut PamojaLoraMaskControl,
+) -> PamojaStatus {
+    let (Some(plan), false) = (plan.as_ref(), out_control.is_null()) else {
+        set_last_error("plan and out_control must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    if value > 7 {
+        set_last_error(format!(
+            "{value} is not a ChMaskCntl value, which is three bits"
+        ));
+        return PamojaStatus::InvalidArgument;
+    }
+    *out_control = plan.with(|plan| mask_control_out(plan.mask_controls[usize::from(value)]));
+    PamojaStatus::Ok
+}
+
+/// Returns where the first receive window listens after an uplink.
+///
+/// # Arguments
+///
+/// * `plan` - the plan to read.
+/// * `uplink_channel` - the channel number the uplink went out on.
+/// * `uplink_hz` - the frequency it went out on.
+/// * `out_frequency_hz` - set to the window's frequency on success.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success: the uplink's own frequency on a plan with no numbered
+/// downlink channels, and otherwise the downlink channel the uplink channel maps to.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the plan's
+/// downlink channels leave the window undefined.
+///
+/// # Safety
+///
+/// `plan` must be a live plan handle and `out_frequency_hz` must point at writable storage
+/// for one `uint32_t`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_plan_rx1_frequency_hz(
+    plan: *const PamojaLoraPlan,
+    uplink_channel: u16,
+    uplink_hz: u32,
+    out_frequency_hz: *mut u32,
+) -> PamojaStatus {
+    let (Some(plan), false) = (plan.as_ref(), out_frequency_hz.is_null()) else {
+        set_last_error("plan and out_frequency_hz must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let Some(frequency) = plan.with(|plan| plan.rx1_frequency_hz(uplink_channel, uplink_hz)) else {
+        set_last_error(format!(
+            "this plan names no downlink for uplink channel {uplink_channel}"
+        ));
+        return PamojaStatus::InvalidArgument;
+    };
+    *out_frequency_hz = frequency;
+    PamojaStatus::Ok
+}
+
+/// Returns the frequency of one of the plan's numbered downlink channels.
+///
+/// # Arguments
+///
+/// * `plan` - the plan to read.
+/// * `channel` - the downlink channel number.
+/// * `out_frequency_hz` - set to its frequency on success.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the plan numbers
+/// no such downlink channel.
+///
+/// # Safety
+///
+/// `plan` must be a live plan handle and `out_frequency_hz` must point at writable storage
+/// for one `uint32_t`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_plan_downlink_channel_frequency_hz(
+    plan: *const PamojaLoraPlan,
+    channel: u16,
+    out_frequency_hz: *mut u32,
+) -> PamojaStatus {
+    let (Some(plan), false) = (plan.as_ref(), out_frequency_hz.is_null()) else {
+        set_last_error("plan and out_frequency_hz must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let Some(frequency) = plan.with(|plan| plan.downlink_channel_frequency_hz(channel)) else {
+        set_last_error(format!("this plan has no downlink channel {channel}"));
+        return PamojaStatus::InvalidArgument;
+    };
+    *out_frequency_hz = frequency;
+    PamojaStatus::Ok
+}
+
+/// Returns one run of join channels that selects a plan.
+///
+/// # Arguments
+///
+/// * `plan` - the plan to read.
+/// * `index` - the run's position, below the count [`pamoja_lora_plan_rules`] reports.
+/// * `out_join_plan` - set to the run on success.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] if either pointer is null or the index is past
+/// the end, which it always is for a plan that was built rather than published.
+///
+/// # Safety
+///
+/// `plan` must be a live plan handle and `out_join_plan` must point at writable storage for
+/// one [`PamojaLoraJoinPlan`].
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_plan_join_plan(
+    plan: *const PamojaLoraPlan,
+    index: u16,
+    out_join_plan: *mut PamojaLoraJoinPlan,
+) -> PamojaStatus {
+    let (Some(handle), false) = (plan.as_ref(), out_join_plan.is_null()) else {
+        set_last_error("plan and out_join_plan must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let Some(run) = handle
+        .published
+        .and_then(|plan| plan.join_plans.get(usize::from(index)))
+    else {
+        set_last_error(format!("this plan has no join plan {index}"));
+        return PamojaStatus::InvalidArgument;
+    };
+    *out_join_plan = PamojaLoraJoinPlan {
+        channels: PamojaLoraChannelBlock {
+            start_hz: run.channels.start_hz,
+            step_hz: run.channels.step_hz,
+            count: run.channels.count,
+            min_data_rate: run.channels.min_data_rate,
+            max_data_rate: run.channels.max_data_rate,
+        },
+        accept_start_hz: run.accept_start_hz,
+        accept_step_hz: run.accept_step_hz,
+        rx2_start_hz: run.rx2_start_hz,
+        rx2_step_hz: run.rx2_step_hz,
+        cn470_plan: cn470_code(run.plan),
+    };
+    PamojaStatus::Ok
+}
+
+/// Finds the run of join channels a join channel belongs to.
+///
+/// # Arguments
+///
+/// * `plan` - the plan to read.
+/// * `join_channel` - the join channel, counted through the runs in order.
+/// * `out_index` - set to the run's position on success.
+/// * `out_offset` - set to the channel's place within the run on success.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success. The run's accept frequency for the channel is
+/// `accept_start_hz + offset * accept_step_hz`, and its second window
+/// `rx2_start_hz + offset * rx2_step_hz`.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null or no run holds the
+/// channel.
+///
+/// # Safety
+///
+/// `plan` must be a live plan handle, and `out_index` and `out_offset` must each point at
+/// writable storage for one `uint16_t`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_plan_join_plan_for_channel(
+    plan: *const PamojaLoraPlan,
+    join_channel: u16,
+    out_index: *mut u16,
+    out_offset: *mut u16,
+) -> PamojaStatus {
+    let (Some(handle), false, false) = (plan.as_ref(), out_index.is_null(), out_offset.is_null())
+    else {
+        set_last_error("plan, out_index and out_offset must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let mut remaining = join_channel;
+    for (index, run) in handle
+        .published
+        .map_or(&[][..], |plan| plan.join_plans)
+        .iter()
+        .enumerate()
+    {
+        if remaining < run.channels.count {
+            *out_index = index as u16;
+            *out_offset = remaining;
+            return PamojaStatus::Ok;
+        }
+        remaining -= run.channels.count;
+    }
+    set_last_error(format!("no join plan holds join channel {join_channel}"));
+    PamojaStatus::InvalidArgument
 }
 
 /// Reports whether a region is compiled into this build.
@@ -1018,9 +1572,10 @@ pub unsafe extern "C" fn pamoja_lora_plan_channel_frequency_hz(
 /// # Arguments
 ///
 /// * `plan` - the plan to read.
-/// * `which` - [`PAMOJA_LORA_CHANNELS_JOIN`] or [`PAMOJA_LORA_CHANNELS_DEFAULT`].
-/// * `index` - the block's position, below the count
-///   [`pamoja_lora_plan_info`] reports.
+/// * `which` - [`PAMOJA_LORA_CHANNELS_JOIN`], [`PAMOJA_LORA_CHANNELS_DEFAULT`] or
+///   [`PAMOJA_LORA_CHANNELS_DOWNLINK`].
+/// * `index` - the block's position, below the count [`pamoja_lora_plan_info`] or
+///   [`pamoja_lora_plan_rules`] reports.
 /// * `out_block` - set to the block on success.
 ///
 /// # Returns
@@ -1047,15 +1602,15 @@ pub unsafe extern "C" fn pamoja_lora_plan_channel_block(
         set_last_error("plan and out_block must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     };
-    if which != PAMOJA_LORA_CHANNELS_JOIN && which != PAMOJA_LORA_CHANNELS_DEFAULT {
+    if !(PAMOJA_LORA_CHANNELS_JOIN..=PAMOJA_LORA_CHANNELS_DOWNLINK).contains(&which) {
         set_last_error(format!("{which} is not a channel set"));
         return PamojaStatus::InvalidArgument;
     }
     let found = plan.with(|plan| {
-        let blocks = if which == PAMOJA_LORA_CHANNELS_JOIN {
-            plan.join_channels
-        } else {
-            plan.default_channels
+        let blocks = match which {
+            PAMOJA_LORA_CHANNELS_JOIN => plan.join_channels,
+            PAMOJA_LORA_CHANNELS_DEFAULT => plan.default_channels,
+            _ => plan.downlink_channels,
         };
         blocks.get(usize::from(index)).copied()
     });
@@ -1343,7 +1898,8 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_push_max_payload(
 /// # Arguments
 ///
 /// * `builder` - the builder to extend.
-/// * `which` - [`PAMOJA_LORA_CHANNELS_JOIN`] or [`PAMOJA_LORA_CHANNELS_DEFAULT`].
+/// * `which` - [`PAMOJA_LORA_CHANNELS_JOIN`], [`PAMOJA_LORA_CHANNELS_DEFAULT`] or
+///   [`PAMOJA_LORA_CHANNELS_DOWNLINK`].
 /// * `block` - the channel block to append.
 ///
 /// # Returns
@@ -1380,6 +1936,7 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_push_channel_block(
     match which {
         PAMOJA_LORA_CHANNELS_JOIN => update(builder, |b| b.join_channel(entry)),
         PAMOJA_LORA_CHANNELS_DEFAULT => update(builder, |b| b.default_channel(entry)),
+        PAMOJA_LORA_CHANNELS_DOWNLINK => update(builder, |b| b.downlink_channel(entry)),
         other => {
             set_last_error(format!("{other} is not a channel set"));
             PamojaStatus::InvalidArgument
@@ -1629,6 +2186,217 @@ pub unsafe extern "C" fn pamoja_lora_plan_builder_set_beacon(
     update(builder, |b| {
         b.beacon(entry).dwell_time_limit(has_dwell_time_limit != 0)
     })
+}
+
+/// Sets whether the plan's network creates channels, and the numbering a dynamic plan reads
+/// a type 1 channel list against.
+///
+/// # Arguments
+///
+/// * `builder` - the builder to update.
+/// * `kind` - [`PAMOJA_LORA_PLAN_KIND_DYNAMIC`] or [`PAMOJA_LORA_PLAN_KIND_FIXED`].
+/// * `channel_list` - for a dynamic plan, one of the `PAMOJA_LORA_CHANNEL_LIST_*` constants;
+///   ignored for a fixed one.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null or a code names nothing,
+/// and [`PamojaStatus::Closed`] if the builder was already built.
+///
+/// # Safety
+///
+/// `builder` must be a live builder handle.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_plan_builder_set_kind(
+    builder: *mut PamojaLoraPlanBuilder,
+    kind: u8,
+    channel_list: u8,
+) -> PamojaStatus {
+    let Some(builder) = builder.as_mut() else {
+        set_last_error("builder must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let kind = match (kind, channel_list) {
+        (PAMOJA_LORA_PLAN_KIND_FIXED, _) => PlanKind::Fixed,
+        (PAMOJA_LORA_PLAN_KIND_DYNAMIC, PAMOJA_LORA_CHANNEL_LIST_NONE) => {
+            PlanKind::Dynamic { channel_list: None }
+        }
+        (PAMOJA_LORA_PLAN_KIND_DYNAMIC, PAMOJA_LORA_CHANNEL_LIST_MHZ800) => PlanKind::Dynamic {
+            channel_list: Some(FixedChannelList::Mhz800),
+        },
+        (PAMOJA_LORA_PLAN_KIND_DYNAMIC, PAMOJA_LORA_CHANNEL_LIST_MHZ900) => PlanKind::Dynamic {
+            channel_list: Some(FixedChannelList::Mhz900),
+        },
+        _ => {
+            set_last_error(format!(
+                "{kind} with channel list {channel_list} is not a plan kind"
+            ));
+            return PamojaStatus::InvalidArgument;
+        }
+    };
+    update(builder, |b| b.kind(kind))
+}
+
+/// Sets whether devices on the plan answer `TXParamSetupReq`.
+///
+/// # Arguments
+///
+/// * `builder` - the builder to update.
+/// * `answered` - `1` if the command applies.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null, and
+/// [`PamojaStatus::Closed`] if the builder was already built.
+///
+/// # Safety
+///
+/// `builder` must be a live builder handle.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_plan_builder_set_tx_param_setup(
+    builder: *mut PamojaLoraPlanBuilder,
+    answered: u8,
+) -> PamojaStatus {
+    let Some(builder) = builder.as_mut() else {
+        set_last_error("builder must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    update(builder, |b| b.tx_param_setup(answered != 0))
+}
+
+/// Sets what each `ChMaskCntl` value does.
+///
+/// # Arguments
+///
+/// * `builder` - the builder to update.
+/// * `controls` - the eight controls, indexed by value.
+/// * `len` - how many `controls` points at, which must be 8.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] if a pointer is null, `len` is not 8, or a
+/// control's kind names nothing, and [`PamojaStatus::Closed`] if the builder was already
+/// built.
+///
+/// # Safety
+///
+/// `builder` must be a live builder handle and `controls` must point at `len` readable
+/// [`PamojaLoraMaskControl`] values.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_plan_builder_set_mask_controls(
+    builder: *mut PamojaLoraPlanBuilder,
+    controls: *const PamojaLoraMaskControl,
+    len: usize,
+) -> PamojaStatus {
+    let Some(builder) = builder.as_mut() else {
+        set_last_error("builder must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    if controls.is_null() || len != 8 {
+        set_last_error("controls must point at exactly eight controls".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let crossed = std::slice::from_raw_parts(controls, len);
+    let mut table = [MaskControl::Reserved; 8];
+    for (slot, control) in table.iter_mut().zip(crossed) {
+        *slot = match mask_control_in(control) {
+            Ok(control) => control,
+            Err(status) => return status,
+        };
+    }
+    update(builder, |b| b.mask_controls(table))
+}
+
+/// Sets the order a device tries the join channels in.
+///
+/// # Arguments
+///
+/// * `builder` - the builder to update.
+/// * `sequence` - one of the `PAMOJA_LORA_JOIN_*` constants.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null or `sequence` names
+/// nothing, and [`PamojaStatus::Closed`] if the builder was already built.
+///
+/// # Safety
+///
+/// `builder` must be a live builder handle.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_plan_builder_set_join_sequence(
+    builder: *mut PamojaLoraPlanBuilder,
+    sequence: u8,
+) -> PamojaStatus {
+    let Some(builder) = builder.as_mut() else {
+        set_last_error("builder must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let sequence = match sequence {
+        PAMOJA_LORA_JOIN_RANDOM => JoinSequence::Random,
+        PAMOJA_LORA_JOIN_OCTET_PASSES => JoinSequence::OctetPasses,
+        other => {
+            set_last_error(format!("{other} is not a join sequence"));
+            return PamojaStatus::InvalidArgument;
+        }
+    };
+    update(builder, |b| b.join_sequence(sequence))
+}
+
+/// Sets what the plan's transmit power indexes count down from.
+///
+/// # Arguments
+///
+/// * `builder` - the builder to update.
+/// * `reference` - [`PAMOJA_LORA_POWER_EIRP`] or [`PAMOJA_LORA_POWER_CONDUCTED`].
+/// * `gain_allowance_db` - for a conducted ceiling, the antenna gain it allows for.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] if `builder` is null or `reference` names
+/// nothing, and [`PamojaStatus::Closed`] if the builder was already built.
+///
+/// # Safety
+///
+/// `builder` must be a live builder handle.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_plan_builder_set_power_reference(
+    builder: *mut PamojaLoraPlanBuilder,
+    reference: u8,
+    gain_allowance_db: u8,
+) -> PamojaStatus {
+    let Some(builder) = builder.as_mut() else {
+        set_last_error("builder must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let reference = match reference {
+        PAMOJA_LORA_POWER_EIRP => PowerReference::Eirp,
+        PAMOJA_LORA_POWER_CONDUCTED => PowerReference::Conducted { gain_allowance_db },
+        other => {
+            set_last_error(format!("{other} is not a power reference"));
+            return PamojaStatus::InvalidArgument;
+        }
+    };
+    update(builder, |b| b.power_reference(reference))
 }
 
 /// Finishes a plan and hands back a handle the query functions accept.
@@ -2057,6 +2825,304 @@ mod tests {
                 PamojaStatus::InvalidArgument
             );
             assert!(plan.is_null());
+        }
+    }
+
+    #[test]
+    #[cfg(all(feature = "us915", feature = "cn470", feature = "eu868"))]
+    fn the_rules_a_published_plan_follows_cross_the_boundary() {
+        unsafe {
+            let empty_rules = PamojaLoraPlanRules {
+                kind: 9,
+                channel_list: 9,
+                tx_param_setup: 9,
+                join_sequence: 9,
+                power_reference: 9,
+                gain_allowance_db: 9,
+                downlink_channel_block_count: 9,
+                join_plan_count: 9,
+            };
+
+            let mut plan = ptr::null_mut();
+            assert_eq!(
+                pamoja_lora_plan_for_region(PAMOJA_LORA_REGION_US915, &mut plan),
+                PamojaStatus::Ok
+            );
+            let mut rules = empty_rules;
+            assert_eq!(pamoja_lora_plan_rules(plan, &mut rules), PamojaStatus::Ok);
+            assert_eq!(rules.kind, PAMOJA_LORA_PLAN_KIND_FIXED);
+            assert_eq!(rules.join_sequence, PAMOJA_LORA_JOIN_OCTET_PASSES);
+            assert_eq!(
+                (rules.power_reference, rules.gain_allowance_db),
+                (PAMOJA_LORA_POWER_CONDUCTED, 6)
+            );
+            assert_eq!(
+                (rules.downlink_channel_block_count, rules.join_plan_count),
+                (1, 0)
+            );
+
+            let mut control = mask_control_out(MaskControl::Reserved);
+            assert_eq!(
+                pamoja_lora_plan_mask_control(plan, 5, &mut control),
+                PamojaStatus::Ok
+            );
+            assert_eq!(control.kind, PAMOJA_LORA_MASK_PAIRED_BANKS);
+            assert_eq!(
+                pamoja_lora_plan_mask_control(plan, 7, &mut control),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                (
+                    control.kind,
+                    control.on,
+                    control.has_then_group,
+                    control.then_group
+                ),
+                (PAMOJA_LORA_MASK_ALL, 0, 1, 4)
+            );
+            assert_eq!(
+                pamoja_lora_plan_mask_control(plan, 8, &mut control),
+                PamojaStatus::InvalidArgument
+            );
+
+            let mut hz = 0;
+            assert_eq!(
+                pamoja_lora_plan_rx1_frequency_hz(plan, 65, 904_600_000, &mut hz),
+                PamojaStatus::Ok
+            );
+            assert_eq!(hz, 923_900_000);
+            assert_eq!(
+                pamoja_lora_plan_downlink_channel_frequency_hz(plan, 7, &mut hz),
+                PamojaStatus::Ok
+            );
+            assert_eq!(hz, 927_500_000);
+            pamoja_lora_plan_free(plan);
+
+            let mut plan = ptr::null_mut();
+            assert_eq!(
+                pamoja_lora_plan_for_region(PAMOJA_LORA_REGION_EU868, &mut plan),
+                PamojaStatus::Ok
+            );
+            let mut rules = empty_rules;
+            assert_eq!(pamoja_lora_plan_rules(plan, &mut rules), PamojaStatus::Ok);
+            assert_eq!(
+                (rules.kind, rules.channel_list),
+                (
+                    PAMOJA_LORA_PLAN_KIND_DYNAMIC,
+                    PAMOJA_LORA_CHANNEL_LIST_MHZ800
+                )
+            );
+            assert_eq!(
+                pamoja_lora_plan_rx1_frequency_hz(plan, 2, 868_500_000, &mut hz),
+                PamojaStatus::Ok
+            );
+            assert_eq!(hz, 868_500_000, "a dynamic plan answers where it sent");
+            pamoja_lora_plan_free(plan);
+
+            // RP002-1.0.5 table 49: common join channels 8 and 9 select the 20 MHz
+            // antenna's plan B, answered on their own frequency.
+            let mut plan = ptr::null_mut();
+            assert_eq!(
+                pamoja_lora_plan_for_cn470(PAMOJA_LORA_CN470_ANTENNA_26MHZ_A, &mut plan),
+                PamojaStatus::Ok
+            );
+            let mut rules = empty_rules;
+            assert_eq!(pamoja_lora_plan_rules(plan, &mut rules), PamojaStatus::Ok);
+            assert_eq!(rules.join_plan_count, 5);
+            let mut run = PamojaLoraJoinPlan {
+                channels: PamojaLoraChannelBlock {
+                    start_hz: 0,
+                    step_hz: 0,
+                    count: 0,
+                    min_data_rate: 0,
+                    max_data_rate: 0,
+                },
+                accept_start_hz: 0,
+                accept_step_hz: 0,
+                rx2_start_hz: 0,
+                rx2_step_hz: 0,
+                cn470_plan: 0,
+            };
+            assert_eq!(
+                pamoja_lora_plan_join_plan(plan, 2, &mut run),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                (
+                    run.channels.start_hz,
+                    run.channels.step_hz,
+                    run.channels.count
+                ),
+                (479_900_000, 20_000_000, 2)
+            );
+            assert_eq!(
+                (run.accept_start_hz, run.rx2_start_hz, run.rx2_step_hz),
+                (479_900_000, 478_300_000, 20_000_000)
+            );
+            assert_eq!(run.cn470_plan, PAMOJA_LORA_CN470_ANTENNA_20MHZ_B);
+            assert_eq!(
+                pamoja_lora_plan_join_plan(plan, 5, &mut run),
+                PamojaStatus::InvalidArgument
+            );
+            let (mut index, mut offset) = (0, 0);
+            assert_eq!(
+                pamoja_lora_plan_join_plan_for_channel(plan, 9, &mut index, &mut offset),
+                PamojaStatus::Ok
+            );
+            assert_eq!((index, offset), (2, 1));
+            assert_eq!(
+                pamoja_lora_plan_join_plan_for_channel(plan, 20, &mut index, &mut offset),
+                PamojaStatus::InvalidArgument
+            );
+            pamoja_lora_plan_free(plan);
+
+            assert_eq!(
+                pamoja_lora_plan_for_cn470(PAMOJA_LORA_CN470_NONE, &mut plan),
+                PamojaStatus::InvalidArgument
+            );
+        }
+    }
+
+    #[test]
+    fn a_built_plan_takes_every_rule_the_builder_is_given() {
+        unsafe {
+            let name = CString::new("fixed-private").expect("name");
+            let mut builder = ptr::null_mut();
+            assert_eq!(
+                pamoja_lora_plan_builder_new(name.as_ptr(), &mut builder),
+                PamojaStatus::Ok
+            );
+            let rate = PamojaLoraDataRate {
+                bitrate_bps: 5_470,
+                bandwidth_hz: 125_000,
+                kind: PAMOJA_LORA_MODULATION_LORA,
+                spreading_factor: 7,
+                coding_rate_numerator: 0,
+                coding_rate_denominator: 0,
+            };
+            assert_eq!(
+                pamoja_lora_plan_builder_push_data_rate(
+                    builder,
+                    PAMOJA_LORA_DIRECTION_UPLINK,
+                    &rate
+                ),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                pamoja_lora_plan_builder_set_rx(builder, 923_300_000, 0, 0),
+                PamojaStatus::Ok
+            );
+            let row = [0u8];
+            assert_eq!(
+                pamoja_lora_plan_builder_push_rx1_row(builder, 0, row.as_ptr(), row.len()),
+                PamojaStatus::Ok
+            );
+            for (which, start) in [
+                (PAMOJA_LORA_CHANNELS_DEFAULT, 902_300_000),
+                (PAMOJA_LORA_CHANNELS_DOWNLINK, 923_300_000),
+            ] {
+                let block = PamojaLoraChannelBlock {
+                    start_hz: start,
+                    step_hz: 600_000,
+                    count: 4,
+                    min_data_rate: 0,
+                    max_data_rate: 0,
+                };
+                assert_eq!(
+                    pamoja_lora_plan_builder_push_channel_block(builder, which, &block),
+                    PamojaStatus::Ok
+                );
+            }
+            assert_eq!(
+                pamoja_lora_plan_builder_set_kind(builder, PAMOJA_LORA_PLAN_KIND_FIXED, 0),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                pamoja_lora_plan_builder_set_tx_param_setup(builder, 1),
+                PamojaStatus::Ok
+            );
+            let controls = [mask_control_out(MaskControl::All {
+                on: true,
+                then_group: Some(1),
+            }); 8];
+            assert_eq!(
+                pamoja_lora_plan_builder_set_mask_controls(builder, controls.as_ptr(), 8),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                pamoja_lora_plan_builder_set_mask_controls(builder, controls.as_ptr(), 7),
+                PamojaStatus::InvalidArgument
+            );
+            assert_eq!(
+                pamoja_lora_plan_builder_set_join_sequence(builder, PAMOJA_LORA_JOIN_OCTET_PASSES),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                pamoja_lora_plan_builder_set_power_reference(
+                    builder,
+                    PAMOJA_LORA_POWER_CONDUCTED,
+                    3
+                ),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                pamoja_lora_plan_builder_set_kind(builder, PAMOJA_LORA_PLAN_KIND_DYNAMIC, 9),
+                PamojaStatus::InvalidArgument
+            );
+
+            let mut plan = ptr::null_mut();
+            assert_eq!(
+                pamoja_lora_plan_builder_build(builder, &mut plan),
+                PamojaStatus::Ok
+            );
+            let mut rules = PamojaLoraPlanRules {
+                kind: 0,
+                channel_list: 0,
+                tx_param_setup: 0,
+                join_sequence: 0,
+                power_reference: 0,
+                gain_allowance_db: 0,
+                downlink_channel_block_count: 0,
+                join_plan_count: 9,
+            };
+            assert_eq!(pamoja_lora_plan_rules(plan, &mut rules), PamojaStatus::Ok);
+            assert_eq!(
+                rules,
+                PamojaLoraPlanRules {
+                    kind: PAMOJA_LORA_PLAN_KIND_FIXED,
+                    channel_list: PAMOJA_LORA_CHANNEL_LIST_NONE,
+                    tx_param_setup: 1,
+                    join_sequence: PAMOJA_LORA_JOIN_OCTET_PASSES,
+                    power_reference: PAMOJA_LORA_POWER_CONDUCTED,
+                    gain_allowance_db: 3,
+                    downlink_channel_block_count: 1,
+                    join_plan_count: 0,
+                }
+            );
+            let mut hz = 0;
+            assert_eq!(
+                pamoja_lora_plan_rx1_frequency_hz(plan, 5, 905_300_000, &mut hz),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                hz, 923_900_000,
+                "uplink channel 5 answers on downlink channel 1"
+            );
+            let mut control = mask_control_out(MaskControl::Reserved);
+            assert_eq!(
+                pamoja_lora_plan_mask_control(plan, 3, &mut control),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                (
+                    control.kind,
+                    control.on,
+                    control.has_then_group,
+                    control.then_group
+                ),
+                (PAMOJA_LORA_MASK_ALL, 1, 1, 1)
+            );
+            pamoja_lora_plan_free(plan);
         }
     }
 

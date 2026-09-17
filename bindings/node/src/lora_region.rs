@@ -17,9 +17,10 @@
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use pamoja_lora::region::{
-    Beacon as CoreBeacon, ChannelBlock as CoreBlock, ChannelPlan, ChannelPlanBuilder,
-    DataRate as CoreDataRate, MaxPayload as CoreMaxPayload, Modulation, OwnedChannelPlan,
-    PayloadTable as CorePayloadTable, Region, SubBand as CoreSubBand,
+    Beacon as CoreBeacon, ChannelBlock as CoreBlock, ChannelPlan, ChannelPlanBuilder, Cn470Plan,
+    DataRate as CoreDataRate, FixedChannelList, JoinSequence, MaskControl,
+    MaxPayload as CoreMaxPayload, Modulation, OwnedChannelPlan, PayloadTable as CorePayloadTable,
+    PlanKind, PowerReference, Region, SubBand as CoreSubBand,
 };
 
 use crate::lora::LoraLink;
@@ -110,6 +111,227 @@ pub enum LoraChannelSet {
     Join,
     /// The channels a device starts with before a network adds any.
     Default,
+    /// The numbered downlink channels a fixed plan answers the first receive window on.
+    Downlink,
+}
+
+/// One of the CN470-510 channel plans.
+///
+/// RP002-1.0.5 section 3.9 divides the band into four plans, for 20 MHz and 26 MHz
+/// antennas, each with a type A and B. A device joining over the air uses the twenty
+/// common join channels they share and moves to the plan its join channel names.
+#[napi(string_enum)]
+pub enum LoraCn470Plan {
+    /// A 20 MHz antenna, type A, the plan `LoraRegion.Cn470` names.
+    Antenna20MhzA,
+    /// A 20 MHz antenna, type B.
+    Antenna20MhzB,
+    /// A 26 MHz antenna, type A.
+    Antenna26MhzA,
+    /// A 26 MHz antenna, type B.
+    Antenna26MhzB,
+    /// The 96-channel plan of the LoRaWAN 1.0.3 Regional Parameters revision A.
+    Channels96,
+}
+
+impl LoraCn470Plan {
+    /// The Rust plan this names.
+    fn core(self) -> Cn470Plan {
+        match self {
+            Self::Antenna20MhzA => Cn470Plan::Antenna20MhzA,
+            Self::Antenna20MhzB => Cn470Plan::Antenna20MhzB,
+            Self::Antenna26MhzA => Cn470Plan::Antenna26MhzA,
+            Self::Antenna26MhzB => Cn470Plan::Antenna26MhzB,
+            Self::Channels96 => Cn470Plan::Channels96,
+        }
+    }
+
+    /// The name a published plan crosses as, if it is one of these.
+    fn of(target: &ChannelPlan<'_>) -> Option<Self> {
+        let found = Cn470Plan::all()
+            .iter()
+            .position(|plan| std::ptr::eq(plan.plan(), target))?;
+        [
+            Self::Antenna20MhzA,
+            Self::Antenna20MhzB,
+            Self::Antenna26MhzA,
+            Self::Antenna26MhzB,
+            Self::Channels96,
+        ]
+        .into_iter()
+        .nth(found)
+    }
+}
+
+/// Whether a plan's network creates channels or only switches numbered ones.
+#[napi(string_enum)]
+pub enum LoraPlanKind {
+    /// The network creates channels and moves them, as in Europe.
+    Dynamic,
+    /// The channels are numbered in advance and only enabled or disabled, as in North
+    /// America.
+    Fixed,
+}
+
+/// The numbering a dynamic plan reads a type 1 channel list against.
+#[napi(string_enum)]
+pub enum LoraChannelList {
+    /// The 800 MHz numbering of RP002-1.0.5 section 3.3.1.1.
+    Mhz800,
+    /// The 900 MHz numbering of RP002-1.0.5 section 3.3.1.2.
+    Mhz900,
+}
+
+/// The order a device tries the join channels in.
+#[napi(string_enum)]
+pub enum LoraJoinSequence {
+    /// A join channel at random, stepping the data rate down across attempts.
+    Random,
+    /// Eight 125 kHz channels from successive groups, then a 500 kHz one, with no channel
+    /// repeated until all have gone out, RP002-1.0.5 section 3.5.2.
+    OctetPasses,
+}
+
+/// What a plan's transmit power indexes count down from.
+#[napi(string_enum)]
+pub enum LoraPowerReference {
+    /// A radiated ceiling.
+    Eirp,
+    /// A conducted ceiling, with an allowance for antenna gain.
+    Conducted,
+}
+
+/// What one `ChMaskCntl` value of a `LinkADRReq` does.
+#[napi(string_enum)]
+pub enum LoraMaskControlKind {
+    /// The mask sets one group of sixteen channels.
+    Group,
+    /// The ten low bits switch banks of eight channels.
+    Banks,
+    /// The eight low bits switch banks of eight with their 500 kHz channel, and the ninth
+    /// the 500 kHz channels past them.
+    PairedBanks,
+    /// Every channel turns on or off, then the mask may set a group.
+    All,
+    /// The value is reserved.
+    Reserved,
+}
+
+/// What one `ChMaskCntl` value does.
+#[napi(object)]
+pub struct LoraMaskControl {
+    /// What the value does.
+    pub kind: LoraMaskControlKind,
+    /// For `Group`, the group the mask sets.
+    pub group: Option<u8>,
+    /// For `All`, whether every channel turns on.
+    pub on: Option<bool>,
+    /// For `All`, the group the mask then sets, if any.
+    pub then_group: Option<u8>,
+}
+
+impl From<MaskControl> for LoraMaskControl {
+    fn from(control: MaskControl) -> Self {
+        let mut out = Self {
+            kind: LoraMaskControlKind::Reserved,
+            group: None,
+            on: None,
+            then_group: None,
+        };
+        match control {
+            MaskControl::Group(group) => {
+                out.kind = LoraMaskControlKind::Group;
+                out.group = Some(group);
+            }
+            MaskControl::Banks => out.kind = LoraMaskControlKind::Banks,
+            MaskControl::PairedBanks => out.kind = LoraMaskControlKind::PairedBanks,
+            MaskControl::All { on, then_group } => {
+                out.kind = LoraMaskControlKind::All;
+                out.on = Some(on);
+                out.then_group = then_group;
+            }
+            MaskControl::Reserved => {}
+        }
+        out
+    }
+}
+
+impl LoraMaskControl {
+    /// Converts a control the caller supplied into the Rust type.
+    fn to_core(&self) -> Result<MaskControl> {
+        Ok(match self.kind {
+            LoraMaskControlKind::Group => MaskControl::Group(self.group.ok_or_else(|| {
+                Error::new(
+                    Status::InvalidArg,
+                    "a Group mask control needs group".to_owned(),
+                )
+            })?),
+            LoraMaskControlKind::Banks => MaskControl::Banks,
+            LoraMaskControlKind::PairedBanks => MaskControl::PairedBanks,
+            LoraMaskControlKind::All => MaskControl::All {
+                on: self.on.ok_or_else(|| {
+                    Error::new(
+                        Status::InvalidArg,
+                        "an All mask control needs on".to_owned(),
+                    )
+                })?,
+                then_group: self.then_group,
+            },
+            LoraMaskControlKind::Reserved => MaskControl::Reserved,
+        })
+    }
+}
+
+/// How a plan defines and uses its channels.
+#[napi(object)]
+pub struct LoraPlanRules {
+    /// Whether the network creates channels or only switches numbered ones.
+    pub kind: LoraPlanKind,
+    /// For a dynamic plan, the numbering it reads a type 1 channel list against.
+    pub channel_list: Option<LoraChannelList>,
+    /// Whether devices on the plan answer `TXParamSetupReq`.
+    pub tx_param_setup: bool,
+    /// The order a device tries the join channels in.
+    pub join_sequence: LoraJoinSequence,
+    /// What the transmit power indexes count down from.
+    pub power_reference: LoraPowerReference,
+    /// For a conducted ceiling, the antenna gain it already allows for, in dB.
+    pub gain_allowance_db: Option<u8>,
+    /// How many downlink channel blocks the plan defines.
+    pub downlink_channel_block_count: u16,
+    /// How many runs of join channels select a plan, which only the published CN470-510
+    /// plans carry.
+    pub join_plan_count: u16,
+}
+
+/// A run of join channels that puts a device on a plan.
+#[napi(object)]
+pub struct LoraJoinPlan {
+    /// The join channels and the data rates a request may use on them.
+    pub channels: LoraChannelBlock,
+    /// Where the accept answering the first channel arrives, in hertz.
+    pub accept_start_hz: u32,
+    /// How far the accept frequency moves for each next channel, in hertz.
+    pub accept_step_hz: u32,
+    /// The second receive window's frequency after joining on the first channel, in hertz.
+    pub rx2_start_hz: u32,
+    /// How far that frequency moves for each next channel, in hertz.
+    pub rx2_step_hz: u32,
+    /// The CN470-510 plan a join on these channels selects.
+    pub plan: Option<LoraCn470Plan>,
+}
+
+/// The run of join channels one join channel belongs to.
+#[napi(object)]
+pub struct LoraJoinPlanPlace {
+    /// The run's position, as `joinPlan` takes it.
+    pub index: u16,
+    /// The channel's place within the run.
+    pub offset: u16,
+    /// Where the join accept for that channel arrives, in hertz.
+    pub accept_hz: u32,
+    /// Where the second receive window listens once joined on it, in hertz.
+    pub rx2_hz: u32,
 }
 
 /// How a data rate is carried on the air.
@@ -318,6 +540,7 @@ pub struct LoraPlanInfo {
 #[napi]
 pub struct LoraChannelPlan {
     inner: OwnedChannelPlan,
+    published: Option<&'static ChannelPlan<'static>>,
 }
 
 impl LoraChannelPlan {
@@ -336,6 +559,19 @@ impl LoraChannelPlan {
     ) -> R {
         self.inner.with_plan(query)
     }
+
+    /// Wraps a published plan, keeping the plans its join channels select.
+    fn published(plan: &'static ChannelPlan<'static>) -> Self {
+        Self {
+            inner: OwnedChannelPlan::from_plan(plan),
+            published: Some(plan),
+        }
+    }
+
+    /// The runs of join channels that select a plan.
+    fn join_plans(&self) -> &'static [pamoja_lora::region::JoinPlan<'static>] {
+        self.published.map_or(&[], |plan| plan.join_plans)
+    }
 }
 
 #[napi]
@@ -343,9 +579,109 @@ impl LoraChannelPlan {
     /// Returns the published plan for a region.
     #[napi(factory)]
     pub fn for_region(region: LoraRegion) -> Self {
-        Self {
-            inner: OwnedChannelPlan::from_plan(region.plan()),
+        Self::published(region.plan())
+    }
+
+    /// Returns one of the CN470-510 channel plans.
+    #[napi(factory, js_name = "forCn470")]
+    pub fn for_cn470(plan: LoraCn470Plan) -> Self {
+        Self::published(plan.core().plan())
+    }
+
+    /// Returns how the plan defines and uses its channels.
+    #[napi]
+    pub fn rules(&self) -> LoraPlanRules {
+        let join_plan_count = self.join_plans().len() as u16;
+        self.inner.with_plan(|plan| {
+            let (kind, channel_list) = match plan.kind {
+                PlanKind::Dynamic { channel_list } => (
+                    LoraPlanKind::Dynamic,
+                    channel_list.map(|list| match list {
+                        FixedChannelList::Mhz800 => LoraChannelList::Mhz800,
+                        FixedChannelList::Mhz900 => LoraChannelList::Mhz900,
+                    }),
+                ),
+                PlanKind::Fixed => (LoraPlanKind::Fixed, None),
+            };
+            let (power_reference, gain_allowance_db) = match plan.power_reference {
+                PowerReference::Eirp => (LoraPowerReference::Eirp, None),
+                PowerReference::Conducted { gain_allowance_db } => {
+                    (LoraPowerReference::Conducted, Some(gain_allowance_db))
+                }
+            };
+            LoraPlanRules {
+                kind,
+                channel_list,
+                tx_param_setup: plan.tx_param_setup,
+                join_sequence: match plan.join_sequence {
+                    JoinSequence::Random => LoraJoinSequence::Random,
+                    JoinSequence::OctetPasses => LoraJoinSequence::OctetPasses,
+                },
+                power_reference,
+                gain_allowance_db,
+                downlink_channel_block_count: plan.downlink_channels.len() as u16,
+                join_plan_count,
+            }
+        })
+    }
+
+    /// Returns what a `ChMaskCntl` value does, or null past 7.
+    #[napi]
+    pub fn mask_control(&self, value: u8) -> Option<LoraMaskControl> {
+        let control = self
+            .inner
+            .with_plan(|plan| plan.mask_controls.get(usize::from(value)).copied())?;
+        Some(control.into())
+    }
+
+    /// Returns where the first receive window listens after an uplink on a channel.
+    ///
+    /// On a plan with no numbered downlink channels that is the uplink's own frequency;
+    /// otherwise it is the downlink channel the uplink channel maps to.
+    #[napi(js_name = "rx1FrequencyHz")]
+    pub fn rx1_frequency_hz(&self, uplink_channel: u16, uplink_hz: u32) -> Option<u32> {
+        self.inner
+            .with_plan(|plan| plan.rx1_frequency_hz(uplink_channel, uplink_hz))
+    }
+
+    /// Returns the frequency of a numbered downlink channel, or null past the last.
+    #[napi]
+    pub fn downlink_channel_frequency_hz(&self, channel: u16) -> Option<u32> {
+        self.inner
+            .with_plan(|plan| plan.downlink_channel_frequency_hz(channel))
+    }
+
+    /// Returns one run of join channels that selects a plan, or null past the end.
+    #[napi]
+    pub fn join_plan(&self, index: u16) -> Option<LoraJoinPlan> {
+        let run = self.join_plans().get(usize::from(index))?;
+        Some(LoraJoinPlan {
+            channels: block_out(&run.channels),
+            accept_start_hz: run.accept_start_hz,
+            accept_step_hz: run.accept_step_hz,
+            rx2_start_hz: run.rx2_start_hz,
+            rx2_step_hz: run.rx2_step_hz,
+            plan: LoraCn470Plan::of(run.plan),
+        })
+    }
+
+    /// Returns the run of join channels a join channel belongs to, and where the accept
+    /// and the second receive window fall for it, or null if no run holds it.
+    #[napi]
+    pub fn join_plan_for_channel(&self, join_channel: u16) -> Option<LoraJoinPlanPlace> {
+        let mut remaining = join_channel;
+        for (index, run) in self.join_plans().iter().enumerate() {
+            if remaining < run.channels.count {
+                return Some(LoraJoinPlanPlace {
+                    index: index as u16,
+                    offset: remaining,
+                    accept_hz: run.accept_hz(remaining)?,
+                    rx2_hz: run.rx2_hz(remaining)?,
+                });
+            }
+            remaining -= run.channels.count;
         }
+        None
     }
 
     /// Returns the scalar facts of the plan.
@@ -528,15 +864,9 @@ impl LoraChannelPlan {
             let blocks = match which {
                 LoraChannelSet::Join => plan.join_channels,
                 LoraChannelSet::Default => plan.default_channels,
+                LoraChannelSet::Downlink => plan.downlink_channels,
             };
-            let block = blocks.get(usize::from(index))?;
-            Some(LoraChannelBlock {
-                start_hz: block.start_hz,
-                step_hz: block.step_hz,
-                count: block.count,
-                min_data_rate: block.min_data_rate,
-                max_data_rate: block.max_data_rate,
-            })
+            blocks.get(usize::from(index)).map(block_out)
         })
     }
 
@@ -552,6 +882,17 @@ impl LoraChannelPlan {
                 max_eirp_dbm: band.max_eirp_dbm,
             })
         })
+    }
+}
+
+/// Converts a channel block into the shape that crosses to JavaScript.
+fn block_out(block: &CoreBlock) -> LoraChannelBlock {
+    LoraChannelBlock {
+        start_hz: block.start_hz,
+        step_hz: block.step_hz,
+        count: block.count,
+        min_data_rate: block.min_data_rate,
+        max_data_rate: block.max_data_rate,
     }
 }
 
@@ -635,7 +976,77 @@ impl LoraPlanBuilder {
         self.update(|builder| match which {
             LoraChannelSet::Join => builder.join_channel(entry),
             LoraChannelSet::Default => builder.default_channel(entry),
+            LoraChannelSet::Downlink => builder.downlink_channel(entry),
         })
+    }
+
+    /// Sets whether the network creates channels, and for a dynamic plan the numbering a
+    /// type 1 channel list is read against.
+    #[napi]
+    pub fn kind(
+        &mut self,
+        kind: LoraPlanKind,
+        channel_list: Option<LoraChannelList>,
+    ) -> Result<()> {
+        let kind = match kind {
+            LoraPlanKind::Fixed => PlanKind::Fixed,
+            LoraPlanKind::Dynamic => PlanKind::Dynamic {
+                channel_list: channel_list.map(|list| match list {
+                    LoraChannelList::Mhz800 => FixedChannelList::Mhz800,
+                    LoraChannelList::Mhz900 => FixedChannelList::Mhz900,
+                }),
+            },
+        };
+        self.update(|builder| builder.kind(kind))
+    }
+
+    /// Sets whether devices on the plan answer `TXParamSetupReq`.
+    #[napi]
+    pub fn tx_param_setup(&mut self, answered: bool) -> Result<()> {
+        self.update(|builder| builder.tx_param_setup(answered))
+    }
+
+    /// Sets what each `ChMaskCntl` value does, all eight in value order.
+    #[napi]
+    pub fn mask_controls(&mut self, controls: Vec<LoraMaskControl>) -> Result<()> {
+        if controls.len() != 8 {
+            return Err(Error::new(
+                Status::InvalidArg,
+                format!("a plan takes eight mask controls, not {}", controls.len()),
+            ));
+        }
+        let mut table = [MaskControl::Reserved; 8];
+        for (slot, control) in table.iter_mut().zip(&controls) {
+            *slot = control.to_core()?;
+        }
+        self.update(|builder| builder.mask_controls(table))
+    }
+
+    /// Sets the order a device tries the join channels in.
+    #[napi]
+    pub fn join_sequence(&mut self, sequence: LoraJoinSequence) -> Result<()> {
+        let sequence = match sequence {
+            LoraJoinSequence::Random => JoinSequence::Random,
+            LoraJoinSequence::OctetPasses => JoinSequence::OctetPasses,
+        };
+        self.update(|builder| builder.join_sequence(sequence))
+    }
+
+    /// Sets what the transmit power indexes count down from, and for a conducted ceiling
+    /// the antenna gain it allows for.
+    #[napi]
+    pub fn power_reference(
+        &mut self,
+        reference: LoraPowerReference,
+        gain_allowance_db: Option<u8>,
+    ) -> Result<()> {
+        let reference = match reference {
+            LoraPowerReference::Eirp => PowerReference::Eirp,
+            LoraPowerReference::Conducted => PowerReference::Conducted {
+                gain_allowance_db: gain_allowance_db.unwrap_or(0),
+            },
+        };
+        self.update(|builder| builder.power_reference(reference))
     }
 
     /// Adds a sub-band and the transmit limits inside it.
@@ -724,7 +1135,10 @@ impl LoraPlanBuilder {
             )
         })?;
         match taken.build() {
-            Ok(inner) => Ok(LoraChannelPlan { inner }),
+            Ok(inner) => Ok(LoraChannelPlan {
+                inner,
+                published: None,
+            }),
             Err(error) => Err(Error::new(Status::InvalidArg, error.to_string())),
         }
     }

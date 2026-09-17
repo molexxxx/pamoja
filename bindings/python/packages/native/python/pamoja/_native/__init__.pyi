@@ -69,9 +69,13 @@ __all__ = [
     "LoraBeacon",
     "LoraChannelBlock",
     "LoraDataRate",
+    "LoraJoinPlan",
+    "LoraJoinPlanPlace",
     "LoraLink",
+    "LoraMaskControl",
     "LoraMaxPayload",
     "LoraPlanInfo",
+    "LoraPlanRules",
     "LoraRadio",
     "LoraReception",
     "LoraSubBand",
@@ -1217,6 +1221,20 @@ class ChannelPlan:
         Raises `ValueError` if no published region goes by that name.
         """
     @staticmethod
+    def for_cn470(plan: builtins.str) -> ChannelPlan:
+        r"""
+        Returns one of the CN470-510 channel plans.
+        
+        RP002-1.0.5 divides the band into four plans, for 20 MHz and 26 MHz antennas,
+        each with a type A and B; `channels_96` is the plan of the LoRaWAN 1.0.3
+        Regional Parameters revision A. Raises `ValueError` for any other name.
+        """
+    @staticmethod
+    def cn470_plans() -> builtins.list[builtins.str]:
+        r"""
+        Returns the name of every CN470-510 plan, as `for_cn470` takes.
+        """
+    @staticmethod
     def regions() -> builtins.list[builtins.str]:
         r"""
         Returns the short code of every published region, as `for_region` takes.
@@ -1290,7 +1308,37 @@ class ChannelPlan:
         """
     def channel_blocks(self, which: builtins.str = 'default') -> builtins.list[LoraChannelBlock]:
         r"""
-        Returns the plan's channel blocks, either the join set or the default set.
+        Returns the plan's channel blocks: the `join` set, the `default` set, or the
+        numbered `downlink` channels a fixed plan answers the first receive window on.
+        """
+    def rules(self) -> LoraPlanRules:
+        r"""
+        Returns how the plan defines and uses its channels.
+        """
+    def mask_control(self, value: builtins.int) -> typing.Optional[LoraMaskControl]:
+        r"""
+        Returns what a `ChMaskCntl` value does, or `None` past 7.
+        """
+    def rx1_frequency_hz(self, uplink_channel: builtins.int, uplink_hz: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        Returns where the first receive window listens after an uplink on a channel.
+        
+        On a plan with no numbered downlink channels that is the uplink's own frequency;
+        otherwise it is the downlink channel the uplink channel maps to.
+        """
+    def downlink_channel_frequency_hz(self, channel: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        Returns the frequency of a numbered downlink channel, or `None` past the last.
+        """
+    def join_plans(self) -> builtins.list[LoraJoinPlan]:
+        r"""
+        Returns the runs of join channels that select a plan, which only the published
+        CN470-510 plans carry.
+        """
+    def join_plan_for_channel(self, join_channel: builtins.int) -> typing.Optional[LoraJoinPlanPlace]:
+        r"""
+        Returns the run of join channels a join channel belongs to, and where the accept
+        and the second receive window fall for it, or `None` if no run holds it.
         """
     def sub_bands(self) -> builtins.list[LoraSubBand]:
         r"""
@@ -1330,7 +1378,30 @@ class ChannelPlanBuilder:
         """
     def channel_block(self, block: LoraChannelBlock, which: builtins.str = 'default') -> None:
         r"""
-        Adds a run of evenly spaced channels.
+        Adds a run of evenly spaced channels to the `join`, `default`, or `downlink` set.
+        """
+    def kind(self, kind: builtins.str, channel_list: typing.Optional[builtins.str] = None) -> None:
+        r"""
+        Sets whether the network creates channels (`dynamic`) or only switches numbered
+        ones (`fixed`), and for a dynamic plan the numbering a type 1 channel list is read
+        against, `mhz800` or `mhz900`.
+        """
+    def tx_param_setup(self, answered: builtins.bool) -> None:
+        r"""
+        Sets whether devices on the plan answer `TXParamSetupReq`.
+        """
+    def mask_controls(self, controls: typing.Sequence[LoraMaskControl]) -> None:
+        r"""
+        Sets what each `ChMaskCntl` value does, all eight in value order.
+        """
+    def join_sequence(self, sequence: builtins.str) -> None:
+        r"""
+        Sets the order a device tries the join channels in, `random` or `octet_passes`.
+        """
+    def power_reference(self, reference: builtins.str, gain_allowance_db: builtins.int = 0) -> None:
+        r"""
+        Sets what the transmit power indexes count down from, `eirp` or `conducted`, and
+        for a conducted ceiling the antenna gain it allows for.
         """
     def sub_band(self, band: LoraSubBand) -> None:
         r"""
@@ -3254,6 +3325,71 @@ class LoraDataRate:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class LoraJoinPlan:
+    r"""
+    A run of join channels that puts a device on a plan.
+    """
+    @property
+    def channels(self) -> LoraChannelBlock:
+        r"""
+        The join channels and the data rates a request may use on them.
+        """
+    @property
+    def accept_start_hz(self) -> builtins.int:
+        r"""
+        Where the accept answering the first channel arrives, in hertz.
+        """
+    @property
+    def accept_step_hz(self) -> builtins.int:
+        r"""
+        How far the accept frequency moves for each next channel, in hertz.
+        """
+    @property
+    def rx2_start_hz(self) -> builtins.int:
+        r"""
+        The second receive window's frequency after joining on the first channel, in hertz.
+        """
+    @property
+    def rx2_step_hz(self) -> builtins.int:
+        r"""
+        How far that frequency moves for each next channel, in hertz.
+        """
+    @property
+    def plan(self) -> typing.Optional[builtins.str]:
+        r"""
+        The CN470-510 plan a join on these channels selects, as `ChannelPlan.for_cn470`
+        takes it.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LoraJoinPlanPlace:
+    r"""
+    The run of join channels one join channel belongs to.
+    """
+    @property
+    def index(self) -> builtins.int:
+        r"""
+        The run's position in `join_plans()`.
+        """
+    @property
+    def offset(self) -> builtins.int:
+        r"""
+        The channel's place within the run.
+        """
+    @property
+    def accept_hz(self) -> builtins.int:
+        r"""
+        Where the join accept for that channel arrives, in hertz.
+        """
+    @property
+    def rx2_hz(self) -> builtins.int:
+        r"""
+        Where the second receive window listens once joined on it, in hertz.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class LoraLink:
     r"""
     The radio settings of a LoRa link.
@@ -3313,6 +3449,62 @@ class LoraLink:
         The limit is in parts per thousand, so `10` is 1%. A limit of `0` forbids
         transmitting at all, which comes back as `None`.
         """
+
+@typing.final
+class LoraMaskControl:
+    r"""
+    What one `ChMaskCntl` value of a `LinkADRReq` does.
+    
+    Only the attributes belonging to `kind` are set; the rest are `None`.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        What the value does: `group`, `banks`, `paired_banks`, `all`, or `reserved`.
+        """
+    @property
+    def group(self) -> typing.Optional[builtins.int]:
+        r"""
+        For `group`, the group of sixteen channels the mask sets.
+        """
+    @property
+    def on(self) -> typing.Optional[builtins.bool]:
+        r"""
+        For `all`, whether every channel turns on.
+        """
+    @property
+    def then_group(self) -> typing.Optional[builtins.int]:
+        r"""
+        For `all`, the group the mask then sets, if any.
+        """
+    @staticmethod
+    def one_group(group: builtins.int) -> LoraMaskControl:
+        r"""
+        The mask sets one group of sixteen channels.
+        """
+    @staticmethod
+    def banks() -> LoraMaskControl:
+        r"""
+        The ten low bits of the mask switch banks of eight channels.
+        """
+    @staticmethod
+    def paired_banks() -> LoraMaskControl:
+        r"""
+        The eight low bits switch banks of eight with their 500 kHz channel, and the
+        ninth the 500 kHz channels past them.
+        """
+    @staticmethod
+    def all_channels(on: builtins.bool, then_group: typing.Optional[builtins.int] = None) -> LoraMaskControl:
+        r"""
+        Every channel turns on or off, then the mask sets a group if one is given.
+        """
+    @staticmethod
+    def reserved() -> LoraMaskControl:
+        r"""
+        The value is reserved.
+        """
+    def __eq__(self, other: LoraMaskControl) -> builtins.bool: ...
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class LoraMaxPayload:
@@ -3422,6 +3614,55 @@ class LoraPlanInfo:
         r"""
         Whether the plan publishes a second RX1 mapping for a dwell-limited
         downlink.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LoraPlanRules:
+    r"""
+    How a plan defines and uses its channels.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        `dynamic` if the network creates channels, `fixed` if it only switches numbered ones.
+        """
+    @property
+    def channel_list(self) -> typing.Optional[builtins.str]:
+        r"""
+        For a dynamic plan, the numbering a type 1 channel list is read against:
+        `mhz800`, `mhz900`, or `None`.
+        """
+    @property
+    def tx_param_setup(self) -> builtins.bool:
+        r"""
+        Whether devices on the plan answer `TXParamSetupReq`.
+        """
+    @property
+    def join_sequence(self) -> builtins.str:
+        r"""
+        The order a device tries the join channels in: `random` or `octet_passes`.
+        """
+    @property
+    def power_reference(self) -> builtins.str:
+        r"""
+        What the transmit power indexes count down from: `eirp` or `conducted`.
+        """
+    @property
+    def gain_allowance_db(self) -> typing.Optional[builtins.int]:
+        r"""
+        For a conducted ceiling, the antenna gain it already allows for, in dB.
+        """
+    @property
+    def downlink_channel_block_count(self) -> builtins.int:
+        r"""
+        How many downlink channel blocks the plan defines.
+        """
+    @property
+    def join_plan_count(self) -> builtins.int:
+        r"""
+        How many runs of join channels select a plan, which only the published CN470-510
+        plans carry.
         """
     def __repr__(self) -> builtins.str: ...
 

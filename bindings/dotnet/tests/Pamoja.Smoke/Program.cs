@@ -2554,6 +2554,231 @@ static void ConformLoraRegions(JsonElement vector)
         .Build();
 
     ConformPlan(custom, vector.GetProperty("custom"));
+
+    LoraCn470Plan[] cn470 = Enum.GetValues<LoraCn470Plan>();
+    JsonElement cn470Vectors = vector.GetProperty("cn470");
+    Assert(cn470Vectors.GetArrayLength() == cn470.Length, "every CN470 plan is described");
+    index = 0;
+    foreach (JsonElement want in cn470Vectors.EnumerateArray())
+    {
+        Assert(
+            want.GetProperty("code").GetString() == Cn470Name(cn470[index]),
+            $"CN470 plan {index} is {cn470[index]}");
+        using LoraChannelPlan plan = LoraChannelPlan.ForCn470(cn470[index]);
+        ConformPlan(plan, want);
+        index++;
+    }
+
+    using LoraPlanBuilder fixedBuilder = new LoraPlanBuilder("private-fixed")
+        .DataRate(LoraDataRate.ForLora(10, 125_000, 980))
+        .DataRate(LoraDataRate.ForLora(8, 500_000, 12_500))
+        .MaxPayload(new LoraMaxPayload(19, 11), LoraPayloadTable.UplinkRepeater)
+        .MaxPayload(new LoraMaxPayload(230, 222), LoraPayloadTable.UplinkRepeater)
+        .MaxPayload(new LoraMaxPayload(19, 11), LoraPayloadTable.UplinkDirect)
+        .MaxPayload(new LoraMaxPayload(230, 222), LoraPayloadTable.UplinkDirect)
+        .ChannelBlock(new LoraChannelBlock(902_300_000, 200_000, 16, 0, 0))
+        .ChannelBlock(new LoraChannelBlock(903_000_000, 1_600_000, 2, 1, 1))
+        .ChannelBlock(new LoraChannelBlock(923_300_000, 600_000, 4, 1, 1), LoraChannelSet.Downlink)
+        .SubBand(new LoraSubBand(902_000_000, 928_000_000, 1000, 30))
+        .Power(30, 2, 10)
+        .Rx(923_300_000, 1, 0)
+        .Rx1Row([1])
+        .Rx1Row([1])
+        .Kind(LoraPlanKind.Fixed)
+        .TxParamSetup(false)
+        .MaskControls(
+        [
+            LoraMaskControl.OneGroup(0),
+            LoraMaskControl.OneGroup(1),
+            LoraMaskControl.Reserved(),
+            LoraMaskControl.Reserved(),
+            LoraMaskControl.Reserved(),
+            LoraMaskControl.Reserved(),
+            LoraMaskControl.AllChannels(true, 1),
+            LoraMaskControl.AllChannels(false, 1),
+        ]);
+    try
+    {
+        fixedBuilder.MaskControls([LoraMaskControl.Reserved()]);
+        Fail("a plan takes exactly eight mask controls");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    using LoraChannelPlan customFixed = fixedBuilder
+        .JoinSequence(LoraJoinSequence.OctetPasses)
+        .PowerReference(LoraPowerReference.Conducted, 6)
+        .Build();
+    ConformPlan(customFixed, vector.GetProperty("customFixed"));
+}
+
+// The name a CN470-510 plan goes by in the vectors.
+static string Cn470Name(LoraCn470Plan plan) => plan switch
+{
+    LoraCn470Plan.Antenna20MhzA => "antenna_20mhz_a",
+    LoraCn470Plan.Antenna20MhzB => "antenna_20mhz_b",
+    LoraCn470Plan.Antenna26MhzA => "antenna_26mhz_a",
+    LoraCn470Plan.Antenna26MhzB => "antenna_26mhz_b",
+    _ => "channels_96",
+};
+
+// Checks a channel block against the vector describing it.
+static void ConformBlock(LoraChannelBlock block, JsonElement want, string where)
+{
+    Assert(
+        block == new LoraChannelBlock(
+            want.GetProperty("startHz").GetUInt32(),
+            want.GetProperty("stepHz").GetUInt32(),
+            want.GetProperty("count").GetUInt16(),
+            want.GetProperty("minDataRate").GetByte(),
+            want.GetProperty("maxDataRate").GetByte()),
+        where);
+}
+
+// Holds a plan's channel rules to the answers every binding must give.
+static void ConformRules(LoraChannelPlan plan, JsonElement want, string where)
+{
+    LoraPlanRules rules = plan.Rules();
+    string kind = rules.Kind == LoraPlanKind.Fixed ? "fixed" : "dynamic";
+    Assert(kind == want.GetProperty("kind").GetString(), $"the kind of {where}");
+    string? channelList = rules.ChannelList switch
+    {
+        LoraChannelList.Mhz800 => "mhz800",
+        LoraChannelList.Mhz900 => "mhz900",
+        _ => null,
+    };
+    JsonElement wantList = want.GetProperty("channelList");
+    Assert(
+        channelList == (wantList.ValueKind == JsonValueKind.Null ? null : wantList.GetString()),
+        $"the channel list of {where}");
+    Assert(
+        rules.TxParamSetup == want.GetProperty("txParamSetup").GetBoolean(),
+        $"TXParamSetupReq on {where}");
+    string sequence = rules.JoinSequence == LoraJoinSequence.OctetPasses ? "octet_passes" : "random";
+    Assert(sequence == want.GetProperty("joinSequence").GetString(), $"the join sequence of {where}");
+    string reference = rules.PowerReference == LoraPowerReference.Conducted ? "conducted" : "eirp";
+    Assert(
+        reference == want.GetProperty("powerReference").GetString(),
+        $"the power reference of {where}");
+    ConformOptionalByte(
+        rules.GainAllowanceDb,
+        want.GetProperty("gainAllowanceDb"),
+        $"the gain allowance of {where}");
+
+    byte value = 0;
+    foreach (JsonElement control in want.GetProperty("maskControls").EnumerateArray())
+    {
+        LoraMaskControl? got = plan.MaskControl(value);
+        if (got is null)
+        {
+            Fail($"ChMaskCntl {value} of {where} is missing");
+            return;
+        }
+
+        string gotKind = got.Value.Kind switch
+        {
+            LoraMaskControlKind.Group => "group",
+            LoraMaskControlKind.Banks => "banks",
+            LoraMaskControlKind.PairedBanks => "paired_banks",
+            LoraMaskControlKind.All => "all",
+            _ => "reserved",
+        };
+        Assert(gotKind == control.GetProperty("kind").GetString(), $"ChMaskCntl {value} of {where}");
+        ConformOptionalByte(got.Value.Group, control.GetProperty("group"), $"ChMaskCntl {value} group of {where}");
+        JsonElement on = control.GetProperty("on");
+        Assert(
+            on.ValueKind == JsonValueKind.Null ? got.Value.On is null : got.Value.On == on.GetBoolean(),
+            $"ChMaskCntl {value} on of {where}");
+        ConformOptionalByte(
+            got.Value.ThenGroup,
+            control.GetProperty("thenGroup"),
+            $"ChMaskCntl {value} then group of {where}");
+        value++;
+    }
+
+    Assert(plan.MaskControl(8) is null, $"ChMaskCntl past 7 of {where}");
+
+    JsonElement downlinkBlocks = want.GetProperty("downlinkChannelBlocks");
+    IReadOnlyList<LoraChannelBlock> gotBlocks = plan.ChannelBlocks(LoraChannelSet.Downlink);
+    Assert(
+        rules.DownlinkChannelBlockCount == downlinkBlocks.GetArrayLength()
+            && gotBlocks.Count == downlinkBlocks.GetArrayLength(),
+        $"downlink channel blocks of {where}");
+    int blockIndex = 0;
+    int downlinkCount = 0;
+    foreach (JsonElement block in downlinkBlocks.EnumerateArray())
+    {
+        ConformBlock(gotBlocks[blockIndex], block, $"downlink channel block {blockIndex} of {where}");
+        downlinkCount += block.GetProperty("count").GetUInt16();
+        blockIndex++;
+    }
+
+    ushort downlink = 0;
+    foreach (JsonElement frequency in want.GetProperty("downlinkChannelFrequencies").EnumerateArray())
+    {
+        Assert(
+            plan.DownlinkChannelFrequencyHz(downlink) == frequency.GetUInt32(),
+            $"downlink channel {downlink} of {where}");
+        downlink++;
+    }
+
+    ConformOptionalUint(
+        plan.DownlinkChannelFrequencyHz((ushort)downlinkCount),
+        want.GetProperty("downlinkChannelPastEnd"),
+        $"a downlink channel past the end of {where}");
+
+    foreach (JsonElement probe in want.GetProperty("rx1Frequencies").EnumerateArray())
+    {
+        ushort uplinkChannel = probe.GetProperty("uplinkChannel").GetUInt16();
+        ConformOptionalUint(
+            plan.Rx1FrequencyHz(uplinkChannel, probe.GetProperty("uplinkHz").GetUInt32()),
+            probe.GetProperty("rx1Hz"),
+            $"RX1 after uplink channel {uplinkChannel} of {where}");
+    }
+
+    JsonElement joinPlans = want.GetProperty("joinPlans");
+    IReadOnlyList<LoraJoinPlan> runs = plan.JoinPlans();
+    Assert(
+        rules.JoinPlanCount == joinPlans.GetArrayLength() && runs.Count == joinPlans.GetArrayLength(),
+        $"join plans of {where}");
+    int run = 0;
+    foreach (JsonElement entry in joinPlans.EnumerateArray())
+    {
+        string label = $"join plan {run} of {where}";
+        ConformBlock(runs[run].Channels, entry.GetProperty("channels"), label);
+        Assert(runs[run].AcceptStartHz == entry.GetProperty("acceptStartHz").GetUInt32(), label);
+        Assert(runs[run].AcceptStepHz == entry.GetProperty("acceptStepHz").GetUInt32(), label);
+        Assert(runs[run].Rx2StartHz == entry.GetProperty("rx2StartHz").GetUInt32(), label);
+        Assert(runs[run].Rx2StepHz == entry.GetProperty("rx2StepHz").GetUInt32(), label);
+        JsonElement selects = entry.GetProperty("plan");
+        Assert(
+            (runs[run].Plan is { } named ? Cn470Name(named) : null)
+                == (selects.ValueKind == JsonValueKind.Null ? null : selects.GetString()),
+            label);
+        run++;
+    }
+
+    foreach (JsonElement entry in want.GetProperty("joinPlaces").EnumerateArray())
+    {
+        ushort joinChannel = entry.GetProperty("joinChannel").GetUInt16();
+        LoraJoinPlanPlace? place = plan.JoinPlanForChannel(joinChannel);
+        JsonElement wantPlace = entry.GetProperty("place");
+        string label = $"the join plan holding join channel {joinChannel} of {where}";
+        if (wantPlace.ValueKind == JsonValueKind.Null)
+        {
+            Assert(place is null, label);
+            continue;
+        }
+
+        Assert(
+            place == new LoraJoinPlanPlace(
+                wantPlace.GetProperty("index").GetUInt16(),
+                wantPlace.GetProperty("offset").GetUInt16(),
+                wantPlace.GetProperty("acceptHz").GetUInt32(),
+                wantPlace.GetProperty("rx2Hz").GetUInt32()),
+            label);
+    }
 }
 
 // Holds one channel plan to the answers every binding must give.
@@ -2669,6 +2894,8 @@ static void ConformPlan(LoraChannelPlan plan, JsonElement want)
             where);
         band++;
     }
+
+    ConformRules(plan, want.GetProperty("rules"), where);
 }
 
 // Checks a data rate against the vector describing it.

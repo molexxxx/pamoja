@@ -30,7 +30,8 @@ use pamoja_ladder::{Delivery, TransportLadder};
 use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
 use pamoja_lora::budget::{self, Decibels, Fcc15247, LinkBudget};
 use pamoja_lora::region::{
-    ChannelPlan, ChannelPlanBuilder, DataRate, MaxPayload, Modulation, Region, SubBand,
+    ChannelBlock, ChannelPlan, ChannelPlanBuilder, Cn470Plan, DataRate, FixedChannelList,
+    JoinSequence, MaskControl, MaxPayload, Modulation, PlanKind, PowerReference, Region, SubBand,
 };
 use pamoja_lora::LinkSettings;
 use pamoja_lorawan::{Device, Downlink, FrameHeader, JoinGrant, JoinRequest, Session, Uplink};
@@ -1274,6 +1275,153 @@ fn plan_vector(plan: &ChannelPlan<'_>) -> Value {
         "backoffFromSlowest": plan.next_backoff_data_rate(0),
         "channelFrequencies": channels,
         "subBands": sub_bands,
+        "rules": rules_vector(plan),
+    })
+}
+
+/// The names the CN470-510 plans go by in the vectors, in the order `Cn470Plan::all`
+/// lists them.
+const CN470_PLAN_NAMES: [&str; 5] = [
+    "antenna_20mhz_a",
+    "antenna_20mhz_b",
+    "antenna_26mhz_a",
+    "antenna_26mhz_b",
+    "channels_96",
+];
+
+/// Describes one channel block.
+fn block_vector(block: &ChannelBlock) -> Value {
+    json!({
+        "startHz": block.start_hz,
+        "stepHz": block.step_hz,
+        "count": block.count,
+        "minDataRate": block.min_data_rate,
+        "maxDataRate": block.max_data_rate,
+    })
+}
+
+/// Describes what one `ChMaskCntl` value does.
+fn mask_control_vector(control: MaskControl) -> Value {
+    match control {
+        MaskControl::Group(group) => {
+            json!({ "kind": "group", "group": group, "on": null, "thenGroup": null })
+        }
+        MaskControl::Banks => {
+            json!({ "kind": "banks", "group": null, "on": null, "thenGroup": null })
+        }
+        MaskControl::PairedBanks => {
+            json!({ "kind": "paired_banks", "group": null, "on": null, "thenGroup": null })
+        }
+        MaskControl::All { on, then_group } => {
+            json!({ "kind": "all", "group": null, "on": on, "thenGroup": then_group })
+        }
+        MaskControl::Reserved => {
+            json!({ "kind": "reserved", "group": null, "on": null, "thenGroup": null })
+        }
+    }
+}
+
+/// Describes how a plan defines and uses its channels: its kind, its mask controls, its
+/// downlink channels and where the first receive window lands, and the runs of join
+/// channels that select a plan.
+fn rules_vector(plan: &ChannelPlan<'_>) -> Value {
+    let (kind, channel_list) = match plan.kind {
+        PlanKind::Dynamic { channel_list } => (
+            "dynamic",
+            channel_list.map(|list| match list {
+                FixedChannelList::Mhz800 => "mhz800",
+                FixedChannelList::Mhz900 => "mhz900",
+            }),
+        ),
+        PlanKind::Fixed => ("fixed", None),
+    };
+    let (power_reference, gain_allowance_db) = match plan.power_reference {
+        PowerReference::Eirp => ("eirp", None),
+        PowerReference::Conducted { gain_allowance_db } => ("conducted", Some(gain_allowance_db)),
+    };
+
+    let downlink_count = plan.downlink_channel_count();
+    let downlink_frequencies: Vec<Value> = (0..downlink_count.min(8))
+        .map(|channel| json!(plan.downlink_channel_frequency_hz(channel)))
+        .collect();
+
+    // Uplink channels spread across the plan's blocks, each sent on its own frequency
+    // where the plan starts a device with it and on the second window's otherwise.
+    let rx1: Vec<Value> = [0u16, 1, 10, 27, 60, 70]
+        .into_iter()
+        .map(|channel| {
+            let uplink_hz = plan
+                .channel_frequency_hz(channel)
+                .unwrap_or(plan.rx2_frequency_hz);
+            json!({
+                "uplinkChannel": channel,
+                "uplinkHz": uplink_hz,
+                "rx1Hz": plan.rx1_frequency_hz(channel, uplink_hz),
+            })
+        })
+        .collect();
+
+    let join_plans: Vec<Value> = plan
+        .join_plans
+        .iter()
+        .map(|run| {
+            json!({
+                "channels": block_vector(&run.channels),
+                "acceptStartHz": run.accept_start_hz,
+                "acceptStepHz": run.accept_step_hz,
+                "rx2StartHz": run.rx2_start_hz,
+                "rx2StepHz": run.rx2_step_hz,
+                "plan": Cn470Plan::all()
+                    .iter()
+                    .position(|named| std::ptr::eq(named.plan(), run.plan))
+                    .map(|index| CN470_PLAN_NAMES[index]),
+            })
+        })
+        .collect();
+
+    let join_places: Vec<Value> = [0u16, 7, 9, 19, 20]
+        .into_iter()
+        .map(|join_channel| {
+            json!({
+                "joinChannel": join_channel,
+                "place": plan.join_plan(join_channel).map(|(run, offset)| {
+                    let index = plan
+                        .join_plans
+                        .iter()
+                        .position(|candidate| candidate.channels == run.channels)
+                        .expect("the run is one of the plan's");
+                    json!({
+                        "index": index,
+                        "offset": offset,
+                        "acceptHz": run.accept_hz(offset),
+                        "rx2Hz": run.rx2_hz(offset),
+                    })
+                }),
+            })
+        })
+        .collect();
+
+    json!({
+        "kind": kind,
+        "channelList": channel_list,
+        "txParamSetup": plan.tx_param_setup,
+        "joinSequence": match plan.join_sequence {
+            JoinSequence::Random => "random",
+            JoinSequence::OctetPasses => "octet_passes",
+        },
+        "powerReference": power_reference,
+        "gainAllowanceDb": gain_allowance_db,
+        "maskControls": plan
+            .mask_controls
+            .iter()
+            .map(|control| mask_control_vector(*control))
+            .collect::<Vec<_>>(),
+        "downlinkChannelBlocks": plan.downlink_channels.iter().map(block_vector).collect::<Vec<_>>(),
+        "downlinkChannelFrequencies": downlink_frequencies,
+        "downlinkChannelPastEnd": plan.downlink_channel_frequency_hz(downlink_count),
+        "rx1Frequencies": rx1,
+        "joinPlans": join_plans,
+        "joinPlaces": join_places,
     })
 }
 
@@ -1325,9 +1473,76 @@ fn lora_regions() -> Value {
         .build()
         .expect("a consistent private plan");
 
+    let cn470: Vec<Value> = Cn470Plan::all()
+        .iter()
+        .zip(CN470_PLAN_NAMES)
+        .map(|(plan, name)| {
+            let mut described = plan_vector(plan.plan());
+            described["code"] = json!(name);
+            described
+        })
+        .collect();
+
+    // A private fixed plan in the manner of the 900 MHz ones: numbered uplink channels in
+    // two blocks, four downlink channels the first receive window cycles through, masks
+    // switched by group, joins in octet passes, and a conducted power ceiling.
+    let custom_fixed = ChannelPlanBuilder::new("private-fixed")
+        .uplink_data_rate(Some(DataRate::lora(10, 125_000, 980)))
+        .uplink_data_rate(Some(DataRate::lora(8, 500_000, 12_500)))
+        .max_payload(
+            pamoja_lora::region::PayloadTable::UplinkRepeater,
+            Some(MaxPayload::new(19, 11)),
+        )
+        .max_payload(
+            pamoja_lora::region::PayloadTable::UplinkRepeater,
+            Some(MaxPayload::new(230, 222)),
+        )
+        .max_payload(
+            pamoja_lora::region::PayloadTable::UplinkDirect,
+            Some(MaxPayload::new(19, 11)),
+        )
+        .max_payload(
+            pamoja_lora::region::PayloadTable::UplinkDirect,
+            Some(MaxPayload::new(230, 222)),
+        )
+        .default_channel(ChannelBlock::new(902_300_000, 200_000, 16, 0, 0))
+        .default_channel(ChannelBlock::new(903_000_000, 1_600_000, 2, 1, 1))
+        .downlink_channel(ChannelBlock::new(923_300_000, 600_000, 4, 1, 1))
+        .sub_band(SubBand::new(902_000_000, 928_000_000, 1000, 30))
+        .power(30, 2, 10)
+        .rx(923_300_000, 1, 0)
+        .rx1_row(&[1])
+        .rx1_row(&[1])
+        .kind(PlanKind::Fixed)
+        .tx_param_setup(false)
+        .mask_controls([
+            MaskControl::Group(0),
+            MaskControl::Group(1),
+            MaskControl::Reserved,
+            MaskControl::Reserved,
+            MaskControl::Reserved,
+            MaskControl::Reserved,
+            MaskControl::All {
+                on: true,
+                then_group: Some(1),
+            },
+            MaskControl::All {
+                on: false,
+                then_group: Some(1),
+            },
+        ])
+        .join_sequence(JoinSequence::OctetPasses)
+        .power_reference(PowerReference::Conducted {
+            gain_allowance_db: 6,
+        })
+        .build()
+        .expect("a consistent private fixed plan");
+
     json!({
         "published": published,
+        "cn470": cn470,
         "custom": custom.with_plan(plan_vector),
+        "customFixed": custom_fixed.with_plan(plan_vector),
     })
 }
 

@@ -40,13 +40,23 @@ import {
   LoraPlanBuilder,
   type LoraBeacon,
   type LoraChannelBlock,
+  type LoraChannelList as NativeLoraChannelList,
   type LoraChannelSet as NativeLoraChannelSet,
+  type LoraCn470Plan as NativeLoraCn470Plan,
   type LoraDataRate,
   type LoraDirection as NativeLoraDirection,
+  type LoraJoinPlan,
+  type LoraJoinPlanPlace,
+  type LoraJoinSequence as NativeLoraJoinSequence,
+  type LoraMaskControl,
+  type LoraMaskControlKind as NativeLoraMaskControlKind,
   type LoraMaxPayload,
   type LoraModulation as NativeLoraModulation,
   type LoraPayloadTable as NativeLoraPayloadTable,
   type LoraPlanInfo,
+  type LoraPlanKind as NativeLoraPlanKind,
+  type LoraPlanRules,
+  type LoraPowerReference as NativeLoraPowerReference,
   type LoraRegion as NativeLoraRegion,
   type LoraRx2,
   type LoraSubBand,
@@ -60,8 +70,12 @@ export {
   type LoraBeacon,
   type LoraChannelBlock,
   type LoraDataRate,
+  type LoraJoinPlan,
+  type LoraJoinPlanPlace,
+  type LoraMaskControl,
   type LoraMaxPayload,
   type LoraPlanInfo,
+  type LoraPlanRules,
   type LoraRx2,
   type LoraSubBand,
 }
@@ -132,10 +146,96 @@ export const LoraChannelSet = {
   Join: 'Join' as NativeLoraChannelSet,
   /** The channels a device starts with before a network adds any. */
   Default: 'Default' as NativeLoraChannelSet,
+  /** The numbered downlink channels a fixed plan answers the first receive window on. */
+  Downlink: 'Downlink' as NativeLoraChannelSet,
 } as const
 
 /** One of the {@link LoraChannelSet} values. */
 export type LoraChannelSet = NativeLoraChannelSet
+
+/**
+ * One of the CN470-510 channel plans.
+ *
+ * RP002-1.0.5 divides the band into four plans, for 20 MHz and 26 MHz antennas,
+ * each with a type A and B. A device joining over the air uses the twenty common
+ * join channels they share and moves to the plan its join channel names.
+ */
+export const LoraCn470Plan = {
+  /** A 20 MHz antenna, type A, the plan {@link LoraRegion.Cn470} names. */
+  Antenna20MhzA: 'Antenna20MhzA' as NativeLoraCn470Plan,
+  /** A 20 MHz antenna, type B. */
+  Antenna20MhzB: 'Antenna20MhzB' as NativeLoraCn470Plan,
+  /** A 26 MHz antenna, type A. */
+  Antenna26MhzA: 'Antenna26MhzA' as NativeLoraCn470Plan,
+  /** A 26 MHz antenna, type B. */
+  Antenna26MhzB: 'Antenna26MhzB' as NativeLoraCn470Plan,
+  /** The 96-channel plan of the LoRaWAN 1.0.3 Regional Parameters revision A. */
+  Channels96: 'Channels96' as NativeLoraCn470Plan,
+} as const
+
+/** One of the {@link LoraCn470Plan} values. */
+export type LoraCn470Plan = NativeLoraCn470Plan
+
+/** Whether a plan's network creates channels or only switches numbered ones. */
+export const LoraPlanKind = {
+  /** The network creates channels and moves them, as in Europe. */
+  Dynamic: 'Dynamic' as NativeLoraPlanKind,
+  /** The channels are numbered in advance and only enabled or disabled, as in North America. */
+  Fixed: 'Fixed' as NativeLoraPlanKind,
+} as const
+
+/** One of the {@link LoraPlanKind} values. */
+export type LoraPlanKind = NativeLoraPlanKind
+
+/** The numbering a dynamic plan reads a type 1 channel list against. */
+export const LoraChannelList = {
+  /** The 800 MHz numbering of RP002-1.0.5 section 3.3.1.1. */
+  Mhz800: 'Mhz800' as NativeLoraChannelList,
+  /** The 900 MHz numbering of RP002-1.0.5 section 3.3.1.2. */
+  Mhz900: 'Mhz900' as NativeLoraChannelList,
+} as const
+
+/** One of the {@link LoraChannelList} values. */
+export type LoraChannelList = NativeLoraChannelList
+
+/** The order a device tries the join channels in. */
+export const LoraJoinSequence = {
+  /** A join channel at random, stepping the data rate down across attempts. */
+  Random: 'Random' as NativeLoraJoinSequence,
+  /** Eight 125 kHz channels from successive groups, then a 500 kHz one, none repeated until all have gone out. */
+  OctetPasses: 'OctetPasses' as NativeLoraJoinSequence,
+} as const
+
+/** One of the {@link LoraJoinSequence} values. */
+export type LoraJoinSequence = NativeLoraJoinSequence
+
+/** What a plan's transmit power indexes count down from. */
+export const LoraPowerReference = {
+  /** A radiated ceiling. */
+  Eirp: 'Eirp' as NativeLoraPowerReference,
+  /** A conducted ceiling, with an allowance for antenna gain. */
+  Conducted: 'Conducted' as NativeLoraPowerReference,
+} as const
+
+/** One of the {@link LoraPowerReference} values. */
+export type LoraPowerReference = NativeLoraPowerReference
+
+/** What one `ChMaskCntl` value of a `LinkADRReq` does. */
+export const LoraMaskControlKind = {
+  /** The mask sets one group of sixteen channels. */
+  Group: 'Group' as NativeLoraMaskControlKind,
+  /** The ten low bits switch banks of eight channels. */
+  Banks: 'Banks' as NativeLoraMaskControlKind,
+  /** The eight low bits switch banks of eight with their 500 kHz channel. */
+  PairedBanks: 'PairedBanks' as NativeLoraMaskControlKind,
+  /** Every channel turns on or off, then the mask may set a group. */
+  All: 'All' as NativeLoraMaskControlKind,
+  /** The value is reserved. */
+  Reserved: 'Reserved' as NativeLoraMaskControlKind,
+} as const
+
+/** One of the {@link LoraMaskControlKind} values. */
+export type LoraMaskControlKind = NativeLoraMaskControlKind
 
 /** How a data rate is carried on the air. */
 export const LoraModulation = {
@@ -257,6 +357,24 @@ export function messagesPerHour(
  */
 export function planFor(region: LoraRegion): LoraChannelPlan {
   return LoraChannelPlan.forRegion(region)
+}
+
+/**
+ * Returns one of the CN470-510 channel plans.
+ *
+ * @param plan - The plan to describe.
+ * @returns The plan, which also carries the runs of join channels that select each
+ *   of the others.
+ *
+ * @example
+ * ```ts
+ * const plan = cn470Plan(LoraCn470Plan.Antenna26MhzA)
+ * const place = plan.joinPlanForChannel(9)
+ * const selects = place && plan.joinPlan(place.index)?.plan
+ * ```
+ */
+export function cn470Plan(plan: LoraCn470Plan): LoraChannelPlan {
+  return LoraChannelPlan.forCn470(plan)
 }
 
 /**

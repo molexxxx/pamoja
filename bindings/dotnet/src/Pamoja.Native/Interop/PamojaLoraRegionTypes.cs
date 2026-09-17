@@ -169,3 +169,84 @@ public struct PamojaLoraPlanInfo
     /// <summary><c>1</c> if the plan publishes a second RX1 mapping for a dwell-limited downlink.</summary>
     public byte HasDwellLimitedRx1;
 }
+
+/// <summary>
+/// How a plan defines and uses its channels, mirroring <c>PamojaLoraPlanRules</c> in
+/// <c>pamoja.h</c>.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct PamojaLoraPlanRules
+{
+    /// <summary>One of the <c>PAMOJA_LORA_PLAN_KIND_*</c> constants.</summary>
+    public byte Kind;
+
+    /// <summary>For a dynamic plan, one of the <c>PAMOJA_LORA_CHANNEL_LIST_*</c> constants.</summary>
+    public byte ChannelList;
+
+    /// <summary><c>1</c> if devices on the plan answer <c>TXParamSetupReq</c>.</summary>
+    public byte TxParamSetup;
+
+    /// <summary>One of the <c>PAMOJA_LORA_JOIN_*</c> constants.</summary>
+    public byte JoinSequence;
+
+    /// <summary>One of the <c>PAMOJA_LORA_POWER_*</c> constants.</summary>
+    public byte PowerReference;
+
+    /// <summary>For a conducted ceiling, the antenna gain it already allows for, in dB.</summary>
+    public byte GainAllowanceDb;
+
+    /// <summary>How many downlink channel blocks the plan defines.</summary>
+    public ushort DownlinkChannelBlockCount;
+
+    /// <summary>How many runs of join channels select a plan.</summary>
+    public ushort JoinPlanCount;
+}
+
+/// <summary>
+/// What one <c>ChMaskCntl</c> value does, mirroring <c>PamojaLoraMaskControl</c> in
+/// <c>pamoja.h</c>.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct PamojaLoraMaskControl
+{
+    /// <summary>One of the <c>PAMOJA_LORA_MASK_*</c> constants.</summary>
+    public byte Kind;
+
+    /// <summary>For a group control, the group the mask sets.</summary>
+    public byte Group;
+
+    /// <summary>For an all-channels control, <c>1</c> to turn every channel on.</summary>
+    public byte On;
+
+    /// <summary>For an all-channels control, <c>1</c> if the mask then sets a group.</summary>
+    public byte HasThenGroup;
+
+    /// <summary>The group the mask then sets.</summary>
+    public byte ThenGroup;
+}
+
+/// <summary>
+/// A run of join channels that puts a device on a plan, mirroring
+/// <c>PamojaLoraJoinPlan</c> in <c>pamoja.h</c>.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct PamojaLoraJoinPlan
+{
+    /// <summary>The join channels and the data rates a request may use on them.</summary>
+    public PamojaLoraChannelBlock Channels;
+
+    /// <summary>Where the accept answering the first channel arrives, in hertz.</summary>
+    public uint AcceptStartHz;
+
+    /// <summary>How far the accept frequency moves for each next channel, in hertz.</summary>
+    public uint AcceptStepHz;
+
+    /// <summary>The second receive window's frequency after joining on the first channel.</summary>
+    public uint Rx2StartHz;
+
+    /// <summary>How far that frequency moves for each next channel, in hertz.</summary>
+    public uint Rx2StepHz;
+
+    /// <summary>One of the <c>PAMOJA_LORA_CN470_*</c> constants.</summary>
+    public uint Cn470Plan;
+}

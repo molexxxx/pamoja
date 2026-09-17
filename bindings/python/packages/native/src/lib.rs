@@ -524,6 +524,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<lora_region::LoraSubBand>()?;
         m.add_class::<lora_region::LoraBeacon>()?;
         m.add_class::<lora_region::LoraPlanInfo>()?;
+        m.add_class::<lora_region::LoraPlanRules>()?;
+        m.add_class::<lora_region::LoraMaskControl>()?;
+        m.add_class::<lora_region::LoraJoinPlan>()?;
+        m.add_class::<lora_region::LoraJoinPlanPlace>()?;
     }
     #[cfg(feature = "mesh")]
     {
