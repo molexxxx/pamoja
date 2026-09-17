@@ -62,6 +62,17 @@ impl Cipher {
         self.encrypt_block(&x)
     }
 
+    // Starts a CMAC that takes its message a piece at a time, for a message too large to
+    // sit in one buffer, such as a firmware image reassembled fragment by fragment.
+    pub(crate) fn cmac_stream(&self) -> CmacStream<'_> {
+        CmacStream {
+            cipher: self,
+            x: [0u8; 16],
+            held: [0u8; 16],
+            held_len: 0,
+        }
+    }
+
     // Decrypts one 16-byte block. The spec has a network encrypt a join-accept with AES
     // decryption so a device recovers it with AES encryption, which is why the device half
     // never needs this and the network half does.
@@ -80,6 +91,55 @@ impl Cipher {
         let k1 = double(&l);
         let k2 = double(&k1);
         (k1, k2)
+    }
+}
+
+// A CMAC over a message handed over in pieces.
+//
+// CMAC treats its last block differently from the rest, so a streaming computation cannot
+// process a block until it knows another one follows. This holds the most recent block back
+// until either more data arrives or the caller finishes.
+pub(crate) struct CmacStream<'a> {
+    cipher: &'a Cipher,
+    x: [u8; 16],
+    held: [u8; 16],
+    held_len: usize,
+}
+
+impl CmacStream<'_> {
+    // Adds a piece of the message.
+    pub(crate) fn update(&mut self, mut data: &[u8]) {
+        while !data.is_empty() {
+            let room = 16 - self.held_len;
+            let take = room.min(data.len());
+            self.held[self.held_len..self.held_len + take].copy_from_slice(&data[..take]);
+            self.held_len += take;
+            data = &data[take..];
+            // A full block is processed only once something follows it, because the last
+            // block of the message is the one that takes a subkey.
+            if self.held_len == 16 && !data.is_empty() {
+                let held = self.held;
+                xor_into(&mut self.x, &held);
+                self.x = self.cipher.encrypt_block(&self.x);
+                self.held_len = 0;
+            }
+        }
+    }
+
+    // Finishes the message and returns the full 16-byte code.
+    pub(crate) fn finish(mut self) -> [u8; 16] {
+        let (k1, k2) = self.cipher.subkeys();
+        let mut last = [0u8; 16];
+        if self.held_len == 16 {
+            last.copy_from_slice(&self.held);
+            xor_into(&mut last, &k1);
+        } else {
+            last[..self.held_len].copy_from_slice(&self.held[..self.held_len]);
+            last[self.held_len] = 0x80;
+            xor_into(&mut last, &k2);
+        }
+        xor_into(&mut self.x, &last);
+        self.cipher.encrypt_block(&self.x)
     }
 }
 
@@ -131,6 +191,34 @@ mod tests {
         0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f,
         0x3c,
     ];
+
+    #[test]
+    fn a_streamed_cmac_matches_the_one_taken_in_a_single_piece() {
+        let cipher = Cipher::new(&RFC4493_KEY);
+        let message: [u8; 70] = core::array::from_fn(|i| (i * 7 + 3) as u8);
+        // Every split lands the pieces on different block boundaries, including the one
+        // that ends exactly on a block, which decides which subkey the last block takes.
+        for cuts in [
+            &[0usize][..],
+            &[16][..],
+            &[1, 15, 16][..],
+            &[64][..],
+            &[64, 6][..],
+            &[5, 11, 32, 22][..],
+        ] {
+            let mut stream = cipher.cmac_stream();
+            let mut at = 0;
+            for cut in cuts {
+                stream.update(&message[at..at + cut]);
+                at += cut;
+            }
+            stream.update(&message[at..]);
+            assert_eq!(stream.finish(), cipher.cmac(&message), "split at {cuts:?}");
+        }
+
+        let empty = cipher.cmac_stream();
+        assert_eq!(empty.finish(), cipher.cmac(&[]), "and the empty message");
+    }
 
     #[test]
     fn cmac_of_the_empty_message_matches_rfc_4493() {

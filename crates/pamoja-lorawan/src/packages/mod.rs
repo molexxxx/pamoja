@@ -18,6 +18,9 @@
 //! - [`firmware`]: firmware management, TS006-1.0.0, on port [`firmware::PORT`]. A server
 //!   asks what a device is running, what upgrade image it holds, and schedules the reboot
 //!   that installs it.
+//! - [`fragment`]: fragmented data block transport, TS004-2.0.0, on port [`fragment::PORT`].
+//!   A block too large for one frame goes across in pieces, with coded fragments that let a
+//!   device solve for the ones it missed.
 //!
 //! These messages are unicast: a device drops them silently when they arrive on a multicast
 //! address.
@@ -26,7 +29,10 @@ use crate::LorawanError;
 
 pub mod clock;
 pub mod firmware;
+pub mod fragment;
 
+#[cfg(test)]
+mod fragment_tests;
 #[cfg(test)]
 mod tests;
 
