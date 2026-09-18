@@ -413,7 +413,9 @@ public sealed class LorawanPackageCommand
                 (nuint)(bytes.Length - at),
                 out PamojaLorawanPackageCommand flat,
                 out nuint taken);
-            if (status == PamojaStatus.InvalidArgument && read.Count == 0 && at == 0)
+            // A port that names no package is refused; a command that cannot be read is
+            // where reading stops, because nothing says how long an unknown one is.
+            if (status == PamojaStatus.InvalidArgument)
             {
                 Status.ThrowIfError(status);
             }
