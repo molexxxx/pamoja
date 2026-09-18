@@ -175,6 +175,7 @@
 
 extern crate alloc;
 
+pub mod block;
 mod cbor;
 mod error;
 mod manifest;
