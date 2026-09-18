@@ -143,7 +143,7 @@ impl Site {
         let home = Home::load(root)?;
         let consoles = fs::read_to_string(root.join("web/js/consoles.js"))
             .map_err(|err| format!("reading web/js/consoles.js: {err}"))?;
-        home.check(&lib_crates, &consoles)?;
+        home.check(&lib_crates, &consoles, &catalog)?;
         let nav = Nav::from(&catalog);
         let pages = pages::load(root, &nav)?;
         Ok(Site {
