@@ -837,15 +837,15 @@ pub fn lorawan_package_encode(command: LorawanPackageCommand) -> Result<Buffer> 
         )
     };
     let written = match command.port {
-        CLOCK_PORT => clock_in(&command).ok_or_else(unknown)?.encode(&mut out),
-        FIRMWARE_PORT => firmware_in(&command).ok_or_else(unknown)?.encode(&mut out),
+        CLOCK_PORT => clock_in(&command)?.ok_or_else(unknown)?.encode(&mut out),
+        FIRMWARE_PORT => firmware_in(&command)?.ok_or_else(unknown)?.encode(&mut out),
         FRAGMENT_PORT => {
             let data = command.data.as_ref().map(|data| data.to_vec());
-            frag_in(&command, data.as_deref().unwrap_or(&[]))
+            frag_in(&command, data.as_deref().unwrap_or(&[]))?
                 .ok_or_else(unknown)?
                 .encode(&mut out)
         }
-        MULTICAST_PORT => mc_in(&command).ok_or_else(unknown)?.encode(&mut out),
+        MULTICAST_PORT => mc_in(&command)?.ok_or_else(unknown)?.encode(&mut out),
         other => {
             return Err(Error::new(
                 Status::InvalidArg,
@@ -858,14 +858,31 @@ pub fn lorawan_package_encode(command: LorawanPackageCommand) -> Result<Buffer> 
         .map_err(refused)
 }
 
+/// Takes a field a command cannot be written without, or says which one is missing.
+fn need<T>(value: Option<T>, kind: &str, what: &str) -> Result<T> {
+    value.ok_or_else(|| Error::new(Status::InvalidArg, format!("{kind} needs {what}")))
+}
+
 /// Reads four bytes from a field that must carry exactly that many.
-fn four(bytes: &Option<Buffer>) -> Option<[u8; 4]> {
-    <[u8; 4]>::try_from(bytes.as_ref()?.as_ref()).ok()
+fn four(bytes: &Option<Buffer>, kind: &str, what: &str) -> Result<[u8; 4]> {
+    let bytes = need(bytes.as_ref(), kind, what)?;
+    <[u8; 4]>::try_from(bytes.as_ref()).map_err(|_| {
+        Error::new(
+            Status::InvalidArg,
+            format!("{what} must be four bytes, not {}", bytes.len()),
+        )
+    })
 }
 
 /// Reads sixteen bytes from a field that must carry exactly that many.
-fn sixteen(bytes: &Option<Buffer>) -> Option<[u8; 16]> {
-    <[u8; 16]>::try_from(bytes.as_ref()?.as_ref()).ok()
+fn sixteen(bytes: &Option<Buffer>, kind: &str, what: &str) -> Result<[u8; 16]> {
+    let bytes = need(bytes.as_ref(), kind, what)?;
+    <[u8; 16]>::try_from(bytes.as_ref()).map_err(|_| {
+        Error::new(
+            Status::InvalidArg,
+            format!("{what} must be sixteen bytes, not {}", bytes.len()),
+        )
+    })
 }
 
 /// Describes a clock synchronization command the way JavaScript holds it.
@@ -932,34 +949,34 @@ fn clock_out(command: ClockCommand) -> LorawanPackageCommand {
 }
 
 /// Reads a clock synchronization command out of the record JavaScript holds.
-fn clock_in(flat: &LorawanPackageCommand) -> Option<ClockCommand> {
-    Some(match flat.kind.as_str() {
+fn clock_in(flat: &LorawanPackageCommand) -> Result<Option<ClockCommand>> {
+    Ok(Some(match flat.kind.as_str() {
         "packageVersionReq" => ClockCommand::PackageVersionReq,
         "packageVersionAns" => ClockCommand::PackageVersionAns(PackageVersion {
-            package: flat.package?,
-            version: flat.version?,
+            package: need(flat.package, &flat.kind, "package")?,
+            version: need(flat.version, &flat.kind, "version")?,
         }),
         "appTimeReq" => ClockCommand::AppTimeReq {
-            device_time: flat.device_time?,
+            device_time: need(flat.device_time, &flat.kind, "deviceTime")?,
             ans_required: flat.ans_required.unwrap_or(false),
             token: flat.token.unwrap_or(0),
         },
         "appTimeAns" => ClockCommand::AppTimeAns {
-            time_correction: flat.time_correction?,
+            time_correction: need(flat.time_correction, &flat.kind, "timeCorrection")?,
             token: flat.token.unwrap_or(0),
         },
         "deviceAppTimePeriodicityReq" => ClockCommand::DeviceAppTimePeriodicityReq {
-            period: flat.period?,
+            period: need(flat.period, &flat.kind, "period")?,
         },
         "deviceAppTimePeriodicityAns" => ClockCommand::DeviceAppTimePeriodicityAns {
             not_supported: flat.not_supported.unwrap_or(false),
-            device_time: flat.device_time?,
+            device_time: need(flat.device_time, &flat.kind, "deviceTime")?,
         },
         "forceDeviceResyncCmd" => ClockCommand::ForceDeviceResyncCmd {
-            transmissions: flat.transmissions?,
+            transmissions: need(flat.transmissions, &flat.kind, "transmissions")?,
         },
-        _ => return None,
-    })
+        _ => return Ok(None),
+    }))
 }
 
 /// Describes a firmware management command the way JavaScript holds it.
@@ -1013,44 +1030,44 @@ fn firmware_out(command: FirmwareCommand) -> LorawanPackageCommand {
 }
 
 /// Reads a firmware management command out of the record JavaScript holds.
-fn firmware_in(flat: &LorawanPackageCommand) -> Option<FirmwareCommand> {
-    Some(match flat.kind.as_str() {
+fn firmware_in(flat: &LorawanPackageCommand) -> Result<Option<FirmwareCommand>> {
+    Ok(Some(match flat.kind.as_str() {
         "packageVersionReq" => FirmwareCommand::PackageVersionReq,
         "packageVersionAns" => FirmwareCommand::PackageVersionAns(PackageVersion {
-            package: flat.package?,
-            version: flat.version?,
+            package: need(flat.package, &flat.kind, "package")?,
+            version: need(flat.version, &flat.kind, "version")?,
         }),
         "devVersionReq" => FirmwareCommand::DevVersionReq,
         "devVersionAns" => FirmwareCommand::DevVersionAns {
-            firmware: flat.firmware?,
-            hardware: flat.hardware?,
+            firmware: need(flat.firmware, &flat.kind, "firmware")?,
+            hardware: need(flat.hardware, &flat.kind, "hardware")?,
         },
         "devRebootTimeReq" => FirmwareCommand::DevRebootTimeReq {
-            reboot_time: flat.reboot?,
+            reboot_time: need(flat.reboot, &flat.kind, "reboot")?,
         },
         "devRebootTimeAns" => FirmwareCommand::DevRebootTimeAns {
-            reboot_time: flat.reboot?,
+            reboot_time: need(flat.reboot, &flat.kind, "reboot")?,
         },
         "devRebootCountdownReq" => FirmwareCommand::DevRebootCountdownReq {
-            countdown: flat.reboot?,
+            countdown: need(flat.reboot, &flat.kind, "reboot")?,
         },
         "devRebootCountdownAns" => FirmwareCommand::DevRebootCountdownAns {
-            countdown: flat.reboot?,
+            countdown: need(flat.reboot, &flat.kind, "reboot")?,
         },
         "devUpgradeImageReq" => FirmwareCommand::DevUpgradeImageReq,
         "devUpgradeImageAns" => FirmwareCommand::DevUpgradeImageAns {
-            status: image_in(flat.image_status.as_ref()?),
+            status: image_in(need(flat.image_status.as_ref(), &flat.kind, "imageStatus")?),
             next_version: flat.next_version,
         },
         "devDeleteImageReq" => FirmwareCommand::DevDeleteImageReq {
-            version: flat.delete_version?,
+            version: need(flat.delete_version, &flat.kind, "deleteVersion")?,
         },
         "devDeleteImageAns" => FirmwareCommand::DevDeleteImageAns(DeleteStatus {
             no_valid_image: flat.no_valid_image.unwrap_or(false),
             invalid_version: flat.invalid_version.unwrap_or(false),
         }),
-        _ => return None,
-    })
+        _ => return Ok(None),
+    }))
 }
 
 /// Describes a fragmentation command the way JavaScript holds it.
@@ -1163,37 +1180,37 @@ fn frag_out(command: FragCommand<'_>) -> LorawanPackageCommand {
 }
 
 /// Reads a fragmentation command out of the record JavaScript holds.
-fn frag_in<'a>(flat: &LorawanPackageCommand, data: &'a [u8]) -> Option<FragCommand<'a>> {
-    Some(match flat.kind.as_str() {
+fn frag_in<'a>(flat: &LorawanPackageCommand, data: &'a [u8]) -> Result<Option<FragCommand<'a>>> {
+    Ok(Some(match flat.kind.as_str() {
         "packageVersionReq" => FragCommand::PackageVersionReq,
         "packageVersionAns" => FragCommand::PackageVersionAns(PackageVersion {
-            package: flat.package?,
-            version: flat.version?,
+            package: need(flat.package, &flat.kind, "package")?,
+            version: need(flat.version, &flat.kind, "version")?,
         }),
         "fragSessionStatusReq" => FragCommand::FragSessionStatusReq {
-            frag_index: flat.frag_index?,
+            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
             all_participants: flat.all_participants.unwrap_or(false),
         },
         "fragSessionStatusAns" => FragCommand::FragSessionStatusAns {
-            frag_index: flat.frag_index?,
-            received: flat.received?,
+            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
+            received: need(flat.received, &flat.kind, "received")?,
             missing: flat.missing.unwrap_or(0),
             mic_error: flat.mic_error.unwrap_or(false),
             memory_error: flat.memory_error.unwrap_or(false),
             no_session: flat.no_session.unwrap_or(false),
         },
         "fragSessionSetupReq" => FragCommand::FragSessionSetupReq {
-            frag_index: flat.frag_index?,
+            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
             mc_group_bit_mask: flat.mc_group_bit_mask.unwrap_or(0),
-            nb_frag: flat.nb_frag?,
-            frag_size: flat.frag_size?,
+            nb_frag: need(flat.nb_frag, &flat.kind, "nbFrag")?,
+            frag_size: need(flat.frag_size, &flat.kind, "fragSize")?,
             ack_reception: flat.ack_reception.unwrap_or(false),
             frag_algo: flat.frag_algo.unwrap_or(0),
             block_ack_delay: flat.block_ack_delay.unwrap_or(0),
             padding: flat.padding.unwrap_or(0),
-            descriptor: four(&flat.descriptor)?,
+            descriptor: four(&flat.descriptor, &flat.kind, "descriptor")?,
             session_cnt: flat.session_cnt.unwrap_or(0),
-            mic: four(&flat.mic)?,
+            mic: four(&flat.mic, &flat.kind, "mic")?,
         },
         "fragSessionSetupAns" => FragCommand::FragSessionSetupAns(SetupStatus {
             unsupported_algorithm: flat.unsupported_algorithm.unwrap_or(false),
@@ -1201,29 +1218,29 @@ fn frag_in<'a>(flat: &LorawanPackageCommand, data: &'a [u8]) -> Option<FragComma
             unsupported_index: flat.unsupported_index.unwrap_or(false),
             wrong_descriptor: flat.wrong_descriptor.unwrap_or(false),
             session_replay: flat.session_replay.unwrap_or(false),
-            frag_index: flat.frag_index?,
+            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
         }),
         "fragSessionDeleteReq" => FragCommand::FragSessionDeleteReq {
-            frag_index: flat.frag_index?,
+            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
         },
         "fragSessionDeleteAns" => FragCommand::FragSessionDeleteAns {
-            frag_index: flat.frag_index?,
+            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
             no_session: flat.no_session.unwrap_or(false),
         },
         "fragDataBlockReceivedReq" => FragCommand::FragDataBlockReceivedReq {
-            frag_index: flat.frag_index?,
+            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
             mic_error: flat.mic_error.unwrap_or(false),
         },
         "fragDataBlockReceivedAns" => FragCommand::FragDataBlockReceivedAns {
-            frag_index: flat.frag_index?,
+            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
         },
         "dataFragment" => FragCommand::DataFragment {
-            frag_index: flat.frag_index?,
-            n: flat.fragment_n?,
+            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
+            n: need(flat.fragment_n, &flat.kind, "fragmentN")?,
             data,
         },
-        _ => return None,
-    })
+        _ => return Ok(None),
+    }))
 }
 
 /// Describes a multicast setup command the way JavaScript holds it.
@@ -1342,7 +1359,7 @@ fn mc_out(command: McCommand) -> LorawanPackageCommand {
 }
 
 /// Reads a multicast setup command out of the record JavaScript holds.
-fn mc_in(flat: &LorawanPackageCommand) -> Option<McCommand> {
+fn mc_in(flat: &LorawanPackageCommand) -> Result<Option<McCommand>> {
     let status = SessionStatus {
         mc_group_id: flat.mc_group_id.unwrap_or(0),
         dr_error: flat.dr_error.unwrap_or(false),
@@ -1350,46 +1367,46 @@ fn mc_in(flat: &LorawanPackageCommand) -> Option<McCommand> {
         group_undefined: flat.no_session.unwrap_or(false),
         start_missed: flat.start_missed.unwrap_or(false),
     };
-    Some(match flat.kind.as_str() {
+    Ok(Some(match flat.kind.as_str() {
         "packageVersionReq" => McCommand::PackageVersionReq,
         "packageVersionAns" => McCommand::PackageVersionAns(PackageVersion {
-            package: flat.package?,
-            version: flat.version?,
+            package: need(flat.package, &flat.kind, "package")?,
+            version: need(flat.version, &flat.kind, "version")?,
         }),
         "mcGroupStatusReq" => McCommand::McGroupStatusReq {
-            req_group_mask: flat.group_mask?,
+            req_group_mask: need(flat.group_mask, &flat.kind, "groupMask")?,
         },
         "mcGroupStatusAns" => McCommand::McGroupStatusAns {
-            ans_group_mask: flat.group_mask?,
+            ans_group_mask: need(flat.group_mask, &flat.kind, "groupMask")?,
             nb_total_groups: flat.nb_total_groups.unwrap_or(0),
         },
         "mcGroupStatusItem" => McCommand::McGroupStatusItem {
-            mc_group_id: flat.mc_group_id?,
-            mc_addr: flat.mc_addr?,
+            mc_group_id: need(flat.mc_group_id, &flat.kind, "mcGroupId")?,
+            mc_addr: need(flat.mc_addr, &flat.kind, "mcAddr")?,
         },
         "mcGroupSetupReq" => McCommand::McGroupSetupReq {
-            mc_group_id: flat.mc_group_id?,
-            mc_addr: flat.mc_addr?,
-            mc_key_encrypted: sixteen(&flat.mc_key_encrypted)?,
+            mc_group_id: need(flat.mc_group_id, &flat.kind, "mcGroupId")?,
+            mc_addr: need(flat.mc_addr, &flat.kind, "mcAddr")?,
+            mc_key_encrypted: sixteen(&flat.mc_key_encrypted, &flat.kind, "mcKeyEncrypted")?,
             min_mc_fcnt: flat.min_mc_fcnt.unwrap_or(0),
             max_mc_fcnt: flat.max_mc_fcnt.unwrap_or(0),
         },
         "mcGroupSetupAns" => McCommand::McGroupSetupAns {
-            mc_group_id: flat.mc_group_id?,
+            mc_group_id: need(flat.mc_group_id, &flat.kind, "mcGroupId")?,
             id_error: flat.id_error.unwrap_or(false),
         },
         "mcGroupDeleteReq" => McCommand::McGroupDeleteReq {
-            mc_group_id: flat.mc_group_id?,
+            mc_group_id: need(flat.mc_group_id, &flat.kind, "mcGroupId")?,
         },
         "mcGroupDeleteAns" => McCommand::McGroupDeleteAns {
-            mc_group_id: flat.mc_group_id?,
+            mc_group_id: need(flat.mc_group_id, &flat.kind, "mcGroupId")?,
             group_undefined: flat.no_session.unwrap_or(false),
         },
         "mcClassCSessionReq" => McCommand::McClassCSessionReq {
-            mc_group_id: flat.mc_group_id?,
-            session_time: flat.session_time?,
+            mc_group_id: need(flat.mc_group_id, &flat.kind, "mcGroupId")?,
+            session_time: need(flat.session_time, &flat.kind, "sessionTime")?,
             time_out: flat.time_out.unwrap_or(0),
-            dl_frequency_hz: flat.dl_frequency_hz?,
+            dl_frequency_hz: need(flat.dl_frequency_hz, &flat.kind, "dlFrequencyHz")?,
             data_rate: flat.data_rate.unwrap_or(0),
         },
         "mcClassCSessionAns" => McCommand::McClassCSessionAns {
@@ -1397,17 +1414,17 @@ fn mc_in(flat: &LorawanPackageCommand) -> Option<McCommand> {
             time_to_start: flat.time_to_start,
         },
         "mcClassBSessionReq" => McCommand::McClassBSessionReq {
-            mc_group_id: flat.mc_group_id?,
-            session_time: flat.session_time?,
+            mc_group_id: need(flat.mc_group_id, &flat.kind, "mcGroupId")?,
+            session_time: need(flat.session_time, &flat.kind, "sessionTime")?,
             time_out: flat.time_out.unwrap_or(0),
             periodicity: flat.periodicity.unwrap_or(0),
-            dl_frequency_hz: flat.dl_frequency_hz?,
+            dl_frequency_hz: need(flat.dl_frequency_hz, &flat.kind, "dlFrequencyHz")?,
             data_rate: flat.data_rate.unwrap_or(0),
         },
         "mcClassBSessionAns" => McCommand::McClassBSessionAns {
             status,
             time_to_start: flat.time_to_start,
         },
-        _ => return None,
-    })
+        _ => return Ok(None),
+    }))
 }
