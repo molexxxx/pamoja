@@ -9,6 +9,20 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- Fragmented data block transport, TS004-2.0.0, in `pamoja_lorawan::packages::fragment`:
+  the way a firmware image crosses a link that carries a couple of hundred bytes at a
+  time. A block is cut into fragments and followed by coded ones, each the
+  exclusive-or of a pseudo-random half of the originals, so a device that missed
+  some solves for them from whatever else arrives. `Fragmenter` produces any
+  fragment of a session, `Defragmenter` puts a block back together in storage the
+  caller provides and never allocates, and the session setup, status, delete and
+  acknowledgment commands travel on port 201. The block's integrity code is taken
+  over the image a piece at a time, so a device checks one it never holds twice.
+  The coded fragments are seeded by the index among the coded fragments, which is
+  what Semtech's LoRa Basics Modem and ChirpStack both do and what the two have to
+  agree on; the specification's appendix reads as though the whole-session index
+  were the seed. Tests use ChirpStack's own command bytes and an independent
+  rendering of the matrix.
 - The two LoRaWAN application layer packages a firmware update rests on, in
   `pamoja_lorawan::packages`: clock synchronization, TS003-2.0.0 on port 202, and
   firmware management, TS006-1.0.0 on port 203. A device asks what time it is and
