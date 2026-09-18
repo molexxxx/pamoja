@@ -1,6 +1,7 @@
 """The LoRaWAN gateway guide example; see docs/guides/gateway.md."""
 
 # ANCHOR: example
+from pamoja.core import version
 from pamoja.gateway import Packet, PacketKind, Rxpk, Txpk, TxStatus, acknowledgment, encode, parse
 from pamoja.lora import link
 
@@ -155,7 +156,7 @@ print(f"open      {answer.uri}")
 
 # A station opens with what it is, which is how the server knows what it can do.
 hello = station_parse(
-    '{"msgtype":"version","station":"pamoja","firmware":"0.1.18",'
+    f'{{"msgtype":"version","station":"pamoja","firmware":"{version()}",'
     '"package":"pamoja-gateway","model":"linux",'
     f'"protocol":{STATION_PROTOCOL_VERSION},"features":"gps"}}'
 )

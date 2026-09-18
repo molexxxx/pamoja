@@ -18,6 +18,11 @@ const CRATE_PREFIX: &str = "pamoja-";
 /// The loader napi-rs generates carries the version it was built for in two
 /// places per platform package: the comparison and the mismatch message. The
 /// text on either side of the version at each.
+/// The prose that names the released version: the release runbook, which reads as a
+/// sequence to copy, and the version a bug report is asked for. Neither is generated, so
+/// both went stale until the bump rewrote them.
+const PROSE_SITES: [&str; 2] = ["docs/about/releasing.md", ".github/ISSUE_TEMPLATE/bug.yml"];
+
 const LOADER_SITES: [(&str, &str); 2] = [
     ("bindingPackageVersion !== '", "'"),
     ("expected ", " but got"),
@@ -184,6 +189,13 @@ fn bump(new: &str) -> Result<(), String> {
         }
     }
 
+    let old = current()?;
+    for site in PROSE_SITES {
+        let path = root.join(site);
+        let text = read(&path)?;
+        write(&path, &text.replace(&old, new))?;
+    }
+
     for lockfile in cargo_lockfiles(&root) {
         let manifest = lockfile.with_file_name("Cargo.toml");
         println!("xtask version: refreshing {}", display(&lockfile));
@@ -347,7 +359,49 @@ fn readings() -> Result<Vec<Reading>, String> {
         }
     }
 
+    for site in PROSE_SITES {
+        let path = root.join(site);
+        let text = read(&path)?;
+        let named = versions_in(&text);
+        if named.is_empty() {
+            return Err(format!("{} names no version", display(&path)));
+        }
+        for version in named {
+            readings.push(reading(&path, "the version it names", &version));
+        }
+    }
+
     Ok(readings)
+}
+
+/// Every `x.y.z` in a piece of prose, each once.
+fn versions_in(text: &str) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    let bytes: Vec<char> = text.chars().collect();
+    let mut at = 0;
+    while at < bytes.len() {
+        if !bytes[at].is_ascii_digit() || (at > 0 && is_version_char(bytes[at - 1])) {
+            at += 1;
+            continue;
+        }
+        let start = at;
+        while at < bytes.len() && is_version_char(bytes[at]) {
+            at += 1;
+        }
+        let word: String = bytes[start..at].iter().collect();
+        let parts: Vec<&str> = word.split('.').collect();
+        if parts.len() == 3 && parts.iter().all(|part| !part.is_empty()) {
+            found.push(word);
+        }
+    }
+    found.sort();
+    found.dedup();
+    found
+}
+
+/// Whether a character can sit inside a version, for `versions_in`.
+fn is_version_char(c: char) -> bool {
+    c.is_ascii_digit() || c == '.'
 }
 
 /// Record the pinned version of every workspace dependency in one table.

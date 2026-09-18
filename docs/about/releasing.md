@@ -1,7 +1,7 @@
 # Releasing
 
 Every crate, package, and binding shares one version and goes out together, so
-`0.1.15` of any one of them wraps `0.1.15` of every other. A release is a tag on
+`0.1.18` of any one of them wraps `0.1.18` of every other. A release is a tag on
 main; everything after that is automatic.
 
 ## Why a publish gets checked first
@@ -25,10 +25,10 @@ into a failed job:
 ## Cutting one
 
 ```sh
-git switch -c release/0.1.15
-cargo xtask version 0.1.15          # every manifest, lockfile, and loader
+git switch -c release/0.1.18
+cargo xtask version 0.1.18          # every manifest, lockfile, and loader
 # write the version's entry in CHANGELOG.md
-cargo run -p xtask -- version --check 0.1.15
+cargo run -p xtask -- version --check 0.1.18
 cargo run -p xtask -- docs --check
 cargo xtask release --dry-run       # resolves every crate against its siblings
 ```
@@ -38,8 +38,8 @@ Open that as a pull request labeled `release`, merge it when green, and wait for
 commit. Then tag it:
 
 ```sh
-git tag -a v0.1.15 -m "pamoja 0.1.15" <merge sha>
-git push origin v0.1.15
+git tag -a v0.1.18 -m "pamoja 0.1.18" <merge sha>
+git push origin v0.1.18
 ```
 
 The tag starts five workflows. `release-github` publishes the notes, and the
