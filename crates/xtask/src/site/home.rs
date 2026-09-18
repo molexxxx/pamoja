@@ -6,8 +6,9 @@
 //! map, nine scenarios played by the consoles in `web/js/consoles.js` as figures, the four
 //! languages, where the project is going, and how backing will open. The copy that is not derived from the code lives in `web/home.toml`, and the checks
 //! here keep it honest: a scenario must name library crates and have a console to play
-//! it, and a roadmap tag that names a crate must agree with the workspace about whether
-//! that crate ships.
+//! it, a roadmap tag that names a crate must agree with the workspace about whether that
+//! crate ships, and a capability that ships must be named by some track, so work cannot
+//! land without the front page saying so.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -302,12 +303,19 @@ impl Home {
     ///
     /// * `lib_crates` - every library crate in the workspace.
     /// * `consoles` - the source of `web/js/consoles.js`, whose specs play the scenarios.
+    /// * `catalog` - the capability map, so that what ships is on the roadmap.
     ///
     /// # Errors
     ///
     /// Every disagreement, one per line: a scenario naming a crate that does not exist or
-    /// having no console, or a roadmap tag whose crate disagrees with the workspace.
-    pub fn check(&self, lib_crates: &[String], consoles: &str) -> Result<(), String> {
+    /// having no console, a roadmap tag whose crate disagrees with the workspace, or a
+    /// capability the roadmap never names.
+    pub fn check(
+        &self,
+        lib_crates: &[String],
+        consoles: &str,
+        catalog: &Catalog,
+    ) -> Result<(), String> {
         let mut problems = Vec::new();
         let is_crate = |name: &str| lib_crates.iter().any(|known| known == name);
         for scenario in &self.scenarios {
@@ -350,6 +358,36 @@ impl Home {
                 }
             }
         }
+        // A capability that ships is on the roadmap, named by one of its crates or by a link
+        // to its guide. Shipping something the front page never mentions is how the roadmap
+        // goes quietly out of date, which no other check here would catch.
+        for capability in &catalog.capabilities {
+            if capability.crates.is_empty() {
+                continue;
+            }
+            let pages: Vec<String> = capability
+                .guide
+                .iter()
+                .map(|guide| format!("docs/{}", guide.replace(".md", ".html")))
+                .collect();
+            let named = self
+                .tracks
+                .iter()
+                .flat_map(|track| track.tags.iter())
+                .any(|tag| {
+                    tag.krate
+                        .as_ref()
+                        .is_some_and(|krate| capability.crates.contains(krate))
+                        || tag.href.as_ref().is_some_and(|href| pages.contains(href))
+                });
+            if !named {
+                problems.push(format!(
+                    "the capability {} ships but no track names it",
+                    capability.key
+                ));
+            }
+        }
+
         if problems.is_empty() {
             Ok(())
         } else {
@@ -1059,14 +1097,16 @@ detail = "With partners."
         assert_eq!(home.backing.offers[0].state, "Not open");
         assert_eq!(home.backing.rungs[0].cost, "Free");
         let crates = ["pamoja-modbus".to_owned(), "pamoja-mqtt".to_owned()];
-        home.check(&crates, CONSOLES).unwrap();
+        home.check(&crates, CONSOLES, &bare()).unwrap();
 
         let err = home
-            .check(&["pamoja-mqtt".to_owned()], CONSOLES)
+            .check(&["pamoja-mqtt".to_owned()], CONSOLES, &bare())
             .unwrap_err();
         assert!(err.contains("scenario farm names pamoja-modbus, which is not a library crate"));
 
-        let err = home.check(&crates, "const SPECS = {\n};\n").unwrap_err();
+        let err = home
+            .check(&crates, "const SPECS = {\n};\n", &bare())
+            .unwrap_err();
         assert!(err.contains("scenario farm has no console"));
 
         let shipped_satellite = [
@@ -1074,8 +1114,73 @@ detail = "With partners."
             "pamoja-mqtt".to_owned(),
             "pamoja-satellite".to_owned(),
         ];
-        let err = home.check(&shipped_satellite, CONSOLES).unwrap_err();
+        let err = home
+            .check(&shipped_satellite, CONSOLES, &bare())
+            .unwrap_err();
         assert!(err.contains("satellite is marked as planned but pamoja-satellite ships"));
+    }
+
+    /// A catalog with nothing in it, for the checks that are about tags rather than about
+    /// which capabilities the roadmap names.
+    fn bare() -> Catalog {
+        Catalog {
+            chapters: Vec::new(),
+            capabilities: Vec::new(),
+            engine: Vec::new(),
+            abi: None,
+            dashboard: None,
+            bundle: None,
+        }
+    }
+
+    /// One capability, for the check that the roadmap names what ships.
+    fn one(key: &str, krate: &str, guide: Option<&str>) -> Catalog {
+        Catalog {
+            capabilities: vec![Capability {
+                key: key.to_owned(),
+                chapter: "radio".to_owned(),
+                title: key.to_owned(),
+                summary: String::new(),
+                crates: vec![krate.to_owned()],
+                node: key.to_owned(),
+                python: key.to_owned(),
+                dotnet: Vec::new(),
+                guide: guide.map(str::to_owned),
+            }],
+            ..bare()
+        }
+    }
+
+    #[test]
+    fn a_capability_that_ships_is_on_the_roadmap() {
+        let home = Home::parse(SAMPLE).unwrap();
+        let crates = ["pamoja-modbus".to_owned(), "pamoja-mqtt".to_owned()];
+
+        // The sample names pamoja-mqtt in a tag, so that capability is covered.
+        home.check(&crates, CONSOLES, &one("mqtt", "pamoja-mqtt", None))
+            .unwrap();
+
+        // One the roadmap never mentions is the drift this catches.
+        let err = home
+            .check(&crates, CONSOLES, &one("modbus", "pamoja-modbus", None))
+            .unwrap_err();
+        assert!(err.contains("the capability modbus ships but no track names it"));
+    }
+
+    #[test]
+    fn a_guide_link_counts_as_naming_a_capability() {
+        let linked = SAMPLE.replace(
+            r#"{ text = "MQTT", state = "ships", crate = "pamoja-mqtt" },"#,
+            r#"{ text = "MQTT", state = "ships", href = "docs/guides/mqtt.html" },"#,
+        );
+        let home = Home::parse(&linked).unwrap();
+        let crates = ["pamoja-modbus".to_owned(), "pamoja-mqtt".to_owned()];
+        home.check(
+            &crates,
+            CONSOLES,
+            &one("mqtt", "pamoja-mqtt", Some("guides/mqtt.md")),
+        )
+        .unwrap();
     }
 
     #[test]
