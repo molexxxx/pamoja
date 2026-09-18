@@ -222,7 +222,7 @@ fn a_station_finds_its_server_and_reports_what_it_heard() -> std::result::Result
     // A station opens with what it is, which is how the server knows what it can do.
     let hello = Message::Version {
         station: "pamoja".to_owned(),
-        firmware: "0.1.18".to_owned(),
+        firmware: env!("CARGO_PKG_VERSION").to_owned(),
         package: "pamoja-gateway".to_owned(),
         model: "linux".to_owned(),
         protocol: pamoja_gateway::station::PROTOCOL_VERSION,

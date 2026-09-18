@@ -261,7 +261,7 @@ fn crossing(direction: PamojaLorawanDirection) -> Direction {
     }
 }
 
-fn travelling(direction: Direction) -> PamojaLorawanDirection {
+fn traveling(direction: Direction) -> PamojaLorawanDirection {
     match direction {
         Direction::Uplink => PamojaLorawanDirection::Uplink,
         Direction::Downlink => PamojaLorawanDirection::Downlink,
@@ -270,7 +270,7 @@ fn travelling(direction: Direction) -> PamojaLorawanDirection {
 
 // One command, flattened into the record that crosses the boundary.
 pub(crate) fn write_command(command: MacCommand) -> PamojaLorawanMacCommand {
-    let mut flat = PamojaLorawanMacCommand::blank(command.cid(), travelling(command.direction()));
+    let mut flat = PamojaLorawanMacCommand::blank(command.cid(), traveling(command.direction()));
     match command {
         MacCommand::LinkCheckReq
         | MacCommand::DutyCycleAns
