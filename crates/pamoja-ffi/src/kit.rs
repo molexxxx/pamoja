@@ -1533,7 +1533,7 @@ mod tests {
     }
 
     #[test]
-    fn a_deadband_holds_the_centre_inside_the_band() {
+    fn a_deadband_holds_the_center_inside_the_band() {
         assert_eq!(pamoja_kit_deadband(0.2, 0.0, 0.5), 0.0);
         assert!(pamoja_kit_deadband(1.0, 0.0, 0.5) > 0.0);
     }
