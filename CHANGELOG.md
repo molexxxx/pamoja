@@ -9,6 +9,15 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- Remote multicast setup, TS005-2.0.0, in `pamoja_lorawan::packages::multicast`: how
+  a group of devices is given one address, one key and a window in which they all
+  listen at once, which is what makes sending a firmware image to a thousand
+  devices take one broadcast rather than a thousand. The group key travels wrapped
+  under a key encryption key derived from the device's own root key and never
+  leaves it in the clear, and the group's session keys come from that key and the
+  group's address. The group status, setup and delete commands and the Class C and
+  Class B session commands travel on port 200. Tests use ChirpStack's own command
+  bytes.
 - Fragmented data block transport, TS004-2.0.0, in `pamoja_lorawan::packages::fragment`:
   the way a firmware image crosses a link that carries a couple of hundred bytes at a
   time. A block is cut into fragments and followed by coded ones, each the
