@@ -16,7 +16,7 @@ from pamoja.kit import Calibration, Coordinate, Depletion, Geofence, Pid, Smooth
 from pamoja.security import DeviceIdentity, verify
 from pamoja import actuators, audit, can, gateway, gpio, lora, lorawan, mesh, modbus, power, profile, radios, ros2, routing, sensors, serial, session, telemetry, update, zenoh
 from pamoja.core import PamojaError
-from pamoja.lorawan import relay
+from pamoja.lorawan import clock, firmware, fragment, multicast, relay
 from pamoja.kit import WINDOW_CAPACITY, Anomaly, Median, Trend, Window
 
 VECTORS = json.loads(
@@ -2872,3 +2872,103 @@ def test_lorawan_mac_command_vectors_match():
         for field, want in entry.get("fields", {}).items():
             got = getattr(read[0], re.sub(r"(?<!^)(?=[A-Z])", "_", field).lower())
             assert (got.hex() if isinstance(got, bytes) else got) == want, (field, entry["bytes"])
+
+
+def test_lorawan_package_vectors_match():
+    """The four application layer packages: the key chains, the parity matrix, a whole
+    fragmentation session, and one command of each kind read and written back."""
+    vector = VECTORS["lorawanPackages"]
+    ports = vector["ports"]
+    assert clock.PORT == ports["clock"]
+    assert fragment.PORT == ports["fragment"]
+    assert multicast.PORT == ports["multicast"]
+    assert firmware.PORT == ports["firmware"]
+    assert fragment.MAX_FRAGMENTS == vector["maxFragments"]
+
+    mc = vector["multicast"]
+    root_key = unhex(mc["rootKey"])
+    assert multicast.root_key(root_key).hex() == mc["mcRootKey"]
+    assert multicast.root_key(root_key, True).hex() == mc["mcRootKey11"]
+    ke_key = multicast.ke_key(unhex(mc["mcRootKey"]))
+    assert ke_key.hex() == mc["mcKeKey"]
+    assert multicast.wrap_key(ke_key, unhex(mc["groupKey"])).hex() == mc["wrapped"]
+    assert multicast.key(ke_key, unhex(mc["wrapped"])).hex() == mc["groupKey"]
+    assert multicast.app_s_key(unhex(mc["groupKey"]), mc["mcAddr"]).hex() == mc["mcAppSKey"]
+    assert multicast.nwk_s_key(unhex(mc["groupKey"]), mc["mcAddr"]).hex() == mc["mcNwkSKey"]
+
+    frag = vector["fragment"]
+    for step in frag["prbs23"]:
+        assert fragment.prbs23(step["x"]) == step["next"]
+    for line in frag["parityLines"]:
+        assert fragment.parity_line(line["coded"], line["nbFrag"]) == line["fragments"]
+    for shape in frag["sessions"]:
+        cut = fragment.session(shape["blockLen"], shape["fragSize"])
+        assert (cut.nb_frag, cut.padding) == (shape["nbFrag"], shape["padding"])
+
+    block = unhex(frag["block"])
+    for piece in frag["fragments"]:
+        assert fragment.fragment(block, 32, piece["n"]).hex() == piece["bytes"]
+
+    # The same session put back together over a link that drops every fourth fragment.
+    nb_frag = frag["received"]["nbFrag"]
+    receiver = fragment.Defragmenter(nb_frag, 32, nb_frag)
+    sent = 0
+    coded = 0
+    for n in range(1, nb_frag * 2 + 1):
+        if n % 4 == 0:
+            continue
+        sent += 1
+        if n > nb_frag:
+            coded += 1
+        if receiver.fragment(n, fragment.fragment(block, 32, n)):
+            break
+    assert (sent, coded) == (frag["received"]["sent"], frag["received"]["coded"])
+    assert receiver.block[: len(block)].hex() == frag["block"]
+
+    block_key = fragment.data_block_int_key(unhex(mc["rootKey"]))
+    assert block_key.hex() == frag["dataBlockIntKey"]
+    code = fragment.BlockMic(
+        block_key,
+        frag["mic"]["sessionCnt"],
+        frag["mic"]["fragIndex"],
+        frag["mic"]["descriptor"].encode(),
+        frag["mic"]["blockLen"],
+    )
+    code.update(block)
+    assert code.finish().hex() == frag["mic"]["bytes"]
+
+    for entry in vector["commands"]:
+        raw = unhex(entry["bytes"])
+        read = lorawan.package_parse(entry["port"], entry["uplink"], raw)
+        assert read.kind == camel_to_snake(entry["kind"]), entry["bytes"]
+        assert read.encode() == raw, entry["bytes"]
+        for field, want in entry.get("fields", {}).items():
+            got = getattr(read, camel_to_snake(field))
+            assert (got.hex() if isinstance(got, bytes) else got) == want, (
+                field,
+                entry["bytes"],
+            )
+
+    for entry in vector["statusItems"]:
+        raw = unhex(entry["bytes"])
+        read = lorawan.package_status_item(raw)
+        assert (read.mc_group_id, read.mc_addr) == (entry["mcGroupId"], entry["mcAddr"])
+        assert read.encode() == raw
+
+    # Nothing says how long an unknown command is, so reading stops rather than guessing.
+    stopped = lorawan.package_parse_all(
+        vector["stops"]["port"], vector["stops"]["uplink"], unhex(vector["stops"]["bytes"])
+    )
+    assert len(stopped) == vector["stops"]["readable"]
+
+    with pytest.raises(PamojaError):
+        lorawan.package_parse(
+            vector["notAPackage"]["port"],
+            vector["notAPackage"]["uplink"],
+            unhex(vector["notAPackage"]["bytes"]),
+        )
+
+
+def camel_to_snake(name: str) -> str:
+    """The vectors name fields the way JavaScript does; Python names them its own way."""
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()

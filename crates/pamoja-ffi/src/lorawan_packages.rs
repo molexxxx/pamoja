@@ -1301,6 +1301,82 @@ pub unsafe extern "C" fn pamoja_lorawan_firmware_reboot(
     PamojaStatus::Ok
 }
 
+/// Says what firmware upgrade image the device is holding.
+///
+/// # Arguments
+///
+/// * `manager` - the manager.
+/// * `out_status` - receives [`PAMOJA_LORAWAN_IMAGE_NONE`], [`PAMOJA_LORAWAN_IMAGE_CORRUPT`],
+///   [`PAMOJA_LORAWAN_IMAGE_WRONG_HARDWARE`] or [`PAMOJA_LORAWAN_IMAGE_VALID`].
+/// * `out_next_version` - receives what the device would boot into, for an image it can
+///   install.
+/// * `out_has_next_version` - receives `1` when there is one.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success. Every out pointer may be null.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] for a null handle.
+///
+/// # Safety
+///
+/// `manager` must be a live handle and every non-null out pointer writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_firmware_image(
+    manager: *const PamojaLorawanFirmware,
+    out_status: *mut u8,
+    out_next_version: *mut u32,
+    out_has_next_version: *mut u8,
+) -> PamojaStatus {
+    let Some(manager) = manager.as_ref() else {
+        return missing();
+    };
+    let image = manager.manager.image();
+    if !out_status.is_null() {
+        *out_status = image.map_or(UpImageStatus::None, |image| image.status) as u8;
+    }
+    let next = image
+        .filter(|image| matches!(image.status, UpImageStatus::Valid))
+        .map(|image| image.version);
+    if !out_next_version.is_null() {
+        *out_next_version = next.unwrap_or(0);
+    }
+    if !out_has_next_version.is_null() {
+        *out_has_next_version = u8::from(next.is_some());
+    }
+    PamojaStatus::Ok
+}
+
+/// Forgets the programmed reboot, for a device that has carried it out.
+///
+/// # Arguments
+///
+/// * `manager` - the manager.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] for a null handle.
+///
+/// # Safety
+///
+/// `manager` must be a live handle.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lorawan_firmware_rebooted(
+    manager: *mut PamojaLorawanFirmware,
+) -> PamojaStatus {
+    let Some(manager) = manager.as_mut() else {
+        return missing();
+    };
+    manager.manager.rebooted();
+    PamojaStatus::Ok
+}
+
 /// Reads sixteen bytes from a pointer that may be null.
 unsafe fn sixteen(from: *const u8) -> Option<[u8; 16]> {
     if from.is_null() {
@@ -1414,8 +1490,19 @@ pub struct PamojaLorawanPackageCommand {
     pub memory_error: u8,
     /// Whether the session or group named does not exist on the device.
     pub no_session: u8,
+    /// Whether the setup named a fragmentation algorithm the device does not run.
+    pub unsupported_algorithm: u8,
+    /// Whether the setup named a session index the device does not keep.
+    pub unsupported_index: u8,
+    /// Whether the descriptor is not one the device accepts.
+    pub wrong_descriptor: u8,
+    /// Whether the session counter repeats one already used for that index.
+    pub session_replay: u8,
     /// Whether every device answers a status request, or only those still missing fragments.
     pub all_participants: u8,
+    /// Whether this is one group record of a multicast status answer, which shares its
+    /// identifier with the answer that names how many follow.
+    pub status_item: u8,
     /// Which fragment of a session a data fragment carries, counting from one.
     pub fragment_n: u16,
     /// Which multicast group, 0 to 3.
@@ -1837,11 +1924,11 @@ fn frag_out(command: FragCommand<'_>) -> PamojaLorawanPackageCommand {
         }
         FragCommand::FragSessionSetupAns(status) => {
             flat.frag_index = status.frag_index;
-            flat.frag_algo = u8::from(status.unsupported_algorithm);
+            flat.unsupported_algorithm = u8::from(status.unsupported_algorithm);
             flat.memory_error = u8::from(status.not_enough_memory);
-            flat.no_session = u8::from(status.unsupported_index);
-            flat.invalid_version = u8::from(status.wrong_descriptor);
-            flat.mic_error = u8::from(status.session_replay);
+            flat.unsupported_index = u8::from(status.unsupported_index);
+            flat.wrong_descriptor = u8::from(status.wrong_descriptor);
+            flat.session_replay = u8::from(status.session_replay);
         }
         FragCommand::FragSessionDeleteReq { frag_index } => flat.frag_index = frag_index,
         FragCommand::FragSessionDeleteAns {
@@ -1907,11 +1994,11 @@ fn frag_in<'a>(flat: &PamojaLorawanPackageCommand, data: &'a [u8]) -> Option<Fra
             mic: flat.mic,
         },
         (0x02, true) => FragCommand::FragSessionSetupAns(SetupStatus {
-            unsupported_algorithm: flat.frag_algo != 0,
+            unsupported_algorithm: flat.unsupported_algorithm != 0,
             not_enough_memory: flat.memory_error != 0,
-            unsupported_index: flat.no_session != 0,
-            wrong_descriptor: flat.invalid_version != 0,
-            session_replay: flat.mic_error != 0,
+            unsupported_index: flat.unsupported_index != 0,
+            wrong_descriptor: flat.wrong_descriptor != 0,
+            session_replay: flat.session_replay != 0,
             frag_index: flat.frag_index,
         }),
         (0x03, false) => FragCommand::FragSessionDeleteReq {
@@ -1962,6 +2049,7 @@ fn mc_out(command: McCommand) -> PamojaLorawanPackageCommand {
             mc_group_id,
             mc_addr,
         } => {
+            flat.status_item = 1;
             flat.mc_group_id = mc_group_id;
             flat.mc_addr = mc_addr;
         }
@@ -2053,6 +2141,12 @@ fn mc_in(flat: &PamojaLorawanPackageCommand) -> Option<McCommand> {
         start_missed: flat.start_missed != 0,
     };
     let time_to_start = (flat.has_time_to_start != 0).then_some(flat.time_to_start);
+    if flat.status_item != 0 {
+        return Some(McCommand::McGroupStatusItem {
+            mc_group_id: flat.mc_group_id,
+            mc_addr: flat.mc_addr,
+        });
+    }
     Some(match (flat.cid, up) {
         (0x00, false) => McCommand::PackageVersionReq,
         (0x00, true) => McCommand::PackageVersionAns(PackageVersion {

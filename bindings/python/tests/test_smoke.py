@@ -1496,3 +1496,131 @@ def test_a_device_reaches_a_site_through_the_relay_next_door():
     )
     later = node.next_scan(due_us + 60_000_000)
     assert node.heard_wor(later, stranger, -95, 2, later.start_us + 500_000).kind == "notified"
+
+
+def test_a_firmware_image_reaches_a_whole_field_of_devices():
+    """One clock, one group, one broadcast cut into pieces, and a device that says
+    what it made of it."""
+    from pamoja.lorawan import (
+        clock,
+        firmware,
+        fragment,
+        multicast,
+        package_encode,
+        package_parse,
+        package_status_item,
+    )
+
+    # A device with no clock of its own asks for the time. The server answers with the
+    # difference, and the token keeps a late answer from pulling the clock back.
+    sync = clock.ClockSync()
+    asking = package_parse(clock.PORT, True, sync.request(1_000_000))
+    assert asking.kind == "app_time_req"
+    assert asking.device_time == 1_000_000
+
+    answer = package_encode(
+        clock.PORT, "app_time_ans", time_correction=12, token=asking.token
+    )
+    assert sync.heard(answer).correction == 12
+    assert sync.heard(answer).correction is None, "a repeat is ignored"
+
+    # A group every device in the field belongs to. Its key travels wrapped under a key
+    # each device derives from its own root key and never transmits.
+    root_key = bytes([0x2B]) * 16
+    group_key = bytes([0x77]) * 16
+    group_addr = 0x26010042
+    ke_key = multicast.ke_key(multicast.root_key(root_key))
+    setup = package_encode(
+        multicast.PORT,
+        "mc_group_setup_req",
+        mc_group_id=1,
+        mc_addr=group_addr,
+        mc_key_encrypted=multicast.wrap_key(ke_key, group_key),
+        min_mc_fcnt=0,
+        max_mc_fcnt=0xFFFF,
+    )
+    read = package_parse(multicast.PORT, False, setup)
+    assert read.mc_addr == group_addr
+    assert multicast.key(ke_key, read.mc_key_encrypted) == group_key
+
+    # The image goes out as a block, cut into fragments with more sent than there are.
+    image = b"firmware for a field of flow meters, long enough to be cut up"
+    frag_size = 16
+    session = fragment.session(len(image), frag_size)
+    assert session.nb_frag * frag_size - session.padding == len(image)
+
+    opened = package_encode(
+        fragment.PORT,
+        "frag_session_setup_req",
+        frag_index=0,
+        mc_group_bit_mask=0b0010,
+        nb_frag=session.nb_frag,
+        frag_size=frag_size,
+        padding=session.padding,
+        descriptor=b"PJU1",
+        session_cnt=1,
+        mic=bytes(4),
+    )
+    carried_session = package_parse(fragment.PORT, False, opened)
+    assert carried_session.nb_frag == session.nb_frag
+    assert carried_session.mc_group_bit_mask == 0b0010
+
+    # The link drops every fourth one. The device solves for what it missed.
+    receiver = fragment.Defragmenter(session.nb_frag, frag_size, 4)
+    for n in range(1, session.nb_frag * 2 + 1):
+        if n % 4 == 0:
+            continue
+        carried = package_encode(
+            fragment.PORT,
+            "data_fragment",
+            frag_index=0,
+            fragment_n=n,
+            data=fragment.fragment(image, frag_size, n),
+        )
+        piece = package_parse(fragment.PORT, False, carried)
+        if receiver.fragment(piece.fragment_n, piece.data):
+            break
+    assert receiver.done
+    assert receiver.block[: len(image)] == image
+
+    # The code over the block, taken a piece at a time so the image is never held twice.
+    block_key = fragment.data_block_int_key(root_key)
+    whole = fragment.BlockMic(block_key, 1, 0, b"PJU1", len(image))
+    whole.update(image)
+    in_pieces = fragment.BlockMic(block_key, 1, 0, b"PJU1", len(image))
+    in_pieces.update(image[:7])
+    in_pieces.update(image[7:])
+    assert in_pieces.finish() == whole.finish()
+
+    # What the device runs, what it holds, and the one reboot it keeps.
+    manager = firmware.Firmware(2, 7)
+    manager.set_image(firmware.ImageStatus.VALID, 3)
+    held = package_parse(
+        firmware.PORT,
+        True,
+        manager.heard(package_encode(firmware.PORT, "dev_upgrade_image_req"), 1_000_000),
+    )
+    assert held.image_status == firmware.ImageStatus.VALID
+    assert held.next_version == 3
+
+    manager.heard(
+        package_encode(firmware.PORT, "dev_reboot_countdown_req", reboot=60), 1_000_000
+    )
+    assert manager.reboot_in_s == 60
+    manager.heard(
+        package_encode(firmware.PORT, "dev_reboot_time_req", reboot=1_000_060), 1_000_000
+    )
+    assert manager.reboot_at_s == 1_000_060
+    assert manager.reboot_in_s is None, "a device keeps one reboot, not two"
+    manager.rebooted()
+    assert manager.reboot_at_s is None
+
+    # A status answer lists its groups after the count, each five bytes with no
+    # identifier of its own.
+    listed = package_encode(
+        multicast.PORT, "mc_group_status_item", True, mc_group_id=1, mc_addr=group_addr
+    )
+    assert package_status_item(listed).mc_addr == group_addr
+
+    with pytest.raises(PamojaError):
+        package_parse(1, False, bytes(1))

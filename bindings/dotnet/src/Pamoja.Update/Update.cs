@@ -478,6 +478,59 @@ public static class Update
         return digest;
     }
 
+    /// <summary>
+    /// What a transport calls a block carrying a signed update, for a field that names the
+    /// convention.
+    /// </summary>
+    public const string BlockDescriptor = "PJU1";
+
+    /// <summary>Writes a signed update into one block, for a transport that moves blocks.</summary>
+    /// <remarks>
+    /// The block is the signed manifest and the image behind a header that says where each
+    /// begins. Nothing in the header is trusted: every rule that decides whether the image
+    /// runs is still the manifest's.
+    /// </remarks>
+    /// <param name="envelope">The signed manifest.</param>
+    /// <param name="image">The image it describes.</param>
+    /// <returns>The block to hand to a transport.</returns>
+    /// <exception cref="PamojaException">
+    /// The envelope is longer than a header can describe.
+    /// </exception>
+    public static byte[] FrameBlock(ReadOnlySpan<byte> envelope, ReadOnlySpan<byte> image)
+    {
+        byte[] block = new byte[
+            envelope.Length + image.Length + NativeMethods.UpdateBlockHeaderLength];
+        Status.ThrowIfError(NativeMethods.pamoja_update_block_frame(
+            envelope,
+            (nuint)envelope.Length,
+            image,
+            (nuint)image.Length,
+            block,
+            (nuint)block.Length,
+            out nuint written));
+        return block[..(int)written];
+    }
+
+    /// <summary>Reads a block back into the signed manifest and the image.</summary>
+    /// <param name="block">The block as it arrived.</param>
+    /// <returns>The signed manifest and the image it describes.</returns>
+    /// <exception cref="PamojaException">
+    /// The block does not carry this convention's header.
+    /// </exception>
+    public static (byte[] Envelope, byte[] Image) SplitBlock(ReadOnlySpan<byte> block)
+    {
+        Status.ThrowIfError(NativeMethods.pamoja_update_block_split(
+            block,
+            (nuint)block.Length,
+            out nuint envelopeAt,
+            out nuint envelopeLen,
+            out nuint imageAt,
+            out nuint imageLen));
+        return (
+            block.Slice((int)envelopeAt, (int)envelopeLen).ToArray(),
+            block.Slice((int)imageAt, (int)imageLen).ToArray());
+    }
+
     /// <summary>Signs a manifest into the envelope offered to a device.</summary>
     /// <param name="manifest">What the release says about itself.</param>
     /// <param name="author">The identity signing the release.</param>

@@ -32,6 +32,9 @@ public static partial class NativeMethods
     /// <summary>The payload format meaning the payload is the image itself.</summary>
     public const byte UpdateFormatRaw = 1;
 
+    /// <summary>The bytes a block carrying a signed update puts in front of it.</summary>
+    public const int UpdateBlockHeaderLength = 6;
+
     /// <summary>Creates a log that signs with a device identity, starting empty.</summary>
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_audit_log_new(IntPtr identity);
@@ -199,6 +202,27 @@ public static partial class NativeMethods
         ReadOnlySpan<byte> image,
         nuint imageLen,
         Span<byte> outDigest);
+
+    /// <summary>Writes a signed update into one block, for a transport that moves blocks.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_update_block_frame(
+        ReadOnlySpan<byte> envelope,
+        nuint envelopeLen,
+        ReadOnlySpan<byte> image,
+        nuint imageLen,
+        Span<byte> outBlock,
+        nuint capacity,
+        out nuint outLen);
+
+    /// <summary>Reads a block back into the signed manifest and the image.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_update_block_split(
+        ReadOnlySpan<byte> block,
+        nuint blockLen,
+        out nuint outEnvelopeAt,
+        out nuint outEnvelopeLen,
+        out nuint outImageAt,
+        out nuint outImageLen);
 
     /// <summary>Signs a manifest into the envelope offered to a device.</summary>
     [LibraryImport(Library)]

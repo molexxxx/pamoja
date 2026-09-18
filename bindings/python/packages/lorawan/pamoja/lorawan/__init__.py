@@ -40,6 +40,7 @@ from pamoja._native import (
     LorawanJoinAccept,
     LorawanJoinRequest,
     LorawanMacCommand,
+    LorawanPackageCommand,
     LorawanRxData,
     LorawanSession,
     LorawanAckWindow,
@@ -57,10 +58,14 @@ from pamoja._native import (
     LorawanWorNext,
 )
 from pamoja._native import lorawan_mac_parse as _mac_parse
+from pamoja._native import lorawan_package_encode as _package_encode
+from pamoja._native import lorawan_package_parse as _package_parse
+from pamoja._native import lorawan_package_parse_all as _package_parse_all
+from pamoja._native import lorawan_package_status_item as _package_status_item
 from pamoja._native import lorawan_parse_header as _parse_header
 from pamoja._native import lorawan_parse_join_request as _parse_join_request
 
-from pamoja.lorawan import relay
+from pamoja.lorawan import clock, firmware, fragment, multicast, relay
 
 __all__ = [
     "ADR_ACK_DELAY",
@@ -89,6 +94,7 @@ __all__ = [
     "MacCommand",
     "MessageType",
     "Next",
+    "PackageCommand",
     "RECEIVE_DELAY1_US",
     "RECEIVE_DELAY2_US",
     "RECEIVE_WINDOW_TOLERANCE_US",
@@ -113,10 +119,18 @@ __all__ = [
     "WakeUp",
     "Window",
     "WorNext",
+    "clock",
     "device",
     "end_device",
+    "firmware",
+    "fragment",
     "grant",
     "mac_parse",
+    "multicast",
+    "package_encode",
+    "package_parse",
+    "package_parse_all",
+    "package_status_item",
     "parse_header",
     "parse_join_request",
     "relay",
@@ -450,3 +464,90 @@ def end_device(
         fcnt_up,
         fcnt_down,
     )
+
+
+#: One command of an application layer package, whichever package it belongs to.
+#:
+#: ``port`` says which package and ``kind`` names the command within it; together they decide
+#: which of the other fields carry anything. The rest are ``None``. The same identifier means a
+#: different command in each direction, so ``uplink`` decides which one this is.
+PackageCommand = LorawanPackageCommand
+
+
+def package_parse(port: int, uplink: bool, data: bytes) -> PackageCommand:
+    """Read one command of an application layer package.
+
+    A data fragment takes the whole message, as TS004-2.0.0 asks, and its bytes come back
+    on ``data``.
+
+    Args:
+        port: Which package: one of :data:`clock.PORT`, :data:`fragment.PORT`,
+            :data:`multicast.PORT` or :data:`firmware.PORT`.
+        uplink: Whether the frame carrying it traveled up.
+        data: The message, from this command's identifier on.
+
+    Returns:
+        The command that was read.
+
+    Raises:
+        PamojaError: If the port names no package, the message ends inside the command,
+            or the identifier is not one the package defines.
+    """
+    return _package_parse(port, uplink, data)
+
+
+def package_parse_all(port: int, uplink: bool, data: bytes) -> list[PackageCommand]:
+    """Read every command in one message.
+
+    A command does not carry its own length, so one this build does not know cannot be
+    stepped over. Reading stops there and returns what came before it.
+
+    Args:
+        port: Which package.
+        uplink: Whether the frame carrying them traveled up.
+        data: The message.
+
+    Returns:
+        The commands that were readable, in order.
+
+    Raises:
+        PamojaError: If the port names no package.
+    """
+    return _package_parse_all(port, uplink, data)
+
+
+def package_status_item(data: bytes) -> PackageCommand:
+    """Read one group record of a multicast status answer.
+
+    The answer says how many groups follow; each is five bytes and carries no identifier
+    of its own, so they are read one at a time rather than by :func:`package_parse_all`.
+
+    Args:
+        data: The message, from the record on.
+
+    Returns:
+        The record, as an ``mc_group_status_item`` command.
+
+    Raises:
+        PamojaError: If the message ends inside the record.
+    """
+    return _package_status_item(data)
+
+
+def package_encode(port: int, kind: str, uplink: bool = False, **fields: object) -> bytes:
+    """Write one command of an application layer package.
+
+    Args:
+        port: Which package.
+        kind: Which command within it.
+        uplink: Which way it travels.
+        **fields: The fields that command carries; see :class:`PackageCommand`.
+
+    Returns:
+        The bytes it goes out as.
+
+    Raises:
+        PamojaError: If the port names no package, the name is not a command that package
+            defines, or a field the command needs is absent.
+    """
+    return _package_encode(PackageCommand(port, kind, uplink, **fields))

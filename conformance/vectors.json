@@ -8724,6 +8724,557 @@
       }
     ]
   },
+  "lorawanPackages": {
+    "commands": [
+      {
+        "bytes": "00",
+        "cid": 0,
+        "fields": {},
+        "kind": "packageVersionReq",
+        "port": 202,
+        "uplink": false
+      },
+      {
+        "bytes": "000102",
+        "cid": 0,
+        "fields": {
+          "package": 1,
+          "version": 2
+        },
+        "kind": "packageVersionAns",
+        "port": 202,
+        "uplink": true
+      },
+      {
+        "bytes": "01785634121a",
+        "cid": 1,
+        "fields": {
+          "ansRequired": true,
+          "deviceTime": 305419896,
+          "token": 10
+        },
+        "kind": "appTimeReq",
+        "port": 202,
+        "uplink": true
+      },
+      {
+        "bytes": "01f4ffffff03",
+        "cid": 1,
+        "fields": {
+          "timeCorrection": -12,
+          "token": 3
+        },
+        "kind": "appTimeAns",
+        "port": 202,
+        "uplink": false
+      },
+      {
+        "bytes": "0205",
+        "cid": 2,
+        "fields": {
+          "period": 5
+        },
+        "kind": "deviceAppTimePeriodicityReq",
+        "port": 202,
+        "uplink": false
+      },
+      {
+        "bytes": "020178563412",
+        "cid": 2,
+        "fields": {
+          "deviceTime": 305419896,
+          "notSupported": true
+        },
+        "kind": "deviceAppTimePeriodicityAns",
+        "port": 202,
+        "uplink": true
+      },
+      {
+        "bytes": "0303",
+        "cid": 3,
+        "fields": {
+          "transmissions": 3
+        },
+        "kind": "forceDeviceResyncCmd",
+        "port": 202,
+        "uplink": false
+      },
+      {
+        "bytes": "01",
+        "cid": 1,
+        "fields": {},
+        "kind": "devVersionReq",
+        "port": 203,
+        "uplink": false
+      },
+      {
+        "bytes": "01020000000700000a",
+        "cid": 1,
+        "fields": {
+          "firmware": 2,
+          "hardware": 167772167
+        },
+        "kind": "devVersionAns",
+        "port": 203,
+        "uplink": true
+      },
+      {
+        "bytes": "0278563412",
+        "cid": 2,
+        "fields": {
+          "reboot": 305419896
+        },
+        "kind": "devRebootTimeReq",
+        "port": 203,
+        "uplink": false
+      },
+      {
+        "bytes": "03100e00",
+        "cid": 3,
+        "fields": {
+          "reboot": 3600
+        },
+        "kind": "devRebootCountdownReq",
+        "port": 203,
+        "uplink": false
+      },
+      {
+        "bytes": "040303000000",
+        "cid": 4,
+        "fields": {
+          "nextVersion": 3
+        },
+        "kind": "devUpgradeImageAns",
+        "port": 203,
+        "uplink": true
+      },
+      {
+        "bytes": "0401",
+        "cid": 4,
+        "fields": {},
+        "kind": "devUpgradeImageAns",
+        "port": 203,
+        "uplink": true
+      },
+      {
+        "bytes": "0503000000",
+        "cid": 5,
+        "fields": {
+          "deleteVersion": 3
+        },
+        "kind": "devDeleteImageReq",
+        "port": 203,
+        "uplink": false
+      },
+      {
+        "bytes": "0502",
+        "cid": 5,
+        "fields": {
+          "invalidVersion": true,
+          "noValidImage": false
+        },
+        "kind": "devDeleteImageAns",
+        "port": 203,
+        "uplink": true
+      },
+      {
+        "bytes": "0103",
+        "cid": 1,
+        "fields": {
+          "allParticipants": true,
+          "fragIndex": 1
+        },
+        "kind": "fragSessionStatusReq",
+        "port": 201,
+        "uplink": false
+      },
+      {
+        "bytes": "0101054044",
+        "cid": 1,
+        "fields": {
+          "fragIndex": 1,
+          "memoryError": true,
+          "missing": 68,
+          "received": 5
+        },
+        "kind": "fragSessionStatusAns",
+        "port": 201,
+        "uplink": true
+      },
+      {
+        "bytes": "0201000480054001020304800001020304",
+        "cid": 2,
+        "fields": {
+          "blockAckDelay": 5,
+          "descriptor": "01020304",
+          "fragAlgo": 0,
+          "fragIndex": 0,
+          "fragSize": 128,
+          "mcGroupBitMask": 1,
+          "mic": "01020304",
+          "nbFrag": 1024,
+          "padding": 64,
+          "sessionCnt": 128
+        },
+        "kind": "fragSessionSetupReq",
+        "port": 201,
+        "uplink": false
+      },
+      {
+        "bytes": "0248",
+        "cid": 2,
+        "fields": {
+          "fragIndex": 1,
+          "sessionReplay": false,
+          "wrongDescriptor": true
+        },
+        "kind": "fragSessionSetupAns",
+        "port": 201,
+        "uplink": true
+      },
+      {
+        "bytes": "0302",
+        "cid": 3,
+        "fields": {
+          "fragIndex": 2
+        },
+        "kind": "fragSessionDeleteReq",
+        "port": 201,
+        "uplink": false
+      },
+      {
+        "bytes": "0306",
+        "cid": 3,
+        "fields": {
+          "fragIndex": 2,
+          "noSession": true
+        },
+        "kind": "fragSessionDeleteAns",
+        "port": 201,
+        "uplink": true
+      },
+      {
+        "bytes": "0405",
+        "cid": 4,
+        "fields": {
+          "fragIndex": 1,
+          "micError": true
+        },
+        "kind": "fragDataBlockReceivedReq",
+        "port": 201,
+        "uplink": true
+      },
+      {
+        "bytes": "0401",
+        "cid": 4,
+        "fields": {
+          "fragIndex": 1
+        },
+        "kind": "fragDataBlockReceivedAns",
+        "port": 201,
+        "uplink": false
+      },
+      {
+        "bytes": "08008401020304",
+        "cid": 8,
+        "fields": {
+          "data": "01020304",
+          "fragIndex": 2,
+          "fragmentN": 1024
+        },
+        "kind": "dataFragment",
+        "port": 201,
+        "uplink": false
+      },
+      {
+        "bytes": "010a",
+        "cid": 1,
+        "fields": {
+          "groupMask": 10
+        },
+        "kind": "mcGroupStatusReq",
+        "port": 200,
+        "uplink": false
+      },
+      {
+        "bytes": "0122",
+        "cid": 1,
+        "fields": {
+          "groupMask": 2,
+          "nbTotalGroups": 2
+        },
+        "kind": "mcGroupStatusAns",
+        "port": 200,
+        "uplink": true
+      },
+      {
+        "bytes": "020142000126000102030405060708090a0b0c0d0e0f00000000ffff0000",
+        "cid": 2,
+        "fields": {
+          "maxMcFcnt": 65535,
+          "mcAddr": 637599810,
+          "mcGroupId": 1,
+          "mcKeyEncrypted": "000102030405060708090a0b0c0d0e0f",
+          "minMcFcnt": 0
+        },
+        "kind": "mcGroupSetupReq",
+        "port": 200,
+        "uplink": false
+      },
+      {
+        "bytes": "0205",
+        "cid": 2,
+        "fields": {
+          "idError": true,
+          "mcGroupId": 1
+        },
+        "kind": "mcGroupSetupAns",
+        "port": 200,
+        "uplink": true
+      },
+      {
+        "bytes": "0301",
+        "cid": 3,
+        "fields": {
+          "mcGroupId": 1
+        },
+        "kind": "mcGroupDeleteReq",
+        "port": 200,
+        "uplink": false
+      },
+      {
+        "bytes": "0305",
+        "cid": 3,
+        "fields": {
+          "mcGroupId": 1,
+          "noSession": true
+        },
+        "kind": "mcGroupDeleteAns",
+        "port": 200,
+        "uplink": true
+      },
+      {
+        "bytes": "0401785634120ad2ad8405",
+        "cid": 4,
+        "fields": {
+          "dataRate": 5,
+          "dlFrequencyHz": 869525000,
+          "mcGroupId": 1,
+          "sessionTime": 305419896,
+          "timeOut": 10
+        },
+        "kind": "mcClassCSessionReq",
+        "port": 200,
+        "uplink": false
+      },
+      {
+        "bytes": "0401102700",
+        "cid": 4,
+        "fields": {
+          "mcGroupId": 1,
+          "timeToStart": 10000
+        },
+        "kind": "mcClassCSessionAns",
+        "port": 200,
+        "uplink": true
+      },
+      {
+        "bytes": "0408",
+        "cid": 4,
+        "fields": {
+          "freqError": true,
+          "mcGroupId": 0
+        },
+        "kind": "mcClassCSessionAns",
+        "port": 200,
+        "uplink": true
+      },
+      {
+        "bytes": "05017856341252d2ad8403",
+        "cid": 5,
+        "fields": {
+          "dataRate": 3,
+          "dlFrequencyHz": 869525000,
+          "mcGroupId": 1,
+          "periodicity": 5,
+          "sessionTime": 305419896,
+          "timeOut": 2
+        },
+        "kind": "mcClassBSessionReq",
+        "port": 200,
+        "uplink": false
+      },
+      {
+        "bytes": "0502102700",
+        "cid": 5,
+        "fields": {
+          "mcGroupId": 2,
+          "timeToStart": 10000
+        },
+        "kind": "mcClassBSessionAns",
+        "port": 200,
+        "uplink": true
+      }
+    ],
+    "fragment": {
+      "block": "00070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7eef501080f161d242b323940474e555c636a71787f868d949ba2a9b0b7bec5ccd3dae1e8eff6020910171e252c333a41484f565d646b727980878e959ca3aab1b8bfc6cdd4dbe2e9f0f7030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8040b121920272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f9050c131a21282f363d444b525960676e757c838a91989fa6adb4bbc2c9d0d7dee5ecf3fa060d141b222930373e454c535a61686f76",
+      "dataBlockIntKey": "a5bc1562465d464cd5eb51e6c97362d3",
+      "fragments": [
+        {
+          "bytes": "00070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9",
+          "coded": false,
+          "n": 1
+        },
+        {
+          "bytes": "aab1b8bfc6cdd4dbe2e9f0f7030a11181f262d343b424950575e656c737a8188",
+          "coded": false,
+          "n": 4
+        },
+        {
+          "bytes": "3e454c535a61686f760000000000000000000000000000000000000000000000",
+          "coded": false,
+          "n": 8
+        },
+        {
+          "bytes": "36161a2ac3e51f6d734d270523456f1de8f0d828382038e81f757355170d333d",
+          "coded": true,
+          "n": 9
+        },
+        {
+          "bytes": "6741ab99afb14b19f8ece0ac98b4b0d413717f71969aaabe691ff1fbc9a781ab",
+          "coded": true,
+          "n": 12
+        }
+      ],
+      "mic": {
+        "blockLen": 233,
+        "bytes": "8cd1c802",
+        "descriptor": "PJU1",
+        "fragIndex": 0,
+        "sessionCnt": 1
+      },
+      "parityLines": [
+        {
+          "coded": 1,
+          "fragments": [
+            0,
+            1,
+            4,
+            6
+          ],
+          "nbFrag": 8
+        },
+        {
+          "coded": 2,
+          "fragments": [
+            0,
+            3,
+            4,
+            7
+          ],
+          "nbFrag": 8
+        },
+        {
+          "coded": 5,
+          "fragments": [
+            1,
+            3,
+            4,
+            6,
+            7,
+            11,
+            12,
+            13,
+            16,
+            17
+          ],
+          "nbFrag": 21
+        }
+      ],
+      "prbs23": [
+        {
+          "next": 4194304,
+          "x": 1
+        },
+        {
+          "next": 4194805,
+          "x": 1002
+        },
+        {
+          "next": 2097152,
+          "x": 4194304
+        }
+      ],
+      "received": {
+        "coded": 3,
+        "nbFrag": 8,
+        "sent": 9
+      },
+      "sessions": [
+        {
+          "blockLen": 233,
+          "fragSize": 32,
+          "nbFrag": 8,
+          "padding": 23
+        },
+        {
+          "blockLen": 64,
+          "fragSize": 16,
+          "nbFrag": 4,
+          "padding": 0
+        },
+        {
+          "blockLen": 1,
+          "fragSize": 48,
+          "nbFrag": 1,
+          "padding": 47
+        }
+      ]
+    },
+    "maxFragments": 16383,
+    "multicast": {
+      "groupKey": "77777777777777777777777777777777",
+      "mcAddr": 637599810,
+      "mcAppSKey": "c2040ecb1fa588d9887438ab97c1387a",
+      "mcKeKey": "804a760f6a33fdbb777603490298edd1",
+      "mcNwkSKey": "afd464dc54d62e194aacd6f919d8a5b1",
+      "mcRootKey": "f27dc739ec30a643210b8a17aba290d3",
+      "mcRootKey11": "f5784d58f4cc57e748295ec8ed4e2d92",
+      "rootKey": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b",
+      "wrapped": "2b7379e4c717f948540af26afc2d7900"
+    },
+    "notAPackage": {
+      "bytes": "00",
+      "port": 1,
+      "uplink": false
+    },
+    "ports": {
+      "clock": 202,
+      "firmware": 203,
+      "fragment": 201,
+      "multicast": 200
+    },
+    "statusItems": [
+      {
+        "bytes": "0142000126",
+        "cid": 1,
+        "mcAddr": 637599810,
+        "mcGroupId": 1
+      },
+      {
+        "bytes": "03da1b0126",
+        "cid": 1,
+        "mcAddr": 637606874,
+        "mcGroupId": 3
+      }
+    ],
+    "stops": {
+      "bytes": "02057f1122",
+      "port": 202,
+      "readable": 1,
+      "uplink": false
+    }
+  },
   "lorawanRelay": {
     "constants": {
       "forwardOverhead": 6,

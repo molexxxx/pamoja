@@ -1597,6 +1597,9 @@
 // The payload format meaning the payload is the image itself, byte for byte.
 #define PAMOJA_UPDATE_FORMAT_RAW 1
 
+// The bytes a block carrying a signed update puts in front of it.
+#define PAMOJA_UPDATE_BLOCK_HEADER_LEN 6
+
 // The result of a fallible pamoja call.
 //
 // A return of [`PamojaStatus::Ok`] means success; any other value indicates a
@@ -3589,8 +3592,19 @@ typedef struct {
   uint8_t memory_error;
   // Whether the session or group named does not exist on the device.
   uint8_t no_session;
+  // Whether the setup named a fragmentation algorithm the device does not run.
+  uint8_t unsupported_algorithm;
+  // Whether the setup named a session index the device does not keep.
+  uint8_t unsupported_index;
+  // Whether the descriptor is not one the device accepts.
+  uint8_t wrong_descriptor;
+  // Whether the session counter repeats one already used for that index.
+  uint8_t session_replay;
   // Whether every device answers a status request, or only those still missing fragments.
   uint8_t all_participants;
+  // Whether this is one group record of a multicast status answer, which shares its
+  // identifier with the answer that names how many follow.
+  uint8_t status_item;
   // Which fragment of a session a data fragment carries, counting from one.
   uint16_t fragment_n;
   // Which multicast group, 0 to 3.
@@ -12200,6 +12214,52 @@ PamojaStatus pamoja_lorawan_firmware_reboot(const PamojaLorawanFirmware *manager
                                             uint32_t *out_in_s,
                                             uint8_t *out_has_in,
                                             uint8_t *out_now);
+
+// Says what firmware upgrade image the device is holding.
+//
+// # Arguments
+//
+// * `manager` - the manager.
+// * `out_status` - receives [`PAMOJA_LORAWAN_IMAGE_NONE`], [`PAMOJA_LORAWAN_IMAGE_CORRUPT`],
+//   [`PAMOJA_LORAWAN_IMAGE_WRONG_HARDWARE`] or [`PAMOJA_LORAWAN_IMAGE_VALID`].
+// * `out_next_version` - receives what the device would boot into, for an image it can
+//   install.
+// * `out_has_next_version` - receives `1` when there is one.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success. Every out pointer may be null.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null handle.
+//
+// # Safety
+//
+// `manager` must be a live handle and every non-null out pointer writable.
+PamojaStatus pamoja_lorawan_firmware_image(const PamojaLorawanFirmware *manager,
+                                           uint8_t *out_status,
+                                           uint32_t *out_next_version,
+                                           uint8_t *out_has_next_version);
+
+// Forgets the programmed reboot, for a device that has carried it out.
+//
+// # Arguments
+//
+// * `manager` - the manager.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null handle.
+//
+// # Safety
+//
+// `manager` must be a live handle.
+PamojaStatus pamoja_lorawan_firmware_rebooted(PamojaLorawanFirmware *manager);
 
 // Reads one command of an application layer package.
 //
@@ -21371,6 +21431,75 @@ PamojaStatus pamoja_updater_revert(PamojaUpdater *updater, uint8_t *out_slot);
 // `updater` must be a handle from [`pamoja_updater_new`] that has not already
 // been freed, or null. After this call it must not be used again.
 void pamoja_updater_free(PamojaUpdater *updater);
+
+// Writes a signed update into one block, for a transport that moves blocks.
+//
+// The block is the signed manifest and the image behind a header that says where each
+// begins. Nothing in the header is trusted: every rule that decides whether the image runs is
+// still the manifest's.
+//
+// # Arguments
+//
+// * `envelope` - the signed manifest.
+// * `envelope_len` - how many bytes it holds.
+// * `image` - the image it describes.
+// * `image_len` - how many bytes it holds.
+// * `out_block` - receives the block.
+// * `capacity` - how many bytes that buffer holds.
+// * `out_len` - receives how many were written.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, and
+// [`PamojaStatus::Codec`] when the envelope is longer than a header can describe or the
+// buffer is too small.
+//
+// # Safety
+//
+// Every pointer must be non-null, the inputs readable for their lengths, `out_block`
+// writable for `capacity` bytes, and `out_len` writable.
+PamojaStatus pamoja_update_block_frame(const uint8_t *envelope,
+                                       uintptr_t envelope_len,
+                                       const uint8_t *image,
+                                       uintptr_t image_len,
+                                       uint8_t *out_block,
+                                       uintptr_t capacity,
+                                       uintptr_t *out_len);
+
+// Reads a block back into the signed manifest and the image.
+//
+// # Arguments
+//
+// * `block` - the block as it arrived.
+// * `block_len` - how many bytes it holds.
+// * `out_envelope_at` - receives where the signed manifest starts inside the block.
+// * `out_envelope_len` - receives how long it is.
+// * `out_image_at` - receives where the image starts.
+// * `out_image_len` - receives how long it is.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success. The two spans point into `block` itself, so nothing is
+// copied and the caller keeps it alive.
+//
+// # Errors
+//
+// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, and
+// [`PamojaStatus::Codec`] when the block does not carry this convention's header.
+//
+// # Safety
+//
+// `block` must be readable for `block_len` bytes and every non-null out pointer writable.
+PamojaStatus pamoja_update_block_split(const uint8_t *block,
+                                       uintptr_t block_len,
+                                       uintptr_t *out_envelope_at,
+                                       uintptr_t *out_envelope_len,
+                                       uintptr_t *out_image_at,
+                                       uintptr_t *out_image_len);
 
 // Reports whether a key expression is well formed.
 //

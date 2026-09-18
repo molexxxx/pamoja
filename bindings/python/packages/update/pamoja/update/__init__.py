@@ -25,7 +25,10 @@ from pamoja._native import (
     open_delegation,
     verify_envelope,
 )
+from pamoja._native import frame_update_block as _frame_block
 from pamoja._native import sign_delegation as _sign_delegation
+from pamoja._native import split_update_block as _split_block
+from pamoja._native import update_block_descriptor as _block_descriptor
 from pamoja._native import image_digest as _image_digest
 from pamoja._native import sign_manifest as _sign_manifest
 from pamoja._native import update_format_raw as _format_raw
@@ -33,6 +36,7 @@ from pamoja._native import update_structure_version as _structure_version
 from pamoja.security import DeviceIdentity
 
 __all__ = [
+    "BLOCK_DESCRIPTOR",
     "FORMAT_RAW",
     "STRUCTURE_VERSION",
     "BootAction",
@@ -49,8 +53,10 @@ __all__ = [
     "envelope_body",
     "open_delegation",
     "sign_delegation",
+    "frame_block",
     "image_digest",
     "sign_manifest",
+    "split_block",
     "verify_envelope",
 ]
 
@@ -124,3 +130,32 @@ def sign_delegation(delegation: Delegation, anchor: DeviceIdentity) -> bytes:
     :returns: The signed delegation envelope.
     """
     return _sign_delegation(delegation, DeviceIdentity.native(anchor))
+
+
+#: What a transport calls a block carrying a signed update, for a field that names the
+#: convention.
+BLOCK_DESCRIPTOR = _block_descriptor()
+
+
+def frame_block(envelope: bytes, image: bytes) -> bytes:
+    """Write a signed update into one block, for a transport that moves blocks.
+
+    The block is the signed manifest and the image behind a header that says where each
+    begins. Nothing in the header is trusted: every rule that decides whether the image
+    runs is still the manifest's.
+
+    :param envelope: The signed manifest.
+    :param image: The image it describes.
+    :returns: The block to hand to a transport.
+    """
+    return _frame_block(bytes(envelope), bytes(image))
+
+
+def split_block(block: bytes) -> tuple[bytes, bytes]:
+    """Read a block back into the signed manifest and the image.
+
+    :param block: The block as it arrived.
+    :returns: The signed manifest and the image.
+    :raises Refusal: If the block does not carry this convention's header.
+    """
+    return _split_block(bytes(block))

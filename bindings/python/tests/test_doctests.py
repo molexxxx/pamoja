@@ -1,7 +1,8 @@
-"""Runs the doctests in every capability module. `pamoja` is a namespace package
-spread over one distribution per capability, so the modules are found by their
-package directories rather than by walking one tree, and each is imported as it
-is installed."""
+"""Runs the doctests in every capability module and the submodules under them.
+`pamoja` is a namespace package spread over one distribution per capability, so
+the modules are found by their package directories rather than by walking one
+tree, and each is imported as it is installed. `doctest.testmod` stops at the
+module it is given, so a submodule is named and run in its own right."""
 
 import doctest
 import importlib
@@ -10,11 +11,20 @@ import pathlib
 import pytest
 
 PACKAGES = pathlib.Path(__file__).resolve().parents[1] / "packages"
-MODULES = sorted(
-    f"pamoja.{module.name}"
+CAPABILITIES = [
+    (f"pamoja.{module.name}", module)
     for package in PACKAGES.iterdir()
     for module in (package / "pamoja").glob("*")
     if module.is_dir() and not module.name.startswith("_")
+]
+MODULES = sorted(
+    {name for name, _ in CAPABILITIES}
+    | {
+        f"{name}.{source.stem}"
+        for name, directory in CAPABILITIES
+        for source in directory.glob("*.py")
+        if not source.stem.startswith("_")
+    }
 )
 
 

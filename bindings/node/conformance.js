@@ -3304,6 +3304,7 @@ headerVectors();
 lorawanLinkVectors();
 lorawanDeviceVectors();
 lorawanRelayVectors();
+lorawanPackageVectors();
 networkVectors();
 
 // What a ladder does with a message as its links come and go.
@@ -3834,4 +3835,160 @@ function gatewayVectors() {
     });
     assert.strictEqual(gateway.parse(datagram).txStatus, status, `the ${status} status`);
   }
+}
+
+// The four application layer packages: the key chains, the parity matrix, a whole
+// fragmentation session, and one command of each kind read and written back.
+function lorawanPackageVectors() {
+  const vector = VECTORS.lorawanPackages;
+  const ports = vector.ports;
+  assert.strictEqual(lorawan.clock.PORT, ports.clock, "the clock port");
+  assert.strictEqual(lorawan.fragment.PORT, ports.fragment, "the fragmentation port");
+  assert.strictEqual(lorawan.multicast.PORT, ports.multicast, "the multicast port");
+  assert.strictEqual(lorawan.firmware.PORT, ports.firmware, "the firmware port");
+  assert.strictEqual(lorawan.fragment.MAX_FRAGMENTS, vector.maxFragments, "the session ceiling");
+
+  const mc = vector.multicast;
+  const rootKey = unhex(mc.rootKey);
+  assert.strictEqual(
+    lorawan.multicast.rootKey(rootKey).toString("hex"),
+    mc.mcRootKey,
+    "the multicast root key of a 1.0.x device",
+  );
+  assert.strictEqual(
+    lorawan.multicast.rootKey(rootKey, true).toString("hex"),
+    mc.mcRootKey11,
+    "and of a 1.1 device",
+  );
+  const keKey = lorawan.multicast.keKey(unhex(mc.mcRootKey));
+  assert.strictEqual(keKey.toString("hex"), mc.mcKeKey, "the key encryption key");
+  assert.strictEqual(
+    lorawan.multicast.wrapKey(keKey, unhex(mc.groupKey)).toString("hex"),
+    mc.wrapped,
+    "a group key wraps",
+  );
+  assert.strictEqual(
+    lorawan.multicast.key(keKey, unhex(mc.wrapped)).toString("hex"),
+    mc.groupKey,
+    "and unwraps",
+  );
+  assert.strictEqual(
+    lorawan.multicast.appSKey(unhex(mc.groupKey), mc.mcAddr).toString("hex"),
+    mc.mcAppSKey,
+    "the group's payload key",
+  );
+  assert.strictEqual(
+    lorawan.multicast.nwkSKey(unhex(mc.groupKey), mc.mcAddr).toString("hex"),
+    mc.mcNwkSKey,
+    "and its frame key",
+  );
+
+  const frag = vector.fragment;
+  for (const step of frag.prbs23) {
+    assert.strictEqual(lorawan.fragment.prbs23(step.x), step.next, `prbs23 of ${step.x}`);
+  }
+  for (const line of frag.parityLines) {
+    assert.deepStrictEqual(
+      lorawan.fragment.parityLine(line.coded, line.nbFrag),
+      line.fragments,
+      `the parity line of coded fragment ${line.coded}`,
+    );
+  }
+  for (const shape of frag.sessions) {
+    const session = lorawan.fragment.session(shape.blockLen, shape.fragSize);
+    assert.strictEqual(session.nbFrag, shape.nbFrag, `${shape.blockLen} bytes takes fragments`);
+    assert.strictEqual(session.padding, shape.padding, "and that much padding");
+  }
+
+  const block = unhex(frag.block);
+  for (const piece of frag.fragments) {
+    assert.strictEqual(
+      lorawan.fragment.fragment(block, 32, piece.n).toString("hex"),
+      piece.bytes,
+      `fragment ${piece.n}`,
+    );
+  }
+
+  // The same session put back together over a link that drops every fourth fragment.
+  const receiver = new lorawan.fragment.Defragmenter(frag.received.nbFrag, 32, frag.received.nbFrag);
+  let sent = 0;
+  let coded = 0;
+  for (let n = 1; n <= frag.received.nbFrag * 2; n++) {
+    if (n % 4 === 0) {
+      continue;
+    }
+    sent += 1;
+    if (n > frag.received.nbFrag) {
+      coded += 1;
+    }
+    if (receiver.fragment(n, lorawan.fragment.fragment(block, 32, n))) {
+      break;
+    }
+  }
+  assert.strictEqual(sent, frag.received.sent, "the same fragments arrive");
+  assert.strictEqual(coded, frag.received.coded, "the same number of them coded");
+  assert.strictEqual(
+    receiver.block.subarray(0, block.length).toString("hex"),
+    frag.block,
+    "and the block comes back whole",
+  );
+
+  const blockKey = lorawan.fragment.dataBlockIntKey(unhex(mc.rootKey));
+  assert.strictEqual(blockKey.toString("hex"), frag.dataBlockIntKey, "the block signing key");
+  const code = new lorawan.fragment.BlockMic(
+    blockKey,
+    frag.mic.sessionCnt,
+    frag.mic.fragIndex,
+    Buffer.from(frag.mic.descriptor),
+    frag.mic.blockLen,
+  );
+  code.update(block);
+  assert.strictEqual(code.finish().toString("hex"), frag.mic.bytes, "the code over the block");
+
+  for (const entry of vector.commands) {
+    const read = lorawan.packageParse(entry.port, entry.uplink, unhex(entry.bytes));
+    assert.strictEqual(read.kind, entry.kind, `the name of ${entry.bytes}`);
+    assert.strictEqual(
+      lorawan.packageEncode(read).toString("hex"),
+      entry.bytes,
+      `${entry.bytes} is written back the way it was read`,
+    );
+    for (const [field, want] of Object.entries(entry.fields ?? {})) {
+      const got = read[field];
+      assert.strictEqual(
+        Buffer.isBuffer(got) ? got.toString("hex") : got,
+        want,
+        `${field} of ${entry.bytes}`,
+      );
+    }
+  }
+
+  for (const entry of vector.statusItems) {
+    const read = lorawan.packageStatusItem(unhex(entry.bytes));
+    assert.strictEqual(read.mcGroupId, entry.mcGroupId, `the group of ${entry.bytes}`);
+    assert.strictEqual(read.mcAddr, entry.mcAddr, `its address`);
+    assert.strictEqual(
+      lorawan.packageEncode(read).toString("hex"),
+      entry.bytes,
+      `${entry.bytes} is written back the way it was read`,
+    );
+  }
+
+  // Nothing says how long an unknown command is, so reading stops rather than guessing.
+  const stopped = lorawan.packageParseAll(
+    vector.stops.port,
+    vector.stops.uplink,
+    unhex(vector.stops.bytes),
+  );
+  assert.strictEqual(stopped.length, vector.stops.readable, "reading stops at the unknown one");
+
+  assert.throws(
+    () =>
+      lorawan.packageParse(
+        vector.notAPackage.port,
+        vector.notAPackage.uplink,
+        unhex(vector.notAPackage.bytes),
+      ),
+    "a port that names no package is refused",
+  );
 }

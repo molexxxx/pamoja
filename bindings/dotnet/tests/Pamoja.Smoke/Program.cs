@@ -1269,6 +1269,7 @@ static void Conformance()
     ConformLorawanLink(vectors.GetProperty("lorawanLink"), vectors);
     ConformLorawanDevice(vectors.GetProperty("lorawanDevice"));
     ConformLorawanRelay(vectors.GetProperty("lorawanRelay"));
+    ConformLorawanPackages(vectors.GetProperty("lorawanPackages"));
     ConformNetwork(vectors.GetProperty("network"));
     ConformAudit(vectors.GetProperty("audit"));
     ConformSession(vectors.GetProperty("session"));
@@ -6598,6 +6599,199 @@ static void ConformGateway(JsonElement vector)
             $"the {status.GetString()} status");
         code++;
     }
+}
+
+// The four application layer packages: the key chains, the parity matrix, a whole
+// fragmentation session, and one command of each kind read and written back.
+static void ConformLorawanPackages(JsonElement vector)
+{
+    JsonElement ports = vector.GetProperty("ports");
+    Assert(LorawanPackages.ClockPort == ports.GetProperty("clock").GetByte(), "the clock port");
+    Assert(
+        LorawanPackages.FragmentPort == ports.GetProperty("fragment").GetByte(),
+        "the fragmentation port");
+    Assert(
+        LorawanPackages.MulticastPort == ports.GetProperty("multicast").GetByte(),
+        "the multicast port");
+    Assert(
+        LorawanPackages.FirmwarePort == ports.GetProperty("firmware").GetByte(),
+        "the firmware port");
+    Assert(
+        LorawanPackages.MaxFragments == vector.GetProperty("maxFragments").GetUInt16(),
+        "the session ceiling");
+
+    JsonElement mc = vector.GetProperty("multicast");
+    byte[] rootKey = Unhex(mc, "rootKey");
+    Assert(
+        Hex(LorawanPackages.McRootKey(rootKey)) == mc.GetProperty("mcRootKey").GetString(),
+        "the multicast root key of a 1.0.x device");
+    Assert(
+        Hex(LorawanPackages.McRootKey(rootKey, true)) == mc.GetProperty("mcRootKey11").GetString(),
+        "and of a 1.1 device");
+    byte[] keKey = LorawanPackages.McKeKey(Unhex(mc, "mcRootKey"));
+    Assert(Hex(keKey) == mc.GetProperty("mcKeKey").GetString(), "the key encryption key");
+    Assert(
+        Hex(LorawanPackages.WrapMcKey(keKey, Unhex(mc, "groupKey")))
+            == mc.GetProperty("wrapped").GetString(),
+        "a group key wraps");
+    Assert(
+        Hex(LorawanPackages.McKey(keKey, Unhex(mc, "wrapped")))
+            == mc.GetProperty("groupKey").GetString(),
+        "and unwraps");
+    uint mcAddr = mc.GetProperty("mcAddr").GetUInt32();
+    Assert(
+        Hex(LorawanPackages.McAppSKey(Unhex(mc, "groupKey"), mcAddr))
+            == mc.GetProperty("mcAppSKey").GetString(),
+        "the group's payload key");
+    Assert(
+        Hex(LorawanPackages.McNwkSKey(Unhex(mc, "groupKey"), mcAddr))
+            == mc.GetProperty("mcNwkSKey").GetString(),
+        "and its frame key");
+
+    JsonElement frag = vector.GetProperty("fragment");
+    foreach (JsonElement step in frag.GetProperty("prbs23").EnumerateArray())
+    {
+        Assert(
+            LorawanPackages.FragPrbs23(step.GetProperty("x").GetUInt32())
+                == step.GetProperty("next").GetUInt32(),
+            "the pseudo-random sequence steps");
+    }
+
+    foreach (JsonElement line in frag.GetProperty("parityLines").EnumerateArray())
+    {
+        ushort[] want = line.GetProperty("fragments").EnumerateArray()
+            .Select(entry => entry.GetUInt16()).ToArray();
+        Assert(
+            LorawanPackages.FragParityLine(
+                line.GetProperty("coded").GetUInt16(),
+                line.GetProperty("nbFrag").GetUInt16()).SequenceEqual(want),
+            "the parity line of a coded fragment");
+    }
+
+    foreach (JsonElement shape in frag.GetProperty("sessions").EnumerateArray())
+    {
+        LorawanFragSession cut = LorawanPackages.FragSession(
+            shape.GetProperty("blockLen").GetInt32(),
+            shape.GetProperty("fragSize").GetByte());
+        Assert(cut.NbFrag == shape.GetProperty("nbFrag").GetUInt16(), "how many fragments");
+        Assert(cut.Padding == shape.GetProperty("padding").GetByte(), "and how much padding");
+    }
+
+    byte[] block = Unhex(frag, "block");
+    foreach (JsonElement piece in frag.GetProperty("fragments").EnumerateArray())
+    {
+        Assert(
+            Hex(LorawanPackages.FragFragment(block, 32, piece.GetProperty("n").GetUInt16()))
+                == piece.GetProperty("bytes").GetString(),
+            "one fragment of the session");
+    }
+
+    // The same session put back together over a link that drops every fourth fragment.
+    JsonElement arrived = frag.GetProperty("received");
+    ushort nbFrag = arrived.GetProperty("nbFrag").GetUInt16();
+    using var receiver = new LorawanDefragmenter(nbFrag, 32, nbFrag);
+    int sent = 0;
+    int coded = 0;
+    for (ushort n = 1; n <= nbFrag * 2; n++)
+    {
+        if (n % 4 == 0)
+        {
+            continue;
+        }
+
+        sent++;
+        if (n > nbFrag)
+        {
+            coded++;
+        }
+
+        if (receiver.Fragment(n, LorawanPackages.FragFragment(block, 32, n)))
+        {
+            break;
+        }
+    }
+
+    Assert(sent == arrived.GetProperty("sent").GetInt32(), "the same fragments arrive");
+    Assert(coded == arrived.GetProperty("coded").GetInt32(), "the same number of them coded");
+    Assert(
+        Hex(receiver.Block().AsSpan(0, block.Length).ToArray()) == frag.GetProperty("block").GetString(),
+        "and the block comes back whole");
+
+    byte[] blockKey = LorawanPackages.DataBlockIntKey(rootKey);
+    Assert(
+        Hex(blockKey) == frag.GetProperty("dataBlockIntKey").GetString(),
+        "the block signing key");
+    JsonElement mic = frag.GetProperty("mic");
+    using var code = new LorawanBlockMic(
+        blockKey,
+        mic.GetProperty("sessionCnt").GetUInt16(),
+        mic.GetProperty("fragIndex").GetByte(),
+        Encoding.ASCII.GetBytes(mic.GetProperty("descriptor").GetString()!),
+        mic.GetProperty("blockLen").GetUInt32());
+    code.Update(block);
+    Assert(Hex(code.Finish()) == mic.GetProperty("bytes").GetString(), "the code over the block");
+
+    foreach (JsonElement entry in vector.GetProperty("commands").EnumerateArray())
+    {
+        string text = entry.GetProperty("bytes").GetString()!;
+        byte port = entry.GetProperty("port").GetByte();
+        LorawanPackageCommand read = LorawanPackageCommand.Parse(
+            port,
+            entry.GetProperty("uplink").GetBoolean(),
+            Convert.FromHexString(text));
+        Assert(read.Cid == entry.GetProperty("cid").GetByte(), $"the identifier of {text}");
+        Assert(Hex(read.Encode()) == text, $"{text} is written back the way it was read");
+        foreach (JsonProperty field in entry.GetProperty("fields").EnumerateObject())
+        {
+            string name = char.ToUpperInvariant(field.Name[0]) + field.Name[1..];
+            object? got = typeof(LorawanPackageCommand).GetProperty(name)!.GetValue(read);
+            string gotText = got switch
+            {
+                byte[] bytes => Hex(bytes),
+                bool flag => flag ? "true" : "false",
+                _ => Convert.ToString(got, System.Globalization.CultureInfo.InvariantCulture)!,
+            };
+            string wantText = field.Value.ValueKind == JsonValueKind.String
+                ? field.Value.GetString()!
+                : field.Value.GetRawText();
+            Assert(gotText == wantText, $"{field.Name} of {text}");
+        }
+    }
+
+    foreach (JsonElement entry in vector.GetProperty("statusItems").EnumerateArray())
+    {
+        string text = entry.GetProperty("bytes").GetString()!;
+        LorawanPackageCommand read = LorawanPackageCommand.StatusItem(Convert.FromHexString(text));
+        Assert(read.McGroupId == entry.GetProperty("mcGroupId").GetByte(), $"the group of {text}");
+        Assert(read.McAddr == entry.GetProperty("mcAddr").GetUInt32(), "its address");
+        Assert(Hex(read.Encode()) == text, $"{text} is written back the way it was read");
+    }
+
+    // Nothing says how long an unknown command is, so reading stops rather than guessing.
+    JsonElement stops = vector.GetProperty("stops");
+    Assert(
+        LorawanPackageCommand.ParseAll(
+            stops.GetProperty("port").GetByte(),
+            stops.GetProperty("uplink").GetBoolean(),
+            Unhex(stops, "bytes")).Count == stops.GetProperty("readable").GetInt32(),
+        "reading stops at the unknown one");
+
+    JsonElement refused = vector.GetProperty("notAPackage");
+    try
+    {
+        LorawanPackageCommand.Parse(
+            refused.GetProperty("port").GetByte(),
+            refused.GetProperty("uplink").GetBoolean(),
+            Unhex(refused, "bytes"));
+        Assert(false, "a port that names no package is refused");
+    }
+    catch (PamojaException)
+    {
+    }
+
+    static string Hex(byte[] bytes) => Convert.ToHexString(bytes).ToLowerInvariant();
+    static byte[] Unhex(JsonElement owner, string name) =>
+        Convert.FromHexString(owner.GetProperty(name).GetString()!);
 }
 
 sealed class QueueLink : IReceivingTransportHandlers

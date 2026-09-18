@@ -218,6 +218,10 @@ dotnet = [
 ]
 guide = "guides/lorawan.md"
 
+[[capability.guides]]
+page = "guides/fuota.md"
+title = "Firmware over the air"
+
 [[capability]]
 key = "radios"
 chapter = "radio"
