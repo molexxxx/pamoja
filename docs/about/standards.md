@@ -21,7 +21,7 @@ What a row's second heading claims:
 | Round trip only | The code against itself, with no external vector to pin against |
 
 <!-- table: standards -->
-<p class="source">51 standards registered, 30 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
+<p class="source">55 standards registered, 34 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
 
 ## Cryptography
 
@@ -379,7 +379,7 @@ Parts decoded byte for byte, each from the manufacturer's own datasheet.
 
 Reaching a network that is not there, and the rules a regulator sets for doing it.
 
-<nav class="hw-index" aria-label="Radio, mesh and gateways index"><a href="#ts001-1-0-4">TS001-1.0.4</a><a href="#rp002-1-0-5">RP002-1.0.5</a><a href="#ts011-1-0-1">TS011-1.0.1</a><a href="#itu-r-p525-5">ITU-R P.525-5</a><a href="#itu-r-p526-16">ITU-R P.526-16</a><a href="#an1200-22">AN1200.22</a><a href="#sx126x">SX1261/SX1262 datasheet, Rev 2.2</a><a href="#sx127x">SX1276/77/78/79 datasheet, Rev 7</a><a href="#packet-forwarder">PROTOCOL.TXT</a><a href="#basics-station">LoRa Basics Station 2.0.6</a><a href="#crc-16-ibm-3740">CRC-16/IBM-3740</a><a href="#cfr-15-247">47 CFR 15.247</a><a href="#en-300-220-2">ETSI EN 300 220-2 V3.3.1</a><a href="#erc-70-03">CEPT ERC Recommendation 70-03</a><a href="#itu-t-k27">ITU-T K.27</a></nav>
+<nav class="hw-index" aria-label="Radio, mesh and gateways index"><a href="#ts001-1-0-4">TS001-1.0.4</a><a href="#rp002-1-0-5">RP002-1.0.5</a><a href="#ts011-1-0-1">TS011-1.0.1</a><a href="#ts003-2-0-0">TS003-2.0.0</a><a href="#ts004-2-0-0">TS004-2.0.0</a><a href="#ts005-2-0-0">TS005-2.0.0</a><a href="#ts006-1-0-0">TS006-1.0.0</a><a href="#itu-r-p525-5">ITU-R P.525-5</a><a href="#itu-r-p526-16">ITU-R P.526-16</a><a href="#an1200-22">AN1200.22</a><a href="#sx126x">SX1261/SX1262 datasheet, Rev 2.2</a><a href="#sx127x">SX1276/77/78/79 datasheet, Rev 7</a><a href="#packet-forwarder">PROTOCOL.TXT</a><a href="#basics-station">LoRa Basics Station 2.0.6</a><a href="#crc-16-ibm-3740">CRC-16/IBM-3740</a><a href="#cfr-15-247">47 CFR 15.247</a><a href="#en-300-220-2">ETSI EN 300 220-2 V3.3.1</a><a href="#erc-70-03">CEPT ERC Recommendation 70-03</a><a href="#itu-t-k27">ITU-T K.27</a></nav>
 <div class="hw-cards">
 <article class="hw-card" aria-labelledby="ts001-1-0-4">
 <header class="hw-head">
@@ -418,6 +418,58 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 <p class="hw-summary">Appendix 1's worked synchronization example, with WOR frames checked against Semtech LoRa Basics Modem and the root key against The Things Stack.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://resources.lora-alliance.org/technical-specifications/ts011-1-0-1-relay"><span class="hw-main"><b>The document</b><small>TS011-1.0.1</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 <section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/relay/tests.rs#L252"><span class="hw-main"><b>The test</b><small><code>tests.rs</code> line 252</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+</div>
+</article>
+<article class="hw-card" aria-labelledby="ts003-2-0-0">
+<header class="hw-head">
+
+### TS003-2.0.0 {#ts003-2-0-0}
+
+<p class="hw-by">LoRa Alliance</p>
+<p class="hw-summary">Application layer clock synchronization, so a device without a clock knows the time</p>
+</header>
+<p class="hw-summary">Every command checked against the size the specification gives it, cross-read with Semtech LoRa Basics Modem's own size constants.</p><div class="hw-foot">
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://resources.lora-alliance.org/technical-specifications/ts003-2-0-0-application-layer-clock-synchronization"><span class="hw-main"><b>The document</b><small>TS003-2.0.0</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/packages/tests.rs#L34"><span class="hw-main"><b>The test</b><small><code>tests.rs</code> line 34</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+</div>
+</article>
+<article class="hw-card" aria-labelledby="ts004-2-0-0">
+<header class="hw-head">
+
+### TS004-2.0.0 {#ts004-2-0-0}
+
+<p class="hw-by">LoRa Alliance</p>
+<p class="hw-summary">Fragmented data block transport, which carries an image larger than a frame</p>
+</header>
+<p class="hw-summary">ChirpStack's own command bytes, and the parity matrix against an independent rendering. The coded fragments are seeded by the index among the coded fragments, which is what Semtech's Basics Modem and ChirpStack both do; the appendix reads as though the session index were the seed.</p><div class="hw-foot">
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://resources.lora-alliance.org/technical-specifications/ts004-2-0-0-fragmented-data-block-transport"><span class="hw-main"><b>The document</b><small>TS004-2.0.0</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/packages/fragment_tests.rs#L22"><span class="hw-main"><b>The test</b><small><code>fragment_tests.rs</code> line 22</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+</div>
+</article>
+<article class="hw-card" aria-labelledby="ts005-2-0-0">
+<header class="hw-head">
+
+### TS005-2.0.0 {#ts005-2-0-0}
+
+<p class="hw-by">LoRa Alliance</p>
+<p class="hw-summary">Remote multicast setup: one address, one key and one window for a group of devices</p>
+</header>
+<p class="hw-summary">ChirpStack's own command bytes, with the key chain of section 4.3 checked step by step.</p><div class="hw-foot">
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://resources.lora-alliance.org/technical-specifications/ts005-2-0-0-remote-multicast-setup"><span class="hw-main"><b>The document</b><small>TS005-2.0.0</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/packages/multicast_tests.rs#L21"><span class="hw-main"><b>The test</b><small><code>multicast_tests.rs</code> line 21</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+</div>
+</article>
+<article class="hw-card" aria-labelledby="ts006-1-0-0">
+<header class="hw-head">
+
+### TS006-1.0.0 {#ts006-1-0-0}
+
+<p class="hw-by">LoRa Alliance</p>
+<p class="hw-summary">Firmware management: what a device runs, what it holds, and the one reboot it keeps</p>
+</header>
+<p class="hw-summary">Every command checked against the size the specification gives it, including the version that rides only with an installable image.</p><div class="hw-foot">
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://resources.lora-alliance.org/technical-specifications/ts006-1-0-0-firmware-management-protocol"><span class="hw-main"><b>The document</b><small>TS006-1.0.0</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/packages/tests.rs#L284"><span class="hw-main"><b>The test</b><small><code>tests.rs</code> line 284</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="itu-r-p525-5">
