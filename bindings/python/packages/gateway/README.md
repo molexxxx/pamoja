@@ -25,6 +25,7 @@ The script the test suite runs, spliced here as it ran.
 From [`bindings/python/guides/gateway.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/gateway.py):
 
 ```python
+from pamoja.core import version
 from pamoja.gateway import Packet, PacketKind, Rxpk, Txpk, TxStatus, acknowledgment, encode, parse
 from pamoja.lora import link
 

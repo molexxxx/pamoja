@@ -776,7 +776,7 @@ tbody tr:nth-child(even) td, tbody tr:nth-child(even) th[scope="row"] { backgrou
   .pkg-get { display: flex; }
   .pkg-get .cmd { flex: 1; }
 
-  /* A table stacks into labelled rows. */
+  /* A table stacks into labeled rows. */
   .article .table-scroll { overflow: visible; }
   .article table, .article tbody, .article tr, .article td,
   table.order, table.caps, table.lanes, table.milestones,

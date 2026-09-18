@@ -356,7 +356,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn servo_maps_ends_and_centre() {
+    fn servo_maps_ends_and_center() {
         let servo = ServoMap::standard();
         assert_eq!(servo.pulse(0.0), 1000);
         assert_eq!(servo.pulse(90.0), 1500);

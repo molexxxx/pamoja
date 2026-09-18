@@ -253,7 +253,7 @@ println!("open      {uri}");
 // A station opens with what it is, which is how the server knows what it can do.
 let hello = Message::Version {
     station: "pamoja".to_owned(),
-    firmware: "0.1.18".to_owned(),
+    firmware: env!("CARGO_PKG_VERSION").to_owned(),
     package: "pamoja-gateway".to_owned(),
     model: "linux".to_owned(),
     protocol: pamoja_gateway::station::PROTOCOL_VERSION,
@@ -308,6 +308,7 @@ From [`bindings/node/guides/gateway.ts`](https://github.com/molexxxx/pamoja/blob
 
 ```typescript
 import { PacketKind, TxStatus, acknowledgment, encode, parse } from '@pamoja/gateway'
+import { version } from '@pamoja/core'
 import { link } from '@pamoja/lora'
 
 // A gateway on a Raspberry Pi, whose identifier is written from its network interface.
@@ -475,7 +476,7 @@ console.log(`open      ${routed.uri}`)
 const hello = stationEncode({
   kind: StationKind.Version,
   station: 'pamoja',
-  firmware: '0.1.18',
+  firmware: version(),
   package: 'pamoja-gateway',
   model: 'linux',
   protocol: STATION_PROTOCOL_VERSION,
@@ -508,6 +509,7 @@ console.log(`payload   ${reported.payload?.length} bytes, still encrypted`)
 From [`bindings/python/guides/gateway.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/gateway.py):
 
 ```python
+from pamoja.core import version
 from pamoja.gateway import Packet, PacketKind, Rxpk, Txpk, TxStatus, acknowledgment, encode, parse
 from pamoja.lora import link
 
@@ -670,7 +672,7 @@ print(f"open      {answer.uri}")
 
 # A station opens with what it is, which is how the server knows what it can do.
 hello = station_parse(
-    '{"msgtype":"version","station":"pamoja","firmware":"0.1.18",'
+    f'{{"msgtype":"version","station":"pamoja","firmware":"{version()}",'
     '"package":"pamoja-gateway","model":"linux",'
     f'"protocol":{STATION_PROTOCOL_VERSION},"features":"gps"}}'
 )

@@ -22,6 +22,7 @@ From [`bindings/node/guides/gateway.ts`](https://github.com/molexxxx/pamoja/blob
 
 ```typescript
 import { PacketKind, TxStatus, acknowledgment, encode, parse } from '@pamoja/gateway'
+import { version } from '@pamoja/core'
 import { link } from '@pamoja/lora'
 
 // A gateway on a Raspberry Pi, whose identifier is written from its network interface.
