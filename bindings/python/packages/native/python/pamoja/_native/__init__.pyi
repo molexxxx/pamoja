@@ -88,14 +88,20 @@ __all__ = [
     "LorawanAcknowledgment",
     "LorawanBackoff",
     "LorawanBackoffStep",
+    "LorawanBlockMic",
     "LorawanCarrier",
     "LorawanCfList",
     "LorawanChannel",
+    "LorawanClockHeard",
+    "LorawanClockSync",
+    "LorawanDefragmenter",
     "LorawanDelivery",
     "LorawanDevice",
     "LorawanDeviceSettings",
     "LorawanEndDevice",
+    "LorawanFirmware",
     "LorawanForwardedUplink",
+    "LorawanFragSession",
     "LorawanGrant",
     "LorawanHeader",
     "LorawanHeard",
@@ -104,6 +110,7 @@ __all__ = [
     "LorawanListen",
     "LorawanMacCommand",
     "LorawanNext",
+    "LorawanPackageCommand",
     "LorawanRelay",
     "LorawanRelayExchange",
     "LorawanRelayHeard",
@@ -242,6 +249,7 @@ __all__ = [
     "encode_manifest",
     "envelope_body",
     "fingerprint",
+    "frame_update_block",
     "gateway_acknowledgment",
     "gateway_encode",
     "gateway_parse",
@@ -325,7 +333,21 @@ __all__ = [
     "lora_free_space_loss_db",
     "lora_fresnel_radius_mm",
     "lora_noise_floor_dbm",
+    "lorawan_data_block_int_key",
+    "lorawan_frag_fragment",
+    "lorawan_frag_parity_line",
+    "lorawan_frag_prbs23",
+    "lorawan_frag_session",
     "lorawan_mac_parse",
+    "lorawan_mc_app_s_key",
+    "lorawan_mc_ke_key",
+    "lorawan_mc_key",
+    "lorawan_mc_nwk_s_key",
+    "lorawan_mc_root_key",
+    "lorawan_package_encode",
+    "lorawan_package_parse",
+    "lorawan_package_parse_all",
+    "lorawan_package_status_item",
     "lorawan_parse_header",
     "lorawan_parse_join_request",
     "lorawan_relay_forward_encode",
@@ -343,6 +365,7 @@ __all__ = [
     "lorawan_relay_wor_open",
     "lorawan_relay_wor_parse",
     "lorawan_relay_wor_uplink",
+    "lorawan_wrap_mc_key",
     "mavlink_crc16_mcrf4xx",
     "mavlink_known_crc_extra",
     "mavlink_known_messages",
@@ -470,6 +493,7 @@ __all__ = [
     "slip_max_encoded_len",
     "spi_mode_clock",
     "spi_mode_from_clock",
+    "split_update_block",
     "station_discovery",
     "station_encode",
     "station_eui_of",
@@ -561,6 +585,7 @@ __all__ = [
     "tmp117_revision",
     "tmp117_temperature_bytes",
     "tmp117_temperature_from_bytes",
+    "update_block_descriptor",
     "update_format_raw",
     "update_structure_version",
     "verify",
@@ -4249,6 +4274,27 @@ class LorawanBackoffStep:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class LorawanBlockMic:
+    r"""
+    The code taken over a data block as it arrives, TS004-2.0.0 section 3.3.
+    """
+    def __new__(cls, data_block_int_key: typing.Sequence[builtins.int], session_cnt: builtins.int, frag_index: builtins.int, descriptor: typing.Sequence[builtins.int], block_len: builtins.int) -> LorawanBlockMic:
+        r"""
+        Starts a code over one session's block.
+        
+        `data_block_int_key` is what :func:`lorawan_data_block_int_key` derived, and the rest
+        are the fields the session setup carried.
+        """
+    def update(self, data: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Adds a piece of the block, in order, without any padding.
+        """
+    def finish(self) -> bytes:
+        r"""
+        Finishes the code, returning the four bytes a session setup carries.
+        """
+
+@typing.final
 class LorawanCarrier:
     r"""
     Where a frame goes and how fast.
@@ -4363,6 +4409,117 @@ class LorawanChannel:
     def max_data_rate(self) -> builtins.int:
         r"""
         The fastest.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanClockHeard:
+    r"""
+    What a device made of a downlink on the clock port.
+    """
+    @property
+    def correction(self) -> typing.Optional[builtins.int]:
+        r"""
+        The seconds to add to the device's clock, where an answer carried one.
+        """
+    @property
+    def more_correction(self) -> builtins.bool:
+        r"""
+        Whether the correction was the largest the field carries, so another follows.
+        """
+    @property
+    def resync(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many requests a resynchronization command asked for.
+        """
+    @property
+    def answer_due(self) -> builtins.bool:
+        r"""
+        Whether the device now owes an answer.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanClockSync:
+    r"""
+    The clock synchronization package running on a device, TS003-2.0.0.
+    """
+    @property
+    def token(self) -> builtins.int:
+        r"""
+        The token the next request will carry.
+        """
+    @property
+    def period_s(self) -> builtins.int:
+        r"""
+        The seconds between requests, as the server last set them.
+        """
+    @property
+    def answer_due(self) -> builtins.bool:
+        r"""
+        Whether the device owes its server an answer.
+        """
+    def __new__(cls, self_managed: builtins.bool = False) -> LorawanClockSync:
+        r"""
+        Starts the package.
+        
+        `self_managed` marks a device that keeps its own periodicity and answers a server that
+        tries to set one with the not-supported bit.
+        """
+    def request(self, device_time: builtins.int, ans_required: builtins.bool = False) -> bytes:
+        r"""
+        Builds the request that asks a server for a correction, section 3.2.
+        """
+    def heard(self, payload: typing.Sequence[builtins.int]) -> LorawanClockHeard:
+        r"""
+        Reads a downlink on the clock port and acts on it.
+        """
+    def answer(self, device_time: builtins.int) -> bytes:
+        r"""
+        Writes the answer the device owes, or an empty value when it owes none.
+        """
+
+@typing.final
+class LorawanDefragmenter:
+    r"""
+    A fragmentation session being put back together, TS004-2.0.0 appendix A.2.
+    
+    The uncoded fragments go straight into the block. A coded fragment is reduced against
+    everything already known and kept only if it says something new, so the working memory is
+    sized by the losses rather than by the block.
+    """
+    @property
+    def block(self) -> bytes:
+        r"""
+        The block, as far as it has been put back together, padding and all.
+        """
+    @property
+    def done(self) -> builtins.bool:
+        r"""
+        Whether the whole block is there.
+        """
+    @property
+    def received(self) -> builtins.int:
+        r"""
+        How many fragments arrived, coded, uncoded and repeated.
+        """
+    @property
+    def missing(self) -> builtins.int:
+        r"""
+        How many uncoded fragments are still missing.
+        """
+    def __new__(cls, nb_frag: builtins.int, frag_size: builtins.int, max_lost: builtins.int) -> LorawanDefragmenter:
+        r"""
+        Opens a session for a block of `nb_frag` fragments of `frag_size` bytes.
+        
+        `max_lost` is the most uncoded fragments to be able to solve for, which decides how
+        much working memory the session takes.
+        """
+    def fragment(self, n: builtins.int, data: typing.Sequence[builtins.int]) -> builtins.bool:
+        r"""
+        Takes one fragment of the session, counting from one.
+        
+        Returns `True` once the block is whole.
         """
     def __repr__(self) -> builtins.str: ...
 
@@ -4688,6 +4845,56 @@ class LorawanEndDevice:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class LorawanFirmware:
+    r"""
+    The firmware management package running on a device, TS006-1.0.0.
+    """
+    @property
+    def reboot_at_s(self) -> typing.Optional[builtins.int]:
+        r"""
+        The moment the device is to reboot, where one was set as a time.
+        """
+    @property
+    def reboot_in_s(self) -> typing.Optional[builtins.int]:
+        r"""
+        How long until it reboots, where one was set as a countdown.
+        """
+    @property
+    def reboot_now(self) -> builtins.bool:
+        r"""
+        Whether the device was told to reboot at once.
+        """
+    @property
+    def next_version(self) -> typing.Optional[builtins.int]:
+        r"""
+        What the device would boot into, for an image it can install.
+        """
+    @property
+    def image_status(self) -> builtins.str:
+        r"""
+        What the device makes of the image it holds.
+        """
+    def __new__(cls, firmware: builtins.int, hardware: builtins.int) -> LorawanFirmware:
+        r"""
+        Starts the package, reporting the versions the device was built with.
+        """
+    def set_image(self, status: builtins.str, version: typing.Optional[builtins.int] = None) -> None:
+        r"""
+        Says what firmware upgrade image the device is holding.
+        """
+    def heard(self, payload: typing.Sequence[builtins.int], now_s: typing.Optional[builtins.int] = None) -> bytes:
+        r"""
+        Reads a downlink on the firmware port and writes the answers it calls for.
+        
+        `now_s` is what the device believes the time is, in seconds since the GPS epoch; a
+        device that does not know refuses a reboot set for a moment in time.
+        """
+    def rebooted(self) -> None:
+        r"""
+        Forgets the programmed reboot, for a device that has carried it out.
+        """
+
+@typing.final
 class LorawanForwardedUplink:
     r"""
     An end device's uplink as a relay forwards it on port 226.
@@ -4707,6 +4914,23 @@ class LorawanForwardedUplink:
         r"""
         The end device's frame.
         """
+
+@typing.final
+class LorawanFragSession:
+    r"""
+    How a block is cut into fragments.
+    """
+    @property
+    def nb_frag(self) -> builtins.int:
+        r"""
+        How many uncoded fragments the block takes.
+        """
+    @property
+    def padding(self) -> builtins.int:
+        r"""
+        How many bytes of padding the last one carries.
+        """
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class LorawanGrant:
@@ -5340,6 +5564,327 @@ class LorawanNext:
     def not_before_us(self) -> typing.Optional[builtins.int]:
         r"""
         For a repeat or another join, the earliest time to send, in microseconds.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LorawanPackageCommand:
+    r"""
+    One command of an application layer package, whichever package it belongs to.
+    
+    `port` says which package and `kind` names the command within it; together they decide
+    which of the other fields carry anything. The rest are `None`.
+    """
+    @property
+    def port(self) -> builtins.int:
+        r"""
+        Which package this command belongs to, as its port.
+        """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        Which command this is, as a name.
+        """
+    @property
+    def uplink(self) -> builtins.bool:
+        r"""
+        Which way it travels.
+        """
+    @property
+    def package(self) -> typing.Optional[builtins.int]:
+        r"""
+        The package identifier a version answer carries.
+        """
+    @property
+    def version(self) -> typing.Optional[builtins.int]:
+        r"""
+        The package version it implements.
+        """
+    @property
+    def device_time(self) -> typing.Optional[builtins.int]:
+        r"""
+        A device's own clock, in seconds since the GPS epoch.
+        """
+    @property
+    def time_correction(self) -> typing.Optional[builtins.int]:
+        r"""
+        The seconds to add to a device's clock.
+        """
+    @property
+    def token(self) -> typing.Optional[builtins.int]:
+        r"""
+        The token that pairs a clock answer with its request.
+        """
+    @property
+    def ans_required(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether a clock request must be answered.
+        """
+    @property
+    def period(self) -> typing.Optional[builtins.int]:
+        r"""
+        The coded period between clock requests.
+        """
+    @property
+    def not_supported(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether a device manages its own clock periodicity.
+        """
+    @property
+    def transmissions(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many requests a resynchronization command asks for.
+        """
+    @property
+    def firmware(self) -> typing.Optional[builtins.int]:
+        r"""
+        The firmware a device reports running.
+        """
+    @property
+    def hardware(self) -> typing.Optional[builtins.int]:
+        r"""
+        The hardware it runs on.
+        """
+    @property
+    def reboot(self) -> typing.Optional[builtins.int]:
+        r"""
+        The moment or the delay a reboot is set for.
+        """
+    @property
+    def image_status(self) -> typing.Optional[builtins.str]:
+        r"""
+        What a device makes of the upgrade image it holds.
+        """
+    @property
+    def next_version(self) -> typing.Optional[builtins.int]:
+        r"""
+        The version it would run once that image is installed.
+        """
+    @property
+    def delete_version(self) -> typing.Optional[builtins.int]:
+        r"""
+        The version a delete command names.
+        """
+    @property
+    def no_valid_image(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether a device holds no valid image.
+        """
+    @property
+    def invalid_version(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the version named is not the one held.
+        """
+    @property
+    def frag_index(self) -> typing.Optional[builtins.int]:
+        r"""
+        Which fragmentation session, 0 to 3.
+        """
+    @property
+    def mc_group_bit_mask(self) -> typing.Optional[builtins.int]:
+        r"""
+        Which multicast groups may feed it, a bit for each.
+        """
+    @property
+    def nb_frag(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many uncoded fragments a block was cut into.
+        """
+    @property
+    def frag_size(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many bytes each fragment carries.
+        """
+    @property
+    def ack_reception(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether a device reports the block once it has it.
+        """
+    @property
+    def frag_algo(self) -> typing.Optional[builtins.int]:
+        r"""
+        Which fragmentation algorithm to run.
+        """
+    @property
+    def block_ack_delay(self) -> typing.Optional[builtins.int]:
+        r"""
+        The coded spread of the delay before a device answers.
+        """
+    @property
+    def padding(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many bytes of padding the last fragment carries.
+        """
+    @property
+    def descriptor(self) -> typing.Optional[builtins.list[builtins.int]]:
+        r"""
+        The four bytes a server describes a block with.
+        """
+    @property
+    def session_cnt(self) -> typing.Optional[builtins.int]:
+        r"""
+        The session counter, which must rise for each new block.
+        """
+    @property
+    def mic(self) -> typing.Optional[builtins.list[builtins.int]]:
+        r"""
+        The code over the block a device checks once it has it all.
+        """
+    @property
+    def received(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many fragments arrived, coded, uncoded and repeated.
+        """
+    @property
+    def missing(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many uncoded fragments are still missing.
+        """
+    @property
+    def mic_error(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the block's code did not check out.
+        """
+    @property
+    def memory_error(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether a session ran out of memory to defragment with.
+        """
+    @property
+    def no_session(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the session or group named does not exist on the device.
+        """
+    @property
+    def unsupported_algorithm(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the setup named an algorithm the device does not run.
+        """
+    @property
+    def unsupported_index(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the setup named an index the device does not keep.
+        """
+    @property
+    def wrong_descriptor(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the descriptor is not one the device accepts.
+        """
+    @property
+    def session_replay(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the session counter repeats one already used.
+        """
+    @property
+    def all_participants(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether every device answers a status request.
+        """
+    @property
+    def fragment_n(self) -> typing.Optional[builtins.int]:
+        r"""
+        Which fragment of a session a data fragment carries, counting from one.
+        """
+    @property
+    def data(self) -> typing.Optional[builtins.list[builtins.int]]:
+        r"""
+        The bytes a data fragment carries.
+        """
+    @property
+    def mc_group_id(self) -> typing.Optional[builtins.int]:
+        r"""
+        Which multicast group, 0 to 3.
+        """
+    @property
+    def mc_addr(self) -> typing.Optional[builtins.int]:
+        r"""
+        The address a group answers to.
+        """
+    @property
+    def mc_key_encrypted(self) -> typing.Optional[builtins.list[builtins.int]]:
+        r"""
+        A group's key, wrapped under the device's key encryption key.
+        """
+    @property
+    def min_mc_fcnt(self) -> typing.Optional[builtins.int]:
+        r"""
+        The first frame counter a device accepts from a group.
+        """
+    @property
+    def max_mc_fcnt(self) -> typing.Optional[builtins.int]:
+        r"""
+        The last one, which ends the group's life.
+        """
+    @property
+    def group_mask(self) -> typing.Optional[builtins.int]:
+        r"""
+        Which groups a status request or answer covers, a bit for each.
+        """
+    @property
+    def nb_total_groups(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many groups a device holds in all.
+        """
+    @property
+    def id_error(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether a device holds no group by the identifier named.
+        """
+    @property
+    def session_time(self) -> typing.Optional[builtins.int]:
+        r"""
+        When a multicast window opens, in seconds since the GPS epoch.
+        """
+    @property
+    def time_out(self) -> typing.Optional[builtins.int]:
+        r"""
+        How long it lasts at most, coded.
+        """
+    @property
+    def periodicity(self) -> typing.Optional[builtins.int]:
+        r"""
+        How often a device opens a ping slot inside a Class B window.
+        """
+    @property
+    def dl_frequency_hz(self) -> typing.Optional[builtins.int]:
+        r"""
+        Where a group listens, in hertz.
+        """
+    @property
+    def data_rate(self) -> typing.Optional[builtins.int]:
+        r"""
+        The data rate it listens at.
+        """
+    @property
+    def time_to_start(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many seconds until a window opens.
+        """
+    @property
+    def dr_error(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the data rate named is not one the device has.
+        """
+    @property
+    def freq_error(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the frequency named is not one it can use.
+        """
+    @property
+    def start_missed(self) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether the window was to start at a time already past.
+        """
+    def __new__(cls, port: builtins.int, kind: builtins.str, uplink: builtins.bool = False, package: typing.Optional[builtins.int] = None, version: typing.Optional[builtins.int] = None, device_time: typing.Optional[builtins.int] = None, time_correction: typing.Optional[builtins.int] = None, token: typing.Optional[builtins.int] = None, ans_required: typing.Optional[builtins.bool] = None, period: typing.Optional[builtins.int] = None, not_supported: typing.Optional[builtins.bool] = None, transmissions: typing.Optional[builtins.int] = None, firmware: typing.Optional[builtins.int] = None, hardware: typing.Optional[builtins.int] = None, reboot: typing.Optional[builtins.int] = None, image_status: typing.Optional[builtins.str] = None, next_version: typing.Optional[builtins.int] = None, delete_version: typing.Optional[builtins.int] = None, no_valid_image: typing.Optional[builtins.bool] = None, invalid_version: typing.Optional[builtins.bool] = None, frag_index: typing.Optional[builtins.int] = None, mc_group_bit_mask: typing.Optional[builtins.int] = None, nb_frag: typing.Optional[builtins.int] = None, frag_size: typing.Optional[builtins.int] = None, ack_reception: typing.Optional[builtins.bool] = None, frag_algo: typing.Optional[builtins.int] = None, block_ack_delay: typing.Optional[builtins.int] = None, padding: typing.Optional[builtins.int] = None, descriptor: typing.Optional[typing.Sequence[builtins.int]] = None, session_cnt: typing.Optional[builtins.int] = None, mic: typing.Optional[typing.Sequence[builtins.int]] = None, received: typing.Optional[builtins.int] = None, missing: typing.Optional[builtins.int] = None, mic_error: typing.Optional[builtins.bool] = None, memory_error: typing.Optional[builtins.bool] = None, no_session: typing.Optional[builtins.bool] = None, unsupported_algorithm: typing.Optional[builtins.bool] = None, unsupported_index: typing.Optional[builtins.bool] = None, wrong_descriptor: typing.Optional[builtins.bool] = None, session_replay: typing.Optional[builtins.bool] = None, all_participants: typing.Optional[builtins.bool] = None, fragment_n: typing.Optional[builtins.int] = None, data: typing.Optional[typing.Sequence[builtins.int]] = None, mc_group_id: typing.Optional[builtins.int] = None, mc_addr: typing.Optional[builtins.int] = None, mc_key_encrypted: typing.Optional[typing.Sequence[builtins.int]] = None, min_mc_fcnt: typing.Optional[builtins.int] = None, max_mc_fcnt: typing.Optional[builtins.int] = None, group_mask: typing.Optional[builtins.int] = None, nb_total_groups: typing.Optional[builtins.int] = None, id_error: typing.Optional[builtins.bool] = None, session_time: typing.Optional[builtins.int] = None, time_out: typing.Optional[builtins.int] = None, periodicity: typing.Optional[builtins.int] = None, dl_frequency_hz: typing.Optional[builtins.int] = None, data_rate: typing.Optional[builtins.int] = None, time_to_start: typing.Optional[builtins.int] = None, dr_error: typing.Optional[builtins.bool] = None, freq_error: typing.Optional[builtins.bool] = None, start_missed: typing.Optional[builtins.bool] = None) -> LorawanPackageCommand:
+        r"""
+        Builds a command to write out.
+        
+        The port and the name decide which command this is, and therefore which of the other
+        arguments are read. The rest may be left off.
+        """
+    def encode(self) -> bytes:
+        r"""
+        Writes this command out, which is what :func:`lorawan_package_encode` does.
         """
     def __repr__(self) -> builtins.str: ...
 
@@ -8941,6 +9486,15 @@ def fingerprint(public_key: typing.Sequence[builtins.int]) -> builtins.str:
     Returns the short hex fingerprint of a public key.
     """
 
+def frame_update_block(envelope: typing.Sequence[builtins.int], image: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Writes a signed update into one block, for a transport that moves blocks.
+    
+    The block is the signed manifest and the image behind a header that says where each
+    begins. Nothing in the header is trusted: every rule that decides whether the image runs is
+    still the manifest's.
+    """
+
 def gateway_acknowledgment(packet: GatewayPacket) -> typing.Optional[GatewayPacket]:
     r"""
     Returns the acknowledgment a server owes a datagram, or `None` for one that needs none.
@@ -9376,6 +9930,37 @@ def lora_noise_floor_dbm(bandwidth_hz: builtins.int) -> builtins.float:
     The thermal noise power in a channel, in dBm.
     """
 
+def lorawan_data_block_int_key(root_key: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Derives the key that signs a data block, TS004-2.0.0 section 3.3.
+    """
+
+def lorawan_frag_fragment(block: typing.Sequence[builtins.int], frag_size: builtins.int, n: builtins.int) -> bytes:
+    r"""
+    Builds one fragment of a session out of a block held whole.
+    
+    Up to `nb_frag` the fragment is a piece of the block; past that it is a coded fragment, the
+    exclusive-or of a pseudo-random half of the pieces.
+    """
+
+def lorawan_frag_parity_line(coded: builtins.int, nb_frag: builtins.int) -> builtins.list[builtins.int]:
+    r"""
+    Lists the uncoded fragments a coded one is made of, appendix A.1.
+    
+    `coded` counts from one past the uncoded fragments: a session's fragment `nb_frag + 1` is
+    coded fragment 1.
+    """
+
+def lorawan_frag_prbs23(x: builtins.int) -> builtins.int:
+    r"""
+    Steps the pseudo-random sequence the parity matrix is drawn from, appendix A.1.
+    """
+
+def lorawan_frag_session(block_len: builtins.int, frag_size: builtins.int) -> LorawanFragSession:
+    r"""
+    Says how many fragments a block takes, and how much padding the last one needs.
+    """
+
 def lorawan_mac_parse(direction: builtins.str, data: typing.Sequence[builtins.int]) -> builtins.list[LorawanMacCommand]:
     r"""
     Reads the commands packed into a frame options field, or a payload sent on port 0.
@@ -9394,6 +9979,58 @@ def lorawan_mac_parse(direction: builtins.str, data: typing.Sequence[builtins.in
     # Returns
     
     The commands that were readable, in order.
+    """
+
+def lorawan_mc_app_s_key(mc_key: typing.Sequence[builtins.int], mc_addr: builtins.int) -> bytes:
+    r"""
+    Derives the key that reads a multicast group's payloads, section 4.3.
+    """
+
+def lorawan_mc_ke_key(mc_root_key: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Derives the key a multicast group's key travels under, section 4.3.
+    """
+
+def lorawan_mc_key(mc_ke_key: typing.Sequence[builtins.int], wrapped: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Unwraps the group key a setup command carried, section 4.3.
+    """
+
+def lorawan_mc_nwk_s_key(mc_key: typing.Sequence[builtins.int], mc_addr: builtins.int) -> bytes:
+    r"""
+    Derives the key that verifies a multicast group's frames, section 4.3.
+    """
+
+def lorawan_mc_root_key(root_key: typing.Sequence[builtins.int], lorawan11: builtins.bool = False) -> bytes:
+    r"""
+    Derives a device's multicast root key, TS005-2.0.0 section 4.3.
+    
+    `lorawan11` picks the scheme: LoRaWAN 1.0.x devices derive from their `GenAppKey`, and 1.1
+    devices from their `AppKey` under another constant.
+    """
+
+def lorawan_package_encode(command: LorawanPackageCommand) -> bytes:
+    r"""
+    Writes one command of an application layer package.
+    """
+
+def lorawan_package_parse(port: builtins.int, uplink: builtins.bool, payload: typing.Sequence[builtins.int]) -> LorawanPackageCommand:
+    r"""
+    Reads one command of an application layer package.
+    
+    `uplink` says which way the frame carrying it traveled, because the same identifier names a
+    different command in each direction. A data fragment takes the whole message, as
+    TS004-2.0.0 section 3 asks, and its bytes come back on `data`.
+    """
+
+def lorawan_package_parse_all(port: builtins.int, uplink: builtins.bool, payload: typing.Sequence[builtins.int]) -> builtins.list[LorawanPackageCommand]:
+    r"""
+    Reads every command in one message, stopping at an identifier the package does not define.
+    """
+
+def lorawan_package_status_item(payload: typing.Sequence[builtins.int]) -> LorawanPackageCommand:
+    r"""
+    Reads one group record of a multicast status answer, TS005-2.0.0 section 4.2.
     """
 
 def lorawan_parse_header(bytes: typing.Sequence[builtins.int]) -> LorawanHeader:
@@ -9486,6 +10123,11 @@ def lorawan_relay_wor_parse(frame: typing.Sequence[builtins.int]) -> LorawanWor:
 def lorawan_relay_wor_uplink(keys: LorawanWorKeys, dev_addr: builtins.int, wfcnt: builtins.int, uplink: LorawanCarrier, wor: LorawanCarrier) -> bytes:
     r"""
     Builds the WOR frame ahead of a Class A uplink, section 5.3.2.
+    """
+
+def lorawan_wrap_mc_key(mc_ke_key: typing.Sequence[builtins.int], mc_key: typing.Sequence[builtins.int]) -> bytes:
+    r"""
+    Wraps a group key for a device, which is what a server does before sending it.
     """
 
 def mavlink_crc16_mcrf4xx(data: typing.Sequence[builtins.int]) -> builtins.int:
@@ -10160,6 +10802,13 @@ def spi_mode_from_clock(cpol: builtins.bool, cpha: builtins.bool) -> builtins.in
     Returns the SPI mode number a `(CPOL, CPHA)` pair names.
     """
 
+def split_update_block(block: typing.Sequence[builtins.int]) -> tuple[bytes, bytes]:
+    r"""
+    Reads a block back into the signed manifest and the image.
+    
+    Raises when the block does not carry this convention's header.
+    """
+
 def station_discovery(router: builtins.str) -> builtins.str:
     r"""
     Writes the request a station sends to find its network server.
@@ -10646,6 +11295,12 @@ def tmp117_temperature_bytes(raw: builtins.int) -> builtins.list[builtins.int]:
 def tmp117_temperature_from_bytes(data: typing.Sequence[builtins.int]) -> builtins.int:
     r"""
     Reads the two bytes a TMP117 sends for a temperature register.
+    """
+
+def update_block_descriptor() -> builtins.str:
+    r"""
+    What a transport calls a block carrying a signed update, for a field that names the
+    convention.
     """
 
 def update_format_raw() -> builtins.int:
