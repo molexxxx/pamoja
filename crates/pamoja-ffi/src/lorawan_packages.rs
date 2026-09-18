@@ -32,15 +32,23 @@ use pamoja_lorawan::Direction;
 use crate::{read_bytes, set_last_error, PamojaStatus};
 
 /// The port clock synchronization is spoken on, TS003-2.0.0.
-pub const PAMOJA_LORAWAN_CLOCK_PORT: u8 = CLOCK_PORT;
+pub const PAMOJA_LORAWAN_CLOCK_PORT: u8 = 202;
 /// The port fragmented data block transport is spoken on, TS004-2.0.0.
-pub const PAMOJA_LORAWAN_FRAGMENT_PORT: u8 = FRAGMENT_PORT;
+pub const PAMOJA_LORAWAN_FRAGMENT_PORT: u8 = 201;
 /// The port remote multicast setup is spoken on, TS005-2.0.0.
-pub const PAMOJA_LORAWAN_MULTICAST_PORT: u8 = MULTICAST_PORT;
+pub const PAMOJA_LORAWAN_MULTICAST_PORT: u8 = 200;
 /// The port firmware management is spoken on, TS006-1.0.0.
-pub const PAMOJA_LORAWAN_FIRMWARE_PORT: u8 = FIRMWARE_PORT;
+pub const PAMOJA_LORAWAN_FIRMWARE_PORT: u8 = 203;
 /// The most fragments one session carries.
-pub const PAMOJA_LORAWAN_MAX_FRAGMENTS: u16 = MAX_FRAGMENTS;
+pub const PAMOJA_LORAWAN_MAX_FRAGMENTS: u16 = 16383;
+
+// The header carries these as literals, because a generated macro cannot name a Rust
+// constant. These hold them to what the crate says.
+const _: () = assert!(PAMOJA_LORAWAN_CLOCK_PORT == CLOCK_PORT);
+const _: () = assert!(PAMOJA_LORAWAN_FRAGMENT_PORT == FRAGMENT_PORT);
+const _: () = assert!(PAMOJA_LORAWAN_MULTICAST_PORT == MULTICAST_PORT);
+const _: () = assert!(PAMOJA_LORAWAN_FIRMWARE_PORT == FIRMWARE_PORT);
+const _: () = assert!(PAMOJA_LORAWAN_MAX_FRAGMENTS == MAX_FRAGMENTS);
 
 /// The device holds no firmware upgrade image.
 pub const PAMOJA_LORAWAN_IMAGE_NONE: u8 = 0;

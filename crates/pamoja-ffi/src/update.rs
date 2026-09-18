@@ -25,13 +25,19 @@ use crate::security::{identity_handle, read_public, PamojaDeviceIdentity, PAMOJA
 use crate::{read_bytes, set_last_error, PamojaBuffer, PamojaStatus};
 
 /// The length in bytes of a vendor or device-class identifier.
-pub const PAMOJA_UPDATE_ID_LEN: usize = ID_LEN;
+pub const PAMOJA_UPDATE_ID_LEN: usize = 16;
 
 /// The length in bytes of an image digest.
-pub const PAMOJA_UPDATE_DIGEST_LEN: usize = DIGEST_LEN;
+pub const PAMOJA_UPDATE_DIGEST_LEN: usize = 32;
 
 /// The manifest structure version this build writes.
-pub const PAMOJA_UPDATE_STRUCTURE_VERSION: u8 = STRUCTURE_VERSION;
+pub const PAMOJA_UPDATE_STRUCTURE_VERSION: u8 = 1;
+
+// The header carries these as literals, because a generated macro cannot name a Rust
+// constant. These hold them to what the crate says.
+const _: () = assert!(PAMOJA_UPDATE_ID_LEN == ID_LEN);
+const _: () = assert!(PAMOJA_UPDATE_DIGEST_LEN == DIGEST_LEN);
+const _: () = assert!(PAMOJA_UPDATE_STRUCTURE_VERSION == STRUCTURE_VERSION);
 
 /// The payload format meaning the payload is the image itself, byte for byte.
 pub const PAMOJA_UPDATE_FORMAT_RAW: u8 = 1;

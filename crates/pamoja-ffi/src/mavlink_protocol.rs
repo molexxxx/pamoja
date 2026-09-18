@@ -27,7 +27,11 @@ use crate::{read_bytes, set_last_error, PamojaStatus};
 
 /// The number of times a request is retransmitted before a transfer is abandoned, as the
 /// mission protocol recommends.
-pub const PAMOJA_MAVLINK_MAX_RETRIES: u8 = MAX_RETRIES;
+pub const PAMOJA_MAVLINK_MAX_RETRIES: u8 = 5;
+
+// The header carries this as a literal, because a generated macro cannot name a Rust
+// constant. This holds it to what the crate says.
+const _: () = assert!(PAMOJA_MAVLINK_MAX_RETRIES == MAX_RETRIES);
 
 /// The frame was not one this machine handles; nothing was produced.
 pub const PAMOJA_MAVLINK_STEP_IGNORED: u32 = 0;

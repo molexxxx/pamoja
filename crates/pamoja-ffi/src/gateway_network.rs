@@ -53,11 +53,17 @@ pub const PAMOJA_GATEWAY_NETWORK_RX1_DOWNSTREAM: u8 = 1;
 pub const PAMOJA_GATEWAY_NETWORK_RX1_PLAN: u8 = 2;
 
 /// The delay before the first receive window, in microseconds.
-pub const PAMOJA_GATEWAY_NETWORK_RECEIVE_DELAY_US: u32 = pamoja_gateway::network::RECEIVE_DELAY1_US;
+pub const PAMOJA_GATEWAY_NETWORK_RECEIVE_DELAY_US: u32 = 1_000_000;
 
 /// The delay before the window a join accept is sent in, in microseconds.
-pub const PAMOJA_GATEWAY_NETWORK_JOIN_DELAY_US: u32 =
-    pamoja_gateway::network::JOIN_ACCEPT_DELAY1_US;
+pub const PAMOJA_GATEWAY_NETWORK_JOIN_DELAY_US: u32 = 5_000_000;
+
+// The header carries these as literals, because cbindgen drops a constant whose value
+// names another crate's. These hold them to what those crates say.
+const _: () =
+    assert!(PAMOJA_GATEWAY_NETWORK_RECEIVE_DELAY_US == pamoja_gateway::network::RECEIVE_DELAY1_US);
+const _: () =
+    assert!(PAMOJA_GATEWAY_NETWORK_JOIN_DELAY_US == pamoja_gateway::network::JOIN_ACCEPT_DELAY1_US);
 
 /// The network side of one site, released with [`pamoja_gateway_network_free`].
 pub struct PamojaGatewayNetwork {

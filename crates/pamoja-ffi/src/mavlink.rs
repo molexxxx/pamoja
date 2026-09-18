@@ -32,23 +32,35 @@ use pamoja_mavlink::{
 use crate::{read_bytes, read_str, set_last_error, PamojaStatus};
 
 /// The start marker of a v1 frame.
-pub const PAMOJA_MAVLINK_MAGIC_V1: u8 = pamoja_mavlink::MAGIC_V1;
+pub const PAMOJA_MAVLINK_MAGIC_V1: u8 = 0xFE;
 /// The start marker of a v2 frame.
-pub const PAMOJA_MAVLINK_MAGIC_V2: u8 = pamoja_mavlink::MAGIC_V2;
+pub const PAMOJA_MAVLINK_MAGIC_V2: u8 = 0xFD;
 /// The incompatibility flag that marks a v2 frame as signed.
-pub const PAMOJA_MAVLINK_IFLAG_SIGNED: u8 = pamoja_mavlink::IFLAG_SIGNED;
+pub const PAMOJA_MAVLINK_IFLAG_SIGNED: u8 = 0x01;
 /// The largest payload a frame can carry, in bytes.
-pub const PAMOJA_MAVLINK_MAX_PAYLOAD: usize = MAX_PAYLOAD;
+pub const PAMOJA_MAVLINK_MAX_PAYLOAD: usize = 255;
 /// The largest frame, in bytes, header, checksum and signature included.
-pub const PAMOJA_MAVLINK_MAX_FRAME: usize = pamoja_mavlink::MAX_FRAME;
+pub const PAMOJA_MAVLINK_MAX_FRAME: usize = 280;
 /// The length of a v2 signature block, in bytes.
-pub const PAMOJA_MAVLINK_SIGNATURE_LEN: usize = SIGNATURE_LEN;
+pub const PAMOJA_MAVLINK_SIGNATURE_LEN: usize = 13;
+
+// The header carries these as literals, because a generated macro cannot name a Rust
+// constant. These hold them to what the crate says.
+const _: () = assert!(PAMOJA_MAVLINK_MAX_PAYLOAD == MAX_PAYLOAD);
+const _: () = assert!(PAMOJA_MAVLINK_SIGNATURE_LEN == SIGNATURE_LEN);
+const _: () = assert!(PAMOJA_MAVLINK_MAGIC_V1 == pamoja_mavlink::MAGIC_V1);
+const _: () = assert!(PAMOJA_MAVLINK_MAGIC_V2 == pamoja_mavlink::MAGIC_V2);
+const _: () = assert!(PAMOJA_MAVLINK_IFLAG_SIGNED == pamoja_mavlink::IFLAG_SIGNED);
+const _: () = assert!(PAMOJA_MAVLINK_MAX_FRAME == pamoja_mavlink::MAX_FRAME);
+const _: () = assert!(PAMOJA_MAVLINK_KEY_LEN == signing::KEY_LEN);
+const _: () = assert!(PAMOJA_MAVLINK_DEFAULT_TIMESTAMP_WINDOW == signing::DEFAULT_TIMESTAMP_WINDOW);
+const _: () = assert!(PAMOJA_MAVLINK_EPOCH_OFFSET_SECS == signing::MAVLINK_EPOCH_OFFSET_SECS);
 /// The length of a signing key, in bytes.
-pub const PAMOJA_MAVLINK_KEY_LEN: usize = signing::KEY_LEN;
+pub const PAMOJA_MAVLINK_KEY_LEN: usize = 32;
 /// The default window a verifier accepts a timestamp within, in microseconds.
-pub const PAMOJA_MAVLINK_DEFAULT_TIMESTAMP_WINDOW: u64 = signing::DEFAULT_TIMESTAMP_WINDOW;
+pub const PAMOJA_MAVLINK_DEFAULT_TIMESTAMP_WINDOW: u64 = 6_000_000;
 /// The Unix time MAVLink counts signing timestamps from, in seconds.
-pub const PAMOJA_MAVLINK_EPOCH_OFFSET_SECS: u64 = signing::MAVLINK_EPOCH_OFFSET_SECS;
+pub const PAMOJA_MAVLINK_EPOCH_OFFSET_SECS: u64 = 1_420_070_400;
 
 /// The original wire format, with a six-byte header.
 pub const PAMOJA_MAVLINK_VERSION_V1: u8 = 1;

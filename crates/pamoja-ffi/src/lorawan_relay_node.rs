@@ -19,12 +19,13 @@ use crate::lorawan_device::{
     PamojaLorawanDeviceSettings, PamojaLorawanEndDeviceStatus, PamojaLorawanHeard,
     PamojaLorawanTransmission,
 };
+use crate::lorawan_relay::PAMOJA_LORAWAN_WOR_ACK_LEN;
 use crate::{read_bytes, set_last_error, PamojaBuffer, PamojaStatus};
 use pamoja_lora::region::RelayChannel;
 use pamoja_lorawan::device::{DeviceError, Heard, Transmission};
 use pamoja_lorawan::relay::{
     Acknowledgment, CadPeriodicity, CadToRx, Carrier, Listen, Relay, RelayConfig, RelayError,
-    RelayHeard, RelaySettings, RxrDownlink, Scan, Wake, WorChannel, XtalAccuracy, WOR_ACK_LEN,
+    RelayHeard, RelaySettings, RxrDownlink, Scan, Wake, WorChannel, XtalAccuracy,
 };
 
 /// A join request follows the wake-on-radio frame; listen for it.
@@ -89,7 +90,7 @@ pub struct PamojaLorawanWake {
     /// `1` when there is an acknowledgment to send.
     pub has_ack: u8,
     /// The acknowledgment, seven bytes.
-    pub ack_frame: [u8; WOR_ACK_LEN],
+    pub ack_frame: [u8; PAMOJA_LORAWAN_WOR_ACK_LEN],
     /// Where it goes, in hertz.
     pub ack_frequency_hz: u32,
     /// The data rate it goes out at.
@@ -1057,7 +1058,7 @@ fn wake_out(wake: &Wake, scan: &Scan) -> PamojaLorawanWake {
         wfcnt: 0,
         forward: 0,
         has_ack: 0,
-        ack_frame: [0; WOR_ACK_LEN],
+        ack_frame: [0; PAMOJA_LORAWAN_WOR_ACK_LEN],
         ack_frequency_hz: 0,
         ack_data_rate: 0,
         ack_link: empty_link,

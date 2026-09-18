@@ -135,6 +135,12 @@
 // uplink channel.
 #define PAMOJA_GATEWAY_NETWORK_RX1_PLAN 2
 
+// The delay before the first receive window, in microseconds.
+#define PAMOJA_GATEWAY_NETWORK_RECEIVE_DELAY_US 1000000
+
+// The delay before the window a join accept is sent in, in microseconds.
+#define PAMOJA_GATEWAY_NETWORK_JOIN_DELAY_US 5000000
+
 // A join request the station heard.
 #define PAMOJA_GATEWAY_STATION_JOIN_REQUEST 0
 
@@ -164,6 +170,9 @@
 
 // A kind this build does not model, readable only as its text.
 #define PAMOJA_GATEWAY_STATION_OTHER 9
+
+// The protocol version a station reports.
+#define PAMOJA_GATEWAY_STATION_PROTOCOL_VERSION 2
 
 // The largest I2C address frame, in bytes: the two a 10-bit address needs.
 #define PAMOJA_I2C_FRAME_MAX 2
@@ -532,20 +541,26 @@
 // The CFListType byte of a list of channel mask groups.
 #define PAMOJA_LORAWAN_CFLIST_TYPE_CHANNEL_MASKS 1
 
+// How many bytes of commands a frame can carry beside a payload.
+#define PAMOJA_LORAWAN_FOPTS_MAX 15
+
+// The longest single command, in bytes.
+#define PAMOJA_LORAWAN_MAC_MAX 27
+
 // The port clock synchronization is spoken on, TS003-2.0.0.
-#define PAMOJA_LORAWAN_CLOCK_PORT CLOCK_PORT
+#define PAMOJA_LORAWAN_CLOCK_PORT 202
 
 // The port fragmented data block transport is spoken on, TS004-2.0.0.
-#define PAMOJA_LORAWAN_FRAGMENT_PORT FRAGMENT_PORT
+#define PAMOJA_LORAWAN_FRAGMENT_PORT 201
 
 // The port remote multicast setup is spoken on, TS005-2.0.0.
-#define PAMOJA_LORAWAN_MULTICAST_PORT MULTICAST_PORT
+#define PAMOJA_LORAWAN_MULTICAST_PORT 200
 
 // The port firmware management is spoken on, TS006-1.0.0.
-#define PAMOJA_LORAWAN_FIRMWARE_PORT FIRMWARE_PORT
+#define PAMOJA_LORAWAN_FIRMWARE_PORT 203
 
 // The most fragments one session carries.
-#define PAMOJA_LORAWAN_MAX_FRAGMENTS MAX_FRAGMENTS
+#define PAMOJA_LORAWAN_MAX_FRAGMENTS 16383
 
 // The device holds no firmware upgrade image.
 #define PAMOJA_LORAWAN_IMAGE_NONE 0
@@ -559,29 +574,41 @@
 // One is there, and it can be installed.
 #define PAMOJA_LORAWAN_IMAGE_VALID 3
 
+// The port every message between a relay and its network uses.
+#define PAMOJA_LORAWAN_LA_FPORT_RELAY 226
 
+// How many end devices a relay verifies wake-on-radio frames for.
+#define PAMOJA_LORAWAN_TRUSTED_ED_NUMBER 16
 
+// How many WOR frames go without an acknowledgment before the uplink goes anyway.
+#define PAMOJA_LORAWAN_WOR_ATTEMPTS_WO_ACK 8
 
+// The gap between a WOR frame, or its acknowledgment, and the LoRaWAN frame after it.
+#define PAMOJA_LORAWAN_WOR_DATA_DELAY_US 50000
 
+// The gap between a WOR frame and its acknowledgment.
+#define PAMOJA_LORAWAN_WOR_ACK_DELAY_US 50000
 
+// The gap between a relay hearing an uplink and forwarding it.
+#define PAMOJA_LORAWAN_RELAY_FWD_DELAY_US 50000
 
+// How long after an uplink an end device's RXR window opens at the latest.
+#define PAMOJA_LORAWAN_RXR_DELAY_US 18000000
 
+// The length of a WOR frame ahead of a join request.
+#define PAMOJA_LORAWAN_WOR_JOIN_REQUEST_LEN 5
 
+// The length of a WOR frame ahead of a Class A uplink.
+#define PAMOJA_LORAWAN_WOR_UPLINK_LEN 15
 
+// The length of a WOR ACK.
+#define PAMOJA_LORAWAN_WOR_ACK_LEN 7
 
+// The bytes a forwarded uplink adds in front of the end device's frame.
+#define PAMOJA_LORAWAN_FORWARD_OVERHEAD 6
 
-
-
-
-
-
-
-
-
-
-
-
-
+// The shortest WOR preamble, in symbols.
+#define PAMOJA_LORAWAN_MIN_WOR_PREAMBLE_SYMBOLS 8
 
 // A WOR frame ahead of a join request.
 #define PAMOJA_LORAWAN_WOR_JOIN_REQUEST 0
@@ -607,25 +634,32 @@
 // It carried one the relay cannot send on.
 #define PAMOJA_LORAWAN_RELAY_HEARD_UNDELIVERABLE 2
 
+// The start marker of a v1 frame.
+#define PAMOJA_MAVLINK_MAGIC_V1 254
 
+// The start marker of a v2 frame.
+#define PAMOJA_MAVLINK_MAGIC_V2 253
 
-
-
-
+// The incompatibility flag that marks a v2 frame as signed.
+#define PAMOJA_MAVLINK_IFLAG_SIGNED 1
 
 // The largest payload a frame can carry, in bytes.
-#define PAMOJA_MAVLINK_MAX_PAYLOAD MAX_PAYLOAD
+#define PAMOJA_MAVLINK_MAX_PAYLOAD 255
 
-
+// The largest frame, in bytes, header, checksum and signature included.
+#define PAMOJA_MAVLINK_MAX_FRAME 280
 
 // The length of a v2 signature block, in bytes.
-#define PAMOJA_MAVLINK_SIGNATURE_LEN SIGNATURE_LEN
+#define PAMOJA_MAVLINK_SIGNATURE_LEN 13
 
+// The length of a signing key, in bytes.
+#define PAMOJA_MAVLINK_KEY_LEN 32
 
+// The default window a verifier accepts a timestamp within, in microseconds.
+#define PAMOJA_MAVLINK_DEFAULT_TIMESTAMP_WINDOW 6000000
 
-
-
-
+// The Unix time MAVLink counts signing timestamps from, in seconds.
+#define PAMOJA_MAVLINK_EPOCH_OFFSET_SECS 1420070400
 
 // The original wire format, with a six-byte header.
 #define PAMOJA_MAVLINK_VERSION_V1 1
@@ -635,7 +669,7 @@
 
 // The number of times a request is retransmitted before a transfer is abandoned, as the
 // mission protocol recommends.
-#define PAMOJA_MAVLINK_MAX_RETRIES MAX_RETRIES
+#define PAMOJA_MAVLINK_MAX_RETRIES 5
 
 // The frame was not one this machine handles; nothing was produced.
 #define PAMOJA_MAVLINK_STEP_IGNORED 0
@@ -1552,13 +1586,13 @@
 #define PAMOJA_TELEMETRY_LEVEL_COUNT 5
 
 // The length in bytes of a vendor or device-class identifier.
-#define PAMOJA_UPDATE_ID_LEN ID_LEN
+#define PAMOJA_UPDATE_ID_LEN 16
 
 // The length in bytes of an image digest.
-#define PAMOJA_UPDATE_DIGEST_LEN DIGEST_LEN
+#define PAMOJA_UPDATE_DIGEST_LEN 32
 
 // The manifest structure version this build writes.
-#define PAMOJA_UPDATE_STRUCTURE_VERSION STRUCTURE_VERSION
+#define PAMOJA_UPDATE_STRUCTURE_VERSION 1
 
 // The payload format meaning the payload is the image itself, byte for byte.
 #define PAMOJA_UPDATE_FORMAT_RAW 1
@@ -3711,7 +3745,7 @@ typedef struct {
   // `1` when there is an acknowledgment to send.
   uint8_t has_ack;
   // The acknowledgment, seven bytes.
-  uint8_t ack_frame[WOR_ACK_LEN];
+  uint8_t ack_frame[PAMOJA_LORAWAN_WOR_ACK_LEN];
   // Where it goes, in hertz.
   uint32_t ack_frequency_hz;
   // The data rate it goes out at.
