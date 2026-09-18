@@ -159,6 +159,46 @@ pub fn image_digest(image: Buffer) -> Buffer {
     pamoja_update::image_digest(image.as_ref()).to_vec().into()
 }
 
+/// What a transport calls a block carrying a signed update, for a field that names the
+/// convention.
+#[napi]
+pub const UPDATE_BLOCK_DESCRIPTOR: &str = "PJU1";
+
+/// A signed update read back out of one block.
+#[napi(object)]
+pub struct UpdateBlock {
+    /// The signed manifest.
+    pub envelope: Buffer,
+    /// The image it describes.
+    pub image: Buffer,
+}
+
+/// Writes a signed update into one block, for a transport that moves blocks.
+///
+/// The block is the signed manifest and the image behind a header that says where each
+/// begins. Nothing in the header is trusted: every rule that decides whether the image runs
+/// is still the manifest's.
+#[napi]
+pub fn frame_update_block(envelope: Buffer, image: Buffer) -> napi::Result<Buffer> {
+    let mut out = vec![0u8; envelope.len() + image.len() + pamoja_update::block::HEADER_LEN];
+    let len = pamoja_update::block::frame(envelope.as_ref(), image.as_ref(), &mut out)
+        .map_err(refusal)?;
+    out.truncate(len);
+    Ok(out.into())
+}
+
+/// Reads a block back into the signed manifest and the image.
+///
+/// Throws when the block does not carry this convention's header.
+#[napi]
+pub fn split_update_block(block: Buffer) -> napi::Result<UpdateBlock> {
+    let (envelope, image) = pamoja_update::block::split(block.as_ref()).map_err(refusal)?;
+    Ok(UpdateBlock {
+        envelope: envelope.to_vec().into(),
+        image: image.to_vec().into(),
+    })
+}
+
 /// Signs a manifest into the envelope that is offered to a device.
 #[napi]
 pub fn sign_manifest(manifest: Manifest, author: &DeviceIdentity) -> napi::Result<Buffer> {

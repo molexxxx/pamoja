@@ -218,6 +218,44 @@ pub fn image_digest<'py>(py: Python<'py>, image: Vec<u8>) -> Bound<'py, PyBytes>
     PyBytes::new(py, &pamoja_update::image_digest(&image))
 }
 
+/// What a transport calls a block carrying a signed update, for a field that names the
+/// convention.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn update_block_descriptor() -> String {
+    String::from_utf8_lossy(&pamoja_update::block::DESCRIPTOR).into_owned()
+}
+
+/// Writes a signed update into one block, for a transport that moves blocks.
+///
+/// The block is the signed manifest and the image behind a header that says where each
+/// begins. Nothing in the header is trusted: every rule that decides whether the image runs is
+/// still the manifest's.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn frame_update_block<'py>(
+    py: Python<'py>,
+    envelope: Vec<u8>,
+    image: Vec<u8>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let mut out = vec![0u8; envelope.len() + image.len() + pamoja_update::block::HEADER_LEN];
+    let len = pamoja_update::block::frame(&envelope, &image, &mut out).map_err(refusal)?;
+    Ok(PyBytes::new(py, &out[..len]))
+}
+
+/// Reads a block back into the signed manifest and the image.
+///
+/// Raises when the block does not carry this convention's header.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn split_update_block<'py>(
+    py: Python<'py>,
+    block: Vec<u8>,
+) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+    let (envelope, image) = pamoja_update::block::split(&block).map_err(refusal)?;
+    Ok((PyBytes::new(py, envelope), PyBytes::new(py, image)))
+}
+
 /// Signs a manifest into the envelope that is offered to a device.
 #[gen_stub_pyfunction]
 #[pyfunction]

@@ -368,6 +368,7 @@ impl Home {
             let pages: Vec<String> = capability
                 .guide
                 .iter()
+                .chain(capability.guides.iter().map(|(page, _)| page))
                 .map(|guide| format!("docs/{}", guide.replace(".md", ".html")))
                 .collect();
             let named = self
@@ -1146,6 +1147,7 @@ detail = "With partners."
                 python: key.to_owned(),
                 dotnet: Vec::new(),
                 guide: guide.map(str::to_owned),
+                guides: Vec::new(),
             }],
             ..bare()
         }

@@ -25,13 +25,19 @@ use crate::security::{identity_handle, read_public, PamojaDeviceIdentity, PAMOJA
 use crate::{read_bytes, set_last_error, PamojaBuffer, PamojaStatus};
 
 /// The length in bytes of a vendor or device-class identifier.
-pub const PAMOJA_UPDATE_ID_LEN: usize = ID_LEN;
+pub const PAMOJA_UPDATE_ID_LEN: usize = 16;
 
 /// The length in bytes of an image digest.
-pub const PAMOJA_UPDATE_DIGEST_LEN: usize = DIGEST_LEN;
+pub const PAMOJA_UPDATE_DIGEST_LEN: usize = 32;
 
 /// The manifest structure version this build writes.
-pub const PAMOJA_UPDATE_STRUCTURE_VERSION: u8 = STRUCTURE_VERSION;
+pub const PAMOJA_UPDATE_STRUCTURE_VERSION: u8 = 1;
+
+// The header carries these as literals, because a generated macro cannot name a Rust
+// constant. These hold them to what the crate says.
+const _: () = assert!(PAMOJA_UPDATE_ID_LEN == ID_LEN);
+const _: () = assert!(PAMOJA_UPDATE_DIGEST_LEN == DIGEST_LEN);
+const _: () = assert!(PAMOJA_UPDATE_STRUCTURE_VERSION == STRUCTURE_VERSION);
 
 /// The payload format meaning the payload is the image itself, byte for byte.
 pub const PAMOJA_UPDATE_FORMAT_RAW: u8 = 1;
@@ -1208,6 +1214,129 @@ fn refuse(refusal: Refusal) -> PamojaStatus {
     let status = PamojaStatus::from_error(&error);
     set_last_error(refusal.reason().to_owned());
     status
+}
+
+/// The bytes a block carrying a signed update puts in front of it.
+pub const PAMOJA_UPDATE_BLOCK_HEADER_LEN: usize = 6;
+
+// The header carries this as a literal, because cbindgen drops a constant whose value names
+// another crate's. This holds it to what that crate says.
+const _: () = assert!(PAMOJA_UPDATE_BLOCK_HEADER_LEN == pamoja_update::block::HEADER_LEN);
+
+/// Writes a signed update into one block, for a transport that moves blocks.
+///
+/// The block is the signed manifest and the image behind a header that says where each
+/// begins. Nothing in the header is trusted: every rule that decides whether the image runs is
+/// still the manifest's.
+///
+/// # Arguments
+///
+/// * `envelope` - the signed manifest.
+/// * `envelope_len` - how many bytes it holds.
+/// * `image` - the image it describes.
+/// * `image_len` - how many bytes it holds.
+/// * `out_block` - receives the block.
+/// * `capacity` - how many bytes that buffer holds.
+/// * `out_len` - receives how many were written.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, and
+/// [`PamojaStatus::Codec`] when the envelope is longer than a header can describe or the
+/// buffer is too small.
+///
+/// # Safety
+///
+/// Every pointer must be non-null, the inputs readable for their lengths, `out_block`
+/// writable for `capacity` bytes, and `out_len` writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_update_block_frame(
+    envelope: *const u8,
+    envelope_len: usize,
+    image: *const u8,
+    image_len: usize,
+    out_block: *mut u8,
+    capacity: usize,
+    out_len: *mut usize,
+) -> PamojaStatus {
+    let (Ok(envelope), Ok(image), false, false) = (
+        read_bytes(envelope, envelope_len),
+        read_bytes(image, image_len),
+        out_block.is_null(),
+        out_len.is_null(),
+    ) else {
+        set_last_error("a required argument was null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let out = core::slice::from_raw_parts_mut(out_block, capacity);
+    match pamoja_update::block::frame(&envelope, &image, out) {
+        Ok(written) => {
+            *out_len = written;
+            PamojaStatus::Ok
+        }
+        Err(refusal) => refuse(refusal),
+    }
+}
+
+/// Reads a block back into the signed manifest and the image.
+///
+/// # Arguments
+///
+/// * `block` - the block as it arrived.
+/// * `block_len` - how many bytes it holds.
+/// * `out_envelope_at` - receives where the signed manifest starts inside the block.
+/// * `out_envelope_len` - receives how long it is.
+/// * `out_image_at` - receives where the image starts.
+/// * `out_image_len` - receives how long it is.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] on success. The two spans point into `block` itself, so nothing is
+/// copied and the caller keeps it alive.
+///
+/// # Errors
+///
+/// Returns [`PamojaStatus::InvalidArgument`] for a null pointer, and
+/// [`PamojaStatus::Codec`] when the block does not carry this convention's header.
+///
+/// # Safety
+///
+/// `block` must be readable for `block_len` bytes and every non-null out pointer writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_update_block_split(
+    block: *const u8,
+    block_len: usize,
+    out_envelope_at: *mut usize,
+    out_envelope_len: *mut usize,
+    out_image_at: *mut usize,
+    out_image_len: *mut usize,
+) -> PamojaStatus {
+    let Ok(bytes) = read_bytes(block, block_len) else {
+        set_last_error("a required argument was null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    match pamoja_update::block::split(&bytes) {
+        Ok((envelope, image)) => {
+            if !out_envelope_at.is_null() {
+                *out_envelope_at = PAMOJA_UPDATE_BLOCK_HEADER_LEN;
+            }
+            if !out_envelope_len.is_null() {
+                *out_envelope_len = envelope.len();
+            }
+            if !out_image_at.is_null() {
+                *out_image_at = PAMOJA_UPDATE_BLOCK_HEADER_LEN + envelope.len();
+            }
+            if !out_image_len.is_null() {
+                *out_image_len = image.len();
+            }
+            PamojaStatus::Ok
+        }
+        Err(refusal) => refuse(refusal),
+    }
 }
 
 /// Turns the two clock arguments into the optional the crate takes.

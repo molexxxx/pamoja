@@ -297,6 +297,7 @@ tags = [
   { text = "device identity", state = "ships", crate = "pamoja-security" },
   { text = "secured channel", state = "ships", crate = "pamoja-session" },
   { text = "signed updates + rollback", state = "ships", crate = "pamoja-update" },
+  { text = "firmware over the air, to a whole field at once", state = "ships", href = "docs/guides/fuota.html" },
   { text = "TLS 1.3 and DTLS", state = "next", crate = "pamoja-tls" },
   { text = "X.509 certificates", state = "next" },
   { text = "secure-element key storage", state = "next" },

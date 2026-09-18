@@ -9,6 +9,20 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- The four LoRaWAN application layer packages, and the update block they carry, in
+  every language. TypeScript, Python and C# gain the multicast key chain and the
+  parity matrix as plain calls, the clock synchronization package, the firmware
+  manager, a fragmentation session that puts a block back together in memory it
+  sets aside once, and the code taken over that block as it arrives. One flat
+  record reads and writes a command of any of the four, so a server built in any
+  of the four languages can drive a session end to end. The conformance vectors
+  replay a whole broadcast: the key chain from one root key, the parity matrix,
+  every command of each package, and a session that loses every fourth fragment
+  and still comes back whole.
+- A guide, in four languages, that walks a signed release from a publisher to a
+  device that only ever heard it broadcast: the group set up, the block cut into
+  fragments, a quarter of them lost, the rest solved for, the block checked, and
+  the manifest given the last word.
 - A way to carry a signed update inside one block, in `pamoja_update::block`, for a
   transport that moves blocks rather than streams: the signed manifest and the
   image behind a short header that says where each begins, under a descriptor a
@@ -489,6 +503,15 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- The generated C header carried constants no C compiler could use. `cbindgen`
+  renders a constant's initializer exactly as written, so one whose value named
+  another crate's constant was dropped from the header outright and one whose
+  value named an imported constant was emitted as that bare name. Twenty-four
+  constants never reached the header, and six more, along with a wake-on-radio
+  acknowledgment's length inside a struct, stopped it compiling at all. They are
+  literals now, each held to the crate it came from by a compile-time assertion,
+  and a test walks the exported surface against the generated header so neither
+  can happen again.
 - The CN470-510 plan put its second group of uplink channels at 483.9 MHz, where
   the first downlink group starts; RP002-1.0.5 section 3.9.2.1 starts it at 503.5
   MHz. Its beacon is now given on 483.9 MHz, the first downlink channel it hops

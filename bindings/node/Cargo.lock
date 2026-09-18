@@ -755,6 +755,7 @@ version = "0.1.18"
 dependencies = [
  "embedded-hal",
  "linux-embedded-hal",
+ "nix 0.29.0",
 ]
 
 [[package]]
@@ -788,6 +789,7 @@ name = "pamoja-lorawan"
 version = "0.1.18"
 dependencies = [
  "aes",
+ "pamoja-lora",
 ]
 
 [[package]]

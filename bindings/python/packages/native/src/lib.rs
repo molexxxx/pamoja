@@ -50,6 +50,8 @@ mod lorawan;
 mod lorawan_device;
 #[cfg(feature = "lorawan")]
 mod lorawan_link;
+#[cfg(feature = "lorawan")]
+mod lorawan_packages;
 #[cfg(all(feature = "lora", feature = "lorawan"))]
 mod lorawan_relay;
 #[cfg(all(feature = "lora", feature = "lorawan"))]
@@ -703,6 +705,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(update::encode_manifest, m)?)?;
         m.add_function(wrap_pyfunction!(update::decode_manifest, m)?)?;
         m.add_function(wrap_pyfunction!(update::image_digest, m)?)?;
+        m.add_function(wrap_pyfunction!(update::update_block_descriptor, m)?)?;
+        m.add_function(wrap_pyfunction!(update::frame_update_block, m)?)?;
+        m.add_function(wrap_pyfunction!(update::split_update_block, m)?)?;
         m.add_function(wrap_pyfunction!(update::sign_manifest, m)?)?;
         m.add_function(wrap_pyfunction!(update::verify_envelope, m)?)?;
         m.add_function(wrap_pyfunction!(update::envelope_body, m)?)?;
@@ -862,6 +867,52 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         for (name, value) in lorawan_link::DEFAULTS {
             m.add(name, value)?;
         }
+        m.add_class::<lorawan_packages::LorawanFragSession>()?;
+        m.add_class::<lorawan_packages::LorawanDefragmenter>()?;
+        m.add_class::<lorawan_packages::LorawanBlockMic>()?;
+        m.add_class::<lorawan_packages::LorawanClockHeard>()?;
+        m.add_class::<lorawan_packages::LorawanClockSync>()?;
+        m.add_class::<lorawan_packages::LorawanFirmware>()?;
+        m.add_class::<lorawan_packages::LorawanPackageCommand>()?;
+        for (name, value) in lorawan_packages::CONSTANTS {
+            m.add(name, value)?;
+        }
+        m.add_function(wrap_pyfunction!(lorawan_packages::lorawan_mc_root_key, m)?)?;
+        m.add_function(wrap_pyfunction!(lorawan_packages::lorawan_mc_ke_key, m)?)?;
+        m.add_function(wrap_pyfunction!(lorawan_packages::lorawan_mc_key, m)?)?;
+        m.add_function(wrap_pyfunction!(lorawan_packages::lorawan_wrap_mc_key, m)?)?;
+        m.add_function(wrap_pyfunction!(lorawan_packages::lorawan_mc_app_s_key, m)?)?;
+        m.add_function(wrap_pyfunction!(lorawan_packages::lorawan_mc_nwk_s_key, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            lorawan_packages::lorawan_data_block_int_key,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(lorawan_packages::lorawan_frag_prbs23, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            lorawan_packages::lorawan_frag_parity_line,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(lorawan_packages::lorawan_frag_session, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            lorawan_packages::lorawan_frag_fragment,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            lorawan_packages::lorawan_package_parse,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            lorawan_packages::lorawan_package_parse_all,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            lorawan_packages::lorawan_package_status_item,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            lorawan_packages::lorawan_package_encode,
+            m
+        )?)?;
         m.add_function(wrap_pyfunction!(lorawan::lorawan_mac_parse, m)?)?;
     }
     #[cfg(feature = "mavlink")]

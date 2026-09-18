@@ -391,10 +391,13 @@ mod tests {
             .iter()
             .filter(|page| matches!(page.kind, Kind::Guide))
             .count();
-        assert_eq!(
-            guides,
-            Catalog::load(&site.root).unwrap().capabilities.len()
-        );
+        let catalog = Catalog::load(&site.root).unwrap();
+        let expected: usize = catalog
+            .capabilities
+            .iter()
+            .map(|capability| 1 + capability.guides.len())
+            .sum();
+        assert_eq!(guides, expected);
         assert!(site
             .pages
             .iter()

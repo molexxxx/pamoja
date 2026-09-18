@@ -117,3 +117,41 @@ public struct PamojaTag
         return tag;
     }
 }
+
+/// <summary>A 4-byte block descriptor or integrity code carried inline inside a blittable
+/// struct.</summary>
+[InlineArray(Length)]
+public struct PamojaFourBytes
+{
+    /// <summary>The width of the value, in bytes.</summary>
+    public const int Length = 4;
+
+    private byte _element0;
+
+    /// <summary>Copies the value out as an array.</summary>
+    /// <returns>The 4 bytes.</returns>
+    public readonly byte[] ToArray()
+    {
+        PamojaFourBytes copy = this;
+        return ((ReadOnlySpan<byte>)copy).ToArray();
+    }
+
+    /// <summary>Reads a descriptor or integrity code from exactly 4 bytes.</summary>
+    /// <param name="bytes">The value.</param>
+    /// <param name="name">What the bytes are, for the exception message.</param>
+    /// <returns>The value.</returns>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="bytes"/> is not <see cref="Length"/> bytes.
+    /// </exception>
+    public static PamojaFourBytes From(ReadOnlySpan<byte> bytes, string name)
+    {
+        if (bytes.Length != Length)
+        {
+            throw new ArgumentException($"{name} must be exactly {Length} bytes", name);
+        }
+
+        PamojaFourBytes value = default;
+        bytes.CopyTo(value);
+        return value;
+    }
+}

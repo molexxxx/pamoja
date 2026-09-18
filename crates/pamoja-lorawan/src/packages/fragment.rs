@@ -322,6 +322,25 @@ impl core::fmt::Display for FragError {
 
 impl core::error::Error for FragError {}
 
+/// How far a fragmentation session has got, small enough to write down.
+///
+/// A device that loses power partway through a firmware download keeps its block storage and
+/// its working storage in flash; this is the handful of numbers it needs beside them to carry
+/// on where it left off, rather than asking for the whole image again.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Progress {
+    /// How many fragments arrived, coded, uncoded and repeated.
+    pub received: u16,
+    /// How many uncoded fragments were lost.
+    pub lost: u16,
+    /// How many rows of the system are filled in.
+    pub rows: u16,
+    /// The highest uncoded fragment number seen.
+    pub highest: u16,
+    /// Whether the block is whole.
+    pub done: bool,
+}
+
 /// Puts a data block back together from the fragments that arrive, TS004-2.0.0 appendix A.2.
 ///
 /// The uncoded fragments go straight into the caller's block storage. A coded fragment is
@@ -395,6 +414,17 @@ impl<'a> Defragmenter<'a> {
         block: &'a mut [u8],
         matrix: &'a mut [u8],
     ) -> Result<Defragmenter<'a>, FragError> {
+        Defragmenter::opened(nb_frag, frag_size, block, matrix, true)
+    }
+
+    /// Opens a session, clearing the storage or taking it as it is.
+    fn opened(
+        nb_frag: u16,
+        frag_size: u8,
+        block: &'a mut [u8],
+        matrix: &'a mut [u8],
+        clear: bool,
+    ) -> Result<Defragmenter<'a>, FragError> {
         if nb_frag == 0 || nb_frag > MAX_FRAGMENTS || frag_size == 0 {
             return Err(FragError::Session);
         }
@@ -411,8 +441,10 @@ impl<'a> Defragmenter<'a> {
         if Defragmenter::matrix_len(nb_frag, max_lost) > matrix.len() {
             return Err(FragError::Storage);
         }
-        matrix.fill(0);
-        block[..needed].fill(0);
+        if clear {
+            matrix.fill(0);
+            block[..needed].fill(0);
+        }
         Ok(Defragmenter {
             nb_frag,
             frag_size,
@@ -425,6 +457,87 @@ impl<'a> Defragmenter<'a> {
             highest: 0,
             done: false,
         })
+    }
+
+    /// Starts a session again where one left off.
+    ///
+    /// The storage must be the same two buffers the earlier session held, with whatever they
+    /// had in them, and the progress must be the one it reported. Nothing is cleared.
+    ///
+    /// # Arguments
+    ///
+    /// * `nb_frag` - how many uncoded fragments the block was cut into.
+    /// * `frag_size` - how many bytes each fragment carries.
+    /// * `block` - the block storage, as the earlier session left it.
+    /// * `matrix` - the working storage, as the earlier session left it.
+    /// * `progress` - what [`Defragmenter::progress`] reported.
+    ///
+    /// # Returns
+    ///
+    /// The session, carrying on.
+    ///
+    /// # Errors
+    ///
+    /// [`FragError::Session`] for a session this build does not run, and
+    /// [`FragError::Storage`] when the storage is too small.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_lorawan::packages::fragment::{Defragmenter, Fragmenter};
+    ///
+    /// let block = b"a block that outlives the power";
+    /// let sender = Fragmenter::new(block, 8)?;
+    /// let mut store = [0u8; 32];
+    /// let mut matrix = [0u8; 64];
+    ///
+    /// let mut piece = [0u8; 8];
+    /// let mut session = Defragmenter::new(sender.nb_frag(), 8, &mut store, &mut matrix)?;
+    /// sender.fragment(1, &mut piece)?;
+    /// session.fragment(1, &piece)?;
+    /// let progress = session.progress();
+    ///
+    /// // The power goes. The two buffers were in flash; this is all that was beside them.
+    /// let mut session =
+    ///     Defragmenter::resumed(sender.nb_frag(), 8, &mut store, &mut matrix, progress)?;
+    /// for n in 2..=sender.nb_frag() {
+    ///     sender.fragment(n, &mut piece)?;
+    ///     session.fragment(n, &piece)?;
+    /// }
+    /// assert!(session.done());
+    /// assert_eq!(&session.block()[..block.len()], block);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn resumed(
+        nb_frag: u16,
+        frag_size: u8,
+        block: &'a mut [u8],
+        matrix: &'a mut [u8],
+        progress: Progress,
+    ) -> Result<Defragmenter<'a>, FragError> {
+        let mut session = Defragmenter::opened(nb_frag, frag_size, block, matrix, false)?;
+        session.received = progress.received;
+        session.lost = progress.lost;
+        session.rows = progress.rows;
+        session.highest = progress.highest;
+        session.done = progress.done;
+        Ok(session)
+    }
+
+    /// How far the session has got, to be kept beside its storage.
+    ///
+    /// # Returns
+    ///
+    /// The numbers [`Defragmenter::resumed`] takes.
+    #[must_use]
+    pub const fn progress(&self) -> Progress {
+        Progress {
+            received: self.received,
+            lost: self.lost,
+            rows: self.rows,
+            highest: self.highest,
+            done: self.done,
+        }
     }
 
     /// The block, as far as it has been put back together.

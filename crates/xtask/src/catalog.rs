@@ -31,6 +31,9 @@ pub struct Capability {
     pub python: String,
     pub dotnet: Vec<String>,
     pub guide: Option<String>,
+    /// Further guides that belong here rather than to a capability of their own, because
+    /// they cross two: the page and the title the navigation shows it under.
+    pub guides: Vec<(String, String)>,
 }
 
 impl Capability {
@@ -102,6 +105,7 @@ impl Catalog {
                 python: string(table, "python", &context)?,
                 dotnet: strings(table, "dotnet", &context)?,
                 guide: table.get("guide").and_then(Item::as_str).map(str::to_owned),
+                guides: further(table, &context)?,
                 key,
             });
         }
@@ -439,6 +443,14 @@ impl Catalog {
         }
 
         for capability in &self.capabilities {
+            for (page, _) in &capability.guides {
+                if !root.join("docs").join(page).is_file() {
+                    problems.push(format!(
+                        "capability {}: docs/{page} does not exist",
+                        capability.key
+                    ));
+                }
+            }
             match &capability.guide {
                 Some(guide) if !root.join("docs").join(guide).is_file() => problems.push(format!(
                     "capability {}: docs/{guide} does not exist",
@@ -1384,6 +1396,34 @@ fn string(table: &dyn toml_edit::TableLike, key: &str, context: &str) -> Result<
         .and_then(Item::as_str)
         .map(str::to_owned)
         .ok_or_else(|| format!("{context}: `{key}` must be a string"))
+}
+
+/// Reads a capability's `guides` array: each entry names a page and the title the
+/// navigation shows it under.
+fn further(
+    table: &dyn toml_edit::TableLike,
+    context: &str,
+) -> Result<Vec<(String, String)>, String> {
+    let Some(array) = table.get("guides").and_then(Item::as_array_of_tables) else {
+        if table.get("guides").is_some() {
+            return Err(format!("{context}: `guides` must be an array of tables"));
+        }
+        return Ok(Vec::new());
+    };
+    array
+        .iter()
+        .map(|entry| {
+            let page = entry
+                .get("page")
+                .and_then(Item::as_str)
+                .ok_or_else(|| format!("{context}: a guide needs a `page`"))?;
+            let title = entry
+                .get("title")
+                .and_then(Item::as_str)
+                .ok_or_else(|| format!("{context}: a guide needs a `title`"))?;
+            Ok((page.to_owned(), title.to_owned()))
+        })
+        .collect()
 }
 
 fn strings(

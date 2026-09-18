@@ -102,6 +102,7 @@ pub mod lorawan_link;
 #[cfg(feature = "lorawan")]
 pub mod lorawan_mac;
 #[cfg(all(feature = "lora", feature = "lorawan"))]
+pub mod lorawan_packages;
 pub mod lorawan_relay;
 pub mod lorawan_relay_node;
 #[cfg(feature = "mavlink")]
@@ -609,6 +610,65 @@ pub extern "C" fn pamoja_version() -> *const c_char {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every constant the crate exports reaches the header as a value C can use.
+    ///
+    /// cbindgen renders a constant's initializer as written: one that names another crate's
+    /// constant is dropped, and one that names an imported constant is emitted unresolved, so
+    /// the header stops compiling. Both go unnoticed until a C consumer includes it.
+    #[test]
+    fn every_exported_constant_reaches_the_header_as_a_value() {
+        let header = include_str!("../include/pamoja.h");
+        let mut defined = std::collections::HashMap::new();
+        for line in header.lines() {
+            if let Some(rest) = line.strip_prefix("#define PAMOJA_") {
+                let mut parts = rest.splitn(2, ' ');
+                let (Some(name), Some(value)) = (parts.next(), parts.next()) else {
+                    continue;
+                };
+                defined.insert(format!("PAMOJA_{name}"), value.trim().to_owned());
+            }
+        }
+
+        let mut missing = Vec::new();
+        let mut unresolved = Vec::new();
+        let sources = std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/src"))
+            .expect("the crate's own sources");
+        for entry in sources.flatten() {
+            let path = entry.path();
+            if path.extension().is_none_or(|extension| extension != "rs") {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).expect("read a source");
+            for line in source.lines() {
+                let Some(rest) = line.trim_start().strip_prefix("pub const PAMOJA_") else {
+                    continue;
+                };
+                let Some(name) = rest.split(':').next() else {
+                    continue;
+                };
+                let name = format!("PAMOJA_{}", name.trim());
+                match defined.get(&name) {
+                    None => missing.push(name),
+                    Some(value) => {
+                        if value
+                            .chars()
+                            .next()
+                            .is_some_and(|first| first.is_ascii_alphabetic() || first == '_')
+                            && !value.starts_with("PAMOJA_")
+                        {
+                            unresolved.push(format!("{name} = {value}"));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(missing.is_empty(), "dropped from the header: {missing:?}");
+        assert!(
+            unresolved.is_empty(),
+            "emitted as a name C cannot resolve: {unresolved:?}"
+        );
+    }
 
     #[test]
     fn status_maps_each_error_variant() {

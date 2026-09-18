@@ -171,6 +171,7 @@ fn main() {
         "lorawanLink": lorawan_link(),
         "lorawanDevice": lorawan_device(),
         "lorawanRelay": lorawan_relay(),
+        "lorawanPackages": lorawan_packages(),
 
         "header": header(),
         "network": network(),
@@ -2709,6 +2710,565 @@ fn mac_commands() -> Value {
               "fields": { "devAddr": 0x2601_1BDA, "rssiDbm": -100, "snrDb": 5 } },
         ],
     })
+}
+
+/// The four application layer packages: clock synchronization TS003-2.0.0, fragmented data
+/// block transport TS004-2.0.0, remote multicast setup TS005-2.0.0 and firmware management
+/// TS006-1.0.0.
+///
+/// The bytes come from the encoders the specifications' own tables are implemented against,
+/// and each one is read back here before it is written out, so a vector that does not
+/// round-trip never reaches the file. The fields beside it are what the other bindings must
+/// read out of those bytes.
+fn lorawan_packages() -> Value {
+    use pamoja_lorawan::packages::clock::{ClockCommand, PORT as CLOCK_PORT};
+    use pamoja_lorawan::packages::firmware::{
+        DeleteStatus, FirmwareCommand, UpImageStatus, PORT as FIRMWARE_PORT,
+    };
+    use pamoja_lorawan::packages::fragment::{
+        data_block_int_key, prbs23, BlockMicKey, Defragmenter, FragCommand, Fragmenter,
+        SetupStatus, MAX_FRAGMENTS, PORT as FRAGMENT_PORT,
+    };
+    use pamoja_lorawan::packages::multicast::{
+        mc_app_s_key, mc_ke_key, mc_key, mc_nwk_s_key, mc_root_key_for, wrap_mc_key, McCommand,
+        SessionStatus, PORT as MULTICAST_PORT,
+    };
+    use pamoja_lorawan::packages::PackageVersion;
+
+    const ROOT_KEY: [u8; 16] = [0x2B; 16];
+    const GROUP_KEY: [u8; 16] = [0x77; 16];
+    const GROUP_ADDR: u32 = 0x2601_0042;
+    const WRAPPED_IN_A_COMMAND: [u8; 16] = [
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+        0x0F,
+    ];
+
+    let mc_root = mc_root_key_for(&ROOT_KEY, false);
+    let ke = mc_ke_key(&mc_root);
+    let wrapped = wrap_mc_key(&ke, &GROUP_KEY);
+    assert_eq!(mc_key(&ke, &wrapped), GROUP_KEY, "the wrap undoes itself");
+
+    // A block of 233 bytes in 32-byte fragments, which is the release the guide broadcasts.
+    let block: Vec<u8> = (0..233u32).map(|at| (at * 7 % 251) as u8).collect();
+    let sender = Fragmenter::new(&block, 32).expect("the session");
+    let fragments: Vec<Value> = [1u16, 4, 8, 9, 12]
+        .into_iter()
+        .map(|n| {
+            let mut piece = [0u8; 32];
+            sender.fragment(n, &mut piece).expect("the fragment");
+            json!({ "n": n, "coded": n > sender.nb_frag(), "bytes": hex(&piece) })
+        })
+        .collect();
+
+    // The same session, put back together over a link that drops every fourth fragment.
+    let mut store = vec![0u8; usize::from(sender.nb_frag()) * 32];
+    let mut matrix = vec![0u8; Defragmenter::matrix_len(sender.nb_frag(), sender.nb_frag())];
+    let mut receiver =
+        Defragmenter::new(sender.nb_frag(), 32, &mut store, &mut matrix).expect("the session");
+    let (mut sent, mut coded) = (0u16, 0u16);
+    for n in 1..=sender.nb_frag() * 2 {
+        if n % 4 == 0 {
+            continue;
+        }
+        let mut piece = [0u8; 32];
+        sender.fragment(n, &mut piece).expect("the fragment");
+        sent += 1;
+        coded += u16::from(n > sender.nb_frag());
+        if receiver.fragment(n, &piece).expect("it is taken") {
+            break;
+        }
+    }
+    assert_eq!(
+        &receiver.block()[..block.len()],
+        &block[..],
+        "it comes back whole"
+    );
+
+    let block_key = data_block_int_key(&ROOT_KEY);
+    let signer = BlockMicKey::new(&block_key);
+    let mut code = signer.start(1, 0, *b"PJU1", block.len() as u32);
+    code.update(&block);
+    let mic = code.finish();
+
+    // One command of each kind in each direction, written by the encoder and read back before
+    // it is recorded. The fields are what a binding must get out of those bytes, chosen for
+    // the layouts easiest to get wrong: a signed correction, a twenty-four-bit countdown, a
+    // fragment index packed above a fourteen-bit counter, and a wrapped group key.
+    let mut commands = Vec::new();
+    let mut clock = |kind: &str, command: ClockCommand, fields: Value| {
+        let mut out = [0u8; 64];
+        let len = command.encode(&mut out).expect("it encodes");
+        let direction = command.direction();
+        let (read, taken) = ClockCommand::parse(direction, &out[..len]).expect("it reads back");
+        assert_eq!((read, taken), (command, len), "{kind} round trips");
+        commands.push(json!({
+            "port": CLOCK_PORT,
+            "cid": command.cid(),
+            "uplink": matches!(direction, pamoja_lorawan::Direction::Uplink),
+            "kind": kind,
+            "bytes": hex(&out[..len]),
+            "fields": fields,
+        }));
+    };
+    clock(
+        "packageVersionReq",
+        ClockCommand::PackageVersionReq,
+        json!({}),
+    );
+    clock(
+        "packageVersionAns",
+        ClockCommand::PackageVersionAns(PackageVersion {
+            package: 1,
+            version: 2,
+        }),
+        json!({ "package": 1, "version": 2 }),
+    );
+    clock(
+        "appTimeReq",
+        ClockCommand::AppTimeReq {
+            device_time: 0x1234_5678,
+            ans_required: true,
+            token: 10,
+        },
+        json!({ "deviceTime": 0x1234_5678u32, "ansRequired": true, "token": 10 }),
+    );
+    clock(
+        "appTimeAns",
+        ClockCommand::AppTimeAns {
+            time_correction: -12,
+            token: 3,
+        },
+        json!({ "timeCorrection": -12, "token": 3 }),
+    );
+    clock(
+        "deviceAppTimePeriodicityReq",
+        ClockCommand::DeviceAppTimePeriodicityReq { period: 5 },
+        json!({ "period": 5 }),
+    );
+    clock(
+        "deviceAppTimePeriodicityAns",
+        ClockCommand::DeviceAppTimePeriodicityAns {
+            not_supported: true,
+            device_time: 0x1234_5678,
+        },
+        json!({ "notSupported": true, "deviceTime": 0x1234_5678u32 }),
+    );
+    clock(
+        "forceDeviceResyncCmd",
+        ClockCommand::ForceDeviceResyncCmd { transmissions: 3 },
+        json!({ "transmissions": 3 }),
+    );
+
+    let mut firmware = |kind: &str, command: FirmwareCommand, fields: Value| {
+        let mut out = [0u8; 64];
+        let len = command.encode(&mut out).expect("it encodes");
+        let direction = command.direction();
+        let (read, taken) = FirmwareCommand::parse(direction, &out[..len]).expect("it reads back");
+        assert_eq!((read, taken), (command, len), "{kind} round trips");
+        commands.push(json!({
+            "port": FIRMWARE_PORT,
+            "cid": command.cid(),
+            "uplink": matches!(direction, pamoja_lorawan::Direction::Uplink),
+            "kind": kind,
+            "bytes": hex(&out[..len]),
+            "fields": fields,
+        }));
+    };
+    firmware("devVersionReq", FirmwareCommand::DevVersionReq, json!({}));
+    firmware(
+        "devVersionAns",
+        FirmwareCommand::DevVersionAns {
+            firmware: 2,
+            hardware: 0x0A00_0007,
+        },
+        json!({ "firmware": 2, "hardware": 0x0A00_0007u32 }),
+    );
+    firmware(
+        "devRebootTimeReq",
+        FirmwareCommand::DevRebootTimeReq {
+            reboot_time: 0x1234_5678,
+        },
+        json!({ "reboot": 0x1234_5678u32 }),
+    );
+    firmware(
+        "devRebootCountdownReq",
+        FirmwareCommand::DevRebootCountdownReq { countdown: 3_600 },
+        json!({ "reboot": 3_600 }),
+    );
+    firmware(
+        "devUpgradeImageAns",
+        FirmwareCommand::DevUpgradeImageAns {
+            status: UpImageStatus::Valid,
+            next_version: Some(3),
+        },
+        json!({ "nextVersion": 3 }),
+    );
+    firmware(
+        "devUpgradeImageAns",
+        FirmwareCommand::DevUpgradeImageAns {
+            status: UpImageStatus::Corrupt,
+            next_version: None,
+        },
+        json!({}),
+    );
+    firmware(
+        "devDeleteImageReq",
+        FirmwareCommand::DevDeleteImageReq { version: 3 },
+        json!({ "deleteVersion": 3 }),
+    );
+    firmware(
+        "devDeleteImageAns",
+        FirmwareCommand::DevDeleteImageAns(DeleteStatus {
+            no_valid_image: false,
+            invalid_version: true,
+        }),
+        json!({ "noValidImage": false, "invalidVersion": true }),
+    );
+
+    let mut frag = |kind: &str, command: FragCommand<'static>, fields: Value| {
+        let mut out = [0u8; 64];
+        let len = command.encode(&mut out).expect("it encodes");
+        let direction = command.direction();
+        let (read, taken) = FragCommand::parse(direction, &out[..len]).expect("it reads back");
+        assert_eq!((read, taken), (command, len), "{kind} round trips");
+        commands.push(json!({
+            "port": FRAGMENT_PORT,
+            "cid": command.cid(),
+            "uplink": matches!(direction, pamoja_lorawan::Direction::Uplink),
+            "kind": kind,
+            "bytes": hex(&out[..len]),
+            "fields": fields,
+        }));
+    };
+    frag(
+        "fragSessionStatusReq",
+        FragCommand::FragSessionStatusReq {
+            frag_index: 1,
+            all_participants: true,
+        },
+        json!({ "fragIndex": 1, "allParticipants": true }),
+    );
+    frag(
+        "fragSessionStatusAns",
+        FragCommand::FragSessionStatusAns {
+            frag_index: 1,
+            received: 5,
+            missing: 68,
+            mic_error: false,
+            memory_error: true,
+            no_session: false,
+        },
+        json!({ "fragIndex": 1, "received": 5, "missing": 68, "memoryError": true }),
+    );
+    frag(
+        "fragSessionSetupReq",
+        FragCommand::FragSessionSetupReq {
+            frag_index: 0,
+            mc_group_bit_mask: 1,
+            nb_frag: 1_024,
+            frag_size: 128,
+            ack_reception: false,
+            frag_algo: 0,
+            block_ack_delay: 5,
+            padding: 64,
+            descriptor: [1, 2, 3, 4],
+            session_cnt: 128,
+            mic: [1, 2, 3, 4],
+        },
+        json!({
+            "fragIndex": 0, "mcGroupBitMask": 1, "nbFrag": 1_024, "fragSize": 128,
+            "fragAlgo": 0, "blockAckDelay": 5, "padding": 64, "sessionCnt": 128,
+            "descriptor": "01020304", "mic": "01020304",
+        }),
+    );
+    frag(
+        "fragSessionSetupAns",
+        FragCommand::FragSessionSetupAns(SetupStatus {
+            unsupported_algorithm: false,
+            not_enough_memory: false,
+            unsupported_index: false,
+            wrong_descriptor: true,
+            session_replay: false,
+            frag_index: 1,
+        }),
+        json!({ "fragIndex": 1, "wrongDescriptor": true, "sessionReplay": false }),
+    );
+    frag(
+        "fragSessionDeleteReq",
+        FragCommand::FragSessionDeleteReq { frag_index: 2 },
+        json!({ "fragIndex": 2 }),
+    );
+    frag(
+        "fragSessionDeleteAns",
+        FragCommand::FragSessionDeleteAns {
+            frag_index: 2,
+            no_session: true,
+        },
+        json!({ "fragIndex": 2, "noSession": true }),
+    );
+    frag(
+        "fragDataBlockReceivedReq",
+        FragCommand::FragDataBlockReceivedReq {
+            frag_index: 1,
+            mic_error: true,
+        },
+        json!({ "fragIndex": 1, "micError": true }),
+    );
+    frag(
+        "fragDataBlockReceivedAns",
+        FragCommand::FragDataBlockReceivedAns { frag_index: 1 },
+        json!({ "fragIndex": 1 }),
+    );
+    frag(
+        "dataFragment",
+        FragCommand::DataFragment {
+            frag_index: 2,
+            n: 1_024,
+            data: &[1, 2, 3, 4],
+        },
+        json!({ "fragIndex": 2, "fragmentN": 1_024, "data": "01020304" }),
+    );
+
+    let mut multicast = |kind: &str, command: McCommand, fields: Value| {
+        let mut out = [0u8; 64];
+        let len = command.encode(&mut out).expect("it encodes");
+        let direction = command.direction();
+        let (read, taken) = McCommand::parse(direction, &out[..len]).expect("it reads back");
+        assert_eq!((read, taken), (command, len), "{kind} round trips");
+        commands.push(json!({
+            "port": MULTICAST_PORT,
+            "cid": command.cid(),
+            "uplink": matches!(direction, pamoja_lorawan::Direction::Uplink),
+            "kind": kind,
+            "bytes": hex(&out[..len]),
+            "fields": fields,
+        }));
+    };
+    multicast(
+        "mcGroupStatusReq",
+        McCommand::McGroupStatusReq { req_group_mask: 10 },
+        json!({ "groupMask": 10 }),
+    );
+    multicast(
+        "mcGroupStatusAns",
+        McCommand::McGroupStatusAns {
+            ans_group_mask: 2,
+            nb_total_groups: 2,
+        },
+        json!({ "groupMask": 2, "nbTotalGroups": 2 }),
+    );
+    multicast(
+        "mcGroupSetupReq",
+        McCommand::McGroupSetupReq {
+            mc_group_id: 1,
+            mc_addr: GROUP_ADDR,
+            mc_key_encrypted: WRAPPED_IN_A_COMMAND,
+            min_mc_fcnt: 0,
+            max_mc_fcnt: 0xFFFF,
+        },
+        json!({
+            "mcGroupId": 1, "mcAddr": GROUP_ADDR, "minMcFcnt": 0, "maxMcFcnt": 0xFFFF,
+            "mcKeyEncrypted": hex(&WRAPPED_IN_A_COMMAND),
+        }),
+    );
+    multicast(
+        "mcGroupSetupAns",
+        McCommand::McGroupSetupAns {
+            mc_group_id: 1,
+            id_error: true,
+        },
+        json!({ "mcGroupId": 1, "idError": true }),
+    );
+    multicast(
+        "mcGroupDeleteReq",
+        McCommand::McGroupDeleteReq { mc_group_id: 1 },
+        json!({ "mcGroupId": 1 }),
+    );
+    multicast(
+        "mcGroupDeleteAns",
+        McCommand::McGroupDeleteAns {
+            mc_group_id: 1,
+            group_undefined: true,
+        },
+        json!({ "mcGroupId": 1, "noSession": true }),
+    );
+    multicast(
+        "mcClassCSessionReq",
+        McCommand::McClassCSessionReq {
+            mc_group_id: 1,
+            session_time: 0x1234_5678,
+            time_out: 10,
+            dl_frequency_hz: 869_525_000,
+            data_rate: 5,
+        },
+        json!({
+            "mcGroupId": 1, "sessionTime": 0x1234_5678u32, "timeOut": 10,
+            "dlFrequencyHz": 869_525_000, "dataRate": 5,
+        }),
+    );
+    multicast(
+        "mcClassCSessionAns",
+        McCommand::McClassCSessionAns {
+            status: SessionStatus {
+                mc_group_id: 1,
+                dr_error: false,
+                freq_error: false,
+                group_undefined: false,
+                start_missed: false,
+            },
+            time_to_start: Some(10_000),
+        },
+        json!({ "mcGroupId": 1, "timeToStart": 10_000 }),
+    );
+    multicast(
+        "mcClassCSessionAns",
+        McCommand::McClassCSessionAns {
+            status: SessionStatus {
+                mc_group_id: 0,
+                dr_error: false,
+                freq_error: true,
+                group_undefined: false,
+                start_missed: false,
+            },
+            time_to_start: None,
+        },
+        json!({ "mcGroupId": 0, "freqError": true }),
+    );
+    multicast(
+        "mcClassBSessionReq",
+        McCommand::McClassBSessionReq {
+            mc_group_id: 1,
+            session_time: 0x1234_5678,
+            time_out: 2,
+            periodicity: 5,
+            dl_frequency_hz: 869_525_000,
+            data_rate: 3,
+        },
+        json!({
+            "mcGroupId": 1, "sessionTime": 0x1234_5678u32, "timeOut": 2, "periodicity": 5,
+            "dlFrequencyHz": 869_525_000, "dataRate": 3,
+        }),
+    );
+    multicast(
+        "mcClassBSessionAns",
+        McCommand::McClassBSessionAns {
+            status: SessionStatus {
+                mc_group_id: 2,
+                dr_error: false,
+                freq_error: false,
+                group_undefined: false,
+                start_missed: false,
+            },
+            time_to_start: Some(10_000),
+        },
+        json!({ "mcGroupId": 2, "timeToStart": 10_000 }),
+    );
+
+    // A status answer names how many groups follow; each record is five bytes and carries no
+    // identifier of its own, so it is read on its own terms.
+    let status_items: Vec<Value> = [(1u8, GROUP_ADDR), (3, 0x2601_1BDA)]
+        .into_iter()
+        .map(|(mc_group_id, mc_addr)| {
+            let command = McCommand::McGroupStatusItem {
+                mc_group_id,
+                mc_addr,
+            };
+            let mut out = [0u8; 8];
+            let len = command.encode(&mut out).expect("it encodes");
+            assert_eq!(
+                McCommand::status_item(&out[..len]),
+                Ok((command, len)),
+                "a group record reads on its own"
+            );
+            json!({
+                "bytes": hex(&out[..len]),
+                "cid": command.cid(),
+                "mcGroupId": mc_group_id,
+                "mcAddr": mc_addr,
+            })
+        })
+        .collect();
+
+    // Reading stops at an identifier the package does not define, rather than guessing how
+    // long it is.
+    let mut stops = [0u8; 8];
+    let readable = ClockCommand::DeviceAppTimePeriodicityReq { period: 5 }
+        .encode(&mut stops)
+        .expect("it encodes");
+    stops[readable..readable + 3].copy_from_slice(&[0x7F, 0x11, 0x22]);
+
+    json!({
+        "ports": {
+            "clock": CLOCK_PORT,
+            "fragment": FRAGMENT_PORT,
+            "multicast": MULTICAST_PORT,
+            "firmware": FIRMWARE_PORT,
+        },
+        "maxFragments": MAX_FRAGMENTS,
+        // The multicast key chain of TS005-2.0.0 section 4.3, from one device root key.
+        "multicast": {
+            "rootKey": hex(&ROOT_KEY),
+            "mcRootKey": hex(&mc_root),
+            "mcRootKey11": hex(&mc_root_key_for(&ROOT_KEY, true)),
+            "mcKeKey": hex(&ke),
+            "groupKey": hex(&GROUP_KEY),
+            "wrapped": hex(&wrapped),
+            "mcAddr": GROUP_ADDR,
+            "mcAppSKey": hex(&mc_app_s_key(&GROUP_KEY, GROUP_ADDR)),
+            "mcNwkSKey": hex(&mc_nwk_s_key(&GROUP_KEY, GROUP_ADDR)),
+        },
+        // The parity matrix and the block code of TS004-2.0.0, appendix A.1 and section 3.3.
+        "fragment": {
+            "prbs23": [
+                { "x": 1, "next": prbs23(1) },
+                { "x": 1_002, "next": prbs23(1_002) },
+                { "x": 0x0040_0000u32, "next": prbs23(0x0040_0000) },
+            ],
+            "parityLines": [
+                { "coded": 1, "nbFrag": 8, "fragments": parity_fragments(1, 8) },
+                { "coded": 2, "nbFrag": 8, "fragments": parity_fragments(2, 8) },
+                { "coded": 5, "nbFrag": 21, "fragments": parity_fragments(5, 21) },
+            ],
+            "sessions": [
+                { "blockLen": 233, "fragSize": 32, "nbFrag": sender.nb_frag(),
+                  "padding": sender.padding() },
+                { "blockLen": 64, "fragSize": 16, "nbFrag": 4, "padding": 0 },
+                { "blockLen": 1, "fragSize": 48, "nbFrag": 1, "padding": 47 },
+            ],
+            "block": hex(&block),
+            "fragments": fragments,
+            "received": { "sent": sent, "coded": coded, "nbFrag": sender.nb_frag() },
+            "dataBlockIntKey": hex(&block_key),
+            "mic": {
+                "sessionCnt": 1,
+                "fragIndex": 0,
+                "descriptor": "PJU1",
+                "blockLen": block.len(),
+                "bytes": hex(&mic),
+            },
+        },
+        "commands": commands,
+        "statusItems": status_items,
+        "stops": {
+            "port": CLOCK_PORT,
+            "uplink": false,
+            "bytes": hex(&stops[..readable + 3]),
+            "readable": 1,
+        },
+        // A port that names no package is refused before anything is read.
+        "notAPackage": { "port": 1, "uplink": false, "bytes": "00" },
+    })
+}
+
+/// The uncoded fragments one coded fragment is made of, for the vectors above.
+fn parity_fragments(coded: u16, nb_frag: u16) -> Vec<u16> {
+    use pamoja_lorawan::packages::fragment::parity_line;
+
+    let mut bits = vec![0u8; usize::from(nb_frag).div_ceil(8)];
+    parity_line(coded, nb_frag, &mut bits);
+    (0..nb_frag)
+        .filter(|at| bits[usize::from(*at) / 8] & (1 << (at % 8)) != 0)
+        .collect()
 }
 
 /// A LoRaWAN relay, TS011-1.0.1: the keys, wake-on-radio frames and acknowledgments an end

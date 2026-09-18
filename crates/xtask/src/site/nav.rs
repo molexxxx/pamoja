@@ -68,11 +68,18 @@ impl Nav {
         for chapter in &catalog.chapters {
             let items: Vec<Item> = catalog
                 .in_chapter(&chapter.key)
-                .filter_map(|capability| {
-                    capability.guide.as_ref().map(|guide| {
-                        let page = guide.strip_suffix(".md").unwrap_or(guide);
-                        item(&capability.title, &format!("docs/{page}.html"))
-                    })
+                .flat_map(|capability| {
+                    let own = capability
+                        .guide
+                        .iter()
+                        .map(|guide| (guide, &capability.title));
+                    let further = capability.guides.iter().map(|(page, title)| (page, title));
+                    own.chain(further)
+                        .map(|(guide, title)| {
+                            let page = guide.strip_suffix(".md").unwrap_or(guide);
+                            item(title, &format!("docs/{page}.html"))
+                        })
+                        .collect::<Vec<Item>>()
                 })
                 .collect();
             if !items.is_empty() {

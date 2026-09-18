@@ -27,6 +27,7 @@ var guides = new Dictionary<string, Func<Task>>(StringComparer.Ordinal)
     ["audit"] = () => { AuditGuide.Run(); return Task.CompletedTask; },
     ["session"] = () => { SessionGuide.Run(); return Task.CompletedTask; },
     ["update"] = () => { UpdateGuide.Run(); return Task.CompletedTask; },
+    ["fuota"] = () => { FuotaGuide.Run(); return Task.CompletedTask; },
     ["power"] = () => { PowerGuide.Run(); return Task.CompletedTask; },
     ["telemetry"] = () => { TelemetryGuide.Run(); return Task.CompletedTask; },
     ["mqtt"] = async () => await MqttGuide.RunAsync(),

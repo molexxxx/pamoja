@@ -50,7 +50,12 @@ pub const PAMOJA_GATEWAY_STATION_TIME_SYNC: u8 = 8;
 pub const PAMOJA_GATEWAY_STATION_OTHER: u8 = 9;
 
 /// The protocol version a station reports.
-pub const PAMOJA_GATEWAY_STATION_PROTOCOL_VERSION: u32 = pamoja_gateway::station::PROTOCOL_VERSION;
+pub const PAMOJA_GATEWAY_STATION_PROTOCOL_VERSION: u32 = 2;
+
+// The header carries this as a literal, because cbindgen drops a constant whose value
+// names another crate's. This holds it to what that crate says.
+const _: () =
+    assert!(PAMOJA_GATEWAY_STATION_PROTOCOL_VERSION == pamoja_gateway::station::PROTOCOL_VERSION);
 
 /// A message either side of a session sends.
 pub struct PamojaGatewayStationMessage {

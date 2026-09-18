@@ -20,10 +20,15 @@ use crate::lorawan::PamojaLorawanDirection;
 use crate::{read_bytes, set_last_error, PamojaStatus};
 
 /// How many bytes of commands a frame can carry beside a payload.
-pub const PAMOJA_LORAWAN_FOPTS_MAX: usize = pamoja_lorawan::mac::FOPTS_MAX;
+pub const PAMOJA_LORAWAN_FOPTS_MAX: usize = 15;
 
 /// The longest single command, in bytes.
-pub const PAMOJA_LORAWAN_MAC_MAX: usize = pamoja_lorawan::mac::MAX_COMMAND;
+pub const PAMOJA_LORAWAN_MAC_MAX: usize = 27;
+
+// The header carries these as literals, because cbindgen drops a constant whose value
+// names another crate's. These hold them to what those crates say.
+const _: () = assert!(PAMOJA_LORAWAN_FOPTS_MAX == pamoja_lorawan::mac::FOPTS_MAX);
+const _: () = assert!(PAMOJA_LORAWAN_MAC_MAX == pamoja_lorawan::mac::MAX_COMMAND);
 
 /// One command, with the fields of whichever command it is.
 ///

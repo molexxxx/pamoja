@@ -95,9 +95,10 @@ async function main() {
   helpers();
   fieldIo();
   sensingAndActuation();
-laterSensors();
+  laterSensors();
   radioAndReach();
   relayedReach();
+  broadcastUpdates();
   mavlinkWire();
   mavlinkShapes();
   mavlinkProtocols();
@@ -1081,6 +1082,188 @@ function relayedReach() {
     node.heardWor(later, stranger, -95, 2, later.startUs + 500_000).kind,
     "Notified",
     "a relay tells its network about a device it cannot verify",
+  );
+}
+
+
+// Getting a firmware image to a whole field of devices: one clock, one group, one
+// broadcast cut into pieces, and a device that says what it made of it.
+function broadcastUpdates() {
+  // A device with no clock of its own asks for the time. The server answers with the
+  // difference, and the token keeps a late answer from pulling the clock back.
+  const sync = new lorawan.clock.ClockSync();
+  const asking = lorawan.packageParse(lorawan.clock.PORT, true, sync.request(1_000_000));
+  assert.strictEqual(asking.kind, "appTimeReq", "a device asks for a correction");
+  assert.strictEqual(asking.deviceTime, 1_000_000, "saying what it believes the time is");
+
+  const answer = lorawan.packageEncode({
+    port: lorawan.clock.PORT,
+    kind: "appTimeAns",
+    uplink: false,
+    timeCorrection: 12,
+    token: asking.token,
+  });
+  assert.strictEqual(sync.heard(answer).correction, 12, "and applies what comes back");
+  assert.strictEqual(
+    sync.heard(answer).correction,
+    undefined,
+    "a repeat of the same answer is ignored",
+  );
+
+  // A group every device in the field belongs to. Its key travels wrapped under a key
+  // each device derives from its own root key and never transmits.
+  const rootKey = Buffer.alloc(16, 0x2b);
+  const groupKey = Buffer.alloc(16, 0x77);
+  const groupAddr = 0x2601_0042;
+  const keKey = lorawan.multicast.keKey(lorawan.multicast.rootKey(rootKey));
+  const setup = lorawan.packageEncode({
+    port: lorawan.multicast.PORT,
+    kind: "mcGroupSetupReq",
+    uplink: false,
+    mcGroupId: 1,
+    mcAddr: groupAddr,
+    mcKeyEncrypted: lorawan.multicast.wrapKey(keKey, groupKey),
+    minMcFcnt: 0,
+    maxMcFcnt: 0xffff,
+  });
+  const read = lorawan.packageParse(lorawan.multicast.PORT, false, setup);
+  assert.strictEqual(read.mcAddr, groupAddr, "the group keeps its address across the wire");
+  assert.deepStrictEqual(
+    Buffer.from(lorawan.multicast.key(keKey, read.mcKeyEncrypted)),
+    groupKey,
+    "and the device unwraps the key the server wrapped",
+  );
+
+  // The image goes out as a block, cut into fragments with more sent than there are.
+  const image = Buffer.from("firmware for a field of flow meters, long enough to be cut up");
+  const fragSize = 16;
+  const { nbFrag, padding } = lorawan.fragment.session(image.length, fragSize);
+  assert.strictEqual(nbFrag * fragSize - padding, image.length, "the padding covers the tail");
+
+  const opened = lorawan.packageEncode({
+    port: lorawan.fragment.PORT,
+    kind: "fragSessionSetupReq",
+    uplink: false,
+    fragIndex: 0,
+    mcGroupBitMask: 0b0010,
+    nbFrag,
+    fragSize,
+    ackReception: false,
+    fragAlgo: 0,
+    blockAckDelay: 0,
+    padding,
+    descriptor: Buffer.from("PJU1"),
+    sessionCnt: 1,
+    mic: Buffer.alloc(4, 0),
+  });
+  const session = lorawan.packageParse(lorawan.fragment.PORT, false, opened);
+  assert.strictEqual(session.nbFrag, nbFrag, "the session says how many fragments there are");
+  assert.strictEqual(session.mcGroupBitMask, 0b0010, "and which group feeds it");
+
+  // The link drops every fourth one. The device solves for what it missed.
+  const receiver = new lorawan.fragment.Defragmenter(nbFrag, fragSize, 4);
+  let done = false;
+  for (let n = 1; n <= nbFrag * 2 && !done; n++) {
+    if (n % 4 === 0) {
+      continue;
+    }
+    const carried = lorawan.packageEncode({
+      port: lorawan.fragment.PORT,
+      kind: "dataFragment",
+      uplink: false,
+      fragIndex: 0,
+      fragmentN: n,
+      data: lorawan.fragment.fragment(image, fragSize, n),
+    });
+    const piece = lorawan.packageParse(lorawan.fragment.PORT, false, carried);
+    done = receiver.fragment(piece.fragmentN, piece.data);
+  }
+  assert.ok(done, "the block comes together without every fragment arriving");
+  assert.deepStrictEqual(
+    Buffer.from(receiver.block.subarray(0, image.length)),
+    image,
+    "and it is the image the server sent",
+  );
+
+  // The code over the block, taken a piece at a time so the image is never held twice.
+  const blockKey = lorawan.fragment.dataBlockIntKey(rootKey);
+  const whole = new lorawan.fragment.BlockMic(blockKey, 1, 0, Buffer.from("PJU1"), image.length);
+  whole.update(image);
+  const inPieces = new lorawan.fragment.BlockMic(
+    blockKey,
+    1,
+    0,
+    Buffer.from("PJU1"),
+    image.length,
+  );
+  inPieces.update(image.subarray(0, 7));
+  inPieces.update(image.subarray(7));
+  assert.deepStrictEqual(
+    Buffer.from(inPieces.finish()),
+    Buffer.from(whole.finish()),
+    "a streamed code is the code over the whole block",
+  );
+
+  // What the device runs, what it holds, and the one reboot it keeps.
+  const manager = new lorawan.firmware.Firmware(2, 7);
+  manager.setImage("Valid", 3);
+  const held = lorawan.packageParse(
+    lorawan.firmware.PORT,
+    true,
+    manager.heard(
+      lorawan.packageEncode({
+        port: lorawan.firmware.PORT,
+        kind: "devUpgradeImageReq",
+        uplink: false,
+      }),
+      1_000_000,
+    ),
+  );
+  assert.strictEqual(held.imageStatus, "Valid", "the device holds an image it can install");
+  assert.strictEqual(held.nextVersion, 3, "and says what it would run");
+
+  manager.heard(
+    lorawan.packageEncode({
+      port: lorawan.firmware.PORT,
+      kind: "devRebootCountdownReq",
+      uplink: false,
+      reboot: 60,
+    }),
+    1_000_000,
+  );
+  assert.strictEqual(manager.rebootInS, 60, "a countdown is kept as a countdown");
+  manager.heard(
+    lorawan.packageEncode({
+      port: lorawan.firmware.PORT,
+      kind: "devRebootTimeReq",
+      uplink: false,
+      reboot: 1_000_060,
+    }),
+    1_000_000,
+  );
+  assert.strictEqual(manager.rebootAtS, 1_000_060, "a moment replaces it");
+  assert.strictEqual(manager.rebootInS, null, "a device keeps one reboot, not two");
+  manager.rebooted();
+  assert.strictEqual(manager.rebootAtS, null, "carrying it out clears it");
+
+  // A status answer lists its groups after the count, each five bytes with no
+  // identifier of its own.
+  const listed = lorawan.packageEncode({
+    port: lorawan.multicast.PORT,
+    kind: "mcGroupStatusItem",
+    uplink: true,
+    mcGroupId: 1,
+    mcAddr: groupAddr,
+  });
+  assert.strictEqual(
+    lorawan.packageStatusItem(listed).mcAddr,
+    groupAddr,
+    "a group record reads back on its own",
+  );
+
+  assert.throws(
+    () => lorawan.packageParse(1, false, Buffer.from([0x00])),
+    "a port that names no package is refused",
   );
 }
 

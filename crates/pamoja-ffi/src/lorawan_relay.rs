@@ -21,29 +21,44 @@ use crate::lorawan::{failed, PamojaLorawanSession, PAMOJA_LORAWAN_KEY_LEN};
 use crate::{read_bytes, set_last_error, PamojaBuffer, PamojaStatus};
 
 /// The port every message between a relay and its network uses.
-pub const PAMOJA_LORAWAN_LA_FPORT_RELAY: u8 = relay::LA_FPORT_RELAY;
+pub const PAMOJA_LORAWAN_LA_FPORT_RELAY: u8 = 226;
 /// How many end devices a relay verifies wake-on-radio frames for.
-pub const PAMOJA_LORAWAN_TRUSTED_ED_NUMBER: usize = relay::TRUSTED_ED_NUMBER;
+pub const PAMOJA_LORAWAN_TRUSTED_ED_NUMBER: usize = 16;
 /// How many WOR frames go without an acknowledgment before the uplink goes anyway.
-pub const PAMOJA_LORAWAN_WOR_ATTEMPTS_WO_ACK: u8 = relay::WOR_ATTEMPTS_WO_ACK;
+pub const PAMOJA_LORAWAN_WOR_ATTEMPTS_WO_ACK: u8 = 8;
 /// The gap between a WOR frame, or its acknowledgment, and the LoRaWAN frame after it.
-pub const PAMOJA_LORAWAN_WOR_DATA_DELAY_US: u32 = relay::WOR_DATA_DELAY_US;
+pub const PAMOJA_LORAWAN_WOR_DATA_DELAY_US: u32 = 50_000;
 /// The gap between a WOR frame and its acknowledgment.
-pub const PAMOJA_LORAWAN_WOR_ACK_DELAY_US: u32 = relay::WOR_ACK_DELAY_US;
+pub const PAMOJA_LORAWAN_WOR_ACK_DELAY_US: u32 = 50_000;
 /// The gap between a relay hearing an uplink and forwarding it.
-pub const PAMOJA_LORAWAN_RELAY_FWD_DELAY_US: u32 = relay::RELAY_FWD_DELAY_US;
+pub const PAMOJA_LORAWAN_RELAY_FWD_DELAY_US: u32 = 50_000;
 /// How long after an uplink an end device's RXR window opens at the latest.
-pub const PAMOJA_LORAWAN_RXR_DELAY_US: u32 = relay::RXR_DELAY_US;
+pub const PAMOJA_LORAWAN_RXR_DELAY_US: u32 = 18_000_000;
 /// The length of a WOR frame ahead of a join request.
-pub const PAMOJA_LORAWAN_WOR_JOIN_REQUEST_LEN: usize = relay::WOR_JOIN_REQUEST_LEN;
+pub const PAMOJA_LORAWAN_WOR_JOIN_REQUEST_LEN: usize = 5;
 /// The length of a WOR frame ahead of a Class A uplink.
-pub const PAMOJA_LORAWAN_WOR_UPLINK_LEN: usize = relay::WOR_UPLINK_LEN;
+pub const PAMOJA_LORAWAN_WOR_UPLINK_LEN: usize = 15;
 /// The length of a WOR ACK.
-pub const PAMOJA_LORAWAN_WOR_ACK_LEN: usize = relay::WOR_ACK_LEN;
+pub const PAMOJA_LORAWAN_WOR_ACK_LEN: usize = 7;
 /// The bytes a forwarded uplink adds in front of the end device's frame.
-pub const PAMOJA_LORAWAN_FORWARD_OVERHEAD: usize = relay::FORWARD_OVERHEAD;
+pub const PAMOJA_LORAWAN_FORWARD_OVERHEAD: usize = 6;
 /// The shortest WOR preamble, in symbols.
-pub const PAMOJA_LORAWAN_MIN_WOR_PREAMBLE_SYMBOLS: u16 = relay::MIN_WOR_PREAMBLE_SYMBOLS;
+pub const PAMOJA_LORAWAN_MIN_WOR_PREAMBLE_SYMBOLS: u16 = 8;
+
+// The header carries these as literals, because cbindgen drops a constant whose value
+// names another crate's. These hold them to what those crates say.
+const _: () = assert!(PAMOJA_LORAWAN_LA_FPORT_RELAY == relay::LA_FPORT_RELAY);
+const _: () = assert!(PAMOJA_LORAWAN_TRUSTED_ED_NUMBER == relay::TRUSTED_ED_NUMBER);
+const _: () = assert!(PAMOJA_LORAWAN_WOR_ATTEMPTS_WO_ACK == relay::WOR_ATTEMPTS_WO_ACK);
+const _: () = assert!(PAMOJA_LORAWAN_WOR_DATA_DELAY_US == relay::WOR_DATA_DELAY_US);
+const _: () = assert!(PAMOJA_LORAWAN_WOR_ACK_DELAY_US == relay::WOR_ACK_DELAY_US);
+const _: () = assert!(PAMOJA_LORAWAN_RELAY_FWD_DELAY_US == relay::RELAY_FWD_DELAY_US);
+const _: () = assert!(PAMOJA_LORAWAN_RXR_DELAY_US == relay::RXR_DELAY_US);
+const _: () = assert!(PAMOJA_LORAWAN_WOR_JOIN_REQUEST_LEN == relay::WOR_JOIN_REQUEST_LEN);
+const _: () = assert!(PAMOJA_LORAWAN_WOR_UPLINK_LEN == relay::WOR_UPLINK_LEN);
+const _: () = assert!(PAMOJA_LORAWAN_WOR_ACK_LEN == relay::WOR_ACK_LEN);
+const _: () = assert!(PAMOJA_LORAWAN_FORWARD_OVERHEAD == relay::FORWARD_OVERHEAD);
+const _: () = assert!(PAMOJA_LORAWAN_MIN_WOR_PREAMBLE_SYMBOLS == relay::MIN_WOR_PREAMBLE_SYMBOLS);
 
 /// A WOR frame ahead of a join request.
 pub const PAMOJA_LORAWAN_WOR_JOIN_REQUEST: u8 = 0;

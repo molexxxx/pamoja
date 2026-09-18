@@ -74,6 +74,10 @@ impl Refusal {
     }
 }
 
+// `core::error::Error` rather than `std::error::Error`, so a caller on a microcontroller
+// gets the same trait a caller on a gateway does.
+impl core::error::Error for Refusal {}
+
 impl From<Refusal> for Error {
     fn from(value: Refusal) -> Self {
         let message: String = value.reason().to_string();
