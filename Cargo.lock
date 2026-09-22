@@ -3175,7 +3175,7 @@ version = "0.1.18"
 dependencies = [
  "embedded-hal",
  "linux-embedded-hal",
- "nix 0.29.0",
+ "nix 0.31.3",
 ]
 
 [[package]]
