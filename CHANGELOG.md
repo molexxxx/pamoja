@@ -418,6 +418,36 @@ released together, so one entry covers all of them.
   SX127x drivers and on `Radio`, following the procedures of Semtech's own
   drivers. LoRaWAN 1.0.3 suggests this source for a join nonce on a device with no
   other, and the ESP32-C3 node draws its nonces and its channel seed this way.
+- A register of the standards the code implements, in `docs/standards.toml`: one entry
+  per specification with its publisher, its authoritative URL, and the test that pins
+  the code to it, rendered on the About page under the same nine chapters as the
+  guides. `cargo xtask links` fetches every specification document alongside the
+  datasheets, so one that moves fails the build. Each row says what its test asserts:
+  a vector the document publishes, a rule of the specification, a live implementation,
+  or a round trip alone. Writing the register corrected the page it replaced.
+  `CRC-16/CCITT` had named the wrong algorithm, since the mesh checks `0x29B1`, which
+  is CCITT-FALSE, and the bare name means KERMIT; ITU-T K.71 governs when an antenna
+  may go up without a risk assessment and was cited for bonding and surge, which is
+  K.27 with IEC 62305; COBS has no published standard and cites its paper; and nine
+  standards the code implements and tests, Ed25519 and CBOR among them, were not
+  named at all. The three binding conformance runners each gained a perturbation
+  case, so an implementation that agrees with itself and nothing else fails there.
+- The hardware page's parts can be found. Each part name is a heading carrying the
+  part's key, so it takes an anchor, a table of contents entry and a search row, and
+  each group lists its parts as a row of anchors above its cards, so a part is one tap
+  away on a phone. Entries that are not things to buy, ArduPilot, PX4, the Pixhawk
+  standard, the Cortex-M4 core and ESP-NOW, no longer carry a price and say instead
+  what runs them, in a group of their own. The radio and sensor cards link back to
+  the pages that explain them, the price is told once, and every card names itself
+  to a screen reader.
+- The network side of a site in C, TypeScript, Python and C#. A site opens on a
+  channel plan, registers the devices it admits, reads what a gateway forwarded, and
+  builds the answer for the window the uplink opened. The conformance vectors carry
+  the join request, the join accept, the uplink and the downlink, so the four
+  languages are held to the same bytes rather than to four descriptions of one idea,
+  and the gateway guide gains a second example that prints the same four lines in
+  each. A network copies the plan it is built on rather than borrowing it, which is
+  what a handle that outlives a call needs.
 
 ### Changed
 
