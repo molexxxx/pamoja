@@ -883,7 +883,7 @@ The protocols a node speaks to a broker or a server.
 </header>
 <p class="hw-summary">The freshness conditions of section 3.4, including the 24-bit wrap and the 128-second rule.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://www.rfc-editor.org/info/rfc7641"><span class="hw-main"><b>The document</b><small>RFC 7641</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-coap/src/lib.rs#L801"><span class="hw-main"><b>The test</b><small><code>lib.rs</code> line 801</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-coap/src/lib.rs#L805"><span class="hw-main"><b>The test</b><small><code>lib.rs</code> line 805</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 </div>
