@@ -872,4 +872,5 @@ Console.WriteLine($"payload   {heard.Payload.Length} bytes, still encrypted");
 - TypeScript: [`@pamoja/gateway`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_gateway.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-gateway)
 - Python: [`pamoja.gateway`](https://pamoja.molex.cloud/docs/reference/python/pamoja/gateway.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-gateway)
 - C#: [`Pamoja.Gateway`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Gateway.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-gateway)
+- Hardware: [SX1302](https://pamoja.molex.cloud/docs/hardware.html#sx1302), [SX1303](https://pamoja.molex.cloud/docs/hardware.html#sx1303), [SX1250](https://pamoja.molex.cloud/docs/hardware.html#sx1250), [RAK2287 WisLink concentrator](https://pamoja.molex.cloud/docs/hardware.html#rak2287), [RAK5146 WisLink concentrator](https://pamoja.molex.cloud/docs/hardware.html#rak5146), [WM1302 LoRaWAN gateway module](https://pamoja.molex.cloud/docs/hardware.html#wm1302)
 <!-- end -->

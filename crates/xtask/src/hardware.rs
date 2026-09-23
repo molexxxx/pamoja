@@ -76,6 +76,10 @@ pub struct Entry {
     pub interface: String,
     /// One sentence on what it is for.
     pub summary: String,
+    /// What it does in a few words, under its name in the group's selection guide.
+    pub does: String,
+    /// When to pick it over the others in its group, told from the figures on its card.
+    pub choose: String,
     /// Figures from the source document, each already written as "label: value".
     pub specs: Vec<String>,
     /// One of [`BANDS`].
@@ -85,7 +89,8 @@ pub struct Entry {
     /// The driver modules that target it, as `<crate>/src/<file>.rs`.
     pub modules: Vec<String>,
     /// The page under `docs/` that wires a part to this board and runs the first program
-    /// on it, as `boards/<board>.md`. Empty for everything but a board.
+    /// on it, as `boards/<board>.md`: a board's own page, or for a card that plugs into a
+    /// board, the page that builds with it. Empty for the rest.
     pub page: String,
     /// The document: its title, and its number or revision where it has one.
     pub source_name: String,
@@ -195,6 +200,8 @@ impl Hardware {
                 vendor: string(table, "vendor", &context)?,
                 interface: optional(table, "interface"),
                 summary: string(table, "summary", &context)?,
+                does: string(table, "does", &context)?,
+                choose: string(table, "choose", &context)?,
                 specs: strings(table, "specs", &context)?,
                 cost: string(table, "cost", &context)?,
                 crates: optional_strings(table, "crates", &context)?,
@@ -247,11 +254,14 @@ impl Hardware {
             .collect()
     }
 
-    /// Render the page body. Each group gets a heading, its line of intent, and one card
-    /// per entry. A card breaks the entry down into labeled facts (its interface, each
-    /// figure from its document, and its price band with the lowest listed price), says
-    /// where to buy it with the price each page listed, and points at the document it was
-    /// written from, the driver's source, its crates, and the guides that use it.
+    /// Render the page body. It opens with the days the prices were read. Each group gets a
+    /// heading, its line of intent with the page that explains how to choose among its
+    /// parts, a numbered selection guide, and one card per entry. The guide names each part
+    /// with what it does, how it connects, when to pick it, and the lowest price listed. A
+    /// card breaks the entry down into labeled facts (its interface, each figure from its
+    /// document, and its price band), says where to buy it with the price each page listed,
+    /// and points at the document it was written from, the driver's source, its crates,
+    /// and the guides that use it.
     ///
     /// # Arguments
     ///
@@ -262,16 +272,27 @@ impl Hardware {
     /// The Markdown that replaces the `<!-- table: hardware -->` region.
     pub fn table(&self, catalog: &Catalog) -> String {
         let mut out = Vec::new();
+        if let Some(line) = self.freshness() {
+            out.push(line);
+        }
+        let mut number = 0;
         for group in &self.groups {
             let entries: Vec<&Entry> = self.in_group(&group.key).collect();
             if entries.is_empty() {
                 continue;
             }
+            number += 1;
+            let mut intent = group.intent.clone();
+            if !group.explains.is_empty() {
+                intent.push_str(&format!(
+                    " For {}, see [{}]({}).",
+                    group.explains_what, group.explains_title, group.explains
+                ));
+            }
             let mut section = format!(
-                "## {}\n\n{}\n\n{}\n<div class=\"hw-cards\">\n",
+                "## {}\n\n{intent}\n\n{}\n\n<div class=\"hw-cards\">\n",
                 group.title,
-                group.intent,
-                index(&entries, &group.title)
+                selection(&entries, group, number)
             );
             for entry in &entries {
                 section.push_str(&card(entry, group, catalog, &self.entries));
@@ -280,6 +301,32 @@ impl Hardware {
             out.push(section);
         }
         out.join("\n\n")
+    }
+
+    /// The days every listed price was read, as the page's opening line, or `None` for a
+    /// page that lists no price.
+    ///
+    /// # Returns
+    ///
+    /// One sentence naming the day, or the first and last day when they differ.
+    pub fn freshness(&self) -> Option<String> {
+        let days: BTreeSet<&str> = self
+            .entries
+            .iter()
+            .flat_map(|entry| entry.buy.iter().map(|buy| buy.checked.as_str()))
+            .collect();
+        let day = |date: &str| format!("<time datetime=\"{date}\">{date}</time>");
+        let first = days.first()?;
+        let last = days.last()?;
+        let when = if first == last {
+            format!("on {}", day(first))
+        } else {
+            format!("between {} and {}", day(first), day(last))
+        };
+        Some(format!(
+            "The prices below were read from each store's own page {when}. A workflow reads \
+             them again every week, and each card names the day its prices were read."
+        ))
     }
 
     /// The parts a guide's crates drive, as one Markdown line for the guide's reference
@@ -355,6 +402,11 @@ impl Hardware {
             }
             if entry.specs.is_empty() {
                 return Err(format!("{at}: needs at least one figure from its source"));
+            }
+            if entry.does.trim().is_empty() || entry.choose.trim().is_empty() {
+                return Err(format!(
+                    "{at}: needs `does` and `choose` for its group's selection guide"
+                ));
             }
             if !entry.page.is_empty() && !root.join("docs").join(&entry.page).is_file() {
                 return Err(format!(
@@ -440,9 +492,15 @@ fn card(entry: &Entry, group: &Group, catalog: &Catalog, all: &[Entry]) -> Strin
         }
     }
     if entry.cost != "not applicable" && entry.hosts.is_empty() {
+        let unit = match group.key.as_str() {
+            "targets" => "for the board",
+            "antennas" => "for the part",
+            "radios" => "for a module or a card",
+            _ => "for a breakout board",
+        };
         facts.push((
             "Typical cost".to_owned(),
-            format!("{} for a breakout module or a board", escape(&entry.cost)),
+            format!("{} {unit}", escape(&entry.cost)),
         ));
     }
     let facts: String = facts
@@ -516,16 +574,6 @@ fn card(entry: &Entry, group: &Group, catalog: &Catalog, all: &[Entry]) -> Strin
             ));
         }
     }
-    if !group.explains.is_empty() {
-        links.push(row(
-            &format!("{SITE}/{}.html", group.explains.trim_end_matches(".md")),
-            " guide",
-            &escape(&group.explains_title),
-            &format!("<small>{}</small>", escape(&group.explains_what)),
-            "&#8594;",
-        ));
-    }
-
     // The left panel: the offers, else the parts on this page that speak the bus, else
     // where to search for the part; a part with a price band and no store says so first.
     let left = if !entry.buy.is_empty() {
@@ -615,17 +663,60 @@ fn card(entry: &Entry, group: &Group, catalog: &Catalog, all: &[Entry]) -> Strin
     )
 }
 
-// The parts of a group as a row of anchors above its cards, so a reader reaches a part by
-// name at any width rather than scrolling the wall.
-fn index(entries: &[&Entry], title: &str) -> String {
-    let links: String = entries
-        .iter()
-        .map(|entry| format!("<a href=\"#{}\">{}</a>", entry.key, escape(&entry.name)))
-        .collect();
-    format!(
-        "<nav class=\"hw-index\" aria-label=\"{} index\">{links}</nav>\n",
-        escape(title)
-    )
+// A group's selection guide: one row per part, named with what it does and linked to its
+// card, then how it connects, when to pick it, and the lowest price listed. A group whose
+// parts attach to nothing leaves the connection column out, and an entry that is not a
+// thing you buy prices the boards that carry it.
+fn selection(entries: &[&Entry], group: &Group, number: usize) -> String {
+    let connects = entries.iter().any(|entry| !entry.interface.is_empty());
+    let mut head = vec!["Part"];
+    if connects {
+        head.push("Connects");
+    }
+    head.extend(["Best for", "From"]);
+    let mut out = format!(
+        "<div class=\"tbl\" id=\"table-{number}\">\n<p class=\"tbl-caption\"><b>Table {number}.</b> {}: what each is best for, and the lowest price listed.</p>\n\n| {} |\n|{}\n",
+        escape(&group.title),
+        head.join(" | "),
+        " --- |".repeat(head.len())
+    );
+    for entry in entries {
+        let mut cells = vec![format!(
+            "[{}](#{})<span class=\"what\">{}</span>",
+            cell(&entry.name),
+            entry.key,
+            cell(&entry.does)
+        )];
+        if connects {
+            cells.push(cell(&entry.interface));
+        }
+        cells.push(cell(&entry.choose));
+        cells.push(lowest(entry));
+        out.push_str(&format!("| {} |\n", cells.join(" | ")));
+    }
+    out.push_str("\n</div>");
+    out
+}
+
+// Text for a Markdown table cell: escaped for HTML, with its pipes kept out of the grid.
+fn cell(text: &str) -> String {
+    escape(text).replace('|', "\\|")
+}
+
+// The lowest price an entry lists, as the page states it, by the refresh's indicative
+// rates. An entry that is not itself a thing you buy prices the boards that carry it.
+fn lowest(entry: &Entry) -> String {
+    let cheapest = entry.buy.iter().min_by(|a, b| {
+        let key = |buy: &Buy| crate::prices::usd(&buy.price).unwrap_or(f64::MAX);
+        key(a)
+            .partial_cmp(&key(b))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    match cheapest {
+        None => "not stocked".to_owned(),
+        Some(buy) if entry.hosts.is_empty() => cell(&buy.price),
+        Some(buy) => format!("boards from {}", cell(&buy.price)),
+    }
 }
 
 /// Where a reader can search for a part by name, when no store on this page lists it.
@@ -658,9 +749,11 @@ fn speakers<'a>(bus: &Entry, all: &'a [Entry]) -> Vec<&'a Entry> {
 }
 
 // The opening clause of a capability's summary, which is what a card's guide row has room
-// for. A summary that lists its parts or qualifies itself is cut at that turn.
+// for. A summary that lists its parts or qualifies itself is cut at that turn; one that
+// joins two things with ", and" keeps both, or the second part's card would be told the
+// guide covers only the first.
 fn clause(summary: &str) -> &str {
-    let cut = [": ", "; ", ", and ", ". "]
+    let cut = [": ", "; ", ". "]
         .iter()
         .filter_map(|mark| summary.find(mark))
         .min();
@@ -839,6 +932,8 @@ name = "BME280"
 vendor = "Bosch Sensortec"
 interface = "I2C or SPI"
 summary = "Humidity, pressure and temperature on one die."
+does = "Humidity, pressure, temperature"
+choose = "Weather on one chip"
 specs = ["Temperature: -40 to 85 C"]
 cost = "$5 to $20"
 crates = ["pamoja-sensors"]
@@ -885,9 +980,9 @@ crates = ["pamoja-core"]
     #[test]
     fn a_card_breaks_the_part_down_and_points_at_the_document_the_driver_and_the_guide() {
         let rendered = Hardware::parse(MINIMAL).expect("parses").table(&catalog());
-        assert!(rendered.starts_with("## Sensors\n\nParts a driver decodes.\n\n<nav class=\"hw-index\" aria-label=\"Sensors index\"><a href=\"#bme280\">BME280</a></nav>\n\n<div class=\"hw-cards\">\n<article class=\"hw-card\" aria-labelledby=\"bme280\">\n"), "{rendered}");
+        assert!(rendered.starts_with("## Sensors\n\nParts a driver decodes.\n\n<div class=\"tbl\" id=\"table-1\">\n<p class=\"tbl-caption\"><b>Table 1.</b> Sensors: what each is best for, and the lowest price listed.</p>\n\n| Part | Connects | Best for | From |\n| --- | --- | --- | --- |\n| [BME280](#bme280)<span class=\"what\">Humidity, pressure, temperature</span> | I2C or SPI | Weather on one chip | not stocked |\n\n</div>\n\n<div class=\"hw-cards\">\n<article class=\"hw-card\" aria-labelledby=\"bme280\">\n"), "{rendered}");
         assert!(rendered.contains("<header class=\"hw-head\">\n\n### BME280 {#bme280}\n\n<p class=\"hw-by\">Bosch Sensortec</p>\n<p class=\"hw-summary\">Humidity, pressure and temperature on one die.</p>\n</header>"), "{rendered}");
-        assert!(rendered.contains("<dl class=\"hw-facts\"><div><dt>Interface</dt><dd>I2C or SPI</dd></div><div><dt>Temperature</dt><dd>-40 to 85 C</dd></div><div><dt>Typical cost</dt><dd>$5 to $20 for a breakout module or a board</dd></div></dl>"), "{rendered}");
+        assert!(rendered.contains("<dl class=\"hw-facts\"><div><dt>Interface</dt><dd>I2C or SPI</dd></div><div><dt>Temperature</dt><dd>-40 to 85 C</dd></div><div><dt>Typical cost</dt><dd>$5 to $20 for a breakout board</dd></div></dl>"), "{rendered}");
         assert!(rendered.contains("<li><a class=\"hw-row\" href=\"https://example.invalid/bme280\"><span class=\"hw-main\"><b>Datasheet</b><small>datasheet</small></span><span class=\"hw-go\" aria-hidden=\"true\">&#8599;</span></a></li>"), "{rendered}");
         assert!(rendered.contains("<a class=\"hw-row\" href=\"https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-sensors/src/bme280.rs\"><span class=\"hw-main\"><b>Driver source</b><small><code>bme280.rs</code></small></span>"));
         assert!(rendered.contains("<a class=\"hw-row\" href=\"https://pamoja.molex.cloud/docs/reference/rust/pamoja_sensors/index.html\"><span class=\"hw-main\"><b>Crate</b><small><code>pamoja-sensors</code></small></span>"));
@@ -933,7 +1028,7 @@ crates = ["pamoja-core"]
         assert_eq!(query("Modbus RTU over RS-485"), "Modbus+RTU+over+RS-485");
         assert_eq!(query("CAN 2.0 & FD"), "CAN+2.0+%26+FD");
         let with_probe = format!(
-            "{}\n[[entry]]\nkey = \"probe\"\ngroup = \"sensors\"\nname = \"Probe\"\nvendor = \"X\"\ninterface = \"I2C at 400 kHz\"\nsummary = \"A probe.\"\nspecs = [\"Range: 1\"]\ncost = \"under $5\"\nsource_name = \"d\"\nsource_label = \"d\"\nsource = \"https://example.invalid/p\"\n",
+            "{}\n[[entry]]\nkey = \"probe\"\ngroup = \"sensors\"\nname = \"Probe\"\nvendor = \"X\"\ninterface = \"I2C at 400 kHz\"\nsummary = \"A probe.\"\ndoes = \"Probing\"\nchoose = \"A probe\"\nspecs = [\"Range: 1\"]\ncost = \"under $5\"\nsource_name = \"d\"\nsource_label = \"d\"\nsource = \"https://example.invalid/p\"\n",
             bus.replace("name = \"BME280\"", "name = \"I2C\"")
         );
         let with_probe = Hardware::parse(&with_probe)
@@ -988,13 +1083,68 @@ verified = false
         let rendered = hardware.table(&catalog());
         // The price is told once, in the offer list. The cost fact keeps the band alone.
         assert!(
-            rendered.contains(
-                "<dt>Typical cost</dt><dd>$5 to $20 for a breakout module or a board</dd>"
-            ),
+            rendered.contains("<dt>Typical cost</dt><dd>$5 to $20 for a breakout board</dd>"),
             "{rendered}"
         );
+        assert!(
+            rendered.contains("| Weather on one chip | US$5.34 |"),
+            "the selection guide names the lowest price: {rendered}"
+        );
+        assert!(rendered.starts_with("The prices below were read from each store's own page on <time datetime=\"2026-09-06\">2026-09-06</time>."), "{rendered}");
         assert!(!rendered.contains("the lowest listed price"), "{rendered}");
         assert!(rendered.contains("<div class=\"hw-foot\">\n<section class=\"hw-buy\"><h4>Where to buy</h4><ul class=\"hw-rows\"><li><a class=\"hw-row\" href=\"https://www.adafruit.com/product/2652\"><span class=\"hw-main\"><b>Adafruit</b><small>Adafruit BME280 breakout</small></span><span class=\"hw-price\">US$14.95</span></a></li><li><a class=\"hw-row\" href=\"https://www.digikey.com/en/products/detail/bosch/BME280/5341156\"><span class=\"hw-main\"><b>Digi-Key</b><small>BME280 bare sensor</small><small class=\"hw-note\">listed price; the page refuses scripted readers</small></span><span class=\"hw-price\">US$5.34</span></a></li></ul><p class=\"hw-when\">prices as listed on 2026-09-06</p></section>"), "{rendered}");
+    }
+
+    #[test]
+    fn the_selection_guide_prices_across_currencies_and_the_page_names_its_days() {
+        let mixed = format!(
+            "{MINIMAL}{}",
+            BUY.replace("price = \"US$5.34\"", "price = \"£4.00\"")
+                .replace(
+                    "checked = \"2026-09-06\"\nverified",
+                    "checked = \"2026-09-11\"\nverified"
+                )
+        );
+        let hardware = Hardware::parse(&mixed).expect("parses");
+        let rendered = hardware.table(&catalog());
+        assert!(rendered.contains("| £4.00 |"), "{rendered}");
+        assert_eq!(
+            hardware.freshness().unwrap(),
+            "The prices below were read from each store's own page between <time datetime=\"2026-09-06\">2026-09-06</time> and <time datetime=\"2026-09-11\">2026-09-11</time>. A workflow reads them again every week, and each card names the day its prices were read."
+        );
+        assert_eq!(Hardware::parse(MINIMAL).unwrap().freshness(), None);
+        let piped = MINIMAL.replace("Weather on one chip", "Weather | indoors");
+        assert!(Hardware::parse(&piped)
+            .unwrap()
+            .table(&catalog())
+            .contains("| Weather \\| indoors |"));
+        let boards = format!("{MINIMAL}hosts = \"Boards that carry it\"\n{BUY}");
+        assert!(Hardware::parse(&boards)
+            .unwrap()
+            .table(&catalog())
+            .contains("| boards from US$5.34 |"));
+    }
+
+    #[test]
+    fn an_entry_needs_what_it_does_and_when_to_pick_it() {
+        let root = std::env::temp_dir();
+        let blank = MINIMAL.replace("choose = \"Weather on one chip\"", "choose = \" \"");
+        let err = Hardware::parse(&blank).unwrap().check(&root).unwrap_err();
+        assert!(err.contains("`does` and `choose`"), "{err}");
+        assert!(Hardware::parse(
+            &MINIMAL.replace("does = \"Humidity, pressure, temperature\"\n", "")
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn a_guide_row_keeps_both_halves_of_a_summary_joined_with_and() {
+        assert_eq!(
+            clause("PCA9685 PWM and servo pulses, and stepper coil sequencing"),
+            "PCA9685 PWM and servo pulses, and stepper coil sequencing"
+        );
+        assert_eq!(clause("The radios: their commands"), "The radios");
+        assert_eq!(clause("Frames; and more."), "Frames");
     }
 
     #[test]

@@ -62,6 +62,8 @@ name = "BME280"
 vendor = "Bosch Sensortec"
 interface = "I2C up to 3.4 MHz, or SPI up to 10 MHz"
 summary = "Reports humidity, pressure and temperature as raw counts plus per-chip calibration coefficients, which the driver compensates."
+does = "Humidity, pressure, temperature"
+choose = "Weather on one chip, over I2C or SPI, at 3.6 µA sampling once a second"
 specs = [
   "Ranges: 0 to 100 %RH, 300 to 1100 hPa, -40 to +85 °C",
   "Accuracy: ±3 %RH from 20 to 80 %RH at 25 °C, ±1.0 hPa, ±0.5 °C from 0 to 65 °C",
@@ -107,6 +109,8 @@ name = "DS18B20"
 vendor = "Analog Devices, originally Maxim Integrated"
 interface = "1-Wire, many devices on one pin"
 summary = "A digital thermometer that returns Celsius over a single data line, each part carrying its own 64-bit serial code so a bus can hold many."
+does = "Temperature"
+choose = "Many thermometers on one pin, -55 to +125 °C, powered from the data line if need be"
 specs = [
   "Range: -55 °C to +125 °C",
   "Accuracy: ±0.5 °C from -10 °C to +85 °C",
@@ -153,6 +157,8 @@ name = "INA219"
 vendor = "Texas Instruments"
 interface = "I2C, 16 addresses from two pins"
 summary = "Measures the drop across an external shunt and the bus voltage, and reports current and power once its calibration register is set."
+does = "Current, voltage, power"
+choose = "Loads up to 26 V, with a shunt range you set"
 specs = [
   "Bus voltage: senses 0 to 26 V",
   "Shunt full scale: ±40, ±80, ±160 or ±320 mV by PGA setting",
@@ -197,7 +203,9 @@ group = "sensors"
 name = "ADS1115"
 vendor = "Texas Instruments"
 interface = "I2C, four addresses from one pin"
-summary = "A 16-bit delta-sigma ADC that digitises four single-ended or two differential inputs through a programmable gain amplifier."
+summary = "A 16-bit delta-sigma ADC that digitizes four single-ended or two differential inputs through a programmable gain amplifier."
+does = "Analog voltage"
+choose = "Reading an analog sensor: four inputs at 16 bits, with gain for small signals"
 specs = [
   "Resolution: 16 bits",
   "Inputs: four single-ended or two differential",
@@ -243,6 +251,8 @@ name = "SHT3x-DIS"
 vendor = "Sensirion"
 interface = "I2C up to 1 MHz, with optional clock stretching"
 summary = "Reports humidity and temperature as calibrated 16-bit words, each followed by a CRC-8, which the driver checks and converts with the fixed linear formulas."
+does = "Humidity, temperature"
+choose = "Humidity to ±1.5 %RH on the SHT35, with a CRC on every reading"
 specs = [
   "Ranges: 0 to 100 %RH, -40 to +125 °C",
   "Accuracy: typical ±2 %RH and ±0.2 °C (SHT30, SHT31), ±1.5 %RH and ±0.1 °C (SHT35)",
@@ -289,6 +299,8 @@ name = "SCD40 and SCD41"
 vendor = "Sensirion"
 interface = "I2C at 0x62, up to 100 kHz"
 summary = "A photoacoustic NDIR CO2 sensor with a built-in humidity and temperature sensor; every word it sends carries a CRC-8 the driver checks."
+does = "CO2, humidity, temperature"
+choose = "Indoor air, with CO2 measured directly by photoacoustic NDIR"
 specs = [
   "CO2 range: 0 to 40000 ppm output; specified 400 to 2000 ppm (SCD40) and 400 to 5000 ppm (SCD41)",
   "CO2 accuracy: ±(50 ppm + 5 %) for the SCD40, ±(40 ppm + 5 %) for the SCD41",
@@ -334,6 +346,8 @@ name = "TMP117"
 vendor = "Texas Instruments"
 interface = "I2C and SMBus, 1 kHz to 400 kHz, four addresses from one pin"
 summary = "A 16-bit digital thermometer accurate to ±0.1 °C with no calibration, with programmable alert limits, a user offset, and 48 bits of EEPROM."
+does = "Temperature"
+choose = "±0.1 °C from -20 to 50 °C with no calibration, and alert limits"
 specs = [
   "Range: -55 °C to +150 °C",
   "Accuracy: ±0.1 °C from -20 °C to 50 °C, ±0.3 °C over the full range",
@@ -373,6 +387,8 @@ name = "HDC1080"
 vendor = "Texas Instruments"
 interface = "I2C, 10 to 400 kHz"
 summary = "Reports humidity and temperature as 16-bit fractions of full scale with no per-chip calibration, which the driver decodes in exact integer arithmetic alongside the configuration register."
+does = "Humidity, temperature"
+choose = "Humidity in the under $5 band, ±2 %RH typical, 1.3 µA average"
 specs = [
   "Ranges: 0 to 100 %RH; temperature sensor -40 to +125 °C, humidity sensor -20 to +70 °C (functional to +85 °C)",
   "Accuracy: ±2 %RH typical; ±0.2 °C typical, ±0.4 °C max from 5 to 60 °C",
@@ -410,6 +426,8 @@ name = "OPT3001"
 vendor = "Texas Instruments"
 interface = "I2C or SMBus up to 2.6 MHz, four addresses from the ADDR pin, INT pin"
 summary = "A single-chip lux meter filtered to the human eye's response that reports illuminance as a 4-bit exponent and 12-bit mantissa, ranging itself across twelve full-scale settings."
+does = "Light, in lux"
+choose = "Light as the eye sees it, 0.01 to 83865.6 lux, ranging itself"
 specs = [
   "Range: 0.01 to 83865.6 lux, 12 binary-weighted full-scale ranges or automatic ranging",
   "Resolution: 0.01 lux per LSB at the lowest range, 23-bit effective dynamic range",
@@ -441,6 +459,8 @@ name = "INA226"
 vendor = "Texas Instruments"
 interface = "I2C or SMBus up to 2.94 MHz, 16 addresses from two pins"
 summary = "Measures the drop across a shunt and the bus voltage on either side of the load, reports current and power once calibrated, and drives an alert pin from one programmable limit."
+does = "Current, voltage, power"
+choose = "Loads up to 36 V at 16 bits and 0.1 % gain error, with an alert pin"
 specs = [
   "Bus voltage: senses 0 to 36 V, 1.25 mV per count",
   "Shunt full scale: ±81.92 mV, 2.5 µV per count",
@@ -479,6 +499,8 @@ name = "BMP280"
 vendor = "Bosch Sensortec"
 interface = "I2C up to 3.4 MHz, or SPI (3 or 4 wire) up to 10 MHz"
 summary = "Reports barometric pressure and temperature as 20-bit raw counts plus per-chip calibration coefficients, which the driver compensates; the BME280 without the humidity element."
+does = "Pressure, temperature"
+choose = "Altitude or weather without humidity, at 2.8 µA once a second"
 specs = [
   "Ranges: 300 to 1100 hPa, -40 to +85 °C (full accuracy 0 to +65 °C)",
   "Accuracy: ±1.0 hPa absolute from 0 to 65 °C, ±0.12 hPa relative from 700 to 900 hPa, ±0.5 °C at 25 °C",
@@ -525,6 +547,8 @@ name = "PCA9685"
 vendor = "NXP Semiconductors"
 interface = "I2C, up to 62 devices per bus"
 summary = "A 16-channel PWM generator that produces servo and dimming pulses; each output sinks 25 mA, so load current is switched by an external driver."
+does = "PWM for servos and dimming"
+choose = "Sixteen servos or lights from one I2C bus, 12 bits each at one shared frequency"
 specs = [
   "Channels: 16, all sharing one frequency",
   "Resolution: 12-bit, 4096 steps per output",
@@ -570,6 +594,8 @@ name = "ULN2003A"
 vendor = "Texas Instruments"
 interface = "seven logic inputs, one per channel"
 summary = "A Darlington array that switches the coil current directly, for the four-wire steppers the coil sequencer walks a pattern across."
+does = "Switches coils and relays"
+choose = "Small four-wire steppers and relays, 500 mA a channel up to 50 V"
 specs = [
   "Channels: seven NPN Darlington pairs",
   "Collector current: 500 mA rated, single output",
@@ -614,6 +640,8 @@ name = "A4988"
 vendor = "Allegro MicroSystems"
 interface = "step and direction, with three mode pins"
 summary = "A bipolar stepper driver that turns one pulse on STEP into one microstep, sequencing the coils and regulating current in hardware."
+does = "Bipolar stepper driver"
+choose = "Bipolar steppers up to 35 V and ±2 A, down to 1/16 step"
 specs = [
   "Motor supply: 8 to 35 V",
   "Output current: ±2 A maximum",
@@ -659,6 +687,8 @@ name = "DRV8825"
 vendor = "Texas Instruments"
 interface = "step and direction, with three mode pins"
 summary = "A bipolar stepper driver with two H-bridges and an indexer, taking step and direction down to 1/32 step."
+does = "Bipolar stepper driver"
+choose = "Bipolar steppers up to 45 V and down to 1/32 step, reporting its own faults"
 specs = [
   "Motor supply: 8.2 to 45 V",
   "Output current: up to 2.5 A per output at 24 V and 25 °C, with heat sinking",
@@ -704,6 +734,8 @@ name = "SX1276"
 vendor = "Semtech"
 interface = "SPI"
 summary = "The sub-GHz LoRa and FSK transceiver on most 137 to 1020 MHz end devices, and the radio a pamoja airtime budget is computed for."
+does = "LoRa and FSK transceiver"
+choose = "Boards already built around it, anywhere from 137 to 1020 MHz"
 specs = [
   "Coverage: 137 MHz to 1020 MHz",
   "Modulation: LoRa, FSK, GFSK, MSK, GMSK and OOK",
@@ -749,6 +781,8 @@ name = "SX1262"
 vendor = "Semtech"
 interface = "SPI"
 summary = "The later sub-GHz LoRa transceiver, covering 150 to 960 MHz with a higher power amplifier and a much lower receive current."
+does = "LoRa transceiver"
+choose = "A new end device: +22 dBm out, 4.6 mA receiving, 150 to 960 MHz"
 specs = [
   "Coverage: 150 MHz to 960 MHz, continuous",
   "Modulation: LoRa, LR-FHSS, FSK, GFSK, MSK and GMSK",
@@ -810,6 +844,8 @@ name = "LLCC68"
 vendor = "Semtech"
 interface = "SPI"
 summary = "A sub-GHz LoRa transceiver for medium-range indoor and indoor-to-outdoor links, pin-to-pin compatible with the SX1262."
+does = "LoRa transceiver"
+choose = "Medium-range indoor links, on an SX1262 footprint"
 specs = [
   "Transmit power: +22 dBm high efficiency amplifier",
   "Receive current: 4.6 mA",
@@ -845,6 +881,8 @@ name = "SX1302"
 vendor = "Semtech"
 interface = "SPI"
 summary = "The LoRa baseband chip for gateways: it listens across many channels and spreading factors at once, behind separate RF front ends, and draws far less current than the chips before it."
+does = "Gateway baseband chip"
+choose = "A gateway that hears many channels and spreading factors at once"
 specs = [
   "Sensitivity: up to -141 dBm with the SX1250 front end",
   "125 kHz reception: 8 x 8 channel packet detectors, 8 SF5 to SF12 and 8 SF5 to SF10 demodulators",
@@ -853,7 +891,7 @@ specs = [
   "Clock and package: a single 32 MHz clock, QFN68",
 ]
 cost = "$5 to $20"
-crates = ["pamoja-lora", "pamoja-radios"]
+crates = ["pamoja-lora", "pamoja-radios", "pamoja-gateway"]
 modules = ["pamoja-radios/src/sx1302.rs"]
 source_name = "SX1302 product page, Semtech LoRa Core"
 source_label = "Semtech SX1302"
@@ -880,6 +918,8 @@ name = "SX1303"
 vendor = "Semtech"
 interface = "SPI"
 summary = "The SX1302's size and pin compatible successor, which adds a fine timestamp so a network can locate a node by time difference of arrival."
+does = "Gateway baseband chip"
+choose = "A gateway that also timestamps finely enough to locate a node"
 specs = [
   "Fine timestamp for time difference of arrival (TDOA) network geolocation",
   "Sensitivity: up to -141 dBm with the SX1250 front end",
@@ -888,7 +928,7 @@ specs = [
   "Compatibility: size and pin compatible with the SX1302, with all of its features",
 ]
 cost = "$60 to $200"
-crates = ["pamoja-lora", "pamoja-radios"]
+crates = ["pamoja-lora", "pamoja-radios", "pamoja-gateway"]
 modules = ["pamoja-radios/src/sx1302.rs"]
 source_name = "SX1303 product page, Semtech LoRa Core"
 source_label = "Semtech SX1303"
@@ -915,6 +955,8 @@ name = "SX1250"
 vendor = "Semtech"
 interface = "SPI"
 summary = "The sub-GHz RF front end a gateway pairs with the SX1302, covering any license-free band below 1 GHz."
+does = "Gateway RF front end"
+choose = "Pairing with an SX1302 or SX1303; it comes on the gateway cards"
 specs = [
   "Coverage: 150 to 960 MHz ISM bands",
   "Operation: half duplex, capable of low power operation",
@@ -923,7 +965,8 @@ specs = [
   "Control: SPI and a set of general purpose DIO lines",
 ]
 cost = "$5 to $20"
-crates = ["pamoja-lora"]
+crates = ["pamoja-lora", "pamoja-radios", "pamoja-gateway"]
+modules = ["pamoja-radios/src/sx1302/sx1250.rs"]
 source_name = "SX1250 product page, Semtech LoRa Core"
 source_label = "Semtech SX1250"
 source = "https://www.semtech.com/products/wireless-rf/lora-core/sx1250"
@@ -956,6 +999,8 @@ name = "RAK2287 WisLink concentrator"
 vendor = "RAKwireless"
 interface = "mini PCIe, SPI"
 summary = "An SX1302 concentrator on a mini PCIe card, with two SX1250 front ends, a U.FL antenna connector and a GPS for timing."
+does = "SX1302 gateway card"
+choose = "A gateway over SPI, with a GPS for timing"
 specs = [
   "Chips: one SX1302 and two SX1250",
   "Radio: Tx power up to 27 dBm, Rx sensitivity down to -139 dBm at SF12, BW 125 kHz",
@@ -964,7 +1009,8 @@ specs = [
   "Host: SPI and 3.3 V aux through the mini PCIe connector; ZOE-M8Q GPS with its PPS wired to the SX1302",
 ]
 cost = "$60 to $200"
-crates = ["pamoja-lora"]
+crates = ["pamoja-lora", "pamoja-radios", "pamoja-gateway"]
+page = "boards/gateway.md"
 source_name = "RAK2287 WisLink LPWAN Concentrator Datasheet, RAKwireless Documentation Center"
 source_label = "RAKwireless RAK2287"
 source = "https://docs.rakwireless.com/product-categories/wislink/rak2287/datasheet/"
@@ -990,6 +1036,8 @@ name = "RAK5146 WisLink concentrator"
 vendor = "RAKwireless"
 interface = "mini PCIe, SPI or USB"
 summary = "An SX1303 concentrator on a mini PCIe card, with two SX1250 front ends, an SX126x for listen before talk, and an onboard GPS."
+does = "SX1303 gateway card"
+choose = "A gateway over SPI or USB, with listen before talk and a GPS"
 specs = [
   "Chips: one SX1303 and two SX1250, with an SX126x for listen before talk",
   "Radio: Tx power up to 27 dBm, Rx sensitivity down to -139 dBm at SF12, BW 125 kHz",
@@ -998,7 +1046,8 @@ specs = [
   "Host: SPI or USB through the mini PCIe connector, powered from 3.3 V aux",
 ]
 cost = "$60 to $200"
-crates = ["pamoja-lora"]
+crates = ["pamoja-lora", "pamoja-radios", "pamoja-gateway"]
+page = "boards/gateway.md"
 source_name = "RAK5146 WisLink LoRaWAN Concentrator Datasheet, RAKwireless Documentation Center"
 source_label = "RAKwireless RAK5146"
 source = "https://docs.rakwireless.com/product-categories/wislink/rak5146/datasheet/"
@@ -1024,6 +1073,8 @@ name = "WM1302 LoRaWAN gateway module"
 vendor = "Seeed Studio"
 interface = "mini PCIe, SPI or USB"
 summary = "An SX1302 gateway module on a mini PCIe card with the standard 52-pin edge connector, in SPI and USB versions for EU868 and US915."
+does = "SX1302 gateway module"
+choose = "A gateway over SPI or USB, in EU868 and US915 versions"
 specs = [
   "Chip: the SX1302 baseband with an SX1250 front end",
   "Radio: sensitivity down to -139 dBm at SF12; TX power up to 26 dBm at 3.3 V",
@@ -1032,7 +1083,8 @@ specs = [
   "Form factor: mini PCIe with a 52-pin edge connector",
 ]
 cost = "$5 to $20"
-crates = ["pamoja-lora"]
+crates = ["pamoja-lora", "pamoja-radios", "pamoja-gateway"]
+page = "boards/gateway.md"
 source_name = "LoRaWAN Gateway Module WM1302, Seeed Studio Wiki"
 source_label = "Seeed Studio WM1302"
 source = "https://wiki.seeedstudio.com/WM1302_module/"
@@ -1058,6 +1110,8 @@ name = "ESP-NOW"
 vendor = "Espressif Systems"
 interface = "Wi-Fi PHY, vendor-specific action frames"
 summary = "Espressif's connectionless protocol: short packets straight between Wi-Fi devices with no access point and no association step."
+does = "Wi-Fi links with no access point"
+choose = "Short packets between ESP32 boards with no router, up to 20 peers"
 specs = [
   "Payload: 250 bytes on v1.0 devices, 1470 bytes on v2.0",
   "Default bit rate: 1 Mbps",
@@ -1102,12 +1156,13 @@ group = "targets"
 name = "Raspberry Pi 5"
 vendor = "Raspberry Pi Ltd"
 summary = "The gateway-class Linux board: the full std build, every transport, and the dashboard."
+does = "Linux board"
+choose = "A gateway or the dashboard: the full std build and every transport"
 specs = [
   "SoC: Broadcom BCM2712, quad-core 64-bit Arm Cortex-A76 at 2.4 GHz",
   "Memory: LPDDR4X, in 1, 2, 4, 8 and 16 GB",
   "Connectivity: gigabit Ethernet with PoE+ via a HAT, dual-band 802.11ac, Bluetooth 5.0",
   "I/O: the standard 40-pin header, two USB 3.0 and two USB 2.0 ports, a UART debug port",
-  "Note: the 16 GB model lists at $305, above the band the smaller ones fall in",
 ]
 cost = "$60 to $200"
 page = "boards/raspberry-pi.md"
@@ -1146,6 +1201,8 @@ group = "targets"
 name = "Raspberry Pi Zero 2 W"
 vendor = "Raspberry Pi Ltd"
 summary = "The small, low-cost Linux board, running the same std build as the Pi 5 on the same 40-pin footprint."
+does = "Small Linux board"
+choose = "The same std build as the Pi 5, on a smaller and cheaper board"
 specs = [
   "SoC: RP3A0, quad-core 64-bit Arm Cortex-A53 at 1 GHz",
   "Memory: 512 MB",
@@ -1189,6 +1246,8 @@ group = "targets"
 name = "ESP32"
 vendor = "Espressif Systems"
 summary = "The Wi-Fi and Bluetooth microcontroller behind most small sensor nodes, with the buses above and a CAN controller on chip."
+does = "Wi-Fi microcontroller"
+choose = "A sensor node with Wi-Fi, Bluetooth and CAN on the chip"
 specs = [
   "CPU: Xtensa 32-bit LX6, single or dual core, up to 240 MHz",
   "Memory: 448 KB ROM, 520 KB SRAM, 16 KB RTC SRAM",
@@ -1234,6 +1293,8 @@ name = "ArduPilot"
 vendor = "ArduPilot Dev Team"
 interface = "MAVLink"
 summary = "Open autopilot firmware for copters, planes, rovers and submarines; the firmware is free, and the flight controller it runs on is what costs money."
+does = "Autopilot firmware"
+choose = "Copters, planes, rovers and submarines over MAVLink, under the GPL"
 specs = [
   "Vehicles: multicopters, helicopters, fixed wing, rovers, submarines and antenna trackers",
   "Protocol: MAVLink between ground station, flight controller and peripherals",
@@ -1270,6 +1331,8 @@ name = "PX4 Autopilot"
 vendor = "Dronecode Foundation"
 interface = "MAVLink"
 summary = "Open autopilot firmware for multirotors, fixed wing, VTOL, helicopters and rovers, under a permissive license; again, the board is the cost."
+does = "Autopilot firmware"
+choose = "Multirotors, fixed wing and VTOL over MAVLink, under a BSD license"
 specs = [
   "Vehicles: multirotors, fixed wing, VTOL, helicopters and rovers",
   "Protocol: MAVLink for the ground station link",
@@ -1306,6 +1369,8 @@ name = "Pixhawk standard"
 vendor = "Dronecode Foundation"
 interface = "standardized connectors and pin-outs"
 summary = "The open hardware standard that fixes flight controller pin-outs, connectors and layout so boards from different vendors interchange; a board built to it is what costs money."
+does = "Flight controller standard"
+choose = "Flight controllers that interchange across vendors"
 specs = [
   "Autopilot standards: v5X (DS-011), v6X (DS-012), v6U (DS-016) and v6C (DS-018)",
   "Supporting standards: the connector standard (DS-009), the autopilot bus standard (DS-010) and the payload bus standard (DS-014); a smart battery standard is in draft",
@@ -1348,6 +1413,8 @@ group = "targets"
 name = "Raspberry Pi Pico"
 vendor = "Raspberry Pi Ltd"
 summary = "The RP2040 board: two Cortex-M0+ cores and no operating system, running the no_std crates over its own I2C, SPI, and UART peripherals."
+does = "Microcontroller board"
+choose = "The no_std crates on bare metal, in the under $5 band"
 specs = [
   "Microcontroller: RP2040 with 2 MB flash, dual-core Cortex-M0+ at up to 133 MHz, 264 kB SRAM",
   "I/O: 26 multi-function 3.3 V GPIO on a 40-pin DIP footprint with castellated edges, 3 of them ADC capable",
@@ -1391,6 +1458,8 @@ group = "standards"
 name = "Cortex-M4 with FPU, bare metal"
 vendor = "Arm"
 summary = "The bare-metal target: CI cross-compiles every no_std crate for thumbv7em-none-eabihf, which is this core with its floating-point unit and no operating system."
+does = "Microcontroller core"
+choose = "Knowing a no_std build compiles for a microcontroller with an FPU"
 specs = [
   "Architecture: Armv7-M",
   "Floating point: a built-in single-precision FPU, credited with 10x on single-precision operations",
@@ -1435,6 +1504,8 @@ name = "5.8 dBi fiberglass antenna, 863 to 870 MHz"
 vendor = "RAKwireless"
 interface = "N-type male"
 summary = "An outdoor fiberglass gateway antenna for the European band, an omnidirectional, vertically polarized dipole that comes with its installation kit."
+does = "Outdoor gateway antenna"
+choose = "A mast in Europe: 863 to 870 MHz, omnidirectional"
 specs = [
   "Band: 863 to 870 MHz",
   "Gain: 5.8 dBi peak as specified; 6.15 to 6.33 dBi measured from 864 to 870 MHz",
@@ -1470,6 +1541,8 @@ name = "5.8 dBi fiberglass antenna, 902 to 928 MHz"
 vendor = "RAKwireless"
 interface = "N-type male"
 summary = "An outdoor fiberglass gateway antenna for the 902 to 928 MHz band, an omnidirectional, vertically polarized dipole that comes with its installation kit."
+does = "Outdoor gateway antenna"
+choose = "A mast on 902 to 928 MHz, omnidirectional"
 specs = [
   "Band: 902 to 930 MHz",
   "Gain: 5.8 dBi peak as specified; 5.4 to 6.1 dBi measured from 902 to 930 MHz",
@@ -1505,6 +1578,8 @@ name = "MHF to SMA or RP-SMA pigtail"
 vendor = "RAKwireless"
 interface = "MHF-1 or MHF-4 to SMA or RP-SMA"
 summary = "The short coaxial lead from a module's MHF (U.FL-type) socket to a bulkhead connector on the enclosure wall, where the antenna screws on."
+does = "Pigtail, MHF to SMA"
+choose = "Bringing a concentrator's MHF socket out to the enclosure wall"
 specs = [
   "Connectors: MHF-1 or MHF-4 on one end, RP-SMA or SMA with a nut and washer on the other",
   "Lengths: 65, 100 and 220 mm",
@@ -1530,6 +1605,8 @@ name = "SMA to u.FL adapter cable"
 vendor = "Adafruit"
 interface = "u.FL to panel-mount SMA"
 summary = "A short RG178 lead from a board's u.FL socket to an SMA connector fixed through the enclosure wall, where an SMA antenna screws on."
+does = "Pigtail, u.FL to SMA"
+choose = "A node board's u.FL socket out to an SMA antenna, 15 cm"
 specs = [
   "Cable: RG178, 15 cm (5.9 in) long, not counting the SMA connector",
   "Connectors: u.FL, also sold as IPEX, IPX or MHF, to a panel-mount SMA",
@@ -1562,6 +1639,8 @@ name = "N-type lightning arrestor"
 vendor = "RAKwireless"
 interface = "N-type male to N-type female"
 summary = "A surge protective device for a gateway's antenna line, fitted on each N-type antenna terminal."
+does = "Surge arrestor"
+choose = "A mast line up to 2700 MHz, sealed to IP67"
 specs = [
   "Frequency range: 0 to 2700 MHz, 50 ohms",
   "Loss: 0.2 dB or less from 0 to 2000 MHz",
@@ -1596,6 +1675,8 @@ name = "N-type lightning surge protector, DC to 6 GHz"
 vendor = "L-com"
 interface = "N-type male to bulkhead N-type female"
 summary = "A gas discharge tube surge protector for an antenna line, with a replaceable tube, DC passing through, and a bulkhead port that seals through an enclosure wall with an O-ring."
+does = "Surge protector"
+choose = "A line up to 6 GHz, with a replaceable gas tube and a sealed bulkhead"
 specs = [
   "Frequency range: DC to 6 GHz, 50 ohms",
   "Loss: insertion loss of 0.6 dB or less and VSWR of 1.2:1 or better, DC to 6 GHz",

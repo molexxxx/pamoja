@@ -469,6 +469,14 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- The hardware page opens each group with a numbered selection table: every part with what
+  it does, how it connects, when to pick it over its neighbors, and the lowest price listed,
+  linked to its card. The page states the days its prices were read, generated from the
+  catalog, in place of a promise about their age. The stepper driver cards no longer say
+  their guide covers only PWM and servos, the concentrator cards link the gateway guide, the
+  gateway build page and the crates that drive them, and the SX1250 card names its driver.
+  The LoRa radios capability now says it covers the SX1302 and SX1303 concentrators, which it
+  has since they shipped.
 - The hardware page's weekly price refresh lands again, and tells a listing that is gone
   from a store that refused to answer. It had read every store since 2026-09-07 and then
   failed to push, because the checkout's own read-only token took the place of the one
