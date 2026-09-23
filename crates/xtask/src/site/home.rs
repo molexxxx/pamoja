@@ -1150,6 +1150,8 @@ detail = "With partners."
                 guides: Vec::new(),
                 next: Vec::new(),
                 pages: Vec::new(),
+                rust_items: Vec::new(),
+                rust_crate: None,
             }],
             ..bare()
         }

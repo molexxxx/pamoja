@@ -4,7 +4,9 @@
 # crate must be claimed exactly once, the node keys must match the packages under
 # bindings/node/packages (or be "core" for a surface the engine carries itself), the
 # python keys must match the
-# package exports and modules, and every dotnet name must be a declared type.
+# package exports and modules, and every dotnet name must be a declared type. A
+# capability with no crate of its own names the Rust items its guide uses in
+# rust_items, and their crate in rust_crate when it is not pamoja-core.
 
 [[chapter]]
 key = "identity"
@@ -203,6 +205,7 @@ chapter = "sensing"
 title = "Your own device"
 summary = "A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in"
 crates = []
+rust_items = ["Sensor", "Actuator"]
 node = "core"
 python = "core"
 dotnet = []
@@ -475,6 +478,7 @@ chapter = "transports"
 title = "Engine surface"
 summary = "The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version"
 crates = []
+rust_items = ["Transport", "Receive"]
 node = "core"
 python = "core"
 dotnet = ["Transport", "TransportMessage"]
@@ -487,6 +491,7 @@ chapter = "transports"
 title = "Your own link"
 summary = "A link pamoja does not ship, written in your language against the transport contract and composed like any other"
 crates = []
+rust_items = ["Transport", "Receive"]
 node = "core"
 python = "core"
 dotnet = ["Transport", "ITransportHandlers", "IReceivingTransportHandlers"]
@@ -524,6 +529,8 @@ chapter = "profiles"
 title = "Rules"
 summary = "Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link"
 crates = []
+rust_items = ["Rules", "RuleEngine"]
+rust_crate = "pamoja-profile"
 node = "kit"
 python = "kit"
 dotnet = []
